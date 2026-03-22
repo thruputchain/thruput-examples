@@ -16,6 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install libc++ (required by hogd FFI library)
+        run: sudo apt-get update && sudo apt-get install -y libc++-dev
+
       - name: Set up Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -27,7 +30,7 @@ jobs:
       - name: Check format
         run: cargo fmt --check
 
-      - name: Build
+      - name: Build (wasm)
         run: cargo build --all --target=wasm32-unknown-unknown
 
       - name: Run tests
