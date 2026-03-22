@@ -8,16 +8,16 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     env:
       HOGD_FFI_PASSWORD: ${{ secrets.HOGD_FFI_PASSWORD }}
       CARGO_REGISTRIES_GROUNDHOG_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
       CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install libc++ (required by hogd FFI library)
-        run: sudo apt-get update && sudo apt-get install -y libc++-dev
+      - uses: actions/checkout@v6
 
       - name: Set up Rust toolchain
         uses: actions-rs/toolchain@v1
