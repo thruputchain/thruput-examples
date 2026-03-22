@@ -1,5 +1,5 @@
 [workspace]
-members = ["fibonacci", "cross-call", "error-handling-callee"]
+members = ["fibonacci", "cross-call", "error-handling-callee", "error-handling-caller"]
 resolver = "2"
 
 [workspace.package]
