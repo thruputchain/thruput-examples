@@ -35,4 +35,23 @@ impl ErrorHandlingCaller {
             _ => false,
         }
     }
+
+    /// Call the callee's fault method, catch the Fault, and return true.
+    pub fn call_and_catch_fault(callee: &ContractAddress) -> bool {
+        let mut client = ErrorHandlingCalleeClient::new(callee);
+        match client.try_fault() {
+            Err(CallError::Fault(_)) => true,
+            _ => false,
+        }
+    }
+
+    /// Call the callee's spin method with a gas limit. If the callee runs out of gas,
+    /// catch the Fault and return true.
+    pub fn call_with_gas_limit(callee: &ContractAddress, iterations: u32, gas_limit: u64) -> bool {
+        let mut client = ErrorHandlingCalleeClient::new(callee);
+        match client.with_gas_limit(gas_limit).try_spin(iterations) {
+            Err(CallError::Fault(_)) => true,
+            _ => false,
+        }
+    }
 }
