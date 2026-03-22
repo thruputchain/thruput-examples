@@ -1,0 +1,23 @@
+[package]
+name = "cross-call"
+description = "Example cross-contract call patterns"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[features]
+dev = ["sdk/dev", "fibonacci/dev"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+test = false
+
+[dependencies]
+sdk = { workspace = true, features = ["debugging"] }
+fibonacci = { path = "../fibonacci" }
+xdrs = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+cross-call = { path = ".", features = ["dev"] }
