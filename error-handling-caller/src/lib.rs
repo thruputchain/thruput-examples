@@ -54,4 +54,27 @@ impl ErrorHandlingCaller {
             _ => false,
         }
     }
+
+    /// Call try_succeed on an address where no contract is deployed.
+    /// Catches the resulting error and returns true.
+    pub fn call_nonexistent_address() -> bool {
+        // Arbitrary address with no contract deployed
+        let fake_addr: ContractAddress = [0xFFu8; 32].into();
+        let mut client = ErrorHandlingCalleeClient::new(&fake_addr);
+        match client.try_succeed(42) {
+            Err(_) => true,
+            Ok(_) => false,
+        }
+    }
+
+    /// Point an ErrorHandlingCalleeClient at a fibonacci contract and call try_succeed.
+    /// The fibonacci contract doesn't have a `succeed` method, so this should fail.
+    /// Catches the resulting error and returns true.
+    pub fn call_wrong_contract(fib_address: &ContractAddress) -> bool {
+        let mut client = ErrorHandlingCalleeClient::new(fib_address);
+        match client.try_succeed(42) {
+            Err(_) => true,
+            Ok(_) => false,
+        }
+    }
 }

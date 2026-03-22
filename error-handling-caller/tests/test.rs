@@ -1,9 +1,11 @@
 use error_handling_callee::*;
 use error_handling_caller::*;
+use fibonacci::*;
 use sdk::*;
 
 static CALLEE_NONCE: SHA256Hash = sdk::sha256_static!("ERROR_HANDLING_CALLEE_NONCE");
 static CALLER_NONCE: SHA256Hash = sdk::sha256_static!("ERROR_HANDLING_CALLER_NONCE");
+static FIB_NONCE: SHA256Hash = sdk::sha256_static!("ERROR_HANDLING_FIB_NONCE");
 
 /// Set up both contracts in a test environment.
 fn setup() -> (TestEnvironmentHandle, SHA256Hash, SHA256Hash) {
@@ -92,6 +94,47 @@ fn test_gas_exhaustion_caught() {
 
             // Gas limit of 1 is guaranteed too small for 1000 sha256 iterations
             assert!(client.call_with_gas_limit(&callee_addr, 1000, 1));
+        })
+    });
+    result.assert_success();
+}
+
+// ── Nonexistent address ───────────────────────────────────────────────────
+
+#[test]
+fn test_nonexistent_address() {
+    let (env, _callee_hash, caller_hash) = setup();
+
+    let result = env.transact(|tx| {
+        tx.call(&[1u8; 32].into()).run(|| {
+            let caller_addr = deploy_contract(&CALLER_NONCE, &caller_hash);
+            let mut client = ErrorHandlingCallerClient::new(&caller_addr);
+
+            assert!(client.call_nonexistent_address());
+        })
+    });
+    result.assert_success();
+}
+
+// ── Wrong contract (fibonacci instead of callee) ──────────────────────────
+
+#[test]
+fn test_wrong_contract() {
+    let env = TestEnvironment::no_cost();
+
+    let fib_contract = fibonacci::test_setup::register(&env);
+    let fib_hash = env.setup_create_contract(&fib_contract);
+
+    let caller_contract = error_handling_caller::test_setup::register(&env);
+    let caller_hash = env.setup_create_contract(&caller_contract);
+
+    let result = env.transact(|tx| {
+        tx.call(&[1u8; 32].into()).run(|| {
+            let fib_addr = deploy_contract(&FIB_NONCE, &fib_hash);
+            let caller_addr = deploy_contract(&CALLER_NONCE, &caller_hash);
+            let mut client = ErrorHandlingCallerClient::new(&caller_addr);
+
+            assert!(client.call_wrong_contract(&fib_addr));
         })
     });
     result.assert_success();
