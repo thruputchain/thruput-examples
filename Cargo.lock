@@ -476,9 +476,9 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "groundhog-codegen"
-version = "0.5.0"
+version = "0.5.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "24e963ae29037e648e50cf278b95c60a68ae8cd32b3532e4687f7959bc1ae16d"
+checksum = "97f8f7006dcffdd9959804565800d0f904b4a56400de51535841a46dc4949cb7"
 dependencies = [
  "darling",
  "groundhog-contract-util",
@@ -492,9 +492,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-contract-util"
-version = "0.5.0"
+version = "0.5.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "10060d0106c5f921f8e8ddb32532e9280c72e2b86e7285230b8b6a0208aa1b0f"
+checksum = "79571388f481becc543356f4e00f48285cdcca7c8fd44985a80b6b2d7274ab1f"
 dependencies = [
  "groundhog-xdr",
  "semver",
@@ -505,18 +505,18 @@ dependencies = [
 
 [[package]]
 name = "groundhog-event"
-version = "0.5.0"
+version = "0.5.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "d682b0f07bd8fdd7762ded0356711c38564941a181ee4b44bf79101cae850a5a"
+checksum = "7a3f38c7cf88006f567e33f9767849597eac88f497c610b13ccedbf20db63b07"
 dependencies = [
  "xdrs",
 ]
 
 [[package]]
 name = "groundhog-macros"
-version = "0.5.0"
+version = "0.5.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "6802c30ff2cfebadb257783b9030d0e10c0b3b95ce63652a3569755e3dd96f14"
+checksum = "476b2c7796070693c232d7eccbf54ba275d927b81a9410d63f1f937f6682ff80"
 dependencies = [
  "darling",
  "groundhog-codegen",
@@ -533,9 +533,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-native-exec"
-version = "0.5.0"
+version = "0.5.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "8899c615e7a27b3c37b61f80c34e77f0f8d36fb867ce2113e1d31e970f93fdfc"
+checksum = "b07bbfcbb3e345e790a5a0059ffb5ddbd14f14df9918c0622e7a33e6057ffcaa"
 dependencies = [
  "groundhog-event",
  "groundhog-storage-cost",
@@ -560,9 +560,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-storage-cost"
-version = "0.5.0"
+version = "0.5.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "692f4c384dff604233e486477563fbfe9559cc947ad454d16c772feb269096c9"
+checksum = "0aac90e7da0448a575b3cba66533bad69f9f84ec79df99689961a6d8b1238e0f"
 dependencies = [
  "groundhog-xdr",
  "xdrs",
@@ -570,9 +570,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-sys"
-version = "0.5.0"
+version = "0.5.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "5e6cb4cc701a6b6afe08cb773935b33f36513b396a4a5b61eb02de9e1241e992"
+checksum = "51aece9c8606587584172859cc24982a8809c2ba5dc77e7f1baedaaa7cb6dea2"
 dependencies = [
  "bindgen",
  "cmake",
@@ -1393,9 +1393,9 @@ dependencies = [
 
 [[package]]
 name = "sdk"
-version = "0.5.0"
+version = "0.5.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "aed5835397dd75037ccba3c500c6a62fa3da2cb229468f51663c930d156e7ac7"
+checksum = "f47b7b8b364ffd7d4c97d9f579595a1f9e15f672a7d8b9a37722b36399d1ab4d"
 dependencies = [
  "abort",
  "bitset-core",
