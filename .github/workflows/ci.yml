@@ -22,12 +22,13 @@ jobs:
           toolchain: stable
           override: true
           components: rustfmt
+          target: wasm32-unknown-unknown
 
       - name: Check format
         run: cargo fmt --check
 
       - name: Build
-        run: cargo build --all
+        run: cargo build --all --target=wasm32-unknown-unknown
 
       - name: Run tests
         run: cargo test --all
