@@ -10,10 +10,10 @@ static CROSS_NONCE: SHA256Hash = sdk::sha256_static!("CROSS_CALL_NONCE");
 fn setup() -> (TestEnvironmentHandle, SHA256Hash, SHA256Hash) {
     let env = TestEnvironment::no_cost();
 
-    let fib_contract = fibonacci::test_setup::register(&env);
+    let fib_contract = env.register_mock(Fibonacci::__mock);
     let fib_hash = env.setup_create_contract(&fib_contract);
 
-    let cross_contract = cross_call::test_setup::register(&env);
+    let cross_contract = env.register_mock(CrossCall::__mock);
     let cross_hash = env.setup_create_contract(&cross_contract);
 
     (env, fib_hash, cross_hash)
@@ -214,7 +214,7 @@ fn test_client_test_shorthand() {
     // Demonstrates the simpler client_test API for quick single-contract tests.
     // This doesn't give TransactResult (no event access), but is more concise.
     sdk::client_test(
-        fibonacci::test_setup::register,
+        |env| env.register_mock(Fibonacci::__mock),
         |client: &mut FibonacciClient| {
             assert_eq!(client.compute(10), 55);
         },

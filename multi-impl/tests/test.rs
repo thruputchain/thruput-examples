@@ -9,8 +9,8 @@ fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
     let env = TestEnvironment::no_cost();
     let contract = {
         let mut c = env.add_contract();
-        c.register(<MathContract as Adder>::__register_mock)
-         .register(<MathContract as Multiplier>::__register_mock);
+        c.register(<MathContract as Adder>::__mock)
+            .register(<MathContract as Multiplier>::__mock);
         c.as_contract()
     };
     let contract_hash = env.setup_create_contract(&contract);

@@ -6,8 +6,8 @@ static FIB_NONCE: SHA256Hash = sdk::sha256_static!("FIB_TEST_NONCE");
 /// Helper: set up the fibonacci contract in a test environment.
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
     let env = TestEnvironment::no_cost();
-    let test_contract = test_setup::register(&env);
-    let contract_hash = env.setup_create_contract(&test_contract);
+    let contract = env.register_mock(Fibonacci::__mock);
+    let contract_hash = env.setup_create_contract(&contract);
     (env, contract_hash)
 }
 

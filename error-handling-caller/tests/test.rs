@@ -1,4 +1,6 @@
+use error_handling_callee::ErrorHandlingCallee;
 use error_handling_caller::*;
+use fibonacci::Fibonacci;
 use sdk::*;
 
 static CALLEE_NONCE: SHA256Hash = sdk::sha256_static!("ERROR_HANDLING_CALLEE_NONCE");
@@ -9,10 +11,10 @@ static FIB_NONCE: SHA256Hash = sdk::sha256_static!("ERROR_HANDLING_FIB_NONCE");
 fn setup() -> (TestEnvironmentHandle, SHA256Hash, SHA256Hash) {
     let env = TestEnvironment::no_cost();
 
-    let callee_contract = error_handling_callee::test_setup::register(&env);
+    let callee_contract = env.register_mock(ErrorHandlingCallee::__mock);
     let callee_hash = env.setup_create_contract(&callee_contract);
 
-    let caller_contract = error_handling_caller::test_setup::register(&env);
+    let caller_contract = env.register_mock(ErrorHandlingCaller::__mock);
     let caller_hash = env.setup_create_contract(&caller_contract);
 
     (env, callee_hash, caller_hash)
@@ -120,10 +122,10 @@ fn test_nonexistent_address() {
 fn test_wrong_contract() {
     let env = TestEnvironment::no_cost();
 
-    let fib_contract = fibonacci::test_setup::register(&env);
+    let fib_contract = env.register_mock(Fibonacci::__mock);
     let fib_hash = env.setup_create_contract(&fib_contract);
 
-    let caller_contract = error_handling_caller::test_setup::register(&env);
+    let caller_contract = env.register_mock(ErrorHandlingCaller::__mock);
     let caller_hash = env.setup_create_contract(&caller_contract);
 
     let result = env.transact(|tx| {
