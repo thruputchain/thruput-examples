@@ -43,12 +43,10 @@ fn test_add_overflow() {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
             let mut client = AdderClient::new(&addr);
 
+            // Adding u64::MAX + 1 should throw AdderError::Overflow
             match client.try_add(u64::MAX, 1) {
-                Err(CallError::Abort(ref cross_exn)) => {
-                    let err = cross_exn.as_contract_exn().expect("expected AdderError");
-                    assert_eq!(*err, AdderError::Overflow);
-                }
-                other => panic!("Expected overflow error, got: {:?}", other),
+                Err(AdderClientError::AdderError(AdderError::Overflow)) => {}
+                other => panic!("Expected AdderError::Overflow, got: {:?}", other),
             }
         })
     });
@@ -98,14 +96,10 @@ fn test_multiply_overflow() {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
             let mut client = MultiplierClient::new(&addr);
 
+            // Multiplying u64::MAX * 2 should throw MultiplierError::Overflow
             match client.try_multiply(u64::MAX, 2) {
-                Err(CallError::Abort(ref cross_exn)) => {
-                    let err = cross_exn
-                        .as_contract_exn()
-                        .expect("expected MultiplierError");
-                    assert_eq!(*err, MultiplierError::Overflow);
-                }
-                other => panic!("Expected overflow error, got: {:?}", other),
+                Err(MultiplierClientError::MultiplierError(MultiplierError::Overflow)) => {}
+                other => panic!("Expected MultiplierError::Overflow, got: {:?}", other),
             }
         })
     });

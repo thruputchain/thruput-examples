@@ -28,7 +28,7 @@ fn test_succeed() {
 }
 
 #[test]
-fn test_abort_with_error() {
+fn test_throw_error() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
@@ -36,12 +36,10 @@ fn test_abort_with_error() {
             let addr = deploy_contract(&CALLEE_NONCE, &contract_hash);
             let mut client = ErrorHandlingCalleeClient::new(&addr);
 
-            match client.try_abort_with_error() {
-                Err(CallError::Abort(ref cross_exn)) => {
-                    let err = cross_exn.as_contract_exn().expect("expected CalleeError");
-                    assert_eq!(*err, CalleeError::Deliberate);
-                }
-                other => panic!("Expected abort with Deliberate, got: {:?}", other),
+            // throw_error throws CalleeError::Deliberate
+            match client.try_throw_error() {
+                Err(ErrorHandlingCalleeClientError::CalleeError(CalleeError::Deliberate)) => {}
+                other => panic!("Expected CalleeError::Deliberate, got: {:?}", other),
             }
         })
     });
@@ -57,8 +55,9 @@ fn test_fault() {
             let addr = deploy_contract(&CALLEE_NONCE, &contract_hash);
             let mut client = ErrorHandlingCalleeClient::new(&addr);
 
+            // fault() panics, which becomes a Fault error
             match client.try_fault() {
-                Err(CallError::Fault(_)) => {} // expected
+                Err(ErrorHandlingCalleeClientError::Fault(_)) => {}
                 other => panic!("Expected Fault, got: {:?}", other),
             }
         })

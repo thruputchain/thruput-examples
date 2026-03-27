@@ -1,5 +1,5 @@
 [workspace]
-members = ["fibonacci", "cross-call", "error-handling-callee", "error-handling-caller", "multi-impl-traits", "multi-impl"]
+members = ["fibonacci", "cross-call", "error-handling-callee", "error-handling-caller", "multi-impl-traits", "multi-impl", "multi-throws"]
 resolver = "2"
 
 [workspace.package]
@@ -7,6 +7,5 @@ edition = "2024"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-sdk = { registry = "groundhog", version = "0.6.0" }
+sdk = { registry = "groundhog", version = "0.7.1" }
 xdrs = { registry = "groundhog", version = "0.5.2", features = ["derive", "int128", "heapless"] }
-thiserror = { version = "2.0.12", default-features = false }
