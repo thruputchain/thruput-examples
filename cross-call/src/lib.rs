@@ -1,17 +1,12 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use fibonacci::{FibError, FibonacciClient};
+use fibonacci::{FibError, FibonacciClient, FibonacciClientError};
 use sdk::*;
-use thiserror::Error;
 
 /// Error type for the cross-call contract.
-#[derive(Error, Debug, Clone, PartialEq, ReadXDR, WriteXDR)]
-#[repr(i32)]
+#[contract_error]
 pub enum CrossCallError {
-    #[error("Fibonacci call failed")]
     FibCallFailed = 1,
-
-    #[error("Requested error")]
     Requested = 2,
 }
 
@@ -50,28 +45,22 @@ impl CrossCall {
         result
     }
 
-    /// Call fibonacci using try_*, returning the result or aborting with
+    /// Call fibonacci using try_*, returning the result or throwing
     /// CrossCallError::FibCallFailed on any error.
     pub fn call_fib_or_fail(fib_address: &ContractAddress, n: u64) -> u64 {
         let mut fib = FibonacciClient::new(fib_address);
-        match fib.try_compute(n) {
-            Ok(result) => {
-                log_event(&CrossCallCompleted { input: n, result });
-                result
-            }
-            Err(_) => abort(&CrossCallError::FibCallFailed),
-        }
+        let result = fib.try_compute(n).or_throw(CrossCallError::FibCallFailed);
+        log_event(&CrossCallCompleted { input: n, result });
+        result
     }
 
-    /// Call fibonacci with a value that will cause it to abort (InputTooLarge),
+    /// Call fibonacci with a value that will cause it to throw InputTooLarge,
     /// then catch the error and return true if it was the expected error.
-    pub fn call_fib_and_catch_abort(fib_address: &ContractAddress) -> bool {
+    pub fn call_fib_and_catch_error(fib_address: &ContractAddress) -> bool {
         let mut fib = FibonacciClient::new(fib_address);
-        match fib.try_compute(999) {
-            Err(CallError::Abort(ref cross_exn)) => cross_exn
-                .as_contract_exn()
-                .is_some_and(|e| *e == FibError::InputTooLarge),
-            _ => false,
-        }
+        matches!(
+            fib.try_compute(999),
+            Err(FibonacciClientError::FibError(FibError::InputTooLarge))
+        )
     }
 }

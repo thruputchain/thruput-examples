@@ -47,10 +47,10 @@ fn test_callee_succeeds() {
     result.assert_success();
 }
 
-// ── Callee aborts, caller catches ─────────────────────────────────────────
+// ── Callee throws, caller catches ─────────────────────────────────────────
 
 #[test]
-fn test_callee_abort_caught() {
+fn test_callee_error_caught() {
     let (env, callee_hash, caller_hash) = setup();
 
     let result = env.transact(|tx| {
@@ -58,7 +58,7 @@ fn test_callee_abort_caught() {
             let (callee_addr, caller_addr) = deploy_both(&callee_hash, &caller_hash);
             let mut client = ErrorHandlingCallerClient::new(&caller_addr);
 
-            assert!(client.call_and_catch_abort(&callee_addr));
+            assert!(client.call_and_catch_error(&callee_addr));
         })
     });
     result.assert_success();

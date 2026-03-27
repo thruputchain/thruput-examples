@@ -1,16 +1,13 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
 use sdk::*;
-use thiserror::Error;
 
 /// Maximum input to prevent excessive computation.
 const MAX_FIB_INPUT: u64 = 30;
 
 /// Error type for the Fibonacci contract.
-#[derive(Error, Debug, Clone, PartialEq, ReadXDR, WriteXDR)]
-#[repr(i32)]
+#[contract_error]
 pub enum FibError {
-    #[error("Input too large: max is {}", MAX_FIB_INPUT)]
     InputTooLarge = 1,
 }
 
@@ -42,12 +39,10 @@ pub struct Fibonacci;
 #[contract(throws = FibError, client = FibonacciClient)]
 impl Fibonacci {
     /// Compute the nth Fibonacci number using naive recursion.
-    /// Aborts if n > MAX_FIB_INPUT.
+    /// Throws if n > MAX_FIB_INPUT.
     pub fn compute(n: u64) -> u64 {
         if n > MAX_FIB_INPUT {
-            // A deliberate abort (with an error) returns FibError::InputTooLarge to the caller,
-            // which is visible as an InvocationFrameOutput::Abort(FibError).
-            abort(&FibError::InputTooLarge);
+            throw(FibError::InputTooLarge);
         }
 
         let result = fib(n);

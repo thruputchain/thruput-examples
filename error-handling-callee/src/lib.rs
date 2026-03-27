@@ -1,13 +1,10 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
 use sdk::*;
-use thiserror::Error;
 
 /// Error type for the callee contract.
-#[derive(Error, Debug, Clone, PartialEq, ReadXDR, WriteXDR)]
-#[repr(i32)]
+#[contract_error]
 pub enum CalleeError {
-    #[error("Deliberate error")]
     Deliberate = 1,
 }
 
@@ -21,9 +18,9 @@ impl ErrorHandlingCallee {
         data
     }
 
-    /// Abort with a typed error.
-    pub fn abort_with_error() -> u64 {
-        abort(&CalleeError::Deliberate);
+    /// Throw a typed error.
+    pub fn throw_error() -> u64 {
+        throw(CalleeError::Deliberate);
     }
 
     /// Panic to trigger a VM fault.

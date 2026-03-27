@@ -82,10 +82,10 @@ fn test_try_call_fib_returns_ok() {
     result.assert_success();
 }
 
-// ── Callee aborts, caller catches via try_* ──────────────────────────────
+// ── Callee throws, caller catches via try_* ──────────────────────────────
 
 #[test]
-fn test_callee_abort_caught_by_caller() {
+fn test_callee_error_caught_by_caller() {
     let (env, fib_hash, cross_hash) = setup();
 
     let result = env.transact(|tx| {
@@ -93,15 +93,15 @@ fn test_callee_abort_caught_by_caller() {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
             let mut client = CrossCallClient::new(&cross_addr);
 
-            // call_fib_and_catch_abort calls fib with n=999, catches InputTooLarge
-            assert!(client.call_fib_and_catch_abort(&fib_addr));
+            // call_fib_and_catch_error calls fib with n=999, catches InputTooLarge
+            assert!(client.call_fib_and_catch_error(&fib_addr));
         })
     });
     result.assert_success();
 }
 
 #[test]
-fn test_callee_abort_wrapped_by_caller() {
+fn test_callee_error_wrapped_by_caller() {
     let (env, fib_hash, cross_hash) = setup();
 
     let result = env.transact(|tx| {
@@ -109,16 +109,11 @@ fn test_callee_abort_wrapped_by_caller() {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
             let mut client = CrossCallClient::new(&cross_addr);
 
-            // call_fib_or_fail with n=999 should cause fib to abort,
-            // which cross-call catches and re-aborts as FibCallFailed
+            // call_fib_or_fail with n=999 should cause fib to throw,
+            // which cross-call catches and re-throws as FibCallFailed
             match client.try_call_fib_or_fail(&fib_addr, 999) {
-                Err(CallError::Abort(ref cross_exn)) => {
-                    let err = cross_exn
-                        .as_contract_exn()
-                        .expect("expected CrossCallError");
-                    assert_eq!(*err, CrossCallError::FibCallFailed);
-                }
-                other => panic!("Expected FibCallFailed abort, got: {:?}", other),
+                Err(CrossCallClientError::CrossCallError(CrossCallError::FibCallFailed)) => {}
+                other => panic!("Expected CrossCallError::FibCallFailed, got: {:?}", other),
             }
         })
     });

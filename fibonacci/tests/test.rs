@@ -41,13 +41,10 @@ fn test_fib_input_too_large_aborts() {
             let addr = deploy_contract(&FIB_NONCE, &contract_hash);
             let mut client = FibonacciClient::new(&addr);
 
-            // n=31 exceeds MAX_FIB_INPUT (30) — should abort
+            // n=31 exceeds MAX_FIB_INPUT (30) — should throw FibError::InputTooLarge
             match client.try_compute(31) {
-                Err(CallError::Abort(ref cross_exn)) => {
-                    let err = cross_exn.as_contract_exn().expect("expected FibError");
-                    assert_eq!(*err, FibError::InputTooLarge);
-                }
-                other => panic!("Expected abort with InputTooLarge, got: {:?}", other),
+                Err(FibonacciClientError::FibError(FibError::InputTooLarge)) => {}
+                other => panic!("Expected FibError::InputTooLarge, got: {:?}", other),
             }
         })
     });

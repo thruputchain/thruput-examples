@@ -18,7 +18,6 @@ sdk = { workspace = true, features = ["debugging"] }
 error-handling-callee = { path = "../error-handling-callee" }
 fibonacci = { path = "../fibonacci" }
 xdrs = { workspace = true }
-thiserror = { workspace = true }
 
 [dev-dependencies]
 error-handling-caller = { path = ".", features = ["dev"] }
