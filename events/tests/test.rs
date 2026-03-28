@@ -84,12 +84,12 @@ fn test_tagged_action_with_hashed_topics() {
     // Non-32-byte topic values are XDR-encoded then SHA-256 hashed.
     use sha2::{Digest, Sha256};
     let expected_category: [u8; 32] = {
-        let encoded = xdrs::cxs::encode(&"audit").unwrap();
-        Sha256::digest(&encoded).into()
+        let encoded = encode_xdr(&"audit").unwrap();
+        Sha256::digest(encoded.as_ref()).into()
     };
     let expected_code: [u8; 32] = {
-        let encoded = xdrs::cxs::encode(&7u32).unwrap();
-        Sha256::digest(&encoded).into()
+        let encoded = encode_xdr(&7u32).unwrap();
+        Sha256::digest(encoded.as_ref()).into()
     };
 
     result.assert_event::<TaggedAction>(0, |e| {

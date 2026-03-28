@@ -15,7 +15,7 @@ test = false
 
 [dependencies]
 sdk = { workspace = true, features = ["debugging"] }
-xdrs = { workspace = true }
+
 
 [dev-dependencies]
 fibonacci = { path = ".", features = ["dev"] }
