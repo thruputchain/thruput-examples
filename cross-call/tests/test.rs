@@ -135,16 +135,17 @@ fn test_cross_call_emits_both_events() {
     });
     result.assert_success();
 
-    // The fibonacci contract emits FibComputed from the fib address,
-    // the cross-call contract emits CrossCallCompleted from the cross-call address.
-    // deploy_address computes the deterministic address from deployer + nonce + hash.
-    let fib_addr = deploy_address(&[1u8; 32].into(), &FIB_NONCE, &fib_hash);
-    let cross_addr = deploy_address(&[1u8; 32].into(), &CROSS_NONCE, &cross_hash);
-    result.assert_emitted::<FibComputed>(&fib_addr, |e: &FibComputed| {
-        e.input == 10 && e.result == 55
+    // call_fib emits FibComputed (from fib contract) then CrossCallCompleted (from cross-call)
+    result.assert_event_count(2);
+    result.assert_event::<FibComputed>(0, |e| {
+        assert_eq!(e.topic(0).unwrap(), FibComputed::SIGNATURE);
+        assert_eq!(e.payload().input, 10);
+        assert_eq!(e.payload().result, 55);
     });
-    result.assert_emitted::<CrossCallCompleted>(&cross_addr, |e: &CrossCallCompleted| {
-        e.input == 10 && e.result == 55
+    result.assert_event::<CrossCallCompleted>(1, |e| {
+        assert_eq!(e.topic(0).unwrap(), CrossCallCompleted::SIGNATURE);
+        assert_eq!(e.payload().input, 10);
+        assert_eq!(e.payload().result, 55);
     });
 }
 
@@ -162,44 +163,27 @@ fn test_multiple_cross_calls_emit_ordered_events() {
     });
     result.assert_success();
 
-    // We need the deployed addresses to filter events by contract
-    let fib_addr = deploy_address(&[1u8; 32].into(), &FIB_NONCE, &fib_hash);
-    let cross_addr = deploy_address(&[1u8; 32].into(), &CROSS_NONCE, &cross_hash);
+    // Each call_fib emits FibComputed + CrossCallCompleted, so 4 events total:
+    // [0] FibComputed(5, 5), [1] CrossCallCompleted(5, 5),
+    // [2] FibComputed(10, 55), [3] CrossCallCompleted(10, 55)
+    result.assert_event_count(4);
 
-    // Each call_fib emits a FibComputed (from fib) + CrossCallCompleted (from cross-call)
-    let fib_events: Vec<FibComputed> = result.filter_events(&fib_addr);
-    assert_eq!(fib_events.len(), 2);
-    assert_eq!(
-        fib_events[0],
-        FibComputed {
-            input: 5,
-            result: 5
-        }
-    );
-    assert_eq!(
-        fib_events[1],
-        FibComputed {
-            input: 10,
-            result: 55
-        }
-    );
-
-    let cross_events: Vec<CrossCallCompleted> = result.filter_events(&cross_addr);
-    assert_eq!(cross_events.len(), 2);
-    assert_eq!(
-        cross_events[0],
-        CrossCallCompleted {
-            input: 5,
-            result: 5
-        }
-    );
-    assert_eq!(
-        cross_events[1],
-        CrossCallCompleted {
-            input: 10,
-            result: 55
-        }
-    );
+    result.assert_event::<FibComputed>(0, |e| {
+        assert_eq!(e.payload().input, 5);
+        assert_eq!(e.payload().result, 5);
+    });
+    result.assert_event::<CrossCallCompleted>(1, |e| {
+        assert_eq!(e.payload().input, 5);
+        assert_eq!(e.payload().result, 5);
+    });
+    result.assert_event::<FibComputed>(2, |e| {
+        assert_eq!(e.payload().input, 10);
+        assert_eq!(e.payload().result, 55);
+    });
+    result.assert_event::<CrossCallCompleted>(3, |e| {
+        assert_eq!(e.payload().input, 10);
+        assert_eq!(e.payload().result, 55);
+    });
 }
 
 // ── client_test shorthand ────────────────────────────────────────────────

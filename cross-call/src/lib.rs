@@ -11,25 +11,10 @@ pub enum CrossCallError {
 }
 
 /// Event emitted when a cross-call succeeds.
-#[derive(Debug, Clone, PartialEq, ReadXDR, WriteXDR)]
+#[derive(Event)]
 pub struct CrossCallCompleted {
     pub input: u64,
     pub result: u64,
-}
-
-static CROSS_CALL_COMPLETED_TOPIC: Topic = hash_to_array!("CrossCallCompleted");
-
-impl Event for CrossCallCompleted {
-    fn num_topics(&self) -> u32 {
-        1
-    }
-
-    fn topic(&self, index: u32) -> Option<TopicSrc<'_>> {
-        match index {
-            0 => Some(TopicSrc::Shared(&CROSS_CALL_COMPLETED_TOPIC)),
-            _ => None,
-        }
-    }
 }
 
 /// Stateless contract demonstrating cross-contract call patterns.

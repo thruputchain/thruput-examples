@@ -12,25 +12,10 @@ pub enum FibError {
 }
 
 /// Event emitted after computing a Fibonacci number.
-#[derive(Debug, Clone, PartialEq, ReadXDR, WriteXDR)]
+#[derive(Event)]
 pub struct FibComputed {
     pub input: u64,
     pub result: u64,
-}
-
-static FIB_COMPUTED_TOPIC: Topic = hash_to_array!("FibComputed");
-
-impl Event for FibComputed {
-    fn num_topics(&self) -> u32 {
-        1
-    }
-
-    fn topic(&self, index: u32) -> Option<TopicSrc<'_>> {
-        match index {
-            0 => Some(TopicSrc::Shared(&FIB_COMPUTED_TOPIC)),
-            _ => None,
-        }
-    }
 }
 
 /// Stateless Fibonacci contract.

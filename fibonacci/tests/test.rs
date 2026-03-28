@@ -33,7 +33,7 @@ fn test_fib_basic_values() {
 }
 
 #[test]
-fn test_fib_input_too_large_aborts() {
+fn test_fib_input_too_large() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
@@ -63,9 +63,11 @@ fn test_fib_emits_event() {
         })
     });
     result.assert_success();
-    let fib_addr = deploy_address(&[1u8; 32].into(), &FIB_NONCE, &contract_hash);
-    result.assert_emitted::<FibComputed>(&fib_addr, |e: &FibComputed| {
-        e.input == 10 && e.result == 55
+    result.assert_event_count(1);
+    result.assert_event::<FibComputed>(0, |e| {
+        assert_eq!(e.topic(0).unwrap(), FibComputed::SIGNATURE);
+        assert_eq!(e.payload().input, 10);
+        assert_eq!(e.payload().result, 55);
     });
 }
 
@@ -82,22 +84,14 @@ fn test_fib_multiple_calls_emit_multiple_events() {
         })
     });
     result.assert_success();
+    result.assert_event_count(2);
 
-    let fib_addr = deploy_address(&[1u8; 32].into(), &FIB_NONCE, &contract_hash);
-    let events: Vec<FibComputed> = result.filter_events(&fib_addr);
-    assert_eq!(events.len(), 2);
-    assert_eq!(
-        events[0],
-        FibComputed {
-            input: 5,
-            result: 5
-        }
-    );
-    assert_eq!(
-        events[1],
-        FibComputed {
-            input: 10,
-            result: 55
-        }
-    );
+    result.assert_event::<FibComputed>(0, |e| {
+        assert_eq!(e.payload().input, 5);
+        assert_eq!(e.payload().result, 5);
+    });
+    result.assert_event::<FibComputed>(1, |e| {
+        assert_eq!(e.payload().input, 10);
+        assert_eq!(e.payload().result, 55);
+    });
 }
