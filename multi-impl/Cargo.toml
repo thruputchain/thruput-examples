@@ -15,7 +15,7 @@ test = false
 
 [dependencies]
 sdk = { workspace = true }
-xdrs = { workspace = true }
+
 multi-impl-traits = { path = "../multi-impl-traits" }
 
 [dev-dependencies]

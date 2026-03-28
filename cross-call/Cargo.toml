@@ -16,7 +16,7 @@ test = false
 [dependencies]
 sdk = { workspace = true, features = ["debugging"] }
 fibonacci = { path = "../fibonacci" }
-xdrs = { workspace = true }
+
 
 [dev-dependencies]
 cross-call = { path = ".", features = ["dev"] }
