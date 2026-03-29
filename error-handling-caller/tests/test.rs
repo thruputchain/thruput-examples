@@ -37,7 +37,7 @@ fn test_callee_succeeds() {
     let (env, callee_hash, caller_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (callee_addr, caller_addr) = deploy_both(&callee_hash, &caller_hash);
             let client = ErrorHandlingCallerClient::new(&caller_addr);
 
@@ -54,7 +54,7 @@ fn test_callee_error_caught() {
     let (env, callee_hash, caller_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (callee_addr, caller_addr) = deploy_both(&callee_hash, &caller_hash);
             let client = ErrorHandlingCallerClient::new(&caller_addr);
 
@@ -71,7 +71,7 @@ fn test_callee_fault_caught() {
     let (env, callee_hash, caller_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (callee_addr, caller_addr) = deploy_both(&callee_hash, &caller_hash);
             let client = ErrorHandlingCallerClient::new(&caller_addr);
 
@@ -88,7 +88,7 @@ fn test_gas_exhaustion_caught() {
     let (env, callee_hash, caller_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (callee_addr, caller_addr) = deploy_both(&callee_hash, &caller_hash);
             let client = ErrorHandlingCallerClient::new(&caller_addr);
 
@@ -106,7 +106,7 @@ fn test_nonexistent_address() {
     let (env, _callee_hash, caller_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let caller_addr = deploy_contract(&CALLER_NONCE, &caller_hash);
             let client = ErrorHandlingCallerClient::new(&caller_addr);
 
@@ -129,7 +129,7 @@ fn test_wrong_contract() {
     let caller_hash = env.setup_create_contract(&caller_contract);
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let fib_addr = deploy_contract(&FIB_NONCE, &fib_hash);
             let caller_addr = deploy_contract(&CALLER_NONCE, &caller_hash);
             let client = ErrorHandlingCallerClient::new(&caller_addr);

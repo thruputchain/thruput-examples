@@ -16,7 +16,7 @@ fn test_succeed() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&CALLEE_NONCE, &contract_hash);
             let client = ErrorHandlingCalleeClient::new(&addr);
 
@@ -32,7 +32,7 @@ fn test_throw_error() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&CALLEE_NONCE, &contract_hash);
             let client = ErrorHandlingCalleeClient::new(&addr);
 
@@ -51,7 +51,7 @@ fn test_fault() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&CALLEE_NONCE, &contract_hash);
             let client = ErrorHandlingCalleeClient::new(&addr);
 
@@ -70,7 +70,7 @@ fn test_spin_completes() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&CALLEE_NONCE, &contract_hash);
             let client = ErrorHandlingCalleeClient::new(&addr);
 

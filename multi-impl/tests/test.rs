@@ -22,7 +22,7 @@ fn test_add() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
             let client = AdderClient::new(&addr);
 
@@ -39,7 +39,7 @@ fn test_add_overflow() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
             let client = AdderClient::new(&addr);
 
@@ -58,7 +58,7 @@ fn test_multiply() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
             let client = MultiplierClient::new(&addr);
 
@@ -75,7 +75,7 @@ fn test_square() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
             let client = MultiplierClient::new(&addr);
 
@@ -92,7 +92,7 @@ fn test_multiply_overflow() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
             let client = MultiplierClient::new(&addr);
 
@@ -112,7 +112,7 @@ fn test_both_traits_same_contract() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
 
             // Both clients point to the same contract address

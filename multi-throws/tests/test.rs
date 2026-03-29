@@ -19,7 +19,7 @@ fn test_succeed() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
             let client = MultiThrowsClient::new(&addr);
 
@@ -38,7 +38,7 @@ fn test_throw_alpha_not_found() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
             let client = MultiThrowsClient::new(&addr);
 
@@ -56,7 +56,7 @@ fn test_throw_alpha_overflow() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
             let client = MultiThrowsClient::new(&addr);
 
@@ -74,7 +74,7 @@ fn test_throw_beta_denied() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
             let client = MultiThrowsClient::new(&addr);
 
@@ -96,7 +96,7 @@ fn test_throw_undeclared_arrives_as_unknown() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
             let client = MultiThrowsClient::new(&addr);
 
@@ -123,7 +123,7 @@ fn test_forward_declared_error() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr1 = deploy_contract(&NONCE_1, &contract_hash);
             let addr2 = deploy_contract(&NONCE_2, &contract_hash);
             let client = MultiThrowsClient::new(&addr1);
@@ -144,7 +144,7 @@ fn test_forward_undeclared_error() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr1 = deploy_contract(&NONCE_1, &contract_hash);
             let addr2 = deploy_contract(&NONCE_2, &contract_hash);
             let client = MultiThrowsClient::new(&addr1);
@@ -171,7 +171,7 @@ fn test_panics_becomes_fault() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
             let client = MultiThrowsClient::new(&addr);
 
@@ -190,7 +190,7 @@ fn test_forward_fault() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr1 = deploy_contract(&NONCE_1, &contract_hash);
             let addr2 = deploy_contract(&NONCE_2, &contract_hash);
             let client = MultiThrowsClient::new(&addr1);

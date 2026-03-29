@@ -16,7 +16,7 @@ fn test_fib_basic_values() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&FIB_NONCE, &contract_hash);
             let client = FibonacciClient::new(&addr);
 
@@ -37,7 +37,7 @@ fn test_fib_input_too_large() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&FIB_NONCE, &contract_hash);
             let client = FibonacciClient::new(&addr);
 
@@ -56,7 +56,7 @@ fn test_fib_emits_event() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&FIB_NONCE, &contract_hash);
             let client = FibonacciClient::new(&addr);
             client.compute(10);
@@ -76,7 +76,7 @@ fn test_fib_multiple_calls_emit_multiple_events() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&FIB_NONCE, &contract_hash);
             let client = FibonacciClient::new(&addr);
             client.compute(5);

@@ -57,7 +57,7 @@ impl ErrorHandlingCaller {
     /// Call try_succeed on an address where no contract is deployed.
     /// Catches the resulting error and returns true.
     pub fn call_nonexistent_address() -> bool {
-        let fake_addr: ContractAddress = [0xFFu8; 32].into();
+        let fake_addr = ContractAddress::from([0xFFu8; 32]);
         let client = ErrorHandlingCalleeClient::new(&fake_addr);
         client.try_succeed(42).is_err()
     }
