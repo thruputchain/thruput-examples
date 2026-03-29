@@ -11,7 +11,7 @@ pub enum CalleeError {
 /// Stateless contract that produces various error conditions.
 pub struct ErrorHandlingCallee;
 
-#[contract(throws = CalleeError, client = ErrorHandlingCalleeClient)]
+#[contract(throws = CalleeError)]
 impl ErrorHandlingCallee {
     /// Return the input value successfully.
     pub fn succeed(data: u64) -> u64 {

@@ -38,7 +38,7 @@ fn test_cross_call_fib_succeeds() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
-            let mut client = CrossCallClient::new(&cross_addr);
+            let client = CrossCallClient::new(&cross_addr);
 
             assert_eq!(client.call_fib(&fib_addr, 10), 55);
         })
@@ -53,7 +53,7 @@ fn test_cross_call_fib_multiple_values() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
-            let mut client = CrossCallClient::new(&cross_addr);
+            let client = CrossCallClient::new(&cross_addr);
 
             assert_eq!(client.call_fib(&fib_addr, 0), 0);
             assert_eq!(client.call_fib(&fib_addr, 1), 1);
@@ -73,7 +73,7 @@ fn test_try_call_fib_returns_ok() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
-            let mut client = CrossCallClient::new(&cross_addr);
+            let client = CrossCallClient::new(&cross_addr);
 
             // call_fib_or_fail uses try_compute internally
             assert_eq!(client.call_fib_or_fail(&fib_addr, 10), 55);
@@ -91,7 +91,7 @@ fn test_callee_error_caught_by_caller() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
-            let mut client = CrossCallClient::new(&cross_addr);
+            let client = CrossCallClient::new(&cross_addr);
 
             // call_fib_and_catch_error calls fib with n=999, catches InputTooLarge
             assert!(client.call_fib_and_catch_error(&fib_addr));
@@ -107,7 +107,7 @@ fn test_callee_error_wrapped_by_caller() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
-            let mut client = CrossCallClient::new(&cross_addr);
+            let client = CrossCallClient::new(&cross_addr);
 
             // call_fib_or_fail with n=999 should cause fib to throw,
             // which cross-call catches and re-throws as FibCallFailed
@@ -129,7 +129,7 @@ fn test_cross_call_emits_both_events() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
-            let mut client = CrossCallClient::new(&cross_addr);
+            let client = CrossCallClient::new(&cross_addr);
             client.call_fib(&fib_addr, 10);
         })
     });
@@ -156,7 +156,7 @@ fn test_multiple_cross_calls_emit_ordered_events() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
-            let mut client = CrossCallClient::new(&cross_addr);
+            let client = CrossCallClient::new(&cross_addr);
             client.call_fib(&fib_addr, 5);
             client.call_fib(&fib_addr, 10);
         })
@@ -194,7 +194,7 @@ fn test_client_test_shorthand() {
     // This doesn't give TransactResult (no event access), but is more concise.
     sdk::client_test(
         |env| env.register_mock(Fibonacci::__mock),
-        |client: &mut FibonacciClient| {
+        |client: &FibonacciClient| {
             assert_eq!(client.compute(10), 55);
         },
     );

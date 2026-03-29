@@ -19,7 +19,7 @@ fn test_value_stored_event() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&EVENTS_NONCE, &contract_hash);
-            let mut client = EventsClient::new(&addr);
+            let client = EventsClient::new(&addr);
             client.store_value(42, 100);
         })
     });
@@ -44,7 +44,7 @@ fn test_transfer_event_with_address_topics() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&EVENTS_NONCE, &contract_hash);
-            let mut client = EventsClient::new(&addr);
+            let client = EventsClient::new(&addr);
 
             let from: ContractAddress = [0xAAu8; 32].into();
             let to: ContractAddress = [0xBBu8; 32].into();
@@ -73,7 +73,7 @@ fn test_tagged_action_with_hashed_topics() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&EVENTS_NONCE, &contract_hash);
-            let mut client = EventsClient::new(&addr);
+            let client = EventsClient::new(&addr);
             client.tag_action(b"audit", 7, b"details here");
         })
     });
@@ -110,7 +110,7 @@ fn test_checkpoint_topics_only() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&EVENTS_NONCE, &contract_hash);
-            let mut client = EventsClient::new(&addr);
+            let client = EventsClient::new(&addr);
 
             let origin: ContractAddress = [0xCCu8; 32].into();
             client.checkpoint(&origin);
@@ -136,7 +136,7 @@ fn test_multi_emit() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&EVENTS_NONCE, &contract_hash);
-            let mut client = EventsClient::new(&addr);
+            let client = EventsClient::new(&addr);
 
             let test_addr: ContractAddress = [0xDDu8; 32].into();
             client.multi_emit(&test_addr);

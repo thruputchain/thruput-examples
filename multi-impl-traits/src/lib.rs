@@ -9,7 +9,7 @@ pub enum AdderError {
 }
 
 /// A trait for contracts that can add numbers.
-#[contract(client = AdderClient, throws = AdderError)]
+#[contract(throws = AdderError)]
 pub trait Adder {
     fn add(&self, a: u64, b: u64) -> u64;
 }
@@ -21,7 +21,7 @@ pub enum MultiplierError {
 }
 
 /// A trait for contracts that can multiply numbers.
-#[contract(client = MultiplierClient, throws = MultiplierError)]
+#[contract(throws = MultiplierError)]
 pub trait Multiplier {
     fn multiply(&self, a: u64, b: u64) -> u64;
     fn square(&self, a: u64) -> u64;

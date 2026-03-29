@@ -18,7 +18,7 @@ fn test_succeed() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&CALLEE_NONCE, &contract_hash);
-            let mut client = ErrorHandlingCalleeClient::new(&addr);
+            let client = ErrorHandlingCalleeClient::new(&addr);
 
             assert_eq!(client.succeed(42), 42);
             assert_eq!(client.succeed(0), 0);
@@ -34,7 +34,7 @@ fn test_throw_error() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&CALLEE_NONCE, &contract_hash);
-            let mut client = ErrorHandlingCalleeClient::new(&addr);
+            let client = ErrorHandlingCalleeClient::new(&addr);
 
             // throw_error throws CalleeError::Deliberate
             match client.try_throw_error() {
@@ -53,7 +53,7 @@ fn test_fault() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&CALLEE_NONCE, &contract_hash);
-            let mut client = ErrorHandlingCalleeClient::new(&addr);
+            let client = ErrorHandlingCalleeClient::new(&addr);
 
             // fault() panics, which becomes a Fault error
             match client.try_fault() {
@@ -72,7 +72,7 @@ fn test_spin_completes() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&CALLEE_NONCE, &contract_hash);
-            let mut client = ErrorHandlingCalleeClient::new(&addr);
+            let client = ErrorHandlingCalleeClient::new(&addr);
 
             assert_eq!(client.spin(10), 10);
         })
