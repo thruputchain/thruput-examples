@@ -36,7 +36,7 @@ fn test_cross_call_fib_succeeds() {
     let (env, fib_hash, cross_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
             let client = CrossCallClient::new(&cross_addr);
 
@@ -51,7 +51,7 @@ fn test_cross_call_fib_multiple_values() {
     let (env, fib_hash, cross_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
             let client = CrossCallClient::new(&cross_addr);
 
@@ -71,7 +71,7 @@ fn test_try_call_fib_returns_ok() {
     let (env, fib_hash, cross_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
             let client = CrossCallClient::new(&cross_addr);
 
@@ -89,7 +89,7 @@ fn test_callee_error_caught_by_caller() {
     let (env, fib_hash, cross_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
             let client = CrossCallClient::new(&cross_addr);
 
@@ -105,7 +105,7 @@ fn test_callee_error_wrapped_by_caller() {
     let (env, fib_hash, cross_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
             let client = CrossCallClient::new(&cross_addr);
 
@@ -127,7 +127,7 @@ fn test_cross_call_emits_both_events() {
     let (env, fib_hash, cross_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
             let client = CrossCallClient::new(&cross_addr);
             client.call_fib(&fib_addr, 10);
@@ -154,7 +154,7 @@ fn test_multiple_cross_calls_emit_ordered_events() {
     let (env, fib_hash, cross_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
             let client = CrossCallClient::new(&cross_addr);
             client.call_fib(&fib_addr, 5);

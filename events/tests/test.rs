@@ -17,7 +17,7 @@ fn test_value_stored_event() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&EVENTS_NONCE, &contract_hash);
             let client = EventsClient::new(&addr);
             client.store_value(42, 100);
@@ -42,24 +42,27 @@ fn test_transfer_event_with_address_topics() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&EVENTS_NONCE, &contract_hash);
             let client = EventsClient::new(&addr);
 
-            let from: ContractAddress = [0xAAu8; 32].into();
-            let to: ContractAddress = [0xBBu8; 32].into();
+            let from = ContractAddress::named("from");
+            let to = ContractAddress::named("to");
             client.transfer(&from, &to, 1000);
         })
     });
     result.assert_success();
     result.assert_event_count(1);
 
+    let from = ContractAddress::named("from");
+    let to = ContractAddress::named("to");
+
     // Transfer has 3 topics: SIGNATURE + from + to
     result.assert_event::<Transfer>(0, |e| {
         assert_eq!(e.num_topics(), 3);
         assert_eq!(e.topic(0).unwrap(), Transfer::SIGNATURE);
-        assert_eq!(e.topic(1).unwrap(), &[0xAAu8; 32]);
-        assert_eq!(e.topic(2).unwrap(), &[0xBBu8; 32]);
+        assert_eq!(e.topic(1).unwrap(), from.as_ref());
+        assert_eq!(e.topic(2).unwrap(), to.as_ref());
         assert_eq!(e.payload().amount, 1000);
     });
 }
@@ -71,7 +74,7 @@ fn test_tagged_action_with_hashed_topics() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&EVENTS_NONCE, &contract_hash);
             let client = EventsClient::new(&addr);
             client.tag_action(b"audit", 7, b"details here");
@@ -108,22 +111,24 @@ fn test_checkpoint_topics_only() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&EVENTS_NONCE, &contract_hash);
             let client = EventsClient::new(&addr);
 
-            let origin: ContractAddress = [0xCCu8; 32].into();
+            let origin = ContractAddress::named("origin");
             client.checkpoint(&origin);
         })
     });
     result.assert_success();
     result.assert_event_count(1);
 
+    let origin = ContractAddress::named("origin");
+
     // Checkpoint has 2 topics: SIGNATURE + origin. No payload.
     result.assert_event::<Checkpoint>(0, |e| {
         assert_eq!(e.num_topics(), 2);
         assert_eq!(e.topic(0).unwrap(), Checkpoint::SIGNATURE);
-        assert_eq!(e.topic(1).unwrap(), &[0xCCu8; 32]);
+        assert_eq!(e.topic(1).unwrap(), origin.as_ref());
     });
 }
 
@@ -134,11 +139,11 @@ fn test_multi_emit() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
-        tx.call(&[1u8; 32].into()).run(|| {
+        tx.call(&ContractAddress::named("caller")).run(|| {
             let addr = deploy_contract(&EVENTS_NONCE, &contract_hash);
             let client = EventsClient::new(&addr);
 
-            let test_addr: ContractAddress = [0xDDu8; 32].into();
+            let test_addr = ContractAddress::named("test");
             client.multi_emit(&test_addr);
         })
     });
@@ -152,11 +157,13 @@ fn test_multi_emit() {
         assert_eq!(e.payload().value, 100);
     });
 
+    let test_addr = ContractAddress::named("test");
+
     // Event 1: Transfer
     result.assert_event::<Transfer>(1, |e| {
         assert_eq!(e.topic(0).unwrap(), Transfer::SIGNATURE);
-        assert_eq!(e.topic(1).unwrap(), &[0xDDu8; 32]);
-        assert_eq!(e.topic(2).unwrap(), &[0xDDu8; 32]);
+        assert_eq!(e.topic(1).unwrap(), test_addr.as_ref());
+        assert_eq!(e.topic(2).unwrap(), test_addr.as_ref());
         assert_eq!(e.payload().amount, 50);
         assert_eq!(e.payload().memo, b"batch");
     });
@@ -164,7 +171,7 @@ fn test_multi_emit() {
     // Event 2: Checkpoint
     result.assert_event::<Checkpoint>(2, |e| {
         assert_eq!(e.topic(0).unwrap(), Checkpoint::SIGNATURE);
-        assert_eq!(e.topic(1).unwrap(), &[0xDDu8; 32]);
+        assert_eq!(e.topic(1).unwrap(), test_addr.as_ref());
     });
 }
 
