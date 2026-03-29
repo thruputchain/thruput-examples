@@ -20,11 +20,11 @@ pub struct CrossCallCompleted {
 /// Stateless contract demonstrating cross-contract call patterns.
 pub struct CrossCall;
 
-#[contract(throws = CrossCallError, client = CrossCallClient)]
+#[contract(throws = CrossCallError)]
 impl CrossCall {
     /// Call fibonacci and return the result. Panics on failure.
     pub fn call_fib(fib_address: &ContractAddress, n: u64) -> u64 {
-        let mut fib = FibonacciClient::new(fib_address);
+        let fib = FibonacciClient::new(fib_address);
         let result = fib.compute(n);
         log_event(&CrossCallCompleted { input: n, result });
         result
@@ -33,7 +33,7 @@ impl CrossCall {
     /// Call fibonacci using try_*, returning the result or throwing
     /// CrossCallError::FibCallFailed on any error.
     pub fn call_fib_or_fail(fib_address: &ContractAddress, n: u64) -> u64 {
-        let mut fib = FibonacciClient::new(fib_address);
+        let fib = FibonacciClient::new(fib_address);
         let result = fib.try_compute(n).or_throw(CrossCallError::FibCallFailed);
         log_event(&CrossCallCompleted { input: n, result });
         result
@@ -42,7 +42,7 @@ impl CrossCall {
     /// Call fibonacci with a value that will cause it to throw InputTooLarge,
     /// then catch the error and return true if it was the expected error.
     pub fn call_fib_and_catch_error(fib_address: &ContractAddress) -> bool {
-        let mut fib = FibonacciClient::new(fib_address);
+        let fib = FibonacciClient::new(fib_address);
         matches!(
             fib.try_compute(999),
             Err(FibonacciClientError::FibError(FibError::InputTooLarge))

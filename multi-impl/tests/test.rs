@@ -24,7 +24,7 @@ fn test_add() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
-            let mut client = AdderClient::new(&addr);
+            let client = AdderClient::new(&addr);
 
             assert_eq!(client.add(2, 3), 5);
             assert_eq!(client.add(0, 0), 0);
@@ -41,7 +41,7 @@ fn test_add_overflow() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
-            let mut client = AdderClient::new(&addr);
+            let client = AdderClient::new(&addr);
 
             // Adding u64::MAX + 1 should throw AdderError::Overflow
             match client.try_add(u64::MAX, 1) {
@@ -60,7 +60,7 @@ fn test_multiply() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
-            let mut client = MultiplierClient::new(&addr);
+            let client = MultiplierClient::new(&addr);
 
             assert_eq!(client.multiply(3, 4), 12);
             assert_eq!(client.multiply(0, 100), 0);
@@ -77,7 +77,7 @@ fn test_square() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
-            let mut client = MultiplierClient::new(&addr);
+            let client = MultiplierClient::new(&addr);
 
             assert_eq!(client.square(5), 25);
             assert_eq!(client.square(0), 0);
@@ -94,7 +94,7 @@ fn test_multiply_overflow() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
-            let mut client = MultiplierClient::new(&addr);
+            let client = MultiplierClient::new(&addr);
 
             // Multiplying u64::MAX * 2 should throw MultiplierError::Overflow
             match client.try_multiply(u64::MAX, 2) {
@@ -116,8 +116,8 @@ fn test_both_traits_same_contract() {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
 
             // Both clients point to the same contract address
-            let mut adder = AdderClient::new(&addr);
-            let mut multiplier = MultiplierClient::new(&addr);
+            let adder = AdderClient::new(&addr);
+            let multiplier = MultiplierClient::new(&addr);
 
             let sum = adder.add(3, 4);
             assert_eq!(sum, 7);

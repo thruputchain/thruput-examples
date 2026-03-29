@@ -18,7 +18,7 @@ fn test_fib_basic_values() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&FIB_NONCE, &contract_hash);
-            let mut client = FibonacciClient::new(&addr);
+            let client = FibonacciClient::new(&addr);
 
             assert_eq!(client.compute(0), 0);
             assert_eq!(client.compute(1), 1);
@@ -39,7 +39,7 @@ fn test_fib_input_too_large() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&FIB_NONCE, &contract_hash);
-            let mut client = FibonacciClient::new(&addr);
+            let client = FibonacciClient::new(&addr);
 
             // n=31 exceeds MAX_FIB_INPUT (30) — should throw FibError::InputTooLarge
             match client.try_compute(31) {
@@ -58,7 +58,7 @@ fn test_fib_emits_event() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&FIB_NONCE, &contract_hash);
-            let mut client = FibonacciClient::new(&addr);
+            let client = FibonacciClient::new(&addr);
             client.compute(10);
         })
     });
@@ -78,7 +78,7 @@ fn test_fib_multiple_calls_emit_multiple_events() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&FIB_NONCE, &contract_hash);
-            let mut client = FibonacciClient::new(&addr);
+            let client = FibonacciClient::new(&addr);
             client.compute(5);
             client.compute(10);
         })

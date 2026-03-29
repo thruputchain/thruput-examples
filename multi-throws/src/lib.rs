@@ -29,7 +29,7 @@ pub enum SecretError {
 /// Demonstrates the `throws(A, B)` syntax for declaring multiple error types
 /// on a single contract trait. The generated `MultiThrowsClientError` enum has
 /// a variant for each declared error type, plus Library, Unknown, and Fault.
-#[contract(client = MultiThrowsClient, throws(AlphaError, BetaError))]
+#[contract(throws(AlphaError, BetaError))]
 pub trait MultiThrows {
     /// Returns 42 on success.
     fn succeed() -> u32;

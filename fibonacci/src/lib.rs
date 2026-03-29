@@ -21,7 +21,7 @@ pub struct FibComputed {
 /// Stateless Fibonacci contract.
 pub struct Fibonacci;
 
-#[contract(throws = FibError, client = FibonacciClient)]
+#[contract(throws = FibError)]
 impl Fibonacci {
     /// Compute the nth Fibonacci number using naive recursion.
     /// Throws if n > MAX_FIB_INPUT.

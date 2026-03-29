@@ -21,7 +21,7 @@ fn test_succeed() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
-            let mut client = MultiThrowsClient::new(&addr);
+            let client = MultiThrowsClient::new(&addr);
 
             assert_eq!(client.succeed(), 42);
             assert_eq!(client.try_succeed(), Ok(42));
@@ -31,8 +31,7 @@ fn test_succeed() {
 }
 
 // ── Declared error types match directly ──────────────────────────────────
-// Each declared error type gets its own variant in MultiThrowsClientError,
-// so you can pattern-match without the old as_contract_exn() dance.
+// Each declared error type gets its own variant in MultiThrowsClientError.
 
 #[test]
 fn test_throw_alpha_not_found() {
@@ -41,7 +40,7 @@ fn test_throw_alpha_not_found() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
-            let mut client = MultiThrowsClient::new(&addr);
+            let client = MultiThrowsClient::new(&addr);
 
             match client.try_throw_alpha_not_found() {
                 Err(MultiThrowsClientError::AlphaError(AlphaError::NotFound)) => {}
@@ -59,7 +58,7 @@ fn test_throw_alpha_overflow() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
-            let mut client = MultiThrowsClient::new(&addr);
+            let client = MultiThrowsClient::new(&addr);
 
             match client.try_throw_alpha_overflow() {
                 Err(MultiThrowsClientError::AlphaError(AlphaError::Overflow)) => {}
@@ -77,7 +76,7 @@ fn test_throw_beta_denied() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
-            let mut client = MultiThrowsClient::new(&addr);
+            let client = MultiThrowsClient::new(&addr);
 
             match client.try_throw_beta_denied() {
                 Err(MultiThrowsClientError::BetaError(BetaError::Denied)) => {}
@@ -99,7 +98,7 @@ fn test_throw_undeclared_arrives_as_unknown() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
-            let mut client = MultiThrowsClient::new(&addr);
+            let client = MultiThrowsClient::new(&addr);
 
             // SecretError is not in the throws list, so it arrives as Unknown.
             // The caller can still decode it with try_as if it knows the type.
@@ -127,7 +126,7 @@ fn test_forward_declared_error() {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr1 = deploy_contract(&NONCE_1, &contract_hash);
             let addr2 = deploy_contract(&NONCE_2, &contract_hash);
-            let mut client = MultiThrowsClient::new(&addr1);
+            let client = MultiThrowsClient::new(&addr1);
 
             // addr1 calls throw_alpha_not_found on addr2 via non-try method.
             // The error is forwarded through the call chain.
@@ -148,7 +147,7 @@ fn test_forward_undeclared_error() {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr1 = deploy_contract(&NONCE_1, &contract_hash);
             let addr2 = deploy_contract(&NONCE_2, &contract_hash);
-            let mut client = MultiThrowsClient::new(&addr1);
+            let client = MultiThrowsClient::new(&addr1);
 
             // addr1 calls throw_undeclared on addr2. SecretError is forwarded
             // as raw bytes and arrives as Unknown with the original selector.
@@ -174,7 +173,7 @@ fn test_panics_becomes_fault() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
-            let mut client = MultiThrowsClient::new(&addr);
+            let client = MultiThrowsClient::new(&addr);
 
             // A panic in the contract becomes a Fault error
             match client.try_panics() {
@@ -194,7 +193,7 @@ fn test_forward_fault() {
         tx.call(&[1u8; 32].into()).run(|| {
             let addr1 = deploy_contract(&NONCE_1, &contract_hash);
             let addr2 = deploy_contract(&NONCE_2, &contract_hash);
-            let mut client = MultiThrowsClient::new(&addr1);
+            let client = MultiThrowsClient::new(&addr1);
 
             // addr1 calls panics() on addr2 via non-try method.
             // The fault propagates through the call chain.

@@ -39,7 +39,7 @@ fn test_callee_succeeds() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (callee_addr, caller_addr) = deploy_both(&callee_hash, &caller_hash);
-            let mut client = ErrorHandlingCallerClient::new(&caller_addr);
+            let client = ErrorHandlingCallerClient::new(&caller_addr);
 
             assert_eq!(client.call_succeed(&callee_addr, 42), 42);
         })
@@ -56,7 +56,7 @@ fn test_callee_error_caught() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (callee_addr, caller_addr) = deploy_both(&callee_hash, &caller_hash);
-            let mut client = ErrorHandlingCallerClient::new(&caller_addr);
+            let client = ErrorHandlingCallerClient::new(&caller_addr);
 
             assert!(client.call_and_catch_error(&callee_addr));
         })
@@ -73,7 +73,7 @@ fn test_callee_fault_caught() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (callee_addr, caller_addr) = deploy_both(&callee_hash, &caller_hash);
-            let mut client = ErrorHandlingCallerClient::new(&caller_addr);
+            let client = ErrorHandlingCallerClient::new(&caller_addr);
 
             assert!(client.call_and_catch_fault(&callee_addr));
         })
@@ -90,7 +90,7 @@ fn test_gas_exhaustion_caught() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let (callee_addr, caller_addr) = deploy_both(&callee_hash, &caller_hash);
-            let mut client = ErrorHandlingCallerClient::new(&caller_addr);
+            let client = ErrorHandlingCallerClient::new(&caller_addr);
 
             // Gas limit of 1 is guaranteed too small for 1000 sha256 iterations
             assert!(client.call_with_gas_limit(&callee_addr, 1000, 1));
@@ -108,7 +108,7 @@ fn test_nonexistent_address() {
     let result = env.transact(|tx| {
         tx.call(&[1u8; 32].into()).run(|| {
             let caller_addr = deploy_contract(&CALLER_NONCE, &caller_hash);
-            let mut client = ErrorHandlingCallerClient::new(&caller_addr);
+            let client = ErrorHandlingCallerClient::new(&caller_addr);
 
             assert!(client.call_nonexistent_address());
         })
@@ -132,7 +132,7 @@ fn test_wrong_contract() {
         tx.call(&[1u8; 32].into()).run(|| {
             let fib_addr = deploy_contract(&FIB_NONCE, &fib_hash);
             let caller_addr = deploy_contract(&CALLER_NONCE, &caller_hash);
-            let mut client = ErrorHandlingCallerClient::new(&caller_addr);
+            let client = ErrorHandlingCallerClient::new(&caller_addr);
 
             assert!(client.call_wrong_contract(&fib_addr));
         })
