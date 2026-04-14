@@ -1,0 +1,9 @@
+[target.wasm32-unknown-unknown]
+rustflags = [
+    "-Z", "unstable-options",
+    "-C", "panic=immediate-abort",
+    ]
+
+[unstable]
+build-std = ["core", "alloc"]
+build-std-features = ["std/optimize_for_size"]

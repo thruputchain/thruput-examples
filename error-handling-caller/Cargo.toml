@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [features]
+entrypoints = []
 dev = ["sdk/dev", "error-handling-callee/dev", "fibonacci/dev"]
 
 [lib]
