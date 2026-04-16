@@ -39,7 +39,7 @@ jobs:
 
       - name: Build contracts
         run: |
-          for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].name'); do
+          for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select([.targets[].kind[]] | index("cdylib")) | .name'); do
             echo "::group::groundhog build -p $pkg"
             groundhog build -p "$pkg"
             echo "::endgroup::"
