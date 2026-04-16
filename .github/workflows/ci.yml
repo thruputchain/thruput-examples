@@ -34,7 +34,6 @@ jobs:
           key: groundhog-cli-${{ runner.os }}-v1
 
       - name: Install groundhog-cli
-        if: steps.cache-groundhog.outputs.cache-hit != 'true'
         run: cargo install --registry groundhog groundhog-cli
 
       - name: Build contracts
