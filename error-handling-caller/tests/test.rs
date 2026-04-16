@@ -1,5 +1,4 @@
 use error_handling_caller::*;
-use fibonacci::Fibonacci;
 use sdk::*;
 
 static CALLEE_NONCE: SHA256Hash = sdk::sha256_static!("ERROR_HANDLING_CALLEE_NONCE");
