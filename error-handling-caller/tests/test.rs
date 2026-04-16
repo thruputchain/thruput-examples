@@ -11,11 +11,7 @@ fn setup() -> (TestEnvironmentHandle, SHA256Hash, SHA256Hash) {
 
     let callee_contract = error_handling_callee::register_mock_contract(&env);
     let caller_contract = error_handling_caller::register_mock_contract(&env);
-    (
-        env,
-        *callee_contract.as_hash(),
-        *caller_contract.as_hash(),
-    )
+    (env, *callee_contract.as_hash(), *caller_contract.as_hash())
 }
 
 /// Deploy both contracts and return their addresses.
