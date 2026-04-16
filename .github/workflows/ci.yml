@@ -30,7 +30,10 @@ jobs:
         id: cache-groundhog
         uses: actions/cache@v4
         with:
-          path: ~/.cargo/bin/groundhog
+          path: |
+            ~/.cargo/bin/groundhog
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
           key: groundhog-cli-${{ runner.os }}-v1
 
       - name: Install groundhog-cli
