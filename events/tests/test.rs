@@ -5,9 +5,8 @@ static EVENTS_NONCE: SHA256Hash = sdk::sha256_static!("EVENTS_TEST_NONCE");
 
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
     let env = TestEnvironment::no_cost();
-    let contract = env.register_mock(Events::__mock);
-    let contract_hash = env.setup_create_contract(&contract);
-    (env, contract_hash)
+    let contract = events::register_mock_contract(&env);
+    (env, contract.as_hash().clone())
 }
 
 // ── Payload-only event (no user topics) ──────────────────────────────────
@@ -88,11 +87,11 @@ fn test_tagged_action_with_hashed_topics() {
     use sha2::{Digest, Sha256};
     let expected_category: [u8; 32] = {
         let encoded = encode_xdr(&"audit").unwrap();
-        Sha256::digest(encoded.as_ref()).into()
+        Sha256::digest(encoded).into()
     };
     let expected_code: [u8; 32] = {
         let encoded = encode_xdr(&7u32).unwrap();
-        Sha256::digest(encoded.as_ref()).into()
+        Sha256::digest(encoded).into()
     };
 
     result.assert_event::<TaggedAction>(0, |e| {

@@ -10,11 +10,11 @@ static CROSS_NONCE: SHA256Hash = sdk::sha256_static!("CROSS_CALL_NONCE");
 fn setup() -> (TestEnvironmentHandle, SHA256Hash, SHA256Hash) {
     let env = TestEnvironment::no_cost();
 
-    let fib_contract = env.register_mock(Fibonacci::__mock);
-    let fib_hash = env.setup_create_contract(&fib_contract);
+    let fib_contract = fibonacci::register_mock_contract(&env);
+    let fib_hash = fib_contract.as_hash().clone();
 
-    let cross_contract = env.register_mock(CrossCall::__mock);
-    let cross_hash = env.setup_create_contract(&cross_contract);
+    let cross_contract = cross_call::register_mock_contract(&env);
+    let cross_hash = cross_contract.as_hash().clone();
 
     (env, fib_hash, cross_hash)
 }

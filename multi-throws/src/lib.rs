@@ -2,24 +2,26 @@
 
 use sdk::*;
 
+sdk::declare_mock_contract!();
+
 // ── Error types ──────────────────────────────────────────────────────────
 
 /// First error type — represents "alpha" category errors.
-#[contract_error]
+#[contract_exception]
 pub enum AlphaError {
     NotFound = 1,
     Overflow = 2,
 }
 
 /// Second error type — represents "beta" category errors.
-#[contract_error]
+#[contract_exception]
 pub enum BetaError {
     Denied = 1,
 }
 
 /// An error NOT declared in the throws list. When thrown, the client receives
 /// it as an Unknown variant, which can be decoded with try_as::<SecretError>().
-#[contract_error]
+#[contract_exception]
 pub enum SecretError {
     Secret = 1,
 }

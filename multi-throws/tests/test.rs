@@ -7,9 +7,9 @@ static NONCE_2: SHA256Hash = sdk::sha256_static!("MULTI_THROWS_2");
 /// Helper: register the contract and return the environment and hash.
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
     let env = TestEnvironment::no_cost();
-    let contract = env.register_mock(<MultiThrowsContract as MultiThrows>::__mock);
-    let contract_hash = env.setup_create_contract(&contract);
-    (env, contract_hash)
+
+    let contract = multi_throws::register_mock_contract(&env);
+    (env, contract.as_hash().clone())
 }
 
 // ── Success path ─────────────────────────────────────────────────────────

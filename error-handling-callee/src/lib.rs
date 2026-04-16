@@ -2,8 +2,10 @@
 
 use sdk::*;
 
+sdk::declare_mock_contract!();
+
 /// Error type for the callee contract.
-#[contract_error]
+#[contract_exception]
 pub enum CalleeError {
     Deliberate = 1,
 }

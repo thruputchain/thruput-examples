@@ -25,8 +25,24 @@ jobs:
       - name: Check format
         run: cargo fmt --check
 
-      - name: Build (wasm)
-        run: cargo build --all --target=wasm32-unknown-unknown
+      - name: Cache groundhog-cli
+        id: cache-groundhog
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/groundhog
+          key: groundhog-cli-${{ runner.os }}-v1
+
+      - name: Install groundhog-cli
+        if: steps.cache-groundhog.outputs.cache-hit != 'true'
+        run: cargo install --registry groundhog groundhog-cli
+
+      - name: Build contracts
+        run: |
+          for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].name'); do
+            echo "::group::groundhog build -p $pkg"
+            groundhog build -p "$pkg"
+            echo "::endgroup::"
+          done
 
       - name: Run tests
         run: cargo test --all

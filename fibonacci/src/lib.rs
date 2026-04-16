@@ -5,8 +5,10 @@ use sdk::*;
 /// Maximum input to prevent excessive computation.
 const MAX_FIB_INPUT: u64 = 30;
 
+sdk::declare_mock_contract!();
+
 /// Error type for the Fibonacci contract.
-#[contract_error]
+#[contract_exception]
 pub enum FibError {
     InputTooLarge = 1,
 }

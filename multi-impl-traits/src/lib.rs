@@ -2,8 +2,10 @@
 
 use sdk::*;
 
+sdk::declare_mock_contract!();
+
 /// Error type for the Adder trait.
-#[contract_error]
+#[contract_exception]
 pub enum AdderError {
     Overflow = 1,
 }
@@ -15,7 +17,7 @@ pub trait Adder {
 }
 
 /// Error type for the Multiplier trait.
-#[contract_error]
+#[contract_exception]
 pub enum MultiplierError {
     Overflow = 1,
 }

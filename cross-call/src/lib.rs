@@ -3,8 +3,10 @@
 use fibonacci::{FibError, FibonacciClient, FibonacciClientError};
 use sdk::*;
 
+sdk::declare_mock_contract!();
+
 /// Error type for the cross-call contract.
-#[contract_error]
+#[contract_exception]
 pub enum CrossCallError {
     FibCallFailed = 1,
     Requested = 2,

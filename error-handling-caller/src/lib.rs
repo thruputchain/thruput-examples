@@ -5,9 +5,11 @@ use error_handling_callee::{
 };
 use sdk::*;
 
+sdk::declare_mock_contract!();
+
 /// Error type for the caller contract. Exists to satisfy the #[contract] macro;
 /// the caller never throws — it catches everything.
-#[contract_error]
+#[contract_exception]
 pub enum CallerError {
     UnexpectedResult = 1,
 }

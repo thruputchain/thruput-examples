@@ -2,6 +2,8 @@
 
 use sdk::*;
 
+sdk::declare_mock_contract!();
+
 // ── Event types ──────────────────────────────────────────────────────────
 
 /// Simplest possible event: payload only, no user-defined topics.
@@ -44,7 +46,7 @@ pub struct Checkpoint<'a> {
 
 // ── Contract ─────────────────────────────────────────────────────────────
 
-#[contract_error]
+#[contract_exception]
 pub enum EventsError {
     Unreachable = 1,
 }
