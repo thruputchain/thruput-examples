@@ -7,7 +7,7 @@ static CALLEE_NONCE: SHA256Hash = sdk::sha256_static!("CALLEE_TEST_NONCE");
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
     let env = TestEnvironment::no_cost();
     let contract = error_handling_callee::register_mock_contract(&env);
-    (env, contract.as_hash().clone())
+    (env, *contract.as_hash())
 }
 
 #[test]

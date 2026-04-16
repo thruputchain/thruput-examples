@@ -9,7 +9,7 @@ fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
     let env = TestEnvironment::no_cost();
 
     let contract = multi_throws::register_mock_contract(&env);
-    (env, contract.as_hash().clone())
+    (env, *contract.as_hash())
 }
 
 // ── Success path ─────────────────────────────────────────────────────────

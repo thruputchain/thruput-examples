@@ -11,10 +11,10 @@ fn setup() -> (TestEnvironmentHandle, SHA256Hash, SHA256Hash) {
     let env = TestEnvironment::no_cost();
 
     let fib_contract = fibonacci::register_mock_contract(&env);
-    let fib_hash = fib_contract.as_hash().clone();
+    let fib_hash = *fib_contract.as_hash();
 
     let cross_contract = cross_call::register_mock_contract(&env);
-    let cross_hash = cross_contract.as_hash().clone();
+    let cross_hash = *cross_contract.as_hash();
 
     (env, fib_hash, cross_hash)
 }

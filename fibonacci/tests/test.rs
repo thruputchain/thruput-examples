@@ -8,7 +8,7 @@ fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
     let env = TestEnvironment::no_cost();
 
     let contract = fibonacci::register_mock_contract(&env);
-    (env, contract.as_hash().clone())
+    (env, *contract.as_hash())
 }
 
 #[test]

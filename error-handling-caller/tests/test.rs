@@ -13,8 +13,8 @@ fn setup() -> (TestEnvironmentHandle, SHA256Hash, SHA256Hash) {
     let caller_contract = error_handling_caller::register_mock_contract(&env);
     (
         env,
-        callee_contract.as_hash().clone(),
-        caller_contract.as_hash().clone(),
+        *callee_contract.as_hash(),
+        *caller_contract.as_hash(),
     )
 }
 
@@ -121,10 +121,10 @@ fn test_wrong_contract() {
     let env = TestEnvironment::no_cost();
 
     let fib_contract = fibonacci::register_mock_contract(&env);
-    let fib_hash = fib_contract.as_hash().clone();
+    let fib_hash = *fib_contract.as_hash();
 
     let caller_contract = error_handling_caller::register_mock_contract(&env);
-    let caller_hash = caller_contract.as_hash().clone();
+    let caller_hash = *caller_contract.as_hash();
 
     let result = env.transact(|tx| {
         tx.call(&ContractAddress::named("caller")).run(|| {
