@@ -2,7 +2,13 @@
 rustflags = [
     "-Z", "unstable-options",
     "-C", "panic=immediate-abort",
+    "-C", "link-args=-zstack-size=30000",
     ]
+
+[profile.release]
+strip = "symbols"
+lto = true
+codegen-units = 1
 
 [unstable]
 build-std = ["core", "alloc"]

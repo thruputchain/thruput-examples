@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "error-handling-callee/dev", "fibonacci/dev"]
+dev = ["sdk/dev", "sdk/debugging", "error-handling-callee/dev", "fibonacci/dev"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -15,7 +15,7 @@ doctest = false
 test = false
 
 [dependencies]
-sdk = { workspace = true, features = ["debugging"] }
+sdk = { workspace = true }
 error-handling-callee = { path = "../error-handling-callee" }
 fibonacci = { path = "../fibonacci" }
 
