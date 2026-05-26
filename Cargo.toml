@@ -1,10 +1,46 @@
+cargo-features = ["trim-paths"] #unstable
+
 [workspace]
-members = ["fibonacci", "cross-call", "error-handling-callee", "error-handling-caller", "multi-impl-traits", "multi-impl", "multi-throws", "events"]
-resolver = "2"
+resolver = "3"
+members = [
+    "fibonacci",
+    "cross-call",
+    "error-handling-callee",
+    "error-handling-caller",
+    "multi-impl-traits",
+    "multi-impl",
+    "multi-throws",
+    "events",
+    "erc20",
+    "swap",
+    "swap_driver",
+    "swap_router",
+    ]
 
 [workspace.package]
 edition = "2024"
 license = "Apache-2.0"
+authors = ["Groundhog Team"]
+publish = ["groundhog"]
+repository = "https://github.com/groundhogchain/groundhog-examples.git"
+homepage = "https://github.com/groundhogchain/groundhog-examples.git"
+keywords = ["groundhog"]
+categories = ["blockchain"]
 
 [workspace.dependencies]
-sdk = { registry = "groundhog", version = "0.14.0" }
+sdk = { registry = "groundhog", version = "0.14.7" }
+groundhog-erc20-if = { registry = "groundhog", version = "=0.1.1" }
+groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.1" }
+# xdrs = { registry = "groundhog", version = "0.7.1", features = ["int128", "heapless"] }
+
+# crates.io dependencies
+sha2 = { version = "0.11.0", default-features = false }
+thiserror = { version = "2.0.12", default-features = false }
+hex-literal = "1.0.0"
+heapless = { version = "0.9.2" }
+
+[profile.release]
+trim-paths = "all" # unstable
+
+[patch.groundhog] # XXX
+sdk = { path = "../sdk/crates/sdk" }
