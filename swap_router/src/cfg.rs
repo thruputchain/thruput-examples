@@ -1,11 +1,13 @@
 #![allow(clippy::result_large_err)]
 
-use erc20::*;
+#[cfg(feature = "dev")]
+use groundhog_erc20_if::*;
+
 use swap::*;
 use swap_driver::*;
 use sdk::*;
 
-#[contracttype]
+#[contract_type]
 pub struct Cfg {
     // In a complete implementation, the router would talk to a swap-pair factory:
     // pub factory: Address,
@@ -34,10 +36,12 @@ impl Cfg {
         SwapV2DriverClient::new(&self.driver)
     }
 
+    #[cfg(feature = "dev")]
     pub fn token0(&self) -> ERC20Client {
         ERC20Client::new(&self.token0)
     }
 
+    #[cfg(feature = "dev")]
     pub fn token1(&self) -> ERC20Client {
         ERC20Client::new(&self.token1)
     }

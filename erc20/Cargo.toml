@@ -32,5 +32,5 @@ groundhog-erc20-if = { workspace = true, features = ["storage"] }
 groundhog-erc20-metadata-if = { workspace = true, optional = true }
 
 [dev-dependencies]
-erc20 = { path = ".", features = ["dev", "metadata"] }
+erc20 = { path = ".", features = ["dev"] }
 sha2.workspace = true
