@@ -8,6 +8,20 @@ use sdk::storage::*;
 use sdk::*;
 use swap::*;
 
+// Empirically-derived limits (precise to ~5_000)
+const PURCHASE_GAS_LIMIT: u64 = 55_000;
+const REDEEM_GAS_LIMIT: u64 = 70_000;
+const SWAP_GAS_LIMIT: u64 = 60_000;
+
+const REQ_GAS_MAX: u64 = 70_000; // maximum of above
+
+// Allow about 10 requests
+const BATCH_GAS_HIGH_WATER: u64 = 9 * REQ_GAS_MAX;
+
+// Recommended gas limit for `process_requests()`
+//   (some overhead plus enough for ~10 requests)
+pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + 10 * REQ_GAS_MAX;
+
 /// State for the pair contract
 #[storage]
 pub struct SwapV2Driver {
@@ -54,43 +68,46 @@ impl SwapV2Driver {
 
         let mut n_processed = 0;
         let mut n_failed = 0;
-
-        const BATCH_MAX: u32 = 10;
-
-        // Empirically-derived limits (precise to ~5_000)
-        const PURCHASE_GAS_LIMIT: u64 = 55_000;
-        const REDEEM_GAS_LIMIT: u64 = 70_000;
-        const SWAP_GAS_LIMIT: u64 = 60_000;
+        let mut batch_gas_consumed_max = 0u64;
 
         while let Some(req) = self.requests.try_consume() {
-            if n_processed >= BATCH_MAX {
+            if batch_gas_consumed_max > BATCH_GAS_HIGH_WATER {
                 break;
             }
             match req {
-                Request::Purchase(ref req) => cfg
-                    .pair()
-                    .with_gas_limit(PURCHASE_GAS_LIMIT)
-                    .try_handle_purchase(&req.purchaser, req.amounts, &req.recipient)
-                    .unwrap_or_else(|e| {
-                        operation_failed("Purchase", &e);
-                        n_failed += 1;
-                    }),
-                Request::Redeem(ref req) => cfg
+                Request::Purchase(ref req) => {
+                    cfg
+                        .pair()
+                        .with_gas_limit(PURCHASE_GAS_LIMIT)
+                        .try_handle_purchase(&req.purchaser, req.amounts, &req.recipient)
+                        .unwrap_or_else(|e| {
+                            operation_failed("Purchase", &e);
+                            n_failed += 1;
+                        });
+                    batch_gas_consumed_max += PURCHASE_GAS_LIMIT;
+                }
+                Request::Redeem(ref req) => {
+                    cfg
                     .pair()
                     .with_gas_limit(REDEEM_GAS_LIMIT)
                     .try_handle_redeem(&req.redeemer)
                     .unwrap_or_else(|e| {
                         operation_failed("Redeem", &e);
                         n_failed += 1;
-                    }),
-                Request::Swap(ref req) => cfg
+                    });
+                    batch_gas_consumed_max += REDEEM_GAS_LIMIT;
+                }
+                Request::Swap(ref req) => {
+                    cfg
                     .pair()
                     .with_gas_limit(SWAP_GAS_LIMIT)
                     .try_handle_swap(&req.trader, req.amounts_out)
                     .unwrap_or_else(|e| {
                         operation_failed("Swap", &e);
                         n_failed += 1;
-                    }),
+                    });
+                    batch_gas_consumed_max += SWAP_GAS_LIMIT;
+                }
             }
             n_processed += 1;
         }

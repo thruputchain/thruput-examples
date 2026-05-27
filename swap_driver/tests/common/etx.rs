@@ -86,6 +86,13 @@ impl Etx {
 
         exec_tx(&self.env, &TEST_ADDR, || ctx.calculate_swap(amounts_in))
     }
+
+    pub fn process_requests(&self) -> Result<(u32, u32)> {
+        let ctx = &self.ctx;
+
+        exec_tx(&self.env, &TEST_ADDR, ||
+            ctx.driver().with_gas_limit(PROCESS_REQUESTS_GAS).process_requests())
+    }
 }
 
 impl Deref for Etx {
