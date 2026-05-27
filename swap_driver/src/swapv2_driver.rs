@@ -55,10 +55,21 @@ impl SwapV2Driver {
         let mut n_processed = 0;
         let mut n_failed = 0;
 
+        const BATCH_MAX: u32 = 10;
+
+        // Empirically-derived limits (precise to ~5_000)
+        const PURCHASE_GAS_LIMIT: u64 = 55_000;
+        const REDEEM_GAS_LIMIT: u64 = 70_000;
+        const SWAP_GAS_LIMIT: u64 = 60_000;
+
         while let Some(req) = self.requests.try_consume() {
+            if n_processed >= BATCH_MAX {
+                break;
+            }
             match req {
                 Request::Purchase(ref req) => cfg
                     .pair()
+                    .with_gas_limit(PURCHASE_GAS_LIMIT)
                     .try_handle_purchase(&req.purchaser, req.amounts, &req.recipient)
                     .unwrap_or_else(|e| {
                         operation_failed("Purchase", &e);
@@ -66,6 +77,7 @@ impl SwapV2Driver {
                     }),
                 Request::Redeem(ref req) => cfg
                     .pair()
+                    .with_gas_limit(REDEEM_GAS_LIMIT)
                     .try_handle_redeem(&req.redeemer)
                     .unwrap_or_else(|e| {
                         operation_failed("Redeem", &e);
@@ -73,6 +85,7 @@ impl SwapV2Driver {
                     }),
                 Request::Swap(ref req) => cfg
                     .pair()
+                    .with_gas_limit(SWAP_GAS_LIMIT)
                     .try_handle_swap(&req.trader, req.amounts_out)
                     .unwrap_or_else(|e| {
                         operation_failed("Swap", &e);

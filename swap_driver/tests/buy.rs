@@ -61,8 +61,9 @@ fn concurrent_buy(etx: &Etx) -> Result<()> {
 
     let (n_processed, n_failed) =
         etx.exec_tx(&TEST_ADDR, || ctx.driver().process_requests())?;
+
     assert_eq!(2, n_processed);
-    assert_eq!(0, n_failed);
+    assert_eq!(0, n_failed, "{} swap requests failed", n_failed);
 
     println!("Processed {n_processed} requests");
 

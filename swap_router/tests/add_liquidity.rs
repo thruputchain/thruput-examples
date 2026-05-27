@@ -10,38 +10,17 @@ test_transaction! {
 
         println!("{}", etx.record_stats(&[PRIMER, user])?);
 
-        // Give an allowance of all our AB-tokens to the pair contract
-        let (amounts_desired, _) = etx.user_balances(user)?;
+        let (amounts_available, _) = etx.user_balances(user)?;
+
+        // Give an allowance of AB-tokens to the pair contract
+        let amounts_desired = amounts_available; // use all we have
+        // let amounts_desired = [10*UNIT_AMT, 10*UNIT_AMT];
+
         etx.user_allow_for_pair(user, amounts_desired)?;
 
         /* ----- */ etx.advance_block(); /* ----- */
 
         etx.user_add_liquidity(ALICE, amounts_desired)?;
-
-        etx.process_outstanding_requests()?;
-
-        /* ----- */ etx.advance_block(); /* ----- */
-
-        println!("{}", etx.record_stats(&[PRIMER, ALICE])?);
-        Ok(())
-    }
-
-    #[ignore]
-    fn alice_add_some(etx: &Etx) -> Result<()> {
-        let user = ALICE;
-
-        // First, prime the AMM
-        etx.prime()?;
-
-        println!("{}", etx.record_stats(&[PRIMER, user])?);
-
-        // Give an allowance of some of our AB-tokens to the pair contract
-        let amt = 10*UNIT_AMT;
-        etx.user_allow_for_pair(user, [amt, amt])?;
-
-        /* ----- */ etx.advance_block(); /* ----- */
-
-        etx.user_add_liquidity(ALICE, [amt, 0])?;
 
         etx.process_outstanding_requests()?;
 

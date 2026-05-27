@@ -103,7 +103,7 @@ fn concurrent_swap_one() {
     transact_assert_success(|| {
         let etx = setup_etx_primed()?;
         let strategy = [(user, [SWAP_IN_AMT, 0], None)];
-        concurrent_swap_strategy(&etx, strategy)
+        concurrent_swap_strategy(&etx, strategy, 0)
     });
 }
 
@@ -121,7 +121,7 @@ fn concurrent_swap(etx: &Etx) -> Result<()> {
         (CAROL, [SWAP_IN_AMT, 0], None),
         (DAVE, [0, SWAP_IN_AMT], None),
     ];
-    concurrent_swap_strategy(etx, strategy)
+    concurrent_swap_strategy(etx, strategy, 0)
 }
 
 // Can we continue handling swap requests after one failed due to insufficient
@@ -141,7 +141,7 @@ fn concurrent_swap_transfer_failure() {
             (DAVE, dave_amts_in, Some(dave_amts_out)),
         ];
 
-        concurrent_swap_strategy(&etx, strategy)
+        concurrent_swap_strategy(&etx, strategy, 1)
     });
 }
 
@@ -149,6 +149,7 @@ fn concurrent_swap_transfer_failure() {
 fn concurrent_swap_strategy<const N: usize>(
     etx: &Etx,
     strategy: [(User, Amounts, Option<Amounts>); N],
+    n_failures_expected: u32,
 ) -> Result<()> {
     let ctx = &etx.ctx;
 
@@ -201,13 +202,14 @@ fn concurrent_swap_strategy<const N: usize>(
         );
     }
 
-    // (No block boundary needed here.)
+    /* (No block boundary needed here.) */
 
     // Process requests
-    let (n_processed, _n_failed) =
+    let (n_processed, n_failed) =
         etx.exec_tx(&TEST_ADDR, || ctx.driver().process_requests())?;
 
     assert_eq!(n_processed, N as u32);
+    assert_eq!(n_failed, n_failures_expected);
 
     /* ----- */ etx.advance_block(); /* ----- */
 
