@@ -1,7 +1,15 @@
 use super::*;
 
-#[rustfmt::skip]
 pub fn setup_etx() -> Result<Etx> {
+    #[cfg(feature = "native_test")]
+    { setup_etx_native() }
+
+    #[cfg(not(feature = "native_test"))]
+    { setup_etx_wasm() }
+}
+
+#[cfg(feature = "native_test")]
+pub fn setup_etx_native() -> Result<Etx> {
     let env = sdk::TestEnvironment::no_cost();
 
     // Register the token contract
@@ -22,6 +30,66 @@ pub fn setup_etx() -> Result<Etx> {
 
     // Deploy and init the A/B token contracts
     let token_addrs = exec_tx(&env, &TEST_ADDR, || ab_tokens_deploy_init(&token_hash))?;
+
+    setup_contracts(
+        &env,
+        token_addrs,
+        token_hash,
+        pair_hash,
+        driver_hash,
+        router_hash,
+    )
+}
+
+pub fn setup_etx_wasm() -> Result<Etx> {
+    let token_contract = load_wasm_contract(
+        "../target/wasm32-unknown-unknown/release/\
+         erc20.wasm",
+    );
+    let pair_contract = load_wasm_contract(
+        "../target/wasm32-unknown-unknown/release/\
+         swap.wasm",
+    );
+    let driver_contract = load_wasm_contract(
+        "../target/wasm32-unknown-unknown/release/\
+         swap_driver.wasm",
+    );
+    let router_contract = load_wasm_contract(
+        "../target/wasm32-unknown-unknown/release/\
+         swap_router.wasm",
+    );
+
+    let env = sdk::TestEnvironment::no_cost();
+
+    // Register the contracts
+    let token_hash = env.setup_create_contract(&token_contract);
+    let pair_hash = env.setup_create_contract(&pair_contract);
+    let driver_hash = env.setup_create_contract(&driver_contract);
+    let router_hash = env.setup_create_contract(&driver_contract);
+
+    // Deploy and init the A/B token contracts
+    let token_addrs = exec_tx(&env, &TEST_ADDR,
+        || ab_tokens_deploy_init(&token_hash))?;
+
+    setup_contracts(
+        &env,
+        token_addrs,
+        token_hash,
+        pair_hash,
+        driver_hash,
+        router_hash,
+    )
+}
+
+#[rustfmt::skip]
+pub fn setup_contracts(
+    env: &TestEnvironmentHandle,
+    token_addrs: Addresses,
+    token_hash: SHA256Hash,
+    pair_hash: SHA256Hash,
+    driver_hash: SHA256Hash,
+    router_hash: SHA256Hash,
+) -> Result<Etx> {
 
     /* ----- */ env.advance_block(); /* ----- */
 
@@ -62,6 +130,7 @@ pub fn setup_etx() -> Result<Etx> {
 
     Ok(Etx { env, ctx })
 }
+
 
 #[rustfmt::skip]
 pub fn setup_etx_primed() -> Result<Etx> {

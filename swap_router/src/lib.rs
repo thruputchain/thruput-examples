@@ -9,9 +9,9 @@ pub use router::{RouterClient, SwapRouterError};
 pub use library::SwapLibraryError;
 
 // Implementation
-mod library;
 mod cfg;
 mod router;
+mod library;
 
-// Testing
+#[cfg(feature = "dev")]
 pub use router::Router;

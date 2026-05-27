@@ -16,14 +16,13 @@ extern crate alloc;
 mod bignum;
 pub mod events;
 pub(crate) mod interfaces;
-
-// Implementation
-pub(crate) mod reserves;
-mod swapv2_pair;
-
 pub use interfaces::iswapv2_pair::*;
 
-#[cfg(feature = "dev")]
+#[cfg(feature = "implementation")]
+pub(crate) mod reserves;
+#[cfg(feature = "implementation")]
+mod swapv2_pair;
+#[cfg(feature = "implementation")]
 pub use swapv2_pair::SwapV2Pair;
 
 // Re-export the ERC20 trait for `dyn ERC20` in tests

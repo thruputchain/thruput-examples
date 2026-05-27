@@ -19,14 +19,17 @@ test = false # suppress output from our zero unit-tests
 sdk = { workspace = true, features = ["storage"] }
 groundhog-erc20-if = { workspace = true }
 groundhog-erc20-metadata-if = { workspace = true }
+thiserror = { workspace = true }
 swap = { path = "../swap" }
 swap_driver = { path = "../swap_driver" }
-erc20 = { path = "../erc20" }
-thiserror = { workspace = true }
+
+# Optional
+erc20 = { path = "../erc20", features = ["dev"], optional = true }
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "erc20/dev", "swap/dev", "swap_driver/dev"]
+native_test = []
+dev = ["sdk/dev", "dep:erc20", "swap/dev", "swap_driver/dev"]
 
 [dev-dependencies]
 swap_router = { path = ".", features = ["dev"] }

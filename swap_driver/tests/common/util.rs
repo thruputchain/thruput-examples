@@ -4,6 +4,7 @@ use sdk::*;
 
 pub type Result<T, E = TransactResult> = core::result::Result<T, E>;
 
+// This serves mostly to provide the result type for transaction code
 #[track_caller]
 pub fn transact_assert_success<F, T>(f: F) -> T
 where
