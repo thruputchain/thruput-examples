@@ -65,7 +65,7 @@ pub fn setup_etx_wasm() -> Result<Etx> {
     let token_hash = env.setup_create_contract(&token_contract);
     let pair_hash = env.setup_create_contract(&pair_contract);
     let driver_hash = env.setup_create_contract(&driver_contract);
-    let router_hash = env.setup_create_contract(&driver_contract);
+    let router_hash = env.setup_create_contract(&router_contract);
 
     // Deploy and init the A/B token contracts
     let token_addrs = exec_tx(&env, &TEST_ADDR,
