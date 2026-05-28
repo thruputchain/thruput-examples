@@ -30,6 +30,7 @@ erc20 = { path = "../erc20", features = ["dev"], optional = true }
 entrypoints = []
 metadata = ["dep:groundhog-erc20-metadata-if", "erc20?/metadata"]
 dev = ["sdk/dev", "dep:erc20", "swap/dev"]
+wasm_test = []
 
 [dev-dependencies]
 swap_driver = { path = ".", features = ["dev"] }

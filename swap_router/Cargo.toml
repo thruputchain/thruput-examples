@@ -28,8 +28,8 @@ erc20 = { path = "../erc20", features = ["dev"], optional = true }
 
 [features]
 entrypoints = []
-native_test = []
 dev = ["sdk/dev", "dep:erc20", "swap/dev", "swap_driver/dev"]
+wasm_test = []
 
 [dev-dependencies]
 swap_router = { path = ".", features = ["dev"] }
