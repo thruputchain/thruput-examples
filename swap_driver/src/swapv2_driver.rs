@@ -4,6 +4,7 @@
 
 use crate::cfg::*;
 use crate::request::*;
+use crate::callback::*;
 use sdk::storage::*;
 use sdk::*;
 use swap::*;
@@ -38,6 +39,9 @@ pub struct SwapV2Driver {
 
     // Requests (can be enqueued concurrently)
     requests: RCQ<Request>,
+
+    // Id unique to this contract deployment, for making callback nonces
+    callback_id: NNInt,
 }
 
 #[contract(throws(ERC20Error, ISwapV2PairError))]
@@ -51,8 +55,9 @@ impl SwapV2Driver {
         let cfg = Cfg {
             swap_pair: *swap_pair,
         };
+        self.cfg.set_exclusive(&cfg);
 
-        self.cfg.set(&cfg);
+        self.callback_id.set(0);
     }
 
     pub fn request_purchase(
@@ -81,9 +86,6 @@ impl SwapV2Driver {
         let mut batch_gas_consumed_max = 0u64;
 
         while let Some(req) = self.requests.try_consume() {
-            if batch_gas_consumed_max > BATCH_GAS_HIGH_WATER {
-                break;
-            }
             match req {
                 Request::Purchase(ref req) => {
                     cfg.pair()
@@ -117,6 +119,18 @@ impl SwapV2Driver {
                 }
             }
             n_processed += 1;
+
+            if batch_gas_consumed_max > BATCH_GAS_HIGH_WATER {
+                break;
+            }
+        }
+
+        if self.requests.try_peek().is_some() {
+            let self_addr = get_current_address();
+            let callback_id = self.callback_id.get();
+            self.callback_id.set(callback_id + 1); // XXX
+
+            submit_process_requests_callback(&self_addr, callback_id.try_into().unwrap());
         }
 
         (n_processed, n_failed)
