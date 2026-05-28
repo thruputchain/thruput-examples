@@ -128,7 +128,7 @@ fn ab_tokens_deploy_init(token_hash: &SHA256Hash) -> Addresses {
     let token0_addr = deploy_contract(&TOKEN_0_NONCE, token_hash);
     let token1_addr = deploy_contract(&TOKEN_1_NONCE, token_hash);
 
-    #[cfg(not(feature = "metadata"))]
+    #[cfg(not(feature = "erc20_metadata"))]
     {
         let token0 = ERC20Client::new(&token0_addr);
         let token1 = ERC20Client::new(&token1_addr);
@@ -138,7 +138,7 @@ fn ab_tokens_deploy_init(token_hash: &SHA256Hash) -> Addresses {
         token1.initialize(TEST.addr);
     }
 
-    #[cfg(feature = "metadata")]
+    #[cfg(feature = "erc20_metadata")]
     {
         let token0 = ERC20MetadataClient::new(&token0_addr);
         let token1 = ERC20MetadataClient::new(&token1_addr);

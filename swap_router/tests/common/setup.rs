@@ -124,7 +124,6 @@ pub fn setup_contracts(
     Ok(Etx { env, ctx })
 }
 
-
 #[rustfmt::skip]
 pub fn setup_etx_primed() -> Result<Etx> {
     let etx = setup_etx()?;
@@ -136,8 +135,6 @@ pub fn setup_etx_primed() -> Result<Etx> {
 
     Ok(etx)
 }
-
-// Contract code
 
 // Deploy and init A/B token contracts, given the hash of a registered token
 // contract.
