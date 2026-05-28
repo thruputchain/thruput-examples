@@ -22,7 +22,7 @@ test_transaction! {
 
         etx.user_add_liquidity(ALICE, amounts_desired)?;
 
-        etx.process_outstanding_requests()?;
+        etx.process_outstanding_requests(1)?;
 
         /* ----- */ etx.advance_block(); /* ----- */
 
@@ -48,7 +48,7 @@ impl Etx {
 
         self.user_add_liquidity(PRIMER, amounts_desired)?;
 
-        self.process_outstanding_requests()?;
+        self.process_outstanding_requests(1)?;
 
         /* ----- */ self.advance_block(); /* ----- */
 
@@ -88,13 +88,14 @@ impl Etx {
         })
     }
 
-    pub fn process_outstanding_requests(&self) -> Result<()> {
+    pub fn process_outstanding_requests(&self, n_requests_waiting: u32) -> Result<()> {
         let ctx = &self.ctx;
 
         let (n_processed, n_failed) =
             self.exec_tx(&TEST_ADDR, || ctx.driver().process_requests())?;
-        assert_eq!(1, n_processed);
-        assert_eq!(0, n_failed);
+
+        assert_eq!(n_processed, n_requests_waiting);
+        assert_eq!(0, n_failed, "Swap driver: process_requests: Some requests failed");
 
         println!("Processed {n_processed} requests");
         Ok(())
