@@ -37,8 +37,7 @@ impl Ctx {
 
 impl Ctx {
     pub fn my_balances(&self) -> (Amounts, Amount) {
-        let token_balances =
-            [self.token0().get_balance(), self.token1().get_balance()];
+        let token_balances = [self.token0().get_balance(), self.token1().get_balance()];
         let lp_balance = self.lp().get_balance();
 
         (token_balances, lp_balance)
@@ -91,8 +90,14 @@ impl Ctx {
     }
     */
     pub fn calculate_swap(&self, amounts_in: Amounts) -> Amounts {
-        assert!(!(amounts_in[0] > 0 && amounts_in[1] > 0), "Please don't swap with two tokens at once");
-        assert!(amounts_in[0] > 0 || amounts_in[1] > 0, "Can't calculate swap of nothing");
+        assert!(
+            !(amounts_in[0] > 0 && amounts_in[1] > 0),
+            "Please don't swap with two tokens at once"
+        );
+        assert!(
+            amounts_in[0] > 0 || amounts_in[1] > 0,
+            "Can't calculate swap of nothing"
+        );
 
         let reserves = [
             self.token0().get_balance_of(&self.pair_addr),
@@ -140,11 +145,7 @@ impl Ctx {
         assert_eq!(0, self.token1().get_balance());
 
         {
-            println!(
-                "> {} bought {:.3} LP",
-                user.name,
-                decimalized(lp_minted)
-            );
+            println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
             self.user_print_balances(user);
         }
     }
@@ -172,11 +173,7 @@ impl Ctx {
         assert_eq!(0, self.token0().get_balance());
 
         {
-            println!(
-                "> {} bought {:.3} LP",
-                user.name,
-                decimalized(lp_minted)
-            );
+            println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
             self.user_print_balances(user);
         }
     }
@@ -198,7 +195,8 @@ impl Ctx {
         self.token1()
             .adjust_allowance(&self.pair_addr, amounts[1].try_into().unwrap());
 
-        self.driver().request_purchase(user.addr, amounts, user.addr);
+        self.driver()
+            .request_purchase(user.addr, amounts, user.addr);
 
         {
             println!(
@@ -270,10 +268,8 @@ impl Ctx {
         // This should be a no-op
         pair.skim(&SOMEBODY);
 
-        assert!(
-            pair.try_mint_lp(&SOMEBODY)
-                .is_err_and(|e| is_pair_error_and(e, |e| e
-                    == ISwapV2PairError::InsufficientLiquidityMinted))
-        );
+        assert!(pair.try_mint_lp(&SOMEBODY).is_err_and(
+            |e| is_pair_error_and(e, |e| e == ISwapV2PairError::InsufficientLiquidityMinted)
+        ));
     }
 }

@@ -2,10 +2,7 @@
 
 use super::*;
 
-pub fn is_pair_error_and(
-    e: ISwapV2PairClientError,
-    f: impl Fn(ISwapV2PairError) -> bool,
-) -> bool {
+pub fn is_pair_error_and(e: ISwapV2PairClientError, f: impl Fn(ISwapV2PairError) -> bool) -> bool {
     match e {
         ISwapV2PairClientError::ISwapV2PairError(e) => f(e),
         _ => false,

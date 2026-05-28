@@ -1,8 +1,8 @@
 //! A contract implementing ISwapV2Pair
 
 use crate::bignum::U256;
-use crate::interfaces::iswapv2_pair::*;
 use crate::events::*;
+use crate::interfaces::iswapv2_pair::*;
 use crate::reserves::*;
 use core::cmp::min;
 use core::iter::zip;
@@ -164,12 +164,7 @@ impl ISwapV2Pair for SwapV2Pair {
         amounts
     }
 
-    fn swap(
-        &mut self,
-        amount0_out: Amount,
-        amount1_out: Amount,
-        to: &Address,
-    ) {
+    fn swap(&mut self, amount0_out: Amount, amount1_out: Amount, to: &Address) {
         let amounts_out = [amount0_out, amount1_out];
 
         ensure(
@@ -219,13 +214,11 @@ impl ISwapV2Pair for SwapV2Pair {
             balances[1].strict_mul(1000).strict_sub(amounts_in[1] * 3),
         ];
 
-        let balance_prod =
-            U256::from(balance_adj[0]).mul(U256::from(balance_adj[1]));
+        let balance_prod = U256::from(balance_adj[0]).mul(U256::from(balance_adj[1]));
 
         let reserve_adj = [u128::from(r[0]) * 1000, u128::from(r[1]) * 1000];
 
-        let reserve_prod =
-            U256::from(reserve_adj[0]).mul(U256::from(reserve_adj[1]));
+        let reserve_prod = U256::from(reserve_adj[0]).mul(U256::from(reserve_adj[1]));
 
         ensure(
             balance_prod >= reserve_prod,
@@ -258,7 +251,12 @@ impl ISwapV2Pair for SwapV2Pair {
 
     // Driver helpers
 
-    fn handle_purchase(&mut self, purchaser: &ContractAddress, amounts_in: Amounts, recipient: &Address) {
+    fn handle_purchase(
+        &mut self,
+        purchaser: &ContractAddress,
+        amounts_in: Amounts,
+        recipient: &Address,
+    ) {
         // Transfer in the purchaser's A/B tokens
         self.transfer_amounts_from(purchaser, amounts_in);
 

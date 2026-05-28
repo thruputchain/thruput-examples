@@ -108,12 +108,7 @@ fn swap_pair_deploy_init(
 
     // Initialize the pair contract with the two tokens
     // (This also initializes its embedded ERC20 implementation.)
-    pair.initialize(
-        &FACTORY_ADDR,
-        &token_addrs[0],
-        &token_addrs[1],
-        token_hash,
-    );
+    pair.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], token_hash);
 
     let liquidity_token = pair.liquidity_token();
 

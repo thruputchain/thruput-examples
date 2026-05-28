@@ -1,6 +1,6 @@
 use crate::bignum::{U112, U256};
-use crate::interfaces::iswapv2_pair::*;
 use crate::events::*;
+use crate::interfaces::iswapv2_pair::*;
 use sdk::*;
 
 // The state value
@@ -57,10 +57,8 @@ impl Reserves {
         // Increment the cumulative prices
         let [r0, r1] = self.balances();
         if time_elapsed > 0 && r0 != 0 && r1 != 0 {
-            self.cumulative_prices[0] +=
-                uq112x112_div_mul(r1, r0, time_elapsed);
-            self.cumulative_prices[1] +=
-                uq112x112_div_mul(r0, r1, time_elapsed);
+            self.cumulative_prices[0] += uq112x112_div_mul(r1, r0, time_elapsed);
+            self.cumulative_prices[1] += uq112x112_div_mul(r0, r1, time_elapsed);
         }
 
         // This will not fail due to the checks at the top of this function

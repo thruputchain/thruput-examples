@@ -13,22 +13,14 @@ impl Etx {
         self.env.advance_block();
     }
 
-    pub fn exec_tx<F, T>(
-        &self,
-        addr: &ContractAddress,
-        f: F,
-    ) -> Result<T, TransactResult>
+    pub fn exec_tx<F, T>(&self, addr: &ContractAddress, f: F) -> Result<T, TransactResult>
     where
         F: Fn() -> T + std::panic::RefUnwindSafe,
     {
         exec_tx(&self.env, addr, || f())
     }
 
-    pub fn exec_user_tx<F, T>(
-        &self,
-        user: User,
-        f: F,
-    ) -> Result<T, TransactResult>
+    pub fn exec_user_tx<F, T>(&self, user: User, f: F) -> Result<T, TransactResult>
     where
         F: Fn(&User) -> T + std::panic::RefUnwindSafe,
     {
@@ -45,11 +37,7 @@ impl Etx {
         self.exec_user_tx(user, |_| ctx.user_print_balances(&user))
     }
 
-    pub fn record_stats(
-        &self,
-        user_a: User,
-        user_b: User,
-    ) -> Result<SwapStats> {
+    pub fn record_stats(&self, user_a: User, user_b: User) -> Result<SwapStats> {
         Ok(SwapStats {
             user_a: (user_a, self.user_balances(user_a)?),
             user_b: (user_b, self.user_balances(user_b)?),
@@ -90,8 +78,11 @@ impl Etx {
     pub fn process_requests(&self) -> Result<(u32, u32)> {
         let ctx = &self.ctx;
 
-        exec_tx(&self.env, &TEST_ADDR, ||
-            ctx.driver().with_gas_limit(PROCESS_REQUESTS_GAS).process_requests())
+        exec_tx(&self.env, &TEST_ADDR, || {
+            ctx.driver()
+                .with_gas_limit(PROCESS_REQUESTS_GAS)
+                .process_requests()
+        })
     }
 }
 

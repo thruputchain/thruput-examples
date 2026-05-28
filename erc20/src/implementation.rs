@@ -63,11 +63,7 @@ impl TokenContract {
         self.balances.at_mut(owner).strict_inc(diff);
     }
 
-    fn _allowance(
-        &self,
-        owner: &ContractAddress,
-        spender: &ContractAddress,
-    ) -> Amount {
+    fn _allowance(&self, owner: &ContractAddress, spender: &ContractAddress) -> Amount {
         self.allowances.at(owner).at(spender).try_get().unwrap_or(0) as Amount
     }
 
@@ -144,21 +140,13 @@ impl ERC20 for TokenContract {
         log_transfer_event(owner, receiver, amount);
     }
 
-    fn adjust_allowance(
-        &mut self,
-        spender: &ContractAddress,
-        diff: Difference,
-    ) {
+    fn adjust_allowance(&mut self, spender: &ContractAddress, diff: Difference) {
         let owner = get_caller();
 
         self._adjust_allowance(&owner, spender, diff);
     }
 
-    fn allowance(
-        &self,
-        owner: &ContractAddress,
-        spender: &ContractAddress,
-    ) -> Amount {
+    fn allowance(&self, owner: &ContractAddress, spender: &ContractAddress) -> Amount {
         self._allowance(owner, spender)
     }
 
