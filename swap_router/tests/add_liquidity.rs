@@ -92,7 +92,10 @@ impl Etx {
         let ctx = &self.ctx;
 
         let (n_processed, n_failed) =
-            self.exec_tx(&TEST_ADDR, || ctx.driver().process_requests())?;
+            self.exec_tx(&TEST_ADDR,
+                || ctx.driver()
+                    .with_gas_limit(PROCESS_REQUESTS_GAS)
+                    .process_requests())?;
 
         assert_eq!(n_processed, n_requests_waiting);
         assert_eq!(0, n_failed, "Swap driver: process_requests: Some requests failed");

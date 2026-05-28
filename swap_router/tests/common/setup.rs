@@ -1,14 +1,13 @@
 use super::*;
 
 pub fn setup_etx() -> Result<Etx> {
-    #[cfg(feature = "native_test")]
+    #[cfg(not(feature = "wasm_test"))]
     { setup_etx_native() }
 
-    #[cfg(not(feature = "native_test"))]
+    #[cfg(feature = "wasm_test")]
     { setup_etx_wasm() }
 }
 
-#[cfg(feature = "native_test")]
 pub fn setup_etx_native() -> Result<Etx> {
     let env = sdk::TestEnvironment::no_cost();
 
@@ -28,12 +27,8 @@ pub fn setup_etx_native() -> Result<Etx> {
     let router_contract = swap_router::register_mock_contract(&env);
     let router_hash = router_contract.as_hash().clone();
 
-    // Deploy and init the A/B token contracts
-    let token_addrs = exec_tx(&env, &TEST_ADDR, || ab_tokens_deploy_init(&token_hash))?;
-
     setup_contracts(
         &env,
-        token_addrs,
         token_hash,
         pair_hash,
         driver_hash,
@@ -67,13 +62,8 @@ pub fn setup_etx_wasm() -> Result<Etx> {
     let driver_hash = env.setup_create_contract(&driver_contract);
     let router_hash = env.setup_create_contract(&router_contract);
 
-    // Deploy and init the A/B token contracts
-    let token_addrs = exec_tx(&env, &TEST_ADDR,
-        || ab_tokens_deploy_init(&token_hash))?;
-
     setup_contracts(
         &env,
-        token_addrs,
         token_hash,
         pair_hash,
         driver_hash,
@@ -84,12 +74,15 @@ pub fn setup_etx_wasm() -> Result<Etx> {
 #[rustfmt::skip]
 pub fn setup_contracts(
     env: &TestEnvironmentHandle,
-    token_addrs: Addresses,
     token_hash: SHA256Hash,
     pair_hash: SHA256Hash,
     driver_hash: SHA256Hash,
     router_hash: SHA256Hash,
 ) -> Result<Etx> {
+
+    // Deploy and init the A/B token contracts
+    let token_addrs = exec_tx(&env, &TEST_ADDR,
+        || ab_tokens_deploy_init(&token_hash))?;
 
     /* ----- */ env.advance_block(); /* ----- */
 

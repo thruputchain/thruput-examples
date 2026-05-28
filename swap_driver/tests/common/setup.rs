@@ -1,7 +1,14 @@
 use super::*;
 
-#[rustfmt::skip]
 pub fn setup_etx() -> Result<Etx> {
+    #[cfg(not(feature = "wasm_test"))]
+    { setup_etx_native() }
+
+    #[cfg(feature = "wasm_test")]
+    { setup_etx_wasm() }
+}
+
+pub fn setup_etx_native() -> Result<Etx> {
     let env = sdk::TestEnvironment::no_cost();
 
     // Register the token contract
@@ -15,6 +22,51 @@ pub fn setup_etx() -> Result<Etx> {
     // Register the driver contract
     let driver_contract = swap_driver::register_mock_contract(&env);
     let driver_hash = driver_contract.as_hash().clone();
+
+    setup_contracts(
+        &env,
+        token_hash,
+        pair_hash,
+        driver_hash,
+    )
+}
+
+pub fn setup_etx_wasm() -> Result<Etx> {
+    let token_contract = load_wasm_contract(
+        "../target/wasm32-unknown-unknown/release/\
+         erc20.wasm",
+    );
+    let pair_contract = load_wasm_contract(
+        "../target/wasm32-unknown-unknown/release/\
+         swap.wasm",
+    );
+    let driver_contract = load_wasm_contract(
+        "../target/wasm32-unknown-unknown/release/\
+         swap_driver.wasm",
+    );
+
+    let env = sdk::TestEnvironment::no_cost();
+
+    // Register the contracts
+    let token_hash = env.setup_create_contract(&token_contract);
+    let pair_hash = env.setup_create_contract(&pair_contract);
+    let driver_hash = env.setup_create_contract(&driver_contract);
+
+    setup_contracts(
+        &env,
+        token_hash,
+        pair_hash,
+        driver_hash,
+    )
+}
+
+#[rustfmt::skip]
+pub fn setup_contracts(
+    env: &TestEnvironmentHandle,
+    token_hash: SHA256Hash,
+    pair_hash: SHA256Hash,
+    driver_hash: SHA256Hash,
+) -> Result<Etx> {
 
     // Deploy and init the A/B token contracts
     let token_addrs = exec_tx(&env, &TEST_ADDR, || ab_tokens_deploy_init(&token_hash))?;
@@ -50,70 +102,6 @@ pub fn setup_etx() -> Result<Etx> {
 
     Ok(Etx { env, ctx })
 }
-
-#[rustfmt::skip]
-pub fn setup_etx_wasm() -> Result<Etx> {
-    let erc20_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         erc20.wasm",
-    );
-    let pair_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap.wasm",
-    );
-    let driver_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap_driver.wasm",
-    );
-
-    let env = sdk::TestEnvironment::no_cost();
-
-    // Register the contracts
-    let erc20_hash = env.setup_create_contract(&erc20_contract);
-    let pair_hash = env.setup_create_contract(&pair_contract);
-    let driver_hash = env.setup_create_contract(&driver_contract);
-
-    // Deploy and init the A/B token contracts
-    let token_addrs = exec_tx(&env, &TEST_ADDR,
-        || ab_tokens_deploy_init(&erc20_hash))?;
-
-    /* ----- */ env.advance_block(); /* ----- */
-
-    // Seed our users with A/B tokens
-    exec_tx(&env, &TEST_ADDR, || airdrop_tokens(&token_addrs));
-
-    /* ----- */ env.advance_block(); /* ----- */
-
-    // As the factory, deploy and init a swap-pair contract
-    let (pair_addr, liquidity_token) = exec_tx(&env, &FACTORY_ADDR, || {
-        swap_pair_deploy_init(&pair_hash, &erc20_hash, token_addrs)
-    })?;
-
-    /* ----- */ env.advance_block(); /* ----- */
-
-    // As the factory, deploy and init a driver contract
-    let driver_addr = exec_tx(&env, &FACTORY_ADDR, || {
-        driver_deploy_init(
-            &driver_hash,
-            &pair_addr,
-            &liquidity_token,
-            &token_addrs,
-        )
-    })?;
-
-    /* ----- */ env.advance_block(); /* ----- */
-
-    let env = env.clone();
-    let ctx = Ctx {
-        driver_addr,
-        pair_addr,
-        liquidity_token,
-        token_addrs
-    };
-
-    Ok(Etx { env, ctx })
-}
-
 
 #[rustfmt::skip]
 pub fn setup_etx_primed() -> Result<Etx> {
