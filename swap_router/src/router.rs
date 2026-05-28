@@ -87,7 +87,5 @@ impl Router {
 
         let purchaser = get_caller();
         driver.request_purchase(&purchaser, amounts, recipient);
-
-        debug_log!("Requested purchase of LP tokens in exchange for {amounts:?}");
     }
 }

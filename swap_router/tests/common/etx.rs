@@ -13,22 +13,14 @@ impl Etx {
         self.env.advance_block();
     }
 
-    pub fn exec_tx<F, T>(
-        &self,
-        addr: &ContractAddress,
-        f: F,
-    ) -> Result<T, TransactResult>
+    pub fn exec_tx<F, T>(&self, addr: &ContractAddress, f: F) -> Result<T, TransactResult>
     where
         F: Fn() -> T + std::panic::RefUnwindSafe,
     {
         exec_tx(&self.env, addr, || f())
     }
 
-    pub fn exec_user_tx<F, T>(
-        &self,
-        user: User,
-        f: F,
-    ) -> Result<T, TransactResult>
+    pub fn exec_user_tx<F, T>(&self, user: User, f: F) -> Result<T, TransactResult>
     where
         F: Fn(&User) -> T + std::panic::RefUnwindSafe,
     {
@@ -45,10 +37,7 @@ impl Etx {
         self.exec_user_tx(user, |_| ctx.user_print_balances(&user))
     }
 
-    pub fn record_stats(
-        &self,
-        users: &[User],
-    ) -> Result<SwapStats> {
+    pub fn record_stats(&self, users: &[User]) -> Result<SwapStats> {
         let ctx = &self.ctx;
 
         let get_user_stats = |&u| Ok((u, self.user_balances(u)?));

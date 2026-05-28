@@ -13,22 +13,14 @@ impl Etx {
         self.env.advance_block();
     }
 
-    pub fn exec_tx<F, T>(
-        &self,
-        addr: &ContractAddress,
-        f: F,
-    ) -> Result<T, TransactResult>
+    pub fn exec_tx<F, T>(&self, addr: &ContractAddress, f: F) -> Result<T, TransactResult>
     where
         F: Fn() -> T + std::panic::RefUnwindSafe,
     {
         exec_tx2(&self.env, addr, || f(), event_handler)
     }
 
-    pub fn exec_user_tx<F, T>(
-        &self,
-        user: User,
-        f: F,
-    ) -> Result<T, TransactResult>
+    pub fn exec_user_tx<F, T>(&self, user: User, f: F) -> Result<T, TransactResult>
     where
         F: Fn(&User) -> T + std::panic::RefUnwindSafe,
     {
@@ -46,11 +38,7 @@ impl Etx {
         Ok(())
     }
 
-    pub fn record_stats(
-        &self,
-        user_a: User,
-        user_b: User,
-    ) -> Result<SwapStats> {
+    pub fn record_stats(&self, user_a: User, user_b: User) -> Result<SwapStats> {
         Ok(SwapStats {
             user_a: (user_a, self.user_balances(user_a)?),
             user_b: (user_b, self.user_balances(user_b)?),
@@ -127,7 +115,10 @@ fn event_handler(e: &sdk::types::event::TxEmittedEvent) {
             let amounts_in = payload.amounts_in;
             let amounts_out = payload.amounts_out;
 
-            println!("EEE Swap ({}/{} => {}/{})", amounts_in[0], amounts_in[1], amounts_out[0], amounts_out[1]);
+            println!(
+                "EEE Swap ({}/{} => {}/{})",
+                amounts_in[0], amounts_in[1], amounts_out[0], amounts_out[1]
+            );
         }
         swap::SyncEvent::SIGNATURE => {
             let e: TypedEvent<swap::SyncEvent> = TypedEvent::new(e.raw());

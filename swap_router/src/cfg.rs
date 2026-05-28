@@ -3,9 +3,9 @@
 #[cfg(feature = "dev")]
 use groundhog_erc20_if::*;
 
+use sdk::*;
 use swap::*;
 use swap_driver::*;
-use sdk::*;
 
 #[contract_type]
 pub struct Cfg {
@@ -20,7 +20,11 @@ pub struct Cfg {
 }
 
 impl Cfg {
-    pub fn get_pair(&self, token_a: &Address, token_b: &Address) -> (ISwapV2PairClient, SwapV2DriverClient) {
+    pub fn get_pair(
+        &self,
+        token_a: &Address,
+        token_b: &Address,
+    ) -> (ISwapV2PairClient, SwapV2DriverClient) {
         // Just assert that this is the one pair we know about
         assert_eq!(token_a, &self.token0);
         assert_eq!(token_b, &self.token1);

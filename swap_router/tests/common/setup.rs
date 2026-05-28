@@ -2,10 +2,14 @@ use super::*;
 
 pub fn setup_etx() -> Result<Etx> {
     #[cfg(not(feature = "wasm_test"))]
-    { setup_etx_native() }
+    {
+        setup_etx_native()
+    }
 
     #[cfg(feature = "wasm_test")]
-    { setup_etx_wasm() }
+    {
+        setup_etx_wasm()
+    }
 }
 
 pub fn setup_etx_native() -> Result<Etx> {
@@ -27,13 +31,7 @@ pub fn setup_etx_native() -> Result<Etx> {
     let router_contract = swap_router::register_mock_contract(&env);
     let router_hash = router_contract.as_hash().clone();
 
-    setup_contracts(
-        &env,
-        token_hash,
-        pair_hash,
-        driver_hash,
-        router_hash,
-    )
+    setup_contracts(&env, token_hash, pair_hash, driver_hash, router_hash)
 }
 
 pub fn setup_etx_wasm() -> Result<Etx> {
@@ -62,13 +60,7 @@ pub fn setup_etx_wasm() -> Result<Etx> {
     let driver_hash = env.setup_create_contract(&driver_contract);
     let router_hash = env.setup_create_contract(&router_contract);
 
-    setup_contracts(
-        &env,
-        token_hash,
-        pair_hash,
-        driver_hash,
-        router_hash,
-    )
+    setup_contracts(&env, token_hash, pair_hash, driver_hash, router_hash)
 }
 
 #[rustfmt::skip]
@@ -151,8 +143,18 @@ fn ab_tokens_deploy_init(token_hash: &SHA256Hash) -> Addresses {
     let token1 = ERC20MetadataClient::new(&token1_addr);
 
     // Initialize the token contracts, putting them under control of the test
-    token0.initialize(TEST.addr, None, Some(Symbol::try_from("AAA").unwrap()), None);
-    token1.initialize(TEST.addr, None, Some(Symbol::try_from("BBB").unwrap()), None);
+    token0.initialize(
+        TEST.addr,
+        None,
+        Some(Symbol::try_from("AAA").unwrap()),
+        None,
+    );
+    token1.initialize(
+        TEST.addr,
+        None,
+        Some(Symbol::try_from("BBB").unwrap()),
+        None,
+    );
 
     [token0_addr, token1_addr]
 }
@@ -189,12 +191,7 @@ fn swap_pair_deploy_init(
 
     // Initialize the pair contract with the two tokens
     // (This also initializes its embedded ERC20 implementation.)
-    pair.initialize(
-        &FACTORY_ADDR,
-        &token_addrs[0],
-        &token_addrs[1],
-        token_hash,
-    );
+    pair.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], token_hash);
 
     let liquidity_token = pair.liquidity_token();
 

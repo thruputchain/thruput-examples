@@ -15,7 +15,11 @@ const SWAP_GAS_LIMIT: u64 = 60_000 + WASM_BUMP;
 
 // Additional needed for wasm execution
 // (may not be as precise as per-request limits found above)
-const WASM_BUMP: u64 = if cfg!(target_family = "wasm") { 75_000 } else { 0 };
+const WASM_BUMP: u64 = if cfg!(target_family = "wasm") {
+    75_000
+} else {
+    0
+};
 
 const REQ_GAS_MAX: u64 = REDEEM_GAS_LIMIT; // maximum of above
 
@@ -51,19 +55,21 @@ impl SwapV2Driver {
         self.cfg.set(&cfg);
     }
 
-    pub fn request_purchase(&mut self, purchaser: &ContractAddress, amounts: Amounts, recipient: &Address) {
-        self.requests.insert(&Request::purchase(purchaser, amounts, recipient));
+    pub fn request_purchase(
+        &mut self,
+        purchaser: &ContractAddress,
+        amounts: Amounts,
+        recipient: &Address,
+    ) {
+        self.requests
+            .insert(&Request::purchase(purchaser, amounts, recipient));
     }
 
     pub fn request_redeem(&mut self, redeemer: &ContractAddress) {
         self.requests.insert(&Request::redeem(redeemer));
     }
 
-    pub fn request_swap(
-        &mut self,
-        trader: &ContractAddress,
-        amounts_out: Amounts,
-    ) {
+    pub fn request_swap(&mut self, trader: &ContractAddress, amounts_out: Amounts) {
         self.requests.insert(&Request::swap(trader, amounts_out));
     }
 
@@ -80,8 +86,7 @@ impl SwapV2Driver {
             }
             match req {
                 Request::Purchase(ref req) => {
-                    cfg
-                        .pair()
+                    cfg.pair()
                         .with_gas_limit(PURCHASE_GAS_LIMIT)
                         .try_handle_purchase(&req.purchaser, req.amounts, &req.recipient)
                         .unwrap_or_else(|e| {
@@ -91,25 +96,23 @@ impl SwapV2Driver {
                     batch_gas_consumed_max += PURCHASE_GAS_LIMIT;
                 }
                 Request::Redeem(ref req) => {
-                    cfg
-                    .pair()
-                    .with_gas_limit(REDEEM_GAS_LIMIT)
-                    .try_handle_redeem(&req.redeemer)
-                    .unwrap_or_else(|e| {
-                        operation_failed("Redeem", &e);
-                        n_failed += 1;
-                    });
+                    cfg.pair()
+                        .with_gas_limit(REDEEM_GAS_LIMIT)
+                        .try_handle_redeem(&req.redeemer)
+                        .unwrap_or_else(|e| {
+                            operation_failed("Redeem", &e);
+                            n_failed += 1;
+                        });
                     batch_gas_consumed_max += REDEEM_GAS_LIMIT;
                 }
                 Request::Swap(ref req) => {
-                    cfg
-                    .pair()
-                    .with_gas_limit(SWAP_GAS_LIMIT)
-                    .try_handle_swap(&req.trader, req.amounts_out)
-                    .unwrap_or_else(|e| {
-                        operation_failed("Swap", &e);
-                        n_failed += 1;
-                    });
+                    cfg.pair()
+                        .with_gas_limit(SWAP_GAS_LIMIT)
+                        .try_handle_swap(&req.trader, req.amounts_out)
+                        .unwrap_or_else(|e| {
+                            operation_failed("Swap", &e);
+                            n_failed += 1;
+                        });
                     batch_gas_consumed_max += SWAP_GAS_LIMIT;
                 }
             }

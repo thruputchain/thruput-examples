@@ -5,13 +5,13 @@ sdk::declare_mock_contract!();
 extern crate alloc;
 
 // Interface
-pub use router::{RouterClient, SwapRouterError};
 pub use library::SwapLibraryError;
+pub use router::{RouterClient, SwapRouterError};
 
 // Implementation
 mod cfg;
-mod router;
 mod library;
+mod router;
 
 #[cfg(feature = "dev")]
 pub use router::Router;
