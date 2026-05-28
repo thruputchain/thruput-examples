@@ -8,19 +8,23 @@ use sdk::storage::*;
 use sdk::*;
 use swap::*;
 
-// Empirically-derived limits (precise to ~5_000)
-const PURCHASE_GAS_LIMIT: u64 = 55_000;
-const REDEEM_GAS_LIMIT: u64 = 70_000;
-const SWAP_GAS_LIMIT: u64 = 60_000;
+// Limits derived empirically in native test (precise to ~5_000)
+const PURCHASE_GAS_LIMIT: u64 = 55_000 + WASM_BUMP;
+const REDEEM_GAS_LIMIT: u64 = 70_000 + WASM_BUMP;
+const SWAP_GAS_LIMIT: u64 = 60_000 + WASM_BUMP;
 
-const REQ_GAS_MAX: u64 = 70_000; // maximum of above
+// Additional needed for wasm execution
+// (may not be as precise as per-request limits found above)
+const WASM_BUMP: u64 = if cfg!(target_family = "wasm") { 75_000 } else { 0 };
 
-// Allow about 10 requests
+const REQ_GAS_MAX: u64 = REDEEM_GAS_LIMIT; // maximum of above
+
+// Allow about 10 requests per batch
 const BATCH_GAS_HIGH_WATER: u64 = 9 * REQ_GAS_MAX;
 
 // Recommended gas limit for `process_requests()`
 //   (some overhead plus enough for ~10 requests)
-pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + 10 * REQ_GAS_MAX;
+pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + (10 * REQ_GAS_MAX);
 
 /// State for the pair contract
 #[storage]
