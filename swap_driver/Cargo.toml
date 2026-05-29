@@ -22,9 +22,6 @@ uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
 thiserror = { workspace = true }
 swap = { path = "../swap" }
-groundhog-xdr = { workspace = true, features = ["xdrs"] }
-groundhog-contract-util = { workspace = true }
-xdrs = { workspace = true, features = ["alloc"] }
 
 # Optional, for native tests
 erc20 = { path = "../erc20", features = ["dev"], optional = true }

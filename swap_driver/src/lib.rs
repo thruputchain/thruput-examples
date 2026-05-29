@@ -10,6 +10,5 @@ pub use swapv2_driver::{PROCESS_REQUESTS_GAS, SwapV2DriverClient, SwapV2DriverCl
 // Implementation
 mod cfg;
 mod request;
-mod callback;
 mod swapv2_driver;
 pub use swapv2_driver::SwapV2Driver;

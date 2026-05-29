@@ -594,18 +594,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "groundhog-contract-util"
-version = "0.14.7"
-source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "22aa62c1c24a0bb2dddfadee7e2fb479ab5b5fd102d4fe32709c66b88d7e6771"
-dependencies = [
- "groundhog-xdr",
- "semver",
- "sha2 0.11.0",
- "xdrs",
-]
-
-[[package]]
 name = "groundhog-erc20-if"
 version = "0.1.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
@@ -643,7 +631,7 @@ name = "groundhog-macros"
 version = "0.14.7"
 dependencies = [
  "darling",
- "groundhog-contract-util 0.14.7",
+ "groundhog-contract-util",
  "groundhog-xdr",
  "proc-macro2",
  "quote",
@@ -1859,17 +1847,14 @@ name = "swap_driver"
 version = "0.1.0"
 dependencies = [
  "erc20",
- "groundhog-contract-util 0.14.7 (sparse+https://groundhog.dev/crates/api/v1/crates/)",
  "groundhog-erc20-if",
  "groundhog-erc20-metadata-if",
- "groundhog-xdr",
  "heapless",
  "sdk",
  "swap",
  "swap_driver",
  "thiserror",
  "uint",
- "xdrs",
 ]
 
 [[package]]
