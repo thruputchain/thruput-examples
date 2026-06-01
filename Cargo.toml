@@ -1,5 +1,5 @@
 [workspace]
-members = ["fibonacci", "cross-call", "error-handling-callee", "error-handling-caller", "multi-impl-traits", "multi-impl", "multi-throws", "events"]
+members = ["fibonacci", "cross-call", "error-handling-callee", "error-handling-caller", "multi-impl-traits", "multi-impl", "multi-throws", "events", "caller-counter"]
 resolver = "2"
 
 [workspace.package]
@@ -7,4 +7,4 @@ edition = "2024"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-sdk = { registry = "groundhog", version = "0.14.0" }
+sdk = { registry = "groundhog", version = "0.14.10" }
