@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
+#![allow(clippy::too_many_arguments)]
 
 use sdk::*;
 
@@ -8,7 +9,6 @@ pub struct Calldata;
 
 #[contract]
 impl Calldata {
-    #[allow(clippy::too_many_arguments)]
     pub fn sum16(
         a00: u32,
         a01: u32,
