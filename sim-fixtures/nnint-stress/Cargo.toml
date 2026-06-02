@@ -1,6 +1,6 @@
 [package]
-name = "calldata"
-description = "Example contract for calldata-heavy calls"
+name = "nnint-stress"
+description = "NNInt simulator stress fixture"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -15,7 +15,7 @@ doctest = false
 test = false
 
 [dependencies]
-sdk = { workspace = true }
+sdk = { workspace = true, features = ["storage"] }
 
 [dev-dependencies]
-calldata = { path = ".", features = ["dev"] }
+nnint-stress = { path = ".", features = ["dev"] }

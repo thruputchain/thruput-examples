@@ -1,5 +1,17 @@
 [workspace]
-members = ["fibonacci", "cross-call", "error-handling-callee", "error-handling-caller", "multi-impl-traits", "multi-impl", "multi-throws", "events", "caller-counter", "calldata"]
+members = [
+    "fibonacci",
+    "cross-call",
+    "error-handling-callee",
+    "error-handling-caller",
+    "multi-impl-traits",
+    "multi-impl",
+    "multi-throws",
+    "events",
+    "sim-fixtures/caller-counter",
+    "sim-fixtures/calldata",
+    "sim-fixtures/nnint-stress",
+]
 resolver = "2"
 
 [workspace.package]
