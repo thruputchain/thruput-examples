@@ -32,12 +32,9 @@ keywords = ["groundhog"]
 categories = ["blockchain"]
 
 [workspace.dependencies]
-<<<<<<< HEAD
 sdk = { registry = "groundhog", version = "0.14.11" }
-=======
-sdk = { registry = "groundhog", version = "0.14.7" }
-groundhog-erc20-if = { registry = "groundhog", version = "=0.1.1" }
-groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.1" }
+groundhog-erc20-if = { registry = "groundhog", version = "=0.1.2" }
+groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.2" }
 
 # crates.io dependencies
 sha2 = { version = "0.11.0", default-features = false }
@@ -47,7 +44,3 @@ heapless = { version = "0.9.2" }
 
 [profile.release]
 trim-paths = "all" # unstable
-
-[patch.groundhog] # XXX
-sdk = { path = "../sdk/crates/sdk" }
->>>>>>> 5396295 (add swap contracts)
