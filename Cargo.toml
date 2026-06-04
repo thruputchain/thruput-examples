@@ -28,9 +28,9 @@ keywords = ["groundhog"]
 categories = ["blockchain"]
 
 [workspace.dependencies]
-sdk = { registry = "groundhog", version = "0.14.7" }
-groundhog-erc20-if = { registry = "groundhog", version = "=0.1.1" }
-groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.1" }
+sdk = { registry = "groundhog", version = "0.14.11" }
+groundhog-erc20-if = { registry = "groundhog", version = "=0.1.2" }
+groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.2" }
 
 # crates.io dependencies
 sha2 = { version = "0.11.0", default-features = false }
@@ -43,3 +43,5 @@ trim-paths = "all" # unstable
 
 [patch.groundhog] # XXX
 sdk = { path = "../sdk/crates/sdk" }
+groundhog-erc20-if = { path = "../sdk/standard-interfaces/groundhog-erc20" }
+groundhog-erc20-metadata-if = { path = "../sdk/standard-interfaces/groundhog-erc20-metadata" }
