@@ -193,7 +193,7 @@ fn concurrent_swap_strategy<const N: usize>(
     // Both users submit swap requests
     for (user, amounts_in, amounts_out) in strategy {
         etx.exec_user_tx(user, |_| {
-            ctx.driver().request_swap(&user.addr, amounts_out)
+            ctx.driver().request_swap(&user.addr, amounts_in, amounts_out, &user.addr)
         })?;
 
         println!("> {} requested swap {:.3?} => {:.3?}", user.name,

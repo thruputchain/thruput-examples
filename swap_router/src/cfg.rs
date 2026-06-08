@@ -32,6 +32,24 @@ impl Cfg {
         (self.pair(), self.driver())
     }
 
+    /// Like `get_pair`, but accepts the tokens in either order; additionally
+    /// returns the index (0 or 1) of `token_in` within the pair.
+    pub fn get_pair_directed(
+        &self,
+        token_in: &Address,
+        token_out: &Address,
+    ) -> (ISwapV2PairClient, SwapV2DriverClient, usize) {
+        let in_index = if (token_in, token_out) == (&self.token0, &self.token1) {
+            0
+        } else {
+            // Just assert that this is the one pair we know about
+            assert_eq!((token_out, token_in), (&self.token0, &self.token1));
+            1
+        };
+
+        (self.pair(), self.driver(), in_index)
+    }
+
     fn pair(&self) -> ISwapV2PairClient {
         ISwapV2PairClient::new(&self.swap_pair)
     }

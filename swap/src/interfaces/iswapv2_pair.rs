@@ -79,5 +79,11 @@ pub trait ISwapV2Pair {
         recipient: &ContractAddress,
     );
     fn handle_redeem(&mut self, redeemer: &ContractAddress);
-    fn handle_swap(&mut self, trader: &ContractAddress, amounts_out: Amounts);
+    fn handle_swap(
+        &mut self,
+        trader: &ContractAddress,
+        amounts_in: Amounts,
+        amounts_out: Amounts,
+        recipient: &ContractAddress,
+    );
 }

@@ -70,8 +70,15 @@ impl SwapV2Driver {
         self.requests.insert(&Request::redeem(redeemer));
     }
 
-    pub fn request_swap(&mut self, trader: &ContractAddress, amounts_out: Amounts) {
-        self.requests.insert(&Request::swap(trader, amounts_out));
+    pub fn request_swap(
+        &mut self,
+        trader: &ContractAddress,
+        amounts_in: Amounts,
+        amounts_out: Amounts,
+        recipient: &Address,
+    ) {
+        self.requests
+            .insert(&Request::swap(trader, amounts_in, amounts_out, recipient));
     }
 
     pub fn process_requests(&mut self) -> (u32, u32) {
@@ -106,7 +113,7 @@ impl SwapV2Driver {
                 Request::Swap(ref req) => {
                     cfg.pair()
                         .with_gas_limit(SWAP_GAS_LIMIT)
-                        .try_handle_swap(&req.trader, req.amounts_out)
+                        .try_handle_swap(&req.trader, req.amounts_in, req.amounts_out, &req.recipient)
                         .unwrap_or_else(|e| {
                             operation_failed("Swap", &e);
                             n_failed += 1;
