@@ -29,10 +29,17 @@ impl Request {
         })
     }
 
-    pub const fn swap(trader: &Address, amounts_out: Amounts) -> Request {
+    pub const fn swap(
+        trader: &Address,
+        amounts_in: Amounts,
+        amounts_out: Amounts,
+        recipient: &Address,
+    ) -> Request {
         Self::Swap(SwapRequest {
             trader: *trader,
+            amounts_in,
             amounts_out,
+            recipient: *recipient,
         })
     }
 }
@@ -59,9 +66,15 @@ pub struct RedeemRequest {
 #[xdrs(crate = "::sdk::__xdrs")]
 #[cfg_attr(feature = "dev", derive(Debug))]
 pub struct SwapRequest {
-    // The designated receiver of the LP-tokens
+    // The trader paying the in-amounts
     pub trader: Address,
+
+    // Amounts the trader pays in
+    pub amounts_in: Amounts,
 
     // Amounts the trader wishes to extract
     pub amounts_out: Amounts,
+
+    // The designated receiver of the out-amounts
+    pub recipient: Address,
 }

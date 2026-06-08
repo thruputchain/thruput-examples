@@ -270,11 +270,17 @@ impl ISwapV2Pair for SwapV2Pair {
         let _redeemed = self.burn_lp(redeemer);
     }
 
-    fn handle_swap(&mut self, trader: &ContractAddress, amounts_out: Amounts) {
-        // Transfer in our allowances of the trader's A/B tokens
-        self.transfer_allowances_from(trader);
+    fn handle_swap(
+        &mut self,
+        trader: &ContractAddress,
+        amounts_in: Amounts,
+        amounts_out: Amounts,
+        recipient: &Address,
+    ) {
+        // Transfer in the trader's A/B tokens
+        self.transfer_amounts_from(trader, amounts_in);
 
-        self.swap(amounts_out[0], amounts_out[1], trader);
+        self.swap(amounts_out[0], amounts_out[1], recipient);
     }
 }
 
@@ -353,20 +359,8 @@ impl SwapV2Pair {
         let tokens = self.tokens();
 
         for i in 0..=1 {
-            tokens[i].transfer_from(owner, &this, amounts[i]);
-        }
-    }
-
-    fn transfer_allowances_from(&self, owner: &Address) {
-        let this = get_current_address();
-
-        for t in self.tokens() {
-            // We are allowed to spend this much on behalf of the owner
-            let amount = t.allowance(owner, &this);
-
-            if amount > 0 {
-                // Transfer it all to us
-                t.transfer_from(owner, &this, amount);
+            if amounts[i] > 0 {
+                tokens[i].transfer_from(owner, &this, amounts[i]);
             }
         }
     }
