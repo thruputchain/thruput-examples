@@ -33,8 +33,8 @@ categories = ["blockchain"]
 
 [workspace.dependencies]
 sdk = { registry = "groundhog", version = "0.15.0" }
-groundhog-erc20-if = { registry = "groundhog", version = "=0.1.2" }
-groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.2" }
+groundhog-erc20-if = { registry = "groundhog", version = "=0.1.3" }
+groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.3" }
 
 # crates.io dependencies
 sha2 = { version = "0.11.0", default-features = false }
