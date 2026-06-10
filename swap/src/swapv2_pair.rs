@@ -263,11 +263,18 @@ impl ISwapV2Pair for SwapV2Pair {
         let _minted = self.mint_lp(recipient);
     }
 
-    fn handle_redeem(&mut self, redeemer: &ContractAddress) {
-        // Transfer in our allowances of the user's LP tokens
-        self.transfer_lp_allowance_from(redeemer);
+    fn handle_redeem(
+        &mut self,
+        redeemer: &ContractAddress,
+        liquidity: Amount,
+        recipient: &ContractAddress,
+    ) {
+        // Transfer in the LP tokens to be burned (the redeemer must have
+        // allowed at least `liquidity` to us)
+        self.transfer_lp_from(redeemer, liquidity);
 
-        let _redeemed = self.burn_lp(redeemer);
+        // Burn them, sending the underlying A/B tokens to the recipient
+        let _redeemed = self.burn_lp(recipient);
     }
 
     fn handle_swap(
@@ -365,13 +372,11 @@ impl SwapV2Pair {
         }
     }
 
-    fn transfer_lp_allowance_from(&self, owner: &Address) {
+    fn transfer_lp_from(&self, owner: &Address, amount: Amount) {
         let this = get_current_address();
 
-        // We are allowed to spend this much on behalf of the owner
-        let amount = self.lp().allowance(owner, &this);
-
-        // Transfer it all to us
+        // Transfer `amount` of the owner's LP tokens to us (requires the owner
+        // to have allowed at least this much).
         self.lp().transfer_from(owner, &this, amount);
     }
 }

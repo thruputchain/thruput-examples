@@ -23,9 +23,15 @@ impl Request {
         })
     }
 
-    pub const fn redeem(redeemer: &Address) -> Request {
+    pub const fn redeem(
+        redeemer: &Address,
+        liquidity: Amount,
+        recipient: &Address,
+    ) -> Request {
         Self::Redeem(RedeemRequest {
             redeemer: *redeemer,
+            liquidity,
+            recipient: *recipient,
         })
     }
 
@@ -60,6 +66,12 @@ pub struct PurchaseRequest {
 pub struct RedeemRequest {
     // The would-be redeemer of LP-tokens
     pub redeemer: Address,
+
+    // Amount of LP tokens to burn (must be allowed to the pair by the redeemer)
+    pub liquidity: Amount,
+
+    // The designated receiver of the underlying A/B tokens
+    pub recipient: Address,
 }
 
 #[derive(ReadXDR, WriteXDR)]

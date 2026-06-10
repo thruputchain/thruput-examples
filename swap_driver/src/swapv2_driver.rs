@@ -66,8 +66,14 @@ impl SwapV2Driver {
             .insert(&Request::purchase(purchaser, amounts, recipient));
     }
 
-    pub fn request_redeem(&mut self, redeemer: &ContractAddress) {
-        self.requests.insert(&Request::redeem(redeemer));
+    pub fn request_redeem(
+        &mut self,
+        redeemer: &ContractAddress,
+        liquidity: Amount,
+        recipient: &Address,
+    ) {
+        self.requests
+            .insert(&Request::redeem(redeemer, liquidity, recipient));
     }
 
     pub fn request_swap(
@@ -103,7 +109,7 @@ impl SwapV2Driver {
                 Request::Redeem(ref req) => {
                     cfg.pair()
                         .with_gas_limit(REDEEM_GAS_LIMIT)
-                        .try_handle_redeem(&req.redeemer)
+                        .try_handle_redeem(&req.redeemer, req.liquidity, &req.recipient)
                         .unwrap_or_else(|e| {
                             operation_failed("Redeem", &e);
                             n_failed += 1;
