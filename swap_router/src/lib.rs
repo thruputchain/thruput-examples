@@ -12,6 +12,4 @@ pub use router::{RouterClient, SwapRouterError};
 mod cfg;
 mod library;
 mod router;
-
-#[cfg(feature = "dev")]
 pub use router::Router;

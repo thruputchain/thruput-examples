@@ -23,11 +23,7 @@ impl Request {
         })
     }
 
-    pub const fn redeem(
-        redeemer: &Address,
-        liquidity: Amount,
-        recipient: &Address,
-    ) -> Request {
+    pub const fn redeem(redeemer: &Address, liquidity: Amount, recipient: &Address) -> Request {
         Self::Redeem(RedeemRequest {
             redeemer: *redeemer,
             liquidity,

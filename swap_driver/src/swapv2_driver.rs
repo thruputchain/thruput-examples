@@ -119,7 +119,12 @@ impl SwapV2Driver {
                 Request::Swap(ref req) => {
                     cfg.pair()
                         .with_gas_limit(SWAP_GAS_LIMIT)
-                        .try_handle_swap(&req.trader, req.amounts_in, req.amounts_out, &req.recipient)
+                        .try_handle_swap(
+                            &req.trader,
+                            req.amounts_in,
+                            req.amounts_out,
+                            &req.recipient,
+                        )
                         .unwrap_or_else(|e| {
                             operation_failed("Swap", &e);
                             n_failed += 1;

@@ -96,8 +96,7 @@ impl Etx {
         let ctx = &self.ctx;
 
         self.exec_user_tx(PRIMER, |u| ctx.user_buy_unpriced(u))?;
-
-        /* ----- */ self.advance_block(); /* ----- */
+        self.advance_block();
 
         Ok(())
     }
