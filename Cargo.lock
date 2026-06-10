@@ -233,6 +233,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "crunchy"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
+
+[[package]]
 name = "crypto-common"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -344,6 +350,17 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
+name = "erc20"
+version = "0.1.0"
+dependencies = [
+ "erc20",
+ "groundhog-erc20-if",
+ "groundhog-erc20-metadata-if",
+ "sdk",
+ "sha2 0.11.0",
+]
 
 [[package]]
 name = "errno"
@@ -593,6 +610,31 @@ dependencies = [
  "semver",
  "sha2 0.11.0",
  "syn",
+ "xdrs",
+]
+
+[[package]]
+name = "groundhog-erc20-if"
+version = "0.1.2"
+source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
+checksum = "95154ea3b9de33d7e9d256a5fed2a1236cc47b8e910b71d265e2409efb307202"
+dependencies = [
+ "groundhog-xdr",
+ "sdk",
+ "thiserror",
+]
+
+[[package]]
+name = "groundhog-erc20-metadata-if"
+version = "0.1.2"
+source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
+checksum = "c3691421622ce23f80a8465811641b255914dc5b718152cbc8512f693c0cb3a9"
+dependencies = [
+ "groundhog-xdr",
+ "heapless",
+ "sdk",
+ "thiserror",
+ "xdr-common",
  "xdrs",
 ]
 
@@ -1835,6 +1877,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1845,6 +1893,47 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
+name = "swap"
+version = "0.1.0"
+dependencies = [
+ "erc20",
+ "groundhog-erc20-if",
+ "heapless",
+ "sdk",
+ "swap",
+ "uint",
+]
+
+[[package]]
+name = "swap_driver"
+version = "0.1.0"
+dependencies = [
+ "erc20",
+ "groundhog-erc20-if",
+ "groundhog-erc20-metadata-if",
+ "heapless",
+ "sdk",
+ "swap",
+ "swap_driver",
+ "thiserror",
+ "uint",
+]
+
+[[package]]
+name = "swap_router"
+version = "0.1.0"
+dependencies = [
+ "erc20",
+ "groundhog-erc20-if",
+ "groundhog-erc20-metadata-if",
+ "sdk",
+ "swap",
+ "swap_driver",
+ "swap_router",
+ "thiserror",
+]
 
 [[package]]
 name = "syn"
@@ -2074,6 +2163,18 @@ name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+
+[[package]]
+name = "uint"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "909988d098b2f738727b161a106cfc7cab00c539c2687a8836f8e565976fb53e"
+dependencies = [
+ "byteorder",
+ "crunchy",
+ "hex",
+ "static_assertions",
+]
 
 [[package]]
 name = "unicode-ident"
