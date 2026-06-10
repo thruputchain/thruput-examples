@@ -30,7 +30,7 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 ## Prerequisites
 
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is picked up automatically by rustup, including the `wasm32-unknown-unknown` target)
-- The `groundhog` CLI, **version 0.5.5 or newer** â€” older versions cannot parse the event spec fragments emitted by SDK 0.15.0+ and fail with `unexpected discriminator value: 4`:
+- The `groundhog` CLI, **version 0.5.5 or newer**
 
   ```sh
   cargo install --registry groundhog groundhog-cli
@@ -55,25 +55,6 @@ Tests run natively against the SDK's mock environment (the `dev` feature):
 ```sh
 cargo test --all
 ```
-
-## Declaring events
-
-As of SDK 0.15.0, events a contract emits must be declared on the `#[contract]` attribute with `emits(...)` for their definitions to be included in the contract spec:
-
-```rust
-#[derive(Event)]
-pub struct FibComputed {
-    pub input: u64,
-    pub result: u64,
-}
-
-#[contract(throws = FibError, emits(FibComputed))]
-impl Fibonacci {
-    // ...
-}
-```
-
-See the [`events`](events/) crate for topic patterns (`#[topic]` fields, address vs hashed topics) and [`fibonacci`](fibonacci/) for the minimal case.
 
 ## License
 
