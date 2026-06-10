@@ -237,7 +237,8 @@ impl Ctx {
     }
 
     pub fn user_redeem_request(&self, user: &User, allowed: i128) {
-        self.driver().request_redeem(user.addr);
+        self.driver()
+            .request_redeem(user.addr, allowed as u128, user.addr);
 
         {
             println!(

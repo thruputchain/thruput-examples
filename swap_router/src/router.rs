@@ -91,6 +91,44 @@ impl Router {
         driver.request_purchase(&purchaser, amounts, recipient);
     }
 
+    // Burn `liquidity` LP tokens, returning the underlying A/B tokens to
+    // `recipient` (but no less than `amounts_min` of each).
+    //
+    // Before calling, the user must give the pair an allowance of at least
+    // `liquidity` LP tokens.
+    pub fn remove_liquidity(
+        &self,
+        token_a: &Address,
+        token_b: &Address,
+        liquidity: Amount,
+        amounts_min: Amounts,
+        recipient: &Address,
+    ) {
+        let cfg = self.cfg.get();
+
+        let (pair, driver) = cfg.get_pair(token_a, token_b);
+
+        let (reserve_a, reserve_b, _) = pair.try_get_reserves().unwrap();
+        let total_supply = pair.try_get_liquidity().unwrap();
+
+        // The amounts that burning `liquidity` LP tokens will return, mirroring
+        // `burn_lp`: amount_i = liquidity * reserve_i / total_supply.
+        let amounts: Amounts = [
+            ((U256::from(liquidity) * U256::from(reserve_a)) / U256::from(total_supply))
+                .try_into()
+                .unwrap(),
+            ((U256::from(liquidity) * U256::from(reserve_b)) / U256::from(total_supply))
+                .try_into()
+                .unwrap(),
+        ];
+
+        ensure(amounts[A] >= amounts_min[A], InsufficientAmountA);
+        ensure(amounts[B] >= amounts_min[B], InsufficientAmountB);
+
+        let redeemer = get_caller();
+        driver.request_redeem(&redeemer, liquidity, recipient);
+    }
+
     /// Swap an exact amount of the input token for as much of the output
     /// token as possible (but no less than `amount_out_min`).
     ///
