@@ -23,7 +23,7 @@ pub struct FibComputed {
 /// Stateless Fibonacci contract.
 pub struct Fibonacci;
 
-#[contract(throws = FibError)]
+#[contract(throws = FibError, emits(FibComputed))]
 impl Fibonacci {
     /// Compute the nth Fibonacci number using naive recursion.
     /// Throws if n > MAX_FIB_INPUT.

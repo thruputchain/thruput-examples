@@ -32,7 +32,7 @@ keywords = ["groundhog"]
 categories = ["blockchain"]
 
 [workspace.dependencies]
-sdk = { registry = "groundhog", version = "0.14.11" }
+sdk = { registry = "groundhog", version = "0.15.0" }
 groundhog-erc20-if = { registry = "groundhog", version = "=0.1.2" }
 groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.2" }
 
