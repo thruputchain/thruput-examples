@@ -53,7 +53,10 @@ pub enum EventsError {
 
 pub struct Events;
 
-#[contract(throws = EventsError)]
+#[contract(
+    throws = EventsError,
+    emits(ValueStored, Transfer, TaggedAction, Checkpoint)
+)]
 impl Events {
     /// Emit a simple payload-only event.
     pub fn store_value(key: u64, value: u64) {

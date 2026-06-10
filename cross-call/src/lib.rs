@@ -22,7 +22,7 @@ pub struct CrossCallCompleted {
 /// Stateless contract demonstrating cross-contract call patterns.
 pub struct CrossCall;
 
-#[contract(throws = CrossCallError)]
+#[contract(throws = CrossCallError, emits(CrossCallCompleted))]
 impl CrossCall {
     /// Call fibonacci and return the result. Panics on failure.
     pub fn call_fib(fib_address: &ContractAddress, n: u64) -> u64 {
