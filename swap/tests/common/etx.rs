@@ -17,7 +17,7 @@ impl Etx {
     where
         F: Fn() -> T + std::panic::RefUnwindSafe,
     {
-        exec_tx2(&self.env, addr, || f(), event_handler)
+        exec_tx2(&self.env, addr, f, event_handler)
     }
 
     pub fn exec_user_tx<F, T>(&self, user: User, f: F) -> Result<T, TransactResult>
@@ -64,8 +64,8 @@ impl Etx {
         let ctx = &self.ctx;
         exec_tx(&self.env, &TEST_ADDR, || {
             [
-                ctx.token0().allowance(&user.addr, &ctx.pair_addr),
-                ctx.token1().allowance(&user.addr, &ctx.pair_addr),
+                ctx.token0().allowance(user.addr, &ctx.pair_addr),
+                ctx.token1().allowance(user.addr, &ctx.pair_addr),
             ]
         })
     }

@@ -133,10 +133,8 @@ impl Ctx {
         let amts = [self.token0().get_balance(), self.token1().get_balance()];
 
         // Transfer our AB-tokens to the pair contract
-        self.token0()
-            .transfer(&self.pair_addr, amts[0].try_into().unwrap());
-        self.token1()
-            .transfer(&self.pair_addr, amts[1].try_into().unwrap());
+        self.token0().transfer(&self.pair_addr, amts[0]);
+        self.token1().transfer(&self.pair_addr, amts[1]);
 
         let lp_minted = self.pair().mint_lp(user.addr);
 
@@ -162,10 +160,8 @@ impl Ctx {
         assert!(bal1 >= amt1);
 
         // Transfer our AB-tokens to the pair contract
-        self.token0()
-            .transfer(&self.pair_addr, amt0.try_into().unwrap());
-        self.token1()
-            .transfer(&self.pair_addr, amt1.try_into().unwrap());
+        self.token0().transfer(&self.pair_addr, amt0);
+        self.token1().transfer(&self.pair_addr, amt1);
 
         let lp_minted = self.pair().mint_lp(user.addr);
 

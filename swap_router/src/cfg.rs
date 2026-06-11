@@ -1,5 +1,3 @@
-#![allow(clippy::result_large_err)]
-
 #[cfg(feature = "dev")]
 use groundhog_erc20_if::*;
 

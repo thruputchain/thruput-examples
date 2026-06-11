@@ -79,7 +79,7 @@ fn serial_swap_user(
 
     // Perform the swap
     etx.exec_user_tx(user, |user| {
-        ctx.pair().swap(amounts_out[0], amounts_out[1], &user.addr)
+        ctx.pair().swap(amounts_out[0], amounts_out[1], user.addr)
     })?;
 
     println!("> {} swapped {:.3?} => {:.3?}", user.name,
@@ -193,7 +193,7 @@ fn concurrent_swap_strategy<const N: usize>(
     // Both users submit swap requests
     for (user, amounts_in, amounts_out) in strategy {
         etx.exec_user_tx(user, |_| {
-            ctx.driver().request_swap(&user.addr, amounts_in, amounts_out, &user.addr)
+            ctx.driver().request_swap(user.addr, amounts_in, amounts_out, user.addr)
         })?;
 
         println!("> {} requested swap {:.3?} => {:.3?}", user.name,

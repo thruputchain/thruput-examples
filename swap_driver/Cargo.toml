@@ -35,3 +35,6 @@ wasm_test = []
 
 [dev-dependencies]
 swap_driver = { path = ".", features = ["dev"] }
+
+[lints]
+workspace = true

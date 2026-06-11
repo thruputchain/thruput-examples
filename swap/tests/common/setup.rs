@@ -6,11 +6,11 @@ pub fn setup_etx() -> Result<Etx> {
 
     // Register the token contract
     let token_contract = erc20::register_mock_contract(&env);
-    let token_hash = token_contract.as_hash().clone();
+    let token_hash = *token_contract.as_hash();
 
     // Register the swap-pair contract
     let pair_contract = swap::register_mock_contract(&env);
-    let pair_hash = pair_contract.as_hash().clone();
+    let pair_hash = *pair_contract.as_hash();
 
     // Deploy and init the A/B token contracts
     let token_addrs = exec_tx(&env, &TEST_ADDR, || ab_tokens_deploy_init(&token_hash))?;

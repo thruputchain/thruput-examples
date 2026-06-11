@@ -31,3 +31,6 @@ dev = ["sdk/dev", "dep:erc20", "implementation"]
 
 [dev-dependencies]
 swap = { path = ".", features = ["dev"] }
+
+[lints]
+workspace = true

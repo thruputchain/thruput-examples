@@ -11,9 +11,9 @@ pub struct SwapStats {
 
 impl Display for SwapStats {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "\tUserA {:?}\n", self.user_a.1)?;
-        write!(f, "\tUserB {:?}\n", self.user_b.1)?;
-        write!(f, "\tPair  {:?}\n", self.swap_pair)?;
+        writeln!(f, "\tUserA {:?}", self.user_a.1)?;
+        writeln!(f, "\tUserB {:?}", self.user_b.1)?;
+        writeln!(f, "\tPair  {:?}", self.swap_pair)?;
         Ok(())
     }
 }

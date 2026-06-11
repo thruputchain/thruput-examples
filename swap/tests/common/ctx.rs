@@ -47,10 +47,8 @@ impl Ctx {
         let amt1 = self.token1().get_balance();
 
         // Transfer our AB-tokens to the pair contract
-        self.token0()
-            .transfer(&self.pair_addr, amt0.try_into().unwrap());
-        self.token1()
-            .transfer(&self.pair_addr, amt1.try_into().unwrap());
+        self.token0().transfer(&self.pair_addr, amt0);
+        self.token1().transfer(&self.pair_addr, amt1);
 
         let lp_minted = self.pair().mint_lp(user.addr);
 

@@ -1,7 +1,5 @@
 //! A contract implementing ISwapV2Driver
 
-#![allow(clippy::result_large_err)]
-
 use crate::cfg::*;
 use crate::request::*;
 use sdk::storage::*;

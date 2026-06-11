@@ -17,15 +17,15 @@ pub fn setup_etx_native() -> Result<Etx> {
 
     // Register the token contract
     let token_contract = erc20::register_mock_contract(&env);
-    let token_hash = token_contract.as_hash().clone();
+    let token_hash = *token_contract.as_hash();
 
     // Register the swap-pair contract
     let pair_contract = swap::register_mock_contract(&env);
-    let pair_hash = pair_contract.as_hash().clone();
+    let pair_hash = *pair_contract.as_hash();
 
     // Register the driver contract
     let driver_contract = swap_driver::register_mock_contract(&env);
-    let driver_hash = driver_contract.as_hash().clone();
+    let driver_hash = *driver_contract.as_hash();
 
     setup_contracts(&env, token_hash, pair_hash, driver_hash)
 }
@@ -63,24 +63,24 @@ pub fn setup_contracts(
 ) -> Result<Etx> {
 
     // Deploy and init the A/B token contracts
-    let token_addrs = exec_tx(&env, &TEST_ADDR, || ab_tokens_deploy_init(&token_hash))?;
+    let token_addrs = exec_tx(env, &TEST_ADDR, || ab_tokens_deploy_init(&token_hash))?;
 
     /* ----- */ env.advance_block(); /* ----- */
 
     // Seed our users with A/B tokens
-    exec_tx(&env, &TEST_ADDR, || airdrop_tokens(&token_addrs));
+    exec_tx(env, &TEST_ADDR, || airdrop_tokens(&token_addrs));
 
     /* ----- */ env.advance_block(); /* ----- */
 
     // As the factory, deploy and init a swap-pair contract
-    let (pair_addr, liquidity_token) = exec_tx(&env, &FACTORY_ADDR, || {
+    let (pair_addr, liquidity_token) = exec_tx(env, &FACTORY_ADDR, || {
         swap_pair_deploy_init(&pair_hash, &token_hash, token_addrs)
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
 
     // As the factory, deploy and init a driver contract
-    let driver_addr = exec_tx(&env, &FACTORY_ADDR, || {
+    let driver_addr = exec_tx(env, &FACTORY_ADDR, || {
         driver_deploy_init(&driver_hash, &pair_addr, &liquidity_token, &token_addrs)
     })?;
 

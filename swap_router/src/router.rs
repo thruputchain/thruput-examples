@@ -1,7 +1,5 @@
 //! A request router for the example contracts `swap` and `swap_driver`
 
-#![allow(clippy::result_large_err)]
-
 use crate::cfg::*;
 use crate::library::*;
 use sdk::storage::*;

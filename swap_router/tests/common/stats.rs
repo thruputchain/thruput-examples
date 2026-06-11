@@ -18,14 +18,14 @@ impl Display for SwapStats {
         for s in &self.user_stats {
             let user = &s.0;
             let amounts = &s.1;
-            write!(f, "\t{} {:?}\n", user.name, amounts)?;
+            writeln!(f, "\t{} {:?}", user.name, amounts)?;
         }
-        write!(f, "\tPair  {:?}\n", self.swap_pair)?;
+        writeln!(f, "\tPair  {:?}", self.swap_pair)?;
         for s in &self.pair_allowances {
             let user = &s.0;
             let amounts = &s.1;
             if amounts[0] > 0 || amounts[1] > 0 {
-                write!(f, "\tPair allowance from {}: {:?}\n", user.name, amounts)?;
+                writeln!(f, "\tPair allowance from {}: {:?}", user.name, amounts)?;
             }
         }
         Ok(())
