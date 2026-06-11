@@ -43,7 +43,10 @@ jobs:
         run: |
           for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select([.targets[].kind[]] | index("cdylib")) | .name'); do
             echo "::group::groundhog build -p $pkg"
-            groundhog build -p "$pkg"
+            groundhog build -p "$pkg" || {
+              printf "Build failed for contract %s\n" "$pkg"
+              exit 1;
+            }
             echo "::endgroup::"
           done
 

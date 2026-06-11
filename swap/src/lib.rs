@@ -5,7 +5,6 @@
 //! [whitepaper](https://docs.uniswap.org/whitepaper.pdf)
 //! [v2-core](https://github.com/Uniswap/v2-core)
 
-// #![allow(ambiguous_glob_reexports)]
 #![cfg_attr(not(feature = "dev"), no_std)]
 
 sdk::declare_mock_contract!();
