@@ -96,6 +96,7 @@ impl SwapV2Driver {
             match req {
                 Request::Purchase(ref req) => {
                     cfg.pair()
+                        .with_commit_locking()
                         .with_gas_limit(PURCHASE_GAS_LIMIT)
                         .try_handle_purchase(&req.purchaser, req.amounts, &req.recipient)
                         .unwrap_or_else(|e| {
@@ -106,6 +107,7 @@ impl SwapV2Driver {
                 }
                 Request::Redeem(ref req) => {
                     cfg.pair()
+                        .with_commit_locking()
                         .with_gas_limit(REDEEM_GAS_LIMIT)
                         .try_handle_redeem(&req.redeemer, req.liquidity, &req.recipient)
                         .unwrap_or_else(|e| {
@@ -116,6 +118,7 @@ impl SwapV2Driver {
                 }
                 Request::Swap(ref req) => {
                     cfg.pair()
+                        .with_commit_locking()
                         .with_gas_limit(SWAP_GAS_LIMIT)
                         .try_handle_swap(
                             &req.trader,
