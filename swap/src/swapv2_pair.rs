@@ -190,7 +190,6 @@ impl ISwapV2Pair for SwapV2Pair {
         self._transfer_to(to, amounts_out);
 
         // Optional TODO: Callback for flash-swap goes here.
-        // (Safety: This method must be non-reentrant.)
 
         // Update the snapshot of reserve balances
         let balances = self._get_token_balances();
