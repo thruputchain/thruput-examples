@@ -35,10 +35,8 @@ use groundhog_xdr::types::ContractAddress;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-/// Interface name and version the `erc20` contract reports for its ERC20
-/// methods (`#[contract(version = "0.1.0")] impl ERC20 for TokenContract`).
 const INTERFACE: &str = "ERC20";
-const VERSION: &str = "0.1.0";
+const VERSION: &str = "0.1.3";
 
 /// The dev wallet's `do_action` entrypoint (from the dev-wallet WASM exports).
 const WALLET_DO_ACTION_ENTRYPOINT: [u8; 8] = 0x1984_6D75_0FAD_81D6_u64.to_be_bytes();
@@ -211,8 +209,7 @@ impl Harness {
     }
 }
 
-/// Derive the 8-byte entrypoint ID for an `ERC20` method, matching what the
-/// `groundhog` CLI and on-chain dispatch compute.
+/// Derive the 8-byte entrypoint ID for an `ERC20` method
 fn entrypoint_id(method: &str) -> ContractEntrypointID {
     let sig = NormalizedMethodSignature::new(method);
     let id = contract_entrypoint_id(Some(INTERFACE), VERSION, &sig);
