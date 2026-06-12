@@ -19,6 +19,7 @@ members = [
     "swap",
     "swap_driver",
     "swap_router",
+    "swap_itest",
     ]
 
 [workspace.package]
@@ -43,6 +44,7 @@ groundhog-signing = { registry = "groundhog", version = "=0.5.4" }
 groundhog-contract-util = { registry = "groundhog", version = "0.14.7" }
 groundhog-xdr = { registry = "groundhog", version = "=0.13.7", features = ["serde", "xdrs"] }
 xdrs = { registry = "groundhog", version = "0.7.1", features = ["alloc"] }
+xdr-common = { registry = "groundhog", version = "0.7.1" }
 
 # crates.io dependencies
 sha2 = { version = "0.11.0", default-features = false }
