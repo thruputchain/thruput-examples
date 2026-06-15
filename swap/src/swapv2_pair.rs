@@ -247,47 +247,6 @@ impl ISwapV2Pair for SwapV2Pair {
         let balances = self._get_token_balances();
         self.reserves.load_mut().update(balances);
     }
-
-    // Driver helpers
-
-    fn handle_purchase(
-        &mut self,
-        purchaser: &ContractAddress,
-        amounts_in: Amounts,
-        recipient: &Address,
-    ) {
-        // Transfer in the purchaser's A/B tokens
-        self.transfer_amounts_from(purchaser, amounts_in);
-
-        let _minted = self.mint_lp(recipient);
-    }
-
-    fn handle_redeem(
-        &mut self,
-        redeemer: &ContractAddress,
-        liquidity: Amount,
-        recipient: &ContractAddress,
-    ) {
-        // Transfer in the LP tokens to be burned (the redeemer must have
-        // allowed at least `liquidity` to us)
-        self.transfer_lp_from(redeemer, liquidity);
-
-        // Burn them, sending the underlying A/B tokens to the recipient
-        let _redeemed = self.burn_lp(recipient);
-    }
-
-    fn handle_swap(
-        &mut self,
-        trader: &ContractAddress,
-        amounts_in: Amounts,
-        amounts_out: Amounts,
-        recipient: &Address,
-    ) {
-        // Transfer in the trader's A/B tokens
-        self.transfer_amounts_from(trader, amounts_in);
-
-        self.swap(amounts_out[0], amounts_out[1], recipient);
-    }
 }
 
 // Helper methods
@@ -356,26 +315,5 @@ impl SwapV2Pair {
         }
 
         Ok(())
-    }
-
-    // Helpers for driver routines
-
-    fn transfer_amounts_from(&self, owner: &Address, amounts: Amounts) {
-        let this = get_current_address();
-        let tokens = self.tokens();
-
-        for i in 0..=1 {
-            if amounts[i] > 0 {
-                tokens[i].transfer_from(owner, &this, amounts[i]);
-            }
-        }
-    }
-
-    fn transfer_lp_from(&self, owner: &Address, amount: Amount) {
-        let this = get_current_address();
-
-        // Transfer `amount` of the owner's LP tokens to us (requires the owner
-        // to have allowed at least this much).
-        self.lp().transfer_from(owner, &this, amount);
     }
 }

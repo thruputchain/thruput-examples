@@ -5,6 +5,8 @@ use super::*;
 pub struct Ctx {
     pub router_addr: Address,
     pub driver_addr: Address,
+    // The request handler: the contract users must allow to spend their tokens.
+    pub request_handler_addr: Address,
     pub pair_addr: Address,
     pub liquidity_token: Address,
     pub token_addrs: Addresses,
@@ -56,14 +58,6 @@ impl Ctx {
         print_balances(user.name, self.my_balances(), symbols);
     }
 
-    /* from UniswapV2Library:
-    function quote(uint amountA, uint reserveA, uint reserveB) internal pure returns (uint amountB) {
-        require(amountA > 0, 'UniswapV2Library: INSUFFICIENT_AMOUNT');
-        require(reserveA > 0 && reserveB > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
-        amountB = amountA.mul(reserveB) / reserveA;
-    }
-    */
-    /// Given an amount of token0, give a price quote for token1
     pub fn quote01(&self, amount0: Amount) -> Amount {
         assert!(amount0 > 0, "Insufficient amount");
 
@@ -75,16 +69,6 @@ impl Ctx {
         amount1.try_into().unwrap()
     }
 
-    /* from UniswapV2Library:
-    function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
-        require(amountIn > 0, 'UniswapV2Library: INSUFFICIENT_INPUT_AMOUNT');
-        require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
-        uint amountInWithFee = amountIn.mul(997);
-        uint numerator = amountInWithFee.mul(reserveOut);
-        uint denominator = reserveIn.mul(1000).add(amountInWithFee);
-        amountOut = numerator / denominator;
-    }
-    */
     pub fn calculate_swap(&self, amounts_in: Amounts) -> Amounts {
         assert!(
             !(amounts_in[0] > 0 && amounts_in[1] > 0),
@@ -170,35 +154,6 @@ impl Ctx {
         }
     }
 
-    pub fn user_buy_request(&self, user: &User) {
-        let amt0 = self.token0().get_balance();
-        let amt1 = self.quote01(amt0);
-
-        let bal1 = self.token1().get_balance();
-        assert!(bal1 >= amt1);
-
-        // We want to sell all our A tokens and the equivalent amount of B
-        // tokens for LP tokens
-        let amounts = [amt0, amt1];
-
-        // Give the swap-pair contract access to my tokens
-        self.token0()
-            .adjust_allowance(&self.pair_addr, amounts[0].try_into().unwrap());
-        self.token1()
-            .adjust_allowance(&self.pair_addr, amounts[1].try_into().unwrap());
-
-        self.driver()
-            .request_purchase(user.addr, amounts, user.addr);
-
-        {
-            println!(
-                "> {} request LP purchase with (A, B): {amounts:?}",
-                user.name
-            );
-            self.user_print_balances(user);
-        }
-    }
-
     // As a user, redeem swap-pair tokens
     pub fn user_redeem(&self, user: &User) {
         let pair = self.pair();
@@ -226,20 +181,6 @@ impl Ctx {
         self.lp().adjust_allowance(&self.pair_addr, return_amt);
 
         return_amt
-    }
-
-    pub fn user_redeem_request(&self, user: &User, allowed: i128) {
-        self.driver()
-            .request_redeem(user.addr, allowed as u128, user.addr);
-
-        {
-            println!(
-                "> {} request LP redeem: {:.3?} LP",
-                user.name,
-                decimalized(allowed as u128),
-            );
-            self.user_print_balances(user);
-        }
     }
 
     // Make sure we're not holding any LP tokens

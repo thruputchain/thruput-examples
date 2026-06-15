@@ -58,13 +58,13 @@ impl Etx {
         })
     }
 
-    // What allowances has the user given to the pair contract?
+    // What allowances has the user given to the request handler?
     pub fn user_pledges(&self, user: User) -> Result<Amounts> {
         let ctx = &self.ctx;
         exec_tx(&self.env, &TEST_ADDR, || {
             [
-                ctx.token0().allowance(user.addr, &ctx.pair_addr),
-                ctx.token1().allowance(user.addr, &ctx.pair_addr),
+                ctx.token0().allowance(user.addr, &ctx.request_handler_addr),
+                ctx.token1().allowance(user.addr, &ctx.request_handler_addr),
             ]
         })
     }

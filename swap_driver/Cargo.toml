@@ -22,6 +22,7 @@ uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
 thiserror = { workspace = true }
 swap = { path = "../swap" }
+swap_request = { path = "../swap_request" }
 
 # Optional, for native tests
 erc20 = { path = "../erc20", features = ["dev"], optional = true }
@@ -30,7 +31,7 @@ groundhog-erc20-metadata-if = { workspace = true, features = ["dev"], optional =
 [features]
 entrypoints = []
 erc20_metadata = ["erc20?/metadata", "dep:groundhog-erc20-metadata-if"]
-dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap/dev"]
+dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap/dev", "swap_request/dev"]
 wasm_test = []
 
 [dev-dependencies]

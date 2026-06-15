@@ -23,11 +23,15 @@ pub fn setup_etx_native() -> Result<Etx> {
     let pair_contract = swap::register_mock_contract(&env);
     let pair_hash = *pair_contract.as_hash();
 
+    // Register the request-handler contract
+    let handler_contract = swap_request::register_mock_contract(&env);
+    let handler_hash = *handler_contract.as_hash();
+
     // Register the driver contract
     let driver_contract = swap_driver::register_mock_contract(&env);
     let driver_hash = *driver_contract.as_hash();
 
-    setup_contracts(&env, token_hash, pair_hash, driver_hash)
+    setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash)
 }
 
 pub fn setup_etx_wasm() -> Result<Etx> {
@@ -39,6 +43,10 @@ pub fn setup_etx_wasm() -> Result<Etx> {
         "../target/wasm32-unknown-unknown/release/\
          swap.wasm",
     );
+    let handler_contract = load_wasm_contract(
+        "../target/wasm32-unknown-unknown/release/\
+         swap_request.wasm",
+    );
     let driver_contract = load_wasm_contract(
         "../target/wasm32-unknown-unknown/release/\
          swap_driver.wasm",
@@ -49,9 +57,10 @@ pub fn setup_etx_wasm() -> Result<Etx> {
     // Register the contracts
     let token_hash = env.setup_create_contract(&token_contract);
     let pair_hash = env.setup_create_contract(&pair_contract);
+    let handler_hash = env.setup_create_contract(&handler_contract);
     let driver_hash = env.setup_create_contract(&driver_contract);
 
-    setup_contracts(&env, token_hash, pair_hash, driver_hash)
+    setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash)
 }
 
 #[rustfmt::skip]
@@ -59,6 +68,7 @@ pub fn setup_contracts(
     env: &TestEnvironmentHandle,
     token_hash: SHA256Hash,
     pair_hash: SHA256Hash,
+    handler_hash: SHA256Hash,
     driver_hash: SHA256Hash,
 ) -> Result<Etx> {
 
@@ -79,9 +89,16 @@ pub fn setup_contracts(
 
     /* ----- */ env.advance_block(); /* ----- */
 
-    // As the factory, deploy and init a driver contract
+    // As the factory, deploy and init the request-handler contract
+    let request_handler_addr = exec_tx(env, &FACTORY_ADDR, || {
+        request_handler_deploy_init(&handler_hash, &pair_addr, &token_addrs)
+    })?;
+
+    /* ----- */ env.advance_block(); /* ----- */
+
+    // As the factory, deploy and init a driver contract (pointed at the handler)
     let driver_addr = exec_tx(env, &FACTORY_ADDR, || {
-        driver_deploy_init(&driver_hash, &pair_addr, &liquidity_token, &token_addrs)
+        driver_deploy_init(&driver_hash, &request_handler_addr)
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
@@ -89,6 +106,7 @@ pub fn setup_contracts(
     let env = env.clone();
     let ctx = Ctx {
         driver_addr,
+        request_handler_addr,
         pair_addr,
         liquidity_token,
         token_addrs
@@ -194,24 +212,35 @@ fn swap_pair_deploy_init(
     (pair_addr, liquidity_token)
 }
 
-// Deploy and init a driver contract,
-// given hashes of a registered pair contract and a registered
-// token contract.
-fn driver_deploy_init(
-    driver_hash: &SHA256Hash,
+// Deploy and init the request-handler contract, given the hash of a
+// registered handler contract and the pair it should drive.
+fn request_handler_deploy_init(
+    handler_hash: &SHA256Hash,
     pair_addr: &Address,
-    _lp_token: &Address,
-    _token_addrs: &Addresses,
+    token_addrs: &Addresses,
 ) -> Address {
     assert_eq!(&get_current_address(), &FACTORY_ADDR);
 
-    // Deploy a new swap-pair contract
+    hash_ident! { static HANDLER_NONCE: SHA256Hash; }
+    let handler_addr = deploy_contract(&HANDLER_NONCE, handler_hash);
+
+    let handler = ISwapRequestHandlerClient::new(&handler_addr);
+
+    handler.initialize(pair_addr, &token_addrs[0], &token_addrs[1]);
+
+    handler_addr
+}
+
+// Deploy and init a driver contract, pointed at the request handler.
+fn driver_deploy_init(driver_hash: &SHA256Hash, handler_addr: &Address) -> Address {
+    assert_eq!(&get_current_address(), &FACTORY_ADDR);
+
     hash_ident! { static DRIVER_NONCE: SHA256Hash; }
     let driver_addr = deploy_contract(&DRIVER_NONCE, driver_hash);
 
     let driver = SwapV2DriverClient::new(&driver_addr);
 
-    driver.initialize(pair_addr);
+    driver.initialize(handler_addr);
 
     driver_addr
 }

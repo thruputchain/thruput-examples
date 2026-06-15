@@ -4,6 +4,14 @@ use std::iter::zip;
 
 const SWAP_IN_AMT: Amount = 2 * UNIT_AMT;
 
+// A single swap leg: who swaps, which token index they pay in, and how much.
+#[derive(Copy, Clone)]
+struct Leg {
+    user: User,
+    in_index: usize,
+    amount_in: Amount,
+}
+
 /////////////////////// SERIAL /////////////////////////////
 
 #[test]
@@ -20,15 +28,16 @@ fn serial_swap_one() {
         let etx = setup_etx_primed()?;
 
         let user = CAROL;
-
         etx.user_print_balances(user)?;
 
-        let amounts_in = [2 * UNIT_AMT, 0];
-        let amounts_out = etx.calculate_swap(amounts_in)?;
-
-        serial_swap_user(&etx, user, amounts_in, amounts_out)?;
-
-        Ok(())
+        serial_swap_leg(
+            &etx,
+            Leg {
+                user,
+                in_index: 0,
+                amount_in: SWAP_IN_AMT,
+            },
+        )
     });
 }
 
@@ -36,44 +45,46 @@ fn serial_swap(etx: &Etx) -> Result<()> {
     etx.user_print_balances(CAROL)?;
     etx.user_print_balances(DAVE)?;
 
-    // Calculate amounts_out ahead of time, to make this behave the same as the
-    // concurrent_swap
-
-    let carol_amounts_in = [2 * UNIT_AMT, 0];
-    let carol_amounts_out = etx.calculate_swap(carol_amounts_in)?;
-
-    let dave_amounts_in = [0, 2 * UNIT_AMT];
-    let dave_amounts_out = etx.calculate_swap(dave_amounts_in)?;
-
-    // Carol does a swap
-    let user = CAROL;
-    serial_swap_user(etx, user, carol_amounts_in, carol_amounts_out)?;
-
-    // Dave swaps in the other direction
-    let user = DAVE;
-    serial_swap_user(etx, user, dave_amounts_in, dave_amounts_out)?;
+    // Carol swaps token0 -> token1, then Dave swaps token1 -> token0.
+    serial_swap_leg(
+        etx,
+        Leg {
+            user: CAROL,
+            in_index: 0,
+            amount_in: SWAP_IN_AMT,
+        },
+    )?;
+    serial_swap_leg(
+        etx,
+        Leg {
+            user: DAVE,
+            in_index: 1,
+            amount_in: SWAP_IN_AMT,
+        },
+    )?;
 
     Ok(())
 }
 
+// Perform one swap directly against the pair, pricing it from the reserves live
+// at this moment -- exactly as the handler does at execution time.  (So a serial
+// run and a batched run, executed in the same order, agree.)
 #[rustfmt::skip]
-fn serial_swap_user(
-    etx: &Etx,
-    user: User,
-    amounts_in: Amounts,
-    amounts_out: Amounts,
-) -> Result<()> {
+fn serial_swap_leg(etx: &Etx, leg: Leg) -> Result<()> {
     let ctx = &etx.ctx;
+    let Leg { user, in_index, amount_in } = leg;
+
+    let mut amounts_in: Amounts = [0, 0];
+    amounts_in[in_index] = amount_in;
+
+    // Price the swap against current reserves.
+    let amounts_out = etx.calculate_swap(amounts_in)?;
 
     // Send the purchasing funds to the swap-pair contract
     etx.exec_user_tx(user, |_| {
-        ctx.token0().transfer(&ctx.pair_addr, amounts_in[0])
+        ctx.token0().transfer(&ctx.pair_addr, amounts_in[0]);
+        ctx.token1().transfer(&ctx.pair_addr, amounts_in[1]);
     })?;
-    etx.exec_user_tx(user, |_| {
-        ctx.token1().transfer(&ctx.pair_addr, amounts_in[1])
-    })?;
-
-    // let amounts_out = etx.calculate_swap(amounts_in)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
@@ -98,11 +109,16 @@ fn serial_swap_user(
 
 #[test]
 fn concurrent_swap_one() {
-    let user = CAROL;
-
     transact_assert_success(|| {
         let etx = setup_etx_primed()?;
-        let strategy = [(user, [SWAP_IN_AMT, 0], None)];
+        let strategy = [(
+            Leg {
+                user: CAROL,
+                in_index: 0,
+                amount_in: SWAP_IN_AMT,
+            },
+            true,
+        )];
         concurrent_swap_strategy(&etx, strategy, 0)
     });
 }
@@ -116,29 +132,53 @@ fn concurrent_swap_only() {
 }
 
 fn concurrent_swap(etx: &Etx) -> Result<()> {
-    // The two users involved, and their swap-in amounts
+    // The two users involved, their input token, and their swap-in amounts.
     let strategy = [
-        (CAROL, [SWAP_IN_AMT, 0], None),
-        (DAVE, [0, SWAP_IN_AMT], None),
+        (
+            Leg {
+                user: CAROL,
+                in_index: 0,
+                amount_in: SWAP_IN_AMT,
+            },
+            true,
+        ),
+        (
+            Leg {
+                user: DAVE,
+                in_index: 1,
+                amount_in: SWAP_IN_AMT,
+            },
+            true,
+        ),
     ];
     concurrent_swap_strategy(etx, strategy, 0)
 }
 
-// Can we continue handling swap requests after one failed due to insufficient
-// funds?
+// Can we continue handling swap requests after one fails?  Here Dave grants no
+// allowance, so the handler can't pull his funds and his request fails -- while
+// Carol's still goes through.
 #[test]
 fn concurrent_swap_transfer_failure() {
     transact_assert_success(|| {
         let etx = setup_etx_primed()?;
 
-        // Note: Dave doesn't submit any funds but asks for something back from the
-        // swap
-        let carol_amts_in = [SWAP_IN_AMT, 0];
-        let dave_amts_in = [0, 0];
-        let dave_amts_out = etx.calculate_swap(carol_amts_in)?;
         let strategy = [
-            (CAROL, carol_amts_in, None),
-            (DAVE, dave_amts_in, Some(dave_amts_out)),
+            (
+                Leg {
+                    user: CAROL,
+                    in_index: 0,
+                    amount_in: SWAP_IN_AMT,
+                },
+                true,
+            ),
+            (
+                Leg {
+                    user: DAVE,
+                    in_index: 1,
+                    amount_in: SWAP_IN_AMT,
+                },
+                false,
+            ),
         ];
 
         concurrent_swap_strategy(&etx, strategy, 1)
@@ -148,97 +188,93 @@ fn concurrent_swap_transfer_failure() {
 #[rustfmt::skip]
 fn concurrent_swap_strategy<const N: usize>(
     etx: &Etx,
-    strategy: [(User, Amounts, Option<Amounts>); N],
+    strategy: [(Leg, bool); N],
     n_failures_expected: u32,
 ) -> Result<()> {
     let ctx = &etx.ctx;
 
-    let start_balances = strategy.map(|(user, _, _)| {
-        etx.user_balances(user).unwrap()
+    let start_balances = strategy.map(|(leg, _)| {
+        etx.user_balances(leg.user).unwrap()
     });
 
-    for (user, _, _) in strategy {
-        etx.user_print_balances(user)?
+    for (leg, _) in strategy {
+        etx.user_print_balances(leg.user)?
     }
 
-    // Give the swap-pair contract access to the purchasing funds
-    for (user, amounts_in, _) in strategy {
-        println!("{} pledges {:.3?}", user.name, amounts_decimalized(amounts_in));
-        etx.exec_user_tx(user, |_| {
+    // Give the request handler access to the purchasing funds.  A leg we expect
+    // to fail grants no allowance, so the handler can't pull its funds.
+    for (leg, should_succeed) in strategy {
+        let allowed = if should_succeed { leg.amount_in } else { 0 };
+        let mut amounts: Amounts = [0, 0];
+        amounts[leg.in_index] = allowed;
+
+        println!("{} pledges {:.3?}", leg.user.name, amounts_decimalized(amounts));
+        etx.exec_user_tx(leg.user, |_| {
             ctx.token0().adjust_allowance(
-                &ctx.pair_addr,
-                amounts_in[0].try_into().unwrap(),
+                &ctx.request_handler_addr,
+                amounts[0].try_into().unwrap(),
             );
             ctx.token1().adjust_allowance(
-                &ctx.pair_addr,
-                amounts_in[1].try_into().unwrap(),
+                &ctx.request_handler_addr,
+                amounts[1].try_into().unwrap(),
             );
         })?;
     }
-
-    let strategy = strategy.map(|(user, amounts_in, amounts_out_opt)| {
-        // Calculate what we want to get out of the swap from what we put in
-        // (unless specific out-amounts have been specified in the strategy).
-        let amounts_out = amounts_out_opt.unwrap_or_else(|| etx.calculate_swap(amounts_in).unwrap());
-
-        (user, amounts_in, amounts_out)
-    });
 
     /* ----- */ etx.advance_block(); /* ----- */
 
-    for (user, _, _) in strategy {
-        println!("{} has pledged {:.3?}", user.name, etx.user_pledges(user)?);
+    for (leg, _) in strategy {
+        println!("{} has pledged {:.3?}", leg.user.name, etx.user_pledges(leg.user)?);
     }
 
-    // Both users submit swap requests
-    for (user, amounts_in, amounts_out) in strategy {
-        etx.exec_user_tx(user, |_| {
-            ctx.driver().request_swap(user.addr, amounts_in, amounts_out, user.addr)
+    // All users submit swap requests (accepting any output: min is 0).  The
+    // output amount is determined when each request is handled.
+    for (leg, _) in strategy {
+        etx.exec_user_tx(leg.user, |u| {
+            ctx.driver().request(SwapRequest::swap_exact_in(
+                u.addr,
+                leg.amount_in,
+                0,
+                leg.in_index as u32,
+                u.addr,
+            ))
         })?;
 
-        println!("> {} requested swap {:.3?} => {:.3?}", user.name,
-            amounts_decimalized(amounts_in),
-            amounts_decimalized(amounts_out),
-        );
+        println!("> {} requested swap of {:.3} of token {}", leg.user.name,
+            decimalized(leg.amount_in), leg.in_index);
     }
 
     /* (No block boundary needed here.) */
 
     // Process requests
-    let (n_processed, n_failed) =
-        etx.exec_tx(&TEST_ADDR, || ctx.driver().process_requests())?;
+    let (n_processed, n_failed) = etx.process_requests()?;
 
     assert_eq!(n_processed, N as u32);
     assert_eq!(n_failed, n_failures_expected);
 
     /* ----- */ etx.advance_block(); /* ----- */
 
-    for (user, _, _) in strategy {
-        etx.user_print_balances(user)?;
+    for (leg, _) in strategy {
+        etx.user_print_balances(leg.user)?;
     }
 
     // Inspect resulting balances
-    for ((user, amts_in, _), (start, start_lp)) in zip(strategy, start_balances) {
-        let (end, end_lp) = etx.user_balances(user)?;
+    for ((leg, should_succeed), (start, start_lp)) in zip(strategy, start_balances) {
+        let (end, end_lp) = etx.user_balances(leg.user)?;
 
         assert_eq!(start_lp, end_lp);
 
-        for i in [0, 1] {
-            if amts_in[i] > 0 {
-                // We paid in with token indexed i
-                assert_eq!(end[i], start[i].strict_sub(amts_in[i]), "Something wrong with {}", user.name);
+        if should_succeed {
+            let out = 1 - leg.in_index;
 
-                // The other token index:
-                let other = 1 - i;
+            // We paid in with our input token...
+            assert_eq!(end[leg.in_index], start[leg.in_index].strict_sub(leg.amount_in),
+                "Something wrong with {}", leg.user.name);
 
-                // We should have gotten some amount of the other token
-                assert!(end[other] > start[other]);
-            }
-        }
-
-        // If we didn't put anything in, no swap should happen and we should
-        // have what we started with.
-        if amts_in[0] == 0 && amts_in[1] == 0 {
+            // ...and got some amount of the other token back.
+            assert!(end[out] > start[out]);
+        } else {
+            // A failed request leaves our balances untouched.
             assert_eq!(start, end);
         }
     }

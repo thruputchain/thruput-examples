@@ -17,6 +17,7 @@ members = [
     "sim-fixtures/nnint-stress",
     "erc20",
     "swap",
+    "swap_request",
     "swap_driver",
     "swap_router",
     ]

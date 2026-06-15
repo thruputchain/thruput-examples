@@ -1,88 +1,49 @@
-//! A contract implementing ISwapV2Driver
+//! An abstract request-batching driver.
+//!
+//! The driver knows nothing about the *shape* of the requests it batches: it
+//! enqueues opaque [`SwapRequest`] values and, when `process_requests` runs,
+//! forwards each one to the configured handler contract.  Each request reports
+//! its own gas budget via the [`Request`] trait, so the batching pattern here
+//! can be duplicated for other contracts simply by swapping the request type
+//! and handler client.
 
 use crate::cfg::*;
-use crate::request::*;
 use sdk::storage::*;
 use sdk::*;
-use swap::*;
+use swap::ISwapV2PairError;
+use swap_request::*;
 
-// Limits derived empirically in native test (precise to ~5_000)
-const PURCHASE_GAS_LIMIT: u64 = 55_000 + WASM_BUMP;
-const REDEEM_GAS_LIMIT: u64 = 70_000 + WASM_BUMP;
-const SWAP_GAS_LIMIT: u64 = 60_000 + WASM_BUMP;
+// How much gas a batch may consume before we stop and defer the rest.
+// (Sized to allow about 10 requests per batch.)
+const BATCH_GAS_HIGH_WATER: u64 = 9 * SwapRequest::GAS_LIMIT;
 
-// Additional needed for wasm execution
-// (may not be as precise as per-request limits found above)
-const WASM_BUMP: u64 = if cfg!(target_family = "wasm") {
-    75_000
-} else {
-    0
-};
-
-const REQ_GAS_MAX: u64 = REDEEM_GAS_LIMIT; // maximum of above
-
-// Allow about 10 requests per batch
-const BATCH_GAS_HIGH_WATER: u64 = 9 * REQ_GAS_MAX;
-
-// Recommended gas limit for `process_requests()`
-//   (some overhead plus enough for ~10 requests)
-pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + (10 * REQ_GAS_MAX);
-
-/// State for the pair contract
+/// State for the driver contract
 #[storage]
 pub struct SwapV2Driver {
     // Configuration
     cfg: Value<Cfg>,
 
     // Requests (can be enqueued concurrently)
-    requests: RCQ<Request>,
+    requests: RCQ<SwapRequest>,
 }
 
-#[contract(throws(ERC20Error, ISwapV2PairError))]
+#[contract(throws(ERC20Error, ISwapV2PairError, SwapRequestError, SwapLibraryError))]
 impl SwapV2Driver {
     // Must be called exactly once before any other methods
-    pub fn initialize(&mut self, swap_pair: &Address) {
+    pub fn initialize(&mut self, handler: &ContractAddress) {
         if self.cfg.try_get().is_some() {
             panic!("Already initialized.");
         }
 
-        let cfg = Cfg {
-            swap_pair: *swap_pair,
-        };
+        let cfg = Cfg { handler: *handler };
 
         // Ensure only one `initialize` call can succeed per block.
         self.cfg.set_exclusive(&cfg);
     }
 
-    pub fn request_purchase(
-        &mut self,
-        purchaser: &ContractAddress,
-        amounts: Amounts,
-        recipient: &Address,
-    ) {
-        self.requests
-            .insert(&Request::purchase(purchaser, amounts, recipient));
-    }
-
-    pub fn request_redeem(
-        &mut self,
-        redeemer: &ContractAddress,
-        liquidity: Amount,
-        recipient: &Address,
-    ) {
-        self.requests
-            .insert(&Request::redeem(redeemer, liquidity, recipient));
-    }
-
-    pub fn request_swap(
-        &mut self,
-        trader: &ContractAddress,
-        amounts_in: Amounts,
-        amounts_out: Amounts,
-        recipient: &Address,
-    ) {
-        self.requests
-            .insert(&Request::swap(trader, amounts_in, amounts_out, recipient));
+    // Enqueue a request to be handled later, when `process_requests` runs.
+    pub fn request(&mut self, request: SwapRequest) {
+        self.requests.insert(&request);
     }
 
     pub fn process_requests(&mut self) -> (u32, u32) {
@@ -93,46 +54,21 @@ impl SwapV2Driver {
         let mut batch_gas_consumed_max = 0u64;
 
         while let Some(req) = self.requests.try_consume() {
-            match req {
-                Request::Purchase(ref req) => {
-                    cfg.pair()
-                        .with_commit_locking()
-                        .with_gas_limit(PURCHASE_GAS_LIMIT)
-                        .try_handle_purchase(&req.purchaser, req.amounts, &req.recipient)
-                        .unwrap_or_else(|e| {
-                            operation_failed("Purchase", &e);
-                            n_failed += 1;
-                        });
-                    batch_gas_consumed_max += PURCHASE_GAS_LIMIT;
-                }
-                Request::Redeem(ref req) => {
-                    cfg.pair()
-                        .with_commit_locking()
-                        .with_gas_limit(REDEEM_GAS_LIMIT)
-                        .try_handle_redeem(&req.redeemer, req.liquidity, &req.recipient)
-                        .unwrap_or_else(|e| {
-                            operation_failed("Redeem", &e);
-                            n_failed += 1;
-                        });
-                    batch_gas_consumed_max += REDEEM_GAS_LIMIT;
-                }
-                Request::Swap(ref req) => {
-                    cfg.pair()
-                        .with_commit_locking()
-                        .with_gas_limit(SWAP_GAS_LIMIT)
-                        .try_handle_swap(
-                            &req.trader,
-                            req.amounts_in,
-                            req.amounts_out,
-                            &req.recipient,
-                        )
-                        .unwrap_or_else(|e| {
-                            operation_failed("Swap", &e);
-                            n_failed += 1;
-                        });
-                    batch_gas_consumed_max += SWAP_GAS_LIMIT;
-                }
-            }
+            // Each request knows how much gas its handling deserves.
+            let gas_limit = req.gas_limit();
+
+            // Handle the request in isolation: commit-locking lets a failed
+            // request roll back without aborting the rest of the batch.
+            cfg.handler()
+                .with_commit_locking()
+                .with_gas_limit(gas_limit)
+                .try_handle_request(req)
+                .unwrap_or_else(|e| {
+                    request_failed(&e);
+                    n_failed += 1;
+                });
+
+            batch_gas_consumed_max += gas_limit;
             n_processed += 1;
 
             if batch_gas_consumed_max > BATCH_GAS_HIGH_WATER {
@@ -144,13 +80,12 @@ impl SwapV2Driver {
     }
 }
 
-fn operation_failed(name: &str, e: &ISwapV2PairClientError) {
+fn request_failed(e: &ISwapRequestHandlerClientError) {
     #[cfg(feature = "dev")]
-    println!("!! {name} failed: {e:?}");
+    println!("!! request failed: {e:?}");
 
     #[cfg(not(feature = "dev"))]
     {
-        let _ = name;
         let _ = e;
     }
 
