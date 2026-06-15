@@ -7,12 +7,20 @@ license.workspace = true
 
 [features]
 entrypoints = []
+rv32-entrypoints = ["entrypoints"]
 dev = ["sdk/dev", "sdk/debugging"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 doctest = false
 test = false
+
+[[bin]]
+name = "calldata"
+path = "src/main.rs"
+required-features = ["rv32-entrypoints"]
+test = false
+bench = false
 
 [dependencies]
 sdk = { workspace = true }
