@@ -1,14 +1,15 @@
 use sdk::*;
-use swap::*;
+use swap_request::ISwapRequestHandlerClient;
 
 #[derive(ReadXDR, WriteXDR)]
 #[xdrs(crate = "::sdk::__xdrs")]
 pub struct Cfg {
-    pub swap_pair: Address,
+    // The contract that handles dequeued requests.
+    pub handler: ContractAddress,
 }
 
 impl Cfg {
-    pub fn pair(&self) -> ISwapV2PairClient {
-        ISwapV2PairClient::new(&self.swap_pair).with_commit_locking()
+    pub fn handler(&self) -> ISwapRequestHandlerClient {
+        ISwapRequestHandlerClient::new(&self.handler)
     }
 }

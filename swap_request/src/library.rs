@@ -1,3 +1,9 @@
+//! Price-optimizing calculations, performed at request-handling time.
+//!
+//! These were previously run by the router when a request was *made*; they now
+//! run here when a request is *handled*, against the reserves live at that
+//! moment.
+
 use sdk::*;
 use swap::*;
 

@@ -2541,6 +2541,22 @@ dependencies = [
  "sdk",
  "swap",
  "swap_driver",
+ "swap_request",
+ "thiserror 2.0.18",
+ "uint",
+]
+
+[[package]]
+name = "swap_request"
+version = "0.1.0"
+dependencies = [
+ "erc20",
+ "groundhog-erc20-if",
+ "groundhog-erc20-metadata-if",
+ "heapless",
+ "sdk",
+ "swap",
+ "swap_request",
  "thiserror 2.0.18",
  "uint",
 ]
@@ -2555,6 +2571,7 @@ dependencies = [
  "sdk",
  "swap",
  "swap_driver",
+ "swap_request",
  "swap_router",
  "thiserror 2.0.18",
 ]

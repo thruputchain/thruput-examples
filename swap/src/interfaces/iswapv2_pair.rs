@@ -69,26 +69,4 @@ pub trait ISwapV2Pair {
     fn sync(&mut self);
 
     fn swap(&mut self, amount0_out: Amount, amount1_out: Amount, to: &Address);
-
-    // Driver helpers
-
-    fn handle_purchase(
-        &mut self,
-        purchaser: &ContractAddress,
-        amounts_in: Amounts,
-        recipient: &ContractAddress,
-    );
-    fn handle_redeem(
-        &mut self,
-        redeemer: &ContractAddress,
-        liquidity: Amount,
-        recipient: &ContractAddress,
-    );
-    fn handle_swap(
-        &mut self,
-        trader: &ContractAddress,
-        amounts_in: Amounts,
-        amounts_out: Amounts,
-        recipient: &ContractAddress,
-    );
 }

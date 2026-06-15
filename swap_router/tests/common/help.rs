@@ -66,8 +66,8 @@ fn show_exn0(r: &TransactResult) {
         println!("ERC20: {:?}", exn);
     } else if let Some(exn) = exn.try_as::<ISwapV2PairError>() {
         println!("ISwapV2Pair: {:?}", exn);
-    } else if let Some(exn) = exn.try_as::<SwapRouterError>() {
-        println!("SwapRouterError: {:?}", exn);
+    } else if let Some(exn) = exn.try_as::<SwapRequestError>() {
+        println!("SwapRequestError: {:?}", exn);
     } else if let Some(exn) = exn.try_as::<SwapLibraryError>() {
         println!("SwapLibraryError: {:?}", exn);
     } else if let Some(exn) = exn.try_as::<LibraryExn>() {
@@ -97,7 +97,7 @@ pub fn show_exn(r: &TransactResult) {
     match_exn!(raw, {
         ERC20Error => |exn| { println!("ERC20: {:?}", exn) }
         ISwapV2PairError => |exn| { println!("ISwapV2Pair: {:?}", exn) }
-        SwapRouterError => |exn| { println!("SwapRouterError: {:?}", exn) }
+        SwapRequestError => |exn| { println!("SwapRequestError: {:?}", exn) }
         SwapLibraryError => |exn| { println!("SwapLibraryError: {:?}", exn) }
         LibraryExn => |exn| { println!("SDK error: {:?}", exn) }
         else => { println!("<unknown error>") }

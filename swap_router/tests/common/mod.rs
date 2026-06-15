@@ -23,4 +23,5 @@ pub use groundhog_erc20_metadata_if::*;
 pub use sdk::*;
 pub use swap::*;
 pub use swap_driver::*;
+pub use swap_request::*;
 pub use swap_router::*;
