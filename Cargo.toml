@@ -16,6 +16,7 @@ members = [
     "sim-fixtures/calldata",
     "sim-fixtures/nnint-stress",
     "erc20",
+    "batch_driver",
     "swap",
     "swap_request",
     "swap_driver",

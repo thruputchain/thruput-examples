@@ -3,10 +3,11 @@
 use sdk::*;
 use swap::*;
 
-/// A high-level swap request, mirroring the operations offered by the router.
+/// A high-level swap request
 ///
 /// Each variant stores the user's *inputs* (not pre-computed amounts), so the
 /// optimizing price calculation can be deferred until the request is handled.
+///
 #[contract_type]
 #[cfg_attr(feature = "dev", derive(Debug))]
 pub enum SwapRequest {
@@ -154,38 +155,15 @@ pub struct SwapExactOutRequest {
     pub recipient: Address,
 }
 
-// Additional gas needed for guest execution (vs. the precise native limits).
-const GAS_EXTRA: u64 = if cfg!(target_family = "wasm") {
-    75_000
-} else {
-    0
-};
-
-const ADD_LIQUIDITY_GAS: u64 = 120_000 + GAS_EXTRA;
-const REMOVE_LIQUIDITY_GAS: u64 = 140_000 + GAS_EXTRA;
-const SWAP_GAS: u64 = 120_000 + GAS_EXTRA;
+// Loose limits, could be adjusted empirically
+const ADD_LIQUIDITY_GAS: u64 = 195_000;
+const REMOVE_LIQUIDITY_GAS: u64 = 215_000;
+const SWAP_GAS: u64 = 195_000;
 
 /// The maximum gas any single request should consume when handled.
 pub const REQUEST_GAS_MAX: u64 = REMOVE_LIQUIDITY_GAS;
 
-/// Recommended gas limit for `process_requests()`
-///   (some overhead plus enough for ~10 requests).
-pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + (10 * REQUEST_GAS_MAX);
-
-/// A batched request that can report the gas its handling should be allotted.
-///
-/// Implementing this trait is all a request type needs to do to be driven by
-/// the abstract swap-driver.
-pub trait Request {
-    /// A static limit; should be at least as large as `r.gas_limit()` for any
-    /// request `r: Self`.
-    const GAS_LIMIT: u64;
-
-    /// The gas limit to apply when this request is handled.
-    fn gas_limit(&self) -> u64;
-}
-
-impl Request for SwapRequest {
+impl batch_driver::BatchRequest for SwapRequest {
     const GAS_LIMIT: u64 = REQUEST_GAS_MAX;
 
     fn gas_limit(&self) -> u64 {
