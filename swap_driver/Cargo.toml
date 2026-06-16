@@ -21,6 +21,7 @@ groundhog-erc20-if = { workspace = true }
 uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
 thiserror = { workspace = true }
+batch_driver = { path = "../batch_driver" }
 swap = { path = "../swap" }
 swap_request = { path = "../swap_request" }
 
@@ -31,7 +32,7 @@ groundhog-erc20-metadata-if = { workspace = true, features = ["dev"], optional =
 [features]
 entrypoints = []
 erc20_metadata = ["erc20?/metadata", "dep:groundhog-erc20-metadata-if"]
-dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap/dev", "swap_request/dev"]
+dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap/dev", "swap_request/dev", "batch_driver/dev"]
 wasm_test = []
 
 [dev-dependencies]

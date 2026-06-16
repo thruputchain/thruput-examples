@@ -216,7 +216,8 @@ impl Ctx {
         let return_amt = self.lp().get_balance().try_into().unwrap();
 
         // Give the request handler access to all my LP tokens
-        self.lp().adjust_allowance(&self.request_handler_addr, return_amt);
+        self.lp()
+            .adjust_allowance(&self.request_handler_addr, return_amt);
 
         return_amt
     }

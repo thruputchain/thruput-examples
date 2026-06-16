@@ -17,12 +17,12 @@ lint() {
         -- -Dwarnings
 }
 
+cargo clippy -p batch_driver -F dev -- -Dwarnings
+cargo clippy -p batch_driver --release --target wasm32-unknown-unknown -- -Dwarnings
+
 lint "erc20 -F metadata"
-# cargo clippy -p erc20 -F metadata -F dev
-# cargo clippy -p erc20 -F metadata --target wasm32-unknown-unknown -F entrypoints
 
 swap_packages="swap swap_request swap_driver swap_router"
-
 for p in $swap_packages ; do
     lint "$p" || {
         echo "Lint failed for $p"

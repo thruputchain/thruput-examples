@@ -35,7 +35,14 @@ pub fn setup_etx_native() -> Result<Etx> {
     let router_contract = swap_router::register_mock_contract(&env);
     let router_hash = *router_contract.as_hash();
 
-    setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash, router_hash)
+    setup_contracts(
+        &env,
+        token_hash,
+        pair_hash,
+        handler_hash,
+        driver_hash,
+        router_hash,
+    )
 }
 
 pub fn setup_etx_wasm() -> Result<Etx> {
@@ -69,7 +76,14 @@ pub fn setup_etx_wasm() -> Result<Etx> {
     let driver_hash = env.setup_create_contract(&driver_contract);
     let router_hash = env.setup_create_contract(&router_contract);
 
-    setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash, router_hash)
+    setup_contracts(
+        &env,
+        token_hash,
+        pair_hash,
+        handler_hash,
+        driver_hash,
+        router_hash,
+    )
 }
 
 #[rustfmt::skip]
