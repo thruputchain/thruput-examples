@@ -13,6 +13,7 @@ edition.workspace = true
 
 [features]
 entrypoints = []
+rv32-entrypoints = ["entrypoints"]
 dev = [
     "sdk/dev",
     "metadata",
@@ -25,6 +26,17 @@ metadata = ["dep:groundhog-erc20-metadata-if"]
 crate-type = ["cdylib", "rlib"]
 doctest = false
 test = false
+
+# RV32 ELF bin wrapper. The name must stay the snake-case package name:
+# `groundhog build --target rv32` looks for the ELF at `release/<snake_name>`.
+# `required-features` keeps host `cargo build` / `cargo test` and explicit WASM
+# entrypoint builds from building this no_std binary.
+[[bin]]
+name = "erc20"
+path = "src/main.rs"
+required-features = ["rv32-entrypoints"]
+test = false
+bench = false
 
 [dependencies]
 sdk = { workspace = true, features = ["storage"] }
