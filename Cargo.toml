@@ -21,6 +21,7 @@ members = [
     "swap_request",
     "swap_driver",
     "swap_router",
+    "ctr",
     ]
 
 [workspace.package]

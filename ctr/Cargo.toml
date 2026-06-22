@@ -1,0 +1,49 @@
+[package]
+name = "ctr"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+test = false
+
+# RV32 ELF bin wrapper. The name must stay the snake-case package name:
+# `groundhog build --target rv32` looks for the ELF at `release/<snake_name>`.
+# `required-features` keeps host `cargo build` / `cargo test` and explicit WASM
+# entrypoint builds from building this no_std binary.
+[[bin]]
+name = "ctr"
+path = "src/main.rs"
+required-features = ["rv32-entrypoints"]
+test = false
+bench = false
+
+[features]
+entrypoints = []
+rv32-entrypoints = ["entrypoints"]
+default = ["dev"]
+dev = ["sdk/dev"]
+
+[dependencies]
+sdk = { version = "0.15.0", registry = "groundhog", features = ["storage"] }
+
+[dev-dependencies]
+ctr = { path = ".", features = ["dev"] }
+sha2.workspace = true
+
+# RPC integration test (tests/integration.rs), run via `groundhog test --integration`.
+groundhog-json-rpc-client = { workspace = true }
+groundhog-json-rpc-types = { workspace = true }
+groundhog-signing = { workspace = true }
+groundhog-contract-util = { workspace = true }
+groundhog-xdr = { workspace = true }
+xdrs = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }
+
+[[test]]
+name = "integration"
+# test usage: GROUNDHOG_HOG_DEVNODE_BINARY=/path/to/hog-devnode groundhog test --integration
+test = false

@@ -1,0 +1,46 @@
+[target.wasm32-unknown-unknown]
+rustflags = [
+    "-C", "link-args=-zstack-size=30000",
+    "-Z", "unstable-options",
+    "--deny", "warnings",
+    ]
+
+[target.riscv32im-unknown-none-elf]
+rustflags = [
+    # The Groundhog rv32 VM permits unaligned data loads/stores, so let LLVM
+    # emit them directly instead of byte-wise expansions.
+    "-C", "target-feature=+unaligned-scalar-mem",
+    "-C", "link-arg=-Tgroundhog-rv32.ld",
+    "-C", "link-arg=-static",
+    "-C", "link-arg=--no-dynamic-linker",
+    "-C", "link-arg=--gc-sections",
+    # The groundhog-rv32 linker script deliberately overlaps the CODE and DATA
+    # VMAs (modified-Harvard: separate VM address spaces) so DATA starts near 0
+    # and the stored image carries no code-sized zero shadow. Tell lld the
+    # overlap is intentional.
+    "-C", "link-arg=--no-check-sections",
+    "-C", "panic=abort",
+    "-C", "relocation-model=static",
+    # LLVM pads unreachable code (after Return/Exit/Abort -> ! syscalls) with
+    # `unimp` (= csrrw x0, cycle, x0), a CSR op the Groundhog RV32IM profile
+    # rejects, so artifact validation would reject every such call site.
+    # Disable the safety pad.
+    "-Z", "trap-unreachable=false",
+    "--deny", "warnings",
+    ]
+
+[profile.release]
+opt-level = 3
+overflow-checks = false
+debug = false
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+lto = true
+codegen-units = 1
+
+[registries]
+groundhog = { index = "sparse+https://groundhog.dev/crates/api/v1/crates/" }
+
+[source]
+groundhog = { registry = "sparse+https://groundhog.dev/crates/api/v1/crates/" }
