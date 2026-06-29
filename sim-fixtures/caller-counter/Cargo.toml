@@ -23,7 +23,7 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true, features = ["storage"] }
+sdk = { workspace = true }
 
 [dev-dependencies]
 caller-counter = { path = ".", features = ["dev"] }
