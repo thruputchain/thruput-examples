@@ -13,6 +13,7 @@ edition.workspace = true
 
 [features]
 entrypoints = []
+rv32-entrypoints = ["entrypoints"]
 dev = [
     "sdk/dev",
     "metadata",
@@ -26,9 +27,16 @@ crate-type = ["cdylib", "rlib"]
 doctest = false
 test = false
 
+[[bin]]
+name = "erc20"
+path = "src/main.rs"
+required-features = ["rv32-entrypoints"]
+test = false
+bench = false
+
 [dependencies]
-sdk = { workspace = true, features = ["storage"] }
-groundhog-erc20-if = { workspace = true, features = ["storage"] }
+sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
 groundhog-erc20-metadata-if = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -36,17 +44,11 @@ erc20 = { path = ".", features = ["dev"] }
 sha2.workspace = true
 
 # RPC integration test (tests/integration.rs), run via `groundhog test --integration`.
-groundhog-json-rpc-client = { workspace = true }
-groundhog-json-rpc-types = { workspace = true }
-groundhog-signing = { workspace = true }
-groundhog-contract-util = { workspace = true }
+integration-test = { path = "../integration-test" }
 groundhog-xdr = { workspace = true }
-xdrs = { workspace = true }
 tokio = { workspace = true }
-serde_json = { workspace = true }
-hex = { workspace = true }
 
 [[test]]
 name = "integration"
-# test usage: GROUNDHOG_HOG_DEVNODE_BINARY=/path/to/hog-devnode groundhog test --integration
 test = false
+# test usage: GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode groundhog test --integration

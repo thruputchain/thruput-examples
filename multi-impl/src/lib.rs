@@ -4,10 +4,10 @@ use multi_impl_traits::*;
 use sdk::*;
 
 /// A single contract that implements both the Adder and Multiplier traits.
-#[derive(Default)]
+#[sdk::storage]
 pub struct MathContract;
 
-#[contract(storage = false)]
+#[contract]
 impl Adder for MathContract {
     fn add(&self, a: u64, b: u64) -> u64 {
         match a.checked_add(b) {
@@ -17,7 +17,7 @@ impl Adder for MathContract {
     }
 }
 
-#[contract(storage = false)]
+#[contract]
 impl Multiplier for MathContract {
     fn multiply(&self, a: u64, b: u64) -> u64 {
         match a.checked_mul(b) {

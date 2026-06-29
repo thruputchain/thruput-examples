@@ -1,0 +1,36 @@
+[package]
+name = "counter"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "counter"
+path = "src/main.rs"
+required-features = ["rv32-entrypoints"]
+test = false
+bench = false
+
+[features]
+entrypoints = []
+rv32-entrypoints = ["entrypoints"]
+default = ["dev"]
+dev = ["sdk/dev"]
+
+[dependencies]
+sdk = { workspace = true }
+
+[dev-dependencies]
+counter = { path = ".", features = ["dev"] }
+
+# RPC integration test
+integration-test = { path = "../integration-test" }
+tokio = { workspace = true }
+
+[[test]]
+name = "integration"
+test = false  # use `groundhog test --integration`

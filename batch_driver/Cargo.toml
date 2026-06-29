@@ -15,7 +15,7 @@ doctest = false
 test = false # suppress output from our zero unit-tests
 
 [dependencies]
-sdk = { workspace = true, features = ["storage"] }
+sdk = { workspace = true }
 
 [features]
 # Enables failure logging (and std) in native tests.

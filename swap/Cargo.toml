@@ -15,8 +15,15 @@ crate-type = ["cdylib", "rlib"]
 doctest = false
 test = false # suppress output from our zero unit-tests
 
+[[bin]]
+name = "swap"
+path = "src/main.rs"
+required-features = ["rv32-entrypoints"]
+test = false
+bench = false
+
 [dependencies]
-sdk = { workspace = true, features = ["storage"] }
+sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
 uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
@@ -25,7 +32,8 @@ heapless = { workspace = true }
 erc20 = { path = "../erc20", features = ["dev"], optional = true }
 
 [features]
-entrypoints = ["implementation"]
+entrypoints = ["implementation", "sdk/alloc"]
+rv32-entrypoints = ["entrypoints"]
 implementation = []
 dev = ["sdk/dev", "dep:erc20", "implementation"]
 
