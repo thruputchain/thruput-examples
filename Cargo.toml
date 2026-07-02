@@ -4,25 +4,9 @@ cargo-features = ["trim-paths"] #unstable
 resolver = "3"
 
 members = [
-    "fibonacci",
-    "cross-call",
-    "error-handling-callee",
-    "error-handling-caller",
-    "multi-impl-traits",
-    "multi-impl",
-    "multi-throws",
-    "events",
-    "sim-fixtures/caller-counter",
-    "sim-fixtures/calldata",
-    "sim-fixtures/nnint-stress",
-    "erc20",
-    "batch_driver",
-    "swap",
-    "swap_request",
-    "swap_driver",
-    "swap_router",
-    "counter",
-    "integration-test",
+    "contracts/*",
+    "sim-fixtures/*",
+    "helpers/*",
     ]
 
 [workspace.package]

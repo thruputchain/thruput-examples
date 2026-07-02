@@ -44,7 +44,7 @@ erc20 = { path = ".", features = ["dev"] }
 sha2.workspace = true
 
 # RPC integration test (tests/integration.rs), run via `groundhog test --integration`.
-integration-test = { path = "../integration-test" }
+integration-test = { path = "../../helpers/integration-test" }
 groundhog-xdr = { workspace = true }
 tokio = { workspace = true }
 
