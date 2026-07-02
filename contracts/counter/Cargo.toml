@@ -28,7 +28,7 @@ sdk = { workspace = true }
 counter = { path = ".", features = ["dev"] }
 
 # RPC integration test
-integration-test = { path = "../integration-test" }
+integration-test = { path = "../../helpers/integration-test" }
 tokio = { workspace = true }
 
 [[test]]
