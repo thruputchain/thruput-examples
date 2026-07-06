@@ -8,14 +8,15 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 
 | Crate | Demonstrates |
 |-------|--------------|
-| [`fibonacci`](fibonacci/) | Minimal stateless contract: one method, one error type, one event |
-| [`cross-call`](cross-call/) | Cross-contract call patterns via a generated client (`call`, `try_*`, error forwarding); calls `fibonacci` |
-| [`events`](events/) | `#[derive(Event)]` with the full range of topic and payload patterns: payload-only, address topics, hashed topics, topics-only, multi-emit |
-| [`error-handling-callee`](error-handling-callee/) | Producing error conditions (declared throws, undeclared errors, panics/faults) for callers to handle |
-| [`error-handling-caller`](error-handling-caller/) | Catching, wrapping, and forwarding errors from a callee contract |
-| [`multi-throws`](multi-throws/) | Declaring multiple error types with `throws(A, B)` |
-| [`multi-impl-traits`](multi-impl-traits/) | Defining contract interfaces as traits in a standalone crate |
-| [`multi-impl`](multi-impl/) | One contract implementing multiple traits from a separate crate |
+| [`fibonacci`](contracts/fibonacci/) | Minimal stateless contract: one method, one error type, one event |
+| [`cross-call`](contracts/cross-call/) | Cross-contract call patterns via a generated client (`call`, `try_*`, error forwarding); calls `fibonacci` |
+| [`events`](contracts/events/) | `#[derive(Event)]` with the full range of topic and payload patterns: payload-only, address topics, hashed topics, topics-only, multi-emit |
+| [`error-handling-callee`](contracts/error-handling-callee/) | Producing error conditions (declared throws, undeclared errors, panics/faults) for callers to handle |
+| [`error-handling-caller`](contracts/error-handling-caller/) | Catching, wrapping, and forwarding errors from a callee contract |
+| [`multi-throws`](contracts/multi-throws/) | Declaring multiple error types with `throws(A, B)` |
+| [`multi-impl-traits`](contracts/multi-impl-traits/) | Defining contract interfaces as traits in a standalone crate |
+| [`multi-impl`](contracts/multi-impl/) | One contract implementing multiple traits from a separate crate |
+| [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and an optional `metadata` feature |
 
 ### Simulation fixtures
 
