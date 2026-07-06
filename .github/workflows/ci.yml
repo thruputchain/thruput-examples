@@ -21,10 +21,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Set up Rust toolchain
-        run: rustup toolchain install stable --profile minimal --component rustfmt --target wasm32-unknown-unknown
-
-      - name: Check format
-        run: cargo fmt --check
+        run: rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
 
       - name: Cache groundhog-cli
         id: cache-groundhog
@@ -40,22 +37,14 @@ jobs:
         run: cargo install --registry groundhog groundhog-cli
 
       - name: Build contracts
-        run: |
-          for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select([.targets[].kind[]] | index("cdylib")) | .name'); do
-            echo "::group::groundhog build -p $pkg"
-            groundhog build -p "$pkg" || {
-              printf "Build failed for contract %s\n" "$pkg"
-              exit 1;
-            }
-            echo "::endgroup::"
-          done
+        run: ./scripts/build.sh
 
       - name: Run tests
         env:
           RUSTFLAGS: -D warnings
         run: cargo test --all
 
-  clippy:
+  quality-checks:
     runs-on: ubuntu-latest
     env:
       HOGD_FFI_PASSWORD: ${{ secrets.HOGD_FFI_PASSWORD }}
@@ -66,7 +55,10 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Set up Rust toolchain
-        run: rustup toolchain install stable --profile minimal --component clippy
+        run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt
 
       - name: Run clippy
         run: cargo clippy --workspace --all-targets --no-deps -- -D warnings
+
+      - name: Run rustfmt
+        run: cargo fmt --check
