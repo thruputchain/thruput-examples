@@ -16,7 +16,7 @@ use groundhog_xdr::types::ContractAddress;
 use integration_test::{Harness, decode_return, encode};
 
 const INTERFACE: &str = "ERC20";
-const VERSION: &str = "0.1.3";
+const VERSION: &str = "0.1.4";
 
 #[tokio::test]
 async fn erc20_lifecycle_over_rpc() {

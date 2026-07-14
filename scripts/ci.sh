@@ -13,9 +13,9 @@ RUSTFLAGS="-D warnings" \
 cargo clippy --workspace --all-targets --no-deps -- -D warnings
 cargo fmt --check
 
-# grep -q '\[patch' Cargo.toml && {
-#     echo "Cargo.toml has patched dependencies!"
-#     exit 1
-# }
+grep -q '\[patch' Cargo.toml && {
+    echo "Cargo.toml has patched dependencies!"
+    exit 1
+}
 
 printf "\nCI OKAY!\n"

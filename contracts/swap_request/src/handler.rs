@@ -23,7 +23,7 @@ pub struct SwapRequestHandler {
 #[contract(exports = "swap_request_exports")]
 impl ISwapRequestHandler for SwapRequestHandler {
     fn initialize(&mut self, swap_pair: &Address, token0: &Address, token1: &Address) {
-        if self.cfg.try_get().is_some() {
+        if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");
         }
 

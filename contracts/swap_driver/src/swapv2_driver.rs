@@ -30,7 +30,7 @@ pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + (10 * REQUEST_GAS_MAX);
 impl SwapV2Driver {
     /// Must be called exactly once before any other methods
     pub fn initialize(&mut self, handler: &ContractAddress) {
-        if self.cfg.try_get().is_some() {
+        if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");
         }
 

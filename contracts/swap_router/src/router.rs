@@ -24,7 +24,7 @@ impl Router {
     // to arbitrary swap pairs.)
     //
     pub fn initialize(&mut self, driver: &Address, token0: &Address, token1: &Address) {
-        if self.cfg.try_get().is_some() {
+        if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");
         }
 
