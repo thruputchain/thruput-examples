@@ -35,7 +35,7 @@ pub struct Config {
 
 impl TokenContract {
     fn _init(&mut self, config: &Config) {
-        if self.config.try_get().is_some() {
+        if self.config.try_get().none_if_missing().is_some() {
             throw(ERC20Error::AlreadyInitialized);
         }
 
@@ -52,19 +52,30 @@ impl TokenContract {
 
     // Balance stored at given owner address, or zero if empty
     fn _balance_amount_of(&self, owner: &ContractAddress) -> Amount {
-        self.balances.at(owner).try_get().unwrap_or(0) as Amount
+        self.balances
+            .at(owner)
+            .try_get()
+            .none_if_missing()
+            .unwrap_or(0) as Amount
     }
 
-    // Adjust balance at given owner address, from zero if empty
+    // Adjust balance at given owner address, from zero if empty.
+    // For never-stored-to addresses, this acts as if the value was zero.
     fn _adjust_balance(&mut self, owner: &ContractAddress, diff: Difference) {
-        // For never-stored-to addresses, this acts as
-        // if the value was zero.  If the resulting balance
-        // would be negative, this aborts.
-        self.balances.at_mut(owner).strict_inc(diff);
+        // A result outside the non-negative range throws TooLarge.
+        self.balances
+            .at_mut(owner)
+            .try_strict_inc(diff)
+            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
     }
 
     fn _allowance(&self, owner: &ContractAddress, spender: &ContractAddress) -> Amount {
-        self.allowances.at(owner).at(spender).try_get().unwrap_or(0) as Amount
+        self.allowances
+            .at(owner)
+            .at(spender)
+            .try_get()
+            .none_if_missing()
+            .unwrap_or(0) as Amount
     }
 
     // Adjust allowance for owner and spender, from zero if empty.
@@ -75,11 +86,12 @@ impl TokenContract {
         spender: &ContractAddress,
         diff: Difference,
     ) {
-        // This fails if the result would be negative
+        // A negative result throws TooLarge.
         self.allowances
             .at_mut(owner)
             .at_mut(spender)
-            .strict_inc(diff);
+            .try_strict_inc(diff)
+            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
 
         log_approval_event(owner, spender, diff);
     }
@@ -89,7 +101,7 @@ impl TokenContract {
     }
 
     fn _total_supply(&self) -> Amount {
-        self.total_supply.try_get().unwrap_or(0) as Amount
+        self.total_supply.try_get().none_if_missing().unwrap_or(0) as Amount
     }
 }
 
@@ -97,7 +109,7 @@ impl TokenContract {
 //
 // The `contract` macro provides an exported entrypoint for each method.
 //
-#[contract(version = "0.1.3")]
+#[contract(version = "0.1.5")]
 impl ERC20 for TokenContract {
     fn initialize(&mut self, administrator: &ContractAddress) {
         self._init(&Config {
@@ -193,7 +205,7 @@ impl ERC20 for TokenContract {
 }
 
 #[cfg(feature = "metadata")]
-#[contract(version = "0.1.3")]
+#[contract(version = "0.1.5")]
 impl ERC20Metadata for TokenContract {
     fn initialize(
         &mut self,

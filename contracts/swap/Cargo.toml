@@ -41,4 +41,4 @@ dev = ["sdk/dev", "dep:erc20", "implementation"]
 swap = { path = ".", features = ["dev"] }
 
 [lints]
-workspace = true
+clippy.result_large_err = "allow"

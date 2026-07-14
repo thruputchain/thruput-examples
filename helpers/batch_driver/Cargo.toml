@@ -22,4 +22,4 @@ sdk = { workspace = true }
 dev = ["sdk/dev"]
 
 [lints]
-workspace = true
+clippy.result_large_err = "allow"

@@ -45,4 +45,4 @@ wasm_test = []
 swap_router = { path = ".", features = ["dev"] }
 
 [lints]
-workspace = true
+clippy.result_large_err = "allow"

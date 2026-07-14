@@ -27,8 +27,8 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::storage::RCQ;
-use sdk::{ReadXDROwned, WriteXDR};
+use sdk::storage::*;
+use sdk::*;
 
 /// A request that can be batched by a driver.
 ///
@@ -71,7 +71,7 @@ where
     let mut n_failed = 0;
     let mut batch_gas_consumed_max = 0u64;
 
-    while let Some(request) = queue.try_consume() {
+    while let Some(request) = queue.try_consume().none_if_missing() {
         // Each request knows how much gas its handling deserves.
         let gas_limit = request.gas_limit();
 
