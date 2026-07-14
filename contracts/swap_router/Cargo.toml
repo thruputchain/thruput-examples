@@ -43,6 +43,7 @@ wasm_test = []
 
 [dev-dependencies]
 swap_router = { path = ".", features = ["dev"] }
+groundhog_testkit = { path = "../../../groundhog-rpc/crates/dev/testkit" }
 
 [lints]
 workspace = true
