@@ -31,19 +31,17 @@ impl ISwapV2Pair for SwapV2Pair {
         _factory: &Address,
         token0: &Address,
         token1: &Address,
-        lp_token_hash: &SHA256Hash,
+        lp_token: &Address,
     ) {
         if self.lp_addr.try_get().none_if_missing().is_some() {
             throw(ISwapV2PairError::AlreadyInitialized);
         }
 
-        hash_ident! { static LP_NONCE: SHA256Hash; }
-
-        self.lp_addr.set(&deploy_contract(&LP_NONCE, lp_token_hash));
+        self.lp_addr.set(lp_token);
         self.tokens.set(&[*token0, *token1]);
         self.reserves.set(&Reserves::new());
 
-        // Initialize the LP contract, controlled by us (the pair contract)
+        // Adopt the LP contract, initializing it under our control.
         self.lp().initialize(&get_current_address());
     }
 

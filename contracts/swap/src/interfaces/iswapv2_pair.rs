@@ -52,9 +52,10 @@ pub trait ISwapV2Pair {
         token0: &Address,
         token1: &Address,
 
-        // The hash of an ERC20 token contract.  This method will deploy the
-        // contract to manage the LP token.
-        lp_token_hash: &SHA256Hash,
+        // An already-deployed, *uninitialized* ERC20 token contract.  This
+        // method adopts it as the LP token and initializes it under the pair's
+        // control.
+        lp_token: &Address,
     );
 
     fn liquidity_token(&self) -> ContractAddress;
