@@ -26,7 +26,6 @@
 use std::path::PathBuf;
 
 use groundhog_erc20_if::Amount;
-use groundhog_testkit::rpc_types::receipt::{ExecStatus, TransactionReceipt};
 use groundhog_testkit::xdr::types::ContractAddress;
 use groundhog_testkit::{
     Agent, AgentContext, Contract, LocalTargetConfig, Result, Scenario, TargetConfig, xdrs,
@@ -90,48 +89,35 @@ fn native_token() -> Contract {
 
 /// Grant `target` enough native tokens to pay for the storage it will create.
 async fn fund(ctx: &mut AgentContext, native: &Contract, target: Address) -> Result<()> {
-    assert_ok(
-        &native
-            .call(ctx, "transfer", &(target, CONTRACT_FUNDING))
-            .await?,
-        "fund contract",
-    );
+    native
+        .call(ctx, "transfer", &(target, CONTRACT_FUNDING))
+        .await?;
     Ok(())
 }
 
-/// Assert a state-changing call executed successfully.
-fn assert_ok(receipt: &TransactionReceipt, what: &str) {
-    assert!(
-        matches!(receipt.status, ExecStatus::Ok),
-        "{what} reverted: {:?}",
-        receipt.status
-    );
+/// The contract addresses a provider needs, sent to it over the mailbox.
+#[derive(Debug, Clone, xdrs::WriteXDR, xdrs::ReadXDR)]
+// `xdrs` reaches us re-exported through the testkit, not as a direct crate, so
+// point the derives' generated code at that path.
+#[xdr(crate = "groundhog_testkit::xdrs")]
+struct LPConfig {
+    token0: Address,
+    token1: Address,
+    handler: Address,
+    router: Address,
+    lp: Address,
 }
 
-/// The five contract addresses a provider needs, sent over the mailbox.
-type Bundle = (Address, Address, Address, Address, Address);
-
-fn encode_bundle(s: &Swap) -> Vec<u8> {
-    xdrs::cxs::encode(&(
-        s.token0.address(),
-        s.token1.address(),
-        s.handler.address(),
-        s.router.address(),
-        s.lp.address(),
-    ))
-    .expect("bug: address bundle encodes")
-}
-
-fn decode_bundle(bytes: &[u8]) -> Bundle {
-    xdrs::cxs::decode(bytes).expect("bug: address bundle decodes")
-}
-
-fn encode_addr(addr: Address) -> Vec<u8> {
-    xdrs::cxs::encode(&addr).expect("bug: address encodes")
-}
-
-fn decode_addr(bytes: &[u8]) -> Address {
-    xdrs::cxs::decode(bytes).expect("bug: address decodes")
+impl LPConfig {
+    fn of(s: &Swap) -> Self {
+        Self {
+            token0: s.token0.address(),
+            token1: s.token1.address(),
+            handler: s.handler.address(),
+            router: s.router.address(),
+            lp: s.lp.address(),
+        }
+    }
 }
 
 /// As admin: deploy, fund, and initialize the contract suite.
@@ -146,18 +132,12 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     fund(ctx, native, token0.address()).await?;
     let token1 = erc20(ctx.deploy_artifact("erc20").await?.address);
     fund(ctx, native, token1.address()).await?;
-    assert_ok(
-        &token0.call(ctx, "initialize", &me).await?,
-        "token0.initialize",
-    );
-    assert_ok(
-        &token1.call(ctx, "initialize", &me).await?,
-        "token1.initialize",
-    );
+    token0.call(ctx, "initialize", &me).await?;
+    token1.call(ctx, "initialize", &me).await?;
 
     // Mint ourselves a supply of each token, used below to prime the pool.
-    assert_ok(&token0.call(ctx, "mint", &(me, SUPPLY)).await?, "token0.mint");
-    assert_ok(&token1.call(ctx, "mint", &(me, SUPPLY)).await?, "token1.mint");
+    token0.call(ctx, "mint", &(me, SUPPLY)).await?;
+    token1.call(ctx, "mint", &(me, SUPPLY)).await?;
 
     // Deploy and fund the LP token, then the pair that adopts it.
     let lp = erc20(ctx.deploy_artifact("erc20").await?.address);
@@ -167,16 +147,12 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
 
     // Initialize the pair, which takes a deployed but uninitialized ERC20 and
     // initializes it under the pair's control.
-    assert_ok(
-        &pair
-            .call(
-                ctx,
-                "initialize",
-                &(me, token0.address(), token1.address(), lp.address()),
-            )
-            .await?,
-        "pair.initialize",
-    );
+    pair.call(
+        ctx,
+        "initialize",
+        &(me, token0.address(), token1.address(), lp.address()),
+    )
+    .await?;
 
     // Request handler, driver, and router: deploy, fund, and init.
     let handler = Contract::new(
@@ -185,16 +161,13 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
         HANDLER.1,
     );
     fund(ctx, native, handler.address()).await?;
-    assert_ok(
-        &handler
-            .call(
-                ctx,
-                "initialize",
-                &(pair.address(), token0.address(), token1.address()),
-            )
-            .await?,
-        "handler.initialize",
-    );
+    handler
+        .call(
+            ctx,
+            "initialize",
+            &(pair.address(), token0.address(), token1.address()),
+        )
+        .await?;
 
     let driver = Contract::new(
         ctx.deploy_artifact("swap_driver").await?.address,
@@ -202,10 +175,7 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
         DRIVER.1,
     );
     fund(ctx, native, driver.address()).await?;
-    assert_ok(
-        &driver.call(ctx, "initialize", &handler.address()).await?,
-        "driver.initialize",
-    );
+    driver.call(ctx, "initialize", &handler.address()).await?;
 
     let router = Contract::new(
         ctx.deploy_artifact("swap_router").await?.address,
@@ -213,16 +183,13 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
         ROUTER.1,
     );
     fund(ctx, native, router.address()).await?;
-    assert_ok(
-        &router
-            .call(
-                ctx,
-                "initialize",
-                &(driver.address(), token0.address(), token1.address()),
-            )
-            .await?,
-        "router.initialize",
-    );
+    router
+        .call(
+            ctx,
+            "initialize",
+            &(driver.address(), token0.address(), token1.address()),
+        )
+        .await?;
 
     Ok(Swap {
         token0,
@@ -239,19 +206,13 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
 /// ourselves, establishing the initial price the providers add against.
 async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
     let me = ctx.address();
-    assert_ok(
-        &s.token0
-            .call(ctx, "transfer", &(s.pair.address(), SUPPLY))
-            .await?,
-        "token0.transfer",
-    );
-    assert_ok(
-        &s.token1
-            .call(ctx, "transfer", &(s.pair.address(), SUPPLY))
-            .await?,
-        "token1.transfer",
-    );
-    assert_ok(&s.pair.call(ctx, "mint_lp", &me).await?, "pair.mint_lp");
+    s.token0
+        .call(ctx, "transfer", &(s.pair.address(), SUPPLY))
+        .await?;
+    s.token1
+        .call(ctx, "transfer", &(s.pair.address(), SUPPLY))
+        .await?;
+    s.pair.call(ctx, "mint_lp", &me).await?;
 
     let lp_balance: Amount = s.lp.view(ctx, "get_balance_of", &me, None).await?;
     assert!(lp_balance > 0, "priming should mint a positive LP balance");
@@ -273,55 +234,45 @@ fn liquidity_provider(name: &str) -> Agent {
 
         // Announce ourselves so the admin can mint us A/B tokens and send the
         // contract addresses we need.
-        ctx.send_to("admin", encode_addr(me))?;
+        ctx.send("admin", &me)?;
 
         // Receive configuration from the admin.
-        let msg = ctx
-            .recv()
+        let cfg = ctx
+            .recv::<LPConfig>()
             .await
-            .expect("bug: admin closed before sending addresses");
-        let (token0_addr, token1_addr, handler_addr, router_addr, lp_addr) =
-            decode_bundle(&msg.bytes);
-        let token0 = erc20(token0_addr);
-        let token1 = erc20(token1_addr);
-        let router = Contract::new(router_addr, ROUTER.0, ROUTER.1);
-        let lp = erc20(lp_addr);
+            .expect("bug: admin closed before sending addresses")?
+            .body;
+        let token0 = erc20(cfg.token0);
+        let token1 = erc20(cfg.token1);
+        let router = Contract::new(cfg.router, ROUTER.0, ROUTER.1);
+        let lp = erc20(cfg.lp);
 
         // Allow the request handler to pull our A/B tokens when the request runs.
         let allowance = i128::try_from(USER_LIQUIDITY).expect("bug: allowance fits i128");
-        assert_ok(
-            &token0
-                .call(&mut ctx, "adjust_allowance", &(handler_addr, allowance))
-                .await?,
-            "approve token0",
-        );
-        assert_ok(
-            &token1
-                .call(&mut ctx, "adjust_allowance", &(handler_addr, allowance))
-                .await?,
-            "approve token1",
-        );
+        token0
+            .call(&mut ctx, "adjust_allowance", &(cfg.handler, allowance))
+            .await?;
+        token1
+            .call(&mut ctx, "adjust_allowance", &(cfg.handler, allowance))
+            .await?;
 
         // Submit an add-liquidity request (executed later, by the driver). LP
         // is minted to us; we tolerate any ratio (amounts_min = [0, 0]).
         let desired: [Amount; 2] = [USER_LIQUIDITY, USER_LIQUIDITY];
         let min: [Amount; 2] = [0, 0];
-        assert_ok(
-            &router
-                .call(
-                    &mut ctx,
-                    "add_liquidity",
-                    &(token0_addr, token1_addr, desired, min, me),
-                )
-                .await?,
-            "router.add_liquidity",
-        );
+        router
+            .call(
+                &mut ctx,
+                "add_liquidity",
+                &(cfg.token0, cfg.token1, desired, min, me),
+            )
+            .await?;
 
         // Tell the admin our request is queued, then wait for it to be driven.
-        ctx.send_to("admin", b"submitted".to_vec())?;
-        ctx.recv()
+        ctx.send("admin", &())?;
+        ctx.recv::<()>()
             .await
-            .expect("bug: admin closed before driving requests");
+            .expect("bug: admin closed before driving requests")?;
 
         let lp_balance: Amount = lp.view(&ctx, "get_balance_of", &me, None).await?;
         assert!(lp_balance > 0, "add_liquidity should mint LP to the provider");
@@ -343,33 +294,25 @@ fn admin() -> Agent {
         let mut providers: Vec<(String, Address)> = Vec::new();
         for _ in 0..PROVIDERS.len() {
             let hello = ctx
-                .recv()
+                .recv::<Address>()
                 .await
-                .expect("bug: a provider closed before greeting");
-            providers.push((hello.from, decode_addr(&hello.bytes)));
+                .expect("bug: a provider closed before greeting")?;
+            providers.push((hello.from, hello.body));
         }
 
         // Airdrop A/B tokens to each provider, then send the contract addresses.
-        let bundle = encode_bundle(&s);
+        let config = LPConfig::of(&s);
         for (name, addr) in &providers {
-            assert_ok(
-                &s.token0.call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY)).await?,
-                "mint token0 to provider",
-            );
-            assert_ok(
-                &s.token1.call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY)).await?,
-                "mint token1 to provider",
-            );
-            ctx.send_to(name, bundle.clone())?;
+            s.token0.call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY)).await?;
+            s.token1.call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY)).await?;
+            ctx.send(name, &config)?;
         }
 
-        // Wait for both providers to queue their requests.
+        // Wait for both providers to signal their requests are queued.
         for _ in 0..PROVIDERS.len() {
-            let ack = ctx
-                .recv()
+            ctx.recv::<()>()
                 .await
-                .expect("bug: a provider closed before submitting");
-            assert_eq!(ack.bytes, b"submitted", "unexpected message from {}", ack.from);
+                .expect("bug: a provider closed before submitting")?;
         }
 
         // Drive the queue: both add-liquidity requests should process cleanly.
@@ -385,7 +328,7 @@ fn admin() -> Agent {
 
         // Release the providers to verify their balances.
         for (name, _) in &providers {
-            ctx.send_to(name, b"processed".to_vec())?;
+            ctx.send(name, &())?;
         }
         Ok(())
     })
