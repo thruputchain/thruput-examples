@@ -31,6 +31,7 @@ impl ISwapV2Pair for SwapV2Pair {
         _factory: &Address,
         token0: &Address,
         token1: &Address,
+        // Deployed but not initialized:
         lp_token: &Address,
     ) {
         if self.lp_addr.try_get().none_if_missing().is_some() {

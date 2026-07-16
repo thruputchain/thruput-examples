@@ -51,9 +51,8 @@ pub trait ISwapV2Pair {
         factory: &Address,
         token0: &Address,
         token1: &Address,
-
-        // An already-deployed, *uninitialized* ERC20 token contract.  This
-        // method adopts it as the LP token and initializes it under the pair's
+        // A deployed but *uninitialized* ERC20 token contract.  This method
+        // adopts it as the LP token and initializes it under the pair's
         // control.
         lp_token: &Address,
     );

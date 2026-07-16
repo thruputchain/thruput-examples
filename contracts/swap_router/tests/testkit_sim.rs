@@ -2,8 +2,7 @@
 //!
 //! Unlike the native `test_transaction!` tests (which run against the SDK's
 //! in-process executor), this drives the real contracts on a live local
-//! `hog-devnode` through `groundhog-testkit`, mirroring the deploy/initialize
-//! sequence in `tests/common/setup.rs`.
+//! `hog-devnode` using `groundhog-testkit`.
 //!
 //! An `admin` agent deploys and initializes the contract suite, primes the
 //! pool, and acts as the request-queue operator. Two independent liquidity
@@ -33,12 +32,12 @@ use groundhog_testkit::{
     Agent, AgentContext, Contract, LocalTargetConfig, Result, Scenario, TargetConfig, xdrs,
 };
 
-/// On-chain address, aliased to match the contracts' `Address` type.
+/// An alias to match the contracts' `Address` type.
 type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as
-// recorded in each `*.spec.json`. `entrypoint_id` derives selectors from these,
-// so a rebuild that changes an interface name/version is picked up here.
+// recorded in each `*.spec.json`. `entrypoint_id` derives selectors from
+// these.
 const ERC20: (&str, &str) = ("ERC20", "0.1.5");
 const PAIR: (&str, &str) = ("ISwapV2Pair", "0.1.0");
 const HANDLER: (&str, &str) = ("ISwapRequestHandler", "0.1.0");
@@ -58,20 +57,12 @@ const USER_LIQUIDITY: Amount = 1_000_000;
 
 /// Native (HOG) storage tokens the admin grants each contract it deploys.
 ///
-/// The devnode has no zero-cost storage mode (unlike the SDK's
-/// `TestEnvironment::no_cost()`): every account, including a contract, pays
-/// native tokens for the storage it creates. A freshly deployed contract holds
-/// zero, so the first time it grows its own storage the delta underflows and
-/// the whole transaction is dropped at two-phase commit (`BoundsExceeded`).
-/// Funding each contract up front — far above the few hundred thousand tokens a
-/// typical write costs — keeps the swap flow solvent.
+/// A contract must pay native tokens for the storage it creates. Funding each
+/// contract up front — far above the few hundred thousand tokens a typical
+/// write costs — keeps the swap flow solvent.
 const CONTRACT_FUNDING: Amount = 1_000_000_000;
 
-fn erc20(address: Address) -> Contract {
-    Contract::new(address, ERC20.0, ERC20.1)
-}
-
-/// The deployed swap contract suite, as handles bound to their interfaces.
+/// The contract suite
 struct Swap {
     token0: Contract,
     token1: Contract,
@@ -82,11 +73,15 @@ struct Swap {
     router: Contract,
 }
 
-/// Handle to the devnode's built-in native (HOG) token precompile.
+/// An ERC20 contract for token0, token1, and lp
+fn erc20(address: Address) -> Contract {
+    Contract::new(address, ERC20.0, ERC20.1)
+}
+
+/// The devnode's native token contract.
 ///
 /// It lives at the genesis precompile address `0x00…01` and speaks the ERC20
-/// interface, but vendored at `groundhog-erc20-if` 0.1.3 — so its selectors
-/// derive from that version, not the 0.1.5 the deployed token contracts use.
+/// interface, vendored at `groundhog-erc20-if` 0.1.3.
 fn native_token() -> Contract {
     let mut bytes = [0u8; 32];
     bytes[31] = 1;
@@ -139,13 +134,14 @@ fn decode_addr(bytes: &[u8]) -> Address {
     xdrs::cxs::decode(bytes).expect("bug: address decodes")
 }
 
-/// Deploy, fund, and initialize the whole contract suite as the admin.
+/// As admin: deploy, fund, and initialize the contract suite.
 async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Swap> {
     let me = ctx.address();
 
-    // --- The two A/B token contracts (owned by us). The first erc20 deploy
-    // registers the binary; the rest are hash-only. Each contract is funded
-    // right after deploy so it can pay for the storage its state writes create.
+    // The two A/B token contracts (owned by us).
+    //
+    // Each contract is funded right after deploy so it can pay for the storage
+    // its state writes create.
     let token0 = erc20(ctx.deploy_artifact("erc20").await?.address);
     fund(ctx, native, token0.address()).await?;
     let token1 = erc20(ctx.deploy_artifact("erc20").await?.address);
@@ -163,15 +159,14 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     assert_ok(&token0.call(ctx, "mint", &(me, SUPPLY)).await?, "token0.mint");
     assert_ok(&token1.call(ctx, "mint", &(me, SUPPLY)).await?, "token1.mint");
 
-    // --- The LP token, then the pair that adopts it. The pair's `initialize`
-    // takes an already-deployed, uninitialized ERC20 and initializes it under
-    // the pair's control (a nested write to the LP token's storage). Deploying
-    // the LP here — rather than inside the pair — lets us fund it up front so
-    // that nested write is solvent.
+    // Deploy and fund the LP token, then the pair that adopts it.
     let lp = erc20(ctx.deploy_artifact("erc20").await?.address);
     fund(ctx, native, lp.address()).await?;
     let pair = Contract::new(ctx.deploy_artifact("swap").await?.address, PAIR.0, PAIR.1);
     fund(ctx, native, pair.address()).await?;
+
+    // Initialize the pair, which takes a deployed but uninitialized ERC20 and
+    // initializes it under the pair's control.
     assert_ok(
         &pair
             .call(
@@ -183,7 +178,7 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
         "pair.initialize",
     );
 
-    // --- The request handler, driver, and router, each funded before init.
+    // Request handler, driver, and router: deploy, fund, and init.
     let handler = Contract::new(
         ctx.deploy_artifact("swap_request").await?.address,
         HANDLER.0,
@@ -240,8 +235,8 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     })
 }
 
-/// Prime the pool: transfer both tokens to the pair, then mint LP to ourselves,
-/// establishing the initial price the providers add against.
+/// As admin, prime the pool: transfer both tokens to the pair, then mint LP to
+/// ourselves, establishing the initial price the providers add against.
 async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
     let me = ctx.address();
     assert_ok(
@@ -264,12 +259,14 @@ async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
     Ok(())
 }
 
-/// A liquidity-provider agent.
+/// A liquidity-provider agent:
 ///
-/// Greets the admin (so it can be airdropped tokens), receives the contract
-/// addresses, approves the request handler, submits an `add_liquidity` request
-/// through the router, then — once the admin signals the queue is driven —
-/// confirms it was minted LP.
+/// * Greets the admin (so it can be airdropped tokens)
+/// * Receives the contract addresses
+/// * Approves the request handler
+/// * Submits an `add_liquidity` request through the router
+/// * Once the admin signals the queue is driven, confirms it was minted LP
+///
 fn liquidity_provider(name: &str) -> Agent {
     Agent::new(name, |mut ctx| async move {
         let me = ctx.address();
@@ -278,6 +275,7 @@ fn liquidity_provider(name: &str) -> Agent {
         // contract addresses we need.
         ctx.send_to("admin", encode_addr(me))?;
 
+        // Receive configuration from the admin.
         let msg = ctx
             .recv()
             .await
@@ -332,8 +330,9 @@ fn liquidity_provider(name: &str) -> Agent {
     })
 }
 
-/// The admin agent: sets the suite up, then operates the request queue for the
-/// providers.
+/// The admin agent:
+/// * Sets up the suite
+/// * Operates the request queue for the providers
 fn admin() -> Agent {
     Agent::new("admin", |mut ctx| async move {
         let native = native_token();
@@ -418,7 +417,7 @@ async fn swap_liquidity_multi_agent() {
     let scenario = Scenario::builder("swap-sim")
         .target(TargetConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
-        .artifact("swap", artifact("swap.wasm"))
+        .artifact("swap", artifact("swap.wasm")) // can't currently build swap as rv32a
         .artifact("swap_request", artifact("swap_request.rv32a"))
         .artifact("swap_driver", artifact("swap_driver.rv32a"))
         .artifact("swap_router", artifact("swap_router.rv32a"))
