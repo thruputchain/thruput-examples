@@ -28,7 +28,7 @@ use std::path::PathBuf;
 use groundhog_erc20_if::Amount;
 use groundhog_testkit::xdr::types::ContractAddress;
 use groundhog_testkit::{
-    Agent, AgentContext, Contract, LocalTargetConfig, Result, Scenario, TargetConfig, xdrs,
+    Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Result, Scenario, xdrs,
 };
 
 /// An alias to match the contracts' `Address` type.
@@ -275,7 +275,10 @@ fn liquidity_provider(name: &str) -> Agent {
             .expect("bug: admin closed before driving requests")?;
 
         let lp_balance: Amount = lp.view(&ctx, "get_balance_of", &me, None).await?;
-        assert!(lp_balance > 0, "add_liquidity should mint LP to the provider");
+        assert!(
+            lp_balance > 0,
+            "add_liquidity should mint LP to the provider"
+        );
         println!("{}: received {lp_balance} LP", ctx.name());
         Ok(())
     })
@@ -303,8 +306,12 @@ fn admin() -> Agent {
         // Airdrop A/B tokens to each provider, then send the contract addresses.
         let config = LPConfig::of(&s);
         for (name, addr) in &providers {
-            s.token0.call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY)).await?;
-            s.token1.call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY)).await?;
+            s.token0
+                .call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY))
+                .await?;
+            s.token1
+                .call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY))
+                .await?;
             ctx.send(name, &config)?;
         }
 
@@ -346,7 +353,7 @@ async fn swap_liquidity_multi_agent() {
     };
     let artifact = |file: &str| PathBuf::from(&root).join(file);
 
-    let mut config = LocalTargetConfig::default();
+    let mut config = LocalNetworkConfig::default();
     // The admin funds every contract it deploys (see CONTRACT_FUNDING), so give
     // its dev account plenty of native tokens to distribute.
     config.dev_account_tokens = 100_000_000_000;
@@ -358,7 +365,7 @@ async fn swap_liquidity_multi_agent() {
     }
 
     let scenario = Scenario::builder("swap-sim")
-        .target(TargetConfig::local(config))
+        .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
         .artifact("swap", artifact("swap.wasm")) // can't currently build swap as rv32a
         .artifact("swap_request", artifact("swap_request.rv32a"))
