@@ -238,7 +238,7 @@ fn liquidity_provider(name: &str) -> Agent {
 
         // Receive configuration from the admin.
         let cfg = ctx
-            .recv::<LPConfig>()
+            .recv_from::<LPConfig>("admin")
             .await
             .expect("bug: admin closed before sending addresses")?
             .body;
@@ -270,7 +270,7 @@ fn liquidity_provider(name: &str) -> Agent {
 
         // Tell the admin our request is queued, then wait for it to be driven.
         ctx.send("admin", &())?;
-        ctx.recv::<()>()
+        ctx.recv_from::<()>("admin")
             .await
             .expect("bug: admin closed before driving requests")?;
 
@@ -294,7 +294,7 @@ fn admin() -> Agent {
         let mut providers: Vec<(String, Address)> = Vec::new();
         for _ in 0..PROVIDERS.len() {
             let hello = ctx
-                .recv::<Address>()
+                .recv_from_any::<Address>(&PROVIDERS)
                 .await
                 .expect("bug: a provider closed before greeting")?;
             providers.push((hello.from, hello.body));
@@ -310,7 +310,7 @@ fn admin() -> Agent {
 
         // Wait for both providers to signal their requests are queued.
         for _ in 0..PROVIDERS.len() {
-            ctx.recv::<()>()
+            ctx.recv_from_any::<()>(&PROVIDERS)
                 .await
                 .expect("bug: a provider closed before submitting")?;
         }
