@@ -16,11 +16,11 @@
 //!
 //! ```text
 //! cd groundhog-examples
-//! for c in erc20 swap_request swap_driver swap_router; do groundhog build -p "$c"; done
-//! groundhog build -p swap --target wasm   # swap does not build for rv32a yet
+//! for c in erc20 swap-request swap-driver swap-router; do groundhog build -p "$c"; done
+//! groundhog build -p swap-pair --target wasm   # swap does not build for rv32a yet
 //! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
 //! GROUNDHOG_TESTKIT_ARTIFACT_ROOT=/path/to/target/groundhog \
-//!     cargo test -p swap_router --test testkit_sim -- --ignored --nocapture
+//!     cargo test -p swap-router --test testkit_sim -- --ignored --nocapture
 //! ```
 
 use std::path::PathBuf;
@@ -142,7 +142,7 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     // Deploy and fund the LP token, then the pair that adopts it.
     let lp = erc20(ctx.deploy_artifact("erc20").await?.address);
     fund(ctx, native, lp.address()).await?;
-    let pair = Contract::new(ctx.deploy_artifact("swap").await?.address, PAIR.0, PAIR.1);
+    let pair = Contract::new(ctx.deploy_artifact("swap_pair").await?.address, PAIR.0, PAIR.1);
     fund(ctx, native, pair.address()).await?;
 
     // Initialize the pair, which takes a deployed but uninitialized ERC20 and
@@ -367,7 +367,7 @@ async fn swap_liquidity_multi_agent() {
     let scenario = Scenario::builder("swap-sim")
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
-        .artifact("swap", artifact("swap.wasm")) // can't currently build swap as rv32a
+        .artifact("swap_pair", artifact("swap_pair.wasm")) // can't currently build swap as rv32a
         .artifact("swap_request", artifact("swap_request.rv32a"))
         .artifact("swap_driver", artifact("swap_driver.rv32a"))
         .artifact("swap_router", artifact("swap_router.rv32a"))
