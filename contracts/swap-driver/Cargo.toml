@@ -1,7 +1,7 @@
 [package]
-name = "swap"
+name = "swap-driver"
 version = "0.1.0"
-edition.workspace = true
+edition = "2024"
 authors.workspace = true
 license.workspace = true
 publish.workspace = true
@@ -16,7 +16,7 @@ doctest = false
 test = false # suppress output from our zero unit-tests
 
 [[bin]]
-name = "swap"
+name = "swap_driver"
 path = "src/main.rs"
 required-features = ["rv32-entrypoints"]
 test = false
@@ -27,18 +27,24 @@ sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
 uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
+thiserror = { workspace = true }
+batch-driver = { path = "../../helpers/batch-driver" }
+swap-pair = { path = "../swap-pair" }
+swap-request = { path = "../swap-request" }
 
-# Optional
+# Optional, for native tests
 erc20 = { path = "../erc20", features = ["dev"], optional = true }
+groundhog-erc20-metadata-if = { workspace = true, features = ["dev"], optional = true }
 
 [features]
-entrypoints = ["implementation", "sdk/alloc"]
+entrypoints = ["sdk/alloc"]
 rv32-entrypoints = ["entrypoints"]
-implementation = []
-dev = ["sdk/dev", "dep:erc20", "implementation"]
+erc20_metadata = ["erc20?/metadata", "dep:groundhog-erc20-metadata-if"]
+dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-pair/dev", "swap-request/dev", "batch-driver/dev"]
+wasm_test = []
 
 [dev-dependencies]
-swap = { path = ".", features = ["dev"] }
+swap-driver = { path = ".", features = ["dev"] }
 
 [lints]
 clippy.result_large_err = "allow"

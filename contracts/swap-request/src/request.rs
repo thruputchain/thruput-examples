@@ -1,7 +1,7 @@
 #![allow(clippy::new_ret_no_self)]
 
 use sdk::*;
-use swap::*;
+use swap_pair::*;
 
 /// A high-level swap request
 ///

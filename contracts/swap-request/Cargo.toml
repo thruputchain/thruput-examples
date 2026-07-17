@@ -1,5 +1,5 @@
 [package]
-name = "swap_driver"
+name = "swap-request"
 version = "0.1.0"
 edition = "2024"
 authors.workspace = true
@@ -16,7 +16,7 @@ doctest = false
 test = false # suppress output from our zero unit-tests
 
 [[bin]]
-name = "swap_driver"
+name = "swap_request"
 path = "src/main.rs"
 required-features = ["rv32-entrypoints"]
 test = false
@@ -28,23 +28,23 @@ groundhog-erc20-if = { workspace = true }
 uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
 thiserror = { workspace = true }
-batch_driver = { path = "../../helpers/batch_driver" }
-swap = { path = "../swap" }
-swap_request = { path = "../swap_request" }
+swap-pair = { path = "../swap-pair" }
 
 # Optional, for native tests
 erc20 = { path = "../erc20", features = ["dev"], optional = true }
 groundhog-erc20-metadata-if = { workspace = true, features = ["dev"], optional = true }
 
 [features]
-entrypoints = ["sdk/alloc"]
+# `entrypoints` builds the deployable handler contract (its exported methods).
+entrypoints = ["implementation", "sdk/alloc"]
 rv32-entrypoints = ["entrypoints"]
+implementation = []
 erc20_metadata = ["erc20?/metadata", "dep:groundhog-erc20-metadata-if"]
-dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap/dev", "swap_request/dev", "batch_driver/dev"]
+dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-pair/dev", "implementation"]
 wasm_test = []
 
 [dev-dependencies]
-swap_driver = { path = ".", features = ["dev"] }
+swap-request = { path = ".", features = ["dev"] }
 
 [lints]
 clippy.result_large_err = "allow"

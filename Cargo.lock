@@ -56,7 +56,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
-name = "batch_driver"
+name = "batch-driver"
 version = "0.1.0"
 dependencies = [
  "sdk",
@@ -2769,52 +2769,51 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
-name = "swap"
+name = "swap-driver"
 version = "0.1.0"
 dependencies = [
- "erc20",
- "groundhog-erc20-if",
- "heapless",
- "sdk",
- "swap",
- "uint",
-]
-
-[[package]]
-name = "swap_driver"
-version = "0.1.0"
-dependencies = [
- "batch_driver",
+ "batch-driver",
  "erc20",
  "groundhog-erc20-if",
  "groundhog-erc20-metadata-if",
  "heapless",
  "sdk",
- "swap",
- "swap_driver",
- "swap_request",
+ "swap-driver",
+ "swap-pair",
+ "swap-request",
  "thiserror 2.0.18",
  "uint",
 ]
 
 [[package]]
-name = "swap_request"
+name = "swap-pair"
 version = "0.1.0"
 dependencies = [
- "batch_driver",
+ "erc20",
+ "groundhog-erc20-if",
+ "heapless",
+ "sdk",
+ "swap-pair",
+ "uint",
+]
+
+[[package]]
+name = "swap-request"
+version = "0.1.0"
+dependencies = [
  "erc20",
  "groundhog-erc20-if",
  "groundhog-erc20-metadata-if",
  "heapless",
  "sdk",
- "swap",
- "swap_request",
+ "swap-pair",
+ "swap-request",
  "thiserror 2.0.18",
  "uint",
 ]
 
 [[package]]
-name = "swap_router"
+name = "swap-router"
 version = "0.1.0"
 dependencies = [
  "erc20",
@@ -2822,10 +2821,10 @@ dependencies = [
  "groundhog-erc20-metadata-if",
  "groundhog-testkit",
  "sdk",
- "swap",
- "swap_driver",
- "swap_request",
- "swap_router",
+ "swap-driver",
+ "swap-pair",
+ "swap-request",
+ "swap-router",
  "thiserror 2.0.18",
  "tokio",
 ]

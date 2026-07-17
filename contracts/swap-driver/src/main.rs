@@ -1,4 +1,4 @@
-//! RV32 binary wrapper for the `swap_driver` contract library.
+//! RV32 binary wrapper for the `swap-driver` contract library.
 //!
 //! `groundhog build --target rv32` builds this bin with the `entrypoints`
 //! feature so the `#[contract]` macro emits rv32 method entry symbols.

@@ -22,7 +22,7 @@ cargo clippy -p batch_driver --release --target wasm32-unknown-unknown -- -Dwarn
 
 lint "erc20 -F metadata"
 
-swap_packages="swap swap_request swap_driver swap_router"
+swap_packages="swap-pair swap-request swap-driver swap-router"
 for p in $swap_packages ; do
     lint "$p" || {
         echo "Lint failed for $p"

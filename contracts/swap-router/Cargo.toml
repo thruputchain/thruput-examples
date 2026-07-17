@@ -1,5 +1,5 @@
 [package]
-name = "swap_router"
+name = "swap-router"
 version = "0.1.0"
 edition = "2024"
 authors.workspace = true
@@ -26,9 +26,9 @@ bench = false
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
 thiserror = { workspace = true }
-swap = { path = "../swap" }
-swap_driver = { path = "../swap_driver" }
-swap_request = { path = "../swap_request" }
+swap-pair = { path = "../swap-pair" }
+swap-driver = { path = "../swap-driver" }
+swap-request = { path = "../swap-request" }
 
 # Optional, for native tests
 erc20 = { path = "../erc20", features = ["dev"], optional = true }
@@ -38,11 +38,11 @@ groundhog-erc20-metadata-if = { workspace = true, features = ["dev"], optional =
 entrypoints = ["sdk/alloc"]
 rv32-entrypoints = ["entrypoints"]
 erc20_metadata = ["erc20?/metadata", "dep:groundhog-erc20-metadata-if"]
-dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap/dev", "swap_driver/dev", "swap_request/dev"]
+dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-pair/dev", "swap-driver/dev", "swap-request/dev"]
 wasm_test = []
 
 [dev-dependencies]
-swap_router = { path = ".", features = ["dev"] }
+swap-router = { path = ".", features = ["dev"] }
 groundhog-testkit = { registry = "groundhog", version = "0.5.18" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
