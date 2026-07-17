@@ -6,7 +6,7 @@ use crate::library::*;
 use crate::request::*;
 use sdk::storage::*;
 use sdk::*;
-use swap::*;
+use swap_pair::*;
 
 use SwapRequestError::*;
 

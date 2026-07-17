@@ -14,6 +14,7 @@ for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | 
             exit 1
         }
         echo "::endgroup::"
+        continue
     fi
 
     echo "::group::groundhog build -p $pkg ${build_args[*]}"

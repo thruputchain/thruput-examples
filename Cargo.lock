@@ -2801,6 +2801,7 @@ dependencies = [
 name = "swap-request"
 version = "0.1.0"
 dependencies = [
+ "batch-driver",
  "erc20",
  "groundhog-erc20-if",
  "groundhog-erc20-metadata-if",

@@ -28,6 +28,7 @@ groundhog-erc20-if = { workspace = true }
 uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
 thiserror = { workspace = true }
+batch-driver = { path = "../../helpers/batch-driver" }
 swap-pair = { path = "../swap-pair" }
 
 # Optional, for native tests

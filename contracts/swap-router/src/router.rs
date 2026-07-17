@@ -7,7 +7,7 @@
 use crate::cfg::*;
 use sdk::storage::*;
 use sdk::*;
-use swap::*;
+use swap_pair::*;
 use swap_request::{SwapLibraryError, SwapRequest, SwapRequestError};
 
 #[storage]

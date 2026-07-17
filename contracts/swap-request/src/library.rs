@@ -5,7 +5,7 @@
 //! moment.
 
 use sdk::*;
-use swap::*;
+use swap_pair::*;
 
 #[contract_exception]
 pub enum SwapLibraryError {

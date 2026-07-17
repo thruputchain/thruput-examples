@@ -2,7 +2,7 @@ use crate::SwapRequest;
 use crate::library::SwapLibraryError;
 pub use groundhog_erc20_if::ERC20Error;
 use sdk::*;
-use swap::{Address, ISwapV2PairError};
+use swap_pair::{Address, ISwapV2PairError};
 
 /// Errors raised while handling a swap request (slippage limits exceeded).
 #[contract_exception]

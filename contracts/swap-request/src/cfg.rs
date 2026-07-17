@@ -1,6 +1,6 @@
 use groundhog_erc20_if::ERC20Client;
 use sdk::*;
-use swap::*;
+use swap_pair::*;
 
 /// Handler configuration: the pair it drives, that pair's tokens, and the
 /// pair's LP token.

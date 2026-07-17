@@ -81,7 +81,7 @@ impl Deref for Etx {
 
 fn event_handler(e: &sdk::types::event::TxEmittedEvent) {
     use groundhog_erc20_if as erc20;
-    use swap::events as swap;
+    use swap_pair::events::*;
 
     let e: EmittedEvent = e.into();
 
@@ -97,20 +97,20 @@ fn event_handler(e: &sdk::types::event::TxEmittedEvent) {
 
             println!("EEE Transfer {}", amount);
         }
-        swap::MintEvent::SIGNATURE => {
-            let e: TypedEvent<swap::MintEvent> = TypedEvent::new(e.raw());
+        MintEvent::SIGNATURE => {
+            let e: TypedEvent<MintEvent> = TypedEvent::new(e.raw());
             let amount = e.payload().amount_minted;
 
             println!("EEE Mint ({} LP)", amount);
         }
-        swap::BurnEvent::SIGNATURE => {
-            let e: TypedEvent<swap::BurnEvent> = TypedEvent::new(e.raw());
+        BurnEvent::SIGNATURE => {
+            let e: TypedEvent<BurnEvent> = TypedEvent::new(e.raw());
             let [r0, r1] = e.payload().amounts_redeemed;
 
             println!("EEE Burn (redeemed: {r0}/{r1})");
         }
-        swap::SwapEvent::SIGNATURE => {
-            let e: TypedEvent<swap::SwapEvent> = TypedEvent::new(e.raw());
+        SwapEvent::SIGNATURE => {
+            let e: TypedEvent<SwapEvent> = TypedEvent::new(e.raw());
             let payload = e.payload();
             let amounts_in = payload.amounts_in;
             let amounts_out = payload.amounts_out;
@@ -120,8 +120,8 @@ fn event_handler(e: &sdk::types::event::TxEmittedEvent) {
                 amounts_in[0], amounts_in[1], amounts_out[0], amounts_out[1]
             );
         }
-        swap::SyncEvent::SIGNATURE => {
-            let e: TypedEvent<swap::SyncEvent> = TypedEvent::new(e.raw());
+        SyncEvent::SIGNATURE => {
+            let e: TypedEvent<SyncEvent> = TypedEvent::new(e.raw());
             let reserves = e.payload().reserves;
 
             println!("EEE Sync (reserves: {}/{})", reserves[0], reserves[1]);

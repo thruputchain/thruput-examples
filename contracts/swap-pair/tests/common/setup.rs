@@ -9,7 +9,7 @@ pub fn setup_etx() -> Result<Etx> {
     let token_hash = *token_contract.as_hash();
 
     // Register the swap-pair contract
-    let pair_contract = swap::register_mock_contract(&env);
+    let pair_contract = swap_pair::register_mock_contract(&env);
     let pair_hash = *pair_contract.as_hash();
 
     // Deploy and init the A/B token contracts

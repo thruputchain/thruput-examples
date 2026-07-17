@@ -20,7 +20,7 @@ pub fn setup_etx_native() -> Result<Etx> {
     let token_hash = *token_contract.as_hash();
 
     // Register the swap-pair contract
-    let pair_contract = swap::register_mock_contract(&env);
+    let pair_contract = swap_pair::register_mock_contract(&env);
     let pair_hash = *pair_contract.as_hash();
 
     // Register the request-handler contract

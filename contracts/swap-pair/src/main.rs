@@ -1,4 +1,4 @@
-//! RV32 binary wrapper for the `swap` contract library.
+//! RV32 binary wrapper for the `swap_pair` contract library.
 //!
 //! `groundhog build --target rv32` builds this bin with the `entrypoints`
 //! feature so the `#[contract]` macro emits rv32 method entry symbols.
@@ -9,4 +9,4 @@
 #![no_std]
 #![no_main]
 
-extern crate swap;
+extern crate swap_pair;

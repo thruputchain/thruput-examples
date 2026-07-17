@@ -9,7 +9,7 @@
 use crate::cfg::*;
 use sdk::storage::*;
 use sdk::*;
-use swap::ISwapV2PairError;
+use swap_pair::ISwapV2PairError;
 use swap_request::*;
 
 /// State for the driver contract
