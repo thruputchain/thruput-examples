@@ -215,6 +215,11 @@ fn swap_pair_deploy_init(
 ) -> (Address, Address) {
     assert_eq!(&get_current_address(), &FACTORY_ADDR);
 
+    // Deploy the LP-token contract (to be initialized below by
+    // `pair.initialize`)
+    hash_ident! { static LP_NONCE: SHA256Hash; }
+    let lp_addr = deploy_contract(&LP_NONCE, token_hash);
+
     // Deploy a new swap-pair contract
     hash_ident! { static PAIR_NONCE: SHA256Hash; }
     let pair_addr = deploy_contract(&PAIR_NONCE, pair_hash);
@@ -222,8 +227,8 @@ fn swap_pair_deploy_init(
     let pair = ISwapV2PairClient::new(&pair_addr);
 
     // Initialize the pair contract with the two tokens
-    // (This also initializes its embedded ERC20 implementation.)
-    pair.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], token_hash);
+    // (This also initializes its embedded LP-token implementation.)
+    pair.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], &lp_addr);
 
     let liquidity_token = pair.liquidity_token();
 
