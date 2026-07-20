@@ -28,7 +28,7 @@ impl ISwapRequestHandler for SwapRequestHandler {
         }
 
         // The LP token is owned by the pair; ask it.
-        let lp_token = ISwapV2PairClient::new(swap_pair).liquidity_token();
+        let lp_token = SwapPairClient::new(swap_pair).liquidity_token();
 
         let cfg = Cfg {
             swap_pair: *swap_pair,

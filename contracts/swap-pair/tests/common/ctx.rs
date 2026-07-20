@@ -17,8 +17,8 @@ impl Ctx {
     pub fn token1(&self) -> ERC20Client {
         ERC20Client::new(&self.token_addrs[1])
     }
-    pub fn pair(&self) -> ISwapV2PairClient {
-        ISwapV2PairClient::new(&self.pair_addr)
+    pub fn pair(&self) -> SwapPairClient {
+        SwapPairClient::new(&self.pair_addr)
     }
     pub fn lp(&self) -> ERC20Client {
         ERC20Client::new(&self.liquidity_token)

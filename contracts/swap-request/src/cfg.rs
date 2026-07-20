@@ -13,8 +13,8 @@ pub struct Cfg {
 }
 
 impl Cfg {
-    pub fn pair(&self) -> ISwapV2PairClient {
-        ISwapV2PairClient::new(&self.swap_pair)
+    pub fn pair(&self) -> SwapPairClient {
+        SwapPairClient::new(&self.swap_pair)
     }
 
     pub fn tokens(&self) -> [ERC20Client; 2] {

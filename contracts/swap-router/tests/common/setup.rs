@@ -224,7 +224,7 @@ fn swap_pair_deploy_init(
     hash_ident! { static PAIR_NONCE: SHA256Hash; }
     let pair_addr = deploy_contract(&PAIR_NONCE, pair_hash);
 
-    let pair = ISwapV2PairClient::new(&pair_addr);
+    let pair = SwapPairClient::new(&pair_addr);
 
     // Initialize the pair contract with the two tokens
     // (This also initializes its embedded LP-token implementation.)
