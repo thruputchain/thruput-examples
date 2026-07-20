@@ -4,11 +4,12 @@ sdk::declare_mock_contract!();
 
 extern crate alloc;
 
-// Interface
-pub use swapv2_driver::PROCESS_REQUESTS_GAS;
-pub use swapv2_driver::{SwapV2DriverClient, SwapV2DriverClientError};
-
-// Implementation
 mod cfg;
-mod swapv2_driver;
-pub use swapv2_driver::SwapV2Driver;
+mod driver;
+
+// Contract interface
+pub use driver::PROCESS_REQUESTS_GAS;
+pub use driver::{SwapV2DriverClient, SwapV2DriverClientError};
+
+// Contract implementation
+pub use driver::SwapV2Driver;

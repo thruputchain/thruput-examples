@@ -11,18 +11,20 @@ sdk::declare_mock_contract!();
 
 extern crate alloc;
 
-// Interface
-mod bignum;
-pub mod events;
-pub(crate) mod interfaces;
-pub use interfaces::iswapv2_pair::*;
-
+pub(crate) mod bignum;
+pub(crate) mod interface;
+#[cfg(feature = "implementation")]
+mod pair;
 #[cfg(feature = "implementation")]
 pub(crate) mod reserves;
+
+// Contract interface
+pub mod events;
+pub use interface::*;
+
+// Contract implementation
 #[cfg(feature = "implementation")]
-mod swapv2_pair;
-#[cfg(feature = "implementation")]
-pub use swapv2_pair::SwapV2Pair;
+pub use pair::SwapV2Pair;
 
 // Re-export the ERC20 trait for `dyn ERC20` in tests
 #[cfg(feature = "dev")]

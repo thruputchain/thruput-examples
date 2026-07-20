@@ -2,7 +2,7 @@
 
 use crate::bignum::U256;
 use crate::events::*;
-use crate::interfaces::iswapv2_pair::*;
+use crate::interface::*;
 use crate::reserves::*;
 use core::cmp::min;
 use core::iter::zip;

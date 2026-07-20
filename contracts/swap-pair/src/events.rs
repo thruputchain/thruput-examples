@@ -1,4 +1,4 @@
-use crate::interfaces::iswapv2_pair::{Amount, Amounts};
+use crate::interface::{Amount, Amounts};
 use sdk::*;
 
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
