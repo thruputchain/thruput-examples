@@ -20,4 +20,4 @@ pub use util::*;
 
 pub use groundhog_erc20_if::{Amount, ERC20Client, ERC20Error};
 pub use sdk::*;
-pub use swap_pair::{Amounts, ISwapV2PairClient, ISwapV2PairClientError, SwapPairError};
+pub use swap_pair::{Amounts, ISwapV2PairClient, SwapPairClientError, SwapPairError};

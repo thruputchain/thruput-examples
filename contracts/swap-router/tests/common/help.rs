@@ -3,9 +3,9 @@
 use super::*;
 use swap_router::*;
 
-pub fn is_pair_error_and(e: ISwapV2PairClientError, f: impl Fn(SwapPairError) -> bool) -> bool {
+pub fn is_pair_error_and(e: SwapPairClientError, f: impl Fn(SwapPairError) -> bool) -> bool {
     match e {
-        ISwapV2PairClientError::SwapPairError(e) => f(e),
+        SwapPairClientError::SwapPairError(e) => f(e),
         _ => false,
     }
 }
