@@ -6,7 +6,7 @@ pub use crate::bignum::{U112, U256};
 
 #[contract_exception]
 #[non_exhaustive]
-pub enum ISwapV2PairError {
+pub enum SwapPairError {
     InitializeFailed = 1,
     AlreadyInitialized = 2,
     NoLiquidityToBurn = 3,
@@ -22,7 +22,7 @@ pub enum ISwapV2PairError {
     LPTokenFailure(ERC20Error) = 13,
 }
 
-impl fmt::Display for ISwapV2PairError {
+impl fmt::Display for SwapPairError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SwapV2{:?}", self)
     }
@@ -40,7 +40,7 @@ pub type Amounts = [Amount; 2];
 pub type Address = sdk::ContractAddress;
 pub type Addresses = [sdk::ContractAddress; 2];
 
-#[contract(client = ISwapV2PairClient, throws(ISwapV2PairError, ERC20Error))]
+#[contract(client = ISwapV2PairClient, throws(SwapPairError, ERC20Error))]
 pub trait ISwapV2Pair {
     // event Approval
     // event Transfer

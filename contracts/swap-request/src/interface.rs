@@ -2,7 +2,7 @@ use crate::SwapRequest;
 use crate::library::SwapLibraryError;
 pub use groundhog_erc20_if::ERC20Error;
 use sdk::*;
-use swap_pair::{Address, ISwapV2PairError};
+use swap_pair::{Address, SwapPairError};
 
 /// Errors raised while handling a swap request (slippage limits exceeded).
 #[contract_exception]
@@ -21,7 +21,7 @@ pub enum SwapRequestError {
 /// calls into the `swap` pair to do the underlying work.
 #[contract(
     client = ISwapRequestHandlerClient,
-    throws(SwapRequestError, ISwapV2PairError, ERC20Error, SwapLibraryError)
+    throws(SwapRequestError, SwapPairError, ERC20Error, SwapLibraryError)
 )]
 pub trait ISwapRequestHandler {
     /// Must be called exactly once before any other methods.

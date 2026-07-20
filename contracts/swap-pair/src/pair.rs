@@ -35,7 +35,7 @@ impl ISwapV2Pair for SwapV2Pair {
         lp_token: &Address,
     ) {
         if self.lp_addr.try_get().none_if_missing().is_some() {
-            throw(ISwapV2PairError::AlreadyInitialized);
+            throw(SwapPairError::AlreadyInitialized);
         }
 
         self.lp_addr.set(lp_token);
@@ -83,7 +83,7 @@ impl ISwapV2Pair for SwapV2Pair {
 
         ensure(
             amounts[0] > 0 && amounts[1] > 0,
-            ISwapV2PairError::InsufficientLiquidityMinted,
+            SwapPairError::InsufficientLiquidityMinted,
         );
 
         let lp = self.lp();
@@ -111,7 +111,7 @@ impl ISwapV2Pair for SwapV2Pair {
 
         ensure(
             lp_to_create > 0,
-            ISwapV2PairError::InsufficientLiquidityMinted,
+            SwapPairError::InsufficientLiquidityMinted,
         );
 
         // Mint the new liquidity to the address specified by the LP
@@ -137,7 +137,7 @@ impl ISwapV2Pair for SwapV2Pair {
         let total_liquidity = lp.total_supply();
 
         // NOTE: added this check to avoid divide-by-zero below
-        ensure(total_liquidity > 0, ISwapV2PairError::NoLiquidityToBurn);
+        ensure(total_liquidity > 0, SwapPairError::NoLiquidityToBurn);
 
         let amounts = [
             lp_returned.strict_mul(balances[0]) / total_liquidity,
@@ -145,7 +145,7 @@ impl ISwapV2Pair for SwapV2Pair {
         ];
         ensure(
             amounts[0] > 0 && amounts[1] > 0,
-            ISwapV2PairError::InsufficientLiquidityBurned,
+            SwapPairError::InsufficientLiquidityBurned,
         );
 
         // Vaporize our LP tokens
@@ -168,7 +168,7 @@ impl ISwapV2Pair for SwapV2Pair {
 
         ensure(
             amounts_out[0] > 0 || amounts_out[1] > 0,
-            ISwapV2PairError::InsufficientOutputAmount,
+            SwapPairError::InsufficientOutputAmount,
         );
 
         // Get the previous reserve balances
@@ -177,13 +177,13 @@ impl ISwapV2Pair for SwapV2Pair {
 
         ensure(
             amounts_out[0] < r[0].into() && amounts_out[1] < r[1].into(),
-            ISwapV2PairError::InsufficientLiquidity,
+            SwapPairError::InsufficientLiquidity,
         );
 
         let addrs = self.token_addrs();
         ensure(
             to != &addrs[0] && to != &addrs[1],
-            ISwapV2PairError::InvalidDestination,
+            SwapPairError::InvalidDestination,
         );
 
         self._transfer_to(to, amounts_out);
@@ -204,7 +204,7 @@ impl ISwapV2Pair for SwapV2Pair {
 
         ensure(
             amounts_in[0] > 0 || amounts_in[1] > 0,
-            ISwapV2PairError::InsufficientInputAmount,
+            SwapPairError::InsufficientInputAmount,
         );
 
         let balance_adj = [
@@ -220,7 +220,7 @@ impl ISwapV2Pair for SwapV2Pair {
 
         ensure(
             balance_prod >= reserve_prod,
-            ISwapV2PairError::InvalidSwapProduct,
+            SwapPairError::InvalidSwapProduct,
         );
 
         log_event(&SwapEvent::new(&get_caller(), amounts_in, amounts_out, to));
@@ -285,11 +285,11 @@ impl SwapV2Pair {
         &mut self,
         recipient: &Address,
         amounts: Amounts,
-    ) -> Result<(), ISwapV2PairError> {
+    ) -> Result<(), SwapPairError> {
         for (token, amount) in zip(self.tokens(), amounts) {
             token
                 .try_transfer(recipient, amount)
-                .map_err(|_| ISwapV2PairError::TransferFailed)?;
+                .map_err(|_| SwapPairError::TransferFailed)?;
         }
 
         Ok(())
@@ -304,13 +304,13 @@ impl SwapV2Pair {
         &mut self,
         from: &Address,
         amounts: Amounts,
-    ) -> Result<(), ISwapV2PairError> {
+    ) -> Result<(), SwapPairError> {
         let me = get_current_address();
 
         for (token, amount) in zip(self.tokens(), amounts) {
             token
                 .try_transfer_from(from, &me, amount)
-                .map_err(|_| ISwapV2PairError::TransferFailed)?;
+                .map_err(|_| SwapPairError::TransferFailed)?;
         }
 
         Ok(())

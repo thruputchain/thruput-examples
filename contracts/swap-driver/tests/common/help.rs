@@ -2,9 +2,9 @@
 
 use super::*;
 
-pub fn is_pair_error_and(e: ISwapV2PairClientError, f: impl Fn(ISwapV2PairError) -> bool) -> bool {
+pub fn is_pair_error_and(e: ISwapV2PairClientError, f: impl Fn(SwapPairError) -> bool) -> bool {
     match e {
-        ISwapV2PairClientError::ISwapV2PairError(e) => f(e),
+        ISwapV2PairClientError::SwapPairError(e) => f(e),
         _ => false,
     }
 }
@@ -48,7 +48,7 @@ pub fn show_exn(r: &TransactResult) {
 
     if let Some(exn) = exn.try_as::<ERC20Error>() {
         println!("\tERC20: {:?}", exn);
-    } else if let Some(exn) = exn.try_as::<ISwapV2PairError>() {
+    } else if let Some(exn) = exn.try_as::<SwapPairError>() {
         println!("\tISwapV2Pair: {:?}", exn);
     } else if let Some(exn) = exn.try_as::<LibraryExn>() {
         println!("\tLibrary: {:?}", exn);

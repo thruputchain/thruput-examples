@@ -16,7 +16,7 @@ pub struct Router {
     cfg: Value<Cfg>,
 }
 
-#[contract(throws(ERC20Error, ISwapV2PairError, SwapRequestError, SwapLibraryError))]
+#[contract(throws(ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError))]
 impl Router {
     // Initialize router with knowledge of a single swap pair (via its driver).
     //

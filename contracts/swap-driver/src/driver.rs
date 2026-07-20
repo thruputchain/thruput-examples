@@ -9,7 +9,7 @@
 use crate::cfg::*;
 use sdk::storage::*;
 use sdk::*;
-use swap_pair::ISwapV2PairError;
+use swap_pair::SwapPairError;
 use swap_request::*;
 
 /// State for the driver contract
@@ -26,7 +26,7 @@ pub struct SwapV2Driver {
 ///   (some overhead plus enough for ~10 requests).
 pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + (10 * REQUEST_GAS_MAX);
 
-#[contract(throws(ERC20Error, ISwapV2PairError, SwapRequestError, SwapLibraryError))]
+#[contract(throws(ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError))]
 impl SwapV2Driver {
     /// Must be called exactly once before any other methods
     pub fn initialize(&mut self, handler: &ContractAddress) {

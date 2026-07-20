@@ -203,7 +203,7 @@ impl Ctx {
         pair.skim(&SOMEBODY);
 
         assert!(pair.try_mint_lp(&SOMEBODY).is_err_and(
-            |e| is_pair_error_and(e, |e| e == ISwapV2PairError::InsufficientLiquidityMinted)
+            |e| is_pair_error_and(e, |e| e == SwapPairError::InsufficientLiquidityMinted)
         ));
     }
 }

@@ -44,7 +44,7 @@ impl Reserves {
         // If this fails, `skim()` may be used to extract the overflow
         ensure(
             balances[0] <= U112::MAX && balances[1] <= U112::MAX,
-            ISwapV2PairError::Overflow,
+            SwapPairError::Overflow,
         );
 
         // We intentionally truncate here, desiring the timestamp mod 2^32

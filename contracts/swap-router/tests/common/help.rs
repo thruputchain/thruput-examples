@@ -3,9 +3,9 @@
 use super::*;
 use swap_router::*;
 
-pub fn is_pair_error_and(e: ISwapV2PairClientError, f: impl Fn(ISwapV2PairError) -> bool) -> bool {
+pub fn is_pair_error_and(e: ISwapV2PairClientError, f: impl Fn(SwapPairError) -> bool) -> bool {
     match e {
-        ISwapV2PairClientError::ISwapV2PairError(e) => f(e),
+        ISwapV2PairClientError::SwapPairError(e) => f(e),
         _ => false,
     }
 }
@@ -64,7 +64,7 @@ fn show_exn0(r: &TransactResult) {
 
     if let Some(exn) = exn.try_as::<ERC20Error>() {
         println!("ERC20: {:?}", exn);
-    } else if let Some(exn) = exn.try_as::<ISwapV2PairError>() {
+    } else if let Some(exn) = exn.try_as::<SwapPairError>() {
         println!("ISwapV2Pair: {:?}", exn);
     } else if let Some(exn) = exn.try_as::<SwapRequestError>() {
         println!("SwapRequestError: {:?}", exn);
@@ -96,7 +96,7 @@ pub fn show_exn(r: &TransactResult) {
 
     match_exn!(raw, {
         ERC20Error => |exn| { println!("ERC20: {:?}", exn) }
-        ISwapV2PairError => |exn| { println!("ISwapV2Pair: {:?}", exn) }
+        SwapPairError => |exn| { println!("SwapPair: {:?}", exn) }
         SwapRequestError => |exn| { println!("SwapRequestError: {:?}", exn) }
         SwapLibraryError => |exn| { println!("SwapLibraryError: {:?}", exn) }
         LibraryExn => |exn| { println!("SDK error: {:?}", exn) }
