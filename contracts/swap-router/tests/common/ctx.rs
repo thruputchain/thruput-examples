@@ -31,8 +31,8 @@ impl Ctx {
     pub fn lp(&self) -> ERC20Client {
         ERC20Client::new(&self.liquidity_token)
     }
-    pub fn driver(&self) -> SwapV2DriverClient {
-        SwapV2DriverClient::new(&self.driver_addr)
+    pub fn driver(&self) -> SwapDriverClient {
+        SwapDriverClient::new(&self.driver_addr)
     }
     pub fn router(&self) -> RouterClient {
         RouterClient::new(&self.router_addr)

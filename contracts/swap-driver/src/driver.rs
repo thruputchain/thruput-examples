@@ -14,7 +14,7 @@ use swap_request::*;
 
 /// State for the driver contract
 #[storage]
-pub struct SwapV2Driver {
+pub struct SwapDriver {
     // Configuration
     cfg: Value<Cfg>,
 
@@ -27,7 +27,7 @@ pub struct SwapV2Driver {
 pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + (10 * REQUEST_GAS_MAX);
 
 #[contract(throws(ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError))]
-impl SwapV2Driver {
+impl SwapDriver {
     /// Must be called exactly once before any other methods
     pub fn initialize(&mut self, handler: &ContractAddress) {
         if self.cfg.try_get().none_if_missing().is_some() {

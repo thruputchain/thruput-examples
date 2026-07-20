@@ -15,7 +15,7 @@ pub struct Cfg {
 
 impl Cfg {
     /// Validate the token pair and return its driver.
-    pub fn get_pair(&self, token_a: &Address, token_b: &Address) -> SwapV2DriverClient {
+    pub fn get_pair(&self, token_a: &Address, token_b: &Address) -> SwapDriverClient {
         // Just assert that this is the one pair we know about
         assert_eq!(token_a, &self.token0);
         assert_eq!(token_b, &self.token1);
@@ -29,7 +29,7 @@ impl Cfg {
         &self,
         token_in: &Address,
         token_out: &Address,
-    ) -> (SwapV2DriverClient, usize) {
+    ) -> (SwapDriverClient, usize) {
         let in_index = if (token_in, token_out) == (&self.token0, &self.token1) {
             0
         } else {
@@ -41,7 +41,7 @@ impl Cfg {
         (self.driver(), in_index)
     }
 
-    fn driver(&self) -> SwapV2DriverClient {
-        SwapV2DriverClient::new(&self.driver)
+    fn driver(&self) -> SwapDriverClient {
+        SwapDriverClient::new(&self.driver)
     }
 }

@@ -261,7 +261,7 @@ fn driver_deploy_init(driver_hash: &SHA256Hash, handler_addr: &Address) -> Addre
     hash_ident! { static DRIVER_NONCE: SHA256Hash; }
     let driver_addr = deploy_contract(&DRIVER_NONCE, driver_hash);
 
-    let driver = SwapV2DriverClient::new(&driver_addr);
+    let driver = SwapDriverClient::new(&driver_addr);
 
     driver.initialize(handler_addr);
 

@@ -9,7 +9,7 @@ mod driver;
 
 // Contract interface
 pub use driver::PROCESS_REQUESTS_GAS;
-pub use driver::{SwapV2DriverClient, SwapV2DriverClientError};
+pub use driver::{SwapDriverClient, SwapDriverClientError};
 
 // Contract implementation
-pub use driver::SwapV2Driver;
+pub use driver::SwapDriver;
