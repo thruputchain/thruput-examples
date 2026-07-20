@@ -38,8 +38,8 @@ type Address = ContractAddress;
 // recorded in each `*.spec.json`. `entrypoint_id` derives selectors from
 // these.
 const ERC20: (&str, &str) = ("ERC20", "0.1.5");
-const PAIR: (&str, &str) = ("ISwapV2Pair", "0.1.0");
-const HANDLER: (&str, &str) = ("ISwapRequestHandler", "0.1.0");
+const PAIR: (&str, &str) = ("SwapPair", "0.1.0");
+const HANDLER: (&str, &str) = ("SwapRequestHandler", "0.1.0");
 const DRIVER: (&str, &str) = ("SwapV2Driver", "0.1.0");
 const ROUTER: (&str, &str) = ("Router", "0.1.0");
 

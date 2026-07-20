@@ -65,7 +65,7 @@ fn show_exn0(r: &TransactResult) {
     if let Some(exn) = exn.try_as::<ERC20Error>() {
         println!("ERC20: {:?}", exn);
     } else if let Some(exn) = exn.try_as::<SwapPairError>() {
-        println!("ISwapV2Pair: {:?}", exn);
+        println!("SwapPair: {:?}", exn);
     } else if let Some(exn) = exn.try_as::<SwapRequestError>() {
         println!("SwapRequestError: {:?}", exn);
     } else if let Some(exn) = exn.try_as::<SwapLibraryError>() {

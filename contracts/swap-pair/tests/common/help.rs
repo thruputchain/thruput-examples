@@ -47,7 +47,7 @@ pub fn show_exn(r: &TransactResult) {
     if let Some(exn) = exn.try_as::<ERC20Error>() {
         println!("\tERC20: {:?}", exn);
     } else if let Some(exn) = exn.try_as::<SwapPairError>() {
-        println!("\tISwapV2Pair: {:?}", exn);
+        println!("\tSwapPair: {:?}", exn);
     } else if let Some(exn) = exn.try_as::<LibraryExn>() {
         println!("\tLibrary: {:?}", exn);
     } else {

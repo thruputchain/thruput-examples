@@ -41,7 +41,7 @@ pub type Address = sdk::ContractAddress;
 pub type Addresses = [sdk::ContractAddress; 2];
 
 #[contract(client = SwapPairClient, throws(SwapPairError, ERC20Error))]
-pub trait ISwapV2Pair {
+pub trait SwapPair {
     // event Approval
     // event Transfer
 

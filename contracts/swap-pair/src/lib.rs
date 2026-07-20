@@ -24,7 +24,7 @@ pub use interface::*;
 
 // Contract implementation
 #[cfg(feature = "implementation")]
-pub use pair::SwapV2Pair;
+pub use pair::Pair;
 
 // Re-export the ERC20 trait for `dyn ERC20` in tests
 #[cfg(feature = "dev")]

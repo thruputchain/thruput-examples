@@ -1,4 +1,4 @@
-//! A contract implementing ISwapV2Pair
+//! A contract implementing SwapPair
 
 use crate::bignum::U256;
 use crate::events::*;
@@ -13,7 +13,7 @@ use sdk::*;
 
 /// State for the pair contract
 #[storage]
-pub struct SwapV2Pair {
+pub struct Pair {
     // Configuration: token (A, B) addresses
     tokens: Value<[Address; 2]>,
 
@@ -25,7 +25,7 @@ pub struct SwapV2Pair {
 }
 
 #[contract(exports = "swap_exports")]
-impl ISwapV2Pair for SwapV2Pair {
+impl SwapPair for Pair {
     fn initialize(
         &mut self,
         _factory: &Address,
@@ -249,7 +249,7 @@ impl ISwapV2Pair for SwapV2Pair {
 }
 
 // Helper methods
-impl SwapV2Pair {
+impl Pair {
     pub const MINIMUM_LIQUIDITY: u128 = 1000;
     pub const BLACK_HOLE: Address = Address::zero();
 
