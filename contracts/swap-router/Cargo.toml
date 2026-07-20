@@ -43,7 +43,7 @@ wasm_test = []
 
 [dev-dependencies]
 swap-router = { path = ".", features = ["dev"] }
-groundhog-testkit = { registry = "groundhog", version = "0.5.19" }
+groundhog-testkit = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [lints]
