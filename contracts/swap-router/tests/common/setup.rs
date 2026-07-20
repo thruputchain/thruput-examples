@@ -247,7 +247,7 @@ fn request_handler_deploy_init(
     hash_ident! { static HANDLER_NONCE: SHA256Hash; }
     let handler_addr = deploy_contract(&HANDLER_NONCE, handler_hash);
 
-    let handler = ISwapRequestHandlerClient::new(&handler_addr);
+    let handler = RequestHandlerClient::new(&handler_addr);
 
     handler.initialize(pair_addr, &token_addrs[0], &token_addrs[1]);
 

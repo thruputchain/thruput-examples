@@ -20,10 +20,10 @@ pub enum SwapRequestError {
 /// reserves, performs the optimizing calculation, moves the user's tokens, and
 /// calls into the `swap` pair to do the underlying work.
 #[contract(
-    client = ISwapRequestHandlerClient,
+    client = RequestHandlerClient,
     throws(SwapRequestError, SwapPairError, ERC20Error, SwapLibraryError)
 )]
-pub trait ISwapRequestHandler {
+pub trait SwapRequestHandler {
     /// Must be called exactly once before any other methods.
     ///
     /// `swap_pair` is the pair this handler drives; `token0`/`token1` are its

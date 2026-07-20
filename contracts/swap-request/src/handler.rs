@@ -1,4 +1,4 @@
-//! The contract implementing ISwapRequestHandler
+//! The contract implementing SwapRequestHandler
 
 use crate::cfg::*;
 use crate::interface::*;
@@ -15,13 +15,13 @@ const B: usize = 1;
 
 /// State for the request-handler contract
 #[storage]
-pub struct SwapRequestHandler {
+pub struct RequestHandler {
     // Configuration
     cfg: Value<Cfg>,
 }
 
 #[contract(exports = "swap_request_exports")]
-impl ISwapRequestHandler for SwapRequestHandler {
+impl SwapRequestHandler for RequestHandler {
     fn initialize(&mut self, swap_pair: &Address, token0: &Address, token1: &Address) {
         if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");
@@ -49,7 +49,7 @@ impl ISwapRequestHandler for SwapRequestHandler {
     }
 }
 
-impl SwapRequestHandler {
+impl RequestHandler {
     // Provide liquidity, computing the optimal A/B ratio from live reserves.
     fn handle_add_liquidity(&mut self, req: AddLiquidityRequest) {
         let cfg = self.cfg.get();

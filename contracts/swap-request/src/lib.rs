@@ -5,7 +5,7 @@
 //! the request by calling operations on the `swap` contract.  The handler is
 //! called by `swap_driver::process_requests`.
 //!
-//! [`handle_request`]: ISwapRequestHandler::handle_request
+//! [`handle_request`]: SwapRequestHandler::handle_request
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
@@ -29,4 +29,4 @@ mod cfg;
 #[cfg(feature = "implementation")]
 mod handler;
 #[cfg(feature = "implementation")]
-pub use handler::SwapRequestHandler;
+pub use handler::*;

@@ -1,5 +1,5 @@
 use sdk::*;
-use swap_request::ISwapRequestHandlerClient;
+use swap_request::RequestHandlerClient;
 
 #[derive(ReadXDR, WriteXDR)]
 #[xdrs(crate = "::sdk::__xdrs")]
@@ -9,7 +9,7 @@ pub struct Cfg {
 }
 
 impl Cfg {
-    pub fn handler(&self) -> ISwapRequestHandlerClient {
-        ISwapRequestHandlerClient::new(&self.handler)
+    pub fn handler(&self) -> RequestHandlerClient {
+        RequestHandlerClient::new(&self.handler)
     }
 }
