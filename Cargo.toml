@@ -47,9 +47,3 @@ hex = "0.4"
 
 [profile.release]
 trim-paths = "all" # unstable
-
-# Temporary: Use a local groundhog-rpc checkout for the (unpublished) testkit
-# harness, so example contracts can write testkit-driven integration tests.
-# Remove this once `groundhog-testkit` version 0.5.20 is published.
-[patch.groundhog]
-groundhog-testkit = { path = "../groundhog-rpc/crates/dev/testkit" }
