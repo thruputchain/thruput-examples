@@ -18,6 +18,7 @@
 //! cd groundhog-examples
 //! for c in erc20 swap-request swap-driver swap-router; do groundhog build -p "$c"; done
 //! groundhog build -p swap-pair --target wasm   # swap does not build for rv32a yet
+//! RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
 //! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
 //! GROUNDHOG_TESTKIT_ARTIFACT_ROOT=/path/to/target/groundhog \
 //!     cargo test -p swap-router --test testkit_sim -- --ignored --nocapture
