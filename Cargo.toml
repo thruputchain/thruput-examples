@@ -27,9 +27,10 @@ groundhog-erc20-if = { registry = "groundhog", version = "0.1.5" }
 groundhog-erc20-metadata-if = { registry = "groundhog", version = "0.1.5" }
 
 # from groundhog-rpc repo:
-groundhog-json-rpc-client = { registry = "groundhog", version = "0.5.18" }
-groundhog-json-rpc-types = { registry = "groundhog", version = "0.5.18" }
-groundhog-signing = { registry = "groundhog", version = "0.5.18" }
+groundhog-json-rpc-client = { registry = "groundhog", version = "0.5.20" }
+groundhog-json-rpc-types = { registry = "groundhog", version = "0.5.20" }
+groundhog-signing = { registry = "groundhog", version = "0.5.20" }
+groundhog-testkit = { registry = "groundhog", version = "0.5.20" }
 
 # from other groundhog crates:
 groundhog-xdr = { registry = "groundhog", version = "0.19.7", features = ["serde", "xdrs"] }
