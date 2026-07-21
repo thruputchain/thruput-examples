@@ -54,6 +54,7 @@ pub trait SwapPair {
         // A deployed but *uninitialized* ERC20 token contract.  This method
         // adopts it as the LP token and initializes it under the pair's
         // control.
+        // TODO: Consider the security implications of this arrangement.
         lp_token: &Address,
     );
 

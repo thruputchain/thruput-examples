@@ -109,10 +109,7 @@ impl SwapPair for Pair {
             )
         };
 
-        ensure(
-            lp_to_create > 0,
-            SwapPairError::InsufficientLiquidityMinted,
-        );
+        ensure(lp_to_create > 0, SwapPairError::InsufficientLiquidityMinted);
 
         // Mint the new liquidity to the address specified by the LP
         lp.mint(to, lp_to_create);
