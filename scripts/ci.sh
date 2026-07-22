@@ -1,8 +1,10 @@
 #!/bin/bash
 
-set -eux
+set -euo pipefail
 
 ./scripts/build.sh
+
+set -x
 
 RUSTFLAGS="-D warnings" \
     cargo test --all

@@ -10,6 +10,7 @@ use core::ops::Mul;
 use groundhog_erc20_if::ERC20Client;
 use sdk::storage::*;
 use sdk::*;
+use swap_if::SwapFactoryClient;
 
 /// State for the pair contract
 #[storage]
@@ -20,9 +21,9 @@ pub struct Pair {
     // Configuration: A subsidiary ERC20 contract, implementing the LP token.
     lp_addr: Value<Address>,
 
-    // Configuration: recipient of the protocol fee; `None` disables the fee
-    // (cf. UniswapV2's `feeTo`).
-    fee_to: Value<Option<Address>>,
+    // Configuration: the factory that created this pair.  The pair consults it
+    // for the protocol `fee_to` (cf. UniswapV2Pair reading `factory.feeTo()`).
+    factory: Value<Address>,
 
     // State: the reserve product (k) as of the most recent liquidity event,
     // used to compute the protocol fee.  Zero while the fee is disabled.
@@ -36,12 +37,11 @@ pub struct Pair {
 impl SwapPair for Pair {
     fn initialize(
         &mut self,
-        _factory: &Address,
+        factory: &Address,
         token0: &Address,
         token1: &Address,
         // Deployed but not initialized:
         lp_token: &Address,
-        fee_to: Option<Address>,
     ) {
         if self.lp_addr.try_get().none_if_missing().is_some() {
             throw(SwapPairError::AlreadyInitialized);
@@ -49,7 +49,7 @@ impl SwapPair for Pair {
 
         self.lp_addr.set(lp_token);
         self.tokens.set(&[*token0, *token1]);
-        self.fee_to.set(&fee_to);
+        self.factory.set(factory);
         self.k_last.set(&U256::zero());
         self.reserves.set(&Reserves::new());
 
@@ -288,6 +288,18 @@ impl Pair {
         ERC20Client::new(&self.lp_addr.get())
     }
 
+    // The protocol-fee recipient, as reported by our factory.
+    //
+    // (A pair not created by a real factory -- e.g. one deployed directly in a
+    // unit test -- reports no fee rather than aborting, so the fee is simply
+    // disabled in that case.)
+    fn fee_to(&self) -> Option<Address> {
+        SwapFactoryClient::new(&self.factory.get())
+            .try_fee_to()
+            .ok()
+            .flatten()
+    }
+
     fn token_addrs(&self) -> [Address; 2] {
         self.tokens.get()
     }
@@ -296,14 +308,16 @@ impl Pair {
         self.token_addrs().map(|ref addr| ERC20Client::new(addr))
     }
 
-    // Mint the protocol fee to `fee_to`, if enabled, equal to 1/6 of the growth
-    // in sqrt(k) since the last liquidity event -- parallel to UniswapV2's
-    // `_mintFee`.  `reserves` are the last-recorded reserves (before the current
-    // event updates them).  Returns whether the fee is enabled.
+    // Mint the protocol fee to `fee_to`, if enabled.
+    // Returns whether the fee is enabled.
+    //
+    // The fee is equal to 1/6 of the growth in sqrt(k) since the last
+    // liquidity event. `reserves` are the last-recorded reserves (before the
+    // current event updates them).
     fn mint_fee(&mut self, reserves: Amounts) -> bool {
         let k_last = self.k_last.get();
 
-        let Some(fee_to) = self.fee_to.get() else {
+        let Some(fee_to) = self.fee_to() else {
             // Fee disabled: clear any stale k so it isn't reused if the fee is
             // later re-enabled.
             if !k_last.is_zero() {

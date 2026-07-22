@@ -152,11 +152,10 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
 
     // Initialize the pair, which takes a deployed but uninitialized ERC20 and
     // initializes it under the pair's control.
-    let fee_to: Option<Address> = None;
     pair.call(
         ctx,
         "initialize",
-        &(me, token0.address(), token1.address(), lp.address(), fee_to),
+        &(me, token0.address(), token1.address(), lp.address()),
     )
     .await?;
 

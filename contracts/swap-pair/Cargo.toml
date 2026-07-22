@@ -25,6 +25,7 @@ bench = false
 [dependencies]
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
+swap-if = { path = "../swap-if" }
 uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
 
@@ -35,7 +36,7 @@ erc20 = { path = "../erc20", features = ["dev"], optional = true }
 entrypoints = ["implementation", "sdk/alloc"]
 rv32-entrypoints = ["entrypoints"]
 implementation = []
-dev = ["sdk/dev", "dep:erc20", "implementation"]
+dev = ["sdk/dev", "dep:erc20", "implementation", "swap-if/dev"]
 
 [dev-dependencies]
 swap-pair = { path = ".", features = ["dev"] }
