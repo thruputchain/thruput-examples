@@ -2,8 +2,8 @@
 //!
 //! Refer to the UniswapV2 [whitepaper] and [v2-core] repository for details.
 //!
-//! [whitepaper](https://docs.uniswap.org/whitepaper.pdf)
-//! [v2-core](https://github.com/Uniswap/v2-core)
+//! [whitepaper]: https://docs.uniswap.org/whitepaper.pdf
+//! [v2-core]: https://github.com/Uniswap/v2-core
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
@@ -11,12 +11,14 @@ sdk::declare_mock_contract!();
 
 extern crate alloc;
 
-pub(crate) mod bignum;
 pub(crate) mod interface;
+
 #[cfg(feature = "implementation")]
 mod pair;
 #[cfg(feature = "implementation")]
 pub(crate) mod reserves;
+#[cfg(feature = "implementation")]
+pub(crate) mod u256;
 
 // Contract interface
 pub mod events;

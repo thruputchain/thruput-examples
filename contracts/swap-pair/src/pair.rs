@@ -1,9 +1,9 @@
 //! A contract implementing SwapPair
 
-use crate::bignum::U256;
 use crate::events::*;
 use crate::interface::*;
 use crate::reserves::*;
+use crate::u256::U256;
 use core::cmp::min;
 use core::iter::zip;
 use core::ops::Mul;
@@ -53,7 +53,7 @@ impl SwapPair for Pair {
     fn get_reserves(&self) -> (u128, u128, u32) {
         let r = self.reserves.get();
         let [r0, r1] = r.balances();
-        (r0.into(), r1.into(), r.block_timestamp())
+        (r0, r1, r.block_timestamp())
     }
 
     fn get_liquidity(&self) -> Amount {
@@ -74,11 +74,11 @@ impl SwapPair for Pair {
         reserves.update(balances);
         self.reserves.set(&reserves);
 
-        // Calculate the amounts provided by user (i.e., the current
+        // Calculate the amounts provided by the user (i.e., the current
         // balances minus the previously-recorded reserve balances).
         let amounts = [
-            balances[0].strict_sub(prev_balances[0].into()),
-            balances[1].strict_sub(prev_balances[1].into()),
+            balances[0].strict_sub(prev_balances[0]),
+            balances[1].strict_sub(prev_balances[1]),
         ];
 
         ensure(
@@ -93,19 +93,20 @@ impl SwapPair for Pair {
             // Permanently lock the first MINIMUM_LIQUIDITY tokens
             lp.mint(&Self::BLACK_HOLE, Self::MINIMUM_LIQUIDITY);
 
-            // TODO: multiply in u256 to allow amounts up to u128::MAX
+            // TODO: multiply in u256 to allow amounts up to i128::MAX
             amounts[0]
                 .strict_mul(amounts[1])
                 .isqrt()
                 .strict_sub(Self::MINIMUM_LIQUIDITY)
         } else {
+            // TODO: calculate in u256
             min(
                 amounts[0]
                     .strict_mul(lp_total_supply)
-                    .strict_div(prev_balances[0].into()),
+                    .strict_div(prev_balances[0]),
                 amounts[1]
                     .strict_mul(lp_total_supply)
-                    .strict_div(prev_balances[1].into()),
+                    .strict_div(prev_balances[1]),
             )
         };
 
@@ -173,7 +174,7 @@ impl SwapPair for Pair {
         let r = reserves.balances();
 
         ensure(
-            amounts_out[0] < r[0].into() && amounts_out[1] < r[1].into(),
+            amounts_out[0] < r[0] && amounts_out[1] < r[1],
             SwapPairError::InsufficientLiquidity,
         );
 
@@ -211,9 +212,9 @@ impl SwapPair for Pair {
 
         let balance_prod = U256::from(balance_adj[0]).mul(U256::from(balance_adj[1]));
 
-        let reserve_adj = [u128::from(r[0]) * 1000, u128::from(r[1]) * 1000];
+        let reserve_adj = r.map(|b| U256::from(b) * U256::from(1000));
 
-        let reserve_prod = U256::from(reserve_adj[0]).mul(U256::from(reserve_adj[1]));
+        let reserve_prod = reserve_adj[0] * reserve_adj[1];
 
         ensure(
             balance_prod >= reserve_prod,
@@ -231,8 +232,8 @@ impl SwapPair for Pair {
         let cur_balances = self._get_token_balances();
 
         let surpluses = [
-            cur_balances[0].strict_sub(prev_balances[0].into()),
-            cur_balances[1].strict_sub(prev_balances[1].into()),
+            cur_balances[0].strict_sub(prev_balances[0]),
+            cur_balances[1].strict_sub(prev_balances[1]),
         ];
 
         self._transfer_to(to, surpluses);

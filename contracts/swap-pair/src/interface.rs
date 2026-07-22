@@ -2,8 +2,6 @@ use core::fmt;
 pub use groundhog_erc20_if::ERC20Error;
 use sdk::*;
 
-pub use crate::bignum::{U112, U256};
-
 #[contract_exception]
 #[non_exhaustive]
 pub enum SwapPairError {
@@ -28,10 +26,6 @@ impl fmt::Display for SwapPairError {
     }
 }
 
-// This type is a 256-bit unsigned int in UniswapV2, but in this contract,
-// values over `U112_MAX` result in runtime failure.  We use `u128` here
-// because it is a convenient Rust primitive.
-// (For other integer types, we use the same number of bits as in UniswapV2.)
 pub type Amount = u128;
 
 // A pair of amounts, corresponding to the two tokens in a swap pair.

@@ -45,6 +45,7 @@ wasm_test = []
 swap-router = { path = ".", features = ["dev"] }
 groundhog-testkit = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+uint = { version = "0.10.0", default-features = false }
 
 [lints]
 clippy.result_large_err = "allow"

@@ -4,6 +4,7 @@
 //! run here when a request is *handled*, against the reserves live at that
 //! moment.
 
+use crate::u256::U256;
 use sdk::*;
 use swap_pair::*;
 

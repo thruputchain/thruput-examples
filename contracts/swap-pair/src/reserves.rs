@@ -1,7 +1,9 @@
-use crate::bignum::{U112, U256};
 use crate::events::*;
 use crate::interface::*;
+use crate::u256::U256;
 use sdk::*;
+
+const BALANCE_MAX: u128 = i128::MAX as u128;
 
 // The state value
 //
@@ -11,10 +13,9 @@ use sdk::*;
 #[derive(Copy, Clone, Debug)]
 pub struct Reserves {
     // The last recorded reserve balances.
-    pub balances: [U112; 2],
+    pub balances: [u128; 2],
 
     // Cumulative prices associated with the balances above.
-    // (Consider calculating these dynamically instead of storing?)
     pub cumulative_prices: [U256; 2],
 
     // The block in which the reserve balances were last recorded.
@@ -24,13 +25,13 @@ pub struct Reserves {
 impl Reserves {
     pub const fn new() -> Self {
         Self {
-            balances: [U112::zero(), U112::zero()],
+            balances: [0; 2],
             cumulative_prices: [U256::zero(), U256::zero()],
             block_timestamp: 0,
         }
     }
 
-    pub const fn balances(&self) -> [U112; 2] {
+    pub const fn balances(&self) -> [u128; 2] {
         self.balances
     }
 
@@ -43,7 +44,7 @@ impl Reserves {
     pub fn update(&mut self, balances: Amounts) {
         // If this fails, `skim()` may be used to extract the overflow
         ensure(
-            balances[0] <= U112::MAX && balances[1] <= U112::MAX,
+            balances[0] <= BALANCE_MAX && balances[1] <= BALANCE_MAX,
             SwapPairError::Overflow,
         );
 
@@ -57,12 +58,13 @@ impl Reserves {
         // Increment the cumulative prices
         let [r0, r1] = self.balances();
         if time_elapsed > 0 && r0 != 0 && r1 != 0 {
-            self.cumulative_prices[0] += uq112x112_div_mul(r1, r0, time_elapsed);
-            self.cumulative_prices[1] += uq112x112_div_mul(r0, r1, time_elapsed);
+            let time_elapsed: u128 = time_elapsed.into();
+            self.cumulative_prices[0] += ((r1 / r0) * time_elapsed).into();
+            self.cumulative_prices[1] += ((r0 / r1) * time_elapsed).into();
         }
 
-        // This will not fail due to the checks at the top of this function
-        self.balances = balances.map(|b| U112::try_from(b).unwrap());
+        // Record the new balances
+        self.balances = balances;
 
         self.block_timestamp = current_block;
 
@@ -72,15 +74,4 @@ impl Reserves {
 
 fn get_block_timestamp() -> u64 {
     get_block_height().into_inner().try_into().unwrap()
-}
-
-// Compute exactly: ((a * Q) / b) * p, where Q = 2^112
-fn uq112x112_div_mul(a: U112, b: U112, p: u32) -> U256 {
-    // TODO: accomplish this statically
-    let ln_q: U256 = 112.into();
-
-    let a: U256 = a.into();
-    let b: U256 = b.into();
-    let p: U256 = p.into();
-    ((a << ln_q) / b) * p
 }

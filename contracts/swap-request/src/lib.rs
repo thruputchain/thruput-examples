@@ -13,6 +13,8 @@ sdk::declare_mock_contract!();
 
 extern crate alloc;
 
+pub(crate) mod u256;
+
 // Interface (the parts the driver and router depend on)
 mod request;
 pub use request::*;
