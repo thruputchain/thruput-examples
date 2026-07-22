@@ -210,7 +210,13 @@ fn swap_pair_deploy_init(
     // Initialize the pair contract with the two tokens
     // (This also initializes its embedded LP-token implementation.)
     // Fee disabled.
-    pair.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], &lp_addr, None);
+    pair.initialize(
+        &FACTORY_ADDR,
+        &token_addrs[0],
+        &token_addrs[1],
+        &lp_addr,
+        None,
+    );
 
     let liquidity_token = pair.liquidity_token();
 
