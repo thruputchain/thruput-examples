@@ -56,6 +56,10 @@ impl SwapPair for Pair {
         (r0, r1, r.block_timestamp())
     }
 
+    fn get_cumulative_prices(&self) -> [U256; 2] {
+        self.reserves.get().cumulative_prices
+    }
+
     fn get_liquidity(&self) -> Amount {
         self.lp().total_supply()
     }
@@ -205,16 +209,12 @@ impl SwapPair for Pair {
         );
 
         let balance_adj = [
-            balances[0].strict_mul(1000).strict_sub(amounts_in[0] * 3),
-            balances[1].strict_mul(1000).strict_sub(amounts_in[1] * 3),
+            U256::from(balances[0]) * U256::from(1000) - U256::from(amounts_in[0]) * U256::from(3),
+            U256::from(balances[1]) * U256::from(1000) - U256::from(amounts_in[1]) * U256::from(3),
         ];
-
-        let balance_prod = U256::from(balance_adj[0]).mul(U256::from(balance_adj[1]));
-
+        let balance_prod = balance_adj[0].mul(balance_adj[1]);
         let reserve_adj = r.map(|b| U256::from(b) * U256::from(1000));
-
         let reserve_prod = reserve_adj[0] * reserve_adj[1];
-
         ensure(
             balance_prod >= reserve_prod,
             SwapPairError::InvalidSwapProduct,

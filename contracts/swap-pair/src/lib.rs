@@ -1,5 +1,8 @@
 //! A port of UniswapV2 from Solidity to groundhog
 //!
+//! N.B.: This contract suite is for example purposes only; it has not been
+//! audited thoroughly for production use.
+//!
 //! Refer to the UniswapV2 [whitepaper] and [v2-core] repository for details.
 //!
 //! [whitepaper]: https://docs.uniswap.org/whitepaper.pdf
@@ -13,12 +16,12 @@ extern crate alloc;
 
 pub(crate) mod interface;
 
+pub mod u256;
+
 #[cfg(feature = "implementation")]
 mod pair;
 #[cfg(feature = "implementation")]
 pub(crate) mod reserves;
-#[cfg(feature = "implementation")]
-pub(crate) mod u256;
 
 // Contract interface
 pub mod events;

@@ -58,9 +58,13 @@ impl Reserves {
         // Increment the cumulative prices
         let [r0, r1] = self.balances();
         if time_elapsed > 0 && r0 != 0 && r1 != 0 {
-            let time_elapsed: u128 = time_elapsed.into();
-            self.cumulative_prices[0] += ((r1 / r0) * time_elapsed).into();
-            self.cumulative_prices[1] += ((r0 / r1) * time_elapsed).into();
+            // Wrapping of the accumulation is desired
+            let (c0, _) =
+                self.cumulative_prices[0].overflowing_add(uq112x112_div_mul(r1, r0, time_elapsed));
+            let (c1, _) =
+                self.cumulative_prices[1].overflowing_add(uq112x112_div_mul(r0, r1, time_elapsed));
+            self.cumulative_prices[0] = c0;
+            self.cumulative_prices[1] = c1;
         }
 
         // Record the new balances
@@ -74,4 +78,19 @@ impl Reserves {
 
 fn get_block_timestamp() -> u64 {
     get_block_height().into_inner().try_into().unwrap()
+}
+
+// Compute `((a * 2^112) / b) * p` — a UQ112x112 (112 fractional bits) price
+// contribution, matching UniswapV2's price accumulator.
+//
+// The `<< 112` preserves the fractional part of the `a / b` ratio that a plain
+// integer division would discard. `a << 112` cannot overflow (`a` is capped at
+// `BALANCE_MAX < 2^127`, so the shift yields at most `2^239`), but the final
+// multiply by the elapsed time is allowed to wrap, exactly as UniswapV2
+// intends: oracle consumers difference the accumulator, so wrap-around cancels.
+fn uq112x112_div_mul(a: u128, b: u128, p: u32) -> U256 {
+    let a = U256::from(a);
+    let b = U256::from(b);
+    let (scaled, _overflow) = ((a << 112) / b).overflowing_mul(U256::from(p));
+    scaled
 }

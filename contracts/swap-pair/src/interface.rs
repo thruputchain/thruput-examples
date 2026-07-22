@@ -1,3 +1,4 @@
+use crate::u256::U256;
 use core::fmt;
 pub use groundhog_erc20_if::ERC20Error;
 use sdk::*;
@@ -56,6 +57,10 @@ pub trait SwapPair {
 
     fn get_reserves(&self) -> (u128, u128, u32);
     fn get_liquidity(&self) -> Amount;
+
+    /// The last-recorded cumulative prices, as UQ112x112 fixed-point values
+    /// (`[price0, price1]`), for use as a time-weighted-average-price oracle.
+    fn get_cumulative_prices(&self) -> [U256; 2];
 
     fn mint_lp(&mut self, to: &Address) -> Amount;
     fn burn_lp(&mut self, to: &Address) -> Amounts;
