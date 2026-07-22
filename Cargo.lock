@@ -2780,6 +2780,7 @@ dependencies = [
  "groundhog-testkit",
  "sdk",
  "swap-driver",
+ "swap-factory",
  "swap-pair",
  "swap-request",
  "swap-router",

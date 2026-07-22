@@ -23,4 +23,5 @@ pub use events::*;
 pub use factory::Factory;
 pub use swap_if::{
     Address, Suite, SwapFactory, SwapFactoryClient, SwapFactoryClientError, SwapFactoryError,
+    SwapHashes,
 };
