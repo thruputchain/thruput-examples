@@ -20,6 +20,14 @@ pub struct Pair {
     // Configuration: A subsidiary ERC20 contract, implementing the LP token.
     lp_addr: Value<Address>,
 
+    // Configuration: recipient of the protocol fee; the zero address disables
+    // the fee (cf. UniswapV2's `feeTo`).
+    fee_to: Value<Address>,
+
+    // State: the reserve product (k) as of the most recent liquidity event,
+    // used to compute the protocol fee.  Zero while the fee is disabled.
+    k_last: Value<U256>,
+
     // State
     reserves: Value<Reserves>,
 }
@@ -33,6 +41,7 @@ impl SwapPair for Pair {
         token1: &Address,
         // Deployed but not initialized:
         lp_token: &Address,
+        fee_to: &Address,
     ) {
         if self.lp_addr.try_get().none_if_missing().is_some() {
             throw(SwapPairError::AlreadyInitialized);
@@ -40,6 +49,8 @@ impl SwapPair for Pair {
 
         self.lp_addr.set(lp_token);
         self.tokens.set(&[*token0, *token1]);
+        self.fee_to.set(fee_to);
+        self.k_last.set(&U256::zero());
         self.reserves.set(&Reserves::new());
 
         // Adopt the LP contract, initializing it under our control.
@@ -91,6 +102,12 @@ impl SwapPair for Pair {
         );
 
         let lp = self.lp();
+
+        // Mint the protocol fee (if enabled) on growth since the last liquidity
+        // event, using the reserves prior to this deposit.
+        let fee_on = self._mint_fee(prev_balances);
+
+        // Read the supply *after* any fee mint
         let lp_total_supply = lp.total_supply();
 
         let lp_to_create = if lp_total_supply == 0 {
@@ -119,6 +136,11 @@ impl SwapPair for Pair {
         lp.mint(to, lp_to_create);
         let lp_minted = lp_to_create;
 
+        // Record k for the next fee computation (reserves are now `balances`).
+        if fee_on {
+            self._set_k_last(balances);
+        }
+
         log_event(&MintEvent::new(&get_caller(), lp_minted));
 
         // Return the amount of liquidity minted
@@ -135,6 +157,12 @@ impl SwapPair for Pair {
         // Amount of LP tokens returned to us
         let lp_returned = lp.get_balance();
 
+        // Mint the protocol fee (if enabled) before computing the burn, using
+        // the last-recorded reserves.
+        let recorded = self.reserves.get().balances();
+        let fee_on = self._mint_fee(recorded);
+
+        // Read the supply *after* any fee mint.
         let total_liquidity = lp.total_supply();
 
         // NOTE: added this check to avoid divide-by-zero below
@@ -157,6 +185,12 @@ impl SwapPair for Pair {
 
         // Update the record of our holdings
         self.sync();
+
+        // Record k for the next fee computation (reserves now reflect the
+        // post-burn balances).
+        if fee_on {
+            self._set_k_last(self._get_token_balances());
+        }
 
         log_event(&BurnEvent::new(&get_caller(), amounts, to));
 
@@ -262,10 +296,49 @@ impl Pair {
         self.token_addrs().map(|ref addr| ERC20Client::new(addr))
     }
 
-    fn _mint_fee(&mut self) -> bool {
-        // Optional TODO: support fee_to setting
+    // Mint the protocol fee to `fee_to`, if enabled, equal to 1/6 of the growth
+    // in sqrt(k) since the last liquidity event -- parallel to UniswapV2's
+    // `_mintFee`.  `reserves` are the last-recorded reserves (before the current
+    // event updates them).  Returns whether the fee is enabled.
+    fn _mint_fee(&mut self, reserves: Amounts) -> bool {
+        let fee_to = self.fee_to.get();
+        let fee_on = fee_to != Self::BLACK_HOLE;
+        let k_last = self.k_last.get();
 
-        false
+        if fee_on {
+            if !k_last.is_zero() {
+                let root_k = (U256::from(reserves[0]) * U256::from(reserves[1])).integer_sqrt();
+                let root_k_last = k_last.integer_sqrt();
+
+                if root_k > root_k_last {
+                    let lp = self.lp();
+                    let total_supply = U256::from(lp.total_supply());
+
+                    // liquidity = totalSupply * (rootK - rootKLast)
+                    //             / (5 * rootK + rootKLast)
+                    let numerator = total_supply * (root_k - root_k_last);
+                    let denominator = root_k * U256::from(5) + root_k_last;
+                    let liquidity: u128 = (numerator / denominator).try_into().unwrap();
+
+                    if liquidity > 0 {
+                        lp.mint(&fee_to, liquidity);
+                    }
+                }
+            }
+        } else if !k_last.is_zero() {
+            // Fee was turned off: clear the stale k so it isn't reused if the
+            // fee is later re-enabled.
+            self.k_last.set(&U256::zero());
+        }
+
+        fee_on
+    }
+
+    // Record k (= reserve0 * reserve1) as of the given balances, for the next
+    // protocol-fee computation.
+    fn _set_k_last(&mut self, balances: Amounts) {
+        self.k_last
+            .set(&(U256::from(balances[0]) * U256::from(balances[1])));
     }
 
     // Get our holdings of the A/B tokens
