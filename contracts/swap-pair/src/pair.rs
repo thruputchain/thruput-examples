@@ -93,21 +93,20 @@ impl SwapPair for Pair {
             // Permanently lock the first MINIMUM_LIQUIDITY tokens
             lp.mint(&Self::BLACK_HOLE, Self::MINIMUM_LIQUIDITY);
 
-            // TODO: multiply in u256 to allow amounts up to i128::MAX
-            amounts[0]
-                .strict_mul(amounts[1])
-                .isqrt()
-                .strict_sub(Self::MINIMUM_LIQUIDITY)
+            let lp: u128 = (U256::from(amounts[0]) * U256::from(amounts[1]))
+                .integer_sqrt()
+                .try_into()
+                .unwrap();
+            lp.strict_sub(Self::MINIMUM_LIQUIDITY)
         } else {
-            // TODO: calculate in u256
             min(
-                amounts[0]
-                    .strict_mul(lp_total_supply)
-                    .strict_div(prev_balances[0]),
-                amounts[1]
-                    .strict_mul(lp_total_supply)
-                    .strict_div(prev_balances[1]),
+                (U256::from(amounts[0]) * U256::from(lp_total_supply))
+                    / U256::from(prev_balances[0]),
+                (U256::from(amounts[1]) * U256::from(lp_total_supply))
+                    / U256::from(prev_balances[1]),
             )
+            .try_into()
+            .unwrap()
         };
 
         ensure(lp_to_create > 0, SwapPairError::InsufficientLiquidityMinted);
