@@ -29,8 +29,10 @@ fn protocol_fee_mints_to_fee_to() {
         // the pair, then `sync()` records the higher reserves (just as swaps
         // would grow the recorded reserves in normal operation).
         etx.exec_user_tx(ALICE, move |_| {
-            ctx.token0().transfer(&ctx.pair_addr, ctx.token0().get_balance());
-            ctx.token1().transfer(&ctx.pair_addr, ctx.token1().get_balance());
+            ctx.token0()
+                .transfer(&ctx.pair_addr, ctx.token0().get_balance());
+            ctx.token1()
+                .transfer(&ctx.pair_addr, ctx.token1().get_balance());
         })?;
         etx.advance_block();
         etx.exec_tx(&TEST_ADDR, move || ctx.pair().sync())?;
@@ -50,8 +52,8 @@ fn protocol_fee_mints_to_fee_to() {
         // Expected: totalSupply * (rootK - rootKLast) / (5 * rootK + rootKLast).
         let root_k = (U256::from(r0) * U256::from(r1)).integer_sqrt();
         let root_k_last = k_last.integer_sqrt();
-        let expected =
-            U256::from(total_supply) * (root_k - root_k_last) / (root_k * U256::from(5) + root_k_last);
+        let expected = U256::from(total_supply) * (root_k - root_k_last)
+            / (root_k * U256::from(5) + root_k_last);
 
         assert!(expected > U256::zero(), "donation should have grown k");
         assert_eq!(U256::from(fee_minted), expected);
@@ -69,8 +71,10 @@ fn no_fee_when_fee_to_unset() {
 
         // Grow k via a donation + sync, as above.
         etx.exec_user_tx(ALICE, move |_| {
-            ctx.token0().transfer(&ctx.pair_addr, ctx.token0().get_balance());
-            ctx.token1().transfer(&ctx.pair_addr, ctx.token1().get_balance());
+            ctx.token0()
+                .transfer(&ctx.pair_addr, ctx.token0().get_balance());
+            ctx.token1()
+                .transfer(&ctx.pair_addr, ctx.token1().get_balance());
         })?;
         etx.advance_block();
         etx.exec_tx(&TEST_ADDR, move || ctx.pair().sync())?;
