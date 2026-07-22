@@ -20,9 +20,9 @@ pub struct Pair {
     // Configuration: A subsidiary ERC20 contract, implementing the LP token.
     lp_addr: Value<Address>,
 
-    // Configuration: recipient of the protocol fee; the zero address disables
-    // the fee (cf. UniswapV2's `feeTo`).
-    fee_to: Value<Address>,
+    // Configuration: recipient of the protocol fee; `None` disables the fee
+    // (cf. UniswapV2's `feeTo`).
+    fee_to: Value<Option<Address>>,
 
     // State: the reserve product (k) as of the most recent liquidity event,
     // used to compute the protocol fee.  Zero while the fee is disabled.
@@ -41,7 +41,7 @@ impl SwapPair for Pair {
         token1: &Address,
         // Deployed but not initialized:
         lp_token: &Address,
-        fee_to: &Address,
+        fee_to: Option<Address>,
     ) {
         if self.lp_addr.try_get().none_if_missing().is_some() {
             throw(SwapPairError::AlreadyInitialized);
@@ -49,7 +49,7 @@ impl SwapPair for Pair {
 
         self.lp_addr.set(lp_token);
         self.tokens.set(&[*token0, *token1]);
-        self.fee_to.set(fee_to);
+        self.fee_to.set(&fee_to);
         self.k_last.set(&U256::zero());
         self.reserves.set(&Reserves::new());
 
@@ -301,37 +301,38 @@ impl Pair {
     // `_mintFee`.  `reserves` are the last-recorded reserves (before the current
     // event updates them).  Returns whether the fee is enabled.
     fn mint_fee(&mut self, reserves: Amounts) -> bool {
-        let fee_to = self.fee_to.get();
-        let fee_on = fee_to != Self::BLACK_HOLE;
         let k_last = self.k_last.get();
 
-        if fee_on {
+        let Some(fee_to) = self.fee_to.get() else {
+            // Fee disabled: clear any stale k so it isn't reused if the fee is
+            // later re-enabled.
             if !k_last.is_zero() {
-                let root_k = (U256::from(reserves[0]) * U256::from(reserves[1])).integer_sqrt();
-                let root_k_last = k_last.integer_sqrt();
+                self.k_last.set(&U256::zero());
+            }
+            return false;
+        };
 
-                if root_k > root_k_last {
-                    let lp = self.lp();
-                    let total_supply = U256::from(lp.total_supply());
+        if !k_last.is_zero() {
+            let root_k = (U256::from(reserves[0]) * U256::from(reserves[1])).integer_sqrt();
+            let root_k_last = k_last.integer_sqrt();
 
-                    // liquidity = totalSupply * (rootK - rootKLast)
-                    //             / (5 * rootK + rootKLast)
-                    let numerator = total_supply * (root_k - root_k_last);
-                    let denominator = root_k * U256::from(5) + root_k_last;
-                    let liquidity: u128 = (numerator / denominator).try_into().unwrap();
+            if root_k > root_k_last {
+                let lp = self.lp();
+                let total_supply = U256::from(lp.total_supply());
 
-                    if liquidity > 0 {
-                        lp.mint(&fee_to, liquidity);
-                    }
+                // liquidity = totalSupply * (rootK - rootKLast)
+                //             / (5 * rootK + rootKLast)
+                let numerator = total_supply * (root_k - root_k_last);
+                let denominator = root_k * U256::from(5) + root_k_last;
+                let liquidity: u128 = (numerator / denominator).try_into().unwrap();
+
+                if liquidity > 0 {
+                    lp.mint(&fee_to, liquidity);
                 }
             }
-        } else if !k_last.is_zero() {
-            // Fee was turned off: clear the stale k so it isn't reused if the
-            // fee is later re-enabled.
-            self.k_last.set(&U256::zero());
         }
 
-        fee_on
+        true
     }
 
     // Record k (= reserve0 * reserve1) as of the given balances, for the next

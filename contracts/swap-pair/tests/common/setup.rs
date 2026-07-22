@@ -1,13 +1,12 @@
 use super::*;
 
-// Fee disabled (zero `fee_to`) by default.
+// Fee disabled by default.
 pub fn setup_etx() -> Result<Etx> {
-    setup_etx_with_fee(&ContractAddress::zero())
+    setup_etx_with_fee(None)
 }
 
 #[rustfmt::skip]
-pub fn setup_etx_with_fee(fee_to: &ContractAddress) -> Result<Etx> {
-    let fee_to = *fee_to;
+pub fn setup_etx_with_fee(fee_to: Option<ContractAddress>) -> Result<Etx> {
     let env = sdk::TestEnvironment::no_cost();
 
     // Register the token contract
@@ -30,7 +29,7 @@ pub fn setup_etx_with_fee(fee_to: &ContractAddress) -> Result<Etx> {
 
     // As the factory, deploy and init a swap-pair contract
     let (pair_addr, liquidity_token) = exec_tx(&env, &FACTORY_ADDR, || {
-        swap_pair_deploy_init(&pair_hash, &token_hash, token_addrs, &fee_to)
+        swap_pair_deploy_init(&pair_hash, &token_hash, token_addrs, fee_to)
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
@@ -46,11 +45,11 @@ pub fn setup_etx_with_fee(fee_to: &ContractAddress) -> Result<Etx> {
 }
 
 pub fn setup_etx_primed() -> Result<Etx> {
-    setup_pair_primed_with_fee(&ContractAddress::zero())
+    setup_pair_primed_with_fee(None)
 }
 
 #[rustfmt::skip]
-pub fn setup_pair_primed_with_fee(fee_to: &ContractAddress) -> Result<Etx> {
+pub fn setup_pair_primed_with_fee(fee_to: Option<ContractAddress>) -> Result<Etx> {
     let etx = setup_etx_with_fee(fee_to)?;
 
     // Primer buys liquidity tokens, establishing a stable price
@@ -106,7 +105,7 @@ fn swap_pair_deploy_init(
     pair_hash: &SHA256Hash,
     token_hash: &SHA256Hash,
     token_addrs: Addresses,
-    fee_to: &ContractAddress,
+    fee_to: Option<ContractAddress>,
 ) -> (ContractAddress, ContractAddress) {
     assert_eq!(&get_current_address(), &FACTORY_ADDR);
 
@@ -123,13 +122,7 @@ fn swap_pair_deploy_init(
 
     // Initialize the pair contract with the two tokens
     // (This also initializes its embedded LP-token implementation.)
-    pair.initialize(
-        &FACTORY_ADDR,
-        &token_addrs[0],
-        &token_addrs[1],
-        &lp_addr,
-        fee_to,
-    );
+    pair.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], &lp_addr, fee_to);
 
     let liquidity_token = pair.liquidity_token();
 

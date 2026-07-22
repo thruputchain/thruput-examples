@@ -14,7 +14,7 @@ fn protocol_fee_mints_to_fee_to() {
     transact_assert_success(|| {
         // Prime the pool with the fee enabled. The prime is the first liquidity
         // event, so it records `k_last` but mints no fee (there is no prior k).
-        let etx = setup_pair_primed_with_fee(&FEE_ADDR)?;
+        let etx = setup_pair_primed_with_fee(Some(FEE_ADDR))?;
         let ctx = etx.ctx;
 
         // Reserves at that last liquidity event give `k_last = r0 * r1`.
