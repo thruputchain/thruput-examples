@@ -1,8 +1,7 @@
+use crate::u256::U256;
 use core::fmt;
 pub use groundhog_erc20_if::ERC20Error;
 use sdk::*;
-
-pub use crate::bignum::{U112, U256};
 
 #[contract_exception]
 #[non_exhaustive]
@@ -28,10 +27,6 @@ impl fmt::Display for SwapPairError {
     }
 }
 
-// This type is a 256-bit unsigned int in UniswapV2, but in this contract,
-// values over `U112_MAX` result in runtime failure.  We use `u128` here
-// because it is a convenient Rust primitive.
-// (For other integer types, we use the same number of bits as in UniswapV2.)
 pub type Amount = u128;
 
 // A pair of amounts, corresponding to the two tokens in a swap pair.
@@ -56,12 +51,20 @@ pub trait SwapPair {
         // control.
         // TODO: Consider the security implications of this arrangement.
         lp_token: &Address,
+        // Recipient of the protocol fee (1/6 of the growth in sqrt(k) between
+        // liquidity events).  `None` disables the fee -- this stands in for
+        // UniswapV2's factory-held `feeTo` until a factory exists.
+        fee_to: Option<Address>,
     );
 
     fn liquidity_token(&self) -> ContractAddress;
 
     fn get_reserves(&self) -> (u128, u128, u32);
     fn get_liquidity(&self) -> Amount;
+
+    /// The last-recorded cumulative prices, as UQ112x112 fixed-point values
+    /// (`[price0, price1]`), for use as a time-weighted-average-price oracle.
+    fn get_cumulative_prices(&self) -> [U256; 2];
 
     fn mint_lp(&mut self, to: &Address) -> Amount;
     fn burn_lp(&mut self, to: &Address) -> Amounts;

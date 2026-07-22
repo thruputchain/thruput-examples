@@ -2762,6 +2762,7 @@ dependencies = [
  "swap-router",
  "thiserror 2.0.18",
  "tokio",
+ "uint",
 ]
 
 [[package]]

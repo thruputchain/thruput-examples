@@ -4,6 +4,7 @@ use crate::cfg::*;
 use crate::interface::*;
 use crate::library::*;
 use crate::request::*;
+use crate::u256::U256;
 use sdk::storage::*;
 use sdk::*;
 use swap_pair::*;
