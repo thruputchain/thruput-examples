@@ -3,6 +3,8 @@
 # Requires `groundhog` (the cli) in PATH and an environment var:
 #   GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode
 
+set -euo pipefail
+
 for c in erc20 swap-request swap-driver swap-router; do groundhog build -p "$c"; done
 groundhog build -p swap-pair --target wasm   # swap does not build for rv32a yet
 
