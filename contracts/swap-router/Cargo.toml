@@ -43,6 +43,8 @@ wasm_test = []
 
 [dev-dependencies]
 swap-router = { path = ".", features = ["dev"] }
+swap-factory = { path = "../swap-factory", features = ["dev"] }
+swap-if = { path = "../swap-if" }
 groundhog-testkit = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uint = { version = "0.10.0", default-features = false }

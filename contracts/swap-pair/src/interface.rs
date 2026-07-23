@@ -51,10 +51,6 @@ pub trait SwapPair {
         // control.
         // TODO: Consider the security implications of this arrangement.
         lp_token: &Address,
-        // Recipient of the protocol fee (1/6 of the growth in sqrt(k) between
-        // liquidity events).  `None` disables the fee -- this stands in for
-        // UniswapV2's factory-held `feeTo` until a factory exists.
-        fee_to: Option<Address>,
     );
 
     fn liquidity_token(&self) -> ContractAddress;

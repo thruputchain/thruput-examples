@@ -1,4 +1,5 @@
 use super::*;
+use swap_factory::{SwapFactoryClient, SwapHashes};
 
 pub fn setup_etx() -> Result<Etx> {
     #[cfg(not(feature = "wasm_test"))]
@@ -15,134 +16,93 @@ pub fn setup_etx() -> Result<Etx> {
 pub fn setup_etx_native() -> Result<Etx> {
     let env = sdk::TestEnvironment::no_cost();
 
-    // Register the token contract
-    let token_contract = erc20::register_mock_contract(&env);
-    let token_hash = *token_contract.as_hash();
+    // Register the contracts the factory will deploy, plus the factory itself.
+    let hashes = SwapHashes {
+        token: *erc20::register_mock_contract(&env).as_hash(),
+        pair: *swap_pair::register_mock_contract(&env).as_hash(),
+        handler: *swap_request::register_mock_contract(&env).as_hash(),
+        driver: *swap_driver::register_mock_contract(&env).as_hash(),
+        router: *swap_router::register_mock_contract(&env).as_hash(),
+    };
+    let factory_hash = *swap_factory::register_mock_contract(&env).as_hash();
 
-    // Register the swap-pair contract
-    let pair_contract = swap_pair::register_mock_contract(&env);
-    let pair_hash = *pair_contract.as_hash();
-
-    // Register the request-handler contract
-    let handler_contract = swap_request::register_mock_contract(&env);
-    let handler_hash = *handler_contract.as_hash();
-
-    // Register the driver contract
-    let driver_contract = swap_driver::register_mock_contract(&env);
-    let driver_hash = *driver_contract.as_hash();
-
-    // Register the router contract
-    let router_contract = swap_router::register_mock_contract(&env);
-    let router_hash = *router_contract.as_hash();
-
-    setup_contracts(
-        &env,
-        token_hash,
-        pair_hash,
-        handler_hash,
-        driver_hash,
-        router_hash,
-    )
+    setup_contracts(&env, hashes, factory_hash)
 }
 
 pub fn setup_etx_wasm() -> Result<Etx> {
-    let token_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         erc20.wasm",
-    );
-    let pair_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap.wasm",
-    );
-    let handler_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap_request.wasm",
-    );
-    let driver_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap_driver.wasm",
-    );
-    let router_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap_router.wasm",
-    );
+    let load = |name: &str| {
+        load_wasm_contract(format!(
+            "../target/wasm32-unknown-unknown/release/{name}.wasm"
+        ))
+    };
+    let token_contract = load("erc20");
+    let pair_contract = load("swap");
+    let handler_contract = load("swap_request");
+    let driver_contract = load("swap_driver");
+    let router_contract = load("swap_router");
+    let factory_contract = load("swap_factory");
 
     let env = sdk::TestEnvironment::no_cost();
 
-    // Register the contracts
-    let token_hash = env.setup_create_contract(&token_contract);
-    let pair_hash = env.setup_create_contract(&pair_contract);
-    let handler_hash = env.setup_create_contract(&handler_contract);
-    let driver_hash = env.setup_create_contract(&driver_contract);
-    let router_hash = env.setup_create_contract(&router_contract);
+    let hashes = SwapHashes {
+        token: env.setup_create_contract(&token_contract),
+        pair: env.setup_create_contract(&pair_contract),
+        handler: env.setup_create_contract(&handler_contract),
+        driver: env.setup_create_contract(&driver_contract),
+        router: env.setup_create_contract(&router_contract),
+    };
+    let factory_hash = env.setup_create_contract(&factory_contract);
 
-    setup_contracts(
-        &env,
-        token_hash,
-        pair_hash,
-        handler_hash,
-        driver_hash,
-        router_hash,
-    )
+    setup_contracts(&env, hashes, factory_hash)
 }
 
+// Build the whole suite through the factory: deploy the A/B tokens, then have
+// a freshly deployed factory create the pair, LP token, request handler,
+// driver, and router in a single transaction.
 #[rustfmt::skip]
 pub fn setup_contracts(
     env: &TestEnvironmentHandle,
-    token_hash: SHA256Hash,
-    pair_hash: SHA256Hash,
-    handler_hash: SHA256Hash,
-    driver_hash: SHA256Hash,
-    router_hash: SHA256Hash,
+    hashes: SwapHashes,
+    factory_hash: SHA256Hash,
 ) -> Result<Etx> {
 
     // Deploy and init the A/B token contracts
-    let token_addrs = exec_tx(env, &TEST_ADDR,
-        || ab_tokens_deploy_init(&token_hash))?;
+    let deployed = exec_tx(env, &TEST_ADDR,
+        || ab_tokens_deploy_init(&hashes.token))?;
 
     /* ----- */ env.advance_block(); /* ----- */
 
     // Seed our users with A/B tokens
-    exec_tx(env, &TEST_ADDR, || airdrop_tokens(&token_addrs));
+    exec_tx(env, &TEST_ADDR, || airdrop_tokens(&deployed))?;
 
     /* ----- */ env.advance_block(); /* ----- */
 
-    // As the factory, deploy and init a swap-pair contract
-    let (pair_addr, liquidity_token) = exec_tx(env, &FACTORY_ADDR, || {
-        swap_pair_deploy_init(&pair_hash, &token_hash, token_addrs)
-    })?;
+    // Canonical token ordering -- the factory sorts the pair internally, so we
+    // track the tokens in the same order for `token0()`/`token1()` to line up
+    // with the pair's reserve0/reserve1.
+    let token_addrs = sorted(deployed);
 
-    /* ----- */ env.advance_block(); /* ----- */
+    // Deploy the factory and, in one transaction, bring up the entire suite.
+    let suite = exec_tx(env, &TEST_ADDR, || {
+        hash_ident! { static FACTORY_NONCE: SHA256Hash; }
+        let factory_addr = deploy_contract(&FACTORY_NONCE, &factory_hash);
+        let factory = SwapFactoryClient::new(&factory_addr);
 
-    // As the factory, deploy and init the request-handler contract
-    let request_handler_addr = exec_tx(env, &FACTORY_ADDR, || {
-        request_handler_deploy_init(&handler_hash, &pair_addr, &token_addrs)
-    })?;
-
-    /* ----- */ env.advance_block(); /* ----- */
-
-    // As the factory, deploy and init a driver contract (pointed at the handler)
-    let driver_addr = exec_tx(env, &FACTORY_ADDR, || {
-        driver_deploy_init(&driver_hash, &request_handler_addr)
-    })?;
-
-    /* ----- */ env.advance_block(); /* ----- */
-
-    // Deploy and init the router
-    let router_addr = exec_tx(env, &TEST_ADDR, || {
-        router_deploy_init(&router_hash, &driver_addr, &token_addrs)
+        // Fee disabled: these tests don't exercise the protocol fee.
+        factory.initialize(hashes, None);
+        factory.create_pair(&token_addrs[0], &token_addrs[1])
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
 
     let env = env.clone();
     let ctx = Ctx {
-        router_addr,
-        driver_addr,
-        request_handler_addr,
-        pair_addr,
-        liquidity_token,
-        token_addrs
+        router_addr: suite.router,
+        driver_addr: suite.driver,
+        request_handler_addr: suite.handler,
+        pair_addr: suite.pair,
+        liquidity_token: suite.liquidity_token,
+        token_addrs,
     };
 
     Ok(Etx { env, ctx })
@@ -158,6 +118,16 @@ pub fn setup_etx_primed() -> Result<Etx> {
     /* ----- */ etx.advance_block(); /* ----- */
 
     Ok(etx)
+}
+
+// The two token addresses in canonical (ascending) order, matching the
+// factory's own sort.
+fn sorted(tokens: Addresses) -> Addresses {
+    if tokens[0] <= tokens[1] {
+        tokens
+    } else {
+        [tokens[1], tokens[0]]
+    }
 }
 
 // Deploy and init A/B token contracts, given the hash of a registered token
@@ -203,90 +173,4 @@ fn airdrop_tokens(token_addrs: &Addresses) {
         token0.mint(u.addr, u.init.0);
         token1.mint(u.addr, u.init.1);
     }
-}
-
-// Deploy and init a swap-pair contract (which itself deploys an LP-token
-// contract), given hashes of a registered pair contract and a registered
-// token contract.
-fn swap_pair_deploy_init(
-    pair_hash: &SHA256Hash,
-    token_hash: &SHA256Hash,
-    token_addrs: Addresses,
-) -> (Address, Address) {
-    assert_eq!(&get_current_address(), &FACTORY_ADDR);
-
-    // Deploy the LP-token contract (to be initialized below by
-    // `pair.initialize`)
-    hash_ident! { static LP_NONCE: SHA256Hash; }
-    let lp_addr = deploy_contract(&LP_NONCE, token_hash);
-
-    // Deploy a new swap-pair contract
-    hash_ident! { static PAIR_NONCE: SHA256Hash; }
-    let pair_addr = deploy_contract(&PAIR_NONCE, pair_hash);
-
-    let pair = SwapPairClient::new(&pair_addr);
-
-    // Initialize the pair contract with the two tokens
-    // (This also initializes its embedded LP-token implementation.)
-    // Fee disabled.
-    pair.initialize(
-        &FACTORY_ADDR,
-        &token_addrs[0],
-        &token_addrs[1],
-        &lp_addr,
-        None,
-    );
-
-    let liquidity_token = pair.liquidity_token();
-
-    (pair_addr, liquidity_token)
-}
-
-// Deploy and init the request-handler contract, given the hash of a
-// registered handler contract and the pair it should drive.
-fn request_handler_deploy_init(
-    handler_hash: &SHA256Hash,
-    pair_addr: &Address,
-    token_addrs: &Addresses,
-) -> Address {
-    assert_eq!(&get_current_address(), &FACTORY_ADDR);
-
-    hash_ident! { static HANDLER_NONCE: SHA256Hash; }
-    let handler_addr = deploy_contract(&HANDLER_NONCE, handler_hash);
-
-    let handler = RequestHandlerClient::new(&handler_addr);
-
-    handler.initialize(pair_addr, &token_addrs[0], &token_addrs[1]);
-
-    handler_addr
-}
-
-// Deploy and init a driver contract, pointed at the request handler.
-fn driver_deploy_init(driver_hash: &SHA256Hash, handler_addr: &Address) -> Address {
-    assert_eq!(&get_current_address(), &FACTORY_ADDR);
-
-    hash_ident! { static DRIVER_NONCE: SHA256Hash; }
-    let driver_addr = deploy_contract(&DRIVER_NONCE, driver_hash);
-
-    let driver = SwapDriverClient::new(&driver_addr);
-
-    driver.initialize(handler_addr);
-
-    driver_addr
-}
-
-// Deploy and init a router contract,
-fn router_deploy_init(
-    router_hash: &SHA256Hash,
-    driver_addr: &Address,
-    token_addrs: &Addresses,
-) -> Address {
-    hash_ident! { static ROUTER_NONCE: SHA256Hash; }
-    let router_addr = deploy_contract(&ROUTER_NONCE, router_hash);
-
-    let router = RouterClient::new(&router_addr);
-
-    router.initialize(driver_addr, &token_addrs[0], &token_addrs[1]);
-
-    router_addr
 }
