@@ -16,7 +16,7 @@
 //!
 //! ```text
 //! cd groundhog-examples
-//! for c in erc20 swap-request swap-driver swap-router; do groundhog build -p "$c"; done
+//! for c in erc20 swap-request swap-driver swap-router swap-factory; do groundhog build -p "$c"; done
 //! groundhog build -p swap-pair --target wasm   # swap does not build for rv32a yet
 //! RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
 //! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
@@ -31,6 +31,7 @@ use groundhog_testkit::xdr::types::ContractAddress;
 use groundhog_testkit::{
     Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Result, Scenario, xdrs,
 };
+use swap_if::{Suite, SwapHashes};
 
 /// An alias to match the contracts' `Address` type.
 type Address = ContractAddress;
@@ -43,6 +44,7 @@ const PAIR: (&str, &str) = ("SwapPair", "0.1.0");
 const HANDLER: (&str, &str) = ("SwapRequestHandler", "0.1.0");
 const DRIVER: (&str, &str) = ("SwapDriver", "0.1.0");
 const ROUTER: (&str, &str) = ("Router", "0.1.0");
+const FACTORY: (&str, &str) = ("SwapFactory", "0.1.0");
 
 /// The liquidity providers, each run as its own agent.
 const PROVIDERS: [&str; 2] = ["alice", "bob"];
@@ -121,14 +123,21 @@ impl LPConfig {
     }
 }
 
-/// As admin: deploy, fund, and initialize the contract suite.
+/// As admin: register the suite's code, deploy the tokens and the factory, then
+/// have the factory create and wire the whole suite in one transaction.
 async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Swap> {
     let me = ctx.address();
 
-    // The two A/B token contracts (owned by us).
-    //
-    // Each contract is funded right after deploy so it can pay for the storage
-    // its state writes create.
+    // Register the code the factory will deploy by hash.  (erc20 registers when
+    // we deploy the tokens below; the rest we register explicitly, since the
+    // factory -- not us -- deploys their instances.)
+    ctx.register_artifact("swap_pair").await?;
+    ctx.register_artifact("swap_request").await?;
+    ctx.register_artifact("swap_driver").await?;
+    ctx.register_artifact("swap_router").await?;
+
+    // The two A/B token contracts (owned by us).  Each is funded right after
+    // deploy so it can pay for the storage its state writes create.
     let token0 = erc20(ctx.deploy_artifact("erc20").await?.address);
     fund(ctx, native, token0.address()).await?;
     let token1 = erc20(ctx.deploy_artifact("erc20").await?.address);
@@ -140,70 +149,48 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     token0.call(ctx, "mint", &(me, SUPPLY)).await?;
     token1.call(ctx, "mint", &(me, SUPPLY)).await?;
 
-    // Deploy and fund the LP token, then the pair that adopts it.
-    let lp = erc20(ctx.deploy_artifact("erc20").await?.address);
-    fund(ctx, native, lp.address()).await?;
-    let pair = Contract::new(
-        ctx.deploy_artifact("swap_pair").await?.address,
-        PAIR.0,
-        PAIR.1,
+    // Deploy, fund, and initialize the factory with the code hashes it needs
+    // and the protocol fee disabled.
+    let factory = Contract::new(
+        ctx.deploy_artifact("swap_factory").await?.address,
+        FACTORY.0,
+        FACTORY.1,
     );
-    fund(ctx, native, pair.address()).await?;
+    fund(ctx, native, factory.address()).await?;
 
-    // Initialize the pair, which takes a deployed but uninitialized ERC20 and
-    // initializes it under the pair's control.
-    pair.call(
-        ctx,
-        "initialize",
-        &(me, token0.address(), token1.address(), lp.address()),
-    )
-    .await?;
+    let hashes = SwapHashes {
+        token: ctx.contract_hash("erc20")?,
+        pair: ctx.contract_hash("swap_pair")?,
+        handler: ctx.contract_hash("swap_request")?,
+        driver: ctx.contract_hash("swap_driver")?,
+        router: ctx.contract_hash("swap_router")?,
+    };
+    let fee_to: Option<Address> = None;
+    factory.call(ctx, "initialize", &(hashes, fee_to)).await?;
 
-    // Request handler, driver, and router: deploy, fund, and init.
-    let handler = Contract::new(
-        ctx.deploy_artifact("swap_request").await?.address,
-        HANDLER.0,
-        HANDLER.1,
-    );
-    fund(ctx, native, handler.address()).await?;
-    handler
-        .call(
-            ctx,
-            "initialize",
-            &(pair.address(), token0.address(), token1.address()),
-        )
-        .await?;
+    // Ask the factory where it will deploy the suite, and fund each of those
+    // addresses: `create_pair` deploys *and* initializes them in one
+    // transaction, so each child must already be solvent to pay for its init
+    // writes.
+    let (t0, t1) = (token0.address(), token1.address());
+    let suite: Suite = factory.view(ctx, "predict_pair", &(t0, t1), None).await?;
+    fund(ctx, native, suite.liquidity_token).await?;
+    fund(ctx, native, suite.pair).await?;
+    fund(ctx, native, suite.handler).await?;
+    fund(ctx, native, suite.driver).await?;
+    fund(ctx, native, suite.router).await?;
 
-    let driver = Contract::new(
-        ctx.deploy_artifact("swap_driver").await?.address,
-        DRIVER.0,
-        DRIVER.1,
-    );
-    fund(ctx, native, driver.address()).await?;
-    driver.call(ctx, "initialize", &handler.address()).await?;
-
-    let router = Contract::new(
-        ctx.deploy_artifact("swap_router").await?.address,
-        ROUTER.0,
-        ROUTER.1,
-    );
-    fund(ctx, native, router.address()).await?;
-    router
-        .call(
-            ctx,
-            "initialize",
-            &(driver.address(), token0.address(), token1.address()),
-        )
-        .await?;
+    // Bring up the whole suite in a single transaction.
+    factory.call(ctx, "create_pair", &(t0, t1)).await?;
 
     Ok(Swap {
         token0,
         token1,
-        lp,
-        pair,
-        handler,
-        driver,
-        router,
+        lp: erc20(suite.liquidity_token),
+        pair: Contract::new(suite.pair, PAIR.0, PAIR.1),
+        handler: Contract::new(suite.handler, HANDLER.0, HANDLER.1),
+        driver: Contract::new(suite.driver, DRIVER.0, DRIVER.1),
+        router: Contract::new(suite.router, ROUTER.0, ROUTER.1),
     })
 }
 
@@ -352,7 +339,7 @@ async fn swap_liquidity_multi_agent() {
     let Ok(root) = std::env::var("GROUNDHOG_TESTKIT_ARTIFACT_ROOT") else {
         eprintln!(
             "skipping: set GROUNDHOG_TESTKIT_ARTIFACT_ROOT to a directory with the built \
-             erc20/swap/swap_request/swap_driver/swap_router artifacts (see module docs)"
+             erc20/swap/swap_request/swap_driver/swap_router/swap_factory artifacts (see module docs)"
         );
         return;
     };
@@ -379,6 +366,7 @@ async fn swap_liquidity_multi_agent() {
         .artifact("swap_request", artifact("swap_request.rv32a"))
         .artifact("swap_driver", artifact("swap_driver.rv32a"))
         .artifact("swap_router", artifact("swap_router.rv32a"))
+        .artifact("swap_factory", artifact("swap_factory.rv32a"))
         .build()
         .await
         .expect("local node starts with the swap artifacts registered");

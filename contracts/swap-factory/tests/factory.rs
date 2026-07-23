@@ -72,6 +72,13 @@ fn setup() -> Setup {
 fn create_pair_brings_up_suite() {
     let s = setup();
 
+    // The addresses the factory predicts it will deploy to (used off-chain to
+    // pre-fund the contracts before they are initialized).
+    let predicted = exec_tx(&s.env, &DEPLOYER, || {
+        SwapFactoryClient::new(&s.factory).predict_pair(&s.token0, &s.token1)
+    })
+    .unwrap();
+
     // The whole suite is deployed and wired in a single transaction.  If any
     // sub-initialization had failed, `create_pair` would have thrown.
     let suite = exec_tx(&s.env, &DEPLOYER, || {
@@ -79,6 +86,10 @@ fn create_pair_brings_up_suite() {
     })
     .unwrap();
     s.env.advance_block();
+
+    // The prediction matched what was actually deployed -- the invariant the
+    // testkit sim relies on to pre-fund the contracts.
+    assert_eq!(predicted, suite);
 
     exec_tx(&s.env, &DEPLOYER, || {
         let factory = SwapFactoryClient::new(&s.factory);

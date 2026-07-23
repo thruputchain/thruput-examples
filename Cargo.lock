@@ -2781,6 +2781,7 @@ dependencies = [
  "sdk",
  "swap-driver",
  "swap-factory",
+ "swap-if",
  "swap-pair",
  "swap-request",
  "swap-router",

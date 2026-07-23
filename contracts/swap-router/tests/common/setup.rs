@@ -31,7 +31,7 @@ pub fn setup_etx_native() -> Result<Etx> {
 
 pub fn setup_etx_wasm() -> Result<Etx> {
     let load = |name: &str| {
-        load_wasm_contract(&format!(
+        load_wasm_contract(format!(
             "../target/wasm32-unknown-unknown/release/{name}.wasm"
         ))
     };

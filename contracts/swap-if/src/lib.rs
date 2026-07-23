@@ -37,10 +37,10 @@ impl fmt::Display for SwapFactoryError {
 /// The set of contracts the factory creates and wires together for one token
 /// pair, returned by [`SwapFactory::create_pair`].
 #[contract_type]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Suite {
-    pub pair: Address,
     pub liquidity_token: Address,
+    pub pair: Address,
     pub handler: Address,
     pub driver: Address,
     pub router: Address,
@@ -60,23 +60,34 @@ pub struct SwapHashes {
 /// protocol `fee_to` that its pairs consult (cf. UniswapV2Factory).
 #[contract(client = SwapFactoryClient, throws(SwapFactoryError))]
 pub trait SwapFactory {
-    /// Configure the factory with the code hashes of the contracts it deploys
-    /// and the protocol-fee recipient (`None` disables the fee).
+    /// Configure the factory
     fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>);
 
-    /// The protocol-fee recipient, consulted by each pair's fee logic.
+    /// The protocol-fee recipient
+    ///
+    /// (Consulted by each pair.)
     fn fee_to(&self) -> Option<Address>;
 
-    /// Deploy and initialize a full suite (LP token, pair, request handler,
-    /// driver, router) for the given token pair, in one transaction.
+    /// Deploy and initialize a full token-pair suite
+    ///
+    /// (This includes the LP token, pair, request-handler, driver, and router
+    /// contracts.)
     fn create_pair(&mut self, token_a: &Address, token_b: &Address) -> Suite;
 
-    /// The pair created for `token_a`/`token_b`, if any (order-independent).
+    /// Predict deployment addresses for the suite of contracts
+    ///
+    /// (These are the addresses that [`create_pair`] would deploy the suite
+    /// to, for this token pair.)
+    ///
+    /// [`create_pair`]: Self::create_pair
+    fn predict_pair(&self, token_a: &Address, token_b: &Address) -> Suite;
+
+    /// The pair created for the given tokens (order-independent), if any
     fn get_pair(&self, token_a: &Address, token_b: &Address) -> Option<Address>;
 
-    /// The number of pairs created so far.
+    /// The number of pairs created so far
     fn all_pairs_length(&self) -> u32;
 
-    /// The pair at `index` in creation order.
+    /// The pair at `index` in creation order
     fn pair_at(&self, index: u32) -> Address;
 }

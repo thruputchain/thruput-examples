@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-for c in erc20 swap-request swap-driver swap-router; do groundhog build -p "$c"; done
+for c in erc20 swap-request swap-driver swap-router swap-factory; do groundhog build -p "$c"; done
 groundhog build -p swap-pair --target wasm   # swap does not build for rv32a yet
 
 # RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
