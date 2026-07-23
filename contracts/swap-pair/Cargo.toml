@@ -26,7 +26,6 @@ bench = false
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
 swap-if = { path = "../swap-if" }
-uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
 
 # Optional

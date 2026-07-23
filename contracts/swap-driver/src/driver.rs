@@ -1,4 +1,4 @@
-//! A request-batching driver for `swap_request`.
+//! A request-batching driver for `swap_handler`.
 //!
 //! This is a thin, concrete shell around the reusable [`batch_driver`] core: it
 //! owns the queue of [`SwapRequest`]s and supplies the one swap-specific piece
@@ -9,12 +9,11 @@
 use crate::cfg::*;
 use sdk::storage::*;
 use sdk::*;
-use swap_pair::SwapPairError;
-use swap_request::*;
+use swap_if::*;
 
 /// State for the driver contract
 #[storage]
-pub struct SwapDriver {
+pub struct Driver {
     // Configuration
     cfg: Value<Cfg>,
 
@@ -26,10 +25,9 @@ pub struct SwapDriver {
 ///   (some overhead plus enough for ~10 requests).
 pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + (10 * REQUEST_GAS_MAX);
 
-#[contract(throws(ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError))]
-impl SwapDriver {
-    /// Must be called exactly once before any other methods
-    pub fn initialize(&mut self, handler: &ContractAddress) {
+#[contract(exports = "swap_driver_exports")]
+impl SwapDriver for Driver {
+    fn initialize(&mut self, handler: &Address) {
         if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");
         }
@@ -40,12 +38,11 @@ impl SwapDriver {
         self.cfg.set_exclusive(&cfg);
     }
 
-    /// Enqueue a request to be handled later, when `process_requests` runs.
-    pub fn request(&mut self, request: SwapRequest) {
+    fn request(&mut self, request: SwapRequest) {
         self.requests.insert(&request);
     }
 
-    pub fn process_requests(&mut self) -> (u32, u32) {
+    fn process_requests(&mut self) -> (u32, u32) {
         let cfg = self.cfg.get();
 
         batch_driver::process(&mut self.requests, |request, gas_limit| {

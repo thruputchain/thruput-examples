@@ -29,7 +29,7 @@ fn setup() -> Setup {
     let hashes = SwapHashes {
         token: *erc20::register_mock_contract(&env).as_hash(),
         pair: *swap_pair::register_mock_contract(&env).as_hash(),
-        handler: *swap_request::register_mock_contract(&env).as_hash(),
+        handler: *swap_handler::register_mock_contract(&env).as_hash(),
         driver: *swap_driver::register_mock_contract(&env).as_hash(),
         router: *swap_router::register_mock_contract(&env).as_hash(),
     };

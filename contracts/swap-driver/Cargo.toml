@@ -29,8 +29,9 @@ uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
 thiserror = { workspace = true }
 batch-driver = { path = "../../helpers/batch-driver" }
+swap-if = { path = "../swap-if" }
 swap-pair = { path = "../swap-pair" }
-swap-request = { path = "../swap-request" }
+swap-handler = { path = "../swap-handler" }
 
 # Optional, for native tests
 erc20 = { path = "../erc20", features = ["dev"], optional = true }
@@ -40,7 +41,7 @@ groundhog-erc20-metadata-if = { workspace = true, features = ["dev"], optional =
 entrypoints = ["sdk/alloc"]
 rv32-entrypoints = ["entrypoints"]
 erc20_metadata = ["erc20?/metadata", "dep:groundhog-erc20-metadata-if"]
-dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-pair/dev", "swap-request/dev", "batch-driver/dev"]
+dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-if/dev", "swap-pair/dev", "swap-handler/dev", "batch-driver/dev"]
 wasm_test = []
 
 [dev-dependencies]

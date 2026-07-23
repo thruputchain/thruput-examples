@@ -2713,8 +2713,9 @@ dependencies = [
  "heapless",
  "sdk",
  "swap-driver",
+ "swap-handler",
+ "swap-if",
  "swap-pair",
- "swap-request",
  "thiserror 2.0.18",
  "uint",
 ]
@@ -2728,17 +2729,30 @@ dependencies = [
  "sdk",
  "swap-driver",
  "swap-factory",
+ "swap-handler",
  "swap-if",
  "swap-pair",
- "swap-request",
  "swap-router",
+]
+
+[[package]]
+name = "swap-handler"
+version = "0.1.0"
+dependencies = [
+ "groundhog-erc20-if",
+ "sdk",
+ "swap-handler",
+ "swap-if",
 ]
 
 [[package]]
 name = "swap-if"
 version = "0.1.0"
 dependencies = [
+ "batch-driver",
+ "groundhog-erc20-if",
  "sdk",
+ "uint",
 ]
 
 [[package]]
@@ -2751,23 +2765,6 @@ dependencies = [
  "sdk",
  "swap-if",
  "swap-pair",
- "uint",
-]
-
-[[package]]
-name = "swap-request"
-version = "0.1.0"
-dependencies = [
- "batch-driver",
- "erc20",
- "groundhog-erc20-if",
- "groundhog-erc20-metadata-if",
- "heapless",
- "sdk",
- "swap-pair",
- "swap-request",
- "thiserror 2.0.18",
- "uint",
 ]
 
 [[package]]
@@ -2781,9 +2778,9 @@ dependencies = [
  "sdk",
  "swap-driver",
  "swap-factory",
+ "swap-handler",
  "swap-if",
  "swap-pair",
- "swap-request",
  "swap-router",
  "thiserror 2.0.18",
  "tokio",

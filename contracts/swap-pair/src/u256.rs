@@ -1,7 +1,3 @@
-#![allow(clippy::manual_div_ceil)]
-
-// U256 with 256 bits consisting of 4 x 64-bit words
-uint::construct_uint! {
-    #[sdk::contract_type]
-    pub struct U256(4);
-}
+// `U256` now lives in the `swap-if` crate; re-export it so the implementation
+// and tests can keep referring to `crate::u256::U256` / `swap_pair::u256::U256`.
+pub use swap_if::U256;

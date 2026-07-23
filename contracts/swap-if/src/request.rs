@@ -1,7 +1,9 @@
+//! High-level swap request types.
+
 #![allow(clippy::new_ret_no_self)]
 
+use crate::{Address, Amount, Amounts};
 use sdk::*;
-use swap_pair::*;
 
 /// A high-level swap request
 ///

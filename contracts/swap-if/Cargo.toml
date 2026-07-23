@@ -16,9 +16,12 @@ test = false # suppress output from our zero unit-tests
 
 [dependencies]
 sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
+batch-driver = { path = "../../helpers/batch-driver" }
+uint = { version = "0.10.0", default-features = false }
 
 [features]
-dev = ["sdk/dev"]
+dev = ["sdk/dev", "batch-driver/dev"]
 
 [lints]
 clippy.result_large_err = "allow"
