@@ -125,8 +125,12 @@ impl SwapFactory for Factory {
         self.all_pairs.len()
     }
 
-    fn pair_at(&self, index: u32) -> Address {
-        self.all_pairs.at(index).get()
+    fn pair_at(&self, index: u32) -> Option<Address> {
+        if index <= self.all_pairs.len() {
+            Some(self.all_pairs.at(index).get())
+        } else {
+            None
+        }
     }
 }
 

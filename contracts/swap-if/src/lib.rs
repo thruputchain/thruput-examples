@@ -88,6 +88,6 @@ pub trait SwapFactory {
     /// The number of pairs created so far
     fn all_pairs_length(&self) -> u32;
 
-    /// The pair at `index` in creation order
-    fn pair_at(&self, index: u32) -> Address;
+    /// The pair at `index` in creation order, if the index is valid
+    fn pair_at(&self, index: u32) -> Option<Address>;
 }

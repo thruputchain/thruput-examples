@@ -98,7 +98,7 @@ fn create_pair_brings_up_suite() {
         assert_eq!(factory.get_pair(&s.token0, &s.token1), Some(suite.pair));
         assert_eq!(factory.get_pair(&s.token1, &s.token0), Some(suite.pair));
         assert_eq!(factory.all_pairs_length(), 1);
-        assert_eq!(factory.pair_at(0), suite.pair);
+        assert_eq!(factory.pair_at(0), Some(suite.pair));
         assert_eq!(factory.fee_to(), Some(FEE_ADDR));
 
         // The pair adopted its LP token and is initialized (empty reserves).
