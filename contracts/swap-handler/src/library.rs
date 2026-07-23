@@ -4,17 +4,8 @@
 //! run here when a request is *handled*, against the reserves live at that
 //! moment.
 
-use crate::u256::U256;
 use sdk::*;
-use swap_pair::*;
-
-#[contract_exception]
-pub enum SwapLibraryError {
-    InsufficientAmount = 1,
-    InsufficientLiquidity = 2,
-    InsufficientInputAmount = 3,
-    InsufficientOutputAmount = 4,
-}
+use swap_if::{Amount, Amounts, SwapLibraryError, U256};
 
 use SwapLibraryError::*;
 

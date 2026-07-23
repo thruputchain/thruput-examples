@@ -3,13 +3,9 @@
 use crate::events::*;
 use sdk::storage::*;
 use sdk::*;
+// Every interface -- the suite's clients and error types -- comes from `swap-if`,
+// so the factory depends on no sibling implementation crate.
 use swap_if::*;
-
-// Clients for the contracts we deploy and initialize.
-use swap_driver::SwapDriverClient;
-use swap_pair::SwapPairClient;
-use swap_request::RequestHandlerClient;
-use swap_router::RouterClient;
 
 /// State for the factory contract
 #[storage]
@@ -59,22 +55,15 @@ impl SwapFactory for Factory {
         let router = deploy_contract(&tokens.nonce_for(Role::Router), &hashes.router);
 
         // Initialize and wire them together.  A newly deployed contract is
-        // callable within this same transaction.  We use the `try_*` calls and
-        // collapse any callee error to `SuiteInitFailed`, since this crate
-        // cannot name the callees' error types without a dependency cycle.
+        // callable within this same transaction.  These are plain (non-`try`)
+        // calls: a callee's failure propagates with its own error type, which
+        // this trait's `throws` now names (the whole point of the shared
+        // `swap-if` crate).
         let me = get_current_address();
-        SwapPairClient::new(&pair)
-            .try_initialize(&me, token0, token1, &liquidity_token)
-            .unwrap_or_else(|_| throw(SwapFactoryError::SuiteInitFailed));
-        RequestHandlerClient::new(&handler)
-            .try_initialize(&pair, token0, token1)
-            .unwrap_or_else(|_| throw(SwapFactoryError::SuiteInitFailed));
-        SwapDriverClient::new(&driver)
-            .try_initialize(&handler)
-            .unwrap_or_else(|_| throw(SwapFactoryError::SuiteInitFailed));
-        RouterClient::new(&router)
-            .try_initialize(&driver, token0, token1)
-            .unwrap_or_else(|_| throw(SwapFactoryError::SuiteInitFailed));
+        SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token);
+        SwapHandlerClient::new(&handler).initialize(&pair, token0, token1);
+        SwapDriverClient::new(&driver).initialize(&handler);
+        SwapRouterClient::new(&router).initialize(&driver, token0, token1);
 
         // Record the new pair.
         self.pairs.at_mut(tokens.key()).set(&pair);

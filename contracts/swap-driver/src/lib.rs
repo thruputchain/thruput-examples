@@ -7,9 +7,8 @@ extern crate alloc;
 mod cfg;
 mod driver;
 
-// Contract interface
-pub use driver::PROCESS_REQUESTS_GAS;
-pub use driver::{SwapDriverClient, SwapDriverClientError};
+// Interface (defined in `swap-if`), re-exported for convenience.
+pub use swap_if::{SwapDriver, SwapDriverClient, SwapDriverClientError};
 
 // Contract implementation
-pub use driver::SwapDriver;
+pub use driver::{Driver, PROCESS_REQUESTS_GAS};

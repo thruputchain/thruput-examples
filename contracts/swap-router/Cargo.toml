@@ -26,9 +26,10 @@ bench = false
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
 thiserror = { workspace = true }
+swap-if = { path = "../swap-if" }
 swap-pair = { path = "../swap-pair" }
 swap-driver = { path = "../swap-driver" }
-swap-request = { path = "../swap-request" }
+swap-handler = { path = "../swap-handler" }
 
 # Optional, for native tests
 erc20 = { path = "../erc20", features = ["dev"], optional = true }
@@ -38,13 +39,12 @@ groundhog-erc20-metadata-if = { workspace = true, features = ["dev"], optional =
 entrypoints = ["sdk/alloc"]
 rv32-entrypoints = ["entrypoints"]
 erc20_metadata = ["erc20?/metadata", "dep:groundhog-erc20-metadata-if"]
-dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-pair/dev", "swap-driver/dev", "swap-request/dev"]
+dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-if/dev", "swap-pair/dev", "swap-driver/dev", "swap-handler/dev"]
 wasm_test = []
 
 [dev-dependencies]
 swap-router = { path = ".", features = ["dev"] }
 swap-factory = { path = "../swap-factory", features = ["dev"] }
-swap-if = { path = "../swap-if" }
 groundhog-testkit = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uint = { version = "0.10.0", default-features = false }

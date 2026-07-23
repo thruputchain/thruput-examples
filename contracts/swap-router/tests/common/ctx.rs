@@ -34,8 +34,8 @@ impl Ctx {
     pub fn driver(&self) -> SwapDriverClient {
         SwapDriverClient::new(&self.driver_addr)
     }
-    pub fn router(&self) -> RouterClient {
-        RouterClient::new(&self.router_addr)
+    pub fn router(&self) -> SwapRouterClient {
+        SwapRouterClient::new(&self.router_addr)
     }
 }
 

@@ -7,8 +7,7 @@
 use crate::cfg::*;
 use sdk::storage::*;
 use sdk::*;
-use swap_pair::*;
-use swap_request::{SwapLibraryError, SwapRequest, SwapRequestError};
+use swap_if::*;
 
 #[storage]
 pub struct Router {
@@ -16,14 +15,14 @@ pub struct Router {
     cfg: Value<Cfg>,
 }
 
-#[contract(throws(ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError))]
-impl Router {
+#[contract(exports = "swap_router_exports")]
+impl SwapRouter for Router {
     // Initialize router with knowledge of a single swap pair (via its driver).
     //
     // (A more complete system would use a swap-pair-factory contract to route
     // to arbitrary swap pairs.)
     //
-    pub fn initialize(&mut self, driver: &Address, token0: &Address, token1: &Address) {
+    fn initialize(&mut self, driver: &Address, token0: &Address, token1: &Address) {
         if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");
         }
@@ -42,7 +41,7 @@ impl Router {
     // The optimal A/B ratio (within `amounts_min`) is computed when the request
     // is executed.  Before calling, the user must give the request-handler the
     // needed allowances of tokens A/B (typically `amounts_desired`).
-    pub fn add_liquidity(
+    fn add_liquidity(
         &self,
         token_a: &Address,
         token_b: &Address,
@@ -68,7 +67,7 @@ impl Router {
     //
     // Before calling, the user must give the request-handler an allowance of at
     // least `liquidity` LP tokens.
-    pub fn remove_liquidity(
+    fn remove_liquidity(
         &self,
         token_a: &Address,
         token_b: &Address,
@@ -95,7 +94,7 @@ impl Router {
     /// Before calling, the user must give the request-handler an allowance of
     /// at least `amount_in` of the input token.
     ///
-    pub fn swap_exact_tokens_for_tokens(
+    fn swap_exact_tokens_for_tokens(
         &self,
         amount_in: Amount,
         amount_out_min: Amount,
@@ -123,7 +122,7 @@ impl Router {
     // Before calling, the user must give the request-handler an allowance of at
     // least `amount_in_max` of the input token.  (Only the amount actually
     // needed is consumed.)
-    pub fn swap_tokens_for_exact_tokens(
+    fn swap_tokens_for_exact_tokens(
         &self,
         amount_out: Amount,
         amount_in_max: Amount,

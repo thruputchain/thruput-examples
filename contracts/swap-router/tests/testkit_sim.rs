@@ -16,7 +16,7 @@
 //!
 //! ```text
 //! cd groundhog-examples
-//! for c in erc20 swap-request swap-driver swap-router swap-factory; do groundhog build -p "$c"; done
+//! for c in erc20 swap-handler swap-driver swap-router swap-factory; do groundhog build -p "$c"; done
 //! groundhog build -p swap-pair --target wasm   # swap does not build for rv32a yet
 //! RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
 //! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
@@ -41,9 +41,9 @@ type Address = ContractAddress;
 // these.
 const ERC20: (&str, &str) = ("ERC20", "0.1.5");
 const PAIR: (&str, &str) = ("SwapPair", "0.1.0");
-const HANDLER: (&str, &str) = ("SwapRequestHandler", "0.1.0");
+const HANDLER: (&str, &str) = ("SwapHandler", "0.1.0");
 const DRIVER: (&str, &str) = ("SwapDriver", "0.1.0");
-const ROUTER: (&str, &str) = ("Router", "0.1.0");
+const ROUTER: (&str, &str) = ("SwapRouter", "0.1.0");
 const FACTORY: (&str, &str) = ("SwapFactory", "0.1.0");
 
 /// The liquidity providers, each run as its own agent.
@@ -132,7 +132,7 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     // we deploy the tokens below; the rest we register explicitly, since the
     // factory -- not us -- deploys their instances.)
     ctx.register_artifact("swap_pair").await?;
-    ctx.register_artifact("swap_request").await?;
+    ctx.register_artifact("swap_handler").await?;
     ctx.register_artifact("swap_driver").await?;
     ctx.register_artifact("swap_router").await?;
 
@@ -161,7 +161,7 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     let hashes = SwapHashes {
         token: ctx.contract_hash("erc20")?,
         pair: ctx.contract_hash("swap_pair")?,
-        handler: ctx.contract_hash("swap_request")?,
+        handler: ctx.contract_hash("swap_handler")?,
         driver: ctx.contract_hash("swap_driver")?,
         router: ctx.contract_hash("swap_router")?,
     };
@@ -339,7 +339,7 @@ async fn swap_liquidity_multi_agent() {
     let Ok(root) = std::env::var("GROUNDHOG_TESTKIT_ARTIFACT_ROOT") else {
         eprintln!(
             "skipping: set GROUNDHOG_TESTKIT_ARTIFACT_ROOT to a directory with the built \
-             erc20/swap/swap_request/swap_driver/swap_router/swap_factory artifacts (see module docs)"
+             erc20/swap/swap_handler/swap_driver/swap_router/swap_factory artifacts (see module docs)"
         );
         return;
     };
@@ -363,7 +363,7 @@ async fn swap_liquidity_multi_agent() {
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
         .artifact("swap_pair", artifact("swap_pair.wasm")) // can't currently build swap as rv32a
-        .artifact("swap_request", artifact("swap_request.rv32a"))
+        .artifact("swap_handler", artifact("swap_handler.rv32a"))
         .artifact("swap_driver", artifact("swap_driver.rv32a"))
         .artifact("swap_router", artifact("swap_router.rv32a"))
         .artifact("swap_factory", artifact("swap_factory.rv32a"))

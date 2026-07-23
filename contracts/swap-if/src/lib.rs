@@ -1,93 +1,43 @@
 //! Shared interfaces for the swap contract suite.
 //!
-//! This is an interface-only crate: it defines traits and their generated
-//! clients so that contracts can call one another without depending on each
-//! other's implementations.
+//! This interface-only crate defines every swap contract's trait, its
+//! generated client and error type, and the value types they exchange.
 //!
-//! In particular, it breaks the cycle between `swap-pair` (which consults the
-//! factory for the protocol `fee_to`) and `swap-factory` (which creates and
-//! initializes pairs).
+//! The deployable crates (`swap-pair`, `swap-handler`, `swap-driver`,
+//! `swap-router`, `swap-factory`) each implement their trait from here, so
+//! they can call one another -- and be created by the factory -- without
+//! depending on each other's implementations.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use core::fmt;
-use sdk::*;
+pub use groundhog_erc20_if::ERC20Error;
 
+/// A contract address.
 pub type Address = sdk::ContractAddress;
+/// A pair of addresses (the two tokens of a swap pair).
+pub type Addresses = [sdk::ContractAddress; 2];
+/// A token amount.
+pub type Amount = u128;
+/// A pair of amounts, one per token.
+pub type Amounts = [Amount; 2];
 
-#[contract_exception]
-#[non_exhaustive]
-pub enum SwapFactoryError {
-    AlreadyInitialized = 1,
-    IdenticalTokens = 2,
-    ZeroAddress = 3,
-    PairExists = 4,
-    // A sub-contract's initialization call failed.  The factory can't name the
-    // callees' error types (that would reintroduce the dependency cycle this
-    // crate exists to break), so their failures collapse to this.
-    SuiteInitFailed = 5,
-}
+mod u256;
+pub use u256::U256;
 
-impl fmt::Display for SwapFactoryError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SwapFactory{:?}", self)
-    }
-}
+mod pair;
+pub use pair::*;
 
-/// The set of contracts the factory creates and wires together for one token
-/// pair, returned by [`SwapFactory::create_pair`].
-#[contract_type]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Suite {
-    pub liquidity_token: Address,
-    pub pair: Address,
-    pub handler: Address,
-    pub driver: Address,
-    pub router: Address,
-}
+mod handler;
+pub use handler::*;
 
-#[contract_type]
-#[derive(Copy, Clone, Debug)]
-pub struct SwapHashes {
-    pub token: SHA256Hash,
-    pub pair: SHA256Hash,
-    pub handler: SHA256Hash,
-    pub driver: SHA256Hash,
-    pub router: SHA256Hash,
-}
+mod request;
+pub use request::*;
 
-/// A factory that deploys and initializes the swap suite, and holds the
-/// protocol `fee_to` that its pairs consult (cf. UniswapV2Factory).
-#[contract(client = SwapFactoryClient, throws(SwapFactoryError))]
-pub trait SwapFactory {
-    /// Configure the factory
-    fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>);
+mod driver;
+pub use driver::*;
 
-    /// The protocol-fee recipient
-    ///
-    /// (Consulted by each pair.)
-    fn fee_to(&self) -> Option<Address>;
+mod router;
+pub use router::*;
 
-    /// Deploy and initialize a full token-pair suite
-    ///
-    /// (This includes the LP token, pair, request-handler, driver, and router
-    /// contracts.)
-    fn create_pair(&mut self, token_a: &Address, token_b: &Address) -> Suite;
-
-    /// Predict deployment addresses for the suite of contracts
-    ///
-    /// (These are the addresses that [`create_pair`] would deploy the suite
-    /// to, for this token pair.)
-    ///
-    /// [`create_pair`]: Self::create_pair
-    fn predict_pair(&self, token_a: &Address, token_b: &Address) -> Suite;
-
-    /// The pair created for the given tokens (order-independent), if any
-    fn get_pair(&self, token_a: &Address, token_b: &Address) -> Option<Address>;
-
-    /// The number of pairs created so far
-    fn all_pairs_length(&self) -> u32;
-
-    /// The pair at `index` in creation order, if the index is valid
-    fn pair_at(&self, index: u32) -> Option<Address>;
-}
+mod factory;
+pub use factory::*;

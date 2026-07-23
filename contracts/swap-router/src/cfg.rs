@@ -1,6 +1,5 @@
 use sdk::*;
-use swap_driver::*;
-use swap_pair::*;
+use swap_if::{Address, SwapDriverClient};
 
 #[contract_type]
 pub struct Cfg {

@@ -24,7 +24,7 @@ pub fn setup_etx_native() -> Result<Etx> {
     let pair_hash = *pair_contract.as_hash();
 
     // Register the request-handler contract
-    let handler_contract = swap_request::register_mock_contract(&env);
+    let handler_contract = swap_handler::register_mock_contract(&env);
     let handler_hash = *handler_contract.as_hash();
 
     // Register the driver contract
@@ -45,7 +45,7 @@ pub fn setup_etx_wasm() -> Result<Etx> {
     );
     let handler_contract = load_wasm_contract(
         "../target/wasm32-unknown-unknown/release/\
-         swap_request.wasm",
+         swap_handler.wasm",
     );
     let driver_contract = load_wasm_contract(
         "../target/wasm32-unknown-unknown/release/\
@@ -228,7 +228,7 @@ fn request_handler_deploy_init(
     hash_ident! { static HANDLER_NONCE: SHA256Hash; }
     let handler_addr = deploy_contract(&HANDLER_NONCE, handler_hash);
 
-    let handler = RequestHandlerClient::new(&handler_addr);
+    let handler = SwapHandlerClient::new(&handler_addr);
 
     handler.initialize(pair_addr, &token_addrs[0], &token_addrs[1]);
 

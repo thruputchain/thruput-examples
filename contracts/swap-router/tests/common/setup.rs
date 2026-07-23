@@ -20,7 +20,7 @@ pub fn setup_etx_native() -> Result<Etx> {
     let hashes = SwapHashes {
         token: *erc20::register_mock_contract(&env).as_hash(),
         pair: *swap_pair::register_mock_contract(&env).as_hash(),
-        handler: *swap_request::register_mock_contract(&env).as_hash(),
+        handler: *swap_handler::register_mock_contract(&env).as_hash(),
         driver: *swap_driver::register_mock_contract(&env).as_hash(),
         router: *swap_router::register_mock_contract(&env).as_hash(),
     };
@@ -37,7 +37,7 @@ pub fn setup_etx_wasm() -> Result<Etx> {
     };
     let token_contract = load("erc20");
     let pair_contract = load("swap");
-    let handler_contract = load("swap_request");
+    let handler_contract = load("swap_handler");
     let driver_contract = load("swap_driver");
     let router_contract = load("swap_router");
     let factory_contract = load("swap_factory");

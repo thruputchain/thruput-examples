@@ -1,8 +1,7 @@
-use crate::SwapRequest;
-use crate::library::SwapLibraryError;
-pub use groundhog_erc20_if::ERC20Error;
+//! The high-level swap-request handler interface.
+
+use crate::{Address, ERC20Error, SwapPairError, SwapRequest};
 use sdk::*;
-use swap_pair::{Address, SwapPairError};
 
 /// Errors raised while handling a swap request (slippage limits exceeded).
 #[contract_exception]
@@ -13,6 +12,15 @@ pub enum SwapRequestError {
     ExcessiveInputAmount = 4,
 }
 
+/// Errors from the price-optimizing library calculations.
+#[contract_exception]
+pub enum SwapLibraryError {
+    InsufficientAmount = 1,
+    InsufficientLiquidity = 2,
+    InsufficientInputAmount = 3,
+    InsufficientOutputAmount = 4,
+}
+
 /// The handler that performs high-level swap operations.
 ///
 /// The driver enqueues opaque [`SwapRequest`]s and later forwards each one
@@ -20,10 +28,10 @@ pub enum SwapRequestError {
 /// reserves, performs the optimizing calculation, moves the user's tokens, and
 /// calls into the `swap` pair to do the underlying work.
 #[contract(
-    client = RequestHandlerClient,
+    client = SwapHandlerClient,
     throws(SwapRequestError, SwapPairError, ERC20Error, SwapLibraryError)
 )]
-pub trait SwapRequestHandler {
+pub trait SwapHandler {
     /// Must be called exactly once before any other methods.
     ///
     /// `swap_pair` is the pair this handler drives; `token0`/`token1` are its

@@ -4,8 +4,8 @@ sdk::declare_mock_contract!();
 
 extern crate alloc;
 
-// Interface
-pub use router::RouterClient;
+// Interface (defined in `swap-if`), re-exported for convenience.
+pub use swap_if::{SwapRouter, SwapRouterClient, SwapRouterClientError};
 
 // Implementation
 mod cfg;
