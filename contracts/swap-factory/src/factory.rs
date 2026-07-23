@@ -63,7 +63,7 @@ impl SwapFactory for Factory {
         SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token);
         SwapHandlerClient::new(&handler).initialize(&pair, token0, token1);
         SwapDriverClient::new(&driver).initialize(&handler);
-        SwapRouterClient::new(&router).initialize(&driver, token0, token1);
+        SwapRouterClient::new(&router).initialize(&me);
 
         // Record the new pair.
         self.pairs.at_mut(tokens.key()).set(&pair);
