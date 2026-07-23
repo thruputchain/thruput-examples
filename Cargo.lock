@@ -2720,6 +2720,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "swap-factory"
+version = "0.1.0"
+dependencies = [
+ "erc20",
+ "groundhog-erc20-if",
+ "sdk",
+ "swap-driver",
+ "swap-factory",
+ "swap-if",
+ "swap-pair",
+ "swap-request",
+ "swap-router",
+]
+
+[[package]]
+name = "swap-if"
+version = "0.1.0"
+dependencies = [
+ "sdk",
+]
+
+[[package]]
 name = "swap-pair"
 version = "0.1.0"
 dependencies = [
@@ -2727,6 +2749,7 @@ dependencies = [
  "groundhog-erc20-if",
  "heapless",
  "sdk",
+ "swap-if",
  "swap-pair",
  "uint",
 ]
@@ -2757,6 +2780,8 @@ dependencies = [
  "groundhog-testkit",
  "sdk",
  "swap-driver",
+ "swap-factory",
+ "swap-if",
  "swap-pair",
  "swap-request",
  "swap-router",

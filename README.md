@@ -41,13 +41,13 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 
 ## Building
 
-Build a contract to deployable WASM (also generates the contract spec):
+Build a contract to a deployable guest binary (also generates the contract spec):
 
 ```sh
 groundhog build -p fibonacci
 ```
 
-Artifacts land in `target/groundhog/` as `<crate>.wasm` and `<crate>.spec.xdr`.
+Artifacts land in `target/groundhog/` as `<crate>.rv32a` and `<crate>.spec.xdr`.
 
 ## Testing
 
