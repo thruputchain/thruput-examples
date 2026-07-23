@@ -130,11 +130,11 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
 
     // Register the code the factory will deploy by hash.  (erc20 registers when
     // we deploy the tokens below; the rest we register explicitly, since the
-    // factory -- not us -- deploys their instances.)
+    // factory -- not us -- deploys their instances.  The router is deployed
+    // directly below, so it needs no registration by hash.)
     ctx.register_artifact("swap_pair").await?;
     ctx.register_artifact("swap_handler").await?;
     ctx.register_artifact("swap_driver").await?;
-    ctx.register_artifact("swap_router").await?;
 
     // The two A/B token contracts (owned by us).  Each is funded right after
     // deploy so it can pay for the storage its state writes create.
@@ -163,24 +163,30 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
         pair: ctx.contract_hash("swap_pair")?,
         handler: ctx.contract_hash("swap_handler")?,
         driver: ctx.contract_hash("swap_driver")?,
-        router: ctx.contract_hash("swap_router")?,
     };
     let fee_to: Option<Address> = None;
     factory.call(ctx, "initialize", &(hashes, fee_to)).await?;
 
-    // Ask the factory where it will deploy the suite, and fund each of those
-    // addresses: `create_pair` deploys *and* initializes them in one
-    // transaction, so each child must already be solvent to pay for its init
-    // writes.
+    // Deploy the single, suite-wide router, pointed at the factory.
+    let router = Contract::new(
+        ctx.deploy_artifact("swap_router").await?.address,
+        ROUTER.0,
+        ROUTER.1,
+    );
+    fund(ctx, native, router.address()).await?;
+    router.call(ctx, "initialize", &factory.address()).await?;
+
+    // Ask the factory where it will deploy the pair's contracts, and fund each
+    // of those addresses: `create_pair` deploys *and* initializes them in one
+    // transaction, so each must already be solvent to pay for its init writes.
     let (t0, t1) = (token0.address(), token1.address());
     let suite: Suite = factory.view(ctx, "predict_pair", &(t0, t1), None).await?;
     fund(ctx, native, suite.liquidity_token).await?;
     fund(ctx, native, suite.pair).await?;
     fund(ctx, native, suite.handler).await?;
     fund(ctx, native, suite.driver).await?;
-    fund(ctx, native, suite.router).await?;
 
-    // Bring up the whole suite in a single transaction.
+    // Create the pair's contracts in a single transaction.
     factory.call(ctx, "create_pair", &(t0, t1)).await?;
 
     Ok(Swap {
@@ -190,7 +196,7 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
         pair: Contract::new(suite.pair, PAIR.0, PAIR.1),
         handler: Contract::new(suite.handler, HANDLER.0, HANDLER.1),
         driver: Contract::new(suite.driver, DRIVER.0, DRIVER.1),
-        router: Contract::new(suite.router, ROUTER.0, ROUTER.1),
+        router,
     })
 }
 

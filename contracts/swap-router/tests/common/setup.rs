@@ -16,17 +16,18 @@ pub fn setup_etx() -> Result<Etx> {
 pub fn setup_etx_native() -> Result<Etx> {
     let env = sdk::TestEnvironment::no_cost();
 
-    // Register the contracts the factory will deploy, plus the factory itself.
+    // Register the contracts the factory deploys, plus the factory and the
+    // single suite-wide router (both deployed directly).
     let hashes = SwapHashes {
         token: *erc20::register_mock_contract(&env).as_hash(),
         pair: *swap_pair::register_mock_contract(&env).as_hash(),
         handler: *swap_handler::register_mock_contract(&env).as_hash(),
         driver: *swap_driver::register_mock_contract(&env).as_hash(),
-        router: *swap_router::register_mock_contract(&env).as_hash(),
     };
     let factory_hash = *swap_factory::register_mock_contract(&env).as_hash();
+    let router_hash = *swap_router::register_mock_contract(&env).as_hash();
 
-    setup_contracts(&env, hashes, factory_hash)
+    setup_contracts(&env, hashes, factory_hash, router_hash)
 }
 
 pub fn setup_etx_wasm() -> Result<Etx> {
@@ -49,11 +50,11 @@ pub fn setup_etx_wasm() -> Result<Etx> {
         pair: env.setup_create_contract(&pair_contract),
         handler: env.setup_create_contract(&handler_contract),
         driver: env.setup_create_contract(&driver_contract),
-        router: env.setup_create_contract(&router_contract),
     };
     let factory_hash = env.setup_create_contract(&factory_contract);
+    let router_hash = env.setup_create_contract(&router_contract);
 
-    setup_contracts(&env, hashes, factory_hash)
+    setup_contracts(&env, hashes, factory_hash, router_hash)
 }
 
 // Build the whole suite through the factory: deploy the A/B tokens, then have
@@ -64,6 +65,7 @@ pub fn setup_contracts(
     env: &TestEnvironmentHandle,
     hashes: SwapHashes,
     factory_hash: SHA256Hash,
+    router_hash: SHA256Hash,
 ) -> Result<Etx> {
 
     // Deploy and init the A/B token contracts
@@ -82,22 +84,36 @@ pub fn setup_contracts(
     // with the pair's reserve0/reserve1.
     let token_addrs = sorted(deployed);
 
-    // Deploy the factory and, in one transaction, bring up the entire suite.
-    let suite = exec_tx(env, &TEST_ADDR, || {
+    // Deploy and initialize the factory (protocol fee disabled).
+    let factory_addr = exec_tx(env, &TEST_ADDR, move || {
         hash_ident! { static FACTORY_NONCE: SHA256Hash; }
         let factory_addr = deploy_contract(&FACTORY_NONCE, &factory_hash);
-        let factory = SwapFactoryClient::new(&factory_addr);
+        SwapFactoryClient::new(&factory_addr).initialize(hashes, None);
+        factory_addr
+    })?;
 
-        // Fee disabled: these tests don't exercise the protocol fee.
-        factory.initialize(hashes, None);
-        factory.create_pair(&token_addrs[0], &token_addrs[1])
+    /* ----- */ env.advance_block(); /* ----- */
+
+    // Deploy the single, suite-wide router, pointed at the factory.
+    let router_addr = exec_tx(env, &TEST_ADDR, move || {
+        hash_ident! { static ROUTER_NONCE: SHA256Hash; }
+        let router_addr = deploy_contract(&ROUTER_NONCE, &router_hash);
+        SwapRouterClient::new(&router_addr).initialize(&factory_addr);
+        router_addr
+    })?;
+
+    /* ----- */ env.advance_block(); /* ----- */
+
+    // Create this pair's contracts (LP, pair, handler, driver) via the factory.
+    let suite = exec_tx(env, &TEST_ADDR, move || {
+        SwapFactoryClient::new(&factory_addr).create_pair(&token_addrs[0], &token_addrs[1])
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
 
     let env = env.clone();
     let ctx = Ctx {
-        router_addr: suite.router,
+        router_addr,
         driver_addr: suite.driver,
         request_handler_addr: suite.handler,
         pair_addr: suite.pair,

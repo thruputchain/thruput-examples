@@ -41,7 +41,8 @@ impl SwapRouter for Router {
         recipient: &Address,
     ) {
         let cfg = self.cfg.get();
-        let driver = cfg.get_pair(token_a, token_b);
+        // `addLiquidity` is the one entry point that creates the pair on first use.
+        let driver = cfg.get_or_create_pair(token_a, token_b);
 
         let purchaser = get_caller();
         driver.request(SwapRequest::add_liquidity(
