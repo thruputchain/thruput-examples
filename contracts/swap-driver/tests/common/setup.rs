@@ -34,6 +34,7 @@ pub fn setup_etx_native() -> Result<Etx> {
     setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash)
 }
 
+#[cfg(feature = "guest_test")]
 pub fn setup_etx_guest() -> Result<Etx> {
     let guest_path = |name: &str, arch: &str| -> String {
         format!("../../target/groundhog/{name}.{arch}")
@@ -42,7 +43,7 @@ pub fn setup_etx_guest() -> Result<Etx> {
         load_rv32_contract(guest_path(name, "rv32a"))
     };
     let load_wasm = |name: &str| {
-        load_wasm_contract(guest_path(name, "wasm"))
+        load_wasm_contract_instrumented(guest_path(name, "wasm"), false)
     };
 
     let token_contract = load("erc20");

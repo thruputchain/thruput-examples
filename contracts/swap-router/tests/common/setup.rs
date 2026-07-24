@@ -16,6 +16,7 @@ pub fn setup_etx() -> Result<Etx> {
 
 pub fn setup_etx_native() -> Result<Etx> {
     let env = sdk::TestEnvironment::no_cost();
+    // let env = sdk::TestEnvironment::new(None); // use default cost model
 
     // Register the contracts the factory deploys, plus the factory and the
     // single suite-wide router (both deployed directly).
@@ -31,6 +32,7 @@ pub fn setup_etx_native() -> Result<Etx> {
     setup_contracts(&env, hashes, factory_hash, router_hash)
 }
 
+#[cfg(feature = "guest_test")]
 pub fn setup_etx_guest() -> Result<Etx> {
     let guest_path = |name: &str, arch: &str| -> String {
         format!("../../target/groundhog/{name}.{arch}")
@@ -39,7 +41,7 @@ pub fn setup_etx_guest() -> Result<Etx> {
         load_rv32_contract(guest_path(name, "rv32a"))
     };
     let load_wasm = |name: &str| {
-        load_wasm_contract(guest_path(name, "wasm"))
+        load_wasm_contract_instrumented(guest_path(name, "wasm"), false)
     };
 
     let token_contract = load("erc20");
@@ -49,7 +51,8 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let router_contract = load("swap_router");
     let factory_contract = load("swap_factory");
 
-    let env = sdk::TestEnvironment::new(None); // use default cost model
+    let env = sdk::TestEnvironment::no_cost();
+    // let env = sdk::TestEnvironment::new(None); // use default cost model
 
     let hashes = SwapHashes {
         token: env.setup_create_contract(&token_contract),
