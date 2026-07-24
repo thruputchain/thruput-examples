@@ -42,7 +42,7 @@ entrypoints = ["sdk/alloc"]
 rv32-entrypoints = ["entrypoints"]
 erc20_metadata = ["erc20?/metadata", "dep:groundhog-erc20-metadata-if"]
 dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-if/dev", "swap-pair/dev", "swap-handler/dev", "batch-driver/dev"]
-wasm_test = []
+guest_test = []
 
 [dev-dependencies]
 swap-driver = { path = ".", features = ["dev"] }

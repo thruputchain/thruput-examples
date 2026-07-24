@@ -1,15 +1,16 @@
 use super::*;
 use swap_factory::{SwapFactoryClient, SwapHashes};
+use std::env;
 
 pub fn setup_etx() -> Result<Etx> {
-    #[cfg(not(feature = "wasm_test"))]
+    #[cfg(not(feature = "guest_test"))]
     {
         setup_etx_native()
     }
 
-    #[cfg(feature = "wasm_test")]
+    #[cfg(feature = "guest_test")]
     {
-        setup_etx_wasm()
+        setup_etx_guest()
     }
 }
 
@@ -30,20 +31,25 @@ pub fn setup_etx_native() -> Result<Etx> {
     setup_contracts(&env, hashes, factory_hash, router_hash)
 }
 
-pub fn setup_etx_wasm() -> Result<Etx> {
-    let load = |name: &str| {
-        load_wasm_contract(format!(
-            "../target/wasm32-unknown-unknown/release/{name}.wasm"
-        ))
+pub fn setup_etx_guest() -> Result<Etx> {
+    let guest_path = |name: &str, arch: &str| -> String {
+        format!("../../target/groundhog/{name}.{arch}")
     };
+    let load = |name: &str| {
+        load_rv32_contract(guest_path(name, "rv32a"))
+    };
+    let load_wasm = |name: &str| {
+        load_wasm_contract(guest_path(name, "wasm"))
+    };
+
     let token_contract = load("erc20");
-    let pair_contract = load("swap");
+    let pair_contract = load_wasm("swap_pair");
     let handler_contract = load("swap_handler");
     let driver_contract = load("swap_driver");
     let router_contract = load("swap_router");
     let factory_contract = load("swap_factory");
 
-    let env = sdk::TestEnvironment::no_cost();
+    let env = sdk::TestEnvironment::new(None); // use default cost model
 
     let hashes = SwapHashes {
         token: env.setup_create_contract(&token_contract),

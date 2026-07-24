@@ -1,14 +1,14 @@
 use super::*;
 
 pub fn setup_etx() -> Result<Etx> {
-    #[cfg(not(feature = "wasm_test"))]
+    #[cfg(not(feature = "guest_test"))]
     {
         setup_etx_native()
     }
 
-    #[cfg(feature = "wasm_test")]
+    #[cfg(feature = "guest_test")]
     {
-        setup_etx_wasm()
+        setup_etx_guest()
     }
 }
 
@@ -34,27 +34,26 @@ pub fn setup_etx_native() -> Result<Etx> {
     setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash)
 }
 
-pub fn setup_etx_wasm() -> Result<Etx> {
-    let token_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         erc20.wasm",
-    );
-    let pair_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap.wasm",
-    );
-    let handler_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap_handler.wasm",
-    );
-    let driver_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap_driver.wasm",
-    );
+pub fn setup_etx_guest() -> Result<Etx> {
+    let guest_path = |name: &str, arch: &str| -> String {
+        format!("../../target/groundhog/{name}.{arch}")
+    };
+    let load = |name: &str| {
+        load_rv32_contract(guest_path(name, "rv32a"))
+    };
+    let load_wasm = |name: &str| {
+        load_wasm_contract(guest_path(name, "wasm"))
+    };
 
-    let env = sdk::TestEnvironment::no_cost();
+    let token_contract = load("erc20");
+    let pair_contract = load_wasm("swap_pair");
+    let handler_contract = load("swap_handler");
+    let driver_contract = load("swap_driver");
+    let router_contract = load("swap_router");
+    let factory_contract = load("swap_factory");
 
-    // Register the contracts
+    let env = sdk::TestEnvironment::new(None); // use default cost model
+
     let token_hash = env.setup_create_contract(&token_contract);
     let pair_hash = env.setup_create_contract(&pair_contract);
     let handler_hash = env.setup_create_contract(&handler_contract);
