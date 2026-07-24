@@ -4,9 +4,12 @@
 //! in-process executor), this drives the real contracts on a live local
 //! `hog-devnode` using `groundhog-testkit`.
 //!
-//! An `admin` agent deploys and initializes the contract suite, primes the
-//! pool, and acts as the request-queue operator. Two independent liquidity
-//! providers (`alice`, `bob`) each run as their own agent: they learn the
+//! An `admin` agent deploys the factory and router, pre-funds the pair's
+//! (deterministic) contract addresses, and then primes the pool with an
+//! `add_liquidity` through the router -- which is what actually creates the
+//! pair, so this exercises a router-triggered `create_pair` under real HOG
+//! funding. The admin also acts as the request-queue operator. Two independent
+//! liquidity providers (`alice`, `bob`) each run as their own agent: they learn the
 //! contract addresses over the harness mailbox, approve the request handler,
 //! submit an `add_liquidity` request through the router, and — once the admin
 //! has driven the queue — confirm they were minted LP.
@@ -40,7 +43,6 @@ type Address = ContractAddress;
 // recorded in each `*.spec.json`. `entrypoint_id` derives selectors from
 // these.
 const ERC20: (&str, &str) = ("ERC20", "0.1.5");
-const PAIR: (&str, &str) = ("SwapPair", "0.1.0");
 const HANDLER: (&str, &str) = ("SwapHandler", "0.1.0");
 const DRIVER: (&str, &str) = ("SwapDriver", "0.1.0");
 const ROUTER: (&str, &str) = ("SwapRouter", "0.1.0");
@@ -69,7 +71,6 @@ struct Swap {
     token0: Contract,
     token1: Contract,
     lp: Contract,
-    pair: Contract,
     handler: Contract,
     driver: Contract,
     router: Contract,
@@ -123,8 +124,11 @@ impl LPConfig {
     }
 }
 
-/// As admin: register the suite's code, deploy the tokens and the factory, then
-/// have the factory create and wire the whole suite in one transaction.
+/// As admin
+/// - register the suite's code
+/// - deploy two tokens and the factory
+/// - initialize the factory
+/// - fund addresses necessary for the test
 async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Swap> {
     let me = ctx.address();
 
@@ -157,7 +161,6 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
         FACTORY.1,
     );
     fund(ctx, native, factory.address()).await?;
-
     let hashes = SwapHashes {
         token: ctx.contract_hash("erc20")?,
         pair: ctx.contract_hash("swap_pair")?,
@@ -176,9 +179,15 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     fund(ctx, native, router.address()).await?;
     router.call(ctx, "initialize", &factory.address()).await?;
 
-    // Ask the factory where it will deploy the pair's contracts, and fund each
-    // of those addresses: `create_pair` deploys *and* initializes them in one
-    // transaction, so each must already be solvent to pay for its init writes.
+    // Ask the factory where it *will* deploy the pair's contracts, and fund each
+    // of those addresses.
+    //
+    // We deliberately do NOT create the pair (with its handler and driver
+    // contracts) here: the first `add_liquidity` routed through the router
+    // (see `prime_pool`) will create it, deploying *and* initializing these
+    // contracts in one transaction -- so each must already be solvent to pay
+    // for its init writes. Pre-funding the deterministic addresses is what
+    // makes that possible.
     let (t0, t1) = (token0.address(), token1.address());
     let suite: Suite = factory.view(ctx, "predict_pair", &(t0, t1), None).await?;
     fund(ctx, native, suite.liquidity_token).await?;
@@ -186,35 +195,61 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     fund(ctx, native, suite.handler).await?;
     fund(ctx, native, suite.driver).await?;
 
-    // Create the pair's contracts in a single transaction.
-    factory.call(ctx, "create_pair", &(t0, t1)).await?;
-
     Ok(Swap {
         token0,
         token1,
         lp: erc20(suite.liquidity_token),
-        pair: Contract::new(suite.pair, PAIR.0, PAIR.1),
         handler: Contract::new(suite.handler, HANDLER.0, HANDLER.1),
         driver: Contract::new(suite.driver, DRIVER.0, DRIVER.1),
         router,
     })
 }
 
-/// As admin, prime the pool: transfer both tokens to the pair, then mint LP to
-/// ourselves, establishing the initial price the providers add against.
+/// As admin, prime the pool through the router, establishing the initial price
+/// the providers add against.
+///
+/// Crucially, the pair does not exist yet: this first `add_liquidity` is what
+/// creates it (the router calls `factory.create_pair`, deploying and
+/// initializing the whole pair suite inline).  That deployment can only pay for
+/// its storage because `deploy_and_init` pre-funded the suite's deterministic
+/// addresses -- so this exercises whether the HOG-funding structure supports a
+/// router-triggered pair creation.
 async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
     let me = ctx.address();
+
+    // Let the request handler pull our tokens when the request is executed.
+    let supply = i128::try_from(SUPPLY).expect("bug: supply fits i128");
     s.token0
-        .call(ctx, "transfer", &(s.pair.address(), SUPPLY))
+        .call(ctx, "adjust_allowance", &(s.handler.address(), supply))
         .await?;
     s.token1
-        .call(ctx, "transfer", &(s.pair.address(), SUPPLY))
+        .call(ctx, "adjust_allowance", &(s.handler.address(), supply))
         .await?;
-    s.pair.call(ctx, "mint_lp", &me).await?;
+
+    // Route an add-liquidity request.  The pair doesn't exist, so this creates
+    // it, then enqueues the request with its (newly created) driver.
+    let desired: [Amount; 2] = [SUPPLY, SUPPLY];
+    let min: [Amount; 2] = [0, 0];
+    s.router
+        .call(
+            ctx,
+            "add_liquidity",
+            &(s.token0.address(), s.token1.address(), desired, min, me),
+        )
+        .await?;
+
+    // Drive the queue to execute the (pair-creating) request.
+    let (processed, failed): (u32, u32) =
+        s.driver.call_returning(ctx, "process_requests", &()).await?;
+    assert_eq!(
+        (processed, failed),
+        (1, 0),
+        "the priming add_liquidity should process without failure"
+    );
 
     let lp_balance: Amount = s.lp.view(ctx, "get_balance_of", &me, None).await?;
     assert!(lp_balance > 0, "priming should mint a positive LP balance");
-    println!("primed pool; admin LP balance = {lp_balance}");
+    println!("primed pool via router-created pair; admin LP balance = {lp_balance}");
     Ok(())
 }
 
