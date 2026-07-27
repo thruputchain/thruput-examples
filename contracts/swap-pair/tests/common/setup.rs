@@ -20,8 +20,8 @@ fn fund_deploy_target(
     nonce: &SHA256Hash,
     hash: &SHA256Hash,
 ) {
-    let addr = exec_tx(env, deployer, || get_deploy_address(nonce, hash))
-        .expect("compute deploy address");
+    let addr =
+        exec_tx(env, deployer, || get_deploy_address(nonce, hash)).expect("compute deploy address");
     env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
 }
 

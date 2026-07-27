@@ -22,8 +22,8 @@ fn fund_deploy_target(
     nonce: &SHA256Hash,
     hash: &SHA256Hash,
 ) {
-    let addr = exec_tx(env, deployer, || get_deploy_address(nonce, hash))
-        .expect("compute deploy address");
+    let addr =
+        exec_tx(env, deployer, || get_deploy_address(nonce, hash)).expect("compute deploy address");
     env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
 }
 
@@ -87,10 +87,7 @@ pub fn setup_etx_guest() -> Result<Etx> {
 
 // REMOVE THIS with sdk_rs >= 0.17.4
 #[cfg(feature = "guest_test")]
-pub fn load_wasm_contract_instrumented<P>(
-    path: P,
-    please_instrument: bool
-) -> Contract
+pub fn load_wasm_contract_instrumented<P>(path: P, please_instrument: bool) -> Contract
 where
     P: AsRef<std::path::Path>,
 {

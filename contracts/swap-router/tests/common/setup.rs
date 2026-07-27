@@ -61,10 +61,7 @@ pub fn setup_etx_guest() -> Result<Etx> {
 
 // REMOVE THIS with sdk_rs >= 0.17.4
 #[cfg(feature = "guest_test")]
-pub fn load_wasm_contract_instrumented<P>(
-    path: P,
-    please_instrument: bool
-) -> Contract
+pub fn load_wasm_contract_instrumented<P>(path: P, please_instrument: bool) -> Contract
 where
     P: AsRef<std::path::Path>,
 {
