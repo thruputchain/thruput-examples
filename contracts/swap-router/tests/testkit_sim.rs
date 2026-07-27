@@ -239,8 +239,10 @@ async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
         .await?;
 
     // Drive the queue to execute the (pair-creating) request.
-    let (processed, failed): (u32, u32) =
-        s.driver.call_returning(ctx, "process_requests", &()).await?;
+    let (processed, failed): (u32, u32) = s
+        .driver
+        .call_returning(ctx, "process_requests", &())
+        .await?;
     assert_eq!(
         (processed, failed),
         (1, 0),

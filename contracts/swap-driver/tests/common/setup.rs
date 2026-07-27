@@ -36,15 +36,10 @@ pub fn setup_etx_native() -> Result<Etx> {
 
 #[cfg(feature = "guest_test")]
 pub fn setup_etx_guest() -> Result<Etx> {
-    let guest_path = |name: &str, arch: &str| -> String {
-        format!("../../target/groundhog/{name}.{arch}")
-    };
-    let load = |name: &str| {
-        load_rv32_contract(guest_path(name, "rv32a"))
-    };
-    let load_wasm = |name: &str| {
-        load_wasm_contract_instrumented(guest_path(name, "wasm"), false)
-    };
+    let guest_path =
+        |name: &str, arch: &str| -> String { format!("../../target/groundhog/{name}.{arch}") };
+    let load = |name: &str| load_rv32_contract(guest_path(name, "rv32a"));
+    let load_wasm = |name: &str| load_wasm_contract_instrumented(guest_path(name, "wasm"), false);
 
     let token_contract = load("erc20");
     let pair_contract = load_wasm("swap_pair");
