@@ -16,6 +16,12 @@ build() {
 
 build
 
-# RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
-GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$(realpath target/groundhog)" \
-    cargo test -p swap-router --test testkit_sim -- --ignored --nocapture
+# export RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info"
+
+export HOGD_PROTOCOL_OVERRIDE=hogp/561d2617ace2 # for hog-devnode from groundhog-client v0.1.16
+export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$(realpath target/groundhog)"
+
+cargo test -p swap-router \
+    --test testkit_sim \
+    -- \
+    --ignored --no-capture
