@@ -14,6 +14,25 @@ hash_ident! { pub static FEE_ADDR: ContractAddress; }
 // Enough for the fee test's prime + donation + second add.
 const SUPPLY: u128 = 3_000_000;
 
+// Storage tokens granted to each contract under the default cost model, well
+// above what these tests spend.
+const CONTRACT_FUNDING: i64 = 1_000_000_000;
+
+// Deploy nonces, at module scope so a contract's deterministic address can be
+// computed (and funded) before it is deployed.
+hash_ident! { static T0_NONCE: SHA256Hash; }
+hash_ident! { static T1_NONCE: SHA256Hash; }
+hash_ident! { static FACTORY_NONCE: SHA256Hash; }
+
+// Under the default cost model a contract pays for the storage it writes.  Grant
+// storage tokens to the (deterministic) address `DEPLOYER` will deploy `hash` to
+// with `nonce`, so the freshly deployed contract is solvent.
+fn fund_deploy_target(env: &TestEnvironmentHandle, nonce: &SHA256Hash, hash: &SHA256Hash) {
+    let addr = exec_tx(env, &DEPLOYER, || get_deploy_address(nonce, hash))
+        .expect("compute deploy address");
+    env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
+}
+
 struct Setup {
     env: TestEnvironmentHandle,
     factory: ContractAddress,
@@ -24,7 +43,7 @@ struct Setup {
 // Register the suite's contracts, deploy two funded tokens, and deploy+init a
 // factory with `fee_to = Some(FEE_ADDR)`.
 fn setup() -> Setup {
-    let env = TestEnvironment::no_cost();
+    let env = sdk::TestEnvironment::new(None); // use default cost model
 
     let hashes = SwapHashes {
         token: *erc20::register_mock_contract(&env).as_hash(),
@@ -34,10 +53,15 @@ fn setup() -> Setup {
     };
     let factory_hash = *swap_factory::register_mock_contract(&env).as_hash();
 
-    // Deploy + init two tokens and fund the deployer.
+    // Under the default cost model each contract pays for the storage it writes,
+    // so pre-fund the deployer and the contracts it deploys directly.
+    env.setup_grant_storage_tokens(&DEPLOYER, CONTRACT_FUNDING);
+    fund_deploy_target(&env, &T0_NONCE, &hashes.token);
+    fund_deploy_target(&env, &T1_NONCE, &hashes.token);
+    fund_deploy_target(&env, &FACTORY_NONCE, &factory_hash);
+
+    // Deploy + init two tokens, minting a supply to the deployer.
     let (token0, token1) = exec_tx(&env, &DEPLOYER, || {
-        hash_ident! { static T0_NONCE: SHA256Hash; }
-        hash_ident! { static T1_NONCE: SHA256Hash; }
         let t0 = deploy_contract(&T0_NONCE, &hashes.token);
         let t1 = deploy_contract(&T1_NONCE, &hashes.token);
         ERC20Client::new(&t0).initialize(&DEPLOYER);
@@ -51,13 +75,27 @@ fn setup() -> Setup {
 
     // Deploy + init the factory.
     let factory = exec_tx(&env, &DEPLOYER, || {
-        hash_ident! { static FACTORY_NONCE: SHA256Hash; }
         let f = deploy_contract(&FACTORY_NONCE, &factory_hash);
         SwapFactoryClient::new(&f).initialize(hashes, Some(FEE_ADDR));
         f
     })
     .unwrap();
     env.advance_block();
+
+    // Pre-fund the pair's contracts, which the factory deploys inside
+    // `create_pair` (called by the tests).
+    let predicted = exec_tx(&env, &DEPLOYER, || {
+        SwapFactoryClient::new(&factory).predict_pair(&token0, &token1)
+    })
+    .unwrap();
+    for addr in [
+        predicted.liquidity_token,
+        predicted.pair,
+        predicted.handler,
+        predicted.driver,
+    ] {
+        env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
+    }
 
     Setup {
         env: env.clone(),

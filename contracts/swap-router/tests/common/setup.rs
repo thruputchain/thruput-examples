@@ -87,6 +87,26 @@ where
     }
 }
 
+// Storage tokens granted to each contract under the default cost model, well
+// above what the swap flow spends.
+const CONTRACT_FUNDING: i64 = 1_000_000_000;
+
+// Deploy nonces, at module scope so a contract's deterministic address can be
+// computed (and funded) before it is actually deployed.
+hash_ident! { static TOKEN_0_NONCE: SHA256Hash; }
+hash_ident! { static TOKEN_1_NONCE: SHA256Hash; }
+hash_ident! { static FACTORY_NONCE: SHA256Hash; }
+hash_ident! { static ROUTER_NONCE: SHA256Hash; }
+
+// Under the default cost model, a contract must pay for the storage it writes.
+// Grant storage tokens to the (deterministic) address `TEST_ADDR` will deploy
+// `hash` to with `nonce`, so the freshly deployed contract is solvent.
+fn fund_deploy_target(env: &TestEnvironmentHandle, nonce: &SHA256Hash, hash: &SHA256Hash) {
+    let addr = exec_tx(env, &TEST_ADDR, || get_deploy_address(nonce, hash))
+        .expect("compute deploy address");
+    env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
+}
+
 // Build the whole suite through the factory: deploy the A/B tokens, then have
 // a freshly deployed factory create the pair, LP token, request handler,
 // driver, and router in a single transaction.
@@ -97,6 +117,17 @@ pub fn setup_contracts(
     factory_hash: SHA256Hash,
     router_hash: SHA256Hash,
 ) -> Result<Etx> {
+
+    // Under the default cost model each contract pays for the storage it
+    // writes, so pre-fund everything before it is deployed: the test-user
+    // addresses, and each directly-deployed contract.
+    for u in USERS {
+        env.setup_grant_storage_tokens(u.addr, CONTRACT_FUNDING);
+    }
+    fund_deploy_target(env, &TOKEN_0_NONCE, &hashes.token);
+    fund_deploy_target(env, &TOKEN_1_NONCE, &hashes.token);
+    fund_deploy_target(env, &FACTORY_NONCE, &factory_hash);
+    fund_deploy_target(env, &ROUTER_NONCE, &router_hash);
 
     // Deploy and init the A/B token contracts
     let deployed = exec_tx(env, &TEST_ADDR,
@@ -116,7 +147,6 @@ pub fn setup_contracts(
 
     // Deploy and initialize the factory (protocol fee disabled).
     let factory_addr = exec_tx(env, &TEST_ADDR, move || {
-        hash_ident! { static FACTORY_NONCE: SHA256Hash; }
         let factory_addr = deploy_contract(&FACTORY_NONCE, &factory_hash);
         SwapFactoryClient::new(&factory_addr).initialize(hashes, None);
         factory_addr
@@ -126,7 +156,6 @@ pub fn setup_contracts(
 
     // Deploy the single, suite-wide router, pointed at the factory.
     let router_addr = exec_tx(env, &TEST_ADDR, move || {
-        hash_ident! { static ROUTER_NONCE: SHA256Hash; }
         let router_addr = deploy_contract(&ROUTER_NONCE, &router_hash);
         SwapRouterClient::new(&router_addr).initialize(&factory_addr);
         router_addr
@@ -134,7 +163,21 @@ pub fn setup_contracts(
 
     /* ----- */ env.advance_block(); /* ----- */
 
-    // Create this pair's contracts (LP, pair, handler, driver) via the factory.
+    // The factory deploys this pair's contracts (LP, pair, handler, driver)
+    // inside `create_pair`, so pre-fund them at their predicted addresses first.
+    let predicted = exec_tx(env, &TEST_ADDR, move || {
+        SwapFactoryClient::new(&factory_addr).predict_pair(&token_addrs[0], &token_addrs[1])
+    })?;
+    for addr in [
+        predicted.liquidity_token,
+        predicted.pair,
+        predicted.handler,
+        predicted.driver,
+    ] {
+        env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
+    }
+
+    // Create this pair's contracts via the factory.
     let suite = exec_tx(env, &TEST_ADDR, move || {
         SwapFactoryClient::new(&factory_addr).create_pair(&token_addrs[0], &token_addrs[1])
     })?;
@@ -182,8 +225,6 @@ fn ab_tokens_deploy_init(token_hash: &SHA256Hash) -> Addresses {
     assert_eq!(&get_current_address(), &TEST_ADDR);
 
     // Deploy contracts for two tokens that we'd like to swap between
-    hash_ident! { static TOKEN_0_NONCE: SHA256Hash; }
-    hash_ident! { static TOKEN_1_NONCE: SHA256Hash; }
     let token0_addr = deploy_contract(&TOKEN_0_NONCE, token_hash);
     let token1_addr = deploy_contract(&TOKEN_1_NONCE, token_hash);
 

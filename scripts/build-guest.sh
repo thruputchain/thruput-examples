@@ -17,8 +17,13 @@ for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | 
         continue
     fi
 
-    echo "::group::groundhog build -p $pkg ${build_args[*]}"
-    groundhog build -p "$pkg" "${build_args[@]}" || {
+    extra_cargo_args=()
+    if [[ "$pkg" = "erc20" ]]; then
+        extra_cargo_args+=(-F metadata)
+    fi
+
+    echo "::group::groundhog build -p $pkg ${build_args[*]} -- ${extra_cargo_args[*]}"
+    groundhog build -p "$pkg" "${build_args[@]}" -- "${extra_cargo_args[@]}" || {
         printf "Build failed for contract %s\n" "$pkg"
         exit 1
     }

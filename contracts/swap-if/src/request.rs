@@ -157,10 +157,12 @@ pub struct SwapExactOutRequest {
     pub recipient: Address,
 }
 
-// Loose limits, could be adjusted empirically
-const ADD_LIQUIDITY_GAS: u64 = 195_000;
-const REMOVE_LIQUIDITY_GAS: u64 = 215_000;
-const SWAP_GAS: u64 = 195_000;
+// Loose limits, calibrated empirically against the guest (real-fuel) build.
+// Liquidity events (mint/burn) also cross-call the factory for the protocol
+// `fee_to`, so they carry more headroom than a bare swap.
+const ADD_LIQUIDITY_GAS: u64 = 500_000;
+const REMOVE_LIQUIDITY_GAS: u64 = 600_000;
+const SWAP_GAS: u64 = 400_000;
 
 /// The maximum gas any single request should consume when handled.
 pub const REQUEST_GAS_MAX: u64 = REMOVE_LIQUIDITY_GAS;
