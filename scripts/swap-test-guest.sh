@@ -18,5 +18,5 @@ build() {
 
 build
 
-cargo test -p swap-driver -F guest_test # -- --show-output
-cargo test -p swap-router -F guest_test # -- --show-output
+cargo test -p swap-driver -F guest_test -- --show-output
+cargo test -p swap-router -F guest_test -- --show-output

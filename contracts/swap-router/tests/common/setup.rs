@@ -15,8 +15,7 @@ pub fn setup_etx() -> Result<Etx> {
 }
 
 pub fn setup_etx_native() -> Result<Etx> {
-    let env = sdk::TestEnvironment::no_cost();
-    // let env = sdk::TestEnvironment::new(None); // use default cost model
+    let env = sdk::TestEnvironment::new(None); // use default cost model
 
     // Register the contracts the factory deploys, plus the factory and the
     // single suite-wide router (both deployed directly).
@@ -46,8 +45,7 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let router_contract = load("swap_router");
     let factory_contract = load("swap_factory");
 
-    let env = sdk::TestEnvironment::no_cost();
-    // let env = sdk::TestEnvironment::new(None); // use default cost model
+    let env = sdk::TestEnvironment::new(None); // use default cost model
 
     let hashes = SwapHashes {
         token: env.setup_create_contract(&token_contract),
@@ -59,6 +57,34 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let router_hash = env.setup_create_contract(&router_contract);
 
     setup_contracts(&env, hashes, factory_hash, router_hash)
+}
+
+// REMOVE THIS with sdk_rs >= 0.17.4
+#[cfg(feature = "guest_test")]
+pub fn load_wasm_contract_instrumented<P>(
+    path: P,
+    please_instrument: bool
+) -> Contract
+where
+    P: AsRef<std::path::Path>,
+{
+    assert!(!please_instrument);
+
+    use crate::contract::ContractBlob;
+
+    let wasm = std::fs::read(path.as_ref()).unwrap_or_else(|e| {
+        panic!(
+            "{}: couldn't load wasm: {}",
+            path.as_ref().to_str().unwrap_or("?"),
+            e
+        )
+    });
+
+    let contract: ContractBlob = ContractBlob { data: BytesM(wasm) };
+
+    Contract::kWasmi {
+        wasmi_contract: contract,
+    }
 }
 
 // Build the whole suite through the factory: deploy the A/B tokens, then have
