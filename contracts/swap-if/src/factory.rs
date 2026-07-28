@@ -28,7 +28,6 @@ pub struct Suite {
     pub liquidity_token: Address,
     pub handler: Address,
     pub driver: Address,
-    pub router: Address,
 }
 
 /// The code hashes of the contracts the factory deploys.
@@ -39,14 +38,15 @@ pub struct SwapHashes {
     pub pair: SHA256Hash,
     pub handler: SHA256Hash,
     pub driver: SHA256Hash,
-    pub router: SHA256Hash,
 }
 
-/// A factory that deploys and initializes the swap suite, and holds the
+/// A factory that deploys and initializes a pair's contracts, and holds the
 /// protocol `fee_to` that its pairs consult (cf. UniswapV2Factory).
 ///
 /// `create_pair` deploys and initializes several sub-contracts, so its `throws`
-/// includes their error types.
+/// includes their error types.  (The router is a single, suite-wide contract
+/// deployed separately and pointed at the factory, so it is not part of a
+/// pair's [`Suite`].)
 #[contract(
     client = SwapFactoryClient,
     throws(SwapFactoryError, ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError)
@@ -59,8 +59,8 @@ pub trait SwapFactory {
     /// The protocol-fee recipient, consulted by each pair's fee logic.
     fn fee_to(&self) -> Option<Address>;
 
-    /// Deploy and initialize a full suite (LP token, pair, request handler,
-    /// driver, router) for the given token pair, in one transaction.
+    /// Deploy and initialize a pair's contracts (LP token, pair, request
+    /// handler, driver) for the given token pair, in one transaction.
     fn create_pair(&mut self, token_a: &Address, token_b: &Address) -> Suite;
 
     /// The addresses [`create_pair`] would deploy the suite to for this token

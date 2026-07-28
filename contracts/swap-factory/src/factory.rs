@@ -52,7 +52,6 @@ impl SwapFactory for Factory {
         let pair = deploy_contract(&tokens.nonce_for(Role::Pair), &hashes.pair);
         let handler = deploy_contract(&tokens.nonce_for(Role::Handler), &hashes.handler);
         let driver = deploy_contract(&tokens.nonce_for(Role::Driver), &hashes.driver);
-        let router = deploy_contract(&tokens.nonce_for(Role::Router), &hashes.router);
 
         // Initialize and wire them together.  A newly deployed contract is
         // callable within this same transaction.  These are plain (non-`try`)
@@ -63,7 +62,6 @@ impl SwapFactory for Factory {
         SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token);
         SwapHandlerClient::new(&handler).initialize(&pair, token0, token1);
         SwapDriverClient::new(&driver).initialize(&handler);
-        SwapRouterClient::new(&router).initialize(&driver, token0, token1);
 
         // Record the new pair.
         self.pairs.at_mut(tokens.key()).set(&pair);
@@ -74,7 +72,6 @@ impl SwapFactory for Factory {
             pair,
             handler,
             driver,
-            router,
         };
 
         log_event(&SuiteCreated {
@@ -84,7 +81,6 @@ impl SwapFactory for Factory {
             liquidity_token,
             handler,
             driver,
-            router,
             pair_count: self.all_pairs.len(),
         });
 
@@ -101,7 +97,6 @@ impl SwapFactory for Factory {
             pair: get_deploy_address(&tokens.nonce_for(Role::Pair), &hashes.pair),
             handler: get_deploy_address(&tokens.nonce_for(Role::Handler), &hashes.handler),
             driver: get_deploy_address(&tokens.nonce_for(Role::Driver), &hashes.driver),
-            router: get_deploy_address(&tokens.nonce_for(Role::Router), &hashes.router),
         }
     }
 
@@ -169,5 +164,4 @@ enum Role {
     Pair = 1,
     Handler = 2,
     Driver = 3,
-    Router = 4,
 }

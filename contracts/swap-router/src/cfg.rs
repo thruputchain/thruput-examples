@@ -1,25 +1,34 @@
 use sdk::*;
-use swap_if::{Address, SwapDriverClient};
+use swap_if::{Address, SwapDriverClient, SwapFactoryClient};
 
 #[contract_type]
 pub struct Cfg {
-    // In a complete implementation, the router would talk to a swap-pair factory:
-    // pub factory: Address,
-
-    // For now, we just deal with one swap-pair, reached via its driver:
-    pub driver: Address,
-    pub token0: Address,
-    pub token1: Address,
+    // The factory the router resolves pairs through.
+    pub factory: Address,
 }
 
 impl Cfg {
-    /// Validate the token pair and return its driver.
-    pub fn get_pair(&self, token_a: &Address, token_b: &Address) -> SwapDriverClient {
-        // Just assert that this is the one pair we know about
-        assert_eq!(token_a, &self.token0);
-        assert_eq!(token_b, &self.token1);
+    fn factory(&self) -> SwapFactoryClient {
+        SwapFactoryClient::new(&self.factory)
+    }
 
-        self.driver()
+    /// The driver for the `token_a`/`token_b` pair, creating the pair's suite
+    /// through the factory if it doesn't exist yet -- cf. UniswapV2Router, whose
+    /// `addLiquidity` creates the pair on first use.
+    pub fn get_or_create_pair(&self, token_a: &Address, token_b: &Address) -> SwapDriverClient {
+        let factory = self.factory();
+        let suite = match factory.get_pair(token_a, token_b) {
+            Some(_) => factory.predict_pair(token_a, token_b),
+            None => factory.create_pair(token_a, token_b),
+        };
+        SwapDriverClient::new(&suite.driver)
+    }
+
+    /// The driver for an *existing* `token_a`/`token_b` pair.  Unlike
+    /// `get_or_create_pair`, this never creates the pair -- UniswapV2 only
+    /// creates on `addLiquidity` -- so routing here fails if it doesn't exist.
+    pub fn get_pair(&self, token_a: &Address, token_b: &Address) -> SwapDriverClient {
+        SwapDriverClient::new(&self.factory().predict_pair(token_a, token_b).driver)
     }
 
     /// Like `get_pair`, but accepts the tokens in either order; additionally
@@ -29,18 +38,12 @@ impl Cfg {
         token_in: &Address,
         token_out: &Address,
     ) -> (SwapDriverClient, usize) {
-        let in_index = if (token_in, token_out) == (&self.token0, &self.token1) {
-            0
-        } else {
-            // Just assert that this is the one pair we know about
-            assert_eq!((token_out, token_in), (&self.token0, &self.token1));
-            1
-        };
+        let driver = self.get_pair(token_in, token_out);
 
-        (self.driver(), in_index)
-    }
+        // The pair's token0 is the smaller address (the factory's canonical
+        // ordering), so `token_in` is at index 0 iff it sorts first.
+        let in_index = if token_in <= token_out { 0 } else { 1 };
 
-    fn driver(&self) -> SwapDriverClient {
-        SwapDriverClient::new(&self.driver)
+        (driver, in_index)
     }
 }

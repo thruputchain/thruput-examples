@@ -33,7 +33,6 @@ entrypoints = ["implementation", "sdk/alloc"]
 rv32-entrypoints = ["entrypoints"]
 implementation = []
 dev = ["sdk/dev", "swap-if/dev", "implementation"]
-wasm_test = []
 
 [dev-dependencies]
 swap-handler = { path = ".", features = ["dev"] }

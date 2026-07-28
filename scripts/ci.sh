@@ -2,12 +2,15 @@
 
 set -euo pipefail
 
-./scripts/build.sh
-
 set -x
 
 RUSTFLAGS="-D warnings" \
     cargo test --all
+
+./scripts/build-guest.sh
+for p in swap-driver swap-router; do
+    cargo test -p "$p" -F guest_test
+done
 
 # ./scripts/integration-tests.sh
 

@@ -1,20 +1,25 @@
 //! The high-level router interface (cf. UniswapV2Router).
 
 use crate::{
-    Address, Amount, Amounts, ERC20Error, SwapLibraryError, SwapPairError, SwapRequestError,
+    Address, Amount, Amounts, ERC20Error, SwapFactoryError, SwapLibraryError, SwapPairError,
+    SwapRequestError,
 };
 use sdk::*;
 
 /// Builds [`SwapRequest`](crate::SwapRequest)s from high-level user operations
 /// and enqueues them with the driver.  Performs no price calculation itself --
 /// the optimizing math happens when requests are dequeued and handled.
+///
+/// The router resolves each pair through the factory, creating it on first use
+/// (cf. UniswapV2Router's `addLiquidity`), so `throws` includes the factory's
+/// errors.
 #[contract(
     client = SwapRouterClient,
-    throws(ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError)
+    throws(ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError, SwapFactoryError)
 )]
 pub trait SwapRouter {
-    /// Initialize the router with a single swap pair (via its driver).
-    fn initialize(&mut self, driver: &Address, token0: &Address, token1: &Address);
+    /// Initialize the router with the factory it resolves pairs through.
+    fn initialize(&mut self, factory: &Address);
 
     /// Request to provide liquidity, receiving LP tokens in return.
     fn add_liquidity(

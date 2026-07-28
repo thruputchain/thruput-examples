@@ -1,19 +1,46 @@
 use super::*;
 
+// Storage tokens granted to each contract under the default cost model, well
+// above what these tests spend.
+const CONTRACT_FUNDING: i64 = 1_000_000_000;
+
+// Deploy nonces, at module scope so a contract's deterministic address can be
+// computed (and funded) before it is deployed.
+hash_ident! { static TOKEN_0_NONCE: SHA256Hash; }
+hash_ident! { static TOKEN_1_NONCE: SHA256Hash; }
+hash_ident! { static LP_NONCE: SHA256Hash; }
+hash_ident! { static PAIR_NONCE: SHA256Hash; }
+hash_ident! { static HANDLER_NONCE: SHA256Hash; }
+hash_ident! { static DRIVER_NONCE: SHA256Hash; }
+
+// Under the default cost model a contract pays for the storage it writes.  Grant
+// storage tokens to the (deterministic) address `deployer` will deploy `hash` to
+// with `nonce`, so the freshly deployed contract is solvent.
+fn fund_deploy_target(
+    env: &TestEnvironmentHandle,
+    deployer: &ContractAddress,
+    nonce: &SHA256Hash,
+    hash: &SHA256Hash,
+) {
+    let addr =
+        exec_tx(env, deployer, || get_deploy_address(nonce, hash)).expect("compute deploy address");
+    env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
+}
+
 pub fn setup_etx() -> Result<Etx> {
-    #[cfg(not(feature = "wasm_test"))]
+    #[cfg(not(feature = "guest_test"))]
     {
         setup_etx_native()
     }
 
-    #[cfg(feature = "wasm_test")]
+    #[cfg(feature = "guest_test")]
     {
-        setup_etx_wasm()
+        setup_etx_guest()
     }
 }
 
 pub fn setup_etx_native() -> Result<Etx> {
-    let env = sdk::TestEnvironment::no_cost();
+    let env = sdk::TestEnvironment::new(None); // use default cost model
 
     // Register the token contract
     let token_contract = erc20::register_mock_contract(&env);
@@ -34,33 +61,53 @@ pub fn setup_etx_native() -> Result<Etx> {
     setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash)
 }
 
-pub fn setup_etx_wasm() -> Result<Etx> {
-    let token_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         erc20.wasm",
-    );
-    let pair_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap.wasm",
-    );
-    let handler_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap_handler.wasm",
-    );
-    let driver_contract = load_wasm_contract(
-        "../target/wasm32-unknown-unknown/release/\
-         swap_driver.wasm",
-    );
+#[cfg(feature = "guest_test")]
+pub fn setup_etx_guest() -> Result<Etx> {
+    let guest_path =
+        |name: &str, arch: &str| -> String { format!("../../target/groundhog/{name}.{arch}") };
+    let load = |name: &str| load_rv32_contract(guest_path(name, "rv32a"));
+    let load_wasm = |name: &str| load_wasm_contract_instrumented(guest_path(name, "wasm"), false);
 
-    let env = sdk::TestEnvironment::no_cost();
+    let token_contract = load("erc20");
+    let pair_contract = load_wasm("swap_pair");
+    let handler_contract = load("swap_handler");
+    let driver_contract = load("swap_driver");
+    let router_contract = load("swap_router");
+    let factory_contract = load("swap_factory");
 
-    // Register the contracts
+    let env = sdk::TestEnvironment::new(None); // use default cost model
+
     let token_hash = env.setup_create_contract(&token_contract);
     let pair_hash = env.setup_create_contract(&pair_contract);
     let handler_hash = env.setup_create_contract(&handler_contract);
     let driver_hash = env.setup_create_contract(&driver_contract);
 
     setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash)
+}
+
+// REMOVE THIS with sdk_rs >= 0.17.4
+#[cfg(feature = "guest_test")]
+pub fn load_wasm_contract_instrumented<P>(path: P, please_instrument: bool) -> Contract
+where
+    P: AsRef<std::path::Path>,
+{
+    assert!(!please_instrument);
+
+    use crate::contract::ContractBlob;
+
+    let wasm = std::fs::read(path.as_ref()).unwrap_or_else(|e| {
+        panic!(
+            "{}: couldn't load wasm: {}",
+            path.as_ref().to_str().unwrap_or("?"),
+            e
+        )
+    });
+
+    let contract: ContractBlob = ContractBlob { data: BytesM(wasm) };
+
+    Contract::kWasmi {
+        wasmi_contract: contract,
+    }
 }
 
 #[rustfmt::skip]
@@ -71,6 +118,19 @@ pub fn setup_contracts(
     handler_hash: SHA256Hash,
     driver_hash: SHA256Hash,
 ) -> Result<Etx> {
+
+    // Pre-fund the test addresses and each contract we deploy (at its
+    // deterministic address), so their storage writes are solvent under the
+    // cost model.
+    for u in USERS {
+        env.setup_grant_storage_tokens(u.addr, CONTRACT_FUNDING);
+    }
+    fund_deploy_target(env, &TEST_ADDR, &TOKEN_0_NONCE, &token_hash);
+    fund_deploy_target(env, &TEST_ADDR, &TOKEN_1_NONCE, &token_hash);
+    fund_deploy_target(env, &FACTORY_ADDR, &LP_NONCE, &token_hash);
+    fund_deploy_target(env, &FACTORY_ADDR, &PAIR_NONCE, &pair_hash);
+    fund_deploy_target(env, &FACTORY_ADDR, &HANDLER_NONCE, &handler_hash);
+    fund_deploy_target(env, &FACTORY_ADDR, &DRIVER_NONCE, &driver_hash);
 
     // Deploy and init the A/B token contracts
     let token_addrs = exec_tx(env, &TEST_ADDR, || ab_tokens_deploy_init(&token_hash))?;
@@ -135,8 +195,6 @@ fn ab_tokens_deploy_init(token_hash: &SHA256Hash) -> Addresses {
     assert_eq!(&get_current_address(), &TEST_ADDR);
 
     // Deploy contracts for two tokens that we'd like to swap between
-    hash_ident! { static TOKEN_0_NONCE: SHA256Hash; }
-    hash_ident! { static TOKEN_1_NONCE: SHA256Hash; }
     let token0_addr = deploy_contract(&TOKEN_0_NONCE, token_hash);
     let token1_addr = deploy_contract(&TOKEN_1_NONCE, token_hash);
 
@@ -198,11 +256,9 @@ fn swap_pair_deploy_init(
 
     // Deploy the LP-token contract (to be initialized below by
     // `pair.initialize`)
-    hash_ident! { static LP_NONCE: SHA256Hash; }
     let lp_addr = deploy_contract(&LP_NONCE, token_hash);
 
     // Deploy a new swap-pair contract
-    hash_ident! { static PAIR_NONCE: SHA256Hash; }
     let pair_addr = deploy_contract(&PAIR_NONCE, pair_hash);
 
     let pair = SwapPairClient::new(&pair_addr);
@@ -225,7 +281,6 @@ fn request_handler_deploy_init(
 ) -> Address {
     assert_eq!(&get_current_address(), &FACTORY_ADDR);
 
-    hash_ident! { static HANDLER_NONCE: SHA256Hash; }
     let handler_addr = deploy_contract(&HANDLER_NONCE, handler_hash);
 
     let handler = SwapHandlerClient::new(&handler_addr);
@@ -239,7 +294,6 @@ fn request_handler_deploy_init(
 fn driver_deploy_init(driver_hash: &SHA256Hash, handler_addr: &Address) -> Address {
     assert_eq!(&get_current_address(), &FACTORY_ADDR);
 
-    hash_ident! { static DRIVER_NONCE: SHA256Hash; }
     let driver_addr = deploy_contract(&DRIVER_NONCE, driver_hash);
 
     let driver = SwapDriverClient::new(&driver_addr);

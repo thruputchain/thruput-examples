@@ -15,7 +15,6 @@ pub struct SuiteCreated<'a> {
     pub liquidity_token: Address,
     pub handler: Address,
     pub driver: Address,
-    pub router: Address,
 
     /// The total number of pairs after this one was created.
     pub pair_count: u32,

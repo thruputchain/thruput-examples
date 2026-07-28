@@ -17,23 +17,14 @@ pub struct Router {
 
 #[contract(exports = "swap_router_exports")]
 impl SwapRouter for Router {
-    // Initialize router with knowledge of a single swap pair (via its driver).
-    //
-    // (A more complete system would use a swap-pair-factory contract to route
-    // to arbitrary swap pairs.)
-    //
-    fn initialize(&mut self, driver: &Address, token0: &Address, token1: &Address) {
+    // Initialize the router with the factory it resolves pairs through.  The
+    // factory creates a pair's suite on first use (see `Cfg::get_pair`).
+    fn initialize(&mut self, factory: &Address) {
         if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");
         }
 
-        let cfg = Cfg {
-            driver: *driver,
-            token0: *token0,
-            token1: *token1,
-        };
-
-        self.cfg.set(&cfg);
+        self.cfg.set(&Cfg { factory: *factory });
     }
 
     // Request to provide liquidity, receiving LP tokens in return.
@@ -50,7 +41,8 @@ impl SwapRouter for Router {
         recipient: &Address,
     ) {
         let cfg = self.cfg.get();
-        let driver = cfg.get_pair(token_a, token_b);
+        // `addLiquidity` is the one entry point that creates the pair on first use.
+        let driver = cfg.get_or_create_pair(token_a, token_b);
 
         let purchaser = get_caller();
         driver.request(SwapRequest::add_liquidity(

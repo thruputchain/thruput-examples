@@ -1,11 +1,36 @@
 use super::*;
 
+// Storage tokens granted to each contract under the default cost model, well
+// above what these tests spend.
+const CONTRACT_FUNDING: i64 = 1_000_000_000;
+
+// Deploy nonces, at module scope so a contract's deterministic address can be
+// computed (and funded) before it is deployed.
+hash_ident! { static TOKEN_0_NONCE: SHA256Hash; }
+hash_ident! { static TOKEN_1_NONCE: SHA256Hash; }
+hash_ident! { static LP_NONCE: SHA256Hash; }
+hash_ident! { static PAIR_NONCE: SHA256Hash; }
+
+// Under the default cost model a contract pays for the storage it writes.  Grant
+// storage tokens to the (deterministic) address `deployer` will deploy `hash` to
+// with `nonce`, so the freshly deployed contract is solvent.
+fn fund_deploy_target(
+    env: &TestEnvironmentHandle,
+    deployer: &ContractAddress,
+    nonce: &SHA256Hash,
+    hash: &SHA256Hash,
+) {
+    let addr =
+        exec_tx(env, deployer, || get_deploy_address(nonce, hash)).expect("compute deploy address");
+    env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
+}
+
 // These pairs are deployed directly (no factory), so the pair's fee lookup
 // finds no factory and the protocol fee is disabled.  Fee behavior is covered
 // by the `swap-factory` crate's tests instead.
 #[rustfmt::skip]
 pub fn setup_etx() -> Result<Etx> {
-    let env = sdk::TestEnvironment::no_cost();
+    let env = sdk::TestEnvironment::new(None); // use default cost model
 
     // Register the token contract
     let token_contract = erc20::register_mock_contract(&env);
@@ -14,6 +39,17 @@ pub fn setup_etx() -> Result<Etx> {
     // Register the swap-pair contract
     let pair_contract = swap_pair::register_mock_contract(&env);
     let pair_hash = *pair_contract.as_hash();
+
+    // Pre-fund the test caller and each contract we deploy (at its
+    // deterministic address), so their storage writes are solvent under the
+    // cost model.
+    for u in USERS {
+        env.setup_grant_storage_tokens(u.addr, CONTRACT_FUNDING);
+    }
+    fund_deploy_target(&env, &TEST_ADDR, &TOKEN_0_NONCE, &token_hash);
+    fund_deploy_target(&env, &TEST_ADDR, &TOKEN_1_NONCE, &token_hash);
+    fund_deploy_target(&env, &FACTORY_ADDR, &LP_NONCE, &token_hash);
+    fund_deploy_target(&env, &FACTORY_ADDR, &PAIR_NONCE, &pair_hash);
 
     // Deploy and init the A/B token contracts
     let token_addrs = exec_tx(&env, &TEST_ADDR, || ab_tokens_deploy_init(&token_hash))?;
@@ -64,8 +100,6 @@ fn ab_tokens_deploy_init(token_hash: &SHA256Hash) -> Addresses {
     assert_eq!(&get_current_address(), &TEST_ADDR);
 
     // Deploy contracts for two tokens that we'd like to swap between
-    hash_ident! { static TOKEN_0_NONCE: SHA256Hash; }
-    hash_ident! { static TOKEN_1_NONCE: SHA256Hash; }
     let token0_addr = deploy_contract(&TOKEN_0_NONCE, token_hash);
     let token1_addr = deploy_contract(&TOKEN_1_NONCE, token_hash);
 
@@ -104,11 +138,9 @@ fn swap_pair_deploy_init(
 
     // Deploy the LP-token contract (to be initialized below by
     // `pair.initialize`)
-    hash_ident! { static LP_NONCE: SHA256Hash; }
     let lp_addr = deploy_contract(&LP_NONCE, token_hash);
 
     // Deploy a new swap-pair contract
-    hash_ident! { static PAIR_NONCE: SHA256Hash; }
     let pair_addr = deploy_contract(&PAIR_NONCE, pair_hash);
 
     let pair = SwapPairClient::new(&pair_addr);
