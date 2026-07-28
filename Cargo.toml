@@ -21,20 +21,20 @@ categories = ["blockchain"]
 
 [workspace.dependencies]
 # from sdk_rs repo:
-sdk = { registry = "groundhog", version = "0.17.3" }
-groundhog-contract-util = { registry = "groundhog", version = "0.17.3" }
-groundhog-erc20-if = { registry = "groundhog", version = "0.1.5" }
-groundhog-erc20-metadata-if = { registry = "groundhog", version = "0.1.5" }
+sdk = { registry = "groundhog", version = "0.17.4" }
+groundhog-contract-util = { registry = "groundhog", version = "0.17.4" }
+groundhog-erc20-if = { registry = "groundhog", version = "0.1.6" }
+groundhog-erc20-metadata-if = { registry = "groundhog", version = "0.1.6" }
 
 # from groundhog-rpc repo:
-groundhog-json-rpc-client = { registry = "groundhog", version = "0.5.20" }
-groundhog-json-rpc-types = { registry = "groundhog", version = "0.5.20" }
-groundhog-signing = { registry = "groundhog", version = "0.5.20" }
-groundhog-testkit = { registry = "groundhog", version = "0.5.20" }
+groundhog-json-rpc-client = { registry = "groundhog", version = "0.6.0" }
+groundhog-json-rpc-types = { registry = "groundhog", version = "0.6.0" }
+groundhog-signing = { registry = "groundhog", version = "0.6.0" }
+groundhog-testkit = { registry = "groundhog", version = "0.6.0" }
 
 # from other groundhog crates:
-groundhog-xdr = { registry = "groundhog", version = "0.19.7", features = ["serde", "xdrs"] }
-xdrs = { registry = "groundhog", version = "0.8.0", features = ["alloc"] }
+groundhog-xdr = { registry = "groundhog", version = "0.20.0", features = ["serde", "xdrs"] }
+xdrs = { registry = "groundhog", version = "0.8.2", features = ["alloc"] }
 
 # from crates.io:
 sha2 = { version = "0.11.0", default-features = false }
