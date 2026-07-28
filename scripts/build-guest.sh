@@ -21,12 +21,14 @@ for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | 
         continue
     fi
 
-    extra_cargo_args=()
+    # Leading `--` keeps this array non-empty: bash 3.2 (macOS) errors on
+    # "${empty[@]}" under `set -u`.
+    extra_cargo_args=(--)
     if [[ "$pkg" = "erc20" ]]; then
         extra_cargo_args+=(-F metadata)
     fi
 
-    groundhog_build -p "$pkg" "${build_args[@]}" -- "${extra_cargo_args[@]}" || {
+    groundhog_build -p "$pkg" "${build_args[@]}" "${extra_cargo_args[@]}" || {
         printf "Build failed for contract %s\n" "$pkg"
         exit 1
     }
