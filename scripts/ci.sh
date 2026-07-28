@@ -2,6 +2,14 @@
 
 set -euo pipefail
 
+cargo() {
+    if [ -n "${CARGO_UNLOCK:-}" ]; then
+        command cargo "$@"
+    else
+        command cargo --locked "$@"
+    fi
+}
+
 set -x
 
 RUSTFLAGS="-D warnings" \
