@@ -3,7 +3,7 @@
 set -euo pipefail
 
 cargo() {
-    if [ -n "${CARGO_UNLOCK:-}" ]; then
+    if [ -n "${CARGO_UNLOCK:-}" -o "$1" == "fmt" ]; then
         command cargo "$@"
     else
         command cargo --locked "$@"
