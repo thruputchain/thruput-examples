@@ -5,6 +5,11 @@ set -eu
 target="${TARGET:-rv32}"
 build_args=(--target "$target")
 
+locked="--locked"
+if [ -n "${CARGO_UNLOCK:-}" ]; then
+    locked=""
+fi
+
 groundhog_build() {
     echo "::group::groundhog build ${@}"
     command groundhog build "${@}"
@@ -23,7 +28,7 @@ for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | 
 
     # Leading `--` keeps this array non-empty: bash 3.2 (macOS) errors on
     # "${empty[@]}" under `set -u`.
-    extra_cargo_args=(--)
+    extra_cargo_args=(-- "$locked")
     if [[ "$pkg" = "erc20" ]]; then
         extra_cargo_args+=(-F metadata)
     fi
