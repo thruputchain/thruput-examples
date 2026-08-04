@@ -20,7 +20,7 @@ pub struct SwapRequest {
     pub request_id: RequestId,
 
     /// The operation to perform.
-    pub kind: SwapRequestKind,
+    pub op: SwapOp,
 }
 
 /// The operation a [`SwapRequest`] carries.
@@ -29,7 +29,7 @@ pub struct SwapRequest {
 /// optimizing price calculation can be deferred until the request is handled.
 #[contract_type]
 #[cfg_attr(feature = "dev", derive(Debug))]
-pub enum SwapRequestKind {
+pub enum SwapOp {
     AddLiquidity(AddLiquidityRequest) = 1,
     RemoveLiquidity(RemoveLiquidityRequest) = 2,
     SwapExactIn(SwapExactInRequest) = 3,
@@ -46,7 +46,7 @@ impl SwapRequest {
         amounts_min: Amounts,
         recipient: &Address,
     ) -> SwapRequest {
-        Self::of(SwapRequestKind::AddLiquidity(AddLiquidityRequest {
+        Self::of(SwapOp::AddLiquidity(AddLiquidityRequest {
             purchaser: *purchaser,
             amounts_desired,
             amounts_min,
@@ -60,7 +60,7 @@ impl SwapRequest {
         amounts_min: Amounts,
         recipient: &Address,
     ) -> SwapRequest {
-        Self::of(SwapRequestKind::RemoveLiquidity(RemoveLiquidityRequest {
+        Self::of(SwapOp::RemoveLiquidity(RemoveLiquidityRequest {
             redeemer: *redeemer,
             liquidity,
             amounts_min,
@@ -75,7 +75,7 @@ impl SwapRequest {
         in_index: u32,
         recipient: &Address,
     ) -> SwapRequest {
-        Self::of(SwapRequestKind::SwapExactIn(SwapExactInRequest {
+        Self::of(SwapOp::SwapExactIn(SwapExactInRequest {
             trader: *trader,
             amount_in,
             amount_out_min,
@@ -91,7 +91,7 @@ impl SwapRequest {
         in_index: u32,
         recipient: &Address,
     ) -> SwapRequest {
-        Self::of(SwapRequestKind::SwapExactOut(SwapExactOutRequest {
+        Self::of(SwapOp::SwapExactOut(SwapExactOutRequest {
             trader: *trader,
             amount_out,
             amount_in_max,
@@ -100,11 +100,11 @@ impl SwapRequest {
         }))
     }
 
-    // Wrap a `kind` as an unstamped request.
-    const fn of(kind: SwapRequestKind) -> SwapRequest {
+    // Wrap an `op` as an unstamped request.
+    const fn of(op: SwapOp) -> SwapRequest {
         SwapRequest {
             request_id: Self::UNSTAMPED,
-            kind,
+            op,
         }
     }
 
@@ -206,10 +206,10 @@ impl batch_driver::BatchRequest for SwapRequest {
     const GAS_LIMIT: u64 = REQUEST_GAS_MAX;
 
     fn gas_limit(&self) -> u64 {
-        match self.kind {
-            SwapRequestKind::AddLiquidity(_) => ADD_LIQUIDITY_GAS,
-            SwapRequestKind::RemoveLiquidity(_) => REMOVE_LIQUIDITY_GAS,
-            SwapRequestKind::SwapExactIn(_) | SwapRequestKind::SwapExactOut(_) => SWAP_GAS,
+        match self.op {
+            SwapOp::AddLiquidity(_) => ADD_LIQUIDITY_GAS,
+            SwapOp::RemoveLiquidity(_) => REMOVE_LIQUIDITY_GAS,
+            SwapOp::SwapExactIn(_) | SwapOp::SwapExactOut(_) => SWAP_GAS,
         }
     }
 }

@@ -39,11 +39,11 @@ impl SwapHandler for Handler {
 
     fn handle_request(&mut self, request: SwapRequest) {
         let request_id = request.request_id;
-        match request.kind {
-            SwapRequestKind::AddLiquidity(req) => self.handle_add_liquidity(req, request_id),
-            SwapRequestKind::RemoveLiquidity(req) => self.handle_remove_liquidity(req, request_id),
-            SwapRequestKind::SwapExactIn(req) => self.handle_swap_exact_in(req, request_id),
-            SwapRequestKind::SwapExactOut(req) => self.handle_swap_exact_out(req, request_id),
+        match request.op {
+            SwapOp::AddLiquidity(req) => self.handle_add_liquidity(req, request_id),
+            SwapOp::RemoveLiquidity(req) => self.handle_remove_liquidity(req, request_id),
+            SwapOp::SwapExactIn(req) => self.handle_swap_exact_in(req, request_id),
+            SwapOp::SwapExactOut(req) => self.handle_swap_exact_out(req, request_id),
         }
     }
 }
