@@ -8,8 +8,8 @@
 //! Run it with:
 //!
 //! ```bash
-//! GROUNDHOG_HOG_DEVNODE_BINARY=/path/to/hog-devnode \
-//!     groundhog test --integration --hogd-protocol hogp/7874f05decb9
+//! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
+//!     groundhog test --integration
 //! ```
 
 use groundhog_xdr::types::ContractAddress;
