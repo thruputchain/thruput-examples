@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$app_dir/../.." && pwd)"
+groundhog_cli="${GROUNDHOG_CLI:?Set GROUNDHOG_CLI to the validated CLI executable}"
+export GROUNDHOG_CLI="$groundhog_cli"
+
+: "${GROUNDHOG_RUNTIME_MANIFEST:?Set GROUNDHOG_RUNTIME_MANIFEST to the running node's runtime manifest}"
+export GROUNDHOG_RPC_URL="${GROUNDHOG_RPC_URL:-http://127.0.0.1:9545}"
+export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$repo_root/target/groundhog"
+export SWAP_APP_ENV="$app_dir/.env.local"
+
+case "$("$groundhog_cli" --version)" in
+  "groundhog 0.6."*) ;;
+  *)
+    printf 'Groundhog CLI 0.6.x is required.\n' >&2
+    exit 1
+    ;;
+esac
+
+cd "$repo_root"
+"$groundhog_cli" build -p erc20 -- -F metadata
+"$groundhog_cli" build -p swap-factory
+"$groundhog_cli" build -p swap-router
+"$groundhog_cli" build -p swap-handler
+"$groundhog_cli" build -p swap-driver
+"$groundhog_cli" build -p swap-pair --target wasm
+cargo run -p swap-setup
