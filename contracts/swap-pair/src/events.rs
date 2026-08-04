@@ -49,6 +49,7 @@ impl<'a> BurnEvent<'a> {
 }
 
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
+#[event_spec(export)]
 pub struct SwapEvent<'a> {
     /// The contract that called `swap`
     #[topic]
