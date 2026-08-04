@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsdown",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
+    "setup:local": "bash scripts/setup-local.sh",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

@@ -4,6 +4,7 @@ cargo-features = ["trim-paths"] #unstable
 resolver = "3"
 
 members = [
+    "apps/swap/setup",
     "contracts/*",
     "sim-fixtures/*",
     "helpers/*",
