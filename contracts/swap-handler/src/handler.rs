@@ -125,7 +125,12 @@ impl Handler {
         amounts_out[out_index] = amount_out;
 
         self.transfer_amounts_from(&req.trader, amounts_in);
-        pair.swap(amounts_out[0], amounts_out[1], &req.recipient, Some(request_id));
+        pair.swap(
+            amounts_out[0],
+            amounts_out[1],
+            &req.recipient,
+            Some(request_id),
+        );
     }
 
     // Swap as little input as possible for an exact output amount.
@@ -149,7 +154,12 @@ impl Handler {
         amounts_out[out_index] = req.amount_out;
 
         self.transfer_amounts_from(&req.trader, amounts_in);
-        pair.swap(amounts_out[0], amounts_out[1], &req.recipient, Some(request_id));
+        pair.swap(
+            amounts_out[0],
+            amounts_out[1],
+            &req.recipient,
+            Some(request_id),
+        );
     }
 
     // Transfer helpers

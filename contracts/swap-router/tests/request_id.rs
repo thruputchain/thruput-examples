@@ -14,7 +14,8 @@ const SWAP_IN_AMT: Amount = 2 * UNIT_AMT;
 // The `request_id`s carried by the MintEvents emitted during a processed tx.
 fn mint_request_ids(r: &TransactResult) -> Vec<Option<RequestId>> {
     let sig = MintEvent::signature();
-    r.events().iter()
+    r.events()
+        .iter()
         .filter(|e| EmittedEvent::from(*e).topic(0) == sig)
         .map(|e| TypedEvent::<MintEvent>::new(e).payload().request_id)
         .collect()
@@ -24,7 +25,8 @@ fn mint_request_ids(r: &TransactResult) -> Vec<Option<RequestId>> {
 // 32-byte value stored directly).
 fn request_failed_ids(r: &TransactResult) -> Vec<RequestId> {
     let sig = RequestFailed::signature();
-    r.events().iter()
+    r.events()
+        .iter()
         .filter_map(|e| {
             let e = EmittedEvent::from(e);
             (e.topic(0) == sig).then(|| RequestId::new(*e.topic(1).expect("request_id topic")))
@@ -34,7 +36,8 @@ fn request_failed_ids(r: &TransactResult) -> Vec<RequestId> {
 
 fn count_events<E: Event>(r: &TransactResult) -> usize {
     let sig = E::signature();
-    r.events().iter()
+    r.events()
+        .iter()
         .filter(|e| EmittedEvent::from(*e).topic(0) == sig)
         .count()
 }
