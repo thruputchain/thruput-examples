@@ -125,3 +125,45 @@ fn failed_request_emits_request_failed_with_id() {
     // ...and the pair's would-be SwapEvent was rolled back by commit-locking.
     assert_eq!(count_events::<SwapEvent>(&r), 0);
 }
+
+#[test]
+fn same_tx_requests_get_distinct_ids() {
+    let etx = setup_etx().expect("setup");
+    let ctx = etx.ctx;
+
+    etx.prime().expect("prime");
+    etx.advance_block();
+
+    // Two requests enqueued in ONE transaction (one root frame).  Both demand
+    // output >= input, so both fail when handled -- but each must carry a
+    // distinct id despite sharing a source-transaction hash.
+    let (id1, id2) = etx
+        .exec_user_tx(CAROL, |_| {
+            let recipient = &get_current_address();
+            let one = ctx.router().swap_exact_tokens_for_tokens(
+                SWAP_IN_AMT,
+                SWAP_IN_AMT,
+                &ctx.token_addrs[0],
+                &ctx.token_addrs[1],
+                recipient,
+            );
+            let two = ctx.router().swap_exact_tokens_for_tokens(
+                SWAP_IN_AMT,
+                SWAP_IN_AMT,
+                &ctx.token_addrs[0],
+                &ctx.token_addrs[1],
+                recipient,
+            );
+            (one, two)
+        })
+        .expect("enqueue two requests");
+
+    assert_ne!(id1, id2, "same-tx requests must get distinct ids");
+
+    let (r, counts) = process_capturing(&etx);
+    assert_eq!(counts, (2, 2), "two requests processed, both failed");
+
+    let failed = request_failed_ids(&r);
+    assert_eq!(failed.len(), 2);
+    assert!(failed.contains(&id1) && failed.contains(&id2));
+}

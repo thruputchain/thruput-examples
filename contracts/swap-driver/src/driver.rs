@@ -19,6 +19,15 @@ pub struct Driver {
 
     // Requests (can be enqueued concurrently)
     requests: RCQ<SwapRequest>,
+
+    // A monotonic sequence number, combined with the source-transaction hash to
+    // mint each request's id.  Requests enqueued in one transaction share a tx
+    // hash but get distinct sequence numbers, so their ids differ.
+    //
+    // An `NNInt`'s `inc` is a commutative, blind delta (like the `RCQ`, its
+    // increments from concurrent transactions merge without conflict), so this
+    // preserves the concurrent enqueue the queue is built for.
+    seq: NNInt,
 }
 
 /// Recommended gas limit for `process_requests()`
@@ -39,9 +48,13 @@ impl SwapDriver for Driver {
     }
 
     fn request(&mut self, request: SwapRequest) -> RequestId {
-        // Tag the request with the hash of this (enqueuing) transaction, so the
-        // caller can match it against the event the request eventually produces.
-        let request_id = get_source_transaction_hash();
+        // Mint an id from the enqueuing transaction's hash plus a sequence
+        // number: the tx hash lets the caller correlate the id with its
+        // submission, while the sequence keeps requests distinct when several
+        // are enqueued in one transaction (they share a tx hash but not a seq).
+        self.seq.inc(1);
+        let request_id = (get_source_transaction_hash(), self.seq.get()).hash();
+
         self.requests.insert(&request.with_request_id(request_id));
         request_id
     }

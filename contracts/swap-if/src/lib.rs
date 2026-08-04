@@ -22,10 +22,11 @@ pub type Amount = u128;
 pub type Amounts = [Amount; 2];
 /// A request identifier.
 ///
-/// It is the hash of the transaction that enqueued the request (see
-/// [`SwapDriver::request`](crate::SwapDriver::request)), echoed into the event
-/// the request eventually produces so the off-chain application can track a
-/// request's lifecycle by polling for that event.
+/// It is derived from the enqueuing transaction's hash and a per-transaction
+/// sequence number (see [`SwapDriver::request`](crate::SwapDriver::request)) --
+/// so it is unique even across several requests in one transaction -- and is
+/// echoed into the event the request eventually produces, letting the off-chain
+/// application track a request's lifecycle by polling for that event.
 pub type RequestId = sdk::SHA256Hash;
 
 extern crate alloc;
