@@ -76,7 +76,7 @@ impl SwapPair for Pair {
     }
 
     // Mint LP in exchange for any A/B-tokens transferred
-    fn mint_lp(&mut self, to: &Address) -> Amount {
+    fn mint_lp(&mut self, to: &Address, request_id: Option<RequestId>) -> Amount {
         let mut reserves = self.reserves.get();
 
         // Get the previous snapshot of our reserve balances
@@ -141,7 +141,7 @@ impl SwapPair for Pair {
             self.set_k_last(balances);
         }
 
-        log_event(&MintEvent::new(&get_caller(), lp_minted));
+        log_event(&MintEvent::new(&get_caller(), lp_minted, request_id));
 
         // Return the amount of liquidity minted
         lp_minted
@@ -149,7 +149,7 @@ impl SwapPair for Pair {
 
     // Return pair-tokens in exchange for LP tokens that have been transferred
     // to us
-    fn burn_lp(&mut self, to: &Address) -> Amounts {
+    fn burn_lp(&mut self, to: &Address, request_id: Option<RequestId>) -> Amounts {
         let balances = self.get_token_balances();
 
         let lp = self.lp();
@@ -192,13 +192,19 @@ impl SwapPair for Pair {
             self.set_k_last(self.get_token_balances());
         }
 
-        log_event(&BurnEvent::new(&get_caller(), amounts, to));
+        log_event(&BurnEvent::new(&get_caller(), amounts, to, request_id));
 
         // Return amounts redeemed
         amounts
     }
 
-    fn swap(&mut self, amount0_out: Amount, amount1_out: Amount, to: &Address) {
+    fn swap(
+        &mut self,
+        amount0_out: Amount,
+        amount1_out: Amount,
+        to: &Address,
+        request_id: Option<RequestId>,
+    ) {
         let amounts_out = [amount0_out, amount1_out];
 
         ensure(
@@ -254,7 +260,13 @@ impl SwapPair for Pair {
             SwapPairError::InvalidSwapProduct,
         );
 
-        log_event(&SwapEvent::new(&get_caller(), amounts_in, amounts_out, to));
+        log_event(&SwapEvent::new(
+            &get_caller(),
+            amounts_in,
+            amounts_out,
+            to,
+            request_id,
+        ));
     }
 
     // Extract any reserve balances surplus to what was last recorded

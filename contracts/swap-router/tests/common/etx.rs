@@ -166,7 +166,7 @@ impl Etx {
                 &ctx.token_addrs[in_index],
                 &ctx.token_addrs[1 - in_index],
                 recipient,
-            )
+            );
         })
     }
 
@@ -191,7 +191,7 @@ impl Etx {
                 &ctx.token_addrs[in_index],
                 &ctx.token_addrs[1 - in_index],
                 recipient,
-            )
+            );
         })
     }
 

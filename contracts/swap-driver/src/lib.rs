@@ -7,8 +7,9 @@ extern crate alloc;
 mod cfg;
 mod driver;
 
-// Interface (defined in `swap-if`), re-exported for convenience.
-pub use swap_if::{SwapDriver, SwapDriverClient, SwapDriverClientError};
+// Interface (defined in `swap-if`), re-exported for convenience.  `RequestFailed`
+// is the event this contract emits, so it belongs on the public surface too.
+pub use swap_if::{RequestFailed, RequestId, SwapDriver, SwapDriverClient, SwapDriverClientError};
 
 // Contract implementation
 pub use driver::{Driver, PROCESS_REQUESTS_GAS};

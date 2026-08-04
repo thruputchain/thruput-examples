@@ -1,0 +1,127 @@
+//! Lifecycle tracking: the request-id returned by a `SwapRouter` operation must
+//! reappear on the event that operation eventually produces -- the pair's
+//! `MintEvent`/`SwapEvent` on success, or the driver's `RequestFailed` on
+//! failure -- so the off-chain application can correlate the two.
+
+mod common;
+use common::*;
+use swap_pair::events::{MintEvent, SwapEvent};
+
+// A swap demanding output >= input, impossible under the 0.3% fee: it enqueues
+// but fails when handled.
+const SWAP_IN_AMT: Amount = 2 * UNIT_AMT;
+
+// The `request_id`s carried by the MintEvents emitted during a processed tx.
+fn mint_request_ids(r: &TransactResult) -> Vec<Option<RequestId>> {
+    let sig = MintEvent::signature();
+    r.events().iter()
+        .filter(|e| EmittedEvent::from(*e).topic(0) == sig)
+        .map(|e| TypedEvent::<MintEvent>::new(e).payload().request_id)
+        .collect()
+}
+
+// The request-ids carried by any RequestFailed events (the id is topic 1, a
+// 32-byte value stored directly).
+fn request_failed_ids(r: &TransactResult) -> Vec<RequestId> {
+    let sig = RequestFailed::signature();
+    r.events().iter()
+        .filter_map(|e| {
+            let e = EmittedEvent::from(e);
+            (e.topic(0) == sig).then(|| RequestId::new(*e.topic(1).expect("request_id topic")))
+        })
+        .collect()
+}
+
+fn count_events<E: Event>(r: &TransactResult) -> usize {
+    let sig = E::signature();
+    r.events().iter()
+        .filter(|e| EmittedEvent::from(*e).topic(0) == sig)
+        .count()
+}
+
+// Run `process_requests` as TEST_ADDR, returning the whole tx result (so its
+// emitted events can be inspected) alongside the `(processed, failed)` counts.
+fn process_capturing(etx: &Etx) -> (TransactResult, (u32, u32)) {
+    use std::sync::{Arc, Mutex};
+
+    let ctx = etx.ctx;
+    let counts = Arc::new(Mutex::new((0u32, 0u32)));
+
+    let r = etx.env.transact(|tx| {
+        tx.call(&TEST_ADDR).run(|| {
+            let c = ctx
+                .driver()
+                .with_gas_limit(PROCESS_REQUESTS_GAS)
+                .process_requests();
+            *Arc::clone(&counts).lock().unwrap() = c;
+        })
+    });
+
+    let counts = Arc::into_inner(counts).unwrap().into_inner().unwrap();
+    (r, counts)
+}
+
+#[test]
+fn add_liquidity_id_reaches_mint_event() {
+    let etx = setup_etx().expect("setup");
+    let ctx = etx.ctx;
+
+    // Establish reserves.
+    etx.prime().expect("prime");
+
+    // Alice provides liquidity through the router, capturing the returned id.
+    let (amounts, _) = etx.user_balances(ALICE).expect("balances");
+    etx.user_allow_for_pair(ALICE, amounts).expect("allow");
+    etx.advance_block();
+
+    let id = etx
+        .exec_user_tx(ALICE, |_| {
+            let recipient = &get_current_address();
+            ctx.router().add_liquidity(
+                &ctx.token_addrs[0],
+                &ctx.token_addrs[1],
+                amounts,
+                [0, 0],
+                recipient,
+            )
+        })
+        .expect("add_liquidity");
+
+    // Processing the queued request produces exactly one MintEvent, carrying id.
+    let (r, counts) = process_capturing(&etx);
+    assert_eq!(counts, (1, 0), "one request processed, none failed");
+    assert_eq!(mint_request_ids(&r), vec![Some(id)]);
+}
+
+#[test]
+fn failed_request_emits_request_failed_with_id() {
+    let etx = setup_etx().expect("setup");
+    let ctx = etx.ctx;
+
+    etx.prime().expect("prime");
+
+    etx.user_allow_for_pair(CAROL, [SWAP_IN_AMT, 0])
+        .expect("allow");
+    etx.advance_block();
+
+    let id = etx
+        .exec_user_tx(CAROL, |_| {
+            let recipient = &get_current_address();
+            ctx.router().swap_exact_tokens_for_tokens(
+                SWAP_IN_AMT,
+                SWAP_IN_AMT,
+                &ctx.token_addrs[0],
+                &ctx.token_addrs[1],
+                recipient,
+            )
+        })
+        .expect("swap request enqueued");
+
+    let (r, counts) = process_capturing(&etx);
+    assert_eq!(counts, (1, 1), "one request processed, one failed");
+
+    // The failure surfaces as a driver RequestFailed carrying the id...
+    assert_eq!(request_failed_ids(&r), vec![id]);
+    // ...and the pair's would-be SwapEvent was rolled back by commit-locking.
+    assert_eq!(count_events::<SwapEvent>(&r), 0);
+}

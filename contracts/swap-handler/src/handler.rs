@@ -38,18 +38,19 @@ impl SwapHandler for Handler {
     }
 
     fn handle_request(&mut self, request: SwapRequest) {
-        match request {
-            SwapRequest::AddLiquidity(req) => self.handle_add_liquidity(req),
-            SwapRequest::RemoveLiquidity(req) => self.handle_remove_liquidity(req),
-            SwapRequest::SwapExactIn(req) => self.handle_swap_exact_in(req),
-            SwapRequest::SwapExactOut(req) => self.handle_swap_exact_out(req),
+        let request_id = request.request_id;
+        match request.kind {
+            SwapRequestKind::AddLiquidity(req) => self.handle_add_liquidity(req, request_id),
+            SwapRequestKind::RemoveLiquidity(req) => self.handle_remove_liquidity(req, request_id),
+            SwapRequestKind::SwapExactIn(req) => self.handle_swap_exact_in(req, request_id),
+            SwapRequestKind::SwapExactOut(req) => self.handle_swap_exact_out(req, request_id),
         }
     }
 }
 
 impl Handler {
     // Provide liquidity, computing the optimal A/B ratio from live reserves.
-    fn handle_add_liquidity(&mut self, req: AddLiquidityRequest) {
+    fn handle_add_liquidity(&mut self, req: AddLiquidityRequest, request_id: RequestId) {
         let cfg = self.cfg.get();
         let pair = cfg.pair();
 
@@ -73,11 +74,11 @@ impl Handler {
 
         // Move the user's tokens to the pair, then mint LP to the recipient.
         self.transfer_amounts_from(&req.purchaser, amounts);
-        let _minted = pair.mint_lp(&req.recipient);
+        let _minted = pair.mint_lp(&req.recipient, Some(request_id));
     }
 
     // Burn LP tokens, computing the recovered amounts from live reserves.
-    fn handle_remove_liquidity(&mut self, req: RemoveLiquidityRequest) {
+    fn handle_remove_liquidity(&mut self, req: RemoveLiquidityRequest, request_id: RequestId) {
         let cfg = self.cfg.get();
         let pair = cfg.pair();
 
@@ -100,11 +101,11 @@ impl Handler {
 
         // Move the user's LP tokens to the pair, then burn them to the recipient.
         self.transfer_lp_from(&req.redeemer, req.liquidity);
-        let _redeemed = pair.burn_lp(&req.recipient);
+        let _redeemed = pair.burn_lp(&req.recipient, Some(request_id));
     }
 
     // Swap an exact input amount for as much output as possible.
-    fn handle_swap_exact_in(&mut self, req: SwapExactInRequest) {
+    fn handle_swap_exact_in(&mut self, req: SwapExactInRequest, request_id: RequestId) {
         let cfg = self.cfg.get();
         let pair = cfg.pair();
 
@@ -124,11 +125,11 @@ impl Handler {
         amounts_out[out_index] = amount_out;
 
         self.transfer_amounts_from(&req.trader, amounts_in);
-        pair.swap(amounts_out[0], amounts_out[1], &req.recipient);
+        pair.swap(amounts_out[0], amounts_out[1], &req.recipient, Some(request_id));
     }
 
     // Swap as little input as possible for an exact output amount.
-    fn handle_swap_exact_out(&mut self, req: SwapExactOutRequest) {
+    fn handle_swap_exact_out(&mut self, req: SwapExactOutRequest, request_id: RequestId) {
         let cfg = self.cfg.get();
         let pair = cfg.pair();
 
@@ -148,7 +149,7 @@ impl Handler {
         amounts_out[out_index] = req.amount_out;
 
         self.transfer_amounts_from(&req.trader, amounts_in);
-        pair.swap(amounts_out[0], amounts_out[1], &req.recipient);
+        pair.swap(amounts_out[0], amounts_out[1], &req.recipient, Some(request_id));
     }
 
     // Transfer helpers

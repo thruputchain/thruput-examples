@@ -20,6 +20,13 @@ pub type Addresses = [sdk::ContractAddress; 2];
 pub type Amount = u128;
 /// A pair of amounts, one per token.
 pub type Amounts = [Amount; 2];
+/// A request identifier.
+///
+/// It is the hash of the transaction that enqueued the request (see
+/// [`SwapDriver::request`](crate::SwapDriver::request)), echoed into the event
+/// the request eventually produces so the off-chain application can track a
+/// request's lifecycle by polling for that event.
+pub type RequestId = sdk::SHA256Hash;
 
 extern crate alloc;
 

@@ -1,6 +1,6 @@
 //! Events emitted by the swap contracts.
 
-use crate::{Address, Amount, Amounts};
+use crate::{Address, Amount, Amounts, RequestId};
 use sdk::*;
 
 /// Emitted by the pair when liquidity is added (`mint_lp`).
@@ -12,13 +12,18 @@ pub struct MintEvent<'a> {
 
     /// The amount of LP tokens minted
     pub amount_minted: Amount,
+
+    /// The identifier of the batch-request this mint fulfilled, if it
+    /// originated from one (see [`RequestId`]).
+    pub request_id: Option<RequestId>,
 }
 
 impl<'a> MintEvent<'a> {
-    pub fn new(sender: &'a Address, amount_minted: Amount) -> Self {
+    pub fn new(sender: &'a Address, amount_minted: Amount, request_id: Option<RequestId>) -> Self {
         Self {
             sender,
             amount_minted,
+            request_id,
         }
     }
 }
@@ -36,14 +41,24 @@ pub struct BurnEvent<'a> {
     /// The recipient of the redeemed tokens
     #[topic]
     pub recipient: &'a Address,
+
+    /// The identifier of the batch-request this burn fulfilled, if it
+    /// originated from one (see [`RequestId`]).
+    pub request_id: Option<RequestId>,
 }
 
 impl<'a> BurnEvent<'a> {
-    pub fn new(sender: &'a Address, amounts_redeemed: Amounts, recipient: &'a Address) -> Self {
+    pub fn new(
+        sender: &'a Address,
+        amounts_redeemed: Amounts,
+        recipient: &'a Address,
+        request_id: Option<RequestId>,
+    ) -> Self {
         Self {
             sender,
             amounts_redeemed,
             recipient,
+            request_id,
         }
     }
 }
@@ -64,6 +79,10 @@ pub struct SwapEvent<'a> {
     /// The recipient of the swap proceeds
     #[topic]
     pub recipient: &'a Address,
+
+    /// The identifier of the batch-request this burn fulfilled, if it
+    /// originated from one (see [`RequestId`]).
+    pub request_id: Option<RequestId>,
 }
 
 impl<'a> SwapEvent<'a> {
@@ -72,12 +91,14 @@ impl<'a> SwapEvent<'a> {
         amounts_in: Amounts,
         amounts_out: Amounts,
         recipient: &'a Address,
+        request_id: Option<RequestId>,
     ) -> Self {
         Self {
             sender,
             amounts_in,
             amounts_out,
             recipient,
+            request_id,
         }
     }
 }
@@ -112,4 +133,23 @@ pub struct SuiteCreated<'a> {
 
     /// The total number of pairs after this one was created.
     pub pair_count: u32,
+}
+
+/// Emitted by the driver when a queued request fails during processing.
+///
+/// A successful request instead surfaces as the pair's own `MintEvent` /
+/// `BurnEvent` / `SwapEvent` (which carry the same [`RequestId`]); a failed
+/// request's pair-side effects are rolled back by commit-locking, so its
+/// terminal event comes from the driver here instead.
+#[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RequestFailed {
+    /// The request that failed (see [`RequestId`]).
+    #[topic]
+    pub request_id: RequestId,
+}
+
+impl RequestFailed {
+    pub fn new(request_id: RequestId) -> Self {
+        Self { request_id }
+    }
 }

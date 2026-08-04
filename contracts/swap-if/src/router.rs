@@ -1,8 +1,8 @@
 //! The high-level router interface (cf. UniswapV2Router).
 
 use crate::{
-    Address, Amount, Amounts, ERC20Error, SwapFactoryError, SwapLibraryError, SwapPairError,
-    SwapRequestError,
+    Address, Amount, Amounts, ERC20Error, RequestId, SwapFactoryError, SwapLibraryError,
+    SwapPairError, SwapRequestError,
 };
 use sdk::*;
 
@@ -22,6 +22,9 @@ pub trait SwapRouter {
     fn initialize(&mut self, factory: &Address);
 
     /// Request to provide liquidity, receiving LP tokens in return.
+    ///
+    /// Returns the [`RequestId`] to track the request by (see
+    /// [`SwapDriver::request`](crate::SwapDriver::request)).
     fn add_liquidity(
         &self,
         token_a: &Address,
@@ -29,9 +32,11 @@ pub trait SwapRouter {
         amounts_desired: Amounts,
         amounts_min: Amounts,
         recipient: &Address,
-    );
+    ) -> RequestId;
 
     /// Request to burn `liquidity` LP tokens, recovering the underlying tokens.
+    ///
+    /// Returns the [`RequestId`] to track the request by.
     fn remove_liquidity(
         &self,
         token_a: &Address,
@@ -39,9 +44,11 @@ pub trait SwapRouter {
         liquidity: Amount,
         amounts_min: Amounts,
         recipient: &Address,
-    );
+    ) -> RequestId;
 
     /// Request to swap an exact input amount for as much output as possible.
+    ///
+    /// Returns the [`RequestId`] to track the request by.
     fn swap_exact_tokens_for_tokens(
         &self,
         amount_in: Amount,
@@ -49,9 +56,11 @@ pub trait SwapRouter {
         token_in: &Address,
         token_out: &Address,
         recipient: &Address,
-    );
+    ) -> RequestId;
 
     /// Request to swap as little input as possible for an exact output amount.
+    ///
+    /// Returns the [`RequestId`] to track the request by.
     fn swap_tokens_for_exact_tokens(
         &self,
         amount_out: Amount,
@@ -59,5 +68,5 @@ pub trait SwapRouter {
         token_in: &Address,
         token_out: &Address,
         recipient: &Address,
-    );
+    ) -> RequestId;
 }

@@ -38,18 +38,32 @@ impl SwapDriver for Driver {
         self.cfg.set_exclusive(&cfg);
     }
 
-    fn request(&mut self, request: SwapRequest) {
-        self.requests.insert(&request);
+    fn request(&mut self, request: SwapRequest) -> RequestId {
+        // Tag the request with the hash of this (enqueuing) transaction, so the
+        // caller can match it against the event the request eventually produces.
+        let request_id = get_source_transaction_hash();
+        self.requests.insert(&request.with_request_id(request_id));
+        request_id
     }
 
     fn process_requests(&mut self) -> (u32, u32) {
         let cfg = self.cfg.get();
 
         batch_driver::process(&mut self.requests, |request, gas_limit| {
-            cfg.handler()
+            // Read the id before the request is moved into handling; a failure
+            // rolls back the handler's frame, so the terminal event for a
+            // failed request must come from here, in the driver's own
+            // (committed) frame.
+            let request_id = request.request_id;
+            let result = cfg
+                .handler()
                 .with_commit_locking()
                 .with_gas_limit(gas_limit)
-                .try_handle_request(request)
+                .try_handle_request(request);
+            if result.is_err() {
+                log_event(&RequestFailed::new(request_id));
+            }
+            result
         })
     }
 }
