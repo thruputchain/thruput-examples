@@ -18,7 +18,7 @@ static NONCE: SHA256Hash = sdk::sha256_static!("COUNTER_WASM_NONCE");
 #[ignore = "requires WASM build — run via `groundhog test`"]
 fn test_counter_wasm() {
     let contract = load_wasm_contract(
-        "target/wasm32-unknown-unknown/release/\
+        "../../target/wasm32-unknown-unknown/release/\
          counter.wasm",
     );
     let env = TestEnvironment::no_cost();
