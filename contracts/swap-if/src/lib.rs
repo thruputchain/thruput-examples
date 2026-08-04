@@ -21,8 +21,13 @@ pub type Amount = u128;
 /// A pair of amounts, one per token.
 pub type Amounts = [Amount; 2];
 
+extern crate alloc;
+
 mod u256;
 pub use u256::U256;
+
+mod events;
+pub use events::*;
 
 mod pair;
 pub use pair::*;

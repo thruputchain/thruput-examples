@@ -1,6 +1,6 @@
 //! The fundamental swap-pair operations (cf. UniswapV2Pair).
 
-use crate::{Address, Amount, Amounts, ERC20Error, U256};
+use crate::{Address, Amount, Amounts, BurnEvent, ERC20Error, MintEvent, SwapEvent, SyncEvent, U256};
 use core::fmt;
 use sdk::*;
 
@@ -28,7 +28,11 @@ impl fmt::Display for SwapPairError {
     }
 }
 
-#[contract(client = SwapPairClient, throws(SwapPairError, ERC20Error))]
+#[contract(
+    client = SwapPairClient,
+    throws(SwapPairError, ERC20Error),
+    emits(MintEvent, BurnEvent, SwapEvent, SyncEvent)
+)]
 pub trait SwapPair {
     /// Must be called exactly once before any other methods
     fn initialize(
