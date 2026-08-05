@@ -16,6 +16,7 @@ use groundhog_testkit::{
     Agent, AgentContext, Contract, NetworkConfig, Scenario, entrypoint_id, xdrs,
 };
 use sdk::Event;
+use sdk::exn::RawException;
 use swap_if::{Suite, SwapHashes, SwapPairError};
 use swap_pair::events::SwapEvent;
 
@@ -54,6 +55,7 @@ async fn main() -> Result<()> {
     let manifest_path = PathBuf::from(env("GROUNDHOG_RUNTIME_MANIFEST")?);
     let artifact_root = PathBuf::from(env("GROUNDHOG_TESTKIT_ARTIFACT_ROOT")?);
     let output_path = PathBuf::from(env("SWAP_APP_ENV")?);
+    let cli_config_home = PathBuf::from(env("SWAP_CLI_CONFIG_HOME")?);
     let groundhog_cli = PathBuf::from(env("GROUNDHOG_CLI")?);
     let deployment = Arc::new(Mutex::new(None));
 
@@ -83,13 +85,21 @@ async fn main() -> Result<()> {
         .take()
         .ok_or("setup agent returned no result")??;
     write_env(&output_path, &rpc_url, &manifest_path, deployed)?;
+    write_cli_config(
+        &cli_config_home,
+        &rpc_url,
+        &manifest_path,
+        deployed.account_index,
+    )?;
 
     println!("Local swap environment is ready: {}", output_path.display());
+    let process_requests = entrypoint_id(DRIVER.0, DRIVER.1, "process_requests");
     println!(
-        "Crank: {} call {} process_requests --wallet dev-{} --rpc-url {} --runtime-manifest {}",
+        "Crank: XDG_CONFIG_HOME={} {} call {} {} 0x --rpc-url {} --runtime-manifest {}",
+        shell_arg(&cli_config_home.display().to_string()),
         shell_arg(&groundhog_cli.display().to_string()),
         address(deployed.driver),
-        deployed.account_index,
+        entrypoint(process_requests),
         shell_arg(&rpc_url),
         shell_arg(&manifest_path.display().to_string()),
     );
@@ -472,7 +482,10 @@ async fn verify_view_outcomes(
         )
         .into());
     };
-    let error: SwapPairError = xdrs::cxs::decode(&abort_data.0)?;
+    let error = RawException::from_abort_buf(&abort_data.0)
+        .map_err(|error| format!("failed to parse abort payload: {error:?}"))?
+        .try_as::<SwapPairError>()
+        .ok_or("abort payload is not a SwapPairError")?;
     ensure(
         matches!(error, SwapPairError::InsufficientOutputAmount),
         format!("expected InsufficientOutputAmount abort, got {error:?}"),
@@ -560,8 +573,34 @@ fn write_env(
     Ok(())
 }
 
+fn write_cli_config(
+    config_home: &Path,
+    rpc_url: &str,
+    manifest_path: &Path,
+    account_index: u32,
+) -> Result<()> {
+    let groundhog_dir = config_home.join("groundhog");
+    std::fs::create_dir_all(&groundhog_dir)?;
+    let contents = format!(
+        "default_key = \"dev-{account_index}\"\n\
+         default_profile = \"local\"\n\
+         \n\
+         [profile.local]\n\
+         network = \"local\"\n\
+         rpc_url = {rpc_url:?}\n\
+         runtime_manifest = {:?}\n",
+        manifest_path.display().to_string(),
+    );
+    std::fs::write(groundhog_dir.join("config.toml"), contents)?;
+    Ok(())
+}
+
 fn address(value: ContractAddress) -> String {
     format!("0x{}", hex::encode(value.as_ref()))
+}
+
+fn entrypoint(value: groundhog_testkit::ContractEntrypointID) -> String {
+    format!("0x{}", hex::encode(value.into_inner()))
 }
 
 fn ensure(condition: bool, detail: impl Into<String>) -> Result<()> {
@@ -578,4 +617,19 @@ fn shell_arg(value: &str) -> String {
 
 fn env(name: &str) -> Result<String> {
     std::env::var(name).map_err(|_| format!("{name} must be set").into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn swap_event_payload_decodes_generated_cxs() {
+        let bytes = hex::decode("0000007f1027007ff1260000").expect("valid fixture hex");
+
+        let payload = SwapEvent::decode_payload(&bytes).expect("decode SwapEvent payload");
+
+        assert_eq!(payload.amounts_in, [0, 10_000]);
+        assert_eq!(payload.amounts_out, [9_969, 0]);
+    }
 }

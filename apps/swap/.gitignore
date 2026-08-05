@@ -1,3 +1,4 @@
 .env.local
+.groundhog-config/
 dist/
 node_modules/

@@ -11,7 +11,7 @@ groundhog-json-rpc-types = { workspace = true }
 groundhog-signing = { workspace = true }
 groundhog-testkit = { workspace = true }
 hex = { workspace = true }
-sdk = { workspace = true }
+sdk = { workspace = true, features = ["alloc"] }
 swap-if = { path = "../../../contracts/swap-if" }
 swap-pair = { path = "../../../contracts/swap-pair" }
 tokio = { workspace = true }
