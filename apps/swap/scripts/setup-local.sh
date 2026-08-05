@@ -7,10 +7,11 @@ repo_root="$(cd "$app_dir/../.." && pwd)"
 groundhog_cli="${GROUNDHOG_CLI:?Set GROUNDHOG_CLI to the validated CLI executable}"
 export GROUNDHOG_CLI="$groundhog_cli"
 
-: "${GROUNDHOG_RUNTIME_MANIFEST:?Set GROUNDHOG_RUNTIME_MANIFEST to the running node's runtime manifest}"
+: "${GROUNDHOG_RUNTIME_MANIFEST:?Set GROUNDHOG_RUNTIME_MANIFEST to the running node runtime manifest}"
 export GROUNDHOG_RPC_URL="${GROUNDHOG_RPC_URL:-http://127.0.0.1:9545}"
 export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$repo_root/target/groundhog"
 export SWAP_APP_ENV="$app_dir/.env.local"
+export SWAP_CLI_CONFIG_HOME="$app_dir/.groundhog-config"
 
 case "$("$groundhog_cli" --version)" in
   "groundhog 0.6."*) ;;
