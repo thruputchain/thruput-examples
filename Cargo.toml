@@ -21,8 +21,8 @@ categories = ["blockchain"]
 
 [workspace.dependencies]
 # from sdk_rs repo:
-sdk = { registry = "groundhog", version = "0.17.5" }
-groundhog-contract-util = { registry = "groundhog", version = "0.17.5" }
+sdk = { registry = "groundhog", version = "0.17.9" }
+groundhog-contract-util = { registry = "groundhog", version = "0.17.9" }
 groundhog-erc20-if = { registry = "groundhog", version = "0.1.6" }
 groundhog-erc20-metadata-if = { registry = "groundhog", version = "0.1.6" }
 
