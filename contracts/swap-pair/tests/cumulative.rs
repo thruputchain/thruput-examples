@@ -11,7 +11,7 @@ use swap_pair::u256::U256;
 fn cumulative_price_accumulates() {
     transact_assert_success(|| {
         // Establish reserves (the primer buys equal amounts of each token).
-        let etx = setup_pair_primed()?;
+        let etx = setup_etx_primed()?;
         let ctx = etx.ctx; // `Ctx` is `Copy`; move a copy into each closure.
 
         // Skew the reserves so the spot prices are fractional: Alice donates
