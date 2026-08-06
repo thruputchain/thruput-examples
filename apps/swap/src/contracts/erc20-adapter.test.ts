@@ -49,6 +49,25 @@ describe("createErc20ReadAdapter", () => {
       decimals: 6,
     });
   });
+
+  it("surfaces metadata read failures instead of changing token scale", async () => {
+    const view = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("name unavailable"))
+      .mockResolvedValueOnce(
+        response(encode("ERC20Metadata", "symbol", "HOG")),
+      )
+      .mockResolvedValueOnce(
+        response(encode("ERC20Metadata", "decimals", 18n)),
+      );
+    const adapter = createErc20ReadAdapter({
+      client: { view },
+      contract: address(1),
+      caller: address(2),
+    });
+
+    await expect(adapter.metadata()).rejects.toThrow("name unavailable");
+  });
 });
 
 function response(returnData: Uint8Array) {

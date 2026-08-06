@@ -63,6 +63,14 @@ export function loadAppConfig(environment: Environment): AppConfig {
   };
 }
 
+export function isLoopbackUrl(url: URL): boolean {
+  return (
+    url.hostname === "localhost" ||
+    url.hostname === "127.0.0.1" ||
+    url.hostname === "[::1]"
+  );
+}
+
 function required(environment: Environment, key: string): string {
   const value = environment[key];
   if (typeof value !== "string" || value.length === 0) {

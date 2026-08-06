@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { ConfigurationError, loadAppConfig, type Environment } from "./config";
+import {
+  ConfigurationError,
+  isLoopbackUrl,
+  loadAppConfig,
+  type Environment,
+} from "./config";
 
 const ADDRESS = `0x${"11".repeat(32)}`;
 const OTHER_ADDRESS = `0x${"22".repeat(32)}`;
@@ -59,5 +64,19 @@ describe("loadAppConfig", () => {
     expect(() =>
       loadAppConfig(environment({ VITE_TOKEN_B_ADDRESS: ADDRESS })),
     ).toThrow("must differ");
+  });
+});
+
+describe("isLoopbackUrl", () => {
+  it.each([
+    "http://localhost:9545",
+    "http://127.0.0.1:9545",
+    "http://[::1]:9545",
+  ])("accepts %s", (value) => {
+    expect(isLoopbackUrl(new URL(value))).toBe(true);
+  });
+
+  it("rejects remote hosts", () => {
+    expect(isLoopbackUrl(new URL("https://rpc.example.com"))).toBe(false);
   });
 });

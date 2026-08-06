@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "setup:local": "bash scripts/setup-local.sh",
     "test": "vitest run",
+    "test:components": "vitest run src/app.test.tsx",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
@@ -34,6 +35,9 @@
   "devDependencies": {
     "@noble/hashes": "2.2.0",
     "@tailwindcss/vite": "4.1.11",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
     "@types/node": "25.9.1",
     "@types/react": "19.1.9",
     "@types/react-dom": "19.1.7",
