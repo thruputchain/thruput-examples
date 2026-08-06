@@ -1,0 +1,63 @@
+import { describe, expect, it } from "vitest";
+
+import { ConfigurationError, loadAppConfig, type Environment } from "./config";
+
+const ADDRESS = `0x${"11".repeat(32)}`;
+const OTHER_ADDRESS = `0x${"22".repeat(32)}`;
+
+function environment(overrides: Environment = {}): Environment {
+  return {
+    VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
+    VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
+    VITE_GROUNDHOG_WALLET_ADDRESS: ADDRESS,
+    VITE_SWAP_ROUTER_ADDRESS: ADDRESS,
+    VITE_SWAP_PAIR_ADDRESS: ADDRESS,
+    VITE_SWAP_HANDLER_ADDRESS: ADDRESS,
+    VITE_SWAP_DRIVER_ADDRESS: ADDRESS,
+    VITE_TOKEN_A_ADDRESS: ADDRESS,
+    VITE_TOKEN_B_ADDRESS: OTHER_ADDRESS,
+    ...overrides,
+  };
+}
+
+describe("loadAppConfig", () => {
+  it("parses generated read-only configuration", () => {
+    const config = loadAppConfig(environment());
+
+    expect(config.rpcUrl.href).toBe("http://127.0.0.1:9545/");
+    expect(config.networkId).toBe(0n);
+    expect(config.tokenDecimals).toBe(6);
+  });
+
+  it("does not require browser access to signing configuration", () => {
+    expect(() =>
+      loadAppConfig(
+        environment({
+          GROUNDHOG_DEV_PRIVATE_KEY: undefined,
+          GROUNDHOG_WALLET_ENTRYPOINT: undefined,
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it("reports the exact missing variable", () => {
+    expect(() =>
+      loadAppConfig(environment({ VITE_SWAP_PAIR_ADDRESS: undefined })),
+    ).toThrow(new ConfigurationError("VITE_SWAP_PAIR_ADDRESS is required"));
+  });
+
+  it("rejects malformed addresses and network identities", () => {
+    expect(() =>
+      loadAppConfig(environment({ VITE_TOKEN_A_ADDRESS: "0x01" })),
+    ).toThrow("32-byte");
+    expect(() =>
+      loadAppConfig(environment({ VITE_GROUNDHOG_NETWORK_ID: "local" })),
+    ).toThrow("32-byte");
+  });
+
+  it("rejects identical token addresses", () => {
+    expect(() =>
+      loadAppConfig(environment({ VITE_TOKEN_B_ADDRESS: ADDRESS })),
+    ).toThrow("must differ");
+  });
+});

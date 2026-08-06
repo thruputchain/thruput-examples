@@ -259,9 +259,7 @@ Validate these local environment values at startup:
 ```text
 VITE_GROUNDHOG_RPC_URL
 VITE_GROUNDHOG_NETWORK_ID
-VITE_GROUNDHOG_DEV_PRIVATE_KEY
 VITE_GROUNDHOG_WALLET_ADDRESS
-VITE_GROUNDHOG_WALLET_ENTRYPOINT
 VITE_SWAP_ROUTER_ADDRESS
 VITE_SWAP_PAIR_ADDRESS
 VITE_SWAP_HANDLER_ADDRESS
@@ -270,7 +268,14 @@ VITE_TOKEN_A_ADDRESS
 VITE_TOKEN_B_ADDRESS
 ```
 
-Read token metadata on-chain when available and allow generated configuration fallbacks. Store the private key only in an ignored local environment file. Warn before using a non-local RPC endpoint with the development signer.
+Keep temporary signing values in the ignored local environment file under non-browser names:
+
+```text
+GROUNDHOG_DEV_PRIVATE_KEY
+GROUNDHOG_WALLET_ENTRYPOINT
+```
+
+Do not expose either value through Vite. The wallet entrypoint exists only for local setup verification and must not become a browser dependency. Read token metadata on-chain when available and allow generated configuration fallbacks. Warn before using a non-local RPC endpoint with the development signer.
 
 Verify the configured network identity against the connected node before enabling state-changing actions.
 ### Local Setup

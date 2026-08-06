@@ -593,9 +593,9 @@ fn write_env(
     let contents = format!(
         "VITE_GROUNDHOG_RPC_URL={rpc_url}\n\
          VITE_GROUNDHOG_NETWORK_ID={}\n\
-         VITE_GROUNDHOG_DEV_PRIVATE_KEY=0x{private_key}\n\
+         GROUNDHOG_DEV_PRIVATE_KEY=0x{private_key}\n\
          VITE_GROUNDHOG_WALLET_ADDRESS={}\n\
-         VITE_GROUNDHOG_WALLET_ENTRYPOINT={}\n\
+         GROUNDHOG_WALLET_ENTRYPOINT={}\n\
          VITE_SWAP_FACTORY_ADDRESS={}\n\
          VITE_SWAP_ROUTER_ADDRESS={}\n\
          VITE_SWAP_PAIR_ADDRESS={}\n\
