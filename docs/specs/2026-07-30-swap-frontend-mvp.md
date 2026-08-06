@@ -259,7 +259,9 @@ Validate these local environment values at startup:
 ```text
 VITE_GROUNDHOG_RPC_URL
 VITE_GROUNDHOG_NETWORK_ID
+VITE_GROUNDHOG_DEV_PRIVATE_KEY
 VITE_GROUNDHOG_WALLET_ADDRESS
+VITE_GROUNDHOG_WALLET_ENTRYPOINT
 VITE_SWAP_ROUTER_ADDRESS
 VITE_SWAP_PAIR_ADDRESS
 VITE_SWAP_HANDLER_ADDRESS
@@ -268,16 +270,9 @@ VITE_TOKEN_A_ADDRESS
 VITE_TOKEN_B_ADDRESS
 ```
 
-Keep temporary signing values in the ignored local environment file under non-browser names:
+The generated private key and wallet entrypoint are intentionally browser-visible for the local V1. Keep them in the ignored `.env.local` file, never hard-code them in tracked source, and treat them as public development credentials. Refuse signing and submission unless the RPC hostname is loopback. Read token metadata on-chain when available and allow generated configuration fallbacks.
 
-```text
-GROUNDHOG_DEV_PRIVATE_KEY
-GROUNDHOG_WALLET_ENTRYPOINT
-```
-
-Do not expose either value through Vite. The wallet entrypoint exists only for local setup verification and must not become a browser dependency. Read token metadata on-chain when available and allow generated configuration fallbacks. Warn before using a non-local RPC endpoint with the development signer.
-
-Verify the configured network identity against the connected node before enabling state-changing actions.
+Validate the configured network identity and include it in every signed transaction. Require a loopback RPC for V1. If the pinned gateway exposes connected network identity, compare it before enabling state-changing actions; lack of that optional RPC must not block the local MVP.
 ### Local Setup
 Provide one command that assumes a compatible local node is running and:
 
