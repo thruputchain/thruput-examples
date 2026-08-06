@@ -20,6 +20,17 @@ impl Etx {
         exec_tx(&self.env, addr, f)
     }
 
+    pub fn exec_tx_result<F, T>(
+        &self,
+        addr: &ContractAddress,
+        f: F,
+    ) -> Result<(T, TransactResult), TransactResult>
+    where
+        F: Fn() -> T + std::panic::RefUnwindSafe,
+    {
+        exec_tx_result(&self.env, addr, f)
+    }
+
     pub fn exec_user_tx<F, T>(&self, user: User, f: F) -> Result<T, TransactResult>
     where
         F: Fn(&User) -> T + std::panic::RefUnwindSafe,

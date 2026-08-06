@@ -56,6 +56,9 @@ impl SwapDriver for Driver {
         let request_id = (get_source_transaction_hash(), self.seq.get()).hash();
 
         self.requests.insert(&request.with_request_id(request_id));
+
+        log_event(&RequestAccepted::new(request_id));
+
         request_id
     }
 

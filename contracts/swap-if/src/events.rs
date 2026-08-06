@@ -135,6 +135,19 @@ pub struct SuiteCreated<'a> {
     pub pair_count: u32,
 }
 
+/// Emitted by the driver when a request is submitted successfully
+#[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RequestAccepted {
+    #[topic]
+    pub request_id: RequestId,
+}
+
+impl RequestAccepted {
+    pub fn new(request_id: RequestId) -> Self {
+        Self { request_id }
+    }
+}
+
 /// Emitted by the driver when a queued request fails during processing.
 ///
 /// A successful request instead surfaces as the pair's own `MintEvent` /

@@ -721,9 +721,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-json-rpc-api"
-version = "0.6.2"
+version = "0.6.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "bf98c65aa8405baefdddba8f11d00b139ddd62ee9bf8c5ff632714819ee80413"
+checksum = "2d82a9398e60a3e9346eeac58b3b5c61c214778fdff4ee78d509a69a8703e5f3"
 dependencies = [
  "async-trait",
  "groundhog-json-rpc-types",
@@ -734,9 +734,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-json-rpc-client"
-version = "0.6.2"
+version = "0.6.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "9b2610cfbfb826d194f020733bfd028e53754a22722c3a54dc15d84bdf59599b"
+checksum = "01c472a96e62d59d0a9cde18ce9eed88853e202bd9c39eac4e0881ba074d9da1"
 dependencies = [
  "groundhog-json-rpc-api",
  "groundhog-json-rpc-types",
@@ -748,9 +748,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-json-rpc-server"
-version = "0.6.2"
+version = "0.6.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "bdf7a355fcbaf4c0953a5c4f6928037bd634188b9fefbea36f8cbc2cc1c3823a"
+checksum = "e8ff8e65b74b4cc8504d03ea735dc23ca79a025b052f4087e2a2e535dc35b272"
 dependencies = [
  "async-trait",
  "groundhog-json-rpc-api",
@@ -768,9 +768,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-json-rpc-types"
-version = "0.6.2"
+version = "0.6.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "90a7b45a4ba0c1dcc279d8433f658c43d22319acc8f93d1dc03958ac00e4a389"
+checksum = "cf26ff151e4c29d379e27073e085a08f47d2ea7994b4b1279ccd10dec623dd31"
 dependencies = [
  "bytes",
  "groundhog-trace",
@@ -822,9 +822,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-node-supervisor"
-version = "0.6.2"
+version = "0.6.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "d5f095f8199853d5360f29826750f00e2ef67ce8402f7e799ee52026fc1f9755"
+checksum = "f0140151de64419dc350686b3578875e35858ab5281aa3712ec9bfd2f11cc64b"
 dependencies = [
  "async-trait",
  "groundhog-json-rpc-api",
@@ -857,9 +857,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-open-rpc"
-version = "0.6.2"
+version = "0.6.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "959884b732fa05b583d41cf74c39478910a3439c8b3e2ebb3a6b52f7f1fbe2fb"
+checksum = "bc515865a5e8200c8fba72e59aaf8cac988faf201f700fb47b80417af4e1ca29"
 dependencies = [
  "schemars",
  "serde",
@@ -868,9 +868,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-open-rpc-macros"
-version = "0.6.2"
+version = "0.6.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "6b9ce6b58f22c27cd462e4a1710614d759b7ef1bb05ff0a353eaec16bce7d253"
+checksum = "3c5961dd6f97b37c274fd1b9b0b8d1e9548e2d5652a68e598400c8fb4d6c68b0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -895,9 +895,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-signing"
-version = "0.6.2"
+version = "0.6.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "e117a75bc3c2c9c92a2b79842da37f394ef2b5d927bd260d1e96fd8df79e75c9"
+checksum = "21f1edc546c8e32a5cacc41f5e6e07a24536215f9032a14891de09c54d4653d7"
 dependencies = [
  "ed25519-dalek",
  "groundhog-xdr",
@@ -948,9 +948,9 @@ checksum = "489c4ae3ca5701cd27a14e9d6d1af6c05e86a367243b5131bb727a49f8d15409"
 
 [[package]]
 name = "groundhog-testkit"
-version = "0.6.2"
+version = "0.6.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "8691b745cdd850cb4ee754f37d0fa9a442c7d260260238b9fa916f09cbb6adff"
+checksum = "c9f7b7839420a40aaff0e435088c6bd9a444d4f6bb8636e718b7eba0d0d91630"
 dependencies = [
  "groundhog-contract-util",
  "groundhog-json-rpc-client",
@@ -1004,9 +1004,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-x23-transport"
-version = "0.6.2"
+version = "0.6.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "648b217ce67359cb5316a2c57b9ecd3e8d0be044e3f3c20ff32c56c3cfbbdc3c"
+checksum = "dc364b433fff0ff6d156683ab441d2506df8286a4c5ebef5f305f4f110583aae"
 dependencies = [
  "rpc_driver",
  "thiserror 2.0.19",
@@ -3420,18 +3420,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.55"
+version = "0.8.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5a105cd7b140f6eeec8acff2ea38135d3cab283ada58540f629fe51e46696eb"
+checksum = "556764e583adb45a9f8d413c2a147fa7e8d821e48e12b14fd560b607998b75eb"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.55"
+version = "0.8.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fe976fb70c78cd64cccfe3a6fc142244e8a77b70959b30faf9d0ac37ee228eb"
+checksum = "f2ab42fc20575779bd240faa45f94a74256f755c0fa9e89f0ede20d91d0cdfc1"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -27,13 +27,13 @@ groundhog-erc20-if = { registry = "groundhog", version = "0.1.6" }
 groundhog-erc20-metadata-if = { registry = "groundhog", version = "0.1.6" }
 
 # from groundhog-rpc repo:
-groundhog-json-rpc-client = { registry = "groundhog", version = "0.6.0" }
-groundhog-json-rpc-types = { registry = "groundhog", version = "0.6.0" }
-groundhog-signing = { registry = "groundhog", version = "0.6.0" }
-groundhog-testkit = { registry = "groundhog", version = "0.6.0" }
+groundhog-json-rpc-client = { registry = "groundhog", version = "=0.6.1" }
+groundhog-json-rpc-types = { registry = "groundhog", version = "=0.6.1" }
+groundhog-signing = { registry = "groundhog", version = "=0.6.1" }
+groundhog-testkit = { registry = "groundhog", version = "=0.6.1" }
 
 # from other groundhog crates:
-groundhog-xdr = { registry = "groundhog", version = "0.20.0", features = ["serde", "xdrs"] }
+groundhog-xdr = { registry = "groundhog", version = "0.20.6", features = ["serde", "xdrs"] }
 xdrs = { registry = "groundhog", version = "0.8.2", features = ["alloc"] }
 
 # from crates.io:

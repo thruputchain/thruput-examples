@@ -1,8 +1,8 @@
 //! The request-batching driver interface.
 
 use crate::{
-    Address, ERC20Error, RequestFailed, RequestId, SwapLibraryError, SwapPairError, SwapRequest,
-    SwapRequestError,
+    Address, ERC20Error, RequestAccepted, RequestFailed, RequestId, SwapLibraryError,
+    SwapPairError, SwapRequest, SwapRequestError,
 };
 use sdk::*;
 
@@ -11,7 +11,7 @@ use sdk::*;
 #[contract(
     client = SwapDriverClient,
     throws(ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError),
-    emits(RequestFailed)
+    emits(RequestAccepted, RequestFailed)
 )]
 pub trait SwapDriver {
     /// Must be called exactly once before any other methods.

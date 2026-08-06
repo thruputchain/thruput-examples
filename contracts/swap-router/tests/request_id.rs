@@ -21,6 +21,18 @@ fn mint_request_ids(r: &TransactResult) -> Vec<Option<RequestId>> {
         .collect()
 }
 
+// The `request_id`s carried by the RequestAccepted events emitted during a processed tx.
+fn request_accepted_ids(r: &TransactResult) -> Vec<RequestId> {
+    let sig = RequestAccepted::signature();
+    r.events()
+        .iter()
+        .filter_map(|e| {
+            let e = EmittedEvent::from(e);
+            (e.topic(0) == sig).then(|| RequestId::new(*e.topic(1).expect("request_id topic")))
+        })
+        .collect()
+}
+
 // The request-ids carried by any RequestFailed events (the id is topic 1, a
 // 32-byte value stored directly).
 fn request_failed_ids(r: &TransactResult) -> Vec<RequestId> {
@@ -77,8 +89,8 @@ fn add_liquidity_id_reaches_mint_event() {
     etx.user_allow_for_pair(ALICE, amounts).expect("allow");
     etx.advance_block();
 
-    let id = etx
-        .exec_user_tx(ALICE, |_| {
+    let (id, r) = etx
+        .exec_tx_result(ALICE.addr, || {
             let recipient = &get_current_address();
             ctx.router().add_liquidity(
                 &ctx.token_addrs[0],
@@ -89,6 +101,9 @@ fn add_liquidity_id_reaches_mint_event() {
             )
         })
         .expect("add_liquidity");
+
+    // The submission tx generated `RequestAccepted` for the returned id
+    assert_eq!(request_accepted_ids(&r), vec![id]);
 
     // Processing the queued request produces exactly one MintEvent, carrying id.
     let (r, counts) = process_capturing(&etx);
