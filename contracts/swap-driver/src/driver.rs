@@ -19,6 +19,15 @@ pub struct Driver {
 
     // Requests (can be enqueued concurrently)
     requests: RCQ<SwapRequest>,
+
+    // A monotonic sequence number, combined with the source-transaction hash to
+    // mint each request's id.  Requests enqueued in one transaction share a tx
+    // hash but get distinct sequence numbers, so their ids differ.
+    //
+    // An `NNInt`'s `inc` is a commutative, blind delta (like the `RCQ`, its
+    // increments from concurrent transactions merge without conflict), so this
+    // preserves the concurrent enqueue the queue is built for.
+    seq: NNInt,
 }
 
 /// Recommended gas limit for `process_requests()`
@@ -38,18 +47,39 @@ impl SwapDriver for Driver {
         self.cfg.set_exclusive(&cfg);
     }
 
-    fn request(&mut self, request: SwapRequest) {
-        self.requests.insert(&request);
+    fn request(&mut self, request: SwapRequest) -> RequestId {
+        // Mint an id from the enqueuing transaction's hash plus a sequence
+        // number: the tx hash lets the caller correlate the id with its
+        // submission, while the sequence keeps requests distinct when several
+        // are enqueued in one transaction (they share a tx hash but not a seq).
+        self.seq.inc(1);
+        let request_id = (get_source_transaction_hash(), self.seq.get()).hash();
+
+        self.requests.insert(&request.with_request_id(request_id));
+
+        log_event(&RequestAccepted::new(request_id));
+
+        request_id
     }
 
     fn process_requests(&mut self) -> (u32, u32) {
         let cfg = self.cfg.get();
 
         batch_driver::process(&mut self.requests, |request, gas_limit| {
-            cfg.handler()
+            // Read the id before the request is moved into handling; a failure
+            // rolls back the handler's frame, so the terminal event for a
+            // failed request must come from here, in the driver's own
+            // (committed) frame.
+            let request_id = request.request_id;
+            let result = cfg
+                .handler()
                 .with_commit_locking()
                 .with_gas_limit(gas_limit)
-                .try_handle_request(request)
+                .try_handle_request(request);
+            if result.is_err() {
+                log_event(&RequestFailed::new(request_id));
+            }
+            result
         })
     }
 }

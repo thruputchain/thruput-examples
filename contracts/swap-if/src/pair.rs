@@ -1,6 +1,9 @@
 //! The fundamental swap-pair operations (cf. UniswapV2Pair).
 
-use crate::{Address, Amount, Amounts, ERC20Error, U256};
+use crate::{
+    Address, Amount, Amounts, BurnEvent, ERC20Error, MintEvent, RequestId, SwapEvent, SyncEvent,
+    U256,
+};
 use core::fmt;
 use sdk::*;
 
@@ -28,7 +31,11 @@ impl fmt::Display for SwapPairError {
     }
 }
 
-#[contract(client = SwapPairClient, throws(SwapPairError, ERC20Error))]
+#[contract(
+    client = SwapPairClient,
+    throws(SwapPairError, ERC20Error),
+    emits(MintEvent, BurnEvent, SwapEvent, SyncEvent)
+)]
 pub trait SwapPair {
     /// Must be called exactly once before any other methods
     fn initialize(
@@ -50,11 +57,23 @@ pub trait SwapPair {
     /// (`[price0, price1]`), for use as a time-weighted-average-price oracle.
     fn get_cumulative_prices(&self) -> [U256; 2];
 
-    fn mint_lp(&mut self, to: &Address) -> Amount;
-    fn burn_lp(&mut self, to: &Address) -> Amounts;
+    /// Mint LP tokens to `to`.  `request_id` tags the resulting [`MintEvent`]
+    /// for lifecycle tracking (`None` for a direct call, not via a request).
+    fn mint_lp(&mut self, to: &Address, request_id: Option<RequestId>) -> Amount;
+    /// Burn this pair's LP tokens, sending the underlying to `to`.  `request_id`
+    /// tags the resulting [`BurnEvent`] (`None` for a direct call).
+    fn burn_lp(&mut self, to: &Address, request_id: Option<RequestId>) -> Amounts;
 
     fn skim(&mut self, to: &Address);
     fn sync(&mut self);
 
-    fn swap(&mut self, amount0_out: Amount, amount1_out: Amount, to: &Address);
+    /// Swap out the given amounts to `to`.  `request_id` tags the resulting
+    /// [`SwapEvent`] (`None` for a direct call).
+    fn swap(
+        &mut self,
+        amount0_out: Amount,
+        amount1_out: Amount,
+        to: &Address,
+        request_id: Option<RequestId>,
+    );
 }

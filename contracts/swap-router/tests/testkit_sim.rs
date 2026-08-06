@@ -399,7 +399,7 @@ async fn swap_liquidity_multi_agent() {
         config.hogd_protocol = Some(protocol);
     }
     if std::env::var("RUST_LOG").is_ok() {
-        config.log_level = Some(groundhog_testkit::LogLevel::Trace);
+        config.log_level = Some(groundhog_testkit::LogLevel::Info);
     }
 
     let scenario = Scenario::builder("swap-sim")

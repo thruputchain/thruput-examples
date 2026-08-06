@@ -2,17 +2,34 @@
 
 #![allow(clippy::new_ret_no_self)]
 
-use crate::{Address, Amount, Amounts};
+use crate::{Address, Amount, Amounts, RequestId};
 use sdk::*;
 
-/// A high-level swap request
+/// A high-level swap request, tagged with the [`RequestId`] that tracks it
+/// across its lifecycle.
+///
+/// The constructors leave `request_id` zeroed; the driver stamps the real id
+/// when the request is enqueued (see
+/// [`SwapDriver::request`](crate::SwapDriver::request)).  The id then rides
+/// along through handling and is echoed into the event the request produces,
+/// so the off-chain application can match that event back to its submission.
+#[contract_type]
+#[cfg_attr(feature = "dev", derive(Debug))]
+pub struct SwapRequest {
+    /// The id identifying this request, stamped by the driver at enqueue time.
+    pub request_id: RequestId,
+
+    /// The operation to perform.
+    pub op: SwapOp,
+}
+
+/// The operation a [`SwapRequest`] carries.
 ///
 /// Each variant stores the user's *inputs* (not pre-computed amounts), so the
 /// optimizing price calculation can be deferred until the request is handled.
-///
 #[contract_type]
 #[cfg_attr(feature = "dev", derive(Debug))]
-pub enum SwapRequest {
+pub enum SwapOp {
     AddLiquidity(AddLiquidityRequest) = 1,
     RemoveLiquidity(RemoveLiquidityRequest) = 2,
     SwapExactIn(SwapExactInRequest) = 3,
@@ -20,18 +37,21 @@ pub enum SwapRequest {
 }
 
 impl SwapRequest {
+    // A freshly built request's id, before the driver stamps the real one.
+    const UNSTAMPED: RequestId = RequestId::new([0u8; 32]);
+
     pub const fn add_liquidity(
         purchaser: &Address,
         amounts_desired: Amounts,
         amounts_min: Amounts,
         recipient: &Address,
     ) -> SwapRequest {
-        Self::AddLiquidity(AddLiquidityRequest {
+        Self::of(SwapOp::AddLiquidity(AddLiquidityRequest {
             purchaser: *purchaser,
             amounts_desired,
             amounts_min,
             recipient: *recipient,
-        })
+        }))
     }
 
     pub const fn remove_liquidity(
@@ -40,12 +60,12 @@ impl SwapRequest {
         amounts_min: Amounts,
         recipient: &Address,
     ) -> SwapRequest {
-        Self::RemoveLiquidity(RemoveLiquidityRequest {
+        Self::of(SwapOp::RemoveLiquidity(RemoveLiquidityRequest {
             redeemer: *redeemer,
             liquidity,
             amounts_min,
             recipient: *recipient,
-        })
+        }))
     }
 
     pub const fn swap_exact_in(
@@ -55,13 +75,13 @@ impl SwapRequest {
         in_index: u32,
         recipient: &Address,
     ) -> SwapRequest {
-        Self::SwapExactIn(SwapExactInRequest {
+        Self::of(SwapOp::SwapExactIn(SwapExactInRequest {
             trader: *trader,
             amount_in,
             amount_out_min,
             in_index,
             recipient: *recipient,
-        })
+        }))
     }
 
     pub const fn swap_exact_out(
@@ -71,13 +91,28 @@ impl SwapRequest {
         in_index: u32,
         recipient: &Address,
     ) -> SwapRequest {
-        Self::SwapExactOut(SwapExactOutRequest {
+        Self::of(SwapOp::SwapExactOut(SwapExactOutRequest {
             trader: *trader,
             amount_out,
             amount_in_max,
             in_index,
             recipient: *recipient,
-        })
+        }))
+    }
+
+    // Wrap an `op` as an unstamped request.
+    const fn of(op: SwapOp) -> SwapRequest {
+        SwapRequest {
+            request_id: Self::UNSTAMPED,
+            op,
+        }
+    }
+
+    /// Return this request tagged with `request_id`.  The driver calls this to
+    /// stamp the id when enqueuing.
+    pub fn with_request_id(mut self, request_id: RequestId) -> Self {
+        self.request_id = request_id;
+        self
     }
 }
 
@@ -171,10 +206,10 @@ impl batch_driver::BatchRequest for SwapRequest {
     const GAS_LIMIT: u64 = REQUEST_GAS_MAX;
 
     fn gas_limit(&self) -> u64 {
-        match self {
-            SwapRequest::AddLiquidity(_) => ADD_LIQUIDITY_GAS,
-            SwapRequest::RemoveLiquidity(_) => REMOVE_LIQUIDITY_GAS,
-            SwapRequest::SwapExactIn(_) | SwapRequest::SwapExactOut(_) => SWAP_GAS,
+        match self.op {
+            SwapOp::AddLiquidity(_) => ADD_LIQUIDITY_GAS,
+            SwapOp::RemoveLiquidity(_) => REMOVE_LIQUIDITY_GAS,
+            SwapOp::SwapExactIn(_) | SwapOp::SwapExactOut(_) => SWAP_GAS,
         }
     }
 }

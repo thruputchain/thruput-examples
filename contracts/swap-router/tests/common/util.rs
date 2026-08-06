@@ -51,6 +51,36 @@ where
     }
 }
 
+pub fn exec_tx_result<F, T>(
+    env: &TestEnvironmentHandle,
+    addr: &ContractAddress,
+    f: F,
+) -> Result<(T, TransactResult), TransactResult>
+where
+    F: Fn() -> T + std::panic::RefUnwindSafe,
+{
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    let ret: Arc<Mutex<Option<T>>> = Arc::new(Mutex::new(None));
+
+    let r = env.transact(|tx| {
+        tx.call(addr).run(|| {
+            let ret = Arc::clone(&ret);
+            let mut ret = ret.lock().unwrap();
+            *ret = Some(f());
+        })
+    });
+
+    if r.is_success() {
+        let ret: Mutex<Option<T>> = Arc::into_inner(ret).unwrap();
+        let mut ret: Option<T> = Mutex::into_inner(ret).unwrap();
+        Ok((ret.take().unwrap(), r))
+    } else {
+        Err(r)
+    }
+}
+
 #[macro_export]
 macro_rules! test_transaction {
     ( $( $(#[$attr:meta])* fn $test_name:ident($etx:ident: &Etx) -> Result<()> $body:tt )* ) => {

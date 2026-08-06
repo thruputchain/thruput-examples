@@ -3,6 +3,6 @@
 //! `swap_pair::*`.
 
 pub use swap_if::{
-    Address, Addresses, Amount, Amounts, ERC20Error, SwapPair, SwapPairClient, SwapPairClientError,
-    SwapPairError,
+    Address, Addresses, Amount, Amounts, ERC20Error, RequestId, SwapPair, SwapPairClient,
+    SwapPairClientError, SwapPairError,
 };

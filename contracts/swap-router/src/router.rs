@@ -39,7 +39,7 @@ impl SwapRouter for Router {
         amounts_desired: Amounts,
         amounts_min: Amounts,
         recipient: &Address,
-    ) {
+    ) -> RequestId {
         let cfg = self.cfg.get();
         // `addLiquidity` is the one entry point that creates the pair on first use.
         let driver = cfg.get_or_create_pair(token_a, token_b);
@@ -50,7 +50,7 @@ impl SwapRouter for Router {
             amounts_desired,
             amounts_min,
             recipient,
-        ));
+        ))
     }
 
     // Request to burn `liquidity` LP tokens, returning the underlying A/B
@@ -66,7 +66,7 @@ impl SwapRouter for Router {
         liquidity: Amount,
         amounts_min: Amounts,
         recipient: &Address,
-    ) {
+    ) -> RequestId {
         let cfg = self.cfg.get();
         let driver = cfg.get_pair(token_a, token_b);
 
@@ -76,7 +76,7 @@ impl SwapRouter for Router {
             liquidity,
             amounts_min,
             recipient,
-        ));
+        ))
     }
 
     /// Request to swap an exact amount of the input token for as much of the
@@ -93,7 +93,7 @@ impl SwapRouter for Router {
         token_in: &Address,
         token_out: &Address,
         recipient: &Address,
-    ) {
+    ) -> RequestId {
         let cfg = self.cfg.get();
         let (driver, in_index) = cfg.get_pair_directed(token_in, token_out);
 
@@ -104,7 +104,7 @@ impl SwapRouter for Router {
             amount_out_min,
             in_index as u32,
             recipient,
-        ));
+        ))
     }
 
     // Request to swap as little of the input token as possible (but no more
@@ -121,7 +121,7 @@ impl SwapRouter for Router {
         token_in: &Address,
         token_out: &Address,
         recipient: &Address,
-    ) {
+    ) -> RequestId {
         let cfg = self.cfg.get();
         let (driver, in_index) = cfg.get_pair_directed(token_in, token_out);
 
@@ -132,6 +132,6 @@ impl SwapRouter for Router {
             amount_in_max,
             in_index as u32,
             recipient,
-        ));
+        ))
     }
 }

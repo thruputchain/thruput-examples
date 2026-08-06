@@ -2,14 +2,14 @@
 
 # set CARGO_UNLOCK to omit --locked
 
-set -eu
+set -euo pipefail
 
 target="${TARGET:-rv32}"
 build_args=(--target "$target")
 
 groundhog_build() {
-    echo "::group::groundhog build ${@}"
-    groundhog build "${@}"
+    echo "::group::groundhog build ${@}" &&
+    groundhog build "${@}" &&
     echo "::endgroup::"
 }
 
