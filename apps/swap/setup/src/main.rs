@@ -1,3 +1,4 @@
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -69,6 +70,14 @@ async fn main() -> Result<()> {
         .artifact("swap_factory", artifact_root.join("swap_factory.rv32a"))
         .build()
         .await?;
+    let tip = scenario.network().chain_tip().await?;
+    ensure(
+        *tip.height == 1,
+        format!(
+            "setup requires a fresh ledger at height 1; current chain tip is {}",
+            *tip.height
+        ),
+    )?;
 
     let result = Arc::clone(&deployment);
     scenario
@@ -165,12 +174,23 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
     let handler = Contract::new(suite.handler, HANDLER.0, HANDLER.1);
     let driver = Contract::new(suite.driver, DRIVER.0, DRIVER.1);
     let pair = Contract::new(suite.pair, PAIR.0, PAIR.1);
-    let allowance = i128::try_from(MINT_AMOUNT).expect("mint amount fits i128");
+    let token_a_allowance =
+        i128::try_from(LIQUIDITY_AMOUNT + SWAP_AMOUNTS[0]).expect("token A allowance fits i128");
+    let token_b_allowance =
+        i128::try_from(LIQUIDITY_AMOUNT + SWAP_AMOUNTS[1]).expect("token B allowance fits i128");
     token_a
-        .call(ctx, "adjust_allowance", &(handler.address(), allowance))
+        .call(
+            ctx,
+            "adjust_allowance",
+            &(handler.address(), token_a_allowance),
+        )
         .await?;
     token_b
-        .call(ctx, "adjust_allowance", &(handler.address(), allowance))
+        .call(
+            ctx,
+            "adjust_allowance",
+            &(handler.address(), token_b_allowance),
+        )
         .await?;
 
     router
@@ -217,7 +237,15 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
         .await?;
     require_processed(&driver, ctx, 2).await?;
     verify_reserve_balances(ctx, &pair, &token_a, &token_b).await?;
-    verify_swap_events(ctx, suite.pair, suite.handler, wallet).await?;
+    verify_swap_events(
+        ctx,
+        suite.pair,
+        suite.handler,
+        wallet,
+        token_a.address(),
+        token_b.address(),
+    )
+    .await?;
     verify_view_outcomes(ctx, &pair, wallet).await?;
 
     let token_a_balance: Amount = token_a.view(ctx, "get_balance_of", &wallet, None).await?;
@@ -233,8 +261,8 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
         format!("expected positive token balances, got {token_a_balance} and {token_b_balance}"),
     )?;
     ensure(
-        allowance_a > 0 && allowance_b > 0,
-        format!("expected positive handler allowances, got {allowance_a} and {allowance_b}"),
+        allowance_a == 0 && allowance_b == 0,
+        format!("expected exhausted handler allowances, got {allowance_a} and {allowance_b}"),
     )?;
 
     println!("token balances: {token_a_balance} gUSD, {token_b_balance} gEUR");
@@ -369,6 +397,8 @@ async fn verify_swap_events(
     pair: ContractAddress,
     handler: ContractAddress,
     recipient: ContractAddress,
+    token_a: ContractAddress,
+    token_b: ContractAddress,
 ) -> Result<()> {
     let contracts = ContractAddressList(
         vec![pair.into()]
@@ -394,6 +424,8 @@ async fn verify_swap_events(
     );
     let mut cursor = PaginationCursor::default();
     let mut ids = Vec::new();
+    let expected = expected_swaps(token_a, token_b);
+    let mut payloads = Vec::new();
     loop {
         let page = ctx
             .network()
@@ -423,11 +455,7 @@ async fn verify_swap_events(
                 "SwapEvent recipient topic is not the setup wallet",
             )?;
             let payload = SwapEvent::decode_payload(&event.event.data.0)?;
-            ensure(
-                payload.amounts_in.iter().any(|amount| *amount > 0)
-                    && payload.amounts_out.iter().any(|amount| *amount > 0),
-                "SwapEvent payload does not contain positive input and output amounts",
-            )?;
+            payloads.push((payload.amounts_in, payload.amounts_out));
             let id = (event.block_height, event.tx_hash, event.sequence_number);
             ensure(
                 !ids.contains(&id),
@@ -441,12 +469,8 @@ async fn verify_swap_events(
         }
     }
     ensure(
-        ids.len() == SWAP_AMOUNTS.len(),
-        format!(
-            "expected {} SwapEvents, found {}",
-            SWAP_AMOUNTS.len(),
-            ids.len()
-        ),
+        payloads == expected,
+        format!("SwapEvent payload mismatch: expected {expected:?}, got {payloads:?}"),
     )?;
     for events in ids.windows(2) {
         let previous = &events[0];
@@ -458,6 +482,32 @@ async fn verify_swap_events(
         )?;
     }
     Ok(())
+}
+
+fn expected_swaps(
+    token_a: ContractAddress,
+    token_b: ContractAddress,
+) -> Vec<([Amount; 2], [Amount; 2])> {
+    let a_index = usize::from(token_a > token_b);
+    let b_index = 1 - a_index;
+    let mut reserves = [LIQUIDITY_AMOUNT; 2];
+    let mut expected = Vec::with_capacity(SWAP_AMOUNTS.len());
+
+    for (amount_in, input_index) in [(SWAP_AMOUNTS[0], a_index), (SWAP_AMOUNTS[1], b_index)] {
+        let output_index = 1 - input_index;
+        let amount_in_with_fee = amount_in * 997;
+        let amount_out = amount_in_with_fee * reserves[output_index]
+            / (reserves[input_index] * 1_000 + amount_in_with_fee);
+        let mut amounts_in = [0; 2];
+        let mut amounts_out = [0; 2];
+        amounts_in[input_index] = amount_in;
+        amounts_out[output_index] = amount_out;
+        reserves[input_index] += amount_in;
+        reserves[output_index] -= amount_out;
+        expected.push((amounts_in, amounts_out));
+    }
+
+    expected
 }
 
 async fn verify_view_outcomes(
@@ -569,7 +619,14 @@ fn write_env(
         address(deployment.token_a),
         address(deployment.token_b),
     );
-    std::fs::write(path, contents)?;
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?;
+    std::io::Write::write_all(&mut file, contents.as_bytes())?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
     Ok(())
 }
 

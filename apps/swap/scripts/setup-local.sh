@@ -14,9 +14,9 @@ export SWAP_APP_ENV="$app_dir/.env.local"
 export SWAP_CLI_CONFIG_HOME="$app_dir/.groundhog-config"
 
 case "$("$groundhog_cli" --version)" in
-  "groundhog 0.6."*) ;;
+  "groundhog 0.6.1") ;;
   *)
-    printf 'Groundhog CLI 0.6.x is required.\n' >&2
+    printf 'Groundhog CLI 0.6.1 is required.\n' >&2
     exit 1
     ;;
 esac
