@@ -589,19 +589,21 @@ fn write_env(
         &manifest.bootstrap_account_derivation.seed,
         usize::try_from(deployment.account_index)?,
     ));
+    let process_requests = entrypoint_id(DRIVER.0, DRIVER.1, "process_requests");
 
     let contents = format!(
         "VITE_GROUNDHOG_RPC_URL={rpc_url}\n\
          VITE_GROUNDHOG_NETWORK_ID={}\n\
-         GROUNDHOG_DEV_PRIVATE_KEY=0x{private_key}\n\
+         VITE_GROUNDHOG_DEV_PRIVATE_KEY=0x{private_key}\n\
          VITE_GROUNDHOG_WALLET_ADDRESS={}\n\
-         GROUNDHOG_WALLET_ENTRYPOINT={}\n\
+         VITE_GROUNDHOG_WALLET_ENTRYPOINT={}\n\
          VITE_SWAP_FACTORY_ADDRESS={}\n\
          VITE_SWAP_ROUTER_ADDRESS={}\n\
          VITE_SWAP_PAIR_ADDRESS={}\n\
          VITE_SWAP_LP_TOKEN_ADDRESS={}\n\
          VITE_SWAP_HANDLER_ADDRESS={}\n\
          VITE_SWAP_DRIVER_ADDRESS={}\n\
+         SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT={}\n\
          VITE_TOKEN_A_ADDRESS={}\n\
          VITE_TOKEN_B_ADDRESS={}\n\
          VITE_TOKEN_A_SYMBOL=gUSD\n\
@@ -616,6 +618,7 @@ fn write_env(
         address(deployment.liquidity_token),
         address(deployment.handler),
         address(deployment.driver),
+        entrypoint(process_requests),
         address(deployment.token_a),
         address(deployment.token_b),
     );
@@ -638,8 +641,11 @@ fn write_cli_config(
 ) -> Result<()> {
     let groundhog_dir = config_home.join("groundhog");
     std::fs::create_dir_all(&groundhog_dir)?;
+    let manifest = parse_runtime_manifest(&std::fs::read(manifest_path)?)?;
+    let network_id = manifest.network_hash;
     let contents = format!(
-        "default_key = \"dev-{account_index}\"\n\
+        "# generated_network_id = {network_id}\n\
+         default_key = \"dev-{account_index}\"\n\
          default_profile = \"local\"\n\
          \n\
          [profile.local]\n\

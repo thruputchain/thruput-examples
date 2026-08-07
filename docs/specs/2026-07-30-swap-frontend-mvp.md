@@ -55,13 +55,13 @@ The app must:
 
 5. The app shows the estimated output, minimum output, rate, 0.3% fee rate, price impact, and adjustable slippage.
 
-6. If needed, the user approves the handler for the exact input amount.
+6. The user clicks **Approve & swap**. If needed, the app approves the handler for the exact input amount, waits for that allowance to be observed, and then automatically submits the swap.
 
-7. The user submits `swap_exact_tokens_for_tokens` through the router.
+7. The app submits `swap_exact_tokens_for_tokens` through the router without requiring a second user action.
 
 8. After a successful committed receipt, the app displays **Queued for execution**.
 
-9. The developer calls the pair driver's `process_requests()` entrypoint through the CLI.
+9. From `apps/swap`, the developer runs `bash scripts/crank-local.sh`, which calls the configured pair driver's `process_requests()` entrypoint through the generated CLI profile.
 
 10. The app observes a matching pair `SwapEvent`, displays **Execution observed**, and refreshes balances and reserves.
 
@@ -133,7 +133,7 @@ The quote is advisory. The handler recalculates output from live reserves when i
 
 - When allowance differs from the input amount, submit `adjust_allowance(handler, inputAmount - currentAllowance)` as a separate transaction.
 
-- Disable swap submission until approval commits successfully and the updated allowance is observed.
+- Use one user action to orchestrate approval and swap submission. Do not submit the swap until approval commits successfully and the updated allowance is observed.
 
 - Do not offer unlimited approval.
 
@@ -148,7 +148,7 @@ The quote is advisory. The handler recalculates output from live reserves when i
 
 - Transition to **Queued for execution** only after a successful committed receipt.
 
-- Explain that `process_requests()` must be called externally.
+- Explain that `process_requests()` must be called externally with `bash scripts/crank-local.sh`.
 
 ### Execution Observation
 - Poll pair `SwapEvent`s after enqueue, filtered by pair, handler, recipient, direction, exact input, and `amountOutMin`.
@@ -270,9 +270,9 @@ VITE_TOKEN_A_ADDRESS
 VITE_TOKEN_B_ADDRESS
 ```
 
-The generated private key and wallet entrypoint are intentionally browser-visible for the local V1. Keep them in the ignored `.env.local` file, never hard-code them in tracked source, and treat them as public development credentials. Refuse signing and submission unless the RPC hostname is loopback. Read token metadata on-chain when available and allow generated configuration fallbacks.
+The generated private key and wallet entrypoint are intentionally browser-visible for the local V1. Keep them in the ignored `.env.local` file, never hard-code them in tracked source, and treat them as public development credentials. Refuse signing and submission unless both the application page and RPC hostnames are loopback. Read token metadata on-chain when available and allow generated configuration fallbacks.
 
-Validate the configured network identity and include it in every signed transaction. Require a loopback RPC for V1. If the pinned gateway exposes connected network identity, compare it before enabling state-changing actions; lack of that optional RPC must not block the local MVP.
+Validate the configured network identity for the application session. The pinned transaction format has no network-ID field, so it cannot be included in signed bytes. Require loopback application and RPC origins for V1. If the pinned gateway exposes connected network identity, compare it before enabling state-changing actions; lack of that optional RPC must not block the local MVP.
 ### Local Setup
 Provide one command that assumes a compatible local node is running and:
 
@@ -292,7 +292,7 @@ Provide one command that assumes a compatible local node is running and:
 
 8. Accepts the disposable local key through an ignored environment file and verifies that it authorizes the configured wallet with a smoke transaction.
 
-9. Prints the CLI command for the configured driver's `process_requests()` entrypoint.
+9. Writes the generated driver and `process_requests()` entrypoint configuration consumed by `bash scripts/crank-local.sh`.
 
 
 The command only needs to support a clean local ledger.
@@ -346,9 +346,9 @@ Component tests:
 
 - Amount validation and direction switching.
 
-- Approval-required and approval-satisfied states.
+- One-click approval-and-swap orchestration, including approval-required and approval-satisfied states.
 
-- Queued messaging, one-outstanding-request enforcement, and external-crank instructions.
+- Queued messaging, durable one-outstanding-request enforcement, and `bash scripts/crank-local.sh` instructions.
 
 - Configuration, RPC, and transaction error states.
 
@@ -356,7 +356,7 @@ Component tests:
 One local integration test must execute:
 
 ```text
-load state -> approve exact amount -> enqueue exact-input swap
+load state -> one user click -> approve exact amount if needed -> enqueue exact-input swap
 -> externally process requests -> match SwapEvent -> refresh balances and reserves
 ```
 ## 6. Open Question

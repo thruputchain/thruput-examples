@@ -14,16 +14,27 @@ const browserModules = import.meta.glob<string>(
 );
 
 describe("browser dependency boundary", () => {
-  it.each([
-    "PrivateKeySigner",
-    "GROUNDHOG_DEV_PRIVATE_KEY",
-    "GROUNDHOG_WALLET_ENTRYPOINT",
-    "loadAppConfig(import.meta.env)",
-    "doAction",
-    "do_action",
-  ])("does not include %s", (forbidden) => {
+  it("isolates temporary development-wallet authorization", () => {
+    const allowedModule = "./transactions/local-development-wallet.ts";
+    const forbidden = [
+      "PrivateKeySigner",
+      "GROUNDHOG_DEV_PRIVATE_KEY",
+      "GROUNDHOG_WALLET_ENTRYPOINT",
+      "doAction",
+      "do_action",
+    ];
     const offenders = Object.entries(browserModules)
-      .filter(([, source]) => source.includes(forbidden))
+      .filter(([path, source]) =>
+        path !== allowedModule && forbidden.some((value) => source.includes(value)),
+      )
+      .map(([path]) => path);
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("does not expose the complete Vite environment to configuration parsing", () => {
+    const offenders = Object.entries(browserModules)
+      .filter(([, source]) => source.includes("loadAppConfig(import.meta.env)"))
       .map(([path]) => path);
 
     expect(offenders).toEqual([]);

@@ -57,6 +57,7 @@ export type WorkflowEvent =
   | { type: "approvalStarted" }
   | { type: "approvalObserved" }
   | { type: "submissionStarted" }
+  | { type: "submissionRefreshed"; intent: SwapIntent }
   | {
       type: "transactionIndeterminate";
       transactionHash: string | null;
@@ -69,6 +70,7 @@ export type WorkflowEvent =
   | { type: "executionObserved" }
   | { type: "observationTimedOut" }
   | { type: "clearObserved" }
+  | { type: "acknowledgeCommittedFailure" }
   | { type: "confirmExternalCrank" };
 
 export const initialWorkflowState: WorkflowState = { status: "idle" };
@@ -138,6 +140,9 @@ export function workflowReducer(
       }
       break;
     case "submitting":
+      if (event.type === "submissionRefreshed") {
+        return { status: "submitting", intent: event.intent };
+      }
       if (event.type === "requestQueued") {
         return {
           status: "queued",
@@ -165,6 +170,9 @@ export function workflowReducer(
       if (event.type === "observationTimedOut") {
         return { ...state, status: "queuedNotObserved" };
       }
+      if (event.type === "confirmExternalCrank") {
+        return initialWorkflowState;
+      }
       break;
     case "queuedNotObserved":
       if (event.type === "executionObserved") {
@@ -180,6 +188,12 @@ export function workflowReducer(
       }
       break;
     case "error":
+      if (
+        event.type === "acknowledgeCommittedFailure"
+        && state.certainty === "committed"
+      ) {
+        return initialWorkflowState;
+      }
       break;
     case "indeterminate":
       break;

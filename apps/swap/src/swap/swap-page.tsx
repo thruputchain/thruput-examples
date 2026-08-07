@@ -7,7 +7,8 @@ import {
   RefreshCwIcon,
   Settings2Icon,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { toHex0x } from "@groundhogchain/client";
+import { useEffect, useId, useReducer, useRef, useState } from "react";
 
 import {
   Alert,
@@ -44,7 +45,9 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { isLoopbackUrl, type AppConfig } from "@/config";
+import { isBrowserLoopback, isLoopbackUrl, type AppConfig } from "@/config";
+import { buildApprovalTarget } from "@/contracts/approval-target";
+import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { formatAmount } from "@/domain/amount";
 import { orientReserves, orderTokens } from "@/domain/tokens";
 import { abbreviateAddress } from "@/lib/address";
@@ -65,15 +68,31 @@ import type {
   TokenSnapshot,
 } from "@/swap/snapshot";
 import { usePoolSnapshot } from "@/swap/use-pool-snapshot";
+import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
+import {
+  clearOutstandingRequest,
+  loadOutstandingRequest,
+  outstandingRequestKey,
+  saveOutstandingRequest,
+  withOutstandingRequestLock,
+  type OutstandingRequest,
+} from "@/transactions/outstanding-request";
+import {
+  initialWorkflowState,
+  workflowReducer,
+  type WorkflowState,
+} from "@/workflow";
 
 const SLIPPAGE_PRESETS = [10n, 50n, 100n] as const;
 
 export function SwapPage({
   config,
   readSnapshot,
+  writeBoundary,
 }: {
   config: AppConfig;
   readSnapshot: SnapshotReader;
+  writeBoundary: WriteBoundary;
 }) {
   const state = usePoolSnapshot(readSnapshot);
   const workspaceHeading = useRef<HTMLHeadingElement>(null);
@@ -116,7 +135,9 @@ export function SwapPage({
         className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12"
       >
         <div className="flex flex-col gap-6">
-          <EnvironmentWarning localRpc={isLoopbackUrl(config.rpcUrl)} />
+          <EnvironmentWarning
+            localRpc={isLoopbackUrl(config.rpcUrl) && isBrowserLoopback()}
+          />
           {state.isLoading && state.error === null ? <SwapSkeleton /> : null}
           {state.snapshot === null && state.error !== null ? (
             <ReadError
@@ -133,6 +154,9 @@ export function SwapPage({
               isRefreshing={state.isRefreshing}
               isUserRefreshing={state.isUserRefreshing}
               headingRef={workspaceHeading}
+              readSnapshot={readSnapshot}
+              refreshSnapshot={state.refresh}
+              writeBoundary={writeBoundary}
             />
           ) : null}
         </div>
@@ -230,11 +254,11 @@ function EnvironmentWarning({ localRpc }: { localRpc: boolean }) {
   return (
     <Alert className="bg-local/8 text-foreground ring-local/20">
       <InfoIcon aria-hidden="true" />
-      <AlertTitle>{localRpc ? "Local sandbox" : "Read-only preview"}</AlertTitle>
+      <AlertTitle>{localRpc ? "Disposable local signer" : "Read-only preview"}</AlertTitle>
       <AlertDescription>
-        Quotes use live {localRpc ? "local-pool" : "configured-pool"} reads.
-        Signing remains disabled in this phase; Phase 5 will use browser-visible
-        development credentials on loopback only.
+        {localRpc
+          ? "This browser contains a generated development key. Use it only with this disposable loopback ledger; never fund it on a public network."
+          : "Quotes use configured-pool reads. Signing is blocked because the RPC is not loopback."}
       </AlertDescription>
     </Alert>
   );
@@ -247,6 +271,9 @@ function SwapWorkspace({
   isRefreshing,
   isUserRefreshing,
   headingRef,
+  readSnapshot,
+  refreshSnapshot,
+  writeBoundary,
 }: {
   config: AppConfig;
   snapshot: PoolSnapshot;
@@ -254,10 +281,25 @@ function SwapWorkspace({
   isRefreshing: boolean;
   isUserRefreshing: boolean;
   headingRef: React.RefObject<HTMLHeadingElement | null>;
+  readSnapshot: SnapshotReader;
+  refreshSnapshot: () => void;
+  writeBoundary: WriteBoundary;
 }) {
   const [direction, setDirection] = useState<SwapDirection>("aToB");
   const [amount, setAmount] = useState("");
   const [slippage, setSlippage] = useState("0.5");
+  const [workflow, dispatch] = useReducer(workflowReducer, initialWorkflowState);
+  const [outstanding, setOutstanding] = useState<OutstandingRequest | null>(
+    () => loadOutstandingRequest(config),
+  );
+  const [isRecoveryRecord, setIsRecoveryRecord] = useState(
+    () => loadOutstandingRequest(config) !== null,
+  );
+  const [isAcquiringLock, setIsAcquiringLock] = useState(false);
+  const [recoveryCheck, setRecoveryCheck] = useState(0);
+  const [isCheckingRecovery, setIsCheckingRecovery] = useState(false);
+  const recoveryAttempt = useRef<string | null>(null);
+  const actionInFlight = useRef(false);
   const amountId = useId();
   const slippageId = useId();
   const tokens = tokensForDirection(snapshot, direction);
@@ -270,6 +312,9 @@ function SwapWorkspace({
   );
   const hasLiquidity = snapshot.reserve0 > 0n && snapshot.reserve1 > 0n;
   const quoteValid = quote.ok && slippageResult.ok;
+  const controlsLocked =
+    isAcquiringLock || isWorkflowLocked(workflow) || outstanding !== null;
+  const localRpc = isLoopbackUrl(config.rpcUrl) && isBrowserLoopback();
 
   const output = quote.ok
     ? formatTokenAmount(quote.amountOut, tokens.output.decimals, 8)
@@ -277,9 +322,455 @@ function SwapWorkspace({
   const validationMessage =
     amount.length === 0 || quote.ok ? null : quoteErrorMessages[quote.error];
 
+  useEffect(() => {
+    const key = outstandingRequestKey(config);
+    const reload = (event: StorageEvent) => {
+      if (event.key === key) {
+        setOutstanding(loadOutstandingRequest(config));
+        setIsRecoveryRecord(!actionInFlight.current);
+      }
+    };
+    window.addEventListener("storage", reload);
+    return () => window.removeEventListener("storage", reload);
+  }, [config]);
+
+  useEffect(() => {
+    if (
+      !isRecoveryRecord
+      || outstanding?.transactionHash === null
+      || outstanding === null
+      || writeBoundary.observe === undefined
+      || !["approving", "submitting", "indeterminate"].includes(
+        outstanding.status,
+      )
+    ) return;
+
+    const attemptKey = `${outstanding.transactionHash}:${recoveryCheck}`;
+    if (recoveryAttempt.current === attemptKey) return;
+    recoveryAttempt.current = attemptKey;
+
+    let cancelled = false;
+    setIsCheckingRecovery(true);
+    void writeBoundary.observe(outstanding.transactionHash).then(
+      async (result) => {
+        if (cancelled) return;
+        if (result.kind === "committedSuccess") {
+          if (outstanding.phase === "swap") {
+            const queuedRequest: OutstandingRequest = {
+              ...outstanding,
+              status: "queued",
+              transactionHash: result.hash,
+              receiptBlock: result.receipt.height,
+            };
+            saveOutstandingRequest(config, queuedRequest);
+            setOutstanding(queuedRequest);
+            return;
+          }
+
+          try {
+            const snapshot = await readSnapshot();
+            const inputToken = outstanding.criteria.tokenIn
+              === toHex0x(snapshot.tokenA.address)
+              ? snapshot.tokenA
+              : outstanding.criteria.tokenIn === toHex0x(snapshot.tokenB.address)
+                ? snapshot.tokenB
+                : null;
+            if (
+              !cancelled
+              && snapshot.chainHeight >= result.receipt.height
+              && inputToken?.allowance === outstanding.intent.amountIn
+            ) {
+              clearOutstandingRequest(config);
+              setOutstanding(null);
+              setIsRecoveryRecord(false);
+              refreshSnapshot();
+              return;
+            }
+          } catch {
+            // Keep the signed recovery record for another explicit status check.
+          }
+        }
+
+        if (result.kind === "invalid" || result.kind === "preSubmissionFailure") {
+          clearOutstandingRequest(config);
+          setOutstanding(null);
+          setIsRecoveryRecord(false);
+        } else if (result.kind === "committedFailure") {
+          const failedRequest: OutstandingRequest = {
+            ...outstanding,
+            status: "committedFailure",
+            transactionHash: result.hash,
+          };
+          saveOutstandingRequest(config, failedRequest);
+          setOutstanding(failedRequest);
+        } else {
+          const uncertainRequest: OutstandingRequest = {
+            ...outstanding,
+            status: "indeterminate",
+            transactionHash: result.hash,
+          };
+          saveOutstandingRequest(config, uncertainRequest);
+          setOutstanding(uncertainRequest);
+        }
+      },
+      () => {
+        // A failed recovery read is non-authoritative; preserve the signed record.
+      },
+    ).finally(() => {
+      if (!cancelled) setIsCheckingRecovery(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    config,
+    isRecoveryRecord,
+    outstanding,
+    readSnapshot,
+    recoveryCheck,
+    refreshSnapshot,
+    writeBoundary,
+  ]);
+
   function switchDirection() {
+    if (actionInFlight.current) return;
+    dispatch({ type: "inputChanged" });
     setDirection((current) => (current === "aToB" ? "bToA" : "aToB"));
     setAmount("");
+  }
+
+  function changeAmount(value: string) {
+    if (actionInFlight.current) return;
+    dispatch({ type: "inputChanged" });
+    setAmount(value);
+  }
+
+  function changeSlippage(value: string) {
+    if (actionInFlight.current) return;
+    dispatch({ type: "inputChanged" });
+    setSlippage(value);
+  }
+
+  async function executeAction(insideLock = false) {
+    if (
+      !quote.ok
+      || !slippageResult.ok
+      || (!insideLock && actionInFlight.current)
+      || !localRpc
+    ) return;
+    const intent = { amountIn: quote.amountIn, amountOutMin: quote.amountOutMin };
+    const needsApproval =
+      workflow.status !== "readyToSwap" && quote.allowanceDifference !== 0n;
+
+    if (!insideLock) {
+      actionInFlight.current = true;
+      setIsAcquiringLock(true);
+      try {
+        await withOutstandingRequestLock(config, async () => {
+          const existing = loadOutstandingRequest(config);
+          if (existing !== null) {
+            setOutstanding(existing);
+            setIsRecoveryRecord(true);
+            return;
+          }
+          setIsAcquiringLock(false);
+          await executeAction(true);
+        });
+      } catch (error) {
+        dispatch({ type: "inputChanged" });
+        dispatch(needsApproval
+          ? { type: "approvalRequired", intent }
+          : { type: "quoteReady", intent });
+        dispatch({ type: needsApproval ? "approvalStarted" : "submissionStarted" });
+        dispatch({
+          type: "transactionFailed",
+          certainty: "notSubmitted",
+          transactionHash: null,
+          message: error instanceof Error ? error.message : "The submission lock could not be acquired.",
+        });
+      } finally {
+        actionInFlight.current = false;
+        setIsAcquiringLock(false);
+      }
+      return;
+    }
+
+    let outstandingStarted = false;
+    let outstandingIntent = intent;
+    let outstandingHash: string | null = null;
+    let outstandingPhase: OutstandingRequest["phase"] = needsApproval
+      ? "approval"
+      : "swap";
+
+    dispatch({ type: "inputChanged" });
+    dispatch(needsApproval ? { type: "approvalRequired", intent } : { type: "quoteReady", intent });
+    dispatch({ type: needsApproval ? "approvalStarted" : "submissionStarted" });
+
+    try {
+      if (needsApproval) {
+        let freshApprovalQuote;
+        try {
+          freshApprovalQuote = deriveSwapQuote(
+            await readSnapshot(),
+            direction,
+            amount,
+            slippageResult.basisPoints,
+          );
+          if (!freshApprovalQuote.ok) {
+            dispatch({
+              type: "transactionFailed",
+              certainty: "notSubmitted",
+              transactionHash: null,
+              message: "The quote changed before approval. Refresh and review it again.",
+            });
+            return;
+          }
+          if (freshApprovalQuote.allowanceDifference === 0n) {
+            dispatch({ type: "approvalObserved" });
+            dispatch({ type: "submissionStarted" });
+          }
+        } catch {
+          dispatch({
+            type: "transactionFailed",
+            certainty: "notSubmitted",
+            transactionHash: null,
+            message: "A fresh pre-approval snapshot could not be loaded.",
+          });
+          return;
+        }
+
+        if (freshApprovalQuote.allowanceDifference !== 0n) {
+          const approvalRequest: OutstandingRequest = {
+            status: "approving",
+            phase: "approval",
+            intent: {
+              amountIn: freshApprovalQuote.amountIn,
+              amountOutMin: freshApprovalQuote.amountOutMin,
+            },
+            transactionHash: null,
+            receiptBlock: null,
+            criteria: requestCriteria(config, tokens),
+          };
+          saveOutstandingRequest(config, approvalRequest);
+          setOutstanding(approvalRequest);
+          setIsRecoveryRecord(false);
+          outstandingStarted = true;
+          outstandingIntent = approvalRequest.intent;
+          outstandingPhase = "approval";
+          const result = await writeBoundary.execute(
+            buildApprovalTarget(
+              tokens.input.address,
+              config.handlerAddress,
+              freshApprovalQuote.allowanceDifference,
+            ),
+            {
+              onSigned: (hash) => {
+                outstandingHash = hash;
+                const signedRequest = {
+                  ...approvalRequest,
+                  transactionHash: hash,
+                };
+                saveOutstandingRequest(config, signedRequest);
+                setOutstanding(signedRequest);
+              },
+            },
+          );
+          if (result.kind !== "committedSuccess") {
+            if (
+              result.kind === "indeterminate"
+              || result.kind === "committedFailure"
+            ) {
+              const unresolved: OutstandingRequest = {
+                ...approvalRequest,
+                status: result.kind === "indeterminate"
+                  ? "indeterminate"
+                  : "committedFailure",
+                transactionHash: result.hash,
+              };
+              saveOutstandingRequest(config, unresolved);
+              setOutstanding(unresolved);
+            } else {
+              clearOutstandingRequest(config);
+              setOutstanding(null);
+              setIsRecoveryRecord(false);
+            }
+            dispatchWriteFailure(dispatch, result);
+            return;
+          }
+
+          if (
+            !(await observeExactAllowance(
+              readSnapshot,
+              direction,
+              freshApprovalQuote.amountIn,
+              result.receipt.height,
+            ))
+          ) {
+            const unresolved: OutstandingRequest = {
+              ...approvalRequest,
+              status: "indeterminate",
+              transactionHash: result.hash,
+            };
+            saveOutstandingRequest(config, unresolved);
+            setOutstanding(unresolved);
+            dispatch({ type: "transactionIndeterminate", transactionHash: result.hash });
+            return;
+          }
+          dispatch({ type: "approvalObserved" });
+          dispatch({ type: "submissionStarted" });
+          refreshSnapshot();
+        }
+      }
+
+      let freshQuote;
+      try {
+        const freshSnapshot = await readSnapshot();
+        freshQuote = deriveSwapQuote(
+          freshSnapshot,
+          direction,
+          amount,
+          slippageResult.basisPoints,
+        );
+        const freshInput = tokensForDirection(freshSnapshot, direction).input;
+        if (
+          !freshQuote.ok
+          || freshInput.allowance !== freshQuote.amountIn
+          || freshQuote.amountOut < intent.amountOutMin
+        ) {
+          if (outstandingPhase === "approval") {
+            clearOutstandingRequest(config);
+            setOutstanding(null);
+            setIsRecoveryRecord(false);
+          }
+          dispatch({
+            type: "transactionFailed",
+            certainty: "notSubmitted",
+            transactionHash: null,
+            message: "The allowance changed or the quote moved beyond your reviewed slippage limit. Refresh and review it again.",
+          });
+          return;
+        }
+      } catch {
+        if (outstandingPhase === "approval") {
+          clearOutstandingRequest(config);
+          setOutstanding(null);
+          setIsRecoveryRecord(false);
+        }
+        dispatch({
+          type: "transactionFailed",
+          certainty: "notSubmitted",
+          transactionHash: null,
+          message: "A fresh pre-submission snapshot could not be loaded.",
+        });
+        return;
+      }
+
+      dispatch({
+        type: "submissionRefreshed",
+        intent: {
+          amountIn: freshQuote.amountIn,
+          amountOutMin: intent.amountOutMin,
+        },
+      });
+      const submittedIntent = {
+        amountIn: freshQuote.amountIn,
+        amountOutMin: intent.amountOutMin,
+      };
+      outstandingIntent = submittedIntent;
+      const submittingRequest: OutstandingRequest = {
+        status: "submitting",
+        phase: "swap",
+        intent: submittedIntent,
+        transactionHash: null,
+        receiptBlock: null,
+        criteria: requestCriteria(config, tokens),
+      };
+      outstandingPhase = "swap";
+      saveOutstandingRequest(config, submittingRequest);
+      setOutstanding(submittingRequest);
+      setIsRecoveryRecord(false);
+      outstandingStarted = true;
+      const result = await writeBoundary.execute(
+        buildExactInputSwapTarget(config.routerAddress, {
+          amountIn: freshQuote.amountIn,
+          amountOutMin: intent.amountOutMin,
+          tokenIn: tokens.input.address,
+          tokenOut: tokens.output.address,
+          recipient: config.accountAddress,
+        }),
+        {
+          onSigned: (hash) => {
+            outstandingHash = hash;
+            const signedRequest = {
+              ...submittingRequest,
+              transactionHash: hash,
+            };
+            saveOutstandingRequest(config, signedRequest);
+            setOutstanding(signedRequest);
+          },
+        },
+      );
+      if (result.kind === "committedSuccess") {
+        const queuedRequest: OutstandingRequest = {
+          status: "queued",
+          phase: "swap",
+          intent: submittedIntent,
+          transactionHash: result.hash,
+          receiptBlock: result.receipt.height,
+          criteria: submittingRequest.criteria,
+        };
+        saveOutstandingRequest(config, queuedRequest);
+        setOutstanding(queuedRequest);
+        dispatch({
+          type: "requestQueued",
+          transactionHash: result.hash,
+          receiptBlock: result.receipt.height,
+        });
+      } else {
+        if (result.kind === "indeterminate") {
+          const uncertainRequest: OutstandingRequest = {
+            status: "indeterminate",
+            phase: "swap",
+            intent: submittedIntent,
+            transactionHash: result.hash,
+            receiptBlock: null,
+            criteria: submittingRequest.criteria,
+          };
+          saveOutstandingRequest(config, uncertainRequest);
+          setOutstanding(uncertainRequest);
+        } else if (result.kind === "committedFailure") {
+          const failedRequest: OutstandingRequest = {
+            ...submittingRequest,
+            status: "committedFailure",
+            transactionHash: result.hash,
+          };
+          saveOutstandingRequest(config, failedRequest);
+          setOutstanding(failedRequest);
+        } else {
+          clearOutstandingRequest(config);
+          setOutstanding(null);
+          setIsRecoveryRecord(false);
+        }
+        dispatchWriteFailure(dispatch, result);
+      }
+    } catch {
+      if (outstandingStarted) {
+        const uncertainRequest: OutstandingRequest = {
+          status: "indeterminate",
+          phase: outstandingPhase,
+          intent: outstandingIntent,
+          transactionHash: outstandingHash,
+          receiptBlock: null,
+          criteria: requestCriteria(config, tokens),
+        };
+        saveOutstandingRequest(config, uncertainRequest);
+        setOutstanding(uncertainRequest);
+      }
+      dispatch({
+        type: "transactionIndeterminate",
+        transactionHash: outstandingHash,
+      });
+    }
   }
 
   return (
@@ -312,8 +803,9 @@ function SwapWorkspace({
               <SlippageSettings
                 id={slippageId}
                 value={slippage}
-                onChange={setSlippage}
+                onChange={changeSlippage}
                 result={slippageResult}
+                disabled={controlsLocked}
               />
             </CardAction>
           </CardHeader>
@@ -324,9 +816,10 @@ function SwapWorkspace({
                 token={tokens.input}
                 value={amount}
                 error={validationMessage}
-                onChange={setAmount}
+                onChange={changeAmount}
+                disabled={controlsLocked}
                 onMax={() =>
-                  setAmount(
+                  changeAmount(
                     formatAmount(tokens.input.balance, tokens.input.decimals),
                   )
                 }
@@ -337,6 +830,7 @@ function SwapWorkspace({
                 size="icon-lg"
                 aria-label={`Switch direction to ${tokens.output.symbol} for ${tokens.input.symbol}`}
                 onClick={switchDirection}
+                disabled={controlsLocked}
                 className="relative mx-auto -my-5 rounded-full bg-card shadow-sm"
               >
                 <ArrowDownUpIcon aria-hidden="true" />
@@ -368,18 +862,48 @@ function SwapWorkspace({
 
             <Button
               type="button"
-              disabled
+              disabled={!localRpc || !quoteValid || isUserRefreshing || controlsLocked}
+              onClick={() => void executeAction()}
               className="mt-5 min-h-12 w-full text-base sm:text-sm"
             >
-              <LockKeyholeIcon data-icon="inline-start" />
+              {controlsLocked ? (
+                <Spinner data-icon="inline-start" aria-hidden="true" />
+              ) : (
+                <LockKeyholeIcon data-icon="inline-start" />
+              )}
               {actionLabel({
                 amount,
                 hasLiquidity,
                 quoteValid,
                 isRefreshing: isUserRefreshing,
                 slippageValid: slippageResult.ok,
+                localRpc,
+                allowanceDifference: quote.ok ? quote.allowanceDifference : null,
+                workflow,
+                outstanding,
+                isAcquiringLock,
               })}
             </Button>
+            <WorkflowStatus
+              workflow={workflow}
+              outstanding={outstanding}
+              isRecoveryRecord={isRecoveryRecord}
+              isCheckingRecovery={isCheckingRecovery}
+              onCheckRecovery={() => setRecoveryCheck((current) => current + 1)}
+              onConfirmCrank={() => {
+                clearOutstandingRequest(config);
+                setOutstanding(null);
+                setIsRecoveryRecord(false);
+                if (workflow.status === "queued" || workflow.status === "queuedNotObserved") {
+                  dispatch({ type: "confirmExternalCrank" });
+                } else if (
+                  workflow.status === "error"
+                  && workflow.certainty === "committed"
+                ) {
+                  dispatch({ type: "acknowledgeCommittedFailure" });
+                }
+              }}
+            />
           </CardContent>
           <CardFooter className="flex-col items-stretch gap-3">
             <TransactionDetails
@@ -409,6 +933,7 @@ function TokenInputPanel({
   error,
   onChange,
   onMax,
+  disabled,
 }: {
   id: string;
   token: TokenSnapshot;
@@ -416,6 +941,7 @@ function TokenInputPanel({
   error: string | null;
   onChange: (value: string) => void;
   onMax: () => void;
+  disabled: boolean;
 }) {
   return (
     <Field data-invalid={error !== null} className="gap-3 rounded-xl bg-muted/60 p-4 ring-1 ring-foreground/8 has-focus-within:ring-2 has-focus-within:ring-ring">
@@ -440,6 +966,7 @@ function TokenInputPanel({
           value={value}
           variant="amount"
           onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
         />
         <TokenChip token={token} />
       </div>
@@ -456,6 +983,7 @@ function TokenInputPanel({
           variant="ghost"
           size="sm"
           onClick={onMax}
+          disabled={disabled}
           className="relative shrink-0 font-mono"
         >
           MAX
@@ -514,11 +1042,13 @@ function SlippageSettings({
   value,
   onChange,
   result,
+  disabled,
 }: {
   id: string;
   value: string;
   onChange: (value: string) => void;
   result: ReturnType<typeof parseSlippagePercent>;
+  disabled: boolean;
 }) {
   const selectedPreset = result.ok
     ? SLIPPAGE_PRESETS.find((preset) => preset === result.basisPoints)?.toString()
@@ -527,7 +1057,7 @@ function SlippageSettings({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" className="relative font-mono">
+        <Button type="button" variant="ghost" size="sm" disabled={disabled} className="relative font-mono">
           <Settings2Icon data-icon="inline-start" />
           {result.ok ? `${formatBasisPoints(result.basisPoints)}%` : "Slippage"}
           <span
@@ -560,6 +1090,7 @@ function SlippageSettings({
             <ToggleGroupItem
               key={preset.toString()}
               value={preset.toString()}
+              disabled={disabled}
               className="min-h-12 w-full font-mono sm:min-h-9"
             >
               {formatBasisPoints(preset)}%
@@ -578,6 +1109,7 @@ function SlippageSettings({
               aria-invalid={!result.ok}
               aria-describedby={!result.ok ? `${id}-error` : undefined}
               value={value}
+              disabled={disabled}
               onChange={(event) => onChange(event.target.value)}
               className="h-12 pr-9 font-mono tabular-nums sm:h-9"
             />
@@ -864,11 +1396,203 @@ function actionLabel(params: {
   quoteValid: boolean;
   isRefreshing: boolean;
   slippageValid: boolean;
+  localRpc: boolean;
+  allowanceDifference: bigint | null;
+  workflow: WorkflowState;
+  outstanding: OutstandingRequest | null;
+  isAcquiringLock: boolean;
 }): string {
+  if (params.isAcquiringLock) return "Waiting for submission lock";
+  if (!params.localRpc) return "Signing requires a local RPC";
+  if (params.workflow.status === "approving") return "Approval pending";
+  if (params.workflow.status === "readyToSwap") return "Swap";
+  if (params.workflow.status === "submitting") return "Submitting swap";
+  if (params.workflow.status === "queued") return "Queued for execution";
+  if (params.workflow.status === "queuedNotObserved") return "Queued; execution not observed";
+  if (params.workflow.status === "indeterminate") return "Outcome is uncertain";
+  if (params.workflow.status === "error") return params.workflow.retryAllowed ? "Try again" : "Transaction failed";
+  if (params.outstanding !== null) {
+    if (params.outstanding.status === "queued") return "Queued for execution";
+    if (params.outstanding.status === "committedFailure") return "Transaction failed";
+    return "Outstanding request recorded";
+  }
   if (params.isRefreshing) return "Refreshing quote";
   if (!params.hasLiquidity) return "Pool has no liquidity";
   if (params.amount.length === 0) return "Enter an amount";
   if (!params.slippageValid) return "Check slippage";
   if (!params.quoteValid) return "Check amount";
-  return "Swap opens in Phase 5";
+  return params.allowanceDifference === 0n ? "Swap" : "Approve & swap";
+}
+
+function isWorkflowLocked(workflow: WorkflowState): boolean {
+  return ["approving", "submitting", "indeterminate", "queued", "queuedNotObserved"].includes(workflow.status)
+    || (workflow.status === "error" && !workflow.retryAllowed);
+}
+
+function WorkflowStatus({
+  workflow,
+  outstanding,
+  isRecoveryRecord,
+  isCheckingRecovery,
+  onCheckRecovery,
+  onConfirmCrank,
+}: {
+  workflow: WorkflowState;
+  outstanding: OutstandingRequest | null;
+  isRecoveryRecord: boolean;
+  isCheckingRecovery: boolean;
+  onCheckRecovery: () => void;
+  onConfirmCrank: () => void;
+}) {
+  if (
+    outstanding === null
+    && ["idle", "quoting", "readyToApprove", "readyToSwap"].includes(workflow.status)
+  ) return null;
+
+  const hash = "transactionHash" in workflow
+    ? workflow.transactionHash
+    : outstanding?.transactionHash ?? null;
+  const workflowIsLive = ![
+    "idle",
+    "quoting",
+    "readyToApprove",
+    "readyToSwap",
+  ].includes(workflow.status);
+  const status = outstanding?.status === "committedFailure"
+    ? "committedFailure"
+    : !isRecoveryRecord && workflowIsLive
+      ? workflow.status
+      : outstanding?.status ?? workflow.status;
+  const canClearRecoveredPreHash =
+    outstanding?.transactionHash === null
+    && isRecoveryRecord
+    && (status === "approving" || status === "submitting")
+    && ["idle", "quoting", "readyToApprove", "readyToSwap"].includes(
+      workflow.status,
+    );
+  const message = status === "queued"
+    ? "The router accepted this request. Run bash scripts/crank-local.sh from apps/swap to process it; execution has not been observed yet."
+    : status === "committedFailure"
+      ? "The transaction committed with a failed execution result. No automatic retry will be attempted."
+    : status === "approving"
+      ? isRecoveryRecord
+        ? "The approval started before this page was restored. Confirm its status before clearing this recovery guard."
+        : "Waiting for the exact allowance transaction to commit."
+    : status === "indeterminate" || status === "submitting"
+      ? "The transaction may still commit. Do not submit another transaction."
+      : workflow.status === "error"
+        ? workflow.message
+        : workflow.status === "approving"
+          ? "Waiting for the exact allowance transaction to commit."
+          : workflow.status === "submitting"
+            ? "Waiting for the router to accept the swap request."
+            : "The request remains queued and no execution event has been observed.";
+
+  return (
+    <Alert className="mt-4" variant={workflow.status === "error" ? "destructive" : "default"}>
+      <InfoIcon aria-hidden="true" />
+      <AlertTitle>
+        {status === "submitting" && isRecoveryRecord
+          ? "Submission recovery required"
+          : actionLabelForStatus(status)}
+      </AlertTitle>
+      <AlertDescription>
+        {message}
+        {hash !== null ? <span className="mt-1 block break-all font-mono text-xs">Transaction {hash}</span> : null}
+        {status === "queued" || status === "committedFailure" ? (
+          <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onConfirmCrank}>
+            {status === "queued"
+              ? "I cranked and confirmed the queue is drained"
+              : "Acknowledge committed failure"}
+          </Button>
+        ) : null}
+        {canClearRecoveredPreHash ? (
+          <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onConfirmCrank}>
+            I confirmed no transaction is pending or queued
+          </Button>
+        ) : null}
+        {isRecoveryRecord && hash !== null && ["approving", "submitting", "indeterminate"].includes(status) ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            disabled={isCheckingRecovery}
+            onClick={onCheckRecovery}
+          >
+            {isCheckingRecovery ? "Checking transaction" : "Check transaction status"}
+          </Button>
+        ) : null}
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+function actionLabelForStatus(
+  status: WorkflowState["status"] | OutstandingRequest["status"],
+): string {
+  switch (status) {
+    case "approving": return "Approval pending";
+    case "submitting": return "Submitting swap";
+    case "queued": return "Queued for execution";
+    case "queuedNotObserved": return "Execution not observed";
+    case "indeterminate": return "Outcome uncertain";
+    case "committedFailure": return "Committed failure";
+    case "error": return "Transaction issue";
+    case "executionObserved": return "Execution observed";
+    default: return "Transaction status";
+  }
+}
+
+function requestCriteria(
+  config: AppConfig,
+  tokens: { input: TokenSnapshot; output: TokenSnapshot },
+): OutstandingRequest["criteria"] {
+  return {
+    pairAddress: toHex0x(config.pairAddress),
+    handlerAddress: toHex0x(config.handlerAddress),
+    recipient: toHex0x(config.accountAddress),
+    tokenIn: toHex0x(tokens.input.address),
+    tokenOut: toHex0x(tokens.output.address),
+  };
+}
+
+function dispatchWriteFailure(
+  dispatch: React.Dispatch<Parameters<typeof workflowReducer>[1]>,
+  result: Exclude<WriteResult, { kind: "committedSuccess" }>,
+): void {
+  if (result.kind === "indeterminate") {
+    dispatch({ type: "transactionIndeterminate", transactionHash: result.hash });
+    return;
+  }
+  if (result.kind === "preSubmissionFailure") {
+    dispatch({ type: "transactionFailed", certainty: "notSubmitted", transactionHash: null, message: result.message });
+  } else if (result.kind === "invalid") {
+    dispatch({ type: "transactionFailed", certainty: "invalid", transactionHash: result.hash, message: result.reason });
+  } else {
+    dispatch({ type: "transactionFailed", certainty: "committed", transactionHash: result.hash, message: "The transaction committed without a successful execution result." });
+  }
+}
+
+async function observeExactAllowance(
+  readSnapshot: SnapshotReader,
+  direction: SwapDirection,
+  amountIn: bigint,
+  receiptBlock: bigint,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const snapshot = await readSnapshot();
+      if (
+        snapshot.chainHeight >= receiptBlock
+        && tokensForDirection(snapshot, direction).input.allowance === amountIn
+      ) {
+        return true;
+      }
+    } catch {
+      // Retry short-lived read failures while waiting for the committed allowance.
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+  }
+  return false;
 }

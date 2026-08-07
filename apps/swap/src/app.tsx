@@ -23,13 +23,20 @@ import {
   type SnapshotReader,
 } from "@/swap/snapshot";
 import { SwapPage } from "@/swap/swap-page";
+import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
+import {
+  unavailableWriteBoundary,
+  type WriteBoundary,
+} from "@/transactions/write-boundary";
 
 export function App({
   config: suppliedConfig,
   readSnapshot,
+  writeBoundary,
 }: {
   config?: AppConfig;
   readSnapshot?: SnapshotReader;
+  writeBoundary?: WriteBoundary;
 } = {}) {
   const configuration = suppliedConfig
     ? { ok: true as const, config: suppliedConfig }
@@ -43,6 +50,7 @@ export function App({
     <ConfiguredApp
       config={configuration.config}
       readSnapshot={readSnapshot}
+      writeBoundary={writeBoundary ?? (suppliedConfig ? unavailableWriteBoundary : undefined)}
     />
   );
 }
@@ -50,14 +58,19 @@ export function App({
 function ConfiguredApp({
   config,
   readSnapshot,
+  writeBoundary,
 }: {
   config: AppConfig;
   readSnapshot: SnapshotReader | undefined;
+  writeBoundary: WriteBoundary | undefined;
 }) {
   const [reader] = useState<SnapshotReader>(
     () => readSnapshot ?? createSnapshotReader(config),
   );
-  return <SwapPage config={config} readSnapshot={reader} />;
+  const [writer] = useState<WriteBoundary>(
+    () => writeBoundary ?? createBrowserLocalWriteBoundary(config),
+  );
+  return <SwapPage config={config} readSnapshot={reader} writeBoundary={writer} />;
 }
 
 function ConfigurationErrorPage({ message }: { message: string }) {

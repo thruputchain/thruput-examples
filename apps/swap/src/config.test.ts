@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ConfigurationError,
+  isLoopbackHostname,
   isLoopbackUrl,
   loadAppConfig,
   type Environment,
@@ -78,5 +79,6 @@ describe("isLoopbackUrl", () => {
 
   it("rejects remote hosts", () => {
     expect(isLoopbackUrl(new URL("https://rpc.example.com"))).toBe(false);
+    expect(isLoopbackHostname("app.example.com")).toBe(false);
   });
 });

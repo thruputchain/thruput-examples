@@ -7,7 +7,13 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const READ_METHODS = new Set(["groundhog_chainTip", "groundhog_view"]);
+const ALLOWED_RPC_METHODS = new Set([
+  "groundhog_chainTip",
+  "groundhog_getTransactionReceipt",
+  "groundhog_getTransactionStatus",
+  "groundhog_sendRawTransaction",
+  "groundhog_view",
+]);
 const MAX_RPC_BODY_BYTES = 1_000_000;
 
 export default defineConfig(({ mode }) => {
@@ -19,6 +25,8 @@ export default defineConfig(({ mode }) => {
     envPrefix: [
       "VITE_GROUNDHOG_RPC_URL",
       "VITE_GROUNDHOG_NETWORK_ID",
+      "VITE_GROUNDHOG_DEV_PRIVATE_KEY",
+      "VITE_GROUNDHOG_WALLET_ENTRYPOINT",
       "VITE_GROUNDHOG_WALLET_ADDRESS",
       "VITE_SWAP_ROUTER_ADDRESS",
       "VITE_SWAP_PAIR_ADDRESS",
@@ -30,7 +38,7 @@ export default defineConfig(({ mode }) => {
       "VITE_TOKEN_B_SYMBOL",
       "VITE_TOKEN_DECIMALS",
     ],
-    plugins: [react(), tailwindcss(), readOnlyRpcProxy(rpcTarget)],
+    plugins: [react(), tailwindcss(), localRpcProxy(rpcTarget)],
     resolve: {
       alias: {
         "@": path.resolve(root, "src"),
@@ -38,12 +46,15 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       environment: "jsdom",
+      environmentOptions: {
+        jsdom: { url: "http://localhost" },
+      },
       setupFiles: ["./src/test/setup.ts"],
     },
   };
 });
 
-function readOnlyRpcProxy(target: string): Plugin {
+function localRpcProxy(target: string): Plugin {
   const targetUrl = new URL(target);
   const targetIsLoopback = isLoopback(targetUrl.hostname);
   const middleware = async (
@@ -56,12 +67,18 @@ function readOnlyRpcProxy(target: string): Plugin {
     if (!targetIsLoopback) {
       return sendProxyError(response, 403, "Local RPC proxy target is not loopback");
     }
+    if (!isSameOriginLocalRequest(request)) {
+      return sendProxyError(response, 403, "Local RPC proxy requires a same-origin loopback request");
+    }
+    if (!request.headers["content-type"]?.toLowerCase().startsWith("application/json")) {
+      return sendProxyError(response, 415, "application/json is required");
+    }
 
     try {
       const body = await readBody(request);
       const envelope: unknown = JSON.parse(body);
-      if (!isReadRequest(envelope)) {
-        return sendProxyError(response, 403, "RPC method is not available through the read proxy");
+      if (!isAllowedRequest(envelope)) {
+        return sendProxyError(response, 403, "RPC method is not available through the local proxy");
       }
 
       const upstream = await fetch(targetUrl, {
@@ -87,7 +104,7 @@ function readOnlyRpcProxy(target: string): Plugin {
   };
 
   return {
-    name: "groundhog-read-only-rpc-proxy",
+    name: "groundhog-local-rpc-proxy",
     configureServer(server) {
       server.middlewares.use("/groundhog-rpc", middleware);
     },
@@ -111,14 +128,14 @@ async function readBody(request: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function isReadRequest(value: unknown): boolean {
+export function isAllowedRequest(value: unknown): boolean {
   return (
     typeof value === "object" &&
     value !== null &&
     !Array.isArray(value) &&
     "method" in value &&
     typeof value.method === "string" &&
-    READ_METHODS.has(value.method)
+    ALLOWED_RPC_METHODS.has(value.method)
   );
 }
 
@@ -136,4 +153,28 @@ function isLoopback(hostname: string): boolean {
   return (
     hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
   );
+}
+
+export function isSameOriginLocalRequest(
+  request: Pick<IncomingMessage, "headers">,
+): boolean {
+  const host = request.headers.host;
+  if (host === undefined) return false;
+
+  let requestHost: URL;
+  try {
+    requestHost = new URL(`http://${host}`);
+  } catch {
+    return false;
+  }
+  if (!isLoopback(requestHost.hostname)) return false;
+  if (request.headers["sec-fetch-site"] === "cross-site") return false;
+
+  const origin = request.headers.origin;
+  if (origin === undefined) return true;
+  try {
+    return new URL(origin).host === requestHost.host;
+  } catch {
+    return false;
+  }
 }

@@ -18,6 +18,40 @@ function reduce(
 }
 
 describe("workflowReducer", () => {
+  it("replaces rendered intent with the fresh submitted intent", () => {
+    const submitting = reduce(
+      initialWorkflowState,
+      { type: "inputChanged" },
+      { type: "quoteReady", intent },
+      { type: "submissionStarted" },
+    );
+    const freshIntent = { amountIn: 11n, amountOutMin: 8n };
+
+    expect(
+      workflowReducer(submitting, {
+        type: "submissionRefreshed",
+        intent: freshIntent,
+      }),
+    ).toEqual({ status: "submitting", intent: freshIntent });
+  });
+
+  it("requires explicit acknowledgement before clearing a committed failure", () => {
+    const failed = workflowReducer(
+      { status: "submitting", intent },
+      {
+        type: "transactionFailed",
+        certainty: "committed",
+        transactionHash: "0xdead",
+        message: "reverted",
+      },
+    );
+
+    expect(() => workflowReducer(failed, { type: "inputChanged" })).toThrow();
+    expect(
+      workflowReducer(failed, { type: "acknowledgeCommittedFailure" }),
+    ).toEqual(initialWorkflowState);
+  });
+
   it("moves through approval, submission, queueing, and observation", () => {
     const state = reduce(
       initialWorkflowState,
