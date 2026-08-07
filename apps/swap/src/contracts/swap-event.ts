@@ -1,59 +1,97 @@
-import { CxsReader, FixedArrayCodec, Uint128Codec } from "@groundhogchain/xdr";
-import { fromHex } from "@groundhogchain/protocol";
+import type { TransactionReceipt } from "@groundhogchain/client";
+import type { ContractAddress } from "@groundhogchain/protocol";
 
-const AmountsCodec = FixedArrayCodec(Uint128Codec, 2);
+import {
+  RequestAccepted,
+  RequestFailed,
+} from "@/contracts/generated/swap-driver";
+import { SwapEvent as GeneratedSwapEvent } from "@/contracts/generated/swap-pair";
 
-// SDK 0.17.4 derives this from "0.1::swap-pair::SwapEvent".
-export const SWAP_EVENT_SIGNATURE = fromHex(
-  "53a6ad106368cc82d1e10500af6aea8ffa3b8ccb37582d4c38d92a7b80d01d0a",
-);
+export const SWAP_EVENT_SIGNATURE = GeneratedSwapEvent.signature;
+export const REQUEST_ACCEPTED_SIGNATURE = RequestAccepted.signature;
+export const REQUEST_FAILED_SIGNATURE = RequestFailed.signature;
 
 export interface SwapEvent {
   sender: Uint8Array;
   recipient: Uint8Array;
   amountsIn: readonly [bigint, bigint];
   amountsOut: readonly [bigint, bigint];
+  requestId: Uint8Array | null;
 }
 
 export function decodeSwapEvent(event: {
   topics: Uint8Array[];
   data: Uint8Array;
 }): SwapEvent | null {
-  if (!bytesEqual(event.topics[0] ?? new Uint8Array(), SWAP_EVENT_SIGNATURE)) {
-    return null;
-  }
-  if (event.topics.length !== 3) {
-    throw new Error(`SwapEvent: expected 3 topics, got ${event.topics.length}`);
-  }
-
-  const sender = addressTopic(event.topics[1], "sender");
-  const recipient = addressTopic(event.topics[2], "recipient");
-  const reader = new CxsReader(event.data);
-  const amountsIn = tuple(AmountsCodec.decode(reader));
-  const amountsOut = tuple(AmountsCodec.decode(reader));
-  if (reader.remaining !== 0) {
-    throw new Error(`SwapEvent: ${reader.remaining} trailing payload bytes`);
-  }
-
-  return { sender, recipient, amountsIn, amountsOut };
+  const decoded = GeneratedSwapEvent.decode(event);
+  if (decoded === null) return null;
+  return {
+    sender: address(decoded.topics.sender, "sender"),
+    recipient: address(decoded.topics.recipient, "recipient"),
+    amountsIn: amounts(decoded.fields.amounts_in, "amounts_in"),
+    amountsOut: amounts(decoded.fields.amounts_out, "amounts_out"),
+    requestId:
+      decoded.fields.request_id === null
+        ? null
+        : requestId(decoded.fields.request_id as Uint8Array | bigint[]),
+  };
 }
 
-function addressTopic(value: Uint8Array | undefined, name: string): Uint8Array {
-  if (value?.length !== 32) {
-    throw new Error(`SwapEvent: ${name} topic must be 32 bytes`);
+export function decodeRequestFailed(event: {
+  topics: Uint8Array[];
+  data: Uint8Array;
+}): Uint8Array | null {
+  const decoded = RequestFailed.decode(event);
+  return decoded === null ? null : requestId(decoded.topics.request_id);
+}
+
+export function extractAcceptedRequestId(
+  receipt: TransactionReceipt,
+  driverAddress: ContractAddress,
+): Uint8Array {
+  const matches = receipt.events.flatMap((event) => {
+    if (!bytesEqual(event.contractAddress, driverAddress)) return [];
+    const decoded = RequestAccepted.decode(event);
+    if (decoded === null) return [];
+    if (event.data.length !== 0) {
+      throw new Error("RequestAccepted payload must be empty");
+    }
+    return [requestId(decoded.topics.request_id)];
+  });
+  if (matches.length !== 1) {
+    throw new Error(
+      `Expected one RequestAccepted event, received ${matches.length}`,
+    );
+  }
+  return matches[0]!;
+}
+
+function amounts(values: bigint[], name: string): readonly [bigint, bigint] {
+  if (values.length !== 2 || values[0] === undefined || values[1] === undefined) {
+    throw new Error(`SwapEvent ${name} must contain two amounts`);
+  }
+  return [values[0], values[1]];
+}
+
+function address(value: Uint8Array, name: string): Uint8Array {
+  if (value.length !== 32) {
+    throw new Error(`SwapEvent ${name} must be 32 bytes`);
   }
   return value;
 }
 
-function tuple(values: bigint[]): readonly [bigint, bigint] {
-  const [first, second] = values;
-  if (first === undefined || second === undefined || values.length !== 2) {
-    throw new Error("SwapEvent: expected two amounts");
+function requestId(value: Uint8Array | readonly bigint[]): Uint8Array {
+  if (value.length !== 32) throw new Error("Request ID must be 32 bytes");
+  if (value instanceof Uint8Array) return value.slice();
+  if (value.some((byte) => byte < 0n || byte > 255n)) {
+    throw new Error("Request ID contains an invalid byte");
   }
-  return [first, second];
+  return Uint8Array.from(value, Number);
 }
 
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  return a.every((byte, index) => byte === b[index]);
+export function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  return (
+    left.length === right.length
+    && left.every((byte, index) => byte === right[index])
+  );
 }

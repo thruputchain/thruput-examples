@@ -89,6 +89,19 @@ describe("workflowReducer", () => {
     ).toEqual(initialWorkflowState);
   });
 
+  it("unlocks a queued workflow when another tab clears its durable request", () => {
+    const queued: WorkflowState = {
+      status: "queued",
+      intent,
+      transactionHash: "0x01",
+      receiptBlock: 7n,
+    };
+
+    expect(
+      workflowReducer(queued, { type: "outstandingClearedElsewhere" }),
+    ).toEqual(initialWorkflowState);
+  });
+
   it.each(["approval", "swap"] as const)(
     "makes an indeterminate %s transaction non-resubmittable",
     (phase) => {

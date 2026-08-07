@@ -62,6 +62,7 @@ export const spec: ContractSpec = {
           name: s("burn_lp"),
           args: [
             { name: s("to"), ty: { v: ContractTypeKind.Address } },
+            { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
           ],
           return_type: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } },
         },
@@ -103,6 +104,7 @@ export const spec: ContractSpec = {
           name: s("mint_lp"),
           args: [
             { name: s("to"), ty: { v: ContractTypeKind.Address } },
+            { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
           ],
           return_type: { v: ContractTypeKind.U128 },
         },
@@ -119,6 +121,7 @@ export const spec: ContractSpec = {
             { name: s("amount0_out"), ty: { v: ContractTypeKind.U128 } },
             { name: s("amount1_out"), ty: { v: ContractTypeKind.U128 } },
             { name: s("to"), ty: { v: ContractTypeKind.Address } },
+            { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
           ],
           return_type: { v: ContractTypeKind.Void },
         },
@@ -240,6 +243,84 @@ export const spec: ContractSpec = {
       ],
     },
     {
+      name: s("BurnEvent"),
+      signature: topic(fromHex("44934a1f6a6a0d7c09f5464a14adefd9da1e9cde4d9420b333fecb917c47f52c")),
+      topics: [
+        { name: s("sender"), ty: { v: ContractTypeKind.Address } },
+        { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
+      ],
+      fields: [
+        { name: s("amounts_redeemed"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
+        { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
+      ],
+    },
+    {
+      name: s("MintEvent"),
+      signature: topic(fromHex("48e990a9515a2084882012e9e7c7cf93100fd7f03be5f1665969aefe519444be")),
+      topics: [
+        { name: s("sender"), ty: { v: ContractTypeKind.Address } },
+      ],
+      fields: [
+        { name: s("amount_minted"), ty: { v: ContractTypeKind.U128 } },
+        { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
+      ],
+    },
+    {
+      name: s("RequestAccepted"),
+      signature: topic(fromHex("adda27e0abdb0cc3b49c16a060fdc703aadcdeedf34701de90b60aeb525d37fc")),
+      topics: [
+        { name: s("request_id"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } },
+      ],
+      fields: [
+      ],
+    },
+    {
+      name: s("RequestFailed"),
+      signature: topic(fromHex("ef544a357e3cb94130fce15a57fb417430e08c359db240ed02e57902f374c21a")),
+      topics: [
+        { name: s("request_id"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } },
+      ],
+      fields: [
+      ],
+    },
+    {
+      name: s("SuiteCreated"),
+      signature: topic(fromHex("57167d2d86ac5c2da4a29f5fb6daa7d69a6cd1aab3d92c6eb25613ed4bd55889")),
+      topics: [
+        { name: s("token0"), ty: { v: ContractTypeKind.Address } },
+        { name: s("token1"), ty: { v: ContractTypeKind.Address } },
+      ],
+      fields: [
+        { name: s("pair"), ty: { v: ContractTypeKind.Address } },
+        { name: s("liquidity_token"), ty: { v: ContractTypeKind.Address } },
+        { name: s("handler"), ty: { v: ContractTypeKind.Address } },
+        { name: s("driver"), ty: { v: ContractTypeKind.Address } },
+        { name: s("pair_count"), ty: { v: ContractTypeKind.U32 } },
+      ],
+    },
+    {
+      name: s("SwapEvent"),
+      signature: topic(fromHex("86b5aa1c9e00134a5f67a0206b1212775022c4ab4b5099e70602e5c1548a19ab")),
+      topics: [
+        { name: s("sender"), ty: { v: ContractTypeKind.Address } },
+        { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
+      ],
+      fields: [
+        { name: s("amounts_in"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
+        { name: s("amounts_out"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
+        { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
+      ],
+    },
+    {
+      name: s("SyncEvent"),
+      signature: topic(fromHex("15f9dd3052c289e08cbcd724168d985fe851ce3991f43b095f5b70d3a292d4bd")),
+      topics: [
+      ],
+      fields: [
+        { name: s("reserves"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
+      ],
+    },
+    {
       name: s("TransferEvent"),
       signature: topic(fromHex("5ff62377bf52711e75461f4d8f9b4585f17d1c20f7e1eceb280194a7764bae5f")),
       topics: [
@@ -259,13 +340,13 @@ export const SwapPair = {
   burnLp(
     contract: ContractAddress,
     gasLimit: GasAmount,
-    args: { to: ContractAddress },
+    args: { to: ContractAddress; requestId: Uint8Array | null },
   ): Invocation {
     return createInvocation({
       invoked_address: contract,
       entrypoint: entrypoints.SwapPair.burnLp,
       gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "burn_lp", [args.to], namedCodecs),
+      calldata: encodeCalldata(spec, "SwapPair", "burn_lp", [args.to, args.requestId], namedCodecs),
     });
   },
   getCumulativePrices(
@@ -327,13 +408,13 @@ export const SwapPair = {
   mintLp(
     contract: ContractAddress,
     gasLimit: GasAmount,
-    args: { to: ContractAddress },
+    args: { to: ContractAddress; requestId: Uint8Array | null },
   ): Invocation {
     return createInvocation({
       invoked_address: contract,
       entrypoint: entrypoints.SwapPair.mintLp,
       gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "mint_lp", [args.to], namedCodecs),
+      calldata: encodeCalldata(spec, "SwapPair", "mint_lp", [args.to, args.requestId], namedCodecs),
     });
   },
   skim(
@@ -351,13 +432,13 @@ export const SwapPair = {
   swap(
     contract: ContractAddress,
     gasLimit: GasAmount,
-    args: { amount0Out: bigint; amount1Out: bigint; to: ContractAddress },
+    args: { amount0Out: bigint; amount1Out: bigint; to: ContractAddress; requestId: Uint8Array | null },
   ): Invocation {
     return createInvocation({
       invoked_address: contract,
       entrypoint: entrypoints.SwapPair.swap,
       gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "swap", [args.amount0Out, args.amount1Out, args.to], namedCodecs),
+      calldata: encodeCalldata(spec, "SwapPair", "swap", [args.amount0Out, args.amount1Out, args.to, args.requestId], namedCodecs),
     });
   },
   sync(
@@ -402,6 +483,173 @@ export const ApprovalEvent = {
   },
 } as const;
 
+export interface BurnEvent {
+  name: "BurnEvent";
+  topics: { sender: Uint8Array; recipient: Uint8Array; };
+  fields: { amounts_redeemed: bigint[]; request_id: Uint8Array | null; };
+}
+export const BurnEvent = {
+  /** Topic-0 signature hash from the contract spec. */
+  signature: fromHex("44934a1f6a6a0d7c09f5464a14adefd9da1e9cde4d9420b333fecb917c47f52c"),
+  /** Returns null if topic 0 does not identify this event. */
+  decode(event: { topics: Uint8Array[]; data: Uint8Array }): BurnEvent | null {
+    if (!topicEquals(event.topics[0], BurnEvent.signature)) return null;
+    if (event.topics.length !== 3) {
+      throw new Error(`BurnEvent: expected 3 topics, got ${event.topics.length}`);
+    }
+    const r = new CxsReader(event.data);
+    const f0 = resolveCodec(spec.events[1].fields[0].ty, namedCodecs).decode(r) as bigint[];
+    const f1 = resolveCodec(spec.events[1].fields[1].ty, namedCodecs).decode(r) as Uint8Array | null;
+    if (r.remaining !== 0) {
+      throw new Error(`BurnEvent: ${r.remaining} trailing bytes after payload`);
+    }
+    return { name: "BurnEvent", topics: { sender: event.topics[1], recipient: event.topics[2] }, fields: { amounts_redeemed: f0, request_id: f1 } };
+  },
+} as const;
+
+export interface MintEvent {
+  name: "MintEvent";
+  topics: { sender: Uint8Array; };
+  fields: { amount_minted: bigint; request_id: Uint8Array | null; };
+}
+export const MintEvent = {
+  /** Topic-0 signature hash from the contract spec. */
+  signature: fromHex("48e990a9515a2084882012e9e7c7cf93100fd7f03be5f1665969aefe519444be"),
+  /** Returns null if topic 0 does not identify this event. */
+  decode(event: { topics: Uint8Array[]; data: Uint8Array }): MintEvent | null {
+    if (!topicEquals(event.topics[0], MintEvent.signature)) return null;
+    if (event.topics.length !== 2) {
+      throw new Error(`MintEvent: expected 2 topics, got ${event.topics.length}`);
+    }
+    const r = new CxsReader(event.data);
+    const f0 = resolveCodec(spec.events[2].fields[0].ty, namedCodecs).decode(r) as bigint;
+    const f1 = resolveCodec(spec.events[2].fields[1].ty, namedCodecs).decode(r) as Uint8Array | null;
+    if (r.remaining !== 0) {
+      throw new Error(`MintEvent: ${r.remaining} trailing bytes after payload`);
+    }
+    return { name: "MintEvent", topics: { sender: event.topics[1] }, fields: { amount_minted: f0, request_id: f1 } };
+  },
+} as const;
+
+export interface RequestAccepted {
+  name: "RequestAccepted";
+  topics: { request_id: Uint8Array; };
+  fields: {  };
+}
+export const RequestAccepted = {
+  /** Topic-0 signature hash from the contract spec. */
+  signature: fromHex("adda27e0abdb0cc3b49c16a060fdc703aadcdeedf34701de90b60aeb525d37fc"),
+  /** Returns null if topic 0 does not identify this event. */
+  decode(event: { topics: Uint8Array[]; data: Uint8Array }): RequestAccepted | null {
+    if (!topicEquals(event.topics[0], RequestAccepted.signature)) return null;
+    if (event.topics.length !== 2) {
+      throw new Error(`RequestAccepted: expected 2 topics, got ${event.topics.length}`);
+    }
+    const r = new CxsReader(event.data);
+    if (r.remaining !== 0) {
+      throw new Error(`RequestAccepted: ${r.remaining} trailing bytes after payload`);
+    }
+    return { name: "RequestAccepted", topics: { request_id: event.topics[1] }, fields: {  } };
+  },
+} as const;
+
+export interface RequestFailed {
+  name: "RequestFailed";
+  topics: { request_id: Uint8Array; };
+  fields: {  };
+}
+export const RequestFailed = {
+  /** Topic-0 signature hash from the contract spec. */
+  signature: fromHex("ef544a357e3cb94130fce15a57fb417430e08c359db240ed02e57902f374c21a"),
+  /** Returns null if topic 0 does not identify this event. */
+  decode(event: { topics: Uint8Array[]; data: Uint8Array }): RequestFailed | null {
+    if (!topicEquals(event.topics[0], RequestFailed.signature)) return null;
+    if (event.topics.length !== 2) {
+      throw new Error(`RequestFailed: expected 2 topics, got ${event.topics.length}`);
+    }
+    const r = new CxsReader(event.data);
+    if (r.remaining !== 0) {
+      throw new Error(`RequestFailed: ${r.remaining} trailing bytes after payload`);
+    }
+    return { name: "RequestFailed", topics: { request_id: event.topics[1] }, fields: {  } };
+  },
+} as const;
+
+export interface SuiteCreated {
+  name: "SuiteCreated";
+  topics: { token0: Uint8Array; token1: Uint8Array; };
+  fields: { pair: ContractAddress; liquidity_token: ContractAddress; handler: ContractAddress; driver: ContractAddress; pair_count: bigint; };
+}
+export const SuiteCreated = {
+  /** Topic-0 signature hash from the contract spec. */
+  signature: fromHex("57167d2d86ac5c2da4a29f5fb6daa7d69a6cd1aab3d92c6eb25613ed4bd55889"),
+  /** Returns null if topic 0 does not identify this event. */
+  decode(event: { topics: Uint8Array[]; data: Uint8Array }): SuiteCreated | null {
+    if (!topicEquals(event.topics[0], SuiteCreated.signature)) return null;
+    if (event.topics.length !== 3) {
+      throw new Error(`SuiteCreated: expected 3 topics, got ${event.topics.length}`);
+    }
+    const r = new CxsReader(event.data);
+    const f0 = resolveCodec(spec.events[5].fields[0].ty, namedCodecs).decode(r) as ContractAddress;
+    const f1 = resolveCodec(spec.events[5].fields[1].ty, namedCodecs).decode(r) as ContractAddress;
+    const f2 = resolveCodec(spec.events[5].fields[2].ty, namedCodecs).decode(r) as ContractAddress;
+    const f3 = resolveCodec(spec.events[5].fields[3].ty, namedCodecs).decode(r) as ContractAddress;
+    const f4 = resolveCodec(spec.events[5].fields[4].ty, namedCodecs).decode(r) as bigint;
+    if (r.remaining !== 0) {
+      throw new Error(`SuiteCreated: ${r.remaining} trailing bytes after payload`);
+    }
+    return { name: "SuiteCreated", topics: { token0: event.topics[1], token1: event.topics[2] }, fields: { pair: f0, liquidity_token: f1, handler: f2, driver: f3, pair_count: f4 } };
+  },
+} as const;
+
+export interface SwapEvent {
+  name: "SwapEvent";
+  topics: { sender: Uint8Array; recipient: Uint8Array; };
+  fields: { amounts_in: bigint[]; amounts_out: bigint[]; request_id: Uint8Array | null; };
+}
+export const SwapEvent = {
+  /** Topic-0 signature hash from the contract spec. */
+  signature: fromHex("86b5aa1c9e00134a5f67a0206b1212775022c4ab4b5099e70602e5c1548a19ab"),
+  /** Returns null if topic 0 does not identify this event. */
+  decode(event: { topics: Uint8Array[]; data: Uint8Array }): SwapEvent | null {
+    if (!topicEquals(event.topics[0], SwapEvent.signature)) return null;
+    if (event.topics.length !== 3) {
+      throw new Error(`SwapEvent: expected 3 topics, got ${event.topics.length}`);
+    }
+    const r = new CxsReader(event.data);
+    const f0 = resolveCodec(spec.events[6].fields[0].ty, namedCodecs).decode(r) as bigint[];
+    const f1 = resolveCodec(spec.events[6].fields[1].ty, namedCodecs).decode(r) as bigint[];
+    const f2 = resolveCodec(spec.events[6].fields[2].ty, namedCodecs).decode(r) as Uint8Array | null;
+    if (r.remaining !== 0) {
+      throw new Error(`SwapEvent: ${r.remaining} trailing bytes after payload`);
+    }
+    return { name: "SwapEvent", topics: { sender: event.topics[1], recipient: event.topics[2] }, fields: { amounts_in: f0, amounts_out: f1, request_id: f2 } };
+  },
+} as const;
+
+export interface SyncEvent {
+  name: "SyncEvent";
+  topics: {  };
+  fields: { reserves: bigint[]; };
+}
+export const SyncEvent = {
+  /** Topic-0 signature hash from the contract spec. */
+  signature: fromHex("15f9dd3052c289e08cbcd724168d985fe851ce3991f43b095f5b70d3a292d4bd"),
+  /** Returns null if topic 0 does not identify this event. */
+  decode(event: { topics: Uint8Array[]; data: Uint8Array }): SyncEvent | null {
+    if (!topicEquals(event.topics[0], SyncEvent.signature)) return null;
+    if (event.topics.length !== 1) {
+      throw new Error(`SyncEvent: expected 1 topics, got ${event.topics.length}`);
+    }
+    const r = new CxsReader(event.data);
+    const f0 = resolveCodec(spec.events[7].fields[0].ty, namedCodecs).decode(r) as bigint[];
+    if (r.remaining !== 0) {
+      throw new Error(`SyncEvent: ${r.remaining} trailing bytes after payload`);
+    }
+    return { name: "SyncEvent", topics: {  }, fields: { reserves: f0 } };
+  },
+} as const;
+
 export interface TransferEvent {
   name: "TransferEvent";
   topics: { from: Uint8Array; to: Uint8Array; };
@@ -417,7 +665,7 @@ export const TransferEvent = {
       throw new Error(`TransferEvent: expected 3 topics, got ${event.topics.length}`);
     }
     const r = new CxsReader(event.data);
-    const f0 = resolveCodec(spec.events[1].fields[0].ty, namedCodecs).decode(r) as bigint;
+    const f0 = resolveCodec(spec.events[8].fields[0].ty, namedCodecs).decode(r) as bigint;
     if (r.remaining !== 0) {
       throw new Error(`TransferEvent: ${r.remaining} trailing bytes after payload`);
     }
@@ -425,8 +673,8 @@ export const TransferEvent = {
   },
 } as const;
 
-export type SwapPairEvent = ApprovalEvent | TransferEvent;
+export type SwapPairEvent = ApprovalEvent | BurnEvent | MintEvent | RequestAccepted | RequestFailed | SuiteCreated | SwapEvent | SyncEvent | TransferEvent;
 
 export function decodeEvent(event: { topics: Uint8Array[]; data: Uint8Array }): SwapPairEvent | null {
-  return ApprovalEvent.decode(event) ?? TransferEvent.decode(event);
+  return ApprovalEvent.decode(event) ?? BurnEvent.decode(event) ?? MintEvent.decode(event) ?? RequestAccepted.decode(event) ?? RequestFailed.decode(event) ?? SuiteCreated.decode(event) ?? SwapEvent.decode(event) ?? SyncEvent.decode(event) ?? TransferEvent.decode(event);
 }

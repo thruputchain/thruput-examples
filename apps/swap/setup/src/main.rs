@@ -18,7 +18,7 @@ use groundhog_testkit::{
 };
 use sdk::Event;
 use sdk::exn::RawException;
-use swap_if::{Suite, SwapHashes, SwapPairError};
+use swap_if::{RequestId, Suite, SwapHashes, SwapPairError};
 use swap_pair::events::SwapEvent;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -521,7 +521,7 @@ async fn verify_view_outcomes(
         .view_call(
             pair.address(),
             swap_entrypoint,
-            &xdrs::cxs::encode(&(0_u128, 0_u128, caller))?,
+            &xdrs::cxs::encode(&(0_u128, 0_u128, caller, Option::<RequestId>::None))?,
             Some(caller),
         )
         .await?;
