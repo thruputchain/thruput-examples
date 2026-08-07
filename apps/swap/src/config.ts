@@ -64,10 +64,18 @@ export function loadAppConfig(environment: Environment): AppConfig {
 }
 
 export function isLoopbackUrl(url: URL): boolean {
+  return isLoopbackHostname(url.hostname);
+}
+
+export function isBrowserLoopback(): boolean {
+  return typeof window === "undefined" || isLoopbackHostname(window.location.hostname);
+}
+
+export function isLoopbackHostname(hostname: string): boolean {
   return (
-    url.hostname === "localhost" ||
-    url.hostname === "127.0.0.1" ||
-    url.hostname === "[::1]"
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]"
   );
 }
 

@@ -48,49 +48,53 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
   });
 
   return async () => {
-    const [
-      tip,
-      reserves,
-      metadataA,
-      metadataB,
-      balanceA,
-      balanceB,
-      allowanceA,
-      allowanceB,
-    ] = await Promise.all([
-      client.getChainTip(),
-      pair.reserves(),
-      tokenA.metadata(),
-      tokenB.metadata(),
-      tokenA.balanceOf(config.accountAddress),
-      tokenB.balanceOf(config.accountAddress),
-      tokenA.allowance(config.accountAddress, config.handlerAddress),
-      tokenB.allowance(config.accountAddress, config.handlerAddress),
-    ]);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const startTip = await client.getChainTip();
+      const [
+        reserves,
+        metadataA,
+        metadataB,
+        balanceA,
+        balanceB,
+        allowanceA,
+        allowanceB,
+      ] = await Promise.all([
+        pair.reserves(),
+        tokenA.metadata(),
+        tokenB.metadata(),
+        tokenA.balanceOf(config.accountAddress),
+        tokenB.balanceOf(config.accountAddress),
+        tokenA.allowance(config.accountAddress, config.handlerAddress),
+        tokenB.allowance(config.accountAddress, config.handlerAddress),
+      ]);
+      const endTip = await client.getChainTip();
+      if (startTip.height !== endTip.height) continue;
 
-    return {
-      tokenA: tokenSnapshot({
-        address: config.tokenAAddress,
-        metadata: metadataA,
-        fallbackSymbol: config.tokenASymbol,
-        fallbackDecimals: config.tokenDecimals,
-        balance: balanceA,
-        allowance: allowanceA,
-      }),
-      tokenB: tokenSnapshot({
-        address: config.tokenBAddress,
-        metadata: metadataB,
-        fallbackSymbol: config.tokenBSymbol,
-        fallbackDecimals: config.tokenDecimals,
-        balance: balanceB,
-        allowance: allowanceB,
-      }),
-      reserve0: reserves.reserve0,
-      reserve1: reserves.reserve1,
-      reserveTimestamp: reserves.blockTimestamp,
-      chainHeight: tip.height,
-      readAt: Date.now(),
-    };
+      return {
+        tokenA: tokenSnapshot({
+          address: config.tokenAAddress,
+          metadata: metadataA,
+          fallbackSymbol: config.tokenASymbol,
+          fallbackDecimals: config.tokenDecimals,
+          balance: balanceA,
+          allowance: allowanceA,
+        }),
+        tokenB: tokenSnapshot({
+          address: config.tokenBAddress,
+          metadata: metadataB,
+          fallbackSymbol: config.tokenBSymbol,
+          fallbackDecimals: config.tokenDecimals,
+          balance: balanceB,
+          allowance: allowanceB,
+        }),
+        reserve0: reserves.reserve0,
+        reserve1: reserves.reserve1,
+        reserveTimestamp: reserves.blockTimestamp,
+        chainHeight: endTip.height,
+        readAt: Date.now(),
+      };
+    }
+    throw new Error("The chain advanced during three snapshot attempts");
   };
 }
 
