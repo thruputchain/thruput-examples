@@ -68,10 +68,12 @@ export type WorkflowEvent =
     } & TransactionFailure)
   | { type: "requestQueued"; transactionHash: string; receiptBlock: bigint }
   | { type: "executionObserved" }
+  | { type: "executionFailed" }
   | { type: "observationTimedOut" }
   | { type: "clearObserved" }
   | { type: "acknowledgeCommittedFailure" }
-  | { type: "confirmExternalCrank" };
+  | { type: "confirmExternalCrank" }
+  | { type: "outstandingClearedElsewhere" };
 
 export const initialWorkflowState: WorkflowState = { status: "idle" };
 
@@ -86,6 +88,11 @@ export function workflowReducer(
   state: WorkflowState,
   event: WorkflowEvent,
 ): WorkflowState {
+  if (event.type === "outstandingClearedElsewhere") {
+    return state.status === "queued" || state.status === "queuedNotObserved"
+      ? initialWorkflowState
+      : state;
+  }
   if (event.type === "inputChanged") {
     if (
       [
@@ -167,6 +174,9 @@ export function workflowReducer(
       if (event.type === "executionObserved") {
         return observed(state);
       }
+      if (event.type === "executionFailed") {
+        return initialWorkflowState;
+      }
       if (event.type === "observationTimedOut") {
         return { ...state, status: "queuedNotObserved" };
       }
@@ -177,6 +187,9 @@ export function workflowReducer(
     case "queuedNotObserved":
       if (event.type === "executionObserved") {
         return observed(state);
+      }
+      if (event.type === "executionFailed") {
+        return initialWorkflowState;
       }
       if (event.type === "confirmExternalCrank") {
         return initialWorkflowState;

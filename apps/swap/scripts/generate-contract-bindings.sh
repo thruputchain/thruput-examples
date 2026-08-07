@@ -9,7 +9,7 @@ groundhog_cli="${GROUNDHOG_CLI:?Set GROUNDHOG_CLI to the validated CLI executabl
 case "$("$groundhog_cli" --version)" in
   "groundhog 0.6."*) ;;
   *)
-    printf 'Groundhog CLI 0.6.x is required to build SDK 0.17.4 contract specs.\n' >&2
+    printf 'Groundhog CLI 0.6.x is required to build SDK 0.17.9 contract specs.\n' >&2
     exit 1
     ;;
 esac
@@ -29,4 +29,6 @@ esac
     -o apps/swap/src/contracts/generated/swap-pair.ts
   "$groundhog_cli" codegen ts target/groundhog/swap_router.spec.xdr \
     -o apps/swap/src/contracts/generated/swap-router.ts
+  "$groundhog_cli" codegen ts target/groundhog/swap_driver.spec.xdr \
+    -o apps/swap/src/contracts/generated/swap-driver.ts
 )

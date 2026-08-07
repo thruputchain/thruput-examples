@@ -9,14 +9,27 @@ export interface OutstandingRequest {
     | "submitting"
     | "indeterminate"
     | "committedFailure"
-    | "queued";
+    | "queued"
+    | "queuedNotObserved"
+    | "queuedUntracked";
   phase: "approval" | "swap";
   intent: SwapIntent;
   transactionHash: string | null;
   receiptBlock: bigint | null;
+  requestId: string | null;
+  visibleObservationMs: number;
+  observationBaseline: {
+    chainHeight: bigint;
+    inputBalance: bigint;
+    outputBalance: bigint;
+    inputAllowance: bigint;
+    reserveIn: bigint;
+    reserveOut: bigint;
+  } | null;
   criteria: {
     pairAddress: string;
     handlerAddress: string;
+    driverAddress: string;
     recipient: string;
     tokenIn: string;
     tokenOut: string;
@@ -44,7 +57,9 @@ export function loadOutstandingRequest(
     const value: unknown = JSON.parse(stored);
     if (!isStoredRequest(value)) throw new Error("invalid outstanding request");
     return {
-      status: value.status,
+      status: value.status === "queued" && value.requestId == null
+        ? "queuedUntracked"
+        : value.status,
       phase: value.phase,
       intent: {
         amountIn: BigInt(value.amountIn),
@@ -53,7 +68,24 @@ export function loadOutstandingRequest(
       transactionHash: value.transactionHash,
       receiptBlock:
         value.receiptBlock === null ? null : BigInt(value.receiptBlock),
-      criteria: value.criteria,
+      requestId: value.requestId ?? null,
+      visibleObservationMs: value.visibleObservationMs ?? 0,
+      observationBaseline: value.observationBaseline === undefined
+        || value.observationBaseline === null
+        ? null
+        : {
+            chainHeight: BigInt(value.observationBaseline.chainHeight),
+            inputBalance: BigInt(value.observationBaseline.inputBalance),
+            outputBalance: BigInt(value.observationBaseline.outputBalance),
+            inputAllowance: BigInt(value.observationBaseline.inputAllowance),
+            reserveIn: BigInt(value.observationBaseline.reserveIn),
+            reserveOut: BigInt(value.observationBaseline.reserveOut),
+          },
+      criteria: {
+        ...value.criteria,
+        driverAddress:
+          value.criteria.driverAddress ?? toHex0x(config.driverAddress),
+      },
     };
   } catch {
     window.localStorage.removeItem(key);
@@ -74,6 +106,16 @@ export function saveOutstandingRequest(
       amountOutMin: request.intent.amountOutMin.toString(),
       transactionHash: request.transactionHash,
       receiptBlock: request.receiptBlock?.toString() ?? null,
+      requestId: request.requestId,
+      visibleObservationMs: request.visibleObservationMs,
+      observationBaseline: request.observationBaseline === null
+        ? null
+        : Object.fromEntries(
+            Object.entries(request.observationBaseline).map(([key, value]) => [
+              key,
+              value.toString(),
+            ]),
+          ),
       criteria: request.criteria,
     }),
   );
@@ -97,6 +139,20 @@ export async function withOutstandingRequestLock<T>(
   );
 }
 
+export async function withRequestObservationLock<T>(
+  config: AppConfig,
+  action: () => Promise<T>,
+): Promise<T> {
+  if (typeof window === "undefined" || window.navigator.locks === undefined) {
+    return action();
+  }
+  return window.navigator.locks.request(
+    `${outstandingRequestKey(config)}:observation`,
+    { mode: "exclusive" },
+    action,
+  );
+}
+
 function isStoredRequest(value: unknown): value is {
   status: OutstandingRequest["status"];
   phase: OutstandingRequest["phase"];
@@ -104,14 +160,26 @@ function isStoredRequest(value: unknown): value is {
   amountOutMin: string;
   transactionHash: string | null;
   receiptBlock: string | null;
-  criteria: OutstandingRequest["criteria"];
+  requestId?: string | null;
+  visibleObservationMs?: number;
+  observationBaseline?: {
+    chainHeight: string;
+    inputBalance: string;
+    outputBalance: string;
+    inputAllowance: string;
+    reserveIn: string;
+    reserveOut: string;
+  } | null;
+  criteria: Omit<OutstandingRequest["criteria"], "driverAddress"> & {
+    driverAddress?: string;
+  };
 } {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
   const record = value as Record<string, unknown>;
   return (
-    ["approving", "submitting", "indeterminate", "committedFailure", "queued"].includes(String(record.status))
+    ["approving", "submitting", "indeterminate", "committedFailure", "queued", "queuedNotObserved", "queuedUntracked"].includes(String(record.status))
     && (record.phase === "approval" || record.phase === "swap")
     && typeof record.amountIn === "string"
     && /^\d+$/.test(record.amountIn)
@@ -123,16 +191,45 @@ function isStoredRequest(value: unknown): value is {
     && (record.receiptBlock === null
       || (typeof record.receiptBlock === "string"
         && /^\d+$/.test(record.receiptBlock)))
+    && (record.requestId === undefined
+      || record.requestId === null
+      || (typeof record.requestId === "string"
+        && /^0x[0-9a-f]{64}$/.test(record.requestId)))
+    && (record.visibleObservationMs === undefined
+      || (typeof record.visibleObservationMs === "number"
+        && Number.isFinite(record.visibleObservationMs)
+        && record.visibleObservationMs >= 0
+        && record.visibleObservationMs <= 120_000))
+    && isObservationBaseline(record.observationBaseline)
     && isCriteria(record.criteria)
   );
 }
 
-function isCriteria(value: unknown): value is OutstandingRequest["criteria"] {
+function isObservationBaseline(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return [
+    "chainHeight",
+    "inputBalance",
+    "outputBalance",
+    "inputAllowance",
+    "reserveIn",
+    "reserveOut",
+  ].every((key) => typeof record[key] === "string" && /^\d+$/.test(record[key]));
+}
+
+function isCriteria(value: unknown): value is Omit<
+  OutstandingRequest["criteria"],
+  "driverAddress"
+> & { driverAddress?: string } {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
   const record = value as Record<string, unknown>;
   return ["pairAddress", "handlerAddress", "recipient", "tokenIn", "tokenOut"].every(
     (key) => typeof record[key] === "string" && /^0x[0-9a-f]{64}$/.test(record[key]),
-  );
+  ) && (record.driverAddress === undefined
+    || (typeof record.driverAddress === "string"
+      && /^0x[0-9a-f]{64}$/.test(record.driverAddress)));
 }

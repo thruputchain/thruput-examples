@@ -9,6 +9,7 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 const root = path.dirname(fileURLToPath(import.meta.url));
 const ALLOWED_RPC_METHODS = new Set([
   "groundhog_chainTip",
+  "groundhog_getEvents",
   "groundhog_getTransactionReceipt",
   "groundhog_getTransactionStatus",
   "groundhog_sendRawTransaction",

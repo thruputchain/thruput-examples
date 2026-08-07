@@ -5,10 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "@/app";
 import type { AppConfig } from "@/config";
+import { REQUEST_ACCEPTED_SIGNATURE } from "@/contracts/swap-event";
 import type { PoolSnapshot, SnapshotReader } from "@/swap/snapshot";
+import type { RequestObserver } from "@/transactions/request-observer";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 import {
+  clearOutstandingRequest,
   loadOutstandingRequest,
+  outstandingRequestKey,
   saveOutstandingRequest,
 } from "@/transactions/outstanding-request";
 
@@ -62,11 +66,18 @@ function pool(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
 function renderApp(
   readSnapshot: SnapshotReader = async () => pool(),
   writeBoundary?: WriteBoundary,
+  requestObserver: RequestObserver = {
+    scan: async (request) => ({
+      result: null,
+      latestBlock: request.receiptBlock ?? 0n,
+    }),
+  },
 ) {
   return render(
     <App
       config={config}
       readSnapshot={readSnapshot}
+      requestObserver={requestObserver}
       {...(writeBoundary === undefined ? {} : { writeBoundary })}
     />,
   );
@@ -76,6 +87,7 @@ const hash = `0x${"ab".repeat(32)}`;
 const criteria = {
   pairAddress: `0x${"07".repeat(32)}`,
   handlerAddress: `0x${"06".repeat(32)}`,
+  driverAddress: `0x${"05".repeat(32)}`,
   recipient: `0x${"09".repeat(32)}`,
   tokenIn: `0x${"01".repeat(32)}`,
   tokenOut: `0x${"02".repeat(32)}`,
@@ -91,7 +103,16 @@ function committedSuccess(
       txHash: sha256Hash(new Uint8Array(32).fill(0xab)),
       height,
       execResult: ExecResult.ExecResultOK,
-      events: [],
+      events: [
+        {
+          contractAddress: config.driverAddress,
+          topics: [
+            REQUEST_ACCEPTED_SIGNATURE,
+            new Uint8Array(32).fill(0xcd),
+          ],
+          data: new Uint8Array(),
+        },
+      ],
       returnData: new Uint8Array(),
       abortData: null,
     },
@@ -436,6 +457,9 @@ describe("local swap submission", () => {
       intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
       transactionHash: hash,
       receiptBlock: 12n,
+      requestId: `0x${"cd".repeat(32)}`,
+      visibleObservationMs: 0,
+      observationBaseline: null,
       criteria,
     });
     const approved = pool({
@@ -448,6 +472,258 @@ describe("local swap submission", () => {
     expect(screen.getByRole("button", { name: "Queued for execution" })).toBeDisabled();
   });
 
+  it("observes a restored queued request and refreshes the snapshot", async () => {
+    saveOutstandingRequest(config, {
+      status: "queued",
+      phase: "swap",
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: hash,
+      receiptBlock: 12n,
+      requestId: `0x${"cd".repeat(32)}`,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria,
+    });
+    const readSnapshot = vi.fn(async () => pool());
+    const requestObserver: RequestObserver = {
+      scan: vi.fn().mockResolvedValue({
+        result: {
+          kind: "executionObserved",
+          requestId: `0x${"cd".repeat(32)}`,
+          transactionHash: `0x${"ef".repeat(32)}`,
+          blockHeight: 14n,
+          amountIn: 10_000_000n,
+          amountOut: 19_500_000n,
+        },
+        latestBlock: 14n,
+      }),
+    };
+    renderApp(readSnapshot, undefined, requestObserver);
+
+    expect(await screen.findByText("Execution observed")).toBeInTheDocument();
+    expect(screen.getByText(/10 gUSD was exchanged for 19.5 gEUR/)).toBeInTheDocument();
+    expect(loadOutstandingRequest(config)).toBeNull();
+    await waitFor(() => expect(readSnapshot).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps an observation timeout queued and nonterminal", async () => {
+    saveOutstandingRequest(config, {
+      status: "queued",
+      phase: "swap",
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: hash,
+      receiptBlock: 12n,
+      requestId: `0x${"cd".repeat(32)}`,
+      visibleObservationMs: 120_000,
+      observationBaseline: null,
+      criteria,
+    });
+    const requestObserver: RequestObserver = { scan: vi.fn() };
+    renderApp(async () => pool(), undefined, requestObserver);
+
+    expect(await screen.findByText("Execution not observed")).toBeInTheDocument();
+    expect(screen.getByText(/absence of an event does not prove failure/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Queued; execution not observed" })).toBeDisabled();
+    expect(loadOutstandingRequest(config)?.status).toBe("queuedNotObserved");
+    expect(requestObserver.scan).not.toHaveBeenCalled();
+  });
+
+  it("labels restored reverse-direction execution with the persisted tokens", async () => {
+    saveOutstandingRequest(config, {
+      status: "queued",
+      phase: "swap",
+      intent: { amountIn: 10_000_000n, amountOutMin: 4_000_000n },
+      transactionHash: hash,
+      receiptBlock: 12n,
+      requestId: `0x${"cd".repeat(32)}`,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria: {
+        ...criteria,
+        tokenIn: criteria.tokenOut,
+        tokenOut: criteria.tokenIn,
+      },
+    });
+    const requestObserver: RequestObserver = {
+      scan: vi.fn().mockResolvedValue({
+        result: {
+          kind: "executionObserved",
+          requestId: `0x${"cd".repeat(32)}`,
+          transactionHash: `0x${"ef".repeat(32)}`,
+          blockHeight: 14n,
+          amountIn: 10_000_000n,
+          amountOut: 4_500_000n,
+        },
+        latestBlock: 14n,
+      }),
+    };
+    renderApp(async () => pool(), undefined, requestObserver);
+
+    expect(await screen.findByText(/10 gEUR was exchanged for 4.5 gUSD/)).toBeInTheDocument();
+  });
+
+  it("does not overlap event scans across visibility changes", async () => {
+    saveOutstandingRequest(config, {
+      status: "queued",
+      phase: "swap",
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: hash,
+      receiptBlock: 12n,
+      requestId: `0x${"cd".repeat(32)}`,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria,
+    });
+    let resolveScan!: (value: { result: null; latestBlock: bigint }) => void;
+    const scanResult = new Promise<{ result: null; latestBlock: bigint }>(
+      (resolve) => { resolveScan = resolve; },
+    );
+    const requestObserver: RequestObserver = {
+      scan: vi.fn().mockReturnValue(scanResult),
+    };
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+
+    try {
+      renderApp(async () => pool(), undefined, requestObserver);
+      await screen.findByLabelText("YOU PAY");
+      await waitFor(() => expect(requestObserver.scan).toHaveBeenCalledTimes(1));
+
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: "hidden",
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: "visible",
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      expect(requestObserver.scan).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        resolveScan({ result: null, latestBlock: 13n });
+      });
+    } finally {
+      delete (document as { visibilityState?: string }).visibilityState;
+    }
+  });
+
+  it("does not restore a request cleared by another tab during a scan", async () => {
+    saveOutstandingRequest(config, {
+      status: "queued",
+      phase: "swap",
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: hash,
+      receiptBlock: 12n,
+      requestId: `0x${"cd".repeat(32)}`,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria,
+    });
+    let resolveScan!: (value: { result: null; latestBlock: bigint }) => void;
+    const requestObserver: RequestObserver = {
+      scan: vi.fn().mockReturnValue(
+        new Promise<{ result: null; latestBlock: bigint }>((resolve) => {
+          resolveScan = resolve;
+        }),
+      ),
+    };
+    renderApp(async () => pool(), undefined, requestObserver);
+    await waitFor(() => expect(requestObserver.scan).toHaveBeenCalledTimes(1));
+
+    clearOutstandingRequest(config);
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: outstandingRequestKey(config),
+      newValue: null,
+    }));
+    await act(async () => {
+      resolveScan({ result: null, latestBlock: 13n });
+    });
+
+    expect(loadOutstandingRequest(config)).toBeNull();
+    expect(screen.queryByText("Queued for execution", { selector: "div" })).not.toBeInTheDocument();
+  });
+
+  it("accepts a terminal event from a scan already running at timeout", async () => {
+    saveOutstandingRequest(config, {
+      status: "queued",
+      phase: "swap",
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: hash,
+      receiptBlock: 12n,
+      requestId: `0x${"cd".repeat(32)}`,
+      visibleObservationMs: 119_900,
+      observationBaseline: null,
+      criteria,
+    });
+    let resolveScan!: (value: Awaited<ReturnType<RequestObserver["scan"]>>) => void;
+    const requestObserver: RequestObserver = {
+      scan: vi.fn().mockReturnValue(
+        new Promise<Awaited<ReturnType<RequestObserver["scan"]>>>((resolve) => {
+          resolveScan = resolve;
+        }),
+      ),
+    };
+    renderApp(async () => pool(), undefined, requestObserver);
+    await waitFor(() => expect(requestObserver.scan).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Execution not observed")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveScan({
+        result: {
+          kind: "executionObserved",
+          requestId: `0x${"cd".repeat(32)}`,
+          transactionHash: `0x${"ef".repeat(32)}`,
+          blockHeight: 14n,
+          amountIn: 10_000_000n,
+          amountOut: 19_500_000n,
+        },
+        latestBlock: 14n,
+      });
+    });
+
+    expect(await screen.findByText("Execution observed")).toBeInTheDocument();
+    expect(loadOutstandingRequest(config)).toBeNull();
+  });
+
+  it("does not regress visible observation time written by another tab", async () => {
+    const queuedRequest = {
+      status: "queued" as const,
+      phase: "swap" as const,
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: hash,
+      receiptBlock: 12n,
+      requestId: `0x${"cd".repeat(32)}`,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria,
+    };
+    saveOutstandingRequest(config, queuedRequest);
+    let resolveScan!: (value: { result: null; latestBlock: bigint }) => void;
+    const requestObserver: RequestObserver = {
+      scan: vi.fn().mockReturnValue(
+        new Promise<{ result: null; latestBlock: bigint }>((resolve) => {
+          resolveScan = resolve;
+        }),
+      ),
+    };
+    renderApp(async () => pool(), undefined, requestObserver);
+    await waitFor(() => expect(requestObserver.scan).toHaveBeenCalledTimes(1));
+
+    saveOutstandingRequest(config, {
+      ...queuedRequest,
+      visibleObservationMs: 100_000,
+    });
+    await act(async () => {
+      resolveScan({ result: null, latestBlock: 13n });
+    });
+
+    expect(loadOutstandingRequest(config)?.visibleObservationMs).toBeGreaterThanOrEqual(100_000);
+  });
+
   it("requires explicit confirmation to clear a restored pre-hash marker", async () => {
     const user = userEvent.setup();
     saveOutstandingRequest(config, {
@@ -456,6 +732,9 @@ describe("local swap submission", () => {
       intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
       transactionHash: null,
       receiptBlock: null,
+      requestId: null,
+      visibleObservationMs: 0,
+      observationBaseline: null,
       criteria,
     });
     renderApp(async () => pool());
@@ -477,6 +756,9 @@ describe("local swap submission", () => {
       intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
       transactionHash: hash,
       receiptBlock: null,
+      requestId: null,
+      visibleObservationMs: 0,
+      observationBaseline: null,
       criteria,
     });
     const writer: WriteBoundary = {

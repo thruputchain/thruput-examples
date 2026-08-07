@@ -10,6 +10,7 @@ import {
 describe("local RPC proxy policy", () => {
   it.each([
     "groundhog_chainTip",
+    "groundhog_getEvents",
     "groundhog_view",
     "groundhog_sendRawTransaction",
     "groundhog_getTransactionStatus",
@@ -19,7 +20,7 @@ describe("local RPC proxy policy", () => {
   });
 
   it("rejects unrelated RPC methods and batches", () => {
-    expect(isAllowedRequest({ method: "groundhog_getEvents" })).toBe(false);
+    expect(isAllowedRequest({ method: "groundhog_deleteAllData" })).toBe(false);
     expect(isAllowedRequest([{ method: "groundhog_view" }])).toBe(false);
   });
 
