@@ -1,6 +1,7 @@
 import { contractAddress, ExecResult, sha256Hash } from "@groundhogchain/protocol";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "@/app";
@@ -381,7 +382,7 @@ describe("local swap submission", () => {
     await act(async () => resolveWrite?.({ kind: "invalid", hash, reason: "expired" }));
   });
 
-  it("shows approval pending and permits correction after authoritative invalidation", async () => {
+  it("shows approval progress and permits correction after authoritative invalidation", async () => {
     const user = userEvent.setup();
     let resolveWrite: ((result: WriteResult) => void) | undefined;
     const pending = new Promise<WriteResult>((resolve) => {
@@ -392,7 +393,7 @@ describe("local swap submission", () => {
 
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Approve & swap" }));
-    expect(await screen.findByRole("button", { name: "Approval pending" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Approving swap" })).toBeDisabled();
     expect(screen.queryByText(/before this page was restored/)).not.toBeInTheDocument();
 
     await act(async () => resolveWrite?.({ kind: "invalid", hash, reason: "expired" }));
@@ -769,7 +770,21 @@ describe("local swap submission", () => {
       }),
       observe: vi.fn().mockResolvedValue(committedSuccess(12n)),
     };
-    renderApp(async () => pool(), writer);
+    render(
+      <StrictMode>
+        <App
+          config={config}
+          readSnapshot={async () => pool()}
+          requestObserver={{
+            scan: async (request) => ({
+              result: null,
+              latestBlock: request.receiptBlock ?? 0n,
+            }),
+          }}
+          writeBoundary={writer}
+        />
+      </StrictMode>,
+    );
 
     expect(await screen.findByText("Queued for execution", { selector: "div" })).toBeInTheDocument();
     expect(loadOutstandingRequest(config)).toMatchObject({
@@ -829,7 +844,7 @@ describe("local swap submission", () => {
     await user.click(secondView.getByRole("button", { name: "Swap" }));
     expect(secondView.getByLabelText("YOU PAY")).toBeDisabled();
     expect(
-      secondView.getByRole("button", { name: "Waiting for submission lock" }),
+      secondView.getByRole("button", { name: "Submitting swap" }),
     ).toBeDisabled();
 
     await act(async () => resolveWrite?.(committedSuccess(12n)));

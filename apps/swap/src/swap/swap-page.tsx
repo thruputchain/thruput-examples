@@ -314,7 +314,6 @@ function SwapWorkspace({
   const [isCheckingRecovery, setIsCheckingRecovery] = useState(false);
   const [executionOutcome, setExecutionOutcome] =
     useState<DisplayExecutionOutcome | null>(null);
-  const recoveryAttempt = useRef<string | null>(null);
   const actionInFlight = useRef(false);
   const workspaceMounted = useRef(false);
   const amountId = useId();
@@ -371,10 +370,6 @@ function SwapWorkspace({
       !["approving", "submitting", "indeterminate"].includes(outstanding.status)
     )
       return;
-
-    const attemptKey = `${outstanding.transactionHash}:${recoveryCheck}`;
-    if (recoveryAttempt.current === attemptKey) return;
-    recoveryAttempt.current = attemptKey;
 
     let cancelled = false;
     setIsCheckingRecovery(true);
@@ -1631,9 +1626,13 @@ function actionLabel(params: {
   outstanding: OutstandingRequest | null;
   isAcquiringLock: boolean;
 }): string {
-  if (params.isAcquiringLock) return "Waiting for submission lock";
+  if (params.isAcquiringLock) {
+    return params.allowanceDifference === 0n
+      ? "Submitting swap"
+      : "Approving swap";
+  }
   if (!params.localRpc) return "Signing requires a local RPC";
-  if (params.workflow.status === "approving") return "Approval pending";
+  if (params.workflow.status === "approving") return "Approving swap";
   if (params.workflow.status === "readyToSwap") return "Swap";
   if (params.workflow.status === "submitting") return "Submitting swap";
   if (params.workflow.status === "queued") return "Queued for execution";
@@ -1850,7 +1849,7 @@ function actionLabelForStatus(
 ): string {
   switch (status) {
     case "approving":
-      return "Approval pending";
+      return "Approving swap";
     case "submitting":
       return "Submitting swap";
     case "queued":
