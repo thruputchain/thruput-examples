@@ -24,13 +24,16 @@ describe("createSwapPairReadAdapter", () => {
     });
 
     await expect(adapter.reserves()).resolves.toEqual({
-      reserve0: 10n,
-      reserve1: 20n,
-      blockTimestamp: 30n,
+      value: {
+        reserve0: 10n,
+        reserve1: 20n,
+        blockTimestamp: 30n,
+      },
+      height: 1n,
     });
     await expect(adapter.reservesFor(address(2), address(1))).resolves.toEqual({
-      reserveIn: 20n,
-      reserveOut: 10n,
+      value: { reserveIn: 20n, reserveOut: 10n },
+      height: 1n,
     });
     expect(view).toHaveBeenCalledWith(
       expect.objectContaining({ contract, caller }),

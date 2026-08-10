@@ -2,7 +2,7 @@
 
 Groundhog Swap is a local-development frontend for the example Uniswap V2-style swap contracts. It supports exact-input swaps against one configured token pair. It is not production software.
 
-The browser uses a generated disposable private key. Treat the key as public development data, use it only on a disposable loopback ledger, and never fund it on a public network.
+The local development server injects a generated disposable private key while serving the app; production builds do not contain it. Treat the key as public development data, use it only on a disposable loopback ledger, and never fund it on a public network.
 
 ## Supported Stack
 
@@ -31,7 +31,7 @@ The validated stack uses the Groundhog RPC repository at commit `a096869`, inclu
 - A runtime manifest from the running node.
 - A fresh ledger whose chain tip is height 1.
 
-Setup intentionally refuses a dirty ledger. Stop and reset the node before repeating setup.
+Setup intentionally refuses a dirty ledger and a runtime manifest that does not identify a fresh `hogd-dev` runtime. Stop and reset the node before repeating setup.
 
 ## Configure The Environment
 
@@ -45,12 +45,12 @@ export GROUNDHOG_RPC_URL=http://127.0.0.1:9545
 npm --prefix apps/swap run setup:local
 ```
 
-Setup builds the contracts, deploys two tokens and one swap suite, seeds liquidity, performs two smoke swaps, verifies events and views, and writes:
+Setup validates a loopback-only RPC URL, derives the disposable key from the fresh runtime manifest, builds the contracts, deploys two tokens and one swap suite, seeds liquidity, performs two smoke swaps, verifies events and views, and writes:
 
 - `apps/swap/.env.local`: browser configuration and the disposable key.
 - `apps/swap/.groundhog-config/`: generated CLI profile used by the crank.
 
-Both paths are ignored by Git. Setup replaces `.env.local` only after every verification passes.
+Both paths are ignored by Git. Setup invalidates old generated files before touching the ledger, then publishes both replacements with restrictive permissions only after every verification passes. If setup fails after deployment starts, reset the disposable ledger before retrying.
 
 ## Run The App
 
@@ -140,7 +140,7 @@ Set `GROUNDHOG_CLI` to the validated 0.6.1 executable. The executable found firs
 
 ### Setup completed deployment but `.env.local` is stale
 
-Setup writes configuration only after all verification succeeds. Fix the final setup error, restart from a fresh ledger, and rerun setup. Restart Vite afterward so it reloads `.env.local`.
+Setup invalidates old configuration before deployment and publishes new configuration only after all verification succeeds. Reset to a fresh disposable ledger, fix the setup error, and rerun setup. Restart Vite afterward so it reloads `.env.local`.
 
 ### Contract view faulted after restarting the node
 

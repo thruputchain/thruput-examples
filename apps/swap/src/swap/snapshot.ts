@@ -6,7 +6,7 @@ import {
   type TokenMetadata,
 } from "@/contracts/erc20-adapter";
 import { createSwapPairReadAdapter } from "@/contracts/pair-adapter";
-import { createReadClient } from "@/groundhog/client";
+import { createReadClient, getValidatedChainTip } from "@/groundhog/client";
 
 export interface TokenSnapshot {
   address: ContractAddress;
@@ -49,7 +49,7 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
 
   return async () => {
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const startTip = await client.getChainTip();
+      const startTip = await getValidatedChainTip(client, config.networkId);
       const [
         reserves,
         metadataA,
@@ -67,35 +67,74 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         tokenA.allowance(config.accountAddress, config.handlerAddress),
         tokenB.allowance(config.accountAddress, config.handlerAddress),
       ]);
-      const endTip = await client.getChainTip();
-      if (startTip.height !== endTip.height) continue;
+      const endTip = await getValidatedChainTip(client, config.networkId);
+      if (
+        startTip.height !== endTip.height ||
+        !bytesEqual(startTip.blockHash, endTip.blockHash)
+      ) {
+        continue;
+      }
+
+      const readHeights = [
+        reserves.height,
+        metadataA.name.height,
+        metadataA.symbol.height,
+        metadataA.decimals.height,
+        metadataB.name.height,
+        metadataB.symbol.height,
+        metadataB.decimals.height,
+        balanceA.height,
+        balanceB.height,
+        allowanceA.height,
+        allowanceB.height,
+      ];
+      if (readHeights.some((height) => height !== endTip.height)) continue;
 
       return {
         tokenA: tokenSnapshot({
           address: config.tokenAAddress,
-          metadata: metadataA,
+          metadata: metadataValues(metadataA),
           fallbackSymbol: config.tokenASymbol,
           fallbackDecimals: config.tokenDecimals,
-          balance: balanceA,
-          allowance: allowanceA,
+          balance: balanceA.value,
+          allowance: allowanceA.value,
         }),
         tokenB: tokenSnapshot({
           address: config.tokenBAddress,
-          metadata: metadataB,
+          metadata: metadataValues(metadataB),
           fallbackSymbol: config.tokenBSymbol,
           fallbackDecimals: config.tokenDecimals,
-          balance: balanceB,
-          allowance: allowanceB,
+          balance: balanceB.value,
+          allowance: allowanceB.value,
         }),
-        reserve0: reserves.reserve0,
-        reserve1: reserves.reserve1,
-        reserveTimestamp: reserves.blockTimestamp,
+        reserve0: reserves.value.reserve0,
+        reserve1: reserves.value.reserve1,
+        reserveTimestamp: reserves.value.blockTimestamp,
         chainHeight: endTip.height,
         readAt: Date.now(),
       };
     }
-    throw new Error("The chain advanced during three snapshot attempts");
+    throw new Error("Unable to read a consistent chain snapshot after three attempts");
   };
+}
+
+function metadataValues(metadata: {
+  name: { value: string | null };
+  symbol: { value: string | null };
+  decimals: { value: number | null };
+}): TokenMetadata {
+  return {
+    name: metadata.name.value,
+    symbol: metadata.symbol.value,
+    decimals: metadata.decimals.value,
+  };
+}
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  return (
+    left.length === right.length &&
+    left.every((byte, index) => byte === right[index])
+  );
 }
 
 function tokenSnapshot(params: {

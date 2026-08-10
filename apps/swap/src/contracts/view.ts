@@ -27,6 +27,11 @@ export type DecodedContractAbort =
     }
   | { kind: "unknown"; selector: bigint };
 
+export interface ContractView<T> {
+  value: T;
+  height: bigint;
+}
+
 export async function viewMethod<T>(params: {
   client: Pick<GroundhogClient, "view">;
   invocation: Invocation;
@@ -35,7 +40,7 @@ export async function viewMethod<T>(params: {
   interfaceName: string;
   methodName: string;
   validate: (value: unknown) => T;
-}): Promise<T> {
+}): Promise<ContractView<T>> {
   const response = await params.client.view({
     contract: params.invocation.invoked_address,
     entrypoint: params.invocation.entrypoint,
@@ -58,14 +63,17 @@ export async function viewMethod<T>(params: {
     throw new ContractViewError("fault", null);
   }
 
-  return params.validate(
-    decodeMethodReturn(
-      params.spec,
-      params.interfaceName,
-      params.methodName,
-      response.output.returnData,
+  return {
+    value: params.validate(
+      decodeMethodReturn(
+        params.spec,
+        params.interfaceName,
+        params.methodName,
+        response.output.returnData,
+      ),
     ),
-  );
+    height: response.height,
+  };
 }
 
 export function decodeContractAbort(

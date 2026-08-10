@@ -2,7 +2,7 @@ import type { GroundhogClient } from "@groundhogchain/client";
 import { gasAmount, type ContractAddress } from "@groundhogchain/protocol";
 
 import { SwapPair, spec } from "@/contracts/generated/swap-pair";
-import { viewMethod } from "@/contracts/view";
+import { type ContractView, viewMethod } from "@/contracts/view";
 import { orientReserves, orderTokens } from "@/domain/tokens";
 
 const VIEW_GAS = gasAmount(10_000_000n);
@@ -14,11 +14,11 @@ export interface PairReserves {
 }
 
 export interface SwapPairReadAdapter {
-  reserves(): Promise<PairReserves>;
+  reserves(): Promise<ContractView<PairReserves>>;
   reservesFor(
     tokenIn: ContractAddress,
     tokenOut: ContractAddress,
-  ): Promise<{ reserveIn: bigint; reserveOut: bigint }>;
+  ): Promise<ContractView<{ reserveIn: bigint; reserveOut: bigint }>>;
 }
 
 export function createSwapPairReadAdapter(params: {
@@ -41,10 +41,13 @@ export function createSwapPairReadAdapter(params: {
     reserves,
     async reservesFor(tokenIn, tokenOut) {
       const current = await reserves();
-      return orientReserves(
-        [current.reserve0, current.reserve1],
-        orderTokens(tokenIn, tokenOut).inputIndex,
-      );
+      return {
+        value: orientReserves(
+          [current.value.reserve0, current.value.reserve1],
+          orderTokens(tokenIn, tokenOut).inputIndex,
+        ),
+        height: current.height,
+      };
     },
   };
 }

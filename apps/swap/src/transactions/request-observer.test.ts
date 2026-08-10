@@ -1,5 +1,6 @@
-import { contractAddress, sha256Hash } from "@groundhogchain/protocol";
+import { contractAddress, dbHash, sha256Hash } from "@groundhogchain/protocol";
 import { CxsWriter, FixedArrayCodec, Uint128Codec } from "@groundhogchain/xdr";
+import type { GroundhogClient } from "@groundhogchain/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
@@ -46,6 +47,24 @@ const request: OutstandingRequest = {
   },
 };
 
+function rpcClient(
+  getEvents: Pick<GroundhogClient, "getEvents">["getEvents"],
+): Pick<GroundhogClient, "getBlockByNumber" | "getChainTip" | "getEvents"> {
+  const blockHash = sha256Hash(new Uint8Array(32).fill(0xee));
+  return {
+    getEvents,
+    getChainTip: async () => ({ height: 8n, blockHash }),
+    getBlockByNumber: async () => ({
+      networkId: config.networkId,
+      blockHeight: 8n,
+      txsetHash: blockHash,
+      dbHash: dbHash(new Uint8Array(2_048).fill(0xee)),
+      eventsHash: blockHash,
+      prevBlockHash: blockHash,
+    }),
+  };
+}
+
 describe("request observer", () => {
   it("walks cursors and strictly matches a successful swap by request ID", async () => {
     const getEvents = vi
@@ -56,7 +75,7 @@ describe("request observer", () => {
       );
 
     await expect(
-      createRequestObserver(config, { getEvents }).scan(request),
+      createRequestObserver(config, rpcClient(getEvents)).scan(request),
     ).resolves.toEqual({
       result: {
         kind: "executionObserved",
@@ -89,7 +108,7 @@ describe("request observer", () => {
     );
 
     await expect(
-      createRequestObserver(config, { getEvents }).scan(request),
+      createRequestObserver(config, rpcClient(getEvents)).scan(request),
     ).resolves.toEqual({ result: null, latestBlock: 10n });
   });
 
@@ -115,7 +134,7 @@ describe("request observer", () => {
     );
 
     await expect(
-      createRequestObserver(config, { getEvents }).scan(request),
+      createRequestObserver(config, rpcClient(getEvents)).scan(request),
     ).resolves.toMatchObject({
       result: { kind: "executionFailed", blockHeight: 11n },
     });
@@ -149,7 +168,7 @@ describe("request observer", () => {
     );
 
     await expect(
-      createRequestObserver(config, { getEvents }).scan(candidate),
+      createRequestObserver(config, rpcClient(getEvents)).scan(candidate),
     ).resolves.toEqual({ result: null, latestBlock: 10n });
   });
 
@@ -163,7 +182,7 @@ describe("request observer", () => {
     );
 
     await expect(
-      createRequestObserver(config, { getEvents }).scan(request),
+      createRequestObserver(config, rpcClient(getEvents)).scan(request),
     ).resolves.toEqual({ result: null, latestBlock: 8n });
   });
 
@@ -173,7 +192,7 @@ describe("request observer", () => {
     );
 
     await expect(
-      createRequestObserver(config, { getEvents }).scan(request),
+      createRequestObserver(config, rpcClient(getEvents)).scan(request),
     ).rejects.toThrow("repeated pagination cursor");
   });
 
@@ -184,7 +203,7 @@ describe("request observer", () => {
     });
 
     await expect(
-      createRequestObserver(config, { getEvents }).scan(request),
+      createRequestObserver(config, rpcClient(getEvents)).scan(request),
     ).rejects.toThrow("history no longer covers");
   });
 });

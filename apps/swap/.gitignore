@@ -1,4 +1,5 @@
-.env.local
+.env*
+!.env.example
 .groundhog-config/
 .vite/
 dist/

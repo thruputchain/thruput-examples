@@ -35,17 +35,6 @@ describe("loadAppConfig", () => {
     expect(config.tokenDecimals).toBe(6);
   });
 
-  it("does not require browser access to signing configuration", () => {
-    expect(() =>
-      loadAppConfig(
-        environment({
-          GROUNDHOG_DEV_PRIVATE_KEY: undefined,
-          GROUNDHOG_WALLET_ENTRYPOINT: undefined,
-        }),
-      ),
-    ).not.toThrow();
-  });
-
   it("reports the exact missing variable", () => {
     expect(() =>
       loadAppConfig(environment({ VITE_SWAP_PAIR_ADDRESS: undefined })),

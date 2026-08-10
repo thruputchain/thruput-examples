@@ -317,6 +317,8 @@ function SwapWorkspace({
     useState<DisplayExecutionOutcome | null>(null);
   const actionInFlight = useRef(false);
   const workspaceMounted = useRef(false);
+  const recoveryAttempts = useRef(new Set<string>());
+  const recoveryAttempt = useRef(0);
   const amountId = useId();
   const slippageId = useId();
   const tokens = tokensForDirection(snapshot, direction);
@@ -365,8 +367,11 @@ function SwapWorkspace({
         setOutstanding((current) =>
           sameOutstandingState(current, loaded) ? current : loaded,
         );
-        setIsRecoveryRecord(!actionInFlight.current);
-        if (loaded === null) dispatch({ type: "outstandingClearedElsewhere" });
+        const activeHere = actionInFlight.current;
+        setIsRecoveryRecord(!activeHere);
+        if (loaded === null && !activeHere) {
+          dispatch({ type: "outstandingClearedElsewhere" });
+        }
       }
     };
     window.addEventListener("storage", reload);
@@ -376,56 +381,82 @@ function SwapWorkspace({
   useEffect(() => {
     if (
       !isRecoveryRecord ||
-      outstanding?.transactionHash === null ||
       outstanding === null ||
+      outstanding.transactionHash === null ||
       writeBoundary.observe === undefined ||
       !["approving", "submitting", "indeterminate"].includes(outstanding.status)
     )
       return;
 
-    let cancelled = false;
-    setIsCheckingRecovery(true);
-    void writeBoundary
-      .observe(outstanding.transactionHash)
-      .then(
-        async (result) => {
-          if (cancelled) return;
-          if (result.kind === "committedSuccess") {
-            if (outstanding.phase === "swap") {
-              const queuedRequest = requestFromQueuedReceipt(
-                outstanding,
-                result,
-                config,
-              );
-              saveOutstandingRequest(config, queuedRequest);
-              setOutstanding(queuedRequest);
-              return;
-            }
+    if (outstanding.status === "indeterminate" && recoveryCheck === 0) return;
 
+    const request = outstanding;
+    const attemptKey = [
+      request.phase,
+      request.transactionHash,
+      recoveryCheck === 0 ? "automatic" : recoveryCheck,
+    ].join(":");
+    if (recoveryAttempts.current.has(attemptKey)) return;
+    recoveryAttempts.current.add(attemptKey);
+
+    let cancelled = false;
+    let started = false;
+    const attempt = ++recoveryAttempt.current;
+    setIsCheckingRecovery(true);
+    void Promise.resolve().then(async () => {
+      if (cancelled) return;
+      started = true;
+      try {
+        const result = await writeBoundary.observe!(request.transactionHash!);
+        if (cancelled) return;
+        await withRequestObservationLock(config, async () => {
+          if (cancelled) return;
+          let current = loadOutstandingRequest(config);
+          if (!sameOutstandingState(current, request)) return;
+
+          if (result.kind === "committedSuccess" && request.phase === "swap") {
+            const queuedRequest = requestFromQueuedReceipt(
+              request,
+              result,
+              config,
+            );
+            saveOutstandingRequest(config, queuedRequest);
+            if (!cancelled) setOutstanding(queuedRequest);
+            return;
+          }
+
+          if (result.kind === "committedSuccess") {
             try {
-              const snapshot = await readSnapshot();
+              const recoveredSnapshot = await readSnapshot();
+              if (cancelled) return;
+              current = loadOutstandingRequest(config);
+              if (!sameOutstandingState(current, request)) return;
               const inputToken =
-                outstanding.criteria.tokenIn ===
-                toHex0x(snapshot.tokenA.address)
-                  ? snapshot.tokenA
-                  : outstanding.criteria.tokenIn ===
-                      toHex0x(snapshot.tokenB.address)
-                    ? snapshot.tokenB
+                request.criteria.tokenIn ===
+                toHex0x(recoveredSnapshot.tokenA.address)
+                  ? recoveredSnapshot.tokenA
+                  : request.criteria.tokenIn ===
+                      toHex0x(recoveredSnapshot.tokenB.address)
+                    ? recoveredSnapshot.tokenB
                     : null;
               if (
-                !cancelled &&
-                snapshot.chainHeight >= result.receipt.height &&
-                inputToken?.allowance === outstanding.intent.amountIn
+                recoveredSnapshot.chainHeight >= result.receipt.height &&
+                inputToken?.allowance === request.intent.amountIn
               ) {
                 clearOutstandingRequest(config);
-                setOutstanding(null);
-                setIsRecoveryRecord(false);
-                refreshSnapshot();
+                if (!cancelled) {
+                  setOutstanding(null);
+                  setIsRecoveryRecord(false);
+                  refreshSnapshot();
+                }
                 return;
               }
             } catch {
+              if (cancelled) return;
               // Keep the signed recovery record for another explicit status check.
             }
+            current = loadOutstandingRequest(config);
+            if (!sameOutstandingState(current, request)) return;
           }
 
           if (
@@ -433,35 +464,45 @@ function SwapWorkspace({
             result.kind === "preSubmissionFailure"
           ) {
             clearOutstandingRequest(config);
-            setOutstanding(null);
-            setIsRecoveryRecord(false);
-          } else if (result.kind === "committedFailure") {
-            const failedRequest: OutstandingRequest = {
-              ...outstanding,
-              status: "committedFailure",
-              transactionHash: result.hash,
-            };
-            saveOutstandingRequest(config, failedRequest);
-            setOutstanding(failedRequest);
-          } else {
-            const uncertainRequest: OutstandingRequest = {
-              ...outstanding,
-              status: "indeterminate",
-              transactionHash: result.hash,
-            };
-            saveOutstandingRequest(config, uncertainRequest);
-            setOutstanding(uncertainRequest);
+            if (!cancelled) {
+              setOutstanding(null);
+              setIsRecoveryRecord(false);
+            }
+            return;
           }
-        },
-        () => {
-          // A failed recovery read is non-authoritative; preserve the signed record.
-        },
-      )
-      .finally(() => {
-        if (!cancelled) setIsCheckingRecovery(false);
-      });
+
+          const recoveredRequest: OutstandingRequest =
+            result.kind === "committedFailure"
+              ? {
+                  ...request,
+                  status: "committedFailure",
+                  transactionHash: result.hash,
+                }
+              : {
+                  ...request,
+                  status: "indeterminate",
+                  transactionHash: result.hash,
+                };
+          if (!sameOutstandingState(current, recoveredRequest)) {
+            saveOutstandingRequest(config, recoveredRequest);
+            if (!cancelled) setOutstanding(recoveredRequest);
+          }
+        });
+        if (cancelled) return;
+      } catch {
+        // A failed recovery read is non-authoritative; preserve the signed record.
+      } finally {
+        if (
+          workspaceMounted.current &&
+          recoveryAttempt.current === attempt
+        ) {
+          setIsCheckingRecovery(false);
+        }
+      }
+    });
     return () => {
       cancelled = true;
+      if (!started) recoveryAttempts.current.delete(attemptKey);
     };
   }, [
     config,
@@ -515,16 +556,16 @@ function SwapWorkspace({
         nextElapsed = Math.max(current.visibleObservationMs, nextElapsed);
         visibleElapsed = nextElapsed;
         saveOutstandingRequest(config, {
-          ...request,
+          ...current,
           visibleObservationMs: nextElapsed,
         });
       });
+      if (cancelled || finished) return visibleElapsed;
       visibleSince = document.visibilityState === "visible" ? Date.now() : null;
       return nextElapsed;
     };
     const finish = async (result: RequestObservation) => {
-      if (finished || !workspaceMounted.current || (cancelled && !timedOut))
-        return;
+      if (finished || !workspaceMounted.current) return;
       await withCurrentRequest(() => {
         finished = true;
         if (timer !== undefined) window.clearTimeout(timer);
@@ -552,6 +593,7 @@ function SwapWorkspace({
         }
         refreshSnapshot();
       }, true);
+      if (!workspaceMounted.current) return;
     };
     const timeOut = async () => {
       if (
@@ -598,18 +640,17 @@ function SwapWorkspace({
       scanInFlight = true;
       try {
         const observation = await requestObserver.scan(request);
-        if (finished || (cancelled && !timedOut)) return;
+        if (finished || !workspaceMounted.current) return;
         if (observation.result !== null) {
           await finish(observation.result);
           return;
         }
       } catch {
         try {
-          const inferred = inferExecutionFromSnapshot(
-            request,
-            await readSnapshot(),
-          );
-          if ((!cancelled || timedOut) && !finished && inferred !== null) {
+          const fallbackSnapshot = await readSnapshot();
+          if (!workspaceMounted.current || finished) return;
+          const inferred = inferExecutionFromSnapshot(request, fallbackSnapshot);
+          if (inferred !== null) {
             await finish(inferred);
             return;
           }
@@ -682,6 +723,7 @@ function SwapWorkspace({
 
   async function executeAction(insideLock = false) {
     if (
+      !workspaceMounted.current ||
       !quote.ok ||
       !slippageResult.ok ||
       (!insideLock && actionInFlight.current) ||
@@ -707,6 +749,7 @@ function SwapWorkspace({
             setIsRecoveryRecord(true);
             return;
           }
+          if (!workspaceMounted.current) return;
           setIsAcquiringLock(false);
           await executeAction(true);
         });
@@ -731,7 +774,7 @@ function SwapWorkspace({
         });
       } finally {
         actionInFlight.current = false;
-        setIsAcquiringLock(false);
+        if (workspaceMounted.current) setIsAcquiringLock(false);
       }
       return;
     }
@@ -762,6 +805,7 @@ function SwapWorkspace({
             amount,
             slippageResult.basisPoints,
           );
+          if (!workspaceMounted.current) return;
           if (!freshApprovalQuote.ok) {
             dispatch({
               type: "transactionFailed",
@@ -777,6 +821,7 @@ function SwapWorkspace({
             dispatch({ type: "submissionStarted" });
           }
         } catch {
+          if (!workspaceMounted.current) return;
           dispatch({
             type: "transactionFailed",
             certainty: "notSubmitted",
@@ -821,10 +866,29 @@ function SwapWorkspace({
                   transactionHash: hash,
                 };
                 saveOutstandingRequest(config, signedRequest);
-                setOutstanding(signedRequest);
+                if (workspaceMounted.current) setOutstanding(signedRequest);
               },
             },
           );
+          if (!workspaceMounted.current) {
+            if (
+              result.kind === "invalid" ||
+              result.kind === "preSubmissionFailure"
+            ) {
+              clearOutstandingRequest(config);
+            } else {
+              saveOutstandingRequest(config, {
+                ...approvalRequest,
+                status: result.kind === "committedFailure"
+                  ? "committedFailure"
+                  : result.kind === "indeterminate"
+                    ? "indeterminate"
+                    : "approving",
+                transactionHash: result.hash,
+              });
+            }
+            return;
+          }
           if (result.kind !== "committedSuccess") {
             if (
               result.kind === "indeterminate" ||
@@ -849,14 +913,14 @@ function SwapWorkspace({
             return;
           }
 
-          if (
-            !(await observeExactAllowance(
-              readSnapshot,
-              direction,
-              freshApprovalQuote.amountIn,
-              result.receipt.height,
-            ))
-          ) {
+          const approvalObserved = await observeExactAllowance(
+            readSnapshot,
+            direction,
+            freshApprovalQuote.amountIn,
+            result.receipt.height,
+          );
+          if (!workspaceMounted.current) return;
+          if (!approvalObserved) {
             const unresolved: OutstandingRequest = {
               ...approvalRequest,
               status: "indeterminate",
@@ -880,6 +944,7 @@ function SwapWorkspace({
       let submissionSnapshot: PoolSnapshot;
       try {
         const freshSnapshot = await readSnapshot();
+        if (!workspaceMounted.current) return;
         submissionSnapshot = freshSnapshot;
         freshQuote = deriveSwapQuote(
           freshSnapshot,
@@ -908,6 +973,7 @@ function SwapWorkspace({
           return;
         }
       } catch {
+        if (!workspaceMounted.current) return;
         if (outstandingPhase === "approval") {
           clearOutstandingRequest(config);
           setOutstanding(null);
@@ -935,6 +1001,7 @@ function SwapWorkspace({
       };
       outstandingIntent = submittedIntent;
       outstandingBaseline = observationBaseline(submissionSnapshot, direction);
+      if (!workspaceMounted.current) return;
       const submittingRequest: OutstandingRequest = {
         status: "submitting",
         phase: "swap",
@@ -967,10 +1034,32 @@ function SwapWorkspace({
               transactionHash: hash,
             };
             saveOutstandingRequest(config, signedRequest);
-            setOutstanding(signedRequest);
+            if (workspaceMounted.current) setOutstanding(signedRequest);
           },
         },
       );
+      if (!workspaceMounted.current) {
+        if (result.kind === "committedSuccess") {
+          saveOutstandingRequest(
+            config,
+            requestFromQueuedReceipt(submittingRequest, result, config),
+          );
+        } else if (
+          result.kind === "indeterminate" ||
+          result.kind === "committedFailure"
+        ) {
+          saveOutstandingRequest(config, {
+            ...submittingRequest,
+            status: result.kind === "indeterminate"
+              ? "indeterminate"
+              : "committedFailure",
+            transactionHash: result.hash,
+          });
+        } else {
+          clearOutstandingRequest(config);
+        }
+        return;
+      }
       if (result.kind === "committedSuccess") {
         const queuedRequest = requestFromQueuedReceipt(
           submittingRequest,
@@ -1028,8 +1117,9 @@ function SwapWorkspace({
           criteria: requestCriteria(config, tokens),
         };
         saveOutstandingRequest(config, uncertainRequest);
-        setOutstanding(uncertainRequest);
+        if (workspaceMounted.current) setOutstanding(uncertainRequest);
       }
+      if (!workspaceMounted.current) return;
       dispatch({
         type: "transactionIndeterminate",
         transactionHash: outstandingHash,
@@ -1778,7 +1868,9 @@ function WorkflowStatus({
   const canClearRecoveredPreHash =
     outstanding?.transactionHash === null &&
     isRecoveryRecord &&
-    (status === "approving" || status === "submitting") &&
+    (status === "approving" ||
+      status === "submitting" ||
+      status === "indeterminate") &&
     ["idle", "quoting", "readyToApprove", "readyToSwap"].includes(
       workflow.status,
     );

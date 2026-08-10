@@ -134,6 +134,23 @@ describe("deriveSwapQuote", () => {
       error: "zeroMinimum",
     });
   });
+
+  it("maps contract U256 overflow to a quote error", () => {
+    const amountIn = I128_MAX;
+    const pool = snapshot({
+      tokenA: {
+        ...snapshot().tokenA,
+        decimals: 0,
+        balance: amountIn,
+      },
+      reserve0: 1n,
+      reserve1: (1n << 128n) - 1n,
+    });
+
+    expect(
+      deriveSwapQuote(pool, "aToB", amountIn.toString(), 50n),
+    ).toEqual({ ok: false, error: "quoteBounds" });
+  });
 });
 
 describe("display math", () => {

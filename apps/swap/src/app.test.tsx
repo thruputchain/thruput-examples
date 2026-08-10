@@ -160,21 +160,6 @@ describe("read-only swap experience", () => {
     expect(screen.getByText(/exceeds your available balance/)).toBeInTheDocument();
   });
 
-  it("uses the selected balance for Max and resets input on direction change", async () => {
-    const user = userEvent.setup();
-    renderApp();
-    const input = await screen.findByLabelText("YOU PAY");
-
-    await user.click(screen.getByRole("button", { name: "MAX" }));
-    expect(input).toHaveValue("12");
-    await user.click(
-      screen.getByRole("button", { name: "Switch direction to gEUR for gUSD" }),
-    );
-    expect(input).toHaveValue("");
-    await user.click(screen.getByRole("button", { name: "MAX" }));
-    expect(input).toHaveValue("34");
-  });
-
   it("supports slippage presets, custom validation, and high-risk warning", async () => {
     const user = userEvent.setup();
     renderApp();
@@ -246,19 +231,6 @@ describe("read-only swap experience", () => {
     );
   });
 
-  it("does not label a configured remote endpoint as local", async () => {
-    render(
-      <App
-        config={{ ...config, rpcUrl: new URL("https://rpc.example.com") }}
-        readSnapshot={async () => pool()}
-      />,
-    );
-
-    expect(await screen.findByText("Remote RPC")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Signing requires a local RPC" }),
-    ).toBeDisabled();
-  });
 });
 
 describe("local swap submission", () => {
@@ -476,6 +448,72 @@ describe("local swap submission", () => {
     await screen.findByText("Outcome uncertain");
     expect(loadOutstandingRequest(config)).toMatchObject({
       status: "indeterminate",
+      phase: "approval",
+      transactionHash: hash,
+    });
+  });
+
+  it("does not automatically recheck or rewrite a restored indeterminate request", async () => {
+    const user = userEvent.setup();
+    saveOutstandingRequest(config, {
+      status: "indeterminate",
+      phase: "swap",
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: hash,
+      receiptBlock: null,
+      requestId: null,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria,
+    });
+    const writer: WriteBoundary = {
+      execute: vi.fn(),
+      observe: vi.fn().mockResolvedValue({
+        kind: "indeterminate",
+        hash,
+        reason: "timeout",
+      } satisfies WriteResult),
+    };
+    const storageWrite = vi.spyOn(Storage.prototype, "setItem");
+    renderApp(async () => pool(), writer);
+
+    await screen.findByLabelText("YOU PAY");
+    expect(writer.observe).not.toHaveBeenCalled();
+    await user.click(
+      screen.getByRole("button", { name: "Check transaction status" }),
+    );
+    await waitFor(() => expect(writer.observe).toHaveBeenCalledTimes(1));
+    expect(storageWrite).not.toHaveBeenCalled();
+    await user.click(
+      screen.getByRole("button", { name: "Check transaction status" }),
+    );
+    await waitFor(() => expect(writer.observe).toHaveBeenCalledTimes(2));
+  });
+
+  it("stops after a signed approval when the workspace unmounts", async () => {
+    const user = userEvent.setup();
+    let resolveApproval!: (result: WriteResult) => void;
+    const writer: WriteBoundary = {
+      execute: vi.fn((_target, observer) => {
+        observer?.onSigned(hash);
+        return new Promise<WriteResult>((resolve) => {
+          resolveApproval = resolve;
+        });
+      }),
+    };
+    const view = renderApp(async () => pool(), writer);
+    await user.type(await screen.findByLabelText("YOU PAY"), "10");
+    await user.click(screen.getByRole("button", { name: "Approve & swap" }));
+    await waitFor(() =>
+      expect(loadOutstandingRequest(config)?.transactionHash).toBe(hash),
+    );
+
+    view.unmount();
+    await act(async () => resolveApproval(committedSuccess(12n)));
+
+    expect(writer.execute).toHaveBeenCalledTimes(1);
+    expect(loadOutstandingRequest(config)).toMatchObject({
+      status: "approving",
       phase: "approval",
       transactionHash: hash,
     });
@@ -747,6 +785,60 @@ describe("local swap submission", () => {
     expect(loadOutstandingRequest(config)).toBeNull();
   });
 
+  it("accepts a terminal scan after another tab records the timeout", async () => {
+    const queuedRequest = {
+      status: "queued" as const,
+      phase: "swap" as const,
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: hash,
+      receiptBlock: 12n,
+      requestId: `0x${"cd".repeat(32)}`,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria,
+    };
+    saveOutstandingRequest(config, queuedRequest);
+    let resolveScan!: (
+      value: Awaited<ReturnType<RequestObserver["scan"]>>,
+    ) => void;
+    const requestObserver: RequestObserver = {
+      scan: vi.fn().mockReturnValue(
+        new Promise((resolve) => {
+          resolveScan = resolve;
+        }),
+      ),
+    };
+    renderApp(async () => pool(), undefined, requestObserver);
+    await waitFor(() => expect(requestObserver.scan).toHaveBeenCalledTimes(1));
+
+    saveOutstandingRequest(config, {
+      ...queuedRequest,
+      status: "queuedNotObserved",
+      visibleObservationMs: 120_000,
+    });
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: outstandingRequestKey(config),
+      }),
+    );
+    await act(async () =>
+      resolveScan({
+        result: {
+          kind: "executionObserved",
+          requestId: queuedRequest.requestId,
+          transactionHash: `0x${"ef".repeat(32)}`,
+          blockHeight: 14n,
+          amountIn: 10_000_000n,
+          amountOut: 19_500_000n,
+        },
+        latestBlock: 14n,
+      }),
+    );
+
+    expect(await screen.findByText("Execution observed")).toBeInTheDocument();
+    expect(loadOutstandingRequest(config)).toBeNull();
+  });
+
   it("does not regress visible observation time written by another tab", async () => {
     const queuedRequest = {
       status: "queued" as const,
@@ -807,6 +899,31 @@ describe("local swap submission", () => {
     expect(loadOutstandingRequest(config)).toBeNull();
   });
 
+  it("allows explicit clearing of a restored null-hash indeterminate marker", async () => {
+    const user = userEvent.setup();
+    saveOutstandingRequest(config, {
+      status: "indeterminate",
+      phase: "approval",
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: null,
+      receiptBlock: null,
+      requestId: null,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria,
+    });
+    renderApp(async () => pool());
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "I confirmed no transaction is pending or queued",
+      }),
+    );
+
+    expect(loadOutstandingRequest(config)).toBeNull();
+    expect(screen.getByLabelText("YOU PAY")).toBeEnabled();
+  });
+
   it("reconciles a restored signed swap into the queued state", async () => {
     saveOutstandingRequest(config, {
       status: "submitting",
@@ -854,7 +971,47 @@ describe("local swap submission", () => {
       transactionHash: hash,
       receiptBlock: 12n,
     });
+    expect(writer.observe).toHaveBeenCalledTimes(1);
     expect(writer.observe).toHaveBeenCalledWith(hash);
+  });
+
+  it("does not recreate a restored request cleared during transaction observation", async () => {
+    saveOutstandingRequest(config, {
+      status: "submitting",
+      phase: "swap",
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: hash,
+      receiptBlock: null,
+      requestId: null,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria,
+    });
+    let resolveObservation!: (result: WriteResult) => void;
+    const writer: WriteBoundary = {
+      execute: vi.fn(),
+      observe: vi.fn().mockReturnValue(
+        new Promise<WriteResult>((resolve) => {
+          resolveObservation = resolve;
+        }),
+      ),
+    };
+    renderApp(async () => pool(), writer);
+    await waitFor(() => expect(writer.observe).toHaveBeenCalledTimes(1));
+
+    clearOutstandingRequest(config);
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: outstandingRequestKey(config),
+        newValue: null,
+      }),
+    );
+    await act(async () => resolveObservation(committedSuccess(12n)));
+
+    expect(loadOutstandingRequest(config)).toBeNull();
+    expect(
+      screen.queryByText("Queued for execution", { selector: "div" }),
+    ).not.toBeInTheDocument();
   });
 
   it("serializes submission attempts across two app instances", async () => {

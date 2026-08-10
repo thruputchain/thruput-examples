@@ -51,7 +51,7 @@ describe("viewMethod", () => {
         methodName: "get_balance_of",
         validate: (value) => value as bigint,
       }),
-    ).resolves.toBe(42n);
+    ).resolves.toEqual({ value: 42n, height: 1n });
   });
 
   it.each([

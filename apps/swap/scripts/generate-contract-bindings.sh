@@ -7,9 +7,9 @@ repo_root="$(cd "$app_dir/../.." && pwd)"
 groundhog_cli="${GROUNDHOG_CLI:?Set GROUNDHOG_CLI to the validated CLI executable}"
 
 case "$("$groundhog_cli" --version)" in
-  "groundhog 0.6."*) ;;
+  "groundhog 0.6.1") ;;
   *)
-    printf 'Groundhog CLI 0.6.x is required to build SDK 0.17.9 contract specs.\n' >&2
+    printf 'Groundhog CLI 0.6.1 is required to build SDK 0.17.9 contract specs.\n' >&2
     exit 1
     ;;
 esac

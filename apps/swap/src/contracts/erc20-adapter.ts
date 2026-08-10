@@ -6,7 +6,11 @@ import {
   ERC20Metadata,
   spec,
 } from "@/contracts/generated/erc20";
-import { expectBigint, viewMethod } from "@/contracts/view";
+import {
+  expectBigint,
+  type ContractView,
+  viewMethod,
+} from "@/contracts/view";
 
 const VIEW_GAS = gasAmount(10_000_000n);
 
@@ -16,10 +20,19 @@ export interface TokenMetadata {
   decimals: number | null;
 }
 
+export interface TokenMetadataViews {
+  name: ContractView<string | null>;
+  symbol: ContractView<string | null>;
+  decimals: ContractView<number | null>;
+}
+
 export interface Erc20ReadAdapter {
-  balanceOf(owner: ContractAddress): Promise<bigint>;
-  allowance(owner: ContractAddress, spender: ContractAddress): Promise<bigint>;
-  metadata(): Promise<TokenMetadata>;
+  balanceOf(owner: ContractAddress): Promise<ContractView<bigint>>;
+  allowance(
+    owner: ContractAddress,
+    spender: ContractAddress,
+  ): Promise<ContractView<bigint>>;
+  metadata(): Promise<TokenMetadataViews>;
 }
 
 export function createErc20ReadAdapter(params: {
