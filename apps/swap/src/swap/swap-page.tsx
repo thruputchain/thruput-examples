@@ -88,6 +88,7 @@ import { inferExecutionFromSnapshot } from "@/transactions/execution-fallback";
 
 const SLIPPAGE_PRESETS = [10n, 50n, 100n] as const;
 const OBSERVATION_POLL_MS = 2_000;
+const POST_TIMEOUT_OBSERVATION_POLL_MS = 10_000;
 const OBSERVATION_TIMEOUT_MS = 120_000;
 
 interface DisplayExecutionOutcome {
@@ -515,7 +516,11 @@ function SwapWorkspace({
   ]);
 
   useEffect(() => {
-    if (outstanding?.status !== "queued" || outstanding.requestId === null)
+    if (
+      outstanding === null ||
+      !["queued", "queuedNotObserved"].includes(outstanding.status) ||
+      outstanding.requestId === null
+    )
       return;
 
     const request = outstanding;
@@ -524,10 +529,10 @@ function SwapWorkspace({
     let deadlineTimer: number | undefined;
     let scanInFlight = false;
     let finished = false;
-    let timedOut = false;
+    let timedOut = request.status === "queuedNotObserved";
     let visibleElapsed = request.visibleObservationMs;
     let visibleSince =
-      document.visibilityState === "visible" ? Date.now() : null;
+      document.visibilityState === "visible" && !timedOut ? Date.now() : null;
 
     const elapsed = () =>
       visibleElapsed + (visibleSince === null ? 0 : Date.now() - visibleSince);
@@ -617,6 +622,7 @@ function SwapWorkspace({
       });
     };
     const scheduleDeadline = () => {
+      if (timedOut) return;
       if (deadlineTimer !== undefined) window.clearTimeout(deadlineTimer);
       const remaining = OBSERVATION_TIMEOUT_MS - elapsed();
       if (remaining <= 0) {
@@ -633,7 +639,7 @@ function SwapWorkspace({
         document.visibilityState !== "visible"
       )
         return;
-      if (elapsed() >= OBSERVATION_TIMEOUT_MS) {
+      if (!timedOut && elapsed() >= OBSERVATION_TIMEOUT_MS) {
         await timeOut();
         return;
       }
@@ -661,17 +667,20 @@ function SwapWorkspace({
       scanInFlight = false;
       if (cancelled || finished || document.visibilityState !== "visible")
         return;
-      await persistElapsed();
+      if (!timedOut) await persistElapsed();
       if (cancelled || finished) return;
-      timer = window.setTimeout(() => void poll(), OBSERVATION_POLL_MS);
+      timer = window.setTimeout(
+        () => void poll(),
+        timedOut ? POST_TIMEOUT_OBSERVATION_POLL_MS : OBSERVATION_POLL_MS,
+      );
     };
     const visibilityChanged = () => {
       if (document.visibilityState === "visible") {
-        visibleSince = Date.now();
+        visibleSince = timedOut ? null : Date.now();
         scheduleDeadline();
         void poll();
-      } else if (visibleSince !== null) {
-        void persistElapsed();
+      } else {
+        if (visibleSince !== null) void persistElapsed();
         visibleSince = null;
         if (timer !== undefined) window.clearTimeout(timer);
         if (deadlineTimer !== undefined) window.clearTimeout(deadlineTimer);
@@ -679,9 +688,11 @@ function SwapWorkspace({
     };
 
     document.addEventListener("visibilitychange", visibilityChanged);
-    const pageHidden = () => void persistElapsed();
+    const pageHidden = () => {
+      if (!timedOut) void persistElapsed();
+    };
     window.addEventListener("pagehide", pageHidden);
-    if (visibleSince !== null) scheduleDeadline();
+    scheduleDeadline();
     void poll();
     return () => {
       cancelled = true;

@@ -614,14 +614,47 @@ describe("local swap submission", () => {
       observationBaseline: null,
       criteria,
     });
-    const requestObserver: RequestObserver = { scan: vi.fn() };
+    const requestObserver: RequestObserver = {
+      scan: vi.fn().mockResolvedValue({ result: null, latestBlock: 13n }),
+    };
     renderApp(async () => pool(), undefined, requestObserver);
 
     expect(await screen.findByText("Execution not observed")).toBeInTheDocument();
     expect(screen.getByText(/absence of an event does not prove failure/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queued; execution not observed" })).toBeDisabled();
     expect(loadOutstandingRequest(config)?.status).toBe("queuedNotObserved");
-    expect(requestObserver.scan).not.toHaveBeenCalled();
+    await waitFor(() => expect(requestObserver.scan).toHaveBeenCalled());
+  });
+
+  it("observes terminal execution after the visible timeout", async () => {
+    saveOutstandingRequest(config, {
+      status: "queuedNotObserved",
+      phase: "swap",
+      intent: { amountIn: 10_000_000n, amountOutMin: 19_000_000n },
+      transactionHash: hash,
+      receiptBlock: 12n,
+      requestId: `0x${"cd".repeat(32)}`,
+      visibleObservationMs: 120_000,
+      observationBaseline: null,
+      criteria,
+    });
+    const requestObserver: RequestObserver = {
+      scan: vi.fn().mockResolvedValue({
+        result: {
+          kind: "executionObserved",
+          requestId: `0x${"cd".repeat(32)}`,
+          transactionHash: `0x${"ef".repeat(32)}`,
+          blockHeight: 14n,
+          amountIn: 10_000_000n,
+          amountOut: 19_500_000n,
+        },
+        latestBlock: 14n,
+      }),
+    };
+    renderApp(async () => pool(), undefined, requestObserver);
+
+    expect(await screen.findByText("Execution observed")).toBeInTheDocument();
+    expect(loadOutstandingRequest(config)).toBeNull();
   });
 
   it("labels restored reverse-direction execution with the persisted tokens", async () => {
