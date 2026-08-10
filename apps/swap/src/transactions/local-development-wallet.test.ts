@@ -1,6 +1,8 @@
 import {
   deserializeTransaction,
   fromHex0x,
+  serializeSignedTransaction,
+  serializeTransaction,
   toHex0x,
   type GroundhogClient,
 } from "@groundhogchain/client";
@@ -21,13 +23,37 @@ import {
   createLocalWriteBoundary,
   wrapTargetInvocation,
 } from "./local-development-wallet";
+import transactionVectorJson from "./fixtures/dev-wallet-transaction-v1.json?raw";
+
+const transactionVector = JSON.parse(transactionVectorJson) as {
+  inputs: {
+    privateKeyHex: string;
+    walletAddressHex: string;
+    walletEntrypointHex: string;
+    targetAddressHex: string;
+    targetEntrypointHex: string;
+    targetCalldataHex: string;
+    targetGasLimit: string;
+    nonce: string;
+    publicKeyId: string;
+  };
+  expected: {
+    walletCalldataHex: string;
+    unsignedTransactionXdrHex: string;
+    canonicalTransactionHashHex: string;
+    signatureHex: string;
+    signedTransactionXdrHex: string;
+  };
+};
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const config: AppConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkId: 0n,
   networkIdHex: "00".repeat(32),
-  accountAddress: address(1),
+  accountAddress: contractAddress(
+    fromHex0x(transactionVector.inputs.walletAddressHex),
+  ),
   routerAddress: address(2),
   pairAddress: address(3),
   handlerAddress: address(4),
@@ -39,14 +65,18 @@ const config: AppConfig = {
   tokenDecimals: 6,
 };
 const target = {
-  invoked_address: address(8),
-  entrypoint: contractEntrypointID(new Uint8Array(8).fill(9)),
-  gas_limit: gasAmount(10n),
-  calldata: calldata(new Uint8Array([1, 2, 3])),
+  invoked_address: contractAddress(
+    fromHex0x(transactionVector.inputs.targetAddressHex),
+  ),
+  entrypoint: contractEntrypointID(
+    fromHex0x(transactionVector.inputs.targetEntrypointHex),
+  ),
+  gas_limit: gasAmount(BigInt(transactionVector.inputs.targetGasLimit)),
+  calldata: calldata(fromHex0x(transactionVector.inputs.targetCalldataHex)),
 };
 const wallet = {
-  privateKeyHex: `0x${"01".repeat(32)}`,
-  walletEntrypointHex: `0x${"02".repeat(8)}`,
+  privateKeyHex: transactionVector.inputs.privateKeyHex,
+  walletEntrypointHex: transactionVector.inputs.walletEntrypointHex,
 };
 
 describe("local development wallet encoding", () => {
@@ -87,7 +117,28 @@ describe("local development wallet encoding", () => {
       expect(signed.tx.auth_claim.claim_type).toBe(
         AuthClaimType.kSourceAddressAuthData,
       );
-      return canonicalTransactionHash(signed.tx);
+      expect(toHex0x(signed.tx.invocation.calldata)).toBe(
+        transactionVector.expected.walletCalldataHex,
+      );
+      expect(toHex0x(serializeTransaction(signed.tx))).toBe(
+        transactionVector.expected.unsignedTransactionXdrHex,
+      );
+      expect(toHex0x(canonicalTransactionHash(signed.tx))).toBe(
+        transactionVector.expected.canonicalTransactionHashHex,
+      );
+      expect(signed.signatures).toHaveLength(1);
+      expect(signed.signatures[0]?.public_key_id).toBe(
+        BigInt(transactionVector.inputs.publicKeyId),
+      );
+      expect(toHex0x(signed.signatures[0]!.signature.ed25519)).toBe(
+        transactionVector.expected.signatureHex,
+      );
+      expect(toHex0x(serializeSignedTransaction(signed))).toBe(
+        transactionVector.expected.signedTransactionXdrHex,
+      );
+      return sha256Hash(
+        fromHex0x(transactionVector.expected.canonicalTransactionHashHex),
+      );
     });
     const txHash = sha256Hash(new Uint8Array(32).fill(3));
     const client = {
@@ -105,7 +156,7 @@ describe("local development wallet encoding", () => {
     } as unknown as GroundhogClient;
     const boundary = createLocalWriteBoundary(config, wallet, {
       client,
-      nonce: () => 7n,
+      nonce: () => BigInt(transactionVector.inputs.nonce),
     });
 
     await expect(boundary.execute(target, { onSigned })).resolves.toMatchObject({

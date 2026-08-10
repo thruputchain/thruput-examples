@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, root, "");
   const rpcTarget =
     environment.VITE_GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545";
+  validateRpcTarget(rpcTarget);
 
   return {
     envPrefix: [
@@ -172,10 +173,18 @@ export function isSameOriginLocalRequest(
   if (request.headers["sec-fetch-site"] === "cross-site") return false;
 
   const origin = request.headers.origin;
-  if (origin === undefined) return true;
+  if (origin === undefined) return false;
   try {
-    return new URL(origin).host === requestHost.host;
+    const originUrl = new URL(origin);
+    return originUrl.protocol === "http:" && originUrl.host === requestHost.host;
   } catch {
     return false;
+  }
+}
+
+export function validateRpcTarget(value: string): void {
+  const url = new URL(value);
+  if (url.username !== "" || url.password !== "") {
+    throw new Error("VITE_GROUNDHOG_RPC_URL must not contain credentials");
   }
 }

@@ -312,6 +312,7 @@ function SwapWorkspace({
   const [isAcquiringLock, setIsAcquiringLock] = useState(false);
   const [recoveryCheck, setRecoveryCheck] = useState(0);
   const [isCheckingRecovery, setIsCheckingRecovery] = useState(false);
+  const [announcementText, setAnnouncementText] = useState("");
   const [executionOutcome, setExecutionOutcome] =
     useState<DisplayExecutionOutcome | null>(null);
   const actionInFlight = useRef(false);
@@ -331,6 +332,17 @@ function SwapWorkspace({
   const controlsLocked =
     isAcquiringLock || isWorkflowLocked(workflow) || outstanding !== null;
   const localRpc = isLoopbackUrl(config.rpcUrl) && isBrowserLoopback();
+  const nextAnnouncement = transactionAnnouncement({
+    workflow,
+    outstanding,
+    executionOutcome: executionOutcome?.result ?? null,
+    isAcquiringLock,
+    allowanceDifference: quote.ok ? quote.allowanceDifference : null,
+  });
+
+  useEffect(() => {
+    setAnnouncementText(nextAnnouncement);
+  }, [nextAnnouncement]);
 
   useEffect(() => {
     workspaceMounted.current = true;
@@ -1027,6 +1039,15 @@ function SwapWorkspace({
 
   return (
     <div className="max-w-2xl mx-auto">
+      <div
+        aria-atomic="true"
+        aria-label="Transaction status"
+        aria-live="polite"
+        className="sr-only"
+        role="status"
+      >
+        {announcementText}
+      </div>
       <div className="flex min-w-0 flex-col gap-4">
         {refreshError !== null ? (
           <Alert variant="destructive">
@@ -1632,6 +1653,12 @@ function actionLabel(params: {
       : "Approving swap";
   }
   if (!params.localRpc) return "Signing requires a local RPC";
+  if (params.outstanding?.status === "queuedUntracked")
+    return "Queued; request ID unavailable";
+  if (params.outstanding?.status === "queuedNotObserved")
+    return "Queued; execution not observed";
+  if (params.outstanding?.status === "committedFailure")
+    return "Transaction failed";
   if (params.workflow.status === "approving") return "Approving swap";
   if (params.workflow.status === "readyToSwap") return "Swap";
   if (params.workflow.status === "submitting") return "Submitting swap";
@@ -1643,12 +1670,6 @@ function actionLabel(params: {
     return params.workflow.retryAllowed ? "Try again" : "Transaction failed";
   if (params.outstanding !== null) {
     if (params.outstanding.status === "queued") return "Queued for execution";
-    if (params.outstanding.status === "queuedNotObserved")
-      return "Queued; execution not observed";
-    if (params.outstanding.status === "queuedUntracked")
-      return "Queued; request ID unavailable";
-    if (params.outstanding.status === "committedFailure")
-      return "Transaction failed";
     return "Outstanding request recorded";
   }
   if (params.isRefreshing) return "Refreshing quote";
@@ -1697,7 +1718,11 @@ function WorkflowStatus({
     const succeeded = executionOutcome.kind !== "executionFailed";
     const inferred = executionOutcome.kind === "executionInferred";
     return (
-      <Alert className="mt-4" variant={succeeded ? "default" : "destructive"}>
+      <Alert
+        className="mt-4"
+        role={succeeded ? "group" : "alert"}
+        variant={succeeded ? "default" : "destructive"}
+      >
         {succeeded ? (
           <InfoIcon aria-hidden="true" />
         ) : (
@@ -1740,9 +1765,13 @@ function WorkflowStatus({
     "readyToApprove",
     "readyToSwap",
   ].includes(workflow.status);
+  const persistedStatusOverridesWorkflow =
+    outstanding?.status === "committedFailure" ||
+    outstanding?.status === "queuedNotObserved" ||
+    outstanding?.status === "queuedUntracked";
   const status =
-    outstanding?.status === "committedFailure"
-      ? "committedFailure"
+    persistedStatusOverridesWorkflow
+      ? outstanding.status
       : !isRecoveryRecord && workflowIsLive
         ? workflow.status
         : (outstanding?.status ?? workflow.status);
@@ -1776,10 +1805,13 @@ function WorkflowStatus({
                       ? "Waiting for the router to accept the swap request."
                       : "The request remains queued and no execution event has been observed.";
 
+  const destructive = status === "committedFailure" || workflow.status === "error";
+  const assertive = destructive || status === "indeterminate";
   return (
     <Alert
       className="mt-4"
-      variant={workflow.status === "error" ? "destructive" : "default"}
+      role={assertive ? "alert" : "group"}
+      variant={destructive ? "destructive" : "default"}
     >
       <InfoIcon aria-hidden="true" />
       <AlertTitle>
@@ -1842,6 +1874,68 @@ function WorkflowStatus({
       </AlertDescription>
     </Alert>
   );
+}
+
+function transactionAnnouncement(params: {
+  workflow: WorkflowState;
+  outstanding: OutstandingRequest | null;
+  executionOutcome: RequestObservation | null;
+  isAcquiringLock: boolean;
+  allowanceDifference: bigint | null;
+}): string {
+  if (params.executionOutcome?.kind === "executionObserved") {
+    return "Execution observed.";
+  }
+  if (params.executionOutcome?.kind === "executionInferred") {
+    return "Execution inferred from updated balances and reserves.";
+  }
+  if (params.executionOutcome?.kind === "executionFailed") {
+    return "";
+  }
+  if (params.isAcquiringLock) {
+    return params.allowanceDifference === 0n
+      ? "Submitting swap."
+      : "Approving swap.";
+  }
+
+  const activeWorkflow = ![
+    "idle",
+    "quoting",
+    "readyToApprove",
+    "readyToSwap",
+  ].includes(params.workflow.status);
+  const persistedStatus = params.outstanding?.status;
+  const persistedStatusOverridesWorkflow =
+    persistedStatus === "committedFailure" ||
+    persistedStatus === "queuedNotObserved" ||
+    persistedStatus === "queuedUntracked";
+  const status = persistedStatusOverridesWorkflow
+    ? persistedStatus
+    : activeWorkflow
+      ? params.workflow.status
+      : persistedStatus;
+  switch (status) {
+    case "approving":
+      return "Approving swap.";
+    case "submitting":
+      return "Submitting swap.";
+    case "queued":
+      return "Swap queued for execution.";
+    case "queuedNotObserved":
+      return "Swap remains queued; execution was not observed.";
+    case "queuedUntracked":
+      return "Swap queued, but its request ID is unavailable.";
+    case "indeterminate":
+      return "";
+    case "committedFailure":
+      return "";
+    case "executionObserved":
+      return "Execution observed.";
+    case "error":
+      return "";
+    default:
+      return "";
+  }
 }
 
 function actionLabelForStatus(

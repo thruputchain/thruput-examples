@@ -17,6 +17,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`multi-impl-traits`](contracts/multi-impl-traits/) | Defining contract interfaces as traits in a standalone crate |
 | [`multi-impl`](contracts/multi-impl/) | One contract implementing multiple traits from a separate crate |
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and an optional `metadata` feature |
+| [`swap-*`](docs/README-swap.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
 
 ### Simulation fixtures
 

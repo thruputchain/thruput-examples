@@ -115,6 +115,11 @@ function parseRpcUrl(value: string): URL {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new ConfigurationError("VITE_GROUNDHOG_RPC_URL must use HTTP or HTTPS");
   }
+  if (url.username !== "" || url.password !== "") {
+    throw new ConfigurationError(
+      "VITE_GROUNDHOG_RPC_URL must not contain credentials",
+    );
+  }
   return url;
 }
 

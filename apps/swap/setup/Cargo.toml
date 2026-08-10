@@ -12,6 +12,7 @@ groundhog-signing = { workspace = true }
 groundhog-testkit = { workspace = true }
 hex = { workspace = true }
 sdk = { workspace = true, features = ["alloc"] }
+serde_json = { workspace = true }
 swap-if = { path = "../../../contracts/swap-if" }
 swap-pair = { path = "../../../contracts/swap-pair" }
 tokio = { workspace = true }

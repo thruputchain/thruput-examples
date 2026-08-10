@@ -1,4 +1,6 @@
-The swap-* contracts are an example port (not for production) from Ethereum to
+# Swap Contracts
+
+The `swap-*` contracts are an example port (not for production) from Ethereum to
 Groundhog of UniswapV2, adding a request-batching layer:
 
 - `swap-if`: Interface-only crate.  It defines every swap contract's trait,
@@ -14,6 +16,14 @@ Groundhog of UniswapV2, adding a request-batching layer:
 - `swap-factory`: Creates new pairs and keeps a registry of them.
 - `swap-router`: High-level facilities similar to those in [UniswapV2Router02];
   it builds `SwapRequest` values and enqueues them with the driver.
+
+## Request Lifecycle
+
+The router returns a request ID when the driver accepts a request. The driver emits `RequestAccepted`, then an external call to `process_requests()` forwards queued requests to the handler. Successful pair operations include the request ID in their event; failed processing emits `RequestFailed` from the driver. This lets clients distinguish enqueueing from terminal execution.
+
+## Local Frontend
+
+See [`apps/swap/README.md`](../apps/swap/README.md) for local node setup, the browser application, queue processing, tests, and troubleshooting.
 
 [UniswapV2Pair]: https://github.com/Uniswap/v2-core/blob/master/contracts/UniswapV2Pair.sol
 [UniswapV2Router02]: https://github.com/Uniswap/v2-periphery/blob/master/contracts/UniswapV2Router02.sol

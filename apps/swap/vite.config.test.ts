@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   isAllowedRequest,
   isSameOriginLocalRequest,
+  validateRpcTarget,
 } from "./vite.config";
 
 describe("local RPC proxy policy", () => {
@@ -46,5 +47,22 @@ describe("local RPC proxy policy", () => {
     expect(
       isSameOriginLocalRequest({ headers: { host: "192.168.1.10:5173" } }),
     ).toBe(false);
+    expect(
+      isSameOriginLocalRequest({ headers: { host: "localhost:5173" } }),
+    ).toBe(false);
+    expect(
+      isSameOriginLocalRequest({
+        headers: {
+          host: "localhost:5173",
+          origin: "https://localhost:5173",
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects credential-bearing RPC targets before Vite serves the app", () => {
+    expect(() =>
+      validateRpcTarget("http://operator:secret@127.0.0.1:9545"),
+    ).toThrow("must not contain credentials");
   });
 });

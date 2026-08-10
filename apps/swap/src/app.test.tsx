@@ -255,7 +255,9 @@ describe("read-only swap experience", () => {
     );
 
     expect(await screen.findByText("Remote RPC")).toBeInTheDocument();
-    expect(screen.getByText("Read-only preview")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Signing requires a local RPC" }),
+    ).toBeDisabled();
   });
 });
 
@@ -305,7 +307,11 @@ describe("local swap submission", () => {
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Approve & swap" }));
 
-    expect(await screen.findByText(/moved beyond your reviewed slippage limit/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/moved beyond your reviewed slippage limit/, {
+        selector: "[data-slot='alert-description']",
+      }),
+    ).toBeInTheDocument();
     expect(writer.execute).toHaveBeenCalledTimes(1);
   });
 
@@ -323,6 +329,11 @@ describe("local swap submission", () => {
     await user.click(screen.getByRole("button", { name: "Swap" }));
 
     expect(await screen.findByText("Queued for execution", { selector: "div" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("status", { name: "Transaction status" }),
+      ).toHaveTextContent("Swap queued for execution."),
+    );
     expect(screen.getByText(/bash scripts\/crank-local\.sh/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queued for execution" })).toBeDisabled();
     expect(writer.execute).toHaveBeenCalledTimes(1);
@@ -334,6 +345,34 @@ describe("local swap submission", () => {
     );
     expect(loadOutstandingRequest(config)).toBeNull();
     expect(screen.getByRole("button", { name: "Swap" })).toBeEnabled();
+  });
+
+  it("reports a queued receipt whose request ID cannot be decoded", async () => {
+    const user = userEvent.setup();
+    const approved = pool({
+      tokenA: { ...pool().tokenA, allowance: 10_000_000n },
+    });
+    const result = committedSuccess(12n);
+    result.receipt.events = [];
+    const writer: WriteBoundary = {
+      execute: vi.fn().mockResolvedValue(result),
+    };
+    renderApp(async () => approved, writer);
+
+    await user.type(await screen.findByLabelText("YOU PAY"), "10");
+    await user.click(screen.getByRole("button", { name: "Swap" }));
+
+    expect(
+      await screen.findByText("Queued; request ID unavailable", {
+        selector: "div",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Transaction status" }),
+    ).toHaveTextContent("Swap queued, but its request ID is unavailable.");
+    expect(
+      screen.getByRole("button", { name: "Queued; request ID unavailable" }),
+    ).toBeDisabled();
   });
 
   it("keeps an indeterminate submission non-resubmittable", async () => {
@@ -354,7 +393,11 @@ describe("local swap submission", () => {
     await user.click(screen.getByRole("button", { name: "Swap" }));
 
     expect(await screen.findByText("Outcome uncertain")).toBeInTheDocument();
-    expect(screen.getByText(/Do not submit another transaction/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Do not submit another transaction/, {
+        selector: "[data-slot='alert-description']",
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Outcome is uncertain" })).toBeDisabled();
   });
 
@@ -374,12 +417,22 @@ describe("local swap submission", () => {
       },
     };
     renderApp(async () => approved, writer);
+    const status = await screen.findByRole("status", {
+      name: "Transaction status",
+    });
+    expect(status).toBeEmptyDOMElement();
 
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Swap" }));
 
+    await waitFor(() => expect(status).toHaveTextContent("Submitting swap."));
     expect(loadOutstandingRequest(config)?.transactionHash).toBe(hash);
     await act(async () => resolveWrite?.({ kind: "invalid", hash, reason: "expired" }));
+    await screen.findByRole("button", { name: "Try again" });
+    expect(status).toBeEmptyDOMElement();
+    expect(
+      screen.getByRole("status", { name: "Transaction status" }),
+    ).toBe(status);
   });
 
   it("shows approval progress and permits correction after authoritative invalidation", async () => {
@@ -398,7 +451,11 @@ describe("local swap submission", () => {
 
     await act(async () => resolveWrite?.({ kind: "invalid", hash, reason: "expired" }));
     expect(await screen.findByRole("button", { name: "Try again" })).toBeEnabled();
-    expect(screen.getByText("expired")).toBeInTheDocument();
+    expect(
+      screen.getByText("expired", {
+        selector: "[data-slot='alert-description']",
+      }),
+    ).toBeInTheDocument();
     expect(writer.execute).toHaveBeenCalledTimes(1);
   });
 
@@ -787,6 +844,11 @@ describe("local swap submission", () => {
     );
 
     expect(await screen.findByText("Queued for execution", { selector: "div" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("status", { name: "Transaction status" }),
+      ).toHaveTextContent("Swap queued for execution."),
+    );
     expect(loadOutstandingRequest(config)).toMatchObject({
       status: "queued",
       transactionHash: hash,
