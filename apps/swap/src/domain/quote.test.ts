@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { minimumAmountOut, quoteExactInput } from "./quote";
+import {
+  minimumAmountOut,
+  QuoteArithmeticError,
+  quoteExactInput,
+} from "./quote";
+
+const U256_MAX = (1n << 256n) - 1n;
 
 describe("quoteExactInput", () => {
   it("matches the constant-product exact-input formula", () => {
@@ -17,6 +23,18 @@ describe("quoteExactInput", () => {
       spotAmountOut: 0n,
       priceImpactBps: null,
     });
+  });
+
+  it("rejects U256 intermediate overflow at the contract boundary", () => {
+    const largestSafeReserveOut = U256_MAX / 997n;
+
+    expect(() => quoteExactInput(1n, 1n, largestSafeReserveOut)).not.toThrow();
+    expect(() =>
+      quoteExactInput(1n, 1n, largestSafeReserveOut + 1n),
+    ).toThrow(QuoteArithmeticError);
+    expect(() => quoteExactInput(U256_MAX, 1n, 1n)).toThrow(
+      QuoteArithmeticError,
+    );
   });
 });
 

@@ -10,6 +10,7 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const ALLOWED_RPC_METHODS = new Set([
   "groundhog_chainTip",
   "groundhog_getEvents",
+  "groundhog_getBlockByNumber",
   "groundhog_getTransactionReceipt",
   "groundhog_getTransactionStatus",
   "groundhog_sendRawTransaction",
@@ -17,7 +18,7 @@ const ALLOWED_RPC_METHODS = new Set([
 ]);
 const MAX_RPC_BODY_BYTES = 1_000_000;
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, isPreview, mode }) => {
   const environment = loadEnv(mode, root, "");
   const rpcTarget =
     environment.VITE_GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545";
@@ -27,7 +28,6 @@ export default defineConfig(({ mode }) => {
     envPrefix: [
       "VITE_GROUNDHOG_RPC_URL",
       "VITE_GROUNDHOG_NETWORK_ID",
-      "VITE_GROUNDHOG_DEV_PRIVATE_KEY",
       "VITE_GROUNDHOG_WALLET_ENTRYPOINT",
       "VITE_GROUNDHOG_WALLET_ADDRESS",
       "VITE_SWAP_ROUTER_ADDRESS",
@@ -40,6 +40,15 @@ export default defineConfig(({ mode }) => {
       "VITE_TOKEN_B_SYMBOL",
       "VITE_TOKEN_DECIMALS",
     ],
+    define: {
+      "import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY":
+        developmentPrivateKeyDefinition(
+          command,
+          isPreview ?? false,
+          rpcTarget,
+          environment,
+        ),
+    },
     plugins: [react(), tailwindcss(), localRpcProxy(rpcTarget)],
     resolve: {
       alias: {
@@ -55,6 +64,22 @@ export default defineConfig(({ mode }) => {
     },
   };
 });
+
+export function developmentPrivateKeyDefinition(
+  command: "build" | "serve",
+  isPreview: boolean,
+  rpcTarget: string,
+  environment: Record<string, string | undefined>,
+): string {
+  if (
+    command !== "serve" ||
+    isPreview ||
+    !isLoopback(new URL(rpcTarget).hostname)
+  ) {
+    return "undefined";
+  }
+  return JSON.stringify(environment.GROUNDHOG_DEV_PRIVATE_KEY) ?? "undefined";
+}
 
 function localRpcProxy(target: string): Plugin {
   const targetUrl = new URL(target);

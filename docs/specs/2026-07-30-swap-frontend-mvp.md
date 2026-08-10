@@ -1,6 +1,8 @@
 # Groundhog Swap Frontend MVP
-Status: Draft  
+Status: Draft
+
 Date: 2026-07-30
+
 ## 1. Scope
 Build **Groundhog Swap**, a local-development web app for the existing Uniswap V2-style swap contracts. The MVP supports exact-input swaps between one configured ERC20 pair through a development wallet and an already-running local Groundhog node.
 
@@ -260,7 +262,6 @@ Validate these local environment values at startup:
 ```text
 VITE_GROUNDHOG_RPC_URL
 VITE_GROUNDHOG_NETWORK_ID
-VITE_GROUNDHOG_DEV_PRIVATE_KEY
 VITE_GROUNDHOG_WALLET_ADDRESS
 VITE_GROUNDHOG_WALLET_ENTRYPOINT
 VITE_SWAP_ROUTER_ADDRESS
@@ -271,9 +272,9 @@ VITE_TOKEN_A_ADDRESS
 VITE_TOKEN_B_ADDRESS
 ```
 
-The generated private key and wallet entrypoint are intentionally browser-visible for the local V1. Keep them in the ignored `.env.local` file, never hard-code them in tracked source, and treat them as public development credentials. Refuse signing and submission unless both the application page and RPC hostnames are loopback. Read token metadata on-chain when available and allow generated configuration fallbacks.
+The local development server reads `GROUNDHOG_DEV_PRIVATE_KEY` from the ignored `.env.local` file and injects it only while serving against a loopback RPC. Production builds must not contain the key. The key and wallet entrypoint remain browser-visible while the local app runs, so treat them as public development credentials. Refuse signing and submission unless both the application page and RPC hostnames are loopback. Read token metadata on-chain when available and allow generated configuration fallbacks.
 
-Validate the configured network identity for the application session. The pinned transaction format has no network-ID field, so it cannot be included in signed bytes. Require loopback application and RPC origins for V1. If the pinned gateway exposes connected network identity, compare it before enabling state-changing actions; lack of that optional RPC must not block the local MVP.
+Validate the configured network identity before accepting snapshots or signing. The pinned transaction format has no network-ID field, so it cannot be included in signed bytes. Require loopback application and RPC origins for V1.
 ### Local Setup
 Provide one command that assumes a compatible local node is running and:
 
@@ -291,7 +292,7 @@ Provide one command that assumes a compatible local node is running and:
 
 7. Resolves the wallet's `doAction` entrypoint and writes addresses and metadata to generated configuration.
 
-8. Accepts the disposable local key through an ignored environment file and verifies that it authorizes the configured wallet with a smoke transaction.
+8. Derives the disposable local key from the fresh development runtime manifest, writes it to an ignored environment file, and verifies that it authorizes the configured wallet with a smoke transaction.
 
 9. Writes the generated driver and `process_requests()` entrypoint configuration consumed by `bash scripts/crank-local.sh`.
 

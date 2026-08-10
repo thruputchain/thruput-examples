@@ -13,7 +13,10 @@ const config = {
   networkIdHex: "00".repeat(32),
   accountAddress: address(1),
   pairAddress: address(2),
+  handlerAddress: address(3),
   driverAddress: address(6),
+  tokenAAddress: address(4),
+  tokenBAddress: address(5),
 } as AppConfig;
 const criteria = {
   pairAddress: `0x${"02".repeat(32)}`,
@@ -115,4 +118,43 @@ describe("outstanding request storage", () => {
       observationBaseline: null,
     });
   });
+
+  it("discards records whose criteria do not match the active configuration", () => {
+    saveOutstandingRequest(config, {
+      status: "submitting",
+      phase: "swap",
+      intent: { amountIn: 1n, amountOutMin: 1n },
+      transactionHash: hash(0xab),
+      receiptBlock: null,
+      requestId: null,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria: { ...criteria, tokenOut: hash(0xff) },
+    });
+
+    expect(loadOutstandingRequest(config)).toBeNull();
+  });
+
+  it("requires the durable fields implied by each terminal status", () => {
+    const key = `groundhog-swap:outstanding:v1:${"00".repeat(32)}:0x${"01".repeat(32)}:0x${"02".repeat(32)}`;
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        status: "queuedNotObserved",
+        phase: "swap",
+        amountIn: "10",
+        amountOutMin: "9",
+        transactionHash: hash(0xab),
+        receiptBlock: "12",
+        requestId: null,
+        criteria,
+      }),
+    );
+
+    expect(loadOutstandingRequest(config)).toBeNull();
+  });
 });
+
+function hash(byte: number): string {
+  return `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+}

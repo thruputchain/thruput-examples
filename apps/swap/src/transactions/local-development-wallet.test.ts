@@ -143,6 +143,10 @@ describe("local development wallet encoding", () => {
     const txHash = sha256Hash(new Uint8Array(32).fill(3));
     const client = {
       getChainTip: vi.fn().mockResolvedValue({ height: 10n, blockHash: txHash }),
+      getBlockByNumber: vi.fn().mockResolvedValue({
+        blockHeight: 10n,
+        networkId: config.networkId,
+      }),
       sendTransaction,
       getTransactionReceipt: vi.fn().mockImplementation(async (hash) => ({
         txHash: hash,
@@ -170,6 +174,10 @@ describe("local development wallet encoding", () => {
     const txHash = sha256Hash(new Uint8Array(32).fill(3));
     const client = {
       getChainTip: vi.fn().mockResolvedValue({ height: 10n, blockHash: txHash }),
+      getBlockByNumber: vi.fn().mockResolvedValue({
+        blockHeight: 10n,
+        networkId: config.networkId,
+      }),
       sendTransaction: vi.fn().mockRejectedValue(new Error("connection reset")),
     } as unknown as GroundhogClient;
     const boundary = createLocalWriteBoundary(config, wallet, {
@@ -209,10 +217,55 @@ describe("local development wallet encoding", () => {
     }
   });
 
+  it("can observe a restored signed request when signer configuration is invalid", async () => {
+    const hash = `0x${"03".repeat(32)}`;
+    const client = {
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        txHash: sha256Hash(fromHex0x(hash)),
+        height: 11n,
+        execResult: ExecResult.ExecResultOK,
+        events: [],
+        returnData: new Uint8Array(),
+        abortData: null,
+      }),
+      getTransactionStatus: vi.fn(),
+      getChainTip: vi.fn().mockResolvedValue({
+        height: 10n,
+        blockHash: sha256Hash(new Uint8Array(32).fill(3)),
+      }),
+      getBlockByNumber: vi.fn().mockResolvedValue({
+        blockHeight: 10n,
+        networkId: config.networkId,
+      }),
+      sendTransaction: vi.fn(),
+    } as unknown as GroundhogClient;
+    const boundary = createLocalWriteBoundary(
+      config,
+      { ...wallet, privateKeyHex: "invalid" },
+      { client },
+    );
+
+    await expect(boundary.execute(target)).resolves.toMatchObject({
+      kind: "preSubmissionFailure",
+      hash: null,
+    });
+    await expect(boundary.observe?.(hash)).resolves.toMatchObject({
+      kind: "committedSuccess",
+      hash,
+      receipt: { height: 11n },
+    });
+    expect(client.getChainTip).toHaveBeenCalledOnce();
+    expect(client.sendTransaction).not.toHaveBeenCalled();
+  });
+
   it("treats a mismatched receipt hash as indeterminate", async () => {
     const blockHash = sha256Hash(new Uint8Array(32).fill(3));
     const client = {
       getChainTip: vi.fn().mockResolvedValue({ height: 10n, blockHash }),
+      getBlockByNumber: vi.fn().mockResolvedValue({
+        blockHeight: 10n,
+        networkId: config.networkId,
+      }),
       sendTransaction: vi.fn().mockImplementation(async (signed) =>
         canonicalTransactionHash(signed.tx)),
       getTransactionReceipt: vi.fn().mockResolvedValue({
@@ -235,6 +288,10 @@ describe("local development wallet encoding", () => {
     const blockHash = sha256Hash(new Uint8Array(32).fill(3));
     const client = {
       getChainTip: vi.fn().mockResolvedValue({ height: 10n, blockHash }),
+      getBlockByNumber: vi.fn().mockResolvedValue({
+        blockHeight: 10n,
+        networkId: config.networkId,
+      }),
       sendTransaction: vi.fn().mockImplementation(async (signed) =>
         canonicalTransactionHash(signed.tx)),
       getTransactionReceipt: vi.fn().mockResolvedValue(null),
@@ -248,5 +305,22 @@ describe("local development wallet encoding", () => {
       createLocalWriteBoundary(config, wallet, { client, nonce: () => 7n })
         .execute(target),
     ).resolves.toMatchObject({ kind: "invalid", reason: "expired" });
+  });
+
+  it("rejects signing when the RPC network does not match configuration", async () => {
+    const blockHash = sha256Hash(new Uint8Array(32).fill(3));
+    const client = {
+      getChainTip: vi.fn().mockResolvedValue({ height: 10n, blockHash }),
+      getBlockByNumber: vi.fn().mockResolvedValue({
+        blockHeight: 10n,
+        networkId: 1n,
+      }),
+      sendTransaction: vi.fn(),
+    } as unknown as GroundhogClient;
+
+    await expect(
+      createLocalWriteBoundary(config, wallet, { client }).execute(target),
+    ).resolves.toMatchObject({ kind: "preSubmissionFailure", hash: null });
+    expect(client.sendTransaction).not.toHaveBeenCalled();
   });
 });

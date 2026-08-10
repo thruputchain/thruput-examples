@@ -1,6 +1,10 @@
 import { I128_MAX, allowanceDifference } from "@/domain/allowance";
 import { formatAmount, parseAmount } from "@/domain/amount";
-import { minimumAmountOut, quoteExactInput } from "@/domain/quote";
+import {
+  minimumAmountOut,
+  QuoteArithmeticError,
+  quoteExactInput,
+} from "@/domain/quote";
 import { orientReserves, orderTokens } from "@/domain/tokens";
 import type { PoolSnapshot, TokenSnapshot } from "@/swap/snapshot";
 
@@ -15,6 +19,7 @@ export type QuoteError =
   | "balance"
   | "signedRange"
   | "emptyLiquidity"
+  | "quoteBounds"
   | "zeroOutput"
   | "zeroMinimum";
 
@@ -76,11 +81,19 @@ export function deriveSwapQuote(
     return { ok: false, error: "emptyLiquidity" };
   }
 
-  const quote = quoteExactInput(
-    parsed.value,
-    reserves.reserveIn,
-    reserves.reserveOut,
-  );
+  let quote;
+  try {
+    quote = quoteExactInput(
+      parsed.value,
+      reserves.reserveIn,
+      reserves.reserveOut,
+    );
+  } catch (error) {
+    if (error instanceof QuoteArithmeticError) {
+      return { ok: false, error: "quoteBounds" };
+    }
+    throw error;
+  }
   if (quote.amountOut === 0n) return { ok: false, error: "zeroOutput" };
 
   const amountOutMin = minimumAmountOut(quote.amountOut, slippageBps);
@@ -174,6 +187,7 @@ export const quoteErrorMessages: Record<QuoteError, string> = {
   balance: "Amount exceeds your available balance.",
   signedRange: "The required allowance change exceeds the signed contract range.",
   emptyLiquidity: "This pool has no available liquidity.",
+  quoteBounds: "This quote exceeds the contract arithmetic range.",
   zeroOutput: "This amount is too small to produce output.",
   zeroMinimum: "This amount is too small after the slippage floor.",
 };

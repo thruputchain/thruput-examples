@@ -3,15 +3,72 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  developmentPrivateKeyDefinition,
   isAllowedRequest,
   isSameOriginLocalRequest,
   validateRpcTarget,
 } from "./vite.config";
 
+describe("development private key boundary", () => {
+  const canary = `0x${"a5".repeat(32)}`;
+
+  it("does not define the private key for builds", () => {
+    expect(
+      developmentPrivateKeyDefinition(
+        "build",
+        false,
+        "http://127.0.0.1:9545",
+        { GROUNDHOG_DEV_PRIVATE_KEY: canary },
+      ),
+    ).toBe("undefined");
+  });
+
+  it("defines the private key only while serving locally", () => {
+    expect(
+      developmentPrivateKeyDefinition(
+        "serve",
+        false,
+        "http://127.0.0.1:9545",
+        { GROUNDHOG_DEV_PRIVATE_KEY: canary },
+      ),
+    ).toBe(JSON.stringify(canary));
+    expect(
+      developmentPrivateKeyDefinition(
+        "serve",
+        false,
+        "http://127.0.0.1:9545",
+        {},
+      ),
+    ).toBe("undefined");
+  });
+
+  it("does not define the key for preview or a remote RPC target", () => {
+    const environment = { GROUNDHOG_DEV_PRIVATE_KEY: canary };
+
+    expect(
+      developmentPrivateKeyDefinition(
+        "serve",
+        true,
+        "http://127.0.0.1:9545",
+        environment,
+      ),
+    ).toBe("undefined");
+    expect(
+      developmentPrivateKeyDefinition(
+        "serve",
+        false,
+        "https://rpc.example.com",
+        environment,
+      ),
+    ).toBe("undefined");
+  });
+});
+
 describe("local RPC proxy policy", () => {
   it.each([
     "groundhog_chainTip",
     "groundhog_getEvents",
+    "groundhog_getBlockByNumber",
     "groundhog_view",
     "groundhog_sendRawTransaction",
     "groundhog_getTransactionStatus",

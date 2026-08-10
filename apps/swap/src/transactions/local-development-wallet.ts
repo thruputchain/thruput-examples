@@ -26,7 +26,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { CxsWriter, serialize } from "@groundhogchain/xdr";
 
 import { isBrowserLoopback, isLoopbackUrl, type AppConfig } from "@/config";
-import { createReadClient } from "@/groundhog/client";
+import { createReadClient, getValidatedChainTip } from "@/groundhog/client";
 import {
   outcomeFromReceipt,
   outcomeFromStatus,
@@ -57,7 +57,7 @@ export function createBrowserLocalWriteBoundary(
   return createLocalWriteBoundary(
     config,
     {
-      privateKeyHex: import.meta.env.VITE_GROUNDHOG_DEV_PRIVATE_KEY,
+      privateKeyHex: import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY,
       walletEntrypointHex: import.meta.env.VITE_GROUNDHOG_WALLET_ENTRYPOINT,
     },
   );
@@ -68,9 +68,24 @@ export function createLocalWriteBoundary(
   wallet: LocalWalletConfiguration,
   options: LocalWalletOptions = {},
 ): WriteBoundary {
+  const client = options.client ?? createReadClient(config);
+  const delay = options.delay ?? wait;
+  const maxPolls = options.maxPolls ?? DEFAULT_MAX_POLLS;
+  const retained = new Map<string, SignedTransaction>();
+  const observe = async (hash: string): Promise<WriteResult> => {
+    if (!/^0x[0-9a-f]{64}$/.test(hash)) {
+      return preSubmissionFailure("The stored transaction hash is invalid");
+    }
+    await getValidatedChainTip(client, config.networkId);
+    const result = await pollTransaction(client, hash, maxPolls, delay);
+    if (result.kind !== "indeterminate") retained.delete(hash);
+    return result;
+  };
+
   if (!isLoopbackUrl(config.rpcUrl) || !isBrowserLoopback()) {
     return failedBoundary(
       "Signing requires both the application and RPC to use loopback hosts",
+      observe,
     );
   }
 
@@ -82,21 +97,17 @@ export function createLocalWriteBoundary(
     signer = new PrivateKeySigner(privateKey);
     walletEntrypoint = contractEntrypointID(entrypoint);
   } catch (error) {
-    return failedBoundary(describeError(error));
+    return failedBoundary(describeError(error), observe);
   }
 
-  const client = options.client ?? createReadClient(config);
   const nonce = options.nonce ?? randomNonce;
-  const delay = options.delay ?? wait;
-  const maxPolls = options.maxPolls ?? DEFAULT_MAX_POLLS;
-  const retained = new Map<string, SignedTransaction>();
 
   return {
     async execute(target, observer) {
       let signedTransaction: SignedTransaction;
       let hash: string;
       try {
-        const tip = await client.getChainTip();
+        const tip = await getValidatedChainTip(client, config.networkId);
         const transaction = createTransaction({
           invocation: wrapTargetInvocation(
             config.accountAddress,
@@ -142,14 +153,7 @@ export function createLocalWriteBoundary(
       if (result.kind !== "indeterminate") retained.delete(hash);
       return result;
     },
-    async observe(hash) {
-      if (!/^0x[0-9a-f]{64}$/.test(hash)) {
-        return preSubmissionFailure("The stored transaction hash is invalid");
-      }
-      const result = await pollTransaction(client, hash, maxPolls, delay);
-      if (result.kind !== "indeterminate") retained.delete(hash);
-      return result;
-    },
+    observe,
   };
 }
 
@@ -221,8 +225,11 @@ function writeResult(hash: string, outcome: TransactionOutcome): WriteResult {
   }
 }
 
-function failedBoundary(message: string): WriteBoundary {
-  return { execute: async () => preSubmissionFailure(message) };
+function failedBoundary(
+  message: string,
+  observe: NonNullable<WriteBoundary["observe"]>,
+): WriteBoundary {
+  return { execute: async () => preSubmissionFailure(message), observe };
 }
 
 function preSubmissionFailure(message: string): WriteResult {

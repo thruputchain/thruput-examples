@@ -55,7 +55,12 @@ export function loadOutstandingRequest(
 
   try {
     const value: unknown = JSON.parse(stored);
-    if (!isStoredRequest(value)) throw new Error("invalid outstanding request");
+    if (
+      !isStoredRequest(value) ||
+      !criteriaMatchesConfig(value.criteria, config)
+    ) {
+      throw new Error("invalid outstanding request");
+    }
     return {
       status: value.status === "queued" && value.requestId == null
         ? "queuedUntracked"
@@ -133,7 +138,7 @@ export async function withOutstandingRequestLock<T>(
     throw new Error("This browser must support Web Locks for safe local signing");
   }
   return window.navigator.locks.request(
-    `${outstandingRequestKey(config)}:lock`,
+    requestLockName(config),
     { mode: "exclusive" },
     action,
   );
@@ -147,10 +152,14 @@ export async function withRequestObservationLock<T>(
     return action();
   }
   return window.navigator.locks.request(
-    `${outstandingRequestKey(config)}:observation`,
+    requestLockName(config),
     { mode: "exclusive" },
     action,
   );
+}
+
+function requestLockName(config: AppConfig): string {
+  return `${outstandingRequestKey(config)}:lock`;
 }
 
 function isStoredRequest(value: unknown): value is {
@@ -178,31 +187,67 @@ function isStoredRequest(value: unknown): value is {
     return false;
   }
   const record = value as Record<string, unknown>;
-  return (
-    ["approving", "submitting", "indeterminate", "committedFailure", "queued", "queuedNotObserved", "queuedUntracked"].includes(String(record.status))
-    && (record.phase === "approval" || record.phase === "swap")
-    && typeof record.amountIn === "string"
-    && /^\d+$/.test(record.amountIn)
-    && typeof record.amountOutMin === "string"
-    && /^\d+$/.test(record.amountOutMin)
-    && (record.transactionHash === null
-      || (typeof record.transactionHash === "string"
-        && /^0x[0-9a-f]{64}$/.test(record.transactionHash)))
-    && (record.receiptBlock === null
-      || (typeof record.receiptBlock === "string"
-        && /^\d+$/.test(record.receiptBlock)))
-    && (record.requestId === undefined
-      || record.requestId === null
-      || (typeof record.requestId === "string"
-        && /^0x[0-9a-f]{64}$/.test(record.requestId)))
-    && (record.visibleObservationMs === undefined
-      || (typeof record.visibleObservationMs === "number"
-        && Number.isFinite(record.visibleObservationMs)
-        && record.visibleObservationMs >= 0
-        && record.visibleObservationMs <= 120_000))
-    && isObservationBaseline(record.observationBaseline)
-    && isCriteria(record.criteria)
-  );
+  if (
+    !(
+      [
+        "approving",
+        "submitting",
+        "indeterminate",
+        "committedFailure",
+        "queued",
+        "queuedNotObserved",
+        "queuedUntracked",
+      ].includes(String(record.status)) &&
+      (record.phase === "approval" || record.phase === "swap") &&
+      typeof record.amountIn === "string" &&
+      /^\d+$/.test(record.amountIn) &&
+      typeof record.amountOutMin === "string" &&
+      /^\d+$/.test(record.amountOutMin) &&
+      (record.transactionHash === null ||
+        (typeof record.transactionHash === "string" &&
+          /^0x[0-9a-f]{64}$/.test(record.transactionHash))) &&
+      (record.receiptBlock === null ||
+        (typeof record.receiptBlock === "string" &&
+          /^\d+$/.test(record.receiptBlock))) &&
+      (record.requestId === undefined ||
+        record.requestId === null ||
+        (typeof record.requestId === "string" &&
+          /^0x[0-9a-f]{64}$/.test(record.requestId))) &&
+      (record.visibleObservationMs === undefined ||
+        (typeof record.visibleObservationMs === "number" &&
+          Number.isFinite(record.visibleObservationMs) &&
+          record.visibleObservationMs >= 0 &&
+          record.visibleObservationMs <= 120_000)) &&
+      isObservationBaseline(record.observationBaseline) &&
+      isCriteria(record.criteria)
+    )
+  )
+    return false;
+
+  const hasHash = record.transactionHash !== null;
+  const hasReceipt = record.receiptBlock !== null;
+  const hasRequestId = typeof record.requestId === "string";
+  const phase = record.phase;
+  switch (record.status) {
+    case "approving":
+      return phase === "approval" && !hasReceipt && !hasRequestId;
+    case "submitting":
+      return phase === "swap" && !hasReceipt && !hasRequestId;
+    case "indeterminate":
+      return !hasReceipt && !hasRequestId;
+    case "committedFailure":
+      return hasHash && !hasReceipt && !hasRequestId;
+    case "queued":
+      // Request IDs were not persisted by the first release. Keep migrating
+      // those otherwise-valid records to queuedUntracked.
+      return phase === "swap" && hasHash && hasReceipt;
+    case "queuedNotObserved":
+      return phase === "swap" && hasHash && hasReceipt && hasRequestId;
+    case "queuedUntracked":
+      return phase === "swap" && hasHash && hasReceipt && !hasRequestId;
+    default:
+      return false;
+  }
 }
 
 function isObservationBaseline(value: unknown): boolean {
@@ -232,4 +277,23 @@ function isCriteria(value: unknown): value is Omit<
   ) && (record.driverAddress === undefined
     || (typeof record.driverAddress === "string"
       && /^0x[0-9a-f]{64}$/.test(record.driverAddress)));
+}
+
+function criteriaMatchesConfig(
+  criteria: Omit<OutstandingRequest["criteria"], "driverAddress"> & {
+    driverAddress?: string;
+  },
+  config: AppConfig,
+): boolean {
+  const tokenA = toHex0x(config.tokenAAddress);
+  const tokenB = toHex0x(config.tokenBAddress);
+  return (
+    criteria.pairAddress === toHex0x(config.pairAddress)
+    && criteria.handlerAddress === toHex0x(config.handlerAddress)
+    && (criteria.driverAddress === undefined
+      || criteria.driverAddress === toHex0x(config.driverAddress))
+    && criteria.recipient === toHex0x(config.accountAddress)
+    && ((criteria.tokenIn === tokenA && criteria.tokenOut === tokenB)
+      || (criteria.tokenIn === tokenB && criteria.tokenOut === tokenA))
+  );
 }

@@ -2645,6 +2645,7 @@ dependencies = [
  "swap-if",
  "swap-pair",
  "tokio",
+ "url",
 ]
 
 [[package]]

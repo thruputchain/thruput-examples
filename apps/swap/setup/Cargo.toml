@@ -16,6 +16,7 @@ serde_json = { workspace = true }
 swap-if = { path = "../../../contracts/swap-if" }
 swap-pair = { path = "../../../contracts/swap-pair" }
 tokio = { workspace = true }
+url = "2.5.8"
 
 [lints]
 clippy.result_large_err = "allow"

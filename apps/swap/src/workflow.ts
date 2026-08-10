@@ -89,7 +89,14 @@ export function workflowReducer(
   event: WorkflowEvent,
 ): WorkflowState {
   if (event.type === "outstandingClearedElsewhere") {
-    return state.status === "queued" || state.status === "queuedNotObserved"
+    return [
+      "approving",
+      "submitting",
+      "indeterminate",
+      "queued",
+      "queuedNotObserved",
+    ].includes(state.status) ||
+    (state.status === "error" && !state.retryAllowed)
       ? initialWorkflowState
       : state;
   }

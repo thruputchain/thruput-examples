@@ -17,7 +17,10 @@ describe("createErc20ReadAdapter", () => {
     const owner = address(3);
     const adapter = createErc20ReadAdapter({ client: { view }, contract, caller });
 
-    await expect(adapter.balanceOf(owner)).resolves.toBe(42n);
+    await expect(adapter.balanceOf(owner)).resolves.toEqual({
+      value: 42n,
+      height: 1n,
+    });
     expect(view).toHaveBeenCalledWith(
       expect.objectContaining({ contract, caller }),
     );
@@ -42,11 +45,14 @@ describe("createErc20ReadAdapter", () => {
       caller: address(2),
     });
 
-    await expect(adapter.allowance(address(3), address(4))).resolves.toBe(7n);
+    await expect(adapter.allowance(address(3), address(4))).resolves.toEqual({
+      value: 7n,
+      height: 1n,
+    });
     await expect(adapter.metadata()).resolves.toEqual({
-      name: "Groundhog",
-      symbol: "HOG",
-      decimals: 6,
+      name: { value: "Groundhog", height: 1n },
+      symbol: { value: "HOG", height: 1n },
+      decimals: { value: 6, height: 1n },
     });
   });
 

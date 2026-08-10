@@ -15,7 +15,7 @@ import {
   SWAP_EVENT_SIGNATURE,
 } from "@/contracts/swap-event";
 import { orderTokens } from "@/domain/tokens";
-import { createReadClient } from "@/groundhog/client";
+import { createReadClient, getValidatedChainTip } from "@/groundhog/client";
 import type { OutstandingRequest } from "@/transactions/outstanding-request";
 
 export type RequestObservation =
@@ -51,13 +51,17 @@ export interface RequestObserver {
 
 export function createRequestObserver(
   config: AppConfig,
-  client: Pick<GroundhogClient, "getEvents"> = createReadClient(config),
+  client: Pick<
+    GroundhogClient,
+    "getBlockByNumber" | "getChainTip" | "getEvents"
+  > = createReadClient(config),
 ): RequestObserver {
   return {
     async scan(request) {
       if (request.requestId === null || request.receiptBlock === null) {
         throw new Error("Queued request is missing its request ID or receipt block");
       }
+      await getValidatedChainTip(client, config.networkId);
       const requestId = requestIdFromHex(request.requestId);
       const pairAddress = addressFromHex(request.criteria.pairAddress);
       const handlerAddress = addressFromHex(request.criteria.handlerAddress);

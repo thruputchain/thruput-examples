@@ -1,5 +1,7 @@
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::io::Write;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use groundhog_erc20_if::Amount;
@@ -9,7 +11,10 @@ use groundhog_json_rpc_types::events::{
     IterationOrder, PaginationCursor, TopicList,
 };
 use groundhog_json_rpc_types::hex::Topic;
-use groundhog_json_rpc_types::runtime_manifest::parse_runtime_manifest;
+use groundhog_json_rpc_types::runtime_manifest::{
+    HOGD_DEV_RUNTIME_MANIFEST_KIND, RuntimeManifest, RuntimeManifestChainState,
+    parse_runtime_manifest,
+};
 use groundhog_json_rpc_types::view::RootInvocationOutput;
 use groundhog_signing::dev_account::derive_dev_account_secret;
 use groundhog_testkit::xdr::types::ContractAddress;
@@ -20,6 +25,7 @@ use sdk::Event;
 use sdk::exn::RawException;
 use swap_if::{RequestId, Suite, SwapHashes, SwapPairError};
 use swap_pair::events::SwapEvent;
+use url::Url;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, Error>;
@@ -36,6 +42,8 @@ const CONTRACT_FUNDING: Amount = 10_000_000;
 const MINT_AMOUNT: Amount = 2_000_000_000;
 const LIQUIDITY_AMOUNT: Amount = 1_000_000_000;
 const SWAP_AMOUNTS: [Amount; 2] = [10_000, 20_000];
+static TEMP_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
 #[derive(Clone, Copy)]
 struct Deployment {
     account_index: u32,
@@ -52,11 +60,16 @@ struct Deployment {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let rpc_url = env("GROUNDHOG_RPC_URL")?;
-    let manifest_path = PathBuf::from(env("GROUNDHOG_RUNTIME_MANIFEST")?);
-    let artifact_root = PathBuf::from(env("GROUNDHOG_TESTKIT_ARTIFACT_ROOT")?);
     let output_path = PathBuf::from(env("SWAP_APP_ENV")?);
     let cli_config_home = PathBuf::from(env("SWAP_CLI_CONFIG_HOME")?);
+    let cli_config_path = cli_config_home.join("groundhog/config.toml");
+    let rpc_url = env("GROUNDHOG_RPC_URL")?;
+    validate_loopback_rpc_url(&rpc_url)?;
+    let manifest_path = PathBuf::from(env("GROUNDHOG_RUNTIME_MANIFEST")?);
+    let manifest_bytes = std::fs::read(&manifest_path)?;
+    let manifest = parse_runtime_manifest(&manifest_bytes)?;
+    validate_runtime_manifest(&manifest)?;
+    let artifact_root = PathBuf::from(env("GROUNDHOG_TESTKIT_ARTIFACT_ROOT")?);
     let groundhog_cli = PathBuf::from(env("GROUNDHOG_CLI")?);
     let deployment = Arc::new(Mutex::new(None));
 
@@ -78,6 +91,10 @@ async fn main() -> Result<()> {
             *tip.height
         ),
     )?;
+    invalidate_generated_outputs(&output_path, &cli_config_path)?;
+    eprintln!(
+        "Previous generated configuration is invalidated. If setup fails after deployment starts, reset the disposable ledger before retrying."
+    );
 
     let result = Arc::clone(&deployment);
     scenario
@@ -93,13 +110,13 @@ async fn main() -> Result<()> {
         .expect("deployment lock poisoned")
         .take()
         .ok_or("setup agent returned no result")??;
-    write_env(&output_path, &rpc_url, &manifest_path, deployed)?;
-    write_cli_config(
-        &cli_config_home,
-        &rpc_url,
-        &manifest_path,
-        deployed.account_index,
+    ensure(
+        std::fs::read(&manifest_path)? == manifest_bytes,
+        "runtime manifest changed during setup; reset the disposable ledger before retrying",
     )?;
+    let app_env = render_env(&manifest, &rpc_url, deployed)?;
+    let cli_config = render_cli_config(&manifest, &rpc_url, &manifest_path, deployed.account_index);
+    publish_outputs(&output_path, &app_env, &cli_config_path, &cli_config)?;
 
     println!("Local swap environment is ready: {}", output_path.display());
     let process_requests = entrypoint_id(DRIVER.0, DRIVER.1, "process_requests");
@@ -174,10 +191,8 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
     let handler = Contract::new(suite.handler, HANDLER.0, HANDLER.1);
     let driver = Contract::new(suite.driver, DRIVER.0, DRIVER.1);
     let pair = Contract::new(suite.pair, PAIR.0, PAIR.1);
-    let token_a_allowance =
-        i128::try_from(LIQUIDITY_AMOUNT + SWAP_AMOUNTS[0]).expect("token A allowance fits i128");
-    let token_b_allowance =
-        i128::try_from(LIQUIDITY_AMOUNT + SWAP_AMOUNTS[1]).expect("token B allowance fits i128");
+    let token_a_allowance = i128::try_from(LIQUIDITY_AMOUNT + SWAP_AMOUNTS[0])?;
+    let token_b_allowance = i128::try_from(LIQUIDITY_AMOUNT + SWAP_AMOUNTS[1])?;
     token_a
         .call(
             ctx,
@@ -293,8 +308,8 @@ async fn deploy_token(
         ERC20.1,
     );
     fund(ctx, native, token.address()).await?;
-    let encoded_name = Name::try_from(name).expect("static token name fits metadata limit");
-    let encoded_symbol = Symbol::try_from(symbol).expect("static token symbol fits metadata limit");
+    let encoded_name = Name::try_from(name)?;
+    let encoded_symbol = Symbol::try_from(symbol)?;
     let metadata = Contract::new(token.address(), ERC20_METADATA.0, ERC20_METADATA.1);
     metadata
         .call(
@@ -400,16 +415,8 @@ async fn verify_swap_events(
     token_a: ContractAddress,
     token_b: ContractAddress,
 ) -> Result<()> {
-    let contracts = ContractAddressList(
-        vec![pair.into()]
-            .try_into()
-            .expect("one contract fits filter"),
-    );
-    let signatures = TopicList(
-        vec![Topic(*SwapEvent::SIGNATURE)]
-            .try_into()
-            .expect("one topic fits filter"),
-    );
+    let contracts = ContractAddressList(vec![pair.into()].try_into()?);
+    let signatures = TopicList(vec![Topic(*SwapEvent::SIGNATURE)].try_into()?);
     let filters = EventFilterList(
         vec![EventFilter {
             contract_addresses: contracts,
@@ -419,8 +426,7 @@ async fn verify_swap_events(
                 topic2: TopicList::default(),
             },
         }]
-        .try_into()
-        .expect("one event filter fits query"),
+        .try_into()?,
     );
     let mut cursor = PaginationCursor::default();
     let mut ids = Vec::new();
@@ -564,14 +570,44 @@ fn native_token() -> Contract {
     Contract::new(ContractAddress::from(bytes), "ERC20", "0.1.3")
 }
 
-fn write_env(
-    path: &Path,
-    rpc_url: &str,
-    manifest_path: &Path,
-    deployment: Deployment,
-) -> Result<()> {
-    let bytes = std::fs::read(manifest_path)?;
-    let manifest = parse_runtime_manifest(&bytes)?;
+fn validate_loopback_rpc_url(value: &str) -> Result<()> {
+    let url =
+        Url::parse(value).map_err(|error| format!("GROUNDHOG_RPC_URL is invalid: {error}"))?;
+    ensure(
+        matches!(url.scheme(), "http" | "https"),
+        "GROUNDHOG_RPC_URL must use http or https",
+    )?;
+    ensure(
+        url.username().is_empty() && url.password().is_none(),
+        "GROUNDHOG_RPC_URL must not contain credentials",
+    )?;
+    ensure(
+        matches!(
+            url.host_str(),
+            Some("localhost" | "127.0.0.1" | "::1" | "[::1]")
+        ),
+        "GROUNDHOG_RPC_URL must use the literal host localhost, 127.0.0.1, or ::1",
+    )
+}
+
+fn validate_runtime_manifest(manifest: &RuntimeManifest) -> Result<()> {
+    ensure(
+        manifest.kind == HOGD_DEV_RUNTIME_MANIFEST_KIND,
+        format!(
+            "runtime manifest kind must be {HOGD_DEV_RUNTIME_MANIFEST_KIND:?}, got {:?}",
+            manifest.kind
+        ),
+    )?;
+    ensure(
+        manifest.chain_state == Some(RuntimeManifestChainState::Fresh),
+        format!(
+            "runtime manifest must describe a fresh dev ledger, got chain state {:?}",
+            manifest.chain_state
+        ),
+    )
+}
+
+fn render_env(manifest: &RuntimeManifest, rpc_url: &str, deployment: Deployment) -> Result<String> {
     let account = manifest
         .bootstrap_accounts
         .iter()
@@ -595,10 +631,10 @@ fn write_env(
     ));
     let process_requests = entrypoint_id(DRIVER.0, DRIVER.1, "process_requests");
 
-    let contents = format!(
+    Ok(format!(
         "VITE_GROUNDHOG_RPC_URL={rpc_url}\n\
          VITE_GROUNDHOG_NETWORK_ID={}\n\
-         VITE_GROUNDHOG_DEV_PRIVATE_KEY=0x{private_key}\n\
+         GROUNDHOG_DEV_PRIVATE_KEY=0x{private_key}\n\
          VITE_GROUNDHOG_WALLET_ADDRESS={}\n\
          VITE_GROUNDHOG_WALLET_ENTRYPOINT={}\n\
          VITE_SWAP_FACTORY_ADDRESS={}\n\
@@ -625,29 +661,17 @@ fn write_env(
         entrypoint(process_requests),
         address(deployment.token_a),
         address(deployment.token_b),
-    );
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(path)?;
-    std::io::Write::write_all(&mut file, contents.as_bytes())?;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
-    Ok(())
+    ))
 }
 
-fn write_cli_config(
-    config_home: &Path,
+fn render_cli_config(
+    manifest: &RuntimeManifest,
     rpc_url: &str,
     manifest_path: &Path,
     account_index: u32,
-) -> Result<()> {
-    let groundhog_dir = config_home.join("groundhog");
-    std::fs::create_dir_all(&groundhog_dir)?;
-    let manifest = parse_runtime_manifest(&std::fs::read(manifest_path)?)?;
-    let network_id = manifest.network_hash;
-    let contents = format!(
+) -> String {
+    let network_id = &manifest.network_hash;
+    format!(
         "# generated_network_id = {network_id}\n\
          default_key = \"dev-{account_index}\"\n\
          default_profile = \"local\"\n\
@@ -657,9 +681,109 @@ fn write_cli_config(
          rpc_url = {rpc_url:?}\n\
          runtime_manifest = {:?}\n",
         manifest_path.display().to_string(),
-    );
-    std::fs::write(groundhog_dir.join("config.toml"), contents)?;
+    )
+}
+
+fn invalidate_generated_outputs(app_env: &Path, cli_config: &Path) -> Result<()> {
+    remove_file_if_present(app_env)?;
+    remove_file_if_present(cli_config)?;
     Ok(())
+}
+
+fn remove_file_if_present(path: &Path) -> Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("failed to invalidate {}: {error}", path.display()).into()),
+    }
+}
+
+fn publish_outputs(
+    app_path: &Path,
+    app_contents: &str,
+    cli_path: &Path,
+    cli_contents: &str,
+) -> Result<()> {
+    let app_file = PreparedFile::new(app_path, app_contents)?;
+    let cli_file = PreparedFile::new(cli_path, cli_contents)?;
+
+    if let Err(error) = cli_file.publish(cli_path) {
+        let _ = remove_file_if_present(app_path);
+        let _ = remove_file_if_present(cli_path);
+        return Err(format!("failed to publish {}: {error}", cli_path.display()).into());
+    }
+    if let Err(error) = app_file.publish(app_path) {
+        let _ = remove_file_if_present(app_path);
+        let _ = remove_file_if_present(cli_path);
+        return Err(format!("failed to publish {}: {error}", app_path.display()).into());
+    }
+    Ok(())
+}
+
+struct PreparedFile {
+    path: Option<PathBuf>,
+}
+
+impl PreparedFile {
+    fn new(destination: &Path, contents: &str) -> Result<Self> {
+        let parent = destination
+            .parent()
+            .ok_or_else(|| format!("{} has no parent directory", destination.display()))?;
+        std::fs::create_dir_all(parent)?;
+        let file_name = destination
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| format!("{} has no valid file name", destination.display()))?;
+
+        for _ in 0..100 {
+            let sequence = TEMP_FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let path = parent.join(format!(
+                ".{file_name}.swap-setup-{}-{sequence}.tmp",
+                std::process::id()
+            ));
+            let file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&path);
+            let mut file = match file {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error.into()),
+            };
+            if let Err(error) = file
+                .write_all(contents.as_bytes())
+                .and_then(|()| file.sync_all())
+            {
+                let _ = std::fs::remove_file(&path);
+                return Err(error.into());
+            }
+            return Ok(Self { path: Some(path) });
+        }
+        Err(format!(
+            "could not create a temporary file for {}",
+            destination.display()
+        )
+        .into())
+    }
+
+    fn publish(mut self, destination: &Path) -> std::io::Result<()> {
+        let path = self
+            .path
+            .as_ref()
+            .ok_or_else(|| std::io::Error::other("prepared file was already published"))?;
+        std::fs::rename(path, destination)?;
+        self.path = None;
+        Ok(())
+    }
+}
+
+impl Drop for PreparedFile {
+    fn drop(&mut self) {
+        if let Some(path) = &self.path {
+            let _ = std::fs::remove_file(path);
+        }
+    }
 }
 
 fn address(value: ContractAddress) -> String {
@@ -689,6 +813,7 @@ fn env(name: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::MetadataExt;
 
     #[test]
     fn swap_event_payload_decodes_generated_cxs() {
@@ -699,5 +824,207 @@ mod tests {
         assert_eq!(payload.amounts_in, [0, 10_000]);
         assert_eq!(payload.amounts_out, [9_969, 0]);
         assert_eq!(payload.request_id, None);
+    }
+
+    #[test]
+    fn loopback_rpc_validation_accepts_policy_hosts() {
+        for value in [
+            "http://localhost:9545",
+            "https://127.0.0.1:9545/",
+            "http://[::1]:9545",
+        ] {
+            validate_loopback_rpc_url(value).expect("policy URL should be accepted");
+        }
+    }
+
+    #[test]
+    fn loopback_rpc_validation_rejects_credentials() {
+        let error = validate_loopback_rpc_url("http://user:secret@127.0.0.1:9545")
+            .expect_err("credentials should be rejected");
+
+        assert!(error.to_string().contains("credentials"));
+    }
+
+    #[test]
+    fn loopback_rpc_validation_rejects_nonliteral_or_remote_hosts() {
+        for value in [
+            "http://localhost.example:9545",
+            "http://rpc.example.com:9545",
+        ] {
+            assert!(
+                validate_loopback_rpc_url(value).is_err(),
+                "accepted {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn render_cli_config_contains_coherent_network_and_endpoint() {
+        let manifest = test_manifest();
+        let rendered = render_cli_config(
+            &manifest,
+            "http://127.0.0.1:9545",
+            Path::new("/tmp/runtime-manifest.json"),
+            0,
+        );
+
+        assert!(rendered.contains("rpc_url = \"http://127.0.0.1:9545\""));
+        assert!(rendered.contains("runtime_manifest = \"/tmp/runtime-manifest.json\""));
+        assert!(rendered.contains(&format!("generated_network_id = {}", manifest.network_hash)));
+    }
+
+    #[test]
+    fn render_env_derives_key_and_renders_deployment() {
+        let manifest = test_manifest();
+        let deployment = test_deployment();
+
+        let rendered = render_env(&manifest, "http://127.0.0.1:9545", deployment)
+            .expect("render app environment");
+
+        assert!(rendered.contains("GROUNDHOG_DEV_PRIVATE_KEY=0x"));
+        assert!(rendered.contains(&format!(
+            "VITE_GROUNDHOG_WALLET_ADDRESS={}",
+            address(deployment.wallet)
+        )));
+    }
+
+    #[test]
+    fn runtime_manifest_validation_rejects_recovered_ledger() {
+        let mut manifest = test_manifest();
+        manifest.chain_state = Some(RuntimeManifestChainState::Recovered);
+
+        let error = validate_runtime_manifest(&manifest)
+            .expect_err("recovered runtime manifest should be rejected");
+
+        assert!(error.to_string().contains("fresh dev ledger"));
+    }
+
+    #[test]
+    fn publish_outputs_atomically_replaces_symlink_with_private_files() {
+        let directory = TestDirectory::new("publish-symlink");
+        let app_path = directory.path().join(".env.local");
+        let cli_path = directory.path().join("config/groundhog/config.toml");
+        let symlink_target = directory.path().join("symlink-target");
+        std::fs::write(&symlink_target, "do not replace").expect("write symlink target");
+        std::os::unix::fs::symlink(&symlink_target, &app_path).expect("create destination symlink");
+
+        publish_outputs(&app_path, "app", &cli_path, "cli").expect("publish outputs");
+
+        assert_eq!(std::fs::read_to_string(&app_path).expect("read app"), "app");
+        assert_eq!(std::fs::read_to_string(&cli_path).expect("read CLI"), "cli");
+        assert_eq!(
+            std::fs::read_to_string(&symlink_target).expect("read target"),
+            "do not replace"
+        );
+        assert_eq!(
+            std::fs::metadata(&app_path).expect("app metadata").mode() & 0o777,
+            0o600
+        );
+        assert_eq!(
+            std::fs::metadata(&cli_path).expect("CLI metadata").mode() & 0o777,
+            0o600
+        );
+    }
+
+    #[test]
+    fn publish_outputs_removes_cli_config_when_app_publish_fails() {
+        let directory = TestDirectory::new("publish-rollback");
+        let app_path = directory.path().join(".env.local");
+        let cli_path = directory.path().join("config.toml");
+        std::fs::create_dir(&app_path).expect("create conflicting destination directory");
+
+        let error = publish_outputs(&app_path, "app", &cli_path, "cli")
+            .expect_err("app publication should fail");
+
+        assert!(error.to_string().contains("failed to publish"));
+        assert!(!cli_path.exists());
+        assert!(app_path.is_dir());
+    }
+
+    fn test_manifest() -> RuntimeManifest {
+        parse_runtime_manifest(
+            br#"{
+                "schemaVersion": 2,
+                "kind": "hogd-dev-runtime",
+                "chainState": "fresh",
+                "networkHash": "4242424242424242424242424242424242424242424242424242424242424242",
+                "protocol": "hogp/test",
+                "genesisHash": "0x4242424242424242424242424242424242424242424242424242424242424242",
+                "producer": { "binary": "hogd-dev", "version": "0.6.1" },
+                "endpoints": { "scheduler": "127.0.0.1:1000" },
+                "bootstrapAccountDerivation": {
+                    "scheme": "groundhog-bootstrap-account-v1",
+                    "seed": "groundhog-dev-accounts"
+                },
+                "bootstrapAccounts": [{
+                    "index": 0,
+                    "role": "local_user",
+                    "publicKey": "0x6161616161616161616161616161616161616161616161616161616161616161",
+                    "walletAddress": "0x7171717171717171717171717171717171717171717171717171717171717171",
+                    "initialStorageTokens": "1000000000"
+                }],
+                "bootstrap": {
+                    "devWallet": {
+                        "contentHash": "0x5151515151515151515151515151515151515151515151515151515151515151",
+                        "deployedCodeHash": "0x5252525252525252525252525252525252525252525252525252525252525252",
+                        "artifactHint": "dev-wallet.wasm",
+                        "deployEntrypoint": "0xadac498222148e4f",
+                        "createWalletEntrypoint": "0x6372656174655761",
+                        "doActionEntrypoint": "0x646f416374696f6e"
+                    },
+                    "storageCostModel": {
+                        "hash": "0x5353535353535353535353535353535353535353535353535353535353535353",
+                        "baseDataItemCost": "1",
+                        "bytestringCostPerByte": "1",
+                        "baseContractDeploymentCost": "1",
+                        "contractDeploymentCostPerByte": "1",
+                        "authPerKeyCost": "1",
+                        "rcqCostPerEntry": "1",
+                        "replayCacheCostPerEntry": "1",
+                        "balanceCost": "1"
+                    }
+                }
+            }"#,
+        )
+        .expect("test manifest should parse")
+    }
+
+    fn test_deployment() -> Deployment {
+        Deployment {
+            account_index: 0,
+            wallet: ContractAddress::from([0x71; 32]),
+            token_a: ContractAddress::from([0x01; 32]),
+            token_b: ContractAddress::from([0x02; 32]),
+            factory: ContractAddress::from([0x03; 32]),
+            router: ContractAddress::from([0x04; 32]),
+            pair: ContractAddress::from([0x05; 32]),
+            liquidity_token: ContractAddress::from([0x06; 32]),
+            handler: ContractAddress::from([0x07; 32]),
+            driver: ContractAddress::from([0x08; 32]),
+        }
+    }
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new(name: &str) -> Self {
+            let sequence = TEMP_FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "swap-setup-{name}-{}-{sequence}",
+                std::process::id()
+            ));
+            std::fs::create_dir(&path).expect("create temporary test directory");
+            Self(path)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).expect("remove temporary test directory");
+        }
     }
 }

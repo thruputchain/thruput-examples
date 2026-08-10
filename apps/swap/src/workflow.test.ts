@@ -102,6 +102,33 @@ describe("workflowReducer", () => {
     ).toEqual(initialWorkflowState);
   });
 
+  it.each([
+    { status: "approving", intent },
+    { status: "submitting", intent },
+    {
+      status: "indeterminate",
+      phase: "swap",
+      intent,
+      transactionHash: "0x01",
+    },
+    {
+      status: "error",
+      phase: "swap",
+      message: "failed",
+      retryAllowed: false,
+      intent,
+      certainty: "committed",
+      transactionHash: "0x01",
+    },
+  ] satisfies WorkflowState[])(
+    "unlocks $status when its durable request is cleared elsewhere",
+    (state) => {
+      expect(
+        workflowReducer(state, { type: "outstandingClearedElsewhere" }),
+      ).toEqual(initialWorkflowState);
+    },
+  );
+
   it.each(["approval", "swap"] as const)(
     "makes an indeterminate %s transaction non-resubmittable",
     (phase) => {
