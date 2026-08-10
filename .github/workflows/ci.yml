@@ -66,6 +66,9 @@ jobs:
   frontend:
     name: Swap frontend
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     defaults:
       run:
         working-directory: apps/swap
@@ -80,8 +83,12 @@ jobs:
           node-version: 20.19.0
           cache: npm
           cache-dependency-path: apps/swap/package-lock.json
+          registry-url: https://npm.pkg.github.com
+          scope: "@groundhogchain"
 
       - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci
 
       - name: Typecheck
