@@ -91,7 +91,7 @@ describe("request observer", () => {
       1,
       expect.objectContaining({
         order: "ascending",
-        anchor: { height: 9n },
+        anchor: { height: 8n },
         limit: 200,
       }),
     );
@@ -172,10 +172,34 @@ describe("request observer", () => {
     ).resolves.toEqual({ result: null, latestBlock: 10n });
   });
 
-  it("rejects an event at the enqueue receipt block", async () => {
+  it("accepts a matching event at the enqueue receipt block", async () => {
     const getEvents = vi.fn().mockResolvedValue(
       page(
         [identified(swapEvent(new Uint8Array(32).fill(0xcc)), 8n)],
+        new Uint8Array(),
+        8n,
+      ),
+    );
+
+    await expect(
+      createRequestObserver(config, rpcClient(getEvents)).scan(request),
+    ).resolves.toEqual({
+      result: {
+        kind: "executionObserved",
+        requestId: request.requestId,
+        transactionHash: hex(0xdd),
+        blockHeight: 8n,
+        amountIn: 10n,
+        amountOut: 19n,
+      },
+      latestBlock: 8n,
+    });
+  });
+
+  it("rejects an event before the enqueue receipt block", async () => {
+    const getEvents = vi.fn().mockResolvedValue(
+      page(
+        [identified(swapEvent(new Uint8Array(32).fill(0xcc)), 7n)],
         new Uint8Array(),
         8n,
       ),

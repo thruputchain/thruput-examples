@@ -94,12 +94,12 @@ export function createRequestObserver(
         const page: EventPage = await client.getEvents({
           filters,
           order: "ascending",
-          anchor: { height: request.receiptBlock + 1n },
+          anchor: { height: request.receiptBlock },
           ...(cursor === undefined ? {} : { cursor }),
           limit: 200,
         });
         if (page.latestBlock > latestBlock) latestBlock = page.latestBlock;
-        if (page.oldestBlock > request.receiptBlock + 1n) {
+        if (page.oldestBlock > request.receiptBlock) {
           historyUnavailable = true;
         }
 
@@ -133,7 +133,7 @@ function matchTerminalEvent(
   requestId: Uint8Array,
   identified: IdentifiedEvent,
 ): RequestObservation | null {
-  if (identified.blockHeight <= request.receiptBlock!) return null;
+  if (identified.blockHeight < request.receiptBlock!) return null;
   const event = identified.event;
   const pairAddress = addressFromHex(request.criteria.pairAddress);
   const handlerAddress = addressFromHex(request.criteria.handlerAddress);
