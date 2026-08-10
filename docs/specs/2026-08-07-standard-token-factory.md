@@ -30,7 +30,7 @@ The factory supports an optional creation fee. The official Groundhog factory co
 V1 does not include arbitrary implementations, taxes, hooks, rebasing, freezing, blacklists, liquidity creation, or implementation upgrades.
 ## 3. Contracts and Interfaces
 ### Standard Token
-The deployed token implements the exact ERC-20 interface and behavior pinned by `FactoryConfig.erc20_interface_version`:
+The deployed token implements the exact ERC-20 interface pinned by its immutable implementation hash:
 
 ```text
 initialize
@@ -45,7 +45,7 @@ burn
 total_supply
 ```
 
-The source of truth is the published `groundhog-erc20-if` artifact for that version. Factory tokens and native HOG must use the same method selectors, event signatures, error encoding, amount bounds, self-transfer behavior, and allowance semantics.
+The source of truth is the published `groundhog-erc20-if` artifact named in the factory release manifest. Factory tokens and native HOG use the same method selectors, event signatures, error encoding, and amount bounds. Shared behavior is tested where both implementations support an operation; native HOG rejects initialization, minting, and burning, and currently skips allowance when `transfer_from` is called by the owner.
 
 The token also implements the complete existing metadata interface, including its initializer:
 
@@ -64,7 +64,7 @@ pub trait ERC20Metadata {
 }
 ```
 
-All token initializers share one initialization guard.
+All token initializers share one initialization guard. The guard writes the token configuration with `Value::set_exclusive` so at most one concurrent initialization can commit, even when both calls provide identical configuration.
 ### Factory Initializer
 The standard token adds one factory-specific initializer without changing ERC-20:
 
@@ -113,14 +113,13 @@ The initializer always creates the initial holder balance entry, including when 
 ### Factory
 ```rust
 #[sdk::storage]
-pub struct StandardTokenFactory {
+pub struct StandardTokenFactoryContract {
     config: Value<FactoryConfig>,
 }
 
 #[contract_type]
 pub struct FactoryConfig {
     pub token_code_hash: SHA256Hash,
-    pub erc20_interface_version: InterfaceVersion,
     pub required_token_funding: Amount,
     pub native_token: ContractAddress,
     pub creation_fee: Amount,
@@ -128,11 +127,18 @@ pub struct FactoryConfig {
 }
 ```
 
-Factory configuration is written once and never changes. A zero fee requires no recipient. A nonzero fee requires a nonzero recipient. The factory stores no per-token records and exposes no administrator, upgrade, or withdrawal method.
+Factory configuration is written once with `Value::set_exclusive` and never changes. A zero fee requires no recipient. A nonzero fee requires a nonzero recipient. The factory stores no per-token records and exposes no administrator, upgrade, or withdrawal method.
 
-The canonical factory is deployed, funded, and initialized by release tooling in one transaction. Initialization rejects a zero token hash, zero native-token address, unsupported interface version, zero funding requirement, repeated call, or invalid fee-recipient combination.
+The canonical factory is deployed, funded, and initialized by release tooling in one transaction. Initialization rejects a zero token hash, zero native-token address, zero funding requirement, repeated call, or invalid fee-recipient combination.
+
+Before enabling the factory, release tooling publishes the exact standard-token artifact so the runtime can resolve `token_code_hash` during child deployment. The release manifest binds the factory address, factory artifact, token artifact, token hash, and ERC-20 interface artifact.
 ## 5. Factory Interface
 ```rust
+#[contract(
+    client = StandardTokenFactoryClient,
+    throws(TokenFactoryError, ERC20Error),
+    emits(TokenCreated)
+)]
 pub trait StandardTokenFactory {
     fn initialize(&mut self, config: FactoryConfig);
 
@@ -191,6 +197,10 @@ The creator pays for token deployment and initial storage:
 
 `required_token_funding` is a conservative fixed amount that covers deployment, maximum-length metadata, configuration, supply, and the initial holder balance. It guarantees creation only. Any remainder becomes free storage reserve for later balance and allowance entries.
 
+The current ERC-20 implementation creates a missing receiver balance or owner-spender allowance row as part of the operation. The new row is backed by the token contract's HOG reserve, not charged automatically to the caller or token creator. If the reserve cannot cover the row, the transaction fails at commit. Anyone may top up the token contract; the creator has no continuing obligation to fund new holders.
+
+A wallet can atomically transfer HOG to an existing token contract and then invoke `transfer` or `adjust_allowance`. This lets wallet software fund a required new row immediately before the ERC-20 operation when the token reserve is empty.
+
 The funding is not a factory fee. HOG remains at the token address as locked storage backing or free reserve. V1 provides no way to withdraw excess reserve.
 
 A wallet may transfer HOG and call the factory atomically. A CLI may use two transactions and wait for funding to commit before creation. Anyone may top up a token contract later.
@@ -199,7 +209,7 @@ If a future storage-cost model changes these requirements, release a new factory
 ## 8. Creation Semantics
 `create_token`:
 
-1. Sets `creator = get_caller()`.
+1. Sets `creator = get_caller()`, the wallet contract invoking the factory.
   
 2. Validates administrator, initial holder, metadata, and initial supply.
   
@@ -222,6 +232,8 @@ Fee collection, deployment, initialization, initial minting, and event emission 
 
 A fee-enabled factory requires the creator to grant an exact native-HOG allowance before `create_token`. The official zero-fee factory skips fee collection and requires no allowance.
 
+`create_token` must be invoked by a wallet contract rather than as the root transaction call because Groundhog defines `get_caller()` only for a subcall. The one- and two-transaction client flows both use the creator's wallet as the immediate factory caller.
+
 At most one creation for a `(factory, creator, nonce)` can commit. A failed creation emits no `TokenCreated` event.
 ### Validation
 - Every 32-byte nonce is valid.
@@ -238,9 +250,11 @@ At most one creation for a `(factory, creator, nonce)` can commit. A failed crea
   
 ## 9. Discovery
 ```rust
-#[contract_type]
+#[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TokenCreated {
+    #[topic]
     pub token: ContractAddress,
+    #[topic]
     pub creator: ContractAddress,
     pub administrator: ContractAddress,
     pub initial_holder: ContractAddress,
@@ -259,19 +273,23 @@ Transfers and approvals are naturally filterable by token contract address. Name
 Factory provenance proves that the canonical factory created the token with its fixed implementation. It does not imply legitimacy, value, or endorsement.
 ## 10. Errors
 ```rust
+#[contract_exception]
+#[non_exhaustive]
 pub enum TokenFactoryError {
-    AlreadyInitialized,
-    InvalidConfig,
-    InvalidTokenConfig,
-    InsufficientTokenFunding,
+    AlreadyInitialized = 1,
+    InvalidConfig = 2,
+    InvalidTokenConfig = 3,
+    InsufficientTokenFunding = 4,
 }
 ```
 
-Invalid factory configuration maps to `InvalidConfig`. Invalid administrator, holder, metadata, or supply maps to `InvalidTokenConfig`. Insufficient predicted-address HOG maps to `InsufficientTokenFunding`.
+Invalid factory configuration maps to `InvalidConfig`. Invalid administrator, holder, or supply maps to `InvalidTokenConfig`. Metadata outside its bounded ABI type fails decoding before the factory method executes. Insufficient predicted-address HOG maps to `InsufficientTokenFunding`.
 
 Initializer and ERC-20 errors propagate through their declared interfaces. Deployment-system failures propagate as runtime failures and revert creation.
 ## 11. Security and Versioning
 - Deploy and initialize the canonical factory atomically.
+
+- Write factory configuration with `Value::set_exclusive` so at most one concurrent initialization can commit.
   
 - Accept no implementation hash in `create_token`.
   
@@ -280,6 +298,8 @@ Initializer and ERC-20 errors propagate through their declared interfaces. Deplo
 - Initialize the child in the same call tree as deployment.
   
 - Share one initialization guard across all token initializers.
+
+- Write the initialization guard with `Value::set_exclusive` so duplicate concurrent creation cannot mint, charge, or emit twice.
   
 - Store the requested administrator directly; leave no factory authority.
   
@@ -294,12 +314,13 @@ Initializer and ERC-20 errors propagate through their declared interfaces. Deplo
 
 One factory address represents one token implementation version. A new implementation or storage-funding requirement uses a new factory. Existing tokens never change or migrate automatically.
 
-Network and client configuration publish recognized factory addresses, implementation hashes, interface versions, required funding, and fee settings. Custom ERC-20 contracts remain valid without factory provenance.
+Network and client configuration publish recognized factory addresses, implementation hashes, interface artifacts, required funding, and fee settings. Custom ERC-20 contracts remain valid without factory provenance.
 ## 12. Client Flow
 The CLI and web application use the same flow:
 
 ```text
-validate inputs
+invoke through creator wallet
+-> validate inputs
 -> predict address
 -> display required HOG and creation fee
 -> fund predicted address
@@ -314,6 +335,8 @@ Tooling must preserve ambiguous transaction state and never automatically submit
 Factory tests must cover:
 
 - One-time initialization and immutable configuration.
+
+- Two same-block factory initializations commit exactly one configuration.
   
 - Shared deterministic-address vectors.
   
@@ -326,6 +349,8 @@ Factory tests must cover:
 - Optional metadata.
   
 - Duplicate and concurrent creation.
+
+- Two same-block creations with the same creator and nonce commit exactly one initialization, initial mint, fee transfer, and `TokenCreated` event.
   
 - Event emission only after successful initialization.
   
@@ -338,7 +363,7 @@ Token tests must cover:
 
 - The pinned standard ERC-20 behavior suite.
   
-- Native HOG selector, event, and error parity.
+- Native HOG selector, event, error-encoding, and amount-bound parity, with documented behavioral exceptions.
   
 - One shared initialization guard.
   
@@ -358,6 +383,8 @@ Storage tests must prove:
 - Future balances and allowances consume only that token’s reserve.
   
 - One token cannot consume another token’s reserve.
+
+- A wallet can atomically top up an empty token reserve and transfer to a previously unseen receiver.
   
 
 One cost-enabled integration test must execute:
@@ -378,22 +405,26 @@ predict
 Before implementation, prove:
 
 1. Contract, Rust, and TypeScript derive the same child address.
+
+2. Release tooling makes the exact token artifact resolvable by `token_code_hash` before factory use.
   
-2. The factory can read predicted-address native HOG before deployment.
+3. The factory can read predicted-address native HOG before deployment.
+
+4. The factory can deploy and initialize the child in one transaction.
   
-3. The factory can deploy and initialize the child in one transaction.
+5. `Value::set_exclusive` permits exactly one same-block factory initialization and one duplicate same-block token creation to commit.
   
-4. Failure after deployment reverts deployment, initialization, and events.
+6. Failure after deployment reverts deployment, initialization, and events.
   
-5. Atomic wallet funding reverts when creation fails.
+7. Atomic wallet funding reverts when creation fails.
   
-6. The fixed funding covers maximum valid initial state.
+8. The fixed funding covers maximum valid initial state.
   
-7. A configured fee transfers atomically to the recipient and reverts when creation fails.
+9. A configured fee transfers atomically to the recipient and reverts when creation fails.
   
-8. Factory tokens and native HOG use the same published ERC-20 artifacts.
+10. Factory tokens and native HOG use the same published ERC-20 interface artifact with documented behavioral exceptions.
   
-9. Factory and token events appear in generated metadata and decode across Rust and TypeScript.
+11. Factory and token events appear in generated metadata and decode across Rust and TypeScript.
   
 
 V1 is ready when these gates pass, artifacts build reproducibly, required funding and fee configuration are published, tests pass, and an independent security review has no unresolved critical or high-severity issue.
