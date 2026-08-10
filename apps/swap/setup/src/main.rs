@@ -455,6 +455,10 @@ async fn verify_swap_events(
                 "SwapEvent recipient topic is not the setup wallet",
             )?;
             let payload = SwapEvent::decode_payload(&event.event.data.0)?;
+            ensure(
+                payload.request_id.is_some(),
+                "processed SwapEvent is missing its request ID",
+            )?;
             payloads.push((payload.amounts_in, payload.amounts_out));
             let id = (event.block_height, event.tx_hash, event.sequence_number);
             ensure(
@@ -688,11 +692,12 @@ mod tests {
 
     #[test]
     fn swap_event_payload_decodes_generated_cxs() {
-        let bytes = hex::decode("0000007f1027007ff1260000").expect("valid fixture hex");
+        let bytes = hex::decode("0000007f1027007ff126000000").expect("valid fixture hex");
 
         let payload = SwapEvent::decode_payload(&bytes).expect("decode SwapEvent payload");
 
         assert_eq!(payload.amounts_in, [0, 10_000]);
         assert_eq!(payload.amounts_out, [9_969, 0]);
+        assert_eq!(payload.request_id, None);
     }
 }

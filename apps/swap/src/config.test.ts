@@ -66,6 +66,16 @@ describe("loadAppConfig", () => {
       loadAppConfig(environment({ VITE_TOKEN_B_ADDRESS: ADDRESS })),
     ).toThrow("must differ");
   });
+
+  it("rejects RPC credentials that would be exposed or logged", () => {
+    expect(() =>
+      loadAppConfig(
+        environment({
+          VITE_GROUNDHOG_RPC_URL: "http://operator:secret@127.0.0.1:9545",
+        }),
+      ),
+    ).toThrow("must not contain credentials");
+  });
 });
 
 describe("isLoopbackUrl", () => {

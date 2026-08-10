@@ -2635,6 +2635,7 @@ dependencies = [
  "groundhog-testkit",
  "hex",
  "sdk",
+ "serde_json",
  "swap-if",
  "swap-pair",
  "tokio",

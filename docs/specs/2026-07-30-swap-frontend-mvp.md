@@ -42,7 +42,7 @@ The app must:
 
 - A production wallet provider, devnet deployment, or production custody.
 
-- Behavioral contract changes; event declarations or later request lifecycle tracking may require interface metadata changes.
+- Additional behavioral contract changes beyond the request-ID lifecycle already present in the configured swap suite.
 
 ## 2. User Flow
 1. The developer starts a compatible local Groundhog node and runs the setup command.
@@ -151,7 +151,8 @@ The quote is advisory. The handler recalculates output from live reserves when i
 - Explain that `process_requests()` must be called externally with `bash scripts/crank-local.sh`.
 
 ### Execution Observation
-- Poll pair `SwapEvent`s after enqueue, filtered by pair, handler, recipient, direction, exact input, and `amountOutMin`.
+- Capture the request ID from the enqueue receipt, then poll pair `SwapEvent`s and driver `RequestFailed` events after enqueue.
+- Filter successful execution by request ID, pair, handler, recipient, direction, exact input, and `amountOutMin`.
 - On a match, display **Execution observed** with actual amounts and refresh balances, allowance, and reserves.
 - After two minutes without a match, remain **Queued; execution not observed**; absence does not prove failure.
 - If event querying is unavailable, infer execution only when one snapshot shows input balance and allowance reduced by `amountIn`, output balance increased by at least `amountOutMin`, and reserves moved accordingly.
@@ -206,7 +207,7 @@ Provide typed adapters for:
 
 Generate or validate bindings against built contract specifications; do not hand-code entrypoint selectors. Adapters must decode typed view returns and distinguish returns, aborts, and faults.
 
-The current `SwapPair` interface does not declare `emits(...)`, so the MVP will use a strict decoder pinned to the `SwapEvent` signature and payload layout. Validate it against an event emitted by the built contract. Adding pair event declarations to generated interface metadata is a separate follow-up.
+Generate event codecs from the built pair and driver specifications. Wrap generated decoders with strict application-level validation for topic counts, payload lengths, request IDs, addresses, direction, and amounts.
 
 Query events in ascending order strictly after the enqueue receipt's block, follow cursors, and deduplicate by `(txHash, sequenceNumber)`.
 
@@ -318,6 +319,8 @@ Before UI implementation, a smoke test must prove:
 
 - Never commit or log private keys, funded credentials, or signed transaction bytes.
 
+- Deterministic, unfunded cryptographic fixtures may include a clearly labeled synthetic key and signed bytes when both Rust and TypeScript consume the same vector. Runtime and setup code must never use fixture credentials.
+
 - Construct swap requests only through the router.
 
 - Use exact allowances. This limits exposure but does not fix the contracts' direct driver/handler authorization weakness.
@@ -359,5 +362,5 @@ One local integration test must execute:
 load state -> one user click -> approve exact amount if needed -> enqueue exact-input swap
 -> externally process requests -> match SwapEvent -> refresh balances and reserves
 ```
-## 6. Open Question
-`SwapEvent` provides a practical success signal while the app tracks one outstanding request per recipient and pair. It cannot identify failed requests or uniquely distinguish identical concurrent requests. Request IDs plus enqueue, success, and failure events remain the preferred long-term mechanism.
+## 6. Request Lifecycle Decision
+The configured contracts return a unique request ID and emit `RequestAccepted`, request-correlated success events, and `RequestFailed`. The frontend persists that ID and treats it as the authoritative lifecycle correlation key. It still limits the browser workflow to one outstanding request per recipient and pair to prevent accidental duplicate submissions.
