@@ -16,7 +16,8 @@ pub use events::TokenCreated;
 
 mod factory;
 pub use factory::{
-    FactoryConfig, StandardTokenFactory, StandardTokenFactoryClient, TokenFactoryError,
+    FactoryConfig, StandardTokenFactory, StandardTokenFactoryClient,
+    StandardTokenFactoryClientError, TokenFactoryError,
 };
 
 mod token;

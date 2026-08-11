@@ -7,6 +7,7 @@
 use core::fmt;
 
 use sdk::*;
+use token_factory_if::{Amount, Name, Symbol};
 
 /// Deterministic fixture failure used to verify transaction rollback.
 #[contract_exception]
@@ -33,6 +34,24 @@ pub struct ExclusiveWrite {
 pub trait TokenFactoryTestWallet {
     /// Calls a child probe and returns the immediate caller it observed.
     fn probe_caller(child: &ContractAddress) -> ContractAddress;
+
+    /// Predicts a token using this wallet as the creator.
+    fn predict_token(factory: &ContractAddress, nonce: &SHA256Hash) -> ContractAddress;
+
+    /// Transfers mock native HOG from this wallet to a predicted token.
+    fn fund_token(native_token: &ContractAddress, token: &ContractAddress, amount: Amount);
+
+    /// Forwards token creation so the factory observes this wallet as creator.
+    fn create_token(
+        factory: &ContractAddress,
+        nonce: &SHA256Hash,
+        administrator: &ContractAddress,
+        name: Option<Name>,
+        symbol: Option<Symbol>,
+        decimals: Option<u32>,
+        initial_holder: &ContractAddress,
+        initial_supply: Amount,
+    ) -> ContractAddress;
 }
 
 /// Child fixture used for caller, rollback, and exclusive-write probes.

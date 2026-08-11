@@ -9,7 +9,11 @@ publish = false
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "token-factory-test-if/dev"]
+dev = [
+    "sdk/dev",
+    "token-factory-if/dev",
+    "token-factory-test-if/dev",
+]
 
 [lib]
 doctest = false
@@ -17,6 +21,7 @@ test = false
 
 [dependencies]
 sdk = { workspace = true }
+token-factory-if = { path = "../../contracts/token-factory-if" }
 token-factory-test-if = { path = "../token-factory-test-if" }
 
 [dev-dependencies]

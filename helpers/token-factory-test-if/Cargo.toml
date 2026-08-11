@@ -13,9 +13,12 @@ test = false
 
 [dependencies]
 sdk = { workspace = true }
+token-factory-if = { path = "../../contracts/token-factory-if" }
 
 [features]
-dev = ["sdk/dev"]
+dev = ["sdk/dev", "token-factory-if/dev"]
 
 [lints]
 clippy.result_large_err = "allow"
+# The wallet forwards the factory's fixed create_token ABI plus its address.
+clippy.too_many_arguments = "allow"

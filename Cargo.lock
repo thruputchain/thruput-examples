@@ -2547,6 +2547,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "standard-token-factory"
+version = "0.1.0"
+dependencies = [
+ "groundhog-erc20-if",
+ "sdk",
+ "standard-token",
+ "standard-token-factory",
+ "token-factory-if",
+ "token-factory-test-if",
+ "token-factory-test-wallet",
+]
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2788,6 +2801,7 @@ name = "token-factory-test-if"
 version = "0.1.0"
 dependencies = [
  "sdk",
+ "token-factory-if",
 ]
 
 [[package]]
@@ -2796,6 +2810,7 @@ version = "0.1.0"
 dependencies = [
  "sdk",
  "token-factory-failing-child",
+ "token-factory-if",
  "token-factory-test-if",
  "token-factory-test-wallet",
 ]

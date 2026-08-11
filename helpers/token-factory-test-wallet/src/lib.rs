@@ -6,6 +6,7 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
 use sdk::*;
+use token_factory_if::{Amount, ERC20Client, Name, StandardTokenFactoryClient, Symbol};
 use token_factory_test_if::{TokenFactoryFailingChildClient, TokenFactoryTestWallet};
 
 sdk::declare_mock_contract!();
@@ -17,5 +18,34 @@ pub struct TestWallet;
 impl TokenFactoryTestWallet for TestWallet {
     fn probe_caller(child: &ContractAddress) -> ContractAddress {
         TokenFactoryFailingChildClient::new(child).caller()
+    }
+
+    fn predict_token(factory: &ContractAddress, nonce: &SHA256Hash) -> ContractAddress {
+        StandardTokenFactoryClient::new(factory).predict_token(&get_current_address(), nonce)
+    }
+
+    fn fund_token(native_token: &ContractAddress, token: &ContractAddress, amount: Amount) {
+        ERC20Client::new(native_token).transfer(token, amount);
+    }
+
+    fn create_token(
+        factory: &ContractAddress,
+        nonce: &SHA256Hash,
+        administrator: &ContractAddress,
+        name: Option<Name>,
+        symbol: Option<Symbol>,
+        decimals: Option<u32>,
+        initial_holder: &ContractAddress,
+        initial_supply: Amount,
+    ) -> ContractAddress {
+        StandardTokenFactoryClient::new(factory).create_token(
+            nonce,
+            administrator,
+            name,
+            symbol,
+            decimals,
+            initial_holder,
+            initial_supply,
+        )
     }
 }

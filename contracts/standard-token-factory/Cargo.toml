@@ -1,0 +1,47 @@
+[package]
+name = "standard-token-factory"
+description = "Factory for deterministic Groundhog standard token deployments"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+entrypoints = []
+rv32-entrypoints = ["entrypoints"]
+dev = [
+    "sdk/dev",
+    "groundhog-erc20-if/dev",
+    "token-factory-if/dev",
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "standard_token_factory"
+path = "src/main.rs"
+required-features = ["rv32-entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
+token-factory-if = { path = "../token-factory-if" }
+
+[dev-dependencies]
+standard-token-factory = { path = ".", features = ["dev"] }
+standard-token = { path = "../standard-token", features = ["dev"] }
+token-factory-test-wallet = { path = "../../helpers/token-factory-test-wallet", features = ["dev"] }
+token-factory-test-if = { path = "../../helpers/token-factory-test-if", features = ["dev"] }
+
+[lints]
+clippy.result_large_err = "allow"
