@@ -2543,19 +2543,7 @@ dependencies = [
  "groundhog-xdr",
  "sdk",
  "standard-token",
- "standard-token-if",
-]
-
-[[package]]
-name = "standard-token-if"
-version = "0.1.0"
-dependencies = [
- "groundhog-erc20-if",
- "groundhog-erc20-metadata-if",
- "hex",
- "sdk",
- "serde_json",
- "standard-token-if",
+ "token-factory-if",
 ]
 
 [[package]]
@@ -2781,6 +2769,18 @@ dependencies = [
  "sdk",
  "token-factory-failing-child",
  "token-factory-test-if",
+]
+
+[[package]]
+name = "token-factory-if"
+version = "0.1.0"
+dependencies = [
+ "groundhog-erc20-if",
+ "groundhog-erc20-metadata-if",
+ "hex",
+ "sdk",
+ "serde_json",
+ "token-factory-if",
 ]
 
 [[package]]

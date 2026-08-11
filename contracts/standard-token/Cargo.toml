@@ -17,7 +17,7 @@ rv32-entrypoints = ["entrypoints"]
 dev = [
     "sdk/dev",
     "groundhog-erc20-if/dev",
-    "standard-token-if/dev",
+    "token-factory-if/dev",
 ]
 
 [lib]
@@ -36,7 +36,7 @@ bench = false
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
 groundhog-erc20-metadata-if = { workspace = true }
-standard-token-if = { path = "../standard-token-if" }
+token-factory-if = { path = "../token-factory-if" }
 
 [dev-dependencies]
 standard-token = { path = ".", features = ["dev"] }

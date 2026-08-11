@@ -1,4 +1,4 @@
-//! Shared interfaces and deterministic derivation for standard token factories.
+//! Shared interfaces and deterministic derivation for token factories.
 //!
 //! This crate contains ABI definitions only. Deployable token and factory
 //! contracts implement these traits without depending on each other.

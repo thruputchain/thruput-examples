@@ -1,5 +1,5 @@
 [package]
-name = "standard-token-if"
+name = "token-factory-if"
 description = "Shared interfaces for the Groundhog standard token factory"
 version = "0.1.0"
 edition.workspace = true
@@ -20,7 +20,7 @@ groundhog-erc20-if = { workspace = true }
 groundhog-erc20-metadata-if = { workspace = true }
 
 [dev-dependencies]
-standard-token-if = { path = ".", features = ["dev"] }
+token-factory-if = { path = ".", features = ["dev"] }
 serde_json = { workspace = true }
 hex = { workspace = true }
 
