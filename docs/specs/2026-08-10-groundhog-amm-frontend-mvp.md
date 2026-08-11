@@ -6,7 +6,7 @@ Date: 2026-08-10
 
 ## 1. Scope
 
-Expand `apps/swap` into **Groundhog AMM**, one local-development app for listing, creating, viewing, adding liquidity to, and swapping through pools managed by one factory and router.
+Expand `apps/swap` into **Groundhog AMM**, one local-development app for listing, creating, viewing, managing liquidity, and swapping through pools managed by one factory and router.
 
 ### Routes
 
@@ -24,7 +24,6 @@ The MVP uses the browser-local development signer and external CLI queue process
 
 ### Non-Goals
 
-- Removing liquidity from an existing pool.
 - Pool analytics, charts, historical activity, or multi-hop routing.
 - Deploying token contracts from the app.
 - Configuring factory hashes, `fee_to`, router ownership, or governance.
@@ -50,7 +49,7 @@ Event discovery is temporary because current registry views do not expose token 
 
 - Validate pool identity before showing transactional actions.
 - Show token metadata, reserves and ratio, LP supply, the user's token and LP balances, LP share, and suite addresses.
-- Link to swap and add-liquidity workflows.
+- Link to swap and liquidity workflows.
 - Replace displayed data only after a complete refreshed snapshot validates.
 - Distinguish missing or invalid pools, empty reserves, stale data, unavailable views, and RPC errors.
 
@@ -66,7 +65,7 @@ Event discovery is temporary because current registry views do not expose token 
 - After prefunding and final validation, submit canonical amounts through `router.add_liquidity` with the local account as recipient.
 - Redirect to the pool after verified execution.
 
-### Add Liquidity
+### Manage Liquidity
 
 - Require positive, nonzero reserves and LP supply before quoting an existing-pool addition.
 - Let the user enter either token amount and derive the counterpart with the contract's integer quote and rounding behavior.
@@ -76,6 +75,7 @@ Event discovery is temporary because current registry views do not expose token 
 - Revalidate the snapshot, then submit the desired maxima and minimums through `router.add_liquidity` with the reviewed local account as recipient.
 - After verified execution, show actual deposited amounts and LP received, then remove residual allowances.
 - Explain that reserve changes before processing may alter deposits or cause failure at the reviewed minimums.
+- Let the user remove any amount of their LP balance through `router.remove_liquidity`, with reserve-proportional output estimates, slippage minimums, exact LP approval, and request-correlated `BurnEvent` verification.
 
 ### Swap
 
@@ -153,9 +153,9 @@ Before implementation, generate the factory binding, validate the native ERC20 v
 
 ## 5. Testing And Acceptance
 
-Unit and component tests cover discovery, route and suite validation, pool isolation, pool-detail refresh, integer arithmetic, approvals, event correlation, creation races, add-liquidity quoting, and dynamic swaps against at least two pools. Recovery tests cover indeterminate outcomes, expiry, reloads, navigation, prefunding idempotency, and allowance preservation after `RequestAccepted`.
+Unit and component tests cover discovery, route and suite validation, pool isolation, pool-detail refresh, integer arithmetic, approvals, event correlation, creation races, liquidity quoting, and dynamic swaps against at least two pools. Recovery tests cover indeterminate outcomes, expiry, reloads, navigation, prefunding idempotency, and allowance preservation after `RequestAccepted`.
 
-Contract tests cover prediction and deployment identity, duplicate creation, canonical amount orientation, minimum initial liquidity, existing-pool optimization and minimums, insufficient funding, and event integrity.
+Contract tests cover prediction and deployment identity, duplicate creation, canonical amount orientation, minimum initial liquidity, existing-pool add/remove calculations and minimums, insufficient funding, and event integrity.
 
 One clean-ledger integration test must execute:
 
@@ -163,6 +163,7 @@ One clean-ledger integration test must execute:
 empty pool list -> create and seed pool -> observe MintEvent
 -> pool appears in list -> open pool detail
 -> add existing-pool liquidity -> observe MintEvent
+-> remove liquidity -> observe BurnEvent
 -> quote and submit swap
 -> externally process swap -> observe SwapEvent -> refresh state
 ```
