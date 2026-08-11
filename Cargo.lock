@@ -2535,6 +2535,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "standard-token"
+version = "0.1.0"
+dependencies = [
+ "groundhog-erc20-if",
+ "groundhog-erc20-metadata-if",
+ "groundhog-xdr",
+ "sdk",
+ "standard-token",
+ "standard-token-if",
+]
+
+[[package]]
 name = "standard-token-if"
 version = "0.1.0"
 dependencies = [

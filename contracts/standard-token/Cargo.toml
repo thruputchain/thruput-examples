@@ -1,0 +1,46 @@
+[package]
+name = "standard-token"
+description = "Metadata-enabled standard token deployed by the Groundhog token factory"
+version = "0.1.0"
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+edition.workspace = true
+
+[features]
+entrypoints = []
+rv32-entrypoints = ["entrypoints"]
+dev = [
+    "sdk/dev",
+    "groundhog-erc20-if/dev",
+    "standard-token-if/dev",
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "standard_token"
+path = "src/main.rs"
+required-features = ["rv32-entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
+groundhog-erc20-metadata-if = { workspace = true }
+standard-token-if = { path = "../standard-token-if" }
+
+[dev-dependencies]
+standard-token = { path = ".", features = ["dev"] }
+groundhog-xdr = { workspace = true }
+
+[lints]
+clippy.result_large_err = "allow"
