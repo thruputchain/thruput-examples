@@ -402,7 +402,7 @@ predict
 -> verify balances, allowance, supply, events, and reserve
 ```
 ## 14. Implementation Gates
-Before implementation, prove:
+Before canonical release, prove:
 
 1. Contract, Rust, and TypeScript derive the same child address.
 
