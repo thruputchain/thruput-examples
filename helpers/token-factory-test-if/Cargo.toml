@@ -1,0 +1,21 @@
+[package]
+name = "token-factory-test-if"
+description = "Test-only interfaces for token factory feasibility fixtures"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+doctest = false
+test = false
+
+[dependencies]
+sdk = { workspace = true }
+
+[features]
+dev = ["sdk/dev"]
+
+[lints]
+clippy.result_large_err = "allow"

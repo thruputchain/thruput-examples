@@ -1,0 +1,33 @@
+[package]
+name = "standard-token-if"
+description = "Shared interfaces for the Groundhog standard token factory"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
+groundhog-erc20-metadata-if = { workspace = true }
+
+[dev-dependencies]
+standard-token-if = { path = ".", features = ["dev"] }
+serde_json = { workspace = true }
+hex = { workspace = true }
+
+[features]
+dev = ["sdk/dev", "groundhog-erc20-if/dev"]
+
+[lints]
+clippy.result_large_err = "allow"
+# The specification fixes create_token's public ABI at seven arguments plus self.
+clippy.too_many_arguments = "allow"

@@ -1,0 +1,26 @@
+[package]
+name = "token-factory-failing-child"
+description = "Test-only failing child contract for token factory feasibility tests"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+entrypoints = []
+dev = ["sdk/dev", "token-factory-test-if/dev"]
+
+[lib]
+doctest = false
+test = false
+
+[dependencies]
+sdk = { workspace = true }
+token-factory-test-if = { path = "../token-factory-test-if" }
+
+[dev-dependencies]
+token-factory-failing-child = { path = ".", features = ["dev"] }
+
+[lints]
+clippy.result_large_err = "allow"
