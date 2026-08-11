@@ -68,7 +68,6 @@ describe("local RPC proxy policy", () => {
   it.each([
     "groundhog_chainTip",
     "groundhog_getEvents",
-    "groundhog_getBlockByNumber",
     "groundhog_view",
     "groundhog_sendRawTransaction",
     "groundhog_getTransactionStatus",

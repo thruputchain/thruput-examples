@@ -3,7 +3,6 @@ import { gasAmount, type ContractAddress } from "@groundhogchain/protocol";
 
 import { SwapPair, spec } from "@/contracts/generated/swap-pair";
 import { type ContractView, viewMethod } from "@/contracts/view";
-import { orientReserves, orderTokens } from "@/domain/tokens";
 
 const VIEW_GAS = gasAmount(10_000_000n);
 
@@ -15,10 +14,6 @@ export interface PairReserves {
 
 export interface SwapPairReadAdapter {
   reserves(): Promise<ContractView<PairReserves>>;
-  reservesFor(
-    tokenIn: ContractAddress,
-    tokenOut: ContractAddress,
-  ): Promise<ContractView<{ reserveIn: bigint; reserveOut: bigint }>>;
 }
 
 export function createSwapPairReadAdapter(params: {
@@ -26,8 +21,8 @@ export function createSwapPairReadAdapter(params: {
   contract: ContractAddress;
   caller: ContractAddress;
 }): SwapPairReadAdapter {
-  const reserves = () =>
-    viewMethod({
+  return {
+    reserves: () => viewMethod({
       client: params.client,
       invocation: SwapPair.getReserves(params.contract, VIEW_GAS),
       caller: params.caller,
@@ -35,20 +30,7 @@ export function createSwapPairReadAdapter(params: {
       interfaceName: "SwapPair",
       methodName: "get_reserves",
       validate: expectReserves,
-    });
-
-  return {
-    reserves,
-    async reservesFor(tokenIn, tokenOut) {
-      const current = await reserves();
-      return {
-        value: orientReserves(
-          [current.value.reserve0, current.value.reserve1],
-          orderTokens(tokenIn, tokenOut).inputIndex,
-        ),
-        height: current.height,
-      };
-    },
+    }),
   };
 }
 

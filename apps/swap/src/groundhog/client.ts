@@ -1,7 +1,6 @@
 import {
   createGroundhogClient,
   HttpTransport,
-  type ChainTip,
   type GroundhogClient,
 } from "@groundhogchain/client";
 
@@ -16,28 +15,6 @@ export function createReadClient(config: AppConfig): GroundhogClient {
       timeoutMs: 10_000,
     }),
   );
-}
-
-export async function getValidatedChainTip(
-  client: Pick<GroundhogClient, "getChainTip" | "getBlockByNumber">,
-  expectedNetworkId: bigint,
-): Promise<ChainTip> {
-  const tip = await client.getChainTip();
-  const block = await client.getBlockByNumber(tip.height);
-  if (block === null) {
-    throw new Error(`RPC did not return its tip block at height ${tip.height}`);
-  }
-  if (block.blockHeight !== tip.height) {
-    throw new Error(
-      `RPC returned block height ${block.blockHeight} for tip height ${tip.height}`,
-    );
-  }
-  if (block.networkId !== expectedNetworkId) {
-    throw new Error(
-      `RPC network ID ${block.networkId} does not match configured network ID ${expectedNetworkId}`,
-    );
-  }
-  return tip;
 }
 
 export function resolveReadRpcUrl(

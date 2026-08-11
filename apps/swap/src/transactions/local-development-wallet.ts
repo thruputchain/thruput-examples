@@ -26,7 +26,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { CxsWriter, serialize } from "@groundhogchain/xdr";
 
 import { isBrowserLoopback, isLoopbackUrl, type AppConfig } from "@/config";
-import { createReadClient, getValidatedChainTip } from "@/groundhog/client";
+import { createReadClient } from "@/groundhog/client";
 import {
   outcomeFromReceipt,
   outcomeFromStatus,
@@ -71,15 +71,11 @@ export function createLocalWriteBoundary(
   const client = options.client ?? createReadClient(config);
   const delay = options.delay ?? wait;
   const maxPolls = options.maxPolls ?? DEFAULT_MAX_POLLS;
-  const retained = new Map<string, SignedTransaction>();
   const observe = async (hash: string): Promise<WriteResult> => {
     if (!/^0x[0-9a-f]{64}$/.test(hash)) {
       return preSubmissionFailure("The stored transaction hash is invalid");
     }
-    await getValidatedChainTip(client, config.networkId);
-    const result = await pollTransaction(client, hash, maxPolls, delay);
-    if (result.kind !== "indeterminate") retained.delete(hash);
-    return result;
+    return pollTransaction(client, hash, maxPolls, delay);
   };
 
   if (!isLoopbackUrl(config.rpcUrl) || !isBrowserLoopback()) {
@@ -107,7 +103,7 @@ export function createLocalWriteBoundary(
       let signedTransaction: SignedTransaction;
       let hash: string;
       try {
-        const tip = await getValidatedChainTip(client, config.networkId);
+        const tip = await client.getChainTip();
         const transaction = createTransaction({
           invocation: wrapTargetInvocation(
             config.accountAddress,
@@ -131,7 +127,6 @@ export function createLocalWriteBoundary(
           { signer, publicKeyId: 0n },
         ]);
         hash = toHex0x(canonicalTransactionHash(transaction));
-        retained.set(hash, signedTransaction);
         observer?.onSigned(hash);
       } catch (error) {
         return preSubmissionFailure(describeError(error));
@@ -149,9 +144,7 @@ export function createLocalWriteBoundary(
           : result;
       }
 
-      const result = await pollTransaction(client, hash, maxPolls, delay);
-      if (result.kind !== "indeterminate") retained.delete(hash);
-      return result;
+      return pollTransaction(client, hash, maxPolls, delay);
     },
     observe,
   };
@@ -220,8 +213,6 @@ function writeResult(hash: string, outcome: TransactionOutcome): WriteResult {
     case "pending":
     case "awaitingReceipt":
       return { kind: "indeterminate", hash, reason: "timeout" };
-    case "preSubmissionFailure":
-      return { kind: "preSubmissionFailure", hash: null, message: outcome.message };
   }
 }
 

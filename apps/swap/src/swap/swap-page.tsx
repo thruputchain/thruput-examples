@@ -647,8 +647,8 @@ function SwapWorkspace({
       try {
         const observation = await requestObserver.scan(request);
         if (finished || !workspaceMounted.current) return;
-        if (observation.result !== null) {
-          await finish(observation.result);
+        if (observation !== null) {
+          await finish(observation);
           return;
         }
       } catch {

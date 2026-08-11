@@ -6,7 +6,7 @@ import { createSwapPairReadAdapter } from "./pair-adapter";
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 
 describe("createSwapPairReadAdapter", () => {
-  it("decodes reserves and orients them for either token direction", async () => {
+  it("decodes reserves", async () => {
     const view = vi.fn().mockResolvedValue({
       output: {
         result: "return",
@@ -29,10 +29,6 @@ describe("createSwapPairReadAdapter", () => {
         reserve1: 20n,
         blockTimestamp: 30n,
       },
-      height: 1n,
-    });
-    await expect(adapter.reservesFor(address(2), address(1))).resolves.toEqual({
-      value: { reserveIn: 20n, reserveOut: 10n },
       height: 1n,
     });
     expect(view).toHaveBeenCalledWith(

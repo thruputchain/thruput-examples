@@ -1,4 +1,4 @@
-import { contractAddress, dbHash, sha256Hash } from "@groundhogchain/protocol";
+import { contractAddress, sha256Hash } from "@groundhogchain/protocol";
 import { CxsWriter, FixedArrayCodec, Uint128Codec } from "@groundhogchain/xdr";
 import type { GroundhogClient } from "@groundhogchain/client";
 import { describe, expect, it, vi } from "vitest";
@@ -15,7 +15,6 @@ const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte))
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
 const config: AppConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkId: 0n,
   networkIdHex: "00".repeat(32),
   accountAddress: address(9),
   routerAddress: address(8),
@@ -49,20 +48,8 @@ const request: OutstandingRequest = {
 
 function rpcClient(
   getEvents: Pick<GroundhogClient, "getEvents">["getEvents"],
-): Pick<GroundhogClient, "getBlockByNumber" | "getChainTip" | "getEvents"> {
-  const blockHash = sha256Hash(new Uint8Array(32).fill(0xee));
-  return {
-    getEvents,
-    getChainTip: async () => ({ height: 8n, blockHash }),
-    getBlockByNumber: async () => ({
-      networkId: config.networkId,
-      blockHeight: 8n,
-      txsetHash: blockHash,
-      dbHash: dbHash(new Uint8Array(2_048).fill(0xee)),
-      eventsHash: blockHash,
-      prevBlockHash: blockHash,
-    }),
-  };
+): Pick<GroundhogClient, "getEvents"> {
+  return { getEvents };
 }
 
 describe("request observer", () => {
@@ -77,15 +64,12 @@ describe("request observer", () => {
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(request),
     ).resolves.toEqual({
-      result: {
-        kind: "executionObserved",
-        requestId: request.requestId,
-        transactionHash: hex(0xdd),
-        blockHeight: 10n,
-        amountIn: 10n,
-        amountOut: 19n,
-      },
-      latestBlock: 10n,
+      kind: "executionObserved",
+      requestId: request.requestId,
+      transactionHash: hex(0xdd),
+      blockHeight: 10n,
+      amountIn: 10n,
+      amountOut: 19n,
     });
     expect(getEvents).toHaveBeenNthCalledWith(
       1,
@@ -109,7 +93,7 @@ describe("request observer", () => {
 
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(request),
-    ).resolves.toEqual({ result: null, latestBlock: 10n });
+    ).resolves.toBeNull();
   });
 
   it("matches a terminal RequestFailed event", async () => {
@@ -136,7 +120,8 @@ describe("request observer", () => {
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(request),
     ).resolves.toMatchObject({
-      result: { kind: "executionFailed", blockHeight: 11n },
+      kind: "executionFailed",
+      blockHeight: 11n,
     });
   });
 
@@ -169,7 +154,7 @@ describe("request observer", () => {
 
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(candidate),
-    ).resolves.toEqual({ result: null, latestBlock: 10n });
+    ).resolves.toBeNull();
   });
 
   it("accepts a matching event at the enqueue receipt block", async () => {
@@ -184,15 +169,12 @@ describe("request observer", () => {
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(request),
     ).resolves.toEqual({
-      result: {
-        kind: "executionObserved",
-        requestId: request.requestId,
-        transactionHash: hex(0xdd),
-        blockHeight: 8n,
-        amountIn: 10n,
-        amountOut: 19n,
-      },
-      latestBlock: 8n,
+      kind: "executionObserved",
+      requestId: request.requestId,
+      transactionHash: hex(0xdd),
+      blockHeight: 8n,
+      amountIn: 10n,
+      amountOut: 19n,
     });
   });
 
@@ -207,7 +189,7 @@ describe("request observer", () => {
 
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(request),
-    ).resolves.toEqual({ result: null, latestBlock: 8n });
+    ).resolves.toBeNull();
   });
 
   it("rejects repeated cursors instead of looping forever", async () => {

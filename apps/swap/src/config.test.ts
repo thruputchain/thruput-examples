@@ -31,7 +31,7 @@ describe("loadAppConfig", () => {
     const config = loadAppConfig(environment());
 
     expect(config.rpcUrl.href).toBe("http://127.0.0.1:9545/");
-    expect(config.networkId).toBe(0n);
+    expect(config.networkIdHex).toBe("00".repeat(32));
     expect(config.tokenDecimals).toBe(6);
   });
 

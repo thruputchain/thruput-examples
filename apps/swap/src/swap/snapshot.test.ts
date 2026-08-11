@@ -1,10 +1,10 @@
-import { contractAddress, sha256Hash } from "@groundhogchain/protocol";
+import { contractAddress } from "@groundhogchain/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 import { createSwapPairReadAdapter } from "@/contracts/pair-adapter";
-import { createReadClient, getValidatedChainTip } from "@/groundhog/client";
+import { createReadClient } from "@/groundhog/client";
 
 import { createSnapshotReader } from "./snapshot";
 
@@ -16,14 +16,11 @@ vi.mock("@/contracts/pair-adapter", () => ({
 }));
 vi.mock("@/groundhog/client", () => ({
   createReadClient: vi.fn(),
-  getValidatedChainTip: vi.fn(),
 }));
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
-const hash = (byte: number) => sha256Hash(new Uint8Array(32).fill(byte));
 const config: AppConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkId: 9n,
   networkIdHex: "09".padStart(64, "0"),
   accountAddress: address(1),
   routerAddress: address(2),
@@ -42,16 +39,8 @@ beforeEach(() => {
 });
 
 describe("createSnapshotReader", () => {
-  it("accepts only an unchanged height/hash with every view at that height", async () => {
-    const client = {};
-    vi.mocked(createReadClient).mockReturnValue(client as never);
-    vi.mocked(getValidatedChainTip)
-      .mockResolvedValueOnce({ height: 6n, blockHash: hash(1) })
-      .mockResolvedValueOnce({ height: 6n, blockHash: hash(2) })
-      .mockResolvedValueOnce({ height: 7n, blockHash: hash(3) })
-      .mockResolvedValueOnce({ height: 7n, blockHash: hash(3) })
-      .mockResolvedValueOnce({ height: 8n, blockHash: hash(4) })
-      .mockResolvedValueOnce({ height: 8n, blockHash: hash(4) });
+  it("accepts views that all come from the same height", async () => {
+    vi.mocked(createReadClient).mockReturnValue({} as never);
 
     const tokenA = tokenAdapter("Token A", "A", 10n, 1n, 8n);
     const tokenB = tokenAdapter("Token B", "B", 20n, 2n, 8n);
@@ -63,7 +52,6 @@ describe("createSnapshotReader", () => {
         value: { reserve0: 100n, reserve1: 200n, blockTimestamp: 5n },
         height: 8n,
       }),
-      reservesFor: vi.fn(),
     });
 
     await expect(createSnapshotReader(config)()).resolves.toMatchObject({
@@ -73,25 +61,18 @@ describe("createSnapshotReader", () => {
       reserve1: 200n,
       chainHeight: 8n,
     });
-    expect(getValidatedChainTip).toHaveBeenCalledTimes(6);
-    expect(getValidatedChainTip).toHaveBeenCalledWith(client, config.networkId);
   });
 
-  it("fails after three attempts when view heights never match the tip", async () => {
+  it("fails after three attempts when view heights do not match", async () => {
     vi.mocked(createReadClient).mockReturnValue({} as never);
-    vi.mocked(getValidatedChainTip).mockResolvedValue({
-      height: 2n,
-      blockHash: hash(1),
-    });
     vi.mocked(createErc20ReadAdapter)
       .mockReturnValueOnce(tokenAdapter("A", "A", 1n, 0n, 1n))
       .mockReturnValueOnce(tokenAdapter("B", "B", 1n, 0n, 1n));
     vi.mocked(createSwapPairReadAdapter).mockReturnValue({
       reserves: vi.fn().mockResolvedValue({
         value: { reserve0: 1n, reserve1: 1n, blockTimestamp: 1n },
-        height: 1n,
+        height: 2n,
       }),
-      reservesFor: vi.fn(),
     });
 
     await expect(createSnapshotReader(config)()).rejects.toThrow(

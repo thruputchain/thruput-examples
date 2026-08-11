@@ -21,7 +21,6 @@ const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte))
 
 const config: AppConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkId: 0n,
   networkIdHex: "00".repeat(32),
   accountAddress: address(9),
   routerAddress: address(8),
@@ -68,10 +67,7 @@ function renderApp(
   readSnapshot: SnapshotReader = async () => pool(),
   writeBoundary?: WriteBoundary,
   requestObserver: RequestObserver = {
-    scan: async (request) => ({
-      result: null,
-      latestBlock: request.receiptBlock ?? 0n,
-    }),
+    scan: async () => null,
   },
 ) {
   return render(
@@ -583,15 +579,12 @@ describe("local swap submission", () => {
     const readSnapshot = vi.fn(async () => pool());
     const requestObserver: RequestObserver = {
       scan: vi.fn().mockResolvedValue({
-        result: {
-          kind: "executionObserved",
-          requestId: `0x${"cd".repeat(32)}`,
-          transactionHash: `0x${"ef".repeat(32)}`,
-          blockHeight: 14n,
-          amountIn: 10_000_000n,
-          amountOut: 19_500_000n,
-        },
-        latestBlock: 14n,
+        kind: "executionObserved",
+        requestId: `0x${"cd".repeat(32)}`,
+        transactionHash: `0x${"ef".repeat(32)}`,
+        blockHeight: 14n,
+        amountIn: 10_000_000n,
+        amountOut: 19_500_000n,
       }),
     };
     renderApp(readSnapshot, undefined, requestObserver);
@@ -615,7 +608,7 @@ describe("local swap submission", () => {
       criteria,
     });
     const requestObserver: RequestObserver = {
-      scan: vi.fn().mockResolvedValue({ result: null, latestBlock: 13n }),
+      scan: vi.fn().mockResolvedValue(null),
     };
     renderApp(async () => pool(), undefined, requestObserver);
 
@@ -640,15 +633,12 @@ describe("local swap submission", () => {
     });
     const requestObserver: RequestObserver = {
       scan: vi.fn().mockResolvedValue({
-        result: {
-          kind: "executionObserved",
-          requestId: `0x${"cd".repeat(32)}`,
-          transactionHash: `0x${"ef".repeat(32)}`,
-          blockHeight: 14n,
-          amountIn: 10_000_000n,
-          amountOut: 19_500_000n,
-        },
-        latestBlock: 14n,
+        kind: "executionObserved",
+        requestId: `0x${"cd".repeat(32)}`,
+        transactionHash: `0x${"ef".repeat(32)}`,
+        blockHeight: 14n,
+        amountIn: 10_000_000n,
+        amountOut: 19_500_000n,
       }),
     };
     renderApp(async () => pool(), undefined, requestObserver);
@@ -675,15 +665,12 @@ describe("local swap submission", () => {
     });
     const requestObserver: RequestObserver = {
       scan: vi.fn().mockResolvedValue({
-        result: {
-          kind: "executionObserved",
-          requestId: `0x${"cd".repeat(32)}`,
-          transactionHash: `0x${"ef".repeat(32)}`,
-          blockHeight: 14n,
-          amountIn: 10_000_000n,
-          amountOut: 4_500_000n,
-        },
-        latestBlock: 14n,
+        kind: "executionObserved",
+        requestId: `0x${"cd".repeat(32)}`,
+        transactionHash: `0x${"ef".repeat(32)}`,
+        blockHeight: 14n,
+        amountIn: 10_000_000n,
+        amountOut: 4_500_000n,
       }),
     };
     renderApp(async () => pool(), undefined, requestObserver);
@@ -703,8 +690,8 @@ describe("local swap submission", () => {
       observationBaseline: null,
       criteria,
     });
-    let resolveScan!: (value: { result: null; latestBlock: bigint }) => void;
-    const scanResult = new Promise<{ result: null; latestBlock: bigint }>(
+    let resolveScan!: (value: null) => void;
+    const scanResult = new Promise<null>(
       (resolve) => { resolveScan = resolve; },
     );
     const requestObserver: RequestObserver = {
@@ -733,7 +720,7 @@ describe("local swap submission", () => {
 
       expect(requestObserver.scan).toHaveBeenCalledTimes(1);
       await act(async () => {
-        resolveScan({ result: null, latestBlock: 13n });
+        resolveScan(null);
       });
     } finally {
       delete (document as { visibilityState?: string }).visibilityState;
@@ -752,10 +739,10 @@ describe("local swap submission", () => {
       observationBaseline: null,
       criteria,
     });
-    let resolveScan!: (value: { result: null; latestBlock: bigint }) => void;
+    let resolveScan!: (value: null) => void;
     const requestObserver: RequestObserver = {
       scan: vi.fn().mockReturnValue(
-        new Promise<{ result: null; latestBlock: bigint }>((resolve) => {
+        new Promise<null>((resolve) => {
           resolveScan = resolve;
         }),
       ),
@@ -769,7 +756,7 @@ describe("local swap submission", () => {
       newValue: null,
     }));
     await act(async () => {
-      resolveScan({ result: null, latestBlock: 13n });
+      resolveScan(null);
     });
 
     expect(loadOutstandingRequest(config)).toBeNull();
@@ -802,15 +789,12 @@ describe("local swap submission", () => {
 
     await act(async () => {
       resolveScan({
-        result: {
-          kind: "executionObserved",
-          requestId: `0x${"cd".repeat(32)}`,
-          transactionHash: `0x${"ef".repeat(32)}`,
-          blockHeight: 14n,
-          amountIn: 10_000_000n,
-          amountOut: 19_500_000n,
-        },
-        latestBlock: 14n,
+        kind: "executionObserved",
+        requestId: `0x${"cd".repeat(32)}`,
+        transactionHash: `0x${"ef".repeat(32)}`,
+        blockHeight: 14n,
+        amountIn: 10_000_000n,
+        amountOut: 19_500_000n,
       });
     });
 
@@ -856,15 +840,12 @@ describe("local swap submission", () => {
     );
     await act(async () =>
       resolveScan({
-        result: {
-          kind: "executionObserved",
-          requestId: queuedRequest.requestId,
-          transactionHash: `0x${"ef".repeat(32)}`,
-          blockHeight: 14n,
-          amountIn: 10_000_000n,
-          amountOut: 19_500_000n,
-        },
-        latestBlock: 14n,
+        kind: "executionObserved",
+        requestId: queuedRequest.requestId,
+        transactionHash: `0x${"ef".repeat(32)}`,
+        blockHeight: 14n,
+        amountIn: 10_000_000n,
+        amountOut: 19_500_000n,
       }),
     );
 
@@ -885,10 +866,10 @@ describe("local swap submission", () => {
       criteria,
     };
     saveOutstandingRequest(config, queuedRequest);
-    let resolveScan!: (value: { result: null; latestBlock: bigint }) => void;
+    let resolveScan!: (value: null) => void;
     const requestObserver: RequestObserver = {
       scan: vi.fn().mockReturnValue(
-        new Promise<{ result: null; latestBlock: bigint }>((resolve) => {
+        new Promise<null>((resolve) => {
           resolveScan = resolve;
         }),
       ),
@@ -901,7 +882,7 @@ describe("local swap submission", () => {
       visibleObservationMs: 100_000,
     });
     await act(async () => {
-      resolveScan({ result: null, latestBlock: 13n });
+      resolveScan(null);
     });
 
     expect(loadOutstandingRequest(config)?.visibleObservationMs).toBeGreaterThanOrEqual(100_000);
@@ -983,10 +964,7 @@ describe("local swap submission", () => {
           config={config}
           readSnapshot={async () => pool()}
           requestObserver={{
-            scan: async (request) => ({
-              result: null,
-              latestBlock: request.receiptBlock ?? 0n,
-            }),
+            scan: async () => null,
           }}
           writeBoundary={writer}
         />

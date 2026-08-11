@@ -75,8 +75,9 @@ if [[ -z "$runtime_manifest" || ! -f "$runtime_manifest" ]]; then
   printf 'Generated CLI runtime manifest is missing or unreadable. Rerun setup:local.\n' >&2
   exit 1
 fi
-if [[ "$("$groundhog_cli" --version)" != "groundhog 0.6.1" ]]; then
-  printf 'Groundhog CLI 0.6.1 is required.\n' >&2
+cli_version="$("$groundhog_cli" --version)"
+if [[ "$cli_version" != "groundhog 0.9.0" ]]; then
+  printf 'Groundhog CLI 0.9.0 is required; found %s.\n' "$cli_version" >&2
   exit 1
 fi
 

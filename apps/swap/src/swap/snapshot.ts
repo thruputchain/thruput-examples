@@ -6,7 +6,7 @@ import {
   type TokenMetadata,
 } from "@/contracts/erc20-adapter";
 import { createSwapPairReadAdapter } from "@/contracts/pair-adapter";
-import { createReadClient, getValidatedChainTip } from "@/groundhog/client";
+import { createReadClient } from "@/groundhog/client";
 
 export interface TokenSnapshot {
   address: ContractAddress;
@@ -49,7 +49,6 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
 
   return async () => {
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const startTip = await getValidatedChainTip(client, config.networkId);
       const [
         reserves,
         metadataA,
@@ -67,13 +66,6 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         tokenA.allowance(config.accountAddress, config.handlerAddress),
         tokenB.allowance(config.accountAddress, config.handlerAddress),
       ]);
-      const endTip = await getValidatedChainTip(client, config.networkId);
-      if (
-        startTip.height !== endTip.height ||
-        !bytesEqual(startTip.blockHash, endTip.blockHash)
-      ) {
-        continue;
-      }
 
       const readHeights = [
         reserves.height,
@@ -88,7 +80,8 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         allowanceA.height,
         allowanceB.height,
       ];
-      if (readHeights.some((height) => height !== endTip.height)) continue;
+      const readHeight = readHeights[0]!;
+      if (readHeights.some((height) => height !== readHeight)) continue;
 
       return {
         tokenA: tokenSnapshot({
@@ -110,7 +103,7 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         reserve0: reserves.value.reserve0,
         reserve1: reserves.value.reserve1,
         reserveTimestamp: reserves.value.blockTimestamp,
-        chainHeight: endTip.height,
+        chainHeight: readHeight,
         readAt: Date.now(),
       };
     }
@@ -128,13 +121,6 @@ function metadataValues(metadata: {
     symbol: metadata.symbol.value,
     decimals: metadata.decimals.value,
   };
-}
-
-function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
-  return (
-    left.length === right.length &&
-    left.every((byte, index) => byte === right[index])
-  );
 }
 
 function tokenSnapshot(params: {

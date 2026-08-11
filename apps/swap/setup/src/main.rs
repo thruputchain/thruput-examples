@@ -950,7 +950,7 @@ mod tests {
                 "networkHash": "4242424242424242424242424242424242424242424242424242424242424242",
                 "protocol": "hogp/test",
                 "genesisHash": "0x4242424242424242424242424242424242424242424242424242424242424242",
-                "producer": { "binary": "hogd-dev", "version": "0.6.1" },
+                "producer": { "binary": "hogd-dev", "version": "0.9.0" },
                 "endpoints": { "scheduler": "127.0.0.1:1000" },
                 "bootstrapAccountDerivation": {
                     "scheme": "groundhog-bootstrap-account-v1",

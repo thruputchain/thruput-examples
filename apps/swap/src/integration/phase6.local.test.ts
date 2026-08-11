@@ -27,7 +27,7 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
   it("approves, enqueues, cranks, observes execution, and refreshes state", async () => {
     if (process.env.GROUNDHOG_CLI === undefined) {
       throw new Error(
-        "GROUNDHOG_CLI must point to the validated Groundhog 0.6.1 executable",
+        "GROUNDHOG_CLI must point to the Groundhog 0.9.0 executable",
       );
     }
     const config = loadAppConfig({
@@ -129,15 +129,15 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
         tokenOut: toHex0x(config.tokenBAddress),
       },
     });
-    expect(observation.result?.kind).toBe("executionObserved");
-    if (observation.result?.kind !== "executionObserved") return;
+    expect(observation?.kind).toBe("executionObserved");
+    if (observation?.kind !== "executionObserved") return;
 
     const executed = await readSnapshot();
     expect(executed.tokenA.balance).toBe(
-      approved.tokenA.balance - observation.result.amountIn,
+      approved.tokenA.balance - observation.amountIn,
     );
     expect(executed.tokenB.balance).toBe(
-      approved.tokenB.balance + observation.result.amountOut,
+      approved.tokenB.balance + observation.amountOut,
     );
     expect(executed.tokenA.allowance).toBe(0n);
     const executedReserves = orientReserves(
@@ -145,10 +145,10 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
       inputIndex,
     );
     expect(executedReserves.reserveIn).toBe(
-      approvedReserves.reserveIn + observation.result.amountIn,
+      approvedReserves.reserveIn + observation.amountIn,
     );
     expect(executedReserves.reserveOut).toBe(
-      approvedReserves.reserveOut - observation.result.amountOut,
+      approvedReserves.reserveOut - observation.amountOut,
     );
   }, 90_000);
 });

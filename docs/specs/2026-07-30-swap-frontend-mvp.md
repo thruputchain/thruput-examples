@@ -211,7 +211,7 @@ Generate or validate bindings against built contract specifications; do not hand
 
 Generate event codecs from the built pair and driver specifications. Wrap generated decoders with strict application-level validation for topic counts, payload lengths, request IDs, addresses, direction, and amounts.
 
-Query events in ascending order strictly after the enqueue receipt's block, follow cursors, and deduplicate by `(txHash, sequenceNumber)`.
+Query events in ascending order from the enqueue receipt's block, follow cursors, and deduplicate by `(txHash, sequenceNumber)`. Accept a matching terminal event in the receipt block because enqueue and execution may occur at the same height.
 
 Pair reserves use canonical token0/token1 address ordering. Adapters must orient reserves to the UI's selected input and output tokens.
 ### Wallet And Transactions
@@ -240,7 +240,7 @@ For each transaction:
 
 - Treat pending as nonterminal, invalid as authoritative failure, and unknown or recent conflict diagnostics as indeterminate.
 
-- Preserve the hash and signed transaction after submission.
+- Preserve the transaction hash after submission.
 
 - Never create a fresh automatic retry after a timeout, unknown status, recent conflict, or ambiguous disconnect; the original may still commit.
 
@@ -274,7 +274,7 @@ VITE_TOKEN_B_ADDRESS
 
 The local development server reads `GROUNDHOG_DEV_PRIVATE_KEY` from the ignored `.env.local` file and injects it only while serving against a loopback RPC. Production builds must not contain the key. The key and wallet entrypoint remain browser-visible while the local app runs, so treat them as public development credentials. Refuse signing and submission unless both the application page and RPC hostnames are loopback. Read token metadata on-chain when available and allow generated configuration fallbacks.
 
-Validate the configured network identity before accepting snapshots or signing. The pinned transaction format has no network-ID field, so it cannot be included in signed bytes. Require loopback application and RPC origins for V1.
+Use the generated network identity to scope persisted browser state. Require loopback application and RPC origins for V1; setup is responsible for generating configuration for the active local network.
 ### Local Setup
 Provide one command that assumes a compatible local node is running and:
 

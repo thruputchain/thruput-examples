@@ -5,7 +5,6 @@ const NETWORK_ID_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
 export interface AppConfig {
   rpcUrl: URL;
-  networkId: bigint;
   networkIdHex: string;
   accountAddress: ContractAddress;
   routerAddress: ContractAddress;
@@ -44,9 +43,6 @@ export function loadAppConfig(environment: Environment): AppConfig {
 
   return {
     rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),
-    networkId: BigInt(
-      networkIdHex.startsWith("0x") ? networkIdHex : `0x${networkIdHex}`,
-    ),
     networkIdHex: networkIdHex.replace(/^0x/, "").toLowerCase(),
     accountAddress: address(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
     routerAddress: address(environment, "VITE_SWAP_ROUTER_ADDRESS"),

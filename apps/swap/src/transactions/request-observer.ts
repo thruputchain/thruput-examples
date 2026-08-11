@@ -15,7 +15,7 @@ import {
   SWAP_EVENT_SIGNATURE,
 } from "@/contracts/swap-event";
 import { orderTokens } from "@/domain/tokens";
-import { createReadClient, getValidatedChainTip } from "@/groundhog/client";
+import { createReadClient } from "@/groundhog/client";
 import type { OutstandingRequest } from "@/transactions/outstanding-request";
 
 export type RequestObservation =
@@ -43,25 +43,18 @@ export type RequestObservation =
     };
 
 export interface RequestObserver {
-  scan(request: OutstandingRequest): Promise<{
-    result: RequestObservation | null;
-    latestBlock: bigint;
-  }>;
+  scan(request: OutstandingRequest): Promise<RequestObservation | null>;
 }
 
 export function createRequestObserver(
   config: AppConfig,
-  client: Pick<
-    GroundhogClient,
-    "getBlockByNumber" | "getChainTip" | "getEvents"
-  > = createReadClient(config),
+  client: Pick<GroundhogClient, "getEvents"> = createReadClient(config),
 ): RequestObserver {
   return {
     async scan(request) {
       if (request.requestId === null || request.receiptBlock === null) {
         throw new Error("Queued request is missing its request ID or receipt block");
       }
-      await getValidatedChainTip(client, config.networkId);
       const requestId = requestIdFromHex(request.requestId);
       const pairAddress = addressFromHex(request.criteria.pairAddress);
       const handlerAddress = addressFromHex(request.criteria.handlerAddress);
@@ -87,7 +80,6 @@ export function createRequestObserver(
       const seenEvents = new Set<string>();
       const seenCursors = new Set<string>();
       let cursor: Uint8Array | undefined;
-      let latestBlock = request.receiptBlock;
       let historyUnavailable = false;
 
       for (;;) {
@@ -98,7 +90,6 @@ export function createRequestObserver(
           ...(cursor === undefined ? {} : { cursor }),
           limit: 200,
         });
-        if (page.latestBlock > latestBlock) latestBlock = page.latestBlock;
         if (page.oldestBlock > request.receiptBlock) {
           historyUnavailable = true;
         }
@@ -108,14 +99,14 @@ export function createRequestObserver(
           if (seenEvents.has(key)) continue;
           seenEvents.add(key);
           const result = matchTerminalEvent(request, requestId, event);
-          if (result !== null) return { result, latestBlock };
+          if (result !== null) return result;
         }
 
         if (page.cursor.length === 0) {
           if (historyUnavailable) {
             throw new Error("Event history no longer covers the enqueue block");
           }
-          return { result: null, latestBlock };
+          return null;
         }
         const cursorKey = toHex0x(page.cursor);
         if (seenCursors.has(cursorKey)) {

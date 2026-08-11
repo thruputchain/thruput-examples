@@ -13,13 +13,11 @@ export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$repo_root/target/groundhog"
 export SWAP_APP_ENV="$app_dir/.env.local"
 export SWAP_CLI_CONFIG_HOME="$app_dir/.groundhog-config"
 
-case "$("$groundhog_cli" --version)" in
-  "groundhog 0.6.1") ;;
-  *)
-    printf 'Groundhog CLI 0.6.1 is required.\n' >&2
-    exit 1
-    ;;
-esac
+cli_version="$("$groundhog_cli" --version)"
+if [[ "$cli_version" != "groundhog 0.9.0" ]]; then
+  printf 'Groundhog CLI 0.9.0 is required; found %s.\n' "$cli_version" >&2
+  exit 1
+fi
 
 cd "$repo_root"
 "$groundhog_cli" build -p erc20 -- -F metadata

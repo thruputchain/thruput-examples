@@ -2,10 +2,8 @@ import { ExecResult, sha256Hash } from "@groundhogchain/protocol";
 import { describe, expect, it } from "vitest";
 
 import {
-  indeterminateOutcome,
   outcomeFromReceipt,
   outcomeFromStatus,
-  preSubmissionFailure,
 } from "./outcome";
 
 const hash = sha256Hash(new Uint8Array(32));
@@ -14,12 +12,10 @@ describe("transaction outcomes", () => {
   it("keeps pending and committed-without-receipt non-resubmittable", () => {
     expect(outcomeFromStatus({ status: "pending" })).toEqual({
       kind: "pending",
-      retryAllowed: false,
     });
     expect(outcomeFromStatus({ status: "committed", height: 7n })).toEqual({
       kind: "awaitingReceipt",
       height: 7n,
-      retryAllowed: false,
     });
   });
 
@@ -40,7 +36,6 @@ describe("transaction outcomes", () => {
           : { status };
       expect(outcomeFromStatus(value as never)).toMatchObject({
         kind: "indeterminate",
-        retryAllowed: false,
       });
     },
   );
@@ -49,7 +44,6 @@ describe("transaction outcomes", () => {
     expect(outcomeFromStatus({ status: "invalid", reason: "expired" })).toEqual({
       kind: "invalid",
       reason: "expired",
-      retryAllowed: true,
     });
   });
 
@@ -64,19 +58,12 @@ describe("transaction outcomes", () => {
     };
     expect(outcomeFromReceipt(receipt)).toMatchObject({
       kind: "committedSuccess",
-      retryAllowed: false,
     });
     expect(
       outcomeFromReceipt({
         ...receipt,
         execResult: ExecResult.ExecResultTxRootFrameReverted,
       }),
-    ).toMatchObject({ kind: "committedFailure", retryAllowed: false });
-  });
-
-  it("only permits a fresh retry before submission or after invalid status", () => {
-    expect(preSubmissionFailure("rejected").retryAllowed).toBe(true);
-    expect(indeterminateOutcome("timeout").retryAllowed).toBe(false);
-    expect(indeterminateOutcome("disconnect").retryAllowed).toBe(false);
+    ).toMatchObject({ kind: "committedFailure" });
   });
 });
