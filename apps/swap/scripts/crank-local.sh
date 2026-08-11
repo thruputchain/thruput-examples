@@ -76,8 +76,9 @@ if [[ -z "$runtime_manifest" || ! -f "$runtime_manifest" ]]; then
   exit 1
 fi
 cli_version="$("$groundhog_cli" --version)"
-if [[ "$cli_version" != "groundhog 0.9.0" ]]; then
-  printf 'Groundhog CLI 0.9.0 is required; found %s.\n' "$cli_version" >&2
+if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] ||
+   (( BASH_REMATCH[1] == 0 && BASH_REMATCH[2] < 9 )); then
+  printf 'Groundhog CLI 0.9.0 or newer is required; found %s.\n' "$cli_version" >&2
   exit 1
 fi
 

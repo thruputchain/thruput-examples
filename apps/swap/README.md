@@ -7,7 +7,7 @@ The local development server injects a generated disposable private key while se
 ## Supported Stack
 
 - Node.js 20.19 or newer
-- Groundhog CLI 0.9.0
+- Groundhog CLI 0.9.0 or newer
 - Groundhog SDK 0.19.0
 - Groundhog RPC and testkit 0.9.0
 - `@groundhogchain/client` 0.1.6
@@ -25,7 +25,7 @@ npm --prefix apps/swap ci
 
 ## Start A Clean Node
 
-The validated stack uses Groundhog CLI, RPC, and testkit 0.9.0 with Groundhog SDK 0.19.0. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
+The workspace uses Groundhog RPC and testkit 0.9.0 with Groundhog SDK 0.19.0, and accepts Groundhog CLI 0.9.0 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
 
 - RPC available at `http://127.0.0.1:9545`, unless overridden.
 - A runtime manifest from the running node.
@@ -134,9 +134,9 @@ Stop the node, remove its disposable ledger data using the node project's reset 
 
 The node is not running or `GROUNDHOG_RPC_URL` points to the wrong endpoint. Setup does not start the node.
 
-### Groundhog CLI 0.9.0 is required
+### Groundhog CLI 0.9.0 or newer is required
 
-Set `GROUNDHOG_CLI` to the 0.9.0 executable. CLI and SDK contract-spec formats must match; newer CLI releases are not assumed backward-compatible. The executable found first on `PATH` may be older.
+Set `GROUNDHOG_CLI` to a 0.9.0 or newer executable. The executable found first on `PATH` may be older.
 
 ### Setup completed deployment but `.env.local` is stale
 

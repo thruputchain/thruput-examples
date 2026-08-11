@@ -6,13 +6,12 @@ app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_root="$(cd "$app_dir/../.." && pwd)"
 groundhog_cli="${GROUNDHOG_CLI:?Set GROUNDHOG_CLI to the validated CLI executable}"
 
-case "$("$groundhog_cli" --version)" in
-  "groundhog 0.9.0") ;;
-  *)
-    printf 'Groundhog CLI 0.9.0 is required to build SDK 0.19.0 contract specs.\n' >&2
-    exit 1
-    ;;
-esac
+cli_version="$("$groundhog_cli" --version)"
+if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] ||
+   (( BASH_REMATCH[1] == 0 && BASH_REMATCH[2] < 9 )); then
+  printf 'Groundhog CLI 0.9.0 or newer is required to build SDK 0.19.0 contract specs; found %s.\n' "$cli_version" >&2
+  exit 1
+fi
 
 (
   cd "$repo_root"

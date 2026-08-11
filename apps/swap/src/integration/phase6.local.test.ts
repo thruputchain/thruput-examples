@@ -27,7 +27,7 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
   it("approves, enqueues, cranks, observes execution, and refreshes state", async () => {
     if (process.env.GROUNDHOG_CLI === undefined) {
       throw new Error(
-        "GROUNDHOG_CLI must point to the Groundhog 0.9.0 executable",
+        "GROUNDHOG_CLI must point to a Groundhog 0.9.0 or newer executable",
       );
     }
     const config = loadAppConfig({
