@@ -18,7 +18,7 @@ pub use groundhog_erc20_if::{
 };
 pub use groundhog_erc20_metadata_if::{ERC20Metadata, ERC20MetadataClient, Name, Symbol};
 pub use implementation::{Config, TokenContract};
-pub use token_factory_if::{StandardTokenInitializer, StandardTokenInitializerClient};
+pub use standard_token_factory_if::{StandardTokenInitializer, StandardTokenInitializerClient};
 
 #[cfg(feature = "dev")]
 pub use implementation::balance_storage_key;

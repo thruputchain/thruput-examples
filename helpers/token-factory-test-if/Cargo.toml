@@ -13,10 +13,10 @@ test = false
 
 [dependencies]
 sdk = { workspace = true }
-token-factory-if = { path = "../../contracts/token-factory-if" }
+standard-token-factory-if = { path = "../../contracts/standard-token-factory-if" }
 
 [features]
-dev = ["sdk/dev", "token-factory-if/dev"]
+dev = ["sdk/dev", "standard-token-factory-if/dev"]
 
 [lints]
 clippy.result_large_err = "allow"

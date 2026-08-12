@@ -1,6 +1,6 @@
 use sdk::{ContractAddress, Named, SHA256Hash, TestEnvironment};
 use serde_json::Value;
-use token_factory_if::{deployment_nonce, predicted_token};
+use standard_token_factory_if::{deployment_nonce, predicted_token};
 
 fn parse_32(value: &str) -> [u8; 32] {
     hex::decode(value)

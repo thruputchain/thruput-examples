@@ -7,7 +7,7 @@
 use core::fmt;
 
 use sdk::*;
-use token_factory_if::{Amount, Name, Symbol};
+use standard_token_factory_if::{Amount, Name, Symbol};
 
 /// Deterministic fixture failure used to verify transaction rollback.
 #[contract_exception]

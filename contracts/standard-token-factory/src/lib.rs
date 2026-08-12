@@ -7,7 +7,7 @@ sdk::declare_mock_contract!();
 mod implementation;
 
 pub use implementation::StandardTokenFactoryContract;
-pub use token_factory_if::{
+pub use standard_token_factory_if::{
     Amount, FactoryConfig, Name, StandardTokenFactory, StandardTokenFactoryClient,
     StandardTokenFactoryClientError, Symbol, TokenCreated, TokenFactoryError,
 };

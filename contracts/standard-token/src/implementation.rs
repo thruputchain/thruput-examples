@@ -2,7 +2,7 @@ use groundhog_erc20_if::*;
 use groundhog_erc20_metadata_if::*;
 use sdk::storage::{Balance, Map, NNInt, Value};
 use sdk::*;
-use token_factory_if::StandardTokenInitializer;
+use standard_token_factory_if::StandardTokenInitializer;
 
 type Allowance = Balance;
 

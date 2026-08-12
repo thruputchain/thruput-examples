@@ -1,5 +1,5 @@
 use sdk::{ContractAddress, Named, SHA256Hash, TestEnvironment, encode_xdr, log_event};
-use token_factory_if::{
+use standard_token_factory_if::{
     FactoryConfig, StandardTokenFactoryClient, StandardTokenInitializerClient, TokenCreated,
 };
 

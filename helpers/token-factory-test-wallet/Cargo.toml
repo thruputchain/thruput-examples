@@ -11,7 +11,7 @@ publish = false
 entrypoints = []
 dev = [
     "sdk/dev",
-    "token-factory-if/dev",
+    "standard-token-factory-if/dev",
     "token-factory-test-if/dev",
 ]
 
@@ -21,7 +21,7 @@ test = false
 
 [dependencies]
 sdk = { workspace = true }
-token-factory-if = { path = "../../contracts/token-factory-if" }
+standard-token-factory-if = { path = "../../contracts/standard-token-factory-if" }
 token-factory-test-if = { path = "../token-factory-test-if" }
 
 [dev-dependencies]

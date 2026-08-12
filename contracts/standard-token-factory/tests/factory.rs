@@ -3,7 +3,7 @@ use sdk::call::RawCallError;
 use sdk::*;
 use standard_token::ERC20MetadataClient;
 use standard_token_factory::*;
-use token_factory_if::predicted_token;
+use standard_token_factory_if::predicted_token;
 use token_factory_test_if::TokenFactoryTestWalletClient;
 
 const ROOT: ContractAddress = ContractAddress::new([0x10; 32]);

@@ -1,7 +1,7 @@
 use groundhog_erc20_if::{CONTRACT_ADDR_ZERO, ERC20Client};
 use sdk::storage::Value;
 use sdk::*;
-use token_factory_if::{
+use standard_token_factory_if::{
     Amount, FactoryConfig, Name, StandardTokenFactory, StandardTokenInitializerClient, Symbol,
     TokenCreated, TokenFactoryError, deployment_nonce, predicted_token,
 };

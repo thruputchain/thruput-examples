@@ -6,7 +6,7 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
 use sdk::*;
-use token_factory_if::{Amount, ERC20Client, Name, StandardTokenFactoryClient, Symbol};
+use standard_token_factory_if::{Amount, ERC20Client, Name, StandardTokenFactoryClient, Symbol};
 use token_factory_test_if::{TokenFactoryFailingChildClient, TokenFactoryTestWallet};
 
 sdk::declare_mock_contract!();
