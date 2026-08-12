@@ -1,6 +1,6 @@
 //! Metadata-enabled ERC20 used by the standard token factory.
 //!
-//! This contract deliberately inherits the Groundhog ERC20 `0.1.6` behavior:
+//! This contract deliberately inherits the Groundhog ERC20 `0.1.9` behavior:
 //! amounts are bounded by `i128::MAX`, allowance events contain a signed delta,
 //! and successful zero-value ERC20 operations still emit their standard events.
 //! Native HOG is protocol-managed rather than an instance of this contract, so
@@ -21,4 +21,4 @@ pub use implementation::{Config, TokenContract};
 pub use standard_token_factory_if::{StandardTokenInitializer, StandardTokenInitializerClient};
 
 #[cfg(feature = "dev")]
-pub use implementation::balance_storage_key;
+pub use implementation::{allowance_storage_key, balance_storage_key, config_storage_key};

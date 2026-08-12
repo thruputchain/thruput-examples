@@ -84,4 +84,26 @@ impl TokenFactoryTestWallet for TestWallet {
             initial_supply,
         )
     }
+
+    fn top_up_and_transfer(
+        native_token: &ContractAddress,
+        token: &ContractAddress,
+        receiver: &ContractAddress,
+        hog_amount: Amount,
+        token_amount: Amount,
+    ) {
+        ERC20Client::new(native_token).transfer(token, hog_amount);
+        ERC20Client::new(token).transfer(receiver, token_amount);
+    }
+
+    fn top_up_and_adjust_allowance(
+        native_token: &ContractAddress,
+        token: &ContractAddress,
+        spender: &ContractAddress,
+        hog_amount: Amount,
+        difference: Difference,
+    ) {
+        ERC20Client::new(native_token).transfer(token, hog_amount);
+        ERC20Client::new(token).adjust_allowance(spender, difference);
+    }
 }

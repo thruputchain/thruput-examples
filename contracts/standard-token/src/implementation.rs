@@ -110,7 +110,7 @@ impl TokenContract {
     }
 }
 
-#[contract(version = "0.1.6")]
+#[contract(version = "0.1.9")]
 impl ERC20 for TokenContract {
     fn initialize(&mut self, administrator: &ContractAddress) {
         self.initialize_once(
@@ -185,7 +185,7 @@ impl ERC20 for TokenContract {
     }
 }
 
-#[contract(version = "0.1.6")]
+#[contract(version = "0.1.9")]
 impl ERC20Metadata for TokenContract {
     fn initialize(
         &mut self,
@@ -248,4 +248,21 @@ impl StandardTokenInitializer for TokenContract {
 pub fn balance_storage_key(owner: &ContractAddress) -> StorageKey {
     let state = sdk::storage::contract_state_root::<TokenContract>();
     state.balances.keypath().child(owner).generate_key()
+}
+
+#[cfg(feature = "dev")]
+pub fn allowance_storage_key(owner: &ContractAddress, spender: &ContractAddress) -> StorageKey {
+    let state = sdk::storage::contract_state_root::<TokenContract>();
+    state
+        .allowances
+        .keypath()
+        .child(owner)
+        .child(spender)
+        .generate_key()
+}
+
+#[cfg(feature = "dev")]
+pub fn config_storage_key() -> StorageKey {
+    let state = sdk::storage::contract_state_root::<TokenContract>();
+    state.config.keypath().generate_key()
 }

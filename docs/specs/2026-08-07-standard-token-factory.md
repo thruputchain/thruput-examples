@@ -190,12 +190,12 @@ The creator pays for token deployment and initial storage:
 
 1. Call `predict_token(creator, nonce)`.
   
-2. Transfer at least `required_token_funding` HOG to the predicted address.
+2. Transfer at least `required_token_funding + native_balance_cost` HOG to a previously empty predicted address. The native balance item locks `native_balance_cost`; the factory then observes `required_token_funding` as free reserve.
   
 3. Call `create_token` with the same nonce.
   
 
-`required_token_funding` is a conservative fixed amount that covers deployment, maximum-length metadata, configuration, supply, and the initial holder balance. It guarantees creation only. Any remainder becomes free storage reserve for later balance and allowance entries.
+`required_token_funding` is the free native-HOG reserve the factory must observe before deployment. It covers deployment, maximum-length metadata, configuration, supply, and the initial holder balance. A wallet funding a previously empty address must additionally transfer the runtime's native balance-item cost. Any reserve beyond these amounts remains available for later balance and allowance entries.
 
 The current ERC-20 implementation creates a missing receiver balance or owner-spender allowance row as part of the operation. The new row is backed by the token contract's HOG reserve, not charged automatically to the caller or token creator. If the reserve cannot cover the row, the transaction fails at commit. Anyone may top up the token contract; the creator has no continuing obligation to fund new holders.
 

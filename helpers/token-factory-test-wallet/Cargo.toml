@@ -9,6 +9,7 @@ publish = false
 
 [features]
 entrypoints = []
+rv32-entrypoints = ["entrypoints"]
 dev = [
     "sdk/dev",
     "standard-token-factory-if/dev",
@@ -16,8 +17,16 @@ dev = [
 ]
 
 [lib]
+crate-type = ["cdylib", "rlib"]
 doctest = false
 test = false
+
+[[bin]]
+name = "token_factory_test_wallet"
+path = "src/main.rs"
+required-features = ["rv32-entrypoints"]
+test = false
+bench = false
 
 [dependencies]
 sdk = { workspace = true }

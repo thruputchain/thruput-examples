@@ -1,3 +1,4 @@
+// Each integration-test crate imports this shared fixture but uses a different subset.
 #![allow(dead_code)]
 
 use groundhog_erc20_if::ERC20Client;

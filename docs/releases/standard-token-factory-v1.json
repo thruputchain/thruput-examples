@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "name": "standard-token-factory-v1",
+  "status": "release-candidate",
+  "protocol": "hogp/0cd3c454cdeb",
+  "sdkVersion": "0.19.0",
+  "erc20InterfaceVersion": "0.1.9",
+  "metadataInterfaceVersion": "0.1.9",
+  "workspace": {
+    "baseRevision": "73723c60b3f6faeba4c089191eb448ae8fccc68f",
+    "sourceTreeSha256": "641a2580336e9f6b92c19778eb8e37439315b544189408ffc3f08b1b14a1d194",
+    "cargoLockSha256": "e0ad4d5e56a3092aa9c0f32e30188922d8d7a910dbe8e128c1b27cd9b88da808",
+    "rustc": "rustc 1.98.0-nightly (f46ec5218 2026-06-30)",
+    "cargo": "cargo 1.98.0-nightly (a335d47ff 2026-06-26)"
+  },
+  "builder": {
+    "binary": "groundhog",
+    "version": "0.9.1",
+    "binarySha256": "449f8d3168901cb75e74c5eecfb2feaf0863df38b027b8929d7452528e74794f"
+  },
+  "token": {
+    "artifact": "standard_token.rv32a",
+    "artifactBytes": 30124,
+    "artifactSha256": "8cc88befd6e6eddaad85761cfcdb442c866c0b967bd835ca980fec8bd7762daa",
+    "codeHash": "f7ab4d2c0f21d0251441d7c0d8054c2ff6d0efb223547dbe99e0ffe9f0547503",
+    "specJsonSha256": "a6100fa440f6309b8f1277ae73b6d76b3cd3523a2b5fe144bc428cce08e921e1",
+    "specXdrSha256": "b41c5d5d996a6bf6b8e8f8e1781357ebb825e6ebd2359a475021bc1bc4c9bb9b"
+  },
+  "factory": {
+    "canonicalAddress": null,
+    "interfaceVersion": "0.1.0",
+    "artifact": "standard_token_factory.rv32a",
+    "artifactBytes": 25497,
+    "artifactSha256": "30433737a4f289159828c3656e23d6cb91e75776bb3110b34da8f1d14cace451",
+    "specJsonSha256": "c65c973e7434e9a0fd90eb9ab98c994073542fcf9509aabaaedd9c38025eb8d9",
+    "specXdrSha256": "8dea7ddba284db46c8057e9a70b4083d17781e6c5d894d8f79efceb0f3f8a5bf"
+  },
+  "testWallet": {
+    "interfaceVersion": "0.1.0",
+    "artifact": "token_factory_test_wallet.rv32a",
+    "artifactBytes": 21516,
+    "artifactSha256": "170f6e596de204217666bc99b26ed64c93ef6f7f15025ded13a843993ac34f59",
+    "specJsonSha256": "89ddec2363db86aee8b1b23f46185b773f8255ef1ffc117d5b45686adaf39217",
+    "specXdrSha256": "5f05967a1cbc1e673a9b16e7169757f49e16af1e672d3d5a889734d2bd44ea95"
+  },
+  "runtime": {
+    "binary": "hog-devnode",
+    "version": "0.1.19",
+    "commitHash": "046159036753c9c92ed0b13d66c6ad1e6ea6ccf7",
+    "binarySha256": "3fc58b5597c3e6bd9041306723edd29ef4ea157278148604a0d9f20afc52498b",
+    "devAccountCount": 10,
+    "devAccountSeed": "groundhog-dev-accounts",
+    "devAccountTokens": 1000000000,
+    "genesisHash": "d3b3c15c8bac1d0bbaf85fa9b1f2f7ad134a30b7fe7511efc79db2b5a2e71bb2",
+    "manifestSha256": "6f0a73ab863666ecbd2fbbc3e6ccda685ff5cc741463251f8b72c478737237c5"
+  },
+  "storageCostModel": {
+    "hash": "7fcd5d27353800caf9f8f3a73a030be49a1dcd9db4616792e7887746bea713ce",
+    "baseDataItemCost": 12000,
+    "bytestringCostPerByte": 10,
+    "baseContractDeploymentCost": 12000,
+    "contractDeploymentCostPerByte": 10,
+    "balanceCost": 1234
+  },
+  "funding": {
+    "minimumSourceTransfer": 352004,
+    "nativeBalanceCost": 1234,
+    "requiredTokenFunding": 350770,
+    "conservativeMargin": 0,
+    "freeReserveAfterMaximumCreation": 0,
+    "balanceRowCost": 12000,
+    "allowanceRowCost": 12000
+  }
+}

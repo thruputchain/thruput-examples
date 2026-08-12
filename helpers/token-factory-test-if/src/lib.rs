@@ -73,6 +73,24 @@ pub trait TokenFactoryTestWallet {
         initial_holder: &ContractAddress,
         initial_supply: Amount,
     ) -> ContractAddress;
+
+    /// Atomically tops up a token and transfers to a receiver.
+    fn top_up_and_transfer(
+        native_token: &ContractAddress,
+        token: &ContractAddress,
+        receiver: &ContractAddress,
+        hog_amount: Amount,
+        token_amount: Amount,
+    );
+
+    /// Atomically tops up a token and adjusts this wallet's allowance.
+    fn top_up_and_adjust_allowance(
+        native_token: &ContractAddress,
+        token: &ContractAddress,
+        spender: &ContractAddress,
+        hog_amount: Amount,
+        difference: Difference,
+    );
 }
 
 /// Child fixture used for caller, rollback, and exclusive-write probes.
