@@ -35,20 +35,15 @@ The MVP uses the browser-local development signer and external CLI queue process
 
 ### Pool List
 
-- Discover pools from the configured factory's retained `SuiteCreated` events.
-- Validate the emitter, event identity, token topics, suite, pair count, and payload.
-- Read events in ascending order, follow cursors, and deduplicate by `(txHash, sequenceNumber)`.
+- Enumerate canonical token pairs through `factory.all_pairs_length` and `factory.pair_at`.
+- Resolve each pair's contracts through `factory.pool_addresses`.
 - Show token metadata, pair address, reserves, and links to detail, swap, liquidity, and pool creation.
-- Support manual refresh and clear empty, unavailable, malformed-data, and RPC error states.
-
-If retained event history does not cover factory creation, the page reports that discovery is incomplete. It must not silently present a partial registry as complete.
-
-Event discovery is temporary because current registry views do not expose token addresses or complete suites. A contract-backed registry is deferred.
+- Support manual refresh and clear empty, invalid-data, and RPC error states.
 
 ### Pool Detail
 
 - Validate pool identity before showing transactional actions.
-- Show token metadata, reserves and ratio, LP supply, the user's token and LP balances, LP share, and suite addresses.
+- Show token metadata, reserves and ratio, LP supply, the user's token and LP balances, LP share, and pool contract addresses.
 - Link to swap and liquidity workflows.
 - Replace displayed data only after a complete refreshed snapshot validates.
 - Distinguish missing or invalid pools, empty reserves, stale data, unavailable views, and RPC errors.
@@ -56,12 +51,12 @@ Event discovery is temporary because current registry views do not expose token 
 ### Create And Seed Pool
 
 - Accept two existing ERC20 addresses and positive initial amounts.
-- Require `factory.get_pair` to return `None`, then obtain the LP token, pair, handler, and driver from `factory.predict_pair`.
+- Require `factory.get_pair` to return `None`, then obtain the LP token, pair, handler, and driver from `factory.pool_addresses`.
 - Require sufficient balances for both tokens.
 - Require the fixed HOG prefunding described in Section 6.
 - Require `floor(sqrt(amount0 * amount1)) > 1_000`. The pair permanently locks 1,000 LP base units from the first mint.
 - Use desired amounts as initial minimum amounts so execution cannot silently seed fewer tokens than reviewed.
-- Review token metadata, initial ratio, predicted suite, and exact approvals without describing the ratio as a market price.
+- Review token metadata, initial ratio, predicted pool contracts, and exact approvals without describing the ratio as a market price.
 - After prefunding and final validation, submit canonical amounts through `router.add_liquidity` with the local account as recipient.
 - Redirect to the pool after verified execution.
 
@@ -86,7 +81,7 @@ Run the existing exact-input workflow from `docs/specs/2026-07-30-swap-frontend-
 ### Pool Identity
 
 - Reject missing, malformed, zero, identical, or noncanonical route addresses.
-- Require `factory.get_pair(token0, token1)` to match `factory.predict_pair(token0, token1).pair`.
+- Require `factory.get_pair(token0, token1)` to match `factory.pool_addresses(token0, token1).pair`.
 - Preserve the user's display order, but orient contract calls, amount arrays, persistence, and event checks canonically.
 - Validate network identity before reads, event queries, observation, or signing.
 - Isolate state and operations by network, account, factory, canonical pair, and workflow. Navigation must not continue or reuse work from another route.
@@ -94,7 +89,7 @@ Run the existing exact-input workflow from `docs/specs/2026-07-30-swap-frontend-
 ### Transactions And Approvals
 
 - Use integer arithmetic. Token amounts must fit `u128`; allowance changes must fit signed `i128`.
-- Refresh account, network, suite, balances, allowances, reserves, and LP supply before submission when relevant.
+- Refresh account, network, pool contracts, balances, allowances, reserves, and LP supply before submission when relevant.
 - Approve only the validated handler for exact reviewed amounts; never offer unlimited approval.
 - Persist each signed transaction, canonical hash, envelope, and expiry before submission.
 - Serialize signing and prevent concurrent mutation or observation of the same workflow.
@@ -103,24 +98,22 @@ Run the existing exact-input workflow from `docs/specs/2026-07-30-swap-frontend-
 
 After `RequestAccepted`, preserve allowances until `MintEvent`, `RequestFailed`, or authoritative queue consumption. Clean them earlier only when no request was accepted; clean residual allowances after terminal resolution.
 
-The driver accepts a purchaser supplied by the request. Exact allowances reduce exposure but do not prevent another caller from using them, so the MVP assumes trusted local participants.
-
 ### Outcomes And Events
 
-- **Pre-submission failure:** no signed transaction may have reached the RPC; retry is safe.
-- **Authoritative invalid:** the RPC proves the transaction cannot commit; retry is safe after refresh.
+- **Pre-submission failure:** no signed transaction may have reached the transaction-submission API; retry is safe.
+- **Authoritative invalid:** the transaction-status API proves the transaction cannot commit; retry is safe after refresh.
 - **Committed:** a matching receipt proves inclusion and its result.
 - **Indeterminate:** pending, unknown, timeout, conflict, disconnect, or any outcome that does not prove retry safety.
 
 Persist accepted requests across reloads, route changes, and disconnects, but never continue them under another pool context. A timeout remains indeterminate and does not prove failure.
 
-Claim creation only from `SuiteCreated` emitted by the configured factory and matching the reviewed tokens and predicted suite. Claim enqueueing only from `RequestAccepted` emitted by the predicted driver, and persist its request ID. Correlate terminal events by request ID, validated emitter, sender, pair, and payload. For `MintEvent`, which has no recipient field, also require the reviewed request and LP balance increase. Derive deposited amounts from coherent pre- and post-execution balances and reserves, not preflight estimates. Treat `RequestFailed` as terminal.
+Claim creation only from `PoolCreated` emitted by the configured factory and matching the reviewed tokens and pool contracts. Claim enqueueing only from `RequestAccepted` emitted by the predicted driver, and persist its request ID. Correlate terminal events by request ID, validated emitter, sender, pair, payload, and recipient where present. Derive deposited amounts from coherent pre- and post-execution balances and reserves, not preflight estimates. Treat `RequestFailed` as terminal.
 
 Queue processing remains external. Show a crank command for the validated driver.
 
 ### Creation Races
 
-Recheck `get_pair` and `predict_pair` before creation. If the pool now exists, stop, explain that committed prefunding benefits its canonical suite, and clean approvals only if no request was accepted. If `SuiteCreated` is absent after submission, report a race, preserve any accepted request, and do not claim creation. Exact initial minimums may cause the request to fail if another request establishes a different ratio.
+Recheck `get_pair` and `pool_addresses` before creation. If the pool now exists, stop, explain that committed prefunding benefits its canonical pool contracts, and clean approvals only if no request was accepted. If `PoolCreated` is absent after submission, report a race, preserve any accepted request, and do not claim creation. Exact initial minimums may cause the request to fail if another request establishes a different ratio.
 
 ## 4. Local Environment
 
@@ -145,17 +138,25 @@ Vite may expose `GROUNDHOG_DEV_PRIVATE_KEY` only during `vite serve` against loo
 ### Setup
 
 - Validate a fresh loopback runtime.
-- Build and register the suite artifacts, then deploy and fund one factory and router.
+- Build and register the pool contract artifacts, then deploy and fund one factory and router.
 - Fund the local account and deploy at least two example ERC20s, but create no pool.
 - Write key-bearing app and CLI configuration atomically with mode `0600`.
 
-Before implementation, generate the factory binding, validate the native ERC20 v0.1.3 browser codec, confirm event layouts and canonical amount order, verify fixed funding, and define dynamic-driver crank commands.
+### Contract Prerequisites
+
+- Rename `SuiteCreated` to `PoolCreated`, `Suite` to `PoolAddresses`, and `predict_pair` to `pool_addresses`.
+- Make `factory.pair_at` return the canonical token pair and reject `index == length`.
+- Allow only the configured router to call `SwapDriver::request`.
+- Include the LP recipient in `MintEvent`.
+- Make remove-liquidity minimum checks use the same fee-adjusted LP supply as execution.
+
+Before implementation, generate the updated factory binding, validate the native ERC20 v0.1.3 browser codec, confirm event layouts and canonical amount order, verify fixed funding, define dynamic-driver crank commands, and validate retry rules against the transaction submission and status APIs.
 
 ## 5. Testing And Acceptance
 
-Unit and component tests cover discovery, route and suite validation, pool isolation, pool-detail refresh, integer arithmetic, approvals, event correlation, creation races, liquidity quoting, and dynamic swaps against at least two pools. Recovery tests cover indeterminate outcomes, expiry, reloads, navigation, prefunding idempotency, and allowance preservation after `RequestAccepted`.
+Unit and component tests cover discovery, route and pool validation, pool isolation, pool-detail refresh, integer arithmetic, approvals, event correlation, creation races, liquidity quoting, and dynamic swaps against at least two pools. Recovery tests cover indeterminate outcomes, expiry, reloads, navigation, prefunding idempotency, and allowance preservation after `RequestAccepted`.
 
-Contract tests cover prediction and deployment identity, duplicate creation, canonical amount orientation, minimum initial liquidity, existing-pool add/remove calculations and minimums, insufficient funding, and event integrity.
+Contract tests cover factory enumeration, prediction and deployment identity, duplicate creation, router-only request authorization, canonical amount orientation, minimum initial liquidity, existing-pool add/remove calculations and minimums, insufficient funding, and event integrity.
 
 One clean-ledger integration test must execute:
 
@@ -174,10 +175,10 @@ The interface must pass these flows on mobile and desktop with keyboard access, 
 
 For the MVP, transfer the configured fixed HOG amount once to each predicted LP token, pair, handler, and driver. Persist each destination's signed envelope, hash, expiry, and outcome so recovery cannot fund it twice. Before confirmation, label the total **Fixed development storage reserve** and show every destination. It is not a fee or exact quote, does not refund excess, does not reimburse factory growth, and is not atomic with creation.
 
-A future contract-generated quote should replace only fixed prefunding. It should use the active storage model, account for existing credit and factory growth, pull only the current deficit, cap payment at a user-approved maximum, and avoid partial funding on failure.
+A future factory operation should replace only fixed prefunding. It should quote against the active storage model, account for existing credit and factory growth, pull only the current deficit from the pool creator up to an approved maximum, and make funding and creation atomic.
 
 Open decisions:
 
-1. Whether the quote covers suite creation alone or also initial liquidity and queue storage.
+1. Whether the quote covers pool creation alone or also initial liquidity and queue storage.
 2. How quote versions bind the storage model, artifacts, serialization, and reserve policy.
 3. How to make funding, deployment, initialization, and registry updates atomic.
