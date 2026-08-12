@@ -2555,6 +2555,7 @@ dependencies = [
  "standard-token",
  "standard-token-factory",
  "standard-token-factory-if",
+ "token-factory-failing-child",
  "token-factory-test-if",
  "token-factory-test-wallet",
 ]
@@ -2791,7 +2792,9 @@ dependencies = [
 name = "token-factory-failing-child"
 version = "0.1.0"
 dependencies = [
+ "groundhog-erc20-if",
  "sdk",
+ "standard-token-factory-if",
  "token-factory-failing-child",
  "token-factory-test-if",
 ]

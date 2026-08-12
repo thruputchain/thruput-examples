@@ -7,7 +7,7 @@
 use core::fmt;
 
 use sdk::*;
-use standard_token_factory_if::{Amount, Name, Symbol};
+use standard_token_factory_if::{Amount, Difference, Name, Symbol};
 
 /// Deterministic fixture failure used to verify transaction rollback.
 #[contract_exception]
@@ -41,9 +41,30 @@ pub trait TokenFactoryTestWallet {
     /// Transfers mock native HOG from this wallet to a predicted token.
     fn fund_token(native_token: &ContractAddress, token: &ContractAddress, amount: Amount);
 
+    /// Adjusts this wallet's native-token allowance for a spender.
+    fn adjust_native_allowance(
+        native_token: &ContractAddress,
+        spender: &ContractAddress,
+        difference: Difference,
+    );
+
     /// Forwards token creation so the factory observes this wallet as creator.
     fn create_token(
         factory: &ContractAddress,
+        nonce: &SHA256Hash,
+        administrator: &ContractAddress,
+        name: Option<Name>,
+        symbol: Option<Symbol>,
+        decimals: Option<u32>,
+        initial_holder: &ContractAddress,
+        initial_supply: Amount,
+    ) -> ContractAddress;
+
+    /// Funds the prediction and creates the token in one atomic call tree.
+    fn fund_and_create_token(
+        native_token: &ContractAddress,
+        factory: &ContractAddress,
+        funding: Amount,
         nonce: &SHA256Hash,
         administrator: &ContractAddress,
         name: Option<Name>,

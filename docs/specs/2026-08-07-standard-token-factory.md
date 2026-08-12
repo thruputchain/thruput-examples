@@ -127,7 +127,7 @@ pub struct FactoryConfig {
 }
 ```
 
-Factory configuration is written once with `Value::set_exclusive` and never changes. A zero fee requires no recipient. A nonzero fee requires a nonzero recipient. The factory stores no per-token records and exposes no administrator, upgrade, or withdrawal method.
+Factory configuration is written once with `Value::set_exclusive` and never changes. A zero fee requires no recipient. A nonzero fee must fit the ERC-20 signed-difference bound and requires a nonzero recipient other than the factory itself. The factory stores no per-token records and exposes no administrator, upgrade, or withdrawal method.
 
 The canonical factory is deployed, funded, and initialized by release tooling in one transaction. Initialization rejects a zero token hash, zero native-token address, zero funding requirement, repeated call, or invalid fee-recipient combination.
 
@@ -230,7 +230,7 @@ If a future storage-cost model changes these requirements, release a new factory
 
 Fee collection, deployment, initialization, initial minting, and event emission occur in one call tree. Failure reverts those effects. Funding from an earlier transaction remains at the predicted address so the creator may fix the input and retry with the same nonce. An atomic wallet flow reverts funding when creation fails.
 
-A fee-enabled factory requires the creator to grant an exact native-HOG allowance before `create_token`. The official zero-fee factory skips fee collection and requires no allowance.
+A fee-enabled factory requires a native-HOG allowance of at least one configured fee before `create_token`. Clients should grant an exact allowance to minimize residual authority; a larger allowance remains valid and only one fee is consumed per creation. The official zero-fee factory skips fee collection and requires no allowance.
 
 `create_token` must be invoked by a wallet contract rather than as the root transaction call because Groundhog defines `get_caller()` only for a subcall. The one- and two-transaction client flows both use the creator's wallet as the immediate factory caller.
 

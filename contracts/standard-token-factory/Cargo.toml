@@ -42,6 +42,7 @@ standard-token-factory = { path = ".", features = ["dev"] }
 standard-token = { path = "../standard-token", features = ["dev"] }
 token-factory-test-wallet = { path = "../../helpers/token-factory-test-wallet", features = ["dev"] }
 token-factory-test-if = { path = "../../helpers/token-factory-test-if", features = ["dev"] }
+token-factory-failing-child = { path = "../../helpers/token-factory-failing-child", features = ["dev"] }
 
 [lints]
 clippy.result_large_err = "allow"

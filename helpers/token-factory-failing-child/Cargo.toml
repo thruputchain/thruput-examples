@@ -9,7 +9,11 @@ publish = false
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "token-factory-test-if/dev"]
+dev = [
+    "sdk/dev",
+    "standard-token-factory-if/dev",
+    "token-factory-test-if/dev",
+]
 
 [lib]
 doctest = false
@@ -17,6 +21,8 @@ test = false
 
 [dependencies]
 sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
+standard-token-factory-if = { path = "../../contracts/standard-token-factory-if" }
 token-factory-test-if = { path = "../token-factory-test-if" }
 
 [dev-dependencies]

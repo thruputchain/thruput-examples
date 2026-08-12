@@ -4,8 +4,10 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
+use groundhog_erc20_if::{CONTRACT_ADDR_ZERO, log_transfer_event};
 use sdk::storage::*;
 use sdk::*;
+use standard_token_factory_if::{Amount, ERC20Error, Name, StandardTokenInitializer, Symbol};
 use token_factory_test_if::*;
 
 sdk::declare_mock_contract!();
@@ -35,5 +37,25 @@ impl TokenFactoryFailingChild for FailingChild {
 
     fn value(&self) -> Option<u64> {
         self.value.try_get().none_if_missing()
+    }
+}
+
+#[contract]
+impl StandardTokenInitializer for FailingChild {
+    fn initialize_from_factory(
+        &mut self,
+        _administrator: &ContractAddress,
+        _name: Option<Name>,
+        _symbol: Option<Symbol>,
+        _decimals: Option<u32>,
+        initial_holder: &ContractAddress,
+        initial_supply: Amount,
+    ) {
+        self.value.set_exclusive(&u64::MAX);
+        log_event(&ExclusiveWrite { value: u64::MAX });
+        if initial_supply != 0 {
+            log_transfer_event(CONTRACT_ADDR_ZERO, initial_holder, initial_supply);
+        }
+        throw(ERC20Error::Internal);
     }
 }

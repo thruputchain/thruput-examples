@@ -17,13 +17,16 @@ impl StandardTokenFactoryContract {
         let valid_fee = match (config.creation_fee, config.fee_recipient) {
             (0, None) => true,
             (0, Some(_)) | (_, None) => false,
-            (_, Some(recipient)) => recipient != *CONTRACT_ADDR_ZERO,
+            (_, Some(recipient)) => {
+                recipient != *CONTRACT_ADDR_ZERO && recipient != get_current_address()
+            }
         };
 
         ensure(
             config.token_code_hash != SHA256Hash::new([0; 32])
                 && config.native_token != *CONTRACT_ADDR_ZERO
                 && config.required_token_funding != 0
+                && config.creation_fee <= i128::MAX as u128
                 && valid_fee,
             TokenFactoryError::InvalidConfig,
         );
