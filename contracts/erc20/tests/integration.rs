@@ -5,12 +5,7 @@
 //! lives in the `integration-test` crate. This file only describes the
 //! contract-specific calls and the lifecycle they exercise.
 //!
-//! Run it with:
-//!
-//! ```bash
-//! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
-//!     groundhog test --integration
-//! ```
+//! Run it with `groundhog test --integration`.
 
 use groundhog_xdr::types::ContractAddress;
 use integration_test::{Harness, decode_return, encode};
