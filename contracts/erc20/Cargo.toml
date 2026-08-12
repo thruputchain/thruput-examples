@@ -12,12 +12,12 @@ categories.workspace = true
 edition.workspace = true
 
 [features]
-entrypoints = []
+entrypoints = ["metadata"]
 rv32-entrypoints = ["entrypoints"]
 dev = [
     "sdk/dev",
-    "metadata",
     "groundhog-erc20-if/dev",
+    "metadata",
     "groundhog-erc20-metadata-if/dev",
     ]
 metadata = ["dep:groundhog-erc20-metadata-if"]
