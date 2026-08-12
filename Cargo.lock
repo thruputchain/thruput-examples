@@ -683,16 +683,6 @@ checksum = "add49cbde59718f45adc9d92cec602c1523e73840860a7d5532dbd7e59170f42"
 dependencies = [
  "groundhog-xdr",
  "sha2 0.11.0",
-]
-
-[[package]]
-name = "groundhog-contract-util"
-version = "0.19.0"
-source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "add49cbde59718f45adc9d92cec602c1523e73840860a7d5532dbd7e59170f42"
-dependencies = [
- "groundhog-xdr",
- "sha2 0.11.0",
  "syn 3.0.3",
 ]
 
@@ -805,7 +795,7 @@ source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
 checksum = "38ccb7d6eb924e41a627942b4557d4b72afc6b6fda88dfce8333a605843d54a4"
 dependencies = [
  "darling",
- "groundhog-contract-util 0.19.0",
+ "groundhog-contract-util",
  "groundhog-xdr",
  "proc-macro2",
  "quote",
@@ -962,7 +952,7 @@ version = "0.9.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
 checksum = "8ebf47c07aba682103f7d7038c2f4fb8b4a75dee1a70482944a467829402e8d4"
 dependencies = [
- "groundhog-contract-util 0.17.9",
+ "groundhog-contract-util",
  "groundhog-json-rpc-client",
  "groundhog-json-rpc-types",
  "groundhog-node-supervisor",
@@ -1461,7 +1451,7 @@ dependencies = [
 name = "integration-test"
 version = "0.1.0"
 dependencies = [
- "groundhog-contract-util 0.19.0",
+ "groundhog-contract-util",
  "groundhog-json-rpc-client",
  "groundhog-json-rpc-types",
  "groundhog-signing",
