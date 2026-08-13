@@ -56,6 +56,12 @@ struct Deployment {
     liquidity_token: ContractAddress,
     handler: ContractAddress,
     driver: ContractAddress,
+    token_a_balance: Amount,
+    token_b_balance: Amount,
+    reserve_a: Amount,
+    reserve_b: Amount,
+    token_a_to_b_output: Amount,
+    token_b_to_a_output: Amount,
 }
 
 #[tokio::main]
@@ -118,16 +124,19 @@ async fn main() -> Result<()> {
     let cli_config = render_cli_config(&manifest, &rpc_url, &manifest_path, deployed.account_index);
     publish_outputs(&output_path, &app_env, &cli_config_path, &cli_config)?;
 
-    println!("Local swap environment is ready: {}", output_path.display());
     let process_requests = entrypoint_id(DRIVER.0, DRIVER.1, "process_requests");
-    println!(
-        "Crank: XDG_CONFIG_HOME={} {} call {} {} 0x --rpc-url {} --runtime-manifest {}",
+    let crank_command = format!(
+        "XDG_CONFIG_HOME={} {} call {} {} 0x --rpc-url {} --runtime-manifest {}",
         shell_arg(&cli_config_home.display().to_string()),
         shell_arg(&groundhog_cli.display().to_string()),
         address(deployed.driver),
         entrypoint(process_requests),
         shell_arg(&rpc_url),
         shell_arg(&manifest_path.display().to_string()),
+    );
+    println!(
+        "{}",
+        render_summary(&output_path, &cli_config_path, deployed, &crank_command)
     );
     Ok(())
 }
@@ -263,6 +272,19 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
     .await?;
     verify_view_outcomes(ctx, &pair, wallet).await?;
 
+    let (reserve_0, reserve_1, _): (Amount, Amount, u32) =
+        pair.view(ctx, "get_reserves", &(), None).await?;
+    let (reserve_a, reserve_b) = if token_a.address() <= token_b.address() {
+        (reserve_0, reserve_1)
+    } else {
+        (reserve_1, reserve_0)
+    };
+    let expected = expected_swaps(token_a.address(), token_b.address());
+    let a_index = usize::from(token_a.address() > token_b.address());
+    let b_index = 1 - a_index;
+    let token_a_to_b_output = expected[0].1[b_index];
+    let token_b_to_a_output = expected[1].1[a_index];
+
     let token_a_balance: Amount = token_a.view(ctx, "get_balance_of", &wallet, None).await?;
     let token_b_balance: Amount = token_b.view(ctx, "get_balance_of", &wallet, None).await?;
     let allowance_a: Amount = token_a
@@ -280,7 +302,6 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
         format!("expected exhausted handler allowances, got {allowance_a} and {allowance_b}"),
     )?;
 
-    println!("token balances: {token_a_balance} gUSD, {token_b_balance} gEUR");
     Ok(Deployment {
         account_index: ctx.account_index(),
         wallet,
@@ -292,6 +313,12 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
         liquidity_token: suite.liquidity_token,
         handler: suite.handler,
         driver: suite.driver,
+        token_a_balance,
+        token_b_balance,
+        reserve_a,
+        reserve_b,
+        token_a_to_b_output,
+        token_b_to_a_output,
     })
 }
 
@@ -806,6 +833,81 @@ fn shell_arg(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
+fn render_summary(
+    app_env: &Path,
+    cli_config: &Path,
+    deployment: Deployment,
+    crank_command: &str,
+) -> String {
+    format!(
+        "\n\
+         ============================================================\n\
+         Local swap setup complete\n\
+         ============================================================\n\
+         \n\
+         Created\n\
+           Tokens deployed: 2 (gUSD and gEUR)\n\
+           Pools created:   1 (gUSD / gEUR)\n\
+           Pair address:    {}\n\
+         \n\
+         Initial liquidity\n\
+           {} gUSD\n\
+           {} gEUR\n\
+         \n\
+         Verification swaps\n\
+           1. {} gUSD -> {} gEUR\n\
+           2. {} gEUR -> {} gUSD\n\
+         \n\
+         Final pool liquidity\n\
+           {} gUSD\n\
+           {} gEUR\n\
+         \n\
+         Final wallet balances\n\
+           {} gUSD\n\
+           {} gEUR\n\
+         \n\
+         Generated configuration\n\
+           App: {}\n\
+           CLI: {}\n\
+         \n\
+         Process future queued swaps with:\n\
+           {}\n\
+         ============================================================",
+        address(deployment.pair),
+        format_token_amount(LIQUIDITY_AMOUNT),
+        format_token_amount(LIQUIDITY_AMOUNT),
+        format_token_amount(SWAP_AMOUNTS[0]),
+        format_token_amount(deployment.token_a_to_b_output),
+        format_token_amount(SWAP_AMOUNTS[1]),
+        format_token_amount(deployment.token_b_to_a_output),
+        format_token_amount(deployment.reserve_a),
+        format_token_amount(deployment.reserve_b),
+        format_token_amount(deployment.token_a_balance),
+        format_token_amount(deployment.token_b_balance),
+        app_env.display(),
+        cli_config.display(),
+        crank_command,
+    )
+}
+
+fn format_token_amount(value: Amount) -> String {
+    const SCALE: Amount = 1_000_000;
+    let whole = value / SCALE;
+    let fraction = value % SCALE;
+    format!("{}.{fraction:06}", group_digits(&whole.to_string()))
+}
+
+fn group_digits(value: &str) -> String {
+    let mut grouped = String::with_capacity(value.len() + value.len() / 3);
+    for (index, byte) in value.bytes().enumerate() {
+        if index > 0 && (value.len() - index).is_multiple_of(3) {
+            grouped.push(',');
+        }
+        grouped.push(char::from(byte));
+    }
+    grouped
+}
+
 fn env(name: &str) -> Result<String> {
     std::env::var(name).map_err(|_| format!("{name} must be set").into())
 }
@@ -886,6 +988,34 @@ mod tests {
             "VITE_GROUNDHOG_WALLET_ADDRESS={}",
             address(deployment.wallet)
         )));
+    }
+
+    #[test]
+    fn summary_explains_pool_setup_in_token_units() {
+        let deployment = test_deployment();
+        let summary = render_summary(
+            Path::new("/tmp/.env.local"),
+            Path::new("/tmp/config.toml"),
+            deployment,
+            "groundhog call driver process_requests",
+        );
+
+        assert!(summary.contains("Tokens deployed: 2 (gUSD and gEUR)"));
+        assert!(summary.contains("Pools created:   1 (gUSD / gEUR)"));
+        assert!(summary.contains("1,000.000000 gUSD"));
+        assert!(summary.contains("1. 0.010000 gUSD -> 0.009969 gEUR"));
+        assert!(summary.contains("2. 0.020000 gEUR -> 0.019940 gUSD"));
+        assert!(summary.contains("999.990060 gUSD"));
+        assert!(summary.contains("1,000.010031 gEUR"));
+        assert!(summary.contains("1,000.009940 gUSD"));
+        assert!(summary.contains("999.989969 gEUR"));
+    }
+
+    #[test]
+    fn token_amount_formatting_uses_six_decimals_and_grouping() {
+        assert_eq!(format_token_amount(0), "0.000000");
+        assert_eq!(format_token_amount(9_969), "0.009969");
+        assert_eq!(format_token_amount(1_000_000_000), "1,000.000000");
     }
 
     #[test]
@@ -1001,6 +1131,12 @@ mod tests {
             liquidity_token: ContractAddress::from([0x06; 32]),
             handler: ContractAddress::from([0x07; 32]),
             driver: ContractAddress::from([0x08; 32]),
+            token_a_balance: 1_000_009_940,
+            token_b_balance: 999_989_969,
+            reserve_a: 999_990_060,
+            reserve_b: 1_000_010_031,
+            token_a_to_b_output: 9_969,
+            token_b_to_a_output: 19_940,
         }
     }
 
