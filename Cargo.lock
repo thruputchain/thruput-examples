@@ -488,9 +488,9 @@ dependencies = [
 
 [[package]]
 name = "futures"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a88cf1f829d945f548cf8fec32c61b1f202b6d93b45848602fc02af4b12ad218"
+checksum = "9a31d2a3fbaaeb2af2368bbdd904aa8e812d3c04a1ee10d3171f52d556e5d0a3"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -502,9 +502,9 @@ dependencies = [
 
 [[package]]
 name = "futures-channel"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "262590f4fe6afeb0bc83be1daa64e52657fe185690a958af7f3ad0e92085c5ae"
+checksum = "b1f9e3d69d39e4862ffed03ed071a76f9a13ba1d9109d355b0f0aa6b15e393c4"
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -512,38 +512,38 @@ dependencies = [
 
 [[package]]
 name = "futures-core"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cd50c473c80f6d7c3670a752354b8e569b1a7cbfdc0419ec88e5edad85e0dc7"
+checksum = "92d699e522242e69e3003b94ecc1f960f3a5e015aa7c5d7486e65ad01dd94f5e"
 
 [[package]]
 name = "futures-io"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4577ecaa3c4f96589d473f679a71b596316f6641bc350038b962a5daf0085d7a"
+checksum = "53c0fa8157de1303bfffdaa1cc2a673bfffb60102f76b0ef4441659124373fed"
 
 [[package]]
 name = "futures-macro"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d6d3cde68c518367be28956066ddfef33813991b77a55005a69dae04bf3b10b"
+checksum = "9fb9654ba8355388abeb8dcb4fc62f511300867002afc858860463bdd9fe0c44"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
 name = "futures-sink"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e34418ac499d6305c2fb5ad0ed2f6ac998c5f8ca209b4510f7f94242c647e307"
+checksum = "1944426bf7d03f1d14f708785e4b33efd750b36d48a157b836b3efc15ede8e1d"
 
 [[package]]
 name = "futures-task"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b231ed28831efb4a61a08580c4bc233ec56bc009f4cd8f52da2c3cb97df0c109"
+checksum = "cd417de3d1d015fc3bfd2b1ea46dfc7bab72ef86f1cc7cc9c78e728b34a6d1fd"
 
 [[package]]
 name = "futures-timer"
@@ -557,9 +557,9 @@ dependencies = [
 
 [[package]]
 name = "futures-util"
-version = "0.3.33"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a77a90a256fce34da66415271e30f94ee91c57b04b8a2c042d9cf3220179deaa"
+checksum = "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -664,9 +664,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-contract-spec"
-version = "0.19.0"
+version = "0.19.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "8fdff6d52b2f1b189cfbde462fa50d6355f768134919080f8a7ae22af380d5c4"
+checksum = "d8047c0abd56d16dc77a15ceed30242cb734e6c7cce955d59d63f02bf9f41ef4"
 dependencies = [
  "groundhog-spec",
  "groundhog-xdr",
@@ -677,9 +677,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-contract-util"
-version = "0.19.0"
+version = "0.19.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "add49cbde59718f45adc9d92cec602c1523e73840860a7d5532dbd7e59170f42"
+checksum = "1a9496ff3fffaf4963c3686cbd6de92400b8ec322752d2cd68a7162e7253b48d"
 dependencies = [
  "groundhog-xdr",
  "sha2 0.11.0",
@@ -711,9 +711,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-event"
-version = "0.19.0"
+version = "0.19.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "8560666205d1ac780523021aa9c37d7721ed9c63565faa7959166214a3495db9"
+checksum = "298087810fd6a9bc37ac4b83c8bf14fdf81d0e24ae278458a19fa8fb9093d496"
 dependencies = [
  "groundhog-xdr",
  "xdrs",
@@ -790,9 +790,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-macros"
-version = "0.19.0"
+version = "0.19.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "38ccb7d6eb924e41a627942b4557d4b72afc6b6fda88dfce8333a605843d54a4"
+checksum = "a97644ab4cb898c41a427efc01a176120aa9003eb4b4c3f6808f30537c93c1da"
 dependencies = [
  "darling",
  "groundhog-contract-util",
@@ -805,9 +805,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-native-exec"
-version = "0.19.0"
+version = "0.19.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "27467fdb08dc0737a29cbf48b7dd70cb604d7e2b33f517da64b870ae879e43c4"
+checksum = "181e9aca55528212482c106cd5648ea42fbd54e35795e5d6cf2d5cf644906887"
 dependencies = [
  "groundhog-event",
  "groundhog-storage-cost",
@@ -880,9 +880,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-rv32-runtime"
-version = "0.19.0"
+version = "0.19.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "cfc84e85542de2e67122f966fd77e49564f68d99169a74750237520b7cd346bc"
+checksum = "5f2ba03b05fcdec4b16f4af436e748223cc586f187dd178482467c748a6131aa"
 
 [[package]]
 name = "groundhog-serde_arrays"
@@ -921,9 +921,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-storage-cost"
-version = "0.19.0"
+version = "0.19.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "8965098cbfa52f7b349cf99070773a583e8929681f5ffb0189a3d40d5ee8c2c5"
+checksum = "5a5bef612182fefc31afbfe92351013a44683ec25cc311c75cf8f0cde0e336c7"
 dependencies = [
  "groundhog-xdr",
  "xdrs",
@@ -931,9 +931,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-sys"
-version = "0.19.0"
+version = "0.19.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "25143a6b1294964eaa590f410a7dd7032ec06035a2e597f7b9d02b109478afae"
+checksum = "f5b79bb3f53f27198443875183eefbcc0ca1d103766e4a04e4e7c79a73174d28"
 dependencies = [
  "fslock",
  "sha2 0.11.0",
@@ -983,6 +983,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "groundhog-u256"
+version = "0.19.2"
+source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
+checksum = "164adb9906a7b9b54f9499fb72982af6c46986cdb7bf7cd1f16cf007586e7d7d"
+dependencies = [
+ "groundhog-contract-spec",
+ "groundhog-macros",
+ "xdrs",
+]
+
+[[package]]
 name = "groundhog-wasm-meter"
 version = "0.8.1"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
@@ -994,9 +1005,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-wasm-runtime"
-version = "0.19.0"
+version = "0.19.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "993d6b2c1318635adb0e19fbf46d228eb36ff67b0b3c8974cf7bfe13040786ab"
+checksum = "f5b15ba6801f08bc67e745221674ab298d7a766b14800c397536f406cab3e68b"
 dependencies = [
  "groundhog-xdr",
  "heapless",
@@ -1236,9 +1247,9 @@ dependencies = [
 
 [[package]]
 name = "http-body-util"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9f41fd6a08e4d4ec69df65976da761afd5ad5e58a9d4acb46bd1c953a9e3ff2"
+checksum = "23169fe34a5fbcdd3f3862e78fb9b6fccd5f02a6dc6f732547005d45631ce71c"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2205,9 +2216,9 @@ checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.13"
+version = "0.103.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
+checksum = "0527518605e68109d875e248ea259b6758801cf165e4b2c2733ae3b51f12535a"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -2277,9 +2288,9 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "sdk"
-version = "0.19.0"
+version = "0.19.2"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "ecff85adeb18cb562c85ce82f9689c489cb5b6961ca987ce400c8c1b96f3e61a"
+checksum = "87f1d1d5c7a85c5a81a214cd75ebc17d70a25a289cf3cddc81fc694925f86163"
 dependencies = [
  "groundhog-contract-spec",
  "groundhog-event",
@@ -2287,6 +2298,7 @@ dependencies = [
  "groundhog-native-exec",
  "groundhog-rv32-runtime",
  "groundhog-storage-cost",
+ "groundhog-u256",
  "groundhog-wasm-meter",
  "groundhog-wasm-runtime",
  "groundhog-xdr",
@@ -2588,8 +2600,8 @@ version = "0.1.0"
 dependencies = [
  "batch-driver",
  "groundhog-erc20-if",
+ "groundhog-u256",
  "sdk",
- "uint",
 ]
 
 [[package]]

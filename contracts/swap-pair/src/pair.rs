@@ -3,7 +3,7 @@
 use crate::events::*;
 use crate::interface::*;
 use crate::reserves::*;
-use crate::u256::U256;
+use crate::u256::{U256, mul_div_u128};
 use core::cmp::min;
 use core::iter::zip;
 use core::ops::Mul;
@@ -50,7 +50,7 @@ impl SwapPair for Pair {
         self.lp_addr.set(lp_token);
         self.tokens.set(&[*token0, *token1]);
         self.factory.set(factory);
-        self.k_last.set(&U256::zero());
+        self.k_last.set(&U256::ZERO);
         self.reserves.set(&Reserves::new());
 
         // Adopt the LP contract, initializing it under our control.
@@ -114,20 +114,16 @@ impl SwapPair for Pair {
             // Permanently lock the first MINIMUM_LIQUIDITY tokens
             lp.mint(&Self::BLACK_HOLE, Self::MINIMUM_LIQUIDITY);
 
-            let lp: u128 = (U256::from(amounts[0]) * U256::from(amounts[1]))
+            let lp: u128 = U256::widening_mul(amounts[0], amounts[1])
                 .integer_sqrt()
                 .try_into()
                 .unwrap();
             lp.strict_sub(Self::MINIMUM_LIQUIDITY)
         } else {
             min(
-                (U256::from(amounts[0]) * U256::from(lp_total_supply))
-                    / U256::from(prev_balances[0]),
-                (U256::from(amounts[1]) * U256::from(lp_total_supply))
-                    / U256::from(prev_balances[1]),
+                mul_div_u128(amounts[0], lp_total_supply, prev_balances[0]),
+                mul_div_u128(amounts[1], lp_total_supply, prev_balances[1]),
             )
-            .try_into()
-            .unwrap()
         };
 
         ensure(lp_to_create > 0, SwapPairError::InsufficientLiquidityMinted);
@@ -333,13 +329,13 @@ impl Pair {
             // Fee disabled: clear any stale k so it isn't reused if the fee is
             // later re-enabled.
             if !k_last.is_zero() {
-                self.k_last.set(&U256::zero());
+                self.k_last.set(&U256::ZERO);
             }
             return false;
         };
 
         if !k_last.is_zero() {
-            let root_k = (U256::from(reserves[0]) * U256::from(reserves[1])).integer_sqrt();
+            let root_k = U256::widening_mul(reserves[0], reserves[1]).integer_sqrt();
             let root_k_last = k_last.integer_sqrt();
 
             if root_k > root_k_last {
@@ -365,7 +361,7 @@ impl Pair {
     // protocol-fee computation.
     fn set_k_last(&mut self, balances: Amounts) {
         self.k_last
-            .set(&(U256::from(balances[0]) * U256::from(balances[1])));
+            .set(&U256::widening_mul(balances[0], balances[1]));
     }
 
     // Get our holdings of the A/B tokens

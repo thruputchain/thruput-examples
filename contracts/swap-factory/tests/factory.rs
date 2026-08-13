@@ -234,7 +234,7 @@ fn fee_accrues_to_factory_fee_to() {
 
     // The fee reached the factory's `fee_to`, proving the pair consulted the
     // factory dynamically.
-    assert!(expected > U256::zero());
+    assert!(expected > U256::ZERO);
     assert_eq!(U256::from(fee), expected);
 }
 

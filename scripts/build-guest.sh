@@ -14,14 +14,6 @@ groundhog_build() {
 }
 
 for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select([.targets[].kind[]] | index("cdylib")) | .name'); do
-    if [[ "$target" = "rv32" ]] && [[ "$pkg" = "swap-pair" ]]; then
-        # Can't build swap for rv32 yet; use wasm
-        groundhog_build -p "$pkg" --target "wasm" || {
-            printf "Build (wasm) failed for contract %s\n" "$pkg"
-            exit 1
-        }
-        continue
-    fi
 
     cargo_args=()
     if [ -z "${CARGO_UNLOCK:-}" ]; then
