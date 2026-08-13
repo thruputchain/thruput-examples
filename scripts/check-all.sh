@@ -12,15 +12,28 @@ cargo() {
 
 set -x
 
+# Build native tests
 RUSTFLAGS="-D warnings" \
-    cargo test --all
+    cargo test --all --no-run
 
+# Build all guest binaries
 ./scripts/build-guest.sh
+
+# Run native tests
+cargo test --all
+
+# Run `test_r32` tests
+for p in erc20 counter; do
+    groundhog test -p "$p"
+done
+
+# Run tests for contracts implementing the `guest_test` feature
 for p in swap-driver swap-router; do
     cargo test -p "$p" -F guest_test
 done
 
-# ./scripts/integration-tests.sh
+# Run integration tests
+./scripts/integration-tests.sh
 
 # Quality checks
 cargo clippy --workspace --all-targets --no-deps -- -D warnings

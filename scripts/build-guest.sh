@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# set CARGO_UNLOCK to omit --locked
+# Build guest binaries (rv32 or wasm).
+#
+# Set CARGO_UNLOCK to omit --locked
 
 set -euo pipefail
 

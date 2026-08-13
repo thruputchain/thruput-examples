@@ -1,6 +1,10 @@
 #!/bin/bash
 
-set -eu
+# Run integration (RPC-targeted) tests.
+#
+# Requires the groundhog-cli and devnode.
+
+set -euo pipefail
 
 target="${TARGET:-rv32}"
 itest_contracts=(counter erc20)
