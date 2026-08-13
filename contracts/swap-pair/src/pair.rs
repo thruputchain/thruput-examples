@@ -165,8 +165,8 @@ impl SwapPair for Pair {
         ensure(total_liquidity > 0, SwapPairError::NoLiquidityToBurn);
 
         let amounts = [
-            lp_returned.strict_mul(balances[0]) / total_liquidity,
-            lp_returned.strict_mul(balances[1]) / total_liquidity,
+            mul_div_u128(lp_returned, balances[0], total_liquidity),
+            mul_div_u128(lp_returned, balances[1], total_liquidity),
         ];
         ensure(
             amounts[0] > 0 && amounts[1] > 0,
@@ -245,11 +245,11 @@ impl SwapPair for Pair {
         );
 
         let balance_adj = [
-            U256::from(balances[0]) * U256::from(1000) - U256::from(amounts_in[0]) * U256::from(3),
-            U256::from(balances[1]) * U256::from(1000) - U256::from(amounts_in[1]) * U256::from(3),
+            U256::from(balances[0]) * 1000u32 - U256::from(amounts_in[0]) * 3u32,
+            U256::from(balances[1]) * 1000u32 - U256::from(amounts_in[1]) * 3u32,
         ];
         let balance_prod = balance_adj[0].mul(balance_adj[1]);
-        let reserve_adj = r.map(|b| U256::from(b) * U256::from(1000));
+        let reserve_adj = r.map(|b| U256::from(b) * 1000u32);
         let reserve_prod = reserve_adj[0] * reserve_adj[1];
         ensure(
             balance_prod >= reserve_prod,
@@ -345,7 +345,7 @@ impl Pair {
                 // liquidity = totalSupply * (rootK - rootKLast)
                 //             / (5 * rootK + rootKLast)
                 let numerator = total_supply * (root_k - root_k_last);
-                let denominator = root_k * U256::from(5) + root_k_last;
+                let denominator = root_k * 5u32 + root_k_last;
                 let liquidity: u128 = (numerator / denominator).try_into().unwrap();
 
                 if liquidity > 0 {
