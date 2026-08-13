@@ -26,7 +26,7 @@ impl Reserves {
     pub const fn new() -> Self {
         Self {
             balances: [0; 2],
-            cumulative_prices: [U256::zero(), U256::zero()],
+            cumulative_prices: [U256::ZERO, U256::ZERO],
             block_timestamp: 0,
         }
     }
@@ -91,6 +91,6 @@ fn get_block_timestamp() -> u64 {
 fn uq112x112_div_mul(a: u128, b: u128, p: u32) -> U256 {
     let a = U256::from(a);
     let b = U256::from(b);
-    let (scaled, _overflow) = ((a << 112) / b).overflowing_mul(U256::from(p));
+    let (scaled, _overflow) = ((a << 112usize) / b).overflowing_mul(U256::from_u32(p));
     scaled
 }

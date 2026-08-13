@@ -6,7 +6,6 @@ mod etx;
 mod help;
 mod setup;
 mod stats;
-mod u256;
 mod user;
 mod util;
 
@@ -16,7 +15,6 @@ pub use etx::*;
 pub use help::*;
 pub use setup::*;
 pub use stats::*;
-pub use u256::*;
 pub use user::*;
 pub use util::*;
 

@@ -19,8 +19,7 @@
 //!
 //! ```text
 //! cd groundhog-examples
-//! for c in erc20 swap-handler swap-driver swap-router swap-factory; do groundhog build -p "$c"; done
-//! groundhog build -p swap-pair --target wasm   # swap does not build for rv32a yet
+//! for c in erc20 swap-pair swap-handler swap-driver swap-router swap-factory; do groundhog build -p "$c"; done
 //! RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
 //! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
 //! GROUNDHOG_TESTKIT_ARTIFACT_ROOT=/path/to/target/groundhog \
@@ -405,7 +404,7 @@ async fn swap_liquidity_multi_agent() {
     let scenario = Scenario::builder("swap-sim")
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
-        .artifact("swap_pair", artifact("swap_pair.wasm")) // can't currently build swap as rv32a
+        .artifact("swap_pair", artifact("swap_pair.rv32a"))
         .artifact("swap_handler", artifact("swap_handler.rv32a"))
         .artifact("swap_driver", artifact("swap_driver.rv32a"))
         .artifact("swap_router", artifact("swap_router.rv32a"))

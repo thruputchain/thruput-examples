@@ -21,8 +21,9 @@ categories = ["blockchain"]
 
 [workspace.dependencies]
 # from sdk_rs repo:
-sdk = { registry = "groundhog", version = "0.19.0" }
-groundhog-contract-util = { registry = "groundhog", version = "0.19.0" }
+sdk = { registry = "groundhog", version = "0.19.1" }
+groundhog-contract-util = { registry = "groundhog", version = "0.19.1" }
+groundhog-u256 = { registry = "groundhog", version = "0.19.2", default-features = false }
 groundhog-erc20-if = { registry = "groundhog", version = "0.1.9" }
 groundhog-erc20-metadata-if = { registry = "groundhog", version = "0.1.9" }
 
@@ -33,7 +34,7 @@ groundhog-signing = { registry = "groundhog", version = "=0.9.0" }
 groundhog-testkit = { registry = "groundhog", version = "=0.9.0" }
 
 # from other groundhog crates:
-groundhog-xdr = { registry = "groundhog", version = "0.20.6", features = ["serde", "xdrs"] }
+groundhog-xdr = { registry = "groundhog", version = "=0.20.6", features = ["serde", "xdrs"] }
 xdrs = { registry = "groundhog", version = "0.8.4", features = ["alloc"] }
 
 # from crates.io:
@@ -47,3 +48,4 @@ hex = "0.4"
 
 [profile.release]
 trim-paths = "all" # unstable
+

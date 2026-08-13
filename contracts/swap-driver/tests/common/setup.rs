@@ -66,10 +66,9 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let guest_path =
         |name: &str, arch: &str| -> String { format!("../../target/groundhog/{name}.{arch}") };
     let load = |name: &str| load_rv32_contract(guest_path(name, "rv32a"));
-    let load_wasm = |name: &str| load_wasm_contract_instrumented(guest_path(name, "wasm"), false);
 
     let token_contract = load("erc20");
-    let pair_contract = load_wasm("swap_pair");
+    let pair_contract = load("swap_pair");
     let handler_contract = load("swap_handler");
     let driver_contract = load("swap_driver");
     let router_contract = load("swap_router");
@@ -83,31 +82,6 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let driver_hash = env.setup_create_contract(&driver_contract);
 
     setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash)
-}
-
-// REMOVE THIS with sdk_rs >= 0.17.4
-#[cfg(feature = "guest_test")]
-pub fn load_wasm_contract_instrumented<P>(path: P, please_instrument: bool) -> Contract
-where
-    P: AsRef<std::path::Path>,
-{
-    assert!(!please_instrument);
-
-    use crate::contract::ContractBlob;
-
-    let wasm = std::fs::read(path.as_ref()).unwrap_or_else(|e| {
-        panic!(
-            "{}: couldn't load wasm: {}",
-            path.as_ref().to_str().unwrap_or("?"),
-            e
-        )
-    });
-
-    let contract: ContractBlob = ContractBlob { data: BytesM(wasm) };
-
-    Contract::kWasmi {
-        wasmi_contract: contract,
-    }
 }
 
 #[rustfmt::skip]

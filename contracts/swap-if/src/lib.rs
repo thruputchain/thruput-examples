@@ -32,7 +32,7 @@ pub type RequestId = sdk::SHA256Hash;
 extern crate alloc;
 
 mod u256;
-pub use u256::U256;
+pub use u256::{U256, mul_div_u128};
 
 mod events;
 pub use events::*;
