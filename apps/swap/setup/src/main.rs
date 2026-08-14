@@ -124,15 +124,13 @@ async fn main() -> Result<()> {
     let cli_config = render_cli_config(&manifest, &rpc_url, &manifest_path, deployed.account_index);
     publish_outputs(&output_path, &app_env, &cli_config_path, &cli_config)?;
 
-    let process_requests = entrypoint_id(DRIVER.0, DRIVER.1, "process_requests");
+    let app_dir = output_path
+        .parent()
+        .ok_or("SWAP_APP_ENV must have a parent directory")?;
     let crank_command = format!(
-        "XDG_CONFIG_HOME={} {} call {} {} 0x --rpc-url {} --runtime-manifest {}",
-        shell_arg(&cli_config_home.display().to_string()),
+        "cd {} && GROUNDHOG_CLI={} bash scripts/crank-local.sh",
+        shell_arg(&app_dir.display().to_string()),
         shell_arg(&groundhog_cli.display().to_string()),
-        address(deployed.driver),
-        entrypoint(process_requests),
-        shell_arg(&rpc_url),
-        shell_arg(&manifest_path.display().to_string()),
     );
     println!(
         "{}",

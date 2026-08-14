@@ -7,7 +7,8 @@ The local development server injects a generated disposable private key while se
 ## Supported Stack
 
 - Node.js 20.19 or newer
-- Groundhog CLI 0.9.0 or newer
+- npm
+- Groundhog CLI packaging release 0.1.19 or newer
 - Groundhog SDK 0.19.0
 - Groundhog RPC and testkit 0.9.0
 - `@groundhogchain/client` 0.1.6
@@ -19,13 +20,22 @@ The Rust builds require access to the configured Groundhog crate registry.
 
 From the repository root:
 
+The `@groundhogchain` packages come from GitHub Packages. On a machine without existing package access, create a GitHub token with `read:packages`, then configure npm without committing the token:
+
+```sh
+export GITHUB_PACKAGES_TOKEN=your_token
+npm config set --location=user //npm.pkg.github.com/:_authToken "$GITHUB_PACKAGES_TOKEN"
+```
+
 ```sh
 npm --prefix apps/swap ci
 ```
 
+Transitive dependency deprecation warnings are non-blocking when installation succeeds.
+
 ## Start A Clean Node
 
-The workspace uses Groundhog RPC and testkit 0.9.0 with Groundhog SDK 0.19.0, and accepts Groundhog CLI 0.9.0 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
+The workspace uses Groundhog RPC and testkit 0.9.0 with Groundhog SDK 0.19.0, and accepts Groundhog CLI packaging release 0.1.19 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
 
 - RPC available at `http://127.0.0.1:9545`, unless overridden.
 - A runtime manifest from the running node.
@@ -134,9 +144,9 @@ Stop the node, remove its disposable ledger data using the node project's reset 
 
 The node is not running or `GROUNDHOG_RPC_URL` points to the wrong endpoint. Setup does not start the node.
 
-### Groundhog CLI 0.9.0 or newer is required
+### Groundhog CLI packaging release 0.1.19 or newer is required
 
-Set `GROUNDHOG_CLI` to a 0.9.0 or newer executable. The executable found first on `PATH` may be older.
+Set `GROUNDHOG_CLI` to a packaging release 0.1.19 or newer executable. The executable found first on `PATH` may be older.
 
 ### Setup completed deployment but `.env.local` is stale
 
