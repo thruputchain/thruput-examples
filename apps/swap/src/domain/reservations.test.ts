@@ -4,6 +4,7 @@ import {
   allowanceTargetForSwap,
   availableBalance,
   hasExecutionExposure,
+  invalidateSnapshotInferenceForOverlap,
   reservedInputForToken,
 } from "./reservations";
 import type { RequestRecord } from "@/transactions/request-collection";
@@ -44,6 +45,24 @@ describe("request reservations", () => {
     expect(availableBalance(20n, 8n)).toBe(12n);
     expect(availableBalance(8n, 8n)).toBe(0n);
     expect(availableBalance(5n, 8n)).toBe(0n);
+  });
+
+  it("permanently invalidates snapshot inference when exposures overlap", () => {
+    const first = {
+      ...request("queued", "swap", tokenA, 10n),
+      snapshotInferenceEligible: true,
+    };
+    const second = {
+      ...request("submitting", "swap", tokenA, 5n),
+      localId: "second",
+      snapshotInferenceEligible: true,
+    };
+
+    const overlapped = invalidateSnapshotInferenceForOverlap([first], second);
+
+    expect(overlapped.every((item) => !item.snapshotInferenceEligible)).toBe(true);
+    expect(overlapped[0]).toMatchObject({ localId: first.localId });
+    expect(overlapped[1]).toMatchObject({ localId: second.localId });
   });
 });
 

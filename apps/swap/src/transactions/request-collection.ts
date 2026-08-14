@@ -4,6 +4,7 @@ import type { AppConfig } from "@/config";
 import {
   clearOutstandingRequest,
   loadOutstandingRequest,
+  outstandingRequestKey,
   withOutstandingRequestLock,
   type OutstandingRequest,
 } from "@/transactions/outstanding-request";
@@ -101,6 +102,11 @@ export function requestCollectionKey(config: AppConfig): string {
   ].join(":");
 }
 
+export function hasLegacyOutstandingRequest(config: AppConfig): boolean {
+  return typeof window !== "undefined"
+    && window.localStorage.getItem(outstandingRequestKey(config)) !== null;
+}
+
 export function createRequestRecord(
   request: OutstandingRequest,
   options: { localId?: string; now?: number } = {},
@@ -134,6 +140,11 @@ export function loadRequestCollection(config: AppConfig): RequestRecord[] {
     }
   }
   return [];
+}
+
+// Call only while holding the request collection lock.
+export function loadRequestCollectionForUpdate(config: AppConfig): RequestRecord[] {
+  return loadOrMigrateRequestCollection(config);
 }
 
 export function saveRequestCollection(

@@ -81,9 +81,9 @@ describe("workflowReducer", () => {
     );
 
     expect(queued.status).toBe("queuedNotObserved");
-    expect(() => workflowReducer(queued, { type: "inputChanged" })).toThrow(
-      InvalidWorkflowTransition,
-    );
+    expect(workflowReducer(queued, { type: "inputChanged" })).toEqual({
+      status: "quoting",
+    });
     expect(
       workflowReducer(queued, { type: "confirmExternalCrank" }),
     ).toEqual(initialWorkflowState);

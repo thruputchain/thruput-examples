@@ -1,5 +1,6 @@
 import { I128_MAX, allowanceDifference } from "@/domain/allowance";
 import { formatAmount, parseAmount } from "@/domain/amount";
+import { availableBalance } from "@/domain/reservations";
 import {
   minimumAmountOut,
   QuoteArithmeticError,
@@ -54,19 +55,23 @@ export function deriveSwapQuote(
   direction: SwapDirection,
   input: string,
   slippageBps: bigint,
+  reservedInput = 0n,
 ): SwapQuoteResult {
   const tokens = tokensForDirection(snapshot, direction);
   const parsed = parseAmount(input, tokens.input.decimals);
   if (!parsed.ok) return { ok: false, error: parsed.error };
   if (parsed.value === 0n) return { ok: false, error: "zero" };
-  if (parsed.value > tokens.input.balance) {
+  if (parsed.value > availableBalance(tokens.input.balance, reservedInput)) {
     return { ok: false, error: "balance" };
   }
   if (parsed.value > I128_MAX) {
     return { ok: false, error: "signedRange" };
   }
 
-  const difference = allowanceDifference(parsed.value, tokens.input.allowance);
+  const difference = allowanceDifference(
+    reservedInput + parsed.value,
+    tokens.input.allowance,
+  );
   if (!difference.ok) return { ok: false, error: "signedRange" };
 
   const inputIndex = orderTokens(

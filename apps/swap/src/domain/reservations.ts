@@ -39,3 +39,23 @@ export function allowanceTargetForSwap(
   if (amountIn < 0n) throw new RangeError("Swap input cannot be negative");
   return reservedInputForToken(requests, tokenAddress) + amountIn;
 }
+
+export function invalidateSnapshotInferenceForOverlap(
+  requests: readonly RequestRecord[],
+  incoming: RequestRecord,
+): RequestRecord[] {
+  const overlaps = hasExecutionExposure(incoming)
+    && requests.some((request) =>
+      request.localId !== incoming.localId && hasExecutionExposure(request)
+    );
+  return requests
+    .filter(({ localId }) => localId !== incoming.localId)
+    .map((request) =>
+      overlaps && hasExecutionExposure(request)
+        ? { ...request, snapshotInferenceEligible: false }
+        : request
+    )
+    .concat(
+      overlaps ? { ...incoming, snapshotInferenceEligible: false } : incoming,
+    );
+}

@@ -43,8 +43,12 @@ export type RequestObservation =
       amountOut: bigint;
     };
 
+type ObservableRequest = Omit<OutstandingRequest, "status"> & {
+  status?: OutstandingRequest["status"] | RequestRecord["status"];
+};
+
 export interface RequestObserver {
-  scan(request: OutstandingRequest): Promise<RequestObservation | null>;
+  scan(request: ObservableRequest): Promise<RequestObservation | null>;
   scanAll?: (
     requests: readonly RequestRecord[],
   ) => Promise<RequestObservationBatch>;
@@ -54,8 +58,6 @@ export interface RequestObservationBatch {
   observations: RequestObservation[];
   observedThroughBlock: bigint | null;
 }
-
-type ObservableRequest = Omit<OutstandingRequest, "status">;
 
 export function createRequestObserver(
   config: AppConfig,
@@ -178,6 +180,7 @@ export function createRequestObserver(
     async scan(request) {
       const compatible: RequestRecord = {
         ...request,
+        status: request.status ?? "queued",
         localId: "single-request-scan",
         createdAt: 0,
         updatedAt: 0,

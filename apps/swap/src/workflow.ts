@@ -106,8 +106,6 @@ export function workflowReducer(
         "approving",
         "submitting",
         "indeterminate",
-        "queued",
-        "queuedNotObserved",
       ].includes(state.status)
       || (state.status === "error" && !state.retryAllowed)
     ) {
