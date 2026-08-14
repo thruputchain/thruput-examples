@@ -74,7 +74,7 @@ impl SwapFactory for Factory {
             driver,
         };
 
-        log_event(&SuiteCreated {
+        log_event(&PoolCreated {
             token0,
             token1,
             pair,

@@ -1,6 +1,6 @@
 //! The factory interface: deploys and wires a whole suite (cf. UniswapV2Factory).
 
-use crate::{Address, ERC20Error, SuiteCreated, SwapLibraryError, SwapPairError, SwapRequestError};
+use crate::{Address, ERC20Error, PoolCreated, SwapLibraryError, SwapPairError, SwapRequestError};
 use core::fmt;
 use sdk::*;
 
@@ -50,7 +50,7 @@ pub struct SwapHashes {
 #[contract(
     client = SwapFactoryClient,
     throws(SwapFactoryError, ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError),
-    emits(SuiteCreated)
+    emits(PoolCreated)
 )]
 pub trait SwapFactory {
     /// Configure the factory with the code hashes of the contracts it deploys

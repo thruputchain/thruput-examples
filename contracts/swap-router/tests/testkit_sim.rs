@@ -394,9 +394,6 @@ async fn swap_liquidity_multi_agent() {
     if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
     }
-    if let Ok(protocol) = std::env::var("HOGD_PROTOCOL_OVERRIDE") {
-        config.hogd_protocol = Some(protocol);
-    }
     if std::env::var("RUST_LOG").is_ok() {
         config.log_level = Some(groundhog_testkit::LogLevel::Info);
     }
