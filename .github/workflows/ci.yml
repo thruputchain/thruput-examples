@@ -54,6 +54,7 @@ jobs:
           done
 
       - name: Run `guest_test` tests
+        run: |
           for p in swap-driver swap-router; do
               cargo test -p "$p" -F guest_test
           done

@@ -33,7 +33,9 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples �
 
 ## Prerequisites
 
-- Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is picked up automatically by rustup, including the `wasm32-unknown-unknown` target)
+- Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
+  picked up automatically by rustup, including the `wasm32-unknown-unknown`
+  target).
 - The `groundhog` CLI, **version 0.1.19 or newer**:
 
   ```sh
@@ -63,7 +65,7 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 |------|---------|-----------|
 | **native** | `cargo test -p <crate>` | Contract compiled natively and run against the SDK's mock environment (the `dev` feature). Fast; panics unwind, so error paths are catchable. |
 | **rv32** | `groundhog test -p <crate>` | Contract compiled to RV32 and run by the mock executor — the same path as on-chain, where a fault is a real abort. Marked `#[ignore]` so plain `cargo test` skips it. |
-| **rpc** | `groundhog test --integration -p <crate>` | Real transactions signed and submitted over JSON-RPC to a local devnode.
+| **rpc** | `groundhog test --integration -p <crate>` | Real transactions signed and submitted over JSON-RPC to a local devnode. |
 
 ### What is valid to run on each contract
 
@@ -95,14 +97,13 @@ covered by the tests of the contracts that depend on it.
 
 Beyond the tests in the table, there are three specially-handled kinds of test:
 
-- **WASM.** `counter` and `erc20` each carry a `tests/test_wasm.rs` that mirrors their rv32 test,
-  but compiles the contract to WASM instead. Run with `groundhog test --target wasm -p <crate>`.
-- **Guest tests.** `swap-driver` and `swap-router` have a `guest_test` feature that swaps their
-  natively-linked collaborator contracts for built guest binaries — run them with
-  `cargo test -p <crate> -F guest_test`, which is what
-  [`scripts/swap-test-guest.sh`](scripts/swap-test-guest.sh) does. They depend on `swap-pair` having
-  been built for **wasm**: swap does not fit in `rv32a` yet, so both that script and
-  [`scripts/build-guest.sh`](scripts/build-guest.sh) special-case it.
+- **WASM.** `counter` and `erc20` each carry a `tests/test_wasm.rs` that
+  mirrors their rv32 test, but compiles the contract to WASM instead. Run with
+  `groundhog test --target wasm -p <crate>`.
+- **Guest tests.** `swap-driver` and `swap-router` have a `guest_test` feature
+  that swaps their natively-linked collaborator contracts for built guest
+  binaries — run them with `cargo test -p <crate> -F guest_test`, which is what
+  [`scripts/swap-test-guest.sh`](scripts/swap-test-guest.sh) does.
 - **Testkit simulation.**
   [`swap-router/tests/testkit_sim.rs`](contracts/swap-router/tests/testkit_sim.rs)
   drives the swap contracts on a live "devnode" via `groundhog-testkit`. It is
@@ -121,7 +122,7 @@ cargo test --all
 The other kinds need guest artifacts, so build them first:
 
 ```sh
-./scripts/build-guest.sh         # or: TARGET=wasm ./scripts/build-guest.sh
+./scripts/build-guest.sh
 ./scripts/swap-test-guest.sh     # guest tests for swap-driver and swap-router
 ./scripts/integration-tests.sh   # rpc tests
 ```

@@ -15,8 +15,10 @@ groundhog_build() {
     echo "::endgroup::"
 }
 
-for pkg in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select([.targets[].kind[]] | index("cdylib")) | .name'); do
+pkgs_with_cdylib='.packages[] | select([.targets[].kind[]] | index("cdylib")) | .name'
+contract_packages="$(cargo metadata --no-deps --format-version 1 | jq -r "$pkgs_with_cdylib")"
 
+for pkg in ${contract_packages} ; do
     cargo_args=()
     if [ -z "${CARGO_UNLOCK:-}" ]; then
         cargo_args+=(--locked)
