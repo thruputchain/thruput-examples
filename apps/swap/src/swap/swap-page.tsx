@@ -2,7 +2,6 @@ import {
   AlertCircleIcon,
   ArrowDownUpIcon,
   ChevronDownIcon,
-  InfoIcon,
   LockKeyholeIcon,
   RefreshCwIcon,
   Settings2Icon,
@@ -64,6 +63,7 @@ import {
   tokensForDirection,
   type SwapDirection,
 } from "@/swap/model";
+import { RequestList } from "@/swap/request-list";
 import type {
   PoolSnapshot,
   SnapshotReader,
@@ -73,6 +73,7 @@ import { usePoolSnapshot } from "@/swap/use-pool-snapshot";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 import {
   createRequestRecord,
+  dismissTerminalRequest,
   hasLegacyOutstandingRequest,
   loadRequestCollection,
   loadRequestCollectionForUpdate,
@@ -100,12 +101,6 @@ const SLIPPAGE_PRESETS = [10n, 50n, 100n] as const;
 const OBSERVATION_POLL_MS = 2_000;
 const POST_TIMEOUT_OBSERVATION_POLL_MS = 10_000;
 const OBSERVATION_TIMEOUT_MS = 120_000;
-
-interface DisplayExecutionOutcome {
-  result: RequestObservation;
-  input: TokenSnapshot;
-  output: TokenSnapshot;
-}
 
 export function SwapPage({
   config,
@@ -334,12 +329,15 @@ function SwapWorkspace({
   const [recoveryCheck, setRecoveryCheck] = useState(0);
   const [isCheckingRecovery, setIsCheckingRecovery] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
-  const [executionOutcome, setExecutionOutcome] =
-    useState<DisplayExecutionOutcome | null>(null);
+  const [executionOutcomes, setExecutionOutcomes] =
+    useState<RequestObservation[]>([]);
+  const knownRequestStatuses = useRef(
+    new Map(
+      initialRequestState.requests.map(({ localId, status }) => [localId, status]),
+    ),
+  );
   const actionInFlight = useRef(false);
   const workspaceMounted = useRef(false);
-  const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
   const recoveryAttempts = useRef(new Set<string>());
   const recoveryAttempt = useRef(0);
   const amountId = useId();
@@ -372,7 +370,7 @@ function SwapWorkspace({
   const nextAnnouncement = transactionAnnouncement({
     workflow,
     outstanding,
-    executionOutcome: executionOutcome?.result ?? null,
+    executionOutcomes,
     isAcquiringLock,
     allowanceDifference: quote.ok ? quote.allowanceDifference : null,
   });
@@ -380,6 +378,25 @@ function SwapWorkspace({
   useEffect(() => {
     setAnnouncementText(nextAnnouncement);
   }, [nextAnnouncement]);
+
+  useEffect(() => {
+    const observedIds = new Set(
+      executionOutcomes.map(({ requestId }) => requestId),
+    );
+    const newlyTerminal = requests.filter((request) => {
+      const previous = knownRequestStatuses.current.get(request.localId);
+      return previous !== request.status
+        && (isTerminalRequestStatus(request.status)
+          || request.status === "indeterminate")
+        && (request.requestId === null || !observedIds.has(request.requestId));
+    });
+    knownRequestStatuses.current = new Map(
+      requests.map(({ localId, status }) => [localId, status]),
+    );
+    if (newlyTerminal.length > 0) {
+      setAnnouncementText(terminalRequestAnnouncement(newlyTerminal));
+    }
+  }, [executionOutcomes, requests]);
 
   useEffect(() => {
     workspaceMounted.current = true;
@@ -733,27 +750,16 @@ function SwapWorkspace({
         if (!workspaceMounted.current) return;
         setRequests(next);
         setOutstanding(selectDisplayRequest(next));
-        const latestObservation = batch.observations.at(-1);
-        const applied = latestObservation === undefined
-          ? undefined
-          : next.find((request) =>
-              request.requestId === latestObservation.requestId
-              && (request.status === "executed" || request.status === "failed")
-            );
-        if (latestObservation !== undefined && applied !== undefined) {
-          const matched = scanned.find(
-            ({ requestId }) => requestId === latestObservation.requestId,
-          );
-          if (matched !== undefined) {
-            const latestSnapshot = snapshotRef.current;
-            const inputIsA = matched.criteria.tokenIn
-              === toHex0x(latestSnapshot.tokenA.address);
-            setExecutionOutcome({
-              result: latestObservation,
-              input: inputIsA ? latestSnapshot.tokenA : latestSnapshot.tokenB,
-              output: inputIsA ? latestSnapshot.tokenB : latestSnapshot.tokenA,
-            });
-          }
+        const scannedIds = new Set(scanned.map(({ requestId }) => requestId));
+        const appliedObservations = batch.observations.filter((observation) =>
+          scannedIds.has(observation.requestId)
+          && next.some((request) =>
+            request.requestId === observation.requestId
+            && isTerminalRequestStatus(request.status)
+          )
+        );
+        if (appliedObservations.length > 0) {
+          setExecutionOutcomes(appliedObservations);
           refreshSnapshot();
         }
       } catch {
@@ -810,7 +816,7 @@ function SwapWorkspace({
   function switchDirection() {
     if (actionInFlight.current) return;
     dispatch({ type: "inputChanged" });
-    setExecutionOutcome(null);
+    setExecutionOutcomes([]);
     setDirection((current) => (current === "aToB" ? "bToA" : "aToB"));
     setAmount("");
   }
@@ -818,14 +824,14 @@ function SwapWorkspace({
   function changeAmount(value: string) {
     if (actionInFlight.current) return;
     dispatch({ type: "inputChanged" });
-    setExecutionOutcome(null);
+    setExecutionOutcomes([]);
     setAmount(value);
   }
 
   function changeSlippage(value: string) {
     if (actionInFlight.current) return;
     dispatch({ type: "inputChanged" });
-    setExecutionOutcome(null);
+    setExecutionOutcomes([]);
     setSlippage(value);
   }
 
@@ -846,7 +852,7 @@ function SwapWorkspace({
     let workflowStarted = false;
     actionInFlight.current = true;
     setIsAcquiringLock(true);
-    setExecutionOutcome(null);
+    setExecutionOutcomes([]);
 
     const beginWorkflow = (needsApproval: boolean) => {
       workflowStarted = true;
@@ -1203,6 +1209,49 @@ function SwapWorkspace({
     }
   }
 
+  const applyRequestCollection = (next: RequestRecord[]) => {
+    const recovery = selectRecoveryRequest(next);
+    setRequests(next);
+    setOutstanding(recovery ?? selectDisplayRequest(next));
+    setIsRecoveryRecord(recovery !== null);
+  };
+  const reportRequestUpdateFailure = () => {
+    setRequestStorageError("Request history could not be updated safely.");
+  };
+
+  const dismissRequest = (localId: string) => {
+    void mutateRequestCollection(config, (current) =>
+      dismissTerminalRequest(current, localId)
+    ).then((next) => {
+      applyRequestCollection(next);
+      if (
+        workflow.status === "error"
+        && workflow.certainty === "committed"
+        && !next.some(({ status }) => status === "committedFailure")
+      ) {
+        dispatch({ type: "acknowledgeCommittedFailure" });
+      }
+    }).catch(reportRequestUpdateFailure);
+  };
+
+  const resolveUntrackedRequest = (localId: string) => {
+    void mutateRequestCollection(config, (current) =>
+      current.filter((request) =>
+        request.localId !== localId || request.status !== "queuedUntracked"
+      )
+    ).then(applyRequestCollection).catch(reportRequestUpdateFailure);
+  };
+
+  const confirmPreHashRecovery = (localId: string) => {
+    void mutateRequestCollection(config, (current) =>
+      current.filter((request) =>
+        request.localId !== localId
+        || request.transactionHash !== null
+        || !isBlockingRequest(request)
+      )
+    ).then(applyRequestCollection).catch(reportRequestUpdateFailure);
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <div
@@ -1337,40 +1386,9 @@ function SwapWorkspace({
                 isAcquiringLock,
               })}
             </Button>
-            <WorkflowStatus
-              workflow={workflow}
-              outstanding={outstanding}
-              isRecoveryRecord={isRecoveryRecord}
-              isCheckingRecovery={isCheckingRecovery}
-              executionOutcome={executionOutcome?.result ?? null}
-              input={executionOutcome?.input ?? tokens.input}
-              output={executionOutcome?.output ?? tokens.output}
-              onCheckRecovery={() => setRecoveryCheck((current) => current + 1)}
-              onConfirmCrank={() => {
-                const confirmedRequest = outstanding;
-                if (confirmedRequest === null) return;
-                void mutateRequestCollection(config, (current) =>
-                  current.filter(
-                    ({ localId }) => localId !== confirmedRequest.localId,
-                  )
-                ).then((next) => {
-                  setRequests(next);
-                  setOutstanding(selectDisplayRequest(next));
-                  setIsRecoveryRecord(false);
-                  if (
-                    workflow.status === "queued" ||
-                    workflow.status === "queuedNotObserved"
-                  ) {
-                    dispatch({ type: "confirmExternalCrank" });
-                  } else if (
-                    workflow.status === "error" &&
-                    workflow.certainty === "committed"
-                  ) {
-                    dispatch({ type: "acknowledgeCommittedFailure" });
-                  }
-                });
-              }}
-            />
+            {workflow.status === "error" && formOutstanding === null
+              ? <WorkflowStatus workflow={workflow} />
+              : null}
           </CardContent>
           <CardFooter className="flex-col items-stretch gap-3 p-4">
             <TransactionDetails
@@ -1382,6 +1400,17 @@ function SwapWorkspace({
             />
           </CardFooter>
         </Card>
+        <RequestList
+          requests={requests}
+          tokenA={snapshot.tokenA}
+          tokenB={snapshot.tokenB}
+          recoveryRequestId={isRecoveryRecord ? outstanding?.localId ?? null : null}
+          isCheckingRecovery={isCheckingRecovery}
+          onDismiss={dismissRequest}
+          onCheckRecovery={() => setRecoveryCheck((current) => current + 1)}
+          onConfirmRecovery={confirmPreHashRecovery}
+          onResolveUntracked={resolveUntrackedRequest}
+        />
       </div>
     </div>
   );
@@ -1864,187 +1893,13 @@ function isWorkflowLocked(workflow: WorkflowState): boolean {
   );
 }
 
-function WorkflowStatus({
-  workflow,
-  outstanding,
-  isRecoveryRecord,
-  isCheckingRecovery,
-  executionOutcome,
-  input,
-  output,
-  onCheckRecovery,
-  onConfirmCrank,
-}: {
-  workflow: WorkflowState;
-  outstanding: RequestRecord | null;
-  isRecoveryRecord: boolean;
-  isCheckingRecovery: boolean;
-  executionOutcome: RequestObservation | null;
-  input: TokenSnapshot;
-  output: TokenSnapshot;
-  onCheckRecovery: () => void;
-  onConfirmCrank: () => void;
-}) {
-  if (executionOutcome !== null) {
-    const succeeded = executionOutcome.kind !== "executionFailed";
-    const inferred = executionOutcome.kind === "executionInferred";
-    return (
-      <Alert
-        className="mt-4"
-        role={succeeded ? "group" : "alert"}
-        variant={succeeded ? "default" : "destructive"}
-      >
-        {succeeded ? (
-          <InfoIcon aria-hidden="true" />
-        ) : (
-          <AlertCircleIcon aria-hidden="true" />
-        )}
-        <AlertTitle>
-          {inferred
-            ? "Execution inferred from state"
-            : succeeded
-              ? "Execution observed"
-              : "Execution failed"}
-        </AlertTitle>
-        <AlertDescription>
-          {succeeded
-            ? `${formatTokenAmount(executionOutcome.amountIn, input.decimals, 8)} ${input.symbol} was exchanged for ${formatTokenAmount(executionOutcome.amountOut, output.decimals, 8)} ${output.symbol}.${inferred ? " This fallback was inferred from matching balance, allowance, and reserve changes in one snapshot because event querying was unavailable." : ""}`
-            : "The driver emitted RequestFailed. The queued request is terminal and was not inferred from an observation timeout."}
-          <span className="mt-1 block break-all font-mono text-xs">
-            {inferred ? "Enqueue transaction" : "Transaction"}{" "}
-            {executionOutcome.transactionHash}
-          </span>
-        </AlertDescription>
-      </Alert>
-    );
-  }
-  if (
-    outstanding === null &&
-    ["idle", "quoting", "readyToApprove", "readyToSwap"].includes(
-      workflow.status,
-    )
-  )
-    return null;
-
-  const hash =
-    "transactionHash" in workflow
-      ? workflow.transactionHash
-      : (outstanding?.transactionHash ?? null);
-  const workflowIsLive = ![
-    "idle",
-    "quoting",
-    "readyToApprove",
-    "readyToSwap",
-  ].includes(workflow.status);
-  const persistedStatusOverridesWorkflow =
-    outstanding?.status === "committedFailure" ||
-    outstanding?.status === "queuedNotObserved" ||
-    outstanding?.status === "queuedUntracked";
-  const status =
-    persistedStatusOverridesWorkflow
-      ? outstanding.status
-      : !isRecoveryRecord && workflowIsLive
-        ? workflow.status
-        : (outstanding?.status ?? workflow.status);
-  const canClearRecoveredPreHash =
-    outstanding?.transactionHash === null &&
-    isRecoveryRecord &&
-    (status === "approving" ||
-      status === "submitting" ||
-      status === "indeterminate") &&
-    ["idle", "quoting", "readyToApprove", "readyToSwap"].includes(
-      workflow.status,
-    );
-  const message =
-    status === "queued"
-      ? "The router accepted this request. Run bash scripts/crank-local.sh from apps/swap to process it; execution has not been observed yet."
-      : status === "queuedUntracked"
-        ? "The router accepted this request, but its request ID could not be decoded. Event matching is unavailable; confirm the queue is drained before clearing it."
-        : status === "queuedNotObserved"
-          ? "No matching execution event was found during two visible minutes. The request remains queued; absence of an event does not prove failure."
-          : status === "committedFailure"
-            ? "The transaction committed with a failed execution result. No automatic retry will be attempted."
-            : status === "approving"
-              ? isRecoveryRecord
-                ? "The approval started before this page was restored. Confirm its status before clearing this recovery guard."
-                : "Waiting for the exact allowance transaction to commit."
-              : status === "indeterminate" || status === "submitting"
-                ? "The transaction may still commit. Do not submit another transaction."
-                : workflow.status === "error"
-                  ? workflow.message
-                  : workflow.status === "approving"
-                    ? "Waiting for the exact allowance transaction to commit."
-                    : workflow.status === "submitting"
-                      ? "Waiting for the router to accept the swap request."
-                      : "The request remains queued and no execution event has been observed.";
-
-  const destructive = status === "committedFailure" || workflow.status === "error";
-  const assertive = destructive || status === "indeterminate";
+function WorkflowStatus({ workflow }: { workflow: WorkflowState }) {
+  if (workflow.status !== "error") return null;
   return (
-    <Alert
-      className="mt-4"
-      role={assertive ? "alert" : "group"}
-      variant={destructive ? "destructive" : "default"}
-    >
-      <InfoIcon aria-hidden="true" />
-      <AlertTitle>
-        {status === "submitting" && isRecoveryRecord
-          ? "Submission recovery required"
-          : actionLabelForStatus(status)}
-      </AlertTitle>
-      <AlertDescription>
-        {message}
-        {hash !== null ? (
-          <span className="mt-1 block break-all font-mono text-xs">
-            Transaction {hash}
-          </span>
-        ) : null}
-        {status === "queued" ||
-        status === "queuedNotObserved" ||
-        status === "queuedUntracked" ||
-        status === "committedFailure" ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={onConfirmCrank}
-          >
-            {status === "queued" ||
-            status === "queuedNotObserved" ||
-            status === "queuedUntracked"
-              ? "I cranked and confirmed the queue is drained"
-              : "Acknowledge committed failure"}
-          </Button>
-        ) : null}
-        {canClearRecoveredPreHash ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={onConfirmCrank}
-          >
-            I confirmed no transaction is pending or queued
-          </Button>
-        ) : null}
-        {isRecoveryRecord &&
-        hash !== null &&
-        ["approving", "submitting", "indeterminate"].includes(status) ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            disabled={isCheckingRecovery}
-            onClick={onCheckRecovery}
-          >
-            {isCheckingRecovery
-              ? "Checking transaction"
-              : "Check transaction status"}
-          </Button>
-        ) : null}
-      </AlertDescription>
+    <Alert className="mt-4" role="alert" variant="destructive">
+      <AlertCircleIcon aria-hidden="true" />
+      <AlertTitle>Transaction issue</AlertTitle>
+      <AlertDescription>{workflow.message}</AlertDescription>
     </Alert>
   );
 }
@@ -2052,18 +1907,26 @@ function WorkflowStatus({
 function transactionAnnouncement(params: {
   workflow: WorkflowState;
   outstanding: RequestRecord | null;
-  executionOutcome: RequestObservation | null;
+  executionOutcomes: readonly RequestObservation[];
   isAcquiringLock: boolean;
   allowanceDifference: bigint | null;
 }): string {
-  if (params.executionOutcome?.kind === "executionObserved") {
-    return "Execution observed.";
-  }
-  if (params.executionOutcome?.kind === "executionInferred") {
-    return "Execution inferred from updated balances and reserves.";
-  }
-  if (params.executionOutcome?.kind === "executionFailed") {
-    return "";
+  if (params.executionOutcomes.length > 0) {
+    const observed = params.executionOutcomes.filter(
+      ({ kind }) => kind === "executionObserved",
+    ).length;
+    const inferred = params.executionOutcomes.filter(
+      ({ kind }) => kind === "executionInferred",
+    ).length;
+    const failed = params.executionOutcomes.length - observed - inferred;
+    if (params.executionOutcomes.length === 1) {
+      if (observed === 1) return "Execution observed.";
+      if (inferred === 1) {
+        return "Execution inferred from updated balances and reserves.";
+      }
+      return "Queued request failed during execution.";
+    }
+    return `${params.executionOutcomes.length} request updates: ${observed} observed, ${inferred} inferred, ${failed} failed.`;
   }
   if (params.isAcquiringLock) {
     return params.allowanceDifference === 0n
@@ -2111,31 +1974,21 @@ function transactionAnnouncement(params: {
   }
 }
 
-function actionLabelForStatus(
-  status: WorkflowState["status"] | RequestRecord["status"],
-): string {
-  switch (status) {
-    case "approving":
-      return "Approving swap";
-    case "submitting":
-      return "Submitting swap";
-    case "queued":
-      return "Queued for execution";
-    case "queuedUntracked":
-      return "Queued; request ID unavailable";
-    case "queuedNotObserved":
-      return "Execution not observed";
-    case "indeterminate":
-      return "Outcome uncertain";
-    case "committedFailure":
-      return "Committed failure";
-    case "error":
-      return "Transaction issue";
-    case "executionObserved":
-      return "Execution observed";
-    default:
-      return "Transaction status";
+function terminalRequestAnnouncement(requests: readonly RequestRecord[]): string {
+  const indeterminate = requests.filter(
+    ({ status }) => status === "indeterminate",
+  ).length;
+  const executed = requests.filter(({ status }) => status === "executed").length;
+  const failed = requests.length - executed - indeterminate;
+  if (requests.length === 1) {
+    if (indeterminate === 1) {
+      return "Transaction outcome uncertain. Do not retry automatically.";
+    }
+    return executed === 1
+      ? "Request execution recorded."
+      : "Request failed.";
   }
+  return `${requests.length} request updates: ${executed} executed, ${failed} failed, ${indeterminate} uncertain.`;
 }
 
 function requestCriteria(
