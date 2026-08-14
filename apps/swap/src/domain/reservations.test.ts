@@ -73,6 +73,8 @@ function request(
     },
     createdAt: 1,
     updatedAt: 1,
+    observedThroughBlock: null,
+    snapshotInferenceEligible: false,
     execution: null,
   };
 }

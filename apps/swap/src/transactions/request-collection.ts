@@ -43,6 +43,8 @@ export interface RequestRecord extends Omit<OutstandingRequest, "status"> {
   status: RequestStatus;
   createdAt: number;
   updatedAt: number;
+  observedThroughBlock: bigint | null;
+  snapshotInferenceEligible: boolean;
   execution: RequestExecution | null;
 }
 
@@ -72,6 +74,8 @@ interface StoredRequest {
   criteria: RequestRecord["criteria"];
   createdAt: number;
   updatedAt: number;
+  observedThroughBlock?: string | null;
+  snapshotInferenceEligible?: boolean;
   execution:
     | {
         kind: "executed";
@@ -107,6 +111,8 @@ export function createRequestRecord(
     localId: options.localId ?? crypto.randomUUID(),
     createdAt: now,
     updatedAt: now,
+    observedThroughBlock: null,
+    snapshotInferenceEligible: request.observationBaseline !== null,
     execution: null,
   };
 }
@@ -281,6 +287,8 @@ function toStoredRequest(request: RequestRecord): StoredRequest {
     criteria: request.criteria,
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
+    observedThroughBlock: request.observedThroughBlock?.toString() ?? null,
+    snapshotInferenceEligible: request.snapshotInferenceEligible,
     execution: toStoredExecution(request.execution),
   };
 }
@@ -331,6 +339,11 @@ function fromStoredRequest(request: StoredRequest): RequestRecord {
     criteria: request.criteria,
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
+    observedThroughBlock: request.observedThroughBlock == null
+      ? null
+      : BigInt(request.observedThroughBlock),
+    snapshotInferenceEligible: request.snapshotInferenceEligible
+      ?? request.observationBaseline !== null,
     execution: request.execution === null
       ? null
       : request.execution.kind === "executed"
@@ -391,12 +404,24 @@ function isStoredRequest(value: unknown, config: AppConfig): value is StoredRequ
     || !isTimestamp(value.createdAt)
     || !isTimestamp(value.updatedAt)
     || value.updatedAt < value.createdAt
+    || !(value.observedThroughBlock === undefined
+      || value.observedThroughBlock === null
+      || isUnsignedInteger(value.observedThroughBlock))
+    || !(value.snapshotInferenceEligible === undefined
+      || typeof value.snapshotInferenceEligible === "boolean")
+    || (value.snapshotInferenceEligible === true
+      && value.observationBaseline === null)
     || !isExecution(value.execution)
   ) return false;
 
   const hasHash = value.transactionHash !== null;
   const hasReceipt = value.receiptBlock !== null;
   const hasRequestId = value.requestId !== null;
+  if (
+    value.observedThroughBlock != null
+    && (value.receiptBlock === null
+      || BigInt(value.observedThroughBlock) < BigInt(value.receiptBlock))
+  ) return false;
   if (
     value.execution !== null
     && (value.receiptBlock === null

@@ -186,6 +186,22 @@ describe("request collection", () => {
     expect(window.localStorage.getItem(requestCollectionKey(config))).not.toBeNull();
   });
 
+  it("loads collections written before observation progress was added", () => {
+    const original = request("queued", "queued", 1);
+    const stored = JSON.parse(JSON.stringify(saveAndReadRaw([original])));
+    delete stored.requests[0].observedThroughBlock;
+    delete stored.requests[0].snapshotInferenceEligible;
+    window.localStorage.setItem(requestCollectionKey(config), JSON.stringify(stored));
+
+    expect(loadRequestCollection(config)).toEqual([
+      {
+        ...original,
+        observedThroughBlock: null,
+        snapshotInferenceEligible: false,
+      },
+    ]);
+  });
+
   it("rejects zero-valued persisted intent", () => {
     const stored = JSON.parse(
       JSON.stringify(saveAndReadRaw([request("queued", "queued", 1)])),
