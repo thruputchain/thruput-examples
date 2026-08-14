@@ -2637,6 +2637,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "swap-setup"
+version = "0.1.0"
+dependencies = [
+ "groundhog-erc20-if",
+ "groundhog-erc20-metadata-if",
+ "groundhog-json-rpc-types",
+ "groundhog-signing",
+ "groundhog-testkit",
+ "hex",
+ "sdk",
+ "serde_json",
+ "swap-if",
+ "swap-pair",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"

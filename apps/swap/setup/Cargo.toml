@@ -1,0 +1,22 @@
+[package]
+name = "swap-setup"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[dependencies]
+groundhog-erc20-if = { workspace = true }
+groundhog-erc20-metadata-if = { workspace = true, features = ["alloc"] }
+groundhog-json-rpc-types = { workspace = true }
+groundhog-signing = { workspace = true }
+groundhog-testkit = { workspace = true }
+hex = { workspace = true }
+sdk = { workspace = true, features = ["alloc"] }
+serde_json = { workspace = true }
+swap-if = { path = "../../../contracts/swap-if" }
+swap-pair = { path = "../../../contracts/swap-pair" }
+tokio = { workspace = true }
+url = "2.5.8"
+
+[lints]
+clippy.result_large_err = "allow"

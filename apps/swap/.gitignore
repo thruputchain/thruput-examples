@@ -1,0 +1,6 @@
+.env*
+!.env.example
+.groundhog-config/
+.vite/
+dist/
+node_modules/
