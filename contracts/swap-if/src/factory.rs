@@ -1,6 +1,8 @@
-//! The factory interface: deploys and wires a whole suite (cf. UniswapV2Factory).
+//! The factory interface: deploys and wires a whole pool (cf. UniswapV2Factory).
 
-use crate::{Address, ERC20Error, PoolCreated, SwapLibraryError, SwapPairError, SwapRequestError};
+use crate::{
+    Address, Addresses, ERC20Error, PoolCreated, SwapLibraryError, SwapPairError, SwapRequestError,
+};
 use core::fmt;
 use sdk::*;
 
@@ -23,7 +25,7 @@ impl fmt::Display for SwapFactoryError {
 /// pair, returned by [`SwapFactory::create_pair`].
 #[contract_type]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Suite {
+pub struct Pool {
     pub pair: Address,
     pub liquidity_token: Address,
     pub handler: Address,
@@ -46,7 +48,7 @@ pub struct SwapHashes {
 /// `create_pair` deploys and initializes several sub-contracts, so its `throws`
 /// includes their error types.  (The router is a single, suite-wide contract
 /// deployed separately and pointed at the factory, so it is not part of a
-/// pair's [`Suite`].)
+/// pair's [`Pool`].)
 #[contract(
     client = SwapFactoryClient,
     throws(SwapFactoryError, ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError),
@@ -62,16 +64,17 @@ pub trait SwapFactory {
 
     /// Deploy and initialize a pair's contracts (LP token, pair, request
     /// handler, driver) for the given token pair, in one transaction.
-    fn create_pair(&mut self, token_a: &Address, token_b: &Address) -> Suite;
+    fn create_pair(&mut self, token_a: &Address, token_b: &Address) -> Pool;
 
-    /// The addresses [`create_pair`] would deploy the suite to for this token
+    /// The addresses [`create_pair`] would deploy the pool to for this token
     /// pair, computed deterministically without deploying anything (like a
     /// create2 prediction).  Useful for pre-funding the contracts on a
     /// cost-bearing network, where each must be solvent before it is
-    /// initialized.
+    /// initialized -- and, since the prediction holds for pools that already
+    /// exist, for resolving a created pool's contracts from its tokens.
     ///
     /// [`create_pair`]: Self::create_pair
-    fn predict_pair(&self, token_a: &Address, token_b: &Address) -> Suite;
+    fn pool_addresses(&self, token_a: &Address, token_b: &Address) -> Pool;
 
     /// The pair created for `token_a`/`token_b`, if any (order-independent).
     fn get_pair(&self, token_a: &Address, token_b: &Address) -> Option<Address>;
@@ -79,6 +82,13 @@ pub trait SwapFactory {
     /// The number of pairs created so far.
     fn all_pairs_length(&self) -> u32;
 
-    /// The pair at `index` in creation order, if in bounds.
-    fn pair_at(&self, index: u32) -> Option<Address>;
+    /// The two tokens swapped by the pool at `index` in creation order, if in
+    /// bounds, in the factory's canonical (ascending) order.
+    ///
+    /// Walking `0..all_pairs_length()` yields every pool's token pair, and
+    /// feeding each to [`pool_addresses`] yields that pool's contract
+    /// addresses -- so a client can enumerate the whole registry.
+    ///
+    /// [`pool_addresses`]: Self::pool_addresses
+    fn pair_at(&self, index: u32) -> Option<Addresses>;
 }

@@ -78,7 +78,7 @@ fn fund_deploy_target(env: &TestEnvironmentHandle, nonce: &SHA256Hash, hash: &SH
     env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
 }
 
-// Build the whole suite through the factory: deploy the A/B tokens, then have
+// Build the whole pool through the factory: deploy the A/B tokens, then have
 // a freshly deployed factory create the pair, LP token, request handler,
 // driver, and router in a single transaction.
 #[rustfmt::skip]
@@ -137,7 +137,7 @@ pub fn setup_contracts(
     // The factory deploys this pair's contracts (LP, pair, handler, driver)
     // inside `create_pair`, so pre-fund them at their predicted addresses first.
     let predicted = exec_tx(env, &TEST_ADDR, move || {
-        SwapFactoryClient::new(&factory_addr).predict_pair(&token_addrs[0], &token_addrs[1])
+        SwapFactoryClient::new(&factory_addr).pool_addresses(&token_addrs[0], &token_addrs[1])
     })?;
     for addr in [
         predicted.liquidity_token,
@@ -149,7 +149,7 @@ pub fn setup_contracts(
     }
 
     // Create this pair's contracts via the factory.
-    let suite = exec_tx(env, &TEST_ADDR, move || {
+    let pool = exec_tx(env, &TEST_ADDR, move || {
         SwapFactoryClient::new(&factory_addr).create_pair(&token_addrs[0], &token_addrs[1])
     })?;
 
@@ -158,10 +158,10 @@ pub fn setup_contracts(
     let env = env.clone();
     let ctx = Ctx {
         router_addr,
-        driver_addr: suite.driver,
-        request_handler_addr: suite.handler,
-        pair_addr: suite.pair,
-        liquidity_token: suite.liquidity_token,
+        driver_addr: pool.driver,
+        request_handler_addr: pool.handler,
+        pair_addr: pool.pair,
+        liquidity_token: pool.liquidity_token,
         token_addrs,
     };
 

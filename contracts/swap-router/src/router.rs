@@ -18,7 +18,7 @@ pub struct Router {
 #[contract(exports = "swap_router_exports")]
 impl SwapRouter for Router {
     // Initialize the router with the factory it resolves pairs through.  The
-    // factory creates a pair's suite on first use (see `Cfg::get_pair`).
+    // factory creates a pair's pool on first use (see `Cfg::get_pair`).
     fn initialize(&mut self, factory: &Address) {
         if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");

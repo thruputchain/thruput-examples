@@ -1,9 +1,9 @@
-//! Tests for the swap factory: one-transaction suite bring-up, the pair
+//! Tests for the swap factory: one-transaction pool bring-up, the pair
 //! registry, and the protocol fee flowing to the factory's `fee_to`.
 
 use groundhog_erc20_if::ERC20Client;
 use sdk::*;
-use swap_factory::{SwapFactoryClient, SwapFactoryClientError, SwapFactoryError};
+use swap_factory::{Addresses, SwapFactoryClient, SwapFactoryClientError, SwapFactoryError};
 use swap_if::SwapHashes;
 use swap_pair::SwapPairClient;
 use swap_pair::u256::U256;
@@ -40,7 +40,7 @@ struct Setup {
     token1: ContractAddress,
 }
 
-// Register the suite's contracts, deploy two funded tokens, and deploy+init a
+// Register the pool's contracts, deploy two funded tokens, and deploy+init a
 // factory with `fee_to = Some(FEE_ADDR)`.
 fn setup() -> Setup {
     let env = sdk::TestEnvironment::new(None); // use default cost model
@@ -85,7 +85,7 @@ fn setup() -> Setup {
     // Pre-fund the pair's contracts, which the factory deploys inside
     // `create_pair` (called by the tests).
     let predicted = exec_tx(&env, &DEPLOYER, || {
-        SwapFactoryClient::new(&factory).predict_pair(&token0, &token1)
+        SwapFactoryClient::new(&factory).pool_addresses(&token0, &token1)
     })
     .unwrap();
     for addr in [
@@ -106,19 +106,19 @@ fn setup() -> Setup {
 }
 
 #[test]
-fn create_pair_brings_up_suite() {
+fn create_pair_brings_up_pool() {
     let s = setup();
 
     // The addresses the factory predicts it will deploy to (used off-chain to
     // pre-fund the contracts before they are initialized).
     let predicted = exec_tx(&s.env, &DEPLOYER, || {
-        SwapFactoryClient::new(&s.factory).predict_pair(&s.token0, &s.token1)
+        SwapFactoryClient::new(&s.factory).pool_addresses(&s.token0, &s.token1)
     })
     .unwrap();
 
-    // The whole suite is deployed and wired in a single transaction.  If any
+    // The whole pool is deployed and wired in a single transaction.  If any
     // sub-initialization had failed, `create_pair` would have thrown.
-    let suite = exec_tx(&s.env, &DEPLOYER, || {
+    let pool = exec_tx(&s.env, &DEPLOYER, || {
         SwapFactoryClient::new(&s.factory).create_pair(&s.token0, &s.token1)
     })
     .unwrap();
@@ -126,21 +126,28 @@ fn create_pair_brings_up_suite() {
 
     // The prediction matched what was actually deployed -- the invariant the
     // testkit sim relies on to pre-fund the contracts.
-    assert_eq!(predicted, suite);
+    assert_eq!(predicted, pool);
 
     exec_tx(&s.env, &DEPLOYER, || {
         let factory = SwapFactoryClient::new(&s.factory);
 
         // Registry, order-independent.
-        assert_eq!(factory.get_pair(&s.token0, &s.token1), Some(suite.pair));
-        assert_eq!(factory.get_pair(&s.token1, &s.token0), Some(suite.pair));
+        assert_eq!(factory.get_pair(&s.token0, &s.token1), Some(pool.pair));
+        assert_eq!(factory.get_pair(&s.token1, &s.token0), Some(pool.pair));
         assert_eq!(factory.all_pairs_length(), 1);
-        assert_eq!(factory.pair_at(0), Some(suite.pair));
         assert_eq!(factory.fee_to(), Some(FEE_ADDR));
 
+        // Enumeration: the creation-ordered list yields the pool's two tokens
+        // (canonically ordered), which `pool_addresses` resolves back to the
+        // pool that was just created.  One past the end is `None`.
+        let tokens = factory.pair_at(0).expect("pair 0 in bounds");
+        assert_eq!(tokens, sorted([s.token0, s.token1]));
+        assert_eq!(factory.pool_addresses(&tokens[0], &tokens[1]), pool);
+        assert_eq!(factory.pair_at(1), None);
+
         // The pair adopted its LP token and is initialized (empty reserves).
-        let pair = SwapPairClient::new(&suite.pair);
-        assert_eq!(pair.liquidity_token(), suite.liquidity_token);
+        let pair = SwapPairClient::new(&pool.pair);
+        assert_eq!(pair.liquidity_token(), pool.liquidity_token);
         let (r0, r1, _) = pair.get_reserves();
         assert_eq!((r0, r1), (0, 0));
     })
@@ -163,13 +170,13 @@ fn create_pair_brings_up_suite() {
 fn fee_accrues_to_factory_fee_to() {
     let s = setup();
 
-    let suite = exec_tx(&s.env, &DEPLOYER, || {
+    let pool = exec_tx(&s.env, &DEPLOYER, || {
         SwapFactoryClient::new(&s.factory).create_pair(&s.token0, &s.token1)
     })
     .unwrap();
     s.env.advance_block();
 
-    let (pair, lp, t0, t1) = (suite.pair, suite.liquidity_token, s.token0, s.token1);
+    let (pair, lp, t0, t1) = (pool.pair, pool.liquidity_token, s.token0, s.token1);
 
     // Prime: the deployer adds equal liquidity.  This first liquidity event
     // records `k_last` but mints no fee (there is no prior k).
@@ -236,6 +243,12 @@ fn fee_accrues_to_factory_fee_to() {
     // factory dynamically.
     assert!(expected > U256::ZERO);
     assert_eq!(U256::from(fee), expected);
+}
+
+// The factory's canonical (ascending) token order, which its registry uses.
+fn sorted(tokens: Addresses) -> Addresses {
+    let [a, b] = tokens;
+    if a <= b { [a, b] } else { [b, a] }
 }
 
 // Run `f` in a transaction called from `addr`, returning its value on success.
