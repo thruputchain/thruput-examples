@@ -73,6 +73,7 @@ export type WorkflowEvent =
   | { type: "clearObserved" }
   | { type: "acknowledgeCommittedFailure" }
   | { type: "confirmExternalCrank" }
+  | { type: "recoveryCompleted" }
   | { type: "outstandingClearedElsewhere" };
 
 export const initialWorkflowState: WorkflowState = { status: "idle" };
@@ -99,6 +100,9 @@ export function workflowReducer(
     (state.status === "error" && !state.retryAllowed)
       ? initialWorkflowState
       : state;
+  }
+  if (event.type === "recoveryCompleted") {
+    return state.status === "indeterminate" ? initialWorkflowState : state;
   }
   if (event.type === "inputChanged") {
     if (

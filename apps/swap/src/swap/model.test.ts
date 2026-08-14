@@ -96,6 +96,20 @@ describe("deriveSwapQuote", () => {
     ).toEqual({ ok: false, error: "balance" });
   });
 
+  it("accepts safe excess allowance beyond the signed adjustment range", () => {
+    const pool = snapshot({
+      tokenA: {
+        ...snapshot().tokenA,
+        allowance: I128_MAX * 2n,
+      },
+    });
+
+    expect(deriveSwapQuote(pool, "aToB", "10", 50n)).toMatchObject({
+      ok: true,
+      allowanceDifference: 0n,
+    });
+  });
+
   it.each([
     ["", "empty"],
     ["abc", "malformed"],

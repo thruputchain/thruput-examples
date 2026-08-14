@@ -440,6 +440,61 @@ describe("local swap submission", () => {
     });
   });
 
+  it("continues when an earlier request fails and leaves safe excess allowance", async () => {
+    const user = userEvent.setup();
+    let allowance = 10_000_000n;
+    let firstFailed = false;
+    let write = 0;
+    const writer: WriteBoundary = {
+      execute: vi.fn(async () => {
+        write += 1;
+        if (write === 2) {
+          firstFailed = true;
+          allowance = 15_000_000n;
+        }
+        return committedSuccess(11n + BigInt(write), write === 3 ? 0xce : 0xcd);
+      }),
+    };
+    const failure: RequestObservation = {
+      kind: "executionFailed",
+      requestId: `0x${"cd".repeat(32)}`,
+      transactionHash: hash,
+      blockHeight: 13n,
+    };
+    const scan = vi.fn(async () => firstFailed ? failure : null);
+    const requestObserver: RequestObserver = {
+      scan,
+      scanAll: async () => ({
+        observations: firstFailed ? [failure] : [],
+        observedThroughBlock: 20n,
+      }),
+    };
+    renderApp(
+      async () =>
+        pool({
+          tokenA: { ...pool().tokenA, balance: 100_000_000n, allowance },
+          chainHeight: 20n,
+        }),
+      writer,
+      requestObserver,
+    );
+
+    await user.type(await screen.findByLabelText("YOU PAY"), "10");
+    await user.click(screen.getByRole("button", { name: "Swap" }));
+    await waitFor(() => expect(loadRequestCollection(config)).toHaveLength(1));
+    await user.type(screen.getByLabelText("YOU PAY"), "5");
+    await user.click(screen.getByRole("button", { name: "Approve & swap" }));
+
+    await waitFor(() => {
+      expect(writer.execute).toHaveBeenCalledTimes(3);
+      expect(loadRequestCollection(config).map(({ status }) => status)).toEqual([
+        "failed",
+        "queued",
+      ]);
+    });
+    expect(scan).not.toHaveBeenCalled();
+  });
+
   it("uses unreserved balances for validation and Max", async () => {
     const user = userEvent.setup();
     saveOutstandingRequest(config, {
@@ -537,6 +592,9 @@ describe("local swap submission", () => {
       "Transaction outcome uncertain. Do not retry automatically.",
     );
     expect(screen.getByRole("button", { name: "Outcome is uncertain" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Check transaction status" }),
+    ).toBeEnabled();
   });
 
   it("persists the signed hash before swap polling completes", async () => {
@@ -597,16 +655,31 @@ describe("local swap submission", () => {
     expect(writer.execute).toHaveBeenCalledTimes(1);
   });
 
-  it("persists an indeterminate approval across reloads", async () => {
+  it("recovers an indeterminate approval without a reload", async () => {
     const user = userEvent.setup();
+    let approvalCommitted = false;
     const writer: WriteBoundary = {
       execute: vi.fn().mockResolvedValue({
         kind: "indeterminate",
         hash,
         reason: "disconnect",
       } satisfies WriteResult),
+      observe: vi.fn(async () => {
+        approvalCommitted = true;
+        return committedSuccess(12n);
+      }),
     };
-    renderApp(async () => pool(), writer);
+    renderApp(
+      async () =>
+        pool({
+          tokenA: {
+            ...pool().tokenA,
+            allowance: approvalCommitted ? 10_000_000n : 0n,
+          },
+          chainHeight: 12n,
+        }),
+      writer,
+    );
 
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Approve & swap" }));
@@ -617,6 +690,16 @@ describe("local swap submission", () => {
       phase: "approval",
       transactionHash: hash,
     });
+    expect(
+      screen.getByRole("button", { name: "Check transaction status" }),
+    ).toBeEnabled();
+    await user.click(
+      screen.getByRole("button", { name: "Check transaction status" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Swap" })).toBeEnabled()
+    );
+    expect(loadOutstandingRequest(config)).toBeNull();
   });
 
   it("does not automatically recheck or rewrite a restored indeterminate request", async () => {
@@ -1393,5 +1476,94 @@ describe("local swap submission", () => {
 
     await waitFor(() => expect(writer.execute).toHaveBeenCalledTimes(1));
     expect(loadOutstandingRequest(config)?.status).toBe("queued");
+  });
+
+  it("serializes and retains two valid cross-tab submissions", async () => {
+    const user = userEvent.setup();
+    let previousLock = Promise.resolve();
+    Object.defineProperty(window.navigator, "locks", {
+      configurable: true,
+      value: {
+        request: async (
+          name: string,
+          options: LockOptions,
+          callback: (lock: Lock) => Promise<unknown>,
+        ) => {
+          const previous = previousLock;
+          let release = () => {};
+          previousLock = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          await previous;
+          try {
+            return await callback({ name, mode: options.mode ?? "exclusive" });
+          } finally {
+            release();
+          }
+        },
+      },
+    });
+    let allowance = 1_000_000n;
+    let resolveFirst!: (result: WriteResult) => void;
+    const firstWrite = new Promise<WriteResult>((resolve) => {
+      resolveFirst = resolve;
+    });
+    let write = 0;
+    const writer: WriteBoundary = {
+      execute: vi.fn(async () => {
+        write += 1;
+        if (write === 1) return firstWrite;
+        if (write === 2) allowance = 2_000_000n;
+        return committedSuccess(11n + BigInt(write), write === 3 ? 0xce : 0xcd);
+      }),
+    };
+    const readSnapshot = async () =>
+      pool({
+        tokenA: { ...pool().tokenA, allowance },
+        chainHeight: 20n,
+      });
+    const requestObserver: RequestObserver = {
+      scan: async () => null,
+      scanAll: async () => ({
+        observations: [],
+        observedThroughBlock: 20n,
+      }),
+    };
+    const first = render(
+      <App
+        config={config}
+        readSnapshot={readSnapshot}
+        requestObserver={requestObserver}
+        writeBoundary={writer}
+      />,
+    );
+    const second = render(
+      <App
+        config={config}
+        readSnapshot={readSnapshot}
+        requestObserver={requestObserver}
+        writeBoundary={writer}
+      />,
+    );
+    const firstView = within(first.container);
+    const secondView = within(second.container);
+
+    await user.type(await firstView.findByLabelText("YOU PAY"), "1");
+    await user.type(await secondView.findByLabelText("YOU PAY"), "1");
+    await user.click(firstView.getByRole("button", { name: "Swap" }));
+    await waitFor(() => expect(writer.execute).toHaveBeenCalledTimes(1));
+    await user.click(secondView.getByRole("button", { name: "Swap" }));
+    await act(async () => resolveFirst(committedSuccess(12n)));
+
+    await waitFor(() => {
+      expect(writer.execute).toHaveBeenCalledTimes(3);
+      expect(loadRequestCollection(config).map(({ status }) => status)).toEqual([
+        "queued",
+        "queued",
+      ]);
+    });
+    expect(new Set(
+      loadRequestCollection(config).map(({ requestId }) => requestId),
+    ).size).toBe(2);
   });
 });

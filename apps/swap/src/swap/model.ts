@@ -72,7 +72,9 @@ export function deriveSwapQuote(
     reservedInput + parsed.value,
     tokens.input.allowance,
   );
-  if (!difference.ok) return { ok: false, error: "signedRange" };
+  if (!difference.ok && tokens.input.allowance < reservedInput + parsed.value) {
+    return { ok: false, error: "signedRange" };
+  }
 
   const inputIndex = orderTokens(
     tokens.input.address,
@@ -110,7 +112,7 @@ export function deriveSwapQuote(
     amountOut: quote.amountOut,
     amountOutMin,
     priceImpactBps: quote.priceImpactBps,
-    allowanceDifference: difference.difference,
+    allowanceDifference: difference.ok ? difference.difference : 0n,
     reserveIn: reserves.reserveIn,
     reserveOut: reserves.reserveOut,
   };

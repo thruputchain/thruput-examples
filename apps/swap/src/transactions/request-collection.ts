@@ -229,6 +229,14 @@ export function isTerminalRequest(request: RequestRecord): boolean {
     || request.status === "failed";
 }
 
+export function hasExecutionExposure(request: RequestRecord): boolean {
+  return request.status === "submitting"
+    || (request.status === "indeterminate" && request.phase === "swap")
+    || request.status === "queued"
+    || request.status === "queuedNotObserved"
+    || request.status === "queuedUntracked";
+}
+
 function loadOrMigrateRequestCollection(config: AppConfig): RequestRecord[] {
   const current = loadRequestCollection(config);
   const legacy = loadOutstandingRequest(config);
@@ -246,7 +254,19 @@ function loadOrMigrateRequestCollection(config: AppConfig): RequestRecord[] {
       ? { localId: LEGACY_LOCAL_ID, now: Date.now() }
       : { now: Date.now() },
   );
-  const next = saveRequestCollection(config, [...current, migrated]);
+  const overlaps = hasExecutionExposure(migrated)
+    && current.some(hasExecutionExposure);
+  const next = saveRequestCollection(
+    config,
+    [
+      ...current.map((request) =>
+        overlaps && hasExecutionExposure(request)
+          ? { ...request, snapshotInferenceEligible: false }
+          : request
+      ),
+      overlaps ? { ...migrated, snapshotInferenceEligible: false } : migrated,
+    ],
+  );
   clearOutstandingRequest(config);
   return next;
 }

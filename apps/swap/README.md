@@ -77,10 +77,17 @@ Approve & swap
 -> Approving swap, when needed
 -> Submitting swap
 -> Queued for execution
--> Execution observed
+-> Submit another swap or run the external crank
+-> Executed or Failed, independently for each request
 ```
 
-A successful router transaction only queues a request. It does not execute the swap.
+A successful router transaction only queues a request. It does not execute the swap. The form remains available after enqueueing, so one account can submit multiple requests before a crank. The app permits only one approval or submission workflow at a time and serializes those workflows across tabs.
+
+Each quote uses the latest observed reserves. The app does not project earlier queued swaps into later quotes, promise queue order, or treat expected queued output as spendable. The handler recalculates output against live reserves during execution and fails a request when slippage protection cannot satisfy its submitted minimum output.
+
+The app reserves each unresolved input amount against that token's displayed balance. Before submission, it ensures the handler allowance covers the new input plus all unresolved exposure for the same token. Opposite swap directions maintain separate reservations and allowance targets.
+
+The request list stores unresolved requests and up to 50 recent terminal results in origin-scoped local storage. Each row shows its submitted input, minimum output, lifecycle status, and actual output when execution is recorded. Terminal history can be dismissed without affecting unresolved requests.
 
 ## Process The Queue
 
@@ -91,9 +98,9 @@ cd apps/swap
 GROUNDHOG_CLI=/absolute/path/to/groundhog bash scripts/crank-local.sh
 ```
 
-The script reads the generated driver address and entrypoint, validates the CLI profile and network, and invokes `process_requests()`. The app then observes either the request's `SwapEvent` or `RequestFailed` event.
+The script reads the generated driver address and entrypoint, validates the CLI profile and network, and invokes `process_requests()`. The app correlates each `SwapEvent` or `RequestFailed` event by request ID and updates requests independently. Crank guidance remains visible while any request still needs processing.
 
-Do not use **I cranked and confirmed the queue is drained** merely because the command was started. Use it only after independently confirming that the configured driver's queue was processed and no terminal event can be queried.
+If a queued request has no decodable request ID, automatic event correlation is unavailable. Use **Resolve manually** only after independently confirming that the relevant queue was drained, then complete the separate confirmation step. Tracked queued requests remain in the list until a matching terminal event arrives.
 
 ## Tests
 
@@ -127,7 +134,7 @@ bash -n apps/swap/scripts/crank-local.sh
 bash -n apps/swap/scripts/generate-contract-bindings.sh
 ```
 
-The live integration test mutates a prepared local ledger by approving, enqueueing, cranking, and executing one swap. Run it only for final acceptance:
+The live integration test mutates a prepared local ledger by enqueueing two swaps before one crank, correlating both terminal events, and checking aggregate balances, allowance, and reserves. Run it only for final acceptance:
 
 ```sh
 GROUNDHOG_CLI=/absolute/path/to/groundhog \
@@ -162,8 +169,8 @@ The generated CLI profile and `.env.local` belong to another runtime manifest or
 
 ### Outcome uncertain after restarting Vite
 
-The app preserves signed transactions in local storage when their receipt was not observed. Leave the request intact while the app checks its original hash. Do not submit another transaction unless the original is authoritatively invalid.
+The app preserves each signed transaction in local storage when its receipt was not observed. Leave the request intact while the app checks its original hash. Do not retry an uncertain transaction unless the original is authoritatively invalid.
 
 ### Queued, but execution was not observed
 
-Confirm that `crank-local.sh` completed against the current generated driver. Event absence is not proof of failure. After two visible minutes the app remains safely locked until execution is observed or you explicitly confirm that the relevant queue is drained.
+Confirm that `crank-local.sh` completed against the current generated driver. Event absence is not proof of failure. After two visible minutes the request remains reserved and observation continues. Other swaps may still be submitted when their input token has enough unreserved balance. Only an untracked request can be resolved manually, and only after explicit queue-drained confirmation.

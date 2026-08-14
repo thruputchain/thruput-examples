@@ -512,6 +512,7 @@ function SwapWorkspace({
               setRequests(next);
               setOutstanding(queuedRequest);
               setIsRecoveryRecord(false);
+              dispatch({ type: "recoveryCompleted" });
             }
             return;
           }
@@ -539,6 +540,7 @@ function SwapWorkspace({
                   setRequests(next);
                   setOutstanding(selectDisplayRequest(next));
                   setIsRecoveryRecord(false);
+                  dispatch({ type: "recoveryCompleted" });
                   refreshSnapshot();
                 }
                 return;
@@ -564,6 +566,7 @@ function SwapWorkspace({
               setRequests(next);
               setOutstanding(selectDisplayRequest(next));
               setIsRecoveryRecord(false);
+              dispatch({ type: "recoveryCompleted" });
             }
             return;
           }
@@ -590,6 +593,9 @@ function SwapWorkspace({
             if (!cancelled) {
               setRequests(next);
               setOutstanding(recoveredRequest);
+              if (result.kind === "committedFailure") {
+                dispatch({ type: "recoveryCompleted" });
+              }
             }
           }
         });
@@ -981,7 +987,12 @@ function SwapWorkspace({
             } else {
               removeRecord(approvalRequest);
             }
-            if (workspaceMounted.current) dispatchWriteFailure(dispatch, approval);
+            if (workspaceMounted.current) {
+              if (approval.kind === "indeterminate") {
+                setIsRecoveryRecord(true);
+              }
+              dispatchWriteFailure(dispatch, approval);
+            }
             return;
           }
 
@@ -1002,6 +1013,7 @@ function SwapWorkspace({
             };
             saveRecord(approvalRequest);
             if (workspaceMounted.current) {
+              setIsRecoveryRecord(true);
               dispatch({
                 type: "transactionIndeterminate",
                 transactionHash: approval.hash,
@@ -1032,7 +1044,7 @@ function SwapWorkspace({
         if (
           !freshQuote.ok
           || freshQuote.amountIn !== reviewedIntent.amountIn
-          || freshQuote.allowanceDifference !== 0n
+          || freshQuote.allowanceDifference > 0n
           || freshQuote.amountOut < reviewedIntent.amountOutMin
         ) {
           if (persisted !== null && persisted.phase === "approval") {
@@ -1155,7 +1167,12 @@ function SwapWorkspace({
         } else {
           removeRecord(submittingRequest);
         }
-        if (workspaceMounted.current) dispatchWriteFailure(dispatch, submission);
+        if (workspaceMounted.current) {
+          if (submission.kind === "indeterminate") {
+            setIsRecoveryRecord(true);
+          }
+          dispatchWriteFailure(dispatch, submission);
+        }
       });
     } catch (error) {
       const recoverable = persisted as RequestRecord | null;
@@ -1177,6 +1194,7 @@ function SwapWorkspace({
           if (workspaceMounted.current) {
             setRequests(next);
             setOutstanding(persisted ?? selectDisplayRequest(next));
+            setIsRecoveryRecord(true);
           }
         } catch {
           setRequestStorageError(
@@ -1249,7 +1267,10 @@ function SwapWorkspace({
         || request.transactionHash !== null
         || !isBlockingRequest(request)
       )
-    ).then(applyRequestCollection).catch(reportRequestUpdateFailure);
+    ).then((next) => {
+      applyRequestCollection(next);
+      dispatch({ type: "recoveryCompleted" });
+    }).catch(reportRequestUpdateFailure);
   };
 
   return (
@@ -2173,24 +2194,28 @@ async function observeAggregateAllowance(
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       let current = loadRequestCollection(config);
-      const observable = current.filter(isObservableRequest);
+      const observable = current.filter((request) =>
+        isObservableRequest(request) && request.criteria.tokenIn === tokenIn
+      );
       if (observable.length > 0) {
-        const settled = await Promise.allSettled(
-          observable.map((request) => requestObserver.scan(request)),
-        );
-        const observations = settled.flatMap((result) =>
-          result.status === "fulfilled" && result.value !== null
-            ? [result.value]
-            : []
-        );
-        if (observations.length > 0) {
+        try {
+          const batch = requestObserver.scanAll !== undefined
+            ? await requestObserver.scanAll(observable)
+            : {
+              observations: (await Promise.all(
+                observable.map((request) => requestObserver.scan(request)),
+              )).filter(
+                (observation): observation is RequestObservation =>
+                  observation !== null,
+              ),
+              observedThroughBlock: null,
+            };
           current = saveRequestCollection(
             config,
-            applyObservationBatch(current, observable, {
-              observations,
-              observedThroughBlock: null,
-            }),
+            applyObservationBatch(current, observable, batch),
           );
+        } catch {
+          // Allowance reads can still prove sufficient coverage if events lag.
         }
       }
       const snapshot = await readSnapshot();
@@ -2202,7 +2227,7 @@ async function observeAggregateAllowance(
           : null;
       if (
         snapshot.chainHeight >= receiptBlock &&
-        inputToken?.allowance === target
+        inputToken !== null && inputToken.allowance >= target
       ) {
         return current;
       }

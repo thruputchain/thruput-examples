@@ -1,12 +1,9 @@
-import type { RequestRecord } from "@/transactions/request-collection";
+import {
+  hasExecutionExposure,
+  type RequestRecord,
+} from "@/transactions/request-collection";
 
-export function hasExecutionExposure(request: RequestRecord): boolean {
-  return request.status === "submitting"
-    || (request.status === "indeterminate" && request.phase === "swap")
-    || request.status === "queued"
-    || request.status === "queuedNotObserved"
-    || request.status === "queuedUntracked";
-}
+export { hasExecutionExposure } from "@/transactions/request-collection";
 
 export function reservedInputForToken(
   requests: readonly RequestRecord[],

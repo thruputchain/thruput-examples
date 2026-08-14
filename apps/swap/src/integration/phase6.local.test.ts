@@ -12,10 +12,12 @@ import { loadAppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { extractAcceptedRequestId } from "@/contracts/swap-event";
+import { allowanceDifference } from "@/domain/allowance";
 import { orientReserves, orderTokens } from "@/domain/tokens";
 import { deriveSwapQuote } from "@/swap/model";
 import { createSnapshotReader } from "@/swap/snapshot";
 import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
+import { createRequestRecord } from "@/transactions/request-collection";
 import { createRequestObserver } from "@/transactions/request-observer";
 
 const runLocalIntegration = import.meta.env.MODE === "local-integration";
@@ -24,7 +26,7 @@ const appDirectory = process.cwd();
 const crankScript = path.join(appDirectory, "scripts", "crank-local.sh");
 
 describe.skipIf(!runLocalIntegration)("local swap integration", () => {
-  it("approves, enqueues, cranks, observes execution, and refreshes state", async () => {
+  it("enqueues two requests before one crank and observes both executions", async () => {
     if (process.env.GROUNDHOG_CLI === undefined) {
       throw new Error(
         "GROUNDHOG_CLI must point to Groundhog CLI packaging release 0.1.19 or newer",
@@ -49,50 +51,107 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
     const amount = "0.001";
 
     const initial = await readSnapshot();
-    const initialQuote = deriveSwapQuote(initial, "aToB", amount, 50n);
-    expect(initialQuote.ok).toBe(true);
-    if (!initialQuote.ok) return;
+    const firstPreview = deriveSwapQuote(initial, "aToB", amount, 500n);
+    expect(firstPreview.ok).toBe(true);
+    if (!firstPreview.ok) return;
 
-    if (initialQuote.allowanceDifference !== 0n) {
+    if (firstPreview.allowanceDifference !== 0n) {
       const approval = await writer.execute(
         buildApprovalTarget(
           config.tokenAAddress,
           config.handlerAddress,
-          initialQuote.allowanceDifference,
+          firstPreview.allowanceDifference,
         ),
       );
       expect(approval.kind).toBe("committedSuccess");
     }
 
-    const approved = await readSnapshot();
-    const approvedQuote = deriveSwapQuote(approved, "aToB", amount, 50n);
-    expect(approvedQuote.ok).toBe(true);
-    if (!approvedQuote.ok) return;
-    expect(approved.tokenA.allowance).toBe(approvedQuote.amountIn);
+    const firstApproved = await readSnapshot();
+    const firstQuote = deriveSwapQuote(firstApproved, "aToB", amount, 500n);
+    expect(firstQuote.ok).toBe(true);
+    if (!firstQuote.ok) return;
+    expect(firstApproved.tokenA.allowance).toBe(firstQuote.amountIn);
 
-    const enqueue = await writer.execute(
+    const firstEnqueue = await writer.execute(
       buildExactInputSwapTarget(config.routerAddress, {
-        amountIn: approvedQuote.amountIn,
-        amountOutMin: approvedQuote.amountOutMin,
+        amountIn: firstQuote.amountIn,
+        amountOutMin: firstQuote.amountOutMin,
         tokenIn: config.tokenAAddress,
         tokenOut: config.tokenBAddress,
         recipient: config.accountAddress,
       }),
     );
-    expect(enqueue.kind).toBe("committedSuccess");
-    if (enqueue.kind !== "committedSuccess") return;
+    expect(firstEnqueue.kind).toBe("committedSuccess");
+    if (firstEnqueue.kind !== "committedSuccess") return;
+
+    const firstQueued = await readSnapshot();
+    const secondPreview = deriveSwapQuote(
+      firstQueued,
+      "aToB",
+      amount,
+      500n,
+      firstQuote.amountIn,
+    );
+    expect(secondPreview.ok).toBe(true);
+    if (!secondPreview.ok) return;
+    const aggregateTarget = firstQuote.amountIn + secondPreview.amountIn;
+    const aggregateDifference = allowanceDifference(
+      aggregateTarget,
+      firstQueued.tokenA.allowance,
+    );
+    expect(aggregateDifference.ok).toBe(true);
+    if (!aggregateDifference.ok) return;
+    if (aggregateDifference.difference !== 0n) {
+      const approval = await writer.execute(
+        buildApprovalTarget(
+          config.tokenAAddress,
+          config.handlerAddress,
+          aggregateDifference.difference,
+        ),
+      );
+      expect(approval.kind).toBe("committedSuccess");
+    }
+
+    const aggregateApproved = await readSnapshot();
+    expect(aggregateApproved.tokenA.allowance).toBe(aggregateTarget);
+    const secondQuote = deriveSwapQuote(
+      aggregateApproved,
+      "aToB",
+      amount,
+      500n,
+      firstQuote.amountIn,
+    );
+    expect(secondQuote.ok).toBe(true);
+    if (!secondQuote.ok) return;
+    expect(secondQuote.allowanceDifference).toBe(0n);
+
+    const secondEnqueue = await writer.execute(
+      buildExactInputSwapTarget(config.routerAddress, {
+        amountIn: secondQuote.amountIn,
+        amountOutMin: secondQuote.amountOutMin,
+        tokenIn: config.tokenAAddress,
+        tokenOut: config.tokenBAddress,
+        recipient: config.accountAddress,
+      }),
+    );
+    expect(secondEnqueue.kind).toBe("committedSuccess");
+    if (secondEnqueue.kind !== "committedSuccess") return;
 
     const queued = await readSnapshot();
-    expect(queued.tokenA.allowance).toBe(approvedQuote.amountIn);
-    const requestId = toHex0x(
-      extractAcceptedRequestId(enqueue.receipt, config.driverAddress),
+    expect(queued.tokenA.allowance).toBe(aggregateTarget);
+    const firstRequestId = toHex0x(
+      extractAcceptedRequestId(firstEnqueue.receipt, config.driverAddress),
     );
+    const secondRequestId = toHex0x(
+      extractAcceptedRequestId(secondEnqueue.receipt, config.driverAddress),
+    );
+    expect(secondRequestId).not.toBe(firstRequestId);
     const inputIndex = orderTokens(
       config.tokenAAddress,
       config.tokenBAddress,
     ).inputIndex;
-    const approvedReserves = orientReserves(
-      [approved.reserve0, approved.reserve1],
+    const queuedReserves = orientReserves(
+      [queued.reserve0, queued.reserve1],
       inputIndex,
     );
 
@@ -101,43 +160,74 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
       env: process.env,
     });
 
-    const observation = await createRequestObserver(config).scan({
-      status: "queued",
-      phase: "swap",
-      intent: {
-        amountIn: approvedQuote.amountIn,
-        amountOutMin: approvedQuote.amountOutMin,
-      },
-      transactionHash: enqueue.hash,
-      receiptBlock: enqueue.receipt.height,
-      requestId,
-      visibleObservationMs: 0,
-      observationBaseline: {
-        chainHeight: approved.chainHeight,
-        inputBalance: approved.tokenA.balance,
-        outputBalance: approved.tokenB.balance,
-        inputAllowance: approved.tokenA.allowance,
-        reserveIn: approvedReserves.reserveIn,
-        reserveOut: approvedReserves.reserveOut,
-      },
-      criteria: {
-        pairAddress: toHex0x(config.pairAddress),
-        handlerAddress: toHex0x(config.handlerAddress),
-        driverAddress: toHex0x(config.driverAddress),
-        recipient: toHex0x(config.accountAddress),
-        tokenIn: toHex0x(config.tokenAAddress),
-        tokenOut: toHex0x(config.tokenBAddress),
-      },
-    });
-    expect(observation?.kind).toBe("executionObserved");
-    if (observation?.kind !== "executionObserved") return;
+    const criteria = {
+      pairAddress: toHex0x(config.pairAddress),
+      handlerAddress: toHex0x(config.handlerAddress),
+      driverAddress: toHex0x(config.driverAddress),
+      recipient: toHex0x(config.accountAddress),
+      tokenIn: toHex0x(config.tokenAAddress),
+      tokenOut: toHex0x(config.tokenBAddress),
+    };
+    const requests = [
+      createRequestRecord({
+        status: "queued",
+        phase: "swap",
+        intent: {
+          amountIn: firstQuote.amountIn,
+          amountOutMin: firstQuote.amountOutMin,
+        },
+        transactionHash: firstEnqueue.hash,
+        receiptBlock: firstEnqueue.receipt.height,
+        requestId: firstRequestId,
+        visibleObservationMs: 0,
+        observationBaseline: null,
+        criteria,
+      }),
+      createRequestRecord({
+        status: "queued",
+        phase: "swap",
+        intent: {
+          amountIn: secondQuote.amountIn,
+          amountOutMin: secondQuote.amountOutMin,
+        },
+        transactionHash: secondEnqueue.hash,
+        receiptBlock: secondEnqueue.receipt.height,
+        requestId: secondRequestId,
+        visibleObservationMs: 0,
+        observationBaseline: null,
+        criteria,
+      }),
+    ];
+    const observer = createRequestObserver(config);
+    expect(observer.scanAll).toBeDefined();
+    if (observer.scanAll === undefined) return;
+    const batch = await observer.scanAll(requests);
+    expect(batch.observations).toHaveLength(2);
+    expect(new Set(batch.observations.map(({ requestId }) => requestId))).toEqual(
+      new Set([firstRequestId, secondRequestId]),
+    );
+    expect(batch.observations.every(({ kind }) =>
+      kind === "executionObserved"
+    )).toBe(true);
+    const observations = batch.observations.filter(
+      (observation) => observation.kind === "executionObserved",
+    );
+    if (observations.length !== 2) return;
+    const totalAmountIn = observations.reduce(
+      (total, observation) => total + observation.amountIn,
+      0n,
+    );
+    const totalAmountOut = observations.reduce(
+      (total, observation) => total + observation.amountOut,
+      0n,
+    );
 
     const executed = await readSnapshot();
     expect(executed.tokenA.balance).toBe(
-      approved.tokenA.balance - observation.amountIn,
+      queued.tokenA.balance - totalAmountIn,
     );
     expect(executed.tokenB.balance).toBe(
-      approved.tokenB.balance + observation.amountOut,
+      queued.tokenB.balance + totalAmountOut,
     );
     expect(executed.tokenA.allowance).toBe(0n);
     const executedReserves = orientReserves(
@@ -145,10 +235,10 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
       inputIndex,
     );
     expect(executedReserves.reserveIn).toBe(
-      approvedReserves.reserveIn + observation.amountIn,
+      queuedReserves.reserveIn + totalAmountIn,
     );
     expect(executedReserves.reserveOut).toBe(
-      approvedReserves.reserveOut - observation.amountOut,
+      queuedReserves.reserveOut - totalAmountOut,
     );
   }, 90_000);
 });

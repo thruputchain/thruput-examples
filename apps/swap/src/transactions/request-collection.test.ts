@@ -148,6 +148,41 @@ describe("request collection", () => {
     ]);
   });
 
+  it("disables snapshot inference when migration creates overlapping exposure", async () => {
+    const baseline = {
+      chainHeight: 10n,
+      inputBalance: 100n,
+      outputBalance: 100n,
+      inputAllowance: 10n,
+      reserveIn: 1_000n,
+      reserveOut: 1_000n,
+    };
+    const existing = {
+      ...request("existing", "queued", 1),
+      observationBaseline: baseline,
+      snapshotInferenceEligible: true,
+    };
+    saveRequestCollection(config, [existing]);
+    saveOutstandingRequest(config, {
+      status: "queued",
+      phase: "swap",
+      intent: { amountIn: 5n, amountOutMin: 4n },
+      transactionHash: hash(20),
+      receiptBlock: 13n,
+      requestId: hash(21),
+      visibleObservationMs: 0,
+      observationBaseline: baseline,
+      criteria,
+    });
+
+    const migrated = await migrateRequestCollection(config);
+
+    expect(migrated).toHaveLength(2);
+    expect(migrated.every(({ snapshotInferenceEligible }) =>
+      !snapshotInferenceEligible
+    )).toBe(true);
+  });
+
   it("preserves legacy storage when migration cannot be written", async () => {
     saveOutstandingRequest(config, {
       status: "queued",

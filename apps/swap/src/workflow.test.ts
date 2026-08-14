@@ -148,6 +148,9 @@ describe("workflowReducer", () => {
       expect(() => workflowReducer(state, { type: "inputChanged" })).toThrow(
         InvalidWorkflowTransition,
       );
+      expect(
+        workflowReducer(state, { type: "recoveryCompleted" }),
+      ).toEqual(initialWorkflowState);
     },
   );
 
