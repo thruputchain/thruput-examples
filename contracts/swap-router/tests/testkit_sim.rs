@@ -33,7 +33,7 @@ use groundhog_testkit::xdr::types::ContractAddress;
 use groundhog_testkit::{
     Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Result, Scenario, xdrs,
 };
-use swap_if::{Suite, SwapHashes};
+use swap_if::{Pool, SwapHashes};
 
 /// An alias to match the contracts' `Address` type.
 type Address = ContractAddress;
@@ -188,18 +188,18 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     // for its init writes. Pre-funding the deterministic addresses is what
     // makes that possible.
     let (t0, t1) = (token0.address(), token1.address());
-    let suite: Suite = factory.view(ctx, "predict_pair", &(t0, t1), None).await?;
-    fund(ctx, native, suite.liquidity_token).await?;
-    fund(ctx, native, suite.pair).await?;
-    fund(ctx, native, suite.handler).await?;
-    fund(ctx, native, suite.driver).await?;
+    let pool: Pool = factory.view(ctx, "pool_addresses", &(t0, t1), None).await?;
+    fund(ctx, native, pool.liquidity_token).await?;
+    fund(ctx, native, pool.pair).await?;
+    fund(ctx, native, pool.handler).await?;
+    fund(ctx, native, pool.driver).await?;
 
     Ok(Swap {
         token0,
         token1,
-        lp: erc20(suite.liquidity_token),
-        handler: Contract::new(suite.handler, HANDLER.0, HANDLER.1),
-        driver: Contract::new(suite.driver, DRIVER.0, DRIVER.1),
+        lp: erc20(pool.liquidity_token),
+        handler: Contract::new(pool.handler, HANDLER.0, HANDLER.1),
+        driver: Contract::new(pool.driver, DRIVER.0, DRIVER.1),
         router,
     })
 }
@@ -209,8 +209,8 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
 ///
 /// Crucially, the pair does not exist yet: this first `add_liquidity` is what
 /// creates it (the router calls `factory.create_pair`, deploying and
-/// initializing the whole pair suite inline).  That deployment can only pay for
-/// its storage because `deploy_and_init` pre-funded the suite's deterministic
+/// initializing the whole pool inline).  That deployment can only pay for
+/// its storage because `deploy_and_init` pre-funded the pool's deterministic
 /// addresses -- so this exercises whether the HOG-funding structure supports a
 /// router-triggered pair creation.
 async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
@@ -393,9 +393,6 @@ async fn swap_liquidity_multi_agent() {
     config.dev_account_tokens = 100_000_000_000;
     if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
-    }
-    if let Ok(protocol) = std::env::var("HOGD_PROTOCOL_OVERRIDE") {
-        config.hogd_protocol = Some(protocol);
     }
     if std::env::var("RUST_LOG").is_ok() {
         config.log_level = Some(groundhog_testkit::LogLevel::Info);

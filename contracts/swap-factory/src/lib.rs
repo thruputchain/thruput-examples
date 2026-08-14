@@ -2,7 +2,7 @@
 //!
 //! Modeled on [UniswapV2Factory]: it holds the protocol `fee_to` (which each
 //! pair consults via [`swap_if::SwapFactory::fee_to`]) and a registry of the
-//! pairs it has created.  Its [`create_pair`] deploys a whole suite -- LP
+//! pairs it has created.  Its [`create_pair`] deploys a whole pool -- LP
 //! token, pair, request handler, driver, and router -- and wires them together
 //! in a single transaction.
 //!
@@ -22,6 +22,6 @@ mod factory;
 pub use events::*;
 pub use factory::Factory;
 pub use swap_if::{
-    Address, Suite, SwapFactory, SwapFactoryClient, SwapFactoryClientError, SwapFactoryError,
-    SwapHashes,
+    Address, Addresses, Pool, SwapFactory, SwapFactoryClient, SwapFactoryClientError,
+    SwapFactoryError, SwapHashes,
 };

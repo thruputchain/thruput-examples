@@ -23,7 +23,7 @@ use groundhog_testkit::{
 };
 use sdk::Event;
 use sdk::exn::RawException;
-use swap_if::{RequestId, Suite, SwapHashes, SwapPairError};
+use swap_if::{Pool, RequestId, SwapHashes, SwapPairError};
 use swap_pair::events::SwapEvent;
 use url::Url;
 
@@ -178,26 +178,21 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
     fund(ctx, &native, router.address()).await?;
     router.call(ctx, "initialize", &factory.address()).await?;
 
-    let suite: Suite = factory
+    let pool: Pool = factory
         .view(
             ctx,
-            "predict_pair",
+            "pool_addresses",
             &(token_a.address(), token_b.address()),
             None,
         )
         .await?;
-    for target in [
-        suite.liquidity_token,
-        suite.pair,
-        suite.handler,
-        suite.driver,
-    ] {
+    for target in [pool.liquidity_token, pool.pair, pool.handler, pool.driver] {
         fund(ctx, &native, target).await?;
     }
 
-    let handler = Contract::new(suite.handler, HANDLER.0, HANDLER.1);
-    let driver = Contract::new(suite.driver, DRIVER.0, DRIVER.1);
-    let pair = Contract::new(suite.pair, PAIR.0, PAIR.1);
+    let handler = Contract::new(pool.handler, HANDLER.0, HANDLER.1);
+    let driver = Contract::new(pool.driver, DRIVER.0, DRIVER.1);
+    let pair = Contract::new(pool.pair, PAIR.0, PAIR.1);
     let token_a_allowance = i128::try_from(LIQUIDITY_AMOUNT + SWAP_AMOUNTS[0])?;
     let token_b_allowance = i128::try_from(LIQUIDITY_AMOUNT + SWAP_AMOUNTS[1])?;
     token_a
@@ -261,8 +256,8 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
     verify_reserve_balances(ctx, &pair, &token_a, &token_b).await?;
     verify_swap_events(
         ctx,
-        suite.pair,
-        suite.handler,
+        pool.pair,
+        pool.handler,
         wallet,
         token_a.address(),
         token_b.address(),
@@ -286,10 +281,10 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
     let token_a_balance: Amount = token_a.view(ctx, "get_balance_of", &wallet, None).await?;
     let token_b_balance: Amount = token_b.view(ctx, "get_balance_of", &wallet, None).await?;
     let allowance_a: Amount = token_a
-        .view(ctx, "allowance", &(wallet, suite.handler), None)
+        .view(ctx, "allowance", &(wallet, pool.handler), None)
         .await?;
     let allowance_b: Amount = token_b
-        .view(ctx, "allowance", &(wallet, suite.handler), None)
+        .view(ctx, "allowance", &(wallet, pool.handler), None)
         .await?;
     ensure(
         token_a_balance > 0 && token_b_balance > 0,
@@ -307,10 +302,10 @@ async fn setup(ctx: &mut AgentContext) -> Result<Deployment> {
         token_b: token_b.address(),
         factory: factory.address(),
         router: router.address(),
-        pair: suite.pair,
-        liquidity_token: suite.liquidity_token,
-        handler: suite.handler,
-        driver: suite.driver,
+        pair: pool.pair,
+        liquidity_token: pool.liquidity_token,
+        handler: pool.handler,
+        driver: pool.driver,
         token_a_balance,
         token_b_balance,
         reserve_a,

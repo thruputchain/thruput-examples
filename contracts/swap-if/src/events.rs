@@ -119,7 +119,7 @@ impl SyncEvent {
 /// Emitted by the factory when it creates a pair's contracts (cf. UniswapV2's
 /// `PairCreated`).
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SuiteCreated<'a> {
+pub struct PoolCreated<'a> {
     #[topic]
     pub token0: &'a Address,
 

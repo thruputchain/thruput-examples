@@ -14,7 +14,9 @@ build() {
     groundhog build -p swap-handler
 }
 
-build
+if [ ! -v NO_BUILD ]; then
+    build
+fi
 
 # export RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info"
 export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$(realpath target/groundhog)"

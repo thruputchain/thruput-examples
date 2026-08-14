@@ -12,5 +12,5 @@ groundhog build -p swap-driver
 groundhog build -p swap-router
 groundhog build -p swap-handler
 
-cargo test -p swap-driver -F guest_test -- --show-output
-cargo test -p swap-router -F guest_test -- --show-output
+cargo test -p swap-driver -F guest_test
+cargo test -p swap-router -F guest_test
