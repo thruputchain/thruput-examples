@@ -57,9 +57,23 @@ pub trait SwapPair {
     /// (`[price0, price1]`), for use as a time-weighted-average-price oracle.
     fn get_cumulative_prices(&self) -> [U256; 2];
 
-    /// Mint LP tokens to `to`.  `request_id` tags the resulting [`MintEvent`]
-    /// for lifecycle tracking (`None` for a direct call, not via a request).
-    fn mint_lp(&mut self, to: &Address, request_id: Option<RequestId>) -> Amount;
+    /// Mint LP tokens to `receiver`, in exchange for the tokens `sender`
+    /// deposited into this pair.
+    ///
+    /// The amount minted is derived from the pair's own balance delta, so
+    /// `sender` does not affect it: it names the depositor for the event, and
+    /// the caller is responsible for it being the account whose tokens
+    /// actually arrived.
+    ///
+    /// `request_id` tags the resulting [`MintEvent`] for lifecycle tracking
+    /// (`None` for a direct call, not via a request).
+    fn mint_lp(
+        &mut self,
+        sender: &Address,
+        receiver: &Address,
+        request_id: Option<RequestId>,
+    ) -> Amount;
+
     /// Burn this pair's LP tokens, sending the underlying to `to`.  `request_id`
     /// tags the resulting [`BurnEvent`] (`None` for a direct call).
     fn burn_lp(&mut self, to: &Address, request_id: Option<RequestId>) -> Amounts;

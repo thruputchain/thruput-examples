@@ -72,9 +72,11 @@ impl Handler {
             }
         };
 
-        // Move the user's tokens to the pair, then mint LP to the recipient.
+        // Move the purchaser's tokens to the pair, then mint LP to the
+        // recipient.  The two may differ, so the pair is told both: it credits
+        // the recipient and reports the purchaser as the depositor.
         self.transfer_amounts_from(&req.purchaser, amounts);
-        let _minted = pair.mint_lp(&req.recipient, Some(request_id));
+        let _minted = pair.mint_lp(&req.purchaser, &req.recipient, Some(request_id));
     }
 
     // Burn LP tokens, computing the recovered amounts from live reserves.

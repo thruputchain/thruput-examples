@@ -75,8 +75,13 @@ impl SwapPair for Pair {
         self.lp().total_supply()
     }
 
-    // Mint LP in exchange for any A/B-tokens transferred
-    fn mint_lp(&mut self, to: &Address, request_id: Option<RequestId>) -> Amount {
+    // Mint LP to `receiver` in exchange for the A/B-tokens `sender` transferred
+    fn mint_lp(
+        &mut self,
+        sender: &Address,
+        receiver: &Address,
+        request_id: Option<RequestId>,
+    ) -> Amount {
         let mut reserves = self.reserves.get();
 
         // Get the previous snapshot of our reserve balances
@@ -129,7 +134,7 @@ impl SwapPair for Pair {
         ensure(lp_to_create > 0, SwapPairError::InsufficientLiquidityMinted);
 
         // Mint the new liquidity to the address specified by the LP
-        lp.mint(to, lp_to_create);
+        lp.mint(receiver, lp_to_create);
         let lp_minted = lp_to_create;
 
         // Record k for the next fee computation (reserves are now `balances`).
@@ -137,7 +142,7 @@ impl SwapPair for Pair {
             self.set_k_last(balances);
         }
 
-        log_event(&MintEvent::new(&get_caller(), lp_minted, request_id));
+        log_event(&MintEvent::new(sender, lp_minted, receiver, request_id));
 
         // Return the amount of liquidity minted
         lp_minted

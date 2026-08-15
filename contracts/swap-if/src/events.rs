@@ -6,12 +6,16 @@ use sdk::*;
 /// Emitted by the pair when liquidity is added (`mint_lp`).
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MintEvent<'a> {
-    /// The contract that called `mint`
+    /// The source of the deposit
     #[topic]
     pub sender: &'a Address,
 
     /// The amount of LP tokens minted
     pub amount_minted: Amount,
+
+    /// The recipient of the minted LP tokens
+    #[topic]
+    pub receiver: &'a Address,
 
     /// The identifier of the batch-request this mint fulfilled, if it
     /// originated from one (see [`RequestId`]).
@@ -19,10 +23,16 @@ pub struct MintEvent<'a> {
 }
 
 impl<'a> MintEvent<'a> {
-    pub fn new(sender: &'a Address, amount_minted: Amount, request_id: Option<RequestId>) -> Self {
+    pub fn new(
+        sender: &'a Address,
+        amount_minted: Amount,
+        receiver: &'a Address,
+        request_id: Option<RequestId>,
+    ) -> Self {
         Self {
             sender,
             amount_minted,
+            receiver,
             request_id,
         }
     }
