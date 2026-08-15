@@ -46,7 +46,9 @@ import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { extractAcceptedRequestId } from "@/contracts/swap-event";
 import { formatAmount } from "@/domain/amount";
 import {
+  allowanceTargetForSwap,
   availableBalance,
+  hasExecutionExposure,
   invalidateSnapshotInferenceForOverlap,
   reservedInputForToken,
 } from "@/domain/reservations";
@@ -722,6 +724,7 @@ function SwapWorkspace({
         if (scanned.length === 0) return;
 
         let batch;
+        let fallbackSnapshot: PoolSnapshot | null = null;
         try {
           if (requestObserver.scanAll !== undefined) {
             batch = await requestObserver.scanAll(scanned);
@@ -738,9 +741,9 @@ function SwapWorkspace({
             };
           }
         } catch {
-          const fallbackSnapshot = await readSnapshot();
+          fallbackSnapshot = await readSnapshot();
           const inferred = inferSingleExecutionFromSnapshot(
-            scanned,
+            current.filter(hasExecutionExposure),
             fallbackSnapshot,
           );
           if (inferred === null) throw new Error("Execution was not observable");
@@ -750,19 +753,31 @@ function SwapWorkspace({
           };
         }
 
-        const next = await mutateRequestCollection(config, (latest) =>
-          applyObservationBatch(latest, scanned, batch)
-        );
+        const inferenceSnapshot = fallbackSnapshot;
+        const next = await mutateRequestCollection(config, (latest) => {
+          if (inferenceSnapshot === null) {
+            return applyObservationBatch(latest, scanned, batch);
+          }
+          const revalidated = inferSingleExecutionFromSnapshot(
+            latest.filter(hasExecutionExposure),
+            inferenceSnapshot,
+          );
+          if (
+            revalidated === null
+            || revalidated.requestId !== batch.observations[0]?.requestId
+          ) return latest;
+          return applyObservationBatch(latest, scanned, {
+            observations: [revalidated],
+            observedThroughBlock: inferenceSnapshot.chainHeight,
+          });
+        });
         if (!workspaceMounted.current) return;
         setRequests(next);
         setOutstanding(selectDisplayRequest(next));
         const scannedIds = new Set(scanned.map(({ requestId }) => requestId));
         const appliedObservations = batch.observations.filter((observation) =>
           scannedIds.has(observation.requestId)
-          && next.some((request) =>
-            request.requestId === observation.requestId
-            && isTerminalRequestStatus(request.status)
-          )
+          && next.some((request) => requestMatchesObservation(request, observation))
         );
         if (appliedObservations.length > 0) {
           setExecutionOutcomes(appliedObservations);
@@ -1886,8 +1901,6 @@ function actionLabel(params: {
   if (params.workflow.status === "readyToSwap") return "Swap";
   if (params.workflow.status === "submitting") return "Submitting swap";
   if (params.workflow.status === "queued") return "Queued for execution";
-  if (params.workflow.status === "queuedNotObserved")
-    return "Queued; execution not observed";
   if (params.workflow.status === "indeterminate") return "Outcome is uncertain";
   if (params.workflow.status === "error")
     return params.workflow.retryAllowed ? "Try again" : "Transaction failed";
@@ -1986,8 +1999,6 @@ function transactionAnnouncement(params: {
       return "";
     case "committedFailure":
       return "";
-    case "executionObserved":
-      return "Execution observed.";
     case "error":
       return "";
     default:
@@ -2090,6 +2101,25 @@ function isObservableRequest(request: RequestRecord): boolean {
 
 function isTerminalRequestStatus(status: RequestRecord["status"]): boolean {
   return status === "committedFailure" || status === "executed" || status === "failed";
+}
+
+function requestMatchesObservation(
+  request: RequestRecord,
+  observation: RequestObservation,
+): boolean {
+  if (request.requestId !== observation.requestId) return false;
+  if (observation.kind === "executionFailed") {
+    return request.status === "failed"
+      && request.execution?.kind === "failed"
+      && request.execution.transactionHash === observation.transactionHash
+      && request.execution.blockHeight === observation.blockHeight;
+  }
+  return request.status === "executed"
+    && request.execution?.kind === "executed"
+    && request.execution.transactionHash === observation.transactionHash
+    && request.execution.blockHeight === observation.blockHeight
+    && request.execution.amountIn === observation.amountIn
+    && request.execution.amountOut === observation.amountOut;
 }
 
 function observationBaseline(
@@ -2219,7 +2249,7 @@ async function observeAggregateAllowance(
         }
       }
       const snapshot = await readSnapshot();
-      const target = reservedInputForToken(current, tokenIn) + amountIn;
+      const target = allowanceTargetForSwap(current, tokenIn, amountIn);
       const inputToken = tokenIn === toHex0x(snapshot.tokenA.address)
         ? snapshot.tokenA
         : tokenIn === toHex0x(snapshot.tokenB.address)

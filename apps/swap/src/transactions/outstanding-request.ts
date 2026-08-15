@@ -144,20 +144,6 @@ export async function withOutstandingRequestLock<T>(
   );
 }
 
-export async function withRequestObservationLock<T>(
-  config: AppConfig,
-  action: () => Promise<T>,
-): Promise<T> {
-  if (typeof window === "undefined" || window.navigator.locks === undefined) {
-    return action();
-  }
-  return window.navigator.locks.request(
-    requestLockName(config),
-    { mode: "exclusive" },
-    action,
-  );
-}
-
 function requestLockName(config: AppConfig): string {
   return `${outstandingRequestKey(config)}:lock`;
 }

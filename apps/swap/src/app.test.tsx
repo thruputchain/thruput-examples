@@ -1158,6 +1158,97 @@ describe("local swap submission", () => {
     expect(screen.queryByText("Queued for execution")).not.toBeInTheDocument();
   });
 
+  it("rejects stale snapshot inference after another tab adds exposure", async () => {
+    const initial = pool({
+      tokenA: { ...pool().tokenA, allowance: 10_000_000n },
+      chainHeight: 7n,
+    });
+    const baseline = {
+      chainHeight: 7n,
+      inputBalance: initial.tokenA.balance,
+      outputBalance: initial.tokenB.balance,
+      inputAllowance: initial.tokenA.allowance,
+      reserveIn: initial.reserve0,
+      reserveOut: initial.reserve1,
+    };
+    const first = createRequestRecord(
+      {
+        status: "queued",
+        phase: "swap",
+        intent: { amountIn: 10_000_000n, amountOutMin: 18_000_000n },
+        transactionHash: hash,
+        receiptBlock: 8n,
+        requestId: `0x${"cd".repeat(32)}`,
+        visibleObservationMs: 0,
+        observationBaseline: baseline,
+        criteria,
+      },
+      { localId: "first-request", now: 1 },
+    );
+    saveRequestCollection(config, [first]);
+    const executed = pool({
+      tokenA: {
+        ...initial.tokenA,
+        balance: initial.tokenA.balance - 10_000_000n,
+        allowance: 0n,
+      },
+      tokenB: {
+        ...initial.tokenB,
+        balance: initial.tokenB.balance + 19_000_000n,
+      },
+      reserve0: initial.reserve0 + 10_000_000n,
+      reserve1: initial.reserve1 - 19_000_000n,
+      chainHeight: 10n,
+    });
+    const readSnapshot = vi
+      .fn<SnapshotReader>()
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValue(executed);
+    let rejectScan!: (reason: Error) => void;
+    const requestObserver: RequestObserver = {
+      scan: vi.fn().mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectScan = reject;
+        }),
+      ),
+    };
+    renderApp(readSnapshot, undefined, requestObserver);
+    await waitFor(() => expect(requestObserver.scan).toHaveBeenCalledTimes(1));
+
+    const second = {
+      ...createRequestRecord(
+        {
+          status: "submitting",
+          phase: "swap",
+          intent: { amountIn: 1_000_000n, amountOutMin: 1n },
+          transactionHash: null,
+          receiptBlock: null,
+          requestId: null,
+          visibleObservationMs: 0,
+          observationBaseline: baseline,
+          criteria,
+        },
+        { localId: "second-request", now: 2 },
+      ),
+      snapshotInferenceEligible: false,
+    };
+    saveRequestCollection(config, [
+      { ...first, snapshotInferenceEligible: false },
+      second,
+    ]);
+    await act(async () => rejectScan(new Error("event history unavailable")));
+
+    await waitFor(() => expect(readSnapshot).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(2));
+    await waitFor(() =>
+      expect(loadRequestCollection(config).map(({ status }) => status)).toEqual([
+        "queued",
+        "submitting",
+      ])
+    );
+    expect(screen.queryByText("Executed")).not.toBeInTheDocument();
+  });
+
   it("accepts a terminal event from a scan already running at timeout", async () => {
     saveOutstandingRequest(config, {
       status: "queued",
