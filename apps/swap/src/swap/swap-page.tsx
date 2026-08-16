@@ -400,6 +400,7 @@ function SwapWorkspace({
     workflow,
     outstanding,
     executionOutcomes,
+    isCranking,
     isAcquiringLock,
     allowanceDifference: quote.ok ? quote.allowanceDifference : null,
   });
@@ -1401,6 +1402,7 @@ function SwapWorkspace({
     actionInFlight.current = true;
     setIsAcquiringLock(true);
     setIsCranking(true);
+    setExecutionOutcomes([]);
     setCrankStorageError(null);
     try {
       await withRequestCollectionLock(config, async () => {
@@ -1478,6 +1480,7 @@ function SwapWorkspace({
     actionInFlight.current = true;
     setIsAcquiringLock(true);
     setIsCranking(true);
+    setExecutionOutcomes([]);
     setCrankStorageError(null);
     try {
       await withRequestCollectionLock(config, async () => {
@@ -2200,9 +2203,11 @@ function transactionAnnouncement(params: {
   workflow: WorkflowState;
   outstanding: RequestRecord | null;
   executionOutcomes: readonly RequestObservation[];
+  isCranking: boolean;
   isAcquiringLock: boolean;
   allowanceDifference: bigint | null;
 }): string {
+  if (params.isCranking) return "Processing transaction queue.";
   if (params.executionOutcomes.length > 0) {
     const observed = params.executionOutcomes.filter(
       ({ kind }) => kind === "executionObserved",

@@ -3,6 +3,13 @@ import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
 const localValues = new Map<string, string>();
+const defaultLocks = {
+  request: async (
+    name: string,
+    options: LockOptions,
+    callback: (lock: Lock) => Promise<unknown>,
+  ) => callback({ name, mode: options.mode ?? "exclusive" }),
+};
 if (typeof window !== "undefined") {
   Object.defineProperty(window, "localStorage", {
     configurable: true,
@@ -20,16 +27,16 @@ if (typeof window !== "undefined") {
 
   Object.defineProperty(window.navigator, "locks", {
     configurable: true,
-    value: {
-      request: async (
-        name: string,
-        options: LockOptions,
-        callback: (lock: Lock) => Promise<unknown>,
-      ) => {
-        return callback({ name, mode: options.mode ?? "exclusive" });
-      },
-    },
+    value: defaultLocks,
   });
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  if (typeof window !== "undefined") {
+    Object.defineProperty(window.navigator, "locks", {
+      configurable: true,
+      value: defaultLocks,
+    });
+  }
+});

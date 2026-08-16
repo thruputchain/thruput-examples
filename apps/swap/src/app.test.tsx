@@ -378,8 +378,14 @@ describe("local swap submission", () => {
       queuedRequest("first-request", 0xcd),
       queuedRequest("second-request", 0xce),
     ]);
+    let write = 0;
+    let resolveSecondCrank!: (result: WriteResult) => void;
+    const secondCrank = new Promise<WriteResult>((resolve) => {
+      resolveSecondCrank = resolve;
+    });
     const writer: WriteBoundary = {
       execute: vi.fn(async (target, observer) => {
+        write += 1;
         expect(target.invoked_address).toEqual(config.driverAddress);
         expect(target.gas_limit).toBe(10_000_000n);
         expect(loadCrankAttempt(config)).toMatchObject({
@@ -388,6 +394,7 @@ describe("local swap submission", () => {
         });
         observer?.onSigned(hash);
         expect(loadCrankAttempt(config)?.transactionHash).toBe(hash);
+        if (write === 2) return secondCrank;
         const result = committedSuccess(14n);
         result.receipt.events = [
           {
@@ -423,6 +430,20 @@ describe("local swap submission", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Crank queue" })).toBeEnabled();
     expect(writer.execute).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Crank queue" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("status", { name: "Transaction status" }),
+      ).toHaveTextContent("Processing transaction queue.")
+    );
+    await act(async () => {
+      const result = committedSuccess(15n);
+      result.receipt.events = [];
+      resolveSecondCrank(result);
+    });
+    await waitFor(() => expect(loadCrankAttempt(config)?.status).toBe("committed"));
+    expect(writer.execute).toHaveBeenCalledTimes(2);
   });
 
   it("preserves an uncertain crank and checks its original hash explicitly", async () => {
@@ -539,6 +560,86 @@ describe("local swap submission", () => {
 
     await waitFor(() => expect(loadCrankAttempt(config)?.status).toBe("committed"));
     expect(writer.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes a crank and swap submission across app instances", async () => {
+    const user = userEvent.setup();
+    saveRequestCollection(config, [queuedRequest("queued-request", 0xcd)]);
+    let previousLock = Promise.resolve();
+    Object.defineProperty(window.navigator, "locks", {
+      configurable: true,
+      value: {
+        request: async (
+          name: string,
+          options: LockOptions,
+          callback: (lock: Lock) => Promise<unknown>,
+        ) => {
+          const previous = previousLock;
+          let release = () => {};
+          previousLock = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          await previous;
+          try {
+            return await callback({ name, mode: options.mode ?? "exclusive" });
+          } finally {
+            release();
+          }
+        },
+      },
+    });
+    let resolveCrank!: (result: WriteResult) => void;
+    const pendingCrank = new Promise<WriteResult>((resolve) => {
+      resolveCrank = resolve;
+    });
+    let write = 0;
+    const writer: WriteBoundary = {
+      execute: vi.fn((_target, observer) => {
+        write += 1;
+        observer?.onSigned(hash);
+        return write === 1
+          ? pendingCrank
+          : Promise.resolve(committedSuccess(15n, 0xce));
+      }),
+    };
+    const approved = pool({
+      chainHeight: 20n,
+      tokenA: {
+        ...pool().tokenA,
+        balance: 100_000_000n,
+        allowance: 100_000_000n,
+      },
+    });
+    const first = render(
+      <App config={config} readSnapshot={async () => approved} writeBoundary={writer} />,
+    );
+    const second = render(
+      <App config={config} readSnapshot={async () => approved} writeBoundary={writer} />,
+    );
+    const firstView = within(first.container);
+    const secondView = within(second.container);
+
+    await user.click(await firstView.findByRole("button", { name: "Crank queue" }));
+    await waitFor(() => expect(writer.execute).toHaveBeenCalledTimes(1));
+    await user.type(await secondView.findByLabelText("YOU PAY"), "1");
+    await user.click(
+      secondView.getByRole("button", { name: /^(?:Approve & swap|Swap)$/ }),
+    );
+    expect(writer.execute).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      const result = committedSuccess(14n);
+      result.receipt.events = [];
+      resolveCrank(result);
+    });
+
+    await waitFor(() => {
+      expect(vi.mocked(writer.execute).mock.calls.length).toBeGreaterThan(1);
+      expect(loadRequestCollection(config).map(({ status }) => status)).toEqual([
+        "queued",
+        "queued",
+      ]);
+    });
   });
 
   it("enqueues two swaps with aggregate allowance and durable reservations", async () => {
@@ -782,9 +883,7 @@ describe("local swap submission", () => {
     await user.click(screen.getByRole("button", { name: "Swap" }));
 
     expect(await screen.findByText("Outcome uncertain")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Do not retry it automatically/),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/Do not retry it automatically/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("status", { name: "Transaction status" }),
     ).toHaveTextContent(

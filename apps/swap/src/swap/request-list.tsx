@@ -219,6 +219,8 @@ export function RequestList({
                     </p>
                   ) : null}
 
+                  <RequestStatusDetail request={request} />
+
                   {recovering &&
                   request.transactionHash !== null &&
                   ["approving", "submitting", "indeterminate"].includes(
@@ -353,13 +355,20 @@ function RequestStatusBadge({ status }: { status: RequestStatus }) {
 }
 
 function RequestStatusDetail({ request }: { request: RequestRecord }) {
+  const detail = requestStatusDetail(request.status);
   const executionHash =
     request.execution?.transactionHash === request.transactionHash
       ? null
       : (request.execution?.transactionHash ?? null);
-  if (request.transactionHash === null && executionHash === null) return null;
+  if (
+    detail === null &&
+    request.transactionHash === null &&
+    executionHash === null
+  )
+    return null;
   return (
     <div className="mt-2 space-y-1 text-base text-muted-foreground sm:text-sm">
+      {detail === null ? null : <p>{detail}</p>}
       {request.transactionHash === null ? null : (
         <p className="text-xs sm:text-xs">
           {executionHash === null ? "Transaction" : "Enqueue transaction"}{" "}
@@ -416,5 +425,18 @@ function requestStatusLabel(status: RequestStatus): string {
       return "Executed";
     case "failed":
       return "Failed";
+  }
+}
+
+function requestStatusDetail(status: RequestStatus): string | null {
+  switch (status) {
+    case "committedFailure":
+      return "The submission committed with a failed execution result.";
+    case "queuedNotObserved":
+      return "No terminal event was found during two visible minutes. The request may still execute.";
+    case "queuedUntracked":
+      return "Accepted by the router, but its request ID could not be decoded.";
+    default:
+      return null;
   }
 }

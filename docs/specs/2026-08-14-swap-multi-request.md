@@ -67,7 +67,7 @@ Extend the swap frontend to let one account enqueue multiple exact-input swaps b
 - Show a concise transaction-queue action while requests remain queued.
 - Let the user dismiss terminal history. Any manual resolution of an untracked request must clearly require confirmation that the relevant queue was drained.
 - Preserve the MVP's responsive, accessibility, and local-key warning requirements.
-- Show crank signing, committed, failed, and uncertain states without implying that local history represents the complete driver queue.
+- Show crank signing, failed, and uncertain states. After a committed crank, return to the concise queue action when local requests still need processing.
 
 ## Non-Goals
 
