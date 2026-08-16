@@ -1,15 +1,12 @@
 /// <reference types="node" />
 // @vitest-environment-options { "url": "http://127.0.0.1:9545" }
 
-import { execFile } from "node:child_process";
-import path from "node:path";
-import { promisify } from "node:util";
-
 import { toHex0x } from "@groundhogchain/client";
 import { describe, expect, it } from "vitest";
 
 import { loadAppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
+import { buildProcessRequestsTarget } from "@/contracts/driver-target";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { extractAcceptedRequestId } from "@/contracts/swap-event";
 import { allowanceDifference } from "@/domain/allowance";
@@ -18,20 +15,14 @@ import { deriveSwapQuote } from "@/swap/model";
 import { createSnapshotReader } from "@/swap/snapshot";
 import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
 import { createRequestRecord } from "@/transactions/request-collection";
-import { createRequestObserver } from "@/transactions/request-observer";
+import {
+  applyObservationBatch,
+  observationsFromReceipt,
+} from "@/transactions/request-observer";
 
 const runLocalIntegration = import.meta.env.MODE === "local-integration";
-const execFileAsync = promisify(execFile);
-const appDirectory = process.cwd();
-const crankScript = path.join(appDirectory, "scripts", "crank-local.sh");
-
 describe.skipIf(!runLocalIntegration)("local swap integration", () => {
   it("enqueues two requests before one crank and observes both executions", async () => {
-    if (process.env.GROUNDHOG_CLI === undefined) {
-      throw new Error(
-        "GROUNDHOG_CLI must point to Groundhog CLI packaging release 0.1.19 or newer",
-      );
-    }
     const config = loadAppConfig({
       VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
       VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
@@ -155,11 +146,6 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
       inputIndex,
     );
 
-    await execFileAsync("bash", [crankScript], {
-      cwd: appDirectory,
-      env: process.env,
-    });
-
     const criteria = {
       pairAddress: toHex0x(config.pairAddress),
       handlerAddress: toHex0x(config.handlerAddress),
@@ -198,10 +184,12 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
         criteria,
       }),
     ];
-    const observer = createRequestObserver(config);
-    expect(observer.scanAll).toBeDefined();
-    if (observer.scanAll === undefined) return;
-    const batch = await observer.scanAll(requests);
+    const crank = await writer.execute(
+      buildProcessRequestsTarget(config.driverAddress),
+    );
+    expect(crank.kind).toBe("committedSuccess");
+    if (crank.kind !== "committedSuccess") return;
+    const batch = observationsFromReceipt(config, requests, crank.receipt);
     expect(batch.observations).toHaveLength(2);
     expect(new Set(batch.observations.map(({ requestId }) => requestId))).toEqual(
       new Set([firstRequestId, secondRequestId]),
@@ -209,6 +197,9 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
     expect(batch.observations.every(({ kind }) =>
       kind === "executionObserved"
     )).toBe(true);
+    expect(
+      applyObservationBatch(requests, requests, batch).map(({ status }) => status),
+    ).toEqual(["executed", "executed"]);
     const observations = batch.observations.filter(
       (observation) => observation.kind === "executionObserved",
     );

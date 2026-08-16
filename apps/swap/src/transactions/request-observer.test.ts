@@ -1,4 +1,9 @@
-import { contractAddress, sha256Hash } from "@groundhogchain/protocol";
+import {
+  contractAddress,
+  ExecResult,
+  sha256Hash,
+  type ContractAddress,
+} from "@groundhogchain/protocol";
 import { CxsWriter, FixedArrayCodec, Uint128Codec } from "@groundhogchain/xdr";
 import type { GroundhogClient } from "@groundhogchain/client";
 import { describe, expect, it, vi } from "vitest";
@@ -16,6 +21,7 @@ import {
 import {
   applyObservationBatch,
   createRequestObserver,
+  observationsFromReceipt,
 } from "./request-observer";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
@@ -348,12 +354,60 @@ describe("request observer", () => {
       applied,
     );
   });
+
+  it("strictly correlates every terminal event in one crank receipt", () => {
+    const first = { ...record(request, "first"), observedThroughBlock: 9n };
+    const second = record(
+      { ...request, requestId: hex(0xee) },
+      "second",
+    );
+    const receipt = {
+      txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
+      height: 10n,
+      execResult: ExecResult.ExecResultOK,
+      events: [
+        swapEvent(new Uint8Array(32).fill(0xcc)),
+        failedEvent(new Uint8Array(32).fill(0xee)),
+      ],
+      returnData: new Uint8Array(),
+      abortData: null,
+    };
+
+    const batch = observationsFromReceipt(config, [first, second], receipt);
+    const applied = applyObservationBatch([first, second], [first, second], batch, 20);
+
+    expect(batch.observations.map(({ kind }) => kind)).toEqual([
+      "executionObserved",
+      "executionFailed",
+    ]);
+    expect(batch.observedThroughBlock).toBeNull();
+    expect(applied.map(({ status }) => status)).toEqual(["executed", "failed"]);
+    expect(applied[0]?.observedThroughBlock).toBe(9n);
+  });
+
+  it("rejects duplicate terminal events without partially applying them", () => {
+    const queued = record(request, "first");
+    const event = failedEvent(new Uint8Array(32).fill(0xcc));
+    const receipt = {
+      txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
+      height: 10n,
+      execResult: ExecResult.ExecResultOK,
+      events: [event, event],
+      returnData: new Uint8Array(),
+      abortData: null,
+    };
+
+    expect(() => observationsFromReceipt(config, [queued], receipt)).toThrow(
+      "duplicate terminal request events",
+    );
+    expect(queued.status).toBe("queued");
+  });
 });
 
 function swapEvent(
   requestId: Uint8Array,
   options: {
-    contractAddress?: Uint8Array;
+    contractAddress?: ContractAddress;
     sender?: Uint8Array;
     recipient?: Uint8Array;
     amountIn?: bigint;

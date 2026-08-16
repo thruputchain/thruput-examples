@@ -4,6 +4,7 @@ import {
   type EventPage,
   type GroundhogClient,
   type IdentifiedEvent,
+  type TransactionReceipt,
 } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
@@ -222,7 +223,8 @@ export function applyObservationBatch(
         ...request,
         status: "failed",
         updatedAt: now,
-        observedThroughBlock: batch.observedThroughBlock,
+        observedThroughBlock:
+          batch.observedThroughBlock ?? request.observedThroughBlock,
         execution: {
           kind: "failed",
           transactionHash: observation.transactionHash,
@@ -238,7 +240,8 @@ export function applyObservationBatch(
         ...request,
         status: "executed",
         updatedAt: now,
-        observedThroughBlock: batch.observedThroughBlock,
+        observedThroughBlock:
+          batch.observedThroughBlock ?? request.observedThroughBlock,
         execution: {
           kind: "executed",
           transactionHash: observation.transactionHash,
@@ -257,6 +260,46 @@ export function applyObservationBatch(
         : request.observedThroughBlock,
     };
   });
+}
+
+export function observationsFromReceipt(
+  config: AppConfig,
+  requests: readonly RequestRecord[],
+  receipt: TransactionReceipt,
+): RequestObservationBatch {
+  const requestsById = new Map(
+    requests.flatMap((request) =>
+      request.requestId === null ? [] : [[request.requestId, request] as const]
+    ),
+  );
+  const observations: RequestObservation[] = [];
+  const completed = new Set<string>();
+
+  receipt.events.forEach((event, sequenceNumber) => {
+    const identified: IdentifiedEvent = {
+      txHash: receipt.txHash,
+      blockHeight: receipt.height,
+      sequenceNumber,
+      event,
+    };
+    const requestId = terminalRequestId(identified, config);
+    if (requestId === null) return;
+    const request = requestsById.get(requestId);
+    if (request === undefined) return;
+    const observation = matchTerminalEvent(
+      request,
+      requestIdFromHex(requestId),
+      identified,
+    );
+    if (observation === null) return;
+    if (completed.has(requestId)) {
+      throw new Error("Crank receipt contains duplicate terminal request events");
+    }
+    completed.add(requestId);
+    observations.push(observation);
+  });
+
+  return { observations, observedThroughBlock: null };
 }
 
 function terminalRequestId(

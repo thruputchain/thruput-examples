@@ -3,8 +3,10 @@ import { toHex0x } from "@groundhogchain/client";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Card,
   CardContent,
@@ -17,9 +19,14 @@ import { formatTokenAmount } from "@/swap/model";
 import type { TokenSnapshot } from "@/swap/snapshot";
 import {
   isTerminalRequest,
+  needsQueueProcessing,
   type RequestRecord,
   type RequestStatus,
 } from "@/transactions/request-collection";
+import {
+  isBlockingCrankAttempt,
+  type CrankAttempt,
+} from "@/transactions/crank-attempt";
 
 export function RequestList({
   requests,
@@ -27,7 +34,13 @@ export function RequestList({
   tokenB,
   recoveryRequestId,
   isCheckingRecovery,
+  crankAttempt,
+  isCranking,
+  crankDisabled,
   onDismiss,
+  onCrank,
+  onCheckCrank,
+  onConfirmCrankRecovery,
   onCheckRecovery,
   onConfirmRecovery,
   onResolveUntracked,
@@ -38,7 +51,13 @@ export function RequestList({
   tokenB: TokenSnapshot;
   recoveryRequestId: string | null;
   isCheckingRecovery: boolean;
+  crankAttempt: CrankAttempt | null;
+  isCranking: boolean;
+  crankDisabled: boolean;
   onDismiss: (localId: string) => void;
+  onCrank: () => void;
+  onCheckCrank: () => void;
+  onConfirmCrankRecovery: () => void;
   onCheckRecovery: () => void;
   onConfirmRecovery: (localId: string) => void;
   onResolveUntracked: (localId: string) => void;
@@ -50,20 +69,19 @@ export function RequestList({
   useEffect(() => {
     if (!focusAfterDismiss.current) return;
     focusAfterDismiss.current = false;
-    const target = headingRef.current
-      ?? document.querySelector<HTMLHeadingElement>("h1");
+    const target =
+      headingRef.current ?? document.querySelector<HTMLHeadingElement>("h1");
     target?.focus();
   }, [requests.length]);
-  if (requests.length === 0) return null;
+  const crankBlocked = isBlockingCrankAttempt(crankAttempt);
+  if (requests.length === 0 && !crankBlocked) return null;
 
-  const ordered = [...requests].sort((left, right) =>
-    right.createdAt - left.createdAt || right.localId.localeCompare(left.localId)
+  const ordered = [...requests].sort(
+    (left, right) =>
+      right.createdAt - left.createdAt ||
+      right.localId.localeCompare(left.localId),
   );
-  const needsCrank = requests.some(({ status }) =>
-    status === "queued"
-    || status === "queuedNotObserved"
-    || status === "queuedUntracked"
-  );
+  const needsCrank = requests.some(needsQueueProcessing);
 
   return (
     <Card className={cn("[--card-spacing:--spacing(4)]", className)}>
@@ -83,21 +101,66 @@ export function RequestList({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {needsCrank ? (
-          <Alert>
+        {needsCrank || crankBlocked ? (
+          <Alert aria-live="polite">
             <InfoIcon aria-hidden="true" />
-            <AlertTitle>Queued requests need an external crank</AlertTitle>
-            <AlertDescription>
-              Run <code className="font-mono">bash scripts/crank-local.sh</code>{" "}
-              from <code className="font-mono">apps/swap</code>. Execution order
-              and output are not guaranteed; each request keeps its submitted
-              minimum output, and slippage protection will fail the request if
-              live output falls below it.
+            <AlertTitle>Transaction queue</AlertTitle>
+            <AlertDescription className="flex flex-col items-start gap-3 [&_p:not(:last-child)]:mb-0">
+              <p>{crankDescription(crankAttempt)}</p>
+              {crankBlocked ? (
+                crankAttempt?.transactionHash !== null ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-auto min-h-12 w-full whitespace-normal text-center sm:min-h-9 sm:w-auto"
+                    disabled={isCranking}
+                    onClick={onCheckCrank}
+                  >
+                    {isCranking ? (
+                      <Spinner data-icon="inline-start" aria-hidden="true" />
+                    ) : null}
+                    {isCranking ? "Checking transaction" : "Check crank status"}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-auto min-h-12 w-full whitespace-normal text-center sm:min-h-9 sm:w-auto"
+                    disabled={isCranking}
+                    onClick={onConfirmCrankRecovery}
+                  >
+                    {isCranking ? (
+                      <Spinner data-icon="inline-start" aria-hidden="true" />
+                    ) : null}
+                    {isCranking
+                      ? "Signing queue transaction"
+                      : "I confirmed no crank transaction was signed"}
+                  </Button>
+                )
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="min-h-12 w-full sm:min-h-9 sm:w-auto"
+                  disabled={crankDisabled || isCranking}
+                  onClick={onCrank}
+                >
+                  {isCranking ? (
+                    <Spinner data-icon="inline-start" aria-hidden="true" />
+                  ) : null}
+                  {isCranking ? "Starting queue processing" : "Crank queue"}
+                </Button>
+              )}
             </AlertDescription>
           </Alert>
         ) : null}
 
-        <ol aria-label="Swap requests" className="divide-y divide-foreground/10">
+        <ol
+          aria-label="Swap requests"
+          className="divide-y divide-foreground/10"
+        >
           {ordered.map((request) => {
             const { input, output } = requestTokens(request, tokenA, tokenB);
             const confirming = confirmingId === request.localId;
@@ -127,7 +190,8 @@ export function RequestList({
                         {input.symbol} input
                         <span aria-hidden="true"> / </span>
                         <span className="sr-only">; </span>
-                        minimum {formatTokenAmount(
+                        minimum{" "}
+                        {formatTokenAmount(
                           request.intent.amountOutMin,
                           output.decimals,
                           8,
@@ -145,7 +209,8 @@ export function RequestList({
                         input.decimals,
                         8,
                       )}{" "}
-                      {input.symbol} was exchanged for {formatTokenAmount(
+                      {input.symbol} was exchanged for{" "}
+                      {formatTokenAmount(
                         request.execution.amountOut,
                         output.decimals,
                         8,
@@ -154,46 +219,40 @@ export function RequestList({
                     </p>
                   ) : null}
 
-                  <RequestStatusDetail request={request} />
+                  {recovering &&
+                  request.transactionHash !== null &&
+                  ["approving", "submitting", "indeterminate"].includes(
+                    request.status,
+                  ) ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 h-auto min-h-12 w-full whitespace-normal text-center sm:min-h-9 sm:w-auto"
+                      disabled={isCheckingRecovery}
+                      onClick={onCheckRecovery}
+                    >
+                      {isCheckingRecovery
+                        ? "Checking transaction"
+                        : "Check transaction status"}
+                    </Button>
+                  ) : null}
 
-                  {recovering
-                      && request.transactionHash !== null
-                      && ["approving", "submitting", "indeterminate"].includes(
-                        request.status,
-                      )
-                    ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="mt-3 h-auto min-h-12 w-full whitespace-normal text-center sm:min-h-9 sm:w-auto"
-                        disabled={isCheckingRecovery}
-                        onClick={onCheckRecovery}
-                      >
-                        {isCheckingRecovery
-                          ? "Checking transaction"
-                          : "Check transaction status"}
-                      </Button>
-                    )
-                    : null}
-
-                  {recovering
-                      && request.transactionHash === null
-                      && ["approving", "submitting", "indeterminate"].includes(
-                        request.status,
-                      )
-                    ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="mt-3 h-auto min-h-12 w-full whitespace-normal text-center sm:min-h-9 sm:w-auto"
-                        onClick={() => onConfirmRecovery(request.localId)}
-                      >
-                        I confirmed no transaction is pending or queued
-                      </Button>
-                    )
-                    : null}
+                  {recovering &&
+                  request.transactionHash === null &&
+                  ["approving", "submitting", "indeterminate"].includes(
+                    request.status,
+                  ) ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 h-auto min-h-12 w-full whitespace-normal text-center sm:min-h-9 sm:w-auto"
+                      onClick={() => onConfirmRecovery(request.localId)}
+                    >
+                      I confirmed no transaction is pending or queued
+                    </Button>
+                  ) : null}
 
                   {isTerminalRequest(request) ? (
                     <Button
@@ -228,9 +287,10 @@ export function RequestList({
                       <AlertCircleIcon aria-hidden="true" />
                       <AlertTitle>Confirm the queue is drained</AlertTitle>
                       <AlertDescription>
-                        Only resolve this request after the external crank has
-                        drained the relevant queue. Its request ID is unavailable,
-                        so execution cannot be matched automatically.
+                        Only resolve this request after independently confirming
+                        that queue processing drained the relevant queue. Its
+                        request ID is unavailable, so execution cannot be
+                        matched automatically.
                         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                           <Button
                             type="button"
@@ -268,6 +328,17 @@ export function RequestList({
   );
 }
 
+function crankDescription(attempt: CrankAttempt | null): string {
+  if (attempt?.status === "signing")
+    return "Queue transaction awaiting outcome.";
+  if (attempt?.status === "indeterminate") {
+    return "The last crank's outcome is uncertain. Check it before trying again.";
+  }
+  if (attempt?.status === "failed")
+    return "Queue processing failed. Try again.";
+  return "Crank to process all requests in the queue.";
+}
+
 function RequestStatusBadge({ status }: { status: RequestStatus }) {
   const destructive = status === "failed" || status === "committedFailure";
   const active = status === "approving" || status === "submitting";
@@ -282,27 +353,33 @@ function RequestStatusBadge({ status }: { status: RequestStatus }) {
 }
 
 function RequestStatusDetail({ request }: { request: RequestRecord }) {
-  const detail = requestStatusDetail(request.status);
-  const executionHash = request.execution?.transactionHash === request.transactionHash
-    ? null
-    : request.execution?.transactionHash ?? null;
-  if (
-    detail === null
-    && request.transactionHash === null
-    && executionHash === null
-  ) return null;
+  const executionHash =
+    request.execution?.transactionHash === request.transactionHash
+      ? null
+      : (request.execution?.transactionHash ?? null);
+  if (request.transactionHash === null && executionHash === null) return null;
   return (
     <div className="mt-2 space-y-1 text-base text-muted-foreground sm:text-sm">
-      {detail === null ? null : <p>{detail}</p>}
       {request.transactionHash === null ? null : (
-        <p className="break-all font-mono text-xs sm:text-xs">
+        <p className="text-xs sm:text-xs">
           {executionHash === null ? "Transaction" : "Enqueue transaction"}{" "}
-          {request.transactionHash}
+          <BlockchainIdentifier
+            value={request.transactionHash}
+            label={
+              executionHash === null
+                ? "Transaction hash"
+                : "Enqueue transaction hash"
+            }
+          />
         </p>
       )}
       {executionHash === null ? null : (
-        <p className="break-all font-mono text-xs sm:text-xs">
-          Execution transaction {executionHash}
+        <p className="text-xs sm:text-xs">
+          Execution transaction{" "}
+          <BlockchainIdentifier
+            value={executionHash}
+            label="Execution transaction hash"
+          />
         </p>
       )}
     </div>
@@ -339,28 +416,5 @@ function requestStatusLabel(status: RequestStatus): string {
       return "Executed";
     case "failed":
       return "Failed";
-  }
-}
-
-function requestStatusDetail(status: RequestStatus): string | null {
-  switch (status) {
-    case "approving":
-      return "Waiting for the allowance transaction to commit.";
-    case "submitting":
-      return "Waiting for the router to accept this request.";
-    case "indeterminate":
-      return "This transaction may still commit. Do not retry it automatically.";
-    case "committedFailure":
-      return "The submission committed with a failed execution result.";
-    case "queued":
-      return "Accepted by the router; execution has not been observed.";
-    case "queuedNotObserved":
-      return "No terminal event was found during two visible minutes. The request may still execute.";
-    case "queuedUntracked":
-      return "Accepted by the router, but its request ID could not be decoded.";
-    case "executed":
-      return "Execution was recorded from a terminal event or an unambiguous state snapshot.";
-    case "failed":
-      return "The driver reported that this queued request failed.";
   }
 }

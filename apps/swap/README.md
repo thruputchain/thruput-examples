@@ -77,7 +77,7 @@ Approve & swap
 -> Approving swap, when needed
 -> Submitting swap
 -> Queued for execution
--> Submit another swap or run the external crank
+-> Submit another swap or crank the driver queue
 -> Executed or Failed, independently for each request
 ```
 
@@ -91,7 +91,20 @@ The request list stores unresolved requests and up to 50 recent terminal results
 
 ## Process The Queue
 
-After the app shows **Queued for execution**, run:
+After the app shows **Queued for execution**, use **Crank queue** in the request
+list. This signs and submits `process_requests()` through the same loopback-only
+browser wallet boundary used for swaps.
+
+Queue processing is driver-wide. It can process requests that are not present in
+the browser's local history, and one transaction may not drain a large or changing
+queue. The app reconciles matching receipt events and continues observing every
+unresolved local request. A committed crank does not by itself prove that all
+local requests reached a terminal state.
+
+If the crank outcome is uncertain, the app preserves its original transaction
+hash and blocks another crank. Use **Check crank status** rather than retrying.
+
+The shell command remains available as a fallback:
 
 ```sh
 cd apps/swap
@@ -137,8 +150,7 @@ bash -n apps/swap/scripts/generate-contract-bindings.sh
 The live integration test mutates a prepared local ledger by enqueueing two swaps before one crank, correlating both terminal events, and checking aggregate balances, allowance, and reserves. Run it only for final acceptance:
 
 ```sh
-GROUNDHOG_CLI=/absolute/path/to/groundhog \
-  npm --prefix apps/swap run test:integration:local
+npm --prefix apps/swap run test:integration:local
 ```
 
 ## Troubleshooting

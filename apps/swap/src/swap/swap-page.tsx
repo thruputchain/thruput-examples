@@ -10,6 +10,7 @@ import { toHex0x } from "@groundhogchain/client";
 import { useEffect, useId, useReducer, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +43,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { isBrowserLoopback, isLoopbackUrl, type AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
+import { buildProcessRequestsTarget } from "@/contracts/driver-target";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { extractAcceptedRequestId } from "@/contracts/swap-event";
 import { formatAmount } from "@/domain/amount";
@@ -53,7 +55,6 @@ import {
   reservedInputForToken,
 } from "@/domain/reservations";
 import { orientReserves, orderTokens } from "@/domain/tokens";
-import { abbreviateAddress } from "@/lib/address";
 import {
   deriveSwapQuote,
   formatBasisPoints,
@@ -74,6 +75,14 @@ import type {
 import { usePoolSnapshot } from "@/swap/use-pool-snapshot";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 import {
+  crankAttemptKey,
+  createCrankAttempt,
+  isBlockingCrankAttempt,
+  loadCrankAttempt,
+  saveCrankAttempt,
+  type CrankAttempt,
+} from "@/transactions/crank-attempt";
+import {
   createRequestRecord,
   dismissTerminalRequest,
   hasLegacyOutstandingRequest,
@@ -81,6 +90,7 @@ import {
   loadRequestCollectionForUpdate,
   migrateRequestCollection,
   mutateRequestCollection,
+  needsQueueProcessing,
   requestCollectionKey,
   saveRequestCollection,
   upsertRequest,
@@ -96,7 +106,10 @@ import type {
   RequestObservation,
   RequestObserver,
 } from "@/transactions/request-observer";
-import { applyObservationBatch } from "@/transactions/request-observer";
+import {
+  applyObservationBatch,
+  observationsFromReceipt,
+} from "@/transactions/request-observer";
 import { inferSingleExecutionFromSnapshot } from "@/transactions/execution-fallback";
 
 const SLIPPAGE_PRESETS = [10n, 50n, 100n] as const;
@@ -238,7 +251,10 @@ function AppHeader({
             variant="secondary"
             className="hidden font-mono md:inline-flex"
           >
-            {abbreviateAddress(account)}
+            <BlockchainIdentifier
+              value={toHex0x(account)}
+              label="Wallet address"
+            />
           </Badge>
           <Button
             type="button"
@@ -273,7 +289,10 @@ function AppHeader({
             {connected ? (localRpc ? "Local RPC" : "Remote RPC") : "Connecting"}
           </Badge>
           <Badge variant="secondary" className="font-mono">
-            {abbreviateAddress(account)}
+            <BlockchainIdentifier
+              value={toHex0x(account)}
+              label="Wallet address"
+            />
           </Badge>
         </div>
       </div>
@@ -318,6 +337,14 @@ function SwapWorkspace({
   const [requestStorageError, setRequestStorageError] = useState<string | null>(
     initialRequestState.error,
   );
+  const [initialCrankState] = useState(() => readInitialCrankState(config));
+  const [crankAttempt, setCrankAttempt] = useState<CrankAttempt | null>(
+    initialCrankState.attempt,
+  );
+  const [crankStorageError, setCrankStorageError] = useState<string | null>(
+    initialCrankState.error,
+  );
+  const [isCranking, setIsCranking] = useState(false);
   const [collectionReady, setCollectionReady] = useState(
     !hasLegacyOutstandingRequest(config),
   );
@@ -459,6 +486,23 @@ function SwapWorkspace({
             "Stored request history changed but could not be loaded safely.",
           );
         }
+      }
+    };
+    window.addEventListener("storage", reload);
+    return () => window.removeEventListener("storage", reload);
+  }, [config]);
+
+  useEffect(() => {
+    const key = crankAttemptKey(config);
+    const reload = (event: StorageEvent) => {
+      if (event.key !== key) return;
+      try {
+        setCrankAttempt(loadCrankAttempt(config));
+        setCrankStorageError(null);
+      } catch {
+        setCrankStorageError(
+          "Queue-processing state changed but could not be loaded safely.",
+        );
       }
     };
     window.addEventListener("storage", reload);
@@ -1288,6 +1332,201 @@ function SwapWorkspace({
     }).catch(reportRequestUpdateFailure);
   };
 
+  const applyCrankResult = (
+    attempt: CrankAttempt,
+    result: WriteResult,
+  ): CrankAttempt => {
+    if (result.kind === "committedSuccess") {
+      const current = loadRequestCollection(config);
+      const scanned = current.filter(isObservableRequest);
+      let observations: RequestObservation[] = [];
+      if (scanned.length > 0) {
+        try {
+          const batch = observationsFromReceipt(config, scanned, result.receipt);
+          const next = saveRequestCollection(
+            config,
+            applyObservationBatch(current, scanned, batch),
+          );
+          observations = batch.observations;
+          if (workspaceMounted.current) {
+            applyRequestCollection(next);
+            if (observations.length > 0) {
+              setExecutionOutcomes(observations);
+              refreshSnapshot();
+            }
+          }
+        } catch {
+          // Polling remains authoritative if a committed receipt cannot be decoded.
+        }
+      }
+      return saveCrankAttempt(config, {
+        ...attempt,
+        status: "committed",
+        transactionHash: result.hash,
+        updatedAt: Date.now(),
+        message: null,
+      });
+    }
+
+    if (result.kind === "indeterminate") {
+      return saveCrankAttempt(config, {
+        ...attempt,
+        status: "indeterminate",
+        transactionHash: result.hash ?? attempt.transactionHash,
+        updatedAt: Date.now(),
+        message:
+          "The queue-processing outcome is uncertain. Check the original transaction before trying again.",
+      });
+    }
+
+    return saveCrankAttempt(config, {
+      ...attempt,
+      status: "failed",
+      transactionHash: result.hash,
+      updatedAt: Date.now(),
+      message: crankFailureMessage(result),
+    });
+  };
+
+  async function executeCrank() {
+    if (
+      !workspaceMounted.current
+      || actionInFlight.current
+      || !localRpc
+      || crankStorageError !== null
+    ) return;
+
+    const expectedAttempt = crankAttempt;
+    let activeAttempt: CrankAttempt | null = null;
+    actionInFlight.current = true;
+    setIsAcquiringLock(true);
+    setIsCranking(true);
+    setCrankStorageError(null);
+    try {
+      await withRequestCollectionLock(config, async () => {
+        const current = loadRequestCollectionForUpdate(config);
+        const storedAttempt = loadCrankAttempt(config);
+        if (!sameCrankAttempt(storedAttempt, expectedAttempt)) {
+          if (workspaceMounted.current) {
+            setRequests(current);
+            setCrankAttempt(storedAttempt);
+          }
+          return;
+        }
+        if (
+          isBlockingCrankAttempt(storedAttempt)
+          || current.some(isBlockingRequest)
+          || !current.some(needsQueueProcessing)
+        ) return;
+
+        activeAttempt = saveCrankAttempt(config, createCrankAttempt(config));
+        if (workspaceMounted.current) setCrankAttempt(activeAttempt);
+        const result = await writeBoundary.execute(
+          buildProcessRequestsTarget(config.driverAddress),
+          {
+            onSigned: (transactionHash) => {
+              activeAttempt = saveCrankAttempt(config, {
+                ...activeAttempt!,
+                transactionHash,
+                updatedAt: Date.now(),
+              });
+              if (workspaceMounted.current) setCrankAttempt(activeAttempt);
+            },
+          },
+        );
+        activeAttempt = applyCrankResult(activeAttempt, result);
+        if (workspaceMounted.current) setCrankAttempt(activeAttempt);
+      });
+    } catch {
+      try {
+        const recoverable = loadCrankAttempt(config);
+        if (recoverable !== null && isBlockingCrankAttempt(recoverable)) {
+          activeAttempt = saveCrankAttempt(config, {
+            ...recoverable,
+            status: "indeterminate",
+            updatedAt: Date.now(),
+            message:
+              "Queue processing was interrupted. Confirm the original transaction outcome before trying again.",
+          });
+          if (workspaceMounted.current) setCrankAttempt(activeAttempt);
+        } else {
+          setCrankStorageError("Queue processing could not be started safely.");
+        }
+      } catch {
+        setCrankStorageError(
+          "The queue-processing outcome is uncertain and its recovery state could not be saved.",
+        );
+      }
+    } finally {
+      actionInFlight.current = false;
+      if (workspaceMounted.current) {
+        setIsAcquiringLock(false);
+        setIsCranking(false);
+      }
+    }
+  }
+
+  async function checkCrankStatus() {
+    const expectedAttempt = crankAttempt;
+    if (
+      expectedAttempt === null
+      || expectedAttempt.transactionHash === null
+      || writeBoundary.observe === undefined
+      || actionInFlight.current
+    ) return;
+
+    actionInFlight.current = true;
+    setIsAcquiringLock(true);
+    setIsCranking(true);
+    setCrankStorageError(null);
+    try {
+      await withRequestCollectionLock(config, async () => {
+        const storedAttempt = loadCrankAttempt(config);
+        if (
+          !sameCrankAttempt(storedAttempt, expectedAttempt)
+          || storedAttempt === null
+          || !isBlockingCrankAttempt(storedAttempt)
+        ) {
+          if (workspaceMounted.current) setCrankAttempt(storedAttempt);
+          return;
+        }
+        const result = await writeBoundary.observe!(storedAttempt.transactionHash!);
+        const nextAttempt = applyCrankResult(storedAttempt, result);
+        if (workspaceMounted.current) {
+          setCrankAttempt(nextAttempt);
+          setCrankStorageError(null);
+        }
+      });
+    } catch {
+      setCrankStorageError(
+        "The transaction status could not be checked. The original crank remains blocked.",
+      );
+    } finally {
+      actionInFlight.current = false;
+      if (workspaceMounted.current) {
+        setIsAcquiringLock(false);
+        setIsCranking(false);
+      }
+    }
+  }
+
+  function confirmPreHashCrankRecovery() {
+    const expectedAttempt = crankAttempt;
+    if (expectedAttempt === null || expectedAttempt.transactionHash !== null) return;
+    void withRequestCollectionLock(config, () => {
+      const storedAttempt = loadCrankAttempt(config);
+      if (!sameCrankAttempt(storedAttempt, expectedAttempt)) return storedAttempt;
+      return saveCrankAttempt(config, {
+        ...storedAttempt!,
+        status: "failed",
+        updatedAt: Date.now(),
+        message: "No queue-processing transaction was signed or submitted.",
+      });
+    }).then(setCrankAttempt).catch(() => {
+      setCrankStorageError("Queue-processing recovery state could not be updated.");
+    });
+  }
+
   return (
     <div className="max-w-2xl mx-auto">
       <div
@@ -1314,6 +1553,13 @@ function SwapWorkspace({
             <AlertCircleIcon aria-hidden="true" />
             <AlertTitle>Request history unavailable</AlertTitle>
             <AlertDescription>{requestStorageError}</AlertDescription>
+          </Alert>
+        ) : null}
+        {crankStorageError !== null ? (
+          <Alert variant="destructive">
+            <AlertCircleIcon aria-hidden="true" />
+            <AlertTitle>Queue processing unavailable</AlertTitle>
+            <AlertDescription>{crankStorageError}</AlertDescription>
           </Alert>
         ) : null}
         <Card className="shadow-xl shadow-foreground/5 ring-foreground/10 [--card-spacing:--spacing(5)] sm:[--card-spacing:--spacing(6)]">
@@ -1442,7 +1688,13 @@ function SwapWorkspace({
           tokenB={snapshot.tokenB}
           recoveryRequestId={isRecoveryRecord ? outstanding?.localId ?? null : null}
           isCheckingRecovery={isCheckingRecovery}
+          crankAttempt={crankAttempt}
+          isCranking={isCranking}
+          crankDisabled={!localRpc || crankStorageError !== null}
           onDismiss={dismissRequest}
+          onCrank={() => void executeCrank()}
+          onCheckCrank={() => void checkCrankStatus()}
+          onConfirmCrankRecovery={confirmPreHashCrankRecovery}
           onCheckRecovery={() => setRecoveryCheck((current) => current + 1)}
           onConfirmRecovery={confirmPreHashRecovery}
           onResolveUntracked={resolveUntrackedRequest}
@@ -1792,11 +2044,17 @@ function TransactionDetails({
           </dd>
           <dt className="font-medium text-foreground">Handler</dt>
           <dd className="text-right text-muted-foreground">
-            {abbreviateAddress(config.handlerAddress)}
+            <BlockchainIdentifier
+              value={toHex0x(config.handlerAddress)}
+              label="Handler address"
+            />
           </dd>
           <dt className="font-medium text-foreground">Pair</dt>
           <dd className="text-right text-muted-foreground">
-            {abbreviateAddress(config.pairAddress)}
+            <BlockchainIdentifier
+              value={toHex0x(config.pairAddress)}
+              label="Pair address"
+            />
           </dd>
         </dl>
       </CollapsibleContent>
@@ -2064,6 +2322,32 @@ function readInitialRequestState(config: AppConfig): {
   }
 }
 
+function readInitialCrankState(config: AppConfig): {
+  attempt: CrankAttempt | null;
+  error: string | null;
+} {
+  try {
+    return { attempt: loadCrankAttempt(config), error: null };
+  } catch {
+    return {
+      attempt: null,
+      error:
+        "Stored queue-processing state could not be loaded safely. Clear this site's local data before cranking again.",
+    };
+  }
+}
+
+function sameCrankAttempt(
+  current: CrankAttempt | null,
+  expected: CrankAttempt | null,
+): boolean {
+  if (current === null || expected === null) return current === expected;
+  return current.id === expected.id
+    && current.status === expected.status
+    && current.transactionHash === expected.transactionHash
+    && current.updatedAt === expected.updatedAt;
+}
+
 function selectRecoveryRequest(
   requests: readonly RequestRecord[],
 ): RequestRecord | null {
@@ -2211,6 +2495,14 @@ function dispatchWriteFailure(
         "The transaction committed without a successful execution result.",
     });
   }
+}
+
+function crankFailureMessage(
+  result: Exclude<WriteResult, { kind: "committedSuccess" | "indeterminate" }>,
+): string {
+  if (result.kind === "preSubmissionFailure") return result.message;
+  if (result.kind === "invalid") return result.reason;
+  return "The queue-processing transaction committed without a successful execution result.";
 }
 
 async function observeAggregateAllowance(

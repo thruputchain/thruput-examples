@@ -237,6 +237,12 @@ export function hasExecutionExposure(request: RequestRecord): boolean {
     || request.status === "queuedUntracked";
 }
 
+export function needsQueueProcessing(request: RequestRecord): boolean {
+  return request.status === "queued"
+    || request.status === "queuedNotObserved"
+    || request.status === "queuedUntracked";
+}
+
 function loadOrMigrateRequestCollection(config: AppConfig): RequestRecord[] {
   const current = loadRequestCollection(config);
   const legacy = loadOutstandingRequest(config);

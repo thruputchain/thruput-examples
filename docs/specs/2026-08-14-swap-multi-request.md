@@ -1,6 +1,6 @@
 # Groundhog Swap Multi-Request Workflow
 
-Status: Draft
+Status: Approved
 
 Date: 2026-08-14
 
@@ -30,7 +30,7 @@ Extend the swap frontend to let one account enqueue multiple exact-input swaps b
 ### Queue Processing
 
 - Show an in-app **Crank queue** action whenever at least one locally tracked request is queued, queued without an observed terminal event, or queued without a decodable request ID.
-- State clearly that the action processes the configured driver's entire queue, which may include requests not shown in local history. The local request count is not the authoritative driver queue length.
+- Present the action as processing all requests in the configured transaction queue without showing a local request count.
 - Invoke the generated `SwapDriver.processRequests()` target through the existing loopback-only browser write boundary.
 - Serialize cranking with approval and swap submission across tabs through the same pair-scoped Web Lock. Re-read local request and crank-attempt state after acquiring the lock and before signing.
 - Persist a crank attempt before signing and retain its hash as soon as it is signed. A signed or indeterminate attempt must survive reloads and block another in-app crank until its outcome is resolved authoritatively.
@@ -38,7 +38,7 @@ Extend the swap frontend to let one account enqueue multiple exact-input swaps b
 - On a committed-success receipt, correlate every terminal swap or failure event in that receipt by request ID and apply all matching local results atomically before releasing the lock.
 - Continue normal event polling for queued requests not resolved from the crank receipt. A successful crank transaction does not prove that every locally tracked request reached a terminal state.
 - Do not change local request status when the crank transaction is invalid, fails before submission, commits unsuccessfully, or remains indeterminate unless an authoritative terminal request event is observed.
-- Keep the shell crank command visible as a fallback while locally tracked requests still need queue processing.
+- Keep the shell crank command documented as a supported fallback.
 
 ### Durable Request State
 
@@ -64,7 +64,7 @@ Extend the swap frontend to let one account enqueue multiple exact-input swaps b
 - Replace the single transaction status with a compact request list showing direction, input, minimum output, status, and actual output when observed.
 - Distinguish approving, submitting, indeterminate, queued, execution not observed, executed, and failed states without implying that enqueue means execution.
 - Explain that quotes may change before execution and that slippage protection can cause a queued request to fail.
-- Show the external crank instruction while requests remain queued.
+- Show a concise transaction-queue action while requests remain queued.
 - Let the user dismiss terminal history. Any manual resolution of an untracked request must clearly require confirmation that the relevant queue was drained.
 - Preserve the MVP's responsive, accessibility, and local-key warning requirements.
 - Show crank signing, committed, failed, and uncertain states without implying that local history represents the complete driver queue.
@@ -83,7 +83,7 @@ Extend the swap frontend to let one account enqueue multiple exact-input swaps b
 - Observer tests cover multiple successes and failures, same-block terminal events, pagination, deduplication, independent timeouts, and disabled ambiguous snapshot inference.
 - Component tests prove that queued requests no longer block the form, reserved balances prevent overcommitment, request statuses update independently, reload recovery works, and terminal history can be dismissed.
 - Cross-tab tests prove that concurrent submission attempts serialize without duplicate requests or lost persisted updates.
-- Component tests cover crank visibility at one or more queued requests, whole-driver-queue copy, write serialization, receipt reconciliation, shell fallback, committed failure, and indeterminate recovery.
+- Component tests cover crank visibility at one or more queued requests, concise queue copy, write serialization, receipt reconciliation, committed failure, and indeterminate recovery.
 - Cross-tab tests prove that concurrent crank clicks or a crank and swap submission cannot produce parallel signing or duplicate crank attempts.
 - A local integration test enqueues at least two swaps, processes them with the in-app crank through the browser write boundary, observes each terminal event by request ID, and verifies refreshed balances, allowances, and reserves. The shell crank remains covered as a supported fallback.
 
