@@ -1,16 +1,26 @@
-// Generated from swap_pair.spec.xdr — SwapPair interface v0.1.0
+// Generated from swap_pair.spec.xdr - SwapPair interface v0.1.0
 // DO NOT EDIT. Re-run codegen to update.
 
-import type { ContractAddress, GasAmount, Invocation } from "@groundhogchain/protocol";
+import type { ContractAddress } from "@groundhogchain/protocol";
 import { contractEntrypointID, topic } from "@groundhogchain/protocol";
 import { fromHex } from "@groundhogchain/protocol/utils";
-import { ContractTypeKind, ContractTypeDefKind, contractSpecString, ContractUnionCaseKind } from "@groundhogchain/contract-spec";
-import type { ContractSpec } from "@groundhogchain/client";
-import { encodeCalldata } from "@groundhogchain/client";
-import { buildNamedCodecs } from "@groundhogchain/client";
-import { createInvocation } from "@groundhogchain/client";
-import { resolveCodec } from "@groundhogchain/client";
-import { CxsReader } from "@groundhogchain/xdr";
+import {
+  ContractTypeKind,
+  ContractTypeDefKind,
+  contractSpecString,
+  ContractUnionCaseKind,
+} from "@groundhogchain/contract-spec";
+import {
+  type ContractSpec,
+  createContractCodecContext,
+  defineContractMethod,
+  type ContractAbort,
+  type FixedArray,
+  type FixedBytes,
+  defineContractEvent,
+  type DecodedContractEvent,
+  type ContractEventFilterValue,
+} from "@groundhogchain/client/contract";
 
 const s = contractSpecString;
 
@@ -29,10 +39,17 @@ const entrypoints = {
   },
 } as const;
 
-export enum ERC20Error { AlreadyInitialized = 1, MustBeContractOwner = 2, TooLarge = 3, Internal = 100, }
+export const ERC20Error = {
+  AlreadyInitialized: 1n,
+  MustBeContractOwner: 2n,
+  TooLarge: 3n,
+  Internal: 100n,
+} as const;
+
+export type ERC20Error = (typeof ERC20Error)[keyof typeof ERC20Error];
 
 export type SwapPairError =
-  { case: "InitializeFailed" }
+  | { case: "InitializeFailed" }
   | { case: "AlreadyInitialized" }
   | { case: "NoLiquidityToBurn" }
   | { case: "InsufficientOutputAmount" }
@@ -44,9 +61,74 @@ export type SwapPairError =
   | { case: "InvalidSwapProduct" }
   | { case: "Overflow" }
   | { case: "TransferFailed" }
-  | { case: "LPTokenFailure"; value: [ERC20Error] };
+  | { case: "LPTokenFailure"; value: readonly [ERC20Error] };
 
-export interface U256 { _0: bigint[]; }
+export interface U256 {
+  limbs: FixedArray<bigint, 8>;
+}
+
+export interface SwapPairBurnLpArgs {
+  to: ContractAddress;
+  requestId: FixedBytes<32> | null;
+}
+export type SwapPairBurnLpResult = readonly [bigint, bigint];
+
+export type SwapPairGetCumulativePricesArgs = void;
+export type SwapPairGetCumulativePricesResult = readonly [U256, U256];
+
+export type SwapPairGetLiquidityArgs = void;
+export type SwapPairGetLiquidityResult = bigint;
+
+export type SwapPairGetReservesArgs = void;
+export type SwapPairGetReservesResult = readonly [bigint, bigint, bigint];
+
+export interface SwapPairInitializeArgs {
+  factory: ContractAddress;
+  token0: ContractAddress;
+  token1: ContractAddress;
+  lpToken: ContractAddress;
+}
+export type SwapPairInitializeResult = void;
+
+export type SwapPairLiquidityTokenArgs = void;
+export type SwapPairLiquidityTokenResult = ContractAddress;
+
+export interface SwapPairMintLpArgs {
+  to: ContractAddress;
+  requestId: FixedBytes<32> | null;
+}
+export type SwapPairMintLpResult = bigint;
+
+export interface SwapPairSkimArgs {
+  to: ContractAddress;
+}
+export type SwapPairSkimResult = void;
+
+export interface SwapPairSwapArgs {
+  amount0Out: bigint;
+  amount1Out: bigint;
+  to: ContractAddress;
+  requestId: FixedBytes<32> | null;
+}
+export type SwapPairSwapResult = void;
+
+export type SwapPairSyncArgs = void;
+export type SwapPairSyncResult = void;
+
+export type SwapPairDeclaredAbort =
+  | {
+      kind: "declared";
+      exception: "SwapPairError";
+      selector: 0x25d002d47b07640dn;
+      value: SwapPairError;
+    }
+  | {
+      kind: "declared";
+      exception: "ERC20Error";
+      selector: 0xb19947acb2fa14ffn;
+      value: ERC20Error;
+    };
+export type SwapPairAbort = ContractAbort<SwapPairDeclaredAbort>;
 
 export const spec: ContractSpec = {
   interfaces: [
@@ -54,35 +136,63 @@ export const spec: ContractSpec = {
       name: s("SwapPair"),
       vers: s("0.1.0"),
       throws: [
-        { selector: 0x25d002d47b07640dn, ty: { v: ContractTypeKind.Named, named: s("SwapPairError") } },
-        { selector: 0xb19947acb2fa14ffn, ty: { v: ContractTypeKind.Named, named: s("ERC20Error") } },
+        {
+          selector: 0x25d002d47b07640dn,
+          ty: { v: ContractTypeKind.Named, named: s("SwapPairError") },
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          ty: { v: ContractTypeKind.Named, named: s("ERC20Error") },
+        },
       ],
       methods: [
         {
           name: s("burn_lp"),
           args: [
             { name: s("to"), ty: { v: ContractTypeKind.Address } },
-            { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
+            {
+              name: s("request_id"),
+              ty: {
+                v: ContractTypeKind.Option,
+                option_inner: {
+                  v: ContractTypeKind.Array,
+                  array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+                },
+              },
+            },
           ],
-          return_type: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } },
+          return_type: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+          },
         },
         {
           name: s("get_cumulative_prices"),
-          args: [
-          ],
-          return_type: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.Named, named: s("U256") }, len: 2n } },
+          args: [],
+          return_type: {
+            v: ContractTypeKind.Array,
+            array: {
+              element: { v: ContractTypeKind.Named, named: s("U256") },
+              len: 2n,
+            },
+          },
         },
         {
           name: s("get_liquidity"),
-          args: [
-          ],
+          args: [],
           return_type: { v: ContractTypeKind.U128 },
         },
         {
           name: s("get_reserves"),
-          args: [
-          ],
-          return_type: { v: ContractTypeKind.Tuple, tuple: [{ v: ContractTypeKind.U128 }, { v: ContractTypeKind.U128 }, { v: ContractTypeKind.U32 }] },
+          args: [],
+          return_type: {
+            v: ContractTypeKind.Tuple,
+            tuple: [
+              { v: ContractTypeKind.U128 },
+              { v: ContractTypeKind.U128 },
+              { v: ContractTypeKind.U32 },
+            ],
+          },
         },
         {
           name: s("initialize"),
@@ -96,23 +206,29 @@ export const spec: ContractSpec = {
         },
         {
           name: s("liquidity_token"),
-          args: [
-          ],
+          args: [],
           return_type: { v: ContractTypeKind.Address },
         },
         {
           name: s("mint_lp"),
           args: [
             { name: s("to"), ty: { v: ContractTypeKind.Address } },
-            { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
+            {
+              name: s("request_id"),
+              ty: {
+                v: ContractTypeKind.Option,
+                option_inner: {
+                  v: ContractTypeKind.Array,
+                  array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+                },
+              },
+            },
           ],
           return_type: { v: ContractTypeKind.U128 },
         },
         {
           name: s("skim"),
-          args: [
-            { name: s("to"), ty: { v: ContractTypeKind.Address } },
-          ],
+          args: [{ name: s("to"), ty: { v: ContractTypeKind.Address } }],
           return_type: { v: ContractTypeKind.Void },
         },
         {
@@ -121,14 +237,22 @@ export const spec: ContractSpec = {
             { name: s("amount0_out"), ty: { v: ContractTypeKind.U128 } },
             { name: s("amount1_out"), ty: { v: ContractTypeKind.U128 } },
             { name: s("to"), ty: { v: ContractTypeKind.Address } },
-            { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
+            {
+              name: s("request_id"),
+              ty: {
+                v: ContractTypeKind.Option,
+                option_inner: {
+                  v: ContractTypeKind.Array,
+                  array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+                },
+              },
+            },
           ],
           return_type: { v: ContractTypeKind.Void },
         },
         {
           name: s("sync"),
-          args: [
-          ],
+          args: [],
           return_type: { v: ContractTypeKind.Void },
         },
       ],
@@ -215,7 +339,10 @@ export const spec: ContractSpec = {
           {
             name: s("LPTokenFailure"),
             discriminant: 13n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseTuple, tuple: [{ v: ContractTypeKind.Named, named: s("ERC20Error") }] },
+            case_type: {
+              v: ContractUnionCaseKind.UnionCaseTuple,
+              tuple: [{ v: ContractTypeKind.Named, named: s("ERC20Error") }],
+            },
           },
         ],
       },
@@ -225,7 +352,13 @@ export const spec: ContractSpec = {
       struct_def: {
         name: s("U256"),
         fields: [
-          { name: s("_0"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U64 }, len: 4n } } },
+          {
+            name: s("limbs"),
+            ty: {
+              v: ContractTypeKind.Array,
+              array: { element: { v: ContractTypeKind.U32 }, len: 8n },
+            },
+          },
         ],
       },
     },
@@ -233,276 +366,558 @@ export const spec: ContractSpec = {
   events: [
     {
       name: s("BurnEvent"),
-      signature: topic(fromHex("44934a1f6a6a0d7c09f5464a14adefd9da1e9cde4d9420b333fecb917c47f52c")),
+      signature: topic(
+        fromHex(
+          "44934a1f6a6a0d7c09f5464a14adefd9da1e9cde4d9420b333fecb917c47f52c",
+        ),
+      ),
       topics: [
         { name: s("sender"), ty: { v: ContractTypeKind.Address } },
         { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
       ],
       fields: [
-        { name: s("amounts_redeemed"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
-        { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
+        {
+          name: s("amounts_redeemed"),
+          ty: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+          },
+        },
+        {
+          name: s("request_id"),
+          ty: {
+            v: ContractTypeKind.Option,
+            option_inner: {
+              v: ContractTypeKind.Array,
+              array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+            },
+          },
+        },
       ],
     },
     {
       name: s("MintEvent"),
-      signature: topic(fromHex("48e990a9515a2084882012e9e7c7cf93100fd7f03be5f1665969aefe519444be")),
-      topics: [
-        { name: s("sender"), ty: { v: ContractTypeKind.Address } },
-      ],
+      signature: topic(
+        fromHex(
+          "48e990a9515a2084882012e9e7c7cf93100fd7f03be5f1665969aefe519444be",
+        ),
+      ),
+      topics: [{ name: s("sender"), ty: { v: ContractTypeKind.Address } }],
       fields: [
         { name: s("amount_minted"), ty: { v: ContractTypeKind.U128 } },
-        { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
+        {
+          name: s("request_id"),
+          ty: {
+            v: ContractTypeKind.Option,
+            option_inner: {
+              v: ContractTypeKind.Array,
+              array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+            },
+          },
+        },
       ],
     },
     {
       name: s("SwapEvent"),
-      signature: topic(fromHex("86b5aa1c9e00134a5f67a0206b1212775022c4ab4b5099e70602e5c1548a19ab")),
+      signature: topic(
+        fromHex(
+          "86b5aa1c9e00134a5f67a0206b1212775022c4ab4b5099e70602e5c1548a19ab",
+        ),
+      ),
       topics: [
         { name: s("sender"), ty: { v: ContractTypeKind.Address } },
         { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
       ],
       fields: [
-        { name: s("amounts_in"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
-        { name: s("amounts_out"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
-        { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
+        {
+          name: s("amounts_in"),
+          ty: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+          },
+        },
+        {
+          name: s("amounts_out"),
+          ty: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+          },
+        },
+        {
+          name: s("request_id"),
+          ty: {
+            v: ContractTypeKind.Option,
+            option_inner: {
+              v: ContractTypeKind.Array,
+              array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+            },
+          },
+        },
       ],
     },
     {
       name: s("SyncEvent"),
-      signature: topic(fromHex("15f9dd3052c289e08cbcd724168d985fe851ce3991f43b095f5b70d3a292d4bd")),
-      topics: [
-      ],
+      signature: topic(
+        fromHex(
+          "15f9dd3052c289e08cbcd724168d985fe851ce3991f43b095f5b70d3a292d4bd",
+        ),
+      ),
+      topics: [],
       fields: [
-        { name: s("reserves"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
+        {
+          name: s("reserves"),
+          ty: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+          },
+        },
       ],
     },
   ],
 };
 
-const namedCodecs = buildNamedCodecs(spec.type_defs);
+const codecs = createContractCodecContext(spec.type_defs);
 
 export const SwapPair = {
-  burnLp(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { to: ContractAddress; requestId: Uint8Array | null },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapPair.burnLp,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "burn_lp", [args.to, args.requestId], namedCodecs),
-    });
-  },
-  getCumulativePrices(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapPair.getCumulativePrices,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "get_cumulative_prices", [], namedCodecs),
-    });
-  },
-  getLiquidity(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapPair.getLiquidity,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "get_liquidity", [], namedCodecs),
-    });
-  },
-  getReserves(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapPair.getReserves,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "get_reserves", [], namedCodecs),
-    });
-  },
-  initialize(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { factory: ContractAddress; token0: ContractAddress; token1: ContractAddress; lpToken: ContractAddress },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapPair.initialize,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "initialize", [args.factory, args.token0, args.token1, args.lpToken], namedCodecs),
-    });
-  },
-  liquidityToken(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapPair.liquidityToken,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "liquidity_token", [], namedCodecs),
-    });
-  },
-  mintLp(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { to: ContractAddress; requestId: Uint8Array | null },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapPair.mintLp,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "mint_lp", [args.to, args.requestId], namedCodecs),
-    });
-  },
-  skim(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { to: ContractAddress },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapPair.skim,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "skim", [args.to], namedCodecs),
-    });
-  },
-  swap(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { amount0Out: bigint; amount1Out: bigint; to: ContractAddress; requestId: Uint8Array | null },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapPair.swap,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "swap", [args.amount0Out, args.amount1Out, args.to, args.requestId], namedCodecs),
-    });
-  },
-  sync(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapPair.sync,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "sync", [], namedCodecs),
-    });
-  },
+  burnLp: defineContractMethod<
+    SwapPairBurnLpArgs,
+    SwapPairBurnLpResult,
+    SwapPairDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapPair.burnLp,
+    args: [
+      {
+        abiName: "to",
+        publicName: "to",
+        type: spec.interfaces[0].methods[0].args[0].ty,
+      },
+      {
+        abiName: "request_id",
+        publicName: "requestId",
+        type: spec.interfaces[0].methods[0].args[1].ty,
+      },
+    ],
+    returnType: spec.interfaces[0].methods[0].return_type,
+    throws: [
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+    ],
+    codecs,
+  }),
+  getCumulativePrices: defineContractMethod<
+    SwapPairGetCumulativePricesArgs,
+    SwapPairGetCumulativePricesResult,
+    SwapPairDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapPair.getCumulativePrices,
+    args: [],
+    returnType: spec.interfaces[0].methods[1].return_type,
+    throws: [
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+    ],
+    codecs,
+  }),
+  getLiquidity: defineContractMethod<
+    SwapPairGetLiquidityArgs,
+    SwapPairGetLiquidityResult,
+    SwapPairDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapPair.getLiquidity,
+    args: [],
+    returnType: spec.interfaces[0].methods[2].return_type,
+    throws: [
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+    ],
+    codecs,
+  }),
+  getReserves: defineContractMethod<
+    SwapPairGetReservesArgs,
+    SwapPairGetReservesResult,
+    SwapPairDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapPair.getReserves,
+    args: [],
+    returnType: spec.interfaces[0].methods[3].return_type,
+    throws: [
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+    ],
+    codecs,
+  }),
+  initialize: defineContractMethod<
+    SwapPairInitializeArgs,
+    SwapPairInitializeResult,
+    SwapPairDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapPair.initialize,
+    args: [
+      {
+        abiName: "factory",
+        publicName: "factory",
+        type: spec.interfaces[0].methods[4].args[0].ty,
+      },
+      {
+        abiName: "token0",
+        publicName: "token0",
+        type: spec.interfaces[0].methods[4].args[1].ty,
+      },
+      {
+        abiName: "token1",
+        publicName: "token1",
+        type: spec.interfaces[0].methods[4].args[2].ty,
+      },
+      {
+        abiName: "lp_token",
+        publicName: "lpToken",
+        type: spec.interfaces[0].methods[4].args[3].ty,
+      },
+    ],
+    returnType: spec.interfaces[0].methods[4].return_type,
+    throws: [
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+    ],
+    codecs,
+  }),
+  liquidityToken: defineContractMethod<
+    SwapPairLiquidityTokenArgs,
+    SwapPairLiquidityTokenResult,
+    SwapPairDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapPair.liquidityToken,
+    args: [],
+    returnType: spec.interfaces[0].methods[5].return_type,
+    throws: [
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+    ],
+    codecs,
+  }),
+  mintLp: defineContractMethod<
+    SwapPairMintLpArgs,
+    SwapPairMintLpResult,
+    SwapPairDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapPair.mintLp,
+    args: [
+      {
+        abiName: "to",
+        publicName: "to",
+        type: spec.interfaces[0].methods[6].args[0].ty,
+      },
+      {
+        abiName: "request_id",
+        publicName: "requestId",
+        type: spec.interfaces[0].methods[6].args[1].ty,
+      },
+    ],
+    returnType: spec.interfaces[0].methods[6].return_type,
+    throws: [
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+    ],
+    codecs,
+  }),
+  skim: defineContractMethod<
+    SwapPairSkimArgs,
+    SwapPairSkimResult,
+    SwapPairDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapPair.skim,
+    args: [
+      {
+        abiName: "to",
+        publicName: "to",
+        type: spec.interfaces[0].methods[7].args[0].ty,
+      },
+    ],
+    returnType: spec.interfaces[0].methods[7].return_type,
+    throws: [
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+    ],
+    codecs,
+  }),
+  swap: defineContractMethod<
+    SwapPairSwapArgs,
+    SwapPairSwapResult,
+    SwapPairDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapPair.swap,
+    args: [
+      {
+        abiName: "amount0_out",
+        publicName: "amount0Out",
+        type: spec.interfaces[0].methods[8].args[0].ty,
+      },
+      {
+        abiName: "amount1_out",
+        publicName: "amount1Out",
+        type: spec.interfaces[0].methods[8].args[1].ty,
+      },
+      {
+        abiName: "to",
+        publicName: "to",
+        type: spec.interfaces[0].methods[8].args[2].ty,
+      },
+      {
+        abiName: "request_id",
+        publicName: "requestId",
+        type: spec.interfaces[0].methods[8].args[3].ty,
+      },
+    ],
+    returnType: spec.interfaces[0].methods[8].return_type,
+    throws: [
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+    ],
+    codecs,
+  }),
+  sync: defineContractMethod<
+    SwapPairSyncArgs,
+    SwapPairSyncResult,
+    SwapPairDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapPair.sync,
+    args: [],
+    returnType: spec.interfaces[0].methods[9].return_type,
+    throws: [
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+    ],
+    codecs,
+  }),
 } as const;
 
-function topicEquals(a: Uint8Array | undefined, b: Uint8Array): boolean {
-  if (a === undefined || a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-  return true;
+export interface BurnEvent extends DecodedContractEvent<
+  "BurnEvent",
+  { sender: ContractAddress; recipient: ContractAddress },
+  {
+    amounts_redeemed: readonly [bigint, bigint];
+    request_id: FixedBytes<32> | null;
+  }
+> {}
+
+export interface BurnEventFilter {
+  sender?: ContractEventFilterValue<ContractAddress>;
+  recipient?: ContractEventFilterValue<ContractAddress>;
 }
 
-export interface BurnEvent {
-  name: "BurnEvent";
-  topics: { sender: Uint8Array; recipient: Uint8Array; };
-  fields: { amounts_redeemed: bigint[]; request_id: Uint8Array | null; };
-}
-export const BurnEvent = {
-  /** Topic-0 signature hash from the contract spec. */
-  signature: fromHex("44934a1f6a6a0d7c09f5464a14adefd9da1e9cde4d9420b333fecb917c47f52c"),
-  /** Returns null if topic 0 does not identify this event. */
-  decode(event: { topics: Uint8Array[]; data: Uint8Array }): BurnEvent | null {
-    if (!topicEquals(event.topics[0], BurnEvent.signature)) return null;
-    if (event.topics.length !== 3) {
-      throw new Error(`BurnEvent: expected 3 topics, got ${event.topics.length}`);
-    }
-    const r = new CxsReader(event.data);
-    const f0 = resolveCodec(spec.events[0].fields[0].ty, namedCodecs).decode(r) as bigint[];
-    const f1 = resolveCodec(spec.events[0].fields[1].ty, namedCodecs).decode(r) as Uint8Array | null;
-    if (r.remaining !== 0) {
-      throw new Error(`BurnEvent: ${r.remaining} trailing bytes after payload`);
-    }
-    return { name: "BurnEvent", topics: { sender: event.topics[1], recipient: event.topics[2] }, fields: { amounts_redeemed: f0, request_id: f1 } };
-  },
-} as const;
+export const BurnEvent = defineContractEvent<
+  "BurnEvent",
+  BurnEvent["topics"],
+  BurnEvent["fields"],
+  BurnEventFilter
+>({
+  name: "BurnEvent",
+  signature: spec.events[0].signature,
+  topics: [
+    {
+      name: "sender",
+      type: spec.events[0].topics[0].ty,
+      representation: "address",
+    },
+    {
+      name: "recipient",
+      type: spec.events[0].topics[1].ty,
+      representation: "address",
+    },
+  ],
+  fields: [
+    { name: "amounts_redeemed", type: spec.events[0].fields[0].ty },
+    { name: "request_id", type: spec.events[0].fields[1].ty },
+  ],
+  codecs,
+});
 
-export interface MintEvent {
-  name: "MintEvent";
-  topics: { sender: Uint8Array; };
-  fields: { amount_minted: bigint; request_id: Uint8Array | null; };
-}
-export const MintEvent = {
-  /** Topic-0 signature hash from the contract spec. */
-  signature: fromHex("48e990a9515a2084882012e9e7c7cf93100fd7f03be5f1665969aefe519444be"),
-  /** Returns null if topic 0 does not identify this event. */
-  decode(event: { topics: Uint8Array[]; data: Uint8Array }): MintEvent | null {
-    if (!topicEquals(event.topics[0], MintEvent.signature)) return null;
-    if (event.topics.length !== 2) {
-      throw new Error(`MintEvent: expected 2 topics, got ${event.topics.length}`);
-    }
-    const r = new CxsReader(event.data);
-    const f0 = resolveCodec(spec.events[1].fields[0].ty, namedCodecs).decode(r) as bigint;
-    const f1 = resolveCodec(spec.events[1].fields[1].ty, namedCodecs).decode(r) as Uint8Array | null;
-    if (r.remaining !== 0) {
-      throw new Error(`MintEvent: ${r.remaining} trailing bytes after payload`);
-    }
-    return { name: "MintEvent", topics: { sender: event.topics[1] }, fields: { amount_minted: f0, request_id: f1 } };
-  },
-} as const;
+export interface MintEvent extends DecodedContractEvent<
+  "MintEvent",
+  { sender: ContractAddress },
+  { amount_minted: bigint; request_id: FixedBytes<32> | null }
+> {}
 
-export interface SwapEvent {
-  name: "SwapEvent";
-  topics: { sender: Uint8Array; recipient: Uint8Array; };
-  fields: { amounts_in: bigint[]; amounts_out: bigint[]; request_id: Uint8Array | null; };
+export interface MintEventFilter {
+  sender?: ContractEventFilterValue<ContractAddress>;
 }
-export const SwapEvent = {
-  /** Topic-0 signature hash from the contract spec. */
-  signature: fromHex("86b5aa1c9e00134a5f67a0206b1212775022c4ab4b5099e70602e5c1548a19ab"),
-  /** Returns null if topic 0 does not identify this event. */
-  decode(event: { topics: Uint8Array[]; data: Uint8Array }): SwapEvent | null {
-    if (!topicEquals(event.topics[0], SwapEvent.signature)) return null;
-    if (event.topics.length !== 3) {
-      throw new Error(`SwapEvent: expected 3 topics, got ${event.topics.length}`);
-    }
-    const r = new CxsReader(event.data);
-    const f0 = resolveCodec(spec.events[2].fields[0].ty, namedCodecs).decode(r) as bigint[];
-    const f1 = resolveCodec(spec.events[2].fields[1].ty, namedCodecs).decode(r) as bigint[];
-    const f2 = resolveCodec(spec.events[2].fields[2].ty, namedCodecs).decode(r) as Uint8Array | null;
-    if (r.remaining !== 0) {
-      throw new Error(`SwapEvent: ${r.remaining} trailing bytes after payload`);
-    }
-    return { name: "SwapEvent", topics: { sender: event.topics[1], recipient: event.topics[2] }, fields: { amounts_in: f0, amounts_out: f1, request_id: f2 } };
-  },
-} as const;
 
-export interface SyncEvent {
-  name: "SyncEvent";
-  topics: {  };
-  fields: { reserves: bigint[]; };
+export const MintEvent = defineContractEvent<
+  "MintEvent",
+  MintEvent["topics"],
+  MintEvent["fields"],
+  MintEventFilter
+>({
+  name: "MintEvent",
+  signature: spec.events[1].signature,
+  topics: [
+    {
+      name: "sender",
+      type: spec.events[1].topics[0].ty,
+      representation: "address",
+    },
+  ],
+  fields: [
+    { name: "amount_minted", type: spec.events[1].fields[0].ty },
+    { name: "request_id", type: spec.events[1].fields[1].ty },
+  ],
+  codecs,
+});
+
+export interface SwapEvent extends DecodedContractEvent<
+  "SwapEvent",
+  { sender: ContractAddress; recipient: ContractAddress },
+  {
+    amounts_in: readonly [bigint, bigint];
+    amounts_out: readonly [bigint, bigint];
+    request_id: FixedBytes<32> | null;
+  }
+> {}
+
+export interface SwapEventFilter {
+  sender?: ContractEventFilterValue<ContractAddress>;
+  recipient?: ContractEventFilterValue<ContractAddress>;
 }
-export const SyncEvent = {
-  /** Topic-0 signature hash from the contract spec. */
-  signature: fromHex("15f9dd3052c289e08cbcd724168d985fe851ce3991f43b095f5b70d3a292d4bd"),
-  /** Returns null if topic 0 does not identify this event. */
-  decode(event: { topics: Uint8Array[]; data: Uint8Array }): SyncEvent | null {
-    if (!topicEquals(event.topics[0], SyncEvent.signature)) return null;
-    if (event.topics.length !== 1) {
-      throw new Error(`SyncEvent: expected 1 topics, got ${event.topics.length}`);
-    }
-    const r = new CxsReader(event.data);
-    const f0 = resolveCodec(spec.events[3].fields[0].ty, namedCodecs).decode(r) as bigint[];
-    if (r.remaining !== 0) {
-      throw new Error(`SyncEvent: ${r.remaining} trailing bytes after payload`);
-    }
-    return { name: "SyncEvent", topics: {  }, fields: { reserves: f0 } };
-  },
-} as const;
+
+export const SwapEvent = defineContractEvent<
+  "SwapEvent",
+  SwapEvent["topics"],
+  SwapEvent["fields"],
+  SwapEventFilter
+>({
+  name: "SwapEvent",
+  signature: spec.events[2].signature,
+  topics: [
+    {
+      name: "sender",
+      type: spec.events[2].topics[0].ty,
+      representation: "address",
+    },
+    {
+      name: "recipient",
+      type: spec.events[2].topics[1].ty,
+      representation: "address",
+    },
+  ],
+  fields: [
+    { name: "amounts_in", type: spec.events[2].fields[0].ty },
+    { name: "amounts_out", type: spec.events[2].fields[1].ty },
+    { name: "request_id", type: spec.events[2].fields[2].ty },
+  ],
+  codecs,
+});
+
+export interface SyncEvent extends DecodedContractEvent<
+  "SyncEvent",
+  {},
+  { reserves: readonly [bigint, bigint] }
+> {}
+
+export type SyncEventFilter = Record<string, never>;
+
+export const SyncEvent = defineContractEvent<
+  "SyncEvent",
+  SyncEvent["topics"],
+  SyncEvent["fields"],
+  SyncEventFilter
+>({
+  name: "SyncEvent",
+  signature: spec.events[3].signature,
+  topics: [],
+  fields: [{ name: "reserves", type: spec.events[3].fields[0].ty }],
+  codecs,
+});
 
 export type SwapPairEvent = BurnEvent | MintEvent | SwapEvent | SyncEvent;
 
-export function decodeEvent(event: { topics: Uint8Array[]; data: Uint8Array }): SwapPairEvent | null {
-  return BurnEvent.decode(event) ?? MintEvent.decode(event) ?? SwapEvent.decode(event) ?? SyncEvent.decode(event);
+export function decodeEvent(event: {
+  topics: Uint8Array[];
+  data: Uint8Array;
+}): SwapPairEvent | null {
+  return (
+    BurnEvent.decode(event) ??
+    MintEvent.decode(event) ??
+    SwapEvent.decode(event) ??
+    SyncEvent.decode(event)
+  );
 }

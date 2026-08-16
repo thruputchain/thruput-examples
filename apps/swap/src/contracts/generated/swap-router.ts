@@ -1,14 +1,22 @@
-// Generated from swap_router.spec.xdr — SwapRouter interface v0.1.0
+// Generated from swap_router.spec.xdr - SwapRouter interface v0.1.0
 // DO NOT EDIT. Re-run codegen to update.
 
-import type { ContractAddress, GasAmount, Invocation } from "@groundhogchain/protocol";
+import type { ContractAddress } from "@groundhogchain/protocol";
 import { contractEntrypointID } from "@groundhogchain/protocol";
 import { fromHex } from "@groundhogchain/protocol/utils";
-import { ContractTypeKind, ContractTypeDefKind, contractSpecString, ContractUnionCaseKind } from "@groundhogchain/contract-spec";
-import type { ContractSpec } from "@groundhogchain/client";
-import { encodeCalldata } from "@groundhogchain/client";
-import { buildNamedCodecs } from "@groundhogchain/client";
-import { createInvocation } from "@groundhogchain/client";
+import {
+  ContractTypeKind,
+  ContractTypeDefKind,
+  contractSpecString,
+  ContractUnionCaseKind,
+} from "@groundhogchain/contract-spec";
+import {
+  type ContractSpec,
+  createContractCodecContext,
+  defineContractMethod,
+  type ContractAbort,
+  type FixedBytes,
+} from "@groundhogchain/client/contract";
 
 const s = contractSpecString;
 
@@ -22,14 +30,37 @@ const entrypoints = {
   },
 } as const;
 
-export enum ERC20Error { AlreadyInitialized = 1, MustBeContractOwner = 2, TooLarge = 3, Internal = 100, }
+export const ERC20Error = {
+  AlreadyInitialized: 1n,
+  MustBeContractOwner: 2n,
+  TooLarge: 3n,
+  Internal: 100n,
+} as const;
 
-export enum SwapFactoryError { AlreadyInitialized = 1, IdenticalTokens = 2, ZeroAddress = 3, PairExists = 4, }
+export type ERC20Error = (typeof ERC20Error)[keyof typeof ERC20Error];
 
-export enum SwapLibraryError { InsufficientAmount = 1, InsufficientLiquidity = 2, InsufficientInputAmount = 3, InsufficientOutputAmount = 4, }
+export const SwapFactoryError = {
+  AlreadyInitialized: 1n,
+  IdenticalTokens: 2n,
+  ZeroAddress: 3n,
+  PairExists: 4n,
+} as const;
+
+export type SwapFactoryError =
+  (typeof SwapFactoryError)[keyof typeof SwapFactoryError];
+
+export const SwapLibraryError = {
+  InsufficientAmount: 1n,
+  InsufficientLiquidity: 2n,
+  InsufficientInputAmount: 3n,
+  InsufficientOutputAmount: 4n,
+} as const;
+
+export type SwapLibraryError =
+  (typeof SwapLibraryError)[keyof typeof SwapLibraryError];
 
 export type SwapPairError =
-  { case: "InitializeFailed" }
+  | { case: "InitializeFailed" }
   | { case: "AlreadyInitialized" }
   | { case: "NoLiquidityToBurn" }
   | { case: "InsufficientOutputAmount" }
@@ -41,9 +72,91 @@ export type SwapPairError =
   | { case: "InvalidSwapProduct" }
   | { case: "Overflow" }
   | { case: "TransferFailed" }
-  | { case: "LPTokenFailure"; value: [ERC20Error] };
+  | { case: "LPTokenFailure"; value: readonly [ERC20Error] };
 
-export enum SwapRequestError { InsufficientAmountA = 1, InsufficientAmountB = 2, InsufficientOutputAmount = 3, ExcessiveInputAmount = 4, }
+export const SwapRequestError = {
+  InsufficientAmountA: 1n,
+  InsufficientAmountB: 2n,
+  InsufficientOutputAmount: 3n,
+  ExcessiveInputAmount: 4n,
+} as const;
+
+export type SwapRequestError =
+  (typeof SwapRequestError)[keyof typeof SwapRequestError];
+
+export interface SwapRouterAddLiquidityArgs {
+  tokenA: ContractAddress;
+  tokenB: ContractAddress;
+  amountsDesired: readonly [bigint, bigint];
+  amountsMin: readonly [bigint, bigint];
+  recipient: ContractAddress;
+}
+export type SwapRouterAddLiquidityResult = FixedBytes<32>;
+
+export interface SwapRouterInitializeArgs {
+  factory: ContractAddress;
+}
+export type SwapRouterInitializeResult = void;
+
+export interface SwapRouterRemoveLiquidityArgs {
+  tokenA: ContractAddress;
+  tokenB: ContractAddress;
+  liquidity: bigint;
+  amountsMin: readonly [bigint, bigint];
+  recipient: ContractAddress;
+}
+export type SwapRouterRemoveLiquidityResult = FixedBytes<32>;
+
+export interface SwapRouterSwapExactTokensForTokensArgs {
+  amountIn: bigint;
+  amountOutMin: bigint;
+  tokenIn: ContractAddress;
+  tokenOut: ContractAddress;
+  recipient: ContractAddress;
+}
+export type SwapRouterSwapExactTokensForTokensResult = FixedBytes<32>;
+
+export interface SwapRouterSwapTokensForExactTokensArgs {
+  amountOut: bigint;
+  amountInMax: bigint;
+  tokenIn: ContractAddress;
+  tokenOut: ContractAddress;
+  recipient: ContractAddress;
+}
+export type SwapRouterSwapTokensForExactTokensResult = FixedBytes<32>;
+
+export type SwapRouterDeclaredAbort =
+  | {
+      kind: "declared";
+      exception: "SwapLibraryError";
+      selector: 0x17e7e152700d9279n;
+      value: SwapLibraryError;
+    }
+  | {
+      kind: "declared";
+      exception: "SwapPairError";
+      selector: 0x25d002d47b07640dn;
+      value: SwapPairError;
+    }
+  | {
+      kind: "declared";
+      exception: "SwapFactoryError";
+      selector: 0x93e5de5a4268821fn;
+      value: SwapFactoryError;
+    }
+  | {
+      kind: "declared";
+      exception: "SwapRequestError";
+      selector: 0x947bdd51feea1ccen;
+      value: SwapRequestError;
+    }
+  | {
+      kind: "declared";
+      exception: "ERC20Error";
+      selector: 0xb19947acb2fa14ffn;
+      value: ERC20Error;
+    };
+export type SwapRouterAbort = ContractAbort<SwapRouterDeclaredAbort>;
 
 export const spec: ContractSpec = {
   interfaces: [
@@ -51,11 +164,26 @@ export const spec: ContractSpec = {
       name: s("SwapRouter"),
       vers: s("0.1.0"),
       throws: [
-        { selector: 0x17e7e152700d9279n, ty: { v: ContractTypeKind.Named, named: s("SwapLibraryError") } },
-        { selector: 0x25d002d47b07640dn, ty: { v: ContractTypeKind.Named, named: s("SwapPairError") } },
-        { selector: 0x93e5de5a4268821fn, ty: { v: ContractTypeKind.Named, named: s("SwapFactoryError") } },
-        { selector: 0x947bdd51feea1ccen, ty: { v: ContractTypeKind.Named, named: s("SwapRequestError") } },
-        { selector: 0xb19947acb2fa14ffn, ty: { v: ContractTypeKind.Named, named: s("ERC20Error") } },
+        {
+          selector: 0x17e7e152700d9279n,
+          ty: { v: ContractTypeKind.Named, named: s("SwapLibraryError") },
+        },
+        {
+          selector: 0x25d002d47b07640dn,
+          ty: { v: ContractTypeKind.Named, named: s("SwapPairError") },
+        },
+        {
+          selector: 0x93e5de5a4268821fn,
+          ty: { v: ContractTypeKind.Named, named: s("SwapFactoryError") },
+        },
+        {
+          selector: 0x947bdd51feea1ccen,
+          ty: { v: ContractTypeKind.Named, named: s("SwapRequestError") },
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          ty: { v: ContractTypeKind.Named, named: s("ERC20Error") },
+        },
       ],
       methods: [
         {
@@ -63,17 +191,30 @@ export const spec: ContractSpec = {
           args: [
             { name: s("token_a"), ty: { v: ContractTypeKind.Address } },
             { name: s("token_b"), ty: { v: ContractTypeKind.Address } },
-            { name: s("amounts_desired"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
-            { name: s("amounts_min"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
+            {
+              name: s("amounts_desired"),
+              ty: {
+                v: ContractTypeKind.Array,
+                array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+              },
+            },
+            {
+              name: s("amounts_min"),
+              ty: {
+                v: ContractTypeKind.Array,
+                array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+              },
+            },
             { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
           ],
-          return_type: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } },
+          return_type: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+          },
         },
         {
           name: s("initialize"),
-          args: [
-            { name: s("factory"), ty: { v: ContractTypeKind.Address } },
-          ],
+          args: [{ name: s("factory"), ty: { v: ContractTypeKind.Address } }],
           return_type: { v: ContractTypeKind.Void },
         },
         {
@@ -82,10 +223,19 @@ export const spec: ContractSpec = {
             { name: s("token_a"), ty: { v: ContractTypeKind.Address } },
             { name: s("token_b"), ty: { v: ContractTypeKind.Address } },
             { name: s("liquidity"), ty: { v: ContractTypeKind.U128 } },
-            { name: s("amounts_min"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
+            {
+              name: s("amounts_min"),
+              ty: {
+                v: ContractTypeKind.Array,
+                array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+              },
+            },
             { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
           ],
-          return_type: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } },
+          return_type: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+          },
         },
         {
           name: s("swap_exact_tokens_for_tokens"),
@@ -96,7 +246,10 @@ export const spec: ContractSpec = {
             { name: s("token_out"), ty: { v: ContractTypeKind.Address } },
             { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
           ],
-          return_type: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } },
+          return_type: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+          },
         },
         {
           name: s("swap_tokens_for_exact_tokens"),
@@ -107,7 +260,10 @@ export const spec: ContractSpec = {
             { name: s("token_out"), ty: { v: ContractTypeKind.Address } },
             { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
           ],
-          return_type: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } },
+          return_type: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+          },
         },
       ],
     },
@@ -217,7 +373,10 @@ export const spec: ContractSpec = {
           {
             name: s("LPTokenFailure"),
             discriminant: 13n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseTuple, tuple: [{ v: ContractTypeKind.Named, named: s("ERC20Error") }] },
+            case_type: {
+              v: ContractUnionCaseKind.UnionCaseTuple,
+              tuple: [{ v: ContractTypeKind.Named, named: s("ERC20Error") }],
+            },
           },
         ],
       },
@@ -235,71 +394,305 @@ export const spec: ContractSpec = {
       },
     },
   ],
-  events: [
-  ],
+  events: [],
 };
 
-const namedCodecs = buildNamedCodecs(spec.type_defs);
+const codecs = createContractCodecContext(spec.type_defs);
 
 export const SwapRouter = {
-  addLiquidity(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { tokenA: ContractAddress; tokenB: ContractAddress; amountsDesired: bigint[]; amountsMin: bigint[]; recipient: ContractAddress },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapRouter.addLiquidity,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapRouter", "add_liquidity", [args.tokenA, args.tokenB, args.amountsDesired, args.amountsMin, args.recipient], namedCodecs),
-    });
-  },
-  initialize(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { factory: ContractAddress },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapRouter.initialize,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapRouter", "initialize", [args.factory], namedCodecs),
-    });
-  },
-  removeLiquidity(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { tokenA: ContractAddress; tokenB: ContractAddress; liquidity: bigint; amountsMin: bigint[]; recipient: ContractAddress },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapRouter.removeLiquidity,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapRouter", "remove_liquidity", [args.tokenA, args.tokenB, args.liquidity, args.amountsMin, args.recipient], namedCodecs),
-    });
-  },
-  swapExactTokensForTokens(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { amountIn: bigint; amountOutMin: bigint; tokenIn: ContractAddress; tokenOut: ContractAddress; recipient: ContractAddress },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapRouter.swapExactTokensForTokens,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapRouter", "swap_exact_tokens_for_tokens", [args.amountIn, args.amountOutMin, args.tokenIn, args.tokenOut, args.recipient], namedCodecs),
-    });
-  },
-  swapTokensForExactTokens(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { amountOut: bigint; amountInMax: bigint; tokenIn: ContractAddress; tokenOut: ContractAddress; recipient: ContractAddress },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapRouter.swapTokensForExactTokens,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapRouter", "swap_tokens_for_exact_tokens", [args.amountOut, args.amountInMax, args.tokenIn, args.tokenOut, args.recipient], namedCodecs),
-    });
-  },
+  addLiquidity: defineContractMethod<
+    SwapRouterAddLiquidityArgs,
+    SwapRouterAddLiquidityResult,
+    SwapRouterDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapRouter.addLiquidity,
+    args: [
+      {
+        abiName: "token_a",
+        publicName: "tokenA",
+        type: spec.interfaces[0].methods[0].args[0].ty,
+      },
+      {
+        abiName: "token_b",
+        publicName: "tokenB",
+        type: spec.interfaces[0].methods[0].args[1].ty,
+      },
+      {
+        abiName: "amounts_desired",
+        publicName: "amountsDesired",
+        type: spec.interfaces[0].methods[0].args[2].ty,
+      },
+      {
+        abiName: "amounts_min",
+        publicName: "amountsMin",
+        type: spec.interfaces[0].methods[0].args[3].ty,
+      },
+      {
+        abiName: "recipient",
+        publicName: "recipient",
+        type: spec.interfaces[0].methods[0].args[4].ty,
+      },
+    ],
+    returnType: spec.interfaces[0].methods[0].return_type,
+    throws: [
+      {
+        selector: 0x17e7e152700d9279n,
+        exception: "SwapLibraryError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+      {
+        selector: 0x93e5de5a4268821fn,
+        exception: "SwapFactoryError",
+        type: spec.interfaces[0].throws[2].ty,
+      },
+      {
+        selector: 0x947bdd51feea1ccen,
+        exception: "SwapRequestError",
+        type: spec.interfaces[0].throws[3].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[4].ty,
+      },
+    ],
+    codecs,
+  }),
+  initialize: defineContractMethod<
+    SwapRouterInitializeArgs,
+    SwapRouterInitializeResult,
+    SwapRouterDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapRouter.initialize,
+    args: [
+      {
+        abiName: "factory",
+        publicName: "factory",
+        type: spec.interfaces[0].methods[1].args[0].ty,
+      },
+    ],
+    returnType: spec.interfaces[0].methods[1].return_type,
+    throws: [
+      {
+        selector: 0x17e7e152700d9279n,
+        exception: "SwapLibraryError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+      {
+        selector: 0x93e5de5a4268821fn,
+        exception: "SwapFactoryError",
+        type: spec.interfaces[0].throws[2].ty,
+      },
+      {
+        selector: 0x947bdd51feea1ccen,
+        exception: "SwapRequestError",
+        type: spec.interfaces[0].throws[3].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[4].ty,
+      },
+    ],
+    codecs,
+  }),
+  removeLiquidity: defineContractMethod<
+    SwapRouterRemoveLiquidityArgs,
+    SwapRouterRemoveLiquidityResult,
+    SwapRouterDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapRouter.removeLiquidity,
+    args: [
+      {
+        abiName: "token_a",
+        publicName: "tokenA",
+        type: spec.interfaces[0].methods[2].args[0].ty,
+      },
+      {
+        abiName: "token_b",
+        publicName: "tokenB",
+        type: spec.interfaces[0].methods[2].args[1].ty,
+      },
+      {
+        abiName: "liquidity",
+        publicName: "liquidity",
+        type: spec.interfaces[0].methods[2].args[2].ty,
+      },
+      {
+        abiName: "amounts_min",
+        publicName: "amountsMin",
+        type: spec.interfaces[0].methods[2].args[3].ty,
+      },
+      {
+        abiName: "recipient",
+        publicName: "recipient",
+        type: spec.interfaces[0].methods[2].args[4].ty,
+      },
+    ],
+    returnType: spec.interfaces[0].methods[2].return_type,
+    throws: [
+      {
+        selector: 0x17e7e152700d9279n,
+        exception: "SwapLibraryError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+      {
+        selector: 0x93e5de5a4268821fn,
+        exception: "SwapFactoryError",
+        type: spec.interfaces[0].throws[2].ty,
+      },
+      {
+        selector: 0x947bdd51feea1ccen,
+        exception: "SwapRequestError",
+        type: spec.interfaces[0].throws[3].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[4].ty,
+      },
+    ],
+    codecs,
+  }),
+  swapExactTokensForTokens: defineContractMethod<
+    SwapRouterSwapExactTokensForTokensArgs,
+    SwapRouterSwapExactTokensForTokensResult,
+    SwapRouterDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapRouter.swapExactTokensForTokens,
+    args: [
+      {
+        abiName: "amount_in",
+        publicName: "amountIn",
+        type: spec.interfaces[0].methods[3].args[0].ty,
+      },
+      {
+        abiName: "amount_out_min",
+        publicName: "amountOutMin",
+        type: spec.interfaces[0].methods[3].args[1].ty,
+      },
+      {
+        abiName: "token_in",
+        publicName: "tokenIn",
+        type: spec.interfaces[0].methods[3].args[2].ty,
+      },
+      {
+        abiName: "token_out",
+        publicName: "tokenOut",
+        type: spec.interfaces[0].methods[3].args[3].ty,
+      },
+      {
+        abiName: "recipient",
+        publicName: "recipient",
+        type: spec.interfaces[0].methods[3].args[4].ty,
+      },
+    ],
+    returnType: spec.interfaces[0].methods[3].return_type,
+    throws: [
+      {
+        selector: 0x17e7e152700d9279n,
+        exception: "SwapLibraryError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+      {
+        selector: 0x93e5de5a4268821fn,
+        exception: "SwapFactoryError",
+        type: spec.interfaces[0].throws[2].ty,
+      },
+      {
+        selector: 0x947bdd51feea1ccen,
+        exception: "SwapRequestError",
+        type: spec.interfaces[0].throws[3].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[4].ty,
+      },
+    ],
+    codecs,
+  }),
+  swapTokensForExactTokens: defineContractMethod<
+    SwapRouterSwapTokensForExactTokensArgs,
+    SwapRouterSwapTokensForExactTokensResult,
+    SwapRouterDeclaredAbort
+  >({
+    entrypoint: entrypoints.SwapRouter.swapTokensForExactTokens,
+    args: [
+      {
+        abiName: "amount_out",
+        publicName: "amountOut",
+        type: spec.interfaces[0].methods[4].args[0].ty,
+      },
+      {
+        abiName: "amount_in_max",
+        publicName: "amountInMax",
+        type: spec.interfaces[0].methods[4].args[1].ty,
+      },
+      {
+        abiName: "token_in",
+        publicName: "tokenIn",
+        type: spec.interfaces[0].methods[4].args[2].ty,
+      },
+      {
+        abiName: "token_out",
+        publicName: "tokenOut",
+        type: spec.interfaces[0].methods[4].args[3].ty,
+      },
+      {
+        abiName: "recipient",
+        publicName: "recipient",
+        type: spec.interfaces[0].methods[4].args[4].ty,
+      },
+    ],
+    returnType: spec.interfaces[0].methods[4].return_type,
+    throws: [
+      {
+        selector: 0x17e7e152700d9279n,
+        exception: "SwapLibraryError",
+        type: spec.interfaces[0].throws[0].ty,
+      },
+      {
+        selector: 0x25d002d47b07640dn,
+        exception: "SwapPairError",
+        type: spec.interfaces[0].throws[1].ty,
+      },
+      {
+        selector: 0x93e5de5a4268821fn,
+        exception: "SwapFactoryError",
+        type: spec.interfaces[0].throws[2].ty,
+      },
+      {
+        selector: 0x947bdd51feea1ccen,
+        exception: "SwapRequestError",
+        type: spec.interfaces[0].throws[3].ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        exception: "ERC20Error",
+        type: spec.interfaces[0].throws[4].ty,
+      },
+    ],
+    codecs,
+  }),
 } as const;

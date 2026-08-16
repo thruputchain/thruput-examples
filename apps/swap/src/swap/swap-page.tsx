@@ -44,8 +44,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { isBrowserLoopback, isLoopbackUrl, type AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { buildProcessRequestsTarget } from "@/contracts/driver-target";
+import { RequestAccepted } from "@/contracts/generated/swap-driver";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
-import { extractAcceptedRequestId } from "@/contracts/swap-event";
 import { formatAmount } from "@/domain/amount";
 import {
   allowanceTargetForSwap,
@@ -2446,7 +2446,9 @@ function requestFromQueuedReceipt(
       transactionHash: result.hash,
       receiptBlock: result.receipt.height,
       requestId: toHex0x(
-        extractAcceptedRequestId(result.receipt, config.driverAddress),
+        RequestAccepted.singleFromReceipt(result.receipt, {
+          contractAddress: config.driverAddress,
+        }).topics.request_id,
       ),
       visibleObservationMs: 0,
       observedThroughBlock: null,

@@ -9,9 +9,9 @@ groundhog_cli="${GROUNDHOG_CLI:?Set GROUNDHOG_CLI to the validated CLI executabl
 cli_version="$("$groundhog_cli" --version)"
 if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] ||
    (( BASH_REMATCH[1] == 0 &&
-      (BASH_REMATCH[2] < 1 ||
-       (BASH_REMATCH[2] == 1 && BASH_REMATCH[3] < 19)) )); then
-  printf 'Groundhog CLI packaging release 0.1.19 or newer is required to build SDK 0.19.0 contract specs; found %s.\n' "$cli_version" >&2
+      (BASH_REMATCH[2] < 9 ||
+       (BASH_REMATCH[2] == 9 && BASH_REMATCH[3] < 2)) )); then
+  printf 'Groundhog CLI 0.9.2 or newer is required for typed descriptor bindings; found %s.\n' "$cli_version" >&2
   exit 1
 fi
 
@@ -32,4 +32,6 @@ fi
     -o apps/swap/src/contracts/generated/swap-router.ts
   "$groundhog_cli" codegen ts target/groundhog/swap_driver.spec.xdr \
     -o apps/swap/src/contracts/generated/swap-driver.ts
+
+  npx prettier --write apps/swap/src/contracts/generated/*.ts
 )

@@ -9,10 +9,8 @@ import type { GroundhogClient } from "@groundhogchain/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
-import {
-  REQUEST_FAILED_SIGNATURE,
-  SWAP_EVENT_SIGNATURE,
-} from "@/contracts/swap-event";
+import { RequestFailed } from "@/contracts/generated/swap-driver";
+import { SwapEvent } from "@/contracts/generated/swap-pair";
 import type { OutstandingRequest } from "@/transactions/outstanding-request";
 import {
   createRequestRecord,
@@ -117,7 +115,7 @@ describe("request observer", () => {
             {
               contractAddress: config.driverAddress,
               topics: [
-                REQUEST_FAILED_SIGNATURE,
+                RequestFailed.signature,
                 new Uint8Array(32).fill(0xcc),
               ],
               data: new Uint8Array(),
@@ -423,7 +421,7 @@ function swapEvent(
   return {
     contractAddress: options.contractAddress ?? config.pairAddress,
     topics: [
-      SWAP_EVENT_SIGNATURE,
+      SwapEvent.signature,
       options.sender ?? config.handlerAddress,
       options.recipient ?? config.accountAddress,
     ],
@@ -434,7 +432,7 @@ function swapEvent(
 function failedEvent(requestId: Uint8Array) {
   return {
     contractAddress: config.driverAddress,
-    topics: [REQUEST_FAILED_SIGNATURE, requestId],
+    topics: [RequestFailed.signature, requestId],
     data: new Uint8Array(),
   };
 }

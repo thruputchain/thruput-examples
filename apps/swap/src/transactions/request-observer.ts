@@ -1,20 +1,22 @@
 import {
   addressFromHex,
+  bytesEqual,
+  fixedBytes,
+  fromHex0x,
   toHex0x,
   type EventPage,
+  type FixedBytes,
   type GroundhogClient,
   type IdentifiedEvent,
   type TransactionReceipt,
 } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
+import { RequestFailed } from "@/contracts/generated/swap-driver";
 import {
-  bytesEqual,
-  decodeRequestFailed,
-  decodeSwapEvent,
-  REQUEST_FAILED_SIGNATURE,
-  SWAP_EVENT_SIGNATURE,
-} from "@/contracts/swap-event";
+  SwapEvent as GeneratedSwapEvent,
+  type SwapEvent,
+} from "@/contracts/generated/swap-pair";
 import { orderTokens } from "@/domain/tokens";
 import { createReadClient } from "@/groundhog/client";
 import type { OutstandingRequest } from "@/transactions/outstanding-request";
@@ -90,22 +92,23 @@ export function createRequestObserver(
       requests[0]!.observedThroughBlock ?? requests[0]!.receiptBlock!,
     );
     const requestIds = [...requestsById.keys()].map(requestIdFromHex);
+    const firstRequestId = requestIds[0]!;
     const filters = [
-      {
+      GeneratedSwapEvent.filter({
         contractAddresses: [config.pairAddress],
         topics: {
-          topic0: [SWAP_EVENT_SIGNATURE],
-          topic1: [config.handlerAddress],
-          topic2: [config.accountAddress],
+          sender: config.handlerAddress,
+          recipient: config.accountAddress,
         },
-      },
-      {
+      }),
+      RequestFailed.filter({
         contractAddresses: [config.driverAddress],
         topics: {
-          topic0: [REQUEST_FAILED_SIGNATURE],
-          topic1: requestIds,
+          request_id: {
+            oneOf: [firstRequestId, ...requestIds.slice(1)],
+          },
         },
-      },
+      }),
     ];
     const observations: RequestObservation[] = [];
     const completed = new Set<string>();
@@ -275,29 +278,57 @@ export function observationsFromReceipt(
   const observations: RequestObservation[] = [];
   const completed = new Set<string>();
 
-  receipt.events.forEach((event, sequenceNumber) => {
-    const identified: IdentifiedEvent = {
-      txHash: receipt.txHash,
-      blockHeight: receipt.height,
-      sequenceNumber,
-      event,
-    };
-    const requestId = terminalRequestId(identified, config);
-    if (requestId === null) return;
-    const request = requestsById.get(requestId);
-    if (request === undefined) return;
-    const observation = matchTerminalEvent(
-      request,
-      requestIdFromHex(requestId),
-      identified,
-    );
+  const addObservation = (
+    requestId: string,
+    observation: RequestObservation | null,
+  ) => {
     if (observation === null) return;
     if (completed.has(requestId)) {
-      throw new Error("Crank receipt contains duplicate terminal request events");
+      throw new Error(
+        "Crank receipt contains duplicate terminal request events",
+      );
     }
     completed.add(requestId);
     observations.push(observation);
-  });
+  };
+
+  for (const decoded of GeneratedSwapEvent.allFromReceipt(receipt, {
+    contractAddress: config.pairAddress,
+  })) {
+    const requestBytes = decoded.fields.request_id;
+    if (requestBytes === null) continue;
+    const requestId = toHex0x(requestBytes);
+    const request = requestsById.get(requestId);
+    if (request === undefined) continue;
+    addObservation(
+      requestId,
+      matchSwapEvent(
+        request,
+        requestIdFromHex(requestId),
+        decoded,
+        receipt.txHash,
+        receipt.height,
+      ),
+    );
+  }
+
+  for (const failed of RequestFailed.allFromReceipt(receipt, {
+    contractAddress: config.driverAddress,
+  })) {
+    const requestId = toHex0x(failed.topics.request_id);
+    const request = requestsById.get(requestId);
+    if (request === undefined) continue;
+    addObservation(
+      requestId,
+      matchFailedEvent(
+        request,
+        requestIdFromHex(requestId),
+        failed.topics.request_id,
+        receipt.txHash,
+        receipt.height,
+      ),
+    );
+  }
 
   return { observations, observedThroughBlock: null };
 }
@@ -307,14 +338,16 @@ function terminalRequestId(
   config: AppConfig,
 ): string | null {
   if (bytesEqual(identified.event.contractAddress, config.driverAddress)) {
-    const requestId = decodeRequestFailed(identified.event);
-    return requestId === null ? null : toHex0x(requestId);
+    const failed = RequestFailed.decode(identified.event);
+    return failed === null ? null : toHex0x(failed.topics.request_id);
   }
-  if (!bytesEqual(identified.event.contractAddress, config.pairAddress)) return null;
-  const swap = decodeSwapEvent(identified.event);
-  return swap?.requestId === null || swap?.requestId === undefined
+  if (!bytesEqual(identified.event.contractAddress, config.pairAddress))
+    return null;
+  const swap = GeneratedSwapEvent.decode(identified.event);
+  return swap?.fields.request_id === null ||
+    swap?.fields.request_id === undefined
     ? null
-    : toHex0x(swap.requestId);
+    : toHex0x(swap.fields.request_id);
 }
 
 function matchTerminalEvent(
@@ -325,30 +358,69 @@ function matchTerminalEvent(
   if (identified.blockHeight < request.receiptBlock!) return null;
   const event = identified.event;
   const pairAddress = addressFromHex(request.criteria.pairAddress);
-  const handlerAddress = addressFromHex(request.criteria.handlerAddress);
   const driverAddress = addressFromHex(request.criteria.driverAddress);
-  const recipient = addressFromHex(request.criteria.recipient);
 
   if (bytesEqual(event.contractAddress, driverAddress)) {
-    const failedId = decodeRequestFailed(event);
-    if (failedId === null || !bytesEqual(failedId, requestId)) return null;
-    return {
-      kind: "executionFailed",
-      requestId: request.requestId!,
-      transactionHash: toHex0x(identified.txHash),
-      blockHeight: identified.blockHeight,
-    };
+    const failed = RequestFailed.decode(event);
+    return failed === null
+      ? null
+      : matchFailedEvent(
+          request,
+          requestId,
+          failed.topics.request_id,
+          identified.txHash,
+          identified.blockHeight,
+        );
   }
 
   if (!bytesEqual(event.contractAddress, pairAddress)) return null;
-  const swap = decodeSwapEvent(event);
+  const swap = GeneratedSwapEvent.decode(event);
+  return swap === null
+    ? null
+    : matchSwapEvent(
+        request,
+        requestId,
+        swap,
+        identified.txHash,
+        identified.blockHeight,
+      );
+}
+
+function matchFailedEvent(
+  request: ObservableRequest,
+  requestId: Uint8Array,
+  failedId: Uint8Array,
+  txHash: Uint8Array,
+  blockHeight: bigint,
+): RequestObservation | null {
+  if (blockHeight < request.receiptBlock! || !bytesEqual(failedId, requestId)) {
+    return null;
+  }
+  return {
+    kind: "executionFailed",
+    requestId: request.requestId!,
+    transactionHash: toHex0x(txHash),
+    blockHeight,
+  };
+}
+
+function matchSwapEvent(
+  request: ObservableRequest,
+  requestId: Uint8Array,
+  swap: SwapEvent,
+  txHash: Uint8Array,
+  blockHeight: bigint,
+): RequestObservation | null {
+  if (blockHeight < request.receiptBlock!) return null;
+  const handlerAddress = addressFromHex(request.criteria.handlerAddress);
+  const recipient = addressFromHex(request.criteria.recipient);
   if (
-    swap === null
-    || swap.requestId === null
-    || !bytesEqual(swap.requestId, requestId)
-    || !bytesEqual(swap.sender, handlerAddress)
-    || !bytesEqual(swap.recipient, recipient)
-  ) return null;
+    swap.fields.request_id === null ||
+    !bytesEqual(swap.fields.request_id, requestId) ||
+    !bytesEqual(swap.topics.sender, handlerAddress) ||
+    !bytesEqual(swap.topics.recipient, recipient)
+  )
+    return null;
 
   const inputIndex = orderTokens(
     addressFromHex(request.criteria.tokenIn),
@@ -356,26 +428,27 @@ function matchTerminalEvent(
   ).inputIndex;
   const outputIndex = inputIndex === 0 ? 1 : 0;
   if (
-    swap.amountsIn[inputIndex] !== request.intent.amountIn
-    || swap.amountsIn[outputIndex] !== 0n
-    || swap.amountsOut[inputIndex] !== 0n
-    || swap.amountsOut[outputIndex] < request.intent.amountOutMin
-    || swap.amountsOut[outputIndex] <= 0n
-  ) return null;
+    swap.fields.amounts_in[inputIndex] !== request.intent.amountIn ||
+    swap.fields.amounts_in[outputIndex] !== 0n ||
+    swap.fields.amounts_out[inputIndex] !== 0n ||
+    swap.fields.amounts_out[outputIndex] < request.intent.amountOutMin ||
+    swap.fields.amounts_out[outputIndex] <= 0n
+  )
+    return null;
 
   return {
     kind: "executionObserved",
     requestId: request.requestId!,
-    transactionHash: toHex0x(identified.txHash),
-    blockHeight: identified.blockHeight,
-    amountIn: swap.amountsIn[inputIndex],
-    amountOut: swap.amountsOut[outputIndex],
+    transactionHash: toHex0x(txHash),
+    blockHeight,
+    amountIn: swap.fields.amounts_in[inputIndex],
+    amountOut: swap.fields.amounts_out[outputIndex],
   };
 }
 
-function requestIdFromHex(value: string): Uint8Array {
+function requestIdFromHex(value: string): FixedBytes<32> {
   if (!/^0x[0-9a-f]{64}$/.test(value)) {
     throw new Error("Request ID must be a lowercase 32-byte hexadecimal value");
   }
-  return addressFromHex(value);
+  return fixedBytes(fromHex0x(value), 32);
 }

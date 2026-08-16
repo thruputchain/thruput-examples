@@ -7,9 +7,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "@/app";
 import type { AppConfig } from "@/config";
 import {
-  REQUEST_ACCEPTED_SIGNATURE,
-  REQUEST_FAILED_SIGNATURE,
-} from "@/contracts/swap-event";
+  RequestAccepted,
+  RequestFailed,
+} from "@/contracts/generated/swap-driver";
 import type { PoolSnapshot, SnapshotReader } from "@/swap/snapshot";
 import type {
   RequestObservation,
@@ -161,7 +161,7 @@ function committedSuccess(
         {
           contractAddress: config.driverAddress,
           topics: [
-            REQUEST_ACCEPTED_SIGNATURE,
+            RequestAccepted.signature,
             new Uint8Array(32).fill(requestByte),
           ],
           data: new Uint8Array(),
@@ -400,7 +400,7 @@ describe("local swap submission", () => {
           {
             contractAddress: config.driverAddress,
             topics: [
-              REQUEST_FAILED_SIGNATURE,
+              RequestFailed.signature,
               new Uint8Array(32).fill(0xcd),
             ],
             data: new Uint8Array(),

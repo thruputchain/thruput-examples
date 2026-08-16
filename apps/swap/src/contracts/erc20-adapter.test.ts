@@ -1,13 +1,17 @@
-import { buildNamedCodecs, resolveCodec } from "@groundhogchain/client";
 import { contractAddress } from "@groundhogchain/protocol";
-import { CxsWriter } from "@groundhogchain/xdr";
+import {
+  CxsWriter,
+  OptionCodec,
+  Uint128Codec,
+  Uint32Codec,
+  type XdrCodec,
+} from "@groundhogchain/xdr";
 import { describe, expect, it, vi } from "vitest";
-
-import { spec } from "@/contracts/generated/erc20";
 
 import { createErc20ReadAdapter } from "./erc20-adapter";
 
-const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
+const address = (byte: number) =>
+  contractAddress(new Uint8Array(32).fill(byte));
 
 describe("createErc20ReadAdapter", () => {
   it("reads a balance with the configured contract and caller", async () => {
@@ -15,11 +19,16 @@ describe("createErc20ReadAdapter", () => {
     const contract = address(1);
     const caller = address(2);
     const owner = address(3);
-    const adapter = createErc20ReadAdapter({ client: { view }, contract, caller });
+    const adapter = createErc20ReadAdapter({
+      client: { view },
+      contract,
+      caller,
+    });
 
     await expect(adapter.balanceOf(owner)).resolves.toEqual({
       value: 42n,
       height: 1n,
+      events: [],
     });
     expect(view).toHaveBeenCalledWith(
       expect.objectContaining({ contract, caller }),
@@ -29,16 +38,10 @@ describe("createErc20ReadAdapter", () => {
   it("decodes allowance and optional metadata", async () => {
     const view = vi
       .fn()
-      .mockResolvedValueOnce(response(encode("ERC20", "allowance", 7n)))
-      .mockResolvedValueOnce(
-        response(encode("ERC20Metadata", "name", "Groundhog")),
-      )
-      .mockResolvedValueOnce(
-        response(encode("ERC20Metadata", "symbol", "HOG")),
-      )
-      .mockResolvedValueOnce(
-        response(encode("ERC20Metadata", "decimals", 6n)),
-      );
+      .mockResolvedValueOnce(response(encode(Uint128Codec, 7n)))
+      .mockResolvedValueOnce(response(encodeOptionalString("Groundhog")))
+      .mockResolvedValueOnce(response(encodeOptionalString("HOG")))
+      .mockResolvedValueOnce(response(encode(OptionCodec(Uint32Codec), 6n)));
     const adapter = createErc20ReadAdapter({
       client: { view },
       contract: address(1),
@@ -48,11 +51,12 @@ describe("createErc20ReadAdapter", () => {
     await expect(adapter.allowance(address(3), address(4))).resolves.toEqual({
       value: 7n,
       height: 1n,
+      events: [],
     });
     await expect(adapter.metadata()).resolves.toEqual({
-      name: { value: "Groundhog", height: 1n },
-      symbol: { value: "HOG", height: 1n },
-      decimals: { value: 6, height: 1n },
+      name: { value: "Groundhog", height: 1n, events: [] },
+      symbol: { value: "HOG", height: 1n, events: [] },
+      decimals: { value: 6, height: 1n, events: [] },
     });
   });
 
@@ -60,12 +64,8 @@ describe("createErc20ReadAdapter", () => {
     const view = vi
       .fn()
       .mockRejectedValueOnce(new Error("name unavailable"))
-      .mockResolvedValueOnce(
-        response(encode("ERC20Metadata", "symbol", "HOG")),
-      )
-      .mockResolvedValueOnce(
-        response(encode("ERC20Metadata", "decimals", 18n)),
-      );
+      .mockResolvedValueOnce(response(encodeOptionalString("HOG")))
+      .mockResolvedValueOnce(response(encode(OptionCodec(Uint32Codec), 18n)));
     const adapter = createErc20ReadAdapter({
       client: { view },
       contract: address(1),
@@ -84,21 +84,15 @@ function response(returnData: Uint8Array) {
   };
 }
 
-function encode(
-  interfaceName: string,
-  methodName: string,
-  value: unknown,
-): Uint8Array {
-  const contractInterface = spec.interfaces.find(
-    (candidate) => String(candidate.name) === interfaceName,
-  )!;
-  const method = contractInterface.methods.find(
-    (candidate) => String(candidate.name) === methodName,
-  )!;
+function encode<T>(codec: XdrCodec<T>, value: T): Uint8Array {
   const writer = new CxsWriter();
-  resolveCodec(method.return_type, buildNamedCodecs(spec.type_defs)).encode(
-    writer,
-    value,
-  );
+  codec.encode(writer, value);
+  return writer.finish();
+}
+
+function encodeOptionalString(value: string | null): Uint8Array {
+  const writer = new CxsWriter();
+  writer.writeUint32(value === null ? 0n : 1n);
+  if (value !== null) writer.writeString(value, 0xffffffff);
   return writer.finish();
 }
