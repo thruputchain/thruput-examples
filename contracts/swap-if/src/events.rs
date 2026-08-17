@@ -15,7 +15,7 @@ pub struct MintEvent<'a> {
 
     /// The recipient of the minted LP tokens
     #[topic]
-    pub receiver: &'a Address,
+    pub recipient: &'a Address,
 
     /// The identifier of the batch-request this mint fulfilled, if it
     /// originated from one (see [`RequestId`]).
@@ -26,13 +26,13 @@ impl<'a> MintEvent<'a> {
     pub fn new(
         sender: &'a Address,
         amount_minted: Amount,
-        receiver: &'a Address,
+        recipient: &'a Address,
         request_id: Option<RequestId>,
     ) -> Self {
         Self {
             sender,
             amount_minted,
-            receiver,
+            recipient,
             request_id,
         }
     }
@@ -41,7 +41,7 @@ impl<'a> MintEvent<'a> {
 /// Emitted by the pair when liquidity is removed (`burn_lp`).
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BurnEvent<'a> {
-    /// The contract that called `burn`
+    /// The source of the burned LP tokens
     #[topic]
     pub sender: &'a Address,
 
@@ -76,7 +76,7 @@ impl<'a> BurnEvent<'a> {
 /// Emitted by the pair on a `swap`.
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SwapEvent<'a> {
-    /// The contract that called `swap`
+    /// The source of the input amounts
     #[topic]
     pub sender: &'a Address,
 

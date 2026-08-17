@@ -206,7 +206,7 @@ impl Ctx {
         assert_eq!(lp.get_balance(), 0);
 
         // Redeem the LP tokens for pair tokens
-        pair.burn_lp(user.addr, None);
+        pair.burn_lp(user.addr, user.addr, None);
 
         self.user_print_balances(user);
     }

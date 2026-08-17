@@ -75,11 +75,11 @@ impl SwapPair for Pair {
         self.lp().total_supply()
     }
 
-    // Mint LP to `receiver` in exchange for the A/B-tokens `sender` transferred
+    // Mint LP to `recipient` in exchange for the A/B-tokens `sender` transferred
     fn mint_lp(
         &mut self,
         sender: &Address,
-        receiver: &Address,
+        recipient: &Address,
         request_id: Option<RequestId>,
     ) -> Amount {
         let mut reserves = self.reserves.get();
@@ -134,7 +134,7 @@ impl SwapPair for Pair {
         ensure(lp_to_create > 0, SwapPairError::InsufficientLiquidityMinted);
 
         // Mint the new liquidity to the address specified by the LP
-        lp.mint(receiver, lp_to_create);
+        lp.mint(recipient, lp_to_create);
         let lp_minted = lp_to_create;
 
         // Record k for the next fee computation (reserves are now `balances`).
@@ -142,15 +142,20 @@ impl SwapPair for Pair {
             self.set_k_last(balances);
         }
 
-        log_event(&MintEvent::new(sender, lp_minted, receiver, request_id));
+        log_event(&MintEvent::new(sender, lp_minted, recipient, request_id));
 
         // Return the amount of liquidity minted
         lp_minted
     }
 
-    // Return pair-tokens in exchange for LP tokens that have been transferred
-    // to us
-    fn burn_lp(&mut self, to: &Address, request_id: Option<RequestId>) -> Amounts {
+    // Return pair-tokens to `recipient` in exchange for the LP tokens `sender`
+    // transferred to us
+    fn burn_lp(
+        &mut self,
+        sender: &Address,
+        recipient: &Address,
+        request_id: Option<RequestId>,
+    ) -> Amounts {
         let balances = self.get_token_balances();
 
         let lp = self.lp();
@@ -182,7 +187,7 @@ impl SwapPair for Pair {
         lp.burn(&get_current_address(), lp_returned);
 
         // Return pair tokens to the user
-        self.transfer_to(to, amounts);
+        self.transfer_to(recipient, amounts);
 
         // Update the record of our holdings
         self.sync();
@@ -193,7 +198,7 @@ impl SwapPair for Pair {
             self.set_k_last(self.get_token_balances());
         }
 
-        log_event(&BurnEvent::new(&get_caller(), amounts, to, request_id));
+        log_event(&BurnEvent::new(sender, amounts, recipient, request_id));
 
         // Return amounts redeemed
         amounts
@@ -203,7 +208,8 @@ impl SwapPair for Pair {
         &mut self,
         amount0_out: Amount,
         amount1_out: Amount,
-        to: &Address,
+        sender: &Address,
+        recipient: &Address,
         request_id: Option<RequestId>,
     ) {
         let amounts_out = [amount0_out, amount1_out];
@@ -224,11 +230,11 @@ impl SwapPair for Pair {
 
         let addrs = self.token_addrs();
         ensure(
-            to != &addrs[0] && to != &addrs[1],
+            recipient != &addrs[0] && recipient != &addrs[1],
             SwapPairError::InvalidDestination,
         );
 
-        self.transfer_to(to, amounts_out);
+        self.transfer_to(recipient, amounts_out);
 
         // Optional TODO: Callback for flash-swap goes here.
 
@@ -262,10 +268,10 @@ impl SwapPair for Pair {
         );
 
         log_event(&SwapEvent::new(
-            &get_caller(),
+            sender,
             amounts_in,
             amounts_out,
-            to,
+            recipient,
             request_id,
         ));
     }

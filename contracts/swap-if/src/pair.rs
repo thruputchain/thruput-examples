@@ -57,7 +57,7 @@ pub trait SwapPair {
     /// (`[price0, price1]`), for use as a time-weighted-average-price oracle.
     fn get_cumulative_prices(&self) -> [U256; 2];
 
-    /// Mint LP tokens to `receiver`, in exchange for the tokens `sender`
+    /// Mint LP tokens to `recipient`, in exchange for the tokens `sender`
     /// deposited into this pair.
     ///
     /// The amount minted is derived from the pair's own balance delta, so
@@ -65,29 +65,46 @@ pub trait SwapPair {
     /// the caller is responsible for it being the account whose tokens
     /// actually arrived.
     ///
-    /// `request_id` tags the resulting [`MintEvent`] for lifecycle tracking
-    /// (`None` for a direct call, not via a request).
+    /// `request_id` tags the resulting [`MintEvent`].
     fn mint_lp(
         &mut self,
         sender: &Address,
-        receiver: &Address,
+        recipient: &Address,
         request_id: Option<RequestId>,
     ) -> Amount;
 
-    /// Burn this pair's LP tokens, sending the underlying to `to`.  `request_id`
-    /// tags the resulting [`BurnEvent`] (`None` for a direct call).
-    fn burn_lp(&mut self, to: &Address, request_id: Option<RequestId>) -> Amounts;
+    /// Burn the LP tokens `sender` deposited into this pair, sending the
+    /// proceeds to `recipient`.
+    ///
+    /// The amounts are derived from the LP balance actually deposited, so
+    /// `sender` names the source of the LP tokens rather than determining the
+    /// outcome.
+    ///
+    /// `request_id` tags the resulting [`BurnEvent`].
+    fn burn_lp(
+        &mut self,
+        sender: &Address,
+        recipient: &Address,
+        request_id: Option<RequestId>,
+    ) -> Amounts;
 
     fn skim(&mut self, to: &Address);
     fn sync(&mut self);
 
-    /// Swap out the given amounts to `to`.  `request_id` tags the resulting
-    /// [`SwapEvent`] (`None` for a direct call).
+    /// Swap out the given amounts to `recipient`, against the input amounts
+    /// `sender` paid into this pair.
+    ///
+    /// The input amounts are derived from the pair's own balance delta, so
+    /// `sender` names the trader for the event rather than determining the
+    /// outcome.
+    ///
+    /// `request_id` tags the resulting [`SwapEvent`].
     fn swap(
         &mut self,
         amount0_out: Amount,
         amount1_out: Amount,
-        to: &Address,
+        sender: &Address,
+        recipient: &Address,
         request_id: Option<RequestId>,
     );
 }

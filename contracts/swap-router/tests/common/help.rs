@@ -10,6 +10,23 @@ pub fn is_pair_error_and(e: SwapPairClientError, f: impl Fn(SwapPairError) -> bo
     }
 }
 
+// The one event of type `E` emitted during `r`, panicking unless there is
+// exactly one.  Its `#[topic]` fields are `topic(1)`, `topic(2)`, ... in
+// declaration order; its payload is `TypedEvent::<E>::new(e.raw()).payload()`.
+#[track_caller]
+pub fn sole_event<E: Event>(r: &TransactResult) -> EmittedEvent<'_> {
+    let sig = E::signature();
+    let mut found = r
+        .events()
+        .iter()
+        .filter(|e| EmittedEvent::from(*e).topic(0) == sig);
+
+    let e = found.next().expect("expected one event, found none");
+    assert!(found.next().is_none(), "expected exactly one event");
+
+    EmittedEvent::from(e)
+}
+
 pub fn print_balances(name: &str, bals: (Amounts, Amount), symbols: [Symbol; 2]) {
     println!(
         "{name:>10}: {:>10.1} {}  {:>10.1} {}  {:>10.1} LP",
