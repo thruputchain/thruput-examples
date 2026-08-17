@@ -41,6 +41,3 @@ standard-token-factory-if = { path = "../standard-token-factory-if" }
 [dev-dependencies]
 standard-token = { path = ".", features = ["dev"] }
 groundhog-xdr = { workspace = true }
-
-[lints]
-clippy.result_large_err = "allow"

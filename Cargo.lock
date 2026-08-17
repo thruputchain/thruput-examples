@@ -2617,17 +2617,11 @@ dependencies = [
  "groundhog-erc20-if",
  "groundhog-json-rpc-types",
  "groundhog-testkit",
- "groundhog-xdr 0.20.7",
- "hex",
  "sdk",
- "serde_json",
- "sha2 0.11.0",
  "standard-token",
  "standard-token-factory",
  "standard-token-factory-if",
  "token-factory-failing-child",
- "token-factory-test-if",
- "token-factory-test-wallet",
  "tokio",
 ]
 
@@ -2867,26 +2861,6 @@ dependencies = [
  "sdk",
  "standard-token-factory-if",
  "token-factory-failing-child",
- "token-factory-test-if",
-]
-
-[[package]]
-name = "token-factory-test-if"
-version = "0.1.0"
-dependencies = [
- "sdk",
- "standard-token-factory-if",
-]
-
-[[package]]
-name = "token-factory-test-wallet"
-version = "0.1.0"
-dependencies = [
- "sdk",
- "standard-token-factory-if",
- "token-factory-failing-child",
- "token-factory-test-if",
- "token-factory-test-wallet",
 ]
 
 [[package]]

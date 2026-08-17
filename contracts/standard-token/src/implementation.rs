@@ -249,20 +249,3 @@ pub fn balance_storage_key(owner: &ContractAddress) -> StorageKey {
     let state = sdk::storage::contract_state_root::<TokenContract>();
     state.balances.keypath().child(owner).generate_key()
 }
-
-#[cfg(feature = "dev")]
-pub fn allowance_storage_key(owner: &ContractAddress, spender: &ContractAddress) -> StorageKey {
-    let state = sdk::storage::contract_state_root::<TokenContract>();
-    state
-        .allowances
-        .keypath()
-        .child(owner)
-        .child(spender)
-        .generate_key()
-}
-
-#[cfg(feature = "dev")]
-pub fn config_storage_key() -> StorageKey {
-    let state = sdk::storage::contract_state_root::<TokenContract>();
-    state.config.keypath().generate_key()
-}

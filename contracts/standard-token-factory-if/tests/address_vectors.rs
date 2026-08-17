@@ -69,3 +69,21 @@ fn different_application_nonces_derive_different_children() {
 
     assert_ne!(child_address(&vectors[0]), child_address(&vectors[3]));
 }
+
+#[test]
+fn different_token_hashes_derive_different_children() {
+    let env = TestEnvironment::no_cost();
+    let factory = ContractAddress::from([0x11; 32]);
+    let creator = ContractAddress::from([0xaa; 32]);
+    let nonce = SHA256Hash::from([0x01; 32]);
+
+    env.transact(|tx| {
+        tx.call(&ContractAddress::named("token-hash-host")).run(|| {
+            assert_ne!(
+                predicted_token(&factory, &creator, &nonce, &SHA256Hash::from([0xcc; 32])),
+                predicted_token(&factory, &creator, &nonce, &SHA256Hash::from([0xdd; 32]))
+            );
+        })
+    })
+    .assert_success();
+}

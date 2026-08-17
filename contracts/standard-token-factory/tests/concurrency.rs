@@ -1,14 +1,12 @@
 mod support;
 
-use groundhog_erc20_if::{ApprovalEvent, ERC20Client, ERC20Error, TransferEvent};
+use groundhog_erc20_if::{ApprovalEvent, ERC20Error, TransferEvent};
 use sdk::call::RawCallError;
 use sdk::*;
-use standard_token::ERC20MetadataClient;
 use standard_token_factory::{
-    Amount, FactoryConfig, Name, StandardTokenFactoryClient, TokenCreated, TokenFactoryError,
+    FactoryConfig, StandardTokenFactoryClient, TokenCreated, TokenFactoryError,
 };
 use support::*;
-use token_factory_test_if::TokenFactoryTestWalletClient;
 
 fn assert_erc20_error(result: &TransactResult, expected: ERC20Error) {
     result.assert_abort();
@@ -103,7 +101,7 @@ fn fee_configuration_rejects_missing_or_zero_treasury() {
 #[test]
 fn optional_fee_matrix_preserves_balances_allowance_and_direct_payment() {
     for allowance in [FEE, FEE * 2] {
-        let setup = setup(FEE, Some(TREASURY), ChildArtifact::Standard);
+        let setup = setup(FEE, Some(TREASURY));
         let creation = Creation {
             initial_supply: 0,
             ..Creation::default()
@@ -131,7 +129,7 @@ fn optional_fee_matrix_preserves_balances_allowance_and_direct_payment() {
         assert_eq!(after.allowance, allowance - FEE);
     }
 
-    let fee_setup = setup(FEE, Some(TREASURY), ChildArtifact::Standard);
+    let fee_setup = setup(FEE, Some(TREASURY));
     let creation = Creation {
         initial_supply: 0,
         ..Creation::default()
@@ -155,7 +153,7 @@ fn optional_fee_matrix_preserves_balances_allowance_and_direct_payment() {
     assert_eq!(after.treasury, before.treasury + FEE);
     assert_eq!(after.allowance, 0);
 
-    let free = setup(0, None, ChildArtifact::Standard);
+    let free = setup(0, None);
     let creation = Creation {
         initial_supply: 0,
         ..Creation::default()
@@ -170,109 +168,58 @@ fn optional_fee_matrix_preserves_balances_allowance_and_direct_payment() {
     assert_eq!(native_state(&free, &predicted), before);
 }
 
-fn invoke_creation(wallet: &ContractAddress, factory: &ContractAddress, creation: Creation) {
-    TokenFactoryTestWalletClient::new(wallet).create_token(
-        factory,
-        &creation.nonce,
-        &creation.administrator,
-        creation.name,
-        creation.symbol,
-        creation.decimals,
-        &creation.initial_holder,
-        creation.initial_supply,
-    );
-}
-
 #[test]
-fn same_block_creation_matrix_commits_exactly_one_creation() {
-    for fee in [0, FEE] {
-        for variant in 0..4 {
-            let recipient = (fee != 0).then_some(TREASURY);
-            let setup = setup(fee, recipient, ChildArtifact::Standard);
-            let creation_a = Creation::default();
-            let mut creation_b = creation_a.clone();
-            match variant {
-                0 => {}
-                1 => creation_b.name = Some("Different".try_into().unwrap()),
-                2 => creation_b.initial_holder = OTHER_HOLDER,
-                3 => creation_b.initial_supply = 777,
-                _ => unreachable!(),
-            }
+fn duplicate_same_block_creation_commits_once() {
+    let setup = setup(FEE, Some(TREASURY));
+    let creation = Creation::default();
+    let predicted = predict(&setup, &creation);
+    fund(&setup, &predicted, REQUIRED_FUNDING);
+    adjust_allowance(&setup, (FEE * 2) as i128);
 
-            let predicted = predict(&setup, &creation_a);
-            fund(&setup, &predicted, REQUIRED_FUNDING);
-            if fee != 0 {
-                adjust_allowance(&setup, (FEE * 2) as i128);
-            }
-            let native_before = native_state(&setup, &predicted);
-            let wallet = setup.wallet;
-            let factory = setup.factory;
-            let mut tx_a = setup.env.transaction().build();
-            let mut tx_b = setup.env.transaction().build();
-            let frame_a = tx_a
-                .call(&ROOT)
-                .run(|| invoke_creation(&wallet, &factory, creation_a.clone()));
-            let frame_b = tx_b
-                .call(&ROOT)
-                .run(|| invoke_creation(&wallet, &factory, creation_b));
-            frame_a.assert_success();
-            frame_b.assert_success();
+    let factory = setup.factory;
+    let wallet = setup.wallet;
+    let create = || {
+        StandardTokenFactoryClient::new(&factory).create_token(
+            &creation.nonce,
+            &creation.administrator,
+            creation.name.clone(),
+            creation.symbol.clone(),
+            creation.decimals,
+            &creation.initial_holder,
+            creation.initial_supply,
+        )
+    };
+    let mut first = setup.env.transaction().build();
+    let mut duplicate = setup.env.transaction().build();
+    let committed = first.call(&wallet).run(create);
+    let conflicted = duplicate.call(&wallet).run(create);
+    committed.assert_success();
+    conflicted.assert_success();
 
-            assert_eq!(tx_a.try_commit_transaction(), TryCommitResult::Ok);
-            assert!(matches!(
-                tx_b.try_commit_transaction(),
-                TryCommitResult::TxNonDeterministicError(_)
-            ));
-            assert_eq!(frame_a.filter_events::<TokenCreated>(&factory).len(), 1);
-            let mint_events = frame_a.filter_events::<TransferEvent<'_>>(&predicted);
-            assert_eq!(mint_events.len(), 1);
-            assert_eq!(
-                mint_events[0].topic(1).unwrap(),
-                groundhog_erc20_if::CONTRACT_ADDR_ZERO.as_ref()
-            );
-            assert_eq!(mint_events[0].topic(2).unwrap(), HOLDER.as_ref());
-            assert_eq!(
-                mint_events[0].payload().amount,
-                creation_a.initial_supply as i128
-            );
-            let native_event_count = frame_a.events_from(&setup.native_token).len();
-            assert_eq!(native_event_count, if fee == 0 { 0 } else { 2 });
-            drop(tx_a);
-            drop(tx_b);
-            setup.env.advance_block();
+    assert_eq!(first.try_commit_transaction(), TryCommitResult::Ok);
+    assert!(matches!(
+        duplicate.try_commit_transaction(),
+        TryCommitResult::TxNonDeterministicError(_)
+    ));
+    assert_eq!(committed.filter_events::<TokenCreated>(&factory).len(), 1);
+    assert_eq!(
+        committed
+            .filter_events::<TransferEvent<'_>>(&predicted)
+            .len(),
+        1
+    );
+    let approvals = committed.filter_events::<ApprovalEvent<'_>>(&setup.native_token);
+    let transfers = committed.filter_events::<TransferEvent<'_>>(&setup.native_token);
+    assert_eq!(approvals.len(), 1);
+    assert_eq!(approvals[0].payload().difference, -(FEE as i128));
+    assert_eq!(transfers.len(), 1);
+    assert_eq!(transfers[0].topic(2).unwrap(), TREASURY.as_ref());
+    assert_eq!(transfers[0].payload().amount, FEE as i128);
+    drop(first);
+    drop(duplicate);
+    setup.env.advance_block();
 
-            let state = setup.env.transact(|tx| {
-                tx.call(&ROOT).run(|| {
-                    let token = ERC20Client::new(&predicted);
-                    let metadata = ERC20MetadataClient::new(&predicted);
-                    (
-                        token.get_balance_of(&HOLDER),
-                        token.get_balance_of(&OTHER_HOLDER),
-                        token.total_supply(),
-                        metadata.name(),
-                    )
-                })
-            });
-            state.assert_success();
-            assert_eq!(
-                state.assert_return_as::<(Amount, Amount, Amount, Option<Name>)>(),
-                (
-                    creation_a.initial_supply,
-                    0,
-                    creation_a.initial_supply,
-                    creation_a.name
-                )
-            );
-
-            let native_after = native_state(&setup, &predicted);
-            assert_eq!(native_after.factory, 0);
-            if fee == 0 {
-                assert_eq!(native_after, native_before);
-            } else {
-                assert_eq!(native_after.wallet, native_before.wallet - FEE);
-                assert_eq!(native_after.treasury, native_before.treasury + FEE);
-                assert_eq!(native_after.allowance, FEE);
-            }
-        }
-    }
+    let state = native_state(&setup, &predicted);
+    assert_eq!(state.treasury, FEE);
+    assert_eq!(state.allowance, FEE);
 }

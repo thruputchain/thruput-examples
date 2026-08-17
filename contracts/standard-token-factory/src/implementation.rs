@@ -26,6 +26,7 @@ impl StandardTokenFactoryContract {
             config.token_code_hash != SHA256Hash::new([0; 32])
                 && config.native_token != *CONTRACT_ADDR_ZERO
                 && config.required_token_funding != 0
+                && config.required_token_funding <= i128::MAX as u128
                 && config.creation_fee <= i128::MAX as u128
                 && valid_fee,
             TokenFactoryError::InvalidConfig,

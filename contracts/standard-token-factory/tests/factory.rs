@@ -4,7 +4,6 @@ use sdk::*;
 use standard_token::ERC20MetadataClient;
 use standard_token_factory::*;
 use standard_token_factory_if::predicted_token;
-use token_factory_test_if::TokenFactoryTestWalletClient;
 
 const ROOT: ContractAddress = ContractAddress::new([0x10; 32]);
 const ADMIN: ContractAddress = ContractAddress::new([0x20; 32]);
@@ -13,8 +12,8 @@ const RECEIVER: ContractAddress = ContractAddress::new([0x40; 32]);
 const SPENDER: ContractAddress = ContractAddress::new([0x50; 32]);
 const FACTORY_NONCE: SHA256Hash = SHA256Hash::new([0x61; 32]);
 const NATIVE_NONCE: SHA256Hash = SHA256Hash::new([0x62; 32]);
-const WALLET_NONCE: SHA256Hash = SHA256Hash::new([0x63; 32]);
-const SECOND_WALLET_NONCE: SHA256Hash = SHA256Hash::new([0x64; 32]);
+const WALLET: ContractAddress = ContractAddress::new([0x63; 32]);
+const SECOND_WALLET: ContractAddress = ContractAddress::new([0x64; 32]);
 const TOKEN_NONCE: SHA256Hash = SHA256Hash::new([0x71; 32]);
 const SECOND_TOKEN_NONCE: SHA256Hash = SHA256Hash::new([0x72; 32]);
 const MAX_SUPPLY_NONCE: SHA256Hash = SHA256Hash::new([0x73; 32]);
@@ -26,7 +25,6 @@ struct Setup {
     wallet: ContractAddress,
     native_token: ContractAddress,
     token_hash: SHA256Hash,
-    wallet_hash: SHA256Hash,
     config: FactoryConfig,
 }
 
@@ -44,35 +42,32 @@ fn setup() -> Setup {
     let env = TestEnvironment::no_cost();
     let token_hash = *standard_token::register_mock_contract(&env).as_hash();
     let factory_hash = *standard_token_factory::register_mock_contract(&env).as_hash();
-    let wallet_hash = *token_factory_test_wallet::register_mock_contract(&env).as_hash();
 
     let deployed = env.transact(|tx| {
         tx.call(&ROOT).run(|| {
             let native_token = deploy_contract(&NATIVE_NONCE, &token_hash);
-            let wallet = deploy_contract(&WALLET_NONCE, &wallet_hash);
             let factory = deploy_contract(&FACTORY_NONCE, &factory_hash);
 
             let native = ERC20Client::new(&native_token);
             native.initialize(&ROOT);
             native.mint(&ROOT, 100_000);
-            native.transfer(&wallet, 10_000);
+            native.transfer(&WALLET, 10_000);
 
             let factory_config = config(token_hash, native_token);
             StandardTokenFactoryClient::new(&factory).initialize(factory_config);
-            (native_token, wallet, factory, factory_config)
+            (native_token, factory, factory_config)
         })
     });
     deployed.assert_success();
-    let (native_token, wallet, factory, factory_config) = deployed.assert_return_as();
+    let (native_token, factory, factory_config) = deployed.assert_return_as();
     env.advance_block();
 
     Setup {
         env,
         factory,
-        wallet,
+        wallet: WALLET,
         native_token,
         token_hash,
-        wallet_hash,
         config: factory_config,
     }
 }
@@ -81,7 +76,7 @@ fn predict(setup: &Setup, wallet: &ContractAddress, nonce: &SHA256Hash) -> Contr
     let factory = setup.factory;
     let result = setup.env.transact(|tx| {
         tx.call(&ROOT)
-            .run(|| TokenFactoryTestWalletClient::new(wallet).predict_token(&factory, nonce))
+            .run(|| StandardTokenFactoryClient::new(&factory).predict_token(wallet, nonce))
     });
     result.assert_success();
     result.assert_return_as()
@@ -90,9 +85,8 @@ fn predict(setup: &Setup, wallet: &ContractAddress, nonce: &SHA256Hash) -> Contr
 fn fund(setup: &Setup, wallet: &ContractAddress, token: &ContractAddress, amount: Amount) {
     let native_token = setup.native_token;
     let result = setup.env.transact(|tx| {
-        tx.call(&ROOT).run(|| {
-            TokenFactoryTestWalletClient::new(wallet).fund_token(&native_token, token, amount)
-        })
+        tx.call(wallet)
+            .run(|| ERC20Client::new(&native_token).transfer(token, amount))
     });
     result.assert_success();
     setup.env.advance_block();
@@ -115,9 +109,8 @@ fn create(
 ) -> TransactResult {
     let factory = setup.factory;
     setup.env.transact(|tx| {
-        tx.call(&ROOT).run(|| {
-            TokenFactoryTestWalletClient::new(wallet).create_token(
-                &factory,
+        tx.call(wallet).run(|| {
+            StandardTokenFactoryClient::new(&factory).create_token(
                 nonce,
                 administrator,
                 name,
@@ -198,6 +191,10 @@ fn initialization_validates_configuration_and_exposes_immutable_views() {
         },
         FactoryConfig {
             required_token_funding: 0,
+            ..valid
+        },
+        FactoryConfig {
+            required_token_funding: i128::MAX as u128 + 1,
             ..valid
         },
         FactoryConfig {
@@ -310,15 +307,7 @@ fn prediction_uses_factory_wallet_nonce_and_configured_hash() {
     expected.assert_success();
     assert_eq!(predicted, expected.assert_return_as::<ContractAddress>());
 
-    let second_wallet = setup.env.transact(|tx| {
-        tx.call(&ROOT)
-            .run(|| deploy_contract(&SECOND_WALLET_NONCE, &setup.wallet_hash))
-    });
-    second_wallet.assert_success();
-    let second_wallet = second_wallet.assert_return_as();
-    setup.env.advance_block();
-
-    assert_ne!(predicted, predict(&setup, &second_wallet, &TOKEN_NONCE));
+    assert_ne!(predicted, predict(&setup, &SECOND_WALLET, &TOKEN_NONCE));
     assert_ne!(
         predicted,
         predict(&setup, &setup.wallet, &SECOND_TOKEN_NONCE)

@@ -1,6 +1,6 @@
 [package]
 name = "token-factory-failing-child"
-description = "Test-only failing child contract for token factory feasibility tests"
+description = "Test-only failing initializer for token factory rollback tests"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
@@ -11,8 +11,8 @@ publish = false
 entrypoints = []
 dev = [
     "sdk/dev",
+    "groundhog-erc20-if/dev",
     "standard-token-factory-if/dev",
-    "token-factory-test-if/dev",
 ]
 
 [lib]
@@ -23,10 +23,6 @@ test = false
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
 standard-token-factory-if = { path = "../../contracts/standard-token-factory-if" }
-token-factory-test-if = { path = "../token-factory-test-if" }
 
 [dev-dependencies]
 token-factory-failing-child = { path = ".", features = ["dev"] }
-
-[lints]
-clippy.result_large_err = "allow"

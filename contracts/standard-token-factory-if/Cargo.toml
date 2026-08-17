@@ -28,6 +28,5 @@ hex = { workspace = true }
 dev = ["sdk/dev", "groundhog-erc20-if/dev"]
 
 [lints]
-clippy.result_large_err = "allow"
-# The specification fixes create_token's public ABI at seven arguments plus self.
+# The contract macro generates methods from the specification-fixed create_token ABI.
 clippy.too_many_arguments = "allow"

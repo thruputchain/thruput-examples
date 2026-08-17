@@ -127,7 +127,7 @@ pub struct FactoryConfig {
 }
 ```
 
-Factory configuration is written once with `Value::set_exclusive` and never changes. A zero fee requires no recipient. A nonzero fee must fit the ERC-20 signed-difference bound and requires a nonzero recipient other than the factory itself. The factory stores no per-token records and exposes no administrator, upgrade, or withdrawal method.
+Factory configuration is written once with `Value::set_exclusive` and never changes. Required token funding and a nonzero fee must fit the ERC-20 signed-difference bound. A zero fee requires no recipient. A nonzero fee requires a nonzero recipient other than the factory itself. The factory stores no per-token records and exposes no administrator, upgrade, or withdrawal method.
 
 The canonical factory is deployed, funded, and initialized by release tooling in one transaction. Initialization rejects a zero token hash, zero native-token address, zero funding requirement, repeated call, or invalid fee-recipient combination.
 

@@ -55,6 +55,10 @@ pub trait StandardTokenFactory {
     fn initialize(&mut self, config: FactoryConfig);
 
     /// Deploys and initializes a token for the immediate caller.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the specification fixes the public create_token ABI"
+    )]
     fn create_token(
         &mut self,
         nonce: &SHA256Hash,

@@ -40,16 +40,7 @@ standard-token-factory-if = { path = "../standard-token-factory-if" }
 [dev-dependencies]
 standard-token-factory = { path = ".", features = ["dev"] }
 standard-token = { path = "../standard-token", features = ["dev"] }
-token-factory-test-wallet = { path = "../../helpers/token-factory-test-wallet", features = ["dev"] }
-token-factory-test-if = { path = "../../helpers/token-factory-test-if", features = ["dev"] }
 token-factory-failing-child = { path = "../../helpers/token-factory-failing-child", features = ["dev"] }
-groundhog-xdr = { workspace = true }
 groundhog-testkit = { workspace = true }
 groundhog-json-rpc-types = { workspace = true }
 tokio = { workspace = true }
-serde_json = { workspace = true }
-sha2 = { workspace = true }
-hex = { workspace = true }
-
-[lints]
-clippy.result_large_err = "allow"
