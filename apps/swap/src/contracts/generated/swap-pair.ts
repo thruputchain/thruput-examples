@@ -61,7 +61,8 @@ export const spec: ContractSpec = {
         {
           name: s("burn_lp"),
           args: [
-            { name: s("to"), ty: { v: ContractTypeKind.Address } },
+            { name: s("sender"), ty: { v: ContractTypeKind.Address } },
+            { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
             { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
           ],
           return_type: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } },
@@ -104,7 +105,7 @@ export const spec: ContractSpec = {
           name: s("mint_lp"),
           args: [
             { name: s("sender"), ty: { v: ContractTypeKind.Address } },
-            { name: s("receiver"), ty: { v: ContractTypeKind.Address } },
+            { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
             { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
           ],
           return_type: { v: ContractTypeKind.U128 },
@@ -121,7 +122,8 @@ export const spec: ContractSpec = {
           args: [
             { name: s("amount0_out"), ty: { v: ContractTypeKind.U128 } },
             { name: s("amount1_out"), ty: { v: ContractTypeKind.U128 } },
-            { name: s("to"), ty: { v: ContractTypeKind.Address } },
+            { name: s("sender"), ty: { v: ContractTypeKind.Address } },
+            { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
             { name: s("request_id"), ty: { v: ContractTypeKind.Option, option_inner: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } } },
           ],
           return_type: { v: ContractTypeKind.Void },
@@ -249,7 +251,7 @@ export const spec: ContractSpec = {
       signature: topic(fromHex("48e990a9515a2084882012e9e7c7cf93100fd7f03be5f1665969aefe519444be")),
       topics: [
         { name: s("sender"), ty: { v: ContractTypeKind.Address } },
-        { name: s("receiver"), ty: { v: ContractTypeKind.Address } },
+        { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
       ],
       fields: [
         { name: s("amount_minted"), ty: { v: ContractTypeKind.U128 } },
@@ -287,13 +289,13 @@ export const SwapPair = {
   burnLp(
     contract: ContractAddress,
     gasLimit: GasAmount,
-    args: { to: ContractAddress; requestId: Uint8Array | null },
+    args: { sender: ContractAddress; recipient: ContractAddress; requestId: Uint8Array | null },
   ): Invocation {
     return createInvocation({
       invoked_address: contract,
       entrypoint: entrypoints.SwapPair.burnLp,
       gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "burn_lp", [args.to, args.requestId], namedCodecs),
+      calldata: encodeCalldata(spec, "SwapPair", "burn_lp", [args.sender, args.recipient, args.requestId], namedCodecs),
     });
   },
   getCumulativePrices(
@@ -355,13 +357,13 @@ export const SwapPair = {
   mintLp(
     contract: ContractAddress,
     gasLimit: GasAmount,
-    args: { sender: ContractAddress; receiver: ContractAddress; requestId: Uint8Array | null },
+    args: { sender: ContractAddress; recipient: ContractAddress; requestId: Uint8Array | null },
   ): Invocation {
     return createInvocation({
       invoked_address: contract,
       entrypoint: entrypoints.SwapPair.mintLp,
       gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "mint_lp", [args.sender, args.receiver, args.requestId], namedCodecs),
+      calldata: encodeCalldata(spec, "SwapPair", "mint_lp", [args.sender, args.recipient, args.requestId], namedCodecs),
     });
   },
   skim(
@@ -379,13 +381,13 @@ export const SwapPair = {
   swap(
     contract: ContractAddress,
     gasLimit: GasAmount,
-    args: { amount0Out: bigint; amount1Out: bigint; to: ContractAddress; requestId: Uint8Array | null },
+    args: { amount0Out: bigint; amount1Out: bigint; sender: ContractAddress; recipient: ContractAddress; requestId: Uint8Array | null },
   ): Invocation {
     return createInvocation({
       invoked_address: contract,
       entrypoint: entrypoints.SwapPair.swap,
       gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapPair", "swap", [args.amount0Out, args.amount1Out, args.to, args.requestId], namedCodecs),
+      calldata: encodeCalldata(spec, "SwapPair", "swap", [args.amount0Out, args.amount1Out, args.sender, args.recipient, args.requestId], namedCodecs),
     });
   },
   sync(
@@ -433,7 +435,7 @@ export const BurnEvent = {
 
 export interface MintEvent {
   name: "MintEvent";
-  topics: { sender: Uint8Array; receiver: Uint8Array; };
+  topics: { sender: Uint8Array; recipient: Uint8Array; };
   fields: { amount_minted: bigint; request_id: Uint8Array | null; };
 }
 export const MintEvent = {
@@ -451,7 +453,7 @@ export const MintEvent = {
     if (r.remaining !== 0) {
       throw new Error(`MintEvent: ${r.remaining} trailing bytes after payload`);
     }
-    return { name: "MintEvent", topics: { sender: event.topics[1], receiver: event.topics[2] }, fields: { amount_minted: f0, request_id: f1 } };
+    return { name: "MintEvent", topics: { sender: event.topics[1], recipient: event.topics[2] }, fields: { amount_minted: f0, request_id: f1 } };
   },
 } as const;
 
