@@ -1,6 +1,5 @@
-export function abbreviateAddress(address: Uint8Array): string {
-  const hex = Array.from(address, (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-  return `0x${hex.slice(0, 6)}…${hex.slice(-4)}`;
+export function abbreviateIdentifier(value: string): string {
+  return value.length <= 14
+    ? value
+    : `${value.slice(0, 8)}…${value.slice(-4)}`;
 }

@@ -83,6 +83,33 @@ describe("deriveSwapQuote", () => {
     expect(tokensForDirection(pool, "bToA").input.symbol).toBe("gEUR");
   });
 
+  it("validates balance and allowance against reserved input", () => {
+    const pool = snapshot();
+    const quote = deriveSwapQuote(pool, "aToB", "10", 50n, 20_000_000n);
+
+    expect(quote).toMatchObject({
+      ok: true,
+      allowanceDifference: 30_000_000n,
+    });
+    expect(
+      deriveSwapQuote(pool, "aToB", "81", 50n, 20_000_000n),
+    ).toEqual({ ok: false, error: "balance" });
+  });
+
+  it("accepts safe excess allowance beyond the signed adjustment range", () => {
+    const pool = snapshot({
+      tokenA: {
+        ...snapshot().tokenA,
+        allowance: I128_MAX * 2n,
+      },
+    });
+
+    expect(deriveSwapQuote(pool, "aToB", "10", 50n)).toMatchObject({
+      ok: true,
+      allowanceDifference: 0n,
+    });
+  });
+
   it.each([
     ["", "empty"],
     ["abc", "malformed"],

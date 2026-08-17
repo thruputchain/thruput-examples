@@ -52,7 +52,7 @@ describe("workflowReducer", () => {
     ).toEqual(initialWorkflowState);
   });
 
-  it("moves through approval, submission, queueing, and observation", () => {
+  it("moves through approval, submission, and queueing", () => {
     const state = reduce(
       initialWorkflowState,
       { type: "inputChanged" },
@@ -61,32 +61,14 @@ describe("workflowReducer", () => {
       { type: "approvalObserved" },
       { type: "submissionStarted" },
       { type: "requestQueued", transactionHash: "0x01", receiptBlock: 7n },
-      { type: "executionObserved" },
     );
 
     expect(state).toEqual({
-      status: "executionObserved",
+      status: "queued",
       intent,
       transactionHash: "0x01",
+      receiptBlock: 7n,
     });
-  });
-
-  it("keeps an observation timeout queued and nonterminal", () => {
-    const queued = reduce(
-      { status: "quoting" },
-      { type: "quoteReady", intent },
-      { type: "submissionStarted" },
-      { type: "requestQueued", transactionHash: "0x01", receiptBlock: 7n },
-      { type: "observationTimedOut" },
-    );
-
-    expect(queued.status).toBe("queuedNotObserved");
-    expect(() => workflowReducer(queued, { type: "inputChanged" })).toThrow(
-      InvalidWorkflowTransition,
-    );
-    expect(
-      workflowReducer(queued, { type: "confirmExternalCrank" }),
-    ).toEqual(initialWorkflowState);
   });
 
   it("unlocks a queued workflow when another tab clears its durable request", () => {
@@ -148,6 +130,9 @@ describe("workflowReducer", () => {
       expect(() => workflowReducer(state, { type: "inputChanged" })).toThrow(
         InvalidWorkflowTransition,
       );
+      expect(
+        workflowReducer(state, { type: "recoveryCompleted" }),
+      ).toEqual(initialWorkflowState);
     },
   );
 

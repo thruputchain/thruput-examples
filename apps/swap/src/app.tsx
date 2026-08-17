@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   ConfigurationError,
   loadAppConfig,
@@ -48,17 +49,19 @@ export function App({
     ? { ok: true as const, config: suppliedConfig }
     : readBrowserConfiguration();
 
-  if (!configuration.ok) {
-    return <ConfigurationErrorPage message={configuration.message} />;
-  }
-
   return (
-    <ConfiguredApp
-      config={configuration.config}
-      readSnapshot={readSnapshot}
-      requestObserver={requestObserver}
-      writeBoundary={writeBoundary ?? (suppliedConfig ? unavailableWriteBoundary : undefined)}
-    />
+    <TooltipProvider>
+      {configuration.ok ? (
+        <ConfiguredApp
+          config={configuration.config}
+          readSnapshot={readSnapshot}
+          requestObserver={requestObserver}
+          writeBoundary={writeBoundary ?? (suppliedConfig
+            ? unavailableWriteBoundary
+            : undefined)}
+        />
+      ) : <ConfigurationErrorPage message={configuration.message} />}
+    </TooltipProvider>
   );
 }
 

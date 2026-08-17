@@ -3,10 +3,13 @@ import { toHex0x } from "@groundhogchain/client";
 import { orientReserves, orderTokens } from "@/domain/tokens";
 import type { PoolSnapshot, TokenSnapshot } from "@/swap/snapshot";
 import type { OutstandingRequest } from "@/transactions/outstanding-request";
+import type { RequestRecord } from "@/transactions/request-collection";
 import type { RequestObservation } from "@/transactions/request-observer";
 
+type ObservableRequest = Omit<OutstandingRequest, "status">;
+
 export function inferExecutionFromSnapshot(
-  request: OutstandingRequest,
+  request: ObservableRequest,
   snapshot: PoolSnapshot,
 ): Extract<RequestObservation, { kind: "executionInferred" }> | null {
   const baseline = request.observationBaseline;
@@ -52,6 +55,20 @@ export function inferExecutionFromSnapshot(
     amountIn,
     amountOut,
   };
+}
+
+export function inferSingleExecutionFromSnapshot(
+  requests: readonly RequestRecord[],
+  snapshot: PoolSnapshot,
+): Extract<RequestObservation, { kind: "executionInferred" }> | null {
+  if (
+    requests.length !== 1
+    || !requests[0]!.snapshotInferenceEligible
+    || requests[0]!.observationBaseline === null
+  ) {
+    return null;
+  }
+  return inferExecutionFromSnapshot(requests[0]!, snapshot);
 }
 
 function tokenByAddress(

@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import type { PoolSnapshot } from "@/swap/snapshot";
 import type { OutstandingRequest } from "@/transactions/outstanding-request";
-import { inferExecutionFromSnapshot } from "./execution-fallback";
+import { createRequestRecord } from "@/transactions/request-collection";
+import {
+  inferExecutionFromSnapshot,
+  inferSingleExecutionFromSnapshot,
+} from "./execution-fallback";
 
 const tokenA = contractAddress(new Uint8Array(32).fill(1));
 const tokenB = contractAddress(new Uint8Array(32).fill(2));
@@ -89,5 +93,31 @@ describe("execution snapshot fallback", () => {
         executed,
       ),
     ).toBeNull();
+  });
+
+  it("does not attribute a snapshot while multiple requests are unresolved", () => {
+    const first = createRequestRecord(request, { localId: "first", now: 1 });
+    const second = createRequestRecord(
+      { ...request, requestId: hex(0xdd) },
+      { localId: "second", now: 2 },
+    );
+
+    expect(inferSingleExecutionFromSnapshot([first, second], executed)).toBeNull();
+    expect(
+      inferSingleExecutionFromSnapshot(
+        [{ ...first, observationBaseline: null }],
+        executed,
+      ),
+    ).toBeNull();
+    expect(inferSingleExecutionFromSnapshot([first], executed)).not.toBeNull();
+  });
+
+  it("does not re-enable inference after overlapping requests become one", () => {
+    const remaining = {
+      ...createRequestRecord(request, { localId: "remaining", now: 1 }),
+      snapshotInferenceEligible: false,
+    };
+
+    expect(inferSingleExecutionFromSnapshot([remaining], executed)).toBeNull();
   });
 });
