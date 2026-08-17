@@ -514,30 +514,30 @@ export const SwapDriver = {
       {
         abiName: "handler",
         publicName: "handler",
-        type: spec.interfaces[0].methods[0].args[0].ty,
+        type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[0].return_type,
+    returnType: spec.interfaces[0]!.methods[0]!.return_type,
     throws: [
       {
         selector: 0x17e7e152700d9279n,
         exception: "SwapLibraryError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
         exception: "SwapRequestError",
-        type: spec.interfaces[0].throws[2].ty,
+        type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[3].ty,
+        type: spec.interfaces[0]!.throws[3]!.ty,
       },
     ],
     codecs,
@@ -549,27 +549,27 @@ export const SwapDriver = {
   >({
     entrypoint: entrypoints.SwapDriver.processRequests,
     args: [],
-    returnType: spec.interfaces[0].methods[1].return_type,
+    returnType: spec.interfaces[0]!.methods[1]!.return_type,
     throws: [
       {
         selector: 0x17e7e152700d9279n,
         exception: "SwapLibraryError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
         exception: "SwapRequestError",
-        type: spec.interfaces[0].throws[2].ty,
+        type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[3].ty,
+        type: spec.interfaces[0]!.throws[3]!.ty,
       },
     ],
     codecs,
@@ -584,30 +584,30 @@ export const SwapDriver = {
       {
         abiName: "request",
         publicName: "request",
-        type: spec.interfaces[0].methods[2].args[0].ty,
+        type: spec.interfaces[0]!.methods[2]!.args[0]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[2].return_type,
+    returnType: spec.interfaces[0]!.methods[2]!.return_type,
     throws: [
       {
         selector: 0x17e7e152700d9279n,
         exception: "SwapLibraryError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
         exception: "SwapRequestError",
-        type: spec.interfaces[0].throws[2].ty,
+        type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[3].ty,
+        type: spec.interfaces[0]!.throws[3]!.ty,
       },
     ],
     codecs,
@@ -631,11 +631,11 @@ export const RequestAccepted = defineContractEvent<
   RequestAcceptedFilter
 >({
   name: "RequestAccepted",
-  signature: spec.events[0].signature,
+  signature: spec.events[0]!.signature,
   topics: [
     {
       name: "request_id",
-      type: spec.events[0].topics[0].ty,
+      type: spec.events[0]!.topics[0]!.ty,
       representation: "fixedBytes32",
     },
   ],
@@ -660,11 +660,11 @@ export const RequestFailed = defineContractEvent<
   RequestFailedFilter
 >({
   name: "RequestFailed",
-  signature: spec.events[1].signature,
+  signature: spec.events[1]!.signature,
   topics: [
     {
       name: "request_id",
-      type: spec.events[1].topics[0].ty,
+      type: spec.events[1]!.topics[0]!.ty,
       representation: "fixedBytes32",
     },
   ],

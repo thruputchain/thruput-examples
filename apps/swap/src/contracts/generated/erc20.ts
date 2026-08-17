@@ -335,20 +335,20 @@ export const ERC20 = {
       {
         abiName: "spender",
         publicName: "spender",
-        type: spec.interfaces[0].methods[0].args[0].ty,
+        type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
       },
       {
         abiName: "diff",
         publicName: "diff",
-        type: spec.interfaces[0].methods[0].args[1].ty,
+        type: spec.interfaces[0]!.methods[0]!.args[1]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[0].return_type,
+    returnType: spec.interfaces[0]!.methods[0]!.return_type,
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
     codecs,
@@ -363,20 +363,20 @@ export const ERC20 = {
       {
         abiName: "owner",
         publicName: "owner",
-        type: spec.interfaces[0].methods[1].args[0].ty,
+        type: spec.interfaces[0]!.methods[1]!.args[0]!.ty,
       },
       {
         abiName: "spender",
         publicName: "spender",
-        type: spec.interfaces[0].methods[1].args[1].ty,
+        type: spec.interfaces[0]!.methods[1]!.args[1]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[1].return_type,
+    returnType: spec.interfaces[0]!.methods[1]!.return_type,
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
     codecs,
@@ -391,20 +391,20 @@ export const ERC20 = {
       {
         abiName: "owner",
         publicName: "owner",
-        type: spec.interfaces[0].methods[2].args[0].ty,
+        type: spec.interfaces[0]!.methods[2]!.args[0]!.ty,
       },
       {
         abiName: "amount",
         publicName: "amount",
-        type: spec.interfaces[0].methods[2].args[1].ty,
+        type: spec.interfaces[0]!.methods[2]!.args[1]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[2].return_type,
+    returnType: spec.interfaces[0]!.methods[2]!.return_type,
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
     codecs,
@@ -416,12 +416,12 @@ export const ERC20 = {
   >({
     entrypoint: entrypoints.ERC20.getBalance,
     args: [],
-    returnType: spec.interfaces[0].methods[3].return_type,
+    returnType: spec.interfaces[0]!.methods[3]!.return_type,
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
     codecs,
@@ -436,15 +436,15 @@ export const ERC20 = {
       {
         abiName: "addr",
         publicName: "addr",
-        type: spec.interfaces[0].methods[4].args[0].ty,
+        type: spec.interfaces[0]!.methods[4]!.args[0]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[4].return_type,
+    returnType: spec.interfaces[0]!.methods[4]!.return_type,
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
     codecs,
@@ -459,15 +459,15 @@ export const ERC20 = {
       {
         abiName: "administrator",
         publicName: "administrator",
-        type: spec.interfaces[0].methods[5].args[0].ty,
+        type: spec.interfaces[0]!.methods[5]!.args[0]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[5].return_type,
+    returnType: spec.interfaces[0]!.methods[5]!.return_type,
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
     codecs,
@@ -482,20 +482,20 @@ export const ERC20 = {
       {
         abiName: "receiver",
         publicName: "receiver",
-        type: spec.interfaces[0].methods[6].args[0].ty,
+        type: spec.interfaces[0]!.methods[6]!.args[0]!.ty,
       },
       {
         abiName: "amount",
         publicName: "amount",
-        type: spec.interfaces[0].methods[6].args[1].ty,
+        type: spec.interfaces[0]!.methods[6]!.args[1]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[6].return_type,
+    returnType: spec.interfaces[0]!.methods[6]!.return_type,
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
     codecs,
@@ -507,12 +507,12 @@ export const ERC20 = {
   >({
     entrypoint: entrypoints.ERC20.totalSupply,
     args: [],
-    returnType: spec.interfaces[0].methods[7].return_type,
+    returnType: spec.interfaces[0]!.methods[7]!.return_type,
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
     codecs,
@@ -527,20 +527,20 @@ export const ERC20 = {
       {
         abiName: "receiver",
         publicName: "receiver",
-        type: spec.interfaces[0].methods[8].args[0].ty,
+        type: spec.interfaces[0]!.methods[8]!.args[0]!.ty,
       },
       {
         abiName: "amount",
         publicName: "amount",
-        type: spec.interfaces[0].methods[8].args[1].ty,
+        type: spec.interfaces[0]!.methods[8]!.args[1]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[8].return_type,
+    returnType: spec.interfaces[0]!.methods[8]!.return_type,
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
     codecs,
@@ -555,25 +555,25 @@ export const ERC20 = {
       {
         abiName: "owner",
         publicName: "owner",
-        type: spec.interfaces[0].methods[9].args[0].ty,
+        type: spec.interfaces[0]!.methods[9]!.args[0]!.ty,
       },
       {
         abiName: "receiver",
         publicName: "receiver",
-        type: spec.interfaces[0].methods[9].args[1].ty,
+        type: spec.interfaces[0]!.methods[9]!.args[1]!.ty,
       },
       {
         abiName: "amount",
         publicName: "amount",
-        type: spec.interfaces[0].methods[9].args[2].ty,
+        type: spec.interfaces[0]!.methods[9]!.args[2]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[9].return_type,
+    returnType: spec.interfaces[0]!.methods[9]!.return_type,
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
     codecs,
@@ -588,7 +588,7 @@ export const ERC20Metadata = {
   >({
     entrypoint: entrypoints.ERC20Metadata.decimals,
     args: [],
-    returnType: spec.interfaces[1].methods[0].return_type,
+    returnType: spec.interfaces[1]!.methods[0]!.return_type,
     throws: [],
     codecs,
   }),
@@ -602,25 +602,25 @@ export const ERC20Metadata = {
       {
         abiName: "administrator",
         publicName: "administrator",
-        type: spec.interfaces[1].methods[1].args[0].ty,
+        type: spec.interfaces[1]!.methods[1]!.args[0]!.ty,
       },
       {
         abiName: "name",
         publicName: "name",
-        type: spec.interfaces[1].methods[1].args[1].ty,
+        type: spec.interfaces[1]!.methods[1]!.args[1]!.ty,
       },
       {
         abiName: "symbol",
         publicName: "symbol",
-        type: spec.interfaces[1].methods[1].args[2].ty,
+        type: spec.interfaces[1]!.methods[1]!.args[2]!.ty,
       },
       {
         abiName: "decimals",
         publicName: "decimals",
-        type: spec.interfaces[1].methods[1].args[3].ty,
+        type: spec.interfaces[1]!.methods[1]!.args[3]!.ty,
       },
     ],
-    returnType: spec.interfaces[1].methods[1].return_type,
+    returnType: spec.interfaces[1]!.methods[1]!.return_type,
     throws: [],
     codecs,
   }),
@@ -631,7 +631,7 @@ export const ERC20Metadata = {
   >({
     entrypoint: entrypoints.ERC20Metadata.name,
     args: [],
-    returnType: spec.interfaces[1].methods[2].return_type,
+    returnType: spec.interfaces[1]!.methods[2]!.return_type,
     throws: [],
     codecs,
   }),
@@ -642,7 +642,7 @@ export const ERC20Metadata = {
   >({
     entrypoint: entrypoints.ERC20Metadata.symbol,
     args: [],
-    returnType: spec.interfaces[1].methods[3].return_type,
+    returnType: spec.interfaces[1]!.methods[3]!.return_type,
     throws: [],
     codecs,
   }),
@@ -666,20 +666,20 @@ export const ApprovalEvent = defineContractEvent<
   ApprovalEventFilter
 >({
   name: "ApprovalEvent",
-  signature: spec.events[0].signature,
+  signature: spec.events[0]!.signature,
   topics: [
     {
       name: "owner",
-      type: spec.events[0].topics[0].ty,
+      type: spec.events[0]!.topics[0]!.ty,
       representation: "address",
     },
     {
       name: "spender",
-      type: spec.events[0].topics[1].ty,
+      type: spec.events[0]!.topics[1]!.ty,
       representation: "address",
     },
   ],
-  fields: [{ name: "difference", type: spec.events[0].fields[0].ty }],
+  fields: [{ name: "difference", type: spec.events[0]!.fields[0]!.ty }],
   codecs,
 });
 
@@ -701,20 +701,20 @@ export const TransferEvent = defineContractEvent<
   TransferEventFilter
 >({
   name: "TransferEvent",
-  signature: spec.events[1].signature,
+  signature: spec.events[1]!.signature,
   topics: [
     {
       name: "from",
-      type: spec.events[1].topics[0].ty,
+      type: spec.events[1]!.topics[0]!.ty,
       representation: "address",
     },
     {
       name: "to",
-      type: spec.events[1].topics[1].ty,
+      type: spec.events[1]!.topics[1]!.ty,
       representation: "address",
     },
   ],
-  fields: [{ name: "amount", type: spec.events[1].fields[0].ty }],
+  fields: [{ name: "amount", type: spec.events[1]!.fields[0]!.ty }],
   codecs,
 });
 

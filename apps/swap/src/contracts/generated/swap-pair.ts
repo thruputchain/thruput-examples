@@ -489,25 +489,25 @@ export const SwapPair = {
       {
         abiName: "to",
         publicName: "to",
-        type: spec.interfaces[0].methods[0].args[0].ty,
+        type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
       },
       {
         abiName: "request_id",
         publicName: "requestId",
-        type: spec.interfaces[0].methods[0].args[1].ty,
+        type: spec.interfaces[0]!.methods[0]!.args[1]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[0].return_type,
+    returnType: spec.interfaces[0]!.methods[0]!.return_type,
     throws: [
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
     codecs,
@@ -519,17 +519,17 @@ export const SwapPair = {
   >({
     entrypoint: entrypoints.SwapPair.getCumulativePrices,
     args: [],
-    returnType: spec.interfaces[0].methods[1].return_type,
+    returnType: spec.interfaces[0]!.methods[1]!.return_type,
     throws: [
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
     codecs,
@@ -541,17 +541,17 @@ export const SwapPair = {
   >({
     entrypoint: entrypoints.SwapPair.getLiquidity,
     args: [],
-    returnType: spec.interfaces[0].methods[2].return_type,
+    returnType: spec.interfaces[0]!.methods[2]!.return_type,
     throws: [
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
     codecs,
@@ -563,17 +563,17 @@ export const SwapPair = {
   >({
     entrypoint: entrypoints.SwapPair.getReserves,
     args: [],
-    returnType: spec.interfaces[0].methods[3].return_type,
+    returnType: spec.interfaces[0]!.methods[3]!.return_type,
     throws: [
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
     codecs,
@@ -588,35 +588,35 @@ export const SwapPair = {
       {
         abiName: "factory",
         publicName: "factory",
-        type: spec.interfaces[0].methods[4].args[0].ty,
+        type: spec.interfaces[0]!.methods[4]!.args[0]!.ty,
       },
       {
         abiName: "token0",
         publicName: "token0",
-        type: spec.interfaces[0].methods[4].args[1].ty,
+        type: spec.interfaces[0]!.methods[4]!.args[1]!.ty,
       },
       {
         abiName: "token1",
         publicName: "token1",
-        type: spec.interfaces[0].methods[4].args[2].ty,
+        type: spec.interfaces[0]!.methods[4]!.args[2]!.ty,
       },
       {
         abiName: "lp_token",
         publicName: "lpToken",
-        type: spec.interfaces[0].methods[4].args[3].ty,
+        type: spec.interfaces[0]!.methods[4]!.args[3]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[4].return_type,
+    returnType: spec.interfaces[0]!.methods[4]!.return_type,
     throws: [
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
     codecs,
@@ -628,17 +628,17 @@ export const SwapPair = {
   >({
     entrypoint: entrypoints.SwapPair.liquidityToken,
     args: [],
-    returnType: spec.interfaces[0].methods[5].return_type,
+    returnType: spec.interfaces[0]!.methods[5]!.return_type,
     throws: [
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
     codecs,
@@ -653,25 +653,25 @@ export const SwapPair = {
       {
         abiName: "to",
         publicName: "to",
-        type: spec.interfaces[0].methods[6].args[0].ty,
+        type: spec.interfaces[0]!.methods[6]!.args[0]!.ty,
       },
       {
         abiName: "request_id",
         publicName: "requestId",
-        type: spec.interfaces[0].methods[6].args[1].ty,
+        type: spec.interfaces[0]!.methods[6]!.args[1]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[6].return_type,
+    returnType: spec.interfaces[0]!.methods[6]!.return_type,
     throws: [
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
     codecs,
@@ -686,20 +686,20 @@ export const SwapPair = {
       {
         abiName: "to",
         publicName: "to",
-        type: spec.interfaces[0].methods[7].args[0].ty,
+        type: spec.interfaces[0]!.methods[7]!.args[0]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[7].return_type,
+    returnType: spec.interfaces[0]!.methods[7]!.return_type,
     throws: [
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
     codecs,
@@ -714,35 +714,35 @@ export const SwapPair = {
       {
         abiName: "amount0_out",
         publicName: "amount0Out",
-        type: spec.interfaces[0].methods[8].args[0].ty,
+        type: spec.interfaces[0]!.methods[8]!.args[0]!.ty,
       },
       {
         abiName: "amount1_out",
         publicName: "amount1Out",
-        type: spec.interfaces[0].methods[8].args[1].ty,
+        type: spec.interfaces[0]!.methods[8]!.args[1]!.ty,
       },
       {
         abiName: "to",
         publicName: "to",
-        type: spec.interfaces[0].methods[8].args[2].ty,
+        type: spec.interfaces[0]!.methods[8]!.args[2]!.ty,
       },
       {
         abiName: "request_id",
         publicName: "requestId",
-        type: spec.interfaces[0].methods[8].args[3].ty,
+        type: spec.interfaces[0]!.methods[8]!.args[3]!.ty,
       },
     ],
-    returnType: spec.interfaces[0].methods[8].return_type,
+    returnType: spec.interfaces[0]!.methods[8]!.return_type,
     throws: [
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
     codecs,
@@ -754,17 +754,17 @@ export const SwapPair = {
   >({
     entrypoint: entrypoints.SwapPair.sync,
     args: [],
-    returnType: spec.interfaces[0].methods[9].return_type,
+    returnType: spec.interfaces[0]!.methods[9]!.return_type,
     throws: [
       {
         selector: 0x25d002d47b07640dn,
         exception: "SwapPairError",
-        type: spec.interfaces[0].throws[0].ty,
+        type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
         exception: "ERC20Error",
-        type: spec.interfaces[0].throws[1].ty,
+        type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
     codecs,
@@ -792,22 +792,22 @@ export const BurnEvent = defineContractEvent<
   BurnEventFilter
 >({
   name: "BurnEvent",
-  signature: spec.events[0].signature,
+  signature: spec.events[0]!.signature,
   topics: [
     {
       name: "sender",
-      type: spec.events[0].topics[0].ty,
+      type: spec.events[0]!.topics[0]!.ty,
       representation: "address",
     },
     {
       name: "recipient",
-      type: spec.events[0].topics[1].ty,
+      type: spec.events[0]!.topics[1]!.ty,
       representation: "address",
     },
   ],
   fields: [
-    { name: "amounts_redeemed", type: spec.events[0].fields[0].ty },
-    { name: "request_id", type: spec.events[0].fields[1].ty },
+    { name: "amounts_redeemed", type: spec.events[0]!.fields[0]!.ty },
+    { name: "request_id", type: spec.events[0]!.fields[1]!.ty },
   ],
   codecs,
 });
@@ -829,17 +829,17 @@ export const MintEvent = defineContractEvent<
   MintEventFilter
 >({
   name: "MintEvent",
-  signature: spec.events[1].signature,
+  signature: spec.events[1]!.signature,
   topics: [
     {
       name: "sender",
-      type: spec.events[1].topics[0].ty,
+      type: spec.events[1]!.topics[0]!.ty,
       representation: "address",
     },
   ],
   fields: [
-    { name: "amount_minted", type: spec.events[1].fields[0].ty },
-    { name: "request_id", type: spec.events[1].fields[1].ty },
+    { name: "amount_minted", type: spec.events[1]!.fields[0]!.ty },
+    { name: "request_id", type: spec.events[1]!.fields[1]!.ty },
   ],
   codecs,
 });
@@ -866,23 +866,23 @@ export const SwapEvent = defineContractEvent<
   SwapEventFilter
 >({
   name: "SwapEvent",
-  signature: spec.events[2].signature,
+  signature: spec.events[2]!.signature,
   topics: [
     {
       name: "sender",
-      type: spec.events[2].topics[0].ty,
+      type: spec.events[2]!.topics[0]!.ty,
       representation: "address",
     },
     {
       name: "recipient",
-      type: spec.events[2].topics[1].ty,
+      type: spec.events[2]!.topics[1]!.ty,
       representation: "address",
     },
   ],
   fields: [
-    { name: "amounts_in", type: spec.events[2].fields[0].ty },
-    { name: "amounts_out", type: spec.events[2].fields[1].ty },
-    { name: "request_id", type: spec.events[2].fields[2].ty },
+    { name: "amounts_in", type: spec.events[2]!.fields[0]!.ty },
+    { name: "amounts_out", type: spec.events[2]!.fields[1]!.ty },
+    { name: "request_id", type: spec.events[2]!.fields[2]!.ty },
   ],
   codecs,
 });
@@ -902,9 +902,9 @@ export const SyncEvent = defineContractEvent<
   SyncEventFilter
 >({
   name: "SyncEvent",
-  signature: spec.events[3].signature,
+  signature: spec.events[3]!.signature,
   topics: [],
-  fields: [{ name: "reserves", type: spec.events[3].fields[0].ty }],
+  fields: [{ name: "reserves", type: spec.events[3]!.fields[0]!.ty }],
   codecs,
 });
 
