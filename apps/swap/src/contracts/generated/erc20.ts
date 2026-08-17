@@ -14,7 +14,7 @@ import {
   type ContractSpec,
   createContractCodecContext,
   defineContractMethod,
-  type ContractAbort,
+  type ContractException,
   defineContractEvent,
   type DecodedContractEvent,
   type ContractEventFilterValue,
@@ -105,13 +105,13 @@ export interface ERC20TransferFromArgs {
 }
 export type ERC20TransferFromResult = void;
 
-export type ERC20DeclaredAbort = {
+export type ERC20DeclaredException = {
   kind: "declared";
-  exception: "ERC20Error";
+  name: "ERC20Error";
   selector: 0xb19947acb2fa14ffn;
   value: ERC20Error;
 };
-export type ERC20Abort = ContractAbort<ERC20DeclaredAbort>;
+export type ERC20Exception = ContractException<ERC20DeclaredException>;
 
 export type ERC20MetadataDecimalsArgs = void;
 export type ERC20MetadataDecimalsResult = bigint | null;
@@ -130,8 +130,9 @@ export type ERC20MetadataNameResult = string | null;
 export type ERC20MetadataSymbolArgs = void;
 export type ERC20MetadataSymbolResult = string | null;
 
-export type ERC20MetadataDeclaredAbort = never;
-export type ERC20MetadataAbort = ContractAbort<ERC20MetadataDeclaredAbort>;
+export type ERC20MetadataDeclaredException = never;
+export type ERC20MetadataException =
+  ContractException<ERC20MetadataDeclaredException>;
 
 export const spec: ContractSpec = {
   interfaces: [
@@ -328,7 +329,7 @@ export const ERC20 = {
   adjustAllowance: defineContractMethod<
     ERC20AdjustAllowanceArgs,
     ERC20AdjustAllowanceResult,
-    ERC20DeclaredAbort
+    ERC20DeclaredException
   >({
     entrypoint: entrypoints.ERC20.adjustAllowance,
     args: [
@@ -347,7 +348,7 @@ export const ERC20 = {
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
@@ -356,7 +357,7 @@ export const ERC20 = {
   allowance: defineContractMethod<
     ERC20AllowanceArgs,
     ERC20AllowanceResult,
-    ERC20DeclaredAbort
+    ERC20DeclaredException
   >({
     entrypoint: entrypoints.ERC20.allowance,
     args: [
@@ -375,7 +376,7 @@ export const ERC20 = {
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
@@ -384,7 +385,7 @@ export const ERC20 = {
   burn: defineContractMethod<
     ERC20BurnArgs,
     ERC20BurnResult,
-    ERC20DeclaredAbort
+    ERC20DeclaredException
   >({
     entrypoint: entrypoints.ERC20.burn,
     args: [
@@ -403,7 +404,7 @@ export const ERC20 = {
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
@@ -412,7 +413,7 @@ export const ERC20 = {
   getBalance: defineContractMethod<
     ERC20GetBalanceArgs,
     ERC20GetBalanceResult,
-    ERC20DeclaredAbort
+    ERC20DeclaredException
   >({
     entrypoint: entrypoints.ERC20.getBalance,
     args: [],
@@ -420,7 +421,7 @@ export const ERC20 = {
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
@@ -429,7 +430,7 @@ export const ERC20 = {
   getBalanceOf: defineContractMethod<
     ERC20GetBalanceOfArgs,
     ERC20GetBalanceOfResult,
-    ERC20DeclaredAbort
+    ERC20DeclaredException
   >({
     entrypoint: entrypoints.ERC20.getBalanceOf,
     args: [
@@ -443,7 +444,7 @@ export const ERC20 = {
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
@@ -452,7 +453,7 @@ export const ERC20 = {
   initialize: defineContractMethod<
     ERC20InitializeArgs,
     ERC20InitializeResult,
-    ERC20DeclaredAbort
+    ERC20DeclaredException
   >({
     entrypoint: entrypoints.ERC20.initialize,
     args: [
@@ -466,7 +467,7 @@ export const ERC20 = {
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
@@ -475,7 +476,7 @@ export const ERC20 = {
   mint: defineContractMethod<
     ERC20MintArgs,
     ERC20MintResult,
-    ERC20DeclaredAbort
+    ERC20DeclaredException
   >({
     entrypoint: entrypoints.ERC20.mint,
     args: [
@@ -494,7 +495,7 @@ export const ERC20 = {
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
@@ -503,7 +504,7 @@ export const ERC20 = {
   totalSupply: defineContractMethod<
     ERC20TotalSupplyArgs,
     ERC20TotalSupplyResult,
-    ERC20DeclaredAbort
+    ERC20DeclaredException
   >({
     entrypoint: entrypoints.ERC20.totalSupply,
     args: [],
@@ -511,7 +512,7 @@ export const ERC20 = {
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
@@ -520,7 +521,7 @@ export const ERC20 = {
   transfer: defineContractMethod<
     ERC20TransferArgs,
     ERC20TransferResult,
-    ERC20DeclaredAbort
+    ERC20DeclaredException
   >({
     entrypoint: entrypoints.ERC20.transfer,
     args: [
@@ -539,7 +540,7 @@ export const ERC20 = {
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
@@ -548,7 +549,7 @@ export const ERC20 = {
   transferFrom: defineContractMethod<
     ERC20TransferFromArgs,
     ERC20TransferFromResult,
-    ERC20DeclaredAbort
+    ERC20DeclaredException
   >({
     entrypoint: entrypoints.ERC20.transferFrom,
     args: [
@@ -572,7 +573,7 @@ export const ERC20 = {
     throws: [
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
     ],
@@ -584,7 +585,7 @@ export const ERC20Metadata = {
   decimals: defineContractMethod<
     ERC20MetadataDecimalsArgs,
     ERC20MetadataDecimalsResult,
-    ERC20MetadataDeclaredAbort
+    ERC20MetadataDeclaredException
   >({
     entrypoint: entrypoints.ERC20Metadata.decimals,
     args: [],
@@ -595,7 +596,7 @@ export const ERC20Metadata = {
   initialize: defineContractMethod<
     ERC20MetadataInitializeArgs,
     ERC20MetadataInitializeResult,
-    ERC20MetadataDeclaredAbort
+    ERC20MetadataDeclaredException
   >({
     entrypoint: entrypoints.ERC20Metadata.initialize,
     args: [
@@ -627,7 +628,7 @@ export const ERC20Metadata = {
   name: defineContractMethod<
     ERC20MetadataNameArgs,
     ERC20MetadataNameResult,
-    ERC20MetadataDeclaredAbort
+    ERC20MetadataDeclaredException
   >({
     entrypoint: entrypoints.ERC20Metadata.name,
     args: [],
@@ -638,7 +639,7 @@ export const ERC20Metadata = {
   symbol: defineContractMethod<
     ERC20MetadataSymbolArgs,
     ERC20MetadataSymbolResult,
-    ERC20MetadataDeclaredAbort
+    ERC20MetadataDeclaredException
   >({
     entrypoint: entrypoints.ERC20Metadata.symbol,
     args: [],

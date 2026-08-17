@@ -14,7 +14,7 @@ import {
   type ContractSpec,
   createContractCodecContext,
   defineContractMethod,
-  type ContractAbort,
+  type ContractException,
   type FixedBytes,
   defineContractEvent,
   type DecodedContractEvent,
@@ -129,32 +129,33 @@ export interface SwapDriverRequestArgs {
 }
 export type SwapDriverRequestResult = FixedBytes<32>;
 
-export type SwapDriverDeclaredAbort =
+export type SwapDriverDeclaredException =
   | {
       kind: "declared";
-      exception: "SwapLibraryError";
+      name: "SwapLibraryError";
       selector: 0x17e7e152700d9279n;
       value: SwapLibraryError;
     }
   | {
       kind: "declared";
-      exception: "SwapPairError";
+      name: "SwapPairError";
       selector: 0x25d002d47b07640dn;
       value: SwapPairError;
     }
   | {
       kind: "declared";
-      exception: "SwapRequestError";
+      name: "SwapRequestError";
       selector: 0x947bdd51feea1ccen;
       value: SwapRequestError;
     }
   | {
       kind: "declared";
-      exception: "ERC20Error";
+      name: "ERC20Error";
       selector: 0xb19947acb2fa14ffn;
       value: ERC20Error;
     };
-export type SwapDriverAbort = ContractAbort<SwapDriverDeclaredAbort>;
+export type SwapDriverException =
+  ContractException<SwapDriverDeclaredException>;
 
 export const spec: ContractSpec = {
   interfaces: [
@@ -507,7 +508,7 @@ export const SwapDriver = {
   initialize: defineContractMethod<
     SwapDriverInitializeArgs,
     SwapDriverInitializeResult,
-    SwapDriverDeclaredAbort
+    SwapDriverDeclaredException
   >({
     entrypoint: entrypoints.SwapDriver.initialize,
     args: [
@@ -521,22 +522,22 @@ export const SwapDriver = {
     throws: [
       {
         selector: 0x17e7e152700d9279n,
-        exception: "SwapLibraryError",
+        name: "SwapLibraryError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
-        exception: "SwapRequestError",
+        name: "SwapRequestError",
         type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[3]!.ty,
       },
     ],
@@ -545,7 +546,7 @@ export const SwapDriver = {
   processRequests: defineContractMethod<
     SwapDriverProcessRequestsArgs,
     SwapDriverProcessRequestsResult,
-    SwapDriverDeclaredAbort
+    SwapDriverDeclaredException
   >({
     entrypoint: entrypoints.SwapDriver.processRequests,
     args: [],
@@ -553,22 +554,22 @@ export const SwapDriver = {
     throws: [
       {
         selector: 0x17e7e152700d9279n,
-        exception: "SwapLibraryError",
+        name: "SwapLibraryError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
-        exception: "SwapRequestError",
+        name: "SwapRequestError",
         type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[3]!.ty,
       },
     ],
@@ -577,7 +578,7 @@ export const SwapDriver = {
   request: defineContractMethod<
     SwapDriverRequestArgs,
     SwapDriverRequestResult,
-    SwapDriverDeclaredAbort
+    SwapDriverDeclaredException
   >({
     entrypoint: entrypoints.SwapDriver.request,
     args: [
@@ -591,22 +592,22 @@ export const SwapDriver = {
     throws: [
       {
         selector: 0x17e7e152700d9279n,
-        exception: "SwapLibraryError",
+        name: "SwapLibraryError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
-        exception: "SwapRequestError",
+        name: "SwapRequestError",
         type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[3]!.ty,
       },
     ],

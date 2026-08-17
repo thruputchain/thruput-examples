@@ -14,7 +14,7 @@ import {
   type ContractSpec,
   createContractCodecContext,
   defineContractMethod,
-  type ContractAbort,
+  type ContractException,
   type FixedBytes,
 } from "@groundhogchain/client/contract";
 
@@ -125,38 +125,39 @@ export interface SwapRouterSwapTokensForExactTokensArgs {
 }
 export type SwapRouterSwapTokensForExactTokensResult = FixedBytes<32>;
 
-export type SwapRouterDeclaredAbort =
+export type SwapRouterDeclaredException =
   | {
       kind: "declared";
-      exception: "SwapLibraryError";
+      name: "SwapLibraryError";
       selector: 0x17e7e152700d9279n;
       value: SwapLibraryError;
     }
   | {
       kind: "declared";
-      exception: "SwapPairError";
+      name: "SwapPairError";
       selector: 0x25d002d47b07640dn;
       value: SwapPairError;
     }
   | {
       kind: "declared";
-      exception: "SwapFactoryError";
+      name: "SwapFactoryError";
       selector: 0x93e5de5a4268821fn;
       value: SwapFactoryError;
     }
   | {
       kind: "declared";
-      exception: "SwapRequestError";
+      name: "SwapRequestError";
       selector: 0x947bdd51feea1ccen;
       value: SwapRequestError;
     }
   | {
       kind: "declared";
-      exception: "ERC20Error";
+      name: "ERC20Error";
       selector: 0xb19947acb2fa14ffn;
       value: ERC20Error;
     };
-export type SwapRouterAbort = ContractAbort<SwapRouterDeclaredAbort>;
+export type SwapRouterException =
+  ContractException<SwapRouterDeclaredException>;
 
 export const spec: ContractSpec = {
   interfaces: [
@@ -403,7 +404,7 @@ export const SwapRouter = {
   addLiquidity: defineContractMethod<
     SwapRouterAddLiquidityArgs,
     SwapRouterAddLiquidityResult,
-    SwapRouterDeclaredAbort
+    SwapRouterDeclaredException
   >({
     entrypoint: entrypoints.SwapRouter.addLiquidity,
     args: [
@@ -437,27 +438,27 @@ export const SwapRouter = {
     throws: [
       {
         selector: 0x17e7e152700d9279n,
-        exception: "SwapLibraryError",
+        name: "SwapLibraryError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x93e5de5a4268821fn,
-        exception: "SwapFactoryError",
+        name: "SwapFactoryError",
         type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
-        exception: "SwapRequestError",
+        name: "SwapRequestError",
         type: spec.interfaces[0]!.throws[3]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[4]!.ty,
       },
     ],
@@ -466,7 +467,7 @@ export const SwapRouter = {
   initialize: defineContractMethod<
     SwapRouterInitializeArgs,
     SwapRouterInitializeResult,
-    SwapRouterDeclaredAbort
+    SwapRouterDeclaredException
   >({
     entrypoint: entrypoints.SwapRouter.initialize,
     args: [
@@ -480,27 +481,27 @@ export const SwapRouter = {
     throws: [
       {
         selector: 0x17e7e152700d9279n,
-        exception: "SwapLibraryError",
+        name: "SwapLibraryError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x93e5de5a4268821fn,
-        exception: "SwapFactoryError",
+        name: "SwapFactoryError",
         type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
-        exception: "SwapRequestError",
+        name: "SwapRequestError",
         type: spec.interfaces[0]!.throws[3]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[4]!.ty,
       },
     ],
@@ -509,7 +510,7 @@ export const SwapRouter = {
   removeLiquidity: defineContractMethod<
     SwapRouterRemoveLiquidityArgs,
     SwapRouterRemoveLiquidityResult,
-    SwapRouterDeclaredAbort
+    SwapRouterDeclaredException
   >({
     entrypoint: entrypoints.SwapRouter.removeLiquidity,
     args: [
@@ -543,27 +544,27 @@ export const SwapRouter = {
     throws: [
       {
         selector: 0x17e7e152700d9279n,
-        exception: "SwapLibraryError",
+        name: "SwapLibraryError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x93e5de5a4268821fn,
-        exception: "SwapFactoryError",
+        name: "SwapFactoryError",
         type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
-        exception: "SwapRequestError",
+        name: "SwapRequestError",
         type: spec.interfaces[0]!.throws[3]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[4]!.ty,
       },
     ],
@@ -572,7 +573,7 @@ export const SwapRouter = {
   swapExactTokensForTokens: defineContractMethod<
     SwapRouterSwapExactTokensForTokensArgs,
     SwapRouterSwapExactTokensForTokensResult,
-    SwapRouterDeclaredAbort
+    SwapRouterDeclaredException
   >({
     entrypoint: entrypoints.SwapRouter.swapExactTokensForTokens,
     args: [
@@ -606,27 +607,27 @@ export const SwapRouter = {
     throws: [
       {
         selector: 0x17e7e152700d9279n,
-        exception: "SwapLibraryError",
+        name: "SwapLibraryError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x93e5de5a4268821fn,
-        exception: "SwapFactoryError",
+        name: "SwapFactoryError",
         type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
-        exception: "SwapRequestError",
+        name: "SwapRequestError",
         type: spec.interfaces[0]!.throws[3]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[4]!.ty,
       },
     ],
@@ -635,7 +636,7 @@ export const SwapRouter = {
   swapTokensForExactTokens: defineContractMethod<
     SwapRouterSwapTokensForExactTokensArgs,
     SwapRouterSwapTokensForExactTokensResult,
-    SwapRouterDeclaredAbort
+    SwapRouterDeclaredException
   >({
     entrypoint: entrypoints.SwapRouter.swapTokensForExactTokens,
     args: [
@@ -669,27 +670,27 @@ export const SwapRouter = {
     throws: [
       {
         selector: 0x17e7e152700d9279n,
-        exception: "SwapLibraryError",
+        name: "SwapLibraryError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
       {
         selector: 0x93e5de5a4268821fn,
-        exception: "SwapFactoryError",
+        name: "SwapFactoryError",
         type: spec.interfaces[0]!.throws[2]!.ty,
       },
       {
         selector: 0x947bdd51feea1ccen,
-        exception: "SwapRequestError",
+        name: "SwapRequestError",
         type: spec.interfaces[0]!.throws[3]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[4]!.ty,
       },
     ],

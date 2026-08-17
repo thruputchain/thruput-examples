@@ -14,7 +14,7 @@ import {
   type ContractSpec,
   createContractCodecContext,
   defineContractMethod,
-  type ContractAbort,
+  type ContractException,
   type FixedArray,
   type FixedBytes,
   defineContractEvent,
@@ -115,20 +115,20 @@ export type SwapPairSwapResult = void;
 export type SwapPairSyncArgs = void;
 export type SwapPairSyncResult = void;
 
-export type SwapPairDeclaredAbort =
+export type SwapPairDeclaredException =
   | {
       kind: "declared";
-      exception: "SwapPairError";
+      name: "SwapPairError";
       selector: 0x25d002d47b07640dn;
       value: SwapPairError;
     }
   | {
       kind: "declared";
-      exception: "ERC20Error";
+      name: "ERC20Error";
       selector: 0xb19947acb2fa14ffn;
       value: ERC20Error;
     };
-export type SwapPairAbort = ContractAbort<SwapPairDeclaredAbort>;
+export type SwapPairException = ContractException<SwapPairDeclaredException>;
 
 export const spec: ContractSpec = {
   interfaces: [
@@ -482,7 +482,7 @@ export const SwapPair = {
   burnLp: defineContractMethod<
     SwapPairBurnLpArgs,
     SwapPairBurnLpResult,
-    SwapPairDeclaredAbort
+    SwapPairDeclaredException
   >({
     entrypoint: entrypoints.SwapPair.burnLp,
     args: [
@@ -501,12 +501,12 @@ export const SwapPair = {
     throws: [
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
@@ -515,7 +515,7 @@ export const SwapPair = {
   getCumulativePrices: defineContractMethod<
     SwapPairGetCumulativePricesArgs,
     SwapPairGetCumulativePricesResult,
-    SwapPairDeclaredAbort
+    SwapPairDeclaredException
   >({
     entrypoint: entrypoints.SwapPair.getCumulativePrices,
     args: [],
@@ -523,12 +523,12 @@ export const SwapPair = {
     throws: [
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
@@ -537,7 +537,7 @@ export const SwapPair = {
   getLiquidity: defineContractMethod<
     SwapPairGetLiquidityArgs,
     SwapPairGetLiquidityResult,
-    SwapPairDeclaredAbort
+    SwapPairDeclaredException
   >({
     entrypoint: entrypoints.SwapPair.getLiquidity,
     args: [],
@@ -545,12 +545,12 @@ export const SwapPair = {
     throws: [
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
@@ -559,7 +559,7 @@ export const SwapPair = {
   getReserves: defineContractMethod<
     SwapPairGetReservesArgs,
     SwapPairGetReservesResult,
-    SwapPairDeclaredAbort
+    SwapPairDeclaredException
   >({
     entrypoint: entrypoints.SwapPair.getReserves,
     args: [],
@@ -567,12 +567,12 @@ export const SwapPair = {
     throws: [
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
@@ -581,7 +581,7 @@ export const SwapPair = {
   initialize: defineContractMethod<
     SwapPairInitializeArgs,
     SwapPairInitializeResult,
-    SwapPairDeclaredAbort
+    SwapPairDeclaredException
   >({
     entrypoint: entrypoints.SwapPair.initialize,
     args: [
@@ -610,12 +610,12 @@ export const SwapPair = {
     throws: [
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
@@ -624,7 +624,7 @@ export const SwapPair = {
   liquidityToken: defineContractMethod<
     SwapPairLiquidityTokenArgs,
     SwapPairLiquidityTokenResult,
-    SwapPairDeclaredAbort
+    SwapPairDeclaredException
   >({
     entrypoint: entrypoints.SwapPair.liquidityToken,
     args: [],
@@ -632,12 +632,12 @@ export const SwapPair = {
     throws: [
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
@@ -646,7 +646,7 @@ export const SwapPair = {
   mintLp: defineContractMethod<
     SwapPairMintLpArgs,
     SwapPairMintLpResult,
-    SwapPairDeclaredAbort
+    SwapPairDeclaredException
   >({
     entrypoint: entrypoints.SwapPair.mintLp,
     args: [
@@ -665,12 +665,12 @@ export const SwapPair = {
     throws: [
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
@@ -679,7 +679,7 @@ export const SwapPair = {
   skim: defineContractMethod<
     SwapPairSkimArgs,
     SwapPairSkimResult,
-    SwapPairDeclaredAbort
+    SwapPairDeclaredException
   >({
     entrypoint: entrypoints.SwapPair.skim,
     args: [
@@ -693,12 +693,12 @@ export const SwapPair = {
     throws: [
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
@@ -707,7 +707,7 @@ export const SwapPair = {
   swap: defineContractMethod<
     SwapPairSwapArgs,
     SwapPairSwapResult,
-    SwapPairDeclaredAbort
+    SwapPairDeclaredException
   >({
     entrypoint: entrypoints.SwapPair.swap,
     args: [
@@ -736,12 +736,12 @@ export const SwapPair = {
     throws: [
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
@@ -750,7 +750,7 @@ export const SwapPair = {
   sync: defineContractMethod<
     SwapPairSyncArgs,
     SwapPairSyncResult,
-    SwapPairDeclaredAbort
+    SwapPairDeclaredException
   >({
     entrypoint: entrypoints.SwapPair.sync,
     args: [],
@@ -758,12 +758,12 @@ export const SwapPair = {
     throws: [
       {
         selector: 0x25d002d47b07640dn,
-        exception: "SwapPairError",
+        name: "SwapPairError",
         type: spec.interfaces[0]!.throws[0]!.ty,
       },
       {
         selector: 0xb19947acb2fa14ffn,
-        exception: "ERC20Error",
+        name: "ERC20Error",
         type: spec.interfaces[0]!.throws[1]!.ty,
       },
     ],
