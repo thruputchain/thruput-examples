@@ -244,6 +244,28 @@ impl Etx {
         })
     }
 
+    // As `process_requests`, but also returning the whole transaction result,
+    // so a test can inspect the events the processed requests emitted.
+    pub fn process_requests_capturing(&self) -> (TransactResult, (u32, u32)) {
+        use std::sync::{Arc, Mutex};
+
+        let ctx = self.ctx;
+        let counts = Arc::new(Mutex::new((0u32, 0u32)));
+
+        let r = self.env.transact(|tx| {
+            tx.call(&TEST_ADDR).run(|| {
+                let c = ctx
+                    .driver()
+                    .with_gas_limit(process_requests_gas(10))
+                    .process_requests();
+                *Arc::clone(&counts).lock().unwrap() = c;
+            })
+        });
+
+        let counts = Arc::into_inner(counts).unwrap().into_inner().unwrap();
+        (r, counts)
+    }
+
     pub fn process_outstanding_requests(&self, n_requests_waiting: u32) -> Result<()> {
         let (n_processed, n_failed) = self.process_requests()?;
 

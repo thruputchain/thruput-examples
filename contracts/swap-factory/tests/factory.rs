@@ -272,7 +272,7 @@ fn prime_and_grow(
     exec_tx(&s.env, &DEPLOYER, || {
         ERC20Client::new(&t0).transfer(&pair, PRIME);
         ERC20Client::new(&t1).transfer(&pair, PRIME);
-        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, None);
+        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, &DEPLOYER, None);
     })
     .unwrap();
     s.env.advance_block();
@@ -300,7 +300,7 @@ fn second_liquidity_event(
         tx.call(&DEPLOYER).run(move || {
             ERC20Client::new(&t0).transfer(&pair, PRIME);
             ERC20Client::new(&t1).transfer(&pair, PRIME);
-            SwapPairClient::new(&pair).mint_lp(&DEPLOYER, None);
+            SwapPairClient::new(&pair).mint_lp(&DEPLOYER, &DEPLOYER, None);
         })
     })
 }
