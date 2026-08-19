@@ -57,23 +57,7 @@ fn count_events<E: Event>(r: &TransactResult) -> usize {
 // Run `process_requests` as TEST_ADDR, returning the whole tx result (so its
 // emitted events can be inspected) alongside the `(processed, failed)` counts.
 fn process_capturing(etx: &Etx) -> (TransactResult, (u32, u32)) {
-    use std::sync::{Arc, Mutex};
-
-    let ctx = etx.ctx;
-    let counts = Arc::new(Mutex::new((0u32, 0u32)));
-
-    let r = etx.env.transact(|tx| {
-        tx.call(&TEST_ADDR).run(|| {
-            let c = ctx
-                .driver()
-                .with_gas_limit(PROCESS_REQUESTS_GAS)
-                .process_requests();
-            *Arc::clone(&counts).lock().unwrap() = c;
-        })
-    });
-
-    let counts = Arc::into_inner(counts).unwrap().into_inner().unwrap();
-    (r, counts)
+    etx.process_requests_capturing()
 }
 
 #[test]

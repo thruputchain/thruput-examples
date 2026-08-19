@@ -70,7 +70,7 @@ fn serial_swap_user(
 
     // Perform the swap
     etx.exec_user_tx(user, |user| {
-        ctx.pair().swap(amounts_out[0], amounts_out[1], user.addr, None)
+        ctx.pair().swap(amounts_out[0], amounts_out[1], user.addr, user.addr, None)
     })?;
 
     println!("> {} swapped {:.3?} => {:.3?}", user.name,
