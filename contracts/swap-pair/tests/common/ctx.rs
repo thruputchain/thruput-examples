@@ -50,7 +50,7 @@ impl Ctx {
         self.token0().transfer(&self.pair_addr, amt0);
         self.token1().transfer(&self.pair_addr, amt1);
 
-        let lp_minted = self.pair().mint_lp(user.addr, None);
+        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
 
         // My accounts should be drained
         assert_eq!(0, self.token0().get_balance());
@@ -76,7 +76,7 @@ impl Ctx {
         assert_eq!(lp.get_balance(), 0);
 
         // Redeem the LP tokens for pair tokens
-        pair.burn_lp(user.addr, None);
+        pair.burn_lp(user.addr, user.addr, None);
 
         self.user_print_balances(user);
     }
@@ -100,8 +100,11 @@ impl Ctx {
         // This should be a no-op
         pair.skim(&SOMEBODY);
 
-        assert!(pair.try_mint_lp(&SOMEBODY, None).is_err_and(
-            |e| is_pair_error_and(e, |e| e == SwapPairError::InsufficientLiquidityMinted)
-        ));
+        assert!(
+            pair.try_mint_lp(&SOMEBODY, &SOMEBODY, None)
+                .is_err_and(
+                    |e| is_pair_error_and(e, |e| e == SwapPairError::InsufficientLiquidityMinted)
+                )
+        );
     }
 }

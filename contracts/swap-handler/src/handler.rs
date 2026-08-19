@@ -72,9 +72,11 @@ impl Handler {
             }
         };
 
-        // Move the user's tokens to the pair, then mint LP to the recipient.
+        // Move the purchaser's tokens to the pair, then mint LP to the
+        // recipient.  The two may differ, so the pair is told both: it credits
+        // the recipient and reports the purchaser as the depositor.
         self.transfer_amounts_from(&req.purchaser, amounts);
-        let _minted = pair.mint_lp(&req.recipient, Some(request_id));
+        let _minted = pair.mint_lp(&req.purchaser, &req.recipient, Some(request_id));
     }
 
     // Burn LP tokens, computing the recovered amounts from live reserves.
@@ -99,9 +101,11 @@ impl Handler {
         ensure(amounts[A] >= req.amounts_min[A], InsufficientAmountA);
         ensure(amounts[B] >= req.amounts_min[B], InsufficientAmountB);
 
-        // Move the user's LP tokens to the pair, then burn them to the recipient.
+        // Move the redeemer's LP tokens to the pair, then burn them to the
+        // recipient.  The two may differ, so the pair is told both: it pays out
+        // to the recipient and reports the redeemer as the source.
         self.transfer_lp_from(&req.redeemer, req.liquidity);
-        let _redeemed = pair.burn_lp(&req.recipient, Some(request_id));
+        let _redeemed = pair.burn_lp(&req.redeemer, &req.recipient, Some(request_id));
     }
 
     // Swap an exact input amount for as much output as possible.
@@ -124,10 +128,13 @@ impl Handler {
         let mut amounts_out: Amounts = [0, 0];
         amounts_out[out_index] = amount_out;
 
+        // As with the liquidity operations, the trader paying the input and the
+        // recipient of the proceeds may differ, so the pair is told both.
         self.transfer_amounts_from(&req.trader, amounts_in);
         pair.swap(
             amounts_out[0],
             amounts_out[1],
+            &req.trader,
             &req.recipient,
             Some(request_id),
         );
@@ -157,6 +164,7 @@ impl Handler {
         pair.swap(
             amounts_out[0],
             amounts_out[1],
+            &req.trader,
             &req.recipient,
             Some(request_id),
         );

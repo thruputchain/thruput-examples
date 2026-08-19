@@ -1,5 +1,6 @@
 mod common;
 use common::*;
+use swap_pair::events::SwapEvent;
 
 const SWAP_IN_AMT: Amount = 2 * UNIT_AMT;
 
@@ -127,4 +128,67 @@ test_transaction! {
 
         Ok(())
     }
+}
+
+// Carol pays the input, Bob receives the proceeds.  The two roles are distinct
+// in the swap requests (`trader`/`recipient`), and must stay distinct through
+// the handler and `swap` to the `SwapEvent`.
+#[test]
+fn swap_pays_proceeds_to_someone_other_than_the_trader() {
+    let etx = setup_etx().expect("setup");
+    let ctx = etx.ctx;
+
+    etx.prime().expect("prime");
+
+    let amount_in = SWAP_IN_AMT;
+    etx.user_allow_for_pair(CAROL, [amount_in, 0])
+        .expect("allow");
+    etx.advance_block();
+
+    let (carol_before, _) = etx.user_balances(CAROL).expect("balances");
+    let (bob_before, _) = etx.user_balances(BOB).expect("balances");
+
+    // Carol submits, naming Bob as the recipient of the output tokens.
+    etx.exec_user_tx(CAROL, |_| {
+        ctx.router().swap_exact_tokens_for_tokens(
+            amount_in,
+            0,
+            &ctx.token_addrs[0],
+            &ctx.token_addrs[1],
+            BOB.addr,
+        );
+    })
+    .expect("swap_exact_tokens_for_tokens");
+    etx.advance_block();
+
+    let (r, counts) = etx.process_requests_capturing();
+    assert_eq!(counts, (1, 0), "one request processed, none failed");
+
+    // The SwapEvent names both roles: Carol paid the input (topic 1), Bob
+    // received the proceeds (topic 2).
+    let swap = sole_event::<SwapEvent>(&r);
+    assert_eq!(swap.topic(1).expect("sender topic"), CAROL.addr.as_ref());
+    assert_eq!(swap.topic(2).expect("recipient topic"), BOB.addr.as_ref());
+
+    let typed = TypedEvent::<SwapEvent>::new(swap.raw());
+    let payload = typed.payload();
+    let (amounts_in, amounts_out) = (payload.amounts_in, payload.amounts_out);
+    assert_eq!(amounts_in, [amount_in, 0]);
+    assert!(amounts_out[1] > 0);
+
+    // ...and the tokens really moved that way: Carol paid, Bob was paid.
+    etx.advance_block();
+    let (carol_after, _) = etx.user_balances(CAROL).expect("balances");
+    let (bob_after, _) = etx.user_balances(BOB).expect("balances");
+
+    assert_eq!(
+        carol_after,
+        [carol_before[0] - amount_in, carol_before[1]],
+        "trader paid the input and received nothing"
+    );
+    assert_eq!(
+        bob_after,
+        balances_sum(bob_before, amounts_out),
+        "recipient received exactly what the event reported"
+    );
 }
