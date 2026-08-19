@@ -6,16 +6,12 @@ use sdk::*;
 /// Emitted by the pair when liquidity is added (`mint_lp`).
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MintEvent<'a> {
-    /// The source of the deposit
+    /// The contract that called `mint`
     #[topic]
     pub sender: &'a Address,
 
     /// The amount of LP tokens minted
     pub amount_minted: Amount,
-
-    /// The recipient of the minted LP tokens
-    #[topic]
-    pub recipient: &'a Address,
 
     /// The identifier of the batch-request this mint fulfilled, if it
     /// originated from one (see [`RequestId`]).
@@ -23,16 +19,10 @@ pub struct MintEvent<'a> {
 }
 
 impl<'a> MintEvent<'a> {
-    pub fn new(
-        sender: &'a Address,
-        amount_minted: Amount,
-        recipient: &'a Address,
-        request_id: Option<RequestId>,
-    ) -> Self {
+    pub fn new(sender: &'a Address, amount_minted: Amount, request_id: Option<RequestId>) -> Self {
         Self {
             sender,
             amount_minted,
-            recipient,
             request_id,
         }
     }
@@ -41,7 +31,7 @@ impl<'a> MintEvent<'a> {
 /// Emitted by the pair when liquidity is removed (`burn_lp`).
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BurnEvent<'a> {
-    /// The source of the burned LP tokens
+    /// The contract that called `burn`
     #[topic]
     pub sender: &'a Address,
 
@@ -76,7 +66,7 @@ impl<'a> BurnEvent<'a> {
 /// Emitted by the pair on a `swap`.
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SwapEvent<'a> {
-    /// The source of the input amounts
+    /// The contract that called `swap`
     #[topic]
     pub sender: &'a Address,
 

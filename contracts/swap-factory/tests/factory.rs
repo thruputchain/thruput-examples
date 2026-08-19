@@ -184,7 +184,7 @@ fn fee_accrues_to_factory_fee_to() {
     exec_tx(&s.env, &DEPLOYER, || {
         ERC20Client::new(&t0).transfer(&pair, prime);
         ERC20Client::new(&t1).transfer(&pair, prime);
-        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, &DEPLOYER, None);
+        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, None);
     })
     .unwrap();
     s.env.advance_block();
@@ -222,7 +222,7 @@ fn fee_accrues_to_factory_fee_to() {
     exec_tx(&s.env, &DEPLOYER, || {
         ERC20Client::new(&t0).transfer(&pair, add);
         ERC20Client::new(&t1).transfer(&pair, add);
-        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, &DEPLOYER, None);
+        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, None);
     })
     .unwrap();
     s.env.advance_block();
