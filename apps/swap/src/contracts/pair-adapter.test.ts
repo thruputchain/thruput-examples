@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createSwapPairReadAdapter } from "./pair-adapter";
 
-const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
+const address = (byte: number) =>
+  contractAddress(new Uint8Array(32).fill(byte));
 
 describe("createSwapPairReadAdapter", () => {
   it("decodes reserves", async () => {
@@ -30,6 +31,7 @@ describe("createSwapPairReadAdapter", () => {
         blockTimestamp: 30n,
       },
       height: 1n,
+      events: [],
     });
     expect(view).toHaveBeenCalledWith(
       expect.objectContaining({ contract, caller }),

@@ -18,7 +18,8 @@ vi.mock("@/groundhog/client", () => ({
   createReadClient: vi.fn(),
 }));
 
-const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
+const address = (byte: number) =>
+  contractAddress(new Uint8Array(32).fill(byte));
 const config: AppConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkIdHex: "09".padStart(64, "0"),
@@ -51,6 +52,7 @@ describe("createSnapshotReader", () => {
       reserves: vi.fn().mockResolvedValue({
         value: { reserve0: 100n, reserve1: 200n, blockTimestamp: 5n },
         height: 8n,
+        events: [],
       }),
     });
 
@@ -72,6 +74,7 @@ describe("createSnapshotReader", () => {
       reserves: vi.fn().mockResolvedValue({
         value: { reserve0: 1n, reserve1: 1n, blockTimestamp: 1n },
         height: 2n,
+        events: [],
       }),
     });
 
@@ -90,11 +93,15 @@ function tokenAdapter(
 ) {
   return {
     metadata: vi.fn().mockResolvedValue({
-      name: { value: name, height },
-      symbol: { value: symbol, height },
-      decimals: { value: 6, height },
+      name: { value: name, height, events: [] },
+      symbol: { value: symbol, height, events: [] },
+      decimals: { value: 6, height, events: [] },
     }),
-    balanceOf: vi.fn().mockResolvedValue({ value: balance, height }),
-    allowance: vi.fn().mockResolvedValue({ value: allowance, height }),
+    balanceOf: vi
+      .fn()
+      .mockResolvedValue({ value: balance, height, events: [] }),
+    allowance: vi
+      .fn()
+      .mockResolvedValue({ value: allowance, height, events: [] }),
   };
 }

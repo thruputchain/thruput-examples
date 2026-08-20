@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 import { loadAppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { buildProcessRequestsTarget } from "@/contracts/driver-target";
+import { RequestAccepted } from "@/contracts/generated/swap-driver";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
-import { extractAcceptedRequestId } from "@/contracts/swap-event";
 import { allowanceDifference } from "@/domain/allowance";
 import { orientReserves, orderTokens } from "@/domain/tokens";
 import { deriveSwapQuote } from "@/swap/model";
@@ -131,10 +131,14 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
     const queued = await readSnapshot();
     expect(queued.tokenA.allowance).toBe(aggregateTarget);
     const firstRequestId = toHex0x(
-      extractAcceptedRequestId(firstEnqueue.receipt, config.driverAddress),
+      RequestAccepted.singleFromReceipt(firstEnqueue.receipt, {
+        contractAddress: config.driverAddress,
+      }).topics.request_id,
     );
     const secondRequestId = toHex0x(
-      extractAcceptedRequestId(secondEnqueue.receipt, config.driverAddress),
+      RequestAccepted.singleFromReceipt(secondEnqueue.receipt, {
+        contractAddress: config.driverAddress,
+      }).topics.request_id,
     );
     expect(secondRequestId).not.toBe(firstRequestId);
     const inputIndex = orderTokens(

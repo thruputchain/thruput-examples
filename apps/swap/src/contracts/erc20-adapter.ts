@@ -1,18 +1,7 @@
-import type { GroundhogClient } from "@groundhogchain/client";
-import { gasAmount, type ContractAddress } from "@groundhogchain/protocol";
+import type { ContractView, GroundhogClient } from "@groundhogchain/client";
+import type { ContractAddress } from "@groundhogchain/protocol";
 
-import {
-  ERC20,
-  ERC20Metadata,
-  spec,
-} from "@/contracts/generated/erc20";
-import {
-  expectBigint,
-  type ContractView,
-  viewMethod,
-} from "@/contracts/view";
-
-const VIEW_GAS = gasAmount(10_000_000n);
+import { ERC20, ERC20Metadata } from "@/contracts/generated/erc20";
 
 export interface TokenMetadata {
   name: string | null;
@@ -40,75 +29,54 @@ export function createErc20ReadAdapter(params: {
   contract: ContractAddress;
   caller: ContractAddress;
 }): Erc20ReadAdapter {
-  const read = <T>(
-    invocation: ReturnType<(typeof ERC20)["getBalanceOf"]>,
-    interfaceName: string,
-    methodName: string,
-    validate: (value: unknown) => T,
-  ) =>
-    viewMethod({
-      client: params.client,
-      invocation,
-      caller: params.caller,
-      spec,
-      interfaceName,
-      methodName,
-      validate,
-    });
-
   return {
     balanceOf(owner) {
-      return read(
-        ERC20.getBalanceOf(params.contract, VIEW_GAS, { addr: owner }),
-        "ERC20",
-        "get_balance_of",
-        (value) => expectBigint(value, "ERC20.get_balance_of"),
-      );
+      return ERC20.getBalanceOf.view({
+        client: params.client,
+        contract: params.contract,
+        caller: params.caller,
+        args: { addr: owner },
+      });
     },
     allowance(owner, spender) {
-      return read(
-        ERC20.allowance(params.contract, VIEW_GAS, { owner, spender }),
-        "ERC20",
-        "allowance",
-        (value) => expectBigint(value, "ERC20.allowance"),
-      );
+      return ERC20.allowance.view({
+        client: params.client,
+        contract: params.contract,
+        caller: params.caller,
+        args: { owner, spender },
+      });
     },
     async metadata() {
       const [name, symbol, decimals] = await Promise.all([
-        read(
-          ERC20Metadata.name(params.contract, VIEW_GAS),
-          "ERC20Metadata",
-          "name",
-          optionalString,
-        ),
-        read(
-          ERC20Metadata.symbol(params.contract, VIEW_GAS),
-          "ERC20Metadata",
-          "symbol",
-          optionalString,
-        ),
-        read(
-          ERC20Metadata.decimals(params.contract, VIEW_GAS),
-          "ERC20Metadata",
-          "decimals",
-          optionalDecimals,
-        ),
+        ERC20Metadata.name.view({
+          client: params.client,
+          contract: params.contract,
+          caller: params.caller,
+        }),
+        ERC20Metadata.symbol.view({
+          client: params.client,
+          contract: params.contract,
+          caller: params.caller,
+        }),
+        ERC20Metadata.decimals.view({
+          client: params.client,
+          contract: params.contract,
+          caller: params.caller,
+        }),
       ]);
-      return { name, symbol, decimals };
+      return {
+        name,
+        symbol,
+        decimals: { ...decimals, value: optionalDecimals(decimals.value) },
+      };
     },
   };
 }
 
-function optionalString(value: unknown): string | null {
-  if (value === null || typeof value === "string") return value;
-  throw new TypeError("Token metadata did not return a string or null");
-}
-
-function optionalDecimals(value: unknown): number | null {
+function optionalDecimals(value: bigint | null): number | null {
   if (value === null) return null;
-  const decimals = expectBigint(value, "ERC20Metadata.decimals");
-  if (decimals < 0n || decimals > 255n) {
+  if (value < 0n || value > 255n) {
     throw new RangeError("Token decimals are outside the supported range");
   }
-  return Number(decimals);
+  return Number(value);
 }

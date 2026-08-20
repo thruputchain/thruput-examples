@@ -1,16 +1,25 @@
-// Generated from swap_driver.spec.xdr — SwapDriver interface v0.1.0
+// Generated from swap_driver.spec.xdr - SwapDriver interface v0.1.0
 // DO NOT EDIT. Re-run codegen to update.
 
-import type { ContractAddress, GasAmount, Invocation } from "@groundhogchain/protocol";
+import type { ContractAddress } from "@groundhogchain/protocol";
 import { contractEntrypointID, topic } from "@groundhogchain/protocol";
 import { fromHex } from "@groundhogchain/protocol/utils";
-import { ContractTypeKind, ContractTypeDefKind, contractSpecString, ContractUnionCaseKind } from "@groundhogchain/contract-spec";
-import type { ContractSpec } from "@groundhogchain/client";
-import { encodeCalldata } from "@groundhogchain/client";
-import { buildNamedCodecs } from "@groundhogchain/client";
-import { createInvocation } from "@groundhogchain/client";
-import { resolveCodec } from "@groundhogchain/client";
-import { CxsReader } from "@groundhogchain/xdr";
+import {
+  ContractTypeKind,
+  ContractTypeDefKind,
+  contractSpecString,
+  ContractUnionCaseKind,
+} from "@groundhogchain/contract-spec";
+import {
+  type ContractSpec,
+  createContractCodecContext,
+  defineContractMethod,
+  type ContractException,
+  type FixedBytes,
+  defineContractEvent,
+  type DecodedContractEvent,
+  type ContractEventFilterValue,
+} from "@groundhogchain/client/contract";
 
 const s = contractSpecString;
 
@@ -22,26 +31,63 @@ const entrypoints = {
   },
 } as const;
 
-export interface AddLiquidityRequest { purchaser: ContractAddress; amounts_desired: bigint[]; amounts_min: bigint[]; recipient: ContractAddress; }
+export interface AddLiquidityRequest {
+  purchaser: ContractAddress;
+  amounts_desired: readonly [bigint, bigint];
+  amounts_min: readonly [bigint, bigint];
+  recipient: ContractAddress;
+}
 
-export enum ERC20Error { AlreadyInitialized = 1, MustBeContractOwner = 2, TooLarge = 3, Internal = 100, }
+export const ERC20Error = {
+  AlreadyInitialized: 1n,
+  MustBeContractOwner: 2n,
+  TooLarge: 3n,
+  Internal: 100n,
+} as const;
 
-export interface RemoveLiquidityRequest { redeemer: ContractAddress; liquidity: bigint; amounts_min: bigint[]; recipient: ContractAddress; }
+export type ERC20Error = (typeof ERC20Error)[keyof typeof ERC20Error];
 
-export interface SwapExactInRequest { trader: ContractAddress; amount_in: bigint; amount_out_min: bigint; in_index: bigint; recipient: ContractAddress; }
+export interface RemoveLiquidityRequest {
+  redeemer: ContractAddress;
+  liquidity: bigint;
+  amounts_min: readonly [bigint, bigint];
+  recipient: ContractAddress;
+}
 
-export interface SwapExactOutRequest { trader: ContractAddress; amount_out: bigint; amount_in_max: bigint; in_index: bigint; recipient: ContractAddress; }
+export interface SwapExactInRequest {
+  trader: ContractAddress;
+  amount_in: bigint;
+  amount_out_min: bigint;
+  in_index: bigint;
+  recipient: ContractAddress;
+}
 
-export enum SwapLibraryError { InsufficientAmount = 1, InsufficientLiquidity = 2, InsufficientInputAmount = 3, InsufficientOutputAmount = 4, }
+export interface SwapExactOutRequest {
+  trader: ContractAddress;
+  amount_out: bigint;
+  amount_in_max: bigint;
+  in_index: bigint;
+  recipient: ContractAddress;
+}
+
+export const SwapLibraryError = {
+  InsufficientAmount: 1n,
+  InsufficientLiquidity: 2n,
+  InsufficientInputAmount: 3n,
+  InsufficientOutputAmount: 4n,
+} as const;
+
+export type SwapLibraryError =
+  (typeof SwapLibraryError)[keyof typeof SwapLibraryError];
 
 export type SwapOp =
-  { case: "AddLiquidity"; value: [AddLiquidityRequest] }
-  | { case: "RemoveLiquidity"; value: [RemoveLiquidityRequest] }
-  | { case: "SwapExactIn"; value: [SwapExactInRequest] }
-  | { case: "SwapExactOut"; value: [SwapExactOutRequest] };
+  | { case: "AddLiquidity"; value: readonly [AddLiquidityRequest] }
+  | { case: "RemoveLiquidity"; value: readonly [RemoveLiquidityRequest] }
+  | { case: "SwapExactIn"; value: readonly [SwapExactInRequest] }
+  | { case: "SwapExactOut"; value: readonly [SwapExactOutRequest] };
 
 export type SwapPairError =
-  { case: "InitializeFailed" }
+  | { case: "InitializeFailed" }
   | { case: "AlreadyInitialized" }
   | { case: "NoLiquidityToBurn" }
   | { case: "InsufficientOutputAmount" }
@@ -53,11 +99,63 @@ export type SwapPairError =
   | { case: "InvalidSwapProduct" }
   | { case: "Overflow" }
   | { case: "TransferFailed" }
-  | { case: "LPTokenFailure"; value: [ERC20Error] };
+  | { case: "LPTokenFailure"; value: readonly [ERC20Error] };
 
-export interface SwapRequest { request_id: Uint8Array; op: SwapOp; }
+export interface SwapRequest {
+  request_id: FixedBytes<32>;
+  op: SwapOp;
+}
 
-export enum SwapRequestError { InsufficientAmountA = 1, InsufficientAmountB = 2, InsufficientOutputAmount = 3, ExcessiveInputAmount = 4, }
+export const SwapRequestError = {
+  InsufficientAmountA: 1n,
+  InsufficientAmountB: 2n,
+  InsufficientOutputAmount: 3n,
+  ExcessiveInputAmount: 4n,
+} as const;
+
+export type SwapRequestError =
+  (typeof SwapRequestError)[keyof typeof SwapRequestError];
+
+export interface SwapDriverInitializeArgs {
+  handler: ContractAddress;
+}
+export type SwapDriverInitializeResult = void;
+
+export type SwapDriverProcessRequestsArgs = void;
+export type SwapDriverProcessRequestsResult = readonly [bigint, bigint];
+
+export interface SwapDriverRequestArgs {
+  request: SwapRequest;
+}
+export type SwapDriverRequestResult = FixedBytes<32>;
+
+export type SwapDriverDeclaredException =
+  | {
+      kind: "declared";
+      name: "SwapLibraryError";
+      selector: 0x17e7e152700d9279n;
+      value: SwapLibraryError;
+    }
+  | {
+      kind: "declared";
+      name: "SwapPairError";
+      selector: 0x25d002d47b07640dn;
+      value: SwapPairError;
+    }
+  | {
+      kind: "declared";
+      name: "SwapRequestError";
+      selector: 0x947bdd51feea1ccen;
+      value: SwapRequestError;
+    }
+  | {
+      kind: "declared";
+      name: "ERC20Error";
+      selector: 0xb19947acb2fa14ffn;
+      value: ERC20Error;
+    };
+export type SwapDriverException =
+  ContractException<SwapDriverDeclaredException>;
 
 export const spec: ContractSpec = {
   interfaces: [
@@ -65,31 +163,49 @@ export const spec: ContractSpec = {
       name: s("SwapDriver"),
       vers: s("0.1.0"),
       throws: [
-        { selector: 0x17e7e152700d9279n, ty: { v: ContractTypeKind.Named, named: s("SwapLibraryError") } },
-        { selector: 0x25d002d47b07640dn, ty: { v: ContractTypeKind.Named, named: s("SwapPairError") } },
-        { selector: 0x947bdd51feea1ccen, ty: { v: ContractTypeKind.Named, named: s("SwapRequestError") } },
-        { selector: 0xb19947acb2fa14ffn, ty: { v: ContractTypeKind.Named, named: s("ERC20Error") } },
+        {
+          selector: 0x17e7e152700d9279n,
+          ty: { v: ContractTypeKind.Named, named: s("SwapLibraryError") },
+        },
+        {
+          selector: 0x25d002d47b07640dn,
+          ty: { v: ContractTypeKind.Named, named: s("SwapPairError") },
+        },
+        {
+          selector: 0x947bdd51feea1ccen,
+          ty: { v: ContractTypeKind.Named, named: s("SwapRequestError") },
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          ty: { v: ContractTypeKind.Named, named: s("ERC20Error") },
+        },
       ],
       methods: [
         {
           name: s("initialize"),
-          args: [
-            { name: s("handler"), ty: { v: ContractTypeKind.Address } },
-          ],
+          args: [{ name: s("handler"), ty: { v: ContractTypeKind.Address } }],
           return_type: { v: ContractTypeKind.Void },
         },
         {
           name: s("process_requests"),
-          args: [
-          ],
-          return_type: { v: ContractTypeKind.Tuple, tuple: [{ v: ContractTypeKind.U32 }, { v: ContractTypeKind.U32 }] },
+          args: [],
+          return_type: {
+            v: ContractTypeKind.Tuple,
+            tuple: [{ v: ContractTypeKind.U32 }, { v: ContractTypeKind.U32 }],
+          },
         },
         {
           name: s("request"),
           args: [
-            { name: s("request"), ty: { v: ContractTypeKind.Named, named: s("SwapRequest") } },
+            {
+              name: s("request"),
+              ty: { v: ContractTypeKind.Named, named: s("SwapRequest") },
+            },
           ],
-          return_type: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } },
+          return_type: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+          },
         },
       ],
     },
@@ -101,8 +217,20 @@ export const spec: ContractSpec = {
         name: s("AddLiquidityRequest"),
         fields: [
           { name: s("purchaser"), ty: { v: ContractTypeKind.Address } },
-          { name: s("amounts_desired"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
-          { name: s("amounts_min"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
+          {
+            name: s("amounts_desired"),
+            ty: {
+              v: ContractTypeKind.Array,
+              array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+            },
+          },
+          {
+            name: s("amounts_min"),
+            ty: {
+              v: ContractTypeKind.Array,
+              array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+            },
+          },
           { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
         ],
       },
@@ -126,7 +254,13 @@ export const spec: ContractSpec = {
         fields: [
           { name: s("redeemer"), ty: { v: ContractTypeKind.Address } },
           { name: s("liquidity"), ty: { v: ContractTypeKind.U128 } },
-          { name: s("amounts_min"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U128 }, len: 2n } } },
+          {
+            name: s("amounts_min"),
+            ty: {
+              v: ContractTypeKind.Array,
+              array: { element: { v: ContractTypeKind.U128 }, len: 2n },
+            },
+          },
           { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
         ],
       },
@@ -177,22 +311,45 @@ export const spec: ContractSpec = {
           {
             name: s("AddLiquidity"),
             discriminant: 1n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseTuple, tuple: [{ v: ContractTypeKind.Named, named: s("AddLiquidityRequest") }] },
+            case_type: {
+              v: ContractUnionCaseKind.UnionCaseTuple,
+              tuple: [
+                { v: ContractTypeKind.Named, named: s("AddLiquidityRequest") },
+              ],
+            },
           },
           {
             name: s("RemoveLiquidity"),
             discriminant: 2n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseTuple, tuple: [{ v: ContractTypeKind.Named, named: s("RemoveLiquidityRequest") }] },
+            case_type: {
+              v: ContractUnionCaseKind.UnionCaseTuple,
+              tuple: [
+                {
+                  v: ContractTypeKind.Named,
+                  named: s("RemoveLiquidityRequest"),
+                },
+              ],
+            },
           },
           {
             name: s("SwapExactIn"),
             discriminant: 3n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseTuple, tuple: [{ v: ContractTypeKind.Named, named: s("SwapExactInRequest") }] },
+            case_type: {
+              v: ContractUnionCaseKind.UnionCaseTuple,
+              tuple: [
+                { v: ContractTypeKind.Named, named: s("SwapExactInRequest") },
+              ],
+            },
           },
           {
             name: s("SwapExactOut"),
             discriminant: 4n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseTuple, tuple: [{ v: ContractTypeKind.Named, named: s("SwapExactOutRequest") }] },
+            case_type: {
+              v: ContractUnionCaseKind.UnionCaseTuple,
+              tuple: [
+                { v: ContractTypeKind.Named, named: s("SwapExactOutRequest") },
+              ],
+            },
           },
         ],
       },
@@ -265,7 +422,10 @@ export const spec: ContractSpec = {
           {
             name: s("LPTokenFailure"),
             discriminant: 13n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseTuple, tuple: [{ v: ContractTypeKind.Named, named: s("ERC20Error") }] },
+            case_type: {
+              v: ContractUnionCaseKind.UnionCaseTuple,
+              tuple: [{ v: ContractTypeKind.Named, named: s("ERC20Error") }],
+            },
           },
         ],
       },
@@ -275,8 +435,17 @@ export const spec: ContractSpec = {
       struct_def: {
         name: s("SwapRequest"),
         fields: [
-          { name: s("request_id"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } },
-          { name: s("op"), ty: { v: ContractTypeKind.Named, named: s("SwapOp") } },
+          {
+            name: s("request_id"),
+            ty: {
+              v: ContractTypeKind.Array,
+              array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+            },
+          },
+          {
+            name: s("op"),
+            ty: { v: ContractTypeKind.Named, named: s("SwapOp") },
+          },
         ],
       },
     },
@@ -296,117 +465,219 @@ export const spec: ContractSpec = {
   events: [
     {
       name: s("RequestAccepted"),
-      signature: topic(fromHex("adda27e0abdb0cc3b49c16a060fdc703aadcdeedf34701de90b60aeb525d37fc")),
+      signature: topic(
+        fromHex(
+          "adda27e0abdb0cc3b49c16a060fdc703aadcdeedf34701de90b60aeb525d37fc",
+        ),
+      ),
       topics: [
-        { name: s("request_id"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } },
+        {
+          name: s("request_id"),
+          ty: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+          },
+        },
       ],
-      fields: [
-      ],
+      fields: [],
     },
     {
       name: s("RequestFailed"),
-      signature: topic(fromHex("ef544a357e3cb94130fce15a57fb417430e08c359db240ed02e57902f374c21a")),
+      signature: topic(
+        fromHex(
+          "ef544a357e3cb94130fce15a57fb417430e08c359db240ed02e57902f374c21a",
+        ),
+      ),
       topics: [
-        { name: s("request_id"), ty: { v: ContractTypeKind.Array, array: { element: { v: ContractTypeKind.U8 }, len: 32n } } },
+        {
+          name: s("request_id"),
+          ty: {
+            v: ContractTypeKind.Array,
+            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+          },
+        },
       ],
-      fields: [
-      ],
+      fields: [],
     },
   ],
 };
 
-const namedCodecs = buildNamedCodecs(spec.type_defs);
+const codecs = createContractCodecContext(spec.type_defs);
 
 export const SwapDriver = {
-  initialize(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { handler: ContractAddress },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapDriver.initialize,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapDriver", "initialize", [args.handler], namedCodecs),
-    });
-  },
-  processRequests(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapDriver.processRequests,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapDriver", "process_requests", [], namedCodecs),
-    });
-  },
-  request(
-    contract: ContractAddress,
-    gasLimit: GasAmount,
-    args: { request: SwapRequest },
-  ): Invocation {
-    return createInvocation({
-      invoked_address: contract,
-      entrypoint: entrypoints.SwapDriver.request,
-      gas_limit: gasLimit,
-      calldata: encodeCalldata(spec, "SwapDriver", "request", [args.request], namedCodecs),
-    });
-  },
+  initialize: defineContractMethod<
+    SwapDriverInitializeArgs,
+    SwapDriverInitializeResult,
+    SwapDriverDeclaredException
+  >({
+    entrypoint: entrypoints.SwapDriver.initialize,
+    args: [
+      {
+        abiName: "handler",
+        publicName: "handler",
+        type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
+      },
+    ],
+    returnType: spec.interfaces[0]!.methods[0]!.return_type,
+    throws: [
+      {
+        selector: 0x17e7e152700d9279n,
+        name: "SwapLibraryError",
+        type: spec.interfaces[0]!.throws[0]!.ty,
+      },
+      {
+        selector: 0x25d002d47b07640dn,
+        name: "SwapPairError",
+        type: spec.interfaces[0]!.throws[1]!.ty,
+      },
+      {
+        selector: 0x947bdd51feea1ccen,
+        name: "SwapRequestError",
+        type: spec.interfaces[0]!.throws[2]!.ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        name: "ERC20Error",
+        type: spec.interfaces[0]!.throws[3]!.ty,
+      },
+    ],
+    codecs,
+  }),
+  processRequests: defineContractMethod<
+    SwapDriverProcessRequestsArgs,
+    SwapDriverProcessRequestsResult,
+    SwapDriverDeclaredException
+  >({
+    entrypoint: entrypoints.SwapDriver.processRequests,
+    args: [],
+    returnType: spec.interfaces[0]!.methods[1]!.return_type,
+    throws: [
+      {
+        selector: 0x17e7e152700d9279n,
+        name: "SwapLibraryError",
+        type: spec.interfaces[0]!.throws[0]!.ty,
+      },
+      {
+        selector: 0x25d002d47b07640dn,
+        name: "SwapPairError",
+        type: spec.interfaces[0]!.throws[1]!.ty,
+      },
+      {
+        selector: 0x947bdd51feea1ccen,
+        name: "SwapRequestError",
+        type: spec.interfaces[0]!.throws[2]!.ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        name: "ERC20Error",
+        type: spec.interfaces[0]!.throws[3]!.ty,
+      },
+    ],
+    codecs,
+  }),
+  request: defineContractMethod<
+    SwapDriverRequestArgs,
+    SwapDriverRequestResult,
+    SwapDriverDeclaredException
+  >({
+    entrypoint: entrypoints.SwapDriver.request,
+    args: [
+      {
+        abiName: "request",
+        publicName: "request",
+        type: spec.interfaces[0]!.methods[2]!.args[0]!.ty,
+      },
+    ],
+    returnType: spec.interfaces[0]!.methods[2]!.return_type,
+    throws: [
+      {
+        selector: 0x17e7e152700d9279n,
+        name: "SwapLibraryError",
+        type: spec.interfaces[0]!.throws[0]!.ty,
+      },
+      {
+        selector: 0x25d002d47b07640dn,
+        name: "SwapPairError",
+        type: spec.interfaces[0]!.throws[1]!.ty,
+      },
+      {
+        selector: 0x947bdd51feea1ccen,
+        name: "SwapRequestError",
+        type: spec.interfaces[0]!.throws[2]!.ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        name: "ERC20Error",
+        type: spec.interfaces[0]!.throws[3]!.ty,
+      },
+    ],
+    codecs,
+  }),
 } as const;
 
-function topicEquals(a: Uint8Array | undefined, b: Uint8Array): boolean {
-  if (a === undefined || a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-  return true;
+export interface RequestAccepted extends DecodedContractEvent<
+  "RequestAccepted",
+  { request_id: FixedBytes<32> },
+  {}
+> {}
+
+export interface RequestAcceptedFilter {
+  request_id?: ContractEventFilterValue<FixedBytes<32>>;
 }
 
-export interface RequestAccepted {
-  name: "RequestAccepted";
-  topics: { request_id: Uint8Array; };
-  fields: {  };
-}
-export const RequestAccepted = {
-  /** Topic-0 signature hash from the contract spec. */
-  signature: fromHex("adda27e0abdb0cc3b49c16a060fdc703aadcdeedf34701de90b60aeb525d37fc"),
-  /** Returns null if topic 0 does not identify this event. */
-  decode(event: { topics: Uint8Array[]; data: Uint8Array }): RequestAccepted | null {
-    if (!topicEquals(event.topics[0], RequestAccepted.signature)) return null;
-    if (event.topics.length !== 2) {
-      throw new Error(`RequestAccepted: expected 2 topics, got ${event.topics.length}`);
-    }
-    const r = new CxsReader(event.data);
-    if (r.remaining !== 0) {
-      throw new Error(`RequestAccepted: ${r.remaining} trailing bytes after payload`);
-    }
-    return { name: "RequestAccepted", topics: { request_id: event.topics[1] }, fields: {  } };
-  },
-} as const;
+export const RequestAccepted = defineContractEvent<
+  "RequestAccepted",
+  RequestAccepted["topics"],
+  RequestAccepted["fields"],
+  RequestAcceptedFilter
+>({
+  name: "RequestAccepted",
+  signature: spec.events[0]!.signature,
+  topics: [
+    {
+      name: "request_id",
+      type: spec.events[0]!.topics[0]!.ty,
+      representation: "fixedBytes32",
+    },
+  ],
+  fields: [],
+  codecs,
+});
 
-export interface RequestFailed {
-  name: "RequestFailed";
-  topics: { request_id: Uint8Array; };
-  fields: {  };
+export interface RequestFailed extends DecodedContractEvent<
+  "RequestFailed",
+  { request_id: FixedBytes<32> },
+  {}
+> {}
+
+export interface RequestFailedFilter {
+  request_id?: ContractEventFilterValue<FixedBytes<32>>;
 }
-export const RequestFailed = {
-  /** Topic-0 signature hash from the contract spec. */
-  signature: fromHex("ef544a357e3cb94130fce15a57fb417430e08c359db240ed02e57902f374c21a"),
-  /** Returns null if topic 0 does not identify this event. */
-  decode(event: { topics: Uint8Array[]; data: Uint8Array }): RequestFailed | null {
-    if (!topicEquals(event.topics[0], RequestFailed.signature)) return null;
-    if (event.topics.length !== 2) {
-      throw new Error(`RequestFailed: expected 2 topics, got ${event.topics.length}`);
-    }
-    const r = new CxsReader(event.data);
-    if (r.remaining !== 0) {
-      throw new Error(`RequestFailed: ${r.remaining} trailing bytes after payload`);
-    }
-    return { name: "RequestFailed", topics: { request_id: event.topics[1] }, fields: {  } };
-  },
-} as const;
+
+export const RequestFailed = defineContractEvent<
+  "RequestFailed",
+  RequestFailed["topics"],
+  RequestFailed["fields"],
+  RequestFailedFilter
+>({
+  name: "RequestFailed",
+  signature: spec.events[1]!.signature,
+  topics: [
+    {
+      name: "request_id",
+      type: spec.events[1]!.topics[0]!.ty,
+      representation: "fixedBytes32",
+    },
+  ],
+  fields: [],
+  codecs,
+});
 
 export type SwapDriverEvent = RequestAccepted | RequestFailed;
 
-export function decodeEvent(event: { topics: Uint8Array[]; data: Uint8Array }): SwapDriverEvent | null {
+export function decodeEvent(event: {
+  topics: Uint8Array[];
+  data: Uint8Array;
+}): SwapDriverEvent | null {
   return RequestAccepted.decode(event) ?? RequestFailed.decode(event);
 }

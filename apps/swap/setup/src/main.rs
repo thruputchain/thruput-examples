@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
     let scenario = Scenario::builder("swap-app-local-setup")
         .network(NetworkConfig::existing(&rpc_url, &manifest_path))
         .artifact("erc20", artifact_root.join("erc20.rv32a"))
-        .artifact("swap_pair", artifact_root.join("swap_pair.wasm"))
+        .artifact("swap_pair", artifact_root.join("swap_pair.rv32a"))
         .artifact("swap_handler", artifact_root.join("swap_handler.rv32a"))
         .artifact("swap_driver", artifact_root.join("swap_driver.rv32a"))
         .artifact("swap_router", artifact_root.join("swap_router.rv32a"))

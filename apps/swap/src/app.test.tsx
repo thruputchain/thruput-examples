@@ -7,9 +7,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "@/app";
 import type { AppConfig } from "@/config";
 import {
-  REQUEST_ACCEPTED_SIGNATURE,
-  REQUEST_FAILED_SIGNATURE,
-} from "@/contracts/swap-event";
+  RequestAccepted,
+  RequestFailed,
+} from "@/contracts/generated/swap-driver";
 import type { PoolSnapshot, SnapshotReader } from "@/swap/snapshot";
 import type {
   RequestObservation,
@@ -161,7 +161,7 @@ function committedSuccess(
         {
           contractAddress: config.driverAddress,
           topics: [
-            REQUEST_ACCEPTED_SIGNATURE,
+            RequestAccepted.signature,
             new Uint8Array(32).fill(requestByte),
           ],
           data: new Uint8Array(),
@@ -400,7 +400,7 @@ describe("local swap submission", () => {
           {
             contractAddress: config.driverAddress,
             topics: [
-              REQUEST_FAILED_SIGNATURE,
+              RequestFailed.signature,
               new Uint8Array(32).fill(0xcd),
             ],
             data: new Uint8Array(),
@@ -683,6 +683,43 @@ describe("local swap submission", () => {
     expect(queued.every(({ snapshotInferenceEligible }) =>
       !snapshotInferenceEligible
     )).toBe(true);
+  });
+
+  it("does not enqueue when another tab fills the pending swap queue", async () => {
+    const pending = Array.from({ length: 9 }, (_, index) =>
+      queuedRequest(`queued-request-${index}`, index, "queuedUntracked")
+    );
+    saveRequestCollection(config, pending);
+    const writer: WriteBoundary = { execute: vi.fn() };
+    const user = userEvent.setup();
+    renderApp(
+      async () =>
+        pool({
+          tokenA: {
+            ...pool().tokenA,
+            balance: 200_000_000n,
+            allowance: 200_000_000n,
+          },
+        }),
+      writer,
+    );
+
+    await user.type(await screen.findByLabelText("YOU PAY"), "1");
+    const swap = screen.getByRole("button", {
+      name: /^(?:Approve & swap|Swap)$/,
+    });
+    expect(swap).toBeEnabled();
+
+    saveRequestCollection(config, [
+      ...pending,
+      queuedRequest("queued-request-9", 9, "queuedUntracked"),
+    ]);
+    await user.click(swap);
+
+    expect(
+      await screen.findByRole("button", { name: "Swap queue is full" }),
+    ).toBeDisabled();
+    expect(writer.execute).not.toHaveBeenCalled();
   });
 
   it("reconciles an earlier execution while observing aggregate approval", async () => {

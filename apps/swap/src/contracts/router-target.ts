@@ -20,5 +20,9 @@ export function buildExactInputSwapTarget(
   router: ContractAddress,
   request: ExactInputSwapRequest,
 ): Invocation {
-  return SwapRouter.swapExactTokensForTokens(router, TARGET_GAS, request);
+  return SwapRouter.swapExactTokensForTokens.invocation(
+    router,
+    TARGET_GAS,
+    request,
+  );
 }
