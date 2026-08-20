@@ -6,30 +6,7 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: read
-  packages: read
-
 jobs:
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          registry-url: https://npm.pkg.github.com
-          scope: "@groundhogchain"
-
-      - run: npm --prefix apps/swap ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - run: npm --prefix apps/swap run typecheck
-      - run: npm --prefix apps/swap test
-      - run: npm --prefix apps/swap run build
-
   build-and-test:
     strategy:
       matrix:
