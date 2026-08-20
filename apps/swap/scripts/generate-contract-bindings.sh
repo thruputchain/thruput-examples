@@ -10,8 +10,8 @@ cli_version="$("$groundhog_cli" --version)"
 if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] ||
    (( BASH_REMATCH[1] == 0 &&
       (BASH_REMATCH[2] < 9 ||
-       (BASH_REMATCH[2] == 9 && BASH_REMATCH[3] < 2)) )); then
-  printf 'Groundhog CLI 0.9.2 or newer is required for typed descriptor bindings; found %s.\n' "$cli_version" >&2
+       (BASH_REMATCH[2] == 9 && BASH_REMATCH[3] < 6)) )); then
+  printf 'Groundhog CLI 0.9.6 or newer is required for typed descriptor bindings; found %s.\n' "$cli_version" >&2
   exit 1
 fi
 

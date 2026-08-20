@@ -116,6 +116,7 @@ const SLIPPAGE_PRESETS = [10n, 50n, 100n] as const;
 const OBSERVATION_POLL_MS = 2_000;
 const POST_TIMEOUT_OBSERVATION_POLL_MS = 10_000;
 const OBSERVATION_TIMEOUT_MS = 120_000;
+const MAX_PENDING_SWAP_REQUESTS = 10;
 
 export function SwapPage({
   config,
@@ -386,6 +387,8 @@ function SwapWorkspace({
   );
   const hasLiquidity = snapshot.reserve0 > 0n && snapshot.reserve1 > 0n;
   const quoteValid = quote.ok && slippageResult.ok;
+  const requestQueueFull = requests.filter(hasExecutionExposure).length
+    >= MAX_PENDING_SWAP_REQUESTS;
   const controlsLocked =
     !collectionReady
     || requestStorageError !== null
@@ -939,6 +942,13 @@ function SwapWorkspace({
           setRequests(current);
           setOutstanding(blocking);
           setIsRecoveryRecord(true);
+          return;
+        }
+        if (
+          current.filter(hasExecutionExposure).length
+            >= MAX_PENDING_SWAP_REQUESTS
+        ) {
+          setRequests(current);
           return;
         }
 
@@ -1646,7 +1656,11 @@ function SwapWorkspace({
             <Button
               type="button"
               disabled={
-                !localRpc || !quoteValid || isUserRefreshing || controlsLocked
+                !localRpc
+                || !quoteValid
+                || isUserRefreshing
+                || controlsLocked
+                || requestQueueFull
               }
               onClick={() => void executeAction()}
               className="mt-5 min-h-12 w-full text-base sm:text-sm"
@@ -1669,6 +1683,7 @@ function SwapWorkspace({
                 workflow,
                 outstanding: formOutstanding,
                 isAcquiringLock,
+                requestQueueFull,
               })}
             </Button>
             {workflow.status === "error" && formOutstanding === null
@@ -2145,6 +2160,7 @@ function actionLabel(params: {
   workflow: WorkflowState;
   outstanding: RequestRecord | null;
   isAcquiringLock: boolean;
+  requestQueueFull: boolean;
 }): string {
   if (params.isAcquiringLock) {
     return params.allowanceDifference === 0n
@@ -2169,6 +2185,7 @@ function actionLabel(params: {
     if (params.outstanding.status === "queued") return "Queued for execution";
     return "Outstanding request recorded";
   }
+  if (params.requestQueueFull) return "Swap queue is full";
   if (params.isRefreshing) return "Refreshing quote";
   if (!params.hasLiquidity) return "Pool has no liquidity";
   if (params.amount.length === 0) return "Enter an amount";

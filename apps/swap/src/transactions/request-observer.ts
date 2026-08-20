@@ -91,8 +91,6 @@ export function createRequestObserver(
       },
       requests[0]!.observedThroughBlock ?? requests[0]!.receiptBlock!,
     );
-    const requestIds = [...requestsById.keys()].map(requestIdFromHex);
-    const firstRequestId = requestIds[0]!;
     const filters = [
       GeneratedSwapEvent.filter({
         contractAddresses: [config.pairAddress],
@@ -103,11 +101,6 @@ export function createRequestObserver(
       }),
       RequestFailed.filter({
         contractAddresses: [config.driverAddress],
-        topics: {
-          request_id: {
-            oneOf: [firstRequestId, ...requestIds.slice(1)],
-          },
-        },
       }),
     ];
     const observations: RequestObservation[] = [];

@@ -6,12 +6,12 @@ The local development server injects a generated disposable private key while se
 
 ## Supported Stack
 
-- Node.js 20.19 or newer
+- Node.js 22.12 or newer
 - npm
-- Groundhog CLI packaging release 0.1.19 or newer
+- Groundhog CLI 0.9.6 or newer
 - Groundhog SDK 0.19.0
 - Groundhog RPC and testkit 0.9.0
-- `@groundhogchain/client` 0.1.6
+- `@groundhogchain/client` 0.2.0
 - A compatible local node exposing RPC at `http://127.0.0.1:9545`
 
 The Rust builds require access to the configured Groundhog crate registry.
@@ -24,6 +24,7 @@ The `@groundhogchain` packages come from GitHub Packages. On a machine without e
 
 ```sh
 export GITHUB_PACKAGES_TOKEN=your_token
+npm config set --location=user @groundhogchain:registry https://npm.pkg.github.com
 npm config set --location=user //npm.pkg.github.com/:_authToken "$GITHUB_PACKAGES_TOKEN"
 ```
 
@@ -35,7 +36,7 @@ Transitive dependency deprecation warnings are non-blocking when installation su
 
 ## Start A Clean Node
 
-The workspace uses Groundhog RPC and testkit 0.9.0 with Groundhog SDK 0.19.0, and accepts Groundhog CLI packaging release 0.1.19 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
+The workspace uses Groundhog RPC and testkit 0.9.0 with Groundhog SDK 0.19.0, and requires Groundhog CLI 0.9.6 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
 
 - RPC available at `http://127.0.0.1:9545`, unless overridden.
 - A runtime manifest from the running node.
@@ -81,7 +82,7 @@ Approve & swap
 -> Executed or Failed, independently for each request
 ```
 
-A successful router transaction only queues a request. It does not execute the swap. The form remains available after enqueueing, so one account can submit multiple requests before a crank. The app permits only one approval or submission workflow at a time and serializes those workflows across tabs.
+A successful router transaction only queues a request. It does not execute the swap. The form remains available after enqueueing, so one account can submit up to 10 pending swaps before a crank. The app permits only one approval or submission workflow at a time and serializes those workflows across tabs.
 
 Each quote uses the latest observed reserves. The app does not project earlier queued swaps into later quotes, promise queue order, or treat expected queued output as spendable. The handler recalculates output against live reserves during execution and fails a request when slippage protection cannot satisfy its submitted minimum output.
 

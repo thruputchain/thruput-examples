@@ -270,10 +270,7 @@ describe("request observer", () => {
     expect(getEvents.mock.calls[0]?.[0]).toMatchObject({
       anchor: { height: 8n },
     });
-    expect(getEvents.mock.calls[0]?.[0].filters[1].topics.topic1).toEqual([
-      new Uint8Array(32).fill(0xcc),
-      new Uint8Array(32).fill(0xee),
-    ]);
+    expect(getEvents.mock.calls[0]?.[0].filters[1].topics.topic1).toBeUndefined();
   });
 
   it("resumes from the earliest persisted observation watermark", async () => {

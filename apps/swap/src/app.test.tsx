@@ -685,6 +685,43 @@ describe("local swap submission", () => {
     )).toBe(true);
   });
 
+  it("does not enqueue when another tab fills the pending swap queue", async () => {
+    const pending = Array.from({ length: 9 }, (_, index) =>
+      queuedRequest(`queued-request-${index}`, index, "queuedUntracked")
+    );
+    saveRequestCollection(config, pending);
+    const writer: WriteBoundary = { execute: vi.fn() };
+    const user = userEvent.setup();
+    renderApp(
+      async () =>
+        pool({
+          tokenA: {
+            ...pool().tokenA,
+            balance: 200_000_000n,
+            allowance: 200_000_000n,
+          },
+        }),
+      writer,
+    );
+
+    await user.type(await screen.findByLabelText("YOU PAY"), "1");
+    const swap = screen.getByRole("button", {
+      name: /^(?:Approve & swap|Swap)$/,
+    });
+    expect(swap).toBeEnabled();
+
+    saveRequestCollection(config, [
+      ...pending,
+      queuedRequest("queued-request-9", 9, "queuedUntracked"),
+    ]);
+    await user.click(swap);
+
+    expect(
+      await screen.findByRole("button", { name: "Swap queue is full" }),
+    ).toBeDisabled();
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
+
   it("reconciles an earlier execution while observing aggregate approval", async () => {
     const user = userEvent.setup();
     let allowance = 10_000_000n;
