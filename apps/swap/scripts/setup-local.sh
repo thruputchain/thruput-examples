@@ -28,5 +28,5 @@ cd "$repo_root"
 "$groundhog_cli" build -p swap-router
 "$groundhog_cli" build -p swap-handler
 "$groundhog_cli" build -p swap-driver
-"$groundhog_cli" build -p swap-pair --target wasm
+"$groundhog_cli" build -p swap-pair
 cargo run -p swap-setup

@@ -22,7 +22,7 @@ fi
   "$groundhog_cli" build -p swap-router
   "$groundhog_cli" build -p swap-handler
   "$groundhog_cli" build -p swap-driver
-  "$groundhog_cli" build -p swap-pair --target wasm
+  "$groundhog_cli" build -p swap-pair
 
   "$groundhog_cli" codegen ts target/groundhog/erc20.spec.xdr \
     -o apps/swap/src/contracts/generated/erc20.ts
