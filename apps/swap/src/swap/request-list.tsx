@@ -29,6 +29,8 @@ import {
 } from "@/transactions/crank-attempt";
 
 export function RequestList({
+  automatic,
+  modeChangeDisabled,
   requests,
   tokenA,
   tokenB,
@@ -37,6 +39,7 @@ export function RequestList({
   crankAttempt,
   isCranking,
   crankDisabled,
+  crankRecoveryDisabled,
   onDismiss,
   onCrank,
   onCheckCrank,
@@ -44,8 +47,11 @@ export function RequestList({
   onCheckRecovery,
   onConfirmRecovery,
   onResolveUntracked,
+  onShowManual,
   className,
 }: {
+  automatic: boolean;
+  modeChangeDisabled: boolean;
   requests: readonly RequestRecord[];
   tokenA: TokenSnapshot;
   tokenB: TokenSnapshot;
@@ -54,6 +60,7 @@ export function RequestList({
   crankAttempt: CrankAttempt | null;
   isCranking: boolean;
   crankDisabled: boolean;
+  crankRecoveryDisabled: boolean;
   onDismiss: (localId: string) => void;
   onCrank: () => void;
   onCheckCrank: () => void;
@@ -61,6 +68,7 @@ export function RequestList({
   onCheckRecovery: () => void;
   onConfirmRecovery: (localId: string) => void;
   onResolveUntracked: (localId: string) => void;
+  onShowManual: () => void;
   className?: string;
 }) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -82,6 +90,20 @@ export function RequestList({
       right.localId.localeCompare(left.localId),
   );
   const needsCrank = requests.some(needsQueueProcessing);
+  const recoveryRequest = recoveryRequestId === null
+    ? null
+    : ordered.find(({ localId }) => localId === recoveryRequestId) ?? null;
+  const compactRequest = recoveryRequest ?? ordered[0] ?? null;
+  const visibleRequests = automatic
+    ? compactRequest === null ? [] : [compactRequest]
+    : ordered;
+  const latestRequest = visibleRequests[0] ?? null;
+  const hiddenQueuedWork = automatic && requests.some((request) =>
+    request.localId !== latestRequest?.localId && needsQueueProcessing(request)
+  );
+  const showCrankControls = crankBlocked
+    || (!automatic && needsCrank)
+    || (automatic && crankAttempt?.status === "failed" && needsCrank);
 
   return (
     <Card className={cn("[--card-spacing:--spacing(4)]", className)}>
@@ -92,35 +114,38 @@ export function RequestList({
             tabIndex={-1}
             className="text-lg font-semibold tracking-tight focus:outline-none"
           >
-            Requests
+            {automatic ? "Latest swap" : "Requests"}
           </h2>
         </CardTitle>
         <CardDescription>
-          Local history for this account and pool. Quotes remain estimates until
-          execution.
+          {automatic
+            ? "Current status for the latest swap."
+            : "Local history for this account and pool. Quotes remain estimates until execution."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {needsCrank || crankBlocked ? (
-          <Alert aria-live="polite">
+        {showCrankControls ? (
+          <Alert role="region" aria-label="Transaction queue">
             <InfoIcon aria-hidden="true" />
             <AlertTitle>Transaction queue</AlertTitle>
             <AlertDescription className="flex flex-col items-start gap-3 [&_p:not(:last-child)]:mb-0">
-              <p>{crankDescription(crankAttempt)}</p>
+              <p>{crankDescription(crankAttempt, automatic)}</p>
               {crankBlocked ? (
-                crankAttempt?.transactionHash !== null ? (
+                isCranking ? (
+                  <p className="flex items-center gap-2 text-foreground">
+                    <Spinner aria-hidden="true" />
+                    Processing queue
+                  </p>
+                ) : crankAttempt?.transactionHash !== null ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     className="h-auto min-h-12 w-full whitespace-normal text-center sm:min-h-9 sm:w-auto"
-                    disabled={isCranking}
+                    disabled={crankRecoveryDisabled}
                     onClick={onCheckCrank}
                   >
-                    {isCranking ? (
-                      <Spinner data-icon="inline-start" aria-hidden="true" />
-                    ) : null}
-                    {isCranking ? "Checking transaction" : "Check crank status"}
+                    Check crank status
                   </Button>
                 ) : (
                   <Button
@@ -128,29 +153,31 @@ export function RequestList({
                     variant="outline"
                     size="sm"
                     className="h-auto min-h-12 w-full whitespace-normal text-center sm:min-h-9 sm:w-auto"
-                    disabled={isCranking}
+                    disabled={crankRecoveryDisabled}
                     onClick={onConfirmCrankRecovery}
                   >
-                    {isCranking ? (
-                      <Spinner data-icon="inline-start" aria-hidden="true" />
-                    ) : null}
-                    {isCranking
-                      ? "Signing queue transaction"
-                      : "I confirmed no crank transaction was signed"}
+                    I confirmed no crank transaction was signed
                   </Button>
                 )
+              ) : automatic ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="min-h-12 w-full sm:min-h-9 sm:w-auto"
+                  disabled={crankDisabled}
+                  onClick={onCrank}
+                >
+                  Retry queue processing
+                </Button>
               ) : (
                 <Button
                   type="button"
                   size="sm"
                   className="min-h-12 w-full sm:min-h-9 sm:w-auto"
-                  disabled={crankDisabled || isCranking}
+                  disabled={crankDisabled}
                   onClick={onCrank}
                 >
-                  {isCranking ? (
-                    <Spinner data-icon="inline-start" aria-hidden="true" />
-                  ) : null}
-                  {isCranking ? "Starting queue processing" : "Crank queue"}
+                  Crank queue
                 </Button>
               )}
             </AlertDescription>
@@ -161,7 +188,7 @@ export function RequestList({
           aria-label="Swap requests"
           className="divide-y divide-foreground/10"
         >
-          {ordered.map((request) => {
+          {visibleRequests.map((request) => {
             const { input, output } = requestTokens(request, tokenA, tokenB);
             const confirming = confirmingId === request.localId;
             const recovering = recoveryRequestId === request.localId;
@@ -199,7 +226,10 @@ export function RequestList({
                         {output.symbol}
                       </p>
                     </div>
-                    <RequestStatusBadge status={request.status} />
+                    <RequestStatusBadge
+                      status={request.status}
+                      compact={automatic}
+                    />
                   </div>
 
                   {request.execution?.kind === "executed" ? (
@@ -219,7 +249,10 @@ export function RequestList({
                     </p>
                   ) : null}
 
-                  <RequestStatusDetail request={request} />
+                  <RequestStatusDetail
+                    request={request}
+                    showHashes={!automatic}
+                  />
 
                   {recovering &&
                   request.transactionHash !== null &&
@@ -256,7 +289,7 @@ export function RequestList({
                     </Button>
                   ) : null}
 
-                  {isTerminalRequest(request) ? (
+                  {!automatic && isTerminalRequest(request) ? (
                     <Button
                       type="button"
                       variant="ghost"
@@ -325,23 +358,45 @@ export function RequestList({
             );
           })}
         </ol>
+        {hiddenQueuedWork ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-12 w-full sm:min-h-9 sm:w-auto"
+            disabled={modeChangeDisabled}
+            onClick={onShowManual}
+          >
+            Queued work available
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );
 }
 
-function crankDescription(attempt: CrankAttempt | null): string {
+function crankDescription(
+  attempt: CrankAttempt | null,
+  automatic: boolean,
+): string {
   if (attempt?.status === "signing")
     return "Queue transaction awaiting outcome.";
   if (attempt?.status === "indeterminate") {
     return "The last crank's outcome is uncertain. Check it before trying again.";
   }
   if (attempt?.status === "failed")
-    return "Queue processing failed. Try again.";
+    return automatic
+      ? "Queue processing failed. Retry without resubmitting your swap."
+      : "Queue processing failed. Try again.";
   return "Crank to process all requests in the queue.";
 }
 
-function RequestStatusBadge({ status }: { status: RequestStatus }) {
+function RequestStatusBadge({
+  status,
+  compact,
+}: {
+  status: RequestStatus;
+  compact: boolean;
+}) {
   const destructive = status === "failed" || status === "committedFailure";
   const active = status === "approving" || status === "submitting";
   return (
@@ -349,12 +404,18 @@ function RequestStatusBadge({ status }: { status: RequestStatus }) {
       variant={destructive ? "destructive" : active ? "secondary" : "outline"}
       className="shrink-0"
     >
-      {requestStatusLabel(status)}
+      {compact ? compactRequestStatusLabel(status) : requestStatusLabel(status)}
     </Badge>
   );
 }
 
-function RequestStatusDetail({ request }: { request: RequestRecord }) {
+function RequestStatusDetail({
+  request,
+  showHashes,
+}: {
+  request: RequestRecord;
+  showHashes: boolean;
+}) {
   const detail = requestStatusDetail(request.status);
   const executionHash =
     request.execution?.transactionHash === request.transactionHash
@@ -362,14 +423,14 @@ function RequestStatusDetail({ request }: { request: RequestRecord }) {
       : (request.execution?.transactionHash ?? null);
   if (
     detail === null &&
-    request.transactionHash === null &&
-    executionHash === null
+    (!showHashes || request.transactionHash === null) &&
+    (!showHashes || executionHash === null)
   )
     return null;
   return (
     <div className="mt-2 space-y-1 text-base text-muted-foreground sm:text-sm">
       {detail === null ? null : <p>{detail}</p>}
-      {request.transactionHash === null ? null : (
+      {!showHashes || request.transactionHash === null ? null : (
         <p className="text-xs sm:text-xs">
           {executionHash === null ? "Transaction" : "Enqueue transaction"}{" "}
           <BlockchainIdentifier
@@ -382,7 +443,7 @@ function RequestStatusDetail({ request }: { request: RequestRecord }) {
           />
         </p>
       )}
-      {executionHash === null ? null : (
+      {!showHashes || executionHash === null ? null : (
         <p className="text-xs sm:text-xs">
           Execution transaction{" "}
           <BlockchainIdentifier
@@ -393,6 +454,26 @@ function RequestStatusDetail({ request }: { request: RequestRecord }) {
       )}
     </div>
   );
+}
+
+function compactRequestStatusLabel(status: RequestStatus): string {
+  switch (status) {
+    case "approving":
+      return "Approving";
+    case "submitting":
+      return "Submitting swap";
+    case "indeterminate":
+      return "Transaction outcome uncertain";
+    case "committedFailure":
+    case "failed":
+      return "Swap failed";
+    case "queued":
+    case "queuedNotObserved":
+    case "queuedUntracked":
+      return "Execution pending";
+    case "executed":
+      return "Executed";
+  }
 }
 
 function requestTokens(

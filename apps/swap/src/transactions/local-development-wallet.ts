@@ -38,6 +38,7 @@ const TRANSACTION_GAS = gasAmount(10_000_000n);
 const EXPIRY_BLOCKS = 1_000n;
 const DEFAULT_POLL_INTERVAL_MS = 500;
 const DEFAULT_MAX_POLLS = 40;
+const MAX_CONSECUTIVE_POLL_ERRORS = 2;
 
 interface LocalWalletOptions {
   client?: GroundhogClient;
@@ -171,6 +172,10 @@ async function pollTransaction(
   delay: (milliseconds: number) => Promise<void>,
 ): Promise<WriteResult> {
   const hash = sha256Hash(fromHex0x(hashHex));
+  let consecutiveErrors = 0;
+  let lastIndeterminateReason:
+    | Extract<WriteResult, { kind: "indeterminate" }>["reason"]
+    | null = null;
   for (let poll = 0; poll < maxPolls; poll += 1) {
     try {
       const receipt = await client.getTransactionReceipt(hash);
@@ -182,15 +187,26 @@ async function pollTransaction(
       }
 
       const outcome = outcomeFromStatus(await client.getTransactionStatus(hash));
-      if (outcome.kind === "invalid" || outcome.kind === "indeterminate") {
+      consecutiveErrors = 0;
+      if (outcome.kind === "invalid") {
         return writeResult(hashHex, outcome);
       }
+      if (outcome.kind === "indeterminate") {
+        lastIndeterminateReason = outcome.reason;
+      }
     } catch {
-      return { kind: "indeterminate", hash: hashHex, reason: "disconnect" };
+      consecutiveErrors += 1;
+      if (consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
+        return { kind: "indeterminate", hash: hashHex, reason: "disconnect" };
+      }
     }
     await delay(DEFAULT_POLL_INTERVAL_MS);
   }
-  return { kind: "indeterminate", hash: hashHex, reason: "timeout" };
+  return {
+    kind: "indeterminate",
+    hash: hashHex,
+    reason: lastIndeterminateReason ?? "timeout",
+  };
 }
 
 function writeResult(hash: string, outcome: TransactionOutcome): WriteResult {

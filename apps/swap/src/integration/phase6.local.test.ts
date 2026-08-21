@@ -2,9 +2,13 @@
 // @vitest-environment-options { "url": "http://127.0.0.1:9545" }
 
 import { toHex0x } from "@groundhogchain/client";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createElement, type ComponentType } from "react";
 import { describe, expect, it } from "vitest";
 
-import { loadAppConfig } from "@/config";
+import { App } from "@/app";
+import { loadAppConfig, type AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { buildProcessRequestsTarget } from "@/contracts/driver-target";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
@@ -14,29 +18,38 @@ import { orientReserves, orderTokens } from "@/domain/tokens";
 import { deriveSwapQuote } from "@/swap/model";
 import { createSnapshotReader } from "@/swap/snapshot";
 import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
-import { createRequestRecord } from "@/transactions/request-collection";
+import { loadCrankAttempt } from "@/transactions/crank-attempt";
+import {
+  createRequestRecord,
+  loadRequestCollection,
+} from "@/transactions/request-collection";
 import {
   applyObservationBatch,
   observationsFromReceipt,
 } from "@/transactions/request-observer";
 
 const runLocalIntegration = import.meta.env.MODE === "local-integration";
+
+function loadLocalConfig() {
+  return loadAppConfig({
+    VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
+    VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
+    VITE_GROUNDHOG_WALLET_ADDRESS: import.meta.env.VITE_GROUNDHOG_WALLET_ADDRESS,
+    VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
+    VITE_SWAP_PAIR_ADDRESS: import.meta.env.VITE_SWAP_PAIR_ADDRESS,
+    VITE_SWAP_HANDLER_ADDRESS: import.meta.env.VITE_SWAP_HANDLER_ADDRESS,
+    VITE_SWAP_DRIVER_ADDRESS: import.meta.env.VITE_SWAP_DRIVER_ADDRESS,
+    VITE_TOKEN_A_ADDRESS: import.meta.env.VITE_TOKEN_A_ADDRESS,
+    VITE_TOKEN_B_ADDRESS: import.meta.env.VITE_TOKEN_B_ADDRESS,
+    VITE_TOKEN_A_SYMBOL: import.meta.env.VITE_TOKEN_A_SYMBOL,
+    VITE_TOKEN_B_SYMBOL: import.meta.env.VITE_TOKEN_B_SYMBOL,
+    VITE_TOKEN_DECIMALS: import.meta.env.VITE_TOKEN_DECIMALS,
+  });
+}
+
 describe.skipIf(!runLocalIntegration)("local swap integration", () => {
   it("enqueues two requests before one crank and observes both executions", async () => {
-    const config = loadAppConfig({
-      VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
-      VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
-      VITE_GROUNDHOG_WALLET_ADDRESS: import.meta.env.VITE_GROUNDHOG_WALLET_ADDRESS,
-      VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
-      VITE_SWAP_PAIR_ADDRESS: import.meta.env.VITE_SWAP_PAIR_ADDRESS,
-      VITE_SWAP_HANDLER_ADDRESS: import.meta.env.VITE_SWAP_HANDLER_ADDRESS,
-      VITE_SWAP_DRIVER_ADDRESS: import.meta.env.VITE_SWAP_DRIVER_ADDRESS,
-      VITE_TOKEN_A_ADDRESS: import.meta.env.VITE_TOKEN_A_ADDRESS,
-      VITE_TOKEN_B_ADDRESS: import.meta.env.VITE_TOKEN_B_ADDRESS,
-      VITE_TOKEN_A_SYMBOL: import.meta.env.VITE_TOKEN_A_SYMBOL,
-      VITE_TOKEN_B_SYMBOL: import.meta.env.VITE_TOKEN_B_SYMBOL,
-      VITE_TOKEN_DECIMALS: import.meta.env.VITE_TOKEN_DECIMALS,
-    });
+    const config = loadLocalConfig();
     const readSnapshot = createSnapshotReader(config);
     const writer = createBrowserLocalWriteBoundary(config);
     const amount = "0.001";
@@ -235,5 +248,36 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
     expect(executedReserves.reserveOut).toBe(
       queuedReserves.reserveOut - totalAmountOut,
     );
+  }, 90_000);
+
+  it("automatically enqueues a swap and commits one queue-processing transaction", async () => {
+    window.localStorage.clear();
+    const user = userEvent.setup();
+    const config = loadLocalConfig();
+    render(createElement(
+      App as ComponentType<{ config: AppConfig }>,
+      { config },
+    ));
+
+    await user.type(await screen.findByLabelText("YOU PAY"), "0.001");
+    await user.click(
+      screen.getByRole("button", { name: /^(?:Approve & swap|Swap)$/ }),
+    );
+
+    await waitFor(
+      () => expect(loadCrankAttempt(config)?.status).toBe("committed"),
+      { timeout: 60_000 },
+    );
+    const [request] = loadRequestCollection(config);
+    expect(request).toBeDefined();
+    expect([
+      "queued",
+      "queuedNotObserved",
+      "queuedUntracked",
+      "executed",
+      "failed",
+    ]).toContain(request?.status);
+    expect(screen.queryByRole("button", { name: "Crank queue" }))
+      .not.toBeInTheDocument();
   }, 90_000);
 });

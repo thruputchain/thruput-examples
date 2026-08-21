@@ -170,16 +170,80 @@ describe("local development wallet encoding", () => {
     const client = {
       getChainTip: vi.fn().mockResolvedValue({ height: 10n, blockHash: txHash }),
       sendTransaction: vi.fn().mockRejectedValue(new Error("connection reset")),
+      getTransactionReceipt: vi.fn().mockRejectedValue(new Error("connection reset")),
     } as unknown as GroundhogClient;
     const boundary = createLocalWriteBoundary(config, wallet, {
       client,
       nonce: () => 7n,
+      delay: async () => {},
+      maxPolls: 2,
     });
 
     const result = await boundary.execute(target);
 
     expect(result).toMatchObject({ kind: "indeterminate", reason: "disconnect" });
     expect(result.hash).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+
+  it("tolerates one transient receipt polling failure", async () => {
+    const txHash = sha256Hash(new Uint8Array(32).fill(3));
+    const client = {
+      getChainTip: vi.fn().mockResolvedValue({ height: 10n, blockHash: txHash }),
+      sendTransaction: vi.fn().mockImplementation(async (signed) =>
+        canonicalTransactionHash(signed.tx)),
+      getTransactionReceipt: vi.fn()
+        .mockRejectedValueOnce(new Error("connection reset"))
+        .mockImplementationOnce(async (hash) => ({
+          txHash: hash,
+          height: 11n,
+          execResult: ExecResult.ExecResultOK,
+          events: [],
+          returnData: new Uint8Array(),
+          abortData: null,
+        })),
+      getTransactionStatus: vi.fn(),
+    } as unknown as GroundhogClient;
+
+    await expect(
+      createLocalWriteBoundary(config, wallet, {
+        client,
+        nonce: () => 7n,
+        delay: async () => {},
+        maxPolls: 2,
+      }).execute(target),
+    ).resolves.toMatchObject({ kind: "committedSuccess" });
+    expect(client.getTransactionReceipt).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps polling while transaction status is temporarily unknown", async () => {
+    const txHash = sha256Hash(new Uint8Array(32).fill(3));
+    const client = {
+      getChainTip: vi.fn().mockResolvedValue({ height: 10n, blockHash: txHash }),
+      sendTransaction: vi.fn().mockImplementation(async (signed) =>
+        canonicalTransactionHash(signed.tx)),
+      getTransactionReceipt: vi.fn()
+        .mockResolvedValueOnce(null)
+        .mockImplementationOnce(async (hash) => ({
+          txHash: hash,
+          height: 11n,
+          execResult: ExecResult.ExecResultOK,
+          events: [],
+          returnData: new Uint8Array(),
+          abortData: null,
+        })),
+      getTransactionStatus: vi.fn().mockResolvedValue({ status: "unknown" }),
+    } as unknown as GroundhogClient;
+
+    await expect(
+      createLocalWriteBoundary(config, wallet, {
+        client,
+        nonce: () => 7n,
+        delay: async () => {},
+        maxPolls: 2,
+      }).execute(target),
+    ).resolves.toMatchObject({ kind: "committedSuccess" });
+    expect(client.getTransactionStatus).toHaveBeenCalledTimes(1);
+    expect(client.getTransactionReceipt).toHaveBeenCalledTimes(2);
   });
 
   it("can observe a restored signed request when signer configuration is invalid", async () => {
