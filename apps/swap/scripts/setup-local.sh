@@ -9,9 +9,11 @@ export GROUNDHOG_CLI="$groundhog_cli"
 
 : "${GROUNDHOG_RUNTIME_MANIFEST:?Set GROUNDHOG_RUNTIME_MANIFEST to the running node runtime manifest}"
 export GROUNDHOG_RPC_URL="${GROUNDHOG_RPC_URL:-http://127.0.0.1:9545}"
-export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$repo_root/target/groundhog"
+export SWAP_ARTIFACT_ROOT="$repo_root/target/groundhog"
 export SWAP_APP_ENV="$app_dir/.env.local"
 export SWAP_CLI_CONFIG_HOME="$app_dir/.groundhog-config"
+
+rm -f "$SWAP_APP_ENV" "$SWAP_CLI_CONFIG_HOME/groundhog/config.toml"
 
 cli_version="$("$groundhog_cli" --version)"
 if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] ||
@@ -29,4 +31,4 @@ cd "$repo_root"
 "$groundhog_cli" build -p swap-handler
 "$groundhog_cli" build -p swap-driver
 "$groundhog_cli" build -p swap-pair
-cargo run -p swap-setup
+"$app_dir/node_modules/.bin/tsx" "$app_dir/scripts/setup-local.ts"

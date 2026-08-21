@@ -24,6 +24,6 @@ export const unavailableWriteBoundary: WriteBoundary = {
   execute: async () => ({
     kind: "preSubmissionFailure",
     hash: null,
-    message: "State-changing actions require a configured loopback development wallet",
+    message: "State-changing actions require a configured development wallet",
   }),
 };

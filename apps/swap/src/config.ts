@@ -63,10 +63,6 @@ export function isLoopbackUrl(url: URL): boolean {
   return isLoopbackHostname(url.hostname);
 }
 
-export function isBrowserLoopback(): boolean {
-  return typeof window === "undefined" || isLoopbackHostname(window.location.hostname);
-}
-
 export function isLoopbackHostname(hostname: string): boolean {
   return (
     hostname === "localhost" ||

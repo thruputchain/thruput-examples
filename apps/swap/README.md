@@ -2,7 +2,7 @@
 
 Groundhog Swap is a local-development frontend for the example Uniswap V2-style swap contracts. It supports exact-input swaps against one configured token pair. It is not production software.
 
-The local development server injects a generated disposable private key while serving the app; production builds do not contain it. Treat the key as public development data, use it only on a disposable loopback ledger, and never fund it on a public network.
+The local development server injects a generated disposable private key while serving the app; production builds do not contain it. Treat the key as public development data, use it only on a disposable development ledger, and never fund it on a public network.
 
 ## Supported Stack
 
@@ -11,7 +11,7 @@ The local development server injects a generated disposable private key while se
 - Groundhog CLI 0.9.6 or newer
 - Groundhog SDK 0.19.3
 - Groundhog RPC and testkit 0.9.2
-- `@groundhogchain/client` 0.2.0
+- `@groundhogchain/client` 0.3.0
 - A compatible local node exposing RPC at `http://127.0.0.1:9545`
 
 The Rust builds require access to the configured Groundhog crate registry.
@@ -34,15 +34,14 @@ npm --prefix apps/swap ci
 
 Transitive dependency deprecation warnings are non-blocking when installation succeeds.
 
-## Start A Clean Node
+## Start A Node
 
 The workspace uses Groundhog RPC and testkit 0.9.2 with Groundhog SDK 0.19.3, and requires Groundhog CLI 0.9.6 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
 
 - RPC available at `http://127.0.0.1:9545`, unless overridden.
 - A runtime manifest from the running node.
-- A fresh ledger whose chain tip is height 1.
 
-Setup intentionally refuses a dirty ledger and a runtime manifest that does not identify a fresh `hogd-dev` runtime. Stop and reset the node before repeating setup.
+Setup does not enforce a fresh ledger and is not idempotent. Starting with a fresh disposable node remains the simplest option, especially after a partial setup failure.
 
 ## Configure The Environment
 
@@ -56,12 +55,12 @@ export GROUNDHOG_RPC_URL=http://127.0.0.1:9545
 npm --prefix apps/swap run setup:local
 ```
 
-Setup validates a loopback-only RPC URL, derives the disposable key from the fresh runtime manifest, builds the contracts, deploys two tokens and one swap suite, seeds liquidity, performs two smoke swaps, verifies events and views, and writes:
+Setup derives the disposable browser key from the runtime manifest, builds the contracts, deploys two tokens and one swap suite, seeds liquidity, checks the initial reserves, and writes:
 
 - `apps/swap/.env.local`: browser configuration and the disposable key.
 - `apps/swap/.groundhog-config/`: generated CLI profile used by the crank.
 
-Both paths are ignored by Git. Setup invalidates old generated files before touching the ledger, then publishes both replacements with restrictive permissions only after every verification passes. If setup fails after deployment starts, reset the disposable ledger before retrying.
+Both paths are ignored by Git. Setup invalidates old generated files before building and writes both replacements with mode `0600` after provisioning succeeds.
 
 ## Run The App
 
@@ -93,8 +92,8 @@ The request list stores unresolved requests and up to 50 recent terminal results
 ## Process The Queue
 
 After the app shows **Queued for execution**, use **Crank queue** in the request
-list. This signs and submits `process_requests()` through the same loopback-only
-browser wallet boundary used for swaps.
+list. This signs and submits `process_requests()` through the same development
+wallet boundary used for swaps.
 
 Queue processing is driver-wide. It can process requests that are not present in
 the browser's local history, and one transaction may not drain a large or changing
@@ -112,7 +111,7 @@ cd apps/swap
 GROUNDHOG_CLI=/absolute/path/to/groundhog bash scripts/crank-local.sh
 ```
 
-The script reads the generated driver address and entrypoint, validates the CLI profile and network, and invokes `process_requests()`. The app correlates each `SwapEvent` or `RequestFailed` event by request ID and updates requests independently. Crank guidance remains visible while any request still needs processing.
+The script reads the generated driver address and entrypoint, uses the generated CLI profile, and invokes `process_requests()`. The app correlates each `SwapEvent` or `RequestFailed` event by request ID and updates requests independently. Crank guidance remains visible while any request still needs processing.
 
 If a queued request has no decodable request ID, automatic event correlation is unavailable. Use **Resolve manually** only after independently confirming that the relevant queue was drained, then complete the separate confirmation step. Tracked queued requests remain in the list until a matching terminal event arrives.
 
@@ -127,12 +126,9 @@ npm --prefix apps/swap run build
 npm --prefix apps/swap audit --audit-level=low
 ```
 
-Rust checks relevant to the swap application:
-
-`swap-setup` runs without native node artifacts. Contract suites using the SDK's native execution environment also require authenticated Groundhog FFI artifacts. Provide either `HOGD_FFI_PASSWORD` for the artifact service or `HOGD_FFI_LIB_DIR` pointing to a compatible local `libtest_ffi` build.
+Rust contract checks that use the SDK's native execution environment require authenticated Groundhog FFI artifacts. Provide either `HOGD_FFI_PASSWORD` for the artifact service or `HOGD_FFI_LIB_DIR` pointing to a compatible local `libtest_ffi` build.
 
 ```sh
-cargo test -p swap-setup
 cargo test -p swap-pair
 cargo test -p swap-handler
 cargo test -p swap-driver
@@ -156,10 +152,6 @@ npm --prefix apps/swap run test:integration:local
 
 ## Troubleshooting
 
-### Setup requires a fresh ledger
-
-Stop the node, remove its disposable ledger data using the node project's reset procedure, restart it, and verify the chain tip is height 1.
-
 ### Connection refused on port 9545
 
 The node is not running or `GROUNDHOG_RPC_URL` points to the wrong endpoint. Setup does not start the node.
@@ -170,15 +162,15 @@ Set `GROUNDHOG_CLI` to a Groundhog CLI 0.9.6 or newer executable. The executable
 
 ### Setup completed deployment but `.env.local` is stale
 
-Setup invalidates old configuration before deployment and publishes new configuration only after all verification succeeds. Reset to a fresh disposable ledger, fix the setup error, and rerun setup. Restart Vite afterward so it reloads `.env.local`.
+Setup invalidates old configuration before building and writes new configuration after provisioning succeeds. Fix the setup error and rerun setup. If the failure left partial state that prevents retrying, restart with a clean disposable ledger. Restart Vite afterward so it reloads `.env.local`.
 
 ### Contract view faulted after restarting the node
 
-The browser is probably using addresses generated for a previous ledger. Rerun setup against the fresh node, then restart Vite.
+The browser is probably using addresses generated for a previous ledger. Rerun setup against the current node, then restart Vite.
 
-### Crank reports stale configuration
+### Crank targets missing contracts
 
-The generated CLI profile and `.env.local` belong to another runtime manifest or ledger. Rerun setup rather than editing generated addresses manually.
+The generated CLI profile or `.env.local` may belong to another ledger. Rerun setup rather than editing generated addresses manually.
 
 ### Outcome uncertain after restarting Vite
 

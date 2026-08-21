@@ -1,9 +1,11 @@
 # Groundhog Swap Frontend MVP
+
 Status: Draft
 
 Date: 2026-07-30
 
 ## 1. Scope
+
 Build **Groundhog Swap**, a local-development web app for the existing Uniswap V2-style swap contracts. The MVP supports exact-input swaps between one configured ERC20 pair through a development wallet and an already-running local Groundhog node.
 
 The app must:
@@ -21,6 +23,7 @@ The app must:
 - Poll filtered pair `SwapEvent`s as the primary execution signal, then refresh balances and reserves.
 
 ### Success Criteria
+
 - One command deploys and configures a funded two-token pool against a running local node.
 
 - A user can approve and enqueue an exact-input swap from the browser.
@@ -34,6 +37,7 @@ The app must:
 - Automated tests cover amount conversion, quote and slippage math, token ordering, transaction outcomes, and swap workflow transitions.
 
 ### Non-Goals
+
 - Exact-output swaps.
 
 - Pool discovery, arbitrary token addresses, or multi-hop routing.
@@ -47,6 +51,7 @@ The app must:
 - Additional behavioral contract changes beyond the request-ID lifecycle already present in the configured swap suite.
 
 ## 2. User Flow
+
 1. The developer starts a compatible local Groundhog node and runs the setup command.
 
 2. Setup deploys the contracts, creates and seeds one pool, funds the development account, and writes local app configuration.
@@ -68,7 +73,9 @@ The app must:
 10. The app observes a matching pair `SwapEvent`, displays **Execution observed**, and refreshes balances and reserves.
 
 ## 3. Product Requirements
+
 ### Account And Pool State
+
 - Show the abbreviated account address and local-network status.
 
 - Show both token symbols, balances, and the selected direction.
@@ -80,6 +87,7 @@ The app must:
 - Provide manual refresh.
 
 ### Swap Input And Quote
+
 - Accept decimal input and convert it to base units without JavaScript floating-point arithmetic.
 
 - Reject empty, malformed, zero, excessive-precision, balance-exceeding, and zero-output amounts.
@@ -91,7 +99,6 @@ The app must:
 - Refresh the quote when reserves change and show when a refresh is in progress.
 
 - Display estimated output, minimum output, exchange rate, 0.3% swap fee rate, and price impact including the fee.
-
 
 Use the contract's exact-input formula:
 
@@ -113,7 +120,9 @@ priceImpactBps = floor(
 ```
 
 Omit price impact when `spotAmountOut` is zero.
+
 ### Slippage
+
 - Default to 0.5% (50 basis points).
 
 - Provide presets and a custom value greater than 0% and no greater than 50%.
@@ -128,9 +137,10 @@ Omit price impact when `spotAmountOut` is zero.
   amountOutMin = floor(quotedAmountOut * (10_000 - slippageBps) / 10_000)
   ```
 
-
 The quote is advisory. The handler recalculates output from live reserves when it processes the request. The UI must explain that the displayed output may change, `amountOutMin` is enforced during processing, and a queued request may later fail and be consumed.
+
 ### Approval
+
 - Read the input token's allowance for the configured handler.
 
 - When allowance differs from the input amount, submit `adjust_allowance(handler, inputAmount - currentAllowance)` as a separate transaction.
@@ -140,6 +150,7 @@ The quote is advisory. The handler recalculates output from live reserves when i
 - Do not offer unlimited approval.
 
 ### Swap Submission
+
 - Call `swap_exact_tokens_for_tokens(amountIn, amountOutMin, tokenIn, tokenOut, recipient)` on the configured router.
 
 - Use the development account as recipient.
@@ -153,6 +164,7 @@ The quote is advisory. The handler recalculates output from live reserves when i
 - Explain that `process_requests()` must be called externally with `bash scripts/crank-local.sh`.
 
 ### Execution Observation
+
 - Capture the request ID from the enqueue receipt, then poll pair `SwapEvent`s and driver `RequestFailed` events after enqueue.
 - Filter successful execution by request ID, pair, handler, recipient, direction, exact input, and `amountOutMin`.
 - On a match, display **Execution observed** with actual amounts and refresh balances, allowance, and reserves.
@@ -160,6 +172,7 @@ The quote is advisory. The handler recalculates output from live reserves when i
 - If event querying is unavailable, infer execution only when one snapshot shows input balance and allowance reduced by `amountIn`, output balance increased by at least `amountOutMin`, and reserves moved accordingly.
 
 ### Interface
+
 Build a single-page, Uniswap-inspired interface with shadcn/ui:
 
 - Compact header with app name, local-network status, and account address.
@@ -174,7 +187,6 @@ Build a single-page, Uniswap-inspired interface with shadcn/ui:
 
 - Persistent warning that the browser-exposed development key is for local use only.
 
-
 Accessibility requirements:
 
 - Keyboard access, visible focus, accessible names, and non-color status indicators.
@@ -186,7 +198,9 @@ Accessibility requirements:
 - Reduced-motion support.
 
 ## 4. Technical Requirements
+
 ### Stack And Structure
+
 - Create the app at `apps/swap` with Vite, React, and TypeScript.
 
 - Use shadcn/ui primitives without creating a broad shared component library.
@@ -196,6 +210,7 @@ Accessibility requirements:
 - Use `bigint` for all contract amounts. Never convert base-unit values through `number`.
 
 ### Contract Integration
+
 Provide typed adapters for:
 
 - ERC20 `get_balance_of`, `allowance`, `adjust_allowance`, and metadata views.
@@ -206,7 +221,6 @@ Provide typed adapters for:
 
 - Swap router `swap_exact_tokens_for_tokens`.
 
-
 Generate or validate bindings against built contract specifications; do not hand-code entrypoint selectors. Adapters must decode typed view returns and distinguish returns, aborts, and faults.
 
 Generate event codecs from the built pair and driver specifications. Wrap generated decoders with strict application-level validation for topic counts, payload lengths, request IDs, addresses, direction, and amounts.
@@ -214,15 +228,17 @@ Generate event codecs from the built pair and driver specifications. Wrap genera
 Query events in ascending order from the enqueue receipt's block, follow cursors, and deduplicate by `(txHash, sequenceNumber)`. Accept a matching terminal event in the receipt block because enqueue and execution may occur at the same height.
 
 Pair reserves use canonical token0/token1 address ordering. Adapters must orient reserves to the UI's selected input and output tokens.
+
 ### Wallet And Transactions
+
 Every state-changing call uses the development wallet/account as the root invocation and relays the target call through its configured `doAction` entrypoint.
 
 Use a minimal replaceable wallet boundary:
 
 ```ts
 interface WalletAdapter {
-  getAddress(): Promise<ContractAddress>
-  signTransaction(transaction: Transaction): Promise<SignedTransaction>
+  getAddress(): Promise<ContractAddress>;
+  signTransaction(transaction: Transaction): Promise<SignedTransaction>;
 }
 ```
 
@@ -246,7 +262,6 @@ For each transaction:
 
 - Allow a fresh retry only after definitive pre-submission failure or authoritative invalid status.
 
-
 Model workflow explicitly:
 
 ```text
@@ -256,7 +271,9 @@ queued_not_observed, error
 ```
 
 Approval and submission may enter `error` or `indeterminate`; queued observation may enter `execution_observed` or `queued_not_observed`. Error state must retain the transaction phase, hash when available, outcome certainty, and retry eligibility. An indeterminate submitted transaction must not return to a freely resubmittable state.
+
 ### Configuration
+
 Validate these local environment values at startup:
 
 ```text
@@ -272,10 +289,12 @@ VITE_TOKEN_A_ADDRESS
 VITE_TOKEN_B_ADDRESS
 ```
 
-The local development server reads `GROUNDHOG_DEV_PRIVATE_KEY` from the ignored `.env.local` file and injects it only while serving against a loopback RPC. Production builds must not contain the key. The key and wallet entrypoint remain browser-visible while the local app runs, so treat them as public development credentials. Refuse signing and submission unless both the application page and RPC hostnames are loopback. Read token metadata on-chain when available and allow generated configuration fallbacks.
+The local development server reads `GROUNDHOG_DEV_PRIVATE_KEY` from the ignored `.env.local` file. Production builds must not contain the key. The key and wallet entrypoint remain browser-visible while the development app runs, so treat them as public development credentials. Read token metadata on-chain when available and allow generated configuration fallbacks.
 
-Use the generated network identity to scope persisted browser state. Require loopback application and RPC origins for V1; setup is responsible for generating configuration for the active local network.
+Use the generated network identity to scope persisted browser state. Setup is responsible for generating configuration for the active development network.
+
 ### Local Setup
+
 Provide one command that assumes a compatible local node is running and:
 
 1. Builds ERC20 with metadata and all swap guest artifacts.
@@ -286,19 +305,20 @@ Provide one command that assumes a compatible local node is running and:
 
 4. Deploys, funds, and initializes the router.
 
-5. Predicts and pre-funds the pair, LP token, handler, and driver addresses.
+5. Reads and funds the pair, LP token, handler, and driver addresses.
 
 6. Creates the pair, seeds balanced liquidity, and processes the add-liquidity request.
 
 7. Resolves the wallet's `doAction` entrypoint and writes addresses and metadata to generated configuration.
 
-8. Derives the disposable local key from the fresh development runtime manifest, writes it to an ignored environment file, and verifies that it authorizes the configured wallet with a smoke transaction.
+8. Derives the disposable local key from the development runtime manifest and writes it to an ignored environment file.
 
 9. Writes the generated driver and `process_requests()` entrypoint configuration consumed by `bash scripts/crank-local.sh`.
 
+The command is intended for disposable development ledgers and does not enforce a clean ledger.
 
-The command only needs to support a clean local ledger.
 ### Client Compatibility
+
 Pin compatible node, RPC wire, TypeScript client, ERC20 interface, and generated swap-specification versions.
 
 Before UI implementation, a smoke test must prove:
@@ -316,6 +336,7 @@ Before UI implementation, a smoke test must prove:
 - Filtered `SwapEvent` querying, decoding, and pagination through `groundhog_getEvents`.
 
 ### Security
+
 - Treat the app and key as local-development-only.
 
 - Never commit or log private keys, funded credentials, or signed transaction bytes.
@@ -329,6 +350,7 @@ Before UI implementation, a smoke test must prove:
 - Do not add analytics or external telemetry.
 
 ## 5. Testing
+
 Unit tests:
 
 - Decimal parsing and formatting.
@@ -345,7 +367,6 @@ Unit tests:
 
 - Balance and reserve fallback observation without inferring failure on timeout.
 
-
 Component tests:
 
 - Amount validation and direction switching.
@@ -356,12 +377,13 @@ Component tests:
 
 - Configuration, RPC, and transaction error states.
 
-
 One local integration test must execute:
 
 ```text
 load state -> one user click -> approve exact amount if needed -> enqueue exact-input swap
 -> externally process requests -> match SwapEvent -> refresh balances and reserves
 ```
+
 ## 6. Request Lifecycle Decision
+
 The configured contracts return a unique request ID and emit `RequestAccepted`, request-correlated success events, and `RequestFailed`. The frontend persists that ID and treats it as the authoritative lifecycle correlation key. It still limits the browser workflow to one outstanding request per recipient and pair to prevent accidental duplicate submissions.

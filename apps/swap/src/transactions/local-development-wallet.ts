@@ -25,7 +25,7 @@ import {
 import { sha256 } from "@noble/hashes/sha2.js";
 import { CxsWriter, serialize } from "@groundhogchain/xdr";
 
-import { isBrowserLoopback, isLoopbackUrl, type AppConfig } from "@/config";
+import type { AppConfig } from "@/config";
 import { createReadClient } from "@/groundhog/client";
 import {
   outcomeFromReceipt,
@@ -77,13 +77,6 @@ export function createLocalWriteBoundary(
     }
     return pollTransaction(client, hash, maxPolls, delay);
   };
-
-  if (!isLoopbackUrl(config.rpcUrl) || !isBrowserLoopback()) {
-    return failedBoundary(
-      "Signing requires both the application and RPC to use loopback hosts",
-      observe,
-    );
-  }
 
   let signer: PrivateKeySigner;
   let walletEntrypoint: ReturnType<typeof contractEntrypointID>;

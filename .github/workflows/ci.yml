@@ -7,6 +7,34 @@ on:
     branches: [main]
 
 jobs:
+  swap-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/swap/package-lock.json
+          registry-url: https://npm.pkg.github.com
+          scope: "@groundhogchain"
+
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm --prefix apps/swap ci
+
+      - name: Check swap frontend
+        run: |
+          npm --prefix apps/swap run typecheck
+          npm --prefix apps/swap test
+          npm --prefix apps/swap run build
+          bash -n apps/swap/scripts/setup-local.sh
+          bash -n apps/swap/scripts/crank-local.sh
+          bash -n apps/swap/scripts/generate-contract-bindings.sh
+
   build-and-test:
     strategy:
       matrix:
@@ -39,10 +67,10 @@ jobs:
             ~/.cargo/bin/groundhog
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
-          key: groundhog-cli-${{ runner.os }}-v1
+          key: groundhog-cli-${{ runner.os }}-v2
 
       - name: Install groundhog-cli
-        run: cargo install --registry groundhog --version 0.9.2 --locked groundhog-cli
+        run: cargo install --registry groundhog --version 0.9.6 --locked groundhog-cli
 
       - name: Build guest contracts
         run: ./scripts/build-guest.sh
