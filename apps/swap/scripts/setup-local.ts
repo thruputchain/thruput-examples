@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import {
@@ -107,6 +107,10 @@ async function main(): Promise<void> {
     );
   }
 
+  // Fail on invalid output paths before making any changes to the ledger.
+  await mkdir(dirname(cliConfigPath), { recursive: true });
+  await mkdir(dirname(appEnvironmentPath), { recursive: true });
+
   const deployment = await configureSwap(
     client,
     faucet,
@@ -121,23 +125,39 @@ async function main(): Promise<void> {
     ),
   );
 
-  await mkdir(dirname(cliConfigPath), { recursive: true });
-  await mkdir(dirname(appEnvironmentPath), { recursive: true });
-  await writeFile(
-    cliConfigPath,
-    renderCliConfig(
-      manifest.networkHash,
-      rpcUrl,
-      manifestPath,
-      applicationUser.keyName,
-    ),
-    { mode: 0o600 },
+  const cliContents = renderCliConfig(
+    manifest.networkHash,
+    rpcUrl,
+    manifestPath,
+    applicationUser.keyName,
   );
-  await writeFile(
-    appEnvironmentPath,
-    renderEnvironment(manifest.networkHash, rpcUrl, deployment),
-    { mode: 0o600 },
+  const environmentContents = renderEnvironment(
+    manifest.networkHash,
+    rpcUrl,
+    deployment,
   );
+  const temporarySuffix = `${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+  const temporaryCliPath = `${cliConfigPath}.${temporarySuffix}`;
+  const temporaryEnvironmentPath = `${appEnvironmentPath}.${temporarySuffix}`;
+
+  try {
+    await writeFile(temporaryCliPath, cliContents, { mode: 0o600 });
+    await writeFile(temporaryEnvironmentPath, environmentContents, {
+      mode: 0o600,
+    });
+
+    // The browser environment is the completion marker, so publish it last.
+    await rename(temporaryCliPath, cliConfigPath);
+    await rename(temporaryEnvironmentPath, appEnvironmentPath);
+  } catch (error) {
+    await Promise.all([
+      rm(temporaryCliPath, { force: true }),
+      rm(temporaryEnvironmentPath, { force: true }),
+      rm(cliConfigPath, { force: true }),
+      rm(appEnvironmentPath, { force: true }),
+    ]);
+    throw error;
+  }
 
   console.log(`
 Local swap setup complete
