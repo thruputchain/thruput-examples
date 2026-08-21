@@ -14,4 +14,4 @@ pub use swap_if::{
 };
 
 // Contract implementation
-pub use driver::{Driver, PROCESS_REQUESTS_GAS};
+pub use driver::{Driver, process_requests_gas};

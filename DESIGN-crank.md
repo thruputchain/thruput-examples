@@ -159,7 +159,7 @@ state.
 ### 1. Drain to the caller's gas limit
 
 `batch_driver::process` currently stops at a fixed high-water mark of about ten
-requests' worth of gas, which forces every caller to declare
+requests' worth of gas, which forces every caller to declare the matching
 `PROCESS_REQUESTS_GAS` (10_000 + 10 x 600_000 ~= 6M) whether or not it wants a
 batch that large.  Replace the fixed mark with the frame's actual remaining gas:
 
@@ -185,8 +185,12 @@ pub fn process<R, F, E>(queue: &mut RCQ<R>, mut handle: F) -> (u32, u32) {
 
 The caller's declared gas limit now *is* its chosen batch size, honestly priced:
 a latency-sensitive user can crank two requests cheaply, a keeper can drain
-deeply, and neither over-encumbers.  `PROCESS_REQUESTS_GAS` stops being a
-requirement and becomes, at most, a suggested default.
+deeply, and neither over-encumbers.  The fixed `PROCESS_REQUESTS_GAS` gives way
+to `batch_driver::gas_for_batch::<R>(batch_size)`, and the driver's
+`process_requests_gas(batch_size)` naming it, so a caller asks for the batch it
+wants rather than reading off a figure chosen for it.  The reserve that check
+needs -- one request's worth beyond the batch, since the loop must find room for
+a whole request before taking one -- stays inside the helper.
 
 `process_requests` keeps its current signature: an explicit `max_requests`
 argument would only restate what the declared gas limit already says.

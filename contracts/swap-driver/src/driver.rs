@@ -30,9 +30,17 @@ pub struct Driver {
     seq: NNInt,
 }
 
-/// Recommended gas limit for `process_requests()`
-///   (some overhead plus enough for ~10 requests).
-pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + (10 * REQUEST_GAS_MAX);
+/// The gas limit to declare on a `process_requests()` call intended to drain
+/// up to `batch_size` requests.
+///
+/// There is no one recommended figure: the drain is bounded by whatever gas
+/// its frame has left, so the caller's declared limit *is* the batch size.  A
+/// caller wanting low latency on its own request, and a small encumbrance of
+/// its throughput share, asks for a small batch; one draining a backlog asks
+/// for a large one.
+pub const fn process_requests_gas(batch_size: u32) -> u64 {
+    batch_driver::gas_for_batch::<SwapRequest>(batch_size)
+}
 
 #[contract(exports = "swap_driver_exports")]
 impl SwapDriver for Driver {
