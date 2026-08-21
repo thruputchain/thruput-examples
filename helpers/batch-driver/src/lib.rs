@@ -78,6 +78,74 @@ pub const fn gas_for_batch<R: BatchRequest>(batch_size: u32) -> u64 {
     EPILOGUE_GAS.saturating_add(requests.saturating_mul(R::GAS_LIMIT))
 }
 
+/// Admission control for a driver's queue: the room still left in it.
+///
+/// A queued entry costs storage, and that storage is a deposit locked out of
+/// the driver contract's own HOG balance, so whoever funds a driver wants a
+/// stated ceiling on how much it can be made to hold.  `Slots` is that ceiling,
+/// held as *remaining* capacity so that concurrent enqueues never have to read
+/// it: each takes its slot as a blind delta, and the runtime enforces the floor
+/// across the whole block when their deltas are reserved.
+///
+/// There is deliberately no way to read the count.  A read would see the last
+/// committed value plus the reading transaction's own deltas -- never a
+/// concurrent enqueue's -- so it would be stale in exactly the blocks where a
+/// caller would want it, and identical for every request in one block.
+///
+/// ```ignore
+/// #[storage]
+/// pub struct Driver {
+///     requests: RCQ<Request>,
+///     slots: Node<Slots>,
+/// }
+///
+/// fn initialize(&mut self, max_queue_len: u32) {
+///     self.slots.set_capacity(max_queue_len);
+/// }
+///
+/// fn request(&mut self, request: Request) {
+///     self.slots.reserve();
+///     self.requests.insert(&request);
+/// }
+///
+/// fn process_requests(&mut self) -> (u32, u32) {
+///     let (n_processed, n_failed) = batch_driver::process(...);
+///     self.slots.release(n_processed);
+///     (n_processed, n_failed)
+/// }
+/// ```
+#[derive(Storage)]
+pub struct Slots {
+    remaining: NNInt,
+}
+
+impl Slots {
+    /// Set the ceiling: the most entries the queue behind these slots will
+    /// hold.  Call once, when the driver is initialized.
+    pub fn set_capacity(&mut self, capacity: u32) {
+        self.remaining.set(i128::from(capacity));
+    }
+
+    /// Take the slot for one entry about to be enqueued.
+    ///
+    /// Deliberately the *lazy* increment.  The floor is enforced when the
+    /// transaction's deltas are reserved rather than checked against the
+    /// snapshot here, and that difference is what becomes of an enqueue that
+    /// arrives at a full queue: this way it is excluded from its block and
+    /// returned to the mempool, landing once a drain frees capacity.  A
+    /// call-time check (`strict_inc`) would instead revert the frame, leaving
+    /// the transaction in the block with no effect and no retry -- turning
+    /// "you were early" into "you failed".
+    pub fn reserve(&mut self) {
+        self.remaining.inc(-1);
+    }
+
+    /// Return the slots of `count` entries that have left the queue.
+    pub fn release(&mut self, count: u32) {
+        self.remaining.inc(i128::from(count));
+    }
+}
+
 /// A request that can be batched by a driver.
 ///
 /// This is all a request type must provide for [`process`] to drive it: a way

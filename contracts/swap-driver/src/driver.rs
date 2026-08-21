@@ -7,6 +7,7 @@
 //! and is shared by any driver, whatever its request type.
 
 use crate::cfg::*;
+use batch_driver::Slots;
 use sdk::storage::*;
 use sdk::*;
 use swap_if::*;
@@ -28,6 +29,11 @@ pub struct Driver {
     // increments from concurrent transactions merge without conflict), so this
     // preserves the concurrent enqueue the queue is built for.
     seq: NNInt,
+
+    // Room left in `requests`, counted down as requests arrive and back up as
+    // they are drained.  This is what bounds the storage deposit the queue can
+    // lock out of this contract's balance; see `batch_driver::Slots`.
+    slots: Node<Slots>,
 }
 
 /// The gas limit to declare on a `process_requests()` call intended to drain
@@ -44,7 +50,7 @@ pub const fn process_requests_gas(batch_size: u32) -> u64 {
 
 #[contract(exports = "swap_driver_exports")]
 impl SwapDriver for Driver {
-    fn initialize(&mut self, handler: &Address) {
+    fn initialize(&mut self, handler: &Address, max_queue_len: u32) {
         if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");
         }
@@ -53,9 +59,17 @@ impl SwapDriver for Driver {
 
         // Ensure only one `initialize` call can succeed per block.
         self.cfg.set_exclusive(&cfg);
+
+        self.slots.set_capacity(max_queue_len);
     }
 
     fn request(&mut self, request: SwapRequest) -> RequestId {
+        // Claim this request's room in the queue.  If the queue is full the
+        // claim overruns the capacity, and this whole transaction is excluded
+        // from the block and returned to the mempool -- the request waits for
+        // room rather than failing.
+        self.slots.reserve();
+
         // Mint an id from the enqueuing transaction's hash plus a sequence
         // number: the tx hash lets the caller correlate the id with its
         // submission, while the sequence keeps requests distinct when several
@@ -73,21 +87,28 @@ impl SwapDriver for Driver {
     fn process_requests(&mut self) -> (u32, u32) {
         let cfg = self.cfg.get();
 
-        batch_driver::process(&mut self.requests, |request, gas_limit| {
-            // Read the id before the request is moved into handling; a failure
-            // rolls back the handler's frame, so the terminal event for a
-            // failed request must come from here, in the driver's own
-            // (committed) frame.
-            let request_id = request.request_id;
-            let result = cfg
-                .handler()
-                .with_commit_locking()
-                .with_gas_limit(gas_limit)
-                .try_handle_request(request);
-            if result.is_err() {
-                log_event(&RequestFailed::new(request_id));
-            }
-            result
-        })
+        let (n_processed, n_failed) =
+            batch_driver::process(&mut self.requests, |request, gas_limit| {
+                // Read the id before the request is moved into handling; a failure
+                // rolls back the handler's frame, so the terminal event for a
+                // failed request must come from here, in the driver's own
+                // (committed) frame.
+                let request_id = request.request_id;
+                let result = cfg
+                    .handler()
+                    .with_commit_locking()
+                    .with_gas_limit(gas_limit)
+                    .try_handle_request(request);
+                if result.is_err() {
+                    log_event(&RequestFailed::new(request_id));
+                }
+                result
+            });
+
+        // Every request the batch took is out of the queue -- including the
+        // ones whose handling failed -- so its room comes back.
+        self.slots.release(n_processed);
+
+        (n_processed, n_failed)
     }
 }

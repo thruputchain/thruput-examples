@@ -4,6 +4,12 @@ use super::*;
 // above what these tests spend.
 const CONTRACT_FUNDING: i64 = 1_000_000_000;
 
+// How many requests the driver under test will hold at once.  Deliberately
+// far smaller than the figure the factory deploys with, so a test can reach
+// the ceiling in a handful of transactions; comfortably above the depth any
+// other test here queues.
+pub const MAX_QUEUE_LEN: u32 = 8;
+
 // Deploy nonces, at module scope so a contract's deterministic address can be
 // computed (and funded) before it is deployed.
 hash_ident! { static TOKEN_0_NONCE: SHA256Hash; }
@@ -272,7 +278,7 @@ fn driver_deploy_init(driver_hash: &SHA256Hash, handler_addr: &Address) -> Addre
 
     let driver = SwapDriverClient::new(&driver_addr);
 
-    driver.initialize(handler_addr);
+    driver.initialize(handler_addr, MAX_QUEUE_LEN);
 
     driver_addr
 }

@@ -15,12 +15,24 @@ use sdk::*;
 )]
 pub trait SwapDriver {
     /// Must be called exactly once before any other methods.
-    fn initialize(&mut self, handler: &Address);
+    ///
+    /// `max_queue_len` caps how many requests may wait at once.  Each waiting
+    /// request costs storage, deposited out of this contract's own HOG balance,
+    /// so the cap is what bounds the deposit whoever funds the driver must
+    /// stand behind.  Requests arriving at a full queue are deferred, not
+    /// rejected: see [`request`](Self::request).
+    fn initialize(&mut self, handler: &Address, max_queue_len: u32);
 
     /// Enqueue a request to be handled later, when `process_requests` runs.
     ///
     /// Returns the [`RequestId`] stamped on the request, which the caller can
     /// match against the event the request eventually produces.
+    ///
+    /// A request that would take the queue past the `max_queue_len` given at
+    /// initialization does not fail: its transaction is excluded from the block
+    /// and returned to the mempool, so it lands once a `process_requests` has
+    /// freed room.  A caller that cannot wait indefinitely bounds that with the
+    /// transaction's own expiry height.
     fn request(&mut self, request: SwapRequest) -> RequestId;
 
     /// Drain the queue, returning `(processed, failed)` counts.  Each failed

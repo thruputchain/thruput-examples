@@ -225,14 +225,20 @@ pub struct Driver {
     cfg: Value<Cfg>,
     requests: RCQ<SwapRequest>,
     seq: NNInt,
-    slots: NNInt, // remaining queue capacity
+    slots: Node<Slots>, // remaining queue capacity
 }
 ```
 
-* `initialize`: `self.slots.set(MAX_QUEUE_LEN)`
-* `request`: `self.slots.inc(-1)`
-* `process_requests`: `self.slots.inc(n_processed as i128)` (failed requests were
-  consumed too, so they return their slots)
+* `initialize(handler, max_queue_len)`: `self.slots.set_capacity(max_queue_len)`
+* `request`: `self.slots.reserve()`
+* `process_requests`: `self.slots.release(n_processed)` (failed requests were
+  consumed too, so they return their room)
+
+The cap is a parameter rather than a constant because it is a funding decision:
+the deposit comes out of the driver contract's own balance, so whoever deploys
+and funds a driver should size it.  The factory passes its own default.
+`batch_driver::Slots` holds the counter, so the lazy-versus-strict choice below
+is made once, where the pattern is documented, rather than at each driver.
 
 Concurrent enqueues merge as deltas and never conflict with each other.  When the
 queue is full, the aggregate would breach the floor and the surplus enqueues are
@@ -347,9 +353,12 @@ plain counter because it persists across blocks.
   empirical `*_GAS` constants in `swap-if`.
 * Choose `MAX_QUEUE_LEN`, and check it against the driver contract's funded HOG
   balance and `rcq_cost_per_entry`.
-* When 3 lands, test the admission counter where the code lives -- that a full
-  queue defers an enqueue (lazy `inc`, retried from the mempool) rather than
-  reverting it (`strict_inc`, included with no effect and never retried).
+* Regenerate `apps/swap/src/contracts/generated/swap-driver.ts`.  The
+  `initialize` signature gained `max_queue_len`, and the checked-in bindings
+  still show the old one.  Nothing in the app calls it -- the factory
+  initializes drivers on-chain, and the entrypoint ids are derived from the
+  method name, so they are unchanged -- but the bindings are stale until
+  someone with CLI 0.9.6 or newer re-runs `generate-contract-bindings.sh`.
 
 ## Established
 
@@ -359,3 +368,11 @@ one consumer per block, a losing crank deferred to the mempool having seen the
 undrained snapshot, a crank on an empty queue as a delta-free no-op that
 conflicts with nothing, and same-block service when the proposer's ordering
 allows it.
+
+The admission behaviour is pinned down by
+[`helpers/batch-driver/tests/admission.rs`](helpers/batch-driver/tests/admission.rs)
+and [`contracts/swap-driver/tests/admission.rs`](contracts/swap-driver/tests/admission.rs):
+concurrent enqueues within the ceiling all land, the one that overruns it runs
+its frame to completion and is held back only at commit (so the mempool retries
+it), and draining returns the room -- including the room of requests whose
+handling failed.

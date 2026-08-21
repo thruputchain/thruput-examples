@@ -24,6 +24,17 @@ pub struct Factory {
     all_pairs: Vector<Value<Addresses>>,
 }
 
+/// How many requests a pool's driver will hold at once.
+///
+/// Each waiting request locks a storage deposit out of the driver's own HOG
+/// balance, so this is the exposure the factory commits every driver it creates
+/// to -- and, once the queue is that deep, further requests wait in the mempool
+/// for a `process_requests` to make room.  Sized to absorb a burst of several
+/// blocks' arrivals rather than any particular batch: a single crank drains as
+/// much as the cranker's gas limit allows, and only one crank per block can
+/// land.
+const MAX_QUEUE_LEN: u32 = 256;
+
 #[contract(exports = "swap_factory_exports")]
 impl SwapFactory for Factory {
     fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>) {
@@ -63,7 +74,7 @@ impl SwapFactory for Factory {
         let me = get_current_address();
         SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token);
         SwapHandlerClient::new(&handler).initialize(&pair, token0, token1);
-        SwapDriverClient::new(&driver).initialize(&handler);
+        SwapDriverClient::new(&driver).initialize(&handler, MAX_QUEUE_LEN);
 
         // Record the new pair: by tokens (for `get_pair`) and in creation
         // order (for `pair_at`).
