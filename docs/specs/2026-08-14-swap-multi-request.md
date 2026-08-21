@@ -31,7 +31,7 @@ Extend the swap frontend to let one account enqueue multiple exact-input swaps b
 
 - Show an in-app **Crank queue** action whenever at least one locally tracked request is queued, queued without an observed terminal event, or queued without a decodable request ID.
 - Present the action as processing all requests in the configured transaction queue without showing a local request count.
-- Invoke the generated `SwapDriver.processRequests()` target through the existing loopback-only browser write boundary.
+- Invoke the generated `SwapDriver.processRequests()` target through the existing development browser write boundary.
 - Serialize cranking with approval and swap submission across tabs through the same pair-scoped Web Lock. Re-read local request and crank-attempt state after acquiring the lock and before signing.
 - Persist a crank attempt before signing and retain its hash as soon as it is signed. A signed or indeterminate attempt must survive reloads and block another in-app crank until its outcome is resolved authoritatively.
 - Never retry an indeterminate crank automatically. Allow an explicit status check through the existing transaction observation boundary.

@@ -17,18 +17,16 @@ describe("development private key boundary", () => {
       developmentPrivateKeyDefinition(
         "build",
         false,
-        "http://127.0.0.1:9545",
         { GROUNDHOG_DEV_PRIVATE_KEY: canary },
       ),
     ).toBe("undefined");
   });
 
-  it("defines the private key only while serving locally", () => {
+  it("defines the private key only while serving the development app", () => {
     expect(
       developmentPrivateKeyDefinition(
         "serve",
         false,
-        "http://127.0.0.1:9545",
         { GROUNDHOG_DEV_PRIVATE_KEY: canary },
       ),
     ).toBe(JSON.stringify(canary));
@@ -36,20 +34,18 @@ describe("development private key boundary", () => {
       developmentPrivateKeyDefinition(
         "serve",
         false,
-        "http://127.0.0.1:9545",
         {},
       ),
     ).toBe("undefined");
   });
 
-  it("does not define the key for preview or a remote RPC target", () => {
+  it("does not define the key for preview", () => {
     const environment = { GROUNDHOG_DEV_PRIVATE_KEY: canary };
 
     expect(
       developmentPrivateKeyDefinition(
         "serve",
         true,
-        "http://127.0.0.1:9545",
         environment,
       ),
     ).toBe("undefined");
@@ -57,10 +53,9 @@ describe("development private key boundary", () => {
       developmentPrivateKeyDefinition(
         "serve",
         false,
-        "https://rpc.example.com",
         environment,
       ),
-    ).toBe("undefined");
+    ).toBe(JSON.stringify(canary));
   });
 });
 

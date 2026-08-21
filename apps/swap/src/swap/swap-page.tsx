@@ -41,7 +41,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { isBrowserLoopback, isLoopbackUrl, type AppConfig } from "@/config";
+import { isLoopbackUrl, type AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { buildProcessRequestsTarget } from "@/contracts/driver-target";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
@@ -398,7 +398,6 @@ function SwapWorkspace({
   const formOutstanding = outstanding !== null && isBlockingRequest(outstanding)
     ? outstanding
     : null;
-  const localRpc = isLoopbackUrl(config.rpcUrl) && isBrowserLoopback();
   const nextAnnouncement = transactionAnnouncement({
     workflow,
     outstanding,
@@ -910,7 +909,6 @@ function SwapWorkspace({
       || !quote.ok
       || !slippageResult.ok
       || actionInFlight.current
-      || !localRpc
     ) return;
 
     const reviewedIntent = {
@@ -1403,7 +1401,6 @@ function SwapWorkspace({
     if (
       !workspaceMounted.current
       || actionInFlight.current
-      || !localRpc
       || crankStorageError !== null
     ) return;
 
@@ -1656,8 +1653,7 @@ function SwapWorkspace({
             <Button
               type="button"
               disabled={
-                !localRpc
-                || !quoteValid
+                !quoteValid
                 || isUserRefreshing
                 || controlsLocked
                 || requestQueueFull
@@ -1676,7 +1672,6 @@ function SwapWorkspace({
                 quoteValid,
                 isRefreshing: isUserRefreshing,
                 slippageValid: slippageResult.ok,
-                localRpc,
                 allowanceDifference: quote.ok
                   ? quote.allowanceDifference
                   : null,
@@ -1708,7 +1703,7 @@ function SwapWorkspace({
           isCheckingRecovery={isCheckingRecovery}
           crankAttempt={crankAttempt}
           isCranking={isCranking}
-          crankDisabled={!localRpc || crankStorageError !== null}
+          crankDisabled={crankStorageError !== null}
           onDismiss={dismissRequest}
           onCrank={() => void executeCrank()}
           onCheckCrank={() => void checkCrankStatus()}
@@ -2155,7 +2150,6 @@ function actionLabel(params: {
   quoteValid: boolean;
   isRefreshing: boolean;
   slippageValid: boolean;
-  localRpc: boolean;
   allowanceDifference: bigint | null;
   workflow: WorkflowState;
   outstanding: RequestRecord | null;
@@ -2167,7 +2161,6 @@ function actionLabel(params: {
       ? "Submitting swap"
       : "Approving swap";
   }
-  if (!params.localRpc) return "Signing requires a local RPC";
   if (params.outstanding?.status === "queuedUntracked")
     return "Queued; request ID unavailable";
   if (params.outstanding?.status === "queuedNotObserved")

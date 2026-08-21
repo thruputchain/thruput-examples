@@ -44,7 +44,6 @@ export default defineConfig(({ command, isPreview, mode }) => {
         developmentPrivateKeyDefinition(
           command,
           isPreview ?? false,
-          rpcTarget,
           environment,
         ),
     },
@@ -67,14 +66,9 @@ export default defineConfig(({ command, isPreview, mode }) => {
 export function developmentPrivateKeyDefinition(
   command: "build" | "serve",
   isPreview: boolean,
-  rpcTarget: string,
   environment: Record<string, string | undefined>,
 ): string {
-  if (
-    command !== "serve" ||
-    isPreview ||
-    !isLoopback(new URL(rpcTarget).hostname)
-  ) {
+  if (command !== "serve" || isPreview) {
     return "undefined";
   }
   return JSON.stringify(environment.GROUNDHOG_DEV_PRIVATE_KEY) ?? "undefined";

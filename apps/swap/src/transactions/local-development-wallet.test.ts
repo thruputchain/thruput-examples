@@ -182,32 +182,6 @@ describe("local development wallet encoding", () => {
     expect(result.hash).toMatch(/^0x[0-9a-f]{64}$/);
   });
 
-  it("rejects writes to a non-loopback endpoint before signing", async () => {
-    const boundary = createLocalWriteBoundary(
-      { ...config, rpcUrl: new URL("https://rpc.example.com") },
-      wallet,
-    );
-
-    await expect(boundary.execute(target)).resolves.toMatchObject({
-      kind: "preSubmissionFailure",
-      hash: null,
-    });
-  });
-
-  it("rejects signing when the application page is not loopback", async () => {
-    vi.stubGlobal("window", { location: { hostname: "app.example.com" } });
-    try {
-      const boundary = createLocalWriteBoundary(config, wallet);
-
-      await expect(boundary.execute(target)).resolves.toMatchObject({
-        kind: "preSubmissionFailure",
-        hash: null,
-      });
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
   it("can observe a restored signed request when signer configuration is invalid", async () => {
     const hash = `0x${"03".repeat(32)}`;
     const client = {

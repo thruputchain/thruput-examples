@@ -4,7 +4,6 @@ cargo-features = ["trim-paths"] #unstable
 resolver = "3"
 
 members = [
-    "apps/swap/setup",
     "contracts/*",
     "sim-fixtures/*",
     "helpers/*",
@@ -49,4 +48,3 @@ hex = "0.4"
 
 [profile.release]
 trim-paths = "all" # unstable
-
