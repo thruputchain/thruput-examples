@@ -188,6 +188,9 @@ a latency-sensitive user can crank two requests cheaply, a keeper can drain
 deeply, and neither over-encumbers.  `PROCESS_REQUESTS_GAS` stops being a
 requirement and becomes, at most, a suggested default.
 
+`process_requests` keeps its current signature: an explicit `max_requests`
+argument would only restate what the declared gas limit already says.
+
 This is the piece most worth copying into other batching applications, and it
 belongs in the reusable helper rather than in `swap-driver`.
 
@@ -336,14 +339,19 @@ plain counter because it persists across blocks.
 
 ## Follow-ups
 
-* Land the semantics probes as a regression test.  They currently live in a
-  scratch crate; they belong next to `swap-driver`'s tests, since the whole
-  scheme rests on the exclusion-versus-no-op split.
-* Decide whether `process_requests` should also take an explicit `max_requests`
-  argument.  The gas limit already expresses the caller's intent, so this is
-  redundant -- but an explicit parameter reads more clearly to someone lifting
-  the pattern.
 * Calibrate `EPILOGUE_GAS` against the guest build, alongside the existing
   empirical `*_GAS` constants in `swap-if`.
 * Choose `MAX_QUEUE_LEN`, and check it against the driver contract's funded HOG
   balance and `rcq_cost_per_entry`.
+* When 3 lands, test the admission counter where the code lives -- that a full
+  queue defers an enqueue (lazy `inc`, retried from the mempool) rather than
+  reverting it (`strict_inc`, included with no effect and never retried).
+
+## Established
+
+The queue semantics this design rests on are pinned down by
+[`helpers/batch-driver/tests/queue_semantics.rs`](helpers/batch-driver/tests/queue_semantics.rs):
+one consumer per block, a losing crank deferred to the mempool having seen the
+undrained snapshot, a crank on an empty queue as a delta-free no-op that
+conflicts with nothing, and same-block service when the proposer's ordering
+allows it.

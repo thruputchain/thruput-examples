@@ -21,5 +21,9 @@ sdk = { workspace = true }
 # Enables failure logging (and std) in native tests.
 dev = ["sdk/dev"]
 
+# Turns the `dev` feature on for the tests in `tests/`.
+[dev-dependencies]
+batch-driver = { path = ".", features = ["dev"] }
+
 [lints]
 clippy.result_large_err = "allow"
