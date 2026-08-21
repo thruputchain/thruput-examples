@@ -16,7 +16,12 @@ import type {
   RequestObserver,
 } from "@/transactions/request-observer";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
-import { loadCrankAttempt } from "@/transactions/crank-attempt";
+import {
+  crankAttemptKey,
+  createCrankAttempt,
+  loadCrankAttempt,
+  saveCrankAttempt,
+} from "@/transactions/crank-attempt";
 import {
   createRequestRecord,
   loadRequestCollection,
@@ -86,6 +91,13 @@ function renderApp(
       requestObserver={requestObserver}
       {...(writeBoundary === undefined ? {} : { writeBoundary })}
     />,
+  );
+}
+
+async function enableManualProcessing(container?: HTMLElement): Promise<void> {
+  const scope = container === undefined ? screen : within(container);
+  await userEvent.setup().click(
+    await scope.findByRole("switch", { name: "Manual queue processing" }),
   );
 }
 
@@ -287,7 +299,7 @@ describe("read-only swap experience", () => {
 });
 
 describe("local swap submission", () => {
-  it("approves the exact amount and queues the swap from one click", async () => {
+  it("approves, queues, and processes one batch from one click", async () => {
     const user = userEvent.setup();
     const read = vi
       .fn<SnapshotReader>()
@@ -301,16 +313,24 @@ describe("local swap submission", () => {
       execute: vi
         .fn()
         .mockResolvedValueOnce(committedSuccess(8n))
-        .mockResolvedValueOnce(committedSuccess(9n)),
+        .mockResolvedValueOnce(committedSuccess(9n))
+        .mockResolvedValueOnce(committedSuccess(10n)),
     };
     renderApp(read, writer);
 
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Approve & swap" }));
 
-    expect(await screen.findByText("Queued for execution")).toBeInTheDocument();
+    expect(await screen.findByText("Execution pending")).toBeInTheDocument();
     expect(screen.getByLabelText("YOU PAY")).toBeEnabled();
-    expect(writer.execute).toHaveBeenCalledTimes(2);
+    expect(writer.execute).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(writer.execute).mock.calls.map(([target]) =>
+      target.invoked_address
+    )).toEqual([
+      config.tokenAAddress,
+      config.routerAddress,
+      config.driverAddress,
+    ]);
   });
 
   it("does not lower the reviewed minimum output after approval", async () => {
@@ -341,7 +361,7 @@ describe("local swap submission", () => {
     expect(writer.execute).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a successful router receipt while keeping the form available", async () => {
+  it("keeps the form available after automatic queue processing commits", async () => {
     const user = userEvent.setup();
     const approved = pool({
       tokenA: { ...pool().tokenA, allowance: 10_000_000n },
@@ -354,22 +374,311 @@ describe("local swap submission", () => {
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Swap" }));
 
-    expect(await screen.findByText("Queued for execution")).toBeInTheDocument();
+    expect(await screen.findByText("Execution pending")).toBeInTheDocument();
     await waitFor(() =>
       expect(
         screen.getByRole("status", { name: "Transaction status" }),
       ).toHaveTextContent("Swap queued for execution."),
     );
-    expect(screen.getByText("Transaction queue")).toBeInTheDocument();
-    expect(
-      screen.getByText("Crank to process all requests in the queue."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Transaction queue")).not.toBeInTheDocument();
     expect(screen.getByLabelText("YOU PAY")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Enter an amount" })).toBeDisabled();
-    expect(writer.execute).toHaveBeenCalledTimes(1);
+    expect(writer.execute).toHaveBeenCalledTimes(2);
 
     expect(screen.queryByRole("button", { name: "Resolve manually" })).not.toBeInTheDocument();
     expect(loadOutstandingRequest(config)?.status).toBe("queued");
+  });
+
+  it("persists the queued request and signed crank before submitting it", async () => {
+    const user = userEvent.setup();
+    const approved = pool({
+      tokenA: { ...pool().tokenA, allowance: 10_000_000n },
+    });
+    let write = 0;
+    const writer: WriteBoundary = {
+      execute: vi.fn(async (target, observer) => {
+        write += 1;
+        if (write === 1) {
+          expect(target.invoked_address).toEqual(config.routerAddress);
+          observer?.onSigned(hash);
+          return committedSuccess(12n);
+        }
+
+        expect(target.invoked_address).toEqual(config.driverAddress);
+        expect(loadRequestCollection(config)[0]?.status).toBe("queued");
+        expect(loadCrankAttempt(config)).toMatchObject({
+          status: "signing",
+          transactionHash: null,
+        });
+        observer?.onSigned(hash);
+        expect(loadCrankAttempt(config)?.transactionHash).toBe(hash);
+        const result = committedSuccess(13n);
+        result.receipt.events = [];
+        return result;
+      }),
+    };
+    renderApp(async () => approved, writer);
+
+    await user.type(await screen.findByLabelText("YOU PAY"), "10");
+    await user.click(screen.getByRole("button", { name: "Swap" }));
+
+    await waitFor(() => expect(loadCrankAttempt(config)?.status).toBe("committed"));
+    expect(writer.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("never renders the manual crank action during automatic processing", async () => {
+    const user = userEvent.setup();
+    const approved = pool({
+      tokenA: { ...pool().tokenA, allowance: 10_000_000n },
+    });
+    let resolveCrank!: (result: WriteResult) => void;
+    const pendingCrank = new Promise<WriteResult>((resolve) => {
+      resolveCrank = resolve;
+    });
+    let write = 0;
+    const writer: WriteBoundary = {
+      execute: vi.fn((_target, observer) => {
+        write += 1;
+        if (write === 1) return Promise.resolve(committedSuccess(12n));
+        observer?.onSigned(hash);
+        return pendingCrank;
+      }),
+    };
+    renderApp(async () => approved, writer);
+
+    await user.type(await screen.findByLabelText("YOU PAY"), "10");
+    await user.click(screen.getByRole("button", { name: "Swap" }));
+
+    expect(await screen.findByText("Processing queue")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Crank queue" }),
+    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      const result = committedSuccess(13n);
+      result.receipt.events = [];
+      resolveCrank(result);
+    });
+    await waitFor(() => expect(loadCrankAttempt(config)?.status).toBe("committed"));
+    expect(
+      screen.queryByRole("button", { name: "Crank queue" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a committed crank recoverable when request persistence fails", async () => {
+    const user = userEvent.setup();
+    const approved = pool({
+      tokenA: { ...pool().tokenA, allowance: 10_000_000n },
+    });
+    const setItem = window.localStorage.setItem.bind(window.localStorage);
+    let failRequestWrite = false;
+    const storageWrite = vi.spyOn(window.localStorage, "setItem")
+      .mockImplementation((key, value) => {
+        if (failRequestWrite && key === requestCollectionKey(config)) {
+          failRequestWrite = false;
+          throw new Error("storage unavailable");
+        }
+        setItem(key, value);
+      });
+    let write = 0;
+    const writer: WriteBoundary = {
+      execute: vi.fn(async (_target, observer) => {
+        write += 1;
+        if (write === 1) return committedSuccess(12n);
+        observer?.onSigned(hash);
+        failRequestWrite = true;
+        const result = committedSuccess(13n);
+        result.receipt.events = [];
+        return result;
+      }),
+    };
+    renderApp(async () => approved, writer);
+
+    try {
+      await user.type(await screen.findByLabelText("YOU PAY"), "10");
+      await user.click(screen.getByRole("button", { name: "Swap" }));
+
+      await waitFor(() =>
+        expect(loadCrankAttempt(config)?.status).toBe("indeterminate")
+      );
+      expect(loadRequestCollection(config)[0]?.status).toBe("queued");
+      expect(loadCrankAttempt(config)?.status).not.toBe("committed");
+      expect(loadCrankAttempt(config)?.transactionHash).toBe(hash);
+    } finally {
+      storageWrite.mockRestore();
+    }
+  });
+
+  it("retries an authoritative crank failure without resubmitting the swap", async () => {
+    const user = userEvent.setup();
+    const approved = pool({
+      tokenA: { ...pool().tokenA, allowance: 10_000_000n },
+    });
+    const failedReceipt = committedSuccess(13n).receipt;
+    const writer: WriteBoundary = {
+      execute: vi.fn()
+        .mockResolvedValueOnce(committedSuccess(12n))
+        .mockResolvedValueOnce({
+          kind: "committedFailure",
+          hash,
+          receipt: {
+            ...failedReceipt,
+            execResult: ExecResult.ExecResultTxRootFrameReverted,
+          },
+        } satisfies WriteResult)
+        .mockResolvedValueOnce({
+          ...committedSuccess(14n),
+          receipt: { ...committedSuccess(14n).receipt, events: [] },
+        }),
+    };
+    renderApp(async () => approved, writer);
+
+    await user.type(await screen.findByLabelText("YOU PAY"), "10");
+    await user.click(screen.getByRole("button", { name: "Swap" }));
+
+    expect(
+      await screen.findByText(/retry without resubmitting your swap/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Transaction status" }),
+    ).toHaveTextContent(
+      "Queue processing failed. Retry without resubmitting the swap.",
+    );
+    expect(loadRequestCollection(config)[0]?.status).toBe("queued");
+    await user.click(
+      screen.getByRole("button", { name: "Retry queue processing" }),
+    );
+    await waitFor(() => expect(loadCrankAttempt(config)?.status).toBe("committed"));
+    expect(vi.mocked(writer.execute).mock.calls.map(([target]) =>
+      target.invoked_address
+    )).toEqual([
+      config.routerAddress,
+      config.driverAddress,
+      config.driverAddress,
+    ]);
+  });
+
+  it("blocks automatic swaps while the crank outcome is uncertain", async () => {
+    const user = userEvent.setup();
+    const approved = pool({
+      tokenA: { ...pool().tokenA, allowance: 10_000_000n },
+    });
+    const writer: WriteBoundary = {
+      execute: vi.fn()
+        .mockResolvedValueOnce(committedSuccess(12n))
+        .mockImplementationOnce(async (_target, observer) => {
+          observer?.onSigned(hash);
+          return {
+            kind: "indeterminate",
+            hash: null,
+            reason: "timeout",
+          } satisfies WriteResult;
+        }),
+    };
+    renderApp(async () => approved, writer);
+
+    await user.type(await screen.findByLabelText("YOU PAY"), "10");
+    await user.click(screen.getByRole("button", { name: "Swap" }));
+
+    expect(
+      await screen.findByText(/last crank's outcome is uncertain/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Transaction status" }),
+    ).toHaveTextContent(
+      "Queue-processing outcome uncertain. Check the original transaction before trying again.",
+    );
+    expect(loadCrankAttempt(config)).toMatchObject({
+      status: "indeterminate",
+      transactionHash: hash,
+    });
+    expect(screen.getByLabelText("YOU PAY")).toBeDisabled();
+    expect(
+      screen.getByRole("switch", { name: "Manual queue processing" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Check crank status" }),
+    ).toBeEnabled();
+    expect(writer.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not process queued work on mount or mode changes", async () => {
+    const user = userEvent.setup();
+    saveRequestCollection(config, [queuedRequest("queued-request", 0xcd)]);
+    const writer: WriteBoundary = { execute: vi.fn() };
+    const view = renderApp(async () => pool(), writer);
+
+    const toggle = await screen.findByRole("switch", {
+      name: "Manual queue processing",
+    });
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+    await user.click(toggle);
+    expect(writer.execute).not.toHaveBeenCalled();
+
+    view.unmount();
+    renderApp(async () => pool(), writer);
+    expect(
+      await screen.findByRole("switch", { name: "Manual queue processing" }),
+    ).not.toBeChecked();
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
+
+  it("reveals hidden queued work by enabling manual processing", async () => {
+    const user = userEvent.setup();
+    const queued = queuedRequest("queued-request", 0xcd);
+    const executed: ReturnType<typeof queuedRequest> = {
+      ...queuedRequest("executed-request", 0xce),
+      status: "executed",
+      execution: {
+        kind: "executed",
+        transactionHash: `0x${"ef".repeat(32)}`,
+        blockHeight: 14n,
+        amountIn: 10_000_000n,
+        amountOut: 19_500_000n,
+      },
+    };
+    saveRequestCollection(config, [queued, executed]);
+    renderApp();
+
+    expect(await screen.findAllByRole("listitem")).toHaveLength(1);
+    await user.click(
+      screen.getByRole("button", { name: "Queued work available" }),
+    );
+
+    expect(
+      screen.getByRole("switch", { name: "Manual queue processing" }),
+    ).toBeChecked();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Crank queue" })).toBeEnabled();
+  });
+
+  it("does not let the hidden-work shortcut bypass recovery locking", async () => {
+    const queued = queuedRequest("queued-request", 0xcd);
+    const recovering = createRequestRecord(
+      {
+        status: "indeterminate",
+        phase: "swap",
+        intent: { amountIn: 1_000_000n, amountOutMin: 1n },
+        transactionHash: hash,
+        receiptBlock: null,
+        requestId: null,
+        visibleObservationMs: 0,
+        observationBaseline: null,
+        criteria,
+      },
+      { localId: "recovering-request", now: 2 },
+    );
+    saveRequestCollection(config, [queued, recovering]);
+    renderApp();
+
+    expect(
+      await screen.findByRole("button", { name: "Queued work available" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("switch", { name: "Manual queue processing" }),
+    ).toBeDisabled();
   });
 
   it("processes the whole driver queue and reconciles matching receipt events", async () => {
@@ -410,9 +719,13 @@ describe("local swap submission", () => {
       }),
     };
     renderApp(async () => pool(), writer);
+    await enableManualProcessing();
 
     expect(
       await screen.findByText("Crank to process all requests in the queue."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Transaction queue" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/crank-local\.sh/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Crank queue" }));
@@ -446,6 +759,87 @@ describe("local swap submission", () => {
     expect(writer.execute).toHaveBeenCalledTimes(2);
   });
 
+  it("disables manual queue processing during a pending submission", async () => {
+    const user = userEvent.setup();
+    saveRequestCollection(config, [queuedRequest("queued-request", 0xcd)]);
+    let resolveWrite!: (result: WriteResult) => void;
+    const pending = new Promise<WriteResult>((resolve) => {
+      resolveWrite = resolve;
+    });
+    const snapshot = pool({
+      tokenA: {
+        ...pool().tokenA,
+        balance: 100_000_000n,
+        allowance: 11_000_000n,
+      },
+    });
+    const writer: WriteBoundary = { execute: vi.fn().mockReturnValue(pending) };
+    renderApp(async () => snapshot, writer);
+    await enableManualProcessing();
+
+    await user.type(await screen.findByLabelText("YOU PAY"), "1");
+    await user.click(screen.getByRole("button", { name: "Swap" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Submitting swap" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Crank queue" })).toBeDisabled();
+
+    await act(async () => {
+      resolveWrite({ kind: "invalid", hash, reason: "expired" });
+    });
+  });
+
+  it("disables crank recovery during a pending submission", async () => {
+    const user = userEvent.setup();
+    saveRequestCollection(config, [queuedRequest("queued-request", 0xcd)]);
+    let resolveWrite!: (result: WriteResult) => void;
+    const pending = new Promise<WriteResult>((resolve) => {
+      resolveWrite = resolve;
+    });
+    const snapshot = pool({
+      tokenA: {
+        ...pool().tokenA,
+        balance: 100_000_000n,
+        allowance: 11_000_000n,
+      },
+    });
+    const writer: WriteBoundary = {
+      execute: vi.fn().mockReturnValue(pending),
+      observe: vi.fn(),
+    };
+    renderApp(async () => snapshot, writer);
+    await enableManualProcessing();
+    saveCrankAttempt(config, {
+      ...createCrankAttempt(config),
+      status: "indeterminate",
+      transactionHash: hash,
+      message: "The queue-processing outcome is uncertain.",
+    });
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", {
+        key: crankAttemptKey(config),
+      }));
+    });
+    expect(
+      await screen.findByRole("button", { name: "Check crank status" }),
+    ).toBeEnabled();
+
+    await user.type(screen.getByLabelText("YOU PAY"), "1");
+    await user.click(screen.getByRole("button", { name: "Swap" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Submitting swap" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Check crank status" }),
+    ).toBeDisabled();
+
+    await act(async () => {
+      resolveWrite({ kind: "invalid", hash, reason: "expired" });
+    });
+  });
+
   it("preserves an uncertain crank and checks its original hash explicitly", async () => {
     const user = userEvent.setup();
     saveRequestCollection(config, [queuedRequest("queued-request", 0xcd)]);
@@ -462,6 +856,7 @@ describe("local swap submission", () => {
         }),
     };
     renderApp(async () => pool(), writer);
+    await enableManualProcessing();
 
     await user.click(await screen.findByRole("button", { name: "Crank queue" }));
     expect(
@@ -548,6 +943,8 @@ describe("local swap submission", () => {
     );
     const firstView = within(first.container);
     const secondView = within(second.container);
+    await enableManualProcessing(first.container);
+    await enableManualProcessing(second.container);
 
     await user.click(await firstView.findByRole("button", { name: "Crank queue" }));
     await waitFor(() => expect(writer.execute).toHaveBeenCalledTimes(1));
@@ -618,6 +1015,8 @@ describe("local swap submission", () => {
     );
     const firstView = within(first.container);
     const secondView = within(second.container);
+    await enableManualProcessing(first.container);
+    await enableManualProcessing(second.container);
 
     await user.click(await firstView.findByRole("button", { name: "Crank queue" }));
     await waitFor(() => expect(writer.execute).toHaveBeenCalledTimes(1));
@@ -660,6 +1059,7 @@ describe("local swap submission", () => {
       }),
     };
     renderApp(readSnapshot, writer);
+    await enableManualProcessing();
 
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Swap" }));
@@ -761,6 +1161,7 @@ describe("local swap submission", () => {
       writer,
       requestObserver,
     );
+    await enableManualProcessing();
 
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Swap" }));
@@ -815,6 +1216,7 @@ describe("local swap submission", () => {
       writer,
       requestObserver,
     );
+    await enableManualProcessing();
 
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Swap" }));
@@ -885,7 +1287,7 @@ describe("local swap submission", () => {
     await user.click(screen.getByRole("button", { name: "Swap" }));
 
     expect(
-      await screen.findByText("Queued; request ID unavailable"),
+      await screen.findByText("Execution pending"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("status", { name: "Transaction status" }),
@@ -908,18 +1310,23 @@ describe("local swap submission", () => {
       tokenA: { ...pool().tokenA, allowance: 10_000_000n },
     });
     const writer: WriteBoundary = {
-      execute: vi.fn().mockResolvedValue({
-        kind: "indeterminate",
-        hash,
-        reason: "disconnect",
-      } satisfies WriteResult),
+      execute: vi.fn(async (_target, observer) => {
+        observer?.onSigned(hash);
+        return {
+          kind: "indeterminate",
+          hash: null,
+          reason: "disconnect",
+        } satisfies WriteResult;
+      }),
     };
     renderApp(async () => approved, writer);
 
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Swap" }));
 
-    expect(await screen.findByText("Outcome uncertain")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Transaction outcome uncertain"),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Do not retry it automatically/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("status", { name: "Transaction status" }),
@@ -930,6 +1337,7 @@ describe("local swap submission", () => {
     expect(
       screen.getByRole("button", { name: "Check transaction status" }),
     ).toBeEnabled();
+    expect(loadOutstandingRequest(config)?.transactionHash).toBe(hash);
   });
 
   it("persists the signed hash before swap polling completes", async () => {
@@ -957,9 +1365,15 @@ describe("local swap submission", () => {
     await user.click(screen.getByRole("button", { name: "Swap" }));
 
     await waitFor(() => expect(status).toHaveTextContent("Submitting swap."));
+    expect(
+      screen.getByRole("switch", { name: "Manual queue processing" }),
+    ).toBeDisabled();
     expect(loadOutstandingRequest(config)?.transactionHash).toBe(hash);
     await act(async () => resolveWrite?.({ kind: "invalid", hash, reason: "expired" }));
     await screen.findByRole("button", { name: "Try again" });
+    expect(
+      screen.getByRole("switch", { name: "Manual queue processing" }),
+    ).toBeEnabled();
     expect(status).toBeEmptyDOMElement();
     expect(
       screen.getByRole("status", { name: "Transaction status" }),
@@ -994,11 +1408,14 @@ describe("local swap submission", () => {
     const user = userEvent.setup();
     let approvalCommitted = false;
     const writer: WriteBoundary = {
-      execute: vi.fn().mockResolvedValue({
-        kind: "indeterminate",
-        hash,
-        reason: "disconnect",
-      } satisfies WriteResult),
+      execute: vi.fn(async (_target, observer) => {
+        observer?.onSigned(hash);
+        return {
+          kind: "indeterminate",
+          hash: null,
+          reason: "disconnect",
+        } satisfies WriteResult;
+      }),
       observe: vi.fn(async () => {
         approvalCommitted = true;
         return committedSuccess(12n);
@@ -1019,7 +1436,7 @@ describe("local swap submission", () => {
     await user.type(await screen.findByLabelText("YOU PAY"), "10");
     await user.click(screen.getByRole("button", { name: "Approve & swap" }));
 
-    await screen.findByText("Outcome uncertain");
+    await screen.findByText("Transaction outcome uncertain");
     expect(loadOutstandingRequest(config)).toMatchObject({
       status: "indeterminate",
       phase: "approval",
@@ -1054,7 +1471,7 @@ describe("local swap submission", () => {
       execute: vi.fn(),
       observe: vi.fn().mockResolvedValue({
         kind: "indeterminate",
-        hash,
+        hash: null,
         reason: "timeout",
       } satisfies WriteResult),
     };
@@ -1115,6 +1532,35 @@ describe("local swap submission", () => {
     });
   });
 
+  it("does not crank after the workspace unmounts during router submission", async () => {
+    const user = userEvent.setup();
+    const approved = pool({
+      tokenA: { ...pool().tokenA, allowance: 10_000_000n },
+    });
+    let resolveSubmission!: (result: WriteResult) => void;
+    const writer: WriteBoundary = {
+      execute: vi.fn((_target, observer) => {
+        observer?.onSigned(hash);
+        return new Promise<WriteResult>((resolve) => {
+          resolveSubmission = resolve;
+        });
+      }),
+    };
+    const view = renderApp(async () => approved, writer);
+    await user.type(await screen.findByLabelText("YOU PAY"), "10");
+    await user.click(screen.getByRole("button", { name: "Swap" }));
+    await waitFor(() =>
+      expect(loadOutstandingRequest(config)?.transactionHash).toBe(hash)
+    );
+
+    view.unmount();
+    await act(async () => resolveSubmission(committedSuccess(12n)));
+
+    expect(writer.execute).toHaveBeenCalledTimes(1);
+    expect(loadOutstandingRequest(config)?.status).toBe("queued");
+    expect(loadCrankAttempt(config)).toBeNull();
+  });
+
   it("keeps a committed router failure non-resubmittable", async () => {
     const user = userEvent.setup();
     const approved = pool({
@@ -1138,6 +1584,11 @@ describe("local swap submission", () => {
 
     expect(await screen.findByRole("button", { name: "Transaction failed" })).toBeDisabled();
     expect(screen.getByText(/committed with a failed execution/)).toBeInTheDocument();
+    const mode = screen.getByRole("switch", {
+      name: "Manual queue processing",
+    });
+    expect(mode).toBeEnabled();
+    await user.click(mode);
     await user.click(screen.getByRole("button", { name: "Dismiss from history" }));
     expect(screen.getByRole("button", { name: "Swap" })).toBeEnabled();
   });
@@ -1160,7 +1611,7 @@ describe("local swap submission", () => {
     renderApp(async () => approved);
 
     await screen.findByLabelText("YOU PAY");
-    expect(screen.getByText("Queued for execution")).toBeInTheDocument();
+    expect(screen.getByText("Execution pending")).toBeInTheDocument();
     expect(screen.getByLabelText("YOU PAY")).toBeEnabled();
   });
 
@@ -1210,6 +1661,7 @@ describe("local swap submission", () => {
     };
     saveRequestCollection(config, [queued, executed]);
     renderApp();
+    await enableManualProcessing();
 
     expect(await screen.findAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByText("Queued for execution")).toBeInTheDocument();
@@ -1281,6 +1733,7 @@ describe("local swap submission", () => {
       }),
     };
     renderApp(async () => pool(), undefined, requestObserver);
+    await enableManualProcessing();
 
     expect(await screen.findByText("Executed")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
@@ -1344,8 +1797,8 @@ describe("local swap submission", () => {
     };
     renderApp(async () => pool(), undefined, requestObserver);
 
-    expect(await screen.findByText("Execution not observed")).toBeInTheDocument();
-    expect(screen.getByText(/request may still execute/i)).toBeInTheDocument();
+    expect(await screen.findByText("Execution pending")).toBeInTheDocument();
+    expect(await screen.findByText(/request may still execute/i)).toBeInTheDocument();
     expect(screen.getByLabelText("YOU PAY")).toBeEnabled();
     expect(loadOutstandingRequest(config)?.status).toBe("queuedNotObserved");
     await waitFor(() => expect(requestObserver.scan).toHaveBeenCalled());
@@ -1550,6 +2003,7 @@ describe("local swap submission", () => {
       ),
     };
     renderApp(readSnapshot, undefined, requestObserver);
+    await enableManualProcessing();
     await waitFor(() => expect(requestObserver.scan).toHaveBeenCalledTimes(1));
 
     const second = {
@@ -1608,7 +2062,7 @@ describe("local swap submission", () => {
     };
     renderApp(async () => pool(), undefined, requestObserver);
     await waitFor(() => expect(requestObserver.scan).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("Execution not observed")).toBeInTheDocument();
+    expect(await screen.findByText("Execution pending")).toBeInTheDocument();
 
     await act(async () => {
       resolveScan({
@@ -1774,11 +2228,11 @@ describe("local swap submission", () => {
       criteria,
     });
     const writer: WriteBoundary = {
-      execute: async () => ({
+      execute: vi.fn(async () => ({
         kind: "preSubmissionFailure",
         hash: null,
         message: "not used",
-      }),
+      } satisfies WriteResult)),
       observe: vi.fn().mockResolvedValue(committedSuccess(12n)),
     };
     render(
@@ -1794,7 +2248,7 @@ describe("local swap submission", () => {
       </StrictMode>,
     );
 
-    expect(await screen.findByText("Queued for execution")).toBeInTheDocument();
+    expect(await screen.findByText("Execution pending")).toBeInTheDocument();
     await waitFor(() =>
       expect(
         screen.getByRole("status", { name: "Transaction status" }),
@@ -1807,6 +2261,7 @@ describe("local swap submission", () => {
     });
     expect(writer.observe).toHaveBeenCalledTimes(1);
     expect(writer.observe).toHaveBeenCalledWith(hash);
+    expect(writer.execute).not.toHaveBeenCalled();
   });
 
   it("does not recreate a restored request cleared during transaction observation", async () => {
@@ -1902,7 +2357,7 @@ describe("local swap submission", () => {
 
     await act(async () => resolveWrite?.(committedSuccess(12n)));
 
-    await waitFor(() => expect(writer.execute).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(writer.execute).toHaveBeenCalledTimes(2));
     expect(loadOutstandingRequest(config)?.status).toBe("queued");
   });
 
@@ -1947,7 +2402,11 @@ describe("local swap submission", () => {
     };
     const readSnapshot = async () =>
       pool({
-        tokenA: { ...pool().tokenA, allowance },
+        tokenA: {
+          ...pool().tokenA,
+          balance: 100_000_000n,
+          allowance,
+        },
         chainHeight: 20n,
       });
     const requestObserver: RequestObserver = {
@@ -1984,12 +2443,20 @@ describe("local swap submission", () => {
     await act(async () => resolveFirst(committedSuccess(12n)));
 
     await waitFor(() => {
-      expect(writer.execute).toHaveBeenCalledTimes(3);
+      expect(writer.execute).toHaveBeenCalledTimes(4);
       expect(loadRequestCollection(config).map(({ status }) => status)).toEqual([
         "queued",
         "queued",
       ]);
     });
+    expect(vi.mocked(writer.execute).mock.calls.map(([target]) =>
+      target.invoked_address
+    )).toEqual([
+      config.routerAddress,
+      config.driverAddress,
+      config.routerAddress,
+      config.driverAddress,
+    ]);
     expect(new Set(
       loadRequestCollection(config).map(({ requestId }) => requestId),
     ).size).toBe(2);

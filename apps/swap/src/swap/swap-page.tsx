@@ -27,7 +27,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -40,6 +47,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { isLoopbackUrl, type AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
@@ -346,6 +354,7 @@ function SwapWorkspace({
     initialCrankState.error,
   );
   const [isCranking, setIsCranking] = useState(false);
+  const [manualProcessing, setManualProcessing] = useState(false);
   const [collectionReady, setCollectionReady] = useState(
     !hasLegacyOutstandingRequest(config),
   );
@@ -392,9 +401,27 @@ function SwapWorkspace({
   const controlsLocked =
     !collectionReady
     || requestStorageError !== null
+    || (!manualProcessing && crankStorageError !== null)
     || isAcquiringLock
     || isWorkflowLocked(workflow)
-    || requests.some(isBlockingRequest);
+    || requests.some(isBlockingRequest)
+    || (!manualProcessing && isBlockingCrankAttempt(crankAttempt));
+  const modeLocked = isAcquiringLock
+    || isCranking
+    || isCheckingRecovery
+    || ["approving", "submitting", "indeterminate"].includes(workflow.status)
+    || isBlockingCrankAttempt(crankAttempt)
+    || requests.some((request) =>
+      request.status === "approving"
+      || request.status === "submitting"
+      || request.status === "indeterminate"
+    );
+  const crankRecoveryDisabled = isAcquiringLock
+    || isCheckingRecovery
+    || ["approving", "submitting"].includes(workflow.status)
+    || requests.some((request) =>
+      request.status === "approving" || request.status === "submitting"
+    );
   const formOutstanding = outstanding !== null && isBlockingRequest(outstanding)
     ? outstanding
     : null;
@@ -402,6 +429,7 @@ function SwapWorkspace({
     workflow,
     outstanding,
     executionOutcomes,
+    crankAttempt,
     isCranking,
     isAcquiringLock,
     allowanceDifference: quote.ok ? quote.allowanceDifference : null,
@@ -625,13 +653,13 @@ function SwapWorkspace({
               ? {
                   ...request,
                   status: "committedFailure",
-                  transactionHash: result.hash,
+                  transactionHash: result.hash ?? request.transactionHash,
                   updatedAt: Date.now(),
                 }
               : {
                   ...request,
                   status: "indeterminate",
-                  transactionHash: result.hash,
+                  transactionHash: result.hash ?? request.transactionHash,
                   updatedAt: Date.now(),
                 };
           if (!sameRequestVersion(stored, recoveredRequest)) {
@@ -770,7 +798,7 @@ function SwapWorkspace({
         const scanned = current.filter(isObservableRequest);
         if (scanned.length === 0) return;
 
-        let batch;
+        let batch: ReturnType<typeof observationsFromReceipt> | undefined;
         let fallbackSnapshot: PoolSnapshot | null = null;
         try {
           if (requestObserver.scanAll !== undefined) {
@@ -915,6 +943,7 @@ function SwapWorkspace({
       amountIn: quote.amountIn,
       amountOutMin: quote.amountOutMin,
     };
+    const automaticProcessing = !manualProcessing;
     let persisted: RequestRecord | null = null;
     let workflowStarted = false;
     actionInFlight.current = true;
@@ -935,6 +964,15 @@ function SwapWorkspace({
     try {
       await withRequestCollectionLock(config, async () => {
         let current = loadRequestCollectionForUpdate(config);
+        const expectedCrankAttempt = loadCrankAttempt(config);
+        if (
+          automaticProcessing
+          && isBlockingCrankAttempt(expectedCrankAttempt)
+        ) {
+          setRequests(current);
+          setCrankAttempt(expectedCrankAttempt);
+          return;
+        }
         const blocking = current.find(isBlockingRequest);
         if (blocking !== undefined) {
           setRequests(current);
@@ -1048,7 +1086,8 @@ function SwapWorkspace({
                 status: approval.kind === "indeterminate"
                   ? "indeterminate"
                   : "committedFailure",
-                transactionHash: approval.hash,
+                transactionHash:
+                  approval.hash ?? approvalRequest.transactionHash,
                 updatedAt: Date.now(),
               };
               saveRecord(approvalRequest);
@@ -1216,6 +1255,17 @@ function SwapWorkspace({
             });
             dispatch({ type: "inputChanged" });
           }
+          if (automaticProcessing && workspaceMounted.current) {
+            setIsCranking(true);
+            setCrankStorageError(null);
+            try {
+              await executeCrankWithLockHeld(expectedCrankAttempt);
+            } catch {
+              recoverInterruptedCrank();
+            } finally {
+              if (workspaceMounted.current) setIsCranking(false);
+            }
+          }
           return;
         }
 
@@ -1228,7 +1278,8 @@ function SwapWorkspace({
             status: submission.kind === "indeterminate"
               ? "indeterminate"
               : "committedFailure",
-            transactionHash: submission.hash,
+            transactionHash:
+              submission.hash ?? submittingRequest.transactionHash,
             updatedAt: Date.now(),
           };
           saveRecord(submittingRequest);
@@ -1350,8 +1401,13 @@ function SwapWorkspace({
       const scanned = current.filter(isObservableRequest);
       let observations: RequestObservation[] = [];
       if (scanned.length > 0) {
+        let batch;
         try {
-          const batch = observationsFromReceipt(config, scanned, result.receipt);
+          batch = observationsFromReceipt(config, scanned, result.receipt);
+        } catch {
+          // Polling remains authoritative if a committed receipt cannot be decoded.
+        }
+        if (batch !== undefined) {
           const next = saveRequestCollection(
             config,
             applyObservationBatch(current, scanned, batch),
@@ -1364,8 +1420,6 @@ function SwapWorkspace({
               refreshSnapshot();
             }
           }
-        } catch {
-          // Polling remains authoritative if a committed receipt cannot be decoded.
         }
       }
       return saveCrankAttempt(config, {
@@ -1397,6 +1451,65 @@ function SwapWorkspace({
     });
   };
 
+  async function executeCrankWithLockHeld(
+    expectedAttempt: CrankAttempt | null,
+  ): Promise<void> {
+    const current = loadRequestCollectionForUpdate(config);
+    const storedAttempt = loadCrankAttempt(config);
+    if (!sameCrankAttempt(storedAttempt, expectedAttempt)) {
+      if (workspaceMounted.current) {
+        setRequests(current);
+        setCrankAttempt(storedAttempt);
+      }
+      return;
+    }
+    if (
+      isBlockingCrankAttempt(storedAttempt)
+      || current.some(isBlockingRequest)
+      || !current.some(needsQueueProcessing)
+    ) return;
+
+    let activeAttempt = saveCrankAttempt(config, createCrankAttempt(config));
+    if (workspaceMounted.current) setCrankAttempt(activeAttempt);
+    const result = await writeBoundary.execute(
+      buildProcessRequestsTarget(config.driverAddress),
+      {
+        onSigned: (transactionHash) => {
+          activeAttempt = saveCrankAttempt(config, {
+            ...activeAttempt,
+            transactionHash,
+            updatedAt: Date.now(),
+          });
+          if (workspaceMounted.current) setCrankAttempt(activeAttempt);
+        },
+      },
+    );
+    activeAttempt = applyCrankResult(activeAttempt, result);
+    if (workspaceMounted.current) setCrankAttempt(activeAttempt);
+  }
+
+  function recoverInterruptedCrank(): void {
+    try {
+      const recoverable = loadCrankAttempt(config);
+      if (recoverable !== null && isBlockingCrankAttempt(recoverable)) {
+        const activeAttempt = saveCrankAttempt(config, {
+          ...recoverable,
+          status: "indeterminate",
+          updatedAt: Date.now(),
+          message:
+            "Queue processing was interrupted. Confirm the original transaction outcome before trying again.",
+        });
+        if (workspaceMounted.current) setCrankAttempt(activeAttempt);
+      } else {
+        setCrankStorageError("Queue processing could not be started safely.");
+      }
+    } catch {
+      setCrankStorageError(
+        "The queue-processing outcome is uncertain and its recovery state could not be saved.",
+      );
+    }
+  }
+
   async function executeCrank() {
     if (
       !workspaceMounted.current
@@ -1405,67 +1518,17 @@ function SwapWorkspace({
     ) return;
 
     const expectedAttempt = crankAttempt;
-    let activeAttempt: CrankAttempt | null = null;
     actionInFlight.current = true;
     setIsAcquiringLock(true);
     setIsCranking(true);
     setExecutionOutcomes([]);
     setCrankStorageError(null);
     try {
-      await withRequestCollectionLock(config, async () => {
-        const current = loadRequestCollectionForUpdate(config);
-        const storedAttempt = loadCrankAttempt(config);
-        if (!sameCrankAttempt(storedAttempt, expectedAttempt)) {
-          if (workspaceMounted.current) {
-            setRequests(current);
-            setCrankAttempt(storedAttempt);
-          }
-          return;
-        }
-        if (
-          isBlockingCrankAttempt(storedAttempt)
-          || current.some(isBlockingRequest)
-          || !current.some(needsQueueProcessing)
-        ) return;
-
-        activeAttempt = saveCrankAttempt(config, createCrankAttempt(config));
-        if (workspaceMounted.current) setCrankAttempt(activeAttempt);
-        const result = await writeBoundary.execute(
-          buildProcessRequestsTarget(config.driverAddress),
-          {
-            onSigned: (transactionHash) => {
-              activeAttempt = saveCrankAttempt(config, {
-                ...activeAttempt!,
-                transactionHash,
-                updatedAt: Date.now(),
-              });
-              if (workspaceMounted.current) setCrankAttempt(activeAttempt);
-            },
-          },
-        );
-        activeAttempt = applyCrankResult(activeAttempt, result);
-        if (workspaceMounted.current) setCrankAttempt(activeAttempt);
-      });
+      await withRequestCollectionLock(config, () =>
+        executeCrankWithLockHeld(expectedAttempt)
+      );
     } catch {
-      try {
-        const recoverable = loadCrankAttempt(config);
-        if (recoverable !== null && isBlockingCrankAttempt(recoverable)) {
-          activeAttempt = saveCrankAttempt(config, {
-            ...recoverable,
-            status: "indeterminate",
-            updatedAt: Date.now(),
-            message:
-              "Queue processing was interrupted. Confirm the original transaction outcome before trying again.",
-          });
-          if (workspaceMounted.current) setCrankAttempt(activeAttempt);
-        } else {
-          setCrankStorageError("Queue processing could not be started safely.");
-        }
-      } catch {
-        setCrankStorageError(
-          "The queue-processing outcome is uncertain and its recovery state could not be saved.",
-        );
-      }
+      recoverInterruptedCrank();
     } finally {
       actionInFlight.current = false;
       if (workspaceMounted.current) {
@@ -1522,7 +1585,11 @@ function SwapWorkspace({
 
   function confirmPreHashCrankRecovery() {
     const expectedAttempt = crankAttempt;
-    if (expectedAttempt === null || expectedAttempt.transactionHash !== null) return;
+    if (
+      expectedAttempt === null
+      || expectedAttempt.transactionHash !== null
+      || actionInFlight.current
+    ) return;
     void withRequestCollectionLock(config, () => {
       const storedAttempt = loadCrankAttempt(config);
       if (!sameCrankAttempt(storedAttempt, expectedAttempt)) return storedAttempt;
@@ -1695,7 +1762,27 @@ function SwapWorkspace({
             />
           </CardFooter>
         </Card>
+        <Field
+          orientation="horizontal"
+          data-disabled={modeLocked}
+          className="px-1"
+        >
+          <FieldContent>
+            <FieldTitle>Manual queue processing</FieldTitle>
+            <FieldDescription>
+              Review request history and choose when to process the queue.
+            </FieldDescription>
+          </FieldContent>
+          <Switch
+            aria-label="Manual queue processing"
+            checked={manualProcessing}
+            disabled={modeLocked}
+            onCheckedChange={setManualProcessing}
+          />
+        </Field>
         <RequestList
+          automatic={!manualProcessing}
+          modeChangeDisabled={modeLocked}
           requests={requests}
           tokenA={snapshot.tokenA}
           tokenB={snapshot.tokenB}
@@ -1703,7 +1790,8 @@ function SwapWorkspace({
           isCheckingRecovery={isCheckingRecovery}
           crankAttempt={crankAttempt}
           isCranking={isCranking}
-          crankDisabled={crankStorageError !== null}
+          crankDisabled={crankStorageError !== null || modeLocked}
+          crankRecoveryDisabled={crankRecoveryDisabled}
           onDismiss={dismissRequest}
           onCrank={() => void executeCrank()}
           onCheckCrank={() => void checkCrankStatus()}
@@ -1711,6 +1799,7 @@ function SwapWorkspace({
           onCheckRecovery={() => setRecoveryCheck((current) => current + 1)}
           onConfirmRecovery={confirmPreHashRecovery}
           onResolveUntracked={resolveUntrackedRequest}
+          onShowManual={() => setManualProcessing(true)}
         />
       </div>
     </div>
@@ -2213,6 +2302,7 @@ function transactionAnnouncement(params: {
   workflow: WorkflowState;
   outstanding: RequestRecord | null;
   executionOutcomes: readonly RequestObservation[];
+  crankAttempt: CrankAttempt | null;
   isCranking: boolean;
   isAcquiringLock: boolean;
   allowanceDifference: bigint | null;
@@ -2247,16 +2337,23 @@ function transactionAnnouncement(params: {
     "readyToApprove",
     "readyToSwap",
   ].includes(params.workflow.status);
-  const persistedStatus = params.outstanding?.status;
-  const persistedStatusOverridesWorkflow =
-    persistedStatus === "committedFailure" ||
-    persistedStatus === "queuedNotObserved" ||
-    persistedStatus === "queuedUntracked";
-  const status = persistedStatusOverridesWorkflow
-    ? persistedStatus
-    : activeWorkflow
-      ? params.workflow.status
-      : persistedStatus;
+  if (activeWorkflow) {
+    switch (params.workflow.status) {
+      case "approving":
+        return "Approving swap.";
+      case "submitting":
+        return "Submitting swap.";
+      case "queued":
+        return "Swap queued for execution.";
+      default:
+        return "";
+    }
+  }
+  if (params.crankAttempt?.status === "indeterminate")
+    return "Queue-processing outcome uncertain. Check the original transaction before trying again.";
+  if (params.crankAttempt?.status === "failed")
+    return "Queue processing failed. Retry without resubmitting the swap.";
+  const status = params.outstanding?.status;
   switch (status) {
     case "approving":
       return "Approving swap.";
@@ -2271,8 +2368,6 @@ function transactionAnnouncement(params: {
     case "indeterminate":
       return "";
     case "committedFailure":
-      return "";
-    case "error":
       return "";
     default:
       return "";
