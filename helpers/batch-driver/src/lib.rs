@@ -24,6 +24,22 @@
 //!     })
 //! }
 //! ```
+//!
+//! ## Draining belongs in a transaction of its own
+//!
+//! It is tempting to let a request submission drain the queue on its way past,
+//! sparing the caller a second transaction.  Two properties of the queue make
+//! that a bad trade:
+//!
+//! * A drain does not see the requests its own block ordered after it, so a
+//!   combined transaction usually would not serve its own request anyway.
+//! * Only one transaction per block may consume from a queue.  A combined
+//!   transaction that loses that race is excluded whole -- taking its request
+//!   submission down with it, and so delaying exactly the request whose caller
+//!   was trying to hurry it along.
+//!
+//! Keeping the two apart also keeps the drain's declared gas limit -- and thus
+//! the throughput capacity it encumbers -- independent of the request's.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 

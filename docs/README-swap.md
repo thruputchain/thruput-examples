@@ -21,6 +21,8 @@ Groundhog of UniswapV2, adding a request-batching layer:
 
 The router returns a request ID when the driver accepts a request. The driver emits `RequestAccepted`, then an external call to `process_requests()` forwards queued requests to the handler. Successful pair operations include the request ID in their event; failed processing emits `RequestFailed` from the driver. This lets clients distinguish enqueueing from terminal execution.
 
+That external call ("cranking the queue") is a transaction of its own, by anyone. It drains until the queue empties or its gas limit runs out, so the cranker chooses the batch size — and pays for it in throughput capacity, not fees. Combining a crank with a request submission would delay the request rather than hurry it, for the reasons in the [`batch-driver`](../helpers/batch-driver/src/lib.rs) module docs.
+
 ## Local Frontend
 
 See [`apps/swap/README.md`](../apps/swap/README.md) for local node setup, the browser application, queue processing, tests, and troubleshooting.

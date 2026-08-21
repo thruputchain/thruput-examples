@@ -25,5 +25,13 @@ pub trait SwapDriver {
 
     /// Drain the queue, returning `(processed, failed)` counts.  Each failed
     /// request emits a [`RequestFailed`] carrying its [`RequestId`].
+    ///
+    /// How much is drained is up to the caller: the batch runs until the queue
+    /// empties or the calling frame runs out of gas, so the declared gas limit
+    /// is the batch size (size one with `swap_driver::process_requests_gas`).
+    ///
+    /// Call this in a transaction of its own, never combined with a
+    /// [`request`](Self::request) -- see the `batch_driver` module docs for
+    /// why combining the two delays the very request it would try to hurry.
     fn process_requests(&mut self) -> (u32, u32);
 }
