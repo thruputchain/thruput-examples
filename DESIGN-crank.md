@@ -302,6 +302,12 @@ crank transaction does not prove that every locally tracked request reached a
 terminal state", 2026-08-14-swap-multi-request).  A user whose request is still
 queued simply submits another crank.
 
+This policy is written down for clients in two places: generically, for anyone
+building on the driver pattern, under "Who drains, and when" in the
+[`batch-driver`](helpers/batch-driver/src/lib.rs) module docs; and in swap's own
+terms under "Cranking the Queue" in
+[`docs/README-swap.md`](docs/README-swap.md).
+
 ### Liveness
 
 An administrator's keeper cranking every block gives ~1-block latency.  User
@@ -405,6 +411,12 @@ the contracts are still moving.
   it ought to read as not-yet-observed rather than as a committed failure --
   but that is worth seeing rather than assuming.  A submission's expiry height
   is what bounds the wait.
+
+* **The shell crank does not choose a batch size.**
+  [`crank-local.sh`](apps/swap/scripts/crank-local.sh) invokes `groundhog call`,
+  which has no gas-limit flag and declares its own default.  Harmless against a
+  local devnode, where nothing competes for throughput, but the in-app crank
+  should choose deliberately rather than copy the fallback.
 
 * **A committed crank returning `(0, 0)` is ordinary**, not an error: it means
   the queue was empty at that block's snapshot, or another crank got there

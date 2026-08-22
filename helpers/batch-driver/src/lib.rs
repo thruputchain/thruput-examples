@@ -40,6 +40,37 @@
 //!
 //! Keeping the two apart also keeps the drain's declared gas limit -- and thus
 //! the throughput capacity it encumbers -- independent of the request's.
+//!
+//! ## Who drains, and when
+//!
+//! Draining needs no privilege, so anyone may do it, and the policy that falls
+//! out of the queue's own rules is about as simple as a policy gets: after
+//! submitting a request, send a drain as its own transaction, sized to the
+//! batch you are willing to fund and given a short expiry height.  Then stop.
+//!
+//! Nothing needs to be polled, estimated, or timed, because each way a drain
+//! can turn out is already harmless:
+//!
+//! * Another drain won the block.  Yours is excluded and returned to the
+//!   mempool, and lands in a later block on its own.
+//! * The queue was empty at the block's snapshot.  Yours commits having done
+//!   nothing, writing no delta and conflicting with nobody.
+//! * Otherwise it drains, up to the batch its gas limit bought.
+//!
+//! The short expiry is what keeps the first case from turning into a nuisance:
+//! a drain that loses several blocks running should give up rather than land
+//! much later as a pointless no-op.
+//!
+//! Batching does not have to be arranged for.  Only one drain per block can
+//! commit, so any arrival rate faster than that builds a queue by itself, and
+//! the next drain takes what accumulated.  A driver that waited for a queue to
+//! grow "ripe" before draining would only be adding latency to a batch the
+//! next block would have taken anyway.
+//!
+//! An operator's own queue-keeper, if desired, composes with this without any
+//! mode switch: while it runs it wins each block and everyone else's drains
+//! defer harmlessly behind it; if it stops, theirs start winning the very next
+//! block.  Nobody has to detect which of those is happening.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
@@ -91,6 +122,8 @@ pub const fn gas_for_batch<R: BatchRequest>(batch_size: u32) -> u64 {
 /// committed value plus the reading transaction's own deltas -- never a
 /// concurrent enqueue's -- so it would be stale in exactly the blocks where a
 /// caller would want it, and identical for every request in one block.
+///
+/// # Example
 ///
 /// ```ignore
 /// #[storage]

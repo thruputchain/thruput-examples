@@ -28,6 +28,12 @@ read_generated_value() {
 driver_address="$(read_generated_value VITE_SWAP_DRIVER_ADDRESS)"
 process_requests="$(read_generated_value SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT)"
 
+# `process_requests` drains as deep as the calling transaction's gas limit
+# allows, so that limit is what picks the batch size.  `groundhog call` has no
+# flag for it and declares its own default, which means this fallback does not
+# choose one -- fine against a local devnode, where nothing competes for
+# throughput, but not the model for a client on a live network.  See
+# "Cranking the Queue" in docs/README-swap.md.
 if ! XDG_CONFIG_HOME="$app_dir/.groundhog-config" \
   "$groundhog_cli" call "$driver_address" "$process_requests" 0x; then
   printf 'Crank failed. Check the generated setup and node connection.\n' >&2
