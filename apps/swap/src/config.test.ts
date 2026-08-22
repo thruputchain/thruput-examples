@@ -5,6 +5,7 @@ import {
   isLoopbackHostname,
   isLoopbackUrl,
   loadAppConfig,
+  loadGlobalConfig,
   type Environment,
 } from "./config";
 
@@ -16,8 +17,12 @@ function environment(overrides: Environment = {}): Environment {
     VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
     VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
     VITE_GROUNDHOG_WALLET_ADDRESS: ADDRESS,
+    VITE_NATIVE_HOG_ADDRESS: ADDRESS,
+    VITE_SWAP_FACTORY_ADDRESS: ADDRESS,
     VITE_SWAP_ROUTER_ADDRESS: ADDRESS,
+    VITE_POOL_CONTRACT_FUNDING: "10000000",
     VITE_SWAP_PAIR_ADDRESS: ADDRESS,
+    VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS: ADDRESS,
     VITE_SWAP_HANDLER_ADDRESS: ADDRESS,
     VITE_SWAP_DRIVER_ADDRESS: ADDRESS,
     VITE_TOKEN_A_ADDRESS: ADDRESS,
@@ -32,7 +37,8 @@ describe("loadAppConfig", () => {
 
     expect(config.rpcUrl.href).toBe("http://127.0.0.1:9545/");
     expect(config.networkIdHex).toBe("00".repeat(32));
-    expect(config.tokenDecimals).toBe(6);
+    expect(config.tokenADecimals).toBe(6);
+    expect(config.tokenBDecimals).toBe(6);
   });
 
   it("reports the exact missing variable", () => {
@@ -64,6 +70,28 @@ describe("loadAppConfig", () => {
         }),
       ),
     ).toThrow("must not contain credentials");
+  });
+});
+
+describe("loadGlobalConfig", () => {
+  it("requires only factory-oriented runtime values", () => {
+    const config = loadGlobalConfig(environment({
+      VITE_SWAP_PAIR_ADDRESS: undefined,
+      VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS: undefined,
+      VITE_SWAP_HANDLER_ADDRESS: undefined,
+      VITE_SWAP_DRIVER_ADDRESS: undefined,
+      VITE_TOKEN_A_ADDRESS: undefined,
+      VITE_TOKEN_B_ADDRESS: undefined,
+    }));
+
+    expect(config.factoryAddress).toBeDefined();
+    expect(config.poolContractFunding).toBe(10_000_000n);
+  });
+
+  it("rejects invalid fixed funding", () => {
+    expect(() => loadGlobalConfig(environment({
+      VITE_POOL_CONTRACT_FUNDING: "0",
+    }))).toThrow("between 1 and 2^128 - 1");
   });
 });
 

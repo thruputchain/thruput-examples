@@ -4,9 +4,9 @@ import {
   type GroundhogClient,
 } from "@groundhogchain/client";
 
-import type { AppConfig } from "@/config";
+import type { GlobalConfig } from "@/config";
 
-export function createReadClient(config: AppConfig): GroundhogClient {
+export function createReadClient(config: Pick<GlobalConfig, "rpcUrl">): GroundhogClient {
   const browserOrigin =
     typeof window === "undefined" ? undefined : window.location.origin;
   return createGroundhogClient(

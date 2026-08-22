@@ -30,6 +30,7 @@
     "radix-ui": "1.6.7",
     "react": "19.1.1",
     "react-dom": "19.1.1",
+    "react-router-dom": "7.8.2",
     "shadcn": "4.16.1",
     "smol-toml": "1.8.0",
     "tailwind-merge": "3.3.1",

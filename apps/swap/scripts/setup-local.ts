@@ -71,6 +71,7 @@ interface Deployment {
   browserPrivateKey: string;
   tokenA: ContractAddress;
   tokenB: ContractAddress;
+  factory: ContractAddress;
   router: ContractAddress;
   pool: Pool;
 }
@@ -475,6 +476,7 @@ async function configureSwap(
     browserPrivateKey,
     tokenA,
     tokenB,
+    factory,
     router,
     pool,
   };
@@ -540,8 +542,12 @@ function renderEnvironment(
     `GROUNDHOG_DEV_PRIVATE_KEY=${deployment.browserPrivateKey}`,
     `VITE_GROUNDHOG_WALLET_ADDRESS=${toHex0x(deployment.account.address)}`,
     `VITE_GROUNDHOG_WALLET_ENTRYPOINT=${toHex0x(DevWallet.doAction.entrypoint)}`,
+    `VITE_NATIVE_HOG_ADDRESS=${toHex0x(HOG_ADDRESS)}`,
+    `VITE_SWAP_FACTORY_ADDRESS=${toHex0x(deployment.factory)}`,
     `VITE_SWAP_ROUTER_ADDRESS=${toHex0x(deployment.router)}`,
+    `VITE_POOL_CONTRACT_FUNDING=${CONTRACT_FUNDING}`,
     `VITE_SWAP_PAIR_ADDRESS=${toHex0x(deployment.pool.pair)}`,
+    `VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS=${toHex0x(deployment.pool.liquidity_token)}`,
     `VITE_SWAP_HANDLER_ADDRESS=${toHex0x(deployment.pool.handler)}`,
     `VITE_SWAP_DRIVER_ADDRESS=${toHex0x(deployment.pool.driver)}`,
     `SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT=${toHex0x(SwapDriver.processRequests.entrypoint)}`,

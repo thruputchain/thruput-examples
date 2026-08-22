@@ -38,14 +38,19 @@ const config: AppConfig = {
   networkIdHex: "00".repeat(32),
   accountAddress: address(9),
   routerAddress: address(8),
+  factoryAddress: address(10),
+  nativeHogAddress: address(11),
+  poolContractFunding: 10_000_000n,
   pairAddress: address(7),
+  liquidityTokenAddress: address(12),
   handlerAddress: address(6),
   driverAddress: address(5),
   tokenAAddress: address(1),
   tokenBAddress: address(2),
   tokenASymbol: "gUSD",
   tokenBSymbol: "gEUR",
-  tokenDecimals: 6,
+  tokenADecimals: 6,
+  tokenBDecimals: 6,
 };
 
 beforeEach(() => window.localStorage.clear());

@@ -54,14 +54,19 @@ const config: AppConfig = {
     fromHex0x(transactionVector.inputs.walletAddressHex),
   ),
   routerAddress: address(2),
+  factoryAddress: address(8),
+  nativeHogAddress: address(9),
+  poolContractFunding: 10_000_000n,
   pairAddress: address(3),
+  liquidityTokenAddress: address(10),
   handlerAddress: address(4),
   driverAddress: address(5),
   tokenAAddress: address(6),
   tokenBAddress: address(7),
   tokenASymbol: "A",
   tokenBSymbol: "B",
-  tokenDecimals: 6,
+  tokenADecimals: 6,
+  tokenBDecimals: 6,
 };
 const target = {
   invoked_address: contractAddress(
