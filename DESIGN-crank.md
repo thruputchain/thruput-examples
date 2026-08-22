@@ -272,9 +272,15 @@ pub struct RequestsProcessed {
 }
 ```
 
-A client wanting a queue estimate counts `RequestAccepted` events since the last
-`RequestsProcessed`.  That is both fresher than any on-chain read and free of
-storage and conflict cost.
+A client wanting a queue estimate takes the `RequestAccepted`s it has seen, less
+the `processed` these report.  That is both fresher than any on-chain read and
+free of storage and conflict cost.
+
+A crank that processed nothing emits no event: it has no work to describe, and
+staying silent keeps a crank that found an empty queue exactly as free as the
+runtime already makes it.  The caller loses nothing either way -- it gets the
+same counts as `process_requests`' return value -- so the event is for observers
+that see only the event stream.
 
 ### 5. Client policy: fire and forget
 
@@ -353,12 +359,59 @@ plain counter because it persists across blocks.
   empirical `*_GAS` constants in `swap-if`.
 * Choose `MAX_QUEUE_LEN`, and check it against the driver contract's funded HOG
   balance and `rcq_cost_per_entry`.
-* Regenerate `apps/swap/src/contracts/generated/swap-driver.ts`.  The
-  `initialize` signature gained `max_queue_len`, and the checked-in bindings
-  still show the old one.  Nothing in the app calls it -- the factory
-  initializes drivers on-chain, and the entrypoint ids are derived from the
-  method name, so they are unchanged -- but the bindings are stale until
-  someone with CLI 0.9.6 or newer re-runs `generate-contract-bindings.sh`.
+
+### For the swap app
+
+What the contract changes above mean for [`apps/swap`](apps/swap/), for whoever
+picks the app up once the contract side settles.  Nothing here is urgent while
+the contracts are still moving.
+
+* **Regenerate the bindings.**
+  [`apps/swap/src/contracts/generated/swap-driver.ts`](apps/swap/src/contracts/generated/swap-driver.ts)
+  no longer matches the driver's spec.  `generate-contract-bindings.sh` needs
+  CLI 0.9.6 or newer; 0.9.0 emits an older binding shape and will rewrite the
+  whole file if used.  Nothing is broken meanwhile: entrypoint ids derive from
+  the method name alone, so the ids in the checked-in file -- and
+  `SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT` in the generated `.env.local` --
+  are still correct.
+
+* **`SwapDriver::initialize` takes a `max_queue_len: u32`.**  A bindings-only
+  change for the app, which never calls it: the factory initializes each
+  driver on-chain when it creates the pool.
+
+* **New event: `RequestsProcessed { processed: u32, failed: u32 }`.**  Emitted
+  once per batch that took anything, and attributed (like every event) to the
+  driver's own address, which is what distinguishes one pair's batches from
+  another's.  A crank receipt carrying it says in one place what the crank did,
+  rather than requiring a tally of the terminal events in it.  A crank that
+  found the queue empty emits nothing.
+
+* **The crank's declared gas limit now chooses the batch size.**  `TARGET_GAS`
+  in [`src/contracts/driver-target.ts`](apps/swap/src/contracts/driver-target.ts)
+  (10M) used to be a safe over-declaration against a fixed ceiling of about ten
+  requests; it now selects the batch -- about sixteen, if every request costs
+  the full `REQUEST_GAS_MAX`, and more when they cost less.  Since the declared
+  limit is also the throughput capacity the scheduler charges under congestion,
+  it is now worth choosing deliberately: small for a user cranking to hurry its
+  own request along, large for draining a backlog.  The Rust-side sizing helper
+  is `swap_driver::process_requests_gas(batch_size)`.
+
+* **A request submission can now be *deferred*.**  With the queue at its
+  ceiling, a `request` transaction is excluded from its block and returned to
+  the mempool rather than failing, so it may land a block or more later, or
+  expire unfulfilled.  Before assuming the existing committed/failed split in
+  `outcomeFromReceipt` covers this, confirm against a devnode how an excluded
+  transaction surfaces through the RPC status API: it is in no block at all, so
+  it ought to read as not-yet-observed rather than as a committed failure --
+  but that is worth seeing rather than assuming.  A submission's expiry height
+  is what bounds the wait.
+
+* **A committed crank returning `(0, 0)` is ordinary**, not an error: it means
+  the queue was empty at that block's snapshot, or another crank got there
+  first.  The app's existing rule that a successful crank does not prove any
+  particular request reached a terminal state (see
+  [2026-08-14-swap-multi-request](docs/specs/2026-08-14-swap-multi-request.md))
+  already covers it.
 
 ## Established
 
@@ -368,6 +421,11 @@ one consumer per block, a losing crank deferred to the mempool having seen the
 undrained snapshot, a crank on an empty queue as a delta-free no-op that
 conflicts with nothing, and same-block service when the proposer's ordering
 allows it.
+
+The summary event is pinned down by
+[`contracts/swap-driver/tests/batch_summary.rs`](contracts/swap-driver/tests/batch_summary.rs):
+a batch counts failed requests as processed, a successful batch reports no
+failures, and an empty batch emits nothing at all.
 
 The admission behaviour is pinned down by
 [`helpers/batch-driver/tests/admission.rs`](helpers/batch-driver/tests/admission.rs)

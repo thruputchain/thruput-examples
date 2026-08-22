@@ -109,6 +109,14 @@ impl SwapDriver for Driver {
         // ones whose handling failed -- so its room comes back.
         self.slots.release(n_processed);
 
+        // Report the batch, so an observer watching only events can track the
+        // queue's depth.  A batch that took nothing has nothing to report --
+        // and staying silent keeps a crank that found an empty queue exactly
+        // as free as it already is.
+        if n_processed > 0 {
+            log_event(&RequestsProcessed::new(n_processed, n_failed));
+        }
+
         (n_processed, n_failed)
     }
 }
