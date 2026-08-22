@@ -26,13 +26,27 @@ pub struct Factory {
 
 /// How many requests a pool's driver will hold at once.
 ///
-/// Each waiting request locks a storage deposit out of the driver's own HOG
-/// balance, so this is the exposure the factory commits every driver it creates
-/// to -- and, once the queue is that deep, further requests wait in the mempool
-/// for a `process_requests` to make room.  Sized to absorb a burst of several
-/// blocks' arrivals rather than any particular batch: a single crank drains as
-/// much as the cranker's gas limit allows, and only one crank per block can
-/// land.
+/// Not a storage budget.  A queued entry's deposit is flat and small -- 8 HOG
+/// under the current cost model, whatever the request contains, over about
+/// 24_000 for the queue itself (measured by `batch-driver`'s
+/// `queue_storage_cost` test) -- so a driver funded the way `apps/swap` funds
+/// one could hold a queue of *millions*.  A ceiling in the hundreds costs a
+/// fraction of a percent of that; storage would not have objected to a far
+/// larger one.
+///
+/// What the ceiling really bounds is how long a request that *is* admitted
+/// might wait, and that matters because admission is irrevocable: a queued
+/// request cannot be withdrawn, and it executes against whatever reserves
+/// obtain whenever it is finally handled, however stale the quote its slippage
+/// limits were chosen against.  A request turned away at the ceiling is in a
+/// better position -- it waits in the mempool, lands as soon as a crank makes
+/// room, and if it never does, expires at its own expiry height, leaving its
+/// sender free to resubmit against a fresh quote.
+///
+/// So the ceiling is set to a backlog still worth joining.  Only one crank per
+/// block can land, and one drains as deep as its caller's gas limit buys; at
+/// the limit `apps/swap` declares that is roughly sixteen requests, putting
+/// the back of a full queue about sixteen blocks from service.
 const MAX_QUEUE_LEN: u32 = 256;
 
 #[contract(exports = "swap_factory_exports")]

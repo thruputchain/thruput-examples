@@ -234,9 +234,29 @@ pub struct Driver {
 * `process_requests`: `self.slots.release(n_processed)` (failed requests were
   consumed too, so they return their room)
 
-The cap is a parameter rather than a constant because it is a funding decision:
-the deposit comes out of the driver contract's own balance, so whoever deploys
-and funds a driver should size it.  The factory passes its own default.
+The cap is a parameter rather than a constant because it is a per-instance
+decision: whoever deploys and funds a driver should size it.  The factory passes
+its own default of 256.
+
+That default is *not* justified by storage, and the original reasoning here was
+wrong about it.  Measurement (`batch-driver`'s `queue_storage_cost` test) puts a
+queued entry at a flat 8 HOG under the current cost model -- the same whatever
+the request contains -- over about 24_000 for the queue itself.  A driver funded
+the way `apps/swap` funds a pool contract could therefore hold a queue of
+millions, and a ceiling of 256 spends about 0.26% of that funding.  Storage
+would not have objected to a ceiling a thousand times larger.
+
+What the ceiling actually bounds is how long an admitted request might wait, and
+that matters because admission is irrevocable: a queued request cannot be
+withdrawn, and executes against whatever reserves obtain when it is finally
+handled -- however stale the quote its slippage limits were chosen against.  A
+request turned away at the ceiling is *better off*: it waits in the mempool,
+lands as soon as a crank makes room, and failing that expires at its own expiry
+height, leaving its sender free to resubmit against a fresh quote.  So the
+ceiling should be a backlog still worth joining.  With one crank per block, each
+draining as deep as its caller's gas limit buys (about sixteen at the limit
+`apps/swap` declares), 256 puts the back of a full queue about sixteen blocks
+from service.
 `batch_driver::Slots` holds the counter, so the lazy-versus-strict choice below
 is made once, where the pattern is documented, rather than at each driver.
 
@@ -361,8 +381,8 @@ plain counter because it persists across blocks.
 
 ## Follow-ups
 
-* Choose `MAX_QUEUE_LEN`, and check it against the driver contract's funded HOG
-  balance and `rcq_cost_per_entry`.
+Both contract-side numbers are now measured rather than guessed; what is left is
+the app.
 
 ### For the swap app
 
