@@ -79,6 +79,15 @@ fn an_empty_batch_reports_nothing() {
         assert_eq!(summaries_from(&r, &etx.ctx.driver_addr), vec![]);
         r.frame().assert_no_events();
 
+        // Nothing was taken, so nothing is written: not even the room that a
+        // batch of zero would give back.  This is what keeps a crank that
+        // loses, or finds nothing, from conflicting with anyone.
+        assert_eq!(
+            r.frame().trace().expect("traced").storage_writes.len(),
+            0,
+            "an empty batch writes no storage delta"
+        );
+
         Ok(())
     })
 }

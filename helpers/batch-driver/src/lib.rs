@@ -78,14 +78,29 @@ use sdk::stats::gas_remaining;
 use sdk::storage::*;
 use sdk::*;
 
-/// Gas [`process`] holds back for the loop's own epilogue: the budget check
-/// that ends it, the probe that finds the queue empty, and returning the
-/// counts.
+/// Gas [`process`] holds back so that the frame can finish once the batch is
+/// over: the budget check that ends the loop, the probe that finds the queue
+/// empty, returning the counts -- **and whatever the driver itself does after
+/// `process` returns**, which for `swap-driver` is releasing the queue's room
+/// and emitting its batch summary.  That last part is the reason this is not a
+/// token figure: the reserve is all the gas those have, and a frame that runs
+/// out there faults, losing the whole batch it just did.
 ///
-/// Loose, like the per-request figures a [`BatchRequest`] declares.  It only
-/// has to be an over-estimate -- being generous costs a caller nothing beyond
+/// The loop checks for `R::GAS_LIMIT + EPILOGUE_GAS` before taking a request,
+/// and handling it can spend the whole `R::GAS_LIMIT` (the sub-call is capped
+/// there, and unused child gas returns to this frame).  What is guaranteed to
+/// survive an iteration is therefore `EPILOGUE_GAS` less that iteration's own
+/// consume and decode -- and the check runs afresh before each request, so the
+/// shortfall is one iteration's, not the batch's.
+///
+/// Loose, like the per-request figures a [`BatchRequest`] declares.  Measured
+/// against the guest build by `swap-driver`'s `epilogue_gas` test, which holds
+/// this at several times a crank's fixed cost: at the time of writing that
+/// cost was ~12.3k gas, of which ~5.4k was the driver's own tail.  Being
+/// generous is nearly free -- at `swap-driver`'s figures this is under a tenth
+/// of one request's declared budget -- and costs a caller nothing beyond
 /// occasionally leaving one last request queued for the next crank.
-pub const EPILOGUE_GAS: u64 = 10_000;
+pub const EPILOGUE_GAS: u64 = 50_000;
 
 /// The gas limit a caller should declare to have [`process`] drain up to
 /// `batch_size` requests of type `R`, even if every one of them costs the full

@@ -105,15 +105,18 @@ impl SwapDriver for Driver {
                 result
             });
 
-        // Every request the batch took is out of the queue -- including the
-        // ones whose handling failed -- so its room comes back.
-        self.slots.release(n_processed);
-
-        // Report the batch, so an observer watching only events can track the
-        // queue's depth.  A batch that took nothing has nothing to report --
-        // and staying silent keeps a crank that found an empty queue exactly
-        // as free as it already is.
+        // A batch that took nothing touches nothing.  A crank that finds the
+        // queue empty writes no delta and emits no event, so it cannot
+        // conflict with anything -- that is what makes an unlucky crank free
+        // rather than a nuisance, and it is worth keeping deliberately: even
+        // returning zero room would write a (zero) delta.
         if n_processed > 0 {
+            // Every request the batch took is out of the queue -- including
+            // the ones whose handling failed -- so its room comes back.
+            self.slots.release(n_processed);
+
+            // Report the batch, so an observer watching only events can track
+            // the queue's depth.
             log_event(&RequestsProcessed::new(n_processed, n_failed));
         }
 

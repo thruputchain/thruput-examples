@@ -361,8 +361,6 @@ plain counter because it persists across blocks.
 
 ## Follow-ups
 
-* Calibrate `EPILOGUE_GAS` against the guest build, alongside the existing
-  empirical `*_GAS` constants in `swap-if`.
 * Choose `MAX_QUEUE_LEN`, and check it against the driver contract's funded HOG
   balance and `rcq_cost_per_entry`.
 
@@ -433,6 +431,17 @@ one consumer per block, a losing crank deferred to the mempool having seen the
 undrained snapshot, a crank on an empty queue as a delta-free no-op that
 conflicts with nothing, and same-block service when the proposer's ordering
 allows it.
+
+`EPILOGUE_GAS` is calibrated against the guest build by
+[`contracts/swap-driver/tests/epilogue_gas.rs`](contracts/swap-driver/tests/epilogue_gas.rs),
+which measures a crank's cost there and holds the constant at several times it.
+The measurement also showed that the reserve has a wider job than first
+described: it must carry not just `process`'s own tail but the *driver's*, since
+`slots.release` and `RequestsProcessed` run on whatever the reserve left.  At
+the time of writing a crank costs ~12.3k gas fixed (~5.4k of it that tail) and
+~105k per swap request, against a declared `REQUEST_GAS_MAX` of 600k -- so the
+declared per-request budget runs about 5.7x the real one, and real batches drain
+correspondingly deeper than the declared arithmetic promises.
 
 The summary event is pinned down by
 [`contracts/swap-driver/tests/batch_summary.rs`](contracts/swap-driver/tests/batch_summary.rs):

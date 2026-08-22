@@ -2560,6 +2560,7 @@ dependencies = [
  "erc20",
  "groundhog-erc20-if",
  "groundhog-erc20-metadata-if",
+ "groundhog-trace",
  "heapless",
  "sdk",
  "swap-driver",
