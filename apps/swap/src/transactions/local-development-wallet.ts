@@ -25,7 +25,7 @@ import {
 import { sha256 } from "@noble/hashes/sha2.js";
 import { CxsWriter, serialize } from "@groundhogchain/xdr";
 
-import type { AppConfig } from "@/config";
+import type { GlobalConfig } from "@/config";
 import { createReadClient } from "@/groundhog/client";
 import {
   outcomeFromReceipt,
@@ -53,7 +53,7 @@ export interface LocalWalletConfiguration {
 }
 
 export function createBrowserLocalWriteBoundary(
-  config: AppConfig,
+  config: Pick<GlobalConfig, "rpcUrl" | "accountAddress">,
 ): WriteBoundary {
   return createLocalWriteBoundary(
     config,
@@ -65,7 +65,7 @@ export function createBrowserLocalWriteBoundary(
 }
 
 export function createLocalWriteBoundary(
-  config: AppConfig,
+  config: Pick<GlobalConfig, "rpcUrl" | "accountAddress">,
   wallet: LocalWalletConfiguration,
   options: LocalWalletOptions = {},
 ): WriteBoundary {

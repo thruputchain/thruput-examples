@@ -68,14 +68,14 @@ export function outstandingRequestKey(config: AppConfig): string {
 }
 
 export function isAccountOutstandingRequestKey(
-  config: AppConfig,
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
   key: string | null,
 ): boolean {
   return key?.startsWith(accountOutstandingRequestPrefix(config)) ?? false;
 }
 
 export function loadAccountOutstandingRequests(
-  config: AppConfig,
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
 ): OutstandingRequest[] {
   if (typeof window === "undefined") return [];
   const requests: OutstandingRequest[] = [];
@@ -152,7 +152,7 @@ export function clearOutstandingRequest(config: AppConfig): void {
 }
 
 export async function withOutstandingRequestLock<T>(
-  config: AppConfig,
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
   action: () => Promise<T>,
 ): Promise<T> {
   if (typeof window === "undefined" || window.navigator.locks === undefined) {
@@ -165,7 +165,9 @@ export async function withOutstandingRequestLock<T>(
   );
 }
 
-function requestLockName(config: AppConfig): string {
+function requestLockName(
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+): string {
   return [
     "groundhog-swap:account-lock:v1",
     config.networkIdHex,
@@ -173,7 +175,9 @@ function requestLockName(config: AppConfig): string {
   ].join(":");
 }
 
-function accountOutstandingRequestPrefix(config: AppConfig): string {
+function accountOutstandingRequestPrefix(
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+): string {
   return [
     "groundhog-swap:outstanding:v1",
     config.networkIdHex,

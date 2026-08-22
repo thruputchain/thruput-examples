@@ -83,6 +83,14 @@ import type {
 import { usePoolSnapshot } from "@/swap/use-pool-snapshot";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 import {
+  hasBlockingCreationTransaction,
+  hasCreationExecutionExposure,
+  isAccountCreationWorkflowKey,
+  loadAccountCreationWorkflows,
+  reservedCreationToken,
+  type CreationWorkflow,
+} from "@/transactions/creation-workflow";
+import {
   isAccountOutstandingRequestKey,
   outstandingRequestKey,
 } from "@/transactions/outstanding-request";
@@ -397,6 +405,9 @@ function SwapWorkspace({
   const reservedInput = reservedInputForToken(
     accountSafety.requests,
     toHex0x(tokens.input.address),
+  ) + reservedCreationToken(
+    accountSafety.creationWorkflows,
+    toHex0x(tokens.input.address),
   );
   const poolReservedInput = reservedInputForToken(
     requests,
@@ -414,6 +425,7 @@ function SwapWorkspace({
   const hasLiquidity = snapshot.reserve0 > 0n && snapshot.reserve1 > 0n;
   const quoteValid = quote.ok && slippageResult.ok;
   const requestQueueFull = accountSafety.requests.filter(hasExecutionExposure).length
+      + accountSafety.creationWorkflows.filter(hasCreationExecutionExposure).length
     >= MAX_PENDING_SWAP_REQUESTS;
   const crossPoolRequestBlocked = accountSafety.requests.some((request) =>
     isBlockingRequest(request)
@@ -425,6 +437,9 @@ function SwapWorkspace({
       || crankAttempt === null
       || attempt.id !== crankAttempt.id)
   );
+  const creationTransactionBlocked = accountSafety.creationWorkflows.some(
+    hasBlockingCreationTransaction,
+  );
   const controlsLocked =
     !collectionReady
     || requestStorageError !== null
@@ -433,12 +448,14 @@ function SwapWorkspace({
     || isAcquiringLock
     || isWorkflowLocked(workflow)
     || accountSafety.requests.some(isBlockingRequest)
-    || accountSafety.crankAttempts.some(isBlockingCrankAttempt);
+    || accountSafety.crankAttempts.some(isBlockingCrankAttempt)
+    || creationTransactionBlocked;
   const modeLocked = isAcquiringLock
     || isCranking
     || isCheckingRecovery
     || ["approving", "submitting", "indeterminate"].includes(workflow.status)
     || accountSafety.crankAttempts.some(isBlockingCrankAttempt)
+    || creationTransactionBlocked
     || accountSafety.requests.some((request) =>
       request.status === "approving"
       || request.status === "submitting"
@@ -531,6 +548,7 @@ function SwapWorkspace({
         event.key === null
         || isAccountRequestCollectionKey(config, event.key)
         || isAccountOutstandingRequestKey(config, event.key)
+        || isAccountCreationWorkflowKey(config, event.key)
       ) {
         refreshAccountSafety();
       }
@@ -1029,9 +1047,11 @@ function SwapWorkspace({
         let current = loadRequestCollectionForUpdate(config);
         const accountRequests = loadAccountRequestRecords(config);
         const accountCrankAttempts = loadAccountCrankAttempts(config);
+        const creationWorkflows = loadAccountCreationWorkflows(config);
         const expectedCrankAttempt = loadCrankAttempt(config);
         if (
           accountCrankAttempts.some(isBlockingCrankAttempt)
+          || creationWorkflows.some(hasBlockingCreationTransaction)
         ) {
           setRequests(current);
           setCrankAttempt(expectedCrankAttempt);
@@ -1048,6 +1068,7 @@ function SwapWorkspace({
         }
         if (
           accountRequests.filter(hasExecutionExposure).length
+              + creationWorkflows.filter(hasCreationExecutionExposure).length
             >= MAX_PENDING_SWAP_REQUESTS
         ) {
           setRequests(current);
@@ -1057,7 +1078,8 @@ function SwapWorkspace({
         const initialSnapshot = await readSnapshot();
         const initialTokens = tokensForDirection(initialSnapshot, direction);
         const tokenIn = toHex0x(initialTokens.input.address);
-        const initialReserved = reservedInputForToken(accountRequests, tokenIn);
+        const initialReserved = reservedInputForToken(accountRequests, tokenIn)
+          + reservedCreationToken(creationWorkflows, tokenIn);
         const initialPoolReserved = reservedInputForToken(current, tokenIn);
         const initialQuote = deriveSwapQuote(
           initialSnapshot,
@@ -1206,11 +1228,15 @@ function SwapWorkspace({
 
         current = loadRequestCollection(config);
         const submissionAccountRequests = loadAccountRequestRecords(config);
+        const submissionCreationWorkflows = loadAccountCreationWorkflows(config);
         const submissionSnapshot = await readSnapshot();
         const submissionTokens = tokensForDirection(submissionSnapshot, direction);
         const submissionTokenIn = toHex0x(submissionTokens.input.address);
         const submissionReserved = reservedInputForToken(
           submissionAccountRequests,
+          submissionTokenIn,
+        ) + reservedCreationToken(
+          submissionCreationWorkflows,
           submissionTokenIn,
         );
         const submissionPoolReserved = reservedInputForToken(
@@ -1725,7 +1751,8 @@ function SwapWorkspace({
             <AlertDescription>{accountSafety.error}</AlertDescription>
           </Alert>
         ) : null}
-        {crossPoolRequestBlocked || crossPoolCrankBlocked ? (
+        {crossPoolRequestBlocked || crossPoolCrankBlocked
+            || creationTransactionBlocked ? (
           <Alert>
             <LockKeyholeIcon aria-hidden="true" />
             <AlertTitle>Another pool needs attention</AlertTitle>
@@ -2545,18 +2572,21 @@ function readInitialCrankState(config: AppConfig): {
 function readAccountSafetyState(config: AppConfig): {
   requests: RequestRecord[];
   crankAttempts: CrankAttempt[];
+  creationWorkflows: CreationWorkflow[];
   error: string | null;
 } {
   try {
     return {
       requests: loadAccountRequestRecords(config),
       crankAttempts: loadAccountCrankAttempts(config),
+      creationWorkflows: loadAccountCreationWorkflows(config),
       error: null,
     };
   } catch {
     return {
       requests: [],
       crankAttempts: [],
+      creationWorkflows: [],
       error:
         "Stored account transaction state could not be loaded safely. Clear this site's local data before signing another transaction.",
     };

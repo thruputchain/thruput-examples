@@ -104,7 +104,9 @@ export function requestCollectionKey(config: AppConfig): string {
   ].join(":");
 }
 
-export function accountRequestCollectionPrefix(config: AppConfig): string {
+export function accountRequestCollectionPrefix(
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+): string {
   return [
     "groundhog-swap:requests:v3",
     config.networkIdHex,
@@ -114,7 +116,7 @@ export function accountRequestCollectionPrefix(config: AppConfig): string {
 }
 
 export function isAccountRequestCollectionKey(
-  config: AppConfig,
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
   key: string | null,
 ): boolean {
   if (key === null) return false;
@@ -122,7 +124,9 @@ export function isAccountRequestCollectionKey(
     || key.startsWith(legacyAccountRequestCollectionPrefix(config));
 }
 
-export function loadAccountRequestRecords(config: AppConfig): RequestRecord[] {
+export function loadAccountRequestRecords(
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+): RequestRecord[] {
   if (typeof window === "undefined") return [];
   const records: RequestRecord[] = [];
   for (let index = 0; index < window.localStorage.length; index += 1) {
@@ -521,7 +525,7 @@ function fromStoredRequest(request: StoredRequest): RequestRecord {
 
 function isStoredCollection(
   value: unknown,
-  config: AppConfig,
+  config: AppConfig | Pick<AppConfig, "networkIdHex" | "accountAddress">,
   scope: "pool" | "account" = "pool",
 ): value is StoredCollection {
   if (!isRecord(value) || value.version !== STORAGE_VERSION) return false;
@@ -545,7 +549,7 @@ function isStoredCollection(
 
 function isStoredRequest(
   value: unknown,
-  config: AppConfig,
+  config: AppConfig | Pick<AppConfig, "networkIdHex" | "accountAddress">,
   scope: "pool" | "account" = "pool",
 ): value is StoredRequest {
   if (!isRecord(value)) return false;
@@ -653,7 +657,7 @@ function isObservationBaseline(
 
 function isCriteria(
   value: unknown,
-  config: AppConfig,
+  config: AppConfig | Pick<AppConfig, "networkIdHex" | "accountAddress">,
   scope: "pool" | "account" = "pool",
 ): value is RequestRecord["criteria"] {
   if (!isRecord(value)) return false;
@@ -662,15 +666,16 @@ function isCriteria(
       .every((key) => HASH_PATTERN.test(String(value[key])))
   ) return false;
 
-  const tokenA = toHex0x(config.tokenAAddress);
-  const tokenB = toHex0x(config.tokenBAddress);
   if (value.recipient !== toHex0x(config.accountAddress)) return false;
   if (scope === "account") {
     return value.tokenIn !== value.tokenOut;
   }
-  return value.pairAddress === toHex0x(config.pairAddress)
-    && value.handlerAddress === toHex0x(config.handlerAddress)
-    && value.driverAddress === toHex0x(config.driverAddress)
+  const poolConfig = config as AppConfig;
+  const tokenA = toHex0x(poolConfig.tokenAAddress);
+  const tokenB = toHex0x(poolConfig.tokenBAddress);
+  return value.pairAddress === toHex0x(poolConfig.pairAddress)
+    && value.handlerAddress === toHex0x(poolConfig.handlerAddress)
+    && value.driverAddress === toHex0x(poolConfig.driverAddress)
     && value.recipient === toHex0x(config.accountAddress)
     && ((value.tokenIn === tokenA && value.tokenOut === tokenB)
       || (value.tokenIn === tokenB && value.tokenOut === tokenA));
@@ -685,7 +690,9 @@ export function legacyRequestCollectionKey(config: AppConfig): string {
   ].join(":");
 }
 
-function legacyAccountRequestCollectionPrefix(config: AppConfig): string {
+function legacyAccountRequestCollectionPrefix(
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+): string {
   return [
     "groundhog-swap:requests:v2",
     config.networkIdHex,

@@ -36,6 +36,7 @@ import {
   resolvePoolConfig,
 } from "@/pools/pool-context";
 import { PoolDetailPage } from "@/pools/pool-detail-page";
+import { PoolCreatePage } from "@/pools/pool-create-page";
 import { PoolDirectoryPage } from "@/pools/pool-directory-page";
 import { parsePoolRoute } from "@/pools/pool-route";
 import {
@@ -94,7 +95,7 @@ export function AmmRoutes({ config }: { config: GlobalConfig }) {
     <Routes>
       <Route path="/" element={<Navigate to="/pools" replace />} />
       <Route path="/pools" element={<PoolDirectoryPage config={config} />} />
-      <Route path="/pools/new" element={<PlaceholderPage title="Create pool" />} />
+      <Route path="/pools/new" element={<PoolCreatePage config={config} />} />
       <Route
         path="/pools/:token0/:token1"
         element={<PoolRoute config={config} view="detail" />}

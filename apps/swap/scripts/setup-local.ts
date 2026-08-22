@@ -71,6 +71,7 @@ interface Deployment {
   browserPrivateKey: string;
   tokenA: ContractAddress;
   tokenB: ContractAddress;
+  tokenC: ContractAddress;
   factory: ContractAddress;
   router: ContractAddress;
   pool: Pool;
@@ -164,11 +165,15 @@ async function main(): Promise<void> {
 Local swap setup complete
 App environment: ${appEnvironmentPath}
 CLI configuration: ${cliConfigPath}
-Application account: ${applicationUser.keyName} (${toHex0x(applicationUser.address)})`);
+Application account: ${applicationUser.keyName} (${toHex0x(applicationUser.address)})
+Example tokens:
+  gUSD ${toHex0x(deployment.tokenA)}
+  gEUR ${toHex0x(deployment.tokenB)}
+  gJPY ${toHex0x(deployment.tokenC)}`);
 }
 
 /**
- * Deploys two test tokens and the contracts needed to swap between them, funds
+ * Deploys three test tokens and the contracts needed to swap between them, funds
  * each contract with native HOG, and seeds a balanced pool. The faucet performs
  * only HOG transfers; the application user owns every deployment and operation.
  */
@@ -240,11 +245,23 @@ async function configureSwap(
   );
   const tokenB = DevWallet.deploy.decodeReceipt(tokenBReceipt).value;
 
+  const tokenCReceipt = await submit(
+    client,
+    applicationUser,
+    DevWallet.deploy.invocation(applicationUser.address, GAS_LIMIT, {
+      nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
+      contractHash: fixedBytes(tokenHash, 32),
+    }),
+    [],
+  );
+  const tokenC = DevWallet.deploy.decodeReceipt(tokenCReceipt).value;
+
   // 3. Fund each token with native HOG, initialize its administrator and metadata,
   // then mint the balances that the example will use for liquidity and swaps.
   for (const token of [
     { address: tokenA, name: "Groundhog USD", symbol: "gUSD" },
     { address: tokenB, name: "Groundhog EUR", symbol: "gEUR" },
+    { address: tokenC, name: "Groundhog JPY", symbol: "gJPY" },
   ]) {
     const fundToken = DevWallet.doAction.invocation(faucet.address, GAS_LIMIT, {
       invocationBytes: serialize(
@@ -308,7 +325,7 @@ async function configureSwap(
     invocationBytes: serialize(
       ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
         receiver: factory,
-        amount: CONTRACT_FUNDING,
+        amount: CONTRACT_FUNDING * 10n,
       }),
       codec.Invocation,
     ),
@@ -476,6 +493,7 @@ async function configureSwap(
     browserPrivateKey,
     tokenA,
     tokenB,
+    tokenC,
     factory,
     router,
     pool,

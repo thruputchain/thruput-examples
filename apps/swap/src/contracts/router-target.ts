@@ -16,6 +16,35 @@ export interface ExactInputSwapRequest {
   recipient: ContractAddress;
 }
 
+export interface AddLiquidityRequest {
+  token0: ContractAddress;
+  token1: ContractAddress;
+  amountsDesired: readonly [bigint, bigint];
+  amountsMin: readonly [bigint, bigint];
+  recipient: ContractAddress;
+}
+
+export function buildAddLiquidityTarget(
+  router: ContractAddress,
+  request: AddLiquidityRequest,
+): Invocation {
+  if (
+    request.amountsDesired.some((amount) => amount <= 0n)
+    || request.amountsMin.some((amount, index) =>
+      amount <= 0n || amount > request.amountsDesired[index]!
+    )
+  ) {
+    throw new RangeError("Liquidity amounts and minimums must be positive and bounded");
+  }
+  return SwapRouter.addLiquidity.invocation(router, TARGET_GAS, {
+    tokenA: request.token0,
+    tokenB: request.token1,
+    amountsDesired: request.amountsDesired,
+    amountsMin: request.amountsMin,
+    recipient: request.recipient,
+  });
+}
+
 export function buildExactInputSwapTarget(
   router: ContractAddress,
   request: ExactInputSwapRequest,
