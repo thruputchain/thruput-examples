@@ -3,8 +3,6 @@
 use crate::events::*;
 use sdk::storage::*;
 use sdk::*;
-// Every interface -- the pool's clients and error types -- comes from `swap-if`,
-// so the factory depends on no sibling implementation crate.
 use swap_if::*;
 
 /// State for the factory contract
@@ -26,27 +24,18 @@ pub struct Factory {
 
 /// How many requests a pool's driver will hold at once.
 ///
-/// Not a storage budget.  A queued entry's deposit is flat and small -- 8 HOG
-/// under the current cost model, whatever the request contains, over about
-/// 24_000 for the queue itself (measured by `batch-driver`'s
-/// `queue_storage_cost` test) -- so a driver funded the way `apps/swap` funds
-/// one could hold a queue of *millions*.  A ceiling in the hundreds costs a
-/// fraction of a percent of that; storage would not have objected to a far
-/// larger one.
+/// This effectively bounds the driver's storage costs, but this is not likely
+/// to be a constraint in practice.
 ///
-/// What the ceiling really bounds is how long a request that *is* admitted
-/// might wait, and that matters because admission is irrevocable: a queued
-/// request cannot be withdrawn, and it executes against whatever reserves
-/// obtain whenever it is finally handled, however stale the quote its slippage
-/// limits were chosen against.  A request turned away at the ceiling is in a
-/// better position -- it waits in the mempool, lands as soon as a crank makes
-/// room, and if it never does, expires at its own expiry height, leaving its
-/// sender free to resubmit against a fresh quote.
-///
-/// So the ceiling is set to a backlog still worth joining.  Only one crank per
-/// block can land, and one drains as deep as its caller's gas limit buys; at
-/// the limit `apps/swap` declares that is roughly sixteen requests, putting
-/// the back of a full queue about sixteen blocks from service.
+/// The cap's most important effect is on how long an admitted request might
+/// wait, and that matters because admission is irrevocable: a queued request
+/// cannot be withdrawn, and it executes against whatever reserves obtain
+/// whenever it is finally handled, however stale the quote has become that its
+/// slippage limits were chosen against.  A request turned away at the ceiling
+/// is in a better position: it waits in the mempool, landing as soon as
+/// processing makes room; if it instead outlives its own expiry height, that
+/// leaves its sender free to resubmit against a fresh quote. So the ceiling is
+/// set to a tolerable backlog.
 const MAX_QUEUE_LEN: u32 = 256;
 
 #[contract(exports = "swap_factory_exports")]
@@ -83,8 +72,7 @@ impl SwapFactory for Factory {
         // Initialize and wire them together.  A newly deployed contract is
         // callable within this same transaction.  These are plain (non-`try`)
         // calls: a callee's failure propagates with its own error type, which
-        // this trait's `throws` now names (the whole point of the shared
-        // `swap-if` crate).
+        // is among those mentioned in this trait's `throws` annotation.
         let me = get_current_address();
         SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token);
         SwapHandlerClient::new(&handler).initialize(&pair, token0, token1);
@@ -116,8 +104,8 @@ impl SwapFactory for Factory {
     }
 
     // The pool's contract addresses: what `create_pair` would deploy for these
-    // tokens, and -- deployment being deterministic -- what it already did
-    // deploy if the pair exists.
+    // tokens, and (deployment being deterministic) what it already did deploy
+    // if the pair exists.
     fn pool_addresses(&self, token_a: &Address, token_b: &Address) -> Pool {
         let tokens = TokenPair::new(token_a, token_b);
         let hashes = self.hashes.get();

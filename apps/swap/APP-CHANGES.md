@@ -1,9 +1,8 @@
 # Swap App: Pending Contract Changes
 
-The `swap-*` contracts were reworked so that queue-cranking is permissionless and
-the cranker sizes its own batch.  [`apps/swap`](apps/swap/) has not been updated
-to match.  This is the list of what changed and what it means for the app, for
-whoever picks that up.
+The `swap-*` contracts were reworked so that queue-cranking is permissionless
+and the cranker sizes its own batch.  This is the list of what changed and what
+it means for the frontend.
 
 The reasoning behind the contract side is in
 [`docs/README-swap.md`](docs/README-swap.md) ("Why a Request Queue", "Cranking
