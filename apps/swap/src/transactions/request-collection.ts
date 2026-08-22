@@ -3,6 +3,7 @@ import { toHex0x } from "@groundhogchain/client";
 import type { AppConfig } from "@/config";
 import {
   clearOutstandingRequest,
+  loadAccountOutstandingRequests,
   loadOutstandingRequest,
   outstandingRequestKey,
   withOutstandingRequestLock,
@@ -95,11 +96,57 @@ interface StoredRequest {
 
 export function requestCollectionKey(config: AppConfig): string {
   return [
-    "groundhog-swap:requests:v2",
+    "groundhog-swap:requests:v3",
     config.networkIdHex,
     toHex0x(config.accountAddress),
+    toHex0x(config.factoryAddress),
     toHex0x(config.pairAddress),
   ].join(":");
+}
+
+export function accountRequestCollectionPrefix(config: AppConfig): string {
+  return [
+    "groundhog-swap:requests:v3",
+    config.networkIdHex,
+    toHex0x(config.accountAddress),
+    "",
+  ].join(":");
+}
+
+export function isAccountRequestCollectionKey(
+  config: AppConfig,
+  key: string | null,
+): boolean {
+  if (key === null) return false;
+  return key.startsWith(accountRequestCollectionPrefix(config))
+    || key.startsWith(legacyAccountRequestCollectionPrefix(config));
+}
+
+export function loadAccountRequestRecords(config: AppConfig): RequestRecord[] {
+  if (typeof window === "undefined") return [];
+  const records: RequestRecord[] = [];
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (key === null || !isAccountRequestCollectionKey(config, key)) continue;
+    const stored = window.localStorage.getItem(key);
+    if (stored === null) continue;
+    try {
+      const parsed: unknown = JSON.parse(stored);
+      if (!isStoredCollection(parsed, config, "account")) {
+        throw new Error("invalid account request collection");
+      }
+      records.push(...parsed.requests.map(fromStoredRequest));
+    } catch {
+      throw new RequestCollectionError();
+    }
+  }
+  for (const legacy of loadAccountOutstandingRequests(config)) {
+    records.push(createRequestRecord(legacy, {
+      localId: `legacy-outstanding:${legacy.criteria.pairAddress}`,
+      now: 0,
+    }));
+  }
+  return records;
 }
 
 export function hasLegacyOutstandingRequest(config: AppConfig): boolean {
@@ -244,7 +291,42 @@ export function needsQueueProcessing(request: RequestRecord): boolean {
 }
 
 function loadOrMigrateRequestCollection(config: AppConfig): RequestRecord[] {
-  const current = loadRequestCollection(config);
+  let current = loadRequestCollection(config);
+  const legacyCollection = loadLegacyRequestCollection(config);
+  if (legacyCollection !== null) {
+    let changed = false;
+    for (const legacyRequest of legacyCollection) {
+      const existingIndex = current.findIndex((request) =>
+        sameRequestIdentity(request, legacyRequest)
+      );
+      if (existingIndex !== -1) {
+        const existing = current[existingIndex]!;
+        const authoritative = moreAuthoritativeRequest(existing, legacyRequest);
+        if (authoritative !== existing) {
+          current[existingIndex] = authoritative;
+          changed = true;
+        }
+        continue;
+      }
+      const overlaps = hasExecutionExposure(legacyRequest)
+        && current.some(hasExecutionExposure);
+      if (overlaps) {
+        current = current.map((request) =>
+          hasExecutionExposure(request)
+            ? { ...request, snapshotInferenceEligible: false }
+            : request
+        );
+      }
+      current.push(
+        overlaps
+          ? { ...legacyRequest, snapshotInferenceEligible: false }
+          : legacyRequest,
+      );
+      changed = true;
+    }
+    if (changed) current = saveRequestCollection(config, current);
+    window.localStorage.removeItem(legacyRequestCollectionKey(config));
+  }
   const legacy = loadOutstandingRequest(config);
   if (legacy === null) return current;
 
@@ -275,6 +357,44 @@ function loadOrMigrateRequestCollection(config: AppConfig): RequestRecord[] {
   );
   clearOutstandingRequest(config);
   return next;
+}
+
+function sameRequestIdentity(left: RequestRecord, right: RequestRecord): boolean {
+  if (left.localId === right.localId) return true;
+  if (left.requestId !== null && right.requestId !== null) {
+    return left.requestId === right.requestId;
+  }
+  return left.transactionHash !== null
+    && left.transactionHash === right.transactionHash
+    && left.phase === right.phase;
+}
+
+function moreAuthoritativeRequest(
+  current: RequestRecord,
+  candidate: RequestRecord,
+): RequestRecord {
+  const currentRank = requestAuthority(current);
+  const candidateRank = requestAuthority(candidate);
+  if (candidateRank !== currentRank) {
+    return candidateRank > currentRank ? candidate : current;
+  }
+  return candidate.updatedAt > current.updatedAt ? candidate : current;
+}
+
+function requestAuthority(request: RequestRecord): number {
+  const phase = request.phase === "swap" ? 100 : 0;
+  const status = {
+    approving: 1,
+    submitting: 1,
+    indeterminate: 2,
+    committedFailure: 3,
+    queuedUntracked: 4,
+    queuedNotObserved: 5,
+    queued: 5,
+    failed: 6,
+    executed: 6,
+  }[request.status];
+  return phase + status;
 }
 
 function sameLegacyRequest(
@@ -402,6 +522,7 @@ function fromStoredRequest(request: StoredRequest): RequestRecord {
 function isStoredCollection(
   value: unknown,
   config: AppConfig,
+  scope: "pool" | "account" = "pool",
 ): value is StoredCollection {
   if (!isRecord(value) || value.version !== STORAGE_VERSION) return false;
   if (!Array.isArray(value.requests)) return false;
@@ -410,7 +531,7 @@ function isStoredCollection(
   const requestIds = new Set<string>();
   return value.requests.every((request) => {
     if (
-      !isStoredRequest(request, config)
+      !isStoredRequest(request, config, scope)
       || localIds.has(request.localId)
       || (request.requestId !== null && requestIds.has(request.requestId))
     ) {
@@ -422,7 +543,11 @@ function isStoredCollection(
   });
 }
 
-function isStoredRequest(value: unknown, config: AppConfig): value is StoredRequest {
+function isStoredRequest(
+  value: unknown,
+  config: AppConfig,
+  scope: "pool" | "account" = "pool",
+): value is StoredRequest {
   if (!isRecord(value)) return false;
   if (
     typeof value.localId !== "string"
@@ -437,7 +562,7 @@ function isStoredRequest(value: unknown, config: AppConfig): value is StoredRequ
     || !isNullableHash(value.requestId)
     || !isObservationTime(value.visibleObservationMs)
     || !isObservationBaseline(value.observationBaseline)
-    || !isCriteria(value.criteria, config)
+    || !isCriteria(value.criteria, config, scope)
     || !isTimestamp(value.createdAt)
     || !isTimestamp(value.updatedAt)
     || value.updatedAt < value.createdAt
@@ -529,6 +654,7 @@ function isObservationBaseline(
 function isCriteria(
   value: unknown,
   config: AppConfig,
+  scope: "pool" | "account" = "pool",
 ): value is RequestRecord["criteria"] {
   if (!isRecord(value)) return false;
   if (
@@ -538,12 +664,46 @@ function isCriteria(
 
   const tokenA = toHex0x(config.tokenAAddress);
   const tokenB = toHex0x(config.tokenBAddress);
+  if (value.recipient !== toHex0x(config.accountAddress)) return false;
+  if (scope === "account") {
+    return value.tokenIn !== value.tokenOut;
+  }
   return value.pairAddress === toHex0x(config.pairAddress)
     && value.handlerAddress === toHex0x(config.handlerAddress)
     && value.driverAddress === toHex0x(config.driverAddress)
     && value.recipient === toHex0x(config.accountAddress)
     && ((value.tokenIn === tokenA && value.tokenOut === tokenB)
       || (value.tokenIn === tokenB && value.tokenOut === tokenA));
+}
+
+export function legacyRequestCollectionKey(config: AppConfig): string {
+  return [
+    "groundhog-swap:requests:v2",
+    config.networkIdHex,
+    toHex0x(config.accountAddress),
+    toHex0x(config.pairAddress),
+  ].join(":");
+}
+
+function legacyAccountRequestCollectionPrefix(config: AppConfig): string {
+  return [
+    "groundhog-swap:requests:v2",
+    config.networkIdHex,
+    toHex0x(config.accountAddress),
+    "",
+  ].join(":");
+}
+
+function loadLegacyRequestCollection(config: AppConfig): RequestRecord[] | null {
+  const stored = window.localStorage.getItem(legacyRequestCollectionKey(config));
+  if (stored === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (!isStoredCollection(parsed, config)) throw new Error("invalid legacy collection");
+    return parsed.requests.map(fromStoredRequest);
+  } catch {
+    throw new RequestCollectionError();
+  }
 }
 
 function isRequestStatus(value: unknown): value is RequestStatus {

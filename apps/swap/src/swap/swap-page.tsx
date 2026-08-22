@@ -83,9 +83,16 @@ import type {
 import { usePoolSnapshot } from "@/swap/use-pool-snapshot";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 import {
+  isAccountOutstandingRequestKey,
+  outstandingRequestKey,
+} from "@/transactions/outstanding-request";
+import {
+  isAccountCrankAttemptKey,
   crankAttemptKey,
   createCrankAttempt,
   isBlockingCrankAttempt,
+  legacyCrankAttemptKey,
+  loadAccountCrankAttempts,
   loadCrankAttempt,
   saveCrankAttempt,
   type CrankAttempt,
@@ -94,6 +101,9 @@ import {
   createRequestRecord,
   dismissTerminalRequest,
   hasLegacyOutstandingRequest,
+  isAccountRequestCollectionKey,
+  legacyRequestCollectionKey,
+  loadAccountRequestRecords,
   loadRequestCollection,
   loadRequestCollectionForUpdate,
   migrateRequestCollection,
@@ -367,6 +377,7 @@ function SwapWorkspace({
   const [isAcquiringLock, setIsAcquiringLock] = useState(false);
   const [recoveryCheck, setRecoveryCheck] = useState(0);
   const [isCheckingRecovery, setIsCheckingRecovery] = useState(false);
+  const [, refreshAccountSafety] = useReducer((revision) => revision + 1, 0);
   const [announcementText, setAnnouncementText] = useState("");
   const [executionOutcomes, setExecutionOutcomes] =
     useState<RequestObservation[]>([]);
@@ -382,7 +393,12 @@ function SwapWorkspace({
   const amountId = useId();
   const slippageId = useId();
   const tokens = tokensForDirection(snapshot, direction);
+  const accountSafety = readAccountSafetyState(config);
   const reservedInput = reservedInputForToken(
+    accountSafety.requests,
+    toHex0x(tokens.input.address),
+  );
+  const poolReservedInput = reservedInputForToken(
     requests,
     toHex0x(tokens.input.address),
   );
@@ -393,25 +409,37 @@ function SwapWorkspace({
     amount,
     slippageResult.ok ? slippageResult.basisPoints : 50n,
     reservedInput,
+    poolReservedInput,
   );
   const hasLiquidity = snapshot.reserve0 > 0n && snapshot.reserve1 > 0n;
   const quoteValid = quote.ok && slippageResult.ok;
-  const requestQueueFull = requests.filter(hasExecutionExposure).length
+  const requestQueueFull = accountSafety.requests.filter(hasExecutionExposure).length
     >= MAX_PENDING_SWAP_REQUESTS;
+  const crossPoolRequestBlocked = accountSafety.requests.some((request) =>
+    isBlockingRequest(request)
+    && request.criteria.pairAddress !== toHex0x(config.pairAddress)
+  );
+  const crossPoolCrankBlocked = accountSafety.crankAttempts.some((attempt) =>
+    isBlockingCrankAttempt(attempt)
+    && (attempt.driverAddress !== toHex0x(config.driverAddress)
+      || crankAttempt === null
+      || attempt.id !== crankAttempt.id)
+  );
   const controlsLocked =
     !collectionReady
     || requestStorageError !== null
+    || accountSafety.error !== null
     || (!manualProcessing && crankStorageError !== null)
     || isAcquiringLock
     || isWorkflowLocked(workflow)
-    || requests.some(isBlockingRequest)
-    || (!manualProcessing && isBlockingCrankAttempt(crankAttempt));
+    || accountSafety.requests.some(isBlockingRequest)
+    || accountSafety.crankAttempts.some(isBlockingCrankAttempt);
   const modeLocked = isAcquiringLock
     || isCranking
     || isCheckingRecovery
     || ["approving", "submitting", "indeterminate"].includes(workflow.status)
-    || isBlockingCrankAttempt(crankAttempt)
-    || requests.some((request) =>
+    || accountSafety.crankAttempts.some(isBlockingCrankAttempt)
+    || accountSafety.requests.some((request) =>
       request.status === "approving"
       || request.status === "submitting"
       || request.status === "indeterminate"
@@ -419,7 +447,7 @@ function SwapWorkspace({
   const crankRecoveryDisabled = isAcquiringLock
     || isCheckingRecovery
     || ["approving", "submitting"].includes(workflow.status)
-    || requests.some((request) =>
+    || accountSafety.requests.some((request) =>
       request.status === "approving" || request.status === "submitting"
     );
   const formOutstanding = outstanding !== null && isBlockingRequest(outstanding)
@@ -499,6 +527,13 @@ function SwapWorkspace({
   useEffect(() => {
     const key = requestCollectionKey(config);
     const reload = (event: StorageEvent) => {
+      if (
+        event.key === null
+        || isAccountRequestCollectionKey(config, event.key)
+        || isAccountOutstandingRequestKey(config, event.key)
+      ) {
+        refreshAccountSafety();
+      }
       if (event.key === key) {
         try {
           const loaded = loadRequestCollection(config);
@@ -517,6 +552,27 @@ function SwapWorkspace({
             "Stored request history changed but could not be loaded safely.",
           );
         }
+      } else if (
+        event.key === null
+        || event.key === legacyRequestCollectionKey(config)
+        || event.key === outstandingRequestKey(config)
+      ) {
+        void migrateRequestCollection(config).then(
+          (loaded) => {
+            setRequestStorageError(null);
+            setRequests(loaded);
+            if (!actionInFlight.current) {
+              const recovery = selectRecoveryRequest(loaded);
+              setOutstanding(recovery ?? selectDisplayRequest(loaded));
+              setIsRecoveryRecord(recovery !== null);
+            }
+          },
+          () => {
+            setRequestStorageError(
+              "Stored request history changed but could not be migrated safely.",
+            );
+          },
+        );
       }
     };
     window.addEventListener("storage", reload);
@@ -526,7 +582,14 @@ function SwapWorkspace({
   useEffect(() => {
     const key = crankAttemptKey(config);
     const reload = (event: StorageEvent) => {
-      if (event.key !== key) return;
+      if (event.key === null || isAccountCrankAttemptKey(config, event.key)) {
+        refreshAccountSafety();
+      }
+      if (
+        event.key !== null
+        && event.key !== key
+        && event.key !== legacyCrankAttemptKey(config)
+      ) return;
       try {
         setCrankAttempt(loadCrankAttempt(config));
         setCrankStorageError(null);
@@ -964,24 +1027,27 @@ function SwapWorkspace({
     try {
       await withRequestCollectionLock(config, async () => {
         let current = loadRequestCollectionForUpdate(config);
+        const accountRequests = loadAccountRequestRecords(config);
+        const accountCrankAttempts = loadAccountCrankAttempts(config);
         const expectedCrankAttempt = loadCrankAttempt(config);
         if (
-          automaticProcessing
-          && isBlockingCrankAttempt(expectedCrankAttempt)
+          accountCrankAttempts.some(isBlockingCrankAttempt)
         ) {
           setRequests(current);
           setCrankAttempt(expectedCrankAttempt);
           return;
         }
-        const blocking = current.find(isBlockingRequest);
+        const blocking = accountRequests.find(isBlockingRequest);
         if (blocking !== undefined) {
           setRequests(current);
-          setOutstanding(blocking);
-          setIsRecoveryRecord(true);
+          if (blocking.criteria.pairAddress === toHex0x(config.pairAddress)) {
+            setOutstanding(blocking);
+            setIsRecoveryRecord(true);
+          }
           return;
         }
         if (
-          current.filter(hasExecutionExposure).length
+          accountRequests.filter(hasExecutionExposure).length
             >= MAX_PENDING_SWAP_REQUESTS
         ) {
           setRequests(current);
@@ -991,13 +1057,15 @@ function SwapWorkspace({
         const initialSnapshot = await readSnapshot();
         const initialTokens = tokensForDirection(initialSnapshot, direction);
         const tokenIn = toHex0x(initialTokens.input.address);
-        const initialReserved = reservedInputForToken(current, tokenIn);
+        const initialReserved = reservedInputForToken(accountRequests, tokenIn);
+        const initialPoolReserved = reservedInputForToken(current, tokenIn);
         const initialQuote = deriveSwapQuote(
           initialSnapshot,
           direction,
           amount,
           slippageResult.basisPoints,
           initialReserved,
+          initialPoolReserved,
         );
         if (
           !initialQuote.ok
@@ -1137,16 +1205,25 @@ function SwapWorkspace({
         }
 
         current = loadRequestCollection(config);
+        const submissionAccountRequests = loadAccountRequestRecords(config);
         const submissionSnapshot = await readSnapshot();
         const submissionTokens = tokensForDirection(submissionSnapshot, direction);
         const submissionTokenIn = toHex0x(submissionTokens.input.address);
-        const submissionReserved = reservedInputForToken(current, submissionTokenIn);
+        const submissionReserved = reservedInputForToken(
+          submissionAccountRequests,
+          submissionTokenIn,
+        );
+        const submissionPoolReserved = reservedInputForToken(
+          current,
+          submissionTokenIn,
+        );
         const freshQuote = deriveSwapQuote(
           submissionSnapshot,
           direction,
           amount,
           slippageResult.basisPoints,
           submissionReserved,
+          submissionPoolReserved,
         );
         if (
           !freshQuote.ok
@@ -1455,6 +1532,8 @@ function SwapWorkspace({
     expectedAttempt: CrankAttempt | null,
   ): Promise<void> {
     const current = loadRequestCollectionForUpdate(config);
+    const accountRequests = loadAccountRequestRecords(config);
+    const accountCrankAttempts = loadAccountCrankAttempts(config);
     const storedAttempt = loadCrankAttempt(config);
     if (!sameCrankAttempt(storedAttempt, expectedAttempt)) {
       if (workspaceMounted.current) {
@@ -1464,8 +1543,8 @@ function SwapWorkspace({
       return;
     }
     if (
-      isBlockingCrankAttempt(storedAttempt)
-      || current.some(isBlockingRequest)
+      accountCrankAttempts.some(isBlockingCrankAttempt)
+      || accountRequests.some(isBlockingRequest)
       || !current.some(needsQueueProcessing)
     ) return;
 
@@ -1637,6 +1716,22 @@ function SwapWorkspace({
             <AlertCircleIcon aria-hidden="true" />
             <AlertTitle>Queue processing unavailable</AlertTitle>
             <AlertDescription>{crankStorageError}</AlertDescription>
+          </Alert>
+        ) : null}
+        {accountSafety.error !== null ? (
+          <Alert variant="destructive">
+            <AlertCircleIcon aria-hidden="true" />
+            <AlertTitle>Account transaction state unavailable</AlertTitle>
+            <AlertDescription>{accountSafety.error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {crossPoolRequestBlocked || crossPoolCrankBlocked ? (
+          <Alert>
+            <LockKeyholeIcon aria-hidden="true" />
+            <AlertTitle>Another pool needs attention</AlertTitle>
+            <AlertDescription>
+              Resolve its pending transaction before signing from this account.
+            </AlertDescription>
           </Alert>
         ) : null}
         <Card className="shadow-xl shadow-foreground/5 ring-foreground/10 [--card-spacing:--spacing(5)] sm:[--card-spacing:--spacing(6)]">
@@ -2443,6 +2538,27 @@ function readInitialCrankState(config: AppConfig): {
       attempt: null,
       error:
         "Stored queue-processing state could not be loaded safely. Clear this site's local data before cranking again.",
+    };
+  }
+}
+
+function readAccountSafetyState(config: AppConfig): {
+  requests: RequestRecord[];
+  crankAttempts: CrankAttempt[];
+  error: string | null;
+} {
+  try {
+    return {
+      requests: loadAccountRequestRecords(config),
+      crankAttempts: loadAccountCrankAttempts(config),
+      error: null,
+    };
+  } catch {
+    return {
+      requests: [],
+      crankAttempts: [],
+      error:
+        "Stored account transaction state could not be loaded safely. Clear this site's local data before signing another transaction.",
     };
   }
 }

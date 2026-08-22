@@ -99,6 +99,22 @@ describe("deriveSwapQuote", () => {
     ).toEqual({ ok: false, error: "balance" });
   });
 
+  it("separates account balance reservations from pool allowance reservations", () => {
+    const quote = deriveSwapQuote(
+      snapshot(),
+      "aToB",
+      "10",
+      50n,
+      20_000_000n,
+      5_000_000n,
+    );
+
+    expect(quote).toMatchObject({
+      ok: true,
+      allowanceDifference: 15_000_000n,
+    });
+  });
+
   it("accepts safe excess allowance beyond the signed adjustment range", () => {
     const pool = snapshot({
       tokenA: {

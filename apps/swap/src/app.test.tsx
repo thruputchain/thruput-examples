@@ -798,13 +798,9 @@ describe("local swap submission", () => {
     });
   });
 
-  it("disables crank recovery during a pending submission", async () => {
+  it("blocks manual submission while crank recovery is pending", async () => {
     const user = userEvent.setup();
     saveRequestCollection(config, [queuedRequest("queued-request", 0xcd)]);
-    let resolveWrite!: (result: WriteResult) => void;
-    const pending = new Promise<WriteResult>((resolve) => {
-      resolveWrite = resolve;
-    });
     const snapshot = pool({
       tokenA: {
         ...pool().tokenA,
@@ -813,11 +809,12 @@ describe("local swap submission", () => {
       },
     });
     const writer: WriteBoundary = {
-      execute: vi.fn().mockReturnValue(pending),
+      execute: vi.fn(),
       observe: vi.fn(),
     };
     renderApp(async () => snapshot, writer);
     await enableManualProcessing();
+    await user.type(await screen.findByLabelText("YOU PAY"), "1");
     saveCrankAttempt(config, {
       ...createCrankAttempt(config),
       status: "indeterminate",
@@ -832,20 +829,9 @@ describe("local swap submission", () => {
     expect(
       await screen.findByRole("button", { name: "Check crank status" }),
     ).toBeEnabled();
-
-    await user.type(screen.getByLabelText("YOU PAY"), "1");
-    await user.click(screen.getByRole("button", { name: "Swap" }));
-
-    expect(
-      await screen.findByRole("button", { name: "Submitting swap" }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Check crank status" }),
-    ).toBeDisabled();
-
-    await act(async () => {
-      resolveWrite({ kind: "invalid", hash, reason: "expired" });
-    });
+    expect(screen.getByLabelText("YOU PAY")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Swap" })).toBeDisabled();
+    expect(writer.execute).not.toHaveBeenCalled();
   });
 
   it("preserves an uncertain crank and checks its original hash explicitly", async () => {
@@ -1039,6 +1025,18 @@ describe("local swap submission", () => {
       result.receipt.events = [];
       resolveCrank(result);
     });
+
+    await waitFor(() => expect(loadCrankAttempt(config)?.status).toBe("committed"));
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", {
+        key: crankAttemptKey(config),
+      }));
+    });
+    const swap = secondView.getByRole("button", {
+      name: /^(?:Approve & swap|Swap)$/,
+    });
+    await waitFor(() => expect(swap).toBeEnabled());
+    await user.click(swap);
 
     await waitFor(() => {
       expect(vi.mocked(writer.execute).mock.calls.length).toBeGreaterThan(1);
@@ -2360,7 +2358,7 @@ describe("local swap submission", () => {
     await user.click(secondView.getByRole("button", { name: "Swap" }));
     expect(secondView.getByLabelText("YOU PAY")).toBeDisabled();
     expect(
-      secondView.getByRole("button", { name: "Submitting swap" }),
+      secondView.getByRole("button", { name: "Approving swap" }),
     ).toBeDisabled();
 
     await act(async () => resolveWrite?.(committedSuccess(12n)));
