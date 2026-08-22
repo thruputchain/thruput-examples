@@ -14,7 +14,7 @@
     "setup:local": "bash scripts/setup-local.sh",
     "test": "vitest run",
     "test:components": "vitest run src/app.test.tsx",
-    "test:integration:local": "vitest run --mode local-integration src/integration/phase6.local.test.ts",
+    "test:integration:local": "vitest run --mode local-integration src/integration/*.local.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {

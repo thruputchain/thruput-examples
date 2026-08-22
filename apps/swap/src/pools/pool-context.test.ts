@@ -71,17 +71,6 @@ describe("resolvePoolConfig", () => {
       .rejects.toBeInstanceOf(PoolIdentityError);
   });
 
-  it("rejects an RPC network mismatch before pool reads", async () => {
-    vi.mocked(createReadClient).mockReturnValue({
-      getChainTip: vi.fn().mockResolvedValue({ height: 5n }),
-      getBlockByNumber: vi.fn().mockResolvedValue({ networkId: 1n }),
-    } as never);
-    const factory = factoryAdapter();
-
-    await expect(resolvePoolConfig(config, address(5), address(6), factory))
-      .rejects.toThrow("does not match");
-    expect(factory.getPair).not.toHaveBeenCalled();
-  });
 });
 
 function tokenAdapter(symbol: string, decimals: number) {

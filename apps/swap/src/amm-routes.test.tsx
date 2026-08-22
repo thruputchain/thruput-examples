@@ -1,10 +1,14 @@
 import { contractAddress } from "@groundhogchain/protocol";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AmmRoutes } from "@/app";
 import type { GlobalConfig } from "@/config";
+
+vi.mock("@/pools/pool-directory-page", () => ({
+  PoolDirectoryPage: () => <h1>Pools</h1>,
+}));
 
 const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));

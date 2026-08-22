@@ -11,6 +11,7 @@ export interface PairReserves {
 
 export interface SwapPairReadAdapter {
   reserves(): Promise<ContractView<PairReserves>>;
+  liquidity(): Promise<ContractView<bigint>>;
 }
 
 export function createSwapPairReadAdapter(params: {
@@ -30,6 +31,13 @@ export function createSwapPairReadAdapter(params: {
         ...result,
         value: { reserve0, reserve1, blockTimestamp },
       };
+    },
+    liquidity() {
+      return SwapPair.getLiquidity.view({
+        client: params.client,
+        contract: params.contract,
+        caller: params.caller,
+      });
     },
   };
 }

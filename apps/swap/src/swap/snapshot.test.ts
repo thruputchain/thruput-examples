@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
+import { createSwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { createSwapPairReadAdapter } from "@/contracts/pair-adapter";
 import { createReadClient } from "@/groundhog/client";
 
@@ -13,6 +14,9 @@ vi.mock("@/contracts/erc20-adapter", () => ({
 }));
 vi.mock("@/contracts/pair-adapter", () => ({
   createSwapPairReadAdapter: vi.fn(),
+}));
+vi.mock("@/contracts/factory-adapter", () => ({
+  createSwapFactoryReadAdapter: vi.fn(),
 }));
 vi.mock("@/groundhog/client", () => ({
   createReadClient: vi.fn(),
@@ -50,22 +54,35 @@ describe("createSnapshotReader", () => {
 
     const tokenA = tokenAdapter("Token A", "A", 10n, 1n, 8n);
     const tokenB = tokenAdapter("Token B", "B", 20n, 2n, 8n);
+    const liquidityToken = tokenAdapter("LP", "LP", 30n, 0n, 8n);
     vi.mocked(createErc20ReadAdapter)
       .mockReturnValueOnce(tokenA)
-      .mockReturnValueOnce(tokenB);
+      .mockReturnValueOnce(tokenB)
+      .mockReturnValueOnce(liquidityToken);
     vi.mocked(createSwapPairReadAdapter).mockReturnValue({
       reserves: vi.fn().mockResolvedValue({
         value: { reserve0: 100n, reserve1: 200n, blockTimestamp: 5n },
         height: 8n,
         events: [],
       }),
+      liquidity: vi.fn().mockResolvedValue({
+        value: 300n,
+        height: 8n,
+        events: [],
+      }),
     });
+    vi.mocked(createSwapFactoryReadAdapter).mockReturnValue({
+      feeTo: vi.fn().mockResolvedValue({ value: null, height: 8n, events: [] }),
+    } as never);
 
     await expect(createSnapshotReader(config)()).resolves.toMatchObject({
       tokenA: { name: "Token A", balance: 10n, allowance: 1n },
       tokenB: { name: "Token B", balance: 20n, allowance: 2n },
       reserve0: 100n,
       reserve1: 200n,
+      liquidityTotalSupply: 300n,
+      liquidityBalance: 30n,
+      feeTo: null,
       chainHeight: 8n,
     });
   });
@@ -74,14 +91,19 @@ describe("createSnapshotReader", () => {
     vi.mocked(createReadClient).mockReturnValue({} as never);
     vi.mocked(createErc20ReadAdapter)
       .mockReturnValueOnce(tokenAdapter("A", "A", 1n, 0n, 1n))
-      .mockReturnValueOnce(tokenAdapter("B", "B", 1n, 0n, 1n));
+      .mockReturnValueOnce(tokenAdapter("B", "B", 1n, 0n, 1n))
+      .mockReturnValueOnce(tokenAdapter("LP", "LP", 0n, 0n, 1n));
     vi.mocked(createSwapPairReadAdapter).mockReturnValue({
       reserves: vi.fn().mockResolvedValue({
         value: { reserve0: 1n, reserve1: 1n, blockTimestamp: 1n },
         height: 2n,
         events: [],
       }),
+      liquidity: vi.fn().mockResolvedValue({ value: 1n, height: 2n, events: [] }),
     });
+    vi.mocked(createSwapFactoryReadAdapter).mockReturnValue({
+      feeTo: vi.fn().mockResolvedValue({ value: null, height: 2n, events: [] }),
+    } as never);
 
     await expect(createSnapshotReader(config)()).rejects.toThrow(
       "consistent chain snapshot after three attempts",

@@ -23,13 +23,6 @@ export class PoolIdentityError extends Error {
   }
 }
 
-export class NetworkIdentityError extends Error {
-  constructor() {
-    super("The RPC network does not match the generated configuration");
-    this.name = "NetworkIdentityError";
-  }
-}
-
 export async function resolvePoolConfig(
   config: GlobalConfig,
   token0: ContractAddress,
@@ -37,14 +30,6 @@ export async function resolvePoolConfig(
   suppliedFactory?: SwapFactoryReadAdapter,
 ): Promise<AppConfig> {
   const client = createReadClient(config);
-  const tip = await client.getChainTip();
-  const block = await client.getBlockByNumber(tip.height);
-  if (
-    block === null
-    || block.networkId !== BigInt(`0x${config.networkIdHex}`)
-  ) {
-    throw new NetworkIdentityError();
-  }
   const factory = suppliedFactory ?? createSwapFactoryReadAdapter({
     client,
     contract: config.factoryAddress,

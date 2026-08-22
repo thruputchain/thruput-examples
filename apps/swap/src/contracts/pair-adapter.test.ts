@@ -37,4 +37,22 @@ describe("createSwapPairReadAdapter", () => {
       expect.objectContaining({ contract, caller }),
     );
   });
+
+  it("reads total LP supply", async () => {
+    const view = vi.fn().mockResolvedValue({
+      output: { result: "return", returnData: Uint8Array.from([0, 42]) },
+      events: [],
+      height: 2n,
+    });
+    const adapter = createSwapPairReadAdapter({
+      client: { view },
+      contract: address(3),
+      caller: address(4),
+    });
+
+    await expect(adapter.liquidity()).resolves.toMatchObject({
+      value: 42n,
+      height: 2n,
+    });
+  });
 });

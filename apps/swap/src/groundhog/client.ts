@@ -8,7 +8,9 @@ import type { GlobalConfig } from "@/config";
 
 export function createReadClient(config: Pick<GlobalConfig, "rpcUrl">): GroundhogClient {
   const browserOrigin =
-    typeof window === "undefined" ? undefined : window.location.origin;
+    typeof window === "undefined" || import.meta.env.MODE === "local-integration"
+      ? undefined
+      : window.location.origin;
   return createGroundhogClient(
     new HttpTransport(resolveReadRpcUrl(config.rpcUrl, browserOrigin), {
       fetch: (...args) => globalThis.fetch(...args),

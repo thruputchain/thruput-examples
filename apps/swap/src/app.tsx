@@ -31,11 +31,12 @@ import {
   type GlobalConfig,
 } from "@/config";
 import {
-  NetworkIdentityError,
   PoolIdentityError,
   PoolNotFoundError,
   resolvePoolConfig,
 } from "@/pools/pool-context";
+import { PoolDetailPage } from "@/pools/pool-detail-page";
+import { PoolDirectoryPage } from "@/pools/pool-directory-page";
 import { parsePoolRoute } from "@/pools/pool-route";
 import {
   createSnapshotReader,
@@ -92,7 +93,7 @@ export function AmmRoutes({ config }: { config: GlobalConfig }) {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/pools" replace />} />
-      <Route path="/pools" element={<PlaceholderPage title="Pools" />} />
+      <Route path="/pools" element={<PoolDirectoryPage config={config} />} />
       <Route path="/pools/new" element={<PlaceholderPage title="Create pool" />} />
       <Route
         path="/pools/:token0/:token1"
@@ -146,7 +147,6 @@ function PoolRoute({
         setState({
           kind: "error",
           message: error instanceof PoolIdentityError
-              || error instanceof NetworkIdentityError
             ? error.message
             : "The pool could not be loaded",
         });
@@ -200,9 +200,14 @@ function PoolRoute({
   if (view === "swap") {
     return <ConfiguredApp key={poolRuntimeKey(state.config)} config={state.config} />;
   }
+  if (view === "detail") {
+    return (
+      <PoolDetailPage key={poolRuntimeKey(state.config)} config={state.config} />
+    );
+  }
   return (
     <PlaceholderPage
-      title={view === "detail" ? "Pool detail" : "Manage liquidity"}
+      title="Manage liquidity"
       description="This route is ready for the next AMM implementation phase."
     />
   );

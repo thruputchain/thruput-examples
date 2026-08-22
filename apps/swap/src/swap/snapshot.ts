@@ -5,6 +5,7 @@ import {
   createErc20ReadAdapter,
   type TokenMetadata,
 } from "@/contracts/erc20-adapter";
+import { createSwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { createSwapPairReadAdapter } from "@/contracts/pair-adapter";
 import { createReadClient } from "@/groundhog/client";
 
@@ -23,6 +24,9 @@ export interface PoolSnapshot {
   reserve0: bigint;
   reserve1: bigint;
   reserveTimestamp: bigint;
+  liquidityTotalSupply: bigint;
+  liquidityBalance: bigint;
+  feeTo: ContractAddress | null;
   chainHeight: bigint;
   readAt: number;
 }
@@ -41,9 +45,19 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
     contract: config.tokenBAddress,
     caller: config.accountAddress,
   });
+  const liquidityToken = createErc20ReadAdapter({
+    client,
+    contract: config.liquidityTokenAddress,
+    caller: config.accountAddress,
+  });
   const pair = createSwapPairReadAdapter({
     client,
     contract: config.pairAddress,
+    caller: config.accountAddress,
+  });
+  const factory = createSwapFactoryReadAdapter({
+    client,
+    contract: config.factoryAddress,
     caller: config.accountAddress,
   });
 
@@ -57,6 +71,9 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         balanceB,
         allowanceA,
         allowanceB,
+        liquidityTotalSupply,
+        liquidityBalance,
+        feeTo,
       ] = await Promise.all([
         pair.reserves(),
         tokenA.metadata(),
@@ -65,6 +82,9 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         tokenB.balanceOf(config.accountAddress),
         tokenA.allowance(config.accountAddress, config.handlerAddress),
         tokenB.allowance(config.accountAddress, config.handlerAddress),
+        pair.liquidity(),
+        liquidityToken.balanceOf(config.accountAddress),
+        factory.feeTo(),
       ]);
 
       const readHeights = [
@@ -79,6 +99,9 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         balanceB.height,
         allowanceA.height,
         allowanceB.height,
+        liquidityTotalSupply.height,
+        liquidityBalance.height,
+        feeTo.height,
       ];
       const readHeight = readHeights[0]!;
       if (readHeights.some((height) => height !== readHeight)) continue;
@@ -103,6 +126,9 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         reserve0: reserves.value.reserve0,
         reserve1: reserves.value.reserve1,
         reserveTimestamp: reserves.value.blockTimestamp,
+        liquidityTotalSupply: liquidityTotalSupply.value,
+        liquidityBalance: liquidityBalance.value,
+        feeTo: feeTo.value,
         chainHeight: readHeight,
         readAt: Date.now(),
       };
