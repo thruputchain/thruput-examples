@@ -24,6 +24,14 @@ export interface AddLiquidityRequest {
   recipient: ContractAddress;
 }
 
+export interface RemoveLiquidityRequest {
+  token0: ContractAddress;
+  token1: ContractAddress;
+  liquidity: bigint;
+  amountsMin: readonly [bigint, bigint];
+  recipient: ContractAddress;
+}
+
 export function buildAddLiquidityTarget(
   router: ContractAddress,
   request: AddLiquidityRequest,
@@ -40,6 +48,22 @@ export function buildAddLiquidityTarget(
     tokenA: request.token0,
     tokenB: request.token1,
     amountsDesired: request.amountsDesired,
+    amountsMin: request.amountsMin,
+    recipient: request.recipient,
+  });
+}
+
+export function buildRemoveLiquidityTarget(
+  router: ContractAddress,
+  request: RemoveLiquidityRequest,
+): Invocation {
+  if (request.liquidity <= 0n || request.amountsMin.some((amount) => amount <= 0n)) {
+    throw new RangeError("Liquidity and minimum outputs must be positive");
+  }
+  return SwapRouter.removeLiquidity.invocation(router, TARGET_GAS, {
+    tokenA: request.token0,
+    tokenB: request.token1,
+    liquidity: request.liquidity,
     amountsMin: request.amountsMin,
     recipient: request.recipient,
   });

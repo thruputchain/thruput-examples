@@ -26,6 +26,7 @@ export interface PoolSnapshot {
   reserveTimestamp: bigint;
   liquidityTotalSupply: bigint;
   liquidityBalance: bigint;
+  liquidityAllowance: bigint;
   feeTo: ContractAddress | null;
   chainHeight: bigint;
   readAt: number;
@@ -73,6 +74,7 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         allowanceB,
         liquidityTotalSupply,
         liquidityBalance,
+        liquidityAllowance,
         feeTo,
       ] = await Promise.all([
         pair.reserves(),
@@ -84,6 +86,7 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         tokenB.allowance(config.accountAddress, config.handlerAddress),
         pair.liquidity(),
         liquidityToken.balanceOf(config.accountAddress),
+        liquidityToken.allowance(config.accountAddress, config.handlerAddress),
         factory.feeTo(),
       ]);
 
@@ -101,6 +104,7 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         allowanceB.height,
         liquidityTotalSupply.height,
         liquidityBalance.height,
+        liquidityAllowance.height,
         feeTo.height,
       ];
       const readHeight = readHeights[0]!;
@@ -128,6 +132,7 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         reserveTimestamp: reserves.value.blockTimestamp,
         liquidityTotalSupply: liquidityTotalSupply.value,
         liquidityBalance: liquidityBalance.value,
+        liquidityAllowance: liquidityAllowance.value,
         feeTo: feeTo.value,
         chainHeight: readHeight,
         readAt: Date.now(),

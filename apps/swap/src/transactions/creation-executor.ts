@@ -35,6 +35,12 @@ import {
   loadAccountRequestRecords,
 } from "@/transactions/request-collection";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
+import {
+  hasBlockingLiquidityTransaction,
+  hasLiquidityExecutionExposure,
+  loadAccountLiquidityOperations,
+  reservedLiquidityTokenAmount,
+} from "@/transactions/liquidity-operation";
 
 const MAX_EXECUTION_EXPOSURE = 10;
 const FUNDING_STEPS = [
@@ -186,6 +192,7 @@ async function revalidateWorkflow(
   const accountWorkflows = loadAccountCreationWorkflows(config);
   const otherWorkflows = accountWorkflows.filter(({ id }) => id !== workflow.id);
   const requests = loadAccountRequestRecords(config);
+  const liquidityOperations = loadAccountLiquidityOperations(config);
   const nativeHogHex = toHex0x(config.nativeHogAddress);
   const remainingFunding = fundingSteps()
     .filter((name) => workflow.steps[name].status !== "committed").length;
@@ -205,7 +212,8 @@ async function revalidateWorkflow(
     },
     reservedCreationHog(otherWorkflows)
       + reservedCreationToken(otherWorkflows, nativeHogHex)
-      + reservedInputForToken(requests, nativeHogHex),
+      + reservedInputForToken(requests, nativeHogHex)
+      + reservedLiquidityTokenAmount(liquidityOperations, nativeHogHex),
     {
       ...dependencies,
       requiredNativeHog:
@@ -220,7 +228,14 @@ async function revalidateWorkflow(
       token.addressHex,
     );
     const requestReservation = reservedInputForToken(requests, token.addressHex);
-    if (token.balance < token.amount + otherCreationReservation + requestReservation) {
+    const liquidityReservation = reservedLiquidityTokenAmount(
+      liquidityOperations,
+      token.addressHex,
+    );
+    if (
+      token.balance < token.amount + otherCreationReservation
+        + requestReservation + liquidityReservation
+    ) {
       throw new Error(`The unreserved ${token.symbol} balance is no longer sufficient`);
     }
   }
@@ -242,6 +257,10 @@ function assertAccountCanSign(
     || request.status === "indeterminate"
   );
   if (blockingRequest) throw new Error("Resolve the account's pending transaction first");
+  const liquidityOperations = loadAccountLiquidityOperations(config);
+  if (liquidityOperations.some(hasBlockingLiquidityTransaction)) {
+    throw new Error("Resolve the account's pending liquidity transaction first");
+  }
   const otherBlockingCreation = loadAccountCreationWorkflows(config).some(
     (candidate) => candidate.id !== workflow.id && hasBlockingCreationTransaction(candidate),
   );
@@ -251,7 +270,8 @@ function assertAccountCanSign(
   if (step === "enqueue") {
     const exposed = loadAccountRequestRecords(scopedConfig)
         .filter(hasExecutionExposure).length
-      + loadAccountCreationWorkflows(config).filter(hasCreationExecutionExposure).length;
+      + loadAccountCreationWorkflows(config).filter(hasCreationExecutionExposure).length
+      + liquidityOperations.filter(hasLiquidityExecutionExposure).length;
     if (exposed >= MAX_EXECUTION_EXPOSURE) {
       throw new Error("The account already has ten execution-exposed operations");
     }
@@ -392,28 +412,10 @@ function applyCommittedStep(
     };
   }
   if (name === "crank") {
-    const requestId = workflow.requestId;
-    const minted = MintEvent.allFromReceipt(receipt, {
-      contractAddress: addressFromHex(workflow.pool.pair),
-    }).filter((event) => event.fields.request_id !== null
-      && toHex0x(event.fields.request_id) === requestId
-      && toHex0x(event.topics.sender) === workflow.pool.handler
-      && event.fields.amount_minted > 0n);
-    const failed = RequestFailed.allFromReceipt(receipt, {
-      contractAddress: addressFromHex(workflow.pool.driver),
-    }).filter((event) => toHex0x(event.topics.request_id) === requestId);
-    if (minted.length > 1 || failed.length > 1 || (minted.length && failed.length)) {
-      throw new Error("Queue receipt contains conflicting terminal creation events");
-    }
-    if (failed.length === 1) {
-      next = { ...next, status: "failed", updatedAt: Date.now() };
-    } else if (minted.length === 1) {
-      next = { ...next, status: "executed", updatedAt: Date.now() };
-    } else {
+    next = applyCreationReceipt(next, receipt);
+    if (next.status === "queued") {
       next = {
         ...next,
-        status: "queued",
-        updatedAt: Date.now(),
         steps: {
           ...next.steps,
           crank: {
@@ -425,6 +427,32 @@ function applyCommittedStep(
     }
   }
   return update(next);
+}
+
+export function applyCreationReceipt(
+  workflow: CreationWorkflow,
+  receipt: TransactionReceipt,
+): CreationWorkflow {
+  if (workflow.status !== "queued" || workflow.requestId === null) return workflow;
+  const minted = MintEvent.allFromReceipt(receipt, {
+    contractAddress: addressFromHex(workflow.pool.pair),
+  }).filter((event) => event.fields.request_id !== null
+    && toHex0x(event.fields.request_id) === workflow.requestId
+    && toHex0x(event.topics.sender) === workflow.pool.handler
+    && event.fields.amount_minted > 0n);
+  const failed = RequestFailed.allFromReceipt(receipt, {
+    contractAddress: addressFromHex(workflow.pool.driver),
+  }).filter((event) => toHex0x(event.topics.request_id) === workflow.requestId);
+  if (minted.length > 1 || failed.length > 1 || (minted.length && failed.length)) {
+    throw new Error("Queue receipt contains conflicting terminal creation events");
+  }
+  if (failed.length === 1) {
+    return { ...workflow, status: "failed", updatedAt: Date.now() };
+  }
+  if (minted.length === 1) {
+    return { ...workflow, status: "executed", updatedAt: Date.now() };
+  }
+  return workflow;
 }
 
 function updateStep(

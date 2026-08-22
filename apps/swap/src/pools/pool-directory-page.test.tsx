@@ -42,6 +42,7 @@ const snapshot: PoolSnapshot = {
   reserveTimestamp: 1n,
   liquidityTotalSupply: 1_000n,
   liquidityBalance: 100n,
+  liquidityAllowance: 0n,
   feeTo: null,
   chainHeight: 5n,
   readAt: 1,

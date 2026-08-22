@@ -38,6 +38,7 @@ import {
 import { PoolDetailPage } from "@/pools/pool-detail-page";
 import { PoolCreatePage } from "@/pools/pool-create-page";
 import { PoolDirectoryPage } from "@/pools/pool-directory-page";
+import { LiquidityPage } from "@/pools/liquidity-page";
 import { parsePoolRoute } from "@/pools/pool-route";
 import {
   createSnapshotReader,
@@ -206,12 +207,7 @@ function PoolRoute({
       <PoolDetailPage key={poolRuntimeKey(state.config)} config={state.config} />
     );
   }
-  return (
-    <PlaceholderPage
-      title="Manage liquidity"
-      description="This route is ready for the next AMM implementation phase."
-    />
-  );
+  return <LiquidityPage key={poolRuntimeKey(state.config)} config={state.config} />;
 }
 
 function poolRequestKey(

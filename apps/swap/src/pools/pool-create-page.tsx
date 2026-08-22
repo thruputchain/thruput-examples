@@ -51,6 +51,10 @@ import {
 import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
 import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
+import {
+  loadAccountLiquidityOperations,
+  reservedLiquidityTokenAmount,
+} from "@/transactions/liquidity-operation";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 
 const emptyInput: PoolCreationInput = {
@@ -133,6 +137,10 @@ export function PoolCreatePage({
           + reservedCreationToken(accountWorkflows, nativeHogHex)
           + reservedInputForToken(
             loadAccountRequestRecords(config),
+            nativeHogHex,
+          )
+          + reservedLiquidityTokenAmount(
+            loadAccountLiquidityOperations(config),
             nativeHogHex,
           ),
       );

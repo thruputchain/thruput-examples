@@ -78,6 +78,7 @@ function pool(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
     reserveTimestamp: 1n,
     liquidityTotalSupply: 1_000_000_000n,
     liquidityBalance: 100_000_000n,
+    liquidityAllowance: 0n,
     feeTo: null,
     chainHeight: 7n,
     readAt: 1,

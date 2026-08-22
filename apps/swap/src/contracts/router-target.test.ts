@@ -1,7 +1,11 @@
 import { contractAddress } from "@groundhogchain/protocol";
 import { describe, expect, it } from "vitest";
 
-import { buildAddLiquidityTarget, buildExactInputSwapTarget } from "./router-target";
+import {
+  buildAddLiquidityTarget,
+  buildExactInputSwapTarget,
+  buildRemoveLiquidityTarget,
+} from "./router-target";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 
@@ -44,5 +48,19 @@ describe("buildAddLiquidityTarget", () => {
       amountsMin: [0n, 21n],
       recipient: address(4),
     })).toThrow("positive and bounded");
+  });
+});
+
+describe("buildRemoveLiquidityTarget", () => {
+  it("builds positive LP redemption limits", () => {
+    const target = buildRemoveLiquidityTarget(address(1), {
+      token0: address(2),
+      token1: address(3),
+      liquidity: 10n,
+      amountsMin: [4n, 8n],
+      recipient: address(4),
+    });
+    expect(target.invoked_address).toEqual(address(1));
+    expect(target.calldata.length).toBeGreaterThan(0);
   });
 });
