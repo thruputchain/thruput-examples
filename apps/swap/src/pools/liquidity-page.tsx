@@ -64,13 +64,15 @@ interface LiquidityPageDependencies {
 export function LiquidityPage({
   config,
   dependencies = {},
+  walletPrivateKey,
 }: {
   config: AppConfig;
   dependencies?: LiquidityPageDependencies;
+  walletPrivateKey?: string | undefined;
 }) {
   const [reader] = useState(() => dependencies.readSnapshot ?? createSnapshotReader(config));
   const [writer] = useState(() =>
-    dependencies.writer ?? createBrowserLocalWriteBoundary(config)
+    dependencies.writer ?? createBrowserLocalWriteBoundary(config, walletPrivateKey)
   );
   const [observer] = useState(() =>
     dependencies.observer ?? createLiquidityObserver(config)

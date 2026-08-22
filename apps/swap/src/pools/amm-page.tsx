@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 
+import { DevelopmentWalletSwitcher } from "@/components/development-wallet-switcher";
 import { Button } from "@/components/ui/button";
 
 export function AmmPage({
@@ -16,11 +17,12 @@ export function AmmPage({
   return (
     <div className="isolate min-h-svh bg-background text-foreground antialiased">
       <header className="border-b border-foreground/10">
-        <div className="mx-auto flex min-h-16 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="mx-auto flex min-h-16 max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-2 sm:flex-nowrap sm:gap-4 sm:px-6 sm:py-0">
           <Link className="font-heading font-semibold tracking-tight" to="/pools">
             Groundhog AMM
           </Link>
-          <nav aria-label="Main navigation" className="flex items-center gap-2">
+          <nav aria-label="Main navigation" className="flex w-full items-center justify-end gap-2 sm:w-auto">
+            <DevelopmentWalletSwitcher />
             <Button asChild size="sm" variant="ghost">
               <Link to="/pools">Pools</Link>
             </Button>

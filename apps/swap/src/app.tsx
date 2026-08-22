@@ -1,6 +1,7 @@
 import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   BrowserRouter,
   Link,
@@ -17,6 +18,10 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import {
+  DevelopmentWalletContext,
+  DevelopmentWalletSwitcher,
+} from "@/components/development-wallet-switcher";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -30,6 +35,12 @@ import {
   type AppConfig,
   type GlobalConfig,
 } from "@/config";
+import {
+  parseDevelopmentPersonas,
+  personaPreferenceKey,
+  selectedDevelopmentPersona,
+  type DevelopmentPersonaId,
+} from "@/development-personas";
 import {
   PoolIdentityError,
   PoolNotFoundError,
@@ -46,6 +57,7 @@ import {
 } from "@/swap/snapshot";
 import { SwapPage } from "@/swap/swap-page";
 import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
+import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
 import {
   createRequestObserver,
   type RequestObserver,
@@ -84,30 +96,140 @@ export function App({
     <TooltipProvider>
       {configuration.ok ? (
         <BrowserRouter>
-          <AmmRoutes config={configuration.config} />
+          <BrowserConfiguredApp config={configuration.config} />
         </BrowserRouter>
       ) : <ConfigurationErrorPage message={configuration.message} />}
     </TooltipProvider>
   );
 }
 
-export function AmmRoutes({ config }: { config: GlobalConfig }) {
+function BrowserConfiguredApp({ config: baseConfig }: { config: GlobalConfig }) {
+  let personas: ReturnType<typeof parseDevelopmentPersonas>;
+  try {
+    personas = parseDevelopmentPersonas(import.meta.env.GROUNDHOG_DEV_PERSONAS);
+  } catch (error) {
+    return (
+      <ConfigurationErrorPage
+        message={error instanceof Error ? error.message : "Development wallets are invalid"}
+      />
+    );
+  }
+  if (personas === null) {
+    return (
+      <AmmRoutes
+        config={baseConfig}
+        walletPrivateKey={import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY}
+      />
+    );
+  }
+  return <PersonaConfiguredApp baseConfig={baseConfig} personas={personas} />;
+}
+
+function PersonaConfiguredApp({
+  baseConfig,
+  personas,
+}: {
+  baseConfig: GlobalConfig;
+  personas: NonNullable<ReturnType<typeof parseDevelopmentPersonas>>;
+}) {
+  const preferenceKey = personaPreferenceKey(
+    baseConfig.networkIdHex,
+    baseConfig.factoryAddress,
+  );
+  const [selectedId, setSelectedId] = useState(() =>
+    window.sessionStorage.getItem(preferenceKey)
+  );
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const active = selectedDevelopmentPersona(personas, selectedId);
+  const config = useMemo(
+    () => ({ ...baseConfig, accountAddress: active.accountAddress }),
+    [active.accountAddress, baseConfig],
+  );
+
+  async function switchTo(id: DevelopmentPersonaId) {
+    if (id === active.id || isSwitching) return;
+    setIsSwitching(true);
+    setSwitchError(null);
+    try {
+      await withOutstandingRequestLock(config, async () => {
+        window.sessionStorage.setItem(preferenceKey, id);
+        flushSync(() => setSelectedId(id));
+      });
+    } catch (error) {
+      setSwitchError(error instanceof Error ? error.message : "Wallet could not be switched");
+      throw error;
+    } finally {
+      setIsSwitching(false);
+    }
+  }
+
+  return (
+    <DevelopmentWalletContext value={{
+      active,
+      personas,
+      isSwitching,
+      switchError,
+      switchTo,
+    }}>
+      <AmmRoutes
+        key={`${config.networkIdHex}:${active.accountAddressHex}`}
+        config={config}
+        walletPrivateKey={active.privateKeyHex}
+      />
+    </DevelopmentWalletContext>
+  );
+}
+
+export function AmmRoutes({
+  config,
+  walletPrivateKey,
+}: {
+  config: GlobalConfig;
+  walletPrivateKey?: string | undefined;
+}) {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/pools" replace />} />
       <Route path="/pools" element={<PoolDirectoryPage config={config} />} />
-      <Route path="/pools/new" element={<PoolCreatePage config={config} />} />
+      <Route
+        path="/pools/new"
+        element={(
+          <PoolCreatePage
+            config={config}
+            walletPrivateKey={walletPrivateKey}
+          />
+        )}
+      />
       <Route
         path="/pools/:token0/:token1"
-        element={<PoolRoute config={config} view="detail" />}
+        element={(
+          <PoolRoute
+            config={config}
+            view="detail"
+            walletPrivateKey={walletPrivateKey}
+          />
+        )}
       />
       <Route
         path="/pools/:token0/:token1/swap"
-        element={<PoolRoute config={config} view="swap" />}
+        element={(
+          <PoolRoute
+            config={config}
+            view="swap"
+            walletPrivateKey={walletPrivateKey}
+          />
+        )}
       />
       <Route
         path="/pools/:token0/:token1/liquidity"
-        element={<PoolRoute config={config} view="liquidity" />}
+        element={(
+          <PoolRoute
+            config={config}
+            view="liquidity"
+            walletPrivateKey={walletPrivateKey}
+          />
+        )}
       />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
@@ -117,9 +239,11 @@ export function AmmRoutes({ config }: { config: GlobalConfig }) {
 function PoolRoute({
   config,
   view,
+  walletPrivateKey,
 }: {
   config: GlobalConfig;
   view: "detail" | "swap" | "liquidity";
+  walletPrivateKey?: string | undefined;
 }) {
   const params = useParams();
   const location = useLocation();
@@ -200,14 +324,26 @@ function PoolRoute({
     );
   }
   if (view === "swap") {
-    return <ConfiguredApp key={poolRuntimeKey(state.config)} config={state.config} />;
+    return (
+      <ConfiguredApp
+        key={poolRuntimeKey(state.config)}
+        config={state.config}
+        walletPrivateKey={walletPrivateKey}
+      />
+    );
   }
   if (view === "detail") {
     return (
       <PoolDetailPage key={poolRuntimeKey(state.config)} config={state.config} />
     );
   }
-  return <LiquidityPage key={poolRuntimeKey(state.config)} config={state.config} />;
+  return (
+    <LiquidityPage
+      key={poolRuntimeKey(state.config)}
+      config={state.config}
+      walletPrivateKey={walletPrivateKey}
+    />
+  );
 }
 
 function poolRequestKey(
@@ -255,13 +391,16 @@ function PlaceholderPage({
             <CardDescription>{description}</CardDescription>
           )}
         </CardHeader>
-        <CardContent className="flex gap-3">
-          <Link className="underline underline-offset-4" to="/pools">
-            Pools
-          </Link>
-          <Link className="underline underline-offset-4" to="/pools/new">
-            Create pool
-          </Link>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-3">
+            <Link className="underline underline-offset-4" to="/pools">
+              Pools
+            </Link>
+            <Link className="underline underline-offset-4" to="/pools/new">
+              Create pool
+            </Link>
+          </div>
+          <DevelopmentWalletSwitcher />
         </CardContent>
       </Card>
     </main>
@@ -282,17 +421,19 @@ function ConfiguredApp({
   readSnapshot,
   requestObserver,
   writeBoundary,
+  walletPrivateKey,
 }: {
   config: AppConfig;
   readSnapshot?: SnapshotReader | undefined;
   requestObserver?: RequestObserver | undefined;
   writeBoundary?: WriteBoundary | undefined;
+  walletPrivateKey?: string | undefined;
 }) {
   const [reader] = useState<SnapshotReader>(
     () => readSnapshot ?? createSnapshotReader(config),
   );
   const [writer] = useState<WriteBoundary>(
-    () => writeBoundary ?? createBrowserLocalWriteBoundary(config),
+    () => writeBoundary ?? createBrowserLocalWriteBoundary(config, walletPrivateKey),
   );
   const [observer] = useState<RequestObserver>(
     () => requestObserver ?? createRequestObserver(config),

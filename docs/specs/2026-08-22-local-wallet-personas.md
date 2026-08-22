@@ -1,5 +1,5 @@
 # Local Wallet Personas Plan
-Status: Proposed
+Status: Approved
 
 Date: 2026-08-22
 ## Goal
@@ -17,7 +17,7 @@ Use three existing bootstrap `local_user` accounts from the runtime manifest:
 
 Roles describe the initial demonstration state. The contracts do not restrict Bob or Carol from creating pools, adding liquidity, removing their own liquidity, swapping, or processing a shared driver queue.
 
-The current manifest at `/tmp/ramdb_70cseo/runtime-manifest.json` contains the required three local users, `dev-1`, `dev-2`, and `dev-3`. The node prerequisite is satisfied. Future runs must continue to start with at least `--dev-account-count 3`; we should not add custom wallet deployment merely to manufacture another user.
+Local setup requires the runtime manifest to contain `dev-1`, `dev-2`, and `dev-3`. Nodes must start with at least `--dev-account-count 3`; setup must not add custom wallet deployment merely to manufacture another user.
 ## Keep The Model Simple
 1. Use existing manifest accounts and their deployed DevWallet contracts.
   

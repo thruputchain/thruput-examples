@@ -18,6 +18,7 @@ This specification extends the current swap app rather than replacing its transa
 - Durable request collections, unresolved-input reservations, aggregate allowance coverage, observation, bounded history, cross-tab serialization, crank recovery, and the shell fallback inherit from [Groundhog Swap Multi-Request Workflow](./2026-08-14-swap-multi-request.md).
 - Default automatic queue processing and session-only manual mode inherit from [Groundhog Swap Automatic Queue Processing](./2026-08-21-swap-automatic-queue-processing.md).
 - Client 0.3.0, generated contract descriptors, DevWallet integration, setup transaction construction, and generated-file handling inherit from [Groundhog Swap TypeScript Setup](./2026-08-19-swap-typescript-setup.md).
+- Three disposable development accounts and tab-local account switching inherit from [Local Wallet Personas](./2026-08-22-local-wallet-personas.md).
 
 This specification supersedes those documents only for fixed-pair configuration, single-page routing, arbitrary-pool and liquidity-management non-goals, AMM setup topology, and the multi-pool state rules below. It specifically replaces the **Provisioning Workflow** and **Generated Configuration** sections of the TypeScript setup specification and adopts the automatic-processing specification regardless of that document's draft status. For all other conflicts, the narrower or later requirement applies.
 
@@ -46,7 +47,7 @@ Preserve the current app's implemented behavior:
 
 `token0` and `token1` are canonical lowercase token addresses. `/` redirects to `/pools`.
 
-The browser uses one configured development wallet. Any funded account may create a pool at the contract level, but the UI acts only as its configured account and adds no administrator role or allowlist.
+The browser can switch among the three configured disposable development wallets. Any funded account may create a pool at the contract level; the UI adds no administrator role or allowlist.
 
 ### Terminology
 
@@ -65,7 +66,7 @@ The browser uses one configured development wallet. Any funded account may creat
 - Configuring factory hashes, `fee_to`, router ownership, or governance.
 - Cancellation, reprioritization, queue position, or authoritative queue length.
 - A continuous keeper, scheduler, background crank, repeated automatic cranking, or atomic enqueue-and-crank transaction.
-- Public-network custody, account switching, or a production wallet provider.
+- Public-network custody, arbitrary account import, or a production wallet provider.
 - An authoritative storage quote, storage refunds, pool closure, or reserve withdrawal in the MVP contracts.
 
 ## 2. Feature Requirements
@@ -274,10 +275,10 @@ Replace its fixed-pool provisioning and generated configuration with this AMM to
 
 1. Build ERC20 and every swap contract artifact and require the checked-in generated descriptors to match their specifications.
 2. Deploy and initialize at least three example ERC20s, one factory, and one router.
-3. Fund the factory sufficiently for MVP registry growth and fund the configured application account with native HOG and example tokens.
-4. Do not predict, fund, create, or seed a pool during setup.
-5. Write factory-oriented browser configuration atomically, with `.env.local` last and mode `0600`.
-6. Generate a shell crank profile that accepts a validated driver address instead of embedding one pool driver.
+3. Fund the factory sufficiently for MVP registry growth and fund Alice, Bob, and Carol with native HOG and example tokens.
+4. Create and seed one example A/B pool from Alice, who receives its initial LP position without gaining pool ownership or protocol privileges.
+5. Write factory-oriented browser and disposable-persona configuration atomically, with `.env.local` last and mode `0600`.
+6. Generate a shell crank profile that defaults to Alice and accepts a validated driver address.
 
 Setup remains non-idempotent and does not enforce a fresh ledger. The clean-ledger integration harness owns node lifecycle and acceptance state.
 
@@ -312,16 +313,15 @@ Native contract suites require `HOGD_FFI_PASSWORD` or a compatible `HOGD_FFI_LIB
 
 ### Clean-Ledger Acceptance
 
-One live integration test starts from the AMM setup's empty registry and executes:
+One live integration test starts from the AMM setup's seeded A/B pool and executes:
 
 ```text
-empty pool list
--> create and seed A/B
--> automatically submit one A/B queue-processing transaction
--> observe PoolCreated, RequestAccepted, and MintEvent
--> list and open A/B
+list and open seeded A/B
+-> verify Alice owns the initial LP position
+-> switch to Carol
 -> add liquidity -> automatically process -> observe MintEvent
 -> remove liquidity -> automatically process -> observe BurnEvent
+-> switch to Bob
 -> quote and enqueue swap -> automatically process -> observe SwapEvent
 -> refresh reserves, balances, LP supply, requests, and allowances
 ```

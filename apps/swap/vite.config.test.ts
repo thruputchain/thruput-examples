@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   developmentPrivateKeyDefinition,
+  developmentPersonasDefinition,
   isAllowedRequest,
   isSameOriginLocalRequest,
+  validateDevelopmentServerHost,
   validateRpcTarget,
 } from "./vite.config";
 
@@ -56,6 +58,44 @@ describe("development private key boundary", () => {
         environment,
       ),
     ).toBe(JSON.stringify(canary));
+  });
+
+  it("does not define development credentials for a non-loopback RPC", () => {
+    expect(developmentPrivateKeyDefinition(
+      "serve",
+      false,
+      { GROUNDHOG_DEV_PRIVATE_KEY: canary },
+      "https://rpc.example.com",
+    )).toBe("undefined");
+    expect(developmentPersonasDefinition(
+      "serve",
+      false,
+      { GROUNDHOG_DEV_PERSONAS: "[]" },
+      "https://rpc.example.com",
+    )).toBe("undefined");
+  });
+
+  it("defines personas only for local development serve", () => {
+    const personas = '[{"id":"alice"}]';
+    expect(developmentPersonasDefinition(
+      "serve",
+      false,
+      { GROUNDHOG_DEV_PERSONAS: personas },
+    )).toBe(JSON.stringify(personas));
+    expect(developmentPersonasDefinition(
+      "build",
+      false,
+      { GROUNDHOG_DEV_PERSONAS: personas },
+    )).toBe("undefined");
+  });
+
+  it("rejects exposing development credentials on a network host", () => {
+    expect(() => validateDevelopmentServerHost("0.0.0.0", true))
+      .toThrow("loopback host");
+    expect(() => validateDevelopmentServerHost(true, true))
+      .toThrow("loopback host");
+    expect(() => validateDevelopmentServerHost("127.0.0.1", true)).not.toThrow();
+    expect(() => validateDevelopmentServerHost("0.0.0.0", false)).not.toThrow();
   });
 });
 

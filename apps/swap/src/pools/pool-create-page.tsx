@@ -85,14 +85,16 @@ interface PoolCreatePageDependencies {
 export function PoolCreatePage({
   config,
   dependencies = {},
+  walletPrivateKey,
 }: {
   config: GlobalConfig;
   dependencies?: PoolCreatePageDependencies;
+  walletPrivateKey?: string | undefined;
 }) {
   const navigate = useNavigate();
   const [initialState] = useState(() => readCreationState(config));
   const [writer] = useState(
-    () => dependencies.writer ?? createBrowserLocalWriteBoundary(config),
+    () => dependencies.writer ?? createBrowserLocalWriteBoundary(config, walletPrivateKey),
   );
   const [input, setInput] = useState(emptyInput);
   const [review, setReview] = useState<PoolCreationReview | null>(null);

@@ -22,6 +22,11 @@ export default defineConfig(({ command, isPreview, mode }) => {
   const rpcTarget =
     environment.VITE_GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545";
   validateRpcTarget(rpcTarget);
+  const developmentCredentialsEnabled = command === "serve"
+    && !(isPreview ?? false)
+    && isLoopback(new URL(rpcTarget).hostname)
+    && (environment.GROUNDHOG_DEV_PERSONAS !== undefined
+      || environment.GROUNDHOG_DEV_PRIVATE_KEY !== undefined);
 
   return {
     envPrefix: [
@@ -49,9 +54,22 @@ export default defineConfig(({ command, isPreview, mode }) => {
           command,
           isPreview ?? false,
           environment,
+          rpcTarget,
+        ),
+      "import.meta.env.GROUNDHOG_DEV_PERSONAS":
+        developmentPersonasDefinition(
+          command,
+          isPreview ?? false,
+          environment,
+          rpcTarget,
         ),
     },
-    plugins: [react(), tailwindcss(), localRpcProxy(rpcTarget)],
+    plugins: [
+      react(),
+      tailwindcss(),
+      developmentCredentialHostGuard(developmentCredentialsEnabled),
+      localRpcProxy(rpcTarget),
+    ],
     resolve: {
       alias: {
         "@": path.resolve(root, "src"),
@@ -67,15 +85,50 @@ export default defineConfig(({ command, isPreview, mode }) => {
   };
 });
 
+function developmentCredentialHostGuard(enabled: boolean): Plugin {
+  return {
+    name: "groundhog-development-credential-host-guard",
+    configureServer(server) {
+      validateDevelopmentServerHost(server.config.server.host, enabled);
+    },
+  };
+}
+
+export function validateDevelopmentServerHost(
+  host: string | boolean | undefined,
+  credentialsEnabled: boolean,
+): void {
+  if (!credentialsEnabled) return;
+  const hostname = typeof host === "string" ? host : "localhost";
+  if (host === true || !isLoopback(hostname)) {
+    throw new Error(
+      "Disposable development wallets may only be served from a loopback host",
+    );
+  }
+}
+
 export function developmentPrivateKeyDefinition(
   command: "build" | "serve",
   isPreview: boolean,
   environment: Record<string, string | undefined>,
+  rpcTarget = "http://127.0.0.1:9545",
 ): string {
-  if (command !== "serve" || isPreview) {
+  if (command !== "serve" || isPreview || !isLoopback(new URL(rpcTarget).hostname)) {
     return "undefined";
   }
   return JSON.stringify(environment.GROUNDHOG_DEV_PRIVATE_KEY) ?? "undefined";
+}
+
+export function developmentPersonasDefinition(
+  command: "build" | "serve",
+  isPreview: boolean,
+  environment: Record<string, string | undefined>,
+  rpcTarget = "http://127.0.0.1:9545",
+): string {
+  if (command !== "serve" || isPreview || !isLoopback(new URL(rpcTarget).hostname)) {
+    return "undefined";
+  }
+  return JSON.stringify(environment.GROUNDHOG_DEV_PERSONAS) ?? "undefined";
 }
 
 function localRpcProxy(target: string): Plugin {

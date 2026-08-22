@@ -11,6 +11,7 @@ import { useEffect, useId, useReducer, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
+import { DevelopmentWalletSwitcher } from "@/components/development-wallet-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -269,6 +270,7 @@ function AppHeader({
           </div>
         </a>
         <div className="flex shrink-0 items-center gap-2">
+          <DevelopmentWalletSwitcher />
           <Badge variant="outline" className="hidden font-mono sm:inline-flex">
             <span
               aria-hidden="true"

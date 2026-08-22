@@ -44,7 +44,10 @@ describe.skipIf(!runLocalIntegration)("local pool creation", () => {
       config,
       createCreationWorkflow(config, review),
     );
-    const writer = createBrowserLocalWriteBoundary(config);
+    const writer = createBrowserLocalWriteBoundary(
+      config,
+      import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY,
+    );
 
     const result = await withOutstandingRequestLock(config, () =>
       runCreationWorkflow(config, workflow, { writeBoundary: writer })

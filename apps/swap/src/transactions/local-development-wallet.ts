@@ -54,11 +54,12 @@ export interface LocalWalletConfiguration {
 
 export function createBrowserLocalWriteBoundary(
   config: Pick<GlobalConfig, "rpcUrl" | "accountAddress">,
+  privateKeyHex: string | undefined,
 ): WriteBoundary {
   return createLocalWriteBoundary(
     config,
     {
-      privateKeyHex: import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY,
+      privateKeyHex: privateKeyHex ?? "",
       walletEntrypointHex: import.meta.env.VITE_GROUNDHOG_WALLET_ENTRYPOINT,
     },
   );

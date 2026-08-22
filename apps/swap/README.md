@@ -1,8 +1,8 @@
-# Groundhog Swap
+# Groundhog AMM
 
-Groundhog Swap is a local-development frontend for the example Uniswap V2-style swap contracts. It supports exact-input swaps against one configured token pair. It is not production software.
+Groundhog AMM is a local-development frontend for discovering, creating, and using example Uniswap V2-style pools. It is not production software.
 
-The local development server injects a generated disposable private key while serving the app; production builds do not contain it. Treat the key as public development data, use it only on a disposable development ledger, and never fund it on a public network.
+The local development server injects three generated disposable wallet personas while serving the app; production builds do not contain them. Treat every key as public development data, use it only on a disposable development ledger, and never fund it on a public network.
 
 ## Supported Stack
 
@@ -40,6 +40,7 @@ The workspace uses Groundhog RPC and testkit 0.9.2 with Groundhog SDK 0.19.3, an
 
 - RPC available at `http://127.0.0.1:9545`, unless overridden.
 - A runtime manifest from the running node.
+- At least three `local_user` bootstrap accounts (`--dev-account-count 3`).
 
 Setup does not enforce a fresh ledger and is not idempotent. Starting with a fresh disposable node remains the simplest option, especially after a partial setup failure.
 
@@ -55,9 +56,9 @@ export GROUNDHOG_RPC_URL=http://127.0.0.1:9545
 npm --prefix apps/swap run setup:local
 ```
 
-Setup derives the disposable browser key from the runtime manifest, builds the contracts, deploys two tokens and one swap suite, seeds liquidity, checks the initial reserves, and writes:
+Setup derives Alice, Bob, and Carol from the runtime manifest, builds the contracts, deploys three tokens and one shared AMM, distributes tokens to all three wallets, seeds one gUSD/gEUR pool from Alice, checks Alice's initial LP position, and writes:
 
-- `apps/swap/.env.local`: browser configuration and the disposable key.
+- `apps/swap/.env.local`: browser configuration and the disposable persona keys.
 - `apps/swap/.groundhog-config/`: generated CLI profile used by the crank.
 
 Both paths are ignored by Git. Setup invalidates old generated files before building and writes both replacements with mode `0600` after provisioning succeeds.
@@ -69,6 +70,10 @@ npm --prefix apps/swap run dev
 ```
 
 Use one browser origin consistently. Do not alternate between `localhost` and `127.0.0.1`; browser locks and local storage are origin-scoped.
+
+The development server must listen on a loopback host while disposable credentials are enabled. Do not use `vite --host 0.0.0.0` or expose this app to a local network.
+
+Use the development-wallet control in either header to switch this tab among Alice, Bob, and Carol. Pools and queues are shared, while balances, allowances, LP positions, transaction history, and recovery state belong to the selected account. Alice begins as the initial liquidity provider; Bob and Carol begin with tokens but no LP position. Selection is tab-local, so separate tabs may use different personas.
 
 The primary flow is:
 

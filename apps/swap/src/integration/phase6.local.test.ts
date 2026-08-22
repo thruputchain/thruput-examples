@@ -56,7 +56,10 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
   it("enqueues two requests before one crank and observes both executions", async () => {
     const config = loadLocalConfig();
     const readSnapshot = createSnapshotReader(config);
-    const writer = createBrowserLocalWriteBoundary(config);
+    const writer = createBrowserLocalWriteBoundary(
+      config,
+      import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY,
+    );
     const amount = "0.001";
 
     const initial = await readSnapshot();

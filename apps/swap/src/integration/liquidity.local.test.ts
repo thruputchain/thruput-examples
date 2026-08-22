@@ -29,7 +29,10 @@ describe.skipIf(!runLocalIntegration)("local liquidity integration", () => {
     const ordered = orderTokens(configured.tokenAAddress, configured.tokenBAddress);
     const config = await resolvePoolConfig(configured, ordered.token0, ordered.token1);
     const readSnapshot = createSnapshotReader(config);
-    const writer = createBrowserLocalWriteBoundary(config);
+    const writer = createBrowserLocalWriteBoundary(
+      config,
+      import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY,
+    );
     const before = await readSnapshot();
     const addQuote = deriveAddLiquidityQuote(before, 0, "0.0001", 100n);
     expect(addQuote.ok).toBe(true);
