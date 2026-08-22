@@ -21,7 +21,7 @@ Use these exact package versions:
 - `tsx` 4.22.4
 - `smol-toml` 1.8.0
 
-Also require Node.js 22.12 or newer, Groundhog CLI 0.9.6 or newer, and a node serving RPC wire format 3.0.0.
+Also require Node.js 22.12 or newer, Groundhog CLI 0.9.6 or newer, and a node serving a stable RPC wire format in the compatible range `>=3.0.0 <4.0.0`.
 
 ## Boundaries
 
@@ -103,7 +103,7 @@ The browser private key is:
 SHA-256("<bootstrap seed>:account-<application-user index>")
 ```
 
-Setup loads the six fixed `.rv32a` artifacts from `SWAP_ARTIFACT_ROOT` and requires RPC wire format 3.0.0.
+Setup loads the six fixed `.rv32a` artifacts from `SWAP_ARTIFACT_ROOT` and requires a stable RPC wire format in the compatible range `>=3.0.0 <4.0.0`.
 
 ## Transaction Boundary
 

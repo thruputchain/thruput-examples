@@ -241,7 +241,7 @@ Regenerate bindings and strengthen contract tests when any ABI changes.
 
 ### Toolchain
 
-Use Node.js 22.12 or newer, Groundhog CLI 0.9.6 or newer, RPC wire format 3.0.0, and the exact frontend versions pinned in `apps/swap/package.json`, including `@groundhogchain/client` 0.3.0 and contract packages 0.7.1.
+Use Node.js 22.12 or newer, Groundhog CLI 0.9.6 or newer, a stable RPC wire format in the compatible range `>=3.0.0 <4.0.0`, and the exact frontend versions pinned in `apps/swap/package.json`, including `@groundhogchain/client` 0.3.0 and contract packages 0.7.1.
 
 Before AMM implementation, validate that the generated ERC20 transfer descriptor is compatible with the runtime's native HOG contract. Do not retain the obsolete ERC20 v0.1.3 codec assumption.
 
