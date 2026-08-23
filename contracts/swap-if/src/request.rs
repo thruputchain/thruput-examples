@@ -192,15 +192,56 @@ pub struct SwapExactOutRequest {
     pub recipient: Address,
 }
 
-// Loose limits, calibrated empirically against the guest (real-fuel) build.
-// Liquidity events (mint/burn) also cross-call the factory for the protocol
-// `fee_to`, so they carry more headroom than a bare swap.
-const ADD_LIQUIDITY_GAS: u64 = 500_000;
-const REMOVE_LIQUIDITY_GAS: u64 = 600_000;
-const SWAP_GAS: u64 = 400_000;
+// What handling each kind of request may cost.  Calibrated against the guest
+// (real-fuel) build by `swap-driver`'s `request_gas` test, which holds each of
+// these several times the measured cost.
+//
+// These are safety limits: the driver caps the handler sub-call at the figure
+// its request declares, and a request that outruns its budget fails rather
+// than slowing down.  The margin is not free, though -- the drain loop budgets
+// `REQUEST_GAS_MAX` per request before taking one, so inflating these makes
+// every crank declare more gas than it needs and raises the floor a crank must
+// clear before it may drain at all.
+//
+// Liquidity events carry more headroom than a bare swap: they cross-call the
+// factory for the protocol `fee_to`, and when one is configured, every such
+// event also takes a square root and some U256 arithmetic in the pair's
+// `mint_fee`.  Nothing in the tests configures a `fee_to`, so that branch is
+// measured by none of this and is part of what the headroom stands for.
+
+/// What handling an [`AddLiquidityRequest`] may cost.
+pub const ADD_LIQUIDITY_GAS: u64 = 350_000;
+
+/// What handling a [`RemoveLiquidityRequest`] may cost.
+pub const REMOVE_LIQUIDITY_GAS: u64 = 450_000;
+
+/// What handling a [`SwapExactInRequest`] or [`SwapExactOutRequest`] may cost.
+pub const SWAP_GAS: u64 = 250_000;
+
+// Every per-operation budget, in one place so that `REQUEST_GAS_MAX` is the
+// largest of them by construction.  A new operation belongs here as well as in
+// `gas_limit` below -- which the match there will not let anyone forget, and
+// which `request_budgets.rs` checks.
+const REQUEST_GAS: [u64; 3] = [ADD_LIQUIDITY_GAS, REMOVE_LIQUIDITY_GAS, SWAP_GAS];
 
 /// The maximum gas any single request should consume when handled.
-pub const REQUEST_GAS_MAX: u64 = REMOVE_LIQUIDITY_GAS;
+///
+/// The largest of the per-operation budgets: the drain loop budgets this much
+/// before taking a request it cannot yet see, so it has to bound every one of
+/// them.
+pub const REQUEST_GAS_MAX: u64 = max(&REQUEST_GAS);
+
+const fn max(budgets: &[u64]) -> u64 {
+    let mut most = 0;
+    let mut i = 0;
+    while i < budgets.len() {
+        if budgets[i] > most {
+            most = budgets[i];
+        }
+        i += 1;
+    }
+    most
+}
 
 impl batch_driver::BatchRequest for SwapRequest {
     const GAS_LIMIT: u64 = REQUEST_GAS_MAX;
