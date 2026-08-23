@@ -5,8 +5,8 @@ and the cranker sizes its own batch.  This is the list of what changed and what
 it means for the frontend.
 
 The reasoning behind the contract side is in
-[`docs/README-swap.md`](../../docs/README-swap.md) ("Why a Request Queue", "Cranking
-the Queue") and in the [`batch-driver`](../../helpers/batch-driver/src/lib.rs) module
+[`docs/README-swap.md`](docs/README-swap.md) ("Why a Request Queue", "Cranking
+the Queue") and in the [`batch-driver`](helpers/batch-driver/src/lib.rs) module
 docs; the constants carry their own measured justifications.
 
 Nothing here breaks the app as it stands.  The stale bindings still hold the
@@ -16,13 +16,11 @@ changed.
 ## What changed
 
 * **Regenerate the bindings.**
-  [`apps/swap/src/contracts/generated/swap-driver.ts`](src/contracts/generated/swap-driver.ts)
-  no longer matches the driver's spec.  `generate-contract-bindings.sh` needs
-  CLI 0.9.6 or newer; 0.9.0 emits an older binding shape and will rewrite the
-  whole file if used.  Nothing is broken meanwhile: entrypoint ids derive from
-  the method name alone, so the ids in the checked-in file -- and
-  `SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT` in the generated `.env.local` --
-  are still correct.
+  [`apps/swap/src/contracts/generated/swap-driver.ts`](apps/swap/src/contracts/generated/swap-driver.ts)
+  no longer matches the driver's spec. Nothing is broken meanwhile: entrypoint
+  ids derive from the method name alone, so the ids in the checked-in file --
+  and `SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT` in the generated `.env.local`
+  -- are still correct.
 
 * **`SwapDriver::initialize` takes a `max_queue_len` and a
   `min_crank_batch`.**  A bindings-only change for the app, which never calls
@@ -37,7 +35,7 @@ changed.
   found the queue empty emits nothing.
 
 * **The crank's declared gas limit now chooses the batch size.**  `TARGET_GAS`
-  in [`apps/swap/src/contracts/driver-target.ts`](src/contracts/driver-target.ts)
+  in [`apps/swap/src/contracts/driver-target.ts`](apps/swap/src/contracts/driver-target.ts)
   (10M) used to be a safe over-declaration against a fixed ceiling of about ten
   requests; it now selects the batch -- about sixteen, if every request costs
   the full `REQUEST_GAS_MAX`, and more when they cost less.  Since the declared
@@ -47,12 +45,12 @@ changed.
   is `swap_driver::process_requests_gas(batch_size)`.
 
 * **A crank can be refused as too small.**  A crank must be able to drain
-  whatever is waiting, up to the pool's `min_crank_batch`; one that cannot aborts with
-  `SwapDriverError::BatchTooSmall` rather than spending the block's only drain
-  on less.  `TARGET_GAS` is far above the floor, so
-  this does not bite as things stand -- but an in-app control that ever lets a
-  user pick a small batch has to handle the refusal, and should read it as
-  "ask for more" rather than as a failed crank.
+  whatever is waiting, up to the pool's `min_crank_batch`; one that cannot
+  aborts with `SwapDriverError::BatchTooSmall` rather than spending the block's
+  only drain on less.  `TARGET_GAS` is far above the floor, so this does not
+  bite as things stand -- but an in-app control that ever lets a user pick a
+  small batch has to handle the refusal, and should read it as "ask for more"
+  rather than as a failed crank.
 
 * **A request submission can now be *deferred*.**  With the queue at its
   ceiling, a `request` transaction is excluded from its block and returned to
@@ -74,15 +72,15 @@ changed.
   the queue was empty at that block's snapshot, or another crank got there
   first.  The app's existing rule that a successful crank does not prove any
   particular request reached a terminal state (see
-  [2026-08-14-swap-multi-request](../../docs/specs/2026-08-14-swap-multi-request.md))
+  [2026-08-14-swap-multi-request](docs/specs/2026-08-14-swap-multi-request.md))
   already covers it.
 
 ## Where to look
 
 | | |
 |---|---|
-| The drain loop, its gas budgeting, and the queue ceiling | [`helpers/batch-driver/src/lib.rs`](../../helpers/batch-driver/src/lib.rs) |
-| The driver: enqueue, ceiling, drain, summary event | [`contracts/swap-driver/src/driver.rs`](../../contracts/swap-driver/src/driver.rs) |
-| The interface and its events | [`contracts/swap-if/src/driver.rs`](../../contracts/swap-if/src/driver.rs), [`contracts/swap-if/src/events.rs`](../../contracts/swap-if/src/events.rs) |
-| The queue ceiling a pool is created with | `MAX_QUEUE_LEN` in [`contracts/swap-factory/src/factory.rs`](../../contracts/swap-factory/src/factory.rs) |
+| The drain loop, its gas budgeting, and the queue ceiling | [`helpers/batch-driver/src/lib.rs`](helpers/batch-driver/src/lib.rs) |
+| The driver: enqueue, ceiling, drain, summary event | [`contracts/swap-driver/src/driver.rs`](contracts/swap-driver/src/driver.rs) |
+| The interface and its events | [`contracts/swap-if/src/driver.rs`](contracts/swap-if/src/driver.rs), [`contracts/swap-if/src/events.rs`](contracts/swap-if/src/events.rs) |
+| The queue ceiling a pool is created with | `MAX_QUEUE_LEN` in [`contracts/swap-factory/src/factory.rs`](contracts/swap-factory/src/factory.rs) |
 | What the contracts guarantee, as tests | `helpers/batch-driver/tests/`, `contracts/swap-driver/tests/` |
