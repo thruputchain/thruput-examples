@@ -52,6 +52,7 @@ const FUNDING_STEPS = [
 
 export interface CreationExecutorDependencies extends PoolCreationDependencies {
   writeBoundary: WriteBoundary;
+  automaticProcessing?: boolean;
   onUpdate?: (workflow: CreationWorkflow) => void;
 }
 
@@ -84,6 +85,11 @@ export async function runCreationWorkflow(
 
   for (const name of creationStepOrder) {
     if (["executed", "failed", "race"].includes(workflow.status)) break;
+    if (
+      name === "crank"
+      && workflow.status === "queued"
+      && dependencies.automaticProcessing === false
+    ) return workflow;
     let step = workflow.steps[name];
     if (step.status === "committed" || step.status === "skipped") continue;
 

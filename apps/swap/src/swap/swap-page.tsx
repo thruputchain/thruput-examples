@@ -11,6 +11,7 @@ import { useEffect, useId, useReducer, useRef, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { SlippageSettings } from "@/components/slippage-settings";
+import { useProcessingMode } from "@/components/processing-mode";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -277,7 +278,8 @@ function SwapWorkspace({
     initialCrankState.error,
   );
   const [isCranking, setIsCranking] = useState(false);
-  const [manualProcessing, setManualProcessing] = useState(false);
+  const { mode: processingMode, setMode: setProcessingMode } = useProcessingMode();
+  const manualProcessing = processingMode === "manual";
   const [collectionReady, setCollectionReady] = useState(
     !hasLegacyOutstandingRequest(config),
   );
@@ -1823,7 +1825,8 @@ function SwapWorkspace({
             aria-label="Manual queue processing"
             checked={manualProcessing}
             disabled={modeLocked}
-            onCheckedChange={setManualProcessing}
+            onCheckedChange={(manual) =>
+              setProcessingMode(manual ? "manual" : "automatic")}
           />
         </Field>
         <RequestList
@@ -1845,7 +1848,7 @@ function SwapWorkspace({
           onCheckRecovery={() => setRecoveryCheck((current) => current + 1)}
           onConfirmRecovery={confirmPreHashRecovery}
           onResolveUntracked={resolveUntrackedRequest}
-          onShowManual={() => setManualProcessing(true)}
+          onShowManual={() => setProcessingMode("manual")}
         />
       </div>
     </div>

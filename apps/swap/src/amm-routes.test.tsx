@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { AmmRoutes } from "@/app";
+import { ProcessingModeProvider } from "@/components/processing-mode";
 import type { GlobalConfig } from "@/config";
 
 vi.mock("@/pools/pool-directory-page", () => ({
@@ -26,7 +27,9 @@ describe("AmmRoutes", () => {
   it("redirects the root route to the pool directory", async () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
-        <AmmRoutes config={config} />
+        <ProcessingModeProvider>
+          <AmmRoutes config={config} />
+        </ProcessingModeProvider>
       </MemoryRouter>,
     );
 
@@ -36,7 +39,9 @@ describe("AmmRoutes", () => {
   it("renders the create-pool route", () => {
     render(
       <MemoryRouter initialEntries={["/pools/new"]}>
-        <AmmRoutes config={config} />
+        <ProcessingModeProvider>
+          <AmmRoutes config={config} />
+        </ProcessingModeProvider>
       </MemoryRouter>,
     );
 

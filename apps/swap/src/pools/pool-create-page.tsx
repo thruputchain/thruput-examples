@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
+import { useProcessingMode } from "@/components/processing-mode";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import type { GlobalConfig } from "@/config";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
@@ -104,6 +106,8 @@ export function PoolCreatePage({
   );
   const [isReviewing, setIsReviewing] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const { mode: processingMode, setMode: setProcessingMode } = useProcessingMode();
+  const manualProcessing = processingMode === "manual";
   const [error, setError] = useState<string | null>(initialState.error);
   const prepare = dependencies.prepare ?? preparePoolCreation;
   const run = dependencies.run ?? runCreationWorkflow;
@@ -155,7 +159,7 @@ export function PoolCreatePage({
     }
   }
 
-  async function startOrContinue() {
+  async function startOrContinue(processQueue = false) {
     if (isRunning) return;
     setIsRunning(true);
     setError(null);
@@ -194,6 +198,7 @@ export function PoolCreatePage({
         }
         return run(config, current, {
           writeBoundary: writer,
+          automaticProcessing: processQueue || !manualProcessing,
           onUpdate: applyWorkflow,
         });
       });
@@ -365,7 +370,7 @@ export function PoolCreatePage({
         <CreationReviewCard
           review={review}
           isRunning={isRunning}
-          onCreate={startOrContinue}
+          onCreate={() => startOrContinue(false)}
         />
       ) : null}
 
@@ -375,7 +380,7 @@ export function PoolCreatePage({
           isRunning={isRunning}
           requiresPreHashConfirmation={requiresPreHashConfirmation}
           onConfirmNotSigned={confirmNotSigned}
-          onContinue={startOrContinue}
+          onContinue={() => startOrContinue(workflow.status === "queued")}
           onStartOver={() => {
             if (workflow !== null) {
               setAccountWorkflows((current) =>
@@ -389,6 +394,22 @@ export function PoolCreatePage({
           }}
         />
       )}
+
+      <Field orientation="horizontal">
+        <div>
+          <FieldTitle>Manual queue processing</FieldTitle>
+          <FieldDescription>
+            Enqueue without automatically submitting the driver transaction.
+          </FieldDescription>
+        </div>
+        <Switch
+          aria-label="Manual queue processing"
+          checked={manualProcessing}
+          disabled={isRunning || workflow?.status === "queued"}
+          onCheckedChange={(manual) =>
+            setProcessingMode(manual ? "manual" : "automatic")}
+        />
+      </Field>
     </AmmPage>
   );
 }
@@ -588,11 +609,12 @@ function CreationProgressCard({
 }) {
   const blocking = hasBlockingCreationTransaction(workflow);
   const terminal = ["executed", "failed", "race"].includes(workflow.status);
-  const actionLabel = workflow.status === "queued"
-      && workflow.steps.crank.status === "committed"
-    ? "Retry queue processing"
-    : blocking
-      ? "Check transaction and continue"
+  const actionLabel = blocking
+    ? "Check transaction and continue"
+    : workflow.status === "queued"
+      ? workflow.steps.crank.status === "committed"
+        ? "Retry queue processing"
+        : "Process liquidity queue"
       : "Continue creation";
   return (
     <Card>

@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SlippageSettings } from "@/components/slippage-settings";
+import { useProcessingMode } from "@/components/processing-mode";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -88,7 +89,8 @@ export function LiquidityPage({
   const [removeAmount, setRemoveAmount] = useState("");
   const [inputIndex, setInputIndex] = useState<LiquidityTokenIndex>(0);
   const [slippage, setSlippage] = useState("1");
-  const [manualProcessing, setManualProcessing] = useState(false);
+  const { mode: processingMode, setMode: setProcessingMode } = useProcessingMode();
+  const manualProcessing = processingMode === "manual";
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(initialState.error);
   const run = dependencies.run ?? runLiquidityOperation;
@@ -369,7 +371,8 @@ export function LiquidityPage({
           aria-label="Manual queue processing"
           checked={manualProcessing}
           disabled={isRunning || current?.status === "queued"}
-          onCheckedChange={setManualProcessing}
+          onCheckedChange={(manual) =>
+            setProcessingMode(manual ? "manual" : "automatic")}
         />
       </Field>
     </AmmPage>

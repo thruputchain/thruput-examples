@@ -94,9 +94,25 @@ describe("creation workflow", () => {
     const queued = createCreationWorkflow(config, review(30), 11);
     queued.status = "queued";
     queued.requestId = hex(50);
+    queued.steps.enqueue.status = "committed";
+    queued.steps.enqueue.transactionHash = hex(51);
     saveCreationWorkflow(config, queued);
     expect(canArchiveCreationWorkflow(queued)).toBe(false);
     expect(() => archiveCreationWorkflow(config, queued)).toThrow(
+      CreationWorkflowError,
+    );
+  });
+
+  it("rejects queued state without a committed enqueue", () => {
+    const invalid = createCreationWorkflow(config, review(), 10);
+    invalid.status = "queued";
+    invalid.requestId = hex(50);
+    window.localStorage.setItem(
+      creationWorkflowKey(config, hex(1), hex(2)),
+      JSON.stringify(invalid),
+    );
+
+    expect(() => loadCreationWorkflow(config, hex(1), hex(2))).toThrow(
       CreationWorkflowError,
     );
   });

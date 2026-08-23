@@ -22,6 +22,7 @@ import {
   DevelopmentWalletContext,
   DevelopmentWalletSwitcher,
 } from "@/components/development-wallet-switcher";
+import { ProcessingModeProvider } from "@/components/processing-mode";
 import {
   Card,
   CardContent,
@@ -91,15 +92,15 @@ export function App({
       />
     );
     return (
-      <TooltipProvider>
+      <AppProviders>
         {hasRouter ? app : <BrowserRouter>{app}</BrowserRouter>}
-      </TooltipProvider>
+      </AppProviders>
     );
   }
   const configuration = readBrowserConfiguration();
 
   return (
-    <TooltipProvider>
+    <AppProviders>
       {configuration.ok ? (
         hasRouter
           ? <BrowserConfiguredApp config={configuration.config} />
@@ -109,6 +110,14 @@ export function App({
             </BrowserRouter>
           )
       ) : <ConfigurationErrorPage message={configuration.message} />}
+    </AppProviders>
+  );
+}
+
+function AppProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <TooltipProvider>
+      <ProcessingModeProvider>{children}</ProcessingModeProvider>
     </TooltipProvider>
   );
 }

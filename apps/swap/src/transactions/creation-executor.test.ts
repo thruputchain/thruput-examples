@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GlobalConfig } from "@/config";
 import type { Erc20ReadAdapter } from "@/contracts/erc20-adapter";
 import type { SwapFactoryReadAdapter } from "@/contracts/factory-adapter";
+import { RequestAccepted } from "@/contracts/generated/swap-driver";
 import type { PoolCreationReview } from "@/pools/pool-creation";
 import {
   confirmCreationStepWasNotSigned,
@@ -152,6 +153,50 @@ describe("creation executor", () => {
     expect(result.steps.fundLiquidityToken.status).toBe("committed");
     expect(result.steps.fundPair.status).toBe("failed");
   });
+
+  it("stops after a durable enqueue in manual mode and continues with only a crank", async () => {
+    const workflow = saveCreationWorkflow(
+      config,
+      createCreationWorkflow(config, review(), 10),
+    );
+    const requestId = new Uint8Array(32).fill(60);
+    const enqueueHash = hex(41);
+    const enqueue = committed(15n, [acceptedEvent(requestId)]);
+    const execute = vi.fn()
+      .mockResolvedValueOnce(committed(11n))
+      .mockResolvedValueOnce(committed(12n))
+      .mockResolvedValueOnce(committed(13n))
+      .mockResolvedValueOnce(committed(14n))
+      .mockResolvedValueOnce(enqueue);
+
+    const queued = await runCreationWorkflow(config, workflow, {
+      ...dependencies(),
+      writeBoundary: { execute },
+      automaticProcessing: false,
+    });
+
+    expect(execute).toHaveBeenCalledTimes(5);
+    expect(queued).toMatchObject({
+      status: "queued",
+      requestId: toHex(requestId),
+      steps: {
+        enqueue: { status: "committed", transactionHash: enqueueHash },
+        crank: { status: "pending", transactionHash: null },
+      },
+    });
+
+    const crank = vi.fn().mockResolvedValue(committed(16n));
+    const continued = await runCreationWorkflow(config, queued, {
+      ...dependencies(),
+      writeBoundary: { execute: crank },
+      automaticProcessing: true,
+    });
+
+    expect(crank).toHaveBeenCalledTimes(1);
+    expect(continued.steps.enqueue.transactionHash).toBe(enqueueHash);
+    expect(continued.requestId).toBe(toHex(requestId));
+    expect(continued.steps.crank.status).toBe("committed");
+  });
 });
 
 function dependencies(): {
@@ -216,7 +261,14 @@ function review(): PoolCreationReview {
   };
 }
 
-function committed(height: bigint): Extract<WriteResult, { kind: "committedSuccess" }> {
+function committed(
+  height: bigint,
+  events: Array<{
+    contractAddress: ReturnType<typeof address>;
+    topics: Uint8Array[];
+    data: Uint8Array;
+  }> = [],
+): Extract<WriteResult, { kind: "committedSuccess" }> {
   return {
     kind: "committedSuccess",
     hash: hex(41),
@@ -224,9 +276,21 @@ function committed(height: bigint): Extract<WriteResult, { kind: "committedSucce
       txHash: sha256Hash(new Uint8Array(32).fill(41)),
       height,
       execResult: ExecResult.ExecResultOK,
-      events: [],
+      events,
       returnData: new Uint8Array(),
       abortData: null,
     },
   };
+}
+
+function acceptedEvent(requestId: Uint8Array) {
+  return {
+    contractAddress: review().pool.driver,
+    topics: [RequestAccepted.signature, requestId],
+    data: new Uint8Array(),
+  };
+}
+
+function toHex(value: Uint8Array): string {
+  return `0x${Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }

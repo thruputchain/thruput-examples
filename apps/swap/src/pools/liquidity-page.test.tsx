@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ProcessingModeProvider } from "@/components/processing-mode";
 import type { AppConfig } from "@/config";
 import type { PoolSnapshot } from "@/swap/snapshot";
 import { runLiquidityOperation } from "@/transactions/liquidity-executor";
@@ -102,6 +103,27 @@ describe("LiquidityPage", () => {
     expect(screen.getByRole("button", { name: "Add liquidity" })).toBeDisabled();
   });
 
+  it("stops after enqueue when shared manual processing is enabled", async () => {
+    const user = userEvent.setup();
+    const run = vi.fn(async (_config: AppConfig, operation: LiquidityOperation) => ({
+      ...operation,
+      status: "queued" as const,
+    }));
+    renderPage(run);
+
+    await user.click(await screen.findByRole("switch", {
+      name: "Manual queue processing",
+    }));
+    await user.type(screen.getByLabelText("A amount"), "10");
+    await user.click(screen.getByRole("button", { name: "Add liquidity" }));
+
+    await waitFor(() => expect(run).toHaveBeenCalledWith(
+      config,
+      expect.any(Object),
+      expect.objectContaining({ automaticProcessing: false }),
+    ));
+  });
+
   it("quotes and persists removal using unreserved LP", async () => {
     const user = userEvent.setup();
     const run = vi.fn(async (_config: AppConfig, operation: LiquidityOperation) => ({
@@ -138,14 +160,16 @@ function renderPage(
   return render(
     <MemoryRouter initialEntries={["/pools/current/liquidity"]}>
       <TooltipProvider>
-        <LiquidityPage
-          config={config}
-          dependencies={{
-            readSnapshot: vi.fn().mockResolvedValue(poolSnapshot),
-            writer: unavailableWriteBoundary,
-            run,
-          }}
-        />
+        <ProcessingModeProvider>
+          <LiquidityPage
+            config={config}
+            dependencies={{
+              readSnapshot: vi.fn().mockResolvedValue(poolSnapshot),
+              writer: unavailableWriteBoundary,
+              run,
+            }}
+          />
+        </ProcessingModeProvider>
       </TooltipProvider>
     </MemoryRouter>,
   );

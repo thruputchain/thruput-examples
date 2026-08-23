@@ -88,6 +88,34 @@ describe("liquidity executor", () => {
     });
   });
 
+  it("persists the accepted request without cranking in manual mode", async () => {
+    const operation = createAddLiquidityOperation(config, {
+      amountsDesired: [10n, 20n],
+      amountsMin: [9n, 18n],
+      estimatedLiquidity: 10n,
+      liquidityBalanceBefore: 5n,
+      reservesBefore: [100n, 200n],
+    });
+    saveLiquidityOperations(config, [operation]);
+    const requestId = new Uint8Array(32).fill(31);
+    const execute = vi.fn().mockResolvedValue(
+      committed(10n, [acceptedEvent(requestId)]),
+    );
+
+    const result = await runLiquidityOperation(config, operation, {
+      writeBoundary: { execute },
+      readSnapshot: async () => snapshot(),
+      automaticProcessing: false,
+    });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      status: "queued",
+      requestId: hex(31),
+      steps: { enqueue: { status: "committed" } },
+    });
+  });
+
   it("stops safely on a pre-submission enqueue failure", async () => {
     const operation = createAddLiquidityOperation(config, {
       amountsDesired: [10n, 20n],

@@ -331,6 +331,15 @@ function isCreationWorkflow(
     || !validTime(value.updatedAt)
     || value.updatedAt < value.createdAt
   ) return false;
+  const enqueue = steps.enqueue as CreationStep;
+  const crank = steps.crank as CreationStep;
+  if (
+    (value.requestId !== null && enqueue.status !== "committed")
+    || (["queued", "executed"].includes(String(value.status))
+      && (value.requestId === null || enqueue.status !== "committed"))
+    || (crank.status !== "pending"
+      && (value.requestId === null || enqueue.status !== "committed"))
+  ) return false;
   return true;
 }
 

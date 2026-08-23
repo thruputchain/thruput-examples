@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ProcessingModeProvider } from "@/components/processing-mode";
 import type { GlobalConfig } from "@/config";
 import type { PoolCreationReview } from "@/pools/pool-creation";
 import {
@@ -51,9 +52,15 @@ describe("PoolCreatePage", () => {
     expect(await screen.findByRole("heading", { name: "Creation review" })).toBeVisible();
     expect(screen.getByText(/400 HOG base units total/)).toBeVisible();
     expect(screen.getByText("2 T1 : 3 T2")).toBeVisible();
+    await user.click(screen.getByRole("switch", { name: "Manual queue processing" }));
     await user.click(screen.getByRole("button", { name: "Create pool" }));
 
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    expect(run).toHaveBeenCalledWith(
+      config,
+      expect.any(Object),
+      expect.objectContaining({ automaticProcessing: false }),
+    );
     expect(loadCreationWorkflow(config, hex(1), hex(2))).not.toBeNull();
     expect(await screen.findByText("race")).toBeVisible();
   });
@@ -140,7 +147,7 @@ describe("PoolCreatePage", () => {
     await waitFor(() => expect(run).toHaveBeenCalledWith(
       config,
       expect.objectContaining({ status: "executed" }),
-      expect.any(Object),
+      expect.objectContaining({ automaticProcessing: true }),
     ));
     expect(loadCreationWorkflow(config, hex(1), hex(2))?.status).toBe("executed");
   });
@@ -152,10 +159,12 @@ function renderPage(
   return render(
     <MemoryRouter initialEntries={["/pools/new"]}>
       <TooltipProvider>
-        <PoolCreatePage config={config} dependencies={{
-          writer: unavailableWriteBoundary,
-          ...dependencies,
-        }} />
+        <ProcessingModeProvider>
+          <PoolCreatePage config={config} dependencies={{
+            writer: unavailableWriteBoundary,
+            ...dependencies,
+          }} />
+        </ProcessingModeProvider>
       </TooltipProvider>
     </MemoryRouter>,
   );
