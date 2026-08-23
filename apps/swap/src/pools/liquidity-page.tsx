@@ -19,7 +19,7 @@ import { Field, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { AppConfig } from "@/config";
-import { reservedInputForToken } from "@/domain/reservations";
+import { availableBalance, reservedInputForToken } from "@/domain/reservations";
 import { AmmPage } from "@/pools/amm-page";
 import {
   deriveAddLiquidityQuote,
@@ -307,9 +307,23 @@ export function LiquidityPage({
               slippage={slippage}
               slippageResult={slippageResult}
               quote={addQuote}
+              availableBalances={snapshot === null
+                ? [0n, 0n]
+                : [
+                  availableBalance(
+                    snapshot.tokenA.balance,
+                    accountState.balanceReservations[0],
+                  ),
+                  availableBalance(
+                    snapshot.tokenB.balance,
+                    accountState.balanceReservations[1],
+                  ),
+                ]}
               isRunning={isRunning}
-              onAmount={setAddAmount}
-              onInputIndex={setInputIndex}
+              onAmount={(index, value) => {
+                setInputIndex(index);
+                setAddAmount(value);
+              }}
               onSlippage={setSlippage}
               onSubmit={() => submitOrContinue(false)}
             />
@@ -368,9 +382,9 @@ function AddLiquidityCard({
   slippage,
   slippageResult,
   quote,
+  availableBalances,
   isRunning,
   onAmount,
-  onInputIndex,
   onSlippage,
   onSubmit,
 }: {
@@ -380,29 +394,60 @@ function AddLiquidityCard({
   slippage: string;
   slippageResult: ReturnType<typeof parseSlippagePercent>;
   quote: ReturnType<typeof deriveAddLiquidityQuote> | null;
+  availableBalances: readonly [bigint, bigint];
   isRunning: boolean;
-  onAmount: (value: string) => void;
-  onInputIndex: (index: LiquidityTokenIndex) => void;
+  onAmount: (index: LiquidityTokenIndex, value: string) => void;
   onSlippage: (value: string) => void;
   onSubmit: () => void;
 }) {
-  const inputToken = snapshot === null
-    ? null
-    : inputIndex === 0 ? snapshot.tokenA : snapshot.tokenB;
-  const counterpart = snapshot === null || quote === null || !quote.ok
-    ? "--"
-    : formatTokenAmount(
-        quote.amountsDesired[inputIndex === 0 ? 1 : 0],
-        (inputIndex === 0 ? snapshot.tokenB : snapshot.tokenA).decimals,
-        8,
+  const quotedAmounts = quote !== null && "amountsDesired" in quote
+    ? quote.amountsDesired
+    : null;
+  const values = snapshot === null
+    ? [amount, ""] as const
+    : [
+        inputIndex === 0
+          ? amount
+          : quotedAmounts === null
+            ? ""
+            : formatTokenAmount(quotedAmounts[0], snapshot.tokenA.decimals, 8),
+        inputIndex === 1
+          ? amount
+          : quotedAmounts === null
+            ? ""
+            : formatTokenAmount(quotedAmounts[1], snapshot.tokenB.decimals, 8),
+      ] as const;
+  const insufficientTokenIndexes = quote !== null && !quote.ok && quote.error === "balance"
+    ? quote.insufficientTokenIndexes
+    : [];
+  const insufficientSymbols = insufficientTokenIndexes.length > 0
+    ? insufficientTokenIndexes.map((index) =>
+        index === 0 ? snapshot?.tokenA.symbol : snapshot?.tokenB.symbol
+      ).filter((symbol): symbol is string => symbol !== undefined)
+    : [];
+  const missingSymbols = snapshot === null
+    ? []
+    : availableBalances.flatMap((balance, index) =>
+        balance <= 0n
+          ? [index === 0 ? snapshot.tokenA.symbol : snapshot.tokenB.symbol]
+          : []
       );
+  const balanceWarningSymbols = insufficientSymbols.length > 0
+    ? insufficientSymbols
+    : missingSymbols;
+  const tokenABalanceUnavailable = snapshot !== null && (
+    availableBalances[0] <= 0n || insufficientTokenIndexes.includes(0)
+  );
+  const tokenBBalanceUnavailable = snapshot !== null && (
+    availableBalances[1] <= 0n || insufficientTokenIndexes.includes(1)
+  );
   return (
     <Card>
       <CardHeader>
         <CardTitle asChild><h2>Add liquidity</h2></CardTitle>
         <CardDescription>
-          Desired amounts are maximum contributions. Live reserves determine the
-          final proportional deposit; estimated LP output has no contract minimum.
+          Enter either token amount. The other amount is calculated from the
+          current pool ratio, and both tokens are deposited from your wallet.
         </CardDescription>
         <CardAction>
           <SlippageSettings
@@ -416,50 +461,73 @@ function AddLiquidityCard({
         </CardAction>
       </CardHeader>
       <CardContent className="grid gap-5 sm:grid-cols-2">
-        <Field>
-          <FieldLabel htmlFor="liquidity-amount">
-            {inputToken?.symbol ?? "Token"} amount
+        <Field data-invalid={tokenABalanceUnavailable}>
+          <FieldLabel htmlFor="liquidity-token-a-amount">
+            {snapshot?.tokenA.symbol ?? "Token 0"} amount
           </FieldLabel>
           <Input
-            id="liquidity-amount"
+            id="liquidity-token-a-amount"
             inputMode="decimal"
-            value={amount}
-            onChange={(event) => onAmount(event.target.value)}
+            value={values[0]}
+            aria-invalid={tokenABalanceUnavailable}
+            aria-describedby={tokenABalanceUnavailable
+              ? "add-liquidity-balance-warning"
+              : undefined}
+            onChange={(event) => onAmount(0, event.target.value)}
           />
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              type="button"
-              variant={inputIndex === 0 ? "default" : "outline"}
-              onClick={() => onInputIndex(0)}
-            >
-              {snapshot?.tokenA.symbol ?? "Token 0"}
-            </Button>
-            <Button
-              size="sm"
-              type="button"
-              variant={inputIndex === 1 ? "default" : "outline"}
-              onClick={() => onInputIndex(1)}
-            >
-              {snapshot?.tokenB.symbol ?? "Token 1"}
-            </Button>
-          </div>
-          {quote === null || quote.ok ? null : (
-            <FieldDescription>{liquidityQuoteError(quote.error)}</FieldDescription>
-          )}
+          <FieldDescription>
+            {inputIndex === 0 ? "Enter an amount." : "Calculated from the current pool ratio."}
+          </FieldDescription>
         </Field>
-        <div className="rounded-xl bg-muted/60 p-4">
-          <p className="text-sm text-muted-foreground">Proportional counterpart</p>
-          <p className="mt-2 font-mono text-2xl tabular-nums">{counterpart}</p>
-          {snapshot === null || quote === null || !quote.ok ? null : (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Estimated LP {quote.estimatedLiquidity} base units
-            </p>
-          )}
-        </div>
+        <Field data-invalid={tokenBBalanceUnavailable}>
+          <FieldLabel htmlFor="liquidity-token-b-amount">
+            {snapshot?.tokenB.symbol ?? "Token 1"} amount
+          </FieldLabel>
+          <Input
+            id="liquidity-token-b-amount"
+            inputMode="decimal"
+            value={values[1]}
+            aria-invalid={tokenBBalanceUnavailable}
+            aria-describedby={tokenBBalanceUnavailable
+              ? "add-liquidity-balance-warning"
+              : undefined}
+            onChange={(event) => onAmount(1, event.target.value)}
+          />
+          <FieldDescription>
+            {inputIndex === 1 ? "Enter an amount." : "Calculated from the current pool ratio."}
+          </FieldDescription>
+        </Field>
+        {balanceWarningSymbols.length === 0 ? null : (
+          <Alert variant="destructive" className="sm:col-span-2">
+            <AlertCircleIcon aria-hidden="true" />
+            <AlertTitle>Both tokens are required</AlertTitle>
+            <AlertDescription id="add-liquidity-balance-warning">
+              Your available {balanceWarningSymbols.join(" and ")} balance is insufficient
+              for this deposit. {insufficientSymbols.length > 0
+                ? "Reduce the amount or fund the wallet before continuing."
+                : "Fund the wallet before continuing."}
+            </AlertDescription>
+          </Alert>
+        )}
+        {quote === null || quote.ok || quote.error === "balance" ? null : (
+          <FieldDescription className="sm:col-span-2">
+            {liquidityQuoteError(quote.error)}
+          </FieldDescription>
+        )}
+        {quote === null || !quote.ok ? null : (
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-muted/60 p-4 sm:col-span-2">
+            <span className="text-sm text-muted-foreground">Estimated LP output</span>
+            <span className="font-mono tabular-nums">
+              {quote.estimatedLiquidity} base units
+            </span>
+          </div>
+        )}
       </CardContent>
       <CardFooter>
-        <Button disabled={isRunning || quote === null || !quote.ok} onClick={onSubmit}>
+        <Button
+          disabled={isRunning || missingSymbols.length > 0 || quote === null || !quote.ok}
+          onClick={onSubmit}
+        >
           {isRunning ? "Adding liquidity..." : "Add liquidity"}
         </Button>
       </CardFooter>

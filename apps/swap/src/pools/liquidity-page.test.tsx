@@ -45,6 +45,7 @@ describe("LiquidityPage", () => {
     renderPage(run);
 
     await user.type(await screen.findByLabelText("A amount"), "10");
+    expect(screen.getByLabelText("B amount")).toHaveValue("20");
     await user.click(screen.getByRole("button", { name: "Add liquidity" }));
 
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
@@ -55,6 +56,49 @@ describe("LiquidityPage", () => {
         amountsMin: ["9900000", "19800000"],
       },
     });
+  });
+
+  it("lets either token amount drive the proportional deposit", async () => {
+    const user = userEvent.setup();
+    renderPage(vi.fn());
+
+    await user.type(await screen.findByLabelText("A amount"), "10");
+    const tokenB = screen.getByLabelText("B amount");
+    expect(tokenB).toHaveValue("20");
+
+    await user.clear(tokenB);
+    await user.type(tokenB, "30");
+    expect(screen.getByLabelText("A amount")).toHaveValue("15");
+  });
+
+  it("blocks deposits when either token balance is insufficient", async () => {
+    const user = userEvent.setup();
+    const run = vi.fn();
+    const lowBalance = snapshot();
+    renderPage(run, {
+      ...lowBalance,
+      tokenB: { ...lowBalance.tokenB, balance: 10_000_000n },
+    });
+
+    await user.type(await screen.findByLabelText("A amount"), "10");
+
+    expect(screen.getByText("Both tokens are required")).toBeVisible();
+    expect(screen.getByText(/available B balance is insufficient/)).toBeVisible();
+    expect(screen.getByLabelText("B amount")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Add liquidity" })).toBeDisabled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("warns immediately when the wallet does not hold both tokens", async () => {
+    const emptyBalance = snapshot();
+    renderPage(vi.fn(), {
+      ...emptyBalance,
+      tokenB: { ...emptyBalance.tokenB, balance: 0n },
+    });
+
+    expect(await screen.findByText("Both tokens are required")).toBeVisible();
+    expect(screen.getByText(/available B balance is insufficient/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add liquidity" })).toBeDisabled();
   });
 
   it("quotes and persists removal using unreserved LP", async () => {
@@ -88,6 +132,7 @@ describe("LiquidityPage", () => {
 
 function renderPage(
   run: typeof runLiquidityOperation,
+  poolSnapshot = snapshot(),
 ) {
   return render(
     <MemoryRouter initialEntries={["/pools/current/liquidity"]}>
@@ -95,7 +140,7 @@ function renderPage(
         <LiquidityPage
           config={config}
           dependencies={{
-            readSnapshot: vi.fn().mockResolvedValue(snapshot()),
+            readSnapshot: vi.fn().mockResolvedValue(poolSnapshot),
             writer: unavailableWriteBoundary,
             run,
           }}

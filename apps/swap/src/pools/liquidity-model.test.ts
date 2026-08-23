@@ -52,7 +52,12 @@ describe("deriveAddLiquidityQuote", () => {
       "96",
       100n,
       [5_000_000n, 0n],
-    )).toEqual({ ok: false, error: "balance" });
+    )).toEqual({
+      ok: false,
+      error: "balance",
+      amountsDesired: [96_000_000n, 192_000_000n],
+      insufficientTokenIndexes: [0],
+    });
   });
 });
 

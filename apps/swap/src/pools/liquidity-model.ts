@@ -14,7 +14,13 @@ export type AddLiquidityQuote =
       estimatedLiquidity: bigint;
       approvalDifferences: readonly [bigint, bigint];
     }
-  | { ok: false; error: LiquidityQuoteError };
+  | {
+      ok: false;
+      error: "balance";
+      amountsDesired: readonly [bigint, bigint];
+      insufficientTokenIndexes: readonly LiquidityTokenIndex[];
+    }
+  | { ok: false; error: Exclude<LiquidityQuoteError, "balance"> };
 
 export type RemoveLiquidityQuote =
   | {
@@ -66,9 +72,19 @@ export function deriveAddLiquidityQuote(
     snapshot.tokenA.balance,
     snapshot.tokenB.balance,
   ];
-  if (amountsDesired.some((amount, index) =>
+  const insufficientTokenIndexes = amountsDesired.flatMap((amount, index) =>
     amount > availableBalance(balances[index]!, reservedBalances[index]!)
-  )) return { ok: false, error: "balance" };
+      ? [index as LiquidityTokenIndex]
+      : []
+  );
+  if (insufficientTokenIndexes.length > 0) {
+    return {
+      ok: false,
+      error: "balance",
+      amountsDesired,
+      insufficientTokenIndexes,
+    };
+  }
 
   const amountsMin = amountsDesired.map((amount) =>
     amount * (BPS_SCALE - slippageBps) / BPS_SCALE
