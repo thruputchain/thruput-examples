@@ -9,11 +9,17 @@ import { ProcessingModeProvider } from "@/components/processing-mode";
 import type { AppConfig } from "@/config";
 import type { PoolSnapshot } from "@/swap/snapshot";
 import { runLiquidityOperation } from "@/transactions/liquidity-executor";
-import { loadLiquidityOperations, type LiquidityOperation } from "@/transactions/liquidity-operation";
+import {
+  createAddLiquidityOperation,
+  loadLiquidityOperations,
+  saveLiquidityOperations,
+  type LiquidityOperation,
+} from "@/transactions/liquidity-operation";
 import { unavailableWriteBoundary } from "@/transactions/write-boundary";
 import { LiquidityPage } from "./liquidity-page";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
+const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkIdHex: "00".repeat(32),
@@ -122,6 +128,68 @@ describe("LiquidityPage", () => {
       expect.any(Object),
       expect.objectContaining({ automaticProcessing: false }),
     ));
+  });
+
+  it("shows persisted terminal history without blocking a new operation", async () => {
+    const completed = createAddLiquidityOperation(config, {
+      amountsDesired: [10_000_000n, 20_000_000n],
+      amountsMin: [9_900_000n, 19_800_000n],
+      estimatedLiquidity: 10_000_000n,
+      liquidityBalanceBefore: 0n,
+      reservesBefore: [1_000_000_000n, 2_000_000_000n],
+    }, 1);
+    completed.status = "executed";
+    completed.requestId = hex(30);
+    completed.receiptBlock = "8";
+    completed.updatedAt = 2;
+    completed.steps.enqueue = {
+      status: "committed",
+      transactionHash: hex(31),
+      message: null,
+      updatedAt: 2,
+    };
+    completed.result = {
+      transactionHash: hex(32),
+      blockHeight: "9",
+      liquidityMinted: "10000000",
+      amountsDeposited: null,
+      recipientVerified: true,
+    };
+    saveLiquidityOperations(config, [completed]);
+
+    renderPage(vi.fn());
+
+    expect(await screen.findByLabelText("A amount")).toBeEnabled();
+    expect(screen.getByRole("heading", { name: "Liquidity history" })).toBeVisible();
+    expect(screen.getByText(/Minted 10 LP.*verified/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /Liquidity request ID/ })).toBeVisible();
+  });
+
+  it("keeps one queued operation in the existing blocking recovery flow", async () => {
+    const queued = createAddLiquidityOperation(config, {
+      amountsDesired: [10_000_000n, 20_000_000n],
+      amountsMin: [9_900_000n, 19_800_000n],
+      estimatedLiquidity: 10_000_000n,
+      liquidityBalanceBefore: 0n,
+      reservesBefore: [1_000_000_000n, 2_000_000_000n],
+    }, 1);
+    queued.status = "queued";
+    queued.requestId = hex(30);
+    queued.receiptBlock = "8";
+    queued.steps.enqueue = {
+      status: "committed",
+      transactionHash: hex(31),
+      message: null,
+      updatedAt: 2,
+    };
+    saveLiquidityOperations(config, [queued]);
+
+    renderPage(vi.fn());
+
+    expect(await screen.findByRole("button", { name: "Crank queue" })).toBeVisible();
+    expect(screen.queryByLabelText("A amount")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Liquidity history" }))
+      .not.toBeInTheDocument();
   });
 
   it("quotes and persists removal using unreserved LP", async () => {

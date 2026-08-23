@@ -135,4 +135,37 @@ describe("liquidity operation storage", () => {
     window.localStorage.setItem(key, JSON.stringify(stored));
     expect(() => loadLiquidityOperations(config)).toThrow(LiquidityOperationError);
   });
+
+  it("keeps all unresolved operations and only the newest 50 terminal records", () => {
+    const unresolved = createAddLiquidityOperation(config, {
+      amountsDesired: [10n, 20n],
+      amountsMin: [9n, 18n],
+      estimatedLiquidity: 10n,
+      liquidityBalanceBefore: 5n,
+      reservesBefore: [100n, 200n],
+    }, 1);
+    const terminal = Array.from({ length: 52 }, (_, index) => {
+      const operation = createRemoveLiquidityOperation(config, {
+        liquidity: 4n,
+        amountsMin: [3n, 6n],
+      }, index + 2);
+      operation.status = "failed";
+      operation.requestId = hex(index + 1);
+      operation.receiptBlock = "8";
+      operation.steps.enqueue = {
+        status: "committed",
+        transactionHash: hex(index + 101),
+        message: null,
+        updatedAt: index + 2,
+      };
+      return operation;
+    });
+
+    const stored = saveLiquidityOperations(config, [unresolved, ...terminal]);
+
+    expect(stored).toHaveLength(51);
+    expect(stored).toContainEqual(unresolved);
+    expect(stored.some(({ id }) => id === terminal[0]!.id)).toBe(false);
+    expect(stored.some(({ id }) => id === terminal[51]!.id)).toBe(true);
+  });
 });

@@ -3,6 +3,7 @@ import { toHex0x } from "@groundhogchain/client";
 import { useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { SlippageSettings } from "@/components/slippage-settings";
 import { useProcessingMode } from "@/components/processing-mode";
 import { Badge } from "@/components/ui/badge";
@@ -83,7 +84,6 @@ export function LiquidityPage({
   const snapshotState = usePoolSnapshot(reader);
   const [initialState] = useState(() => readLiquidityState(config));
   const [operations, setOperations] = useState(initialState.operations);
-  const [dismissedOperationId, setDismissedOperationId] = useState<string | null>(null);
   const [selectedKind, setSelectedKind] = useState<"add" | "remove">("add");
   const [addAmount, setAddAmount] = useState("");
   const [removeAmount, setRemoveAmount] = useState("");
@@ -98,10 +98,10 @@ export function LiquidityPage({
   const unresolved = operations.find(({ status }) =>
     status === "active" || status === "queued"
   ) ?? null;
-  const latest = operations.at(-1) ?? null;
-  const current = unresolved ?? (
-    latest !== null && latest.id !== dismissedOperationId ? latest : null
-  );
+  const current = unresolved;
+  const history = operations.filter(({ status }) =>
+    status === "executed" || status === "failed"
+  ).sort((left, right) => right.updatedAt - left.updatedAt);
   const accountStateResult = safeReadAccountReservations(config, current?.id ?? null);
   const accountState = accountStateResult.reservations;
   const crankState = current?.status === "queued"
@@ -347,19 +347,13 @@ export function LiquidityPage({
       ) : (
         <OperationCard
           operation={current}
-          snapshot={snapshot}
           isRunning={isRunning}
           requiresConfirmation={requiresConfirmation}
           onConfirm={confirmNotSigned}
           onContinue={() => submitOrContinue(current.status === "queued")}
-          onDone={() => {
-            setDismissedOperationId(current.id);
-            setSelectedKind(current.kind);
-            setAddAmount("");
-            setRemoveAmount("");
-          }}
         />
       )}
+      <LiquidityHistory operations={history} snapshot={snapshot} />
       <Field orientation="horizontal">
         <div>
           <FieldTitle>Manual queue processing</FieldTitle>
@@ -657,20 +651,16 @@ function RemoveLiquidityCard({
 
 function OperationCard({
   operation,
-  snapshot,
   isRunning,
   requiresConfirmation,
   onConfirm,
   onContinue,
-  onDone,
 }: {
   operation: LiquidityOperation;
-  snapshot: Awaited<ReturnType<SnapshotReader>> | null;
   isRunning: boolean;
   requiresConfirmation: boolean;
   onConfirm: () => void;
   onContinue: () => void;
-  onDone: () => void;
 }) {
   return (
     <Card>
@@ -697,47 +687,101 @@ function OperationCard({
             </li>
           ))}
         </ol>
-        {operation.kind === "add" && operation.result !== null ? (
-          <div className="mt-5 rounded-xl bg-muted/60 p-4 text-sm">
-            <p>
-              LP minted: {snapshot === null
-                ? `${operation.result.liquidityMinted} base units`
-                : `${formatTokenAmount(
-                  BigInt(operation.result.liquidityMinted),
-                  snapshot.liquidityTokenDecimals,
-                  8,
-                )} ${snapshot.liquidityTokenSymbol}`}
-            </p>
-            <p>
-              Recipient delivery {operation.result.recipientVerified ? "verified" : "unverified"}
-            </p>
-          </div>
-        ) : operation.kind === "remove" && operation.result !== null ? (
-          <div className="mt-5 rounded-xl bg-muted/60 p-4 text-sm">
-            <p>{operation.result.amountsRedeemed[0]} token 0 base units received</p>
-            <p>{operation.result.amountsRedeemed[1]} token 1 base units received</p>
-          </div>
-        ) : null}
       </CardContent>
-      {operation.status === "executed" || operation.status === "failed" ? (
-        <CardFooter>
-          <Button variant="outline" onClick={onDone}>
-            {operation.kind === "add" ? "Add more liquidity" : "Remove more liquidity"}
-          </Button>
-        </CardFooter>
-      ) : (
-        <CardFooter>
-          <Button disabled={isRunning} onClick={requiresConfirmation ? onConfirm : onContinue}>
-            {requiresConfirmation
-              ? "Confirm transaction was not signed"
-              : operation.status === "queued"
-                ? "Crank queue"
-                : `Continue ${operation.kind} liquidity`}
-          </Button>
-        </CardFooter>
-      )}
+      <CardFooter>
+        <Button disabled={isRunning} onClick={requiresConfirmation ? onConfirm : onContinue}>
+          {requiresConfirmation
+            ? "Confirm transaction was not signed"
+            : operation.status === "queued"
+              ? "Crank queue"
+              : `Continue ${operation.kind} liquidity`}
+        </Button>
+      </CardFooter>
     </Card>
   );
+}
+
+function LiquidityHistory({
+  operations,
+  snapshot,
+}: {
+  operations: readonly LiquidityOperation[];
+  snapshot: Awaited<ReturnType<SnapshotReader>> | null;
+}) {
+  if (operations.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle asChild><h2>Liquidity history</h2></CardTitle>
+        <CardDescription>
+          Recent add and remove operations for this account and pool.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ol className="divide-y divide-foreground/10">
+          {operations.map((operation) => (
+            <li className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0" key={operation.id}>
+              <div className="flex items-center justify-between gap-4">
+                <span className="font-medium">
+                  {operation.kind === "add" ? "Added liquidity" : "Removed liquidity"}
+                </span>
+                <Badge variant="outline">{operation.status}</Badge>
+              </div>
+              <LiquidityHistoryResult operation={operation} snapshot={snapshot} />
+              {operation.requestId === null ? null : (
+                <div className="text-xs text-muted-foreground">
+                  Request <BlockchainIdentifier
+                    value={operation.requestId}
+                    label="Liquidity request ID"
+                  />
+                </div>
+              )}
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LiquidityHistoryResult({
+  operation,
+  snapshot,
+}: {
+  operation: LiquidityOperation;
+  snapshot: Awaited<ReturnType<SnapshotReader>> | null;
+}) {
+  if (operation.status === "failed" || operation.result === null) {
+    return <p className="text-sm text-muted-foreground">The queued request failed.</p>;
+  }
+  if (operation.kind === "add") {
+    const minted = snapshot === null
+      ? `${operation.result.liquidityMinted} base units`
+      : `${formatTokenAmount(
+        BigInt(operation.result.liquidityMinted),
+        snapshot.liquidityTokenDecimals,
+        8,
+      )} ${snapshot.liquidityTokenSymbol}`;
+    return (
+      <p className="text-sm text-muted-foreground">
+        Minted {minted}. Recipient delivery {operation.result.recipientVerified
+          ? "verified"
+          : "unverified"}.
+      </p>
+    );
+  }
+  const redeemed = snapshot === null
+    ? `${operation.result.amountsRedeemed[0]} / ${operation.result.amountsRedeemed[1]} base units`
+    : `${formatTokenAmount(
+      BigInt(operation.result.amountsRedeemed[0]),
+      snapshot.tokenA.decimals,
+      8,
+    )} ${snapshot.tokenA.symbol} and ${formatTokenAmount(
+      BigInt(operation.result.amountsRedeemed[1]),
+      snapshot.tokenB.decimals,
+      8,
+    )} ${snapshot.tokenB.symbol}`;
+  return <p className="text-sm text-muted-foreground">Received {redeemed}.</p>;
 }
 
 function readAccountReservations(
