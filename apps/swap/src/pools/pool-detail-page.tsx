@@ -67,7 +67,11 @@ export function PoolDetailPage({ config }: { config: AppConfig }) {
             />
             <Metric
               label="LP supply"
-              value={formatTokenAmount(state.snapshot.liquidityTotalSupply, 0, 8)}
+              value={`${formatTokenAmount(
+                state.snapshot.liquidityTotalSupply,
+                state.snapshot.liquidityTokenDecimals,
+                8,
+              )} ${state.snapshot.liquidityTokenSymbol}`}
             />
             <Metric label="Your LP share" value={formatShare(state.snapshot.liquidityBalance, state.snapshot.liquidityTotalSupply)} />
           </div>
@@ -87,7 +91,11 @@ export function PoolDetailPage({ config }: { config: AppConfig }) {
                   Protocol fees {state.snapshot.feeTo === null ? "off" : "on"}
                 </Badge>
                 <Badge variant="secondary">
-                  Your LP {formatTokenAmount(state.snapshot.liquidityBalance, 0, 8)}
+                  Your LP {formatTokenAmount(
+                    state.snapshot.liquidityBalance,
+                    state.snapshot.liquidityTokenDecimals,
+                    8,
+                  )} {state.snapshot.liquidityTokenSymbol}
                 </Badge>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">

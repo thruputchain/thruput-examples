@@ -252,6 +252,8 @@ function snapshot(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
     liquidityTotalSupply: 100n,
     liquidityBalance: 5n,
     liquidityAllowance: 100n,
+    liquidityTokenSymbol: "LP",
+    liquidityTokenDecimals: 6,
     feeTo: null,
     chainHeight: 7n,
     readAt: 1,

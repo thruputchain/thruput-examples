@@ -345,6 +345,7 @@ export function LiquidityPage({
       ) : (
         <OperationCard
           operation={current}
+          snapshot={snapshot}
           isRunning={isRunning}
           requiresConfirmation={requiresConfirmation}
           onConfirm={confirmNotSigned}
@@ -514,11 +515,15 @@ function AddLiquidityCard({
             {liquidityQuoteError(quote.error)}
           </FieldDescription>
         )}
-        {quote === null || !quote.ok ? null : (
+        {snapshot === null || quote === null || !quote.ok ? null : (
           <div className="flex items-center justify-between gap-4 rounded-xl bg-muted/60 p-4 sm:col-span-2">
             <span className="text-sm text-muted-foreground">Estimated LP output</span>
             <span className="font-mono tabular-nums">
-              {quote.estimatedLiquidity} base units
+              {formatTokenAmount(
+                quote.estimatedLiquidity,
+                snapshot.liquidityTokenDecimals,
+                8,
+              )} {snapshot.liquidityTokenSymbol}
             </span>
           </div>
         )}
@@ -566,7 +571,7 @@ function RemoveLiquidityCard({
       <CardHeader>
         <CardTitle asChild><h2>Remove liquidity</h2></CardTitle>
         <CardDescription>
-          Burn LP base units for a proportional share of both reserves. Slippage
+          Burn LP tokens for a proportional share of both reserves. Slippage
           protects the minimum amount received for each token.
         </CardDescription>
         <CardAction>
@@ -582,10 +587,12 @@ function RemoveLiquidityCard({
       </CardHeader>
       <CardContent className="grid gap-5 sm:grid-cols-2">
         <Field>
-          <FieldLabel htmlFor="remove-liquidity-amount">LP base units</FieldLabel>
+          <FieldLabel htmlFor="remove-liquidity-amount">
+            {snapshot?.liquidityTokenSymbol ?? "LP"} amount
+          </FieldLabel>
           <Input
             id="remove-liquidity-amount"
-            inputMode="numeric"
+            inputMode="decimal"
             value={amount}
             onChange={(event) => onAmount(event.target.value)}
           />
@@ -597,13 +604,23 @@ function RemoveLiquidityCard({
                 type="button"
                 variant="outline"
                 disabled={available === 0n}
-                onClick={() => onAmount(liquidityPercentAmount(available, percentage).toString())}
+                onClick={() => onAmount(formatTokenAmount(
+                  liquidityPercentAmount(available, percentage),
+                  snapshot?.liquidityTokenDecimals ?? 0,
+                  snapshot?.liquidityTokenDecimals ?? 0,
+                ))}
               >
                 {percentage}%
               </Button>
             ))}
           </div>
-          <FieldDescription>{available} LP base units available.</FieldDescription>
+          <FieldDescription>
+            {formatTokenAmount(
+              available,
+              snapshot?.liquidityTokenDecimals ?? 0,
+              8,
+            )} {snapshot?.liquidityTokenSymbol ?? "LP"} available.
+          </FieldDescription>
           {quote === null || quote.ok ? null : (
             <FieldDescription>{liquidityQuoteError(quote.error)}</FieldDescription>
           )}
@@ -637,6 +654,7 @@ function RemoveLiquidityCard({
 
 function OperationCard({
   operation,
+  snapshot,
   isRunning,
   requiresConfirmation,
   onConfirm,
@@ -644,6 +662,7 @@ function OperationCard({
   onDone,
 }: {
   operation: LiquidityOperation;
+  snapshot: Awaited<ReturnType<SnapshotReader>> | null;
   isRunning: boolean;
   requiresConfirmation: boolean;
   onConfirm: () => void;
@@ -677,7 +696,15 @@ function OperationCard({
         </ol>
         {operation.kind === "add" && operation.result !== null ? (
           <div className="mt-5 rounded-xl bg-muted/60 p-4 text-sm">
-            <p>LP minted: {operation.result.liquidityMinted} base units</p>
+            <p>
+              LP minted: {snapshot === null
+                ? `${operation.result.liquidityMinted} base units`
+                : `${formatTokenAmount(
+                  BigInt(operation.result.liquidityMinted),
+                  snapshot.liquidityTokenDecimals,
+                  8,
+                )} ${snapshot.liquidityTokenSymbol}`}
+            </p>
             <p>
               Recipient delivery {operation.result.recipientVerified ? "verified" : "unverified"}
             </p>

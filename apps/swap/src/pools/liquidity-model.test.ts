@@ -63,7 +63,7 @@ describe("deriveAddLiquidityQuote", () => {
 
 describe("deriveRemoveLiquidityQuote", () => {
   it("estimates canonical outputs with floor rounding and slippage", () => {
-    expect(deriveRemoveLiquidityQuote(snapshot(), "10000000", 100n)).toEqual({
+    expect(deriveRemoveLiquidityQuote(snapshot(), "10", 100n)).toEqual({
       ok: true,
       liquidity: 10_000_000n,
       amountsEstimated: [10_000_000n, 20_000_000n],
@@ -75,7 +75,7 @@ describe("deriveRemoveLiquidityQuote", () => {
   it("respects reserved LP and percentage controls", () => {
     expect(deriveRemoveLiquidityQuote(
       snapshot(),
-      "90000001",
+      "90.000001",
       100n,
       10_000_000n,
     )).toEqual({ ok: false, error: "balance" });
@@ -108,6 +108,8 @@ function snapshot(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
     liquidityTotalSupply: 1_000_000_000n,
     liquidityBalance: 100_000_000n,
     liquidityAllowance: 0n,
+    liquidityTokenSymbol: "LP",
+    liquidityTokenDecimals: 6,
     feeTo: null,
     chainHeight: 7n,
     readAt: 1,

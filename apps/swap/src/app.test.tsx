@@ -80,6 +80,8 @@ function pool(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
     liquidityTotalSupply: 1_000_000_000n,
     liquidityBalance: 100_000_000n,
     liquidityAllowance: 0n,
+    liquidityTokenSymbol: "LP",
+    liquidityTokenDecimals: 6,
     feeTo: null,
     chainHeight: 7n,
     readAt: 1,

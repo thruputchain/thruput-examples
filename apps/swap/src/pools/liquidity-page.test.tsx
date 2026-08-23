@@ -46,6 +46,7 @@ describe("LiquidityPage", () => {
 
     await user.type(await screen.findByLabelText("A amount"), "10");
     expect(screen.getByLabelText("B amount")).toHaveValue("20");
+    expect(screen.getByText("10 LP")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Add liquidity" }));
 
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
@@ -174,6 +175,8 @@ function snapshot(): PoolSnapshot {
     liquidityTotalSupply: 1_000_000_000n,
     liquidityBalance: 100_000_000n,
     liquidityAllowance: 0n,
+    liquidityTokenSymbol: "LP",
+    liquidityTokenDecimals: 6,
     feeTo: null,
     chainHeight: 7n,
     readAt: 1,

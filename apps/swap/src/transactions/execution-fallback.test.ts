@@ -60,6 +60,8 @@ const executed: PoolSnapshot = {
   liquidityTotalSupply: 1_000n,
   liquidityBalance: 100n,
   liquidityAllowance: 0n,
+  liquidityTokenSymbol: "LP",
+  liquidityTokenDecimals: 6,
   feeTo: null,
   chainHeight: 10n,
   readAt: 0,

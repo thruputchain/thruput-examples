@@ -27,6 +27,8 @@ export interface PoolSnapshot {
   liquidityTotalSupply: bigint;
   liquidityBalance: bigint;
   liquidityAllowance: bigint;
+  liquidityTokenSymbol: string;
+  liquidityTokenDecimals: number;
   feeTo: ContractAddress | null;
   chainHeight: bigint;
   readAt: number;
@@ -68,6 +70,7 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         reserves,
         metadataA,
         metadataB,
+        liquidityMetadata,
         balanceA,
         balanceB,
         allowanceA,
@@ -80,6 +83,7 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         pair.reserves(),
         tokenA.metadata(),
         tokenB.metadata(),
+        liquidityToken.metadata(),
         tokenA.balanceOf(config.accountAddress),
         tokenB.balanceOf(config.accountAddress),
         tokenA.allowance(config.accountAddress, config.handlerAddress),
@@ -98,6 +102,9 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         metadataB.name.height,
         metadataB.symbol.height,
         metadataB.decimals.height,
+        liquidityMetadata.name.height,
+        liquidityMetadata.symbol.height,
+        liquidityMetadata.decimals.height,
         balanceA.height,
         balanceB.height,
         allowanceA.height,
@@ -109,6 +116,7 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
       ];
       const readHeight = readHeights[0]!;
       if (readHeights.some((height) => height !== readHeight)) continue;
+      const liquidityTokenMetadata = metadataValues(liquidityMetadata);
 
       return {
         tokenA: tokenSnapshot({
@@ -133,6 +141,8 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         liquidityTotalSupply: liquidityTotalSupply.value,
         liquidityBalance: liquidityBalance.value,
         liquidityAllowance: liquidityAllowance.value,
+        liquidityTokenSymbol: liquidityTokenMetadata.symbol?.trim() || "LP",
+        liquidityTokenDecimals: liquidityTokenMetadata.decimals ?? 0,
         feeTo: feeTo.value,
         chainHeight: readHeight,
         readAt: Date.now(),

@@ -82,6 +82,8 @@ describe("createSnapshotReader", () => {
       reserve1: 200n,
       liquidityTotalSupply: 300n,
       liquidityBalance: 30n,
+      liquidityTokenSymbol: "LP",
+      liquidityTokenDecimals: 6,
       feeTo: null,
       chainHeight: 8n,
     });

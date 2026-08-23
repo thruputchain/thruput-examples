@@ -128,7 +128,7 @@ export function deriveRemoveLiquidityQuote(
   if (slippageBps <= 0n || slippageBps > 5_000n) {
     return { ok: false, error: "slippage" };
   }
-  const parsed = parseAmount(input, 0);
+  const parsed = parseAmount(input, snapshot.liquidityTokenDecimals);
   if (!parsed.ok || parsed.value <= 0n) return { ok: false, error: "amount" };
   if (parsed.value > availableBalance(snapshot.liquidityBalance, reservedLiquidity)) {
     return { ok: false, error: "balance" };
