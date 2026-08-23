@@ -2577,6 +2577,7 @@ version = "0.1.0"
 dependencies = [
  "erc20",
  "groundhog-erc20-if",
+ "groundhog-trace",
  "sdk",
  "swap-driver",
  "swap-factory",

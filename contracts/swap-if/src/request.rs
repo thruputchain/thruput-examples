@@ -206,14 +206,16 @@ pub struct SwapExactOutRequest {
 // Liquidity events carry more headroom than a bare swap: they cross-call the
 // factory for the protocol `fee_to`, and when one is configured, every such
 // event also takes a square root and some U256 arithmetic in the pair's
-// `mint_fee`.  Nothing in the tests configures a `fee_to`, so that branch is
-// measured by none of this and is part of what the headroom stands for.
+// `mint_fee`.  `swap-driver`'s tests cannot reach that branch -- their pairs
+// have no factory to consult -- so it is measured separately, by
+// `swap-factory`'s `the_protocol_fee_branch_fits_within_the_liquidity_budgets`,
+// and these two budgets have to cover the cheap path plus that branch.
 
 /// What handling an [`AddLiquidityRequest`] may cost.
-pub const ADD_LIQUIDITY_GAS: u64 = 350_000;
+pub const ADD_LIQUIDITY_GAS: u64 = 400_000;
 
 /// What handling a [`RemoveLiquidityRequest`] may cost.
-pub const REMOVE_LIQUIDITY_GAS: u64 = 450_000;
+pub const REMOVE_LIQUIDITY_GAS: u64 = 500_000;
 
 /// What handling a [`SwapExactInRequest`] or [`SwapExactOutRequest`] may cost.
 pub const SWAP_GAS: u64 = 250_000;
