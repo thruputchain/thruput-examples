@@ -12,7 +12,7 @@ mod driver;
 // so they belong on the public surface too.
 pub use swap_if::{
     RequestAccepted, RequestFailed, RequestId, RequestsProcessed, SwapDriver, SwapDriverClient,
-    SwapDriverClientError,
+    SwapDriverClientError, SwapDriverError,
 };
 
 // Contract implementation

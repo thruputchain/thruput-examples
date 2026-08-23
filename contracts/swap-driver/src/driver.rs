@@ -8,6 +8,7 @@
 
 use crate::cfg::*;
 use batch_driver::Slots;
+use sdk::stats::gas_remaining;
 use sdk::storage::*;
 use sdk::*;
 use swap_if::*;
@@ -50,12 +51,21 @@ pub const fn process_requests_gas(batch_size: u32) -> u64 {
 
 #[contract(exports = "swap_driver_exports")]
 impl SwapDriver for Driver {
-    fn initialize(&mut self, handler: &Address, max_queue_len: u32) {
+    fn initialize(&mut self, handler: &Address, max_queue_len: u32, min_crank_batch: u32) {
         if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");
         }
+        if min_crank_batch > max_queue_len {
+            // A crank could then be asked for a batch the queue is not allowed
+            // to hold, which no one could ever satisfy.
+            panic!("min_crank_batch exceeds max_queue_len.");
+        }
 
-        let cfg = Cfg { handler: *handler };
+        let cfg = Cfg {
+            handler: *handler,
+            max_queue_len,
+            min_crank_batch,
+        };
 
         // Ensure only one `initialize` call can succeed per block.
         self.cfg.set_exclusive(&cfg);
@@ -86,6 +96,22 @@ impl SwapDriver for Driver {
 
     fn process_requests(&mut self) -> (u32, u32) {
         let cfg = self.cfg.get();
+
+        // A crank takes the block's one drain opportunity, so it has to clear
+        // what is waiting -- capped at the pool's `min_crank_batch`, past which
+        // no single crank can be asked to empty an arbitrary backlog.
+        //
+        // Owing what is waiting, rather than switching on at some depth, is
+        // what stops a flood of one-request cranks from parking the queue just
+        // below a threshold and draining it a request per block.
+        //
+        // Checked before the queue is touched, so that a refused crank costs
+        // its sender and nobody else.
+        let queued = cfg.max_queue_len - self.slots.remaining_at_snapshot();
+        let owed = queued.min(cfg.min_crank_batch);
+        if gas_remaining() < batch_driver::budget_for_batch::<SwapRequest>(owed) {
+            throw(SwapDriverError::BatchTooSmall);
+        }
 
         let (n_processed, n_failed) =
             batch_driver::process(&mut self.requests, |request, gas_limit| {

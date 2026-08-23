@@ -116,12 +116,26 @@ pub const EPILOGUE_GAS: u64 = 50_000;
 /// Requests usually cost less than their declared worst case, so a real batch
 /// often runs longer than `batch_size`.  This is a floor, not a cap.
 pub const fn gas_for_batch<R: BatchRequest>(batch_size: u32) -> u64 {
-    // One request's worth beyond the batch: `process` checks for room for a
-    // whole request *before* taking one, so draining the last request of a
-    // full batch requires that much still on hand.
-    let requests = (batch_size as u64).saturating_add(1);
+    // One request's worth beyond what the loop strictly needs, so that a
+    // caller declaring exactly this still clears [`budget_for_batch`] after
+    // the frame's own entry costs.
+    budget_for_batch::<R>(batch_size).saturating_add(R::GAS_LIMIT)
+}
 
-    EPILOGUE_GAS.saturating_add(requests.saturating_mul(R::GAS_LIMIT))
+/// The gas a frame must still hold for [`process`] to be able to take
+/// `batch_size` more requests of type `R` from here.
+///
+/// This is the loop's precondition rather than advice to a caller: the check
+/// before each request is for one request plus [`EPILOGUE_GAS`], so taking
+/// `batch_size` of them in a row needs `batch_size` requests' worth on top of
+/// that reserve.  A caller sizing a transaction wants
+/// [`gas_for_batch`] instead, which leaves room above this for the frame to
+/// get as far as its first check.
+///
+/// A driver can use this to refuse a crank too small to be worth the block's
+/// one drain -- see [`Slots::remaining_at_snapshot`].
+pub const fn budget_for_batch<R: BatchRequest>(batch_size: u32) -> u64 {
+    EPILOGUE_GAS.saturating_add((batch_size as u64).saturating_mul(R::GAS_LIMIT))
 }
 
 /// Admission control for a driver's queue: the room still left in it.
@@ -191,6 +205,27 @@ impl Slots {
     /// Return the slots of `count` entries that have left the queue.
     pub fn release(&mut self, count: u32) {
         self.remaining.inc(i128::from(count));
+    }
+
+    /// The room left as of this block's snapshot -- so, with the ceiling, how
+    /// deep the queue was when the block began.
+    ///
+    /// Deliberately narrow.  This does not see the entries concurrent
+    /// transactions are adding in this very block, and cannot: a reader sees
+    /// the last committed value plus its own deltas and nothing else.  It is
+    /// therefore no good for telling anyone how full the queue *is* -- every
+    /// enqueue in a block would read the same answer, and all of them stale.
+    ///
+    /// What it is good for is a decision that stays correct when the true
+    /// depth is greater than the answer, since that is the only way this can
+    /// be wrong.  Refusing an under-funded crank once the queue is deep is
+    /// such a decision: reading low only lets one more small crank through.
+    pub fn remaining_at_snapshot(&self) -> u32 {
+        self.remaining
+            .try_get()
+            .none_if_missing()
+            .unwrap_or(0)
+            .clamp(0, i128::from(u32::MAX)) as u32
     }
 }
 

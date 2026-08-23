@@ -38,6 +38,23 @@ pub struct Factory {
 /// set to a tolerable backlog.
 const MAX_QUEUE_LEN: u32 = 256;
 
+/// The most a crank of a pool's queue can be required to clear before it may
+/// drain at all.
+///
+/// Only one crank per block can land, so the block's single drain is worth
+/// taking: without a floor, the cheapest way to hold it is a crank funded for
+/// one request, which displaces a full one at a fraction of its cost and leaves
+/// the queue moving a request per block.  A crank therefore owes whatever is
+/// waiting, up to this many -- so holding the slot costs about what clearing
+/// the queue costs.
+///
+/// The value trades two failure modes against each other, which is why it is
+/// set per pool alongside [`MAX_QUEUE_LEN`] rather than fixed in the driver.
+/// Too low leaves an attacker a shallow depth worth parking the queue at; too
+/// high prices out the ordinary user who only wants to hurry its own request
+/// along, and who must fund this batch as soon as that many are waiting.
+const MIN_CRANK_BATCH: u32 = 8;
+
 #[contract(exports = "swap_factory_exports")]
 impl SwapFactory for Factory {
     fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>) {
@@ -76,7 +93,7 @@ impl SwapFactory for Factory {
         let me = get_current_address();
         SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token);
         SwapHandlerClient::new(&handler).initialize(&pair, token0, token1);
-        SwapDriverClient::new(&driver).initialize(&handler, MAX_QUEUE_LEN);
+        SwapDriverClient::new(&driver).initialize(&handler, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
 
         // Record the new pair: by tokens (for `get_pair`) and in creation
         // order (for `pair_at`).

@@ -77,6 +77,27 @@ scheduler charges against the caller's free HOG, spent whether or not the batch
 fills it — so a user cranking to hurry its own request along asks for a small
 batch, and one draining a backlog asks for a large one.
 
+One limit on that freedom: a crank must be able to drain whatever is waiting,
+up to the pool's `min_crank_batch`, or it is refused with
+`SwapDriverError::BatchTooSmall`. Only one crank per block can land, so without
+a floor the cheapest way to hold that slot would be a crank funded for a single
+request — a fraction of a full crank's cost, displacing one, and leaving the
+queue moving one request per block for as long as anyone cared to keep it up.
+Owing what is waiting makes holding the slot cost about what clearing the queue
+costs.
+
+That figure is set when the pool is created, alongside the queue's ceiling,
+because the two trade off against each other and against how a pair is used —
+see `MIN_CRANK_BATCH` in
+[`swap-factory`](../contracts/swap-factory/src/factory.rs) for how to choose it.
+
+The cap matters as much as the floor, and so does tying the requirement to the
+backlog rather than switching it on at some depth. A cap keeps cranking within
+reach when a queue is long, which is when it most needs draining. Tying it to
+the backlog leaves no shallow depth an attacker can park the queue at: a crank
+facing one waiting request owes one request's worth, and a user hurrying its own
+lone request still cranks for almost nothing.
+
 The recommended policy for a client is to send a crank after its request, with
 a short expiry height, and then stop. There is nothing to poll and no queue
 depth to estimate, because each outcome is already harmless:

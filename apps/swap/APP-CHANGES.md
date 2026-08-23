@@ -24,9 +24,10 @@ changed.
   `SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT` in the generated `.env.local` --
   are still correct.
 
-* **`SwapDriver::initialize` takes a `max_queue_len: u32`.**  A bindings-only
-  change for the app, which never calls it: the factory initializes each
-  driver on-chain when it creates the pool.
+* **`SwapDriver::initialize` takes a `max_queue_len` and a
+  `min_crank_batch`.**  A bindings-only change for the app, which never calls
+  it: the factory initializes each driver on-chain when it creates the pool,
+  passing its own defaults.
 
 * **New event: `RequestsProcessed { processed: u32, failed: u32 }`.**  Emitted
   once per batch that took anything, and attributed (like every event) to the
@@ -44,6 +45,14 @@ changed.
   it is now worth choosing deliberately: small for a user cranking to hurry its
   own request along, large for draining a backlog.  The Rust-side sizing helper
   is `swap_driver::process_requests_gas(batch_size)`.
+
+* **A crank can be refused as too small.**  A crank must be able to drain
+  whatever is waiting, up to the pool's `min_crank_batch`; one that cannot aborts with
+  `SwapDriverError::BatchTooSmall` rather than spending the block's only drain
+  on less.  `TARGET_GAS` is far above the floor, so
+  this does not bite as things stand -- but an in-app control that ever lets a
+  user pick a small batch has to handle the refusal, and should read it as
+  "ask for more" rather than as a failed crank.
 
 * **A request submission can now be *deferred*.**  With the queue at its
   ceiling, a `request` transaction is excluded from its block and returned to
