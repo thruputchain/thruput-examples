@@ -3,10 +3,13 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import {
+  bytesEqual,
   createGroundhogClient,
   createTransaction,
+  fromHex0x,
   hashContract,
   HttpTransport,
+  PrivateKeySigner,
   signTransaction,
   toHex0x,
   type GroundhogClient,
@@ -59,8 +62,8 @@ interface RuntimeManifest {
   bootstrapAccounts: Array<{
     index: number;
     role: "faucet" | "local_user";
+    publicKey: string;
     walletAddress: string;
-    initialStorageTokens: string;
   }>;
 }
 
@@ -86,15 +89,14 @@ interface Deployment {
 interface Persona {
   id: "alice" | "bob" | "carol";
   label: "Alice" | "Bob" | "Carol";
-  description: string;
   account: LocalDevAccount;
   browserPrivateKey: string;
 }
 
 const PERSONAS = [
-  { id: "alice", label: "Alice", description: "Initial liquidity provider" },
-  { id: "bob", label: "Bob", description: "Trader" },
-  { id: "carol", label: "Carol", description: "Liquidity provider" },
+  { id: "alice", label: "Alice" },
+  { id: "bob", label: "Bob" },
+  { id: "carol", label: "Carol" },
 ] as const;
 
 /**
@@ -123,20 +125,10 @@ async function main(): Promise<void> {
     )),
     loadArtifacts(artifactRoot),
   ]);
-  const personas = PERSONAS.map((persona, index): Persona => {
-    const account = users[index]!;
-    return {
-      ...persona,
-      account,
-      browserPrivateKey: toHex0x(
-        createHash("sha256")
-          .update(
-            `${manifest.bootstrapAccountDerivation.seed}:account-${account.index}`,
-          )
-          .digest(),
-      ),
-    };
-  });
+  if (
+    new Set(users.map(({ index }) => index)).size !== PERSONAS.length
+    || new Set(users.map(({ address }) => toHex0x(address))).size !== PERSONAS.length
+  ) throw new Error("Development wallets must have distinct accounts");
   for (const account of [faucet, ...users]) {
     const recorded = manifest.bootstrapAccounts.find(({ index }) => index === account.index);
     if (
@@ -145,21 +137,46 @@ async function main(): Promise<void> {
       || recorded.walletAddress !== toHex0x(account.address)
     ) throw new Error("Runtime manifest changed while loading development wallets");
   }
-  const requiredPersonaHog = CONTRACT_FUNDING * 4n;
-  for (const persona of personas) {
+  const personas = PERSONAS.map((persona, index): Persona => {
+    const account = users[index]!;
     const recorded = manifest.bootstrapAccounts.find(({ index }) =>
-      index === persona.account.index
+      index === account.index
     )!;
-    if (BigInt(recorded.initialStorageTokens) < requiredPersonaHog) {
-      throw new Error(`${persona.label} requires at least ${requiredPersonaHog} native HOG`);
+    const privateKey = createHash("sha256")
+      .update(
+        `${manifest.bootstrapAccountDerivation.seed}:account-${account.index}`,
+      )
+      .digest();
+    const signer = new PrivateKeySigner(privateKey);
+    if (!bytesEqual(signer.publicKey.ed25519, fromHex0x(recorded.publicKey))) {
+      throw new Error(`${persona.label}'s development key does not match its account`);
     }
-  }
+    return {
+      ...persona,
+      account,
+      browserPrivateKey: toHex0x(privateKey),
+    };
+  });
   const client = createGroundhogClient(new HttpTransport(rpcUrl));
   const version = await client.getVersion();
   if (!SUPPORTED_WIRE_FORMAT.test(version.wireFormat)) {
     throw new Error(
       `Groundhog wire format >=3.0.0 <4.0.0 is required; found ${version.wireFormat}`,
     );
+  }
+  const requiredPersonaHog = CONTRACT_FUNDING * 4n;
+  const personaHogBalances = await Promise.all(personas.map(async (persona) => (
+    await ERC20.getBalanceOf.view({
+      client,
+      contract: HOG_ADDRESS,
+      caller: persona.account.address,
+      args: { addr: persona.account.address },
+    })
+  ).value));
+  for (const [index, balance] of personaHogBalances.entries()) {
+    if (balance < requiredPersonaHog) {
+      throw new Error(`${personas[index]!.label} requires at least ${requiredPersonaHog} native HOG`);
+    }
   }
 
   // Fail on invalid output paths before making any changes to the ledger.
@@ -214,7 +231,7 @@ App environment: ${appEnvironmentPath}
 CLI configuration: ${cliConfigPath}
 Development wallets:
 ${deployment.personas.map((persona) =>
-  `  ${persona.label} ${persona.account.keyName} (${toHex0x(persona.account.address)}) - ${persona.description}`
+  `  ${persona.label} ${persona.account.keyName} (${toHex0x(persona.account.address)})`
 ).join("\n")}
 Example tokens:
   gUSD ${toHex0x(deployment.tokenA)}
@@ -623,7 +640,6 @@ function renderEnvironment(
     `GROUNDHOG_DEV_PERSONAS=${JSON.stringify(deployment.personas.map((persona) => ({
       id: persona.id,
       label: persona.label,
-      description: persona.description,
       accountAddress: toHex0x(persona.account.address),
       privateKey: persona.browserPrivateKey,
     })))}`,

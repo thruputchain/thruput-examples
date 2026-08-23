@@ -5,6 +5,7 @@ import {
   DevelopmentPersonaError,
   parseDevelopmentPersonas,
   personaPreferenceKey,
+  publicDevelopmentPersona,
   selectedDevelopmentPersona,
 } from "@/development-personas";
 
@@ -24,6 +25,7 @@ describe("development personas", () => {
       accountAddressHex: address(2),
       privateKeyHex: address(12),
     });
+    expect(publicDevelopmentPersona(parsed![1]!)).not.toHaveProperty("privateKeyHex");
   });
 
   it("rejects duplicate addresses, keys, and missing personas", () => {
@@ -54,7 +56,6 @@ function persona(id: "alice" | "bob" | "carol", byte: number) {
   return {
     id,
     label: id[0]!.toUpperCase() + id.slice(1),
-    description: `${id} role`,
     accountAddress: address(byte),
     privateKey: address(byte + 10),
   };

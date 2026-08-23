@@ -9,10 +9,18 @@ export type DevelopmentPersonaId = (typeof PERSONA_IDS)[number];
 export interface DevelopmentPersona {
   id: DevelopmentPersonaId;
   label: string;
-  description: string;
   accountAddress: ContractAddress;
   accountAddressHex: string;
   privateKeyHex: string;
+}
+
+export type PublicDevelopmentPersona = Omit<DevelopmentPersona, "privateKeyHex">;
+
+export function publicDevelopmentPersona(
+  persona: DevelopmentPersona,
+): PublicDevelopmentPersona {
+  const { privateKeyHex: _privateKeyHex, ...publicPersona } = persona;
+  return publicPersona;
 }
 
 export class DevelopmentPersonaError extends Error {
@@ -48,8 +56,6 @@ export function parseDevelopmentPersonas(
       || !PERSONA_IDS.includes(candidate.id as DevelopmentPersonaId)
       || typeof candidate.label !== "string"
       || candidate.label.trim() === ""
-      || typeof candidate.description !== "string"
-      || candidate.description.trim() === ""
       || typeof candidate.accountAddress !== "string"
       || !HEX_32.test(candidate.accountAddress)
       || typeof candidate.privateKey !== "string"
@@ -65,7 +71,6 @@ export function parseDevelopmentPersonas(
     return {
       id: candidate.id as DevelopmentPersonaId,
       label: candidate.label.trim(),
-      description: candidate.description.trim(),
       accountAddress,
       accountAddressHex: toHex0x(accountAddress),
       privateKeyHex: candidate.privateKey,

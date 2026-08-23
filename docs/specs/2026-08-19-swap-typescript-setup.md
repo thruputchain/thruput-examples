@@ -10,6 +10,8 @@ Replace the Rust/Testkit setup program with a small application-local TypeScript
 
 Contract behavior belongs in contract and live integration tests. Setup does not perform verification swaps or duplicate client validation.
 
+The AMM frontend and [Local Wallet Personas](./2026-08-22-local-wallet-personas.md) specifications supersede this document's singular application account and fixed provisioning details. The current setup uses Alice, Bob, and Carol, distributes three example tokens, and gives Alice the seeded pool's initial LP position while preserving the transaction and generated-file boundaries defined here.
+
 ## Toolchain
 
 Use these exact package versions:

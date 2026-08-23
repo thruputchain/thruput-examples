@@ -78,6 +78,7 @@ export function PoolDirectoryPage({ config }: { config: GlobalConfig }) {
         <Button
           type="button"
           variant="outline"
+          size="sm"
           disabled={state.refreshing}
           onClick={() => refresh(true)}
         >

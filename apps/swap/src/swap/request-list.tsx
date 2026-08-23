@@ -77,8 +77,8 @@ export function RequestList({
   useEffect(() => {
     if (!focusAfterDismiss.current) return;
     focusAfterDismiss.current = false;
-    const target =
-      headingRef.current ?? document.querySelector<HTMLHeadingElement>("h1");
+    const target = headingRef.current
+      ?? document.querySelector<HTMLHeadingElement>("[data-swap-workspace-heading]");
     target?.focus();
   }, [requests.length]);
   const crankBlocked = isBlockingCrankAttempt(crankAttempt);

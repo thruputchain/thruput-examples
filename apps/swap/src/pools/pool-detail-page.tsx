@@ -37,6 +37,7 @@ export function PoolDetailPage({ config }: { config: AppConfig }) {
         <Button
           type="button"
           variant="outline"
+          size="sm"
           disabled={state.isRefreshing}
           onClick={state.refresh}
         >

@@ -3,10 +3,12 @@ import { toHex0x } from "@groundhogchain/client";
 import { useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SlippageSettings } from "@/components/slippage-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -256,7 +258,7 @@ export function LiquidityPage({
       title="Manage liquidity"
       description={`${config.tokenASymbol} / ${config.tokenBSymbol} deposits and redemptions.`}
       actions={snapshot === null ? undefined : (
-        <Button variant="outline" disabled={snapshotState.isRefreshing} onClick={snapshotState.refresh}>
+        <Button size="sm" variant="outline" disabled={snapshotState.isRefreshing} onClick={snapshotState.refresh}>
           <RefreshCwIcon aria-hidden="true" data-icon="inline-start" />
           Refresh
         </Button>
@@ -303,6 +305,7 @@ export function LiquidityPage({
               amount={addAmount}
               inputIndex={inputIndex}
               slippage={slippage}
+              slippageResult={slippageResult}
               quote={addQuote}
               isRunning={isRunning}
               onAmount={setAddAmount}
@@ -315,6 +318,7 @@ export function LiquidityPage({
               snapshot={snapshot}
               amount={removeAmount}
               slippage={slippage}
+              slippageResult={slippageResult}
               quote={removeQuote}
               reservedLiquidity={accountState.liquidityReservation}
               isRunning={isRunning}
@@ -362,6 +366,7 @@ function AddLiquidityCard({
   amount,
   inputIndex,
   slippage,
+  slippageResult,
   quote,
   isRunning,
   onAmount,
@@ -373,6 +378,7 @@ function AddLiquidityCard({
   amount: string;
   inputIndex: LiquidityTokenIndex;
   slippage: string;
+  slippageResult: ReturnType<typeof parseSlippagePercent>;
   quote: ReturnType<typeof deriveAddLiquidityQuote> | null;
   isRunning: boolean;
   onAmount: (value: string) => void;
@@ -398,6 +404,16 @@ function AddLiquidityCard({
           Desired amounts are maximum contributions. Live reserves determine the
           final proportional deposit; estimated LP output has no contract minimum.
         </CardDescription>
+        <CardAction>
+          <SlippageSettings
+            id="add-liquidity-slippage"
+            value={slippage}
+            onChange={onSlippage}
+            result={slippageResult}
+            disabled={isRunning}
+            description="Set the minimum token amounts accepted for this deposit."
+          />
+        </CardAction>
       </CardHeader>
       <CardContent className="grid gap-5 sm:grid-cols-2">
         <Field>
@@ -441,16 +457,6 @@ function AddLiquidityCard({
             </p>
           )}
         </div>
-        <Field>
-          <FieldLabel htmlFor="liquidity-slippage">Deposit slippage</FieldLabel>
-          <Input
-            id="liquidity-slippage"
-            inputMode="decimal"
-            value={slippage}
-            onChange={(event) => onSlippage(event.target.value)}
-          />
-          <FieldDescription>Percent applied to both token minimums.</FieldDescription>
-        </Field>
       </CardContent>
       <CardFooter>
         <Button disabled={isRunning || quote === null || !quote.ok} onClick={onSubmit}>
@@ -465,6 +471,7 @@ function RemoveLiquidityCard({
   snapshot,
   amount,
   slippage,
+  slippageResult,
   quote,
   reservedLiquidity,
   isRunning,
@@ -475,6 +482,7 @@ function RemoveLiquidityCard({
   snapshot: Awaited<ReturnType<SnapshotReader>> | null;
   amount: string;
   slippage: string;
+  slippageResult: ReturnType<typeof parseSlippagePercent>;
   quote: ReturnType<typeof deriveRemoveLiquidityQuote> | null;
   reservedLiquidity: bigint;
   isRunning: boolean;
@@ -493,6 +501,16 @@ function RemoveLiquidityCard({
           Burn LP base units for a proportional share of both reserves. Slippage
           protects the minimum amount received for each token.
         </CardDescription>
+        <CardAction>
+          <SlippageSettings
+            id="remove-liquidity-slippage"
+            value={slippage}
+            onChange={onSlippage}
+            result={slippageResult}
+            disabled={isRunning}
+            description="Set the minimum token amounts accepted for this redemption."
+          />
+        </CardAction>
       </CardHeader>
       <CardContent className="grid gap-5 sm:grid-cols-2">
         <Field>
@@ -539,16 +557,6 @@ function RemoveLiquidityCard({
             </div>
           )}
         </div>
-        <Field>
-          <FieldLabel htmlFor="remove-liquidity-slippage">Redemption slippage</FieldLabel>
-          <Input
-            id="remove-liquidity-slippage"
-            inputMode="decimal"
-            value={slippage}
-            onChange={(event) => onSlippage(event.target.value)}
-          />
-          <FieldDescription>Percent applied to both token minimums.</FieldDescription>
-        </Field>
       </CardContent>
       <CardFooter>
         <Button disabled={isRunning || quote === null || !quote.ok} onClick={onSubmit}>

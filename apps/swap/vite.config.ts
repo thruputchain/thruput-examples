@@ -70,6 +70,14 @@ export default defineConfig(({ command, isPreview, mode }) => {
       developmentCredentialHostGuard(developmentCredentialsEnabled),
       localRpcProxy(rpcTarget),
     ],
+    ...(developmentCredentialsEnabled
+      ? {
+        server: {
+          cors: false,
+          headers: { "Content-Security-Policy": "frame-ancestors 'none'" },
+        },
+      }
+      : {}),
     resolve: {
       alias: {
         "@": path.resolve(root, "src"),

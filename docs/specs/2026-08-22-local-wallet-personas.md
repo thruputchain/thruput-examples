@@ -108,21 +108,18 @@ Generate one compact, unprefixed JSON value containing the disposable persona re
   {
     "id": "alice",
     "label": "Alice",
-    "description": "Initial liquidity provider",
     "accountAddress": "0x...",
     "privateKey": "0x..."
   },
   {
     "id": "bob",
     "label": "Bob",
-    "description": "Trader",
     "accountAddress": "0x...",
     "privateKey": "0x..."
   },
   {
     "id": "carol",
     "label": "Carol",
-    "description": "Liquidity provider",
     "accountAddress": "0x...",
     "privateKey": "0x..."
   }
@@ -239,7 +236,7 @@ The control should show:
   
 - Development-only indicator.
   
-- Menu options for Alice, Bob, and Carol with their short addresses and initial role descriptions.
+- Menu options for Alice, Bob, and Carol with their short addresses.
   
 
 Place it in both existing headers:

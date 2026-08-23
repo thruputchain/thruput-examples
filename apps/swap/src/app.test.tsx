@@ -2,6 +2,7 @@ import { contractAddress, ExecResult, sha256Hash } from "@groundhogchain/protoco
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "@/app";
@@ -94,12 +95,14 @@ function renderApp(
   },
 ) {
   return render(
-    <App
-      config={config}
-      readSnapshot={readSnapshot}
-      requestObserver={requestObserver}
-      {...(writeBoundary === undefined ? {} : { writeBoundary })}
-    />,
+    <MemoryRouter>
+      <App
+        config={config}
+        readSnapshot={readSnapshot}
+        requestObserver={requestObserver}
+        {...(writeBoundary === undefined ? {} : { writeBoundary })}
+      />
+    </MemoryRouter>,
   );
 }
 
@@ -297,7 +300,10 @@ describe("read-only swap experience", () => {
       .mockResolvedValueOnce(pool({ chainHeight: 9n }));
     renderApp(read);
 
-    await user.click(screen.getByRole("button", { name: "Refresh pool data" }));
+    await user.click(
+      within(screen.getByRole("navigation", { name: "Main navigation" }))
+        .getByRole("button", { name: "Refresh pool data" }),
+    );
     expect((await screen.findAllByText(/block 9/)).length).toBeGreaterThan(0);
     await act(async () => resolveFirst?.(pool({ chainHeight: 8n })));
     await waitFor(() =>

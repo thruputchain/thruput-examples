@@ -71,7 +71,7 @@ npm --prefix apps/swap run dev
 
 Use one browser origin consistently. Do not alternate between `localhost` and `127.0.0.1`; browser locks and local storage are origin-scoped.
 
-The development server must listen on a loopback host while disposable credentials are enabled. Do not use `vite --host 0.0.0.0` or expose this app to a local network.
+The development server must listen on a loopback host while disposable credentials are enabled. It disables cross-origin access and refuses non-loopback hosts. Do not use `vite --host 0.0.0.0` or expose this app to a local network.
 
 Use the development-wallet control in either header to switch this tab among Alice, Bob, and Carol. Pools and queues are shared, while balances, allowances, LP positions, transaction history, and recovery state belong to the selected account. Alice begins as the initial liquidity provider; Bob and Carol begin with tokens but no LP position. Selection is tab-local, so separate tabs may use different personas.
 

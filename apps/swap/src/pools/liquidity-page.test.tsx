@@ -69,6 +69,10 @@ describe("LiquidityPage", () => {
     await user.click(screen.getByRole("button", { name: "100%" }));
     expect(screen.getByText("100 A")).toBeVisible();
     expect(screen.getByText("200 B")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "1%" }));
+    const slippage = screen.getByLabelText("Custom percentage");
+    await user.clear(slippage);
+    await user.type(slippage, "2");
     await user.click(screen.getByRole("button", { name: "Remove liquidity" }));
 
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
@@ -76,7 +80,7 @@ describe("LiquidityPage", () => {
       kind: "remove",
       intent: {
         liquidity: "100000000",
-        amountsMin: ["99000000", "198000000"],
+        amountsMin: ["98000000", "196000000"],
       },
     });
   });

@@ -1,6 +1,6 @@
 import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
   BrowserRouter,
@@ -8,6 +8,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useInRouterContext,
   useLocation,
   useParams,
 } from "react-router-dom";
@@ -38,6 +39,7 @@ import {
 import {
   parseDevelopmentPersonas,
   personaPreferenceKey,
+  publicDevelopmentPersona,
   selectedDevelopmentPersona,
   type DevelopmentPersonaId,
 } from "@/development-personas";
@@ -78,15 +80,19 @@ export function App({
   requestObserver?: RequestObserver | undefined;
   writeBoundary?: WriteBoundary | undefined;
 } = {}) {
+  const hasRouter = useInRouterContext();
   if (suppliedConfig !== undefined) {
+    const app = (
+      <ConfiguredApp
+        config={suppliedConfig}
+        readSnapshot={readSnapshot}
+        requestObserver={requestObserver}
+        writeBoundary={writeBoundary ?? unavailableWriteBoundary}
+      />
+    );
     return (
       <TooltipProvider>
-        <ConfiguredApp
-          config={suppliedConfig}
-          readSnapshot={readSnapshot}
-          requestObserver={requestObserver}
-          writeBoundary={writeBoundary ?? unavailableWriteBoundary}
-        />
+        {hasRouter ? app : <BrowserRouter>{app}</BrowserRouter>}
       </TooltipProvider>
     );
   }
@@ -95,9 +101,13 @@ export function App({
   return (
     <TooltipProvider>
       {configuration.ok ? (
-        <BrowserRouter>
-          <BrowserConfiguredApp config={configuration.config} />
-        </BrowserRouter>
+        hasRouter
+          ? <BrowserConfiguredApp config={configuration.config} />
+          : (
+            <BrowserRouter>
+              <BrowserConfiguredApp config={configuration.config} />
+            </BrowserRouter>
+          )
       ) : <ConfigurationErrorPage message={configuration.message} />}
     </TooltipProvider>
   );
@@ -125,7 +135,7 @@ function BrowserConfiguredApp({ config: baseConfig }: { config: GlobalConfig }) 
   return <PersonaConfiguredApp baseConfig={baseConfig} personas={personas} />;
 }
 
-function PersonaConfiguredApp({
+export function PersonaConfiguredApp({
   baseConfig,
   personas,
 }: {
@@ -142,10 +152,24 @@ function PersonaConfiguredApp({
   const [isSwitching, setIsSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const active = selectedDevelopmentPersona(personas, selectedId);
+  const publicPersonas = useMemo(
+    () => personas.map(publicDevelopmentPersona),
+    [personas],
+  );
+  const publicActive = publicPersonas.find(({ id }) => id === active.id)!;
+  const previousActiveId = useRef(active.id);
   const config = useMemo(
     () => ({ ...baseConfig, accountAddress: active.accountAddress }),
     [active.accountAddress, baseConfig],
   );
+
+  useEffect(() => {
+    if (isSwitching || previousActiveId.current === active.id) return;
+    previousActiveId.current = active.id;
+    document
+      .querySelector<HTMLElement>("[data-development-wallet-trigger]")
+      ?.focus();
+  }, [active.id, isSwitching]);
 
   async function switchTo(id: DevelopmentPersonaId) {
     if (id === active.id || isSwitching) return;
@@ -166,17 +190,19 @@ function PersonaConfiguredApp({
 
   return (
     <DevelopmentWalletContext value={{
-      active,
-      personas,
+      active: publicActive,
+      personas: publicPersonas,
       isSwitching,
       switchError,
       switchTo,
     }}>
-      <AmmRoutes
-        key={`${config.networkIdHex}:${active.accountAddressHex}`}
-        config={config}
-        walletPrivateKey={active.privateKeyHex}
-      />
+      <div aria-busy={isSwitching} inert={isSwitching}>
+        <AmmRoutes
+          key={`${config.networkIdHex}:${active.accountAddressHex}`}
+          config={config}
+          walletPrivateKey={active.privateKeyHex}
+        />
+      </div>
     </DevelopmentWalletContext>
   );
 }

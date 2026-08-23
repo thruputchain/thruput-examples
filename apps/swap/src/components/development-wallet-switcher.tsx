@@ -10,11 +10,14 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { DevelopmentPersona, DevelopmentPersonaId } from "@/development-personas";
+import type {
+  DevelopmentPersonaId,
+  PublicDevelopmentPersona,
+} from "@/development-personas";
 
 interface DevelopmentWalletContextValue {
-  active: DevelopmentPersona;
-  personas: readonly DevelopmentPersona[];
+  active: PublicDevelopmentPersona;
+  personas: readonly PublicDevelopmentPersona[];
   isSwitching: boolean;
   switchError: string | null;
   switchTo: (id: DevelopmentPersonaId) => Promise<void>;
@@ -45,6 +48,7 @@ export function DevelopmentWalletSwitcher() {
           disabled={wallet.isSwitching}
           size="sm"
           variant="secondary"
+          data-development-wallet-trigger
         >
           <UserRoundIcon data-icon="inline-start" />
           {wallet.isSwitching ? "Switching..." : wallet.active.label}
@@ -54,7 +58,7 @@ export function DevelopmentWalletSwitcher() {
       <PopoverContent align="end" className="w-80">
         <PopoverHeader>
           <PopoverTitle>Development wallet</PopoverTitle>
-          <PopoverDescription>
+          <PopoverDescription role={wallet.switchError === null ? undefined : "alert"}>
             {wallet.switchError
               ?? "Switch this tab's disposable local account."}
           </PopoverDescription>
@@ -70,7 +74,6 @@ export function DevelopmentWalletSwitcher() {
             >
               <span className="flex min-w-0 flex-1 flex-col items-start">
                 <span className="font-medium">{persona.label}</span>
-                <span className="text-xs text-muted-foreground">{persona.description}</span>
                 <span className="font-mono text-xs text-muted-foreground">
                   {shortAddress(persona.accountAddressHex)}
                 </span>
