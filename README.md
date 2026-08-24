@@ -87,12 +87,18 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`swap-driver`](contracts/swap-driver/) | ✅ | — | — |
 | [`swap-router`](contracts/swap-router/) | ✅ | — | — |
 | [`swap-factory`](contracts/swap-factory/) | ✅ | — | — |
+| [`batch-driver`](helpers/batch-driver/) | ✅ | — | — |
 | [`calldata`](sim-fixtures/calldata/) | ✅ | — | — |
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | ✅ | — | — |
 | [`caller-counter`](sim-fixtures/caller-counter/) | — | — | — |
 
 A `—` means the contract has no tests of that kind, or its behaviour is already
 covered by the tests of the contracts that depend on it.
+
+The crates under [`helpers/`](helpers/) are shared library code rather than
+contracts, so they have only native tests.
+[`batch-driver`](helpers/batch-driver/) is the reusable core of the
+request-batching driver pattern.
 
 ### Special cases
 
@@ -101,7 +107,7 @@ Beyond the tests in the table, there are three specially-handled kinds of test:
 - **WASM.** `counter` and `erc20` each carry a `tests/test_wasm.rs` that
   mirrors their rv32 test, but compiles the contract to WASM instead. Run with
   `groundhog test --target wasm -p <crate>`.
-- **Guest tests.** `swap-driver` and `swap-router` have a `guest_test` feature
+- **Guest tests.** `swap-driver`, `swap-router` and `swap-factory` have a `guest_test` feature
   that swaps their natively-linked collaborator contracts for built guest
   binaries — run them with `cargo test -p <crate> -F guest_test`, which is what
   [`scripts/swap-test-guest.sh`](scripts/swap-test-guest.sh) does.

@@ -7,6 +7,8 @@
 //! and is shared by any driver, whatever its request type.
 
 use crate::cfg::*;
+use batch_driver::Slots;
+use sdk::stats::gas_remaining;
 use sdk::storage::*;
 use sdk::*;
 use swap_if::*;
@@ -28,26 +30,56 @@ pub struct Driver {
     // increments from concurrent transactions merge without conflict), so this
     // preserves the concurrent enqueue the queue is built for.
     seq: NNInt,
+
+    // Room left in `requests`, counted down as requests arrive and back up as
+    // they are drained.  This is what bounds the storage deposit the queue can
+    // lock out of this contract's balance; see `batch_driver::Slots`.
+    slots: Node<Slots>,
 }
 
-/// Recommended gas limit for `process_requests()`
-///   (some overhead plus enough for ~10 requests).
-pub const PROCESS_REQUESTS_GAS: u64 = 10_000 + (10 * REQUEST_GAS_MAX);
+/// The gas limit to declare on a `process_requests()` call intended to drain
+/// up to `batch_size` requests.
+///
+/// There is no one recommended figure: the drain is bounded by whatever gas
+/// its frame has left, so the caller's declared limit *is* the batch size.  A
+/// caller wanting low latency on its own request, and a small encumbrance of
+/// its throughput share, asks for a small batch; one draining a backlog asks
+/// for a large one.
+pub const fn process_requests_gas(batch_size: u32) -> u64 {
+    batch_driver::gas_for_batch::<SwapRequest>(batch_size)
+}
 
 #[contract(exports = "swap_driver_exports")]
 impl SwapDriver for Driver {
-    fn initialize(&mut self, handler: &Address) {
+    fn initialize(&mut self, handler: &Address, max_queue_len: u32, min_crank_batch: u32) {
         if self.cfg.try_get().none_if_missing().is_some() {
             panic!("Already initialized.");
         }
+        if min_crank_batch > max_queue_len {
+            // A crank could then be asked for a batch the queue is not allowed
+            // to hold, which no one could ever satisfy.
+            panic!("min_crank_batch exceeds max_queue_len.");
+        }
 
-        let cfg = Cfg { handler: *handler };
+        let cfg = Cfg {
+            handler: *handler,
+            max_queue_len,
+            min_crank_batch,
+        };
 
         // Ensure only one `initialize` call can succeed per block.
         self.cfg.set_exclusive(&cfg);
+
+        self.slots.set_capacity(max_queue_len);
     }
 
     fn request(&mut self, request: SwapRequest) -> RequestId {
+        // Claim this request's room in the queue.  If the queue is full the
+        // claim overruns the capacity, and this whole transaction is excluded
+        // from the block and returned to the mempool -- the request waits for
+        // room rather than failing.
+        self.slots.reserve();
+
         // Mint an id from the enqueuing transaction's hash plus a sequence
         // number: the tx hash lets the caller correlate the id with its
         // submission, while the sequence keeps requests distinct when several
@@ -65,21 +97,55 @@ impl SwapDriver for Driver {
     fn process_requests(&mut self) -> (u32, u32) {
         let cfg = self.cfg.get();
 
-        batch_driver::process(&mut self.requests, |request, gas_limit| {
-            // Read the id before the request is moved into handling; a failure
-            // rolls back the handler's frame, so the terminal event for a
-            // failed request must come from here, in the driver's own
-            // (committed) frame.
-            let request_id = request.request_id;
-            let result = cfg
-                .handler()
-                .with_commit_locking()
-                .with_gas_limit(gas_limit)
-                .try_handle_request(request);
-            if result.is_err() {
-                log_event(&RequestFailed::new(request_id));
-            }
-            result
-        })
+        // A crank takes the block's one drain opportunity, so it has to clear
+        // what is waiting -- capped at the pool's `min_crank_batch`, past which
+        // no single crank can be asked to empty an arbitrary backlog.
+        //
+        // Owing what is waiting, rather than switching on at some depth, is
+        // what stops a flood of one-request cranks from parking the queue just
+        // below a threshold and draining it a request per block.
+        //
+        // Checked before the queue is touched, so that a refused crank costs
+        // its sender and nobody else.
+        let queued = cfg.max_queue_len - self.slots.remaining_at_snapshot();
+        let owed = queued.min(cfg.min_crank_batch);
+        if gas_remaining() < batch_driver::budget_for_batch::<SwapRequest>(owed) {
+            throw(SwapDriverError::BatchTooSmall);
+        }
+
+        let (n_processed, n_failed) =
+            batch_driver::process(&mut self.requests, |request, gas_limit| {
+                // Read the id before the request is moved into handling; a failure
+                // rolls back the handler's frame, so the terminal event for a
+                // failed request must come from here, in the driver's own
+                // (committed) frame.
+                let request_id = request.request_id;
+                let result = cfg
+                    .handler()
+                    .with_commit_locking()
+                    .with_gas_limit(gas_limit)
+                    .try_handle_request(request);
+                if result.is_err() {
+                    log_event(&RequestFailed::new(request_id));
+                }
+                result
+            });
+
+        // A batch that took nothing touches nothing.  A crank that finds the
+        // queue empty writes no delta and emits no event, so it cannot
+        // conflict with anything -- that is what makes an unlucky crank free
+        // rather than a nuisance, and it is worth keeping deliberately: even
+        // returning zero room would write a (zero) delta.
+        if n_processed > 0 {
+            // Every request the batch took is out of the queue -- including
+            // the ones whose handling failed -- so its room comes back.
+            self.slots.release(n_processed);
+
+            // Report the batch, so an observer watching only events can track
+            // the queue's depth.
+            log_event(&RequestsProcessed::new(n_processed, n_failed));
+        }
+
+        (n_processed, n_failed)
     }
 }

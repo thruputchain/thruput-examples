@@ -30,6 +30,7 @@ swap-if = { path = "../swap-if" }
 entrypoints = ["sdk/alloc"]
 rv32-entrypoints = ["entrypoints"]
 dev = ["sdk/dev", "swap-if/dev"]
+guest_test = []
 
 [dev-dependencies]
 swap-factory = { path = ".", features = ["dev"] }
@@ -39,6 +40,9 @@ swap-driver = { path = "../swap-driver", features = ["dev"] }
 swap-router = { path = "../swap-router", features = ["dev"] }
 erc20 = { path = "../erc20", features = ["dev"] }
 groundhog-erc20-if = { workspace = true }
+# Reading per-syscall gas out of a frame trace, for the guest-only
+# protocol-fee calibration.
+groundhog-trace = { workspace = true }
 
 [lints]
 clippy.result_large_err = "allow"

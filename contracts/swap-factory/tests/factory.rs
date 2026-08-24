@@ -43,15 +43,44 @@ struct Setup {
 // Register the pool's contracts, deploy two funded tokens, and deploy+init a
 // factory with `fee_to = Some(FEE_ADDR)`.
 fn setup() -> Setup {
+    setup_with_fee(Some(FEE_ADDR))
+}
+
+// The pool's contracts, natively for ordinary tests and as built guest
+// binaries under `guest_test` -- where gas is metered for real, which is what
+// the protocol-fee calibration needs.
+#[cfg(not(feature = "guest_test"))]
+fn register_contracts(env: &TestEnvironmentHandle) -> (SwapHashes, SHA256Hash) {
+    (
+        SwapHashes {
+            token: *erc20::register_mock_contract(env).as_hash(),
+            pair: *swap_pair::register_mock_contract(env).as_hash(),
+            handler: *swap_handler::register_mock_contract(env).as_hash(),
+            driver: *swap_driver::register_mock_contract(env).as_hash(),
+        },
+        *swap_factory::register_mock_contract(env).as_hash(),
+    )
+}
+
+#[cfg(feature = "guest_test")]
+fn register_contracts(env: &TestEnvironmentHandle) -> (SwapHashes, SHA256Hash) {
+    let load = |name: &str| load_rv32_contract(format!("../../target/groundhog/{name}.rv32a"));
+
+    (
+        SwapHashes {
+            token: env.setup_create_contract(&load("erc20")),
+            pair: env.setup_create_contract(&load("swap_pair")),
+            handler: env.setup_create_contract(&load("swap_handler")),
+            driver: env.setup_create_contract(&load("swap_driver")),
+        },
+        env.setup_create_contract(&load("swap_factory")),
+    )
+}
+
+fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     let env = sdk::TestEnvironment::new(None); // use default cost model
 
-    let hashes = SwapHashes {
-        token: *erc20::register_mock_contract(&env).as_hash(),
-        pair: *swap_pair::register_mock_contract(&env).as_hash(),
-        handler: *swap_handler::register_mock_contract(&env).as_hash(),
-        driver: *swap_driver::register_mock_contract(&env).as_hash(),
-    };
-    let factory_hash = *swap_factory::register_mock_contract(&env).as_hash();
+    let (hashes, factory_hash) = register_contracts(&env);
 
     // Under the default cost model each contract pays for the storage it writes,
     // so pre-fund the deployer and the contracts it deploys directly.
@@ -76,7 +105,7 @@ fn setup() -> Setup {
     // Deploy + init the factory.
     let factory = exec_tx(&env, &DEPLOYER, || {
         let f = deploy_contract(&FACTORY_NONCE, &factory_hash);
-        SwapFactoryClient::new(&f).initialize(hashes, Some(FEE_ADDR));
+        SwapFactoryClient::new(&f).initialize(hashes, fee_to);
         f
     })
     .unwrap();
@@ -170,40 +199,13 @@ fn create_pair_brings_up_pool() {
 fn fee_accrues_to_factory_fee_to() {
     let s = setup();
 
-    let pool = exec_tx(&s.env, &DEPLOYER, || {
-        SwapFactoryClient::new(&s.factory).create_pair(&s.token0, &s.token1)
-    })
-    .unwrap();
-    s.env.advance_block();
-
-    let (pair, lp, t0, t1) = (pool.pair, pool.liquidity_token, s.token0, s.token1);
-
-    // Prime: the deployer adds equal liquidity.  This first liquidity event
-    // records `k_last` but mints no fee (there is no prior k).
-    let prime: u128 = 1_000_000;
-    exec_tx(&s.env, &DEPLOYER, || {
-        ERC20Client::new(&t0).transfer(&pair, prime);
-        ERC20Client::new(&t1).transfer(&pair, prime);
-        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, None);
-    })
-    .unwrap();
-    s.env.advance_block();
+    let (pair, lp, t0, t1) = prime_and_grow(&s);
 
     let fee_before = exec_tx(&s.env, &DEPLOYER, || {
         ERC20Client::new(&lp).get_balance_of(&FEE_ADDR)
     })
     .unwrap();
-    assert_eq!(fee_before, 0);
-
-    // Grow k: donate to the pair and `sync` (as accrued swap fees would).
-    let donate: u128 = 1_000_000;
-    exec_tx(&s.env, &DEPLOYER, || {
-        ERC20Client::new(&t0).transfer(&pair, donate);
-        ERC20Client::new(&t1).transfer(&pair, donate);
-        SwapPairClient::new(&pair).sync();
-    })
-    .unwrap();
-    s.env.advance_block();
+    assert_eq!(fee_before, 0, "the first liquidity event mints no fee");
 
     // Snapshot the reserves and supply the next liquidity event will see.
     let (r0, r1, _) = exec_tx(&s.env, &DEPLOYER, || {
@@ -215,16 +217,10 @@ fn fee_accrues_to_factory_fee_to() {
     })
     .unwrap();
     // k at the previous liquidity event (the prime, with equal reserves).
-    let k_last = U256::from(prime) * U256::from(prime);
+    let k_last = U256::from(PRIME) * U256::from(PRIME);
 
     // A second liquidity event triggers the protocol-fee mint to `fee_to`.
-    let add: u128 = 1_000_000;
-    exec_tx(&s.env, &DEPLOYER, || {
-        ERC20Client::new(&t0).transfer(&pair, add);
-        ERC20Client::new(&t1).transfer(&pair, add);
-        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, None);
-    })
-    .unwrap();
+    second_liquidity_event(&s.env, pair, t0, t1).assert_success();
     s.env.advance_block();
 
     let fee = exec_tx(&s.env, &DEPLOYER, || {
@@ -243,6 +239,155 @@ fn fee_accrues_to_factory_fee_to() {
     // factory dynamically.
     assert!(expected > U256::ZERO);
     assert_eq!(U256::from(fee), expected);
+}
+
+// The liquidity a pool is primed with, and the amount donated afterwards to
+// grow `k` the way accrued swap fees would.
+const PRIME: u128 = 1_000_000;
+
+// Create the pool, prime it with equal liquidity (which records `k_last` but
+// mints no fee, there being no prior k), then donate and `sync` so that the
+// next liquidity event finds a grown k.  Returns `(pair, lp, token0, token1)`.
+fn prime_and_grow(
+    s: &Setup,
+) -> (
+    ContractAddress,
+    ContractAddress,
+    ContractAddress,
+    ContractAddress,
+) {
+    // Copied out before the closures: capturing them through `s` would drag
+    // the whole `Setup` -- and its environment handle -- across `exec_tx`'s
+    // unwind boundary.
+    let (factory, token0, token1) = (s.factory, s.token0, s.token1);
+
+    let pool = exec_tx(&s.env, &DEPLOYER, || {
+        SwapFactoryClient::new(&factory).create_pair(&token0, &token1)
+    })
+    .unwrap();
+    s.env.advance_block();
+
+    let (pair, lp, t0, t1) = (pool.pair, pool.liquidity_token, token0, token1);
+
+    exec_tx(&s.env, &DEPLOYER, || {
+        ERC20Client::new(&t0).transfer(&pair, PRIME);
+        ERC20Client::new(&t1).transfer(&pair, PRIME);
+        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, None);
+    })
+    .unwrap();
+    s.env.advance_block();
+
+    exec_tx(&s.env, &DEPLOYER, || {
+        ERC20Client::new(&t0).transfer(&pair, PRIME);
+        ERC20Client::new(&t1).transfer(&pair, PRIME);
+        SwapPairClient::new(&pair).sync();
+    })
+    .unwrap();
+    s.env.advance_block();
+
+    (pair, lp, t0, t1)
+}
+
+// The liquidity event that triggers the protocol fee, as its own transaction
+// so that its cost can be read off the trace.
+fn second_liquidity_event(
+    env: &TestEnvironmentHandle,
+    pair: ContractAddress,
+    t0: ContractAddress,
+    t1: ContractAddress,
+) -> TransactResult {
+    env.transact(|tx| {
+        tx.call(&DEPLOYER).run(move || {
+            ERC20Client::new(&t0).transfer(&pair, PRIME);
+            ERC20Client::new(&t1).transfer(&pair, PRIME);
+            SwapPairClient::new(&pair).mint_lp(&DEPLOYER, None);
+        })
+    })
+}
+
+/////////////////////// protocol-fee gas ////////////////////////////////////
+
+// When a factory names a `fee_to`, every liquidity event after the first runs
+// the pair's `mint_fee`: an integer square root over `U256`, a widening
+// multiply and divide, and an LP mint.  None of that is reachable from
+// `swap-driver`'s tests, whose pairs have no factory to consult, so the
+// per-request budgets in `swap-if` are calibrated against the *cheap* branch
+// and carry margin for this one.  This measures how much margin it needs, by
+// running the same liquidity event with the fee enabled and disabled so that
+// the difference is the branch and nothing else.
+//
+// Gas is only metered for real in the guest build, hence `guest_test`.
+#[cfg(feature = "guest_test")]
+#[test]
+fn the_protocol_fee_branch_fits_within_the_liquidity_budgets() {
+    // What `swap-driver`'s `request_gas` test measures for a liquidity
+    // request, whose `mint_fee` takes the cheap branch.  Kept in step with
+    // that test by hand: it measures the request, this measures the branch it
+    // cannot reach, and only their sum bounds the dearest path.
+    const ADD_LIQUIDITY_MEASURED: u64 = 141_154;
+    const REMOVE_LIQUIDITY_MEASURED: u64 = 199_633;
+
+    // The room the declared budget keeps over that sum.  The same figure
+    // `request_gas` holds the cheap path to, so that the margin means the same
+    // thing on both sides.
+    const MARGIN: u64 = 2;
+
+    let with_fee = measure_fee_event(Some(FEE_ADDR));
+    let without_fee = measure_fee_event(None);
+    let branch = with_fee - without_fee;
+
+    println!("liquidity event, fee enabled : {with_fee}");
+    println!("liquidity event, fee disabled: {without_fee}");
+    println!("the protocol-fee branch      : {branch}");
+
+    for (name, measured, declared) in [
+        (
+            "add_liquidity",
+            ADD_LIQUIDITY_MEASURED,
+            swap_if::ADD_LIQUIDITY_GAS,
+        ),
+        (
+            "remove_liquidity",
+            REMOVE_LIQUIDITY_MEASURED,
+            swap_if::REMOVE_LIQUIDITY_GAS,
+        ),
+    ] {
+        let worst = measured + branch;
+        println!("{name:17} worst {worst:>7}  declared {declared:>7}");
+        assert!(
+            declared >= worst * MARGIN,
+            "{name} declares {declared}, only {:.1}x the {worst} its dearest path \
+             costs ({measured} measured, plus {branch} for the protocol fee); \
+             wanted at least {MARGIN}x",
+            declared as f64 / worst as f64,
+        );
+    }
+}
+
+#[cfg(feature = "guest_test")]
+fn measure_fee_event(fee_to: Option<ContractAddress>) -> u64 {
+    use groundhog_trace::transaction_trace::SyscallTraceBody;
+
+    let s = setup_with_fee(fee_to);
+    let (pair, _lp, t0, t1) = prime_and_grow(&s);
+
+    let r = second_liquidity_event(&s.env, pair, t0, t1);
+    r.assert_success();
+
+    // The `mint_lp` invocation, which is where `mint_fee` runs.
+    r.frame()
+        .trace()
+        .expect("traced")
+        .system_calls
+        .iter()
+        .filter_map(|c| match &c.body {
+            SyscallTraceBody::kInvoke { invoke } if invoke.inputs.address == pair => {
+                Some(c.gas_remaining_at_start - c.gas_remaining_at_end)
+            }
+            _ => None,
+        })
+        .last()
+        .expect("an invoke of the pair")
 }
 
 // The factory's canonical (ascending) token order, which its registry uses.

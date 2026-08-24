@@ -148,6 +148,35 @@ impl RequestAccepted {
     }
 }
 
+/// Emitted by the driver when a batch of requests has been processed.
+///
+/// A summary of what one crank did, so an observer watching only events can
+/// reconcile the queue without following each request: the depth of the queue
+/// is the [`RequestAccepted`]s it has seen, less the `processed` reported here.
+///
+/// An observer of a particular swap-pair identifies the relevant events by
+/// their emitting contract: the driver for that swap-pair.
+///
+/// A crank that processed nothing -- one that found the queue empty at its
+/// block's snapshot -- emits no event at all.  This reports work done, and
+/// there is nothing an observer could learn from a batch that did none. (The
+/// caller itself has no need of the event either way: `process_requests`
+/// returns these same counts.)
+#[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RequestsProcessed {
+    /// How many requests left the queue, failures included.
+    pub processed: u32,
+
+    /// How many of those failed, each with its own [`RequestFailed`].
+    pub failed: u32,
+}
+
+impl RequestsProcessed {
+    pub fn new(processed: u32, failed: u32) -> Self {
+        Self { processed, failed }
+    }
+}
+
 /// Emitted by the driver when a queued request fails during processing.
 ///
 /// A successful request instead surfaces as the pair's own `MintEvent` /

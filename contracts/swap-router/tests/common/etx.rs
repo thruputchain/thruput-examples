@@ -239,7 +239,7 @@ impl Etx {
 
         self.exec_tx(&TEST_ADDR, || {
             ctx.driver()
-                .with_gas_limit(PROCESS_REQUESTS_GAS)
+                .with_gas_limit(process_requests_gas(10))
                 .process_requests()
         })
     }
