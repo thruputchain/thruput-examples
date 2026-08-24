@@ -88,8 +88,9 @@ fn serial_swap_leg(etx: &Etx, leg: Leg) -> Result<()> {
 
     /* ----- */ etx.advance_block(); /* ----- */
 
-    // Perform the swap
-    etx.exec_user_tx(user, |user| {
+    // Perform the swap.  Only the handler may: the trader is named, not the
+    // caller.
+    etx.exec_tx(&ctx.request_handler_addr, move || {
         ctx.pair().swap(amounts_out[0], amounts_out[1], user.addr, user.addr, None)
     })?;
 

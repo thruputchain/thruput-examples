@@ -39,46 +39,48 @@ impl Ctx {
         print_balances(user.name, self.my_balances());
     }
 
-    // As a user, provide AB-token liquidity in exchange for LP tokens
-    pub fn user_buy(&self, user: &User) {
-        // user_print_balances(ctx, user);
+    // The two halves of a liquidity purchase, split by who may perform them:
+    // the depositor moves its own tokens, and only the handler may mint
+    // against them.  (In production the handler does both, pulling the tokens
+    // through an allowance; here the deposit is simply its own transaction.)
 
+    // As a user, send all my AB-tokens to the pair.
+    pub fn user_deposit_tokens(&self, user: &User) {
         let amt0 = self.token0().get_balance();
         let amt1 = self.token1().get_balance();
 
-        // Transfer our AB-tokens to the pair contract
         self.token0().transfer(&self.pair_addr, amt0);
         self.token1().transfer(&self.pair_addr, amt1);
-
-        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
 
         // My accounts should be drained
         assert_eq!(0, self.token0().get_balance());
         assert_eq!(0, self.token1().get_balance());
 
-        {
-            println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
-            self.user_print_balances(user);
-        }
+        self.user_print_balances(user);
     }
 
-    // As a user, redeem swap-pair tokens
-    pub fn user_redeem(&self, user: &User) {
-        let pair = self.pair();
+    // As the handler, mint the LP those deposits earned to `user`.
+    pub fn handler_mint_for(&self, user: &User) {
+        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
+
+        println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
+    }
+
+    // As a user, send all my LP tokens back to the pair.
+    pub fn user_deposit_lp(&self, user: &User) {
         let lp = self.lp();
 
-        // Return all my LP tokens to the swap-pair contract
         let return_amt = lp.get_balance();
         lp.transfer(&self.pair_addr, return_amt);
         println!("> {} redeemed {:.3} LP", user.name, decimalized(return_amt));
 
         // I should have zero LP tokens now
         assert_eq!(lp.get_balance(), 0);
+    }
 
-        // Redeem the LP tokens for pair tokens
-        pair.burn_lp(user.addr, user.addr, None);
-
-        self.user_print_balances(user);
+    // As the handler, redeem those LP tokens for `user`.
+    pub fn handler_burn_for(&self, user: &User) {
+        self.pair().burn_lp(user.addr, user.addr, None);
     }
 
     // Make sure we're not holding any LP tokens
@@ -100,11 +102,12 @@ impl Ctx {
         // This should be a no-op
         pair.skim(&SOMEBODY);
 
+        // Called by anyone but the handler, an attributed operation is refused
+        // before it gets as far as looking at the deposits -- which is what
+        // keeps the sender and request id on its event worth anything.
         assert!(
             pair.try_mint_lp(&SOMEBODY, &SOMEBODY, None)
-                .is_err_and(
-                    |e| is_pair_error_and(e, |e| e == SwapPairError::InsufficientLiquidityMinted)
-                )
+                .is_err_and(|e| is_pair_error_and(e, |e| e == SwapPairError::Unauthorized))
         );
     }
 }

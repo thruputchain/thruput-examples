@@ -23,6 +23,9 @@ pub enum SwapPairError {
     Overflow = 11,
     TransferFailed = 12,
     LPTokenFailure(ERC20Error) = 13,
+    /// An operation that attributes its effects was called by someone other
+    /// than this pair's handler.  See [`SwapPair`].
+    Unauthorized = 14,
 }
 
 impl fmt::Display for SwapPairError {
@@ -38,6 +41,19 @@ impl fmt::Display for SwapPairError {
 )]
 pub trait SwapPair {
     /// Must be called exactly once before any other methods
+    ///
+    /// `handler` is the only address allowed to call the operations that
+    /// attribute their effects -- [`mint_lp`](Self::mint_lp),
+    /// [`burn_lp`](Self::burn_lp) and [`swap`](Self::swap).  Each of those
+    /// takes the `sender` it should credit as an argument, so the pair cannot
+    /// check it: whoever may call them can name anyone as the sender, and can
+    /// stamp any [`RequestId`] onto the event.  Restricting them to the
+    /// handler is what makes the resulting events trustworthy -- the handler
+    /// passes on the sender the router recorded from the actual caller.
+    ///
+    /// This is a departure from UniswapV2, where a pair's `swap` is open to
+    /// anyone.  Here every operation is meant to arrive through the request
+    /// queue, which is what lets a pair serve many of them in one block.
     fn initialize(
         &mut self,
         factory: &Address,
@@ -47,6 +63,7 @@ pub trait SwapPair {
         // adopts it as the LP token and initializes it under the pair's
         // control.
         lp_token: &Address,
+        handler: &Address,
     );
 
     fn liquidity_token(&self) -> ContractAddress;
@@ -66,6 +83,10 @@ pub trait SwapPair {
     /// actually arrived.
     ///
     /// `request_id` tags the resulting [`MintEvent`].
+    ///
+    /// Callable only by the handler (see [`initialize`](Self::initialize)):
+    /// `sender` and `request_id` are taken on trust, so whoever may call this
+    /// can attribute its effects to anyone.
     fn mint_lp(
         &mut self,
         sender: &Address,
@@ -81,6 +102,10 @@ pub trait SwapPair {
     /// outcome.
     ///
     /// `request_id` tags the resulting [`BurnEvent`].
+    ///
+    /// Callable only by the handler (see [`initialize`](Self::initialize)):
+    /// `sender` and `request_id` are taken on trust, so whoever may call this
+    /// can attribute its effects to anyone.
     fn burn_lp(
         &mut self,
         sender: &Address,
@@ -88,7 +113,17 @@ pub trait SwapPair {
         request_id: Option<RequestId>,
     ) -> Amounts;
 
+    /// Send any balance in excess of the recorded reserves to `to`.
+    ///
+    /// Open to anyone, as in UniswapV2: it attributes nothing and can only
+    /// move what the reserves do not account for, so it stays available as a
+    /// way to recover tokens sent to the pair by mistake.
     fn skim(&mut self, to: &Address);
+
+    /// Record the pair's actual balances as its reserves.
+    ///
+    /// Open to anyone, for the same reason as [`skim`](Self::skim): its event
+    /// carries reserves and no attribution.
     fn sync(&mut self);
 
     /// Swap out the given amounts to `recipient`, against the input amounts
@@ -99,6 +134,10 @@ pub trait SwapPair {
     /// outcome.
     ///
     /// `request_id` tags the resulting [`SwapEvent`].
+    ///
+    /// Callable only by the handler (see [`initialize`](Self::initialize)):
+    /// `sender` and `request_id` are taken on trust, so whoever may call this
+    /// can attribute its effects to anyone.
     fn swap(
         &mut self,
         amount0_out: Amount,

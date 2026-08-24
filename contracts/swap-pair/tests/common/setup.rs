@@ -83,7 +83,7 @@ pub fn setup_etx_primed() -> Result<Etx> {
     let etx = setup_etx()?;
 
     // Primer buys liquidity tokens, establishing a stable price
-    etx.exec_user_tx(PRIMER, |u| etx.ctx.user_buy(u))?;
+    etx.user_buy(PRIMER)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
@@ -145,7 +145,13 @@ fn swap_pair_deploy_init(
 
     // Initialize the pair contract with the two tokens
     // (This also initializes its embedded LP-token implementation.)
-    pair.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], &lp_addr);
+    pair.initialize(
+        &FACTORY_ADDR,
+        &token_addrs[0],
+        &token_addrs[1],
+        &lp_addr,
+        &HANDLER_ADDR,
+    );
 
     let liquidity_token = pair.liquidity_token();
 

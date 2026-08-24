@@ -150,6 +150,28 @@ The two compose without a mode switch: while the keeper runs, it wins each
 block and users' cranks defer harmlessly behind it; if it stops, theirs start
 winning the very next block. Nothing has to detect which is happening.
 
+## Trust and Permissions
+
+Operations reach a pair along one path: **router → driver → handler → pair**.
+The router is the public entry point, and the only contract that sees the user
+directly, so it is where the operation's sender is recorded — every stage below
+it carries that sender along as data rather than deriving it.
+
+That makes each stage's willingness to be called a security property. The pair
+admits only its handler to `mint_lp`, `burn_lp` and `swap`, because those take
+the sender to credit and the request id to stamp as arguments: whoever may call
+them can attribute an operation to anyone, and can stamp any request id onto the
+event it emits — which a client correlating execution by request id would
+believe. `skim` and `sync` stay open to anyone, as in UniswapV2, since they
+attribute nothing.
+
+> **Known gap.** The driver does *not* yet restrict `request` in the same way,
+> so the sender can still be forged one stage earlier — and there it is worse
+> than misattribution, because the handler spends the named sender's token
+> allowance. Closing it means admitting only the router, which requires wiring
+> the router's address down through the factory. Not for production; see
+> `SwapDriver::request`.
+
 ## Frontend
 
 See [`apps/swap/README.md`](../apps/swap/README.md) for a web-based interface

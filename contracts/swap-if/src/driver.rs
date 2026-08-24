@@ -48,6 +48,17 @@ pub trait SwapDriver {
     /// Returns the [`RequestId`] stamped on the request, which the caller can
     /// match against the event the request eventually produces.
     ///
+    /// **Known gap.**  This accepts a whole [`SwapRequest`] from any caller,
+    /// including the account it names as the operation's sender.  The router
+    /// records the true caller when it builds a request, but nothing obliges
+    /// anyone to go through the router: an attacker can enqueue a request
+    /// naming a victim as the sender and itself as the recipient, and the
+    /// handler will then spend the victim's allowance to it.  Closing this
+    /// means admitting only the router here, as
+    /// [`SwapPair`](crate::SwapPair) admits only its handler -- which needs
+    /// the driver to be told the router's address at initialization, and so
+    /// the factory to be told it too.
+    ///
     /// A request that would take the queue past the `max_queue_len` given at
     /// initialization does not fail: its transaction is excluded from the block
     /// and returned to the mempool, so it lands once a `process_requests` has

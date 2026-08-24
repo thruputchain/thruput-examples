@@ -199,7 +199,7 @@ fn create_pair_brings_up_pool() {
 fn fee_accrues_to_factory_fee_to() {
     let s = setup();
 
-    let (pair, lp, t0, t1) = prime_and_grow(&s);
+    let (pair, lp, t0, t1, handler) = prime_and_grow(&s);
 
     let fee_before = exec_tx(&s.env, &DEPLOYER, || {
         ERC20Client::new(&lp).get_balance_of(&FEE_ADDR)
@@ -220,7 +220,7 @@ fn fee_accrues_to_factory_fee_to() {
     let k_last = U256::from(PRIME) * U256::from(PRIME);
 
     // A second liquidity event triggers the protocol-fee mint to `fee_to`.
-    second_liquidity_event(&s.env, pair, t0, t1).assert_success();
+    second_liquidity_event(&s.env, pair, t0, t1, handler).assert_success();
     s.env.advance_block();
 
     let fee = exec_tx(&s.env, &DEPLOYER, || {
@@ -255,6 +255,7 @@ fn prime_and_grow(
     ContractAddress,
     ContractAddress,
     ContractAddress,
+    ContractAddress,
 ) {
     // Copied out before the closures: capturing them through `s` would drag
     // the whole `Setup` -- and its environment handle -- across `exec_tx`'s
@@ -268,10 +269,19 @@ fn prime_and_grow(
     s.env.advance_block();
 
     let (pair, lp, t0, t1) = (pool.pair, pool.liquidity_token, token0, token1);
+    let handler = pool.handler;
 
+    // The deposit and the mint take separate transactions, because only the
+    // pool's handler may mint -- and separate blocks, because the mint sizes
+    // itself from balances its own block began with.
     exec_tx(&s.env, &DEPLOYER, || {
         ERC20Client::new(&t0).transfer(&pair, PRIME);
         ERC20Client::new(&t1).transfer(&pair, PRIME);
+    })
+    .unwrap();
+    s.env.advance_block();
+
+    exec_tx(&s.env, &handler, || {
         SwapPairClient::new(&pair).mint_lp(&DEPLOYER, &DEPLOYER, None);
     })
     .unwrap();
@@ -285,7 +295,7 @@ fn prime_and_grow(
     .unwrap();
     s.env.advance_block();
 
-    (pair, lp, t0, t1)
+    (pair, lp, t0, t1, handler)
 }
 
 // The liquidity event that triggers the protocol fee, as its own transaction
@@ -295,11 +305,18 @@ fn second_liquidity_event(
     pair: ContractAddress,
     t0: ContractAddress,
     t1: ContractAddress,
+    handler: ContractAddress,
 ) -> TransactResult {
+    exec_tx(env, &DEPLOYER, move || {
+        ERC20Client::new(&t0).transfer(&pair, PRIME);
+        ERC20Client::new(&t1).transfer(&pair, PRIME);
+    })
+    .unwrap();
+    env.advance_block();
+
+    // The mint alone, as the handler, so its cost can be read off the trace.
     env.transact(|tx| {
-        tx.call(&DEPLOYER).run(move || {
-            ERC20Client::new(&t0).transfer(&pair, PRIME);
-            ERC20Client::new(&t1).transfer(&pair, PRIME);
+        tx.call(&handler).run(move || {
             SwapPairClient::new(&pair).mint_lp(&DEPLOYER, &DEPLOYER, None);
         })
     })
@@ -369,9 +386,9 @@ fn measure_fee_event(fee_to: Option<ContractAddress>) -> u64 {
     use groundhog_trace::transaction_trace::SyscallTraceBody;
 
     let s = setup_with_fee(fee_to);
-    let (pair, _lp, t0, t1) = prime_and_grow(&s);
+    let (pair, _lp, t0, t1, handler) = prime_and_grow(&s);
 
-    let r = second_liquidity_event(&s.env, pair, t0, t1);
+    let r = second_liquidity_event(&s.env, pair, t0, t1, handler);
     r.assert_success();
 
     // The `mint_lp` invocation, which is where `mint_fee` runs.

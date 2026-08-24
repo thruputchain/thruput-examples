@@ -91,7 +91,7 @@ impl SwapFactory for Factory {
         // calls: a callee's failure propagates with its own error type, which
         // is among those mentioned in this trait's `throws` annotation.
         let me = get_current_address();
-        SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token);
+        SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token, &handler);
         SwapHandlerClient::new(&handler).initialize(&pair, token0, token1);
         SwapDriverClient::new(&driver).initialize(&handler, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
 

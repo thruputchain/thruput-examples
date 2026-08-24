@@ -120,16 +120,11 @@ impl Ctx {
         self.token0().transfer(&self.pair_addr, amts[0]);
         self.token1().transfer(&self.pair_addr, amts[1]);
 
-        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
-
         // Our balances should be drained
         assert_eq!(0, self.token0().get_balance());
         assert_eq!(0, self.token1().get_balance());
 
-        {
-            println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
-            self.user_print_balances(user);
-        }
+        self.user_print_balances(user);
     }
 
     // As a user, provide AB-token liquidity in exchange for LP tokens.
@@ -147,15 +142,10 @@ impl Ctx {
         self.token0().transfer(&self.pair_addr, amt0);
         self.token1().transfer(&self.pair_addr, amt1);
 
-        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
-
         // Our token0 balance should be drained
         assert_eq!(0, self.token0().get_balance());
 
-        {
-            println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
-            self.user_print_balances(user);
-        }
+        self.user_print_balances(user);
     }
 
     pub fn user_buy_request(&self, user: &User) {
@@ -204,11 +194,21 @@ impl Ctx {
 
         // I should have zero LP tokens now
         assert_eq!(lp.get_balance(), 0);
+    }
 
-        // Redeem the LP tokens for pair tokens
-        pair.burn_lp(user.addr, user.addr, None);
+    // The handler's half of the operations above: the pair admits only the
+    // handler to anything that attributes its effects to a sender.
 
-        self.user_print_balances(user);
+    // Mint the LP a user's deposits earned to that user.
+    pub fn handler_mint_for(&self, user: &User) {
+        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
+
+        println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
+    }
+
+    // Redeem a user's deposited LP tokens back to that user.
+    pub fn handler_burn_for(&self, user: &User) {
+        self.pair().burn_lp(user.addr, user.addr, None);
     }
 
     // Prepare to transfer LP allowances to the request handler
@@ -259,11 +259,12 @@ impl Ctx {
         // This should be a no-op
         pair.skim(&SOMEBODY);
 
+        // Called by anyone but the handler, an attributed operation is refused
+        // before it gets as far as looking at the deposits -- which is what
+        // keeps the sender and request id on its event worth anything.
         assert!(
             pair.try_mint_lp(&SOMEBODY, &SOMEBODY, None)
-                .is_err_and(
-                    |e| is_pair_error_and(e, |e| e == SwapPairError::InsufficientLiquidityMinted)
-                )
+                .is_err_and(|e| is_pair_error_and(e, |e| e == SwapPairError::Unauthorized))
         );
     }
 }

@@ -27,6 +27,39 @@ impl Etx {
         exec_tx(&self.env, user.addr, || f(&user))
     }
 
+    // Each of these takes two transactions, because it takes two callers: the
+    // user deposits its own tokens, and only the handler may mint or burn
+    // against them.  They take two *blocks* as well -- the pair sizes the
+    // operation from its balances, and a transaction reads the balances its
+    // block began with.
+    pub fn user_buy_unpriced(&self, user: User) -> Result<()> {
+        let ctx = self.ctx;
+        self.exec_user_tx(user, |u| ctx.user_buy_unpriced(u))?;
+        self.advance_block();
+        self.exec_tx(&ctx.request_handler_addr, move || {
+            ctx.handler_mint_for(&user)
+        })
+    }
+
+    pub fn user_buy(&self, user: User) -> Result<()> {
+        let ctx = self.ctx;
+        self.exec_user_tx(user, |u| ctx.user_buy(u))?;
+        self.advance_block();
+        self.exec_tx(&ctx.request_handler_addr, move || {
+            ctx.handler_mint_for(&user)
+        })
+    }
+
+    pub fn user_redeem(&self, user: User) -> Result<()> {
+        let ctx = self.ctx;
+        self.exec_user_tx(user, |u| ctx.user_redeem(u))?;
+        self.advance_block();
+        self.exec_tx(&ctx.request_handler_addr, move || {
+            ctx.handler_burn_for(&user)
+        })?;
+        self.user_print_balances(user)
+    }
+
     pub fn user_balances(&self, user: User) -> Result<(Amounts, Amount)> {
         let ctx = &self.ctx;
         self.exec_user_tx(user, |_| ctx.my_balances())

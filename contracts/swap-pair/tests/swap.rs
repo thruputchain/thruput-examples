@@ -69,7 +69,8 @@ fn serial_swap_user(
     let amounts_out = calculate_swap(amounts_in);
 
     // Perform the swap
-    etx.exec_user_tx(user, |user| {
+    // Only the handler may swap; the trader is named, not the caller.
+    etx.exec_user_tx(HANDLER, move |_| {
         ctx.pair().swap(amounts_out[0], amounts_out[1], user.addr, user.addr, None)
     })?;
 

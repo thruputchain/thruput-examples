@@ -27,6 +27,27 @@ impl Etx {
         self.exec_tx(user.addr, || f(&user))
     }
 
+    // A liquidity purchase takes two transactions, because it takes two
+    // callers: the user deposits its own tokens, and only the handler may mint
+    // against them.  They also take two *blocks* -- the mint sizes itself from
+    // the pair's balances, and a transaction reads the balances its block
+    // began with, so a deposit in the same block would be invisible to it.
+    pub fn user_buy(&self, user: User) -> Result<(), TransactResult> {
+        let ctx = self.ctx;
+        self.exec_user_tx(user, |u| ctx.user_deposit_tokens(u))?;
+        self.advance_block();
+        self.exec_user_tx(HANDLER, move |_| ctx.handler_mint_for(&user))
+    }
+
+    // Likewise a redemption.
+    pub fn user_redeem(&self, user: User) -> Result<(), TransactResult> {
+        let ctx = self.ctx;
+        self.exec_user_tx(user, |u| ctx.user_deposit_lp(u))?;
+        self.advance_block();
+        self.exec_user_tx(HANDLER, move |_| ctx.handler_burn_for(&user))?;
+        self.user_print_balances(user)
+    }
+
     pub fn user_balances(&self, user: User) -> Result<(Amounts, Amount)> {
         let ctx = &self.ctx;
         self.exec_user_tx(user, |_| ctx.my_balances())

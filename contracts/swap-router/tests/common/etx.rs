@@ -109,6 +109,8 @@ impl Etx {
 
         self.exec_user_tx(PRIMER, |u| ctx.user_buy_unpriced(u))?;
         self.advance_block();
+        self.exec_tx(&ctx.request_handler_addr, || ctx.handler_mint_for(&PRIMER))?;
+        self.advance_block();
 
         Ok(())
     }

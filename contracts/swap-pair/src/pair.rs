@@ -25,6 +25,10 @@ pub struct Pair {
     // for the protocol `fee_to` (cf. UniswapV2Pair reading `factory.feeTo()`).
     factory: Value<Address>,
 
+    // Configuration: the only contract allowed to perform the operations that
+    // attribute their effects to a sender.  See `only_handler`.
+    handler: Value<Address>,
+
     // State: the reserve product (k) as of the most recent liquidity event,
     // used to compute the protocol fee.  Zero while the fee is disabled.
     k_last: Value<U256>,
@@ -42,6 +46,7 @@ impl SwapPair for Pair {
         token1: &Address,
         // Deployed but not initialized:
         lp_token: &Address,
+        handler: &Address,
     ) {
         if self.lp_addr.try_get().none_if_missing().is_some() {
             throw(SwapPairError::AlreadyInitialized);
@@ -50,6 +55,7 @@ impl SwapPair for Pair {
         self.lp_addr.set(lp_token);
         self.tokens.set(&[*token0, *token1]);
         self.factory.set(factory);
+        self.handler.set(handler);
         self.k_last.set(&U256::ZERO);
         self.reserves.set(&Reserves::new());
 
@@ -82,6 +88,8 @@ impl SwapPair for Pair {
         recipient: &Address,
         request_id: Option<RequestId>,
     ) -> Amount {
+        self.only_handler();
+
         let mut reserves = self.reserves.get();
 
         // Get the previous snapshot of our reserve balances
@@ -156,6 +164,8 @@ impl SwapPair for Pair {
         recipient: &Address,
         request_id: Option<RequestId>,
     ) -> Amounts {
+        self.only_handler();
+
         let balances = self.get_token_balances();
 
         let lp = self.lp();
@@ -212,6 +222,8 @@ impl SwapPair for Pair {
         recipient: &Address,
         request_id: Option<RequestId>,
     ) {
+        self.only_handler();
+
         let amounts_out = [amount0_out, amount1_out];
 
         ensure(
@@ -312,6 +324,20 @@ impl Pair {
     // (A pair not created by a real factory -- e.g. one deployed directly in a
     // unit test -- reports no fee rather than aborting, so the fee is simply
     // disabled in that case.)
+    // `mint_lp`, `burn_lp` and `swap` each take the `sender` to credit and the
+    // `RequestId` to stamp as arguments, which the pair has no way to check.
+    // Whoever can call them can therefore attribute an operation to anyone and
+    // tag it with anyone's request -- so only the handler may, and the events
+    // they emit are worth what the handler's word is worth.
+    //
+    // `skim` and `sync` stay open: they attribute nothing.
+    fn only_handler(&self) {
+        ensure(
+            get_caller() == self.handler.get(),
+            SwapPairError::Unauthorized,
+        );
+    }
+
     fn fee_to(&self) -> Option<Address> {
         SwapFactoryClient::new(&self.factory.get())
             .try_fee_to()

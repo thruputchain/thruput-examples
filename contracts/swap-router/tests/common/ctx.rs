@@ -116,16 +116,11 @@ impl Ctx {
         self.token0().transfer(&self.pair_addr, amts[0]);
         self.token1().transfer(&self.pair_addr, amts[1]);
 
-        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
-
         // Our balances should be drained
         assert_eq!(0, self.token0().get_balance());
         assert_eq!(0, self.token1().get_balance());
 
-        {
-            println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
-            self.user_print_balances(user);
-        }
+        self.user_print_balances(user);
     }
 
     // As a user, provide AB-token liquidity in exchange for LP tokens.
@@ -143,15 +138,10 @@ impl Ctx {
         self.token0().transfer(&self.pair_addr, amt0);
         self.token1().transfer(&self.pair_addr, amt1);
 
-        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
-
         // Our token0 balance should be drained
         assert_eq!(0, self.token0().get_balance());
 
-        {
-            println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
-            self.user_print_balances(user);
-        }
+        self.user_print_balances(user);
     }
 
     // As a user, redeem swap-pair tokens
@@ -166,14 +156,21 @@ impl Ctx {
 
         // I should have zero LP tokens now
         assert_eq!(lp.get_balance(), 0);
-
-        // Redeem the LP tokens for pair tokens
-        pair.burn_lp(user.addr, user.addr, None);
-
-        self.user_print_balances(user);
     }
 
     // Prepare to transfer LP allowances back to swap-pair contract
+    // The handler's half of the operations above: the pair admits only the
+    // handler to anything that attributes its effects to a sender.
+    pub fn handler_mint_for(&self, user: &User) {
+        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
+
+        println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
+    }
+
+    pub fn handler_burn_for(&self, user: &User) {
+        self.pair().burn_lp(user.addr, user.addr, None);
+    }
+
     pub fn user_redeem_prepare(&self, user: &User) -> i128 {
         let return_amt = self.lp().get_balance().try_into().unwrap();
 
@@ -204,9 +201,7 @@ impl Ctx {
 
         assert!(
             pair.try_mint_lp(&SOMEBODY, &SOMEBODY, None)
-                .is_err_and(
-                    |e| is_pair_error_and(e, |e| e == SwapPairError::InsufficientLiquidityMinted)
-                )
+                .is_err_and(|e| is_pair_error_and(e, |e| e == SwapPairError::Unauthorized))
         );
     }
 }

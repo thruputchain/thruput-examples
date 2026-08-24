@@ -27,14 +27,22 @@ hash_ident! { static DRIVER_NONCE: SHA256Hash; }
 // Under the default cost model a contract pays for the storage it writes.  Grant
 // storage tokens to the (deterministic) address `deployer` will deploy `hash` to
 // with `nonce`, so the freshly deployed contract is solvent.
+fn deploy_address_of(
+    env: &TestEnvironmentHandle,
+    deployer: &ContractAddress,
+    nonce: &SHA256Hash,
+    hash: &SHA256Hash,
+) -> Address {
+    exec_tx(env, deployer, || get_deploy_address(nonce, hash)).expect("compute deploy address")
+}
+
 fn fund_deploy_target(
     env: &TestEnvironmentHandle,
     deployer: &ContractAddress,
     nonce: &SHA256Hash,
     hash: &SHA256Hash,
 ) {
-    let addr =
-        exec_tx(env, deployer, || get_deploy_address(nonce, hash)).expect("compute deploy address");
+    let addr = deploy_address_of(env, deployer, nonce, hash);
     env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
 }
 
@@ -127,9 +135,14 @@ pub fn setup_contracts(
 
     /* ----- */ env.advance_block(); /* ----- */
 
+    // The pair admits only its handler to the operations that attribute their
+    // effects, and the handler is deployed further down -- but to a
+    // deterministic address, so the pair can be told it now.
+    let handler_addr = deploy_address_of(env, &FACTORY_ADDR, &HANDLER_NONCE, &handler_hash);
+
     // As the factory, deploy and init a swap-pair contract
     let (pair_addr, liquidity_token) = exec_tx(env, &FACTORY_ADDR, || {
-        swap_pair_deploy_init(&pair_hash, &token_hash, token_addrs)
+        swap_pair_deploy_init(&pair_hash, &token_hash, token_addrs, &handler_addr)
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
@@ -138,6 +151,10 @@ pub fn setup_contracts(
     let request_handler_addr = exec_tx(env, &FACTORY_ADDR, || {
         request_handler_deploy_init(&handler_hash, &pair_addr, &token_addrs)
     })?;
+    assert_eq!(
+        request_handler_addr, handler_addr,
+        "the handler must land at the address the pair was told"
+    );
 
     /* ----- */ env.advance_block(); /* ----- */
 
@@ -165,7 +182,7 @@ pub fn setup_etx_primed() -> Result<Etx> {
     let etx = setup_etx()?;
 
     // Primer buys liquidity tokens, establishing a stable price
-    etx.exec_user_tx(PRIMER, |u| etx.ctx.user_buy_unpriced(u))?;
+    etx.user_buy_unpriced(PRIMER)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
@@ -236,6 +253,7 @@ fn swap_pair_deploy_init(
     pair_hash: &SHA256Hash,
     token_hash: &SHA256Hash,
     token_addrs: Addresses,
+    handler_addr: &Address,
 ) -> (Address, Address) {
     assert_eq!(&get_current_address(), &FACTORY_ADDR);
 
@@ -250,7 +268,13 @@ fn swap_pair_deploy_init(
 
     // Initialize the pair contract with the two tokens
     // (This also initializes its embedded LP-token implementation.)
-    pair.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], &lp_addr);
+    pair.initialize(
+        &FACTORY_ADDR,
+        &token_addrs[0],
+        &token_addrs[1],
+        &lp_addr,
+        handler_addr,
+    );
 
     let liquidity_token = pair.liquidity_token();
 

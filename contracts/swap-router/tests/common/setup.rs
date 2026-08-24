@@ -174,6 +174,9 @@ pub fn setup_etx_primed() -> Result<Etx> {
 
     // Primer buys liquidity tokens, establishing a stable price
     etx.exec_user_tx(PRIMER, |u| etx.ctx.user_buy_unpriced(u))?;
+    etx.advance_block();
+    let ctx = etx.ctx;
+    etx.exec_tx(&ctx.request_handler_addr, || ctx.handler_mint_for(&PRIMER))?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
