@@ -19,7 +19,7 @@ import type { AppConfig } from "@/config";
 import { AmmPage } from "@/pools/amm-page";
 import { poolPath } from "@/pools/pool-route";
 import { formatTokenAmount } from "@/swap/model";
-import { createSnapshotReader } from "@/swap/snapshot";
+import { createSnapshotReader, type PoolSnapshot } from "@/swap/snapshot";
 import { usePoolSnapshot } from "@/swap/use-pool-snapshot";
 
 export function PoolDetailPage({ config }: { config: AppConfig }) {
@@ -56,7 +56,17 @@ export function PoolDetailPage({ config }: { config: AppConfig }) {
       {state.snapshot === null && state.isLoading ? <DetailSkeleton /> : null}
       {state.snapshot === null ? null : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {isEmptyPool(state.snapshot) ? (
+            <Alert>
+              <AlertCircleIcon aria-hidden="true" />
+              <AlertTitle>Empty pool</AlertTitle>
+              <AlertDescription>
+                This pool has no usable liquidity. Initial liquidity may not have
+                executed yet, or one of its reserves is zero.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Metric
               label={`${state.snapshot.tokenA.symbol} reserve`}
               value={formatTokenAmount(state.snapshot.reserve0, state.snapshot.tokenA.decimals, 8)}
@@ -64,6 +74,22 @@ export function PoolDetailPage({ config }: { config: AppConfig }) {
             <Metric
               label={`${state.snapshot.tokenB.symbol} reserve`}
               value={formatTokenAmount(state.snapshot.reserve1, state.snapshot.tokenB.decimals, 8)}
+            />
+            <Metric
+              label={`Your ${state.snapshot.tokenA.symbol} balance`}
+              value={`${formatTokenAmount(
+                state.snapshot.tokenA.balance,
+                state.snapshot.tokenA.decimals,
+                8,
+              )} ${state.snapshot.tokenA.symbol}`}
+            />
+            <Metric
+              label={`Your ${state.snapshot.tokenB.symbol} balance`}
+              value={`${formatTokenAmount(
+                state.snapshot.tokenB.balance,
+                state.snapshot.tokenB.decimals,
+                8,
+              )} ${state.snapshot.tokenB.symbol}`}
             />
             <Metric
               label="LP supply"
@@ -129,6 +155,12 @@ export function PoolDetailPage({ config }: { config: AppConfig }) {
       )}
     </AmmPage>
   );
+}
+
+function isEmptyPool(snapshot: PoolSnapshot): boolean {
+  return snapshot.reserve0 === 0n
+    || snapshot.reserve1 === 0n
+    || snapshot.liquidityTotalSupply === 0n;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

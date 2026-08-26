@@ -564,7 +564,12 @@ function CreationReviewCard({
           <ul className="grid gap-2 text-sm">
             {destinations.map(([label, address]) => (
               <li className="flex items-center justify-between gap-4" key={label}>
-                <span>{label}</span>
+                <span className="flex flex-col">
+                  <span>{label}</span>
+                  <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                    {review.fixedFundingPerContract} HOG base units
+                  </span>
+                </span>
                 <BlockchainIdentifier
                   value={toHex0x(address)}
                   label={`${label} address`}

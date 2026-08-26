@@ -51,6 +51,7 @@ describe("PoolCreatePage", () => {
 
     expect(await screen.findByRole("heading", { name: "Creation review" })).toBeVisible();
     expect(screen.getByText(/400 HOG base units total/)).toBeVisible();
+    expect(screen.getAllByText("100 HOG base units")).toHaveLength(4);
     expect(screen.getByText("2 T1 : 3 T2")).toBeVisible();
     await user.click(screen.getByRole("switch", { name: "Manual queue processing" }));
     await user.click(screen.getByRole("button", { name: "Create pool" }));

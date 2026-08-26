@@ -1,6 +1,8 @@
+import { AlertTriangleIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { DevelopmentWalletSwitcher } from "@/components/development-wallet-switcher";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 export function AmmPage({
@@ -40,6 +42,15 @@ export function AmmPage({
           </h1>
           <p className="text-muted-foreground">{description}</p>
         </div>
+        <Alert role="note">
+          <AlertTriangleIcon aria-hidden="true" />
+          <AlertTitle>Local trusted-driver limitation</AlertTitle>
+          <AlertDescription>
+            Driver requests are not restricted to the router. This local MVP
+            assumes trusted participants and must not be used as a public-network
+            security boundary.
+          </AlertDescription>
+        </Alert>
         {children}
       </main>
     </div>

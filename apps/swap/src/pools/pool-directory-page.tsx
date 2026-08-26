@@ -1,8 +1,10 @@
+import { toHex0x } from "@groundhogchain/client";
 import { AlertCircleIcon, DropletsIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -34,7 +36,7 @@ export function PoolDirectoryPage({ config }: { config: GlobalConfig }) {
   const request = useRef(0);
   const [state, setState] = useState<
     | { kind: "loading" }
-    | { kind: "ready"; result: PoolDirectoryResult; refreshing: boolean }
+    | { kind: "ready"; result: PoolDirectoryResult; refreshing: boolean; refreshError: string | null }
     | { kind: "error"; message: string }
   >({ kind: "loading" });
   const refresh = useCallback((background = false) => {
@@ -47,17 +49,19 @@ export function PoolDirectoryPage({ config }: { config: GlobalConfig }) {
     void readPoolDirectory(config).then(
       (result) => {
         if (request.current === currentRequest) {
-          setState({ kind: "ready", result, refreshing: false });
+          setState({ kind: "ready", result, refreshing: false, refreshError: null });
         }
       },
       (error: unknown) => {
         if (request.current === currentRequest) {
-          setState({
-            kind: "error",
-            message: error instanceof Error
-              ? error.message
-              : "The pool registry could not be loaded",
-          });
+          const message = error instanceof Error
+            ? error.message
+            : "The pool registry could not be loaded";
+          setState((current) =>
+            background && current.kind === "ready"
+              ? { ...current, refreshing: false, refreshError: message }
+              : { kind: "error", message }
+          );
         }
       },
     );
@@ -97,6 +101,16 @@ export function PoolDirectoryPage({ config }: { config: GlobalConfig }) {
             <Button type="button" variant="outline" onClick={() => refresh()}>
               Try again
             </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {state.kind === "ready" && state.refreshError !== null ? (
+        <Alert>
+          <AlertCircleIcon aria-hidden="true" />
+          <AlertTitle>Pool data may be stale</AlertTitle>
+          <AlertDescription>
+            The latest refresh failed, so the last successfully loaded directory
+            remains visible. {state.refreshError}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -149,6 +163,13 @@ export function PoolDirectoryPage({ config }: { config: GlobalConfig }) {
                     <Reserve label={snapshot.tokenA.symbol} value={formatTokenAmount(snapshot.reserve0, snapshot.tokenA.decimals, 6)} />
                     <Reserve label={snapshot.tokenB.symbol} value={formatTokenAmount(snapshot.reserve1, snapshot.tokenB.decimals, 6)} />
                   </dl>
+                  <div className="mt-4 border-t border-foreground/10 pt-4 text-sm">
+                    <span className="mr-2 text-muted-foreground">Pair</span>
+                    <BlockchainIdentifier
+                      value={toHex0x(pool.pairAddress)}
+                      label="Pair address"
+                    />
+                  </div>
                 </CardContent>
                 <CardFooter className="flex flex-wrap gap-2">
                   <Button asChild size="sm">
