@@ -157,7 +157,9 @@ async function main(): Promise<void> {
       browserPrivateKey: toHex0x(privateKey),
     };
   });
-  const client = createGroundhogClient(new HttpTransport(rpcUrl));
+  const client = await createGroundhogClient({
+    transport: new HttpTransport(rpcUrl),
+  });
   const version = await client.getVersion();
   if (!SUPPORTED_WIRE_FORMAT.test(version.wireFormat)) {
     throw new Error(
@@ -601,9 +603,11 @@ async function submit(
       },
     },
   });
-  const signed = await signTransaction(transaction, [
-    { signer: account.signer, publicKeyId: 0n },
-  ]);
+  const signed = await signTransaction(
+    transaction,
+    [{ signer: account.signer, publicKeyId: 0n }],
+    account.networkHash,
+  );
   const transactionHash = await client.sendTransaction(signed);
   const receipt = await client.waitForTransactionReceipt(transactionHash);
   if (receipt.execResult !== ExecResult.ExecResultOK) {

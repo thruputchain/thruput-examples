@@ -11,12 +11,29 @@ export function createReadClient(config: Pick<GlobalConfig, "rpcUrl">): Groundho
     typeof window === "undefined" || import.meta.env.MODE === "local-integration"
       ? undefined
       : window.location.origin;
-  return createGroundhogClient(
-    new HttpTransport(resolveReadRpcUrl(config.rpcUrl, browserOrigin), {
-      fetch: (...args) => globalThis.fetch(...args),
-      timeoutMs: 10_000,
+  return deferClient(
+    createGroundhogClient({
+      transport: new HttpTransport(resolveReadRpcUrl(config.rpcUrl, browserOrigin), {
+        fetch: (...args) => globalThis.fetch(...args),
+        timeoutMs: 10_000,
+      }),
     }),
   );
+}
+
+function deferClient(clientPromise: Promise<GroundhogClient>): GroundhogClient {
+  return new Proxy({} as GroundhogClient, {
+    get(_target, property) {
+      if (property === "then") return undefined;
+      return (...args: unknown[]) =>
+        clientPromise.then((client) => {
+          const method = Reflect.get(client, property) as (
+            ...values: unknown[]
+          ) => unknown;
+          return Reflect.apply(method, client, args);
+        });
+    },
+  });
 }
 
 export function resolveReadRpcUrl(

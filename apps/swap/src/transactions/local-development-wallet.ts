@@ -15,6 +15,7 @@ import {
   codec,
   contractEntrypointID,
   gasAmount,
+  networkHash,
   sha256Hash,
   weight,
   type ContractAddress,
@@ -53,7 +54,7 @@ export interface LocalWalletConfiguration {
 }
 
 export function createBrowserLocalWriteBoundary(
-  config: Pick<GlobalConfig, "rpcUrl" | "accountAddress">,
+  config: Pick<GlobalConfig, "rpcUrl" | "networkIdHex" | "accountAddress">,
   privateKeyHex: string | undefined,
 ): WriteBoundary {
   return createLocalWriteBoundary(
@@ -66,7 +67,7 @@ export function createBrowserLocalWriteBoundary(
 }
 
 export function createLocalWriteBoundary(
-  config: Pick<GlobalConfig, "rpcUrl" | "accountAddress">,
+  config: Pick<GlobalConfig, "rpcUrl" | "networkIdHex" | "accountAddress">,
   wallet: LocalWalletConfiguration,
   options: LocalWalletOptions = {},
 ): WriteBoundary {
@@ -118,9 +119,11 @@ export function createLocalWriteBoundary(
             },
           },
         });
-        signedTransaction = await signTransaction(transaction, [
-          { signer, publicKeyId: 0n },
-        ]);
+        signedTransaction = await signTransaction(
+          transaction,
+          [{ signer, publicKeyId: 0n }],
+          networkHash(sha256Hash(fromHex0x(`0x${config.networkIdHex}`))),
+        );
         hash = toHex0x(canonicalTransactionHash(transaction));
         observer?.onSigned(hash);
       } catch (error) {
