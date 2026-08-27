@@ -55,16 +55,18 @@ describe.skipIf(!runCleanLedger)("clean-ledger AMM acceptance", () => {
     expect(personas).not.toBeNull();
     if (personas === null) return;
     const [alice, bob, carol] = personas;
-    const aliceConfig = forPersona(baseConfig, alice!.accountAddress);
-    const bobConfig = forPersona(baseConfig, bob!.accountAddress);
-    const carolConfig = forPersona(baseConfig, carol!.accountAddress);
 
-    const directory = await readPoolDirectory(aliceConfig);
+    const directory = await readPoolDirectory(
+      forPersona(baseConfig, alice!.accountAddress),
+    );
     expect(directory.invalidEntryCount).toBe(0);
     expect(directory.entries).toHaveLength(1);
     expect(toHex0x(directory.entries[0]!.config.pairAddress)).toBe(
       toHex0x(baseConfig.pairAddress),
     );
+    const aliceConfig = directory.entries[0]!.config;
+    const bobConfig = forPersona(aliceConfig, bob!.accountAddress);
+    const carolConfig = forPersona(aliceConfig, carol!.accountAddress);
 
     const aliceSnapshot = await createSnapshotReader(aliceConfig)();
     expect(aliceSnapshot.liquidityBalance).toBeGreaterThan(0n);
