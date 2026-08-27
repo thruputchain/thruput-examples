@@ -1,0 +1,2 @@
+*.ts
+!dev-wallet.ts

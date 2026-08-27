@@ -44,3 +44,4 @@ token-factory-failing-child = { path = "../../helpers/token-factory-failing-chil
 groundhog-testkit = { workspace = true }
 groundhog-json-rpc-types = { workspace = true }
 tokio = { workspace = true }
+serde_json = { workspace = true }
