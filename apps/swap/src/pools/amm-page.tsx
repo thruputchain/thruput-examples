@@ -1,8 +1,6 @@
-import { AlertTriangleIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { DevelopmentWalletSwitcher } from "@/components/development-wallet-switcher";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 export function AmmPage({
@@ -24,14 +22,14 @@ export function AmmPage({
             Groundhog AMM
           </Link>
           <nav aria-label="Main navigation" className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-            <DevelopmentWalletSwitcher />
             <Button asChild size="sm" variant="ghost">
               <Link to="/pools">Pools</Link>
             </Button>
             <Button asChild size="sm" variant="outline">
-              <Link to="/pools/new">Create pool</Link>
+              <Link to="/pools/new">Create Pool</Link>
             </Button>
             {actions}
+            <DevelopmentWalletSwitcher />
           </nav>
         </div>
       </header>
@@ -42,15 +40,6 @@ export function AmmPage({
           </h1>
           <p className="text-muted-foreground">{description}</p>
         </div>
-        <Alert role="note">
-          <AlertTriangleIcon aria-hidden="true" />
-          <AlertTitle>Local trusted-driver limitation</AlertTitle>
-          <AlertDescription>
-            Driver requests are not restricted to the router. This local MVP
-            assumes trusted participants and must not be used as a public-network
-            security boundary.
-          </AlertDescription>
-        </Alert>
         {children}
       </main>
     </div>

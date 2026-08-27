@@ -82,8 +82,6 @@ describe("PoolDirectoryPage", () => {
       name: `Pair address: ${toHex0x(poolConfig.pairAddress)}`,
     })).toBeVisible();
     expect(screen.getByRole("link", { name: "View pool" })).toBeVisible();
-    expect(screen.getByText("Local trusted-driver limitation")).toBeVisible();
-    expect(screen.getByRole("note")).toBeVisible();
   });
 
   it("keeps the previous directory visible when refresh fails", async () => {
@@ -111,17 +109,6 @@ describe("PoolDirectoryPage", () => {
     await waitFor(() => {
       expect(screen.queryByText("Pool data may be stale")).not.toBeInTheDocument();
     });
-  });
-
-  it("keeps the trusted-driver warning visible for a remote RPC", async () => {
-    vi.mocked(readPoolDirectory).mockResolvedValue({
-      entries: [],
-      invalidEntryCount: 0,
-    });
-    renderPage({ ...globalConfig, rpcUrl: new URL("https://rpc.example.com") });
-
-    expect(await screen.findByText("No pools yet")).toBeVisible();
-    expect(screen.getByText("Local trusted-driver limitation")).toBeVisible();
   });
 });
 
