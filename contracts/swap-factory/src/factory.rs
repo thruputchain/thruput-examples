@@ -3,8 +3,6 @@
 use crate::events::*;
 use sdk::storage::*;
 use sdk::*;
-// Every interface -- the pool's clients and error types -- comes from `swap-if`,
-// so the factory depends on no sibling implementation crate.
 use swap_if::*;
 
 /// State for the factory contract
@@ -23,6 +21,39 @@ pub struct Factory {
     pairs: Map<Addresses, Value<Address>>,
     all_pairs: Vector<Value<Addresses>>,
 }
+
+/// How many requests a pool's driver will hold at once.
+///
+/// This effectively bounds the driver's storage costs, but this is not likely
+/// to be a constraint in practice.
+///
+/// The cap's most important effect is on how long an admitted request might
+/// wait, and that matters because admission is irrevocable: a queued request
+/// cannot be withdrawn, and it executes against whatever reserves obtain
+/// whenever it is finally handled, however stale the quote has become that its
+/// slippage limits were chosen against.  A request turned away at the ceiling
+/// is in a better position: it waits in the mempool, landing as soon as
+/// processing makes room; if it instead outlives its own expiry height, that
+/// leaves its sender free to resubmit against a fresh quote. So the ceiling is
+/// set to a tolerable backlog.
+const MAX_QUEUE_LEN: u32 = 256;
+
+/// The most a crank of a pool's queue can be required to clear before it may
+/// drain at all.
+///
+/// Only one crank per block can land, so the block's single drain is worth
+/// taking: without a floor, the cheapest way to hold it is a crank funded for
+/// one request, which displaces a full one at a fraction of its cost and leaves
+/// the queue moving a request per block.  A crank therefore owes whatever is
+/// waiting, up to this many -- so holding the slot costs about what clearing
+/// the queue costs.
+///
+/// The value trades two failure modes against each other, which is why it is
+/// set per pool alongside [`MAX_QUEUE_LEN`] rather than fixed in the driver.
+/// Too low leaves an attacker a shallow depth worth parking the queue at; too
+/// high prices out the ordinary user who only wants to hurry its own request
+/// along, and who must fund this batch as soon as that many are waiting.
+const MIN_CRANK_BATCH: u32 = 8;
 
 #[contract(exports = "swap_factory_exports")]
 impl SwapFactory for Factory {
@@ -58,12 +89,11 @@ impl SwapFactory for Factory {
         // Initialize and wire them together.  A newly deployed contract is
         // callable within this same transaction.  These are plain (non-`try`)
         // calls: a callee's failure propagates with its own error type, which
-        // this trait's `throws` now names (the whole point of the shared
-        // `swap-if` crate).
+        // is among those mentioned in this trait's `throws` annotation.
         let me = get_current_address();
         SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token);
         SwapHandlerClient::new(&handler).initialize(&pair, token0, token1);
-        SwapDriverClient::new(&driver).initialize(&handler);
+        SwapDriverClient::new(&driver).initialize(&handler, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
 
         // Record the new pair: by tokens (for `get_pair`) and in creation
         // order (for `pair_at`).
@@ -91,8 +121,8 @@ impl SwapFactory for Factory {
     }
 
     // The pool's contract addresses: what `create_pair` would deploy for these
-    // tokens, and -- deployment being deterministic -- what it already did
-    // deploy if the pair exists.
+    // tokens, and (deployment being deterministic) what it already did deploy
+    // if the pair exists.
     fn pool_addresses(&self, token_a: &Address, token_b: &Address) -> Pool {
         let tokens = TokenPair::new(token_a, token_b);
         let hashes = self.hashes.get();

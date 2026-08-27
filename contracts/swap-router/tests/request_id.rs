@@ -66,7 +66,7 @@ fn process_capturing(etx: &Etx) -> (TransactResult, (u32, u32)) {
         tx.call(&TEST_ADDR).run(|| {
             let c = ctx
                 .driver()
-                .with_gas_limit(PROCESS_REQUESTS_GAS)
+                .with_gas_limit(process_requests_gas(10))
                 .process_requests();
             *Arc::clone(&counts).lock().unwrap() = c;
         })

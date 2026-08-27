@@ -44,6 +44,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 name = "batch-driver"
 version = "0.1.0"
 dependencies = [
+ "batch-driver",
  "sdk",
 ]
 
@@ -2559,6 +2560,7 @@ dependencies = [
  "erc20",
  "groundhog-erc20-if",
  "groundhog-erc20-metadata-if",
+ "groundhog-trace",
  "heapless",
  "sdk",
  "swap-driver",
@@ -2575,6 +2577,7 @@ version = "0.1.0"
 dependencies = [
  "erc20",
  "groundhog-erc20-if",
+ "groundhog-trace",
  "sdk",
  "swap-driver",
  "swap-factory",
