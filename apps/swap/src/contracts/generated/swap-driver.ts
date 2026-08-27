@@ -54,6 +54,11 @@ export interface RemoveLiquidityRequest {
   recipient: ContractAddress;
 }
 
+export const SwapDriverError = { BatchTooSmall: 1n } as const;
+
+export type SwapDriverError =
+  (typeof SwapDriverError)[keyof typeof SwapDriverError];
+
 export interface SwapExactInRequest {
   trader: ContractAddress;
   amount_in: bigint;
@@ -118,6 +123,8 @@ export type SwapRequestError =
 
 export interface SwapDriverInitializeArgs {
   handler: ContractAddress;
+  maxQueueLen: bigint;
+  minCrankBatch: bigint;
 }
 export type SwapDriverInitializeResult = void;
 
@@ -153,6 +160,12 @@ export type SwapDriverDeclaredException =
       name: "ERC20Error";
       selector: 0xb19947acb2fa14ffn;
       value: ERC20Error;
+    }
+  | {
+      kind: "declared";
+      name: "SwapDriverError";
+      selector: 0xb7f3f28894243a52n;
+      value: SwapDriverError;
     };
 export type SwapDriverException =
   ContractException<SwapDriverDeclaredException>;
@@ -179,11 +192,19 @@ export const spec: ContractSpec = {
           selector: 0xb19947acb2fa14ffn,
           ty: { v: ContractTypeKind.Named, named: s("ERC20Error") },
         },
+        {
+          selector: 0xb7f3f28894243a52n,
+          ty: { v: ContractTypeKind.Named, named: s("SwapDriverError") },
+        },
       ],
       methods: [
         {
           name: s("initialize"),
-          args: [{ name: s("handler"), ty: { v: ContractTypeKind.Address } }],
+          args: [
+            { name: s("handler"), ty: { v: ContractTypeKind.Address } },
+            { name: s("max_queue_len"), ty: { v: ContractTypeKind.U32 } },
+            { name: s("min_crank_batch"), ty: { v: ContractTypeKind.U32 } },
+          ],
           return_type: { v: ContractTypeKind.Void },
         },
         {
@@ -263,6 +284,13 @@ export const spec: ContractSpec = {
           },
           { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
         ],
+      },
+    },
+    {
+      v: ContractTypeDefKind.TypeDefEnum,
+      enum_def: {
+        name: s("SwapDriverError"),
+        variants: [{ name: s("BatchTooSmall"), value: 1n }],
       },
     },
     {
@@ -499,6 +527,19 @@ export const spec: ContractSpec = {
       ],
       fields: [],
     },
+    {
+      name: s("RequestsProcessed"),
+      signature: topic(
+        fromHex(
+          "cd9dc529bbb3d9e1eeb78d1fb4307624c2007aa5d685ad114ddebf47f5e70a2a",
+        ),
+      ),
+      topics: [],
+      fields: [
+        { name: s("processed"), ty: { v: ContractTypeKind.U32 } },
+        { name: s("failed"), ty: { v: ContractTypeKind.U32 } },
+      ],
+    },
   ],
 };
 
@@ -516,6 +557,16 @@ export const SwapDriver = {
         abiName: "handler",
         publicName: "handler",
         type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
+      },
+      {
+        abiName: "max_queue_len",
+        publicName: "maxQueueLen",
+        type: spec.interfaces[0]!.methods[0]!.args[1]!.ty,
+      },
+      {
+        abiName: "min_crank_batch",
+        publicName: "minCrankBatch",
+        type: spec.interfaces[0]!.methods[0]!.args[2]!.ty,
       },
     ],
     returnType: spec.interfaces[0]!.methods[0]!.return_type,
@@ -539,6 +590,11 @@ export const SwapDriver = {
         selector: 0xb19947acb2fa14ffn,
         name: "ERC20Error",
         type: spec.interfaces[0]!.throws[3]!.ty,
+      },
+      {
+        selector: 0xb7f3f28894243a52n,
+        name: "SwapDriverError",
+        type: spec.interfaces[0]!.throws[4]!.ty,
       },
     ],
     codecs,
@@ -571,6 +627,11 @@ export const SwapDriver = {
         selector: 0xb19947acb2fa14ffn,
         name: "ERC20Error",
         type: spec.interfaces[0]!.throws[3]!.ty,
+      },
+      {
+        selector: 0xb7f3f28894243a52n,
+        name: "SwapDriverError",
+        type: spec.interfaces[0]!.throws[4]!.ty,
       },
     ],
     codecs,
@@ -609,6 +670,11 @@ export const SwapDriver = {
         selector: 0xb19947acb2fa14ffn,
         name: "ERC20Error",
         type: spec.interfaces[0]!.throws[3]!.ty,
+      },
+      {
+        selector: 0xb7f3f28894243a52n,
+        name: "SwapDriverError",
+        type: spec.interfaces[0]!.throws[4]!.ty,
       },
     ],
     codecs,
@@ -673,11 +739,40 @@ export const RequestFailed = defineContractEvent<
   codecs,
 });
 
-export type SwapDriverEvent = RequestAccepted | RequestFailed;
+export interface RequestsProcessed extends DecodedContractEvent<
+  "RequestsProcessed",
+  {},
+  { processed: bigint; failed: bigint }
+> {}
+
+export type RequestsProcessedFilter = Record<string, never>;
+
+export const RequestsProcessed = defineContractEvent<
+  "RequestsProcessed",
+  RequestsProcessed["topics"],
+  RequestsProcessed["fields"],
+  RequestsProcessedFilter
+>({
+  name: "RequestsProcessed",
+  signature: spec.events[2]!.signature,
+  topics: [],
+  fields: [
+    { name: "processed", type: spec.events[2]!.fields[0]!.ty },
+    { name: "failed", type: spec.events[2]!.fields[1]!.ty },
+  ],
+  codecs,
+});
+
+export type SwapDriverEvent =
+  RequestAccepted | RequestFailed | RequestsProcessed;
 
 export function decodeEvent(event: {
   topics: Uint8Array[];
   data: Uint8Array;
 }): SwapDriverEvent | null {
-  return RequestAccepted.decode(event) ?? RequestFailed.decode(event);
+  return (
+    RequestAccepted.decode(event) ??
+    RequestFailed.decode(event) ??
+    RequestsProcessed.decode(event)
+  );
 }
