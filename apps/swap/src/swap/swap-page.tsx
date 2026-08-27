@@ -9,6 +9,7 @@ import { toHex0x } from "@groundhogchain/client";
 import { useEffect, useId, useReducer, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AllowanceCleanupCard } from "@/components/allowance-cleanup-card";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { SlippageSettings } from "@/components/slippage-settings";
 import { useProcessingMode } from "@/components/processing-mode";
@@ -47,8 +48,8 @@ import { buildProcessRequestsTarget } from "@/contracts/driver-target";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { formatAmount } from "@/domain/amount";
+import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import {
-  allowanceTargetForSwap,
   availableBalance,
   hasExecutionExposure,
   invalidateSnapshotInferenceForOverlap,
@@ -91,6 +92,11 @@ import {
   reservedCreationToken,
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
+import {
+  allowanceCleanupKey,
+  hasBlockingAllowanceCleanup,
+} from "@/transactions/allowance-cleanup";
+import { loadRequiredAllowance } from "@/transactions/account-allowance";
 import {
   isAccountOutstandingRequestKey,
   outstandingRequestKey,
@@ -214,6 +220,15 @@ export function SwapPage({
             onRetry={state.refresh}
           />
         ) : null}
+        {state.snapshot === null ? (
+          <AllowanceCleanupCard
+            config={config}
+            snapshot={null}
+            readSnapshot={readSnapshot}
+            writer={writeBoundary}
+            onRefresh={state.refresh}
+          />
+        ) : null}
         {state.snapshot !== null ? (
           <SwapWorkspace
             config={config}
@@ -319,10 +334,11 @@ function SwapWorkspace({
     accountSafety.liquidityOperations,
     toHex0x(tokens.input.address),
   );
-  const poolReservedInput = reservedInputForToken(
-    requests,
-    toHex0x(tokens.input.address),
-  );
+  const poolReservedInput = requiredAllowanceFor({
+    requests: accountSafety.requests,
+    liquidityOperations: accountSafety.liquidityOperations,
+    creationWorkflows: accountSafety.creationWorkflows,
+  }, toHex0x(tokens.input.address), toHex0x(config.handlerAddress));
   const slippageResult = parseSlippagePercent(slippage);
   const quote = deriveSwapQuote(
     snapshot,
@@ -363,6 +379,7 @@ function SwapWorkspace({
     || isWorkflowLocked(workflow)
     || accountSafety.requests.some(isBlockingRequest)
     || accountSafety.crankAttempts.some(isBlockingCrankAttempt)
+    || accountSafety.allowanceCleanupBlocked
     || creationTransactionBlocked
     || liquidityTransactionBlocked;
   const modeLocked = isAcquiringLock
@@ -370,6 +387,7 @@ function SwapWorkspace({
     || isCheckingRecovery
     || ["approving", "submitting", "indeterminate"].includes(workflow.status)
     || accountSafety.crankAttempts.some(isBlockingCrankAttempt)
+    || accountSafety.allowanceCleanupBlocked
     || creationTransactionBlocked
     || liquidityTransactionBlocked
     || accountSafety.requests.some((request) =>
@@ -466,6 +484,7 @@ function SwapWorkspace({
         || isAccountOutstandingRequestKey(config, event.key)
         || isAccountCreationWorkflowKey(config, event.key)
         || isAccountLiquidityOperationKey(config, event.key)
+        || event.key === allowanceCleanupKey(config)
       ) {
         refreshAccountSafety();
       }
@@ -969,6 +988,7 @@ function SwapWorkspace({
         const expectedCrankAttempt = loadCrankAttempt(config);
         if (
           accountCrankAttempts.some(isBlockingCrankAttempt)
+          || hasBlockingAllowanceCleanup(config)
           || creationWorkflows.some(hasBlockingCreationTransaction)
           || liquidityOperations.some(hasBlockingLiquidityTransaction)
         ) {
@@ -1001,7 +1021,11 @@ function SwapWorkspace({
         const initialReserved = reservedInputForToken(accountRequests, tokenIn)
           + reservedCreationToken(creationWorkflows, tokenIn)
           + reservedLiquidityTokenAmount(liquidityOperations, tokenIn);
-        const initialPoolReserved = reservedInputForToken(current, tokenIn);
+        const initialPoolReserved = requiredAllowanceFor({
+          requests: accountRequests,
+          liquidityOperations,
+          creationWorkflows,
+        }, tokenIn, toHex0x(config.handlerAddress));
         const initialQuote = deriveSwapQuote(
           initialSnapshot,
           direction,
@@ -1164,10 +1188,11 @@ function SwapWorkspace({
           submissionLiquidityOperations,
           submissionTokenIn,
         );
-        const submissionPoolReserved = reservedInputForToken(
-          current,
-          submissionTokenIn,
-        );
+        const submissionPoolReserved = requiredAllowanceFor({
+          requests: submissionAccountRequests,
+          liquidityOperations: submissionLiquidityOperations,
+          creationWorkflows: submissionCreationWorkflows,
+        }, submissionTokenIn, toHex0x(config.handlerAddress));
         const freshQuote = deriveSwapQuote(
           submissionSnapshot,
           direction,
@@ -1496,6 +1521,7 @@ function SwapWorkspace({
     if (
       accountCrankAttempts.some(isBlockingCrankAttempt)
       || accountRequests.some(isBlockingRequest)
+      || hasBlockingAllowanceCleanup(config)
       || !current.some(needsQueueProcessing)
     ) return;
 
@@ -1849,6 +1875,13 @@ function SwapWorkspace({
           onConfirmRecovery={confirmPreHashRecovery}
           onResolveUntracked={resolveUntrackedRequest}
           onShowManual={() => setProcessingMode("manual")}
+        />
+        <AllowanceCleanupCard
+          config={config}
+          snapshot={snapshot}
+          readSnapshot={readSnapshot}
+          writer={writeBoundary}
+          onRefresh={refreshSnapshot}
         />
       </div>
     </div>
@@ -2392,6 +2425,7 @@ function readAccountSafetyState(config: AppConfig): {
   crankAttempts: CrankAttempt[];
   creationWorkflows: CreationWorkflow[];
   liquidityOperations: LiquidityOperation[];
+  allowanceCleanupBlocked: boolean;
   error: string | null;
 } {
   try {
@@ -2400,6 +2434,7 @@ function readAccountSafetyState(config: AppConfig): {
       crankAttempts: loadAccountCrankAttempts(config),
       creationWorkflows: loadAccountCreationWorkflows(config),
       liquidityOperations: loadAccountLiquidityOperations(config),
+      allowanceCleanupBlocked: hasBlockingAllowanceCleanup(config),
       error: null,
     };
   } catch {
@@ -2408,6 +2443,7 @@ function readAccountSafetyState(config: AppConfig): {
       crankAttempts: [],
       creationWorkflows: [],
       liquidityOperations: [],
+      allowanceCleanupBlocked: false,
       error:
         "Stored account transaction state could not be loaded safely. Clear this site's local data before signing another transaction.",
     };
@@ -2620,7 +2656,11 @@ async function observeAggregateAllowance(
         }
       }
       const snapshot = await readSnapshot();
-      const target = allowanceTargetForSwap(current, tokenIn, amountIn);
+      const target = loadRequiredAllowance(
+        config,
+        tokenIn,
+        toHex0x(config.handlerAddress),
+      ) + amountIn;
       const inputToken = tokenIn === toHex0x(snapshot.tokenA.address)
         ? snapshot.tokenA
         : tokenIn === toHex0x(snapshot.tokenB.address)

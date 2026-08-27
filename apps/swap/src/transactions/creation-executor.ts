@@ -9,6 +9,7 @@ import { RequestAccepted, RequestFailed } from "@/contracts/generated/swap-drive
 import { MintEvent } from "@/contracts/generated/swap-pair";
 import { buildAddLiquidityTarget } from "@/contracts/router-target";
 import { buildTransferTarget } from "@/contracts/transfer-target";
+import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
 import {
@@ -41,6 +42,7 @@ import {
   loadAccountLiquidityOperations,
   reservedLiquidityTokenAmount,
 } from "@/transactions/liquidity-operation";
+import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
 
 const MAX_EXECUTION_EXPOSURE = 10;
 const FUNDING_STEPS = [
@@ -82,6 +84,13 @@ export async function runCreationWorkflow(
     dependencies.onUpdate?.(workflow);
     return workflow;
   };
+  if (workflow.status === "race" && workflow.requestId !== null) {
+    workflow = update({
+      ...workflow,
+      status: "queued",
+      updatedAt: Date.now(),
+    });
+  }
 
   for (const name of creationStepOrder) {
     if (["executed", "failed", "race"].includes(workflow.status)) break;
@@ -245,7 +254,17 @@ async function revalidateWorkflow(
       throw new Error(`The unreserved ${token.symbol} balance is no longer sufficient`);
     }
   }
-  return review;
+  const handlerAddress = toHex0x(review.pool.handler);
+  const allowanceRecords = {
+    requests,
+    liquidityOperations,
+    creationWorkflows: otherWorkflows,
+  };
+  return {
+    ...review,
+    token0: withAggregateApproval(review.token0, allowanceRecords, handlerAddress),
+    token1: withAggregateApproval(review.token1, allowanceRecords, handlerAddress),
+  };
 }
 
 function assertAccountCanSign(
@@ -254,6 +273,9 @@ function assertAccountCanSign(
   step: CreationStepName,
 ): void {
   const scopedConfig = workflowAppConfig(config, workflow);
+  if (hasBlockingAllowanceCleanup(scopedConfig)) {
+    throw new Error("Resolve the account's pending allowance cleanup first");
+  }
   if (loadAccountCrankAttempts(scopedConfig).some(isBlockingCrankAttempt)) {
     throw new Error("Resolve the account's indeterminate queue-processing transaction first");
   }
@@ -282,6 +304,21 @@ function assertAccountCanSign(
       throw new Error("The account already has ten execution-exposed operations");
     }
   }
+}
+
+function withAggregateApproval(
+  token: PoolCreationReview["token0"],
+  records: Parameters<typeof requiredAllowanceFor>[0],
+  handlerAddress: string,
+): PoolCreationReview["token0"] {
+  const required = token.amount
+    + requiredAllowanceFor(records, token.addressHex, handlerAddress);
+  return {
+    ...token,
+    approvalDifference: token.allowance >= required
+      ? 0n
+      : required - token.allowance,
+  };
 }
 
 function targetForStep(
@@ -383,9 +420,13 @@ function applyCommittedStep(
       contractAddress: addressFromHex(workflow.pool.driver),
     });
     if (accepted.length === 1) {
-      next = { ...next, requestId: toHex0x(accepted[0]!.topics.request_id) };
+      next = {
+        ...next,
+        requestId: toHex0x(accepted[0]!.topics.request_id),
+        enqueueReceiptBlock: receipt.height.toString(),
+      };
     }
-    if (accepted.length !== 1 || created.length > 1) {
+    if (accepted.length !== 1) {
       return update({
         ...next,
         status: "race",
@@ -394,9 +435,7 @@ function applyCommittedStep(
           ...next.steps,
           enqueue: {
             ...next.steps.enqueue,
-            message: accepted.length !== 1
-              ? "Creation could not be verified from one matching RequestAccepted event."
-              : "Creation emitted conflicting PoolCreated evidence.",
+            message: "Creation could not be verified from one matching RequestAccepted event.",
           },
         },
       });
@@ -414,7 +453,16 @@ function applyCommittedStep(
                 "Another creator may have won the pool race. The accepted liquidity request is preserved and will still be processed; this workflow does not claim pool creation.",
             },
           }
-        : next.steps,
+        : created.length > 1
+          ? {
+              ...next.steps,
+              enqueue: {
+                ...next.steps.enqueue,
+                message:
+                  "Creation emitted conflicting PoolCreated evidence. The accepted liquidity request is preserved and can still be processed.",
+              },
+            }
+          : next.steps,
     };
   }
   if (name === "crank") {
@@ -439,7 +487,10 @@ export function applyCreationReceipt(
   workflow: CreationWorkflow,
   receipt: TransactionReceipt,
 ): CreationWorkflow {
-  if (workflow.status !== "queued" || workflow.requestId === null) return workflow;
+  if (
+    (workflow.status !== "queued" && workflow.status !== "race")
+    || workflow.requestId === null
+  ) return workflow;
   const minted = MintEvent.allFromReceipt(receipt, {
     contractAddress: addressFromHex(workflow.pool.pair),
   }).filter((event) => event.fields.request_id !== null
@@ -453,10 +504,24 @@ export function applyCreationReceipt(
     throw new Error("Queue receipt contains conflicting terminal creation events");
   }
   if (failed.length === 1) {
-    return { ...workflow, status: "failed", updatedAt: Date.now() };
+    return {
+      ...workflow,
+      status: "failed",
+      enqueueReceiptBlock:
+        workflow.enqueueReceiptBlock ?? receipt.height.toString(),
+      terminalBlock: receipt.height.toString(),
+      updatedAt: Date.now(),
+    };
   }
   if (minted.length === 1) {
-    return { ...workflow, status: "executed", updatedAt: Date.now() };
+    return {
+      ...workflow,
+      status: "executed",
+      enqueueReceiptBlock:
+        workflow.enqueueReceiptBlock ?? receipt.height.toString(),
+      terminalBlock: receipt.height.toString(),
+      updatedAt: Date.now(),
+    };
   }
   return workflow;
 }

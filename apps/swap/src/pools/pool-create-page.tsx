@@ -52,6 +52,7 @@ import {
 } from "@/transactions/creation-workflow";
 import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
 import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
+import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import {
   loadAccountLiquidityOperations,
@@ -114,11 +115,15 @@ export function PoolCreatePage({
   const currentFactory = toHex0x(config.factoryAddress);
   const recoverable = accountWorkflows.filter((candidate) =>
     candidate.factoryAddress === currentFactory
-    && (candidate.status === "active" || candidate.status === "queued")
+    && (candidate.status === "active"
+      || candidate.status === "queued"
+      || (candidate.status === "race" && candidate.requestId !== null))
   );
   const obsolete = accountWorkflows.find((candidate) =>
     candidate.factoryAddress !== currentFactory
-    && (candidate.status === "active" || candidate.status === "queued")
+    && (candidate.status === "active"
+      || candidate.status === "queued"
+      || (candidate.status === "race" && candidate.requestId !== null))
   ) ?? null;
 
   const applyWorkflow = (next: CreationWorkflow) => {
@@ -165,6 +170,9 @@ export function PoolCreatePage({
     setError(null);
     try {
       const result = await withOutstandingRequestLock(config, async () => {
+        if (hasBlockingAllowanceCleanup(config)) {
+          throw new Error("Resolve the account's pending allowance cleanup first");
+        }
         let current = workflow;
         if (current === null) {
           if (review === null) throw new Error("Review the pool before creating it");
@@ -380,7 +388,10 @@ export function PoolCreatePage({
           isRunning={isRunning}
           requiresPreHashConfirmation={requiresPreHashConfirmation}
           onConfirmNotSigned={confirmNotSigned}
-          onContinue={() => startOrContinue(workflow.status === "queued")}
+          onContinue={() => startOrContinue(
+            workflow.status === "queued"
+            || (workflow.status === "race" && workflow.requestId !== null),
+          )}
           onStartOver={() => {
             if (workflow !== null) {
               setAccountWorkflows((current) =>
@@ -613,10 +624,12 @@ function CreationProgressCard({
   onStartOver: () => void;
 }) {
   const blocking = hasBlockingCreationTransaction(workflow);
-  const terminal = ["executed", "failed", "race"].includes(workflow.status);
+  const acceptedRace = workflow.status === "race" && workflow.requestId !== null;
+  const terminal = ["executed", "failed", "race"].includes(workflow.status)
+    && !acceptedRace;
   const actionLabel = blocking
     ? "Check transaction and continue"
-    : workflow.status === "queued"
+    : workflow.status === "queued" || acceptedRace
       ? workflow.steps.crank.status === "committed"
         ? "Retry queue processing"
         : "Process liquidity queue"
@@ -706,7 +719,11 @@ function readCreationState(config: GlobalConfig): {
     const workflows = loadAccountCreationWorkflows(config);
     const current = workflows
       .filter((workflow) => workflow.factoryAddress === toHex0x(config.factoryAddress))
-      .filter(({ status }) => status === "active" || status === "queued")
+      .filter((workflow) =>
+        workflow.status === "active"
+        || workflow.status === "queued"
+        || (workflow.status === "race" && workflow.requestId !== null)
+      )
       .sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
     return { workflows, current, error: null };
   } catch {

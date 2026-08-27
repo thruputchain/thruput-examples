@@ -3,6 +3,7 @@ import { toHex0x } from "@groundhogchain/client";
 import { useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AllowanceCleanupCard } from "@/components/allowance-cleanup-card";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { SlippageSettings } from "@/components/slippage-settings";
 import { useProcessingMode } from "@/components/processing-mode";
@@ -21,6 +22,7 @@ import { Field, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { AppConfig } from "@/config";
+import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { availableBalance, reservedInputForToken } from "@/domain/reservations";
 import { AmmPage } from "@/pools/amm-page";
 import {
@@ -56,6 +58,7 @@ import { createLiquidityObserver, type LiquidityObserver } from "@/transactions/
 import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
 import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
+import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 
 interface LiquidityPageDependencies {
@@ -154,6 +157,9 @@ export function LiquidityPage({
     setError(null);
     try {
       const result = await withOutstandingRequestLock(config, async () => {
+        if (hasBlockingAllowanceCleanup(config)) {
+          throw new Error("Resolve the account's pending allowance cleanup first");
+        }
         let operation = current;
         if (operation === null) {
           const quote = selectedKind === "add" ? addQuote : removeQuote;
@@ -354,6 +360,13 @@ export function LiquidityPage({
         />
       )}
       <LiquidityHistory operations={history} snapshot={snapshot} />
+      <AllowanceCleanupCard
+        config={config}
+        snapshot={snapshot}
+        readSnapshot={reader}
+        writer={writer}
+        onRefresh={snapshotState.refresh}
+      />
       <Field orientation="horizontal">
         <div>
           <FieldTitle>Manual queue processing</FieldTitle>
@@ -812,22 +825,21 @@ function readAccountReservations(
   return {
     balanceReservations,
     allowanceReservations: tokens.map((token) =>
-      reservedInputForToken(localRequests, token)
-        + reservedLiquidityTokenAmount(localLiquidity, token)
+      requiredAllowanceFor({
+        requests: localRequests,
+        liquidityOperations: localLiquidity,
+        creationWorkflows: creations,
+      }, token, toHex0x(config.handlerAddress))
     ) as unknown as readonly [bigint, bigint],
     liquidityReservation:
       reservedInputForToken(requests, toHex0x(config.liquidityTokenAddress))
       + reservedCreationToken(creations, toHex0x(config.liquidityTokenAddress))
       + reservedLiquidityTokenAmount(liquidity, toHex0x(config.liquidityTokenAddress)),
-    liquidityAllowanceReservation:
-      reservedLiquidityTokenAmount(
-        localLiquidity,
-        toHex0x(config.liquidityTokenAddress),
-      )
-      + reservedInputForToken(
-        localRequests,
-        toHex0x(config.liquidityTokenAddress),
-      ),
+    liquidityAllowanceReservation: requiredAllowanceFor({
+      requests: localRequests,
+      liquidityOperations: localLiquidity,
+      creationWorkflows: creations,
+    }, toHex0x(config.liquidityTokenAddress), toHex0x(config.handlerAddress)),
   };
 }
 

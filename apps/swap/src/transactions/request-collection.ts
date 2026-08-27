@@ -1,6 +1,7 @@
 import { toHex0x } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
+import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
 import {
   clearOutstandingRequest,
   loadAccountOutstandingRequests,
@@ -202,6 +203,10 @@ export function saveRequestCollection(
   config: AppConfig,
   requests: readonly RequestRecord[],
 ): RequestRecord[] {
+  recordRequestAllowanceEvidence(config, [
+    ...loadRequestCollection(config),
+    ...requests,
+  ]);
   const pruned = pruneRequestHistory(requests);
   const stored: StoredCollection = {
     version: STORAGE_VERSION,
@@ -212,6 +217,21 @@ export function saveRequestCollection(
   }
   window.localStorage.setItem(requestCollectionKey(config), JSON.stringify(stored));
   return pruned;
+}
+
+function recordRequestAllowanceEvidence(
+  config: AppConfig,
+  requests: readonly RequestRecord[],
+): void {
+  for (const request of requests) {
+    if (request.execution === null) continue;
+    recordAllowanceTerminalEvidence(
+      config,
+      request.criteria.tokenIn,
+      request.criteria.handlerAddress,
+      request.execution.blockHeight,
+    );
+  }
 }
 
 export async function mutateRequestCollection(

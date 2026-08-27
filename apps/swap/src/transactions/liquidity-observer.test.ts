@@ -57,6 +57,7 @@ describe("liquidity observer", () => {
 
     expect(result).toMatchObject({
       status: "executed",
+      terminalBlock: "10",
       observedThroughBlock: "11",
       result: {
         transactionHash: hex(40),
@@ -79,7 +80,7 @@ describe("liquidity observer", () => {
       oldestBlock: 1n,
     }));
     await expect(createLiquidityObserver(config, failedClient).scan(failedOperation))
-      .resolves.toMatchObject({ status: "failed" });
+      .resolves.toMatchObject({ status: "failed", terminalBlock: "10" });
 
     const invalidClient = rpcClient(vi.fn().mockResolvedValue({
       events: [identified(burnEvent(new Uint8Array(32).fill(30), [1n, 2n]), 10n)],

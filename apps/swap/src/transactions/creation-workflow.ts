@@ -2,6 +2,7 @@ import { toHex0x } from "@groundhogchain/client";
 
 import type { GlobalConfig } from "@/config";
 import type { PoolCreationReview } from "@/pools/pool-creation";
+import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
 
 const STORAGE_VERSION = 1;
 const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
@@ -53,6 +54,8 @@ export interface CreationWorkflow {
   totalFixedFunding: string;
   status: "active" | "queued" | "executed" | "failed" | "race" | "archived";
   requestId: string | null;
+  enqueueReceiptBlock?: string | null;
+  terminalBlock?: string | null;
   steps: Record<CreationStepName, CreationStep>;
   createdAt: number;
   updatedAt: number;
@@ -129,6 +132,8 @@ export function createCreationWorkflow(
     totalFixedFunding: review.totalFixedFunding.toString(),
     status: "active",
     requestId: null,
+    enqueueReceiptBlock: null,
+    terminalBlock: null,
     steps,
     createdAt: now,
     updatedAt: now,
@@ -140,6 +145,21 @@ export function saveCreationWorkflow(
   workflow: CreationWorkflow,
 ): CreationWorkflow {
   if (!isCreationWorkflow(workflow, config)) throw new CreationWorkflowError();
+  if (workflow.terminalBlock !== undefined && workflow.terminalBlock !== null) {
+    const block = BigInt(workflow.terminalBlock);
+    recordAllowanceTerminalEvidence(
+      config,
+      workflow.token0.address,
+      workflow.pool.handler,
+      block,
+    );
+    recordAllowanceTerminalEvidence(
+      config,
+      workflow.token1.address,
+      workflow.pool.handler,
+      block,
+    );
+  }
   window.localStorage.setItem(
     creationWorkflowKey(config, workflow.token0.address, workflow.token1.address),
     JSON.stringify(workflow),
@@ -269,7 +289,10 @@ export function hasCreationExecutionExposure(
   workflow: CreationWorkflow,
 ): boolean {
   return workflow.status === "queued"
-    || (workflow.status === "race" && workflow.requestId !== null);
+    || (workflow.status === "race" && workflow.requestId !== null)
+    || (workflow.status === "active"
+      && (workflow.steps.enqueue.status === "signing"
+        || workflow.steps.enqueue.status === "indeterminate"));
 }
 
 function tokenIntent(token: PoolCreationReview["token0"]): CreationTokenIntent {
@@ -325,6 +348,12 @@ function isCreationWorkflow(
       .includes(String(value.status))
     || !(value.requestId === null
       || (typeof value.requestId === "string" && HASH_PATTERN.test(value.requestId)))
+    || !(value.enqueueReceiptBlock === undefined
+      || value.enqueueReceiptBlock === null
+      || isPositiveInteger(value.enqueueReceiptBlock))
+    || !(value.terminalBlock === undefined
+      || value.terminalBlock === null
+      || isPositiveInteger(value.terminalBlock))
     || !isRecord(steps)
     || !creationStepOrder.every((name) => isStep(steps[name]))
     || !validTime(value.createdAt)
@@ -333,6 +362,14 @@ function isCreationWorkflow(
   ) return false;
   const enqueue = steps.enqueue as CreationStep;
   const crank = steps.crank as CreationStep;
+  if (
+    value.terminalBlock !== undefined
+    && value.terminalBlock !== null
+    && (!value.requestId
+      || !value.enqueueReceiptBlock
+      || !["executed", "failed"].includes(String(value.status))
+      || BigInt(value.terminalBlock) < BigInt(value.enqueueReceiptBlock))
+  ) return false;
   if (
     (value.requestId !== null && enqueue.status !== "committed")
     || (["queued", "executed"].includes(String(value.status))

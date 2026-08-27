@@ -132,6 +132,20 @@ describe("deriveSwapQuote", () => {
     });
   });
 
+  it("leaves allowance reductions to the explicit cleanup flow", () => {
+    const pool = snapshot({
+      tokenA: {
+        ...snapshot().tokenA,
+        allowance: 50_000_000n,
+      },
+    });
+
+    expect(deriveSwapQuote(pool, "aToB", "10", 50n)).toMatchObject({
+      ok: true,
+      allowanceDifference: 0n,
+    });
+  });
+
   it.each([
     ["", "empty"],
     ["abc", "malformed"],

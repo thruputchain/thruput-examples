@@ -116,7 +116,8 @@ export function deriveSwapQuote(
     amountOut: quote.amountOut,
     amountOutMin,
     priceImpactBps: quote.priceImpactBps,
-    allowanceDifference: difference.ok ? difference.difference : 0n,
+    allowanceDifference:
+      difference.ok && difference.difference > 0n ? difference.difference : 0n,
     reserveIn: reserves.reserveIn,
     reserveOut: reserves.reserveOut,
   };

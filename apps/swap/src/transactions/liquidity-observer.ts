@@ -114,6 +114,7 @@ function matchTerminal(
     return {
       ...operation,
       status: "failed",
+      terminalBlock: identified.blockHeight.toString(),
       result: null,
       updatedAt: Date.now(),
     };
@@ -134,6 +135,7 @@ function matchTerminal(
     return {
       ...operation,
       status: "executed",
+      terminalBlock: identified.blockHeight.toString(),
       result: {
         transactionHash: toHex0x(identified.txHash),
         blockHeight: identified.blockHeight.toString(),
@@ -161,6 +163,7 @@ function matchTerminal(
   return {
     ...operation,
     status: "executed",
+    terminalBlock: identified.blockHeight.toString(),
     result: {
       transactionHash: toHex0x(identified.txHash),
       blockHeight: identified.blockHeight.toString(),

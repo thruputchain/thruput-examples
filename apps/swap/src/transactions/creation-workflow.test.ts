@@ -10,6 +10,7 @@ import {
   CreationWorkflowError,
   creationWorkflowKey,
   hasBlockingCreationTransaction,
+  hasCreationExecutionExposure,
   loadAccountCreationWorkflows,
   loadCreationWorkflow,
   reservedCreationHog,
@@ -64,6 +65,13 @@ describe("creation workflow", () => {
 
     workflow.steps.fundPair.status = "signing";
     expect(hasBlockingCreationTransaction(workflow)).toBe(true);
+  });
+
+  it("reserves allowance while enqueue submission is uncertain", () => {
+    const workflow = createCreationWorkflow(config, review(), 10);
+    workflow.steps.enqueue.status = "indeterminate";
+
+    expect(hasCreationExecutionExposure(workflow)).toBe(true);
   });
 
   it("loads workflows across factories but rejects malformed scope", () => {

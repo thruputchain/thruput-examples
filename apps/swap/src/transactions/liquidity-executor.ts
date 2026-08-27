@@ -10,7 +10,9 @@ import {
   buildAddLiquidityTarget,
   buildRemoveLiquidityTarget,
 } from "@/contracts/router-target";
+import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { reservedInputForToken } from "@/domain/reservations";
+import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
 import {
   hasBlockingCreationTransaction,
   hasCreationExecutionExposure,
@@ -341,6 +343,7 @@ export function applyLiquidityReceipt(
     record(requestId, {
       ...operation,
       status: "executed",
+      terminalBlock: receipt.height.toString(),
       updatedAt: Date.now(),
       result: {
         transactionHash: toHex0x(receipt.txHash),
@@ -369,6 +372,7 @@ export function applyLiquidityReceipt(
     record(requestId, {
       ...operation,
       status: "executed",
+      terminalBlock: receipt.height.toString(),
       updatedAt: Date.now(),
       result: {
         transactionHash: toHex0x(receipt.txHash),
@@ -386,7 +390,12 @@ export function applyLiquidityReceipt(
     const requestId = toHex0x(event.topics.request_id);
     const operation = byRequestId.get(requestId);
     if (operation === undefined) continue;
-    record(requestId, { ...operation, status: "failed", updatedAt: Date.now() });
+    record(requestId, {
+      ...operation,
+      status: "failed",
+      terminalBlock: receipt.height.toString(),
+      updatedAt: Date.now(),
+    });
   }
   return operations.map((operation) =>
     operation.requestId === null ? operation : terminal.get(operation.requestId) ?? operation
@@ -419,20 +428,13 @@ function targetForStep(
     if (tokens.some((token, index) =>
       token.balance < desired[index]! + balanceReserved[index]!
     )) throw new Error("The unreserved token balance is insufficient");
-    const allowanceReserved = tokens.map((token) => {
-      const tokenHex = toHex0x(token.address);
-      return reservedLiquidityTokenAmount(
-        otherOperations.filter(({ handlerAddress }) =>
-          handlerAddress === toHex0x(config.handlerAddress)
-        ),
-        tokenHex,
-      ) + reservedInputForToken(
-        requests.filter(({ criteria }) =>
-          criteria.handlerAddress === toHex0x(config.handlerAddress)
-        ),
-        tokenHex,
-      );
-    });
+    const allowanceReserved = tokens.map((token) =>
+      requiredAllowanceFor({
+        requests,
+        liquidityOperations: otherOperations,
+        creationWorkflows: creations,
+      }, toHex0x(token.address), toHex0x(config.handlerAddress))
+    );
     if (name === "approveToken0" || name === "approveToken1") {
       const index = name === "approveToken0" ? 0 : 1;
       const token = tokens[index];
@@ -463,17 +465,11 @@ function targetForStep(
     if (snapshot.liquidityBalance < liquidity + balanceReserved) {
       throw new Error("The unreserved LP balance is insufficient");
     }
-    const allowanceReserved = reservedLiquidityTokenAmount(
-      otherOperations.filter(({ handlerAddress }) =>
-        handlerAddress === toHex0x(config.handlerAddress)
-      ),
-      liquidityHex,
-    ) + reservedInputForToken(
-      requests.filter(({ criteria }) =>
-        criteria.handlerAddress === toHex0x(config.handlerAddress)
-      ),
-      liquidityHex,
-    );
+    const allowanceReserved = requiredAllowanceFor({
+      requests,
+      liquidityOperations: otherOperations,
+      creationWorkflows: creations,
+    }, liquidityHex, toHex0x(config.handlerAddress));
     if (name === "approveLiquidity") {
       const required = liquidity + allowanceReserved;
       return snapshot.liquidityAllowance >= required
@@ -505,6 +501,9 @@ function assertAccountCanSign(
   operation: LiquidityOperation,
   step: LiquidityStepName,
 ): void {
+  if (hasBlockingAllowanceCleanup(config)) {
+    throw new Error("Resolve the account's pending allowance cleanup first");
+  }
   if (loadAccountCrankAttempts(config).some(isBlockingCrankAttempt)) {
     throw new Error("Resolve the account's indeterminate queue-processing transaction first");
   }

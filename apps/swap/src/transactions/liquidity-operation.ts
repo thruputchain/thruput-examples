@@ -1,6 +1,7 @@
 import { toHex0x } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
+import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
 
 const STORAGE_VERSION = 1;
 const TERMINAL_LIMIT = 50;
@@ -41,6 +42,7 @@ interface LiquidityOperationBase {
   recipient: string;
   requestId: string | null;
   receiptBlock: string | null;
+  terminalBlock?: string | null;
   observedThroughBlock: string | null;
   steps: Record<LiquidityStepName, LiquidityStep>;
   createdAt: number;
@@ -196,6 +198,10 @@ export function saveLiquidityOperations(
   config: AppConfig,
   operations: readonly LiquidityOperation[],
 ): LiquidityOperation[] {
+  recordLiquidityAllowanceEvidence(config, [
+    ...loadLiquidityOperations(config),
+    ...operations,
+  ]);
   const pruned = pruneOperations(operations);
   const stored: StoredLiquidityCollection = {
     version: STORAGE_VERSION,
@@ -204,6 +210,39 @@ export function saveLiquidityOperations(
   if (!isCollection(stored, config, "pool")) throw new LiquidityOperationError();
   window.localStorage.setItem(liquidityOperationKey(config), JSON.stringify(stored));
   return stored.operations;
+}
+
+function recordLiquidityAllowanceEvidence(
+  config: AppConfig,
+  operations: readonly LiquidityOperation[],
+): void {
+  for (const operation of operations) {
+    if (operation.terminalBlock === undefined || operation.terminalBlock === null) {
+      continue;
+    }
+    const block = BigInt(operation.terminalBlock);
+    if (operation.kind === "add") {
+      recordAllowanceTerminalEvidence(
+        config,
+        operation.token0Address,
+        operation.handlerAddress,
+        block,
+      );
+      recordAllowanceTerminalEvidence(
+        config,
+        operation.token1Address,
+        operation.handlerAddress,
+        block,
+      );
+    } else {
+      recordAllowanceTerminalEvidence(
+        config,
+        operation.liquidityTokenAddress,
+        operation.handlerAddress,
+        block,
+      );
+    }
+  }
 }
 
 export function upsertLiquidityOperation(
@@ -276,6 +315,7 @@ function baseOperation(
     recipient: toHex0x(config.accountAddress),
     requestId: null,
     receiptBlock: null,
+    terminalBlock: null,
     observedThroughBlock: null,
     steps: {
       approveToken0: step(),
@@ -340,6 +380,9 @@ function isOperation(
     || String(value.token0Address) >= String(value.token1Address)
     || !nullableHash(value.requestId)
     || !(value.receiptBlock === null || unsignedInteger(value.receiptBlock))
+    || !(value.terminalBlock === undefined
+      || value.terminalBlock === null
+      || unsignedInteger(value.terminalBlock))
     || !(value.observedThroughBlock === null || unsignedInteger(value.observedThroughBlock))
     || !isRecord(steps)
     || !["approveToken0", "approveToken1", "approveLiquidity", "enqueue"]
@@ -371,6 +414,12 @@ function isCoherentLifecycle(value: Record<string, unknown>): boolean {
     || value.status === "failed";
   const hasQueueIdentity = hash(value.requestId) && unsignedInteger(value.receiptBlock);
   if (queuedOrTerminal !== hasQueueIdentity) return false;
+  if (value.terminalBlock !== undefined && value.terminalBlock !== null) {
+    if (value.status !== "executed" && value.status !== "failed") return false;
+    if (BigInt(value.terminalBlock as string) < BigInt(value.receiptBlock as string)) {
+      return false;
+    }
+  }
   if (!queuedOrTerminal && value.observedThroughBlock !== null) return false;
   if (
     value.observedThroughBlock !== null
