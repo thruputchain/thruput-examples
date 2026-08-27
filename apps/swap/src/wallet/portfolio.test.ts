@@ -79,7 +79,7 @@ describe("createWalletPortfolioReader", () => {
       liquidityPositions: [
         {
           symbol: "LP",
-          decimals: 0,
+          decimals: 6,
           balance: 30n,
           poolSymbols: ["A", "B"],
         },

@@ -12,6 +12,7 @@ import {
   type SwapFactoryReadAdapter,
 } from "@/contracts/factory-adapter";
 import { createReadClient } from "@/groundhog/client";
+import { FALLBACK_LIQUIDITY_TOKEN_DECIMALS } from "@/pools/liquidity-token";
 
 export interface PortfolioToken {
   kind: "token";
@@ -179,7 +180,8 @@ export function createWalletPortfolioReader(
               kind: "liquidity" as const,
               address: asset.definition.address,
               symbol: asset.symbol?.trim() || "LP",
-              decimals: asset.decimals ?? 0,
+              decimals:
+                asset.decimals ?? FALLBACK_LIQUIDITY_TOKEN_DECIMALS,
               balance: asset.balance,
               poolSymbols: [token0, token1] as const,
             },
