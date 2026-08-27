@@ -147,9 +147,17 @@ Shell syntax checks:
 bash -n apps/swap/scripts/setup-local.sh
 bash -n apps/swap/scripts/crank-local.sh
 bash -n apps/swap/scripts/generate-contract-bindings.sh
+bash -n apps/swap/scripts/test-clean-ledger.sh
 ```
 
-The live integration test mutates a prepared local ledger by enqueueing two swaps before one crank, correlating both terminal events, and checking aggregate balances, allowance, and reserves. Run it only for final acceptance:
+The clean-ledger acceptance command starts an ephemeral node on a free loopback port, provisions the AMM, runs one ordered journey across Alice, Carol, and Bob, then stops the node. It restores any existing `.env.local` and generated CLI profile when it exits. Set the installed `hog-devnode` path before running it:
+
+```sh
+export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
+npm --prefix apps/swap run test:e2e:local
+```
+
+The prepared-ledger integration tests remain available for focused live checks. They mutate shared state and may run concurrently, so do not use this command as the clean-ledger acceptance harness:
 
 ```sh
 npm --prefix apps/swap run test:integration:local

@@ -14,6 +14,7 @@
     "setup:local": "bash scripts/setup-local.sh",
     "test": "vitest run",
     "test:components": "vitest run src/app.test.tsx",
+    "test:e2e:local": "RUN_CLEAN_LEDGER_E2E=1 bash scripts/test-clean-ledger.sh",
     "test:integration:local": "vitest run --mode local-integration src/integration/*.local.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
