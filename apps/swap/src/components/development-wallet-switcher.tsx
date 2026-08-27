@@ -2,6 +2,8 @@ import { CheckIcon, ChevronDownIcon, UserRoundIcon } from "lucide-react";
 import { createContext, use, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { WalletPortfolio } from "@/components/wallet-portfolio";
 import {
   Popover,
   PopoverContent,
@@ -14,12 +16,14 @@ import type {
   DevelopmentPersonaId,
   PublicDevelopmentPersona,
 } from "@/development-personas";
+import type { WalletPortfolioReader } from "@/wallet/portfolio";
 
 interface DevelopmentWalletContextValue {
   active: PublicDevelopmentPersona;
   personas: readonly PublicDevelopmentPersona[];
   isSwitching: boolean;
   switchError: string | null;
+  readPortfolio: WalletPortfolioReader;
   switchTo: (id: DevelopmentPersonaId) => Promise<void>;
 }
 
@@ -55,7 +59,10 @@ export function DevelopmentWalletSwitcher() {
           <ChevronDownIcon data-icon="inline-end" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80">
+      <PopoverContent
+        align="end"
+        className="max-h-[min(38rem,var(--radix-popover-content-available-height))] w-88 max-w-[calc(100vw-2rem)] overflow-y-auto"
+      >
         <PopoverHeader>
           <PopoverTitle>Development wallet</PopoverTitle>
           <PopoverDescription role={wallet.switchError === null ? undefined : "alert"}>
@@ -84,6 +91,8 @@ export function DevelopmentWalletSwitcher() {
             </Button>
           ))}
         </div>
+        <Separator />
+        <WalletPortfolio read={wallet.readPortfolio} />
       </PopoverContent>
     </Popover>
   );

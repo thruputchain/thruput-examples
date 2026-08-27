@@ -22,6 +22,13 @@ describe("AmmPage", () => {
             personas: [alice],
             isSwitching: false,
             switchError: null,
+            readPortfolio: vi.fn(async () => ({
+              tokens: [],
+              liquidityPositions: [],
+              invalidPoolCount: 0,
+              unavailableAssetCount: 0,
+              readAt: 1,
+            })),
             switchTo: vi.fn(async () => {}),
           }}
         >

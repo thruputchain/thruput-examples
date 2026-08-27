@@ -40,6 +40,7 @@ import {
   observationsFromReceipt,
 } from "@/transactions/request-observer";
 import type { WriteBoundary } from "@/transactions/write-boundary";
+import { createWalletPortfolioReader } from "@/wallet/portfolio";
 
 const runCleanLedger =
   import.meta.env.MODE === "local-integration" &&
@@ -74,6 +75,15 @@ describe.skipIf(!runCleanLedger)("clean-ledger AMM acceptance", () => {
       0n,
     );
     expect((await createSnapshotReader(bobConfig)()).liquidityBalance).toBe(0n);
+
+    const alicePortfolio = await createWalletPortfolioReader(aliceConfig)();
+    expect(alicePortfolio.tokens.map(({ symbol }) => symbol)).toEqual(
+      expect.arrayContaining(["gEUR", "gUSD", "HOG"]),
+    );
+    expect(alicePortfolio.liquidityPositions).toHaveLength(1);
+    expect(alicePortfolio.liquidityPositions[0]!.balance).toBeGreaterThan(0n);
+    expect((await createWalletPortfolioReader(bobConfig)()).liquidityPositions)
+      .toHaveLength(0);
 
     const carolReceipts: TransactionReceipt[] = [];
     const carolWriter = recordingBoundary(

@@ -69,6 +69,7 @@ import {
   unavailableWriteBoundary,
   type WriteBoundary,
 } from "@/transactions/write-boundary";
+import { createWalletPortfolioReader } from "@/wallet/portfolio";
 
 export function App({
   config: suppliedConfig,
@@ -171,6 +172,10 @@ export function PersonaConfiguredApp({
     () => ({ ...baseConfig, accountAddress: active.accountAddress }),
     [active.accountAddress, baseConfig],
   );
+  const readPortfolio = useMemo(
+    () => createWalletPortfolioReader(config),
+    [config],
+  );
 
   useEffect(() => {
     if (isSwitching || previousActiveId.current === active.id) return;
@@ -203,6 +208,7 @@ export function PersonaConfiguredApp({
       personas: publicPersonas,
       isSwitching,
       switchError,
+      readPortfolio,
       switchTo,
     }}>
       <div aria-busy={isSwitching} inert={isSwitching}>
