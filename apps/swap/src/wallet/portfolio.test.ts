@@ -24,6 +24,7 @@ const config: GlobalConfig = {
   routerAddress: address(2),
   factoryAddress: address(3),
   nativeHogAddress: address(4),
+  knownTokenAddresses: [address(14)],
   poolContractFunding: 10_000_000n,
 };
 
@@ -62,6 +63,7 @@ describe("createWalletPortfolioReader", () => {
       [7, token(null, null, null, 30n)],
       [8, token("Token C", "C", 6, 4_000_000n)],
       [9, failingToken()],
+      [14, token("Groundhog JPY", "JPY", 6, 6_000_000n)],
     ]);
     vi.mocked(createErc20ReadAdapter).mockImplementation(
       ({ contract }) => assets.get(contract[0]!) as never,
@@ -72,6 +74,7 @@ describe("createWalletPortfolioReader", () => {
         { symbol: "A", balance: 2_000_000n },
         { symbol: "C", balance: 4_000_000n },
         { symbol: "HOG", balance: 5_000_000n },
+        { symbol: "JPY", balance: 6_000_000n },
       ],
       liquidityPositions: [
         {
@@ -84,7 +87,7 @@ describe("createWalletPortfolioReader", () => {
       invalidPoolCount: 1,
       unavailableAssetCount: 1,
     });
-    expect(createErc20ReadAdapter).toHaveBeenCalledTimes(6);
+    expect(createErc20ReadAdapter).toHaveBeenCalledTimes(7);
     expect(
       vi
         .mocked(createErc20ReadAdapter)

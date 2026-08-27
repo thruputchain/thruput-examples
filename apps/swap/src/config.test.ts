@@ -18,6 +18,7 @@ function environment(overrides: Environment = {}): Environment {
     VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
     VITE_GROUNDHOG_WALLET_ADDRESS: ADDRESS,
     VITE_NATIVE_HOG_ADDRESS: ADDRESS,
+    VITE_KNOWN_TOKEN_ADDRESSES: `${ADDRESS},${OTHER_ADDRESS},${ADDRESS}`,
     VITE_SWAP_FACTORY_ADDRESS: ADDRESS,
     VITE_SWAP_ROUTER_ADDRESS: ADDRESS,
     VITE_POOL_CONTRACT_FUNDING: "10000000",
@@ -37,6 +38,7 @@ describe("loadAppConfig", () => {
 
     expect(config.rpcUrl.href).toBe("http://127.0.0.1:9545/");
     expect(config.networkIdHex).toBe("00".repeat(32));
+    expect(config.knownTokenAddresses).toHaveLength(2);
     expect(config.tokenADecimals).toBe(6);
     expect(config.tokenBDecimals).toBe(6);
   });
@@ -92,6 +94,12 @@ describe("loadGlobalConfig", () => {
     expect(() => loadGlobalConfig(environment({
       VITE_POOL_CONTRACT_FUNDING: "0",
     }))).toThrow("between 1 and 2^128 - 1");
+  });
+
+  it("rejects malformed known-token addresses", () => {
+    expect(() => loadGlobalConfig(environment({
+      VITE_KNOWN_TOKEN_ADDRESSES: `${ADDRESS},not-an-address`,
+    }))).toThrow("VITE_KNOWN_TOKEN_ADDRESSES must contain only 32-byte");
   });
 });
 

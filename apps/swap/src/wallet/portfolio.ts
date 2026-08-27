@@ -78,7 +78,11 @@ export function createWalletPortfolioReader(
 
   return async () => {
     const { pools, invalidPoolCount } = await discoverPools(factory);
-    const definitions = assetDefinitions(config.nativeHogAddress, pools);
+    const definitions = assetDefinitions(
+      config.nativeHogAddress,
+      config.knownTokenAddresses ?? [],
+      pools,
+    );
     const assetResults = await Promise.allSettled(
       definitions.map(async (definition): Promise<ReadAsset> => {
         const token = createErc20ReadAdapter({
@@ -243,6 +247,7 @@ async function loadPool(
 
 function assetDefinitions(
   nativeHogAddress: ContractAddress,
+  knownTokenAddresses: readonly ContractAddress[],
   pools: readonly PoolDefinition[],
 ): AssetDefinition[] {
   const definitions = new Map<string, AssetDefinition>();
@@ -257,6 +262,9 @@ function assetDefinitions(
     fallbackDecimals: 0,
     skipMetadata: true,
   });
+  for (const address of knownTokenAddresses) {
+    add({ kind: "token", address });
+  }
   for (const pool of pools) {
     add({ kind: "token", address: pool.token0 });
     add({ kind: "token", address: pool.token1 });

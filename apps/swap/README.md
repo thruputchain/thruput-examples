@@ -75,6 +75,8 @@ The development server must listen on a loopback host while disposable credentia
 
 Use the development-wallet control in either header to switch this tab among Alice, Bob, and Carol. Pools and queues are shared, while balances, allowances, LP positions, transaction history, and recovery state belong to the selected account. Alice begins as the initial liquidity provider; Bob and Carol begin with tokens but no LP position. Selection is tab-local, so separate tabs may use different personas.
 
+The wallet portfolio includes all tokens provisioned by local setup, even before they belong to a pool. This makes the seeded gJPY balance available when creating and funding a new market.
+
 The primary flow is:
 
 ```text

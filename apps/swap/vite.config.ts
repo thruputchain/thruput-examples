@@ -35,6 +35,7 @@ export default defineConfig(({ command, isPreview, mode }) => {
       "VITE_GROUNDHOG_WALLET_ENTRYPOINT",
       "VITE_GROUNDHOG_WALLET_ADDRESS",
       "VITE_NATIVE_HOG_ADDRESS",
+      "VITE_KNOWN_TOKEN_ADDRESSES",
       "VITE_POOL_CONTRACT_FUNDING",
       "VITE_SWAP_FACTORY_ADDRESS",
       "VITE_SWAP_ROUTER_ADDRESS",
