@@ -65,13 +65,18 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-"$groundhog_cli" node \
-  --json \
-  --port 0 \
-  --dev-account-count 3 \
-  --dev-account-hog "${GROUNDHOG_E2E_ACCOUNT_HOG:-100}" \
-  --hog-devnode-binary "$devnode_binary" \
-  >"$node_output" 2>"$node_log" &
+node_args=(
+  --json
+  --port 0
+  --dev-account-count 3
+  --dev-account-hog "${GROUNDHOG_E2E_ACCOUNT_HOG:-100}"
+  --hog-devnode-binary "$devnode_binary"
+)
+if [[ -n "${GROUNDHOG_E2E_HOGD_PROTOCOL:-}" ]]; then
+  node_args+=(--hogd-protocol "$GROUNDHOG_E2E_HOGD_PROTOCOL")
+fi
+
+"$groundhog_cli" node "${node_args[@]}" >"$node_output" 2>"$node_log" &
 node_pid=$!
 
 startup=""

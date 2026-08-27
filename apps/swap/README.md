@@ -157,6 +157,13 @@ export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
 npm --prefix apps/swap run test:e2e:local
 ```
 
+Use matching Groundhog CLI and `hog-devnode` releases. For a known wire-compatible local devnode build whose protocol token differs from the CLI, pass the token explicitly:
+
+```sh
+export GROUNDHOG_E2E_HOGD_PROTOCOL=hogp/your-token
+npm --prefix apps/swap run test:e2e:local
+```
+
 The prepared-ledger integration tests remain available for focused live checks. They mutate shared state and may run concurrently, so do not use this command as the clean-ledger acceptance harness:
 
 ```sh
