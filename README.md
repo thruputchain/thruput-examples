@@ -40,7 +40,7 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 - The `groundhog` CLI, **version 0.1.19 or newer**:
 
   ```sh
-  cargo install --registry groundhog groundhog-cli
+  cargo install --locked --registry groundhog groundhog-cli
   ```
 
 - Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`).
