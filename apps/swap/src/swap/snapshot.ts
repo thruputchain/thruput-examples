@@ -5,6 +5,7 @@ import {
   createErc20ReadAdapter,
   type TokenMetadata,
 } from "@/contracts/erc20-adapter";
+import { createSwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { createSwapPairReadAdapter } from "@/contracts/pair-adapter";
 import { createReadClient } from "@/groundhog/client";
 
@@ -23,6 +24,12 @@ export interface PoolSnapshot {
   reserve0: bigint;
   reserve1: bigint;
   reserveTimestamp: bigint;
+  liquidityTotalSupply: bigint;
+  liquidityBalance: bigint;
+  liquidityAllowance: bigint;
+  liquidityTokenSymbol: string;
+  liquidityTokenDecimals: number;
+  feeTo: ContractAddress | null;
   chainHeight: bigint;
   readAt: number;
 }
@@ -41,9 +48,19 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
     contract: config.tokenBAddress,
     caller: config.accountAddress,
   });
+  const liquidityToken = createErc20ReadAdapter({
+    client,
+    contract: config.liquidityTokenAddress,
+    caller: config.accountAddress,
+  });
   const pair = createSwapPairReadAdapter({
     client,
     contract: config.pairAddress,
+    caller: config.accountAddress,
+  });
+  const factory = createSwapFactoryReadAdapter({
+    client,
+    contract: config.factoryAddress,
     caller: config.accountAddress,
   });
 
@@ -53,18 +70,28 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         reserves,
         metadataA,
         metadataB,
+        liquidityMetadata,
         balanceA,
         balanceB,
         allowanceA,
         allowanceB,
+        liquidityTotalSupply,
+        liquidityBalance,
+        liquidityAllowance,
+        feeTo,
       ] = await Promise.all([
         pair.reserves(),
         tokenA.metadata(),
         tokenB.metadata(),
+        liquidityToken.metadata(),
         tokenA.balanceOf(config.accountAddress),
         tokenB.balanceOf(config.accountAddress),
         tokenA.allowance(config.accountAddress, config.handlerAddress),
         tokenB.allowance(config.accountAddress, config.handlerAddress),
+        pair.liquidity(),
+        liquidityToken.balanceOf(config.accountAddress),
+        liquidityToken.allowance(config.accountAddress, config.handlerAddress),
+        factory.feeTo(),
       ]);
 
       const readHeights = [
@@ -75,20 +102,28 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         metadataB.name.height,
         metadataB.symbol.height,
         metadataB.decimals.height,
+        liquidityMetadata.name.height,
+        liquidityMetadata.symbol.height,
+        liquidityMetadata.decimals.height,
         balanceA.height,
         balanceB.height,
         allowanceA.height,
         allowanceB.height,
+        liquidityTotalSupply.height,
+        liquidityBalance.height,
+        liquidityAllowance.height,
+        feeTo.height,
       ];
       const readHeight = readHeights[0]!;
       if (readHeights.some((height) => height !== readHeight)) continue;
+      const liquidityTokenMetadata = metadataValues(liquidityMetadata);
 
       return {
         tokenA: tokenSnapshot({
           address: config.tokenAAddress,
           metadata: metadataValues(metadataA),
           fallbackSymbol: config.tokenASymbol,
-          fallbackDecimals: config.tokenDecimals,
+          fallbackDecimals: config.tokenADecimals,
           balance: balanceA.value,
           allowance: allowanceA.value,
         }),
@@ -96,13 +131,19 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
           address: config.tokenBAddress,
           metadata: metadataValues(metadataB),
           fallbackSymbol: config.tokenBSymbol,
-          fallbackDecimals: config.tokenDecimals,
+          fallbackDecimals: config.tokenBDecimals,
           balance: balanceB.value,
           allowance: allowanceB.value,
         }),
         reserve0: reserves.value.reserve0,
         reserve1: reserves.value.reserve1,
         reserveTimestamp: reserves.value.blockTimestamp,
+        liquidityTotalSupply: liquidityTotalSupply.value,
+        liquidityBalance: liquidityBalance.value,
+        liquidityAllowance: liquidityAllowance.value,
+        liquidityTokenSymbol: liquidityTokenMetadata.symbol?.trim() || "LP",
+        liquidityTokenDecimals: liquidityTokenMetadata.decimals ?? 0,
+        feeTo: feeTo.value,
         chainHeight: readHeight,
         readAt: Date.now(),
       };

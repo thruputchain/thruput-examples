@@ -56,6 +56,7 @@ export function deriveSwapQuote(
   input: string,
   slippageBps: bigint,
   reservedInput = 0n,
+  allowanceReservedInput = reservedInput,
 ): SwapQuoteResult {
   const tokens = tokensForDirection(snapshot, direction);
   const parsed = parseAmount(input, tokens.input.decimals);
@@ -69,10 +70,13 @@ export function deriveSwapQuote(
   }
 
   const difference = allowanceDifference(
-    reservedInput + parsed.value,
+    allowanceReservedInput + parsed.value,
     tokens.input.allowance,
   );
-  if (!difference.ok && tokens.input.allowance < reservedInput + parsed.value) {
+  if (
+    !difference.ok
+    && tokens.input.allowance < allowanceReservedInput + parsed.value
+  ) {
     return { ok: false, error: "signedRange" };
   }
 
@@ -112,7 +116,8 @@ export function deriveSwapQuote(
     amountOut: quote.amountOut,
     amountOutMin,
     priceImpactBps: quote.priceImpactBps,
-    allowanceDifference: difference.ok ? difference.difference : 0n,
+    allowanceDifference:
+      difference.ok && difference.difference > 0n ? difference.difference : 0n,
     reserveIn: reserves.reserveIn,
     reserveOut: reserves.reserveOut,
   };

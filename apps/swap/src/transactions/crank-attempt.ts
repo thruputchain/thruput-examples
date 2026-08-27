@@ -34,11 +34,50 @@ export class CrankAttemptError extends Error {
 
 export function crankAttemptKey(config: AppConfig): string {
   return [
-    "groundhog-swap:crank:v1",
+    "groundhog-swap:crank:v2",
     config.networkIdHex,
     toHex0x(config.accountAddress),
-    toHex0x(config.pairAddress),
+    toHex0x(config.factoryAddress),
+    toHex0x(config.driverAddress),
   ].join(":");
+}
+
+export function accountCrankAttemptPrefix(config: AppConfig): string {
+  return [
+    "groundhog-swap:crank:v2",
+    config.networkIdHex,
+    toHex0x(config.accountAddress),
+    "",
+  ].join(":");
+}
+
+export function isAccountCrankAttemptKey(
+  config: AppConfig,
+  key: string | null,
+): boolean {
+  if (key === null) return false;
+  return key.startsWith(accountCrankAttemptPrefix(config))
+    || key.startsWith(legacyAccountCrankAttemptPrefix(config));
+}
+
+export function loadAccountCrankAttempts(config: AppConfig): CrankAttempt[] {
+  if (typeof window === "undefined") return [];
+  const attempts: CrankAttempt[] = [];
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (key === null || !isAccountCrankAttemptKey(config, key)) continue;
+    const stored = window.localStorage.getItem(key);
+    if (stored === null) continue;
+    try {
+      const parsed: unknown = JSON.parse(stored);
+      if (!isStoredCrankAttempt(parsed)) throw new Error("invalid crank attempt");
+      const { version: _version, ...attempt } = parsed;
+      attempts.push(attempt);
+    } catch {
+      throw new CrankAttemptError();
+    }
+  }
+  return attempts;
 }
 
 export function createCrankAttempt(
@@ -58,13 +97,40 @@ export function createCrankAttempt(
 
 export function loadCrankAttempt(config: AppConfig): CrankAttempt | null {
   if (typeof window === "undefined") return null;
-  const stored = window.localStorage.getItem(crankAttemptKey(config));
-  if (stored === null) return null;
+  const key = crankAttemptKey(config);
+  const legacyKey = legacyCrankAttemptKey(config);
   try {
-    const parsed: unknown = JSON.parse(stored);
-    if (!isStoredCrankAttempt(parsed, config)) throw new Error("invalid crank attempt");
-    const { version: _version, ...attempt } = parsed;
-    return attempt;
+    const stored = parseCrankAttempt(window.localStorage.getItem(key), config);
+    const legacy = parseCrankAttempt(
+      window.localStorage.getItem(legacyKey),
+      config,
+    );
+    if (legacy === null) return stored;
+    if (
+      stored === null
+      || (!isBlockingCrankAttempt(stored) && isBlockingCrankAttempt(legacy))
+    ) {
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({ ...legacy, version: STORAGE_VERSION }),
+      );
+      window.localStorage.removeItem(legacyKey);
+      return legacy;
+    }
+    if (stored.id === legacy.id) {
+      const authoritative = mergeCrankAttempts(stored, legacy);
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({ ...authoritative, version: STORAGE_VERSION }),
+      );
+      window.localStorage.removeItem(legacyKey);
+      return authoritative;
+    }
+    if (isBlockingCrankAttempt(legacy)) {
+      throw new Error("conflicting crank attempts");
+    }
+    window.localStorage.removeItem(legacyKey);
+    return stored;
   } catch {
     throw new CrankAttemptError();
   }
@@ -91,7 +157,7 @@ export function isBlockingCrankAttempt(attempt: CrankAttempt | null): boolean {
 
 function isStoredCrankAttempt(
   value: unknown,
-  config: AppConfig,
+  config?: AppConfig,
 ): value is StoredCrankAttempt {
   if (typeof value !== "object" || value === null) return false;
   const attempt = value as Partial<StoredCrankAttempt>;
@@ -106,10 +172,65 @@ function isStoredCrankAttempt(
     || !validTime(attempt.createdAt)
     || !validTime(attempt.updatedAt)
     || attempt.updatedAt! < attempt.createdAt!
-    || attempt.driverAddress !== toHex0x(config.driverAddress)
+    || !HASH_PATTERN.test(String(attempt.driverAddress))
+    || (config !== undefined
+      && attempt.driverAddress !== toHex0x(config.driverAddress))
     || (attempt.message !== null && typeof attempt.message !== "string")
   ) return false;
   return attempt.status !== "committed" || attempt.transactionHash !== null;
+}
+
+export function legacyCrankAttemptKey(config: AppConfig): string {
+  return [
+    "groundhog-swap:crank:v1",
+    config.networkIdHex,
+    toHex0x(config.accountAddress),
+    toHex0x(config.pairAddress),
+  ].join(":");
+}
+
+function parseCrankAttempt(
+  value: string | null,
+  config: AppConfig,
+): CrankAttempt | null {
+  if (value === null) return null;
+  const parsed: unknown = JSON.parse(value);
+  if (!isStoredCrankAttempt(parsed, config)) throw new Error("invalid crank attempt");
+  const { version: _version, ...attempt } = parsed;
+  return attempt;
+}
+
+function mergeCrankAttempts(
+  current: CrankAttempt,
+  candidate: CrankAttempt,
+): CrankAttempt {
+  const rank = (attempt: CrankAttempt): number => ({
+    signing: 1,
+    indeterminate: 2,
+    failed: 3,
+    committed: 3,
+  })[attempt.status];
+  const winner = rank(candidate) > rank(current)
+      || (rank(candidate) === rank(current)
+        && candidate.updatedAt > current.updatedAt)
+    ? candidate
+    : current;
+  const other = winner === current ? candidate : current;
+  return {
+    ...winner,
+    transactionHash: winner.transactionHash ?? other.transactionHash,
+    createdAt: Math.min(current.createdAt, candidate.createdAt),
+    updatedAt: Math.max(current.updatedAt, candidate.updatedAt),
+  };
+}
+
+function legacyAccountCrankAttemptPrefix(config: AppConfig): string {
+  return [
+    "groundhog-swap:crank:v1",
+    config.networkIdHex,
+    toHex0x(config.accountAddress),
+    "",
+  ].join(":");
 }
 
 function isStatus(value: unknown): value is CrankAttemptStatus {

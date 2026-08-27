@@ -8,14 +8,29 @@ export interface AppConfig {
   networkIdHex: string;
   accountAddress: ContractAddress;
   routerAddress: ContractAddress;
+  factoryAddress: ContractAddress;
+  nativeHogAddress: ContractAddress;
+  poolContractFunding: bigint;
   pairAddress: ContractAddress;
+  liquidityTokenAddress: ContractAddress;
   handlerAddress: ContractAddress;
   driverAddress: ContractAddress;
   tokenAAddress: ContractAddress;
   tokenBAddress: ContractAddress;
   tokenASymbol: string;
   tokenBSymbol: string;
-  tokenDecimals: number;
+  tokenADecimals: number;
+  tokenBDecimals: number;
+}
+
+export interface GlobalConfig {
+  rpcUrl: URL;
+  networkIdHex: string;
+  accountAddress: ContractAddress;
+  routerAddress: ContractAddress;
+  factoryAddress: ContractAddress;
+  nativeHogAddress: ContractAddress;
+  poolContractFunding: bigint;
 }
 
 export type Environment = Record<string, string | boolean | undefined>;
@@ -28,6 +43,32 @@ export class ConfigurationError extends Error {
 }
 
 export function loadAppConfig(environment: Environment): AppConfig {
+  const global = loadGlobalConfig(environment);
+  const tokenAAddress = address(environment, "VITE_TOKEN_A_ADDRESS");
+  const tokenBAddress = address(environment, "VITE_TOKEN_B_ADDRESS");
+  if (sameAddress(tokenAAddress, tokenBAddress)) {
+    throw new ConfigurationError("Token A and token B addresses must differ");
+  }
+
+  return {
+    ...global,
+    pairAddress: address(environment, "VITE_SWAP_PAIR_ADDRESS"),
+    liquidityTokenAddress: address(
+      environment,
+      "VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS",
+    ),
+    handlerAddress: address(environment, "VITE_SWAP_HANDLER_ADDRESS"),
+    driverAddress: address(environment, "VITE_SWAP_DRIVER_ADDRESS"),
+    tokenAAddress,
+    tokenBAddress,
+    tokenASymbol: optional(environment, "VITE_TOKEN_A_SYMBOL", "Token A"),
+    tokenBSymbol: optional(environment, "VITE_TOKEN_B_SYMBOL", "Token B"),
+    tokenADecimals: parseDecimals(optional(environment, "VITE_TOKEN_DECIMALS", "6")),
+    tokenBDecimals: parseDecimals(optional(environment, "VITE_TOKEN_DECIMALS", "6")),
+  };
+}
+
+export function loadGlobalConfig(environment: Environment): GlobalConfig {
   const networkIdHex = required(environment, "VITE_GROUNDHOG_NETWORK_ID");
   if (!NETWORK_ID_PATTERN.test(networkIdHex)) {
     throw new ConfigurationError(
@@ -35,26 +76,15 @@ export function loadAppConfig(environment: Environment): AppConfig {
     );
   }
 
-  const tokenAAddress = address(environment, "VITE_TOKEN_A_ADDRESS");
-  const tokenBAddress = address(environment, "VITE_TOKEN_B_ADDRESS");
-  if (tokenAAddress.every((byte, index) => byte === tokenBAddress[index])) {
-    throw new ConfigurationError("Token A and token B addresses must differ");
-  }
-
   return {
     rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),
     networkIdHex: networkIdHex.replace(/^0x/, "").toLowerCase(),
     accountAddress: address(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
     routerAddress: address(environment, "VITE_SWAP_ROUTER_ADDRESS"),
-    pairAddress: address(environment, "VITE_SWAP_PAIR_ADDRESS"),
-    handlerAddress: address(environment, "VITE_SWAP_HANDLER_ADDRESS"),
-    driverAddress: address(environment, "VITE_SWAP_DRIVER_ADDRESS"),
-    tokenAAddress,
-    tokenBAddress,
-    tokenASymbol: optional(environment, "VITE_TOKEN_A_SYMBOL", "Token A"),
-    tokenBSymbol: optional(environment, "VITE_TOKEN_B_SYMBOL", "Token B"),
-    tokenDecimals: parseDecimals(
-      optional(environment, "VITE_TOKEN_DECIMALS", "6"),
+    factoryAddress: address(environment, "VITE_SWAP_FACTORY_ADDRESS"),
+    nativeHogAddress: address(environment, "VITE_NATIVE_HOG_ADDRESS"),
+    poolContractFunding: parseFunding(
+      required(environment, "VITE_POOL_CONTRACT_FUNDING"),
     ),
   };
 }
@@ -126,4 +156,21 @@ function parseDecimals(value: string): number {
     );
   }
   return decimals;
+}
+
+function parseFunding(value: string): bigint {
+  if (!/^\d+$/.test(value)) {
+    throw new ConfigurationError("VITE_POOL_CONTRACT_FUNDING must be an integer");
+  }
+  const funding = BigInt(value);
+  if (funding <= 0n || funding >= 1n << 128n) {
+    throw new ConfigurationError(
+      "VITE_POOL_CONTRACT_FUNDING must be between 1 and 2^128 - 1",
+    );
+  }
+  return funding;
+}
+
+function sameAddress(left: ContractAddress, right: ContractAddress): boolean {
+  return left.every((byte, index) => byte === right[index]);
 }

@@ -4,13 +4,15 @@ import {
   ChevronDownIcon,
   LockKeyholeIcon,
   RefreshCwIcon,
-  Settings2Icon,
 } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
 import { useEffect, useId, useReducer, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AllowanceCleanupCard } from "@/components/allowance-cleanup-card";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
+import { SlippageSettings } from "@/components/slippage-settings";
+import { useProcessingMode } from "@/components/processing-mode";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,33 +38,25 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { isLoopbackUrl, type AppConfig } from "@/config";
+import type { AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { buildProcessRequestsTarget } from "@/contracts/driver-target";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { formatAmount } from "@/domain/amount";
+import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import {
-  allowanceTargetForSwap,
   availableBalance,
   hasExecutionExposure,
   invalidateSnapshotInferenceForOverlap,
   reservedInputForToken,
 } from "@/domain/reservations";
 import { orientReserves, orderTokens } from "@/domain/tokens";
+import { AmmPage } from "@/pools/amm-page";
 import {
   deriveSwapQuote,
   formatBasisPoints,
@@ -83,9 +77,37 @@ import type {
 import { usePoolSnapshot } from "@/swap/use-pool-snapshot";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 import {
+  hasBlockingLiquidityTransaction,
+  hasLiquidityExecutionExposure,
+  isAccountLiquidityOperationKey,
+  loadAccountLiquidityOperations,
+  reservedLiquidityTokenAmount,
+  type LiquidityOperation,
+} from "@/transactions/liquidity-operation";
+import {
+  hasBlockingCreationTransaction,
+  hasCreationExecutionExposure,
+  isAccountCreationWorkflowKey,
+  loadAccountCreationWorkflows,
+  reservedCreationToken,
+  type CreationWorkflow,
+} from "@/transactions/creation-workflow";
+import {
+  allowanceCleanupKey,
+  hasBlockingAllowanceCleanup,
+} from "@/transactions/allowance-cleanup";
+import { loadRequiredAllowance } from "@/transactions/account-allowance";
+import {
+  isAccountOutstandingRequestKey,
+  outstandingRequestKey,
+} from "@/transactions/outstanding-request";
+import {
+  isAccountCrankAttemptKey,
   crankAttemptKey,
   createCrankAttempt,
   isBlockingCrankAttempt,
+  legacyCrankAttemptKey,
+  loadAccountCrankAttempts,
   loadCrankAttempt,
   saveCrankAttempt,
   type CrankAttempt,
@@ -94,6 +116,9 @@ import {
   createRequestRecord,
   dismissTerminalRequest,
   hasLegacyOutstandingRequest,
+  isAccountRequestCollectionKey,
+  legacyRequestCollectionKey,
+  loadAccountRequestRecords,
   loadRequestCollection,
   loadRequestCollectionForUpdate,
   migrateRequestCollection,
@@ -120,7 +145,6 @@ import {
 } from "@/transactions/request-observer";
 import { inferSingleExecutionFromSnapshot } from "@/transactions/execution-fallback";
 
-const SLIPPAGE_PRESETS = [10n, 50n, 100n] as const;
 const OBSERVATION_POLL_MS = 2_000;
 const POST_TIMEOUT_OBSERVATION_POLL_MS = 10_000;
 const OBSERVATION_TIMEOUT_MS = 120_000;
@@ -161,151 +185,66 @@ export function SwapPage({
           : "Pool data is unavailable.";
 
   return (
-    <div className="isolate min-h-svh text-foreground antialiased">
-      <AppHeader
-        account={config.accountAddress}
-        chainHeight={state.snapshot?.chainHeight ?? null}
-        connected={state.snapshot !== null}
-        localRpc={isLoopbackUrl(config.rpcUrl)}
-        isRefreshing={state.isRefreshing}
-        onRefresh={state.refresh}
-      />
+    <AmmPage
+      title={`Swap ${config.tokenASymbol} / ${config.tokenBSymbol}`}
+      description="Trade an exact input amount against this pool's current reserves."
+      actions={
+        <Button
+          size="sm"
+          variant="outline"
+          aria-label="Refresh pool data"
+          disabled={state.isRefreshing}
+          onClick={state.refresh}
+        >
+          {state.isRefreshing ? (
+            <Spinner data-icon="inline-start" aria-hidden="true" />
+          ) : (
+            <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
+          )}
+          Refresh
+        </Button>
+      }
+    >
       <div className="sr-only" role="status" aria-live="polite">
         {status}
       </div>
-      <main
+      <div
         aria-busy={state.isLoading || state.isRefreshing}
-        className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12"
+        className="flex flex-col gap-6"
       >
-        <div className="flex flex-col gap-6">
-          {state.isLoading && state.error === null ? <SwapSkeleton /> : null}
-          {state.snapshot === null && state.error !== null ? (
-            <ReadError
-              message={state.error}
-              isRetrying={state.isLoading}
-              onRetry={state.refresh}
-            />
-          ) : null}
-          {state.snapshot !== null ? (
-            <SwapWorkspace
-              config={config}
-              snapshot={state.snapshot}
-              refreshError={state.error}
-              isRefreshing={state.isRefreshing}
-              isUserRefreshing={state.isUserRefreshing}
-              headingRef={workspaceHeading}
-              readSnapshot={readSnapshot}
-              requestObserver={requestObserver}
-              refreshSnapshot={state.refresh}
-              writeBoundary={writeBoundary}
-            />
-          ) : null}
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function AppHeader({
-  account,
-  chainHeight,
-  connected,
-  localRpc,
-  isRefreshing,
-  onRefresh,
-}: {
-  account: Uint8Array;
-  chainHeight: bigint | null;
-  connected: boolean;
-  localRpc: boolean;
-  isRefreshing: boolean;
-  onRefresh: () => void;
-}) {
-  return (
-    <header className="border-b border-foreground/10 bg-background/90">
-      <div className="mx-auto grid min-h-16 max-w-5xl grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-4 py-2 sm:flex sm:justify-between sm:px-6 sm:py-0">
-        <a
-          href="/"
-          aria-label="Homepage"
-          className="flex min-h-11 min-w-0 items-center gap-3"
-        >
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground font-mono text-sm font-medium text-background">
-            GH
-          </div>
-          <div className="min-w-0">
-            <div className="font-heading text-base font-semibold tracking-tight">
-              Groundhog Swap
-            </div>
-            <div className="hidden font-mono text-xs text-muted-foreground sm:block">
-              {" "}
-              / local terminal
-            </div>
-          </div>
-        </a>
-        <div className="flex shrink-0 items-center gap-2">
-          <Badge variant="outline" className="hidden font-mono sm:inline-flex">
-            <span
-              aria-hidden="true"
-              className={
-                connected
-                  ? "size-1.5 rounded-full bg-local"
-                  : "size-1.5 rounded-full bg-muted-foreground"
-              }
-            />
-            {connected && chainHeight !== null
-              ? `${localRpc ? "RPC" : "REMOTE"} · block ${chainHeight}`
-              : "Connecting"}
-          </Badge>
-          <Badge
-            variant="secondary"
-            className="hidden font-mono md:inline-flex"
-          >
-            <BlockchainIdentifier
-              value={toHex0x(account)}
-              label="Wallet address"
-            />
-          </Badge>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-lg"
-            aria-label="Refresh pool data"
-            disabled={isRefreshing}
-            onClick={onRefresh}
-            className="relative"
-          >
-            {isRefreshing ? (
-              <Spinner aria-hidden="true" />
-            ) : (
-              <RefreshCwIcon aria-hidden="true" />
-            )}
-            <span
-              aria-hidden="true"
-              className="absolute top-1/2 left-1/2 size-[max(100%,3rem)] -translate-1/2 pointer-fine:hidden"
-            />
-          </Button>
-        </div>
-        <div className="col-span-2 flex items-center justify-between gap-2 sm:hidden">
-          <Badge variant="outline" className="font-mono">
-            <span
-              aria-hidden="true"
-              className={
-                connected
-                  ? "size-1.5 rounded-full bg-local"
-                  : "size-1.5 rounded-full bg-muted-foreground"
-              }
-            />
-            {connected ? (localRpc ? "Local RPC" : "Remote RPC") : "Connecting"}
-          </Badge>
-          <Badge variant="secondary" className="font-mono">
-            <BlockchainIdentifier
-              value={toHex0x(account)}
-              label="Wallet address"
-            />
-          </Badge>
-        </div>
+        {state.isLoading && state.error === null ? <SwapSkeleton /> : null}
+        {state.snapshot === null && state.error !== null ? (
+          <ReadError
+            message={state.error}
+            isRetrying={state.isLoading}
+            onRetry={state.refresh}
+          />
+        ) : null}
+        {state.snapshot === null ? (
+          <AllowanceCleanupCard
+            config={config}
+            snapshot={null}
+            readSnapshot={readSnapshot}
+            writer={writeBoundary}
+            onRefresh={state.refresh}
+          />
+        ) : null}
+        {state.snapshot !== null ? (
+          <SwapWorkspace
+            config={config}
+            snapshot={state.snapshot}
+            refreshError={state.error}
+            isRefreshing={state.isRefreshing}
+            isUserRefreshing={state.isUserRefreshing}
+            headingRef={workspaceHeading}
+            readSnapshot={readSnapshot}
+            requestObserver={requestObserver}
+            refreshSnapshot={state.refresh}
+            writeBoundary={writeBoundary}
+          />
+        ) : null}
       </div>
-    </header>
+    </AmmPage>
   );
 }
 
@@ -354,7 +293,8 @@ function SwapWorkspace({
     initialCrankState.error,
   );
   const [isCranking, setIsCranking] = useState(false);
-  const [manualProcessing, setManualProcessing] = useState(false);
+  const { mode: processingMode, setMode: setProcessingMode } = useProcessingMode();
+  const manualProcessing = processingMode === "manual";
   const [collectionReady, setCollectionReady] = useState(
     !hasLegacyOutstandingRequest(config),
   );
@@ -367,6 +307,7 @@ function SwapWorkspace({
   const [isAcquiringLock, setIsAcquiringLock] = useState(false);
   const [recoveryCheck, setRecoveryCheck] = useState(0);
   const [isCheckingRecovery, setIsCheckingRecovery] = useState(false);
+  const [, refreshAccountSafety] = useReducer((revision) => revision + 1, 0);
   const [announcementText, setAnnouncementText] = useState("");
   const [executionOutcomes, setExecutionOutcomes] =
     useState<RequestObservation[]>([]);
@@ -382,10 +323,22 @@ function SwapWorkspace({
   const amountId = useId();
   const slippageId = useId();
   const tokens = tokensForDirection(snapshot, direction);
+  const accountSafety = readAccountSafetyState(config);
   const reservedInput = reservedInputForToken(
-    requests,
+    accountSafety.requests,
+    toHex0x(tokens.input.address),
+  ) + reservedCreationToken(
+    accountSafety.creationWorkflows,
+    toHex0x(tokens.input.address),
+  ) + reservedLiquidityTokenAmount(
+    accountSafety.liquidityOperations,
     toHex0x(tokens.input.address),
   );
+  const poolReservedInput = requiredAllowanceFor({
+    requests: accountSafety.requests,
+    liquidityOperations: accountSafety.liquidityOperations,
+    creationWorkflows: accountSafety.creationWorkflows,
+  }, toHex0x(tokens.input.address), toHex0x(config.handlerAddress));
   const slippageResult = parseSlippagePercent(slippage);
   const quote = deriveSwapQuote(
     snapshot,
@@ -393,25 +346,51 @@ function SwapWorkspace({
     amount,
     slippageResult.ok ? slippageResult.basisPoints : 50n,
     reservedInput,
+    poolReservedInput,
   );
   const hasLiquidity = snapshot.reserve0 > 0n && snapshot.reserve1 > 0n;
   const quoteValid = quote.ok && slippageResult.ok;
-  const requestQueueFull = requests.filter(hasExecutionExposure).length
+  const requestQueueFull = accountSafety.requests.filter(hasExecutionExposure).length
+      + accountSafety.creationWorkflows.filter(hasCreationExecutionExposure).length
+      + accountSafety.liquidityOperations.filter(hasLiquidityExecutionExposure).length
     >= MAX_PENDING_SWAP_REQUESTS;
+  const crossPoolRequestBlocked = accountSafety.requests.some((request) =>
+    isBlockingRequest(request)
+    && request.criteria.pairAddress !== toHex0x(config.pairAddress)
+  );
+  const crossPoolCrankBlocked = accountSafety.crankAttempts.some((attempt) =>
+    isBlockingCrankAttempt(attempt)
+    && (attempt.driverAddress !== toHex0x(config.driverAddress)
+      || crankAttempt === null
+      || attempt.id !== crankAttempt.id)
+  );
+  const creationTransactionBlocked = accountSafety.creationWorkflows.some(
+    hasBlockingCreationTransaction,
+  );
+  const liquidityTransactionBlocked = accountSafety.liquidityOperations.some(
+    hasBlockingLiquidityTransaction,
+  );
   const controlsLocked =
     !collectionReady
     || requestStorageError !== null
+    || accountSafety.error !== null
     || (!manualProcessing && crankStorageError !== null)
     || isAcquiringLock
     || isWorkflowLocked(workflow)
-    || requests.some(isBlockingRequest)
-    || (!manualProcessing && isBlockingCrankAttempt(crankAttempt));
+    || accountSafety.requests.some(isBlockingRequest)
+    || accountSafety.crankAttempts.some(isBlockingCrankAttempt)
+    || accountSafety.allowanceCleanupBlocked
+    || creationTransactionBlocked
+    || liquidityTransactionBlocked;
   const modeLocked = isAcquiringLock
     || isCranking
     || isCheckingRecovery
     || ["approving", "submitting", "indeterminate"].includes(workflow.status)
-    || isBlockingCrankAttempt(crankAttempt)
-    || requests.some((request) =>
+    || accountSafety.crankAttempts.some(isBlockingCrankAttempt)
+    || accountSafety.allowanceCleanupBlocked
+    || creationTransactionBlocked
+    || liquidityTransactionBlocked
+    || accountSafety.requests.some((request) =>
       request.status === "approving"
       || request.status === "submitting"
       || request.status === "indeterminate"
@@ -419,7 +398,7 @@ function SwapWorkspace({
   const crankRecoveryDisabled = isAcquiringLock
     || isCheckingRecovery
     || ["approving", "submitting"].includes(workflow.status)
-    || requests.some((request) =>
+    || accountSafety.requests.some((request) =>
       request.status === "approving" || request.status === "submitting"
     );
   const formOutstanding = outstanding !== null && isBlockingRequest(outstanding)
@@ -499,6 +478,16 @@ function SwapWorkspace({
   useEffect(() => {
     const key = requestCollectionKey(config);
     const reload = (event: StorageEvent) => {
+      if (
+        event.key === null
+        || isAccountRequestCollectionKey(config, event.key)
+        || isAccountOutstandingRequestKey(config, event.key)
+        || isAccountCreationWorkflowKey(config, event.key)
+        || isAccountLiquidityOperationKey(config, event.key)
+        || event.key === allowanceCleanupKey(config)
+      ) {
+        refreshAccountSafety();
+      }
       if (event.key === key) {
         try {
           const loaded = loadRequestCollection(config);
@@ -517,6 +506,27 @@ function SwapWorkspace({
             "Stored request history changed but could not be loaded safely.",
           );
         }
+      } else if (
+        event.key === null
+        || event.key === legacyRequestCollectionKey(config)
+        || event.key === outstandingRequestKey(config)
+      ) {
+        void migrateRequestCollection(config).then(
+          (loaded) => {
+            setRequestStorageError(null);
+            setRequests(loaded);
+            if (!actionInFlight.current) {
+              const recovery = selectRecoveryRequest(loaded);
+              setOutstanding(recovery ?? selectDisplayRequest(loaded));
+              setIsRecoveryRecord(recovery !== null);
+            }
+          },
+          () => {
+            setRequestStorageError(
+              "Stored request history changed but could not be migrated safely.",
+            );
+          },
+        );
       }
     };
     window.addEventListener("storage", reload);
@@ -526,7 +536,14 @@ function SwapWorkspace({
   useEffect(() => {
     const key = crankAttemptKey(config);
     const reload = (event: StorageEvent) => {
-      if (event.key !== key) return;
+      if (event.key === null || isAccountCrankAttemptKey(config, event.key)) {
+        refreshAccountSafety();
+      }
+      if (
+        event.key !== null
+        && event.key !== key
+        && event.key !== legacyCrankAttemptKey(config)
+      ) return;
       try {
         setCrankAttempt(loadCrankAttempt(config));
         setCrankStorageError(null);
@@ -964,24 +981,34 @@ function SwapWorkspace({
     try {
       await withRequestCollectionLock(config, async () => {
         let current = loadRequestCollectionForUpdate(config);
+        const accountRequests = loadAccountRequestRecords(config);
+        const accountCrankAttempts = loadAccountCrankAttempts(config);
+        const creationWorkflows = loadAccountCreationWorkflows(config);
+        const liquidityOperations = loadAccountLiquidityOperations(config);
         const expectedCrankAttempt = loadCrankAttempt(config);
         if (
-          automaticProcessing
-          && isBlockingCrankAttempt(expectedCrankAttempt)
+          accountCrankAttempts.some(isBlockingCrankAttempt)
+          || hasBlockingAllowanceCleanup(config)
+          || creationWorkflows.some(hasBlockingCreationTransaction)
+          || liquidityOperations.some(hasBlockingLiquidityTransaction)
         ) {
           setRequests(current);
           setCrankAttempt(expectedCrankAttempt);
           return;
         }
-        const blocking = current.find(isBlockingRequest);
+        const blocking = accountRequests.find(isBlockingRequest);
         if (blocking !== undefined) {
           setRequests(current);
-          setOutstanding(blocking);
-          setIsRecoveryRecord(true);
+          if (blocking.criteria.pairAddress === toHex0x(config.pairAddress)) {
+            setOutstanding(blocking);
+            setIsRecoveryRecord(true);
+          }
           return;
         }
         if (
-          current.filter(hasExecutionExposure).length
+          accountRequests.filter(hasExecutionExposure).length
+              + creationWorkflows.filter(hasCreationExecutionExposure).length
+              + liquidityOperations.filter(hasLiquidityExecutionExposure).length
             >= MAX_PENDING_SWAP_REQUESTS
         ) {
           setRequests(current);
@@ -991,13 +1018,21 @@ function SwapWorkspace({
         const initialSnapshot = await readSnapshot();
         const initialTokens = tokensForDirection(initialSnapshot, direction);
         const tokenIn = toHex0x(initialTokens.input.address);
-        const initialReserved = reservedInputForToken(current, tokenIn);
+        const initialReserved = reservedInputForToken(accountRequests, tokenIn)
+          + reservedCreationToken(creationWorkflows, tokenIn)
+          + reservedLiquidityTokenAmount(liquidityOperations, tokenIn);
+        const initialPoolReserved = requiredAllowanceFor({
+          requests: accountRequests,
+          liquidityOperations,
+          creationWorkflows,
+        }, tokenIn, toHex0x(config.handlerAddress));
         const initialQuote = deriveSwapQuote(
           initialSnapshot,
           direction,
           amount,
           slippageResult.basisPoints,
           initialReserved,
+          initialPoolReserved,
         );
         if (
           !initialQuote.ok
@@ -1137,16 +1172,34 @@ function SwapWorkspace({
         }
 
         current = loadRequestCollection(config);
+        const submissionAccountRequests = loadAccountRequestRecords(config);
+        const submissionCreationWorkflows = loadAccountCreationWorkflows(config);
+        const submissionLiquidityOperations = loadAccountLiquidityOperations(config);
         const submissionSnapshot = await readSnapshot();
         const submissionTokens = tokensForDirection(submissionSnapshot, direction);
         const submissionTokenIn = toHex0x(submissionTokens.input.address);
-        const submissionReserved = reservedInputForToken(current, submissionTokenIn);
+        const submissionReserved = reservedInputForToken(
+          submissionAccountRequests,
+          submissionTokenIn,
+        ) + reservedCreationToken(
+          submissionCreationWorkflows,
+          submissionTokenIn,
+        ) + reservedLiquidityTokenAmount(
+          submissionLiquidityOperations,
+          submissionTokenIn,
+        );
+        const submissionPoolReserved = requiredAllowanceFor({
+          requests: submissionAccountRequests,
+          liquidityOperations: submissionLiquidityOperations,
+          creationWorkflows: submissionCreationWorkflows,
+        }, submissionTokenIn, toHex0x(config.handlerAddress));
         const freshQuote = deriveSwapQuote(
           submissionSnapshot,
           direction,
           amount,
           slippageResult.basisPoints,
           submissionReserved,
+          submissionPoolReserved,
         );
         if (
           !freshQuote.ok
@@ -1455,6 +1508,8 @@ function SwapWorkspace({
     expectedAttempt: CrankAttempt | null,
   ): Promise<void> {
     const current = loadRequestCollectionForUpdate(config);
+    const accountRequests = loadAccountRequestRecords(config);
+    const accountCrankAttempts = loadAccountCrankAttempts(config);
     const storedAttempt = loadCrankAttempt(config);
     if (!sameCrankAttempt(storedAttempt, expectedAttempt)) {
       if (workspaceMounted.current) {
@@ -1464,8 +1519,9 @@ function SwapWorkspace({
       return;
     }
     if (
-      isBlockingCrankAttempt(storedAttempt)
-      || current.some(isBlockingRequest)
+      accountCrankAttempts.some(isBlockingCrankAttempt)
+      || accountRequests.some(isBlockingRequest)
+      || hasBlockingAllowanceCleanup(config)
       || !current.some(needsQueueProcessing)
     ) return;
 
@@ -1605,7 +1661,7 @@ function SwapWorkspace({
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="w-full">
       <div
         aria-atomic="true"
         aria-label="Transaction status"
@@ -1639,16 +1695,34 @@ function SwapWorkspace({
             <AlertDescription>{crankStorageError}</AlertDescription>
           </Alert>
         ) : null}
+        {accountSafety.error !== null ? (
+          <Alert variant="destructive">
+            <AlertCircleIcon aria-hidden="true" />
+            <AlertTitle>Account transaction state unavailable</AlertTitle>
+            <AlertDescription>{accountSafety.error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {crossPoolRequestBlocked || crossPoolCrankBlocked
+            || creationTransactionBlocked || liquidityTransactionBlocked ? (
+          <Alert>
+            <LockKeyholeIcon aria-hidden="true" />
+            <AlertTitle>Another pool needs attention</AlertTitle>
+            <AlertDescription>
+              Resolve its pending transaction before signing from this account.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <Card className="shadow-xl shadow-foreground/5 ring-foreground/10 [--card-spacing:--spacing(5)] sm:[--card-spacing:--spacing(6)]">
           <CardHeader>
             <CardTitle asChild>
-              <h1
+              <h2
                 ref={headingRef}
+                data-swap-workspace-heading
                 tabIndex={-1}
                 className="text-xl font-semibold tracking-tight focus:outline-none"
               >
                 Swap preview
-              </h1>
+              </h2>
             </CardTitle>
             <CardDescription>
               Exact-input quote from the configured pool.
@@ -1777,7 +1851,8 @@ function SwapWorkspace({
             aria-label="Manual queue processing"
             checked={manualProcessing}
             disabled={modeLocked}
-            onCheckedChange={setManualProcessing}
+            onCheckedChange={(manual) =>
+              setProcessingMode(manual ? "manual" : "automatic")}
           />
         </Field>
         <RequestList
@@ -1799,7 +1874,14 @@ function SwapWorkspace({
           onCheckRecovery={() => setRecoveryCheck((current) => current + 1)}
           onConfirmRecovery={confirmPreHashRecovery}
           onResolveUntracked={resolveUntrackedRequest}
-          onShowManual={() => setManualProcessing(true)}
+          onShowManual={() => setProcessingMode("manual")}
+        />
+        <AllowanceCleanupCard
+          config={config}
+          snapshot={snapshot}
+          readSnapshot={readSnapshot}
+          writer={writeBoundary}
+          onRefresh={refreshSnapshot}
         />
       </div>
     </div>
@@ -1923,115 +2005,6 @@ function TokenChip({ token }: { token: TokenSnapshot }) {
     >
       {token.symbol}
     </Badge>
-  );
-}
-
-function SlippageSettings({
-  id,
-  value,
-  onChange,
-  result,
-  disabled,
-}: {
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
-  result: ReturnType<typeof parseSlippagePercent>;
-  disabled: boolean;
-}) {
-  const selectedPreset = result.ok
-    ? SLIPPAGE_PRESETS.find(
-        (preset) => preset === result.basisPoints,
-      )?.toString()
-    : undefined;
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          className="relative font-mono"
-        >
-          <Settings2Icon data-icon="inline-start" />
-          {result.ok ? `${formatBasisPoints(result.basisPoints)}%` : "Slippage"}
-          <span
-            aria-hidden="true"
-            className="absolute top-1/2 left-1/2 size-[max(100%,3rem)] -translate-1/2 pointer-fine:hidden"
-          />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        aria-labelledby={`${id}-title`}
-        className="w-[calc(100vw-2rem)] max-w-80 gap-4 p-4"
-      >
-        <PopoverHeader>
-          <PopoverTitle id={`${id}-title`}>Slippage tolerance</PopoverTitle>
-          <PopoverDescription className="text-base sm:text-sm">
-            Set the minimum acceptable output for this preview.
-          </PopoverDescription>
-        </PopoverHeader>
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          value={selectedPreset ?? ""}
-          onValueChange={(next) => {
-            if (next !== "") onChange(formatBasisPoints(BigInt(next)));
-          }}
-          className="grid w-full grid-cols-3"
-        >
-          {SLIPPAGE_PRESETS.map((preset) => (
-            <ToggleGroupItem
-              key={preset.toString()}
-              value={preset.toString()}
-              disabled={disabled}
-              className="min-h-12 w-full font-mono sm:min-h-9"
-            >
-              {formatBasisPoints(preset)}%
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-        <Field data-invalid={!result.ok} className="gap-2">
-          <FieldLabel htmlFor={id}>Custom percentage</FieldLabel>
-          <div className="relative">
-            <Input
-              id={id}
-              name="slippage"
-              type="text"
-              inputMode="decimal"
-              autoComplete="off"
-              aria-invalid={!result.ok}
-              aria-describedby={!result.ok ? `${id}-error` : undefined}
-              value={value}
-              disabled={disabled}
-              onChange={(event) => onChange(event.target.value)}
-              className="h-12 pr-9 font-mono tabular-nums sm:h-9"
-            />
-            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">
-              %
-            </span>
-          </div>
-          {!result.ok ? (
-            <FieldError id={`${id}-error`}>
-              Enter more than 0% and no more than 50%, using at most two
-              decimals.
-            </FieldError>
-          ) : null}
-        </Field>
-        {result.ok && result.basisPoints > 500n ? (
-          <Alert variant="destructive">
-            <AlertCircleIcon aria-hidden="true" />
-            <AlertTitle>High slippage</AlertTitle>
-            <AlertDescription>
-              More than 5% can produce a materially worse execution price.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-      </PopoverContent>
-    </Popover>
   );
 }
 
@@ -2447,6 +2420,36 @@ function readInitialCrankState(config: AppConfig): {
   }
 }
 
+function readAccountSafetyState(config: AppConfig): {
+  requests: RequestRecord[];
+  crankAttempts: CrankAttempt[];
+  creationWorkflows: CreationWorkflow[];
+  liquidityOperations: LiquidityOperation[];
+  allowanceCleanupBlocked: boolean;
+  error: string | null;
+} {
+  try {
+    return {
+      requests: loadAccountRequestRecords(config),
+      crankAttempts: loadAccountCrankAttempts(config),
+      creationWorkflows: loadAccountCreationWorkflows(config),
+      liquidityOperations: loadAccountLiquidityOperations(config),
+      allowanceCleanupBlocked: hasBlockingAllowanceCleanup(config),
+      error: null,
+    };
+  } catch {
+    return {
+      requests: [],
+      crankAttempts: [],
+      creationWorkflows: [],
+      liquidityOperations: [],
+      allowanceCleanupBlocked: false,
+      error:
+        "Stored account transaction state could not be loaded safely. Clear this site's local data before signing another transaction.",
+    };
+  }
+}
+
 function sameCrankAttempt(
   current: CrankAttempt | null,
   expected: CrankAttempt | null,
@@ -2653,7 +2656,11 @@ async function observeAggregateAllowance(
         }
       }
       const snapshot = await readSnapshot();
-      const target = allowanceTargetForSwap(current, tokenIn, amountIn);
+      const target = loadRequiredAllowance(
+        config,
+        tokenIn,
+        toHex0x(config.handlerAddress),
+      ) + amountIn;
       const inputToken = tokenIn === toHex0x(snapshot.tokenA.address)
         ? snapshot.tokenA
         : tokenIn === toHex0x(snapshot.tokenB.address)

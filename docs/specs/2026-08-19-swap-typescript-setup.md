@@ -10,6 +10,8 @@ Replace the Rust/Testkit setup program with a small application-local TypeScript
 
 Contract behavior belongs in contract and live integration tests. Setup does not perform verification swaps or duplicate client validation.
 
+The AMM frontend and [Local Wallet Personas](./2026-08-22-local-wallet-personas.md) specifications supersede this document's singular application account and fixed provisioning details. The current setup uses Alice, Bob, and Carol, distributes three example tokens, and gives Alice the seeded pool's initial LP position while preserving the transaction and generated-file boundaries defined here.
+
 ## Toolchain
 
 Use these exact package versions:
@@ -21,7 +23,7 @@ Use these exact package versions:
 - `tsx` 4.22.4
 - `smol-toml` 1.8.0
 
-Also require Node.js 22.12 or newer, Groundhog CLI 0.9.6 or newer, and a node serving RPC wire format 3.0.0.
+Also require Node.js 22.12 or newer, Groundhog CLI 0.9.6 or newer, and a node serving a stable RPC wire format in the compatible range `>=3.0.0 <4.0.0`.
 
 ## Boundaries
 
@@ -103,7 +105,7 @@ The browser private key is:
 SHA-256("<bootstrap seed>:account-<application-user index>")
 ```
 
-Setup loads the six fixed `.rv32a` artifacts from `SWAP_ARTIFACT_ROOT` and requires RPC wire format 3.0.0.
+Setup loads the six fixed `.rv32a` artifacts from `SWAP_ARTIFACT_ROOT` and requires a stable RPC wire format in the compatible range `>=3.0.0 <4.0.0`.
 
 ## Transaction Boundary
 

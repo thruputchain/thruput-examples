@@ -2,6 +2,7 @@ import { contractAddress, ExecResult, sha256Hash } from "@groundhogchain/protoco
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "@/app";
@@ -38,14 +39,19 @@ const config: AppConfig = {
   networkIdHex: "00".repeat(32),
   accountAddress: address(9),
   routerAddress: address(8),
+  factoryAddress: address(10),
+  nativeHogAddress: address(11),
+  poolContractFunding: 10_000_000n,
   pairAddress: address(7),
+  liquidityTokenAddress: address(12),
   handlerAddress: address(6),
   driverAddress: address(5),
   tokenAAddress: address(1),
   tokenBAddress: address(2),
   tokenASymbol: "gUSD",
   tokenBSymbol: "gEUR",
-  tokenDecimals: 6,
+  tokenADecimals: 6,
+  tokenBDecimals: 6,
 };
 
 beforeEach(() => window.localStorage.clear());
@@ -71,6 +77,12 @@ function pool(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
     reserve0: 1_000_000_000n,
     reserve1: 2_000_000_000n,
     reserveTimestamp: 1n,
+    liquidityTotalSupply: 1_000_000_000n,
+    liquidityBalance: 100_000_000n,
+    liquidityAllowance: 0n,
+    liquidityTokenSymbol: "LP",
+    liquidityTokenDecimals: 6,
+    feeTo: null,
     chainHeight: 7n,
     readAt: 1,
     ...overrides,
@@ -85,12 +97,14 @@ function renderApp(
   },
 ) {
   return render(
-    <App
-      config={config}
-      readSnapshot={readSnapshot}
-      requestObserver={requestObserver}
-      {...(writeBoundary === undefined ? {} : { writeBoundary })}
-    />,
+    <MemoryRouter>
+      <App
+        config={config}
+        readSnapshot={readSnapshot}
+        requestObserver={requestObserver}
+        {...(writeBoundary === undefined ? {} : { writeBoundary })}
+      />
+    </MemoryRouter>,
   );
 }
 
@@ -288,7 +302,10 @@ describe("read-only swap experience", () => {
       .mockResolvedValueOnce(pool({ chainHeight: 9n }));
     renderApp(read);
 
-    await user.click(screen.getByRole("button", { name: "Refresh pool data" }));
+    await user.click(
+      within(screen.getByRole("navigation", { name: "Main navigation" }))
+        .getByRole("button", { name: "Refresh pool data" }),
+    );
     expect((await screen.findAllByText(/block 9/)).length).toBeGreaterThan(0);
     await act(async () => resolveFirst?.(pool({ chainHeight: 8n })));
     await waitFor(() =>
@@ -790,13 +807,9 @@ describe("local swap submission", () => {
     });
   });
 
-  it("disables crank recovery during a pending submission", async () => {
+  it("blocks manual submission while crank recovery is pending", async () => {
     const user = userEvent.setup();
     saveRequestCollection(config, [queuedRequest("queued-request", 0xcd)]);
-    let resolveWrite!: (result: WriteResult) => void;
-    const pending = new Promise<WriteResult>((resolve) => {
-      resolveWrite = resolve;
-    });
     const snapshot = pool({
       tokenA: {
         ...pool().tokenA,
@@ -805,11 +818,12 @@ describe("local swap submission", () => {
       },
     });
     const writer: WriteBoundary = {
-      execute: vi.fn().mockReturnValue(pending),
+      execute: vi.fn(),
       observe: vi.fn(),
     };
     renderApp(async () => snapshot, writer);
     await enableManualProcessing();
+    await user.type(await screen.findByLabelText("YOU PAY"), "1");
     saveCrankAttempt(config, {
       ...createCrankAttempt(config),
       status: "indeterminate",
@@ -824,20 +838,9 @@ describe("local swap submission", () => {
     expect(
       await screen.findByRole("button", { name: "Check crank status" }),
     ).toBeEnabled();
-
-    await user.type(screen.getByLabelText("YOU PAY"), "1");
-    await user.click(screen.getByRole("button", { name: "Swap" }));
-
-    expect(
-      await screen.findByRole("button", { name: "Submitting swap" }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Check crank status" }),
-    ).toBeDisabled();
-
-    await act(async () => {
-      resolveWrite({ kind: "invalid", hash, reason: "expired" });
-    });
+    expect(screen.getByLabelText("YOU PAY")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Swap" })).toBeDisabled();
+    expect(writer.execute).not.toHaveBeenCalled();
   });
 
   it("preserves an uncertain crank and checks its original hash explicitly", async () => {
@@ -1031,6 +1034,18 @@ describe("local swap submission", () => {
       result.receipt.events = [];
       resolveCrank(result);
     });
+
+    await waitFor(() => expect(loadCrankAttempt(config)?.status).toBe("committed"));
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", {
+        key: crankAttemptKey(config),
+      }));
+    });
+    const swap = secondView.getByRole("button", {
+      name: /^(?:Approve & swap|Swap)$/,
+    });
+    await waitFor(() => expect(swap).toBeEnabled());
+    await user.click(swap);
 
     await waitFor(() => {
       expect(vi.mocked(writer.execute).mock.calls.length).toBeGreaterThan(1);
@@ -2352,7 +2367,7 @@ describe("local swap submission", () => {
     await user.click(secondView.getByRole("button", { name: "Swap" }));
     expect(secondView.getByLabelText("YOU PAY")).toBeDisabled();
     expect(
-      secondView.getByRole("button", { name: "Submitting swap" }),
+      secondView.getByRole("button", { name: "Approving swap" }),
     ).toBeDisabled();
 
     await act(async () => resolveWrite?.(committedSuccess(12n)));

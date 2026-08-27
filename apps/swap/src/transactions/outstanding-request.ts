@@ -36,6 +36,28 @@ export interface OutstandingRequest {
   };
 }
 
+type StoredOutstandingRequest = {
+  status: OutstandingRequest["status"];
+  phase: OutstandingRequest["phase"];
+  amountIn: string;
+  amountOutMin: string;
+  transactionHash: string | null;
+  receiptBlock: string | null;
+  requestId?: string | null;
+  visibleObservationMs?: number;
+  observationBaseline?: {
+    chainHeight: string;
+    inputBalance: string;
+    outputBalance: string;
+    inputAllowance: string;
+    reserveIn: string;
+    reserveOut: string;
+  } | null;
+  criteria: Omit<OutstandingRequest["criteria"], "driverAddress"> & {
+    driverAddress?: string;
+  };
+};
+
 export function outstandingRequestKey(config: AppConfig): string {
   return [
     "groundhog-swap:outstanding:v1",
@@ -43,6 +65,35 @@ export function outstandingRequestKey(config: AppConfig): string {
     toHex0x(config.accountAddress),
     toHex0x(config.pairAddress),
   ].join(":");
+}
+
+export function isAccountOutstandingRequestKey(
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  key: string | null,
+): boolean {
+  return key?.startsWith(accountOutstandingRequestPrefix(config)) ?? false;
+}
+
+export function loadAccountOutstandingRequests(
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+): OutstandingRequest[] {
+  if (typeof window === "undefined") return [];
+  const requests: OutstandingRequest[] = [];
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (key === null || !isAccountOutstandingRequestKey(config, key)) continue;
+    const stored = window.localStorage.getItem(key);
+    if (stored === null) continue;
+    const value: unknown = JSON.parse(stored);
+    if (
+      !isStoredRequest(value)
+      || value.criteria.recipient !== toHex0x(config.accountAddress)
+    ) {
+      throw new Error("Stored account request state is invalid");
+    }
+    requests.push(fromStoredRequest(value, value.criteria.pairAddress));
+  }
+  return requests;
 }
 
 export function loadOutstandingRequest(
@@ -61,37 +112,7 @@ export function loadOutstandingRequest(
     ) {
       throw new Error("invalid outstanding request");
     }
-    return {
-      status: value.status === "queued" && value.requestId == null
-        ? "queuedUntracked"
-        : value.status,
-      phase: value.phase,
-      intent: {
-        amountIn: BigInt(value.amountIn),
-        amountOutMin: BigInt(value.amountOutMin),
-      },
-      transactionHash: value.transactionHash,
-      receiptBlock:
-        value.receiptBlock === null ? null : BigInt(value.receiptBlock),
-      requestId: value.requestId ?? null,
-      visibleObservationMs: value.visibleObservationMs ?? 0,
-      observationBaseline: value.observationBaseline === undefined
-        || value.observationBaseline === null
-        ? null
-        : {
-            chainHeight: BigInt(value.observationBaseline.chainHeight),
-            inputBalance: BigInt(value.observationBaseline.inputBalance),
-            outputBalance: BigInt(value.observationBaseline.outputBalance),
-            inputAllowance: BigInt(value.observationBaseline.inputAllowance),
-            reserveIn: BigInt(value.observationBaseline.reserveIn),
-            reserveOut: BigInt(value.observationBaseline.reserveOut),
-          },
-      criteria: {
-        ...value.criteria,
-        driverAddress:
-          value.criteria.driverAddress ?? toHex0x(config.driverAddress),
-      },
-    };
+    return fromStoredRequest(value, toHex0x(config.driverAddress));
   } catch {
     window.localStorage.removeItem(key);
     return null;
@@ -131,7 +152,7 @@ export function clearOutstandingRequest(config: AppConfig): void {
 }
 
 export async function withOutstandingRequestLock<T>(
-  config: AppConfig,
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
   action: () => Promise<T>,
 ): Promise<T> {
   if (typeof window === "undefined" || window.navigator.locks === undefined) {
@@ -144,31 +165,62 @@ export async function withOutstandingRequestLock<T>(
   );
 }
 
-function requestLockName(config: AppConfig): string {
-  return `${outstandingRequestKey(config)}:lock`;
+function requestLockName(
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+): string {
+  return [
+    "groundhog-swap:account-lock:v1",
+    config.networkIdHex,
+    toHex0x(config.accountAddress),
+  ].join(":");
 }
 
-function isStoredRequest(value: unknown): value is {
-  status: OutstandingRequest["status"];
-  phase: OutstandingRequest["phase"];
-  amountIn: string;
-  amountOutMin: string;
-  transactionHash: string | null;
-  receiptBlock: string | null;
-  requestId?: string | null;
-  visibleObservationMs?: number;
-  observationBaseline?: {
-    chainHeight: string;
-    inputBalance: string;
-    outputBalance: string;
-    inputAllowance: string;
-    reserveIn: string;
-    reserveOut: string;
-  } | null;
-  criteria: Omit<OutstandingRequest["criteria"], "driverAddress"> & {
-    driverAddress?: string;
+function accountOutstandingRequestPrefix(
+  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+): string {
+  return [
+    "groundhog-swap:outstanding:v1",
+    config.networkIdHex,
+    toHex0x(config.accountAddress),
+    "",
+  ].join(":");
+}
+
+function fromStoredRequest(
+  value: StoredOutstandingRequest,
+  fallbackDriverAddress: string,
+): OutstandingRequest {
+  return {
+    status: value.status === "queued" && value.requestId == null
+      ? "queuedUntracked"
+      : value.status,
+    phase: value.phase,
+    intent: {
+      amountIn: BigInt(value.amountIn),
+      amountOutMin: BigInt(value.amountOutMin),
+    },
+    transactionHash: value.transactionHash,
+    receiptBlock: value.receiptBlock === null ? null : BigInt(value.receiptBlock),
+    requestId: value.requestId ?? null,
+    visibleObservationMs: value.visibleObservationMs ?? 0,
+    observationBaseline: value.observationBaseline == null
+      ? null
+      : {
+          chainHeight: BigInt(value.observationBaseline.chainHeight),
+          inputBalance: BigInt(value.observationBaseline.inputBalance),
+          outputBalance: BigInt(value.observationBaseline.outputBalance),
+          inputAllowance: BigInt(value.observationBaseline.inputAllowance),
+          reserveIn: BigInt(value.observationBaseline.reserveIn),
+          reserveOut: BigInt(value.observationBaseline.reserveOut),
+        },
+    criteria: {
+      ...value.criteria,
+      driverAddress: value.criteria.driverAddress ?? fallbackDriverAddress,
+    },
   };
-} {
+}
+
+function isStoredRequest(value: unknown): value is StoredOutstandingRequest {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }

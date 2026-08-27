@@ -15,6 +15,7 @@ import {
   codec,
   contractEntrypointID,
   gasAmount,
+  networkHash,
   sha256Hash,
   weight,
   type ContractAddress,
@@ -25,7 +26,7 @@ import {
 import { sha256 } from "@noble/hashes/sha2.js";
 import { CxsWriter, serialize } from "@groundhogchain/xdr";
 
-import type { AppConfig } from "@/config";
+import type { GlobalConfig } from "@/config";
 import { createReadClient } from "@/groundhog/client";
 import {
   outcomeFromReceipt,
@@ -53,19 +54,20 @@ export interface LocalWalletConfiguration {
 }
 
 export function createBrowserLocalWriteBoundary(
-  config: AppConfig,
+  config: Pick<GlobalConfig, "rpcUrl" | "networkIdHex" | "accountAddress">,
+  privateKeyHex: string | undefined,
 ): WriteBoundary {
   return createLocalWriteBoundary(
     config,
     {
-      privateKeyHex: import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY,
+      privateKeyHex: privateKeyHex ?? "",
       walletEntrypointHex: import.meta.env.VITE_GROUNDHOG_WALLET_ENTRYPOINT,
     },
   );
 }
 
 export function createLocalWriteBoundary(
-  config: AppConfig,
+  config: Pick<GlobalConfig, "rpcUrl" | "networkIdHex" | "accountAddress">,
   wallet: LocalWalletConfiguration,
   options: LocalWalletOptions = {},
 ): WriteBoundary {
@@ -117,9 +119,11 @@ export function createLocalWriteBoundary(
             },
           },
         });
-        signedTransaction = await signTransaction(transaction, [
-          { signer, publicKeyId: 0n },
-        ]);
+        signedTransaction = await signTransaction(
+          transaction,
+          [{ signer, publicKeyId: 0n }],
+          networkHash(sha256Hash(fromHex0x(`0x${config.networkIdHex}`))),
+        );
         hash = toHex0x(canonicalTransactionHash(transaction));
         observer?.onSigned(hash);
       } catch (error) {

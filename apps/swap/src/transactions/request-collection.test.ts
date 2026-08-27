@@ -6,6 +6,7 @@ import { saveOutstandingRequest } from "@/transactions/outstanding-request";
 import {
   createRequestRecord,
   dismissTerminalRequest,
+  loadAccountRequestRecords,
   loadRequestCollection,
   migrateRequestCollection,
   mutateRequestCollection,
@@ -21,6 +22,7 @@ const hash = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32
 const config = {
   networkIdHex: "00".repeat(32),
   accountAddress: address(1),
+  factoryAddress: address(7),
   pairAddress: address(2),
   handlerAddress: address(3),
   tokenAAddress: address(4),
@@ -55,6 +57,184 @@ describe("request collection", () => {
     saveRequestCollection(config, [queued, executed]);
 
     expect(loadRequestCollection(config)).toEqual([queued, executed]);
+  });
+
+  it("aggregates requests across pools and factories for the account", () => {
+    const otherPool = {
+      ...config,
+      factoryAddress: address(8),
+      pairAddress: address(9),
+      handlerAddress: address(10),
+      driverAddress: address(11),
+    };
+    const otherRequest = {
+      ...request("other-pool", "queued", 2),
+      criteria: {
+        ...criteria,
+        pairAddress: hash(9),
+        handlerAddress: hash(10),
+        driverAddress: hash(11),
+      },
+    };
+    saveRequestCollection(config, [request("current-pool", "queued", 1)]);
+    saveRequestCollection(otherPool, [otherRequest]);
+
+    expect(loadAccountRequestRecords(config).map(({ localId }) => localId)).toEqual([
+      "current-pool",
+      "other-pool",
+    ]);
+  });
+
+  it("uses one lock across pools for the same network and account", async () => {
+    const names: string[] = [];
+    const originalLocks = window.navigator.locks;
+    Object.defineProperty(window.navigator, "locks", {
+      configurable: true,
+      value: {
+        request: async <T>(
+          name: string,
+          _options: LockOptions,
+          callback: () => Promise<T> | T,
+        ) => {
+          names.push(name);
+          return await callback();
+        },
+      },
+    });
+    try {
+      await mutateRequestCollection(config, (current) => current);
+      await mutateRequestCollection(
+        {
+          ...config,
+          factoryAddress: address(8),
+          pairAddress: address(9),
+          driverAddress: address(11),
+        },
+        (current) => current,
+      );
+    } finally {
+      Object.defineProperty(window.navigator, "locks", {
+        configurable: true,
+        value: originalLocks,
+      });
+    }
+
+    expect(names).toHaveLength(2);
+    expect(new Set(names).size).toBe(1);
+  });
+
+  it("migrates the pair-scoped v2 collection", async () => {
+    const stored = {
+      version: 2,
+      requests: [toStoredTestRequest(request("legacy-v2", "queued", 1))],
+    };
+    const legacyKey = [
+      "groundhog-swap:requests:v2",
+      config.networkIdHex,
+      hash(1),
+      hash(2),
+    ].join(":");
+    window.localStorage.setItem(legacyKey, JSON.stringify(stored));
+
+    expect((await migrateRequestCollection(config))[0]?.localId).toBe("legacy-v2");
+    expect(window.localStorage.getItem(legacyKey)).toBeNull();
+    expect(window.localStorage.getItem(requestCollectionKey(config))).not.toBeNull();
+  });
+
+  it("merges v2 records written after a v3 collection exists", async () => {
+    const current = request("current-v3", "queued", 1);
+    const legacy = request("late-v2", "queued", 2);
+    saveRequestCollection(config, [current]);
+    const legacyKey = [
+      "groundhog-swap:requests:v2",
+      config.networkIdHex,
+      hash(1),
+      hash(2),
+    ].join(":");
+    window.localStorage.setItem(
+      legacyKey,
+      JSON.stringify({ version: 2, requests: [toStoredTestRequest(legacy)] }),
+    );
+
+    const migrated = await migrateRequestCollection(config);
+
+    expect(migrated.map(({ localId }) => localId)).toEqual([
+      "current-v3",
+      "late-v2",
+    ]);
+    expect(migrated.every(({ snapshotInferenceEligible }) =>
+      !snapshotInferenceEligible
+    )).toBe(true);
+    expect(window.localStorage.getItem(legacyKey)).toBeNull();
+  });
+
+  it("keeps the authoritative update when v2 advances an existing request", async () => {
+    const submitting = createRequestRecord(
+      {
+        status: "submitting",
+        phase: "swap",
+        intent: { amountIn: 10n, amountOutMin: 9n },
+        transactionHash: null,
+        receiptBlock: null,
+        requestId: null,
+        visibleObservationMs: 0,
+        observationBaseline: null,
+        criteria,
+      },
+      { localId: "shared-request", now: 1 },
+    );
+    const queued = request("shared-request", "queued", 2);
+    saveRequestCollection(config, [submitting]);
+    const legacyKey = [
+      "groundhog-swap:requests:v2",
+      config.networkIdHex,
+      hash(1),
+      hash(2),
+    ].join(":");
+    window.localStorage.setItem(
+      legacyKey,
+      JSON.stringify({ version: 2, requests: [toStoredTestRequest(queued)] }),
+    );
+
+    expect((await migrateRequestCollection(config))[0]).toMatchObject({
+      localId: "shared-request",
+      status: "queued",
+      transactionHash: queued.transactionHash,
+      requestId: queued.requestId,
+    });
+  });
+
+  it("includes singleton records from other pools in account exposure", () => {
+    const otherPool = {
+      ...config,
+      pairAddress: address(9),
+      handlerAddress: address(10),
+      driverAddress: address(11),
+    };
+    saveOutstandingRequest(otherPool, {
+      status: "submitting",
+      phase: "swap",
+      intent: { amountIn: 10n, amountOutMin: 9n },
+      transactionHash: null,
+      receiptBlock: null,
+      requestId: null,
+      visibleObservationMs: 0,
+      observationBaseline: null,
+      criteria: {
+        ...criteria,
+        pairAddress: hash(9),
+        handlerAddress: hash(10),
+        driverAddress: hash(11),
+      },
+    });
+
+    expect(loadAccountRequestRecords(config)).toMatchObject([
+      {
+        status: "submitting",
+        intent: { amountIn: 10n },
+        criteria: { pairAddress: hash(9) },
+      },
+    ]);
   });
 
   it("migrates and removes the valid legacy singleton", async () => {
@@ -396,4 +576,17 @@ function installSerialLocks(): () => void {
 function saveAndReadRaw(requests: RequestRecord[]): unknown {
   saveRequestCollection(config, requests);
   return JSON.parse(window.localStorage.getItem(requestCollectionKey(config))!);
+}
+
+function toStoredTestRequest(request: RequestRecord): Record<string, unknown> {
+  return {
+    ...request,
+    amountIn: request.intent.amountIn.toString(),
+    amountOutMin: request.intent.amountOutMin.toString(),
+    receiptBlock: request.receiptBlock?.toString() ?? null,
+    observedThroughBlock: request.observedThroughBlock?.toString() ?? null,
+    observationBaseline: request.observationBaseline,
+    execution: request.execution,
+    intent: undefined,
+  };
 }

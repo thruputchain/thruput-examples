@@ -3,10 +3,13 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import {
+  bytesEqual,
   createGroundhogClient,
   createTransaction,
+  fromHex0x,
   hashContract,
   HttpTransport,
+  PrivateKeySigner,
   signTransaction,
   toHex0x,
   type GroundhogClient,
@@ -51,10 +54,17 @@ const CONTRACT_FUNDING = 10_000_000n;
 const MINT_AMOUNT = 2_000_000_000n;
 const LIQUIDITY_AMOUNT = 1_000_000_000n;
 const TOKEN_DECIMALS = 6n;
+const SUPPORTED_WIRE_FORMAT = /^3\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
 interface RuntimeManifest {
   networkHash: string;
   bootstrapAccountDerivation: { seed: string };
+  bootstrapAccounts: Array<{
+    index: number;
+    role: "faucet" | "local_user";
+    publicKey: string;
+    walletAddress: string;
+  }>;
 }
 
 interface Artifacts {
@@ -67,13 +77,27 @@ interface Artifacts {
 }
 
 interface Deployment {
-  account: LocalDevAccount;
-  browserPrivateKey: string;
+  personas: Persona[];
   tokenA: ContractAddress;
   tokenB: ContractAddress;
+  tokenC: ContractAddress;
+  factory: ContractAddress;
   router: ContractAddress;
   pool: Pool;
 }
+
+interface Persona {
+  id: "alice" | "bob" | "carol";
+  label: "Alice" | "Bob" | "Carol";
+  account: LocalDevAccount;
+  browserPrivateKey: string;
+}
+
+const PERSONAS = [
+  { id: "alice", label: "Alice" },
+  { id: "bob", label: "Bob" },
+  { id: "carol", label: "Carol" },
+] as const;
 
 /**
  * Loads the active development accounts and compiled contracts, provisions the
@@ -94,17 +118,67 @@ async function main(): Promise<void> {
     await readFile(manifestPath, "utf8"),
   ) as RuntimeManifest;
 
-  const [faucet, applicationUser, artifacts] = await Promise.all([
+  const [faucet, users, artifacts] = await Promise.all([
     loadLocalDevAccount({ role: "faucet" }),
-    loadLocalDevAccount(),
+    Promise.all(PERSONAS.map((_, roleOffset) =>
+      loadLocalDevAccount({ role: "local_user", roleOffset })
+    )),
     loadArtifacts(artifactRoot),
   ]);
-  const client = createGroundhogClient(new HttpTransport(rpcUrl));
+  if (
+    new Set(users.map(({ index }) => index)).size !== PERSONAS.length
+    || new Set(users.map(({ address }) => toHex0x(address))).size !== PERSONAS.length
+  ) throw new Error("Development wallets must have distinct accounts");
+  for (const account of [faucet, ...users]) {
+    const recorded = manifest.bootstrapAccounts.find(({ index }) => index === account.index);
+    if (
+      recorded === undefined
+      || recorded.role !== account.role
+      || recorded.walletAddress !== toHex0x(account.address)
+    ) throw new Error("Runtime manifest changed while loading development wallets");
+  }
+  const personas = PERSONAS.map((persona, index): Persona => {
+    const account = users[index]!;
+    const recorded = manifest.bootstrapAccounts.find(({ index }) =>
+      index === account.index
+    )!;
+    const privateKey = createHash("sha256")
+      .update(
+        `${manifest.bootstrapAccountDerivation.seed}:account-${account.index}`,
+      )
+      .digest();
+    const signer = new PrivateKeySigner(privateKey);
+    if (!bytesEqual(signer.publicKey.ed25519, fromHex0x(recorded.publicKey))) {
+      throw new Error(`${persona.label}'s development key does not match its account`);
+    }
+    return {
+      ...persona,
+      account,
+      browserPrivateKey: toHex0x(privateKey),
+    };
+  });
+  const client = await createGroundhogClient({
+    transport: new HttpTransport(rpcUrl),
+  });
   const version = await client.getVersion();
-  if (version.wireFormat !== "3.0.0") {
+  if (!SUPPORTED_WIRE_FORMAT.test(version.wireFormat)) {
     throw new Error(
-      `Groundhog wire format 3.0.0 is required; found ${version.wireFormat}`,
+      `Groundhog wire format >=3.0.0 <4.0.0 is required; found ${version.wireFormat}`,
     );
+  }
+  const requiredPersonaHog = CONTRACT_FUNDING * 4n;
+  const personaHogBalances = await Promise.all(personas.map(async (persona) => (
+    await ERC20.getBalanceOf.view({
+      client,
+      contract: HOG_ADDRESS,
+      caller: persona.account.address,
+      args: { addr: persona.account.address },
+    })
+  ).value));
+  for (const [index, balance] of personaHogBalances.entries()) {
+    if (balance < requiredPersonaHog) {
+      throw new Error(`${personas[index]!.label} requires at least ${requiredPersonaHog} native HOG`);
+    }
   }
 
   // Fail on invalid output paths before making any changes to the ledger.
@@ -114,22 +188,16 @@ async function main(): Promise<void> {
   const deployment = await configureSwap(
     client,
     faucet,
-    applicationUser,
+    personas,
     artifacts,
-    toHex0x(
-      createHash("sha256")
-        .update(
-          `${manifest.bootstrapAccountDerivation.seed}:account-${applicationUser.index}`,
-        )
-        .digest(),
-    ),
   );
+  const alice = deployment.personas[0]!;
 
   const cliContents = renderCliConfig(
     manifest.networkHash,
     rpcUrl,
     manifestPath,
-    applicationUser.keyName,
+    alice.account.keyName,
   );
   const environmentContents = renderEnvironment(
     manifest.networkHash,
@@ -163,29 +231,36 @@ async function main(): Promise<void> {
 Local swap setup complete
 App environment: ${appEnvironmentPath}
 CLI configuration: ${cliConfigPath}
-Application account: ${applicationUser.keyName} (${toHex0x(applicationUser.address)})`);
+Development wallets:
+${deployment.personas.map((persona) =>
+  `  ${persona.label} ${persona.account.keyName} (${toHex0x(persona.account.address)})`
+).join("\n")}
+Example tokens:
+  gUSD ${toHex0x(deployment.tokenA)}
+  gEUR ${toHex0x(deployment.tokenB)}
+  gJPY ${toHex0x(deployment.tokenC)}`);
 }
 
 /**
- * Deploys two test tokens and the contracts needed to swap between them, funds
+ * Deploys three test tokens and the contracts needed to swap between them, funds
  * each contract with native HOG, and seeds a balanced pool. The faucet performs
- * only HOG transfers; the application user owns every deployment and operation.
+ * only HOG transfers; Alice deploys the contracts and receives the initial LP.
  */
 async function configureSwap(
   client: GroundhogClient,
   faucet: LocalDevAccount,
-  applicationUser: LocalDevAccount,
+  personas: Persona[],
   artifacts: Artifacts,
-  browserPrivateKey: string,
 ): Promise<Deployment> {
+  const alice = personas[0]!.account;
   // 1. Register the pair, handler, and driver binaries. The returned instances
   // are only registration seeds; the factory later deploys the instances used by
   // this pool from these hashes.
   const pairHash = hashContract(artifacts.pair);
   await submit(
     client,
-    applicationUser,
-    DevWallet.deploy.invocation(applicationUser.address, GAS_LIMIT, {
+    alice,
+    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
       nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
       contractHash: fixedBytes(pairHash, 32),
     }),
@@ -195,8 +270,8 @@ async function configureSwap(
   const handlerHash = hashContract(artifacts.handler);
   await submit(
     client,
-    applicationUser,
-    DevWallet.deploy.invocation(applicationUser.address, GAS_LIMIT, {
+    alice,
+    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
       nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
       contractHash: fixedBytes(handlerHash, 32),
     }),
@@ -206,8 +281,8 @@ async function configureSwap(
   const driverHash = hashContract(artifacts.driver);
   await submit(
     client,
-    applicationUser,
-    DevWallet.deploy.invocation(applicationUser.address, GAS_LIMIT, {
+    alice,
+    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
       nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
       contractHash: fixedBytes(driverHash, 32),
     }),
@@ -219,8 +294,8 @@ async function configureSwap(
   const tokenHash = hashContract(artifacts.erc20);
   const tokenAReceipt = await submit(
     client,
-    applicationUser,
-    DevWallet.deploy.invocation(applicationUser.address, GAS_LIMIT, {
+    alice,
+    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
       nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
       contractHash: fixedBytes(tokenHash, 32),
     }),
@@ -230,8 +305,8 @@ async function configureSwap(
 
   const tokenBReceipt = await submit(
     client,
-    applicationUser,
-    DevWallet.deploy.invocation(applicationUser.address, GAS_LIMIT, {
+    alice,
+    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
       nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
       contractHash: fixedBytes(tokenHash, 32),
     }),
@@ -239,11 +314,23 @@ async function configureSwap(
   );
   const tokenB = DevWallet.deploy.decodeReceipt(tokenBReceipt).value;
 
+  const tokenCReceipt = await submit(
+    client,
+    alice,
+    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
+      nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
+      contractHash: fixedBytes(tokenHash, 32),
+    }),
+    [],
+  );
+  const tokenC = DevWallet.deploy.decodeReceipt(tokenCReceipt).value;
+
   // 3. Fund each token with native HOG, initialize its administrator and metadata,
   // then mint the balances that the example will use for liquidity and swaps.
   for (const token of [
     { address: tokenA, name: "Groundhog USD", symbol: "gUSD" },
     { address: tokenB, name: "Groundhog EUR", symbol: "gEUR" },
+    { address: tokenC, name: "Groundhog JPY", symbol: "gJPY" },
   ]) {
     const fundToken = DevWallet.doAction.invocation(faucet.address, GAS_LIMIT, {
       invocationBytes: serialize(
@@ -257,12 +344,12 @@ async function configureSwap(
     await submit(client, faucet, fundToken, []);
 
     const initializeToken = DevWallet.doAction.invocation(
-      applicationUser.address,
+      alice.address,
       GAS_LIMIT,
       {
         invocationBytes: serialize(
           ERC20Metadata.initialize.invocation(token.address, GAS_LIMIT, {
-            administrator: applicationUser.address,
+            administrator: alice.address,
             name: token.name,
             symbol: token.symbol,
             decimals: TOKEN_DECIMALS,
@@ -271,22 +358,24 @@ async function configureSwap(
         ),
       },
     );
-    await submit(client, applicationUser, initializeToken, []);
+    await submit(client, alice, initializeToken, []);
 
-    const mintToken = DevWallet.doAction.invocation(
-      applicationUser.address,
-      GAS_LIMIT,
-      {
-        invocationBytes: serialize(
-          ERC20.mint.invocation(token.address, GAS_LIMIT, {
-            receiver: applicationUser.address,
-            amount: MINT_AMOUNT,
-          }),
-          codec.Invocation,
-        ),
-      },
-    );
-    await submit(client, applicationUser, mintToken, []);
+    for (const persona of personas) {
+      const mintToken = DevWallet.doAction.invocation(
+        alice.address,
+        GAS_LIMIT,
+        {
+          invocationBytes: serialize(
+            ERC20.mint.invocation(token.address, GAS_LIMIT, {
+              receiver: persona.account.address,
+              amount: MINT_AMOUNT,
+            }),
+            codec.Invocation,
+          ),
+        },
+      );
+      await submit(client, alice, mintToken, []);
+    }
   }
 
   // 4. Deploy and fund the factory, then initialize it with every binary hash it
@@ -294,8 +383,8 @@ async function configureSwap(
   const factoryHash = hashContract(artifacts.factory);
   const factoryReceipt = await submit(
     client,
-    applicationUser,
-    DevWallet.deploy.invocation(applicationUser.address, GAS_LIMIT, {
+    alice,
+    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
       nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
       contractHash: fixedBytes(factoryHash, 32),
     }),
@@ -307,7 +396,7 @@ async function configureSwap(
     invocationBytes: serialize(
       ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
         receiver: factory,
-        amount: CONTRACT_FUNDING,
+        amount: CONTRACT_FUNDING * 10n,
       }),
       codec.Invocation,
     ),
@@ -315,7 +404,7 @@ async function configureSwap(
   await submit(client, faucet, fundFactory, []);
 
   const initializeFactory = DevWallet.doAction.invocation(
-    applicationUser.address,
+    alice.address,
     GAS_LIMIT,
     {
       invocationBytes: serialize(
@@ -332,14 +421,14 @@ async function configureSwap(
       ),
     },
   );
-  await submit(client, applicationUser, initializeFactory, []);
+  await submit(client, alice, initializeFactory, []);
 
   // 5. Deploy and fund the router, then connect it to the initialized factory.
   const routerHash = hashContract(artifacts.router);
   const routerReceipt = await submit(
     client,
-    applicationUser,
-    DevWallet.deploy.invocation(applicationUser.address, GAS_LIMIT, {
+    alice,
+    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
       nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
       contractHash: fixedBytes(routerHash, 32),
     }),
@@ -359,7 +448,7 @@ async function configureSwap(
   await submit(client, faucet, fundRouter, []);
 
   const initializeRouter = DevWallet.doAction.invocation(
-    applicationUser.address,
+    alice.address,
     GAS_LIMIT,
     {
       invocationBytes: serialize(
@@ -368,7 +457,7 @@ async function configureSwap(
       ),
     },
   );
-  await submit(client, applicationUser, initializeRouter, []);
+  await submit(client, alice, initializeRouter, []);
 
   // 6. Resolve the deterministic addresses the factory will use for this token
   // pair. Funding them now ensures they have HOG when the queued liquidity request
@@ -377,7 +466,7 @@ async function configureSwap(
     await SwapFactory.poolAddresses.view({
       client,
       contract: factory,
-      caller: applicationUser.address,
+      caller: alice.address,
       args: { tokenA, tokenB },
     })
   ).value;
@@ -408,7 +497,7 @@ async function configureSwap(
   // be deposited as initial liquidity.
   for (const token of [tokenA, tokenB]) {
     const approveLiquidity = DevWallet.doAction.invocation(
-      applicationUser.address,
+      alice.address,
       GAS_LIMIT,
       {
         invocationBytes: serialize(
@@ -420,13 +509,13 @@ async function configureSwap(
         ),
       },
     );
-    await submit(client, applicationUser, approveLiquidity, []);
+    await submit(client, alice, approveLiquidity, []);
   }
 
   // 8. Adding liquidity only queues a request. The separate driver call executes
   // it and transfers the approved token amounts into the pair.
   const addLiquidity = DevWallet.doAction.invocation(
-    applicationUser.address,
+    alice.address,
     GAS_LIMIT,
     {
       invocationBytes: serialize(
@@ -435,16 +524,16 @@ async function configureSwap(
           tokenB,
           amountsDesired: [LIQUIDITY_AMOUNT, LIQUIDITY_AMOUNT],
           amountsMin: [0n, 0n],
-          recipient: applicationUser.address,
+          recipient: alice.address,
         }),
         codec.Invocation,
       ),
     },
   );
-  await submit(client, applicationUser, addLiquidity, []);
+  await submit(client, alice, addLiquidity, []);
 
   const processRequests = DevWallet.doAction.invocation(
-    applicationUser.address,
+    alice.address,
     GAS_LIMIT,
     {
       invocationBytes: serialize(
@@ -453,7 +542,7 @@ async function configureSwap(
       ),
     },
   );
-  await submit(client, applicationUser, processRequests, []);
+  await submit(client, alice, processRequests, []);
 
   // 9. Confirm that queue processing produced the balanced pool expected by the
   // frontend. Swap behavior itself is covered by the live integration test.
@@ -461,7 +550,7 @@ async function configureSwap(
     await SwapPair.getReserves.view({
       client,
       contract: pool.pair,
-      caller: applicationUser.address,
+      caller: alice.address,
     })
   ).value;
   if (reserve0 !== LIQUIDITY_AMOUNT || reserve1 !== LIQUIDITY_AMOUNT) {
@@ -469,12 +558,24 @@ async function configureSwap(
       `Expected initial reserves of ${LIQUIDITY_AMOUNT}; got ${reserve0} and ${reserve1}`,
     );
   }
+  const liquidityBalances = await Promise.all(personas.map(async (persona) => (
+    await ERC20.getBalanceOf.view({
+      client,
+      contract: pool.liquidity_token,
+      caller: persona.account.address,
+      args: { addr: persona.account.address },
+    })
+  ).value));
+  if (liquidityBalances[0]! <= 0n || liquidityBalances.slice(1).some((balance) => balance !== 0n)) {
+    throw new Error("Expected only Alice to receive the initial LP position");
+  }
 
   return {
-    account: applicationUser,
-    browserPrivateKey,
+    personas,
     tokenA,
     tokenB,
+    tokenC,
+    factory,
     router,
     pool,
   };
@@ -502,9 +603,11 @@ async function submit(
       },
     },
   });
-  const signed = await signTransaction(transaction, [
-    { signer: account.signer, publicKeyId: 0n },
-  ]);
+  const signed = await signTransaction(
+    transaction,
+    [{ signer: account.signer, publicKeyId: 0n }],
+    account.networkHash,
+  );
   const transactionHash = await client.sendTransaction(signed);
   const receipt = await client.waitForTransactionReceipt(transactionHash);
   if (receipt.execResult !== ExecResult.ExecResultOK) {
@@ -537,11 +640,21 @@ function renderEnvironment(
   return [
     `VITE_GROUNDHOG_RPC_URL=${rpcUrl}`,
     `VITE_GROUNDHOG_NETWORK_ID=${networkHash}`,
-    `GROUNDHOG_DEV_PRIVATE_KEY=${deployment.browserPrivateKey}`,
-    `VITE_GROUNDHOG_WALLET_ADDRESS=${toHex0x(deployment.account.address)}`,
+    `GROUNDHOG_DEV_PRIVATE_KEY=${deployment.personas[0]!.browserPrivateKey}`,
+    `GROUNDHOG_DEV_PERSONAS=${JSON.stringify(deployment.personas.map((persona) => ({
+      id: persona.id,
+      label: persona.label,
+      accountAddress: toHex0x(persona.account.address),
+      privateKey: persona.browserPrivateKey,
+    })))}`,
+    `VITE_GROUNDHOG_WALLET_ADDRESS=${toHex0x(deployment.personas[0]!.account.address)}`,
     `VITE_GROUNDHOG_WALLET_ENTRYPOINT=${toHex0x(DevWallet.doAction.entrypoint)}`,
+    `VITE_NATIVE_HOG_ADDRESS=${toHex0x(HOG_ADDRESS)}`,
+    `VITE_SWAP_FACTORY_ADDRESS=${toHex0x(deployment.factory)}`,
     `VITE_SWAP_ROUTER_ADDRESS=${toHex0x(deployment.router)}`,
+    `VITE_POOL_CONTRACT_FUNDING=${CONTRACT_FUNDING}`,
     `VITE_SWAP_PAIR_ADDRESS=${toHex0x(deployment.pool.pair)}`,
+    `VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS=${toHex0x(deployment.pool.liquidity_token)}`,
     `VITE_SWAP_HANDLER_ADDRESS=${toHex0x(deployment.pool.handler)}`,
     `VITE_SWAP_DRIVER_ADDRESS=${toHex0x(deployment.pool.driver)}`,
     `SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT=${toHex0x(SwapDriver.processRequests.entrypoint)}`,

@@ -35,8 +35,13 @@ function loadLocalConfig() {
     VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
     VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
     VITE_GROUNDHOG_WALLET_ADDRESS: import.meta.env.VITE_GROUNDHOG_WALLET_ADDRESS,
+    VITE_NATIVE_HOG_ADDRESS: import.meta.env.VITE_NATIVE_HOG_ADDRESS,
+    VITE_SWAP_FACTORY_ADDRESS: import.meta.env.VITE_SWAP_FACTORY_ADDRESS,
     VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
+    VITE_POOL_CONTRACT_FUNDING: import.meta.env.VITE_POOL_CONTRACT_FUNDING,
     VITE_SWAP_PAIR_ADDRESS: import.meta.env.VITE_SWAP_PAIR_ADDRESS,
+    VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS:
+      import.meta.env.VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS,
     VITE_SWAP_HANDLER_ADDRESS: import.meta.env.VITE_SWAP_HANDLER_ADDRESS,
     VITE_SWAP_DRIVER_ADDRESS: import.meta.env.VITE_SWAP_DRIVER_ADDRESS,
     VITE_TOKEN_A_ADDRESS: import.meta.env.VITE_TOKEN_A_ADDRESS,
@@ -51,7 +56,10 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
   it("enqueues two requests before one crank and observes both executions", async () => {
     const config = loadLocalConfig();
     const readSnapshot = createSnapshotReader(config);
-    const writer = createBrowserLocalWriteBoundary(config);
+    const writer = createBrowserLocalWriteBoundary(
+      config,
+      import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY,
+    );
     const amount = "0.001";
 
     const initial = await readSnapshot();

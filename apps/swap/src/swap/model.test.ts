@@ -37,6 +37,12 @@ function snapshot(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
     reserve0: 1_000_000_000n,
     reserve1: 2_000_000_000n,
     reserveTimestamp: 1n,
+    liquidityTotalSupply: 1_000_000_000n,
+    liquidityBalance: 100_000_000n,
+    liquidityAllowance: 0n,
+    liquidityTokenSymbol: "LP",
+    liquidityTokenDecimals: 6,
+    feeTo: null,
     chainHeight: 7n,
     readAt: 1,
     ...overrides,
@@ -96,11 +102,41 @@ describe("deriveSwapQuote", () => {
     ).toEqual({ ok: false, error: "balance" });
   });
 
+  it("separates account balance reservations from pool allowance reservations", () => {
+    const quote = deriveSwapQuote(
+      snapshot(),
+      "aToB",
+      "10",
+      50n,
+      20_000_000n,
+      5_000_000n,
+    );
+
+    expect(quote).toMatchObject({
+      ok: true,
+      allowanceDifference: 15_000_000n,
+    });
+  });
+
   it("accepts safe excess allowance beyond the signed adjustment range", () => {
     const pool = snapshot({
       tokenA: {
         ...snapshot().tokenA,
         allowance: I128_MAX * 2n,
+      },
+    });
+
+    expect(deriveSwapQuote(pool, "aToB", "10", 50n)).toMatchObject({
+      ok: true,
+      allowanceDifference: 0n,
+    });
+  });
+
+  it("leaves allowance reductions to the explicit cleanup flow", () => {
+    const pool = snapshot({
+      tokenA: {
+        ...snapshot().tokenA,
+        allowance: 50_000_000n,
       },
     });
 
