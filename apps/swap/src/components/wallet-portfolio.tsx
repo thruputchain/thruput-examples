@@ -31,6 +31,8 @@ import type {
   WalletPortfolioReader,
 } from "@/wallet/portfolio";
 
+const PORTFOLIO_MAX_FRACTION_DIGITS = 7;
+
 interface PortfolioState {
   value: WalletPortfolioValue | null;
   error: string | null;
@@ -215,7 +217,11 @@ function TokenRow({ token }: { token: PortfolioToken }) {
         </span>
       </span>
       <span className="max-w-28 truncate font-mono text-xs font-medium tabular-nums">
-        {formatTokenAmount(token.balance, token.decimals, 6)}
+        {formatTokenAmount(
+          token.balance,
+          token.decimals,
+          PORTFOLIO_MAX_FRACTION_DIGITS,
+        )}
       </span>
     </li>
   );
@@ -236,7 +242,11 @@ function LiquidityRow({ position }: { position: PortfolioLiquidityPosition }) {
         </span>
       </span>
       <span className="max-w-28 truncate font-mono text-xs font-medium tabular-nums">
-        {formatTokenAmount(position.balance, position.decimals, 6)}
+        {formatTokenAmount(
+          position.balance,
+          position.decimals,
+          PORTFOLIO_MAX_FRACTION_DIGITS,
+        )}
       </span>
     </li>
   );

@@ -42,6 +42,14 @@ describe("WalletPortfolio", () => {
             decimals: 6,
             balance: 12_500_000n,
           },
+          {
+            kind: "token" as const,
+            address: contractAddress(new Uint8Array(32).fill(2)),
+            name: "HOG",
+            symbol: "HOG",
+            decimals: 7,
+            balance: 199_893_783n,
+          },
         ],
         liquidityPositions: [],
         invalidPoolCount: 0,
@@ -52,6 +60,7 @@ describe("WalletPortfolio", () => {
     render(<WalletPortfolio read={read} />);
 
     expect(await screen.findByText("12.5")).toBeVisible();
+    expect(screen.getByText("19.9893783")).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Portfolio updated");
     await user.click(screen.getByRole("button", { name: "Refresh portfolio" }));
 

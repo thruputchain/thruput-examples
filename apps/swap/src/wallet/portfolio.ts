@@ -1,5 +1,8 @@
 import { toHex0x } from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
+import {
+  kHogDivisibility,
+  type ContractAddress,
+} from "@groundhogchain/protocol";
 
 import type { GlobalConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
@@ -152,7 +155,11 @@ export function createWalletPortfolioReader(
             },
           ];
         })
-        .sort(compareSymbols),
+        .sort(
+          (left, right) =>
+            compareAmountsDescending(left, right) ||
+            compareSymbols(left, right),
+        ),
       liquidityPositions: assets
         .flatMap((asset) => {
           if (asset.definition.kind !== "liquidity" || asset.balance === 0n)
@@ -178,8 +185,12 @@ export function createWalletPortfolioReader(
             },
           ];
         })
-        .sort((left, right) =>
-          left.poolSymbols.join("/").localeCompare(right.poolSymbols.join("/")),
+        .sort(
+          (left, right) =>
+            compareAmountsDescending(left, right) ||
+            left.poolSymbols
+              .join("/")
+              .localeCompare(right.poolSymbols.join("/")),
         ),
       invalidPoolCount,
       unavailableAssetCount: assetResults.filter(
@@ -259,7 +270,7 @@ function assetDefinitions(
     kind: "token",
     address: nativeHogAddress,
     fallbackSymbol: "HOG",
-    fallbackDecimals: 0,
+    fallbackDecimals: decimalsFromDivisibility(kHogDivisibility),
     skipMetadata: true,
   });
   for (const address of knownTokenAddresses) {
@@ -294,7 +305,27 @@ function requiredDecimals(
 }
 
 function compareSymbols(left: PortfolioToken, right: PortfolioToken): number {
-  return left.symbol.localeCompare(right.symbol);
+  return (
+    left.symbol.localeCompare(right.symbol) ||
+    addressKey(left.address).localeCompare(addressKey(right.address))
+  );
+}
+
+function compareAmountsDescending(
+  left: { balance: bigint; decimals: number },
+  right: { balance: bigint; decimals: number },
+): number {
+  const leftScaled = left.balance * 10n ** BigInt(right.decimals);
+  const rightScaled = right.balance * 10n ** BigInt(left.decimals);
+  return leftScaled === rightScaled ? 0 : leftScaled > rightScaled ? -1 : 1;
+}
+
+function decimalsFromDivisibility(divisibility: bigint): number {
+  const value = divisibility.toString();
+  if (!/^10*$/.test(value)) {
+    throw new Error("HOG divisibility must be a power of ten");
+  }
+  return value.length - 1;
 }
 
 function addressKey(address: ContractAddress): string {
