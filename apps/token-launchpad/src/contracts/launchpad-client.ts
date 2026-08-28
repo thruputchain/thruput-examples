@@ -12,7 +12,7 @@ import {
   TokenCreated,
   type FactoryConfig,
 } from "@/contracts/generated/standard-token-factory";
-import { ERC20 } from "@/contracts/generated/standard-token";
+import { ERC20, ERC20Metadata } from "@/contracts/generated/standard-token";
 
 export interface FactoryReview {
   config: FactoryConfig;
@@ -27,10 +27,12 @@ export interface CreatedToken {
   symbol: string;
   decimals: number;
   initialSupply: bigint;
-  balance: bigint;
+  balance: bigint | null;
   administratorHex: string;
   holderHex: string;
   block: bigint;
+  transactionHash: string;
+  readError: boolean;
 }
 
 export async function reviewFactory(
@@ -93,7 +95,11 @@ export async function reviewFactory(
 export async function readCreatedTokens(
   client: GroundhogClient,
   config: AppConfig,
-): Promise<{ tokens: CreatedToken[]; truncated: boolean }> {
+): Promise<{
+  tokens: CreatedToken[];
+  truncated: boolean;
+  historyLimited: boolean;
+}> {
   const page = await client.getEvents({
     filters: [
       TokenCreated.filter({
@@ -102,40 +108,81 @@ export async function readCreatedTokens(
       }),
     ],
     order: "descending",
-    anchor: { height: (await client.getChainTip()).height },
+    anchor: "end",
     limit: 101,
   });
   const events = page.events.slice(0, 100);
-  const tokens = await Promise.all(
-    events.map(async (item) => {
-      const event = TokenCreated.decode(item.event);
-      if (event === null)
-        throw new Error(
-          "Factory history contained an invalid TokenCreated event",
-        );
-      const balance = (
-        await ERC20.getBalanceOf.view({
-          client,
-          contract: event.topics.token,
-          caller: config.accountAddress,
-          args: { addr: config.accountAddress },
-        })
-      ).value;
-      return {
-        addressHex: toHex0x(event.topics.token),
-        name: event.fields.name ?? "Unnamed token",
-        symbol: event.fields.symbol ?? "TOKEN",
-        decimals: Number(event.fields.decimals ?? 0n),
-        initialSupply: event.fields.initial_supply,
-        balance,
-        administratorHex: toHex0x(event.fields.administrator),
-        holderHex: toHex0x(event.fields.initial_holder),
-        block: page.latestBlock,
-      };
-    }),
-  );
+  const tokens: CreatedToken[] = [];
+  for (let offset = 0; offset < events.length; offset += 10) {
+    tokens.push(
+      ...(await Promise.all(
+        events.slice(offset, offset + 10).map(async (item) => {
+          const event = TokenCreated.decode(item.event);
+          if (event === null)
+            throw new Error(
+              "Factory history contained an invalid TokenCreated event",
+            );
+          let name = event.fields.name ?? "Unnamed token";
+          let symbol = event.fields.symbol ?? "TOKEN";
+          let decimals = Number(event.fields.decimals ?? 0n);
+          let balance: bigint | null = null;
+          let readError = false;
+          try {
+            const [
+              currentName,
+              currentSymbol,
+              currentDecimals,
+              currentBalance,
+            ] = await Promise.all([
+              ERC20Metadata.name.view({
+                client,
+                contract: event.topics.token,
+                caller: config.accountAddress,
+              }),
+              ERC20Metadata.symbol.view({
+                client,
+                contract: event.topics.token,
+                caller: config.accountAddress,
+              }),
+              ERC20Metadata.decimals.view({
+                client,
+                contract: event.topics.token,
+                caller: config.accountAddress,
+              }),
+              ERC20.getBalanceOf.view({
+                client,
+                contract: event.topics.token,
+                caller: config.accountAddress,
+                args: { addr: config.accountAddress },
+              }),
+            ]);
+            name = currentName.value ?? name;
+            symbol = currentSymbol.value ?? symbol;
+            decimals = Number(currentDecimals.value ?? BigInt(decimals));
+            balance = currentBalance.value;
+          } catch {
+            readError = true;
+          }
+          return {
+            addressHex: toHex0x(event.topics.token),
+            name,
+            symbol,
+            decimals,
+            initialSupply: event.fields.initial_supply,
+            balance,
+            administratorHex: toHex0x(event.fields.administrator),
+            holderHex: toHex0x(event.fields.initial_holder),
+            block: item.blockHeight,
+            transactionHash: toHex0x(item.txHash),
+            readError,
+          };
+        }),
+      )),
+    );
+  }
   return {
     tokens,
     truncated: page.events.length > 100 || page.cursor.length > 0,
+    historyLimited: page.oldestBlock > 1n,
   };
 }

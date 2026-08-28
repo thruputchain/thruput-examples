@@ -73,6 +73,7 @@ import {
 } from "@/launch/workflow";
 import { createBrowserWriteBoundary } from "@/transactions/local-development-wallet";
 import type { WriteBoundary } from "@/transactions/write-boundary";
+import { createWalletPortfolioReader } from "@/wallet/portfolio";
 
 export function App() {
   let base: AppConfig;
@@ -130,6 +131,14 @@ function PersonaApp({
     () => ({ ...base, accountAddress: active.accountAddress }),
     [active.accountAddress, base],
   );
+  const client = useMemo(
+    () => createReadClient(config.rpcUrl),
+    [config.rpcUrl],
+  );
+  const readPortfolio = useMemo(
+    () => createWalletPortfolioReader(client, config),
+    [client, config],
+  );
   function switchTo(next: DevelopmentPersonaId) {
     sessionStorage.setItem(key, next);
     startTransition(() => setId(next));
@@ -139,6 +148,7 @@ function PersonaApp({
       value={{
         active: publicPersona(active),
         personas: personas.map(publicPersona),
+        readPortfolio,
         switchTo,
       }}
     >
@@ -545,6 +555,36 @@ function ReviewCard({
                 : "-"
           }
         />
+        {workflow?.creation.hash ? (
+          <Detail
+            label="Creation transaction"
+            value={shortHash(workflow.creation.hash)}
+          />
+        ) : null}
+        {workflow?.creationBlock ? (
+          <Detail label="Creation block" value={workflow.creationBlock} />
+        ) : null}
+        {workflow?.verification.totalSupply ? (
+          <Detail
+            label="Verified total supply"
+            value={formatUnits(
+              BigInt(workflow.verification.totalSupply),
+              workflow.token.decimals,
+            )}
+          />
+        ) : null}
+        {workflow?.createdAddressHex ? (
+          <Button
+            className="w-full justify-between font-mono text-xs"
+            variant="outline"
+            onClick={() =>
+              void navigator.clipboard.writeText(workflow.createdAddressHex!)
+            }
+          >
+            {shortHash(workflow.createdAddressHex)}
+            <CopyIcon />
+          </Button>
+        ) : null}
         {workflow ? (
           <div className="space-y-3" aria-live="polite">
             <ProgressStep label="Fund token address" step={workflow.funding} />
@@ -671,7 +711,14 @@ function TokensPage({
     tokens: CreatedToken[];
     error: string | null;
     truncated: boolean;
-  }>({ loading: true, tokens: [], error: null, truncated: false });
+    historyLimited: boolean;
+  }>({
+    loading: true,
+    tokens: [],
+    error: null,
+    truncated: false,
+    historyLimited: false,
+  });
   function refresh() {
     setState((value) => ({ ...value, loading: true, error: null }));
     void readCreatedTokens(client, config).then(
@@ -681,6 +728,7 @@ function TokensPage({
           loading: false,
           tokens: [],
           truncated: false,
+          historyLimited: false,
           error:
             reason instanceof Error
               ? reason.message
@@ -717,7 +765,7 @@ function TokensPage({
             <Skeleton key={item} className="h-48 rounded-xl" />
           ))}
         </div>
-      ) : state.tokens.length === 0 ? (
+      ) : state.tokens.length === 0 && !state.historyLimited ? (
         <Empty className="border bg-card">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -757,7 +805,23 @@ function TokensPage({
                   />
                   <Detail
                     label="Your balance"
-                    value={formatUnits(token.balance, token.decimals)}
+                    value={
+                      token.balance === null
+                        ? "Unavailable"
+                        : formatUnits(token.balance, token.decimals)
+                    }
+                  />
+                  <Detail
+                    label="Administrator"
+                    value={shortHash(token.administratorHex)}
+                  />
+                  <Detail
+                    label="Initial holder"
+                    value={shortHash(token.holderHex)}
+                  />
+                  <Detail
+                    label="Transaction"
+                    value={shortHash(token.transactionHash)}
                   />
                   <div className="flex items-center gap-2 rounded-lg bg-muted p-3 font-mono text-xs">
                     <span className="min-w-0 flex-1 truncate">
@@ -778,11 +842,29 @@ function TokensPage({
               </Card>
             ))}
           </div>
+          {state.tokens.some(({ readError }) => readError) ? (
+            <Alert className="mt-4">
+              <AlertCircleIcon />
+              <AlertTitle>Some current balances are unavailable</AlertTitle>
+              <AlertDescription>
+                Factory event data is shown where token views could not be read.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {state.truncated ? (
             <Alert className="mt-4">
               <AlertTitle>Showing the newest 100 launches</AlertTitle>
               <AlertDescription>
                 Older factory history is not included.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {state.historyLimited ? (
+            <Alert className="mt-4">
+              <AlertCircleIcon />
+              <AlertTitle>Older launch history is unavailable</AlertTitle>
+              <AlertDescription>
+                The event index no longer retains the full factory history.
               </AlertDescription>
             </Alert>
           ) : null}
@@ -807,6 +889,10 @@ function short(value: ArrayLike<number>): string {
     byte.toString(16).padStart(2, "0"),
   ).join("");
   return `0x${hex.slice(0, 8)}...${hex.slice(-6)}`;
+}
+
+function shortHash(value: string): string {
+  return `${value.slice(0, 10)}...${value.slice(-8)}`;
 }
 function ErrorPage({ message }: { message: string }) {
   return (

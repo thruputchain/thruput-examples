@@ -28,6 +28,9 @@ export function parseDevelopmentPersonas(
   }
   if (!Array.isArray(parsed) || parsed.length !== 3)
     throw new Error("Development wallet configuration is invalid");
+  const ids = new Set<string>();
+  const addresses = new Set<string>();
+  const privateKeys = new Set<string>();
   const personas = parsed.map((item): DevelopmentPersona => {
     if (!item || typeof item !== "object")
       throw new Error("Development wallet configuration is invalid");
@@ -39,9 +42,15 @@ export function parseDevelopmentPersonas(
       typeof value.accountAddress !== "string" ||
       !HEX.test(value.accountAddress) ||
       typeof value.privateKey !== "string" ||
-      !HEX.test(value.privateKey)
+      !HEX.test(value.privateKey) ||
+      ids.has(value.id) ||
+      addresses.has(value.accountAddress) ||
+      privateKeys.has(value.privateKey)
     )
       throw new Error("Development wallet configuration is invalid");
+    ids.add(value.id);
+    addresses.add(value.accountAddress);
+    privateKeys.add(value.privateKey);
     const accountAddress = addressFromHex(value.accountAddress);
     return {
       id: value.id as DevelopmentPersonaId,

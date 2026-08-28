@@ -11,14 +11,17 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { WalletPortfolio } from "@/components/wallet-portfolio";
 import type {
   DevelopmentPersonaId,
   PublicDevelopmentPersona,
 } from "@/development-personas";
+import type { WalletPortfolioReader } from "@/wallet/portfolio";
 
 export const DevelopmentWalletContext = createContext<{
   active: PublicDevelopmentPersona;
   personas: readonly PublicDevelopmentPersona[];
+  readPortfolio: WalletPortfolioReader;
   switchTo: (id: DevelopmentPersonaId) => void;
 } | null>(null);
 
@@ -66,6 +69,8 @@ export function DevelopmentWalletSwitcher() {
             </Button>
           ))}
         </div>
+        <Separator />
+        <WalletPortfolio read={wallet.readPortfolio} />
         <Separator />
         <p className="text-xs text-muted-foreground">
           Local development wallet. Do not send real assets.
