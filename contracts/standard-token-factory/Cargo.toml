@@ -35,7 +35,7 @@ bench = false
 [dependencies]
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
-standard-token-factory-if = { path = "../standard-token-factory-if" }
+standard-token-factory-if = { path = "../standard-token-factory-if", version = "=0.1.0" }
 
 [dev-dependencies]
 standard-token-factory = { path = ".", features = ["dev"] }
