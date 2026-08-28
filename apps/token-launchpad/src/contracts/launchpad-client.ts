@@ -37,6 +37,7 @@ export async function reviewFactory(
   client: GroundhogClient,
   config: AppConfig,
   nonce: Uint8Array,
+  options: { balanceItemKnown?: boolean } = {},
 ): Promise<FactoryReview> {
   const factory = (
     await StandardTokenFactory.config.view({
@@ -82,7 +83,10 @@ export async function reviewFactory(
     fundingAmount:
       deficit === 0n
         ? 0n
-        : deficit + (currentReserve === 0n ? config.nativeBalanceItemCost : 0n),
+        : deficit +
+          (currentReserve === 0n && !options.balanceItemKnown
+            ? config.nativeBalanceItemCost
+            : 0n),
   };
 }
 

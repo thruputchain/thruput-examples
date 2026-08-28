@@ -1,0 +1,213 @@
+import {
+  fixedBytes,
+  type GroundhogClient,
+  type TransactionReceipt,
+} from "@groundhogchain/client";
+import { describe, expect, it, vi } from "vitest";
+
+import type { FactoryReview } from "@/contracts/launchpad-client";
+import { advanceWorkflow } from "@/launch/executor";
+import {
+  createWorkflow,
+  loadWorkflow,
+  saveWorkflow,
+  workflowStorageKey,
+} from "@/launch/workflow";
+import { configuration, MemoryStorage } from "@/launch/workflow.test";
+import type { WriteBoundary } from "@/transactions/write-boundary";
+
+const locks = {
+  request: async (_name: string, callback: (lock: Lock) => unknown) =>
+    callback({ name: "launch", mode: "exclusive" }),
+} as unknown as LockManager;
+
+describe("advanceWorkflow", () => {
+  it("persists the signed hash before returning an uncertain funding result", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const hash = `0x${"06".repeat(32)}`;
+    let signedWasPersisted = false;
+    const writer: WriteBoundary = {
+      async execute(_invocation, observer) {
+        observer.onSigned(hash);
+        signedWasPersisted =
+          loadWorkflow(storage, workflowStorageKey(config))?.funding.hash ===
+          hash;
+        return { kind: "indeterminate", hash, reason: "disconnect" };
+      },
+      async observe() {
+        throw new Error("observe should not run");
+      },
+    };
+    const result = await advanceWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      storage,
+      locks,
+      review: async () => factoryReview(config),
+    });
+    expect(signedWasPersisted).toBe(true);
+    expect(result.funding).toEqual({ status: "uncertain", hash });
+  });
+
+  it("observes stored evidence instead of submitting a duplicate", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const hash = `0x${"07".repeat(32)}`;
+    const workflow = {
+      ...createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        factoryReview(config),
+      ),
+      funding: { status: "uncertain" as const, hash },
+    };
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    let executions = 0;
+    const writer: WriteBoundary = {
+      async execute() {
+        executions += 1;
+        throw new Error("execute should not run");
+      },
+      async observe(observedHash) {
+        expect(observedHash).toBe(hash);
+        return {
+          kind: "committedSuccess",
+          hash,
+          receipt: {} as TransactionReceipt,
+        };
+      },
+    };
+    const result = await advanceWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      storage,
+      locks,
+      review: async () => factoryReview(config),
+    });
+    expect(executions).toBe(0);
+    expect(result.funding.status).toBe("committed");
+  });
+
+  it("rejects a stale tab after acquiring the lock", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    await expect(
+      advanceWorkflow({
+        config,
+        client: {} as GroundhogClient,
+        writer: {} as WriteBoundary,
+        workflowId: "stale",
+        workflowRevision: workflow.revision,
+        storage,
+        locks,
+        review: async () => factoryReview(config),
+      }),
+    ).rejects.toThrow(/changed in another tab/);
+  });
+
+  it("rejects a stale revision of the same workflow", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = {
+      ...createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        factoryReview(config),
+      ),
+      revision: 1,
+    };
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    await expect(
+      advanceWorkflow({
+        config,
+        client: {} as GroundhogClient,
+        writer: {} as WriteBoundary,
+        workflowId: workflow.id,
+        workflowRevision: 0,
+        storage,
+        locks,
+        review: async () => factoryReview(config),
+      }),
+    ).rejects.toThrow(/changed in another tab/);
+  });
+
+  it("requires a separate confirmation to recover pre-hash signing", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = {
+      ...createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        factoryReview(config),
+      ),
+      revision: 1,
+      funding: { status: "signing" as const, hash: null },
+    };
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const writer = {
+      execute: vi.fn(),
+      observe: vi.fn(),
+    } as unknown as WriteBoundary;
+    const input = {
+      config,
+      client: {} as GroundhogClient,
+      writer,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      storage,
+      locks,
+      review: async () => factoryReview(config),
+    };
+
+    await expect(advanceWorkflow(input)).rejects.toThrow(
+      /no transaction was signed/,
+    );
+    const recovered = await advanceWorkflow({
+      ...input,
+      confirmUnsignedStep: "funding",
+    });
+    expect(recovered.funding).toEqual({ status: "idle", hash: null });
+    expect(recovered.revision).toBe(2);
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
+});
+
+function factoryReview(config = configuration()): FactoryReview {
+  return {
+    config: {
+      token_code_hash: fixedBytes(new Uint8Array(32), 32),
+      required_token_funding: 100n,
+      native_token: config.nativeHogAddress,
+      creation_fee: 0n,
+      fee_recipient: null,
+    },
+    predictedAddress: config.factoryAddress,
+    predictedAddressHex: `0x${"03".repeat(32)}`,
+    currentReserve: 0n,
+    fundingAmount: 110n,
+  };
+}

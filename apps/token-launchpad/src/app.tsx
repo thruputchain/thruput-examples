@@ -61,7 +61,18 @@ import {
   type DevelopmentPersonaId,
 } from "@/development-personas";
 import { createReadClient } from "@/groundhog/client";
+import { advanceWorkflow } from "@/launch/executor";
 import { formatUnits, parseTokenDraft, type TokenDraft } from "@/launch/form";
+import {
+  createWorkflow,
+  loadWorkflow,
+  saveWorkflow,
+  withWorkflowLock,
+  workflowStorageKey,
+  type LaunchWorkflow,
+} from "@/launch/workflow";
+import { createBrowserWriteBoundary } from "@/transactions/local-development-wallet";
+import type { WriteBoundary } from "@/transactions/write-boundary";
 
 export function App() {
   let base: AppConfig;
@@ -131,15 +142,29 @@ function PersonaApp({
         switchTo,
       }}
     >
-      <LaunchpadRoutes key={active.id} config={config} />
+      <LaunchpadRoutes
+        key={active.id}
+        config={config}
+        walletPrivateKey={active.privateKeyHex}
+      />
     </DevelopmentWalletContext>
   );
 }
 
-function LaunchpadRoutes({ config }: { config: AppConfig }) {
+function LaunchpadRoutes({
+  config,
+  walletPrivateKey,
+}: {
+  config: AppConfig;
+  walletPrivateKey?: string;
+}) {
   const client = useMemo(
     () => createReadClient(config.rpcUrl),
     [config.rpcUrl],
+  );
+  const writer = useMemo(
+    () => createBrowserWriteBoundary(config, walletPrivateKey),
+    [config, walletPrivateKey],
   );
   return (
     <>
@@ -148,7 +173,9 @@ function LaunchpadRoutes({ config }: { config: AppConfig }) {
         <Route path="/" element={<Navigate to="/create" replace />} />
         <Route
           path="/create"
-          element={<CreatePage config={config} client={client} />}
+          element={
+            <CreatePage config={config} client={client} writer={writer} />
+          }
         />
         <Route
           path="/tokens"
@@ -206,11 +233,44 @@ const initialDraft: TokenDraft = {
 function CreatePage({
   config,
   client,
+  writer,
 }: {
   config: AppConfig;
   client: ReturnType<typeof createReadClient>;
+  writer: WriteBoundary;
 }) {
-  const [draft, setDraft] = useState(initialDraft);
+  const storageKey = workflowStorageKey(config);
+  const [initialWorkflow] = useState<{
+    workflow: LaunchWorkflow | null;
+    error: string | null;
+  }>(() => {
+    try {
+      return { workflow: loadWorkflow(localStorage, storageKey), error: null };
+    } catch (error) {
+      return {
+        workflow: null,
+        error:
+          error instanceof Error
+            ? error.message
+            : "The saved launch workflow could not be read",
+      };
+    }
+  });
+  const [storageError, setStorageError] = useState(initialWorkflow.error);
+  const [workflow, setWorkflow] = useState(initialWorkflow.workflow);
+  const [draft, setDraft] = useState<TokenDraft>(() =>
+    workflow
+      ? {
+          name: workflow.token.name,
+          symbol: workflow.token.symbol,
+          decimals: workflow.token.decimals.toString(),
+          supply: formatUnits(
+            BigInt(workflow.token.initialSupply),
+            workflow.token.decimals,
+          ),
+        }
+      : initialDraft,
+  );
   const [submitted, setSubmitted] = useState(false);
   const [review, setReview] = useState<FactoryReview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -221,15 +281,100 @@ function CreatePage({
     setSubmitted(true);
     setError(null);
     if (!parsed.value) return;
+    const token = parsed.value;
     setLoading(true);
     try {
-      const nonce = crypto.getRandomValues(new Uint8Array(32));
-      setReview(await reviewFactory(client, config, nonce));
+      const { nextReview, nextWorkflow } = await withWorkflowLock(
+        config,
+        async () => {
+          if (loadWorkflow(localStorage, storageKey) !== null) {
+            throw new Error(
+              "Another tab created a launch workflow. Reload before continuing.",
+            );
+          }
+          const nonce = crypto.getRandomValues(new Uint8Array(32));
+          const nextReview = await reviewFactory(client, config, nonce);
+          const nextWorkflow = createWorkflow(config, token, nonce, nextReview);
+          saveWorkflow(localStorage, storageKey, nextWorkflow);
+          return { nextReview, nextWorkflow };
+        },
+      );
+      setReview(nextReview);
+      setWorkflow(nextWorkflow);
     } catch (reason) {
       setError(
         reason instanceof Error
           ? reason.message
           : "The configured token factory could not be verified.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+  async function advance() {
+    if (!workflow) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setWorkflow(
+        await advanceWorkflow({
+          config,
+          client,
+          writer,
+          workflowId: workflow.id,
+          workflowRevision: workflow.revision,
+          ...(workflow.funding.status === "signing"
+            ? { confirmUnsignedStep: "funding" as const }
+            : workflow.creation.status === "signing"
+              ? { confirmUnsignedStep: "creation" as const }
+              : {}),
+        }),
+      );
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The launch could not continue.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function reset() {
+    if (
+      workflow &&
+      workflow.creation.status !== "committed" &&
+      (workflow.funding.hash !== null || workflow.creation.hash !== null)
+    ) {
+      setError("A workflow with transaction evidence cannot be discarded.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await withWorkflowLock(config, async () => {
+        const stored = loadWorkflow(localStorage, storageKey);
+        if (
+          stored === null ||
+          stored.id !== workflow?.id ||
+          stored.revision !== workflow.revision
+        ) {
+          throw new Error(
+            "This launch changed in another tab. Reload before clearing it.",
+          );
+        }
+        localStorage.removeItem(storageKey);
+      });
+      setWorkflow(null);
+      setReview(null);
+      setDraft(initialDraft);
+      setSubmitted(false);
+      setError(null);
+    } catch (reason) {
+      setStorageError(
+        reason instanceof Error
+          ? reason.message
+          : "The saved launch workflow could not be cleared.",
       );
     } finally {
       setLoading(false);
@@ -249,11 +394,11 @@ function CreatePage({
           the verified factory.
         </p>
       </div>
-      {error ? (
+      {error || storageError ? (
         <Alert variant="destructive" className="mb-6">
           <AlertCircleIcon />
           <AlertTitle>Factory unavailable</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error ?? storageError}</AlertDescription>
         </Alert>
       ) : null}
       <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
@@ -291,6 +436,7 @@ function CreatePage({
                           : "text"
                       }
                       aria-invalid={submitted && !!parsed.errors[key]}
+                      disabled={workflow !== null}
                       onChange={(event) => {
                         setReview(null);
                         setDraft({ ...draft, [key]: event.target.value });
@@ -308,19 +454,29 @@ function CreatePage({
                     ) : null}
                   </Field>
                 ))}
-                <Button className="min-h-12" type="submit" disabled={loading}>
-                  {loading
-                    ? "Reviewing factory..."
-                    : review
-                      ? "Review again"
-                      : "Review launch"}
-                  <ArrowRightIcon />
-                </Button>
+                {workflow === null ? (
+                  <Button
+                    className="min-h-12"
+                    type="submit"
+                    disabled={loading || storageError !== null}
+                  >
+                    {loading ? "Reviewing factory..." : "Review launch"}
+                    <ArrowRightIcon />
+                  </Button>
+                ) : null}
               </FieldGroup>
             </form>
           </CardContent>
         </Card>
-        <ReviewCard config={config} draft={draft} review={review} />
+        <ReviewCard
+          config={config}
+          draft={draft}
+          review={review}
+          workflow={workflow}
+          loading={loading}
+          onAdvance={advance}
+          onReset={reset}
+        />
       </div>
     </main>
   );
@@ -330,10 +486,18 @@ function ReviewCard({
   config,
   draft,
   review,
+  workflow,
+  loading,
+  onAdvance,
+  onReset,
 }: {
   config: AppConfig;
   draft: TokenDraft;
   review: FactoryReview | null;
+  workflow: LaunchWorkflow | null;
+  loading: boolean;
+  onAdvance: () => void;
+  onReset: () => void;
 }) {
   const parsed = parseTokenDraft(draft).value;
   return (
@@ -361,26 +525,138 @@ function ReviewCard({
         />
         <Detail
           label="Predicted address"
-          value={review?.predictedAddressHex ?? "Available after review"}
+          value={
+            review?.predictedAddressHex ??
+            workflow?.predictedAddressHex ??
+            "Available after review"
+          }
         />
-        <Detail label="Factory fee" value={review ? "0 HOG" : "-"} />
+        <Detail
+          label="Factory fee"
+          value={review || workflow ? "0 HOG" : "-"}
+        />
         <Detail
           label="Funding transfer"
-          value={review ? `${review.fundingAmount} HOG units` : "-"}
+          value={
+            review
+              ? `${review.fundingAmount} HOG units`
+              : workflow
+                ? `${workflow.reviewedFundingAmount} HOG units`
+                : "-"
+          }
         />
-        {review ? (
+        {workflow ? (
+          <div className="space-y-3" aria-live="polite">
+            <ProgressStep label="Fund token address" step={workflow.funding} />
+            <ProgressStep
+              label="Create and initialize token"
+              step={workflow.creation}
+            />
+            {workflow.error ? (
+              <Alert variant="destructive">
+                <AlertCircleIcon />
+                <AlertTitle>Launch paused</AlertTitle>
+                <AlertDescription>{workflow.error}</AlertDescription>
+              </Alert>
+            ) : null}
+            {workflow.creation.status === "committed" ? (
+              <>
+                <Alert>
+                  <CheckCircle2Icon />
+                  <AlertTitle>Token created</AlertTitle>
+                  <AlertDescription>
+                    {workflow.verification.status === "complete"
+                      ? "Receipt, events, metadata, supply, and holder balance match this launch."
+                      : "The receipt and creation events match this launch."}
+                  </AlertDescription>
+                </Alert>
+                {workflow.verification.status === "incomplete" ? (
+                  <>
+                    <Alert>
+                      <AlertCircleIcon />
+                      <AlertTitle>Verification incomplete</AlertTitle>
+                      <AlertDescription>
+                        {workflow.verification.message}
+                      </AlertDescription>
+                    </Alert>
+                    <Button
+                      className="min-h-12 w-full"
+                      onClick={onAdvance}
+                      disabled={loading}
+                    >
+                      {loading ? "Verifying token..." : "Retry verification"}
+                      <RefreshCwIcon />
+                    </Button>
+                  </>
+                ) : null}
+                <Button
+                  className="min-h-12 w-full"
+                  variant="outline"
+                  onClick={onReset}
+                >
+                  Create another token
+                </Button>
+              </>
+            ) : (
+              <Button
+                className="min-h-12 w-full"
+                onClick={onAdvance}
+                disabled={loading}
+              >
+                {loading
+                  ? "Checking transaction..."
+                  : nextActionLabel(workflow)}
+                <ArrowRightIcon />
+              </Button>
+            )}
+          </div>
+        ) : review ? (
           <Alert>
             <CheckCircle2Icon />
             <AlertTitle>Factory verified</AlertTitle>
             <AlertDescription>
-              The address and zero-fee factory configuration are ready.
-              Transaction execution is the next implementation step.
+              The address and zero-fee factory configuration are ready. Continue
+              to fund the predicted address.
             </AlertDescription>
           </Alert>
         ) : null}
       </CardContent>
     </Card>
   );
+}
+
+function ProgressStep({
+  label,
+  step,
+}: {
+  label: string;
+  step: LaunchWorkflow["funding"];
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
+      <span>{label}</span>
+      <Badge variant={step.status === "committed" ? "secondary" : "outline"}>
+        {step.status}
+      </Badge>
+    </div>
+  );
+}
+
+function nextActionLabel(workflow: LaunchWorkflow): string {
+  if (workflow.funding.status !== "committed") {
+    if (workflow.funding.status === "signing") {
+      return "Confirm no funding was signed";
+    }
+    if (workflow.funding.status === "failed") return "Retry funding";
+    return workflow.funding.hash
+      ? "Check funding transaction"
+      : "Fund token address";
+  }
+  if (workflow.creation.status === "signing") {
+    return "Confirm no creation was signed";
+  }
+  if (workflow.creation.status === "failed") return "Retry creation";
+  return workflow.creation.hash ? "Check creation transaction" : "Create token";
 }
 
 function TokensPage({
