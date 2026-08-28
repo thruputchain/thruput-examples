@@ -230,13 +230,15 @@ fn concurrent_swap_strategy<const N: usize>(
     // All users submit swap requests (accepting any output: min is 0).  The
     // output amount is determined when each request is handled.
     for (leg, _) in strategy {
-        etx.exec_user_tx(leg.user, |u| {
+        // Enqueued as the router: the driver takes requests from it alone,
+        // and the router is what records who asked.
+        etx.exec_tx(&ROUTER_ADDR, move || {
             ctx.driver().request(SwapRequest::swap_exact_in(
-                u.addr,
+                leg.user.addr,
                 leg.amount_in,
                 0,
                 leg.in_index as u32,
-                u.addr,
+                leg.user.addr,
             ))
         })?;
 

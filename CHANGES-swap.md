@@ -1,22 +1,28 @@
 # Swap App: Pending Contract Changes
 
-The `swap-*` contracts were reworked in three rounds: the identities behind an
+The `swap-*` contracts were reworked in four rounds: the identities behind an
 operation were separated, queue-cranking became permissionless with the cranker
-sizing its own batch, and the pair was collapsed into the handler.  This is the
-list of what changed and what it means for the frontend.
+sizing its own batch, the pair was collapsed into the handler, and the call
+chain from router to pair was permissioned.  This is the list of what changed
+and what it means for the frontend.
 
 The reasoning behind the contract side is in
 [`docs/README-swap.md`](docs/README-swap.md) ("Why a Request Queue", "Cranking
 the Queue") and in the [`batch-driver`](helpers/batch-driver/src/lib.rs) module
 docs; the constants carry their own measured justifications.
 
-**The app is now broken against these contracts.**  There is no pair contract
-any more, and the event the app watches no longer says what it used to.  Those
-are the two sections below --
-[Sender and recipient](#sender-and-recipient) and
-[Collapsing the pair](#collapsing-the-pair-into-the-handler) -- and both have to
-be worked through before the app will run.  The cranking items after them are
-things to take up rather than breakage.
+**The app is now broken against these contracts**, in three ways, which are the
+first three sections below.  There is no pair contract any more
+([Collapsing the pair](#collapsing-the-pair-into-the-handler)); the event the
+app watches no longer says what it used to
+([Sender and recipient](#sender-and-recipient)); and local setup brings the
+contracts up in an order the factory no longer accepts
+([The call chain is permissioned](#the-call-chain-is-permissioned)).  The
+cranking items after those are things to take up rather than breakage.
+
+The app's own runtime paths -- submitting through the router, cranking through
+the driver -- are otherwise intact: what broke is what it reads, and how setup
+wires things together.
 
 ## Sender and recipient
 
@@ -56,8 +62,11 @@ three contracts now (LP token, handler, driver) rather than four.
   [`pair-adapter.ts`](apps/swap/src/contracts/pair-adapter.ts) and
   [`setup-local.ts`](apps/swap/scripts/setup-local.ts) call
   `SwapPair.getReserves`; the same view is now `SwapHandler.getReserves`,
-  alongside `getLiquidity`, `getCumulativePrices`, `liquidityToken`, `skim` and
-  `sync`.  The generated `swap-pair.ts` should be deleted and a `swap-handler.ts`
+  alongside `getLiquidity`, `liquidityToken`, `skim` and `sync`.  Not
+  `getCumulativePrices`: with the pair's code inside it the handler sits within
+  a few hundred bytes of the guest code-size cap, and that view's `[U256; 2]`
+  return was what had to give.  The pair still maintains the cumulative prices;
+  nothing reads them on-chain any more.  The generated `swap-pair.ts` should be deleted and a `swap-handler.ts`
   generated in its place -- the handler had no views worth binding before, so
   there is no such file yet.
 
@@ -89,6 +98,40 @@ three contracts now (LP token, handler, driver) rather than four.
   variants (`AlreadyInitialized`, `InvalidConfiguration`) replace what were
   `panic!`s, so a failed initialization now arrives as a declared exception
   rather than an undifferentiated fault.
+
+## The call chain is permissioned
+
+A `SwapRequest` names the account whose tokens it will spend, and the handler
+spends them on that account's standing allowance.  Nothing downstream can check
+that claim -- the router is what sees the account making the call -- so each
+link now takes work from its predecessor alone: the driver enqueues only for the
+router, and the handler handles only for its driver.  Without that, anyone could
+enqueue a request naming a victim as the payer and themselves as the recipient,
+and be paid out of the victim's approval.
+
+**The app's runtime paths are unaffected.**  Submissions already go through the
+router (`swapExactTokensForTokens`, `addLiquidity`), and `processRequests` stays
+open to anyone -- cranking is still permissionless.  What changes is setup.
+
+* **`SwapFactory::initialize` takes a `router`**, which it passes to every
+  driver it creates.  So **the router must be deployed before the factory is
+  initialized**, and `setup-local.ts` currently does neither in that order: step
+  4 deploys *and* initializes the factory, step 5 deploys *and* initializes the
+  router.  Those have to interleave -- deploy the factory, deploy the router,
+  initialize the factory naming the router, then initialize the router naming
+  the factory.  Both addresses are known once deployed, so nothing else has to
+  move.
+
+* **`SwapDriver::initialize` gains a `router`, and `SwapHandler::initialize` a
+  `driver`.**  Bindings-only for the app, which calls neither: the factory
+  wires the pool up when it creates it.
+
+* **Two new `Unauthorized` errors** -- `SwapDriverError::Unauthorized` from
+  `request`, and `SwapRequestError::Unauthorized` from `handle_request`.  The
+  app should not provoke either, but they are what a mis-wired deployment will
+  produce, so they are worth recognising: they mean the caller is not the
+  contract's designated predecessor, not that anything was wrong with the
+  request.
 
 ## Cranking
 

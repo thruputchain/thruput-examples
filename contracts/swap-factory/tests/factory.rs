@@ -12,6 +12,10 @@ use swap_pair::u256::U256;
 
 hash_ident! { pub static DEPLOYER: ContractAddress; }
 hash_ident! { pub static FEE_ADDR: ContractAddress; }
+// The factory hands this on to every driver it creates, as the only address
+// whose requests they will take.  Nothing here enqueues, so a bare address
+// stands in for the router contract.
+hash_ident! { pub static ROUTER_ADDR: ContractAddress; }
 
 // Enough for the fee test's prime + donation + second add.
 const SUPPLY: u128 = 3_000_000;
@@ -105,7 +109,7 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     // Deploy + init the factory.
     let factory = exec_tx(&env, &DEPLOYER, || {
         let f = deploy_contract(&FACTORY_NONCE, &factory_hash);
-        SwapFactoryClient::new(&f).initialize(hashes, fee_to);
+        SwapFactoryClient::new(&f).initialize(hashes, fee_to, &ROUTER_ADDR);
         f
     })
     .unwrap();

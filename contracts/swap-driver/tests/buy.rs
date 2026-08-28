@@ -50,10 +50,14 @@ fn concurrent_buy(etx: &Etx) -> Result<()> {
     /* ----- */ etx.advance_block(); /* ----- */
 
     // Alice buys liquidity tokens
-    etx.exec_user_tx(ALICE, |u| ctx.user_buy_request(u))?;
+    let alice_amounts = etx.exec_user_tx(ALICE, |u| ctx.user_buy_prepare(u))?;
+    etx.exec_tx(&ROUTER_ADDR, move || {
+        ctx.user_buy_request(&ALICE, alice_amounts)
+    })?;
 
     // Bob buys liquidity tokens
-    etx.exec_user_tx(BOB, |u| ctx.user_buy_request(u))?;
+    let bob_amounts = etx.exec_user_tx(BOB, |u| ctx.user_buy_prepare(u))?;
+    etx.exec_tx(&ROUTER_ADDR, move || ctx.user_buy_request(&BOB, bob_amounts))?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 

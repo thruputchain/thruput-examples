@@ -87,10 +87,14 @@ fn _concurrent_redeem(etx: &Etx) -> Result<()> {
     /* ----- */ etx.advance_block(); /* ----- */
 
     // Bob requests redemption
-    etx.exec_user_tx(BOB, |u| ctx.user_redeem_request(u, bob_allowed))?;
+    etx.exec_tx(&ROUTER_ADDR, move || {
+        ctx.user_redeem_request(&BOB, bob_allowed)
+    })?;
 
     // Bob requests redemption
-    etx.exec_user_tx(ALICE, |u| ctx.user_redeem_request(u, alice_allowed))?;
+    etx.exec_tx(&ROUTER_ADDR, move || {
+        ctx.user_redeem_request(&ALICE, alice_allowed)
+    })?;
 
     let (n_processed, n_failed) =
         etx.exec_tx(&TEST_ADDR, || ctx.driver().process_requests())?;

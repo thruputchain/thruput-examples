@@ -24,6 +24,10 @@ impl Ctx {
     pub fn token1_meta(&self) -> ERC20MetadataClient {
         ERC20MetadataClient::new(&self.token_addrs[1])
     }
+    pub fn handler(&self) -> SwapHandlerClient {
+        SwapHandlerClient::new(&self.request_handler_addr)
+    }
+
     // The pool: the handler performs the pair's operations and holds its
     // reserves, so it is what answers for them.
     pub fn pair(&self) -> SwapHandlerClient {
@@ -149,7 +153,9 @@ impl Ctx {
         self.user_print_balances(user);
     }
 
-    pub fn user_buy_request(&self, user: &User) {
+    // As a user: allow the handler to take the tokens a liquidity purchase
+    // will need, and report the amounts the request should name.
+    pub fn user_buy_prepare(&self, user: &User) -> Amounts {
         let amt0 = self.token0().get_balance();
         let amt1 = self.quote01(amt0);
 
@@ -166,6 +172,13 @@ impl Ctx {
         self.token1()
             .adjust_allowance(&self.request_handler_addr, amounts[1].try_into().unwrap());
 
+        self.user_print_balances(user);
+
+        amounts
+    }
+
+    // As the router: enqueue that purchase on the user's behalf.
+    pub fn user_buy_request(&self, user: &User, amounts: Amounts) {
         // The optimal ratio is recomputed at execution time; we accept any.
         self.driver().request(SwapRequest::add_liquidity(
             user.addr,
@@ -174,13 +187,10 @@ impl Ctx {
             user.addr,
         ));
 
-        {
-            println!(
-                "> {} request LP purchase with (A, B): {amounts:?}",
-                user.name
-            );
-            self.user_print_balances(user);
-        }
+        println!(
+            "> {} request LP purchase with (A, B): {amounts:?}",
+            user.name
+        );
     }
 
     // As a user, deposit LP tokens for redemption
@@ -215,14 +225,11 @@ impl Ctx {
             user.addr,
         ));
 
-        {
-            println!(
-                "> {} request LP redeem: {:.3?} LP",
-                user.name,
-                decimalized(allowed as u128),
-            );
-            self.user_print_balances(user);
-        }
+        println!(
+            "> {} request LP redeem: {:.3?} LP",
+            user.name,
+            decimalized(allowed as u128),
+        );
     }
 
     // Make sure we're not holding any LP tokens

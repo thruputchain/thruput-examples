@@ -113,10 +113,16 @@ pub fn setup_contracts(
     // with the pair's reserve0/reserve1.
     let token_addrs = sorted(deployed);
 
+    // Each driver the factory creates takes requests from the router alone, so
+    // the factory has to be told the router's address -- deterministic, and so
+    // knowable before the router is deployed just below.
+    let router_addr_predicted =
+        exec_tx(env, &TEST_ADDR, move || get_deploy_address(&ROUTER_NONCE, &router_hash))?;
+
     // Deploy and initialize the factory (protocol fee disabled).
     let factory_addr = exec_tx(env, &TEST_ADDR, move || {
         let factory_addr = deploy_contract(&FACTORY_NONCE, &factory_hash);
-        SwapFactoryClient::new(&factory_addr).initialize(hashes, None);
+        SwapFactoryClient::new(&factory_addr).initialize(hashes, None, &router_addr_predicted);
         factory_addr
     })?;
 
@@ -128,6 +134,10 @@ pub fn setup_contracts(
         SwapRouterClient::new(&router_addr).initialize(&factory_addr);
         router_addr
     })?;
+    assert_eq!(
+        router_addr, router_addr_predicted,
+        "the router must land at the address the factory was told"
+    );
 
     /* ----- */ env.advance_block(); /* ----- */
 

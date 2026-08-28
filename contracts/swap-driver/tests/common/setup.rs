@@ -26,14 +26,22 @@ hash_ident! { static DRIVER_NONCE: SHA256Hash; }
 // Under the default cost model a contract pays for the storage it writes.  Grant
 // storage tokens to the (deterministic) address `deployer` will deploy `hash` to
 // with `nonce`, so the freshly deployed contract is solvent.
+fn deploy_address_of(
+    env: &TestEnvironmentHandle,
+    deployer: &ContractAddress,
+    nonce: &SHA256Hash,
+    hash: &SHA256Hash,
+) -> Address {
+    exec_tx(env, deployer, || get_deploy_address(nonce, hash)).expect("compute deploy address")
+}
+
 fn fund_deploy_target(
     env: &TestEnvironmentHandle,
     deployer: &ContractAddress,
     nonce: &SHA256Hash,
     hash: &SHA256Hash,
 ) {
-    let addr =
-        exec_tx(env, deployer, || get_deploy_address(nonce, hash)).expect("compute deploy address");
+    let addr = deploy_address_of(env, deployer, nonce, hash);
     env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
 }
 
@@ -121,8 +129,12 @@ pub fn setup_contracts(
     // As the factory, deploy and init the handler.  It is the pool: it adopts
     // the LP token, holds the reserves, and performs the pair's operations
     // itself.
+    // The handler takes requests from its driver alone, and the driver is
+    // deployed below -- but to a deterministic address, so it can be told now.
+    let driver_addr_predicted = deploy_address_of(env, &FACTORY_ADDR, &DRIVER_NONCE, &driver_hash);
+
     let (request_handler_addr, liquidity_token) = exec_tx(env, &FACTORY_ADDR, || {
-        handler_deploy_init(&handler_hash, &token_hash, token_addrs)
+        handler_deploy_init(&handler_hash, &token_hash, token_addrs, &driver_addr_predicted)
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
@@ -131,6 +143,10 @@ pub fn setup_contracts(
     let driver_addr = exec_tx(env, &FACTORY_ADDR, || {
         driver_deploy_init(&driver_hash, &request_handler_addr)
     })?;
+    assert_eq!(
+        driver_addr, driver_addr_predicted,
+        "the driver must land at the address the handler was told"
+    );
 
     /* ----- */ env.advance_block(); /* ----- */
 
@@ -221,6 +237,7 @@ fn handler_deploy_init(
     handler_hash: &SHA256Hash,
     token_hash: &SHA256Hash,
     token_addrs: Addresses,
+    driver_addr: &Address,
 ) -> (Address, Address) {
     assert_eq!(&get_current_address(), &FACTORY_ADDR);
 
@@ -230,7 +247,13 @@ fn handler_deploy_init(
     let handler_addr = deploy_contract(&HANDLER_NONCE, handler_hash);
     let handler = SwapHandlerClient::new(&handler_addr);
 
-    handler.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], &lp_addr);
+    handler.initialize(
+        &FACTORY_ADDR,
+        &token_addrs[0],
+        &token_addrs[1],
+        &lp_addr,
+        driver_addr,
+    );
 
     (handler_addr, handler.liquidity_token())
 }
@@ -243,7 +266,7 @@ fn driver_deploy_init(driver_hash: &SHA256Hash, handler_addr: &Address) -> Addre
 
     let driver = SwapDriverClient::new(&driver_addr);
 
-    driver.initialize(handler_addr, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
+    driver.initialize(handler_addr, &ROUTER_ADDR, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
 
     driver_addr
 }

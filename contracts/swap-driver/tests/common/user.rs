@@ -21,6 +21,10 @@ impl User {
 
 hash_ident! { pub static TEST_ADDR: ContractAddress; }
 hash_ident! { pub static FACTORY_ADDR: ContractAddress; }
+// The driver takes requests from the router alone.  There is no router
+// contract here -- these tests drive the driver directly -- so they name an
+// address and enqueue as it.
+hash_ident! { pub static ROUTER_ADDR: ContractAddress; }
 hash_ident! { pub static PRIMER_ADDR: ContractAddress; }
 hash_ident! { pub static ALICE_ADDR: ContractAddress; }
 hash_ident! { pub static BOB_ADDR: ContractAddress; }
@@ -29,6 +33,7 @@ hash_ident! { pub static DAVE_ADDR: ContractAddress; }
 
 pub const TEST: User = User::new(&TEST_ADDR, "Test", (0, 0));
 pub const FACTORY: User = User::new(&FACTORY_ADDR, "Factory", (0, 0));
+pub const ROUTER_ADDR_USER: User = User::new(&ROUTER_ADDR, "Router", (0, 0));
 pub const PRIMER: User = User::new(&PRIMER_ADDR, "Primer", (PRIME_AMT, PRIME_AMT));
 pub const ALICE: User = User::new(&ALICE_ADDR, "Alice", (SOME_AMT, SOME_AMT));
 pub const BOB: User = User::new(&BOB_ADDR, "Bob", (3 * SOME_AMT, 3 * SOME_AMT));

@@ -14,6 +14,10 @@ pub struct Factory {
     // The protocol-fee recipient consulted by every pair (`None` disables it).
     fee_to: Value<Option<Address>>,
 
+    // The router that fronts this factory's pools: each driver it creates
+    // takes requests from that address alone.
+    router: Value<Address>,
+
     // Registry: sorted token pair -> pair address, and the creation-ordered
     // list of those token pairs (each one a key into `pairs`, and the input
     // `pool_addresses` resolves back to the rest of the pool's contracts).
@@ -56,13 +60,14 @@ const MIN_CRANK_BATCH: u32 = 8;
 
 #[contract(exports = "swap_factory_exports")]
 impl SwapFactory for Factory {
-    fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>) {
+    fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>, router: &Address) {
         if self.hashes.try_get().none_if_missing().is_some() {
             throw(SwapFactoryError::AlreadyInitialized);
         }
 
         self.hashes.set(&hashes);
         self.fee_to.set(&fee_to);
+        self.router.set(router);
     }
 
     fn fee_to(&self) -> Option<Address> {
@@ -89,8 +94,13 @@ impl SwapFactory for Factory {
         // calls: a callee's failure propagates with its own error type, which
         // is among those mentioned in this trait's `throws` annotation.
         let me = get_current_address();
-        SwapHandlerClient::new(&handler).initialize(&me, token0, token1, &liquidity_token);
-        SwapDriverClient::new(&driver).initialize(&handler, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
+        SwapHandlerClient::new(&handler).initialize(&me, token0, token1, &liquidity_token, &driver);
+        SwapDriverClient::new(&driver).initialize(
+            &handler,
+            &self.router.get(),
+            MAX_QUEUE_LEN,
+            MIN_CRANK_BATCH,
+        );
 
         // Record the new pair: by tokens (for `get_pair`) and in creation
         // order (for `pair_at`).  A pair is its handler -- that is the

@@ -14,6 +14,11 @@ const B: usize = 1;
 /// State for the request-handler contract
 #[storage]
 pub struct Handler {
+    // The only contract whose requests this one will handle.  A request names
+    // the account whose tokens it spends, so admitting anyone here would let
+    // anyone spend anyone's allowance to this contract.
+    driver: Value<Address>,
+
     // State for the swap-pool itself.
     pair: Node<Pair>,
 }
@@ -26,7 +31,10 @@ impl SwapHandler for Handler {
         token0: &Address,
         token1: &Address,
         lp_token: &Address,
+        driver: &Address,
     ) {
+        self.driver.set(driver);
+
         // The pair holds the pool's configuration -- the tokens, the LP token,
         // the factory -- and refuses a second initialization itself, so there
         // is nothing for this contract to record.
@@ -45,10 +53,6 @@ impl SwapHandler for Handler {
         self.pair.get_liquidity()
     }
 
-    fn get_cumulative_prices(&self) -> [U256; 2] {
-        self.pair.get_cumulative_prices()
-    }
-
     fn skim(&mut self, to: &Address) {
         self.pair.skim(to);
     }
@@ -58,6 +62,11 @@ impl SwapHandler for Handler {
     }
 
     fn handle_request(&mut self, request: SwapRequest) {
+        ensure(
+            get_caller() == self.driver.get(),
+            SwapRequestError::Unauthorized,
+        );
+
         let request_id = request.request_id;
         match request.op {
             SwapOp::AddLiquidity(req) => self.handle_add_liquidity(req, request_id),

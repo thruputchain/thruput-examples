@@ -51,7 +51,13 @@ pub const fn process_requests_gas(batch_size: u32) -> u64 {
 
 #[contract(exports = "swap_driver_exports")]
 impl SwapDriver for Driver {
-    fn initialize(&mut self, handler: &Address, max_queue_len: u32, min_crank_batch: u32) {
+    fn initialize(
+        &mut self,
+        handler: &Address,
+        router: &Address,
+        max_queue_len: u32,
+        min_crank_batch: u32,
+    ) {
         if self.cfg.try_get().none_if_missing().is_some() {
             throw(SwapDriverError::AlreadyInitialized);
         }
@@ -63,6 +69,7 @@ impl SwapDriver for Driver {
 
         let cfg = Cfg {
             handler: *handler,
+            router: *router,
             max_queue_len,
             min_crank_batch,
         };
@@ -74,6 +81,14 @@ impl SwapDriver for Driver {
     }
 
     fn request(&mut self, request: SwapRequest) -> RequestId {
+        // A request names the account whose tokens it will spend, which this
+        // contract cannot check -- the router is what sees the account making
+        // the call.
+        ensure(
+            get_caller() == self.cfg.get().router,
+            SwapDriverError::Unauthorized,
+        );
+
         // Claim this request's room in the queue.  If the queue is full the
         // claim overruns the capacity, and this whole transaction is excluded
         // from the block and returned to the mempool -- the request waits for

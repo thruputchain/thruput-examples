@@ -8,8 +8,12 @@ fn initializing_twice_is_refused() {
         let ctx = etx.ctx;
 
         let refused = etx.exec_tx(&TEST_ADDR, move || {
-            ctx.driver()
-                .try_initialize(&ctx.request_handler_addr, MAX_QUEUE_LEN, MIN_CRANK_BATCH)
+            ctx.driver().try_initialize(
+                &ctx.request_handler_addr,
+                &ROUTER_ADDR,
+                MAX_QUEUE_LEN,
+                MIN_CRANK_BATCH,
+            )
         })?;
 
         match refused {

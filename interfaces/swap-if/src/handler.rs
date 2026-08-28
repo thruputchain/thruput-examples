@@ -2,13 +2,27 @@
 
 use crate::{
     Address, Amount, BurnEvent, ERC20Error, MintEvent, SwapEvent, SwapPairError, SwapRequest,
-    SyncEvent, U256,
+    SyncEvent,
 };
 use sdk::*;
 
 /// Errors raised while handling a swap request (slippage limits exceeded).
 #[contract_exception]
 pub enum SwapRequestError {
+    /// The request was handed to this contract by something other than the
+    /// pool's driver.
+    ///
+    /// A request names the account whose tokens it spends, and this contract
+    /// spends them on that account's standing allowance.  Anyone able to hand
+    /// it a request could therefore spend anyone's allowance, so requests are
+    /// taken only from the driver -- which takes them only from the router,
+    /// which records the account that actually asked.
+    ///
+    /// (This lives here, rather than on a handler-specific error type, because
+    /// a distinct type costs several hundred bytes of encoding machinery and
+    /// the handler is close to the guest code-size cap.)
+    Unauthorized = 100,
+
     InsufficientAmountA = 1,
     InsufficientAmountB = 2,
     InsufficientOutputAmount = 3,
@@ -45,17 +59,30 @@ pub trait SwapHandler {
     /// `factory` is consulted for the protocol `fee_to`; `token0`/`token1` are
     /// the pool's underlying tokens; `lp_token` is a deployed but
     /// *uninitialized* ERC20 contract, which this method adopts as the LP
-    /// token and initializes under its own control.
+    /// token and initializes under its own control; `driver` is the only
+    /// contract whose requests this one will handle.
+    ///
+    /// There is no caller check here, and none is possible: before the first
+    /// call there is no principal to check against.  What protects it is that
+    /// a pool is deployed and initialized in a single transaction, so nothing
+    /// can act on these contracts in between -- and a second call is refused.
     fn initialize(
         &mut self,
         factory: &Address,
         token0: &Address,
         token1: &Address,
         lp_token: &Address,
+        driver: &Address,
     );
 
     /// Handle a single swap request, performing the underlying `swap`
     /// operations.
+    ///
+    /// Callable only by this pool's driver.  A request names the account whose
+    /// tokens it spends, and this contract spends them on that account's
+    /// standing allowance to it -- so whoever may call this may spend anyone's
+    /// allowance.  The driver, in turn, takes requests only from the router,
+    /// which records the account that actually asked.
     fn handle_request(&mut self, request: SwapRequest);
 
     /// The LP token this pool mints and burns.
@@ -67,9 +94,8 @@ pub trait SwapHandler {
     /// The total supply of LP tokens.
     fn get_liquidity(&self) -> Amount;
 
-    /// The last-recorded cumulative prices, as UQ112x112 fixed-point values
-    /// (`[price0, price1]`), for use as a time-weighted-average-price oracle.
-    fn get_cumulative_prices(&self) -> [U256; 2];
+    // The pair's cumulative-price oracle is deliberately not exported here;
+    // see `Pair::get_cumulative_prices` for why.
 
     /// Send any balance in excess of the recorded reserves to `to`.
     ///

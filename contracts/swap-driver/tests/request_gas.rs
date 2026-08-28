@@ -10,7 +10,8 @@
 //!
 //! Gas is only metered for real in the guest build, so this is `guest_test`
 //! only.  It measures each operation as the driver invokes it -- one
-//! `handle_request` call -- and holds each declared budget above what it costs.
+//! `handle_request` call, made as the driver, since that is the only caller the
+//! handler admits -- and holds each declared budget above what it costs.
 
 #![cfg(feature = "guest_test")]
 
@@ -98,8 +99,9 @@ fn handler_cost(r: &TransactResult, address: &Address) -> u64 {
 // what that frame spent.
 fn measure(etx: &Etx, request: SwapRequest) -> u64 {
     let ctx = etx.ctx;
+    // As the driver, which is the only caller the handler admits.
     let r = etx.env.transact(|tx| {
-        tx.call(&TEST_ADDR).run(move || {
+        tx.call(&ctx.driver_addr).run(move || {
             SwapHandlerClient::new(&ctx.request_handler_addr)
                 .with_gas_limit(REQUEST_GAS_MAX)
                 .handle_request(request)

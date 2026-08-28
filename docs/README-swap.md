@@ -150,6 +150,60 @@ The two compose without a mode switch: while the keeper runs, it wins each
 block and users' cranks defer harmlessly behind it; if it stops, theirs start
 winning the very next block. Nothing has to detect which is happening.
 
+## Trust and Permissions
+
+An operation reaches the reserves along one path:
+
+```
+router  ->  driver  ->  handler  ->  the pair's code
+```
+
+The router is the public entry point and the only contract that sees the user
+directly, so it is where the operation's payer is recorded. Every stage below it
+carries that identity along as *data* — a `SwapRequest` names the account whose
+tokens it will spend, and the handler spends them on that account's standing
+allowance to it.
+
+That makes each stage's willingness to be called a security property, because
+nothing downstream can check the claim the data makes. So each link takes work
+from its predecessor alone: `SwapDriver::request` admits only the router, and
+`SwapHandler::handle_request` only that pool's driver. Both refuse anyone else
+with an `Unauthorized` error. Without those, anyone could enqueue a request
+naming a victim as the payer and themselves as the recipient, and be paid out of
+the victim's approval.
+
+The pair needs no such guard, because it is no longer a contract: its operations
+run inside the handler's own invocation, so there is no entry point to defend.
+That is the security dividend of collapsing it — a boundary that cannot be
+called wrongly beats one that is checked correctly.
+
+### What is deliberately open
+
+- **`process_requests`**, so that cranking stays permissionless. The queue is
+  the pool's throughput, and making it depend on a privileged keeper would
+  defeat the point; see [Cranking the Queue](#cranking-the-queue).
+- **`skim` and `sync`**, as in UniswapV2. They attribute nothing and can only
+  move what the reserves do not already account for, so they remain available
+  for recovering tokens sent to a pool by mistake.
+
+### Initialization
+
+None of the `initialize` methods checks its caller, and none can: before the
+first call there is no principal to check against, and any address passed in for
+comparison would be supplied by the very caller being checked.
+
+What protects them instead is that a pool is deployed *and* initialized inside a
+single transaction — `SwapFactory::create_pair` deploys the LP token, handler
+and driver, then wires them together before it returns — so nothing can act on
+those contracts in between. A second call is refused. And a deployed address
+derives from its deployer, so no one else can deploy to the address the factory
+predicted for a pool.
+
+The one ordering this imposes reaches outside the factory: each driver is told
+the router whose requests it will accept, so the factory must be told the router
+too, at its own initialization. The router therefore has to be *deployed* —
+though not yet initialized — before `SwapFactory::initialize` is called.
+
 ## Frontend
 
 See [`apps/swap/README.md`](../apps/swap/README.md) for a web-based interface

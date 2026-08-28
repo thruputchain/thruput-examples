@@ -59,7 +59,11 @@ pub struct SwapHashes {
 pub trait SwapFactory {
     /// Configure the factory with the code hashes of the contracts it deploys
     /// and the protocol-fee recipient (`None` disables the fee).
-    fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>);
+    /// `router` is the router that will front this factory's pools: each
+    /// driver it creates will accept requests from that address alone.  The
+    /// router must therefore be deployed -- though not yet initialized --
+    /// before this is called.
+    fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>, router: &Address);
 
     /// The protocol-fee recipient, consulted by each pair's fee logic.
     fn fee_to(&self) -> Option<Address>;
