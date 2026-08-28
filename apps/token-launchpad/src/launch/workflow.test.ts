@@ -25,6 +25,8 @@ const review: FactoryReview = {
   predictedAddressHex: `0x${"04".repeat(32)}`,
   currentReserve: 0n,
   fundingAmount: 110n,
+  creatorBalance: 1_000n,
+  fundingShortfall: 0n,
 };
 
 describe("launch workflow persistence", () => {

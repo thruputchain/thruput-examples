@@ -56,10 +56,48 @@ describe("advanceWorkflow", () => {
       expectedIntent: workflowIntent(workflow),
       storage,
       locks,
-      review: async () => factoryReview(config),
+      review: async () => ({
+        ...factoryReview(config),
+        currentReserve: 5n,
+        fundingAmount: 95n,
+      }),
     });
     expect(signedWasPersisted).toBe(true);
     expect(result.funding).toEqual({ status: "uncertain", hash });
+    expect(result.reviewedReserve).toBe("0");
+    expect(result.reviewedFundingAmount).toBe("110");
+  });
+
+  it("stops before signing when the active wallet cannot fund the token", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const reviewed = factoryReview(config);
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      reviewed,
+    );
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const writer = { execute: vi.fn(), observe: vi.fn() };
+    await expect(
+      advanceWorkflow({
+        config,
+        client: {} as GroundhogClient,
+        writer: writer as unknown as WriteBoundary,
+        workflowId: workflow.id,
+        workflowRevision: workflow.revision,
+        expectedIntent: workflowIntent(workflow),
+        storage,
+        locks,
+        review: async () => ({
+          ...reviewed,
+          creatorBalance: 10n,
+          fundingShortfall: 100n,
+        }),
+      }),
+    ).rejects.toThrow(/Insufficient HOG.*100 more HOG/);
+    expect(writer.execute).not.toHaveBeenCalled();
   });
 
   it("observes stored evidence instead of submitting a duplicate", async () => {
@@ -100,7 +138,11 @@ describe("advanceWorkflow", () => {
       expectedIntent: workflowIntent(workflow),
       storage,
       locks,
-      review: async () => factoryReview(config),
+      review: async () => ({
+        ...factoryReview(config),
+        creatorBalance: 0n,
+        fundingShortfall: 110n,
+      }),
     });
     expect(executions).toBe(0);
     expect(result.funding.status).toBe("committed");
@@ -285,5 +327,7 @@ function factoryReview(config = configuration()): FactoryReview {
     predictedAddressHex: `0x${"03".repeat(32)}`,
     currentReserve: 0n,
     fundingAmount: 110n,
+    creatorBalance: 1_000n,
+    fundingShortfall: 0n,
   };
 }

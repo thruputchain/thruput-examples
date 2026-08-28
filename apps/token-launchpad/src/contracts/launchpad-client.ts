@@ -21,6 +21,8 @@ export interface FactoryReview {
   predictedAddressHex: string;
   currentReserve: bigint;
   fundingAmount: bigint;
+  creatorBalance: bigint;
+  fundingShortfall: bigint;
 }
 export interface CreatedToken {
   addressHex: string;
@@ -93,14 +95,22 @@ export async function reviewFactory(
       args: { creator: config.accountAddress, nonce: fixedBytes(nonce, 32) },
     })
   ).value;
-  const currentReserve = (
-    await ERC20.getBalanceOf.view({
+  const [reserveResult, creatorResult] = await Promise.all([
+    ERC20.getBalanceOf.view({
       client,
       contract: config.nativeHogAddress,
       caller: config.accountAddress,
       args: { addr: predictedAddress },
-    })
-  ).value;
+    }),
+    ERC20.getBalanceOf.view({
+      client,
+      contract: config.nativeHogAddress,
+      caller: config.accountAddress,
+      args: { addr: config.accountAddress },
+    }),
+  ]);
+  const currentReserve = reserveResult.value;
+  const creatorBalance = creatorResult.value;
   const fundingAmount = calculateFundingAmount(
     factory.required_token_funding,
     currentReserve,
@@ -113,6 +123,9 @@ export async function reviewFactory(
     predictedAddressHex: toHex0x(predictedAddress),
     currentReserve,
     fundingAmount,
+    creatorBalance,
+    fundingShortfall:
+      fundingAmount > creatorBalance ? fundingAmount - creatorBalance : 0n,
   };
 }
 

@@ -22,53 +22,63 @@ export async function readAndAssessTokenState(input: {
   token: ContractAddress;
   caller: ContractAddress;
   workflow: LaunchWorkflow;
+  retryWait?: (milliseconds: number) => Promise<void>;
 }): Promise<LaunchWorkflow["verification"]> {
-  try {
-    const [name, symbol, decimals, totalSupply, holderBalance] =
-      await Promise.all([
-        ERC20Metadata.name.view({
-          client: input.client,
-          contract: input.token,
-          caller: input.caller,
-        }),
-        ERC20Metadata.symbol.view({
-          client: input.client,
-          contract: input.token,
-          caller: input.caller,
-        }),
-        ERC20Metadata.decimals.view({
-          client: input.client,
-          contract: input.token,
-          caller: input.caller,
-        }),
-        ERC20.totalSupply.view({
-          client: input.client,
-          contract: input.token,
-          caller: input.caller,
-        }),
-        ERC20.getBalanceOf.view({
-          client: input.client,
-          contract: input.token,
-          caller: input.caller,
-          args: { addr: input.caller },
-        }),
-      ]);
-    return assessTokenState(input.workflow, {
-      name: name.value,
-      symbol: symbol.value,
-      decimals: decimals.value,
-      totalSupply: totalSupply.value,
-      holderBalance: holderBalance.value,
-    });
-  } catch {
-    return {
-      status: "incomplete",
-      message:
-        "Token state could not be read yet. The creation evidence is preserved.",
-      totalSupply: null,
-      holderBalance: null,
-    };
+  const wait =
+    input.retryWait ??
+    ((milliseconds: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const [name, symbol, decimals, totalSupply, holderBalance] =
+        await Promise.all([
+          ERC20Metadata.name.view({
+            client: input.client,
+            contract: input.token,
+            caller: input.caller,
+          }),
+          ERC20Metadata.symbol.view({
+            client: input.client,
+            contract: input.token,
+            caller: input.caller,
+          }),
+          ERC20Metadata.decimals.view({
+            client: input.client,
+            contract: input.token,
+            caller: input.caller,
+          }),
+          ERC20.totalSupply.view({
+            client: input.client,
+            contract: input.token,
+            caller: input.caller,
+          }),
+          ERC20.getBalanceOf.view({
+            client: input.client,
+            contract: input.token,
+            caller: input.caller,
+            args: { addr: input.caller },
+          }),
+        ]);
+      return assessTokenState(input.workflow, {
+        name: name.value,
+        symbol: symbol.value,
+        decimals: decimals.value,
+        totalSupply: totalSupply.value,
+        holderBalance: holderBalance.value,
+      });
+    } catch {
+      if (attempt < 2) {
+        await wait(150 * (attempt + 1));
+      }
+    }
   }
+  return {
+    status: "incomplete",
+    message:
+      "Token state could not be read yet. The creation evidence is preserved.",
+    totalSupply: null,
+    holderBalance: null,
+  };
 }
 
 export function assessTokenState(

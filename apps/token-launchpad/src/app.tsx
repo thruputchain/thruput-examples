@@ -287,6 +287,7 @@ function CreatePage({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const parsed = parseTokenDraft(draft);
+  const writesSupported = navigator.locks !== undefined;
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setSubmitted(true);
@@ -327,21 +328,21 @@ function CreatePage({
     setLoading(true);
     setError(null);
     try {
-      setWorkflow(
-        await advanceWorkflow({
-          config,
-          client,
-          writer,
-          workflowId: workflow.id,
-          workflowRevision: workflow.revision,
-          expectedIntent: workflowIntent(workflow),
-          ...(workflow.funding.status === "signing"
-            ? { confirmUnsignedStep: "funding" as const }
-            : workflow.creation.status === "signing"
-              ? { confirmUnsignedStep: "creation" as const }
-              : {}),
-        }),
-      );
+      const next = await advanceWorkflow({
+        config,
+        client,
+        writer,
+        workflowId: workflow.id,
+        workflowRevision: workflow.revision,
+        expectedIntent: workflowIntent(workflow),
+        ...(workflow.funding.status === "signing"
+          ? { confirmUnsignedStep: "funding" as const }
+          : workflow.creation.status === "signing"
+            ? { confirmUnsignedStep: "creation" as const }
+            : {}),
+      });
+      setReview(null);
+      setWorkflow(next);
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -409,8 +410,26 @@ function CreatePage({
       {error || storageError ? (
         <Alert variant="destructive" className="mb-6">
           <AlertCircleIcon />
-          <AlertTitle>Factory unavailable</AlertTitle>
+          <AlertTitle>Launch unavailable</AlertTitle>
           <AlertDescription>{error ?? storageError}</AlertDescription>
+        </Alert>
+      ) : null}
+      {submitted && !parsed.value ? (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircleIcon />
+          <AlertTitle>Check the token details</AlertTitle>
+          <AlertDescription>
+            Correct the highlighted fields before reviewing this launch.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {!writesSupported ? (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircleIcon />
+          <AlertTitle>Transactions unavailable</AlertTitle>
+          <AlertDescription>
+            This browser cannot safely serialize launch transactions.
+          </AlertDescription>
         </Alert>
       ) : null}
       <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
@@ -442,6 +461,8 @@ function CreatePage({
                       name={key}
                       value={draft[key]}
                       placeholder={placeholder}
+                      type={key === "decimals" ? "number" : "text"}
+                      autoComplete="off"
                       inputMode={
                         key === "decimals" || key === "supply"
                           ? "decimal"
@@ -470,7 +491,10 @@ function CreatePage({
                   <Button
                     className="min-h-12"
                     type="submit"
-                    disabled={loading || storageError !== null}
+                    disabled={
+                      loading || storageError !== null || !writesSupported
+                    }
+                    variant="outline"
                   >
                     {loading ? "Reviewing factory..." : "Review launch"}
                     <ArrowRightIcon />
@@ -488,13 +512,14 @@ function CreatePage({
           loading={loading}
           onAdvance={advance}
           onReset={reset}
+          writesSupported={writesSupported}
         />
       </div>
     </main>
   );
 }
 
-function ReviewCard({
+export function ReviewCard({
   config,
   draft,
   review,
@@ -502,6 +527,7 @@ function ReviewCard({
   loading,
   onAdvance,
   onReset,
+  writesSupported,
 }: {
   config: AppConfig;
   draft: TokenDraft;
@@ -510,6 +536,7 @@ function ReviewCard({
   loading: boolean;
   onAdvance: () => void;
   onReset: () => void;
+  writesSupported: boolean;
 }) {
   const parsed = parseTokenDraft(draft).value;
   return (
@@ -531,21 +558,29 @@ function ReviewCard({
             parsed ? formatUnits(parsed.initialSupply, parsed.decimals) : "-"
           }
         />
-        <Detail
-          label="Administrator and holder"
-          value={short(config.accountAddress)}
-        />
-        <Detail
-          label="Predicted address"
-          value={
-            review?.predictedAddressHex ??
-            workflow?.predictedAddressHex ??
-            "Available after review"
-          }
-        />
+        <Detail label="Administrator" value={short(config.accountAddress)} />
+        <Detail label="Initial holder" value={short(config.accountAddress)} />
+        {review?.predictedAddressHex || workflow?.predictedAddressHex ? (
+          <IdentifierDetail
+            label="Predicted address"
+            value={review?.predictedAddressHex ?? workflow!.predictedAddressHex}
+          />
+        ) : (
+          <Detail label="Predicted address" value="Available after review" />
+        )}
         <Detail
           label="Factory fee"
           value={review || workflow ? "0 HOG" : "-"}
+        />
+        <Detail
+          label="Required reserve"
+          value={
+            review
+              ? `${review.config.required_token_funding} HOG units`
+              : workflow
+                ? `${workflow.requiredTokenFunding} HOG units`
+                : "-"
+          }
         />
         <Detail
           label="Funding transfer"
@@ -557,10 +592,43 @@ function ReviewCard({
                 : "-"
           }
         />
+        {review?.fundingShortfall ? (
+          <Alert variant="destructive">
+            <AlertCircleIcon />
+            <AlertTitle>Insufficient HOG</AlertTitle>
+            <AlertDescription>
+              This wallet needs at least {review.fundingShortfall.toString()}{" "}
+              more HOG for token funding. Execution costs may require additional
+              HOG.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {workflow ? (
+          <>
+            <IdentifierDetail
+              label="Application nonce"
+              value={workflow.nonceHex}
+            />
+            <IdentifierDetail
+              label="Implementation hash"
+              value={workflow.reviewedTokenCodeHashHex}
+            />
+            <IdentifierDetail
+              label="Native token"
+              value={workflow.reviewedNativeTokenHex}
+            />
+          </>
+        ) : null}
+        {workflow?.funding.hash ? (
+          <IdentifierDetail
+            label="Funding transaction"
+            value={workflow.funding.hash}
+          />
+        ) : null}
         {workflow?.creation.hash ? (
-          <Detail
+          <IdentifierDetail
             label="Creation transaction"
-            value={shortHash(workflow.creation.hash)}
+            value={workflow.creation.hash}
           />
         ) : null}
         {workflow?.creationBlock ? (
@@ -575,17 +643,20 @@ function ReviewCard({
             )}
           />
         ) : null}
+        {workflow?.verification.holderBalance ? (
+          <Detail
+            label="Verified holder balance"
+            value={formatUnits(
+              BigInt(workflow.verification.holderBalance),
+              workflow.token.decimals,
+            )}
+          />
+        ) : null}
         {workflow?.createdAddressHex ? (
-          <Button
-            className="w-full justify-between font-mono text-xs"
-            variant="outline"
-            onClick={() =>
-              void navigator.clipboard.writeText(workflow.createdAddressHex!)
-            }
-          >
-            {shortHash(workflow.createdAddressHex)}
-            <CopyIcon />
-          </Button>
+          <IdentifierDetail
+            label="Token contract"
+            value={workflow.createdAddressHex}
+          />
         ) : null}
         {workflow ? (
           <div className="space-y-3" aria-live="polite">
@@ -593,6 +664,16 @@ function ReviewCard({
             <ProgressStep
               label="Create and initialize token"
               step={workflow.creation}
+            />
+            <ProgressStatus
+              label="Verify committed token"
+              status={
+                workflow.creation.status !== "committed"
+                  ? "pending"
+                  : workflow.verification.status === "complete"
+                    ? "complete"
+                    : "incomplete"
+              }
             />
             {workflow.error ? (
               <Alert variant="destructive">
@@ -624,7 +705,8 @@ function ReviewCard({
                     <Button
                       className="min-h-12 w-full"
                       onClick={onAdvance}
-                      disabled={loading}
+                      disabled={loading || !writesSupported}
+                      variant="outline"
                     >
                       {loading ? "Verifying token..." : "Retry verification"}
                       <RefreshCwIcon />
@@ -635,15 +717,24 @@ function ReviewCard({
                   className="min-h-12 w-full"
                   variant="outline"
                   onClick={onReset}
+                  disabled={!writesSupported}
                 >
                   Create another token
+                </Button>
+                <Button className="min-h-12 w-full" variant="outline" asChild>
+                  <Link to="/tokens">View my tokens</Link>
                 </Button>
               </>
             ) : (
               <Button
                 className="min-h-12 w-full"
                 onClick={onAdvance}
-                disabled={loading}
+                disabled={loading || !writesSupported}
+                variant={
+                  nextActionLabel(workflow) === "Create token"
+                    ? "default"
+                    : "outline"
+                }
               >
                 {loading
                   ? "Checking transaction..."
@@ -674,12 +765,72 @@ function ProgressStep({
   label: string;
   step: LaunchWorkflow["funding"];
 }) {
+  const status =
+    step.status === "idle"
+      ? "pending"
+      : step.status === "signing" || step.status === "pending"
+        ? "active"
+        : step.status === "committed"
+          ? "complete"
+          : step.status;
+  return (
+    <div className="space-y-1">
+      <ProgressStatus label={label} status={status} />
+      {step.hash ? (
+        <p className="px-3 font-mono text-xs text-muted-foreground">
+          {shortHash(step.hash)}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ProgressStatus({ label, status }: { label: string; status: string }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
       <span>{label}</span>
-      <Badge variant={step.status === "committed" ? "secondary" : "outline"}>
-        {step.status}
+      <Badge variant={status === "complete" ? "secondary" : "outline"}>
+        {status}
       </Badge>
+    </div>
+  );
+}
+
+function IdentifierDetail({ label, value }: { label: string; value: string }) {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
+  useEffect(() => setCopyStatus("idle"), [value]);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
+    }
+  }
+  return (
+    <div className="space-y-1">
+      <p className="flex justify-between gap-2 text-xs text-muted-foreground">
+        <span>{label}</span>
+        <span aria-live="polite">
+          {copyStatus === "copied"
+            ? "Copied"
+            : copyStatus === "failed"
+              ? "Copy failed"
+              : null}
+        </span>
+      </p>
+      <Button
+        className="min-h-12 w-full justify-between font-mono text-xs"
+        variant="outline"
+        title={value}
+        aria-label={`Copy ${label}: ${value}`}
+        onClick={() => void copy()}
+      >
+        {shortHash(value)}
+        <CopyIcon />
+      </Button>
     </div>
   );
 }

@@ -104,6 +104,17 @@ export async function advanceWorkflow(input: {
           "The funding transaction committed, but the required reserve is not available.",
         );
       }
+      if (
+        workflow.funding.status !== "committed" &&
+        workflow.funding.status !== "pending" &&
+        workflow.funding.status !== "uncertain" &&
+        workflow.funding.status !== "signing" &&
+        review.fundingShortfall > 0n
+      ) {
+        throw new Error(
+          `Insufficient HOG: This wallet needs at least ${review.fundingShortfall} more HOG for token funding. Execution costs may require additional HOG.`,
+        );
+      }
       if (workflow.funding.status !== "committed") {
         if (review.fundingAmount === 0n) {
           workflow = {
@@ -114,15 +125,6 @@ export async function advanceWorkflow(input: {
           };
           saveWorkflow(storage, key, workflow);
         } else {
-          if (workflow.funding.status !== "signing") {
-            workflow = {
-              ...workflow,
-              revision: workflow.revision + 1,
-              reviewedReserve: review.currentReserve.toString(),
-              reviewedFundingAmount: review.fundingAmount.toString(),
-            };
-            saveWorkflow(storage, key, workflow);
-          }
           return continueStep({
             workflow,
             stepName: "funding",

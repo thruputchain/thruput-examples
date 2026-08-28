@@ -1,14 +1,18 @@
 import { fixedBytes } from "@groundhogchain/client";
 import { contractAddress } from "@groundhogchain/protocol";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ERC20, ERC20Metadata } from "@/contracts/generated/standard-token";
 import { createWorkflow } from "@/launch/workflow";
 import { configuration } from "@/launch/workflow.test";
 import {
   assessTokenState,
+  readAndAssessTokenState,
   validateCreationEvidence,
 } from "@/launch/verification";
 import type { FactoryReview } from "@/contracts/launchpad-client";
+
+afterEach(() => vi.restoreAllMocks());
 
 function workflow() {
   const config = configuration();
@@ -24,6 +28,8 @@ function workflow() {
     predictedAddressHex: `0x${"03".repeat(32)}`,
     currentReserve: 0n,
     fundingAmount: 110n,
+    creatorBalance: 1_000n,
+    fundingShortfall: 0n,
   };
   return createWorkflow(
     config,
@@ -32,6 +38,40 @@ function workflow() {
     review,
   );
 }
+
+describe("readAndAssessTokenState", () => {
+  it("retries temporary view failures before reporting success", async () => {
+    vi.spyOn(ERC20Metadata.name, "view")
+      .mockRejectedValueOnce(new Error("not indexed"))
+      .mockRejectedValueOnce(new Error("not indexed"))
+      .mockResolvedValue({ value: "Acorn" } as never);
+    vi.spyOn(ERC20Metadata.symbol, "view").mockResolvedValue({
+      value: "NUT",
+    } as never);
+    vi.spyOn(ERC20Metadata.decimals, "view").mockResolvedValue({
+      value: 7n,
+    } as never);
+    vi.spyOn(ERC20.totalSupply, "view").mockResolvedValue({
+      value: 12n,
+    } as never);
+    vi.spyOn(ERC20.getBalanceOf, "view").mockResolvedValue({
+      value: 12n,
+    } as never);
+    const retryWait = vi.fn().mockResolvedValue(undefined);
+    const config = configuration();
+    await expect(
+      readAndAssessTokenState({
+        client: {} as never,
+        token: config.factoryAddress,
+        caller: config.accountAddress,
+        workflow: workflow(),
+        retryWait,
+      }),
+    ).resolves.toMatchObject({ status: "complete" });
+    expect(ERC20Metadata.name.view).toHaveBeenCalledTimes(3);
+    expect(retryWait).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("assessTokenState", () => {
   it("accepts matching metadata, supply, and holder balance", () => {
