@@ -1,10 +1,13 @@
 import { fixedBytes } from "@groundhogchain/client";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import { ReviewCard, TokensPage } from "@/app";
-import type { FactoryReview } from "@/contracts/launchpad-client";
+import { CreatePage, Header, ReviewCard, TokensPage } from "@/app";
+import {
+  readCreatedTokens,
+  type FactoryReview,
+} from "@/contracts/launchpad-client";
 import { createWorkflow } from "@/launch/workflow";
 import { configuration } from "@/launch/workflow.test";
 
@@ -113,7 +116,7 @@ describe("launch review", () => {
     expect(screen.getByText("Verified holder balance")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "View my tokens" }),
-    ).toHaveAttribute("href", "/tokens");
+    ).toHaveAttribute("href", "/my-tokens");
   });
 });
 
@@ -124,6 +127,7 @@ describe("My Tokens", () => {
         <TokensPage
           config={configuration()}
           client={{} as never}
+          scope="mine"
           read={async () => ({
             tokens: [],
             truncated: false,
@@ -135,12 +139,89 @@ describe("My Tokens", () => {
     expect(await screen.findByText("No tokens yet")).toBeInTheDocument();
   });
 
+  it("loads the global directory without a creator filter", async () => {
+    const read = vi.fn().mockResolvedValue({
+      tokens: [],
+      truncated: false,
+      historyLimited: false,
+    });
+    const config = configuration();
+    render(
+      <MemoryRouter>
+        <TokensPage
+          config={config}
+          client={{} as never}
+          scope="all"
+          read={read}
+        />
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Tokens" }),
+    ).toBeInTheDocument();
+    expect(read).toHaveBeenCalledWith(expect.anything(), config, {
+      creator: null,
+    });
+    expect(
+      screen.getByText("No tokens have been launched through this factory."),
+    ).toBeInTheDocument();
+  });
+
+  it("ignores a stale directory response after the scope changes", async () => {
+    type Result = Awaited<ReturnType<typeof readCreatedTokens>>;
+    let resolveAll!: (result: Result) => void;
+    let resolveMine!: (result: Result) => void;
+    const read = vi.fn(
+      (_client, _config, options) =>
+        new Promise<Result>((resolve) => {
+          if (options?.creator === null) resolveAll = resolve;
+          else resolveMine = resolve;
+        }),
+    );
+    const config = configuration();
+    const { rerender } = render(
+      <MemoryRouter>
+        <TokensPage
+          config={config}
+          client={{} as never}
+          scope="all"
+          read={read}
+        />
+      </MemoryRouter>,
+    );
+    rerender(
+      <MemoryRouter>
+        <TokensPage
+          config={config}
+          client={{} as never}
+          scope="mine"
+          read={read}
+        />
+      </MemoryRouter>,
+    );
+    await act(async () => {
+      resolveMine({
+        tokens: [],
+        truncated: false,
+        historyLimited: false,
+      });
+    });
+    expect(await screen.findByText("No tokens yet")).toBeInTheDocument();
+    await act(async () => {
+      resolveAll({ tokens: [], truncated: true, historyLimited: false });
+    });
+    expect(
+      screen.queryByText("Showing the newest 100 launches"),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps event evidence visible when current views are partial", async () => {
     render(
       <MemoryRouter>
         <TokensPage
           config={configuration()}
           client={{} as never}
+          scope="mine"
           read={async () => ({
             tokens: [
               {
@@ -189,6 +270,7 @@ describe("My Tokens", () => {
         <TokensPage
           config={configuration()}
           client={{} as never}
+          scope="mine"
           read={async () => {
             throw new Error("gateway unavailable");
           }}
@@ -197,5 +279,48 @@ describe("My Tokens", () => {
     );
     expect(await screen.findByText("History unavailable")).toBeInTheDocument();
     expect(screen.getByText("gateway unavailable")).toBeInTheDocument();
+  });
+});
+
+describe("launchpad navigation and hero", () => {
+  it("orders the directory, wallet directory, and creation links", () => {
+    render(
+      <MemoryRouter>
+        <Header />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("navigation", { name: "Primary" }).querySelectorAll("a"),
+    ).toHaveLength(3);
+    expect(
+      Array.from(
+        screen
+          .getByRole("navigation", { name: "Primary" })
+          .querySelectorAll("a"),
+        (link) => link.textContent,
+      ),
+    ).toEqual(["Tokens", "My Tokens", "Create Token"]);
+  });
+
+  it("uses the requested launchpad hero copy without a network badge", () => {
+    window.localStorage.clear();
+    render(
+      <MemoryRouter>
+        <CreatePage
+          config={configuration()}
+          client={{} as never}
+          writer={{} as never}
+        />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Token Launchpad" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Launch erc20 tokens on groundhog at the click of a button",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Local network")).not.toBeInTheDocument();
   });
 });

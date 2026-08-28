@@ -136,16 +136,19 @@ export async function reviewFactory(
 export async function readCreatedTokens(
   client: GroundhogClient,
   config: AppConfig,
+  options: { creator?: ContractAddress | null } = {},
 ): Promise<{
   tokens: CreatedToken[];
   truncated: boolean;
   historyLimited: boolean;
 }> {
+  const creator =
+    options.creator === undefined ? config.accountAddress : options.creator;
   const page = await client.getEvents({
     filters: [
       TokenCreated.filter({
         contractAddresses: [config.factoryAddress],
-        topics: { creator: config.accountAddress },
+        ...(creator === null ? {} : { topics: { creator } }),
       }),
     ],
     order: "descending",

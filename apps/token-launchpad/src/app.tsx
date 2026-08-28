@@ -6,7 +6,7 @@ import {
   RefreshCwIcon,
   RocketIcon,
 } from "lucide-react";
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import {
   BrowserRouter,
   Link,
@@ -191,7 +191,20 @@ function LaunchpadRoutes({
         />
         <Route
           path="/tokens"
-          element={<TokensPage config={config} client={client} />}
+          element={
+            <TokensPage key="all" config={config} client={client} scope="all" />
+          }
+        />
+        <Route
+          path="/my-tokens"
+          element={
+            <TokensPage
+              key="mine"
+              config={config}
+              client={client}
+              scope="mine"
+            />
+          }
         />
         <Route path="*" element={<Navigate to="/create" replace />} />
       </Routes>
@@ -199,7 +212,7 @@ function LaunchpadRoutes({
   );
 }
 
-function Header() {
+export function Header() {
   return (
     <header className="border-b bg-background/90 backdrop-blur">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-4 sm:px-6">
@@ -217,17 +230,25 @@ function Header() {
             className={({ isActive }) =>
               `rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-secondary" : "text-muted-foreground hover:text-foreground"}`
             }
-            to="/create"
+            to="/tokens"
           >
-            Create token
+            Tokens
           </NavLink>
           <NavLink
             className={({ isActive }) =>
               `rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-secondary" : "text-muted-foreground hover:text-foreground"}`
             }
-            to="/tokens"
+            to="/my-tokens"
           >
-            My tokens
+            My Tokens
+          </NavLink>
+          <NavLink
+            className={({ isActive }) =>
+              `rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-secondary" : "text-muted-foreground hover:text-foreground"}`
+            }
+            to="/create"
+          >
+            Create Token
           </NavLink>
         </nav>
         <DevelopmentWalletSwitcher />
@@ -242,7 +263,7 @@ const initialDraft: TokenDraft = {
   decimals: "7",
   supply: "1000000",
 };
-function CreatePage({
+export function CreatePage({
   config,
   client,
   writer,
@@ -395,15 +416,11 @@ function CreatePage({
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="mb-8 max-w-2xl">
-        <Badge variant="outline" className="mb-3">
-          Local network
-        </Badge>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">
-          Launch a token with a predictable address.
+          Token Launchpad
         </h1>
         <p className="mt-4 text-base text-muted-foreground sm:text-lg">
-          Define the token, review its reserve, then fund and create it through
-          the verified factory.
+          Launch erc20 tokens on groundhog at the click of a button
         </p>
       </div>
       {error || storageError ? (
@@ -721,7 +738,7 @@ export function ReviewCard({
                   Create another token
                 </Button>
                 <Button className="min-h-12 w-full" variant="outline" asChild>
-                  <Link to="/tokens">View my tokens</Link>
+                  <Link to="/my-tokens">View my tokens</Link>
                 </Button>
               </>
             ) : (
@@ -854,10 +871,12 @@ function nextActionLabel(workflow: LaunchWorkflow): string {
 export function TokensPage({
   config,
   client,
+  scope,
   read = readCreatedTokens,
 }: {
   config: AppConfig;
   client: ReturnType<typeof createReadClient>;
+  scope: "all" | "mine";
   read?: typeof readCreatedTokens;
 }) {
   const [state, setState] = useState<{
@@ -873,30 +892,47 @@ export function TokensPage({
     truncated: false,
     historyLimited: false,
   });
+  const requestId = useRef(0);
   function refresh() {
+    const currentRequestId = ++requestId.current;
     setState((value) => ({ ...value, loading: true, error: null }));
-    void read(client, config).then(
-      (result) => setState({ loading: false, error: null, ...result }),
-      (reason) =>
+    void read(client, config, {
+      creator: scope === "all" ? null : config.accountAddress,
+    }).then(
+      (result) => {
+        if (currentRequestId !== requestId.current) return;
+        setState({ loading: false, error: null, ...result });
+      },
+      (reason) => {
+        if (currentRequestId !== requestId.current) return;
         setState({
           loading: false,
           tokens: [],
           truncated: false,
           historyLimited: false,
           error: userErrorMessage(reason, "Token history is unavailable"),
-        }),
+        });
+      },
     );
   }
-  useEffect(refresh, [client, config, read]);
+  useEffect(() => {
+    refresh();
+    return () => {
+      requestId.current += 1;
+    };
+  }, [client, config, read, scope]);
+  const isGlobal = scope === "all";
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="mb-8 flex items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            My tokens
+            {isGlobal ? "Tokens" : "My Tokens"}
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Factory launches created by this wallet.
+            {isGlobal
+              ? "All tokens launched through this factory."
+              : "Factory launches created by this wallet."}
           </p>
         </div>
         <Button variant="outline" onClick={refresh} disabled={state.loading}>
@@ -924,7 +960,9 @@ export function TokensPage({
             </EmptyMedia>
             <EmptyTitle>No tokens yet</EmptyTitle>
             <EmptyDescription>
-              Launch your first standard token from this wallet.
+              {isGlobal
+                ? "No tokens have been launched through this factory."
+                : "Launch your first standard token from this wallet."}
             </EmptyDescription>
           </EmptyHeader>
           <Button asChild>

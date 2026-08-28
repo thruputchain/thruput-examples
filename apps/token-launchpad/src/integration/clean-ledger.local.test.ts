@@ -62,25 +62,47 @@ describe
         client,
         config: aliceConfig,
         privateKeyHex: alice.privateKeyHex,
-        nonce: new Uint8Array(32).fill(0xa1),
+        nonce: crypto.getRandomValues(new Uint8Array(32)),
         token,
       });
       const bobLaunch = await launch({
         client,
         config: bobConfig,
         privateKeyHex: bob.privateKeyHex,
-        nonce: new Uint8Array(32).fill(0xb2),
+        nonce: crypto.getRandomValues(new Uint8Array(32)),
         token,
       });
 
       expect(aliceLaunch.createdAddressHex).not.toBe(
         bobLaunch.createdAddressHex,
       );
-      const aliceTokens = await eventuallyDiscover(client, aliceConfig);
-      const bobTokens = await eventuallyDiscover(client, bobConfig);
-      expect(aliceTokens).toHaveLength(1);
-      expect(bobTokens).toHaveLength(1);
-      expect(aliceTokens[0]).toMatchObject({
+      const aliceTokens = await eventuallyDiscover(client, aliceConfig, [
+        aliceLaunch.createdAddressHex,
+      ]);
+      const bobTokens = await eventuallyDiscover(client, bobConfig, [
+        bobLaunch.createdAddressHex,
+      ]);
+      const allTokens = await eventuallyDiscover(
+        client,
+        aliceConfig,
+        [aliceLaunch.createdAddressHex, bobLaunch.createdAddressHex],
+        null,
+      );
+      expect(
+        aliceTokens.some(
+          ({ addressHex }) => addressHex === bobLaunch.createdAddressHex,
+        ),
+      ).toBe(false);
+      expect(
+        bobTokens.some(
+          ({ addressHex }) => addressHex === aliceLaunch.createdAddressHex,
+        ),
+      ).toBe(false);
+      expect(
+        aliceTokens.find(
+          ({ addressHex }) => addressHex === aliceLaunch.createdAddressHex,
+        ),
+      ).toMatchObject({
         addressHex: aliceLaunch.createdAddressHex,
         name: token.name,
         symbol: token.symbol,
@@ -91,7 +113,11 @@ describe
         holderHex: toHex0x(alice.accountAddress),
         readError: false,
       });
-      expect(bobTokens[0]).toMatchObject({
+      expect(
+        bobTokens.find(
+          ({ addressHex }) => addressHex === bobLaunch.createdAddressHex,
+        ),
+      ).toMatchObject({
         addressHex: bobLaunch.createdAddressHex,
         name: token.name,
         symbol: token.symbol,
@@ -102,6 +128,12 @@ describe
         holderHex: toHex0x(bob.accountAddress),
         readError: false,
       });
+      expect(allTokens.map(({ addressHex }) => addressHex)).toEqual(
+        expect.arrayContaining([
+          aliceLaunch.createdAddressHex,
+          bobLaunch.createdAddressHex,
+        ]),
+      );
     }, 180_000);
   });
 
@@ -111,7 +143,7 @@ async function launch(input: {
   privateKeyHex: string;
   nonce: Uint8Array;
   token: ParsedToken;
-}): Promise<LaunchWorkflow> {
+}): Promise<LaunchWorkflow & { createdAddressHex: string }> {
   const review = await reviewFactory(input.client, input.config, input.nonce);
   expect(review.fundingShortfall).toBe(0n);
   expect(review.fundingAmount).toBeGreaterThan(0n);
@@ -156,13 +188,26 @@ async function launch(input: {
   expect(workflow.verification.holderBalance).toBe(
     input.token.initialSupply.toString(),
   );
-  return workflow;
+  if (workflow.createdAddressHex === null) {
+    throw new Error("Committed launch is missing its created address");
+  }
+  return { ...workflow, createdAddressHex: workflow.createdAddressHex };
 }
 
-async function eventuallyDiscover(client: GroundhogClient, config: AppConfig) {
+async function eventuallyDiscover(
+  client: GroundhogClient,
+  config: AppConfig,
+  expectedAddresses: string[],
+  creator: AppConfig["accountAddress"] | null = config.accountAddress,
+) {
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    const result = await readCreatedTokens(client, config);
-    if (result.tokens.length > 0) return result.tokens;
+    const result = await readCreatedTokens(client, config, { creator });
+    const addresses = new Set(
+      result.tokens.map(({ addressHex }) => addressHex),
+    );
+    if (expectedAddresses.every((address) => addresses.has(address))) {
+      return result.tokens;
+    }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   throw new Error(
