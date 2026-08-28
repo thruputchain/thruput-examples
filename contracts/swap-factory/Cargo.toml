@@ -24,7 +24,7 @@ bench = false
 
 [dependencies]
 sdk = { workspace = true }
-swap-if = { path = "../swap-if" }
+swap-if = { path = "../../interfaces/swap-if" }
 
 [features]
 entrypoints = ["sdk/alloc"]

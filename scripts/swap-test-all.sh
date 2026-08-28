@@ -2,17 +2,18 @@
 
 set -xeuo pipefail
 
-swap_contracts=(swap-pair swap-handler swap-driver swap-factory swap-router)
-swap_packages=(swap_if "${swap_contracts[@]}")
+# Everything with tests: the contracts, plus the pair implementation they run.
+swap_contracts=(swap-handler swap-driver swap-factory swap-router)
+swap_packages=(swap-pair "${swap_contracts[@]}")
 
 # Build native tests
-for p in "${swap_contracts[@]}"; do
+for p in "${swap_packages[@]}"; do
     RUSTFLAGS="-D warnings" \
         cargo test -p "$p" --no-run
 done
 
 # Run native tests
-for p in "${swap_contracts[@]}"; do
+for p in "${swap_packages[@]}"; do
     RUSTFLAGS="-D warnings" \
         cargo test -p "$p"
 done

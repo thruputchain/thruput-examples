@@ -63,7 +63,7 @@ changed.
   is what bounds the wait.
 
 * **The shell crank does not choose a batch size.**
-  [`crank-local.sh`](scripts/crank-local.sh) invokes `groundhog call`,
+  [`crank-local.sh`](apps/swap/scripts/crank-local.sh) invokes `groundhog call`,
   which has no gas-limit flag and declares its own default.  Harmless against a
   local devnode, where nothing competes for throughput, but the in-app crank
   should choose deliberately rather than copy the fallback.
@@ -81,6 +81,6 @@ changed.
 |---|---|
 | The drain loop, its gas budgeting, and the queue ceiling | [`helpers/batch-driver/src/lib.rs`](helpers/batch-driver/src/lib.rs) |
 | The driver: enqueue, ceiling, drain, summary event | [`contracts/swap-driver/src/driver.rs`](contracts/swap-driver/src/driver.rs) |
-| The interface and its events | [`contracts/swap-if/src/driver.rs`](contracts/swap-if/src/driver.rs), [`contracts/swap-if/src/events.rs`](contracts/swap-if/src/events.rs) |
+| The interface and its events | [`interfaces/swap-if/src/driver.rs`](interfaces/swap-if/src/driver.rs), [`interfaces/swap-if/src/events.rs`](interfaces/swap-if/src/events.rs) |
 | The queue ceiling a pool is created with | `MAX_QUEUE_LEN` in [`contracts/swap-factory/src/factory.rs`](contracts/swap-factory/src/factory.rs) |
 | What the contracts guarantee, as tests | `helpers/batch-driver/tests/`, `contracts/swap-driver/tests/` |

@@ -25,7 +25,7 @@ bench = false
 [dependencies]
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
-swap-if = { path = "../swap-if" }
+swap-if = { path = "../../interfaces/swap-if" }
 swap-pair = { path = "../../engines/swap-pair" }
 
 [features]

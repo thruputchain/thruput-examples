@@ -100,8 +100,10 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 A `—` means the contract has no tests of that kind, or its behaviour is already
 covered by the tests of the contracts that depend on it.
 
-The crates under [`helpers/`](helpers/) and [`engines/`](engines/) are library
-code rather than contracts, so they have only native tests.
+The crates under [`helpers/`](helpers/), [`engines/`](engines/) and
+[`interfaces/`](interfaces/) are library code rather than contracts, so they
+have only native tests -- and [`swap-if`](interfaces/swap-if/), which is
+declarations alone, has none.
 [`swap-pair`](engines/swap-pair/) is the pair implementation the swap handler
 runs in its own invocation, rather than a contract of its own.
 [`batch-driver`](helpers/batch-driver/) is the reusable core of the

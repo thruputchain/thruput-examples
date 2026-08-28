@@ -6,6 +6,7 @@ resolver = "3"
 members = [
     "contracts/*",
     "engines/*",
+    "interfaces/*",
     "sim-fixtures/*",
     "helpers/*",
     ]

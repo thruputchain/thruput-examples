@@ -29,7 +29,7 @@ uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
 thiserror = { workspace = true }
 batch-driver = { path = "../../helpers/batch-driver" }
-swap-if = { path = "../swap-if" }
+swap-if = { path = "../../interfaces/swap-if" }
 swap-pair = { path = "../../engines/swap-pair" }
 swap-handler = { path = "../swap-handler" }
 

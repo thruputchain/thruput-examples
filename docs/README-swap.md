@@ -3,7 +3,7 @@
 The `swap-*` contracts are an example port (not for production) from Ethereum to
 Groundhog of UniswapV2, adding a request-batching layer:
 
-- `swap-if`: Interface-only crate.  It defines every swap contract's trait,
+- [`swap-if`](../interfaces/swap-if/): Interface-only crate.  It defines every swap contract's trait,
   client, and error type, plus the shared value types (including the
   `SwapRequest` request types), so the contracts can call one another -- and be
   created by the factory -- without depending on each other's implementations.
