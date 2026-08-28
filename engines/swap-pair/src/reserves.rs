@@ -5,9 +5,9 @@ use sdk::*;
 
 const BALANCE_MAX: u128 = i128::MAX as u128;
 
-// The state value
+// The pair's state.
 //
-// No concurrent sets allowed.
+// Only one transaction per block may write to this value.
 //
 #[contract_type]
 #[derive(Copy, Clone, Debug)]

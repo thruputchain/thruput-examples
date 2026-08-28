@@ -11,8 +11,6 @@ fn serial_buy_only() {
 
 #[rustfmt::skip]
 fn serial_buy(etx: &Etx) -> Result<()> {
-    let ctx = &etx.ctx;
-
     // Alice buys liquidity tokens
     etx.user_buy(ALICE)?;
 

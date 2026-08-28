@@ -1,9 +1,10 @@
 //! The pair's operations (cf. UniswapV2Pair).
 //!
-//! Not a contract: these run inside the handler's own invocation.  The events
-//! that attribute an operation to a sender belong to the handler, which is what
-//! knows whom to credit; the only event raised here is the unattributed
-//! `SyncEvent`, from `reserves`.
+//! Not a contract: these pair operations run inside contract `swap-handler`.
+//!
+//! Most events are emitted in `swap-handler`, which has more context
+//! information than is available here. The one exception is `SyncEvent`, which
+//! is emitted by `Reserves::update`.
 
 use crate::reserves::*;
 use crate::u256::{U256, mul_div_u128};
@@ -17,9 +18,6 @@ use sdk::*;
 use swap_if::SwapFactoryClient;
 
 /// The pair's state.
-///
-/// Held by the handler as a `Node<Pair>` field, so these keypaths sit under it
-/// rather than at the root of a contract of their own.
 #[derive(Storage)]
 pub struct Pair {
     // Configuration: token (A, B) addresses
@@ -41,7 +39,7 @@ pub struct Pair {
 }
 
 impl Pair {
-    /// Adopt the pool's contracts.  Called once, by the handler's own
+    /// Adopt the pool's contracts.  Called once, by swap-handler's
     /// `initialize`.
     pub fn initialize(
         &mut self,
@@ -70,8 +68,7 @@ impl Pair {
         self.lp_addr.get()
     }
 
-    /// The last-recorded reserves, and when they were recorded (cf.
-    /// UniswapV2Pair's `getReserves`).
+    /// The last-recorded reserves, and when they were recorded.
     pub fn get_reserves(&self) -> (u128, u128, u32) {
         let r = self.reserves.get();
         let [r0, r1] = r.balances();
@@ -90,11 +87,9 @@ impl Pair {
     }
 
     /// Mint LP to `recipient` in exchange for the A/B-tokens deposited here
-    /// since the last recorded reserves (cf. UniswapV2Pair's `mint`).
+    /// since the last recorded reserves.
     ///
-    /// Returns the amount minted.  Who deposited is not the pair's business:
-    /// the amount comes from its own balance delta, and the caller is what
-    /// knows whom to credit in the event.
+    /// Returns the amount minted.
     pub fn mint_lp(&mut self, recipient: &Address) -> Amount {
         let mut reserves = self.reserves.get();
 
@@ -161,7 +156,7 @@ impl Pair {
     }
 
     /// Return pair-tokens to `recipient` in exchange for the LP tokens
-    /// deposited here (cf. UniswapV2Pair's `burn`).
+    /// deposited here.
     ///
     /// Returns the amounts redeemed.
     pub fn burn_lp(&mut self, recipient: &Address) -> Amounts {
@@ -212,10 +207,10 @@ impl Pair {
     }
 
     /// Swap the given amounts out to `recipient`, against whatever was paid
-    /// in (cf. UniswapV2Pair's `swap`).
+    /// in.
     ///
-    /// Returns the input amounts, which the pair works out from its own
-    /// balance delta and the caller cannot.
+    /// Returns the input amounts, calculated from the change to the current
+    /// contract's balance.
     pub fn swap(
         &mut self,
         amount0_out: Amount,
@@ -280,8 +275,7 @@ impl Pair {
         amounts_in
     }
 
-    /// Send any balance in excess of the recorded reserves to `to` (cf.
-    /// UniswapV2Pair's `skim`).
+    /// Send any balance in excess of the recorded reserves to `to`.
     pub fn skim(&mut self, to: &Address) {
         let reserves = self.reserves.get();
         let prev_balances = reserves.balances();
@@ -296,8 +290,7 @@ impl Pair {
         self.transfer_to(to, surpluses);
     }
 
-    /// Record the pair's actual balances as its reserves (cf. UniswapV2Pair's
-    /// `sync`).  Emits the pair's only event, which attributes nothing.
+    /// Record the pair's actual balances as its reserves. Emits `SyncEvent`.
     pub fn sync(&mut self) {
         let balances = self.get_token_balances();
         self.reserves.load_mut().update(balances);
@@ -315,10 +308,6 @@ impl Pair {
     }
 
     // The protocol-fee recipient, as reported by our factory.
-    //
-    // (A pair not created by a real factory -- e.g. one deployed directly in a
-    // unit test -- reports no fee rather than aborting, so the fee is simply
-    // disabled in that case.)
     fn fee_to(&self) -> Option<Address> {
         SwapFactoryClient::new(&self.factory.get())
             .try_fee_to()

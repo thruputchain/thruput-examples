@@ -2,9 +2,8 @@
 
 use super::*;
 
-// The pair throws in its caller's own frame now -- there is no contract
-// boundary to wrap the error in a client's error type -- so a failed operation
-// aborts the transaction, and the exception is read off the abort buffer.
+// The pair throws in its caller's own frame, so a failed operation aborts the
+// transaction, and the exception is read off the abort buffer.
 pub fn assert_pair_error(r: &TransactResult, expected: SwapPairError) {
     let caught = RawException::from_abort_buf(r.frame().abort_buffer())
         .expect("an exception in the abort buffer");

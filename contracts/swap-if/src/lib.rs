@@ -3,10 +3,9 @@
 //! This interface-only crate defines every swap contract's trait, its
 //! generated client and error type, and the value types they exchange.
 //!
-//! The deployable crates (`swap-pair`, `swap-handler`, `swap-driver`,
-//! `swap-router`, `swap-factory`) each implement their trait from here, so
-//! they can call one another -- and be created by the factory -- without
-//! depending on each other's implementations.
+//! The deployable crates (`swap-handler`, `swap-driver`, `swap-router`,
+//! `swap-factory`) each implement their trait from here, so they can call one
+//! another without depending on each other's implementations.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 

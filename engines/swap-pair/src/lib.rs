@@ -8,29 +8,33 @@
 //! [whitepaper]: https://docs.uniswap.org/whitepaper.pdf
 //! [v2-core]: https://github.com/Uniswap/v2-core
 
-//! This is not a contract.  The pair's operations are performed inside the
-//! handler's own invocation, which is what lets a batch of them share one
-//! transaction -- and what makes the sender and request id on the resulting
-//! events worth something, since only the handler can name them.
-//!
-//! The operations keep the names and shapes of their UniswapV2Pair
-//! counterparts; each is documented against the original.
+//! This is not a contract.  In groundhog, each pair operation is enqueued as a
+//! request to `swap-driver`, and performed inside a handler of `swap-handler`;
+//! this allows executing a batch of them in one transaction and thus
+//! multiplies how many swap-pair operations can be performed in each block.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
 extern crate alloc;
 
-pub mod u256;
-
 mod pair;
+
+pub use pair::Pair;
+
 pub(crate) mod reserves;
 
 // The value types and errors the pair shares with the rest of the suite.
 pub use swap_if::{Address, Addresses, Amount, Amounts, ERC20Error, SwapPairError};
 
-pub mod events;
+pub mod events {
+    // Re-export the pair events for the implementation and tests
+    pub use swap_if::{BurnEvent, MintEvent, SwapEvent, SyncEvent};
+}
 
-pub use pair::Pair;
+pub mod u256 {
+    // Re-export for implementation and tests
+    pub use swap_if::{U256, mul_div_u128};
+}
 
 // Re-export the ERC20 trait for `dyn ERC20` in tests
 #[cfg(feature = "dev")]

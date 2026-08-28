@@ -5,8 +5,6 @@ fn calculate_swap(amounts_in: Amounts) -> Amounts {
     [(amounts_in[1] / 10) * 9, (amounts_in[0] / 10) * 9]
 }
 
-/////////////////////// SERIAL /////////////////////////////
-
 #[test]
 fn serial_swap_both() {
     transact_assert_success(|| {

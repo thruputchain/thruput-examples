@@ -8,8 +8,7 @@ mod cfg;
 mod driver;
 
 // Interface (defined in `swap-if`), re-exported for convenience.
-// `RequestFailed` and `RequestsProcessed` are the events this contract emits,
-// so they belong on the public surface too.
+// `RequestFailed` and `RequestsProcessed` are the events this contract emits.
 pub use swap_if::{
     RequestAccepted, RequestFailed, RequestId, RequestsProcessed, SwapDriver, SwapDriverClient,
     SwapDriverClientError, SwapDriverError,

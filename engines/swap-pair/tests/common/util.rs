@@ -79,7 +79,7 @@ where
     });
 
     // A frame that throws unwinds through the closure above, which poisons the
-    // mutex on its way out.  That is an expected outcome now that the pair
+    // mutex on its way out.  That is an expected outcome because the pair
     // raises its errors in its caller's own frame rather than across a
     // contract boundary, so recover the (absent) value rather than panicking
     // on the poison.

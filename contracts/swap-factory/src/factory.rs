@@ -1,6 +1,5 @@
 //! The factory contract implementation.
 
-use crate::events::*;
 use sdk::storage::*;
 use sdk::*;
 use swap_if::*;
@@ -94,7 +93,7 @@ impl SwapFactory for Factory {
         SwapDriverClient::new(&driver).initialize(&handler, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
 
         // Record the new pair: by tokens (for `get_pair`) and in creation
-        // order (for `pair_at`).  A pair is its handler now -- that is the
+        // order (for `pair_at`).  A pair is its handler -- that is the
         // contract holding its reserves and performing its operations.
         self.pairs.at_mut(tokens.key()).set(&handler);
         self.all_pairs.push_with(|slot| slot.set(tokens.key()));

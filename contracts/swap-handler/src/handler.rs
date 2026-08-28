@@ -14,28 +14,8 @@ const B: usize = 1;
 /// State for the request-handler contract
 #[storage]
 pub struct Handler {
-    // The pool itself.  Not a contract this calls but state it owns and code
-    // it runs, so a batch of requests is one invocation -- and so the sender
-    // and request id on the events below are this contract's to vouch for.
+    // State for the swap-pool itself.
     pair: Node<Pair>,
-}
-
-/// The pool's pair state, as this contract stores it.
-///
-/// For tests that drive the pair directly, in a frame at the handler's own
-/// address.  Which storage slot the pair occupies is an implementation detail
-/// of the struct above -- fields are keyed by declaration order -- so going
-/// through here is what keeps a test from silently reading the wrong slot if
-/// those fields are ever reordered.
-#[cfg(feature = "dev")]
-pub fn pair_state() -> Node<Pair> {
-    use sdk::storage::{Keypath, StorageDomain};
-
-    // The same root the contract's own state is built from: a `#[storage]`
-    // struct is rooted at a domain derived from its name, not at the bare
-    // keypath.
-    let handler: Handler = Keypath::root(<Handler as StorageDomain>::DOMAIN).into();
-    handler.pair
 }
 
 #[contract(exports = "swap_handler_exports")]
@@ -49,7 +29,7 @@ impl SwapHandler for Handler {
     ) {
         // The pair holds the pool's configuration -- the tokens, the LP token,
         // the factory -- and refuses a second initialization itself, so there
-        // is nothing for this contract to keep a copy of.
+        // is nothing for this contract to record.
         self.pair.initialize(factory, token0, token1, lp_token);
     }
 
@@ -110,9 +90,7 @@ impl Handler {
         };
 
         // Take the purchaser's tokens into the pool, then mint LP to the
-        // recipient.  The two may differ; the pair credits the recipient, and
-        // the event names the purchaser as the depositor -- which this
-        // contract knows and the pair does not need to.
+        // recipient.
         self.transfer_amounts_from(&req.purchaser, amounts);
         let minted = self.pair.mint_lp(&req.recipient);
 
@@ -173,8 +151,6 @@ impl Handler {
         let mut amounts_out: Amounts = [0, 0];
         amounts_out[out_index] = amount_out;
 
-        // As with the liquidity operations, the trader paying the input and the
-        // recipient of the proceeds may differ; the event names both.
         self.transfer_amounts_from(&req.trader, amounts_in);
         let amounts_in = self
             .pair
@@ -243,4 +219,18 @@ impl Handler {
             .lp()
             .transfer_from(owner, &get_current_address(), amount);
     }
+}
+
+/// The pool's pair state, as this contract stores it.
+///
+/// For tests that drive the pair directly, in a frame at the handler's own
+/// address.
+#[cfg(feature = "dev")]
+pub fn pair_state() -> Node<Pair> {
+    use sdk::storage::{Keypath, StorageDomain};
+
+    // The same root the contract's own state is built from: a `#[storage]`
+    // struct is rooted at a domain derived from its name.
+    let handler: Handler = Keypath::root(<Handler as StorageDomain>::DOMAIN).into();
+    handler.pair
 }

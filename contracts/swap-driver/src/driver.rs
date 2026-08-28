@@ -97,16 +97,15 @@ impl SwapDriver for Driver {
     fn process_requests(&mut self) -> (u32, u32) {
         let cfg = self.cfg.get();
 
-        // A crank takes the block's one drain opportunity, so it has to clear
-        // what is waiting -- capped at the pool's `min_crank_batch`, past which
-        // no single crank can be asked to empty an arbitrary backlog.
+        // A "crank" of the queue takes a block's one opportunity to drain, so
+        // it has to clear what is waiting -- capped at the pool's
+        // `min_crank_batch`, past which no single crank can be asked to empty
+        // an arbitrary backlog. This stops a flood of single-request cranks
+        // from parking the queue just below a threshold and draining it
+        // one-request-per-block.
         //
-        // Owing what is waiting, rather than switching on at some depth, is
-        // what stops a flood of one-request cranks from parking the queue just
-        // below a threshold and draining it a request per block.
-        //
-        // Checked before the queue is touched, so that a refused crank costs
-        // its sender and nobody else.
+        // The check is done before the queue is touched, so that a refused
+        // crank costs its sender and nobody else.
         let queued = cfg.max_queue_len - self.slots.remaining_at_snapshot();
         let owed = queued.min(cfg.min_crank_batch);
         if gas_remaining() < batch_driver::budget_for_batch::<SwapRequest>(owed) {

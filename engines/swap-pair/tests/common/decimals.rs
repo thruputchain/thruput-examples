@@ -4,8 +4,6 @@ pub const DECIMAL_FACTOR: u128 = 2u128.pow(DECIMALS_LOG2);
 // Give a floating-point approximation of a token amount divided by a
 // well-known factor.
 //
-// TODO: Add decimal factor constant to ERC20 contract?
-//
 pub fn decimalized(n: u128) -> f64 {
     let whole: u32 = n.strict_shr(DECIMALS_LOG2).try_into().unwrap();
     let whole: f64 = whole.into();
