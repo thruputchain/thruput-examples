@@ -10,7 +10,7 @@ const artifactRoot = resolve(
   process.env.GROUNDHOG_ARTIFACT_ROOT ?? resolve(repository, "target/groundhog"),
 );
 const groundhog = process.env.GROUNDHOG ?? "groundhog";
-const expectedVersion = "groundhog 0.9.6";
+const expectedVersion = "groundhog 0.10.4";
 const expectedHashes = {
   "standard_token.rv32a": "8cc88befd6e6eddaad85761cfcdb442c866c0b967bd835ca980fec8bd7762daa",
   "standard_token.spec.xdr": "b41c5d5d996a6bf6b8e8f8e1781357ebb825e6ebd2359a475021bc1bc4c9bb9b",

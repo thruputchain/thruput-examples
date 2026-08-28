@@ -12,10 +12,10 @@
     "test": "npm run generate && npm run typecheck && vitest run"
   },
   "dependencies": {
-    "@groundhogchain/client": "0.2.0",
-    "@groundhogchain/contract-spec": "0.7.1",
-    "@groundhogchain/protocol": "0.7.1",
-    "@groundhogchain/xdr": "0.7.1",
+    "@groundhogchain/client": "0.4.0",
+    "@groundhogchain/contract-spec": "0.8.0",
+    "@groundhogchain/protocol": "0.8.0",
+    "@groundhogchain/xdr": "0.8.0",
     "@noble/hashes": "2.2.0"
   },
   "devDependencies": {

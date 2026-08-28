@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -10,24 +9,18 @@ import {
   toHex0x,
   type TransactionReceipt,
 } from "@groundhogchain/client";
-import { createTransaction, signTransaction } from "@groundhogchain/client/transaction";
 import {
-  AuthClaimType,
-  bitMap,
-  blockHeight,
   contractAddress,
   ContractType,
   ExecResult,
-  codec,
   gasAmount,
   HOG_ADDRESS,
-  serialize,
   sha256Hash,
-  weight,
   type Contract,
   type Invocation,
   type SHA256Hash,
 } from "@groundhogchain/protocol";
+import { DevWallet } from "@groundhogchain/client/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -42,7 +35,6 @@ import {
   TransferEvent,
 } from "../generated/standard-token.js";
 import { TokenFactoryTestWallet } from "../generated/token-factory-test-wallet.js";
-import { DevWallet } from "../generated/dev-wallet.js";
 import { startLocalNode, type LocalAccount, type LocalNode } from "./local-node.js";
 
 const childGas = gasAmount(10_000_000n);
@@ -329,15 +321,14 @@ describe.sequential("standard token factory on a clean local node", () => {
     if (invocations.length !== 1) {
       throw new Error("The pinned dev wallet accepts one child invocation");
     }
-    const receipt = await submit(
-      account,
-      DevWallet.doAction.invocation(
-        account.address,
-        walletGas,
-        { invocationBytes: serialize(invocations[0]!, codec.Invocation) },
-      ),
-      contracts,
-    );
+    const hash = await account.wallet.execute({
+      invocation: invocations[0]!,
+      gasLimit: walletGas,
+      contractsToDeploy: contracts,
+    });
+    const receipt = await account.wallet.waitForTransactionReceipt(hash, {
+      timeoutMs: 30_000,
+    });
     if (requireSuccess && receipt.execResult !== ExecResult.ExecResultOK) {
       throw new Error(
         `Wallet call failed with ${ExecResult[receipt.execResult]}, abort=${receipt.abortData ? toHex0x(receipt.abortData) : "none"}`,
@@ -354,9 +345,8 @@ describe.sequential("standard token factory on a clean local node", () => {
     contracts: Contract[],
   ) {
     const address = deriveContractAddress(owner.address, nonce, contractHash);
-    const receipt = await submit(
-      owner,
-      DevWallet.deploy.invocation(
+    const hash = await owner.wallet.sendInvocation({
+      invocation: DevWallet.deploy.invocation(
         owner.address,
         walletGas,
         {
@@ -364,36 +354,16 @@ describe.sequential("standard token factory on a clean local node", () => {
           contractHash: fixedBytes(contractHash, 32),
         },
       ),
-      contracts,
-    );
+      contractsToDeploy: contracts,
+    });
+    const receipt = await owner.wallet.waitForTransactionReceipt(hash, {
+      timeoutMs: 30_000,
+    });
     expect(receipt.execResult).toBe(ExecResult.ExecResultOK);
     expect(receipt.returnData).not.toBeNull();
     expectAddress(contractAddress(receipt.returnData!), address);
     return address;
   }
-
-  async function submit(account: LocalAccount, invocation: Invocation, contracts: Contract[]) {
-    const tip = await node.client.getChainTip();
-    const transaction = createTransaction({
-      invocation,
-      uniquifier: {
-        block_expiry_height: blockHeight(tip.height + 100n),
-        nonce: randomBytes(8).readBigUInt64BE(),
-      },
-      contracts_to_deploy: contracts,
-      auth_claim: {
-        claim_type: AuthClaimType.kSourceAddressAuthData,
-        source_address_claim: {
-          allowed_keys: bitMap(1n),
-          required_weight: weight(1n),
-        },
-      },
-    });
-    const signed = await signTransaction(transaction, [{ signer: account.signer, publicKeyId: 0n }]);
-    const hash = await node.client.sendTransaction(signed);
-    return node.client.waitForTransactionReceipt(hash, { timeoutMs: 30_000 });
-  }
-
 
   async function indexedCreation(factory: ReturnType<typeof contractAddress>, receipt: TransactionReceipt) {
     for (let attempt = 0; attempt < 40; attempt += 1) {

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -12,20 +11,21 @@ import {
 
 import {
   HttpTransport,
-  PrivateKeySigner,
-  addressFromHex,
+  createSourceAddressAccount,
   createGroundhogClient,
-  fromHex0x,
-  toHex0x,
-  type GroundhogClient,
+  createWalletClient,
+  devWalletAdapter,
+  localnet,
+  type ConnectedGroundhogClient,
+  type ExecutableWalletClient,
+  type SourceAddressAccount,
 } from "@groundhogchain/client";
-import { type ContractAddress } from "@groundhogchain/protocol";
+import { bitMap, weight, type ContractAddress } from "@groundhogchain/protocol";
+import { loadLocalDevAccount } from "@groundhogchain/client/local-dev";
 
-const expectedProtocol = "hogp/0cd3c454cdeb";
 const expectedProducer = {
   binary: "hog-devnode",
-  version: "0.1.19",
-  commitHash: "046159036753c9c92ed0b13d66c6ad1e6ea6ccf7",
+  version: "0.1.25-rc.1",
 } as const;
 
 interface StartupData {
@@ -38,21 +38,13 @@ interface StartupEnvelope {
   data: StartupData;
 }
 
-interface BootstrapAccountJson {
-  index: number;
-  role: string;
-  publicKey: string;
-  walletAddress: string;
-}
-
 interface RuntimeManifestJson {
   schemaVersion: number;
   kind: string;
   chainState: string;
   protocol: string;
-  producer: typeof expectedProducer;
+  producer: typeof expectedProducer & { commitHash: string };
   bootstrapAccountDerivation: { scheme: string; seed: string };
-  bootstrapAccounts: BootstrapAccountJson[];
   bootstrap: {
     devWallet: {
       deployEntrypoint: string;
@@ -74,23 +66,24 @@ interface RuntimeManifestJson {
 
 export interface LocalAccount {
   address: ContractAddress;
-  signer: PrivateKeySigner;
+  wallet: ExecutableWalletClient<ConnectedGroundhogClient, SourceAddressAccount>;
 }
 
 export interface LocalNode {
-  client: GroundhogClient;
+  client: ConnectedGroundhogClient;
   accounts: LocalAccount[];
   manifest: RuntimeManifestJson;
   stop(): Promise<void>;
 }
 
 export async function startLocalNode(): Promise<LocalNode> {
-  const groundhog = process.env["GROUNDHOG_NODE"] ?? "groundhog";
+  const groundhog =
+    process.env["GROUNDHOG_NODE"] ?? process.env["GROUNDHOG"] ?? "groundhog";
   const version = execFileSync(groundhog, ["--version"], {
     encoding: "utf8",
   }).trim();
-  if (version !== "groundhog 0.9.1") {
-    throw new Error(`Expected groundhog node supervisor 0.9.1, received ${version}`);
+  if (version !== "groundhog 0.10.4") {
+    throw new Error(`Expected groundhog node supervisor 0.10.4, received ${version}`);
   }
   const devnode =
     process.env["GROUNDHOG_DEVNODE_BINARY"] ??
@@ -113,8 +106,6 @@ export async function startLocalNode(): Promise<LocalNode> {
       "2",
       "--hog-devnode-binary",
       devnode,
-      "--hogd-protocol",
-      expectedProtocol,
     ],
     {
       env: {
@@ -138,18 +129,18 @@ export async function startLocalNode(): Promise<LocalNode> {
       await readFile(startup.data.runtime_manifest.path, "utf8"),
     ) as RuntimeManifestJson;
     assertManifest(manifest);
-    const accounts = manifest.bootstrapAccounts
-      .filter((account) => account.role === "local_user")
-      .sort((left, right) => left.index - right.index)
-      .map((account) => deriveAccount(manifest, account));
-    if (accounts.length !== 2) {
-      throw new Error(`Expected two local users, received ${accounts.length}`);
-    }
+    const client = await connect(startup.data.rpc_url);
+    const accountEnv = {
+      ...process.env,
+      GROUNDHOG_RUNTIME_MANIFEST: startup.data.runtime_manifest.path,
+    };
+    const accounts = await Promise.all([
+      loadAccount(startup.data.rpc_url, accountEnv, 0),
+      loadAccount(startup.data.rpc_url, accountEnv, 1),
+    ]);
 
     return {
-      client: createGroundhogClient(
-        new HttpTransport(startup.data.rpc_url, { timeoutMs: 10_000 }),
-      ),
+      client,
       accounts,
       manifest,
       async stop() {
@@ -201,10 +192,9 @@ function assertManifest(manifest: RuntimeManifestJson): void {
     manifest.schemaVersion !== 2 ||
     manifest.kind !== "hogd-dev-runtime" ||
     manifest.chainState !== "fresh" ||
-    manifest.protocol !== expectedProtocol ||
     manifest.producer.binary !== expectedProducer.binary ||
     manifest.producer.version !== expectedProducer.version ||
-    manifest.producer.commitHash !== expectedProducer.commitHash ||
+    manifest.producer.commitHash.length === 0 ||
     manifest.bootstrapAccountDerivation.scheme !==
       "groundhog-bootstrap-account-v1" ||
     costs.hash !==
@@ -222,20 +212,32 @@ function assertManifest(manifest: RuntimeManifestJson): void {
   }
 }
 
-function deriveAccount(
-  manifest: RuntimeManifestJson,
-  account: BootstrapAccountJson,
-): LocalAccount {
-  const secret = createHash("sha256")
-    .update(`${manifest.bootstrapAccountDerivation.seed}:account-${account.index}`)
-    .digest();
-  const signer = new PrivateKeySigner(secret);
-  if (toHex0x(signer.publicKey.ed25519) !== toHex0x(fromHex0x(account.publicKey))) {
-    throw new Error(`Derived key does not match bootstrap account ${account.index}`);
-  }
+async function connect(rpcUrl: string): Promise<ConnectedGroundhogClient> {
+  return createGroundhogClient({
+    cluster: localnet({ rpcUrl }),
+    transport: new HttpTransport(rpcUrl, { timeoutMs: 10_000 }),
+  });
+}
+
+async function loadAccount(
+  rpcUrl: string,
+  env: Readonly<Record<string, string | undefined>>,
+  roleOffset: number,
+): Promise<LocalAccount> {
+  const local = await loadLocalDevAccount({ roleOffset, env });
+  const account = createSourceAddressAccount({
+    address: local.address,
+    signers: [{ signer: local.signer, publicKeyId: 0n }],
+    allowedKeys: bitMap(1n),
+    requiredWeight: weight(1n),
+  });
   return {
-    address: addressFromHex(account.walletAddress),
-    signer,
+    address: account.address,
+    wallet: createWalletClient({
+      client: await connect(rpcUrl),
+      account,
+      invocationAdapter: devWalletAdapter,
+    }),
   };
 }
 
