@@ -94,6 +94,12 @@ export function validateLocalRpcUrl(value: string): string {
   return url.href;
 }
 
+export function validateWireFormat(value: string): void {
+  if (!/^4\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(value)) {
+    throw new Error(`Groundhog wire format 4.x is required; found ${value}`);
+  }
+}
+
 export function renderEnvironment(input: {
   rpcUrl: string;
   networkHash: string;

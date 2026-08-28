@@ -42,6 +42,7 @@ import {
   REQUIRED_TOKEN_FUNDING,
   validateLocalRpcUrl,
   validateRuntimeManifest,
+  validateWireFormat,
   type EnvironmentPersona,
   type RuntimeManifest,
 } from "../src/setup/local-environment";
@@ -70,11 +71,7 @@ async function main(): Promise<void> {
     transport: new HttpTransport(rpcUrl, { timeoutMs: 10_000 }),
   });
   const version = await client.getVersion();
-  if (!/^3\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(version.wireFormat)) {
-    throw new Error(
-      `Groundhog wire format 3.x is required; found ${version.wireFormat}`,
-    );
-  }
+  validateWireFormat(version.wireFormat);
 
   const personas = await Promise.all(
     PERSONAS.map(async (identity, roleOffset): Promise<EnvironmentPersona> => {

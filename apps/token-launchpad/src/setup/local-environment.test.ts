@@ -5,6 +5,7 @@ import {
   renderEnvironment,
   validateLocalRpcUrl,
   validateRuntimeManifest,
+  validateWireFormat,
   type RuntimeManifest,
 } from "@/setup/local-environment";
 
@@ -95,6 +96,16 @@ describe("validateLocalRpcUrl", () => {
     expect(() =>
       validateLocalRpcUrl("http://user:secret@localhost:9545"),
     ).toThrow(/loopback HTTP/);
+  });
+});
+
+describe("validateWireFormat", () => {
+  it("accepts stable wire 4 releases and rejects other majors", () => {
+    expect(() => validateWireFormat("4.0.0")).not.toThrow();
+    expect(() => validateWireFormat("4.12.3")).not.toThrow();
+    for (const value of ["3.9.0", "5.0.0", "4.0.0-rc.1", "invalid"]) {
+      expect(() => validateWireFormat(value)).toThrow(/wire format 4.x/);
+    }
   });
 });
 
