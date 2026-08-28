@@ -83,7 +83,7 @@ export function WalletPortfolio({ read }: { read: WalletPortfolioReader }) {
       ))}
       {state.portfolio.partial ? (
         <p className="text-xs text-muted-foreground" role="status">
-          Some balances could not be refreshed.
+          Some holdings may be unavailable.
         </p>
       ) : null}
       <Button size="sm" variant="ghost" onClick={refresh}>

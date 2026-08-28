@@ -21,28 +21,50 @@ import type { WalletPortfolioReader } from "@/wallet/portfolio";
 export const DevelopmentWalletContext = createContext<{
   active: PublicDevelopmentPersona;
   personas: readonly PublicDevelopmentPersona[];
+  isSwitching: boolean;
+  switchError: string | null;
   readPortfolio: WalletPortfolioReader;
-  switchTo: (id: DevelopmentPersonaId) => void;
+  switchTo: (id: DevelopmentPersonaId) => Promise<void>;
 } | null>(null);
 
 export function DevelopmentWalletSwitcher() {
   const wallet = use(DevelopmentWalletContext);
   const [open, setOpen] = useState(false);
   if (!wallet) return null;
+  const activeWallet = wallet;
+  async function select(id: DevelopmentPersonaId) {
+    try {
+      if (id !== activeWallet.active.id) await activeWallet.switchTo(id);
+    } catch {
+      return;
+    }
+    setOpen(false);
+  }
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="secondary" data-development-wallet-trigger>
+        <Button
+          aria-label={`Development wallet: ${wallet.active.label}`}
+          disabled={wallet.isSwitching}
+          variant="secondary"
+          data-development-wallet-trigger
+        >
           <UserRoundIcon />
-          {wallet.active.label}
+          {wallet.isSwitching ? "Switching..." : wallet.active.label}
           <ChevronDownIcon />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)]">
+      <PopoverContent
+        align="end"
+        className="max-h-[min(38rem,var(--radix-popover-content-available-height))] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto"
+      >
         <PopoverHeader>
           <PopoverTitle>Development wallet</PopoverTitle>
-          <PopoverDescription>
-            Switch this tab's disposable local account.
+          <PopoverDescription
+            role={wallet.switchError === null ? undefined : "alert"}
+          >
+            {wallet.switchError ??
+              "Switch this tab's disposable local account."}
           </PopoverDescription>
         </PopoverHeader>
         <Separator />
@@ -52,10 +74,8 @@ export function DevelopmentWalletSwitcher() {
               key={persona.id}
               variant="ghost"
               className="h-auto justify-start px-3 py-2"
-              onClick={() => {
-                wallet.switchTo(persona.id);
-                setOpen(false);
-              }}
+              disabled={wallet.isSwitching}
+              onClick={() => void select(persona.id)}
             >
               <span className="min-w-0 flex-1 text-left">
                 <span className="block font-medium">{persona.label}</span>

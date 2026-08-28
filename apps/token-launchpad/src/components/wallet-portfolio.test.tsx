@@ -45,7 +45,7 @@ describe("WalletPortfolio", () => {
       });
     render(<WalletPortfolio read={read} />);
     expect(
-      await screen.findByText("Some balances could not be refreshed."),
+      await screen.findByText("Some holdings may be unavailable."),
     ).toBeInTheDocument();
     await userEvent.click(
       screen.getByRole("button", { name: "Refresh balances" }),

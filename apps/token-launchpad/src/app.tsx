@@ -6,7 +6,8 @@ import {
   RefreshCwIcon,
   RocketIcon,
 } from "lucide-react";
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   BrowserRouter,
   Link,
@@ -123,7 +124,7 @@ export function App() {
   );
 }
 
-function PersonaApp({
+export function PersonaApp({
   base,
   personas,
 }: {
@@ -132,7 +133,12 @@ function PersonaApp({
 }) {
   const key = preferenceKey(base.networkIdHex, base.factoryAddress);
   const [id, setId] = useState(() => sessionStorage.getItem(key));
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
   const active = personas.find((persona) => persona.id === id) ?? personas[0]!;
+  const publicPersonas = useMemo(() => personas.map(publicPersona), [personas]);
+  const publicActive = publicPersonas.find(({ id }) => id === active.id)!;
+  const previousActiveId = useRef(active.id);
   const config = useMemo(
     () => ({ ...base, accountAddress: active.accountAddress }),
     [active.accountAddress, base],
@@ -145,24 +151,49 @@ function PersonaApp({
     () => createWalletPortfolioReader(client, config),
     [client, config],
   );
-  function switchTo(next: DevelopmentPersonaId) {
-    sessionStorage.setItem(key, next);
-    startTransition(() => setId(next));
+  useEffect(() => {
+    if (isSwitching || previousActiveId.current === active.id) return;
+    previousActiveId.current = active.id;
+    document
+      .querySelector<HTMLElement>("[data-development-wallet-trigger]")
+      ?.focus();
+  }, [active.id, isSwitching]);
+  async function switchTo(next: DevelopmentPersonaId) {
+    if (next === active.id || isSwitching) return;
+    setIsSwitching(true);
+    setSwitchError(null);
+    try {
+      await withWorkflowLock(config, async () => {
+        sessionStorage.setItem(key, next);
+        flushSync(() => setId(next));
+      });
+    } catch (reason) {
+      setSwitchError(
+        userErrorMessage(reason, "Development wallet could not be switched"),
+      );
+      throw reason;
+    } finally {
+      setIsSwitching(false);
+    }
   }
   return (
     <DevelopmentWalletContext
       value={{
-        active: publicPersona(active),
-        personas: personas.map(publicPersona),
+        active: publicActive,
+        personas: publicPersonas,
+        isSwitching,
+        switchError,
         readPortfolio,
         switchTo,
       }}
     >
-      <LaunchpadRoutes
-        key={active.id}
-        config={config}
-        walletPrivateKey={active.privateKeyHex}
-      />
+      <div aria-busy={isSwitching} inert={isSwitching}>
+        <LaunchpadRoutes
+          key={active.id}
+          config={config}
+          walletPrivateKey={active.privateKeyHex}
+        />
+      </div>
     </DevelopmentWalletContext>
   );
 }

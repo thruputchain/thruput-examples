@@ -24,6 +24,7 @@ export type WalletPortfolioReader = () => Promise<WalletPortfolio>;
 export function createWalletPortfolioReader(
   client: GroundhogClient,
   config: AppConfig,
+  readTokens = readCreatedTokens,
 ): WalletPortfolioReader {
   let pending: Promise<WalletPortfolio> | null = null;
   return async () => {
@@ -43,17 +44,15 @@ export function createWalletPortfolioReader(
             caller: config.accountAddress,
           }),
         ]),
-        readCreatedTokens(client, config),
+        readTokens(client, config, { creator: null }),
       ]);
       const tokens =
         created.status === "fulfilled"
-          ? created.value.tokens.map(
-              ({ addressHex, symbol, decimals, balance }) => ({
-                addressHex,
-                symbol,
-                decimals,
-                balance,
-              }),
+          ? created.value.tokens.flatMap(
+              ({ addressHex, symbol, decimals, balance }) =>
+                balance !== null && balance > 0n
+                  ? [{ addressHex, symbol, decimals, balance }]
+                  : [],
             )
           : [];
       const hogDecimals =
@@ -68,7 +67,10 @@ export function createWalletPortfolioReader(
           hog.status === "rejected" ||
           hogDecimals === null ||
           created.status === "rejected" ||
-          tokens.some(({ balance }) => balance === null),
+          (created.status === "fulfilled" &&
+            (created.value.truncated ||
+              created.value.historyLimited ||
+              created.value.tokens.some(({ balance }) => balance === null))),
       };
     })();
     try {
