@@ -11,6 +11,7 @@
     "dev": "vite",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "preview": "vite preview",
+    "setup:local": "bash scripts/setup-local.sh",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
