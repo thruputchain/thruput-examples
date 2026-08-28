@@ -467,8 +467,8 @@ export function CreatePage({
               <FieldGroup>
                 {(
                   [
-                    ["name", "Token name", "e.g. Groundhog Credits"],
                     ["symbol", "Symbol", "e.g. HOGX"],
+                    ["name", "Token name", "e.g. Groundhog Credits"],
                     ["decimals", "Decimals", "7"],
                     ["supply", "Initial supply", "1000000"],
                   ] as const
@@ -588,10 +588,9 @@ export function ReviewCard({
         <div className="mb-3 grid size-14 place-items-center rounded-2xl bg-accent text-xl font-semibold text-accent-foreground">
           {draft.symbol.trim().slice(0, 2).toUpperCase() || "?"}
         </div>
-        <CardTitle>{draft.name.trim() || "Your token"}</CardTitle>
+        <CardTitle>{draft.symbol.trim().toUpperCase() || "SYMBOL"}</CardTitle>
         <CardDescription>
-          {draft.symbol.trim().toUpperCase() || "SYMBOL"} ·{" "}
-          {draft.decimals || "0"} decimals
+          {draft.name.trim() || "Your token"} · {draft.decimals || "0"} decimals
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1044,9 +1043,9 @@ export function TokensPage({
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <CardTitle>{token.name}</CardTitle>
+                      <CardTitle>{token.symbol}</CardTitle>
                       <CardDescription>
-                        {token.symbol} ·{" "}
+                        {token.name} ·{" "}
                         {token.decimals === null
                           ? "Unsupported decimals"
                           : `${token.decimals} decimals`}
@@ -1076,14 +1075,6 @@ export function TokensPage({
                   <Detail
                     label="Administrator"
                     value={shortHash(token.administratorHex)}
-                  />
-                  <Detail
-                    label="Initial holder"
-                    value={shortHash(token.holderHex)}
-                  />
-                  <Detail
-                    label="Transaction"
-                    value={shortHash(token.transactionHash)}
                   />
                   <div className="flex items-center gap-2 rounded-lg bg-muted p-3 font-mono text-xs">
                     <span className="min-w-0 flex-1 truncate">

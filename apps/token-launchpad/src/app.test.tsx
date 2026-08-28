@@ -338,7 +338,19 @@ describe("My Tokens", () => {
         />
       </MemoryRouter>,
     );
-    expect(await screen.findByText("Wide token")).toBeInTheDocument();
+    expect(await screen.findByText("WIDE")).toHaveAttribute(
+      "data-slot",
+      "card-title",
+    );
+    expect(
+      screen.getByText(
+        (_content, element) =>
+          element?.getAttribute("data-slot") === "card-description" &&
+          element.textContent.includes("Wide token ·"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Initial holder")).not.toBeInTheDocument();
+    expect(screen.queryByText("Transaction")).not.toBeInTheDocument();
     expect(
       screen.getByText(
         (_content, element) =>
@@ -419,5 +431,19 @@ describe("launchpad navigation and hero", () => {
     expect(
       screen.getByRole("switch", { name: "Manual transaction processing" }),
     ).not.toBeChecked();
+    expect(screen.getByLabelText("Symbol")).toAppearBefore(
+      screen.getByLabelText("Token name"),
+    );
+    expect(screen.getByText("SYMBOL")).toHaveAttribute(
+      "data-slot",
+      "card-title",
+    );
+    expect(
+      screen.getByText(
+        (_content, element) =>
+          element?.getAttribute("data-slot") === "card-description" &&
+          element.textContent === "Your token · 7 decimals",
+      ),
+    ).toBeInTheDocument();
   });
 });
