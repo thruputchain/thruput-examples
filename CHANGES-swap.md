@@ -1,19 +1,96 @@
 # Swap App: Pending Contract Changes
 
-The `swap-*` contracts were reworked so that queue-cranking is permissionless
-and the cranker sizes its own batch.  This is the list of what changed and what
-it means for the frontend.
+The `swap-*` contracts were reworked in three rounds: the identities behind an
+operation were separated, queue-cranking became permissionless with the cranker
+sizing its own batch, and the pair was collapsed into the handler.  This is the
+list of what changed and what it means for the frontend.
 
 The reasoning behind the contract side is in
 [`docs/README-swap.md`](docs/README-swap.md) ("Why a Request Queue", "Cranking
 the Queue") and in the [`batch-driver`](helpers/batch-driver/src/lib.rs) module
 docs; the constants carry their own measured justifications.
 
-Nothing here breaks the app as it stands.  The stale bindings still hold the
-right entrypoint ids, and the app never calls the one method whose signature
-changed.
+**The app is now broken against these contracts.**  There is no pair contract
+any more, and the event the app watches no longer says what it used to.  Those
+are the two sections below --
+[Sender and recipient](#sender-and-recipient) and
+[Collapsing the pair](#collapsing-the-pair-into-the-handler) -- and both have to
+be worked through before the app will run.  The cranking items after them are
+things to take up rather than breakage.
 
-## What changed
+## Sender and recipient
+
+An operation's payer and its beneficiary are now tracked separately all the way
+through, so an event says both.  One consequence reaches the app, and it is not
+the one the commit's own summary leads with.
+
+* **The `sender` topic on `SwapEvent` is the user, not the handler.**  It used
+  to be `get_caller()` as seen from inside the pair -- which, since only the
+  handler ever called the pair, was always the handler's address.  It is now
+  the trader the router recorded.  The observer filters on the old meaning in
+  two places, `sender: config.handlerAddress` in the `GeneratedSwapEvent.filter`
+  and the matching `bytesEqual(swap.topics.sender, handlerAddress)` in
+  `matchSwapEvent`; both want the user's address, which is already to hand as
+  `config.accountAddress` beside the `recipient` topic they filter on.
+
+  This one fails quietly: the filter simply matches nothing, so every request
+  sits unobserved until it times out.
+
+* **`MintEvent` gains a `recipient` topic.**  Bindings-only for this app, which
+  decodes `SwapEvent` and nothing else -- worth knowing when regenerating, not
+  work in itself.  (`BurnEvent` and `SwapEvent` already carried one.)
+
+## Collapsing the pair into the handler
+
+`swap-pair` is no longer a contract.  Its operations are performed by the
+handler, in the handler's own invocation, against state and tokens the handler
+holds -- so **the handler is the pool**: it answers for the reserves, mints and
+burns the LP token, and emits the events those operations produce.  A pool is
+three contracts now (LP token, handler, driver) rather than four.
+
+* **`VITE_SWAP_PAIR_ADDRESS` goes away**, along with `config.pairAddress`.
+  Everywhere the app used the pair's address it wants the handler's, which it
+  already has as `config.handlerAddress`.
+
+* **Reserves come from the handler.**
+  [`pair-adapter.ts`](apps/swap/src/contracts/pair-adapter.ts) and
+  [`setup-local.ts`](apps/swap/scripts/setup-local.ts) call
+  `SwapPair.getReserves`; the same view is now `SwapHandler.getReserves`,
+  alongside `getLiquidity`, `getCumulativePrices`, `liquidityToken`, `skim` and
+  `sync`.  The generated `swap-pair.ts` should be deleted and a `swap-handler.ts`
+  generated in its place -- the handler had no views worth binding before, so
+  there is no such file yet.
+
+* **Mint, Burn and Swap events are emitted by the handler.**  This is the one
+  most likely to pass a type-check and then quietly observe nothing:
+  [`request-observer.ts`](apps/swap/src/transactions/request-observer.ts)
+  filters them with `contractAddresses: [config.pairAddress]` and compares
+  `event.contractAddress` against it in three more places.  All of those become
+  the handler's address.  `SyncEvent` still comes from the pair's code, which
+  now also runs there, so it moves too.
+
+* **`Pool` and `SwapHashes` lose their `pair` field**, and `PoolCreated` loses
+  it too.  In `setup-local.ts` that reaches four places: the `Artifacts`
+  interface and the `contract("swap_pair.rv32a")` that loads a binary which is
+  no longer built, the `pair:` hash passed to `SwapFactory.initialize`, the
+  `[liquidity_token, pair, handler, driver]` funding loop, and the
+  `VITE_SWAP_PAIR_ADDRESS` line written into `.env.local`.
+
+* **`generate-contract-bindings.sh` still builds and binds the pair.**  It
+  should drop the `swap-pair` build and codegen, and add `swap-handler` --
+  which will fail at the build step first, since `swap-pair` no longer produces
+  a guest binary.
+
+* **`SwapHandler::initialize` takes `(factory, token0, token1, lp_token)`.**
+  Still not called by the app -- the factory does it -- but the handler now
+  adopts the LP token itself rather than asking a pair for it.
+
+* **New error types.**  `SwapRouterError` and two more `SwapDriverError`
+  variants (`AlreadyInitialized`, `InvalidConfiguration`) replace what were
+  `panic!`s, so a failed initialization now arrives as a declared exception
+  rather than an undifferentiated fault.
+
+## Cranking
 
 * **Regenerate the bindings.**
   [`apps/swap/src/contracts/generated/swap-driver.ts`](apps/swap/src/contracts/generated/swap-driver.ts)
@@ -79,6 +156,8 @@ changed.
 
 | | |
 |---|---|
+| The pair's operations, now library code | [`engines/swap-pair/src/pair.rs`](engines/swap-pair/src/pair.rs) |
+| The pool: the handler that runs them and emits their events | [`contracts/swap-handler/src/handler.rs`](contracts/swap-handler/src/handler.rs) |
 | The drain loop, its gas budgeting, and the queue ceiling | [`helpers/batch-driver/src/lib.rs`](helpers/batch-driver/src/lib.rs) |
 | The driver: enqueue, ceiling, drain, summary event | [`contracts/swap-driver/src/driver.rs`](contracts/swap-driver/src/driver.rs) |
 | The interface and its events | [`interfaces/swap-if/src/driver.rs`](interfaces/swap-if/src/driver.rs), [`interfaces/swap-if/src/events.rs`](interfaces/swap-if/src/events.rs) |
