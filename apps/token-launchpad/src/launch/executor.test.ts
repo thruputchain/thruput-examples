@@ -11,6 +11,7 @@ import {
   createWorkflow,
   loadWorkflow,
   saveWorkflow,
+  workflowIntent,
   workflowStorageKey,
 } from "@/launch/workflow";
 import { configuration, MemoryStorage } from "@/launch/workflow.test";
@@ -52,6 +53,7 @@ describe("advanceWorkflow", () => {
       writer,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
       storage,
       locks,
       review: async () => factoryReview(config),
@@ -95,6 +97,7 @@ describe("advanceWorkflow", () => {
       writer,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
       storage,
       locks,
       review: async () => factoryReview(config),
@@ -120,6 +123,7 @@ describe("advanceWorkflow", () => {
         writer: {} as WriteBoundary,
         workflowId: "stale",
         workflowRevision: workflow.revision,
+        expectedIntent: workflowIntent(workflow),
         storage,
         locks,
         review: async () => factoryReview(config),
@@ -147,11 +151,82 @@ describe("advanceWorkflow", () => {
         writer: {} as WriteBoundary,
         workflowId: workflow.id,
         workflowRevision: 0,
+        expectedIntent: workflowIntent(workflow),
         storage,
         locks,
         review: async () => factoryReview(config),
       }),
     ).rejects.toThrow(/changed in another tab/);
+  });
+
+  it("pauses when any reviewed immutable factory value changes", async () => {
+    const config = configuration();
+    const reviewed = factoryReview(config);
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      reviewed,
+    );
+    const changedConfigs = [
+      { ...reviewed.config, native_token: config.factoryAddress },
+      {
+        ...reviewed.config,
+        token_code_hash: fixedBytes(new Uint8Array(32).fill(1), 32),
+      },
+      { ...reviewed.config, required_token_funding: 101n },
+      { ...reviewed.config, creation_fee: 1n },
+      { ...reviewed.config, fee_recipient: config.factoryAddress },
+    ];
+    for (const changedConfig of changedConfigs) {
+      const storage = new MemoryStorage();
+      saveWorkflow(storage, workflowStorageKey(config), workflow);
+      const writer = { execute: vi.fn(), observe: vi.fn() };
+      await expect(
+        advanceWorkflow({
+          config,
+          client: {} as GroundhogClient,
+          writer: writer as unknown as WriteBoundary,
+          workflowId: workflow.id,
+          workflowRevision: workflow.revision,
+          expectedIntent: workflowIntent(workflow),
+          storage,
+          locks,
+          review: async () => ({ ...reviewed, config: changedConfig }),
+        }),
+      ).rejects.toThrow(/factory state changed/);
+      expect(writer.execute).not.toHaveBeenCalled();
+    }
+  });
+
+  it("rejects a valid same-revision intent change after review", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
+    saveWorkflow(storage, workflowStorageKey(config), {
+      ...workflow,
+      token: { ...workflow.token, initialSupply: "13" },
+    });
+    const writer = { execute: vi.fn(), observe: vi.fn() };
+    await expect(
+      advanceWorkflow({
+        config,
+        client: {} as GroundhogClient,
+        writer: writer as unknown as WriteBoundary,
+        workflowId: workflow.id,
+        workflowRevision: workflow.revision,
+        expectedIntent: workflowIntent(workflow),
+        storage,
+        locks,
+        review: async () => factoryReview(config),
+      }),
+    ).rejects.toThrow(/changed in another tab/);
+    expect(writer.execute).not.toHaveBeenCalled();
   });
 
   it("requires a separate confirmation to recover pre-hash signing", async () => {
@@ -178,6 +253,7 @@ describe("advanceWorkflow", () => {
       writer,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
       storage,
       locks,
       review: async () => factoryReview(config),

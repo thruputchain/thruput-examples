@@ -122,6 +122,33 @@ describe("launch workflow persistence", () => {
       WorkflowStorageError,
     );
   });
+
+  it("rejects tampered token and factory values before signing", () => {
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      review,
+    );
+    for (const changed of [
+      { ...workflow, token: { ...workflow.token, name: " x" } },
+      { ...workflow, token: { ...workflow.token, symbol: "x".repeat(11) } },
+      {
+        ...workflow,
+        token: {
+          ...workflow.token,
+          initialSupply: ((1n << 127n) + 1n).toString(),
+        },
+      },
+      { ...workflow, reviewedCreationFee: ((1n << 127n) + 1n).toString() },
+    ]) {
+      storage.value = JSON.stringify(changed);
+      expect(() => loadWorkflow(storage, "workflow")).toThrow(
+        WorkflowStorageError,
+      );
+    }
+  });
 });
 
 export class MemoryStorage implements Pick<Storage, "getItem" | "setItem"> {

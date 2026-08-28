@@ -1,5 +1,6 @@
 import {
   addressFromHex,
+  bytesEqual,
   fixedBytes,
   fromHex0x,
   type GroundhogClient,
@@ -19,6 +20,7 @@ import {
   saveWorkflow,
   workflowStorageKey,
   withWorkflowLock,
+  workflowIntent,
   type LaunchWorkflow,
   type WorkflowStep,
 } from "@/launch/workflow";
@@ -36,6 +38,7 @@ export async function advanceWorkflow(input: {
   writer: WriteBoundary;
   workflowId: string;
   workflowRevision: number;
+  expectedIntent: string;
   confirmUnsignedStep?: "funding" | "creation";
   storage?: Pick<Storage, "getItem" | "setItem">;
   locks?: LockManager;
@@ -50,7 +53,8 @@ export async function advanceWorkflow(input: {
       if (
         workflow === null ||
         workflow.id !== input.workflowId ||
-        workflow.revision !== input.workflowRevision
+        workflow.revision !== input.workflowRevision ||
+        workflowIntent(workflow) !== input.expectedIntent
       ) {
         throw new Error(
           "This launch changed in another tab. Reload before continuing.",
@@ -64,10 +68,28 @@ export async function advanceWorkflow(input: {
         nonce,
         { balanceItemKnown: workflow.funding.status === "committed" },
       );
+      const reviewedFeeRecipient = workflow.reviewedFeeRecipientHex
+        ? addressFromHex(workflow.reviewedFeeRecipientHex)
+        : null;
       if (
         review.predictedAddressHex !== workflow.predictedAddressHex ||
+        !bytesEqual(
+          review.config.native_token,
+          addressFromHex(workflow.reviewedNativeTokenHex),
+        ) ||
+        !bytesEqual(
+          review.config.token_code_hash,
+          fromHex0x(workflow.reviewedTokenCodeHashHex),
+        ) ||
         review.config.required_token_funding.toString() !==
-          workflow.requiredTokenFunding
+          workflow.requiredTokenFunding ||
+        review.config.creation_fee.toString() !==
+          workflow.reviewedCreationFee ||
+        (review.config.fee_recipient === null) !==
+          (reviewedFeeRecipient === null) ||
+        (review.config.fee_recipient !== null &&
+          reviewedFeeRecipient !== null &&
+          !bytesEqual(review.config.fee_recipient, reviewedFeeRecipient))
       ) {
         throw new Error(
           "The reviewed factory state changed. This launch has been paused.",

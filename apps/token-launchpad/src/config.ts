@@ -1,6 +1,8 @@
 import { addressFromHex, fromHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
+import { PINNED_NATIVE_BALANCE_ITEM_COST } from "@/runtime";
+
 const HASH = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
 export interface AppConfig {
@@ -47,6 +49,11 @@ export function loadConfig(environment: Environment): AppConfig {
     required(environment, "VITE_NATIVE_BALANCE_ITEM_COST"),
     "VITE_NATIVE_BALANCE_ITEM_COST",
   );
+  if (nativeBalanceItemCost !== PINNED_NATIVE_BALANCE_ITEM_COST) {
+    throw new ConfigurationError(
+      `VITE_NATIVE_BALANCE_ITEM_COST must be ${PINNED_NATIVE_BALANCE_ITEM_COST} for the pinned runtime`,
+    );
+  }
   return {
     rpcUrl,
     networkIdHex: network.replace(/^0x/, "").toLowerCase(),

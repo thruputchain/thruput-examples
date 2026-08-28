@@ -13,6 +13,7 @@ import {
   type FactoryConfig,
 } from "@/contracts/generated/standard-token-factory";
 import { ERC20, ERC20Metadata } from "@/contracts/generated/standard-token";
+import { MAX_SIGNED_AMOUNT } from "@/runtime";
 
 export interface FactoryReview {
   config: FactoryConfig;
@@ -35,6 +36,41 @@ export interface CreatedToken {
   readError: boolean;
 }
 
+export function assertTrustedFactoryConfig(
+  factory: FactoryConfig,
+  config: AppConfig,
+): void {
+  if (
+    !bytesEqual(factory.native_token, config.nativeHogAddress) ||
+    !bytesEqual(factory.token_code_hash, config.expectedTokenHash) ||
+    factory.required_token_funding <= 0n ||
+    factory.required_token_funding > MAX_SIGNED_AMOUNT ||
+    factory.creation_fee !== 0n ||
+    factory.fee_recipient !== null
+  ) {
+    throw new Error("The configured token factory could not be verified.");
+  }
+}
+
+export function calculateFundingAmount(
+  required: bigint,
+  current: bigint,
+  balanceItemCost: bigint,
+  balanceItemKnown: boolean,
+): bigint {
+  const deficit = required > current ? required - current : 0n;
+  const amount =
+    deficit === 0n
+      ? 0n
+      : deficit + (current === 0n && !balanceItemKnown ? balanceItemCost : 0n);
+  if (amount > MAX_SIGNED_AMOUNT) {
+    throw new Error(
+      "The factory funding requirement exceeds the amount limit.",
+    );
+  }
+  return amount;
+}
+
 export async function reviewFactory(
   client: GroundhogClient,
   config: AppConfig,
@@ -48,15 +84,7 @@ export async function reviewFactory(
       caller: config.accountAddress,
     })
   ).value;
-  if (
-    !bytesEqual(factory.native_token, config.nativeHogAddress) ||
-    !bytesEqual(factory.token_code_hash, config.expectedTokenHash) ||
-    factory.required_token_funding <= 0n ||
-    factory.creation_fee !== 0n ||
-    factory.fee_recipient !== null
-  ) {
-    throw new Error("The configured token factory could not be verified.");
-  }
+  assertTrustedFactoryConfig(factory, config);
   const predictedAddress = (
     await StandardTokenFactory.predictToken.view({
       client,
@@ -73,22 +101,18 @@ export async function reviewFactory(
       args: { addr: predictedAddress },
     })
   ).value;
-  const deficit =
-    factory.required_token_funding > currentReserve
-      ? factory.required_token_funding - currentReserve
-      : 0n;
+  const fundingAmount = calculateFundingAmount(
+    factory.required_token_funding,
+    currentReserve,
+    config.nativeBalanceItemCost,
+    options.balanceItemKnown ?? false,
+  );
   return {
     config: factory,
     predictedAddress,
     predictedAddressHex: toHex0x(predictedAddress),
     currentReserve,
-    fundingAmount:
-      deficit === 0n
-        ? 0n
-        : deficit +
-          (currentReserve === 0n && !options.balanceItemKnown
-            ? config.nativeBalanceItemCost
-            : 0n),
+    fundingAmount,
   };
 }
 

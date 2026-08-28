@@ -68,6 +68,7 @@ import {
   loadWorkflow,
   saveWorkflow,
   withWorkflowLock,
+  workflowIntent,
   workflowStorageKey,
   type LaunchWorkflow,
 } from "@/launch/workflow";
@@ -333,6 +334,7 @@ function CreatePage({
           writer,
           workflowId: workflow.id,
           workflowRevision: workflow.revision,
+          expectedIntent: workflowIntent(workflow),
           ...(workflow.funding.status === "signing"
             ? { confirmUnsignedStep: "funding" as const }
             : workflow.creation.status === "signing"

@@ -3,8 +3,9 @@ import { toHex0x } from "@groundhogchain/client";
 import type { AppConfig } from "@/config";
 import type { FactoryReview } from "@/contracts/launchpad-client";
 import type { ParsedToken } from "@/launch/form";
+import { MAX_SIGNED_AMOUNT } from "@/runtime";
 
-export const WORKFLOW_VERSION = 1 as const;
+export const WORKFLOW_VERSION = 2 as const;
 const HASH = /^0x[0-9a-f]{64}$/;
 
 export type StepStatus =
@@ -30,7 +31,11 @@ export interface LaunchWorkflow {
     initialSupply: string;
   };
   predictedAddressHex: string;
+  reviewedNativeTokenHex: string;
+  reviewedTokenCodeHashHex: string;
   requiredTokenFunding: string;
+  reviewedCreationFee: string;
+  reviewedFeeRecipientHex: string | null;
   reviewedFundingAmount: string;
   reviewedReserve: string;
   funding: WorkflowStep;
@@ -91,7 +96,14 @@ export function createWorkflow(
       initialSupply: token.initialSupply.toString(),
     },
     predictedAddressHex: review.predictedAddressHex,
+    reviewedNativeTokenHex: toHex0x(review.config.native_token),
+    reviewedTokenCodeHashHex: toHex0x(review.config.token_code_hash),
     requiredTokenFunding: review.config.required_token_funding.toString(),
+    reviewedCreationFee: review.config.creation_fee.toString(),
+    reviewedFeeRecipientHex:
+      review.config.fee_recipient === null
+        ? null
+        : toHex0x(review.config.fee_recipient),
     reviewedFundingAmount: review.fundingAmount.toString(),
     reviewedReserve: review.currentReserve.toString(),
     funding: { status: "idle", hash: null },
@@ -167,6 +179,25 @@ export function assertWorkflowScope(
   }
 }
 
+export function workflowIntent(workflow: LaunchWorkflow): string {
+  return JSON.stringify([
+    workflow.networkIdHex,
+    workflow.factoryAddressHex,
+    workflow.creatorAddressHex,
+    workflow.nonceHex,
+    workflow.token.name,
+    workflow.token.symbol,
+    workflow.token.decimals,
+    workflow.token.initialSupply,
+    workflow.predictedAddressHex,
+    workflow.reviewedNativeTokenHex,
+    workflow.reviewedTokenCodeHashHex,
+    workflow.requiredTokenFunding,
+    workflow.reviewedCreationFee,
+    workflow.reviewedFeeRecipientHex,
+  ]);
+}
+
 function parseWorkflow(value: unknown): LaunchWorkflow {
   if (!isRecord(value) || value.version !== WORKFLOW_VERSION) {
     throw new WorkflowStorageError(
@@ -186,11 +217,18 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
       name: stringField(token, "name"),
       symbol: stringField(token, "symbol"),
       decimals: integerField(token, "decimals", 0, 18),
-      initialSupply: unsignedField(token, "initialSupply"),
+      initialSupply: signedAmountField(token, "initialSupply"),
     },
     predictedAddressHex: hex(value.predictedAddressHex),
-    requiredTokenFunding: unsigned(value.requiredTokenFunding),
-    reviewedFundingAmount: unsigned(value.reviewedFundingAmount),
+    reviewedNativeTokenHex: hex(value.reviewedNativeTokenHex),
+    reviewedTokenCodeHashHex: hex(value.reviewedTokenCodeHashHex),
+    requiredTokenFunding: signedAmount(value.requiredTokenFunding),
+    reviewedCreationFee: signedAmount(value.reviewedCreationFee),
+    reviewedFeeRecipientHex:
+      value.reviewedFeeRecipientHex === null
+        ? null
+        : hex(value.reviewedFeeRecipientHex),
+    reviewedFundingAmount: signedAmount(value.reviewedFundingAmount),
     reviewedReserve: unsigned(value.reviewedReserve),
     funding: step(value.funding),
     creation: step(value.creation),
@@ -203,8 +241,10 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
   };
   if (
     workflow.id.length === 0 ||
-    workflow.token.name.length === 0 ||
-    workflow.token.symbol.length === 0
+    !validMetadata(workflow.token.name, 100) ||
+    !validMetadata(workflow.token.symbol, 10) ||
+    BigInt(workflow.token.initialSupply) > MAX_SIGNED_AMOUNT ||
+    BigInt(workflow.requiredTokenFunding) === 0n
   ) {
     throw new WorkflowStorageError();
   }
@@ -305,6 +345,20 @@ function unsigned(value: unknown): string {
   return parsed;
 }
 
+function signedAmount(value: unknown): string {
+  const parsed = unsigned(value);
+  if (BigInt(parsed) > MAX_SIGNED_AMOUNT) throw new WorkflowStorageError();
+  return parsed;
+}
+
+function validMetadata(value: string, maximumBytes: number): boolean {
+  return (
+    value === value.trim() &&
+    value.length > 0 &&
+    new TextEncoder().encode(value).length <= maximumBytes
+  );
+}
+
 function string(value: unknown): string {
   if (typeof value !== "string") throw new WorkflowStorageError();
   return value;
@@ -344,9 +398,9 @@ function integer(value: unknown, minimum: number, maximum: number): number {
   return value as number;
 }
 
-function unsignedField(value: unknown, name: string): string {
+function signedAmountField(value: unknown, name: string): string {
   if (!isRecord(value)) throw new WorkflowStorageError();
-  return unsigned(value[name]);
+  return signedAmount(value[name]);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

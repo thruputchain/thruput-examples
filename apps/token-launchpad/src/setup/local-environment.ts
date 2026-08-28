@@ -1,8 +1,10 @@
 import { toHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
+import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../runtime";
+
 export const REQUIRED_TOKEN_FUNDING = 350_770n;
-export const EXPECTED_BALANCE_COST = "1234";
+export const EXPECTED_BALANCE_COST = PINNED_NATIVE_BALANCE_ITEM_COST.toString();
 
 export interface RuntimeManifest {
   schemaVersion: number;

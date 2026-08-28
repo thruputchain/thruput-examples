@@ -28,4 +28,10 @@ describe("loadConfig", () => {
       }),
     ).toThrow(ConfigurationError);
   });
+
+  it("rejects a balance-item cost from another runtime", () => {
+    expect(() =>
+      loadConfig({ ...environment, VITE_NATIVE_BALANCE_ITEM_COST: "1235" }),
+    ).toThrow(/pinned runtime/);
+  });
 });

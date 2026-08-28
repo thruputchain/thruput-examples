@@ -1,4 +1,5 @@
-const MAX_I128 = (1n << 127n) - 1n;
+import { MAX_SIGNED_AMOUNT } from "@/runtime";
+
 const encoder = new TextEncoder();
 
 export interface TokenDraft {
@@ -40,7 +41,7 @@ export function parseTokenDraft(draft: TokenDraft): {
       initialSupply =
         BigInt(whole) * 10n ** BigInt(decimals) +
         BigInt(fraction.padEnd(decimals, "0") || "0");
-      if (initialSupply > MAX_I128)
+      if (initialSupply > MAX_SIGNED_AMOUNT)
         errors.supply = "The supply exceeds the signed 128-bit limit.";
     }
   }
