@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { AppConfig } from "@/config";
 import type { FactoryReview } from "@/contracts/launchpad-client";
 import {
+  canDiscardInvalidStoredWorkflow,
   assertWorkflowScope,
   createWorkflow,
   loadWorkflow,
@@ -62,6 +63,65 @@ describe("launch workflow persistence", () => {
         accountAddress: contractAddress(new Uint8Array(32).fill(9)),
       }),
     ).toThrow(/another account or network/);
+  });
+
+  it("only permits invalid stored workflows with pristine transaction steps", () => {
+    const storage = new MemoryStorage();
+    storage.value = JSON.stringify({
+      version: 1,
+      funding: { status: "idle", hash: null },
+      creation: { status: "idle", hash: null },
+      createdAddressHex: null,
+      creationBlock: null,
+      verification: {
+        status: "pending",
+        message: null,
+        totalSupply: null,
+        holderBalance: null,
+      },
+    });
+    expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(true);
+
+    storage.value = JSON.stringify({
+      version: 1,
+      funding: { status: "pending", hash: `0x${"06".repeat(32)}` },
+      creation: { status: "idle", hash: null },
+      createdAddressHex: null,
+      creationBlock: null,
+      verification: {
+        status: "pending",
+        message: null,
+        totalSupply: null,
+        holderBalance: null,
+      },
+    });
+    expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(false);
+
+    storage.value = JSON.stringify({
+      version: 1,
+      funding: { status: "idle", hash: null },
+      creation: { status: "idle", hash: null },
+      createdAddressHex: null,
+      creationBlock: "42",
+      verification: {
+        status: "complete",
+        message: null,
+        totalSupply: "12",
+        holderBalance: "12",
+      },
+    });
+    expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(false);
+
+    storage.value = "invalid";
+    expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(false);
+
+    storage.value = JSON.stringify({
+      version: 3,
+      funding: { status: "idle", hash: null },
+      creation: { status: "idle", hash: null },
+      createdAddressHex: null,
+    });
+    expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(false);
   });
 
   it("turns storage failures into signing-blocking errors", () => {

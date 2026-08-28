@@ -7,6 +7,7 @@ import type { ParsedToken } from "@/launch/form";
 import { MAX_SIGNED_AMOUNT } from "@/runtime";
 
 export const WORKFLOW_VERSION = 2 as const;
+const LEGACY_WORKFLOW_VERSION = 1;
 const HASH = /^0x[0-9a-f]{64}$/;
 
 export type StepStatus =
@@ -169,6 +170,30 @@ export function loadWorkflow(
   }
 }
 
+export function canDiscardInvalidStoredWorkflow(
+  storage: Pick<Storage, "getItem">,
+  key: string,
+): boolean {
+  let value: unknown;
+  try {
+    const serialized = storage.getItem(key);
+    if (serialized === null) return false;
+    value = JSON.parse(serialized);
+  } catch {
+    return false;
+  }
+  if (!isRecord(value) || value.version !== LEGACY_WORKFLOW_VERSION) {
+    return false;
+  }
+  return (
+    isPristineStep(value.funding) &&
+    isPristineStep(value.creation) &&
+    value.createdAddressHex === null &&
+    value.creationBlock === null &&
+    isPristineVerification(value.verification)
+  );
+}
+
 export function assertWorkflowScope(
   workflow: LaunchWorkflow,
   config: AppConfig,
@@ -323,6 +348,20 @@ function step(value: unknown): WorkflowStep {
     status: value.status as StepStatus,
     hash: hash as string | null,
   };
+}
+
+function isPristineStep(value: unknown): boolean {
+  return isRecord(value) && value.status === "idle" && value.hash === null;
+}
+
+function isPristineVerification(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    value.status === "pending" &&
+    value.message === null &&
+    value.totalSupply === null &&
+    value.holderBalance === null
+  );
 }
 
 function verification(value: unknown): LaunchWorkflow["verification"] {

@@ -69,6 +69,7 @@ import { createReadClient } from "@/groundhog/client";
 import { runWorkflow } from "@/launch/executor";
 import { formatUnits, parseTokenDraft, type TokenDraft } from "@/launch/form";
 import {
+  canDiscardInvalidStoredWorkflow,
   createWorkflow,
   loadWorkflow,
   saveWorkflow,
@@ -311,15 +312,24 @@ export function CreatePage({
   const [initialWorkflow] = useState<{
     workflow: LaunchWorkflow | null;
     error: string | null;
+    invalidDiscardable: boolean;
   }>(() => {
     try {
-      return { workflow: loadWorkflow(localStorage, storageKey), error: null };
+      return {
+        workflow: loadWorkflow(localStorage, storageKey),
+        error: null,
+        invalidDiscardable: false,
+      };
     } catch (error) {
       return {
         workflow: null,
         error: userErrorMessage(
           error,
           "The saved launch workflow could not be read",
+        ),
+        invalidDiscardable: canDiscardInvalidStoredWorkflow(
+          localStorage,
+          storageKey,
         ),
       };
     }
@@ -429,6 +439,11 @@ export function CreatePage({
           } catch (reason) {
             if (!(reason instanceof WorkflowStorageError)) throw reason;
           }
+          if (!canDiscardInvalidStoredWorkflow(localStorage, storageKey)) {
+            throw new Error(
+              "The invalid saved workflow may contain transaction evidence and cannot be discarded safely.",
+            );
+          }
           localStorage.removeItem(storageKey);
           return;
         }
@@ -478,7 +493,7 @@ export function CreatePage({
           <AlertDescription>{error ?? storageError}</AlertDescription>
         </Alert>
       ) : null}
-      {storageError ? (
+      {storageError && initialWorkflow.invalidDiscardable ? (
         <Button
           className="mb-6"
           variant="outline"

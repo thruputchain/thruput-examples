@@ -229,7 +229,22 @@ describe("launch review", () => {
           action(),
       },
     });
-    window.localStorage.setItem(key, "invalid");
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        version: 1,
+        funding: { status: "idle", hash: null },
+        creation: { status: "idle", hash: null },
+        createdAddressHex: null,
+        creationBlock: null,
+        verification: {
+          status: "pending",
+          message: null,
+          totalSupply: null,
+          holderBalance: null,
+        },
+      }),
+    );
     try {
       render(
         <MemoryRouter>
@@ -256,6 +271,36 @@ describe("launch review", () => {
       } else {
         Reflect.deleteProperty(navigator, "locks");
       }
+    }
+  });
+
+  it("does not offer to discard ambiguous invalid workflow evidence", () => {
+    const config = configuration();
+    window.localStorage.setItem(
+      workflowStorageKey(config),
+      JSON.stringify({
+        version: 1,
+        funding: { status: "committed", hash: `0x${"06".repeat(32)}` },
+        creation: { status: "pending", hash: `0x${"07".repeat(32)}` },
+      }),
+    );
+    try {
+      render(
+        <MemoryRouter>
+          <CreatePage
+            config={config}
+            client={{} as never}
+            writer={{} as never}
+          />
+        </MemoryRouter>,
+      );
+      expect(
+        screen.queryByRole("button", {
+          name: "Discard invalid saved workflow",
+        }),
+      ).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.clear();
     }
   });
 });
