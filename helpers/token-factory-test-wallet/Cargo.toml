@@ -1,0 +1,32 @@
+[package]
+name = "token-factory-test-wallet"
+description = "Test-only atomic storage top-up caller for token factory integration tests"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+entrypoints = []
+rv32-entrypoints = ["entrypoints"]
+dev = ["sdk/dev", "groundhog-erc20-if/dev"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "token_factory_test_wallet"
+path = "src/main.rs"
+required-features = ["rv32-entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
+
+[dev-dependencies]
+token-factory-test-wallet = { path = ".", features = ["dev"] }

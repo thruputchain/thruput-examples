@@ -1,0 +1,833 @@
+//! Real-artifact token factory lifecycle on a fresh `hog-devnode`.
+
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+use groundhog_erc20_if::{ApprovalEvent, CONTRACT_ADDR_ZERO, TransferEvent};
+use groundhog_json_rpc_types::events::{
+    BlockAnchor, ContractAddressList, EventFilter, EventFilterList, EventQuery, EventTopicFilter,
+    IdentifiedEvent, IterationOrder, PaginationCursor, TopicList,
+};
+use groundhog_json_rpc_types::hex::{Hex0x, Topic};
+use groundhog_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
+use groundhog_testkit::xdr::types::{ContractAddress, SHA256Hash};
+use groundhog_testkit::{
+    Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Result, Scenario, xdrs,
+};
+use sdk::Event as _;
+use sdk::exn::{LibraryExn, RawException};
+use sdk::sys::{SyscallErrorCode, SyscallNo};
+use standard_token::Config;
+use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
+
+const ERC20: (&str, &str) = ("ERC20", "0.1.9");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.9");
+const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
+const REQUIRED_FACTORY_FUNDING: u128 = 1_000_000;
+const REQUIRED_TOKEN_FUNDING: u128 = 350_770;
+const TOKEN_SOURCE_FUNDING: u128 = 352_004;
+const ROW_FUNDING: u128 = 12_000;
+const NATIVE_TOKEN_FUNDING: u128 = 1_000_000;
+const CREATION_FEE: u128 = 25;
+
+#[derive(Debug, Clone, xdrs::WriteXDR, xdrs::ReadXDR)]
+#[xdr(crate = "groundhog_testkit::xdrs")]
+struct SpendRequest {
+    token: ContractAddress,
+    owner: ContractAddress,
+    amount: u128,
+}
+
+fn native_token() -> Contract {
+    let mut bytes = [0u8; 32];
+    bytes[31] = 1;
+    Contract::new(ContractAddress::from(bytes), ERC20.0, ERC20.1)
+}
+
+fn token(address: ContractAddress) -> Contract {
+    Contract::new(address, ERC20.0, ERC20.1)
+}
+
+fn metadata(address: ContractAddress) -> Contract {
+    Contract::new(address, METADATA.0, METADATA.1)
+}
+
+fn maximum_config(administrator: ContractAddress) -> Config {
+    Config {
+        administrator,
+        name: Some("N".repeat(100).as_str().try_into().unwrap()),
+        symbol: Some("S".repeat(10).as_str().try_into().unwrap()),
+        decimals: Some(u32::MAX),
+    }
+}
+
+async fn deploy_factory(
+    ctx: &mut AgentContext,
+    native: &Contract,
+    config: FactoryConfig,
+) -> Result<Contract> {
+    let factory = Contract::new(
+        ctx.deploy_artifact("standard_token_factory").await?.address,
+        FACTORY.0,
+        FACTORY.1,
+    );
+    native
+        .call(
+            ctx,
+            "transfer",
+            &(factory.address(), REQUIRED_FACTORY_FUNDING),
+        )
+        .await?;
+    factory.call(ctx, "initialize", &config).await?;
+    let stored: FactoryConfig = factory.view(ctx, "config", &(), None).await?;
+    assert_eq!(stored, config);
+    Ok(factory)
+}
+
+async fn predict(
+    ctx: &AgentContext,
+    factory: &Contract,
+    nonce: SHA256Hash,
+) -> Result<ContractAddress> {
+    factory
+        .view(ctx, "predict_token", &(ctx.address(), nonce), None)
+        .await
+}
+
+async fn create(
+    ctx: &mut AgentContext,
+    factory: &Contract,
+    nonce: SHA256Hash,
+    config: &Config,
+    initial_holder: ContractAddress,
+    initial_supply: u128,
+) -> Result<groundhog_testkit::SubmittedContractCall> {
+    factory
+        .submit_call(
+            ctx,
+            "create_token",
+            &(
+                nonce,
+                config.administrator,
+                config.name.clone(),
+                config.symbol.clone(),
+                config.decimals,
+                initial_holder,
+                initial_supply,
+            ),
+        )
+        .await
+}
+
+async fn balance(ctx: &AgentContext, contract: &Contract, owner: ContractAddress) -> Result<u128> {
+    contract.view(ctx, "get_balance_of", &owner, None).await
+}
+
+async fn reserve(ctx: &AgentContext, native: &Contract, address: ContractAddress) -> Result<u128> {
+    balance(ctx, native, address).await
+}
+
+fn assert_transfer(
+    receipt: &TransactionReceipt,
+    index: usize,
+    contract: ContractAddress,
+    from: ContractAddress,
+    to: ContractAddress,
+    amount: i128,
+) {
+    let event = &receipt.events[index];
+    assert_eq!(event.contract_address.0, contract);
+    assert_eq!(event.topics.len(), 3);
+    assert_eq!(event.topics[0].0, *TransferEvent::SIGNATURE);
+    assert_eq!(event.topics[1].0, *from.as_ref());
+    assert_eq!(event.topics[2].0, *to.as_ref());
+    assert_eq!(xdrs::cxs::decode::<i128>(&event.data.0).unwrap(), amount);
+}
+
+fn assert_approval(
+    receipt: &TransactionReceipt,
+    index: usize,
+    contract: ContractAddress,
+    owner: ContractAddress,
+    spender: ContractAddress,
+    difference: i128,
+) {
+    let event = &receipt.events[index];
+    assert_eq!(event.contract_address.0, contract);
+    assert_eq!(event.topics.len(), 3);
+    assert_eq!(event.topics[0].0, *ApprovalEvent::SIGNATURE);
+    assert_eq!(event.topics[1].0, *owner.as_ref());
+    assert_eq!(event.topics[2].0, *spender.as_ref());
+    assert_eq!(
+        xdrs::cxs::decode::<i128>(&event.data.0).unwrap(),
+        difference
+    );
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the assertion mirrors the fixed TokenCreated event schema"
+)]
+fn assert_created(
+    receipt: &TransactionReceipt,
+    factory: ContractAddress,
+    token: ContractAddress,
+    creator: ContractAddress,
+    config: &Config,
+    holder: ContractAddress,
+    supply: u128,
+    token_hash: SHA256Hash,
+) {
+    assert!(receipt.events.len() >= 2);
+    let first_creation_event = receipt.events.len() - 2;
+    assert_transfer(
+        receipt,
+        first_creation_event,
+        token,
+        *CONTRACT_ADDR_ZERO,
+        holder,
+        supply as i128,
+    );
+
+    let event = &receipt.events[first_creation_event + 1];
+    assert_eq!(event.contract_address.0, factory);
+    assert_eq!(event.topics.len(), 3);
+    assert_eq!(event.topics[0].0, *TokenCreated::SIGNATURE);
+    assert_eq!(event.topics[1].0, *token.as_ref());
+    assert_eq!(event.topics[2].0, *creator.as_ref());
+    let payload = TokenCreated::decode_payload(&event.data.0).expect("decode TokenCreated payload");
+    assert_eq!(payload.administrator, config.administrator);
+    assert_eq!(payload.initial_holder, holder);
+    assert_eq!(payload.initial_supply, supply);
+    assert_eq!(payload.name, config.name);
+    assert_eq!(payload.symbol, config.symbol);
+    assert_eq!(payload.decimals, config.decimals);
+    assert_eq!(payload.token_code_hash, token_hash);
+}
+
+fn event_query(
+    factory: ContractAddress,
+    height: groundhog_json_rpc_types::BlockHeight,
+) -> EventQuery {
+    EventQuery {
+        filters: EventFilterList(
+            vec![EventFilter {
+                contract_addresses: ContractAddressList(
+                    vec![Hex0x(factory)]
+                        .try_into()
+                        .expect("one contract filter"),
+                ),
+                topics: EventTopicFilter {
+                    topic0: TopicList(
+                        vec![Topic(*TokenCreated::SIGNATURE)]
+                            .try_into()
+                            .expect("one topic filter"),
+                    ),
+                    topic1: TopicList::default(),
+                    topic2: TopicList::default(),
+                },
+            }]
+            .try_into()
+            .expect("one event filter"),
+        ),
+        order: IterationOrder::Ascending,
+        anchor: BlockAnchor::AtHeight { height },
+        cursor: PaginationCursor::default(),
+        limit: 10,
+    }
+}
+
+async fn indexed_created_events(
+    ctx: &AgentContext,
+    factory: ContractAddress,
+    height: groundhog_json_rpc_types::BlockHeight,
+) -> Result<Vec<IdentifiedEvent>> {
+    for _ in 0..40 {
+        let page = ctx
+            .network()
+            .get_events(event_query(factory, height.clone()))
+            .await?;
+        if page.latest_block >= height {
+            assert!(page.events.iter().all(|event| event.block_height == height));
+            return Ok(page.events);
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    panic!("event index did not reach block {}", *height)
+}
+
+fn spec_names<'a>(value: &'a serde_json::Value, key: &str) -> Vec<&'a str> {
+    value[key]
+        .as_array()
+        .expect("spec collection")
+        .iter()
+        .map(|item| item["name"].as_str().expect("named spec item"))
+        .collect()
+}
+
+fn named<'a>(items: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
+    items
+        .as_array()
+        .expect("spec collection")
+        .iter()
+        .find(|item| item["name"] == name)
+        .unwrap_or_else(|| panic!("missing spec item {name}"))
+}
+
+fn assert_generated_specs(root: &Path) {
+    let factory: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(root.join("standard_token_factory.spec.json")).expect("read factory spec"),
+    )
+    .expect("parse factory spec");
+    let token: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(root.join("standard_token.spec.json")).expect("read token spec"),
+    )
+    .expect("parse token spec");
+
+    assert_eq!(factory["format"], "gh_contract_spec_v1");
+    assert_eq!(token["format"], "gh_contract_spec_v1");
+    assert_eq!(factory["interfaces"][0]["version"], FACTORY.1);
+    assert_eq!(spec_names(&factory, "events"), ["TokenCreated"]);
+    assert_eq!(
+        spec_names(&token, "events"),
+        ["ApprovalEvent", "TransferEvent"]
+    );
+    let factory_config = named(&factory["type_defs"], "FactoryConfig");
+    assert_eq!(
+        spec_names(factory_config, "fields"),
+        [
+            "token_code_hash",
+            "required_token_funding",
+            "native_token",
+            "creation_fee",
+            "fee_recipient"
+        ]
+    );
+    let factory_errors = named(&factory["type_defs"], "TokenFactoryError");
+    assert_eq!(
+        spec_names(factory_errors, "variants"),
+        [
+            "AlreadyInitialized",
+            "InvalidConfig",
+            "InvalidTokenConfig",
+            "InsufficientTokenFunding"
+        ]
+    );
+    assert_eq!(
+        factory_errors["variants"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|variant| variant["value"].as_u64().unwrap())
+            .collect::<Vec<_>>(),
+        [1, 2, 3, 4]
+    );
+    let created = named(&factory["events"], "TokenCreated");
+    assert_eq!(spec_names(created, "topics"), ["token", "creator"]);
+    assert_eq!(
+        spec_names(created, "fields"),
+        [
+            "administrator",
+            "initial_holder",
+            "initial_supply",
+            "name",
+            "symbol",
+            "decimals",
+            "token_code_hash"
+        ]
+    );
+
+    let factory_methods = spec_names(&factory["interfaces"][0], "methods");
+    for method in [
+        "initialize",
+        "create_token",
+        "predict_token",
+        "required_token_funding",
+        "creation_fee",
+        "config",
+    ] {
+        assert!(factory_methods.contains(&method));
+    }
+    let create_token = named(&factory["interfaces"][0]["methods"], "create_token");
+    assert_eq!(
+        spec_names(create_token, "args"),
+        [
+            "nonce",
+            "administrator",
+            "name",
+            "symbol",
+            "decimals",
+            "initial_holder",
+            "initial_supply"
+        ]
+    );
+    assert_eq!(create_token["return_type"]["kind"], "address");
+    let interfaces = spec_names(&token, "interfaces");
+    assert_eq!(
+        interfaces,
+        ["ERC20", "ERC20Metadata", "StandardTokenInitializer"]
+    );
+    assert_eq!(token["interfaces"][0]["version"], ERC20.1);
+    assert_eq!(token["interfaces"][1]["version"], METADATA.1);
+    let erc20_methods = spec_names(&token["interfaces"][0], "methods");
+    for method in [
+        "mint",
+        "transfer",
+        "adjust_allowance",
+        "transfer_from",
+        "burn",
+        "total_supply",
+    ] {
+        assert!(erc20_methods.contains(&method));
+    }
+    assert_eq!(
+        spec_names(named(&token["events"], "ApprovalEvent"), "fields"),
+        ["difference"]
+    );
+    assert_eq!(
+        spec_names(named(&token["events"], "TransferEvent"), "fields"),
+        ["amount"]
+    );
+
+    for spec in ["standard_token.spec.xdr", "standard_token_factory.spec.xdr"] {
+        assert!(std::fs::metadata(root.join(spec)).unwrap().len() > 0);
+    }
+}
+
+fn spender_agent() -> Agent {
+    Agent::new("spender", |mut ctx| async move {
+        let me = ctx.address();
+        ctx.send("creator", &me)?;
+        let request = ctx
+            .recv_from::<SpendRequest>("creator")
+            .await
+            .expect("creator closed before transfer_from")?
+            .body;
+        let token = token(request.token);
+        let receipt = token
+            .call(
+                &mut ctx,
+                "transfer_from",
+                &(request.owner, me, request.amount),
+            )
+            .await?;
+        assert_eq!(receipt.events.len(), 2);
+        assert_approval(
+            &receipt,
+            0,
+            request.token,
+            request.owner,
+            me,
+            -(request.amount as i128),
+        );
+        assert_transfer(
+            &receipt,
+            1,
+            request.token,
+            request.owner,
+            me,
+            request.amount as i128,
+        );
+        ctx.send("creator", &())?;
+        Ok(())
+    })
+}
+
+fn creator_agent() -> Agent {
+    Agent::new("creator", move |mut ctx| async move {
+        let creator = ctx.address();
+        let spender = ctx
+            .recv_from::<ContractAddress>("spender")
+            .await
+            .expect("spender closed before greeting")?
+            .body;
+        let native = native_token();
+
+        let registration = ctx.register_artifact("standard_token").await?;
+        assert!(registration.registered);
+        assert!(ctx.is_registered("standard_token")?);
+        let token_hash = ctx.contract_hash("standard_token")?;
+
+        let unavailable_factory = deploy_factory(
+            &mut ctx,
+            &native,
+            FactoryConfig {
+                token_code_hash: SHA256Hash::from([0xff; 32]),
+                required_token_funding: REQUIRED_TOKEN_FUNDING,
+                native_token: native.address(),
+                creation_fee: 0,
+                fee_recipient: None,
+            },
+        )
+        .await?;
+        let unavailable_nonce = SHA256Hash::from([0x60; 32]);
+        let unavailable_address = predict(&ctx, &unavailable_factory, unavailable_nonce).await?;
+        native
+            .call(
+                &mut ctx,
+                "transfer",
+                &(unavailable_address, TOKEN_SOURCE_FUNDING),
+            )
+            .await?;
+        let unavailable_reserve = reserve(&ctx, &native, unavailable_address).await?;
+        let unavailable_config = maximum_config(creator);
+        let unavailable = create(
+            &mut ctx,
+            &unavailable_factory,
+            unavailable_nonce,
+            &unavailable_config,
+            creator,
+            1,
+        )
+        .await?;
+        let unavailable_receipt = ctx.network().await_receipt(unavailable.tx_hash()).await?;
+        assert!(matches!(
+            unavailable_receipt.status,
+            ExecStatus::Reverted { .. }
+        ));
+        assert!(unavailable_receipt.events.is_empty());
+        let unavailable_abort = unavailable_receipt
+            .abort_data
+            .as_ref()
+            .expect("unavailable artifact returns an SDK exception");
+        let unavailable_exception = RawException::from_abort_buf(&unavailable_abort.0)
+            .expect("decode unavailable artifact exception");
+        let library = unavailable_exception
+            .try_as::<LibraryExn>()
+            .expect("unavailable artifact is a library exception");
+        assert!(library.as_syscall_exn().unwrap().is(
+            SyscallNo::kDeployContract,
+            SyscallErrorCode::kSyscallErrorCodeInvalidSyscallInput,
+        ));
+        assert_eq!(
+            reserve(&ctx, &native, unavailable_address).await?,
+            unavailable_reserve
+        );
+        assert!(
+            indexed_created_events(
+                &ctx,
+                unavailable_factory.address(),
+                unavailable_receipt.height
+            )
+            .await?
+            .is_empty()
+        );
+
+        let factory_config = FactoryConfig {
+            token_code_hash: token_hash,
+            required_token_funding: REQUIRED_TOKEN_FUNDING,
+            native_token: native.address(),
+            creation_fee: 0,
+            fee_recipient: None,
+        };
+        let factory = deploy_factory(&mut ctx, &native, factory_config).await?;
+        let published: u128 = factory
+            .view(&ctx, "required_token_funding", &(), None)
+            .await?;
+        assert_eq!(published, REQUIRED_TOKEN_FUNDING);
+
+        let underfunded_nonce = SHA256Hash::from([0x5f; 32]);
+        let underfunded_address = predict(&ctx, &factory, underfunded_nonce).await?;
+        native
+            .call(
+                &mut ctx,
+                "transfer",
+                &(underfunded_address, TOKEN_SOURCE_FUNDING - 1),
+            )
+            .await?;
+        let config = maximum_config(creator);
+        let underfunded =
+            create(&mut ctx, &factory, underfunded_nonce, &config, creator, 1).await?;
+        let underfunded_receipt = ctx.network().await_receipt(underfunded.tx_hash()).await?;
+        assert!(matches!(
+            underfunded_receipt.status,
+            ExecStatus::Reverted { .. }
+        ));
+        assert!(underfunded_receipt.events.is_empty());
+        let underfunded_abort = underfunded_receipt
+            .abort_data
+            .as_ref()
+            .expect("underfunded creation returns a factory exception");
+        assert_eq!(
+            RawException::from_abort_buf(&underfunded_abort.0)
+                .expect("decode underfunded exception")
+                .try_as::<TokenFactoryError>(),
+            Some(TokenFactoryError::InsufficientTokenFunding)
+        );
+        assert!(
+            indexed_created_events(&ctx, factory.address(), underfunded_receipt.height)
+                .await?
+                .is_empty()
+        );
+
+        let nonce = SHA256Hash::from([0x61; 32]);
+        let predicted = predict(&ctx, &factory, nonce).await?;
+        native
+            .call(&mut ctx, "transfer", &(predicted, TOKEN_SOURCE_FUNDING))
+            .await?;
+        let submitted = create(&mut ctx, &factory, nonce, &config, creator, 1_000).await?;
+        let creation_receipt = submitted.await_receipt().await?;
+        assert_eq!(creation_receipt.events.len(), 2);
+        let created: ContractAddress = xdrs::cxs::decode(
+            &creation_receipt
+                .return_data
+                .as_ref()
+                .expect("create_token returns an address")
+                .0,
+        )
+        .expect("decode created token address");
+        assert_eq!(created, predicted);
+        assert_created(
+            &creation_receipt,
+            factory.address(),
+            created,
+            creator,
+            &config,
+            creator,
+            1_000,
+            token_hash,
+        );
+        let indexed =
+            indexed_created_events(&ctx, factory.address(), creation_receipt.height.clone())
+                .await?;
+        assert_eq!(indexed.len(), 1);
+        assert_eq!(indexed[0].tx_hash, creation_receipt.tx_hash);
+        assert_eq!(indexed[0].sequence_number, 1);
+        assert_eq!(
+            indexed[0].event.contract_address,
+            creation_receipt.events[1].contract_address
+        );
+        assert_eq!(indexed[0].event.topics, creation_receipt.events[1].topics);
+        assert_eq!(indexed[0].event.data.0, creation_receipt.events[1].data.0);
+
+        let token = token(created);
+        let metadata = metadata(created);
+        assert_eq!(
+            metadata
+                .view::<_, Option<Name>>(&ctx, "name", &(), None)
+                .await?,
+            config.name
+        );
+        assert_eq!(
+            metadata
+                .view::<_, Option<Symbol>>(&ctx, "symbol", &(), None)
+                .await?,
+            config.symbol
+        );
+        assert_eq!(
+            metadata
+                .view::<_, Option<u32>>(&ctx, "decimals", &(), None)
+                .await?,
+            config.decimals
+        );
+        assert_eq!(balance(&ctx, &token, creator).await?, 1_000);
+        assert_eq!(
+            token
+                .view::<_, u128>(&ctx, "total_supply", &(), None)
+                .await?,
+            1_000
+        );
+        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+
+        let mint = token.call(&mut ctx, "mint", &(creator, 100_u128)).await?;
+        assert_eq!(mint.events.len(), 1);
+        assert_transfer(&mint, 0, created, *CONTRACT_ADDR_ZERO, creator, 100);
+        assert_eq!(balance(&ctx, &token, creator).await?, 1_100);
+        assert_eq!(
+            token
+                .view::<_, u128>(&ctx, "total_supply", &(), None)
+                .await?,
+            1_100
+        );
+        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+
+        native
+            .call(&mut ctx, "transfer", &(created, ROW_FUNDING))
+            .await?;
+        let transfer = token
+            .call(&mut ctx, "transfer", &(spender, 200_u128))
+            .await?;
+        assert_eq!(transfer.events.len(), 1);
+        assert_transfer(&transfer, 0, created, creator, spender, 200);
+        assert_eq!(balance(&ctx, &token, creator).await?, 900);
+        assert_eq!(balance(&ctx, &token, spender).await?, 200);
+        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+
+        native
+            .call(&mut ctx, "transfer", &(created, ROW_FUNDING))
+            .await?;
+        let approval = token
+            .call(&mut ctx, "adjust_allowance", &(spender, 150_i128))
+            .await?;
+        assert_eq!(approval.events.len(), 1);
+        assert_approval(&approval, 0, created, creator, spender, 150);
+        assert_eq!(balance(&ctx, &token, creator).await?, 900);
+        assert_eq!(balance(&ctx, &token, spender).await?, 200);
+        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+        assert_eq!(
+            token
+                .view::<_, u128>(&ctx, "allowance", &(creator, spender), None)
+                .await?,
+            150
+        );
+
+        ctx.send(
+            "spender",
+            &SpendRequest {
+                token: created,
+                owner: creator,
+                amount: 75,
+            },
+        )?;
+        ctx.recv_from::<()>("spender")
+            .await
+            .expect("spender closed before transfer_from completed")?;
+        assert_eq!(balance(&ctx, &token, creator).await?, 825);
+        assert_eq!(balance(&ctx, &token, spender).await?, 275);
+        assert_eq!(
+            token
+                .view::<_, u128>(&ctx, "allowance", &(creator, spender), None)
+                .await?,
+            75
+        );
+        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+
+        let burn = token.call(&mut ctx, "burn", &(spender, 25_u128)).await?;
+        assert_eq!(burn.events.len(), 1);
+        assert_transfer(&burn, 0, created, spender, *CONTRACT_ADDR_ZERO, 25);
+        assert_eq!(balance(&ctx, &token, spender).await?, 250);
+        assert_eq!(
+            token
+                .view::<_, u128>(&ctx, "total_supply", &(), None)
+                .await?,
+            1_075
+        );
+        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+
+        let unseen = ContractAddress::from([0x44; 32]);
+        native
+            .call(&mut ctx, "transfer", &(created, ROW_FUNDING))
+            .await?;
+        let unseen_transfer = token.call(&mut ctx, "transfer", &(unseen, 1_u128)).await?;
+        assert_eq!(unseen_transfer.events.len(), 1);
+        assert_transfer(&unseen_transfer, 0, created, creator, unseen, 1);
+        assert_eq!(balance(&ctx, &token, creator).await?, 824);
+        assert_eq!(balance(&ctx, &token, unseen).await?, 1);
+        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+
+        let fee_factory = deploy_factory(
+            &mut ctx,
+            &native,
+            FactoryConfig {
+                token_code_hash: token_hash,
+                required_token_funding: REQUIRED_TOKEN_FUNDING,
+                native_token: native.address(),
+                creation_fee: CREATION_FEE,
+                fee_recipient: Some(spender),
+            },
+        )
+        .await?;
+        let fee_nonce = SHA256Hash::from([0x62; 32]);
+        let fee_token = predict(&ctx, &fee_factory, fee_nonce).await?;
+        native
+            .call(&mut ctx, "transfer", &(fee_token, TOKEN_SOURCE_FUNDING))
+            .await?;
+        native
+            .call(
+                &mut ctx,
+                "transfer",
+                &(native.address(), NATIVE_TOKEN_FUNDING),
+            )
+            .await?;
+        native
+            .call(
+                &mut ctx,
+                "adjust_allowance",
+                &(fee_factory.address(), CREATION_FEE as i128),
+            )
+            .await?;
+        let recipient_before = reserve(&ctx, &native, spender).await?;
+        let factory_before = reserve(&ctx, &native, fee_factory.address()).await?;
+        let fee_creation = create(&mut ctx, &fee_factory, fee_nonce, &config, creator, 1)
+            .await?
+            .await_receipt()
+            .await?;
+        assert_eq!(fee_creation.events.len(), 3);
+        assert_transfer(
+            &fee_creation,
+            0,
+            native.address(),
+            creator,
+            spender,
+            CREATION_FEE as i128,
+        );
+        assert_created(
+            &fee_creation,
+            fee_factory.address(),
+            fee_token,
+            creator,
+            &config,
+            creator,
+            1,
+            token_hash,
+        );
+        assert_eq!(
+            reserve(&ctx, &native, spender).await?,
+            recipient_before + CREATION_FEE
+        );
+        assert_eq!(
+            reserve(&ctx, &native, fee_factory.address()).await?,
+            factory_before
+        );
+        assert_eq!(
+            native
+                .view::<_, u128>(&ctx, "allowance", &(creator, fee_factory.address()), None,)
+                .await?,
+            0
+        );
+
+        println!(
+            "phase6: token_hash={token_hash:?} unavailable_tx={:?} underfunded_tx={:?} creation_tx={:?} event_query_height={} indexed_events={} creation_sequence=[Transfer,TokenCreated] fee_tx={:?} fee_sequence=[Transfer,Transfer,TokenCreated]",
+            unavailable_receipt.tx_hash,
+            underfunded_receipt.tx_hash,
+            creation_receipt.tx_hash,
+            *creation_receipt.height,
+            indexed.len(),
+            fee_creation.tx_hash,
+        );
+        Ok(())
+    })
+}
+
+#[tokio::test]
+#[ignore = "requires hog-devnode and built RV32 artifacts"]
+async fn real_artifact_rpc_lifecycle() {
+    let root = PathBuf::from(
+        std::env::var("GROUNDHOG_TESTKIT_ARTIFACT_ROOT")
+            .expect("set GROUNDHOG_TESTKIT_ARTIFACT_ROOT"),
+    );
+    assert_generated_specs(&root);
+    let binary = std::env::var("GROUNDHOG_DEVNODE_BINARY")
+        .map(PathBuf::from)
+        .expect("set GROUNDHOG_DEVNODE_BINARY");
+    let mut config = LocalNetworkConfig::default();
+    config.hog_devnode_binary = Some(binary);
+    config.dev_account_tokens = 100_000_000_000;
+
+    let scenario = Scenario::builder("standard-token-phase-6")
+        .network(NetworkConfig::local(config))
+        .artifact("standard_token", root.join("standard_token.rv32a"))
+        .artifact(
+            "standard_token_factory",
+            root.join("standard_token_factory.rv32a"),
+        )
+        .build()
+        .await
+        .expect("start fresh protocol-aligned devnode");
+
+    scenario
+        .run_agents([creator_agent(), spender_agent()])
+        .await
+        .expect("complete the token factory RPC lifecycle");
+    scenario.stop().await.expect("clean devnode shutdown");
+}

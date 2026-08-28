@@ -1,0 +1,32 @@
+[package]
+name = "standard-token-factory-if"
+description = "Shared interfaces for the Groundhog standard token factory"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
+groundhog-erc20-metadata-if = { workspace = true }
+
+[dev-dependencies]
+standard-token-factory-if = { path = ".", features = ["dev"] }
+serde_json = { workspace = true }
+hex = { workspace = true }
+
+[features]
+dev = ["sdk/dev", "groundhog-erc20-if/dev"]
+
+[lints]
+# The contract macro generates methods from the specification-fixed create_token ABI.
+clippy.too_many_arguments = "allow"

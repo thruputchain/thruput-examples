@@ -1,0 +1,28 @@
+[package]
+name = "token-factory-failing-child"
+description = "Test-only failing initializer for token factory rollback tests"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+entrypoints = []
+dev = [
+    "sdk/dev",
+    "groundhog-erc20-if/dev",
+    "standard-token-factory-if/dev",
+]
+
+[lib]
+doctest = false
+test = false
+
+[dependencies]
+sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
+standard-token-factory-if = { path = "../../contracts/standard-token-factory-if" }
+
+[dev-dependencies]
+token-factory-failing-child = { path = ".", features = ["dev"] }
