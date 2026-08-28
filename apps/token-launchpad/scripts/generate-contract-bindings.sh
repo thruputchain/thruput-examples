@@ -6,7 +6,7 @@ app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_root="$(cd "$app_dir/../.." && pwd)"
 groundhog_cli="${GROUNDHOG_CLI:-groundhog}"
 
-if [[ "$($groundhog_cli --version)" != "groundhog 0.10.4" ]]; then
+if [[ "$("$groundhog_cli" --version)" != "groundhog 0.10.4" ]]; then
   printf 'Groundhog CLI 0.10.4 is required.\n' >&2
   exit 1
 fi

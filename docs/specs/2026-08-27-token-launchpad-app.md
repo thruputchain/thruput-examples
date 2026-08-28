@@ -6,7 +6,7 @@
 
 ## 1. Summary
 
-Build a local-development web app that lets a user create a standard ERC-20 token through the standard token factory. The user enters token metadata and an initial supply, reviews the deterministic address and required HOG, and advances the creation workflow through one consistent primary control with one confirmation per transaction.
+Build a local-development web app that lets a user create a standard ERC-20 token through the standard token factory. The user enters token metadata and an initial supply, reviews the deterministic address and required HOG, then launches through one automatic flow. An optional manual mode exposes each transaction separately.
 
 The launchpad is a sibling of `apps/swap`. It uses the same Vite, React, TypeScript, Tailwind CSS, shadcn/ui, Groundhog client, local RPC proxy, and disposable development-wallet architecture. Its visual design should read as another Groundhog demo rather than a separate product.
 
@@ -22,7 +22,7 @@ This is example software for a local Groundhog node. It is not production wallet
 - Require the configured local factory to have no creation fee.
 - Persist enough workflow state to recover after refresh, tab closure, or an indeterminate submission.
 - Verify the returned address, `TokenCreated` event, metadata, total supply, and initial-holder balance.
-- Show tokens created by the active wallet on the current factory.
+- Show all tokens created by the current factory and a creator-filtered view for the active wallet.
 - Reuse the swap app's three-persona wallet switcher and visual language.
 
 ## 3. Non-Goals
@@ -58,7 +58,7 @@ The shell follows `apps/swap`:
 
 - Warm off-white dotted background, dark green primary color, Geist typography, and the same radius scale.
 - Header brand: **Groundhog Launchpad**.
-- Navigation: **Create token** and **My tokens**.
+- Navigation: **Tokens**, **My Tokens**, and **Create Token**.
 - The same shadcn wallet switcher appears at the right of the header.
 - Main content uses the same `max-w-5xl`, mobile padding, and heading treatment as the AMM demo.
 - Layouts support 320 px mobile through desktop widths.
@@ -73,8 +73,8 @@ Form fields:
 
 | Field | Input | Validation | Default |
 |---|---|---|---|
-| Token name | Text | 1-100 UTF-8 bytes after trimming | Empty |
 | Symbol | Text | 1-10 UTF-8 bytes after trimming | Empty |
+| Token name | Text | 1-100 UTF-8 bytes after trimming | Empty |
 | Decimals | Number | Integer, 0-18 for this UI | 7 |
 | Initial supply | Decimal text | Non-negative, precision no greater than decimals, base units no greater than `i128::MAX` | `1000000` |
 
@@ -96,7 +96,7 @@ The live review panel shows:
 - Required HOG reserve and estimated transfer amount.
 - Administrator and initial holder as the active persona.
 
-Only **Create token** uses the filled primary button style. Secondary actions use outline or ghost variants.
+Only **Launch token** and the current manual creation step use the filled primary button style. Secondary actions use outline or ghost variants.
 
 ### 5.3 Creation progress
 
@@ -106,7 +106,7 @@ After review, the primary action runs or resumes these steps:
 2. Create and initialize token.
 3. Verify the committed token.
 
-The UI shows each step as pending, active, complete, failed, or uncertain. It displays the transaction hash when available. One primary control advances the workflow, with one confirmation per transaction. Its label reflects the next action, such as **Fund token address** or **Create token**.
+The UI shows each step as pending, active, complete, failed, or uncertain. It displays the transaction hash when available. Automatic processing is the default and submits funding followed by create-and-initialize as one user flow. The **Manual transaction processing** switch exposes one control per transaction, such as **Fund token address** or **Create token**. Recovery confirmations remain separate actions in either mode.
 
 An indeterminate transaction pauses the workflow. The app observes a stored hash before allowing another submission. The local write boundary must persist `onSigned` synchronously before submission; if persistence fails, it aborts submission. A `signing` step without a hash is therefore recoverable as not submitted only after the stored workflow and boundary invariant are validated.
 
@@ -122,17 +122,17 @@ After verification, show:
 - **Create another token** secondary action.
 - **View my tokens** navigation action.
 
-### 5.5 My tokens page
+### 5.5 Token directories
 
-Route: `/tokens`.
+Routes: `/tokens` and `/my-tokens`.
 
-Query `TokenCreated` events with both the configured factory address and active-wallet creator topic. Display newest first. Each item shows:
+The global `/tokens` directory queries `TokenCreated` events for the configured factory. `/my-tokens` applies the active-wallet creator topic. Both display newest first. Each item shows:
 
-- Name, symbol, and decimals from current token views.
+- Symbol, name, and decimals from current token views.
 - Token address.
 - Initial supply from the event.
 - Current active-wallet balance.
-- Administrator and initial holder.
+- Administrator.
 - Creation block height.
 
 Use shadcn `Empty`, `Skeleton`, `Alert`, `Badge`, and `Button` components for empty, loading, partial-failure, and refresh states. Fetch at most the latest 100 events. Request one extra record or inspect the page cursor to detect truncation, and label the result as incomplete when more history exists. Treat an event-retention gap as unavailable history rather than an empty list.
@@ -144,7 +144,7 @@ Reuse the swap demo's interaction and component structure:
 - Alice, Bob, and Carol selector.
 - Active-wallet checkmark and shortened address.
 - Portfolio section below a separator.
-- HOG balance plus factory-created token balances known from `TokenCreated` events.
+- HOG balance plus positive active-wallet balances from factory-created tokens known through `TokenCreated` events.
 - Manual refresh and partial-failure feedback.
 
 ## 6. Factory and Token Semantics
@@ -389,7 +389,7 @@ Do not expose private keys, raw signed transactions, or unbounded RPC error bodi
 - Create form validation and live preview.
 - Loading, insufficient-balance, progress, uncertain, failure, and success states.
 - Persona switching remounts workflow state and updates administrator/holder.
-- My tokens loading, empty, populated, truncated, and partial-failure states.
+- Global and creator-filtered token directory loading, empty, populated, truncated, and partial-failure states.
 - Wallet switcher and portfolio behavior.
 - Keyboard navigation and accessible names.
 
@@ -408,7 +408,7 @@ On a clean local ledger:
 2. Create a token as Alice.
 3. Verify prediction, funding, receipt return, event, metadata, supply, and balance.
 4. Switch to Bob and create the same metadata with a different nonce.
-5. Verify the address differs and each persona sees only their own launches in the filtered view.
+5. Verify the address differs, each persona sees only their own launches in the filtered view, and the global directory includes both launches.
 6. Refresh after funding and resume without rotating the nonce or duplicating the transfer.
 7. Simulate an uncertain creation, stale second tab, delayed event index, and temporarily unavailable verification views; preserve evidence and avoid duplicate submissions.
 
@@ -418,9 +418,9 @@ On a clean local ledger:
 - The app visually matches the Groundhog AMM family and uses shadcn/ui throughout.
 - Alice, Bob, and Carol can be selected using the same wallet interaction as the swap app.
 - A valid form predicts an address and presents exact reviewed costs.
-- One primary control advances a recoverable funding, creation, and verification workflow with one confirmation per transaction.
+- Automatic mode advances a recoverable funding, creation, and verification workflow in one user flow; manual mode advances one transaction at a time.
 - A successful creation displays and persists the created address and evidence.
-- My tokens discovers factory events for the active creator and reads current token state.
+- Tokens discovers all current-factory events; My Tokens applies the active creator filter; both read current token state.
 - Invalid input, insufficient HOG, declared contract errors, committed failures, and uncertain transactions have distinct feedback.
 - No private key enters a production build or public React context.
 - Mobile, tablet, and desktop layouts are usable without overflow.
