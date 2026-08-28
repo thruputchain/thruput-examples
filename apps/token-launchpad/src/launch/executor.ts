@@ -98,14 +98,6 @@ export async function advanceWorkflow(input: {
       }
 
       if (
-        workflow.funding.status === "committed" &&
-        review.fundingAmount > 0n
-      ) {
-        throw new Error(
-          "The funding transaction committed, but the required reserve is not available.",
-        );
-      }
-      if (
         workflow.funding.status !== "committed" &&
         workflow.funding.status !== "pending" &&
         workflow.funding.status !== "uncertain" &&
@@ -183,6 +175,15 @@ export async function advanceWorkflow(input: {
         };
         saveWorkflow(storage, key, workflow);
         return workflow;
+      }
+      const resolvingCreationEvidence =
+        workflow.creation.status === "signing" ||
+        workflow.creation.status === "pending" ||
+        workflow.creation.status === "uncertain";
+      if (!resolvingCreationEvidence && review.fundingAmount > 0n) {
+        throw new Error(
+          "The funding transaction committed, but the required reserve is not available.",
+        );
       }
       return continueStep({
         workflow,

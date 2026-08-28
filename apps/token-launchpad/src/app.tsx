@@ -74,6 +74,7 @@ import {
   withWorkflowLock,
   workflowIntent,
   workflowStorageKey,
+  WorkflowStorageError,
   type LaunchWorkflow,
 } from "@/launch/workflow";
 import { createBrowserWriteBoundary } from "@/transactions/local-development-wallet";
@@ -380,17 +381,26 @@ export function CreatePage({
   }
 
   async function reset() {
-    if (
-      workflow &&
-      workflow.creation.status !== "committed" &&
-      (workflow.funding.hash !== null || workflow.creation.hash !== null)
-    ) {
+    if (workflow && !canDiscardWorkflow(workflow)) {
       setError("A workflow with transaction evidence cannot be discarded.");
       return;
     }
     setLoading(true);
     try {
       await withWorkflowLock(config, async () => {
+        if (workflow === null) {
+          try {
+            if (loadWorkflow(localStorage, storageKey) !== null) {
+              throw new Error(
+                "This launch changed in another tab. Reload before clearing it.",
+              );
+            }
+          } catch (reason) {
+            if (!(reason instanceof WorkflowStorageError)) throw reason;
+          }
+          localStorage.removeItem(storageKey);
+          return;
+        }
         const stored = loadWorkflow(localStorage, storageKey);
         if (
           stored === null ||
@@ -408,6 +418,7 @@ export function CreatePage({
       setDraft(initialDraft);
       setSubmitted(false);
       setError(null);
+      setStorageError(null);
     } catch (reason) {
       setStorageError(
         userErrorMessage(
@@ -435,6 +446,16 @@ export function CreatePage({
           <AlertTitle>Launch unavailable</AlertTitle>
           <AlertDescription>{error ?? storageError}</AlertDescription>
         </Alert>
+      ) : null}
+      {storageError ? (
+        <Button
+          className="mb-6"
+          variant="outline"
+          onClick={reset}
+          disabled={loading || !writesSupported}
+        >
+          Discard invalid saved workflow
+        </Button>
       ) : null}
       {submitted && !parsed.value ? (
         <Alert variant="destructive" className="mb-6">
@@ -768,22 +789,35 @@ export function ReviewCard({
                 </Button>
               </>
             ) : (
-              <Button
-                className="min-h-12 w-full"
-                onClick={onAdvance}
-                disabled={loading || !writesSupported}
-                variant={
-                  actionLabel(workflow, manualProcessing) === "Create token" ||
-                  actionLabel(workflow, manualProcessing) === "Launch token"
-                    ? "default"
-                    : "outline"
-                }
-              >
-                {loading
-                  ? loadingActionLabel(workflow, manualProcessing)
-                  : actionLabel(workflow, manualProcessing)}
-                <ArrowRightIcon />
-              </Button>
+              <>
+                <Button
+                  className="min-h-12 w-full"
+                  onClick={onAdvance}
+                  disabled={loading || !writesSupported}
+                  variant={
+                    actionLabel(workflow, manualProcessing) ===
+                      "Create token" ||
+                    actionLabel(workflow, manualProcessing) === "Launch token"
+                      ? "default"
+                      : "outline"
+                  }
+                >
+                  {loading
+                    ? loadingActionLabel(workflow, manualProcessing)
+                    : actionLabel(workflow, manualProcessing)}
+                  <ArrowRightIcon />
+                </Button>
+                {canDiscardWorkflow(workflow) ? (
+                  <Button
+                    className="min-h-12 w-full"
+                    variant="outline"
+                    onClick={onReset}
+                    disabled={loading || !writesSupported}
+                  >
+                    Edit token details
+                  </Button>
+                ) : null}
+              </>
             )}
           </div>
         ) : review ? (
@@ -893,6 +927,16 @@ function nextActionLabel(workflow: LaunchWorkflow): string {
   }
   if (workflow.creation.status === "failed") return "Retry creation";
   return workflow.creation.hash ? "Check creation transaction" : "Create token";
+}
+
+function canDiscardWorkflow(workflow: LaunchWorkflow): boolean {
+  return (
+    workflow.creation.status === "committed" ||
+    (workflow.funding.status === "idle" &&
+      workflow.funding.hash === null &&
+      workflow.creation.status === "idle" &&
+      workflow.creation.hash === null)
+  );
 }
 
 function actionLabel(

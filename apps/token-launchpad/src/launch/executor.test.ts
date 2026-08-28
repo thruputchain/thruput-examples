@@ -242,6 +242,94 @@ describe("advanceWorkflow", () => {
     expect(result.creation.status).toBe("idle");
   });
 
+  it("observes pending creation evidence after deployment consumes the reserve", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const hash = `0x${"09".repeat(32)}`;
+    const workflow = {
+      ...createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        factoryReview(config),
+      ),
+      funding: {
+        status: "committed" as const,
+        hash: `0x${"08".repeat(32)}`,
+      },
+      creation: { status: "pending" as const, hash },
+    };
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const writer = {
+      execute: vi.fn(),
+      observe: vi.fn().mockResolvedValue({
+        kind: "indeterminate",
+        hash,
+        reason: "timeout",
+      }),
+    };
+    const result = await advanceWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      storage,
+      locks,
+      review: async () => factoryReview(config),
+    });
+    expect(writer.observe).toHaveBeenCalledWith(hash);
+    expect(writer.execute).not.toHaveBeenCalled();
+    expect(result.creation).toEqual({ status: "uncertain", hash });
+  });
+
+  it("returns a verified creation after deployment consumes the reserve", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const base = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
+    const workflow = {
+      ...base,
+      funding: {
+        status: "committed" as const,
+        hash: `0x${"08".repeat(32)}`,
+      },
+      creation: {
+        status: "committed" as const,
+        hash: `0x${"09".repeat(32)}`,
+      },
+      verification: {
+        status: "complete" as const,
+        message: null,
+        totalSupply: "12",
+        holderBalance: "12",
+      },
+      createdAddressHex: base.predictedAddressHex,
+      creationBlock: "9",
+    };
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const writer = { execute: vi.fn(), observe: vi.fn() };
+    const result = await advanceWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer: writer as unknown as WriteBoundary,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      storage,
+      locks,
+      review: async () => factoryReview(config),
+    });
+    expect(result).toEqual(workflow);
+    expect(writer.execute).not.toHaveBeenCalled();
+    expect(writer.observe).not.toHaveBeenCalled();
+  });
+
   it("stops before signing when the active wallet cannot fund the token", async () => {
     const config = configuration();
     const storage = new MemoryStorage();

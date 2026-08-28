@@ -1,5 +1,6 @@
 import { fixedBytes } from "@groundhogchain/client";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -8,7 +9,7 @@ import {
   readCreatedTokens,
   type FactoryReview,
 } from "@/contracts/launchpad-client";
-import { createWorkflow } from "@/launch/workflow";
+import { createWorkflow, workflowStorageKey } from "@/launch/workflow";
 import { configuration } from "@/launch/workflow.test";
 
 function reviewed(): FactoryReview {
@@ -152,6 +153,9 @@ describe("launch review", () => {
     expect(
       screen.getByRole("button", { name: "Launch token" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Edit token details" }),
+    ).toBeInTheDocument();
     rerender(
       <MemoryRouter>
         <ReviewCard {...props} manualProcessing />
@@ -211,6 +215,48 @@ describe("launch review", () => {
     expect(
       screen.getByRole("button", { name: "Confirming recovery..." }),
     ).toBeInTheDocument();
+  });
+
+  it("allows an invalid saved workflow to be discarded", async () => {
+    const user = userEvent.setup();
+    const config = configuration();
+    const key = workflowStorageKey(config);
+    const originalLocks = Object.getOwnPropertyDescriptor(navigator, "locks");
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: {
+        request: async (_name: string, action: () => Promise<unknown>) =>
+          action(),
+      },
+    });
+    window.localStorage.setItem(key, "invalid");
+    try {
+      render(
+        <MemoryRouter>
+          <CreatePage
+            config={config}
+            client={{} as never}
+            writer={{} as never}
+          />
+        </MemoryRouter>,
+      );
+      await user.click(
+        screen.getByRole("button", {
+          name: "Discard invalid saved workflow",
+        }),
+      );
+      await waitFor(() => expect(window.localStorage.getItem(key)).toBeNull());
+      expect(
+        screen.getByRole("button", { name: "Review launch" }),
+      ).toBeEnabled();
+    } finally {
+      window.localStorage.clear();
+      if (originalLocks) {
+        Object.defineProperty(navigator, "locks", originalLocks);
+      } else {
+        Reflect.deleteProperty(navigator, "locks");
+      }
+    }
   });
 });
 
