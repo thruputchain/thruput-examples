@@ -12,9 +12,9 @@ const artifactRoot = resolve(
 const groundhog = process.env.GROUNDHOG ?? "groundhog";
 const expectedVersion = "groundhog 0.10.4";
 const expectedHashes = {
-  "standard_token.rv32a": "8cc88befd6e6eddaad85761cfcdb442c866c0b967bd835ca980fec8bd7762daa",
+  "standard_token.rv32a": "29acf5132fa8fb5798058e40c1f53532ae4b41ae42f8f070fb493bbebb9060b6",
   "standard_token.spec.xdr": "b41c5d5d996a6bf6b8e8f8e1781357ebb825e6ebd2359a475021bc1bc4c9bb9b",
-  "standard_token_factory.rv32a": "0da52622c2b541e83f1e0672db3899a3c93425c8a272f74918af003ce5c81e57",
+  "standard_token_factory.rv32a": "9f2be416c7f822b7f59142bcef75e362735f604368ae0a7723a336079c779ebd",
   "standard_token_factory.spec.xdr": "8dea7ddba284db46c8057e9a70b4083d17781e6c5d894d8f79efceb0f3f8a5bf",
 };
 

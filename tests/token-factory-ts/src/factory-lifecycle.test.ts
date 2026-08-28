@@ -68,7 +68,7 @@ describe.sequential("standard token factory on a clean local node", () => {
     const tokenHash = hashContract(tokenContract);
     const testWalletHash = hashContract(testWalletContract);
     expect(toHex0x(tokenHash)).toBe(
-      "0xf7ab4d2c0f21d0251441d7c0d8054c2ff6d0efb223547dbe99e0ffe9f0547503",
+      "0x798560d804b9c2461f3c12aa542bd54c8ca683997bb6bea0b8627ab51094f69f",
     );
     await deployContract(creator, byteHash(0x69), tokenHash, [tokenContract]);
 
@@ -224,7 +224,7 @@ describe.sequential("standard token factory on a clean local node", () => {
     expect((await ERC20.getBalanceOf.view({ client: node.client, contract: topUpToken, caller: creator.address, args: { addr: unseen } })).value).toBe(1n);
     expect((await ERC20.getBalanceOf.view({ client: node.client, contract: topUpToken, caller: creator.address, args: { addr: testWallet } })).value).toBe(9n);
     const tokenReserveAfterTopUp = (await node.client.getBalance(topUpToken)).rawBalance;
-    expect(tokenReserveAfterTopUp).toBe(950n);
+    expect(tokenReserveAfterTopUp).toBe(54_870n);
 
     const rollbackReceiver = contractAddress(new Uint8Array(32).fill(0x45));
     const walletHogBeforeRollback = (await node.client.getBalance(testWallet)).rawBalance;
