@@ -18,3 +18,14 @@ npm run dev
 The factory deployment and initialization use separate transactions because the pinned development wallet cannot batch a root deployment with a child call. This is safe only on a disposable isolated node. Production tooling must deploy and initialize the factory atomically.
 
 The checked `.env.example` documents the generated keys but is not a usable configuration.
+
+## Clean-ledger acceptance
+
+The acceptance command starts an ephemeral node, provisions the launchpad, creates and verifies one token each for Alice and Bob, checks creator-filtered discovery, then restores any existing `.env.local`:
+
+```bash
+export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
+npm run test:e2e:local
+```
+
+The command requires Groundhog CLI 0.10.4 and the pinned `hog-devnode` release. It must be run explicitly. The harness owns a disposable ledger, temporarily replaces and restores `.env.local`, and uses the repository's ignored build output.
