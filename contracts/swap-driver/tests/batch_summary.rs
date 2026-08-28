@@ -109,7 +109,7 @@ fn the_summary_identifies_its_driver_by_the_emitting_address() {
         let (r, _) = process_capturing(&etx);
 
         assert_eq!(summaries_from(&r, &ctx.driver_addr), vec![(1, 1)]);
-        for other in [&ctx.pair_addr, &ctx.request_handler_addr] {
+        for other in [&ctx.request_handler_addr] {
             assert_eq!(
                 summaries_from(&r, other),
                 vec![],

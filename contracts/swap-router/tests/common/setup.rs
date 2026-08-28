@@ -21,7 +21,6 @@ pub fn setup_etx_native() -> Result<Etx> {
     // single suite-wide router (both deployed directly).
     let hashes = SwapHashes {
         token: *erc20::register_mock_contract(&env).as_hash(),
-        pair: *swap_pair::register_mock_contract(&env).as_hash(),
         handler: *swap_handler::register_mock_contract(&env).as_hash(),
         driver: *swap_driver::register_mock_contract(&env).as_hash(),
     };
@@ -38,7 +37,6 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let load = |name: &str| load_rv32_contract(guest_path(name, "rv32a"));
 
     let token_contract = load("erc20");
-    let pair_contract = load("swap_pair");
     let handler_contract = load("swap_handler");
     let driver_contract = load("swap_driver");
     let router_contract = load("swap_router");
@@ -48,7 +46,6 @@ pub fn setup_etx_guest() -> Result<Etx> {
 
     let hashes = SwapHashes {
         token: env.setup_create_contract(&token_contract),
-        pair: env.setup_create_contract(&pair_contract),
         handler: env.setup_create_contract(&handler_contract),
         driver: env.setup_create_contract(&driver_contract),
     };
@@ -141,7 +138,6 @@ pub fn setup_contracts(
     })?;
     for addr in [
         predicted.liquidity_token,
-        predicted.pair,
         predicted.handler,
         predicted.driver,
     ] {
@@ -160,7 +156,6 @@ pub fn setup_contracts(
         router_addr,
         driver_addr: pool.driver,
         request_handler_addr: pool.handler,
-        pair_addr: pool.pair,
         liquidity_token: pool.liquidity_token,
         token_addrs,
     };
@@ -173,7 +168,13 @@ pub fn setup_etx_primed() -> Result<Etx> {
     let etx = setup_etx()?;
 
     // Primer buys liquidity tokens, establishing a stable price
-    etx.exec_user_tx(PRIMER, |u| etx.ctx.user_buy_unpriced(u))?;
+    let ctx = etx.ctx;
+    let minted = etx.exec_depositing_as_pair(
+        PRIMER,
+        |u| ctx.user_buy_unpriced(u),
+        |pair| pair.mint_lp(PRIMER.addr),
+    )?;
+    println!("> {} bought {:.3} LP", PRIMER.name, decimalized(minted));
 
     /* ----- */ etx.advance_block(); /* ----- */
 

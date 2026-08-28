@@ -5,6 +5,9 @@ use common::*;
 fn check_sync() {
     transact_assert_success(|| {
         let etx = setup_etx()?;
-        etx.exec_user_tx(FACTORY, |_| etx.ctx.factory_sync_skim_pair())
+        {
+            let ctx = etx.ctx;
+            etx.exec_as_pair(move |pair| ctx.empty_pool_is_a_no_op(pair))
+        }
     });
 }

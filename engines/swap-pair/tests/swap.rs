@@ -68,9 +68,9 @@ fn serial_swap_user(
 
     let amounts_out = calculate_swap(amounts_in);
 
-    // Perform the swap
-    etx.exec_user_tx(user, |user| {
-        ctx.pair().swap(amounts_out[0], amounts_out[1], user.addr, user.addr, None)
+    // Perform the swap, as the pair
+    etx.exec_as_pair(move |pair| {
+        pair.swap(amounts_out[0], amounts_out[1], user.addr)
     })?;
 
     println!("> {} swapped {:.3?} => {:.3?}", user.name,

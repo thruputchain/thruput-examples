@@ -24,8 +24,6 @@ pub use library::*;
 
 // Implementation (the deployable handler contract)
 #[cfg(feature = "implementation")]
-mod cfg;
-#[cfg(feature = "implementation")]
 mod handler;
 #[cfg(feature = "implementation")]
 pub use handler::*;

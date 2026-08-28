@@ -26,9 +26,12 @@ impl fmt::Display for SwapFactoryError {
 #[contract_type]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Pool {
-    pub pair: Address,
     pub liquidity_token: Address,
+
+    /// The pool itself: it performs the pair's operations, holds its tokens,
+    /// and answers for its state.
     pub handler: Address,
+
     pub driver: Address,
 }
 
@@ -37,7 +40,6 @@ pub struct Pool {
 #[derive(Copy, Clone, Debug)]
 pub struct SwapHashes {
     pub token: SHA256Hash,
-    pub pair: SHA256Hash,
     pub handler: SHA256Hash,
     pub driver: SHA256Hash,
 }

@@ -27,7 +27,7 @@ sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
 thiserror = { workspace = true }
 swap-if = { path = "../swap-if" }
-swap-pair = { path = "../swap-pair" }
+swap-pair = { path = "../../engines/swap-pair" }
 swap-driver = { path = "../swap-driver" }
 swap-handler = { path = "../swap-handler" }
 

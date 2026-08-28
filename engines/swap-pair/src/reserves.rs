@@ -1,6 +1,6 @@
 use crate::events::*;
-use crate::interface::*;
 use crate::u256::U256;
+use crate::{Amounts, SwapPairError};
 use sdk::*;
 
 const BALANCE_MAX: u128 = i128::MAX as u128;

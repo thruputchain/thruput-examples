@@ -2,13 +2,6 @@
 
 use super::*;
 
-pub fn is_pair_error_and(e: SwapPairClientError, f: impl Fn(SwapPairError) -> bool) -> bool {
-    match e {
-        SwapPairClientError::SwapPairError(e) => f(e),
-        _ => false,
-    }
-}
-
 pub fn print_balances(name: &str, bals: (Amounts, Amount), symbols: [&str; 2]) {
     println!(
         "{name:>10}: {:>10.1} {}  {:>10.1} {}  {:>10.1} LP",

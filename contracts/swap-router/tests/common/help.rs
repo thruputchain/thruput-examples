@@ -3,13 +3,6 @@
 use super::*;
 use swap_router::*;
 
-pub fn is_pair_error_and(e: SwapPairClientError, f: impl Fn(SwapPairError) -> bool) -> bool {
-    match e {
-        SwapPairClientError::SwapPairError(e) => f(e),
-        _ => false,
-    }
-}
-
 // The one event of type `E` emitted during `r`, panicking unless there is
 // exactly one.  Its `#[topic]` fields are `topic(1)`, `topic(2)`, ... in
 // declaration order; its payload is `TypedEvent::<E>::new(e.raw()).payload()`.

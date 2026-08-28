@@ -88,11 +88,11 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`mixed-impl`](contracts/mixed-impl/) | ✅ | — | — |
 | [`erc20`](contracts/erc20/) | ✅ | ✅ | ✅ |
 | [`swap-handler`](contracts/swap-handler/) | — | — | — |
-| [`swap-pair`](contracts/swap-pair/) | ✅ | — | — |
 | [`swap-driver`](contracts/swap-driver/) | ✅ | — | — |
 | [`swap-router`](contracts/swap-router/) | ✅ | — | — |
 | [`swap-factory`](contracts/swap-factory/) | ✅ | — | — |
 | [`batch-driver`](helpers/batch-driver/) | ✅ | — | — |
+| [`swap-pair`](engines/swap-pair/) | ✅ | — | — |
 | [`calldata`](sim-fixtures/calldata/) | ✅ | — | — |
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | ✅ | — | — |
 | [`caller-counter`](sim-fixtures/caller-counter/) | — | — | — |
@@ -100,8 +100,10 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 A `—` means the contract has no tests of that kind, or its behaviour is already
 covered by the tests of the contracts that depend on it.
 
-The crates under [`helpers/`](helpers/) are shared library code rather than
-contracts, so they have only native tests.
+The crates under [`helpers/`](helpers/) and [`engines/`](engines/) are library
+code rather than contracts, so they have only native tests.
+[`swap-pair`](engines/swap-pair/) is the pair implementation the swap handler
+runs in its own invocation, rather than a contract of its own.
 [`batch-driver`](helpers/batch-driver/) is the reusable core of the
 request-batching driver pattern.
 

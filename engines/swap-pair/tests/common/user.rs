@@ -21,6 +21,9 @@ impl User {
 
 hash_ident! { pub static TEST_ADDR: ContractAddress; }
 hash_ident! { pub static FACTORY_ADDR: ContractAddress; }
+// Where the pair's state and tokens live.  In production this is the handler's
+// address; here the pair is exercised on its own, so it gets one of its own.
+hash_ident! { pub static PAIR_ADDR: ContractAddress; }
 hash_ident! { pub static PRIMER_ADDR: ContractAddress; }
 hash_ident! { pub static ALICE_ADDR: ContractAddress; }
 hash_ident! { pub static BOB_ADDR: ContractAddress; }

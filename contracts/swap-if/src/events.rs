@@ -136,9 +136,11 @@ pub struct PoolCreated<'a> {
     #[topic]
     pub token1: &'a Address,
 
-    pub pair: Address,
     pub liquidity_token: Address,
+
+    /// The pool itself, which performs the pair's operations.
     pub handler: Address,
+
     pub driver: Address,
 
     /// The total number of pairs after this one was created.

@@ -1,10 +1,10 @@
 //! The contract implementing SwapRequestHandler
 
-use crate::cfg::*;
 use crate::library::*;
 use sdk::storage::*;
 use sdk::*;
 use swap_if::*;
+use swap_pair::Pair;
 
 use SwapRequestError::*;
 
@@ -14,27 +14,67 @@ const B: usize = 1;
 /// State for the request-handler contract
 #[storage]
 pub struct Handler {
-    // Configuration
-    cfg: Value<Cfg>,
+    // The pool itself.  Not a contract this calls but state it owns and code
+    // it runs, so a batch of requests is one invocation -- and so the sender
+    // and request id on the events below are this contract's to vouch for.
+    pair: Node<Pair>,
+}
+
+/// The pool's pair state, as this contract stores it.
+///
+/// For tests that drive the pair directly, in a frame at the handler's own
+/// address.  Which storage slot the pair occupies is an implementation detail
+/// of the struct above -- fields are keyed by declaration order -- so going
+/// through here is what keeps a test from silently reading the wrong slot if
+/// those fields are ever reordered.
+#[cfg(feature = "dev")]
+pub fn pair_state() -> Node<Pair> {
+    use sdk::storage::{Keypath, StorageDomain};
+
+    // The same root the contract's own state is built from: a `#[storage]`
+    // struct is rooted at a domain derived from its name, not at the bare
+    // keypath.
+    let handler: Handler = Keypath::root(<Handler as StorageDomain>::DOMAIN).into();
+    handler.pair
 }
 
 #[contract(exports = "swap_handler_exports")]
 impl SwapHandler for Handler {
-    fn initialize(&mut self, swap_pair: &Address, token0: &Address, token1: &Address) {
-        if self.cfg.try_get().none_if_missing().is_some() {
-            panic!("Already initialized.");
-        }
+    fn initialize(
+        &mut self,
+        factory: &Address,
+        token0: &Address,
+        token1: &Address,
+        lp_token: &Address,
+    ) {
+        // The pair holds the pool's configuration -- the tokens, the LP token,
+        // the factory -- and refuses a second initialization itself, so there
+        // is nothing for this contract to keep a copy of.
+        self.pair.initialize(factory, token0, token1, lp_token);
+    }
 
-        // The LP token is owned by the pair; ask it.
-        let lp_token = SwapPairClient::new(swap_pair).liquidity_token();
+    fn liquidity_token(&self) -> ContractAddress {
+        self.pair.liquidity_token()
+    }
 
-        let cfg = Cfg {
-            swap_pair: *swap_pair,
-            tokens: [*token0, *token1],
-            lp_token,
-        };
+    fn get_reserves(&self) -> (u128, u128, u32) {
+        self.pair.get_reserves()
+    }
 
-        self.cfg.set(&cfg);
+    fn get_liquidity(&self) -> Amount {
+        self.pair.get_liquidity()
+    }
+
+    fn get_cumulative_prices(&self) -> [U256; 2] {
+        self.pair.get_cumulative_prices()
+    }
+
+    fn skim(&mut self, to: &Address) {
+        self.pair.skim(to);
+    }
+
+    fn sync(&mut self) {
+        self.pair.sync();
     }
 
     fn handle_request(&mut self, request: SwapRequest) {
@@ -51,10 +91,7 @@ impl SwapHandler for Handler {
 impl Handler {
     // Provide liquidity, computing the optimal A/B ratio from live reserves.
     fn handle_add_liquidity(&mut self, req: AddLiquidityRequest, request_id: RequestId) {
-        let cfg = self.cfg.get();
-        let pair = cfg.pair();
-
-        let (reserve_a, reserve_b, _) = pair.get_reserves();
+        let (reserve_a, reserve_b, _) = self.pair.get_reserves();
 
         let amounts: Amounts = if reserve_a == 0 && reserve_b == 0 {
             req.amounts_desired
@@ -72,20 +109,25 @@ impl Handler {
             }
         };
 
-        // Move the purchaser's tokens to the pair, then mint LP to the
-        // recipient.  The two may differ, so the pair is told both: it credits
-        // the recipient and reports the purchaser as the depositor.
+        // Take the purchaser's tokens into the pool, then mint LP to the
+        // recipient.  The two may differ; the pair credits the recipient, and
+        // the event names the purchaser as the depositor -- which this
+        // contract knows and the pair does not need to.
         self.transfer_amounts_from(&req.purchaser, amounts);
-        let _minted = pair.mint_lp(&req.purchaser, &req.recipient, Some(request_id));
+        let minted = self.pair.mint_lp(&req.recipient);
+
+        log_event(&MintEvent::new(
+            &req.purchaser,
+            minted,
+            &req.recipient,
+            Some(request_id),
+        ));
     }
 
     // Burn LP tokens, computing the recovered amounts from live reserves.
     fn handle_remove_liquidity(&mut self, req: RemoveLiquidityRequest, request_id: RequestId) {
-        let cfg = self.cfg.get();
-        let pair = cfg.pair();
-
-        let (reserve_a, reserve_b, _) = pair.get_reserves();
-        let total_supply = pair.get_liquidity();
+        let (reserve_a, reserve_b, _) = self.pair.get_reserves();
+        let total_supply = self.pair.get_liquidity();
 
         // The amounts that burning `liquidity` LP tokens will return, mirroring
         // `burn_lp`: amount_i = liquidity * reserve_i / total_supply.
@@ -101,22 +143,25 @@ impl Handler {
         ensure(amounts[A] >= req.amounts_min[A], InsufficientAmountA);
         ensure(amounts[B] >= req.amounts_min[B], InsufficientAmountB);
 
-        // Move the redeemer's LP tokens to the pair, then burn them to the
-        // recipient.  The two may differ, so the pair is told both: it pays out
-        // to the recipient and reports the redeemer as the source.
+        // Take the redeemer's LP tokens into the pool, then burn them out to
+        // the recipient.
         self.transfer_lp_from(&req.redeemer, req.liquidity);
-        let _redeemed = pair.burn_lp(&req.redeemer, &req.recipient, Some(request_id));
+        let redeemed = self.pair.burn_lp(&req.recipient);
+
+        log_event(&BurnEvent::new(
+            &req.redeemer,
+            redeemed,
+            &req.recipient,
+            Some(request_id),
+        ));
     }
 
     // Swap an exact input amount for as much output as possible.
     fn handle_swap_exact_in(&mut self, req: SwapExactInRequest, request_id: RequestId) {
-        let cfg = self.cfg.get();
-        let pair = cfg.pair();
-
         let in_index = req.in_index as usize;
         let out_index = 1 - in_index;
 
-        let (reserve0, reserve1, _) = pair.get_reserves();
+        let (reserve0, reserve1, _) = self.pair.get_reserves();
         let reserves = [reserve0, reserve1];
 
         let amount_out = get_amount_out(req.amount_in, [reserves[in_index], reserves[out_index]]);
@@ -129,26 +174,27 @@ impl Handler {
         amounts_out[out_index] = amount_out;
 
         // As with the liquidity operations, the trader paying the input and the
-        // recipient of the proceeds may differ, so the pair is told both.
+        // recipient of the proceeds may differ; the event names both.
         self.transfer_amounts_from(&req.trader, amounts_in);
-        pair.swap(
-            amounts_out[0],
-            amounts_out[1],
+        let amounts_in = self
+            .pair
+            .swap(amounts_out[0], amounts_out[1], &req.recipient);
+
+        log_event(&SwapEvent::new(
             &req.trader,
+            amounts_in,
+            amounts_out,
             &req.recipient,
             Some(request_id),
-        );
+        ));
     }
 
     // Swap as little input as possible for an exact output amount.
     fn handle_swap_exact_out(&mut self, req: SwapExactOutRequest, request_id: RequestId) {
-        let cfg = self.cfg.get();
-        let pair = cfg.pair();
-
         let in_index = req.in_index as usize;
         let out_index = 1 - in_index;
 
-        let (reserve0, reserve1, _) = pair.get_reserves();
+        let (reserve0, reserve1, _) = self.pair.get_reserves();
         let reserves = [reserve0, reserve1];
 
         let amount_in = get_amount_in(req.amount_out, [reserves[in_index], reserves[out_index]]);
@@ -161,24 +207,28 @@ impl Handler {
         amounts_out[out_index] = req.amount_out;
 
         self.transfer_amounts_from(&req.trader, amounts_in);
-        pair.swap(
-            amounts_out[0],
-            amounts_out[1],
+        let amounts_in = self
+            .pair
+            .swap(amounts_out[0], amounts_out[1], &req.recipient);
+
+        log_event(&SwapEvent::new(
             &req.trader,
+            amounts_in,
+            amounts_out,
             &req.recipient,
             Some(request_id),
-        );
+        ));
     }
 
     // Transfer helpers
     //
-    // The user grants their allowance to this contract, which moves the tokens
-    // into the pair before invoking the pair's core operations.
+    // The user grants their allowance to this contract, which is also where
+    // the pool's tokens sit -- so a deposit is a transfer to here, and the
+    // pair's balance-delta accounting reads this contract's balances.
 
     fn transfer_amounts_from(&self, owner: &Address, amounts: Amounts) {
-        let cfg = self.cfg.get();
-        let to = cfg.swap_pair;
-        let tokens = cfg.tokens();
+        let to = get_current_address();
+        let tokens = self.pair.tokens();
 
         for i in 0..=1 {
             if amounts[i] > 0 {
@@ -188,9 +238,9 @@ impl Handler {
     }
 
     fn transfer_lp_from(&self, owner: &Address, amount: Amount) {
-        let cfg = self.cfg.get();
-
         // Transfer `amount` of the owner's LP tokens to the pair
-        cfg.lp().transfer_from(owner, &cfg.swap_pair, amount);
+        self.pair
+            .lp()
+            .transfer_from(owner, &get_current_address(), amount);
     }
 }

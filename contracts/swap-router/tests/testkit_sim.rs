@@ -162,7 +162,6 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     fund(ctx, native, factory.address()).await?;
     let hashes = SwapHashes {
         token: ctx.contract_hash("erc20")?,
-        pair: ctx.contract_hash("swap_pair")?,
         handler: ctx.contract_hash("swap_handler")?,
         driver: ctx.contract_hash("swap_driver")?,
     };
@@ -190,7 +189,7 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     let (t0, t1) = (token0.address(), token1.address());
     let pool: Pool = factory.view(ctx, "pool_addresses", &(t0, t1), None).await?;
     fund(ctx, native, pool.liquidity_token).await?;
-    fund(ctx, native, pool.pair).await?;
+    fund(ctx, native, pool.handler).await?;
     fund(ctx, native, pool.handler).await?;
     fund(ctx, native, pool.driver).await?;
 

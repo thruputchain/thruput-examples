@@ -1,5 +1,7 @@
 use super::*;
 
+hash_ident! { pub static SOMEBODY: ContractAddress; }
+
 pub type Addresses = [ContractAddress; 2];
 
 // Contract context tracked in swap tests
@@ -16,9 +18,6 @@ impl Ctx {
     }
     pub fn token1(&self) -> ERC20Client {
         ERC20Client::new(&self.token_addrs[1])
-    }
-    pub fn pair(&self) -> SwapPairClient {
-        SwapPairClient::new(&self.pair_addr)
     }
     pub fn lp(&self) -> ERC20Client {
         ERC20Client::new(&self.liquidity_token)
@@ -39,72 +38,41 @@ impl Ctx {
         print_balances(user.name, self.my_balances());
     }
 
-    // As a user, provide AB-token liquidity in exchange for LP tokens
-    pub fn user_buy(&self, user: &User) {
-        // user_print_balances(ctx, user);
-
+    // As a user, send all my AB-tokens to the pair.
+    pub fn user_deposit_tokens(&self, _user: &User) {
         let amt0 = self.token0().get_balance();
         let amt1 = self.token1().get_balance();
 
-        // Transfer our AB-tokens to the pair contract
         self.token0().transfer(&self.pair_addr, amt0);
         self.token1().transfer(&self.pair_addr, amt1);
-
-        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
 
         // My accounts should be drained
         assert_eq!(0, self.token0().get_balance());
         assert_eq!(0, self.token1().get_balance());
-
-        {
-            println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
-            self.user_print_balances(user);
-        }
     }
 
-    // As a user, redeem swap-pair tokens
-    pub fn user_redeem(&self, user: &User) {
-        let pair = self.pair();
+    // As a user, send all my LP tokens back to the pair.
+    pub fn user_deposit_lp(&self, user: &User) {
         let lp = self.lp();
 
-        // Return all my LP tokens to the swap-pair contract
         let return_amt = lp.get_balance();
         lp.transfer(&self.pair_addr, return_amt);
         println!("> {} redeemed {:.3} LP", user.name, decimalized(return_amt));
 
         // I should have zero LP tokens now
         assert_eq!(lp.get_balance(), 0);
-
-        // Redeem the LP tokens for pair tokens
-        pair.burn_lp(user.addr, user.addr, None);
-
-        self.user_print_balances(user);
     }
 
     // Make sure we're not holding any LP tokens
-    pub fn factory_sync_skim_pair(&self) {
-        let pair = self.pair();
-
+    pub fn empty_pair_is_a_no_op(&self, pair: &mut Node<Pair>) {
         let (r0, r1, _ts) = pair.get_reserves();
         assert_eq!(r0, 0);
         assert_eq!(r1, 0);
 
-        let our_lp = pair.get_liquidity();
-        assert_eq!(0, our_lp);
+        assert_eq!(0, pair.get_liquidity());
 
-        // This should be a no-op
+        // These should be no-ops
         pair.sync();
-
-        hash_ident! { static SOMEBODY: ContractAddress; }
-
-        // This should be a no-op
         pair.skim(&SOMEBODY);
-
-        assert!(
-            pair.try_mint_lp(&SOMEBODY, &SOMEBODY, None)
-                .is_err_and(
-                    |e| is_pair_error_and(e, |e| e == SwapPairError::InsufficientLiquidityMinted)
-                )
-        );
     }
 }

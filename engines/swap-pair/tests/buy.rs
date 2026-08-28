@@ -14,12 +14,12 @@ fn serial_buy(etx: &Etx) -> Result<()> {
     let ctx = &etx.ctx;
 
     // Alice buys liquidity tokens
-    etx.exec_user_tx(ALICE, |u| ctx.user_buy(u))?;
+    etx.user_buy(ALICE)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
     // Bob buys liquidity tokens
-    etx.exec_user_tx(BOB, |u| ctx.user_buy(u))?;
+    etx.user_buy(BOB)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
@@ -38,12 +38,12 @@ fn serial_buy_redeem() {
         serial_buy(&etx)?;
 
         // Bob redeems liquidity tokens
-        etx.exec_user_tx(BOB, |u| ctx.user_redeem(u))?;
+        etx.user_redeem(BOB)?;
 
         /* ----- */ etx.advance_block(); /* ----- */
 
         // Alice redeems liquidity tokens
-        etx.exec_user_tx(ALICE, |u| ctx.user_redeem(u))?;
+        etx.user_redeem(ALICE)?;
 
         /* ----- */ etx.advance_block(); /* ----- */
 

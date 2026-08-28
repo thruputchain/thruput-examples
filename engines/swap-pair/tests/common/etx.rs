@@ -27,6 +27,88 @@ impl Etx {
         self.exec_tx(user.addr, || f(&user))
     }
 
+    /// Run `op` as the pair, in a frame at the pair's own address.
+    pub fn exec_as_pair<F, T>(&self, op: F) -> Result<T, TransactResult>
+    where
+        F: Fn(&mut Node<Pair>) -> T + std::panic::RefUnwindSafe,
+    {
+        self.exec_tx(&PAIR_ADDR, || {
+            let mut pair: Node<Pair> = Keypath::default().into();
+            op(&mut pair)
+        })
+    }
+
+    /// Run `deposit` as `user` and then `op` as the pair, in *one*
+    /// transaction.
+    ///
+    /// This is how the pair is really used: its caller moves tokens into it
+    /// and then performs an operation against the balance that resulted.  A
+    /// child frame keeps the two in the same transaction, so the operation
+    /// sees the deposit -- which a second transaction would not, reading as it
+    /// would the balances its own block began with.
+    pub fn exec_depositing_as_pair<D, F, T>(
+        &self,
+        user: User,
+        deposit: D,
+        op: F,
+    ) -> Result<T, TransactResult>
+    where
+        D: Fn(&User) + std::panic::RefUnwindSafe,
+        F: Fn(&mut Node<Pair>) -> T + std::panic::RefUnwindSafe,
+        T: xdr::WriteXDR + xdr::ReadXDROwned,
+    {
+        use std::sync::{Arc, Mutex};
+
+        let out: Arc<Mutex<Option<T>>> = Arc::new(Mutex::new(None));
+
+        let r = self.env.transact(|tx| {
+            tx.call(user.addr)
+                .run_continuable(|frame| {
+                    deposit(&user);
+
+                    frame
+                        .child_call(&PAIR_ADDR)
+                        .run(|| {
+                            let mut pair: Node<Pair> = Keypath::default().into();
+                            *Arc::clone(&out).lock().unwrap() = Some(op(&mut pair));
+                        })
+                        .assert_success();
+
+                    FrameAction::Close
+                })
+                .finish()
+        });
+
+        if r.is_success() {
+            Ok(Arc::into_inner(out).unwrap().into_inner().unwrap().unwrap())
+        } else {
+            Err(r)
+        }
+    }
+
+    // Provide AB-token liquidity in exchange for LP tokens.
+    pub fn user_buy(&self, user: User) -> Result<(), TransactResult> {
+        let ctx = self.ctx;
+        let minted = self.exec_depositing_as_pair(
+            user,
+            |u| ctx.user_deposit_tokens(u),
+            move |pair| pair.mint_lp(user.addr),
+        )?;
+        println!("> {} bought {:.3} LP", user.name, decimalized(minted));
+        self.user_print_balances(user)
+    }
+
+    // Redeem LP tokens for the underlying pair tokens.
+    pub fn user_redeem(&self, user: User) -> Result<(), TransactResult> {
+        let ctx = self.ctx;
+        self.exec_depositing_as_pair(
+            user,
+            |u| ctx.user_deposit_lp(u),
+            move |pair| pair.burn_lp(user.addr),
+        )?;
+        self.user_print_balances(user)
+    }
+
     pub fn user_balances(&self, user: User) -> Result<(Amounts, Amount)> {
         let ctx = &self.ctx;
         self.exec_user_tx(user, |_| ctx.my_balances())

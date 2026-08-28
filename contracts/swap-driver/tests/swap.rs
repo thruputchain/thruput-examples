@@ -82,15 +82,15 @@ fn serial_swap_leg(etx: &Etx, leg: Leg) -> Result<()> {
 
     // Send the purchasing funds to the swap-pair contract
     etx.exec_user_tx(user, |_| {
-        ctx.token0().transfer(&ctx.pair_addr, amounts_in[0]);
-        ctx.token1().transfer(&ctx.pair_addr, amounts_in[1]);
+        ctx.token0().transfer(&ctx.request_handler_addr, amounts_in[0]);
+        ctx.token1().transfer(&ctx.request_handler_addr, amounts_in[1]);
     })?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
-    // Perform the swap
-    etx.exec_user_tx(user, |user| {
-        ctx.pair().swap(amounts_out[0], amounts_out[1], user.addr, user.addr, None)
+    // Perform the swap, as the pool
+    etx.exec_as_pair(move |pair| {
+        pair.swap(amounts_out[0], amounts_out[1], user.addr)
     })?;
 
     println!("> {} swapped {:.3?} => {:.3?}", user.name,

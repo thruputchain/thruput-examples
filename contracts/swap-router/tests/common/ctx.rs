@@ -7,7 +7,6 @@ pub struct Ctx {
     pub driver_addr: Address,
     // The request handler: the contract users must allow to spend their tokens.
     pub request_handler_addr: Address,
-    pub pair_addr: Address,
     pub liquidity_token: Address,
     pub token_addrs: Addresses,
 }
@@ -25,8 +24,10 @@ impl Ctx {
     pub fn token1_meta(&self) -> ERC20MetadataClient {
         ERC20MetadataClient::new(&self.token_addrs[1])
     }
-    pub fn pair(&self) -> SwapPairClient {
-        SwapPairClient::new(&self.pair_addr)
+    // The pool: the handler performs the pair's operations and holds its
+    // reserves, so it is what answers for them.
+    pub fn pair(&self) -> SwapHandlerClient {
+        SwapHandlerClient::new(&self.request_handler_addr)
     }
     pub fn lp(&self) -> ERC20Client {
         ERC20Client::new(&self.liquidity_token)
@@ -80,8 +81,8 @@ impl Ctx {
         );
 
         let reserves = [
-            self.token0().get_balance_of(&self.pair_addr),
-            self.token1().get_balance_of(&self.pair_addr),
+            self.token0().get_balance_of(&self.request_handler_addr),
+            self.token1().get_balance_of(&self.request_handler_addr),
         ];
         assert!(reserves[0] > 0 && reserves[1] > 0);
 
@@ -113,19 +114,14 @@ impl Ctx {
         let amts = [self.token0().get_balance(), self.token1().get_balance()];
 
         // Transfer our AB-tokens to the pair contract
-        self.token0().transfer(&self.pair_addr, amts[0]);
-        self.token1().transfer(&self.pair_addr, amts[1]);
-
-        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
+        self.token0().transfer(&self.request_handler_addr, amts[0]);
+        self.token1().transfer(&self.request_handler_addr, amts[1]);
 
         // Our balances should be drained
         assert_eq!(0, self.token0().get_balance());
         assert_eq!(0, self.token1().get_balance());
 
-        {
-            println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
-            self.user_print_balances(user);
-        }
+        self.user_print_balances(user);
     }
 
     // As a user, provide AB-token liquidity in exchange for LP tokens.
@@ -140,37 +136,26 @@ impl Ctx {
         assert!(bal1 >= amt1);
 
         // Transfer our AB-tokens to the pair contract
-        self.token0().transfer(&self.pair_addr, amt0);
-        self.token1().transfer(&self.pair_addr, amt1);
-
-        let lp_minted = self.pair().mint_lp(user.addr, user.addr, None);
+        self.token0().transfer(&self.request_handler_addr, amt0);
+        self.token1().transfer(&self.request_handler_addr, amt1);
 
         // Our token0 balance should be drained
         assert_eq!(0, self.token0().get_balance());
 
-        {
-            println!("> {} bought {:.3} LP", user.name, decimalized(lp_minted));
-            self.user_print_balances(user);
-        }
+        self.user_print_balances(user);
     }
 
-    // As a user, redeem swap-pair tokens
+    // As a user, deposit LP tokens for redemption
     pub fn user_redeem(&self, user: &User) {
-        let pair = self.pair();
         let lp = self.lp();
 
         // Return all my LP tokens to the swap-pair contract
         let return_amt = lp.get_balance();
-        lp.transfer(&self.pair_addr, return_amt);
+        lp.transfer(&self.request_handler_addr, return_amt);
         println!("> {} redeemed {:.3} LP", user.name, decimalized(return_amt));
 
         // I should have zero LP tokens now
         assert_eq!(lp.get_balance(), 0);
-
-        // Redeem the LP tokens for pair tokens
-        pair.burn_lp(user.addr, user.addr, None);
-
-        self.user_print_balances(user);
     }
 
     // Prepare to transfer LP allowances back to swap-pair contract
@@ -178,35 +163,24 @@ impl Ctx {
         let return_amt = self.lp().get_balance().try_into().unwrap();
 
         // Give the swap-pair access to all my LP tokens
-        self.lp().adjust_allowance(&self.pair_addr, return_amt);
+        self.lp()
+            .adjust_allowance(&self.request_handler_addr, return_amt);
 
         return_amt
     }
 
     // Make sure we're not holding any LP tokens
-    pub fn factory_sync_skim_pair(&self) {
-        let pair = self.pair();
-
+    pub fn empty_pool_is_a_no_op(&self, pair: &mut Node<Pair>) {
         let (r0, r1, _ts) = pair.get_reserves();
         assert_eq!(r0, 0);
         assert_eq!(r1, 0);
 
-        let our_lp = pair.get_liquidity();
-        assert_eq!(0, our_lp);
+        assert_eq!(0, pair.get_liquidity());
 
-        // This should be a no-op
+        hash_ident! { static SOMEBODY: ContractAddress; }
+
+        // These should be no-ops
         pair.sync();
-
-        hash_ident! { static SOMEBODY: Address; }
-
-        // This should be a no-op
         pair.skim(&SOMEBODY);
-
-        assert!(
-            pair.try_mint_lp(&SOMEBODY, &SOMEBODY, None)
-                .is_err_and(
-                    |e| is_pair_error_and(e, |e| e == SwapPairError::InsufficientLiquidityMinted)
-                )
-        );
     }
 }

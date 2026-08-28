@@ -1,9 +1,13 @@
-//! A contract implementing SwapPair
+//! The pair's operations (cf. UniswapV2Pair).
+//!
+//! Not a contract: these run inside the handler's own invocation.  The events
+//! that attribute an operation to a sender belong to the handler, which is what
+//! knows whom to credit; the only event raised here is the unattributed
+//! `SyncEvent`, from `reserves`.
 
-use crate::events::*;
-use crate::interface::*;
 use crate::reserves::*;
 use crate::u256::{U256, mul_div_u128};
+use crate::{Address, Amount, Amounts, SwapPairError};
 use core::cmp::min;
 use core::iter::zip;
 use core::ops::Mul;
@@ -12,8 +16,11 @@ use sdk::storage::*;
 use sdk::*;
 use swap_if::SwapFactoryClient;
 
-/// State for the pair contract
-#[storage]
+/// The pair's state.
+///
+/// Held by the handler as a `Node<Pair>` field, so these keypaths sit under it
+/// rather than at the root of a contract of their own.
+#[derive(Storage)]
 pub struct Pair {
     // Configuration: token (A, B) addresses
     tokens: Value<[Address; 2]>,
@@ -33,9 +40,10 @@ pub struct Pair {
     reserves: Value<Reserves>,
 }
 
-#[contract(exports = "swap_exports")]
-impl SwapPair for Pair {
-    fn initialize(
+impl Pair {
+    /// Adopt the pool's contracts.  Called once, by the handler's own
+    /// `initialize`.
+    pub fn initialize(
         &mut self,
         factory: &Address,
         token0: &Address,
@@ -57,31 +65,37 @@ impl SwapPair for Pair {
         self.lp().initialize(&get_current_address());
     }
 
-    fn liquidity_token(&self) -> ContractAddress {
+    /// The LP token this pair mints and burns.
+    pub fn liquidity_token(&self) -> ContractAddress {
         self.lp_addr.get()
     }
 
-    fn get_reserves(&self) -> (u128, u128, u32) {
+    /// The last-recorded reserves, and when they were recorded (cf.
+    /// UniswapV2Pair's `getReserves`).
+    pub fn get_reserves(&self) -> (u128, u128, u32) {
         let r = self.reserves.get();
         let [r0, r1] = r.balances();
         (r0, r1, r.block_timestamp())
     }
 
-    fn get_cumulative_prices(&self) -> [U256; 2] {
+    /// The cumulative prices, as UQ112x112 fixed-point values, for use as a
+    /// time-weighted-average-price oracle.
+    pub fn get_cumulative_prices(&self) -> [U256; 2] {
         self.reserves.get().cumulative_prices
     }
 
-    fn get_liquidity(&self) -> Amount {
+    /// The total supply of LP tokens.
+    pub fn get_liquidity(&self) -> Amount {
         self.lp().total_supply()
     }
 
-    // Mint LP to `recipient` in exchange for the A/B-tokens `sender` transferred
-    fn mint_lp(
-        &mut self,
-        sender: &Address,
-        recipient: &Address,
-        request_id: Option<RequestId>,
-    ) -> Amount {
+    /// Mint LP to `recipient` in exchange for the A/B-tokens deposited here
+    /// since the last recorded reserves (cf. UniswapV2Pair's `mint`).
+    ///
+    /// Returns the amount minted.  Who deposited is not the pair's business:
+    /// the amount comes from its own balance delta, and the caller is what
+    /// knows whom to credit in the event.
+    pub fn mint_lp(&mut self, recipient: &Address) -> Amount {
         let mut reserves = self.reserves.get();
 
         // Get the previous snapshot of our reserve balances
@@ -142,20 +156,15 @@ impl SwapPair for Pair {
             self.set_k_last(balances);
         }
 
-        log_event(&MintEvent::new(sender, lp_minted, recipient, request_id));
-
         // Return the amount of liquidity minted
         lp_minted
     }
 
-    // Return pair-tokens to `recipient` in exchange for the LP tokens `sender`
-    // transferred to us
-    fn burn_lp(
-        &mut self,
-        sender: &Address,
-        recipient: &Address,
-        request_id: Option<RequestId>,
-    ) -> Amounts {
+    /// Return pair-tokens to `recipient` in exchange for the LP tokens
+    /// deposited here (cf. UniswapV2Pair's `burn`).
+    ///
+    /// Returns the amounts redeemed.
+    pub fn burn_lp(&mut self, recipient: &Address) -> Amounts {
         let balances = self.get_token_balances();
 
         let lp = self.lp();
@@ -198,20 +207,21 @@ impl SwapPair for Pair {
             self.set_k_last(self.get_token_balances());
         }
 
-        log_event(&BurnEvent::new(sender, amounts, recipient, request_id));
-
         // Return amounts redeemed
         amounts
     }
 
-    fn swap(
+    /// Swap the given amounts out to `recipient`, against whatever was paid
+    /// in (cf. UniswapV2Pair's `swap`).
+    ///
+    /// Returns the input amounts, which the pair works out from its own
+    /// balance delta and the caller cannot.
+    pub fn swap(
         &mut self,
         amount0_out: Amount,
         amount1_out: Amount,
-        sender: &Address,
         recipient: &Address,
-        request_id: Option<RequestId>,
-    ) {
+    ) -> Amounts {
         let amounts_out = [amount0_out, amount1_out];
 
         ensure(
@@ -267,17 +277,12 @@ impl SwapPair for Pair {
             SwapPairError::InvalidSwapProduct,
         );
 
-        log_event(&SwapEvent::new(
-            sender,
-            amounts_in,
-            amounts_out,
-            recipient,
-            request_id,
-        ));
+        amounts_in
     }
 
-    // Extract any reserve balances surplus to what was last recorded
-    fn skim(&mut self, to: &Address) {
+    /// Send any balance in excess of the recorded reserves to `to` (cf.
+    /// UniswapV2Pair's `skim`).
+    pub fn skim(&mut self, to: &Address) {
         let reserves = self.reserves.get();
         let prev_balances = reserves.balances();
 
@@ -291,8 +296,9 @@ impl SwapPair for Pair {
         self.transfer_to(to, surpluses);
     }
 
-    // Record current reserve balances
-    fn sync(&mut self) {
+    /// Record the pair's actual balances as its reserves (cf. UniswapV2Pair's
+    /// `sync`).  Emits the pair's only event, which attributes nothing.
+    pub fn sync(&mut self) {
         let balances = self.get_token_balances();
         self.reserves.load_mut().update(balances);
     }
@@ -303,7 +309,8 @@ impl Pair {
     pub const MINIMUM_LIQUIDITY: u128 = 1000;
     pub const BLACK_HOLE: Address = Address::zero();
 
-    fn lp(&self) -> ERC20Client {
+    /// The LP token, as a client.
+    pub fn lp(&self) -> ERC20Client {
         ERC20Client::new(&self.lp_addr.get())
     }
 
@@ -319,11 +326,13 @@ impl Pair {
             .flatten()
     }
 
-    fn token_addrs(&self) -> [Address; 2] {
+    /// The pool's two token addresses.
+    pub fn token_addrs(&self) -> [Address; 2] {
         self.tokens.get()
     }
 
-    fn tokens(&self) -> [ERC20Client; 2] {
+    /// The pool's two tokens, as clients.
+    pub fn tokens(&self) -> [ERC20Client; 2] {
         self.token_addrs().map(|ref addr| ERC20Client::new(addr))
     }
 

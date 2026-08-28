@@ -2,10 +2,12 @@
 //! registry, and the protocol fee flowing to the factory's `fee_to`.
 
 use groundhog_erc20_if::ERC20Client;
+use sdk::storage::Node;
 use sdk::*;
 use swap_factory::{Addresses, SwapFactoryClient, SwapFactoryClientError, SwapFactoryError};
+use swap_handler::SwapHandlerClient;
 use swap_if::SwapHashes;
-use swap_pair::SwapPairClient;
+use swap_pair::Pair;
 use swap_pair::u256::U256;
 
 hash_ident! { pub static DEPLOYER: ContractAddress; }
@@ -54,7 +56,6 @@ fn register_contracts(env: &TestEnvironmentHandle) -> (SwapHashes, SHA256Hash) {
     (
         SwapHashes {
             token: *erc20::register_mock_contract(env).as_hash(),
-            pair: *swap_pair::register_mock_contract(env).as_hash(),
             handler: *swap_handler::register_mock_contract(env).as_hash(),
             driver: *swap_driver::register_mock_contract(env).as_hash(),
         },
@@ -69,7 +70,6 @@ fn register_contracts(env: &TestEnvironmentHandle) -> (SwapHashes, SHA256Hash) {
     (
         SwapHashes {
             token: env.setup_create_contract(&load("erc20")),
-            pair: env.setup_create_contract(&load("swap_pair")),
             handler: env.setup_create_contract(&load("swap_handler")),
             driver: env.setup_create_contract(&load("swap_driver")),
         },
@@ -119,7 +119,6 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     .unwrap();
     for addr in [
         predicted.liquidity_token,
-        predicted.pair,
         predicted.handler,
         predicted.driver,
     ] {
@@ -161,8 +160,8 @@ fn create_pair_brings_up_pool() {
         let factory = SwapFactoryClient::new(&s.factory);
 
         // Registry, order-independent.
-        assert_eq!(factory.get_pair(&s.token0, &s.token1), Some(pool.pair));
-        assert_eq!(factory.get_pair(&s.token1, &s.token0), Some(pool.pair));
+        assert_eq!(factory.get_pair(&s.token0, &s.token1), Some(pool.handler));
+        assert_eq!(factory.get_pair(&s.token1, &s.token0), Some(pool.handler));
         assert_eq!(factory.all_pairs_length(), 1);
         assert_eq!(factory.fee_to(), Some(FEE_ADDR));
 
@@ -175,9 +174,9 @@ fn create_pair_brings_up_pool() {
         assert_eq!(factory.pair_at(1), None);
 
         // The pair adopted its LP token and is initialized (empty reserves).
-        let pair = SwapPairClient::new(&pool.pair);
-        assert_eq!(pair.liquidity_token(), pool.liquidity_token);
-        let (r0, r1, _) = pair.get_reserves();
+        let pool_client = SwapHandlerClient::new(&pool.handler);
+        assert_eq!(pool_client.liquidity_token(), pool.liquidity_token);
+        let (r0, r1, _) = pool_client.get_reserves();
         assert_eq!((r0, r1), (0, 0));
     })
     .unwrap();
@@ -209,11 +208,11 @@ fn fee_accrues_to_factory_fee_to() {
 
     // Snapshot the reserves and supply the next liquidity event will see.
     let (r0, r1, _) = exec_tx(&s.env, &DEPLOYER, || {
-        SwapPairClient::new(&pair).get_reserves()
+        SwapHandlerClient::new(&pair).get_reserves()
     })
     .unwrap();
     let supply = exec_tx(&s.env, &DEPLOYER, || {
-        SwapPairClient::new(&pair).get_liquidity()
+        SwapHandlerClient::new(&pair).get_liquidity()
     })
     .unwrap();
     // k at the previous liquidity event (the prime, with equal reserves).
@@ -267,20 +266,15 @@ fn prime_and_grow(
     .unwrap();
     s.env.advance_block();
 
-    let (pair, lp, t0, t1) = (pool.pair, pool.liquidity_token, token0, token1);
+    let (pair, lp, t0, t1) = (pool.handler, pool.liquidity_token, token0, token1);
 
-    exec_tx(&s.env, &DEPLOYER, || {
-        ERC20Client::new(&t0).transfer(&pair, PRIME);
-        ERC20Client::new(&t1).transfer(&pair, PRIME);
-        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, &DEPLOYER, None);
-    })
-    .unwrap();
+    deposit_and_mint(&s.env, pair, t0, t1).assert_success();
     s.env.advance_block();
 
     exec_tx(&s.env, &DEPLOYER, || {
         ERC20Client::new(&t0).transfer(&pair, PRIME);
         ERC20Client::new(&t1).transfer(&pair, PRIME);
-        SwapPairClient::new(&pair).sync();
+        SwapHandlerClient::new(&pair).sync();
     })
     .unwrap();
     s.env.advance_block();
@@ -296,13 +290,7 @@ fn second_liquidity_event(
     t0: ContractAddress,
     t1: ContractAddress,
 ) -> TransactResult {
-    env.transact(|tx| {
-        tx.call(&DEPLOYER).run(move || {
-            ERC20Client::new(&t0).transfer(&pair, PRIME);
-            ERC20Client::new(&t1).transfer(&pair, PRIME);
-            SwapPairClient::new(&pair).mint_lp(&DEPLOYER, &DEPLOYER, None);
-        })
-    })
+    env.transact(|tx| deposit_and_mint_frame(tx, pair, t0, t1))
 }
 
 /////////////////////// protocol-fee gas ////////////////////////////////////
@@ -388,6 +376,43 @@ fn measure_fee_event(fee_to: Option<ContractAddress>) -> u64 {
         })
         .last()
         .expect("an invoke of the pair")
+}
+
+// A liquidity event: the depositor moves its tokens into the pool, and then
+// the pool's own frame mints against them.  Both in one transaction, so the
+// mint sees the deposit -- a second transaction would read the balances its
+// own block began with.
+fn deposit_and_mint(
+    env: &TestEnvironmentHandle,
+    pool: ContractAddress,
+    t0: ContractAddress,
+    t1: ContractAddress,
+) -> TransactResult {
+    env.transact(|tx| deposit_and_mint_frame(tx, pool, t0, t1))
+}
+
+fn deposit_and_mint_frame(
+    tx: &mut MockTransactionHandler,
+    pool: ContractAddress,
+    t0: ContractAddress,
+    t1: ContractAddress,
+) -> FrameResult {
+    tx.call(&DEPLOYER)
+        .run_continuable(|frame| {
+            ERC20Client::new(&t0).transfer(&pool, PRIME);
+            ERC20Client::new(&t1).transfer(&pool, PRIME);
+
+            frame
+                .child_call(&pool)
+                .run(|| {
+                    let mut pair: Node<Pair> = swap_handler::pair_state();
+                    pair.mint_lp(&DEPLOYER);
+                })
+                .assert_success();
+
+            FrameAction::Close
+        })
+        .finish()
 }
 
 // The factory's canonical (ascending) token order, which its registry uses.

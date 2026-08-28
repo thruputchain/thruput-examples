@@ -82,7 +82,6 @@ impl SwapFactory for Factory {
         // distinct while remaining deterministic in the token pair.
         let hashes = self.hashes.get();
         let liquidity_token = deploy_contract(&tokens.nonce_for(Role::LP), &hashes.token);
-        let pair = deploy_contract(&tokens.nonce_for(Role::Pair), &hashes.pair);
         let handler = deploy_contract(&tokens.nonce_for(Role::Handler), &hashes.handler);
         let driver = deploy_contract(&tokens.nonce_for(Role::Driver), &hashes.driver);
 
@@ -91,18 +90,17 @@ impl SwapFactory for Factory {
         // calls: a callee's failure propagates with its own error type, which
         // is among those mentioned in this trait's `throws` annotation.
         let me = get_current_address();
-        SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token);
-        SwapHandlerClient::new(&handler).initialize(&pair, token0, token1);
+        SwapHandlerClient::new(&handler).initialize(&me, token0, token1, &liquidity_token);
         SwapDriverClient::new(&driver).initialize(&handler, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
 
         // Record the new pair: by tokens (for `get_pair`) and in creation
-        // order (for `pair_at`).
-        self.pairs.at_mut(tokens.key()).set(&pair);
+        // order (for `pair_at`).  A pair is its handler now -- that is the
+        // contract holding its reserves and performing its operations.
+        self.pairs.at_mut(tokens.key()).set(&handler);
         self.all_pairs.push_with(|slot| slot.set(tokens.key()));
 
         let pool = Pool {
             liquidity_token,
-            pair,
             handler,
             driver,
         };
@@ -110,7 +108,6 @@ impl SwapFactory for Factory {
         log_event(&PoolCreated {
             token0,
             token1,
-            pair,
             liquidity_token,
             handler,
             driver,
@@ -128,7 +125,6 @@ impl SwapFactory for Factory {
         let hashes = self.hashes.get();
         Pool {
             liquidity_token: get_deploy_address(&tokens.nonce_for(Role::LP), &hashes.token),
-            pair: get_deploy_address(&tokens.nonce_for(Role::Pair), &hashes.pair),
             handler: get_deploy_address(&tokens.nonce_for(Role::Handler), &hashes.handler),
             driver: get_deploy_address(&tokens.nonce_for(Role::Driver), &hashes.driver),
         }
@@ -195,7 +191,6 @@ impl TokenPair {
 #[repr(i32)]
 enum Role {
     LP = 0,
-    Pair = 1,
-    Handler = 2,
-    Driver = 3,
+    Handler = 1,
+    Driver = 2,
 }

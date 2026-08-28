@@ -30,7 +30,7 @@ heapless = { workspace = true }
 thiserror = { workspace = true }
 batch-driver = { path = "../../helpers/batch-driver" }
 swap-if = { path = "../swap-if" }
-swap-pair = { path = "../swap-pair" }
+swap-pair = { path = "../../engines/swap-pair" }
 swap-handler = { path = "../swap-handler" }
 
 # Optional, for native tests

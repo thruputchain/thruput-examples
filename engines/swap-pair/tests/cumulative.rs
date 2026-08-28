@@ -22,12 +22,11 @@ fn cumulative_price_accumulates() {
             ctx.token0().transfer(&ctx.pair_addr, amt);
         })?;
         etx.advance_block();
-        etx.exec_tx(&TEST_ADDR, move || ctx.pair().sync())?;
+        etx.exec_as_pair(|pair| pair.sync())?;
         etx.advance_block();
 
         // Baseline: the (now skewed) reserves and the accumulator as recorded.
-        let (r0, r1, ts0, cum0) = etx.exec_tx(&TEST_ADDR, move || {
-            let pair = ctx.pair();
+        let (r0, r1, ts0, cum0) = etx.exec_as_pair(|pair| {
             let (r0, r1, ts) = pair.get_reserves();
             (r0, r1, ts, pair.get_cumulative_prices())
         })?;
@@ -40,11 +39,10 @@ fn cumulative_price_accumulates() {
 
         // `sync()` re-records the (unchanged) reserves, advancing the cumulative
         // prices over the elapsed interval.
-        etx.exec_tx(&TEST_ADDR, move || ctx.pair().sync())?;
+        etx.exec_as_pair(|pair| pair.sync())?;
         etx.advance_block();
 
-        let (_, _, ts1, cum1) = etx.exec_tx(&TEST_ADDR, move || {
-            let pair = ctx.pair();
+        let (_, _, ts1, cum1) = etx.exec_as_pair(|pair| {
             let (r0, r1, ts) = pair.get_reserves();
             (r0, r1, ts, pair.get_cumulative_prices())
         })?;

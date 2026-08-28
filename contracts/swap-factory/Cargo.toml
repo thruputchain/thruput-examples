@@ -33,7 +33,7 @@ guest_test = []
 
 [dev-dependencies]
 swap-factory = { path = ".", features = ["dev"] }
-swap-pair = { path = "../swap-pair", features = ["dev"] }
+swap-pair = { path = "../../engines/swap-pair", features = ["dev"] }
 swap-handler = { path = "../swap-handler", features = ["dev"] }
 swap-driver = { path = "../swap-driver", features = ["dev"] }
 swap-router = { path = "../swap-router", features = ["dev"] }

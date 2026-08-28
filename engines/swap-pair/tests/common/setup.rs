@@ -9,7 +9,6 @@ const CONTRACT_FUNDING: i64 = 1_000_000_000;
 hash_ident! { static TOKEN_0_NONCE: SHA256Hash; }
 hash_ident! { static TOKEN_1_NONCE: SHA256Hash; }
 hash_ident! { static LP_NONCE: SHA256Hash; }
-hash_ident! { static PAIR_NONCE: SHA256Hash; }
 
 // Under the default cost model a contract pays for the storage it writes.  Grant
 // storage tokens to the (deterministic) address `deployer` will deploy `hash` to
@@ -36,10 +35,6 @@ pub fn setup_etx() -> Result<Etx> {
     let token_contract = erc20::register_mock_contract(&env);
     let token_hash = *token_contract.as_hash();
 
-    // Register the swap-pair contract
-    let pair_contract = swap_pair::register_mock_contract(&env);
-    let pair_hash = *pair_contract.as_hash();
-
     // Pre-fund the test caller and each contract we deploy (at its
     // deterministic address), so their storage writes are solvent under the
     // cost model.
@@ -49,7 +44,9 @@ pub fn setup_etx() -> Result<Etx> {
     fund_deploy_target(&env, &TEST_ADDR, &TOKEN_0_NONCE, &token_hash);
     fund_deploy_target(&env, &TEST_ADDR, &TOKEN_1_NONCE, &token_hash);
     fund_deploy_target(&env, &FACTORY_ADDR, &LP_NONCE, &token_hash);
-    fund_deploy_target(&env, &FACTORY_ADDR, &PAIR_NONCE, &pair_hash);
+    // The pair is code, not a contract, but it still keeps state and holds
+    // tokens at an address of its own, and pays for that storage.
+    env.setup_grant_storage_tokens(&PAIR_ADDR, CONTRACT_FUNDING);
 
     // Deploy and init the A/B token contracts
     let token_addrs = exec_tx(&env, &TEST_ADDR, || ab_tokens_deploy_init(&token_hash))?;
@@ -61,16 +58,30 @@ pub fn setup_etx() -> Result<Etx> {
 
     /* ----- */ env.advance_block(); /* ----- */
 
-    // As the factory, deploy and init a swap-pair contract
-    let (pair_addr, liquidity_token) = exec_tx(&env, &FACTORY_ADDR, || {
-        swap_pair_deploy_init(&pair_hash, &token_hash, token_addrs)
+    // As the factory, deploy the LP token the pair will adopt.
+    let liquidity_token = exec_tx(&env, &FACTORY_ADDR, || {
+        deploy_contract(&LP_NONCE, &token_hash)
+    })?;
+
+    /* ----- */ env.advance_block(); /* ----- */
+
+    // Then bring the pair up, in a frame at its own address -- which is what
+    // makes it the LP token's administrator and the pool's token holder.
+    exec_tx(&env, &PAIR_ADDR, move || {
+        let mut pair: Node<Pair> = Keypath::default().into();
+        pair.initialize(
+            &FACTORY_ADDR,
+            &token_addrs[0],
+            &token_addrs[1],
+            &liquidity_token,
+        );
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
 
     let env = env.clone();
     let ctx = Ctx {
-        pair_addr,
+        pair_addr: PAIR_ADDR,
         liquidity_token,
         token_addrs
     };
@@ -83,7 +94,7 @@ pub fn setup_etx_primed() -> Result<Etx> {
     let etx = setup_etx()?;
 
     // Primer buys liquidity tokens, establishing a stable price
-    etx.exec_user_tx(PRIMER, |u| etx.ctx.user_buy(u))?;
+    etx.user_buy(PRIMER)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
@@ -123,31 +134,4 @@ fn airdrop_tokens(token_addrs: &Addresses) {
         token0.mint(u.addr, u.init.0);
         token1.mint(u.addr, u.init.1);
     }
-}
-
-// Deploy and init a swap-pair contract, given hashes of a registered pair
-// contract and a registered token contract.
-fn swap_pair_deploy_init(
-    pair_hash: &SHA256Hash,
-    token_hash: &SHA256Hash,
-    token_addrs: Addresses,
-) -> (ContractAddress, ContractAddress) {
-    assert_eq!(&get_current_address(), &FACTORY_ADDR);
-
-    // Deploy the LP-token contract (to be initialized below by
-    // `pair.initialize`)
-    let lp_addr = deploy_contract(&LP_NONCE, token_hash);
-
-    // Deploy a new swap-pair contract
-    let pair_addr = deploy_contract(&PAIR_NONCE, pair_hash);
-
-    let pair = SwapPairClient::new(&pair_addr);
-
-    // Initialize the pair contract with the two tokens
-    // (This also initializes its embedded LP-token implementation.)
-    pair.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], &lp_addr);
-
-    let liquidity_token = pair.liquidity_token();
-
-    (pair_addr, liquidity_token)
 }

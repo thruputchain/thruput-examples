@@ -31,6 +31,63 @@ impl Etx {
         exec_tx_result(&self.env, addr, f)
     }
 
+    /// Run `op` as the pool, in a frame at the handler's address.
+    pub fn exec_as_pair<F, T>(&self, op: F) -> Result<T, TransactResult>
+    where
+        F: Fn(&mut Node<Pair>) -> T + std::panic::RefUnwindSafe,
+    {
+        let addr = self.ctx.request_handler_addr;
+        exec_tx(&self.env, &addr, || {
+            let mut pair = swap_handler::pair_state();
+            op(&mut pair)
+        })
+    }
+
+    /// Run `deposit` as `user` and then `op` as the pool, in one transaction,
+    /// so that the operation sees the deposit.
+    pub fn exec_depositing_as_pair<D, F, T>(
+        &self,
+        user: User,
+        deposit: D,
+        op: F,
+    ) -> Result<T, TransactResult>
+    where
+        D: Fn(&User) + std::panic::RefUnwindSafe,
+        F: Fn(&mut Node<Pair>) -> T + std::panic::RefUnwindSafe,
+    {
+        use std::sync::{Arc, Mutex};
+
+        let addr = self.ctx.request_handler_addr;
+        let out: Arc<Mutex<Option<T>>> = Arc::new(Mutex::new(None));
+
+        let r = self.env.transact(|tx| {
+            tx.call(user.addr)
+                .run_continuable(|frame| {
+                    deposit(&user);
+                    frame
+                        .child_call(&addr)
+                        .run(|| {
+                            let mut pair = swap_handler::pair_state();
+                            *Arc::clone(&out).lock().unwrap() = Some(op(&mut pair));
+                        })
+                        .assert_success();
+                    FrameAction::Close
+                })
+                .finish()
+        });
+
+        let out = Arc::into_inner(out)
+            .unwrap()
+            .into_inner()
+            .unwrap_or_else(|e| e.into_inner());
+
+        if r.is_success() {
+            Ok(out.unwrap())
+        } else {
+            Err(r)
+        }
+    }
+
     pub fn exec_user_tx<F, T>(&self, user: User, f: F) -> Result<T, TransactResult>
     where
         F: Fn(&User) -> T + std::panic::RefUnwindSafe,
@@ -74,10 +131,10 @@ impl Etx {
         exec_tx(&self.env, &TEST_ADDR, || {
             (
                 [
-                    ctx.token0().get_balance_of(&ctx.pair_addr),
-                    ctx.token1().get_balance_of(&ctx.pair_addr),
+                    ctx.token0().get_balance_of(&ctx.request_handler_addr),
+                    ctx.token1().get_balance_of(&ctx.request_handler_addr),
                 ],
-                ctx.lp().get_balance_of(&ctx.pair_addr),
+                ctx.lp().get_balance_of(&ctx.request_handler_addr),
             )
         })
     }
@@ -107,7 +164,12 @@ impl Etx {
     pub fn prime(&self) -> Result<()> {
         let ctx = &self.ctx;
 
-        self.exec_user_tx(PRIMER, |u| ctx.user_buy_unpriced(u))?;
+        let minted = self.exec_depositing_as_pair(
+            PRIMER,
+            |u| ctx.user_buy_unpriced(u),
+            |pair| pair.mint_lp(PRIMER.addr),
+        )?;
+        println!("> {} bought {:.3} LP", PRIMER.name, decimalized(minted));
         self.advance_block();
 
         Ok(())
