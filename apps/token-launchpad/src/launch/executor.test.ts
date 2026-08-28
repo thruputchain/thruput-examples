@@ -11,7 +11,9 @@ import {
   createWorkflow,
   loadWorkflow,
   saveWorkflow,
+  workflowLockName,
   workflowIntent,
+  workflowSessionLockName,
   workflowStorageKey,
 } from "@/launch/workflow";
 import { configuration, MemoryStorage } from "@/launch/workflow.test";
@@ -61,6 +63,17 @@ describe("advanceWorkflow", () => {
           fundingAmount: 0n,
         });
       const onUpdate = vi.fn();
+      const lockEvents: string[] = [];
+      const trackingLocks = {
+        request: async (name: string, callback: (lock: Lock) => unknown) => {
+          lockEvents.push(`start:${name}`);
+          try {
+            return await callback({ name, mode: "exclusive" });
+          } finally {
+            lockEvents.push(`end:${name}`);
+          }
+        },
+      } as unknown as LockManager;
       const result = await runWorkflow({
         config,
         client: {} as GroundhogClient,
@@ -69,7 +82,7 @@ describe("advanceWorkflow", () => {
         workflowRevision: workflow.revision,
         expectedIntent: workflowIntent(workflow),
         storage,
-        locks,
+        locks: trackingLocks,
         review,
         automatic,
         onUpdate,
@@ -79,6 +92,19 @@ describe("advanceWorkflow", () => {
       expect(result.funding.status).toBe("committed");
       expect(result.creation.status).toBe("idle");
       expect(result.error).toBe(automatic ? "creation unavailable" : null);
+      const workflowLock = workflowLockName(config);
+      expect(lockEvents).toEqual(
+        automatic
+          ? [
+              `start:${workflowSessionLockName(config)}`,
+              `start:${workflowLock}`,
+              `end:${workflowLock}`,
+              `start:${workflowLock}`,
+              `end:${workflowLock}`,
+              `end:${workflowSessionLockName(config)}`,
+            ]
+          : [`start:${workflowLock}`, `end:${workflowLock}`],
+      );
     },
   );
 
@@ -121,6 +147,81 @@ describe("advanceWorkflow", () => {
     expect(result.funding).toEqual({ status: "uncertain", hash });
     expect(result.reviewedReserve).toBe("0");
     expect(result.reviewedFundingAmount).toBe("110");
+  });
+
+  it("blocks a persona switch across the full automatic sequence", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const lockManager = exclusiveLockManager();
+    let releaseFunding!: () => void;
+    let markFundingStarted!: () => void;
+    const fundingStarted = new Promise<void>((resolve) => {
+      markFundingStarted = resolve;
+    });
+    const fundingGate = new Promise<void>((resolve) => {
+      releaseFunding = resolve;
+    });
+    const writer = {
+      execute: vi
+        .fn()
+        .mockImplementationOnce(async () => {
+          markFundingStarted();
+          await fundingGate;
+          return {
+            kind: "committedSuccess" as const,
+            hash: `0x${"06".repeat(32)}`,
+            receipt: {} as TransactionReceipt,
+          };
+        })
+        .mockResolvedValueOnce({
+          kind: "preSubmissionFailure",
+          message: "creation unavailable",
+        }),
+      observe: vi.fn(),
+    };
+    const review = vi
+      .fn()
+      .mockResolvedValueOnce(factoryReview(config))
+      .mockResolvedValue({
+        ...factoryReview(config),
+        currentReserve: 100n,
+        fundingAmount: 0n,
+      });
+
+    const automaticRun = runWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      storage,
+      locks: lockManager,
+      review,
+      automatic: true,
+    });
+    await fundingStarted;
+    let switchedAfterExecutions: number | null = null;
+    const switchRequest = lockManager.request(
+      workflowSessionLockName(config),
+      () => {
+        switchedAfterExecutions = writer.execute.mock.calls.length;
+      },
+    );
+    await Promise.resolve();
+    expect(switchedAfterExecutions).toBeNull();
+
+    releaseFunding();
+    await automaticRun;
+    await switchRequest;
+    expect(switchedAfterExecutions).toBe(2);
   });
 
   it("requires renewed review when the funding plan changes", async () => {
@@ -669,4 +770,33 @@ function factoryReview(config = configuration()): FactoryReview {
     creatorBalance: 1_000n,
     fundingShortfall: 0n,
   };
+}
+
+function exclusiveLockManager(): LockManager {
+  const held = new Set<string>();
+  const queues = new Map<string, Array<() => void>>();
+  return {
+    async request<T>(
+      name: string,
+      callback: (lock: Lock) => T | PromiseLike<T>,
+    ): Promise<T> {
+      await new Promise<void>((resolve) => {
+        if (!held.has(name)) {
+          held.add(name);
+          resolve();
+          return;
+        }
+        const queue = queues.get(name) ?? [];
+        queue.push(resolve);
+        queues.set(name, queue);
+      });
+      try {
+        return await callback({ name, mode: "exclusive" });
+      } finally {
+        const next = queues.get(name)?.shift();
+        if (next) next();
+        else held.delete(name);
+      }
+    },
+  } as LockManager;
 }

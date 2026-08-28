@@ -75,16 +75,15 @@ describe("DevelopmentWalletSwitcher", () => {
     )!;
     let releaseLock!: () => void;
     const originalLocks = Object.getOwnPropertyDescriptor(navigator, "locks");
+    const request = vi.fn((name: string, action: () => Promise<unknown>) => {
+      if (name.includes(":write-session:")) return action();
+      return new Promise((resolve) => {
+        releaseLock = () => resolve(action());
+      });
+    });
     Object.defineProperty(navigator, "locks", {
       configurable: true,
-      value: {
-        request: vi.fn(
-          (_name: string, action: () => Promise<unknown>) =>
-            new Promise((resolve) => {
-              releaseLock = () => resolve(action());
-            }),
-        ),
-      },
+      value: { request },
     });
     window.sessionStorage.clear();
     const view = render(
@@ -100,6 +99,8 @@ describe("DevelopmentWalletSwitcher", () => {
       expect(document.querySelector("[aria-busy='true']")).toHaveAttribute(
         "inert",
       );
+      expect(request.mock.calls[0]?.[0]).toContain(":write-session:");
+      expect(request.mock.calls[1]?.[0]).toContain(":write:");
       await act(async () => releaseLock());
       const trigger = await screen.findByRole("button", {
         name: "Development wallet: Bob",

@@ -74,6 +74,7 @@ import {
   loadWorkflow,
   saveWorkflow,
   withWorkflowLock,
+  withWorkflowSessionLock,
   workflowIntent,
   workflowStorageKey,
   WorkflowStorageError,
@@ -164,10 +165,12 @@ export function PersonaApp({
     setIsSwitching(true);
     setSwitchError(null);
     try {
-      await withWorkflowLock(config, async () => {
-        sessionStorage.setItem(key, next);
-        flushSync(() => setId(next));
-      });
+      await withWorkflowSessionLock(config, () =>
+        withWorkflowLock(config, async () => {
+          sessionStorage.setItem(key, next);
+          flushSync(() => setId(next));
+        }),
+      );
     } catch (reason) {
       setSwitchError(
         userErrorMessage(reason, "Development wallet could not be switched"),

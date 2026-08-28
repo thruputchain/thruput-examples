@@ -79,6 +79,14 @@ export function workflowLockName(config: AppConfig): string {
   ].join(":");
 }
 
+export function workflowSessionLockName(config: AppConfig): string {
+  return [
+    "groundhog-token-launchpad:write-session:v1",
+    config.networkIdHex,
+    toHex0x(config.accountAddress),
+  ].join(":");
+}
+
 export function createWorkflow(
   config: AppConfig,
   token: ParsedToken,
@@ -147,6 +155,17 @@ export async function withWorkflowLock<T>(
     throw new Error("This browser cannot safely serialize launch transactions");
   }
   return locks.request(workflowLockName(config), action);
+}
+
+export async function withWorkflowSessionLock<T>(
+  config: AppConfig,
+  action: () => Promise<T>,
+  locks: LockManager | undefined = navigator.locks,
+): Promise<T> {
+  if (!locks) {
+    throw new Error("This browser cannot safely serialize launch transactions");
+  }
+  return locks.request(workflowSessionLockName(config), action);
 }
 
 export function loadWorkflow(

@@ -21,6 +21,7 @@ import {
   saveWorkflow,
   workflowStorageKey,
   withWorkflowLock,
+  withWorkflowSessionLock,
   workflowIntent,
   type LaunchWorkflow,
   type WorkflowStep,
@@ -249,23 +250,28 @@ export async function runWorkflow(
   },
 ): Promise<LaunchWorkflow> {
   const { automatic, onUpdate, ...advanceInput } = input;
-  let workflow = await advanceWorkflow(advanceInput);
-  onUpdate?.(workflow);
-  if (
-    !automatic ||
-    advanceInput.confirmUnsignedStep !== undefined ||
-    workflow.error !== null ||
-    workflow.funding.status !== "committed" ||
-    workflow.creation.status !== "idle"
-  ) {
+  const run = async () => {
+    let workflow = await advanceWorkflow(advanceInput);
+    onUpdate?.(workflow);
+    if (
+      !automatic ||
+      advanceInput.confirmUnsignedStep !== undefined ||
+      workflow.error !== null ||
+      workflow.funding.status !== "committed" ||
+      workflow.creation.status !== "idle"
+    ) {
+      return workflow;
+    }
+    workflow = await advanceWorkflow({
+      ...advanceInput,
+      workflowRevision: workflow.revision,
+    });
+    onUpdate?.(workflow);
     return workflow;
-  }
-  workflow = await advanceWorkflow({
-    ...advanceInput,
-    workflowRevision: workflow.revision,
-  });
-  onUpdate?.(workflow);
-  return workflow;
+  };
+  return automatic
+    ? withWorkflowSessionLock(input.config, run, input.locks)
+    : run();
 }
 
 async function continueStep(input: {
