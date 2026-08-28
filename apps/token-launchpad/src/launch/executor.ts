@@ -241,6 +241,32 @@ export async function advanceWorkflow(input: {
   );
 }
 
+export async function runWorkflow(
+  input: Parameters<typeof advanceWorkflow>[0] & {
+    automatic: boolean;
+    onUpdate?: (workflow: LaunchWorkflow) => void;
+  },
+): Promise<LaunchWorkflow> {
+  const { automatic, onUpdate, ...advanceInput } = input;
+  let workflow = await advanceWorkflow(advanceInput);
+  onUpdate?.(workflow);
+  if (
+    !automatic ||
+    advanceInput.confirmUnsignedStep !== undefined ||
+    workflow.error !== null ||
+    workflow.funding.status !== "committed" ||
+    workflow.creation.status !== "idle"
+  ) {
+    return workflow;
+  }
+  workflow = await advanceWorkflow({
+    ...advanceInput,
+    workflowRevision: workflow.revision,
+  });
+  onUpdate?.(workflow);
+  return workflow;
+}
+
 async function continueStep(input: {
   workflow: LaunchWorkflow;
   stepName: "funding" | "creation";

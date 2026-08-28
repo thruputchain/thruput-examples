@@ -6,7 +6,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import type { FactoryReview } from "@/contracts/launchpad-client";
-import { advanceWorkflow } from "@/launch/executor";
+import { advanceWorkflow, runWorkflow } from "@/launch/executor";
 import {
   createWorkflow,
   loadWorkflow,
@@ -23,6 +23,65 @@ const locks = {
 } as unknown as LockManager;
 
 describe("advanceWorkflow", () => {
+  it.each([
+    ["automatic", true, 2],
+    ["manual", false, 1],
+  ] as const)(
+    "%s processing controls whether creation follows committed funding",
+    async (_mode, automatic, expectedExecutions) => {
+      const config = configuration();
+      const storage = new MemoryStorage();
+      const workflow = createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        factoryReview(config),
+      );
+      saveWorkflow(storage, workflowStorageKey(config), workflow);
+      const writer = {
+        execute: vi
+          .fn()
+          .mockResolvedValueOnce({
+            kind: "committedSuccess",
+            hash: `0x${"06".repeat(32)}`,
+            receipt: {} as TransactionReceipt,
+          })
+          .mockResolvedValueOnce({
+            kind: "preSubmissionFailure",
+            message: "creation unavailable",
+          }),
+        observe: vi.fn(),
+      };
+      const review = vi
+        .fn()
+        .mockResolvedValueOnce(factoryReview(config))
+        .mockResolvedValue({
+          ...factoryReview(config),
+          currentReserve: 100n,
+          fundingAmount: 0n,
+        });
+      const onUpdate = vi.fn();
+      const result = await runWorkflow({
+        config,
+        client: {} as GroundhogClient,
+        writer,
+        workflowId: workflow.id,
+        workflowRevision: workflow.revision,
+        expectedIntent: workflowIntent(workflow),
+        storage,
+        locks,
+        review,
+        automatic,
+        onUpdate,
+      });
+      expect(writer.execute).toHaveBeenCalledTimes(expectedExecutions);
+      expect(onUpdate).toHaveBeenCalledTimes(expectedExecutions);
+      expect(result.funding.status).toBe("committed");
+      expect(result.creation.status).toBe("idle");
+      expect(result.error).toBe(automatic ? "creation unavailable" : null);
+    },
+  );
+
   it("persists the signed hash before returning an uncertain funding result", async () => {
     const config = configuration();
     const storage = new MemoryStorage();
@@ -459,6 +518,49 @@ describe("advanceWorkflow", () => {
     });
     expect(recovered.funding).toEqual({ status: "idle", hash: null });
     expect(recovered.revision).toBe(2);
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
+
+  it("does not resubmit creation while confirming a pre-hash recovery", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = {
+      ...createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        factoryReview(config),
+      ),
+      revision: 2,
+      funding: {
+        status: "committed" as const,
+        hash: `0x${"06".repeat(32)}`,
+      },
+      creation: { status: "signing" as const, hash: null },
+    };
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const writer = {
+      execute: vi.fn(),
+      observe: vi.fn(),
+    } as unknown as WriteBoundary;
+    const recovered = await runWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      storage,
+      locks,
+      review: async () => ({
+        ...factoryReview(config),
+        currentReserve: 100n,
+        fundingAmount: 0n,
+      }),
+      automatic: true,
+      confirmUnsignedStep: "creation",
+    });
+    expect(recovered.creation).toEqual({ status: "idle", hash: null });
     expect(writer.execute).not.toHaveBeenCalled();
   });
 });

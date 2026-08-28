@@ -52,6 +52,7 @@ describe("launch review", () => {
             review,
           )}
           loading={false}
+          manualProcessing={false}
           onAdvance={vi.fn()}
           onReset={vi.fn()}
           writesSupported
@@ -103,6 +104,7 @@ describe("launch review", () => {
           review={null}
           workflow={workflow}
           loading={false}
+          manualProcessing={false}
           onAdvance={vi.fn()}
           onReset={vi.fn()}
           writesSupported
@@ -117,6 +119,98 @@ describe("launch review", () => {
     expect(
       screen.getByRole("link", { name: "View my tokens" }),
     ).toHaveAttribute("href", "/my-tokens");
+  });
+
+  it("uses one launch action by default and step actions in manual mode", () => {
+    const config = configuration();
+    const review = {
+      ...reviewed(),
+      creatorBalance: 1_000n,
+      fundingShortfall: 0n,
+    };
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      review,
+    );
+    const props = {
+      config,
+      draft: { name: "Acorn", symbol: "NUT", decimals: "7", supply: "12" },
+      review,
+      workflow,
+      loading: false,
+      onAdvance: vi.fn(),
+      onReset: vi.fn(),
+      writesSupported: true,
+    };
+    const { rerender } = render(
+      <MemoryRouter>
+        <ReviewCard {...props} manualProcessing={false} />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Launch token" }),
+    ).toBeInTheDocument();
+    rerender(
+      <MemoryRouter>
+        <ReviewCard {...props} manualProcessing />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Fund token address" }),
+    ).toBeInTheDocument();
+  });
+
+  it("describes manual submission and recovery accurately while loading", () => {
+    const config = configuration();
+    const review = {
+      ...reviewed(),
+      creatorBalance: 1_000n,
+      fundingShortfall: 0n,
+    };
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      review,
+    );
+    const props = {
+      config,
+      draft: { name: "Acorn", symbol: "NUT", decimals: "7", supply: "12" },
+      review,
+      loading: true,
+      onAdvance: vi.fn(),
+      onReset: vi.fn(),
+      writesSupported: true,
+    };
+    const { rerender } = render(
+      <MemoryRouter>
+        <ReviewCard {...props} workflow={workflow} manualProcessing />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Funding token..." }),
+    ).toBeInTheDocument();
+    rerender(
+      <MemoryRouter>
+        <ReviewCard
+          {...props}
+          workflow={{
+            ...workflow,
+            funding: {
+              status: "committed",
+              hash: `0x${"06".repeat(32)}`,
+            },
+            creation: { status: "signing", hash: null },
+          }}
+          manualProcessing={false}
+        />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Confirming recovery..." }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -322,5 +416,8 @@ describe("launchpad navigation and hero", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Local network")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Manual transaction processing" }),
+    ).not.toBeChecked();
   });
 });

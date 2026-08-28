@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { loadConfig, type AppConfig } from "@/config";
 import { readCreatedTokens, reviewFactory } from "@/contracts/launchpad-client";
 import { parseDevelopmentPersonas } from "@/development-personas";
-import { advanceWorkflow } from "@/launch/executor";
+import { runWorkflow } from "@/launch/executor";
 import type { ParsedToken } from "@/launch/form";
 import {
   createWorkflow,
@@ -159,26 +159,17 @@ async function launch(input: {
     },
     { client: input.client },
   );
-  workflow = await advanceWorkflow({
+  workflow = await runWorkflow({
     config: input.config,
     client: input.client,
     writer,
+    automatic: true,
     workflowId: workflow.id,
     workflowRevision: workflow.revision,
     expectedIntent: workflowIntent(workflow),
     locks,
   });
   expect(workflow.funding.status).toBe("committed");
-  expect(workflow.creation.status).toBe("idle");
-  workflow = await advanceWorkflow({
-    config: input.config,
-    client: input.client,
-    writer,
-    workflowId: workflow.id,
-    workflowRevision: workflow.revision,
-    expectedIntent: workflowIntent(workflow),
-    locks,
-  });
   expect(workflow.creation.status).toBe("committed");
   expect(workflow.verification.status).toBe("complete");
   expect(workflow.createdAddressHex).toBe(workflow.predictedAddressHex);

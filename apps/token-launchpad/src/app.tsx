@@ -39,13 +39,16 @@ import {
 } from "@/components/ui/empty";
 import {
   Field,
+  FieldContent,
   FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfigurationError, loadConfig, type AppConfig } from "@/config";
 import {
@@ -62,7 +65,7 @@ import {
 } from "@/development-personas";
 import { userErrorMessage } from "@/errors";
 import { createReadClient } from "@/groundhog/client";
-import { advanceWorkflow } from "@/launch/executor";
+import { runWorkflow } from "@/launch/executor";
 import { formatUnits, parseTokenDraft, type TokenDraft } from "@/launch/form";
 import {
   createWorkflow,
@@ -308,6 +311,7 @@ export function CreatePage({
   const [review, setReview] = useState<FactoryReview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [manualProcessing, setManualProcessing] = useState(false);
   const parsed = parseTokenDraft(draft);
   const writesSupported = navigator.locks !== undefined;
   async function submit(event: React.FormEvent) {
@@ -351,10 +355,12 @@ export function CreatePage({
     setLoading(true);
     setError(null);
     try {
-      const next = await advanceWorkflow({
+      const next = await runWorkflow({
         config,
         client,
         writer,
+        automatic: !manualProcessing,
+        onUpdate: setWorkflow,
         workflowId: workflow.id,
         workflowRevision: workflow.revision,
         expectedIntent: workflowIntent(workflow),
@@ -526,11 +532,30 @@ export function CreatePage({
           review={review}
           workflow={workflow}
           loading={loading}
+          manualProcessing={manualProcessing}
           onAdvance={advance}
           onReset={reset}
           writesSupported={writesSupported}
         />
       </div>
+      <Field
+        orientation="horizontal"
+        data-disabled={loading}
+        className="mt-6 px-1"
+      >
+        <FieldContent>
+          <FieldTitle>Manual transaction processing</FieldTitle>
+          <FieldDescription>
+            Review and submit the funding and creation transactions separately.
+          </FieldDescription>
+        </FieldContent>
+        <Switch
+          aria-label="Manual transaction processing"
+          checked={manualProcessing}
+          disabled={loading}
+          onCheckedChange={setManualProcessing}
+        />
+      </Field>
     </main>
   );
 }
@@ -541,6 +566,7 @@ export function ReviewCard({
   review,
   workflow,
   loading,
+  manualProcessing,
   onAdvance,
   onReset,
   writesSupported,
@@ -550,6 +576,7 @@ export function ReviewCard({
   review: FactoryReview | null;
   workflow: LaunchWorkflow | null;
   loading: boolean;
+  manualProcessing: boolean;
   onAdvance: () => void;
   onReset: () => void;
   writesSupported: boolean;
@@ -747,14 +774,15 @@ export function ReviewCard({
                 onClick={onAdvance}
                 disabled={loading || !writesSupported}
                 variant={
-                  nextActionLabel(workflow) === "Create token"
+                  actionLabel(workflow, manualProcessing) === "Create token" ||
+                  actionLabel(workflow, manualProcessing) === "Launch token"
                     ? "default"
                     : "outline"
                 }
               >
                 {loading
-                  ? "Checking transaction..."
-                  : nextActionLabel(workflow)}
+                  ? loadingActionLabel(workflow, manualProcessing)
+                  : actionLabel(workflow, manualProcessing)}
                 <ArrowRightIcon />
               </Button>
             )}
@@ -866,6 +894,45 @@ function nextActionLabel(workflow: LaunchWorkflow): string {
   }
   if (workflow.creation.status === "failed") return "Retry creation";
   return workflow.creation.hash ? "Check creation transaction" : "Create token";
+}
+
+function actionLabel(
+  workflow: LaunchWorkflow,
+  manualProcessing: boolean,
+): string {
+  if (
+    !manualProcessing &&
+    workflow.error === null &&
+    workflow.funding.status === "idle" &&
+    workflow.creation.status === "idle"
+  ) {
+    return "Launch token";
+  }
+  return nextActionLabel(workflow);
+}
+
+function loadingActionLabel(
+  workflow: LaunchWorkflow,
+  manualProcessing: boolean,
+): string {
+  if (
+    workflow.funding.status === "signing" ||
+    workflow.creation.status === "signing"
+  ) {
+    return "Confirming recovery...";
+  }
+  if (
+    workflow.funding.status === "pending" ||
+    workflow.funding.status === "uncertain" ||
+    workflow.creation.status === "pending" ||
+    workflow.creation.status === "uncertain"
+  ) {
+    return "Checking transaction...";
+  }
+  if (!manualProcessing) return "Launching token...";
+  return workflow.funding.status === "committed"
+    ? "Creating token..."
+    : "Funding token...";
 }
 
 export function TokensPage({
