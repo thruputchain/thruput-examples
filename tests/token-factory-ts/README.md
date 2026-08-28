@@ -25,4 +25,8 @@ GROUNDHOG=/path/to/groundhog-0.10.4 npm test
 4. Replays the Rust deterministic-address vectors.
 5. Starts a clean node and runs the creation, token lifecycle, event, fee, and atomic storage top-up tests.
 
+## Deployment Limitation
+
+This local test harness deploys and initializes a factory in separate transactions. During that gap, any account could initialize the factory first and permanently set its configuration. This is acceptable only on the harness's isolated, ephemeral node; release and production tooling must deploy and initialize the factory atomically in one call tree. The pinned DevWallet cannot batch calls, and DefaultWallet deployment is root-only, so an atomic flow requires a dedicated deployment helper or future wallet support.
+
 The atomic top-up test uses the pinned runtime's native default-wallet ABI. It proves the contract-level capability and rollback behavior only. Product wallets still need to detect an empty token reserve and offer the top-up flow to users.
