@@ -13,9 +13,23 @@ use sdk::*;
 /// The router resolves each pair through the factory, creating it on first use
 /// (cf. UniswapV2Router's `addLiquidity`), so `throws` includes the factory's
 /// errors.
+/// Errors from the router itself, as opposed to the operations it forwards.
+#[contract_exception]
+pub enum SwapRouterError {
+    /// `initialize` was called on a router that is already running.
+    AlreadyInitialized = 1,
+}
+
 #[contract(
     client = SwapRouterClient,
-    throws(ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError, SwapFactoryError)
+    throws(
+        ERC20Error,
+        SwapPairError,
+        SwapRequestError,
+        SwapLibraryError,
+        SwapFactoryError,
+        SwapRouterError
+    )
 )]
 pub trait SwapRouter {
     /// Initialize the router with the factory it resolves pairs through.

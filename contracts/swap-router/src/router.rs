@@ -21,7 +21,7 @@ impl SwapRouter for Router {
     // factory creates a pair's pool on first use (see `Cfg::get_pair`).
     fn initialize(&mut self, factory: &Address) {
         if self.cfg.try_get().none_if_missing().is_some() {
-            panic!("Already initialized.");
+            throw(SwapRouterError::AlreadyInitialized);
         }
 
         self.cfg.set(&Cfg { factory: *factory });

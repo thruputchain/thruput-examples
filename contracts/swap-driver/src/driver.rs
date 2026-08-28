@@ -53,12 +53,12 @@ pub const fn process_requests_gas(batch_size: u32) -> u64 {
 impl SwapDriver for Driver {
     fn initialize(&mut self, handler: &Address, max_queue_len: u32, min_crank_batch: u32) {
         if self.cfg.try_get().none_if_missing().is_some() {
-            panic!("Already initialized.");
+            throw(SwapDriverError::AlreadyInitialized);
         }
         if min_crank_batch > max_queue_len {
             // A crank could then be asked for a batch the queue is not allowed
             // to hold, which no one could ever satisfy.
-            panic!("min_crank_batch exceeds max_queue_len.");
+            throw(SwapDriverError::InvalidConfiguration);
         }
 
         let cfg = Cfg {

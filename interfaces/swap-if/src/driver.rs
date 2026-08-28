@@ -18,6 +18,13 @@ pub enum SwapDriverError {
     /// able to take what is waiting, up to the `min_crank_batch` the driver was
     /// initialized with; bring at least `process_requests_gas` of that.
     BatchTooSmall = 1,
+
+    /// `initialize` was called on a driver that is already running.
+    AlreadyInitialized = 2,
+
+    /// `initialize` was given a `min_crank_batch` larger than the
+    /// `max_queue_len` it must fit inside, which no crank could ever satisfy.
+    InvalidConfiguration = 3,
 }
 
 /// A driver that batches [`SwapRequest`]s and forwards each to the handler,
