@@ -169,6 +169,24 @@ describe("launch workflow persistence", () => {
     expect(loaded.error).not.toContain(secret);
     expect(loaded.error!.length).toBeLessThanOrEqual(300);
   });
+
+  it("migrates an earlier version-two funding plan in place", () => {
+    const storage = new MemoryStorage();
+    const legacy = {
+      ...createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        review,
+      ),
+    } as Partial<ReturnType<typeof createWorkflow>>;
+    delete legacy.plannedFundingAmount;
+    delete legacy.plannedReserve;
+    storage.value = JSON.stringify(legacy);
+    const loaded = loadWorkflow(storage, "workflow")!;
+    expect(loaded.plannedFundingAmount).toBe(loaded.reviewedFundingAmount);
+    expect(loaded.plannedReserve).toBe(loaded.reviewedReserve);
+  });
 });
 
 export class MemoryStorage implements Pick<Storage, "getItem" | "setItem"> {

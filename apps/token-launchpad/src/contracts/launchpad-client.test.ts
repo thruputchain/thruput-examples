@@ -5,6 +5,7 @@ import type { FactoryConfig } from "@/contracts/generated/standard-token-factory
 import {
   assertTrustedFactoryConfig,
   calculateFundingAmount,
+  safeDisplayDecimals,
 } from "@/contracts/launchpad-client";
 import { configuration } from "@/launch/workflow.test";
 import { MAX_SIGNED_AMOUNT } from "@/runtime";
@@ -52,5 +53,11 @@ describe("factory review", () => {
     expect(() =>
       calculateFundingAmount(MAX_SIGNED_AMOUNT, 0n, 1n, false),
     ).toThrow(/amount limit/);
+  });
+
+  it("rejects impractical on-chain decimals for display", () => {
+    expect(safeDisplayDecimals(18n)).toBe(18);
+    expect(safeDisplayDecimals(19n)).toBeNull();
+    expect(safeDisplayDecimals((1n << 32n) - 1n)).toBeNull();
   });
 });

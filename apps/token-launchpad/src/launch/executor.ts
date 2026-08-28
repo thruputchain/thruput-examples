@@ -8,6 +8,7 @@ import {
 import { gasAmount } from "@groundhogchain/protocol";
 
 import type { AppConfig } from "@/config";
+import { userErrorMessage } from "@/errors";
 import {
   StandardTokenFactory,
   TokenCreated,
@@ -109,6 +110,24 @@ export async function advanceWorkflow(input: {
         workflow.funding.status !== "pending" &&
         workflow.funding.status !== "uncertain" &&
         workflow.funding.status !== "signing" &&
+        (workflow.plannedFundingAmount !== review.fundingAmount.toString() ||
+          workflow.plannedReserve !== review.currentReserve.toString())
+      ) {
+        workflow = {
+          ...workflow,
+          revision: workflow.revision + 1,
+          plannedFundingAmount: review.fundingAmount.toString(),
+          plannedReserve: review.currentReserve.toString(),
+          error: null,
+        };
+        saveWorkflow(storage, key, workflow);
+        return workflow;
+      }
+      if (
+        workflow.funding.status !== "committed" &&
+        workflow.funding.status !== "pending" &&
+        workflow.funding.status !== "uncertain" &&
+        workflow.funding.status !== "signing" &&
         review.fundingShortfall > 0n
       ) {
         throw new Error(
@@ -116,7 +135,11 @@ export async function advanceWorkflow(input: {
         );
       }
       if (workflow.funding.status !== "committed") {
-        if (review.fundingAmount === 0n) {
+        const mustResolveEvidence =
+          workflow.funding.status === "signing" ||
+          workflow.funding.status === "pending" ||
+          workflow.funding.status === "uncertain";
+        if (review.fundingAmount === 0n && !mustResolveEvidence) {
           workflow = {
             ...workflow,
             revision: workflow.revision + 1,
@@ -124,6 +147,7 @@ export async function advanceWorkflow(input: {
             error: null,
           };
           saveWorkflow(storage, key, workflow);
+          return workflow;
         } else {
           return continueStep({
             workflow,
@@ -279,7 +303,10 @@ async function continueStep(input: {
         workflow,
         input.stepName,
         { status: "idle", hash: null },
-        result.message,
+        userErrorMessage(
+          new Error(result.message),
+          "The transaction could not be prepared",
+        ),
       );
       break;
     case "invalid":
@@ -287,7 +314,10 @@ async function continueStep(input: {
         workflow,
         input.stepName,
         { status: "failed", hash: result.hash },
-        `Transaction rejected: ${result.reason}`,
+        userErrorMessage(
+          new Error(`Transaction rejected: ${result.reason}`),
+          "The transaction was rejected",
+        ),
       );
       break;
     case "committedFailure":

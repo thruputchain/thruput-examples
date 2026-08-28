@@ -2,7 +2,10 @@ import type { GroundhogClient } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
 import { ERC20, ERC20Metadata } from "@/contracts/generated/standard-token";
-import { readCreatedTokens } from "@/contracts/launchpad-client";
+import {
+  readCreatedTokens,
+  safeDisplayDecimals,
+} from "@/contracts/launchpad-client";
 
 export interface WalletPortfolio {
   hogBalance: bigint | null;
@@ -10,7 +13,7 @@ export interface WalletPortfolio {
   tokens: Array<{
     addressHex: string;
     symbol: string;
-    decimals: number;
+    decimals: number | null;
     balance: bigint | null;
   }>;
   partial: boolean;
@@ -53,13 +56,17 @@ export function createWalletPortfolioReader(
               }),
             )
           : [];
+      const hogDecimals =
+        hog.status === "fulfilled"
+          ? safeDisplayDecimals(hog.value[1].value)
+          : null;
       return {
         hogBalance: hog.status === "fulfilled" ? hog.value[0].value : null,
-        hogDecimals:
-          hog.status === "fulfilled" ? Number(hog.value[1].value) : null,
+        hogDecimals,
         tokens,
         partial:
           hog.status === "rejected" ||
+          hogDecimals === null ||
           created.status === "rejected" ||
           tokens.some(({ balance }) => balance === null),
       };

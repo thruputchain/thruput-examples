@@ -56,16 +56,131 @@ describe("advanceWorkflow", () => {
       expectedIntent: workflowIntent(workflow),
       storage,
       locks,
+      review: async () => factoryReview(config),
+    });
+    expect(signedWasPersisted).toBe(true);
+    expect(result.funding).toEqual({ status: "uncertain", hash });
+    expect(result.reviewedReserve).toBe("0");
+    expect(result.reviewedFundingAmount).toBe("110");
+  });
+
+  it("requires renewed review when the funding plan changes", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const writer = { execute: vi.fn(), observe: vi.fn() };
+    const result = await advanceWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer: writer as unknown as WriteBoundary,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      storage,
+      locks,
       review: async () => ({
         ...factoryReview(config),
         currentReserve: 5n,
         fundingAmount: 95n,
       }),
     });
-    expect(signedWasPersisted).toBe(true);
-    expect(result.funding).toEqual({ status: "uncertain", hash });
+    expect(result.plannedReserve).toBe("5");
+    expect(result.plannedFundingAmount).toBe("95");
     expect(result.reviewedReserve).toBe("0");
     expect(result.reviewedFundingAmount).toBe("110");
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
+
+  it("returns after a zero-funding transition before signing creation", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    let workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const writer = { execute: vi.fn(), observe: vi.fn() };
+    const fundedReview = {
+      ...factoryReview(config),
+      currentReserve: 100n,
+      fundingAmount: 0n,
+    };
+    workflow = await advanceWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer: writer as unknown as WriteBoundary,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      storage,
+      locks,
+      review: async () => fundedReview,
+    });
+    workflow = await advanceWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer: writer as unknown as WriteBoundary,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      storage,
+      locks,
+      review: async () => fundedReview,
+    });
+    expect(workflow.funding.status).toBe("committed");
+    expect(workflow.creation.status).toBe("idle");
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
+
+  it("observes pending funding evidence even when the reserve is now full", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const hash = `0x${"08".repeat(32)}`;
+    const workflow = {
+      ...createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        factoryReview(config),
+      ),
+      funding: { status: "pending" as const, hash },
+    };
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const writer = {
+      execute: vi.fn(),
+      observe: vi.fn().mockResolvedValue({
+        kind: "committedSuccess",
+        hash,
+        receipt: {} as TransactionReceipt,
+      }),
+    };
+    const result = await advanceWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer: writer as unknown as WriteBoundary,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      storage,
+      locks,
+      review: async () => ({
+        ...factoryReview(config),
+        currentReserve: 100n,
+        fundingAmount: 0n,
+      }),
+    });
+    expect(writer.observe).toHaveBeenCalledWith(hash);
+    expect(writer.execute).not.toHaveBeenCalled();
+    expect(result.funding.status).toBe("committed");
+    expect(result.creation.status).toBe("idle");
   });
 
   it("stops before signing when the active wallet cannot fund the token", async () => {
@@ -98,6 +213,40 @@ describe("advanceWorkflow", () => {
       }),
     ).rejects.toThrow(/Insufficient HOG.*100 more HOG/);
     expect(writer.execute).not.toHaveBeenCalled();
+  });
+
+  it("bounds and redacts an invalid transaction reason", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const secret = `0x${"ab".repeat(64)}`;
+    const result = await advanceWorkflow({
+      config,
+      client: {} as GroundhogClient,
+      writer: {
+        execute: async () => ({
+          kind: "invalid",
+          hash: `0x${"06".repeat(32)}`,
+          reason: `${secret} ${"upstream".repeat(100)}`,
+        }),
+        observe: vi.fn(),
+      },
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      storage,
+      locks,
+      review: async () => factoryReview(config),
+    });
+    expect(result.funding.status).toBe("failed");
+    expect(result.error).not.toContain(secret);
+    expect(result.error!.length).toBeLessThanOrEqual(300);
   });
 
   it("observes stored evidence instead of submitting a duplicate", async () => {

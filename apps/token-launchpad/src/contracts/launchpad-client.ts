@@ -28,7 +28,7 @@ export interface CreatedToken {
   addressHex: string;
   name: string;
   symbol: string;
-  decimals: number;
+  decimals: number | null;
   initialSupply: bigint;
   balance: bigint | null;
   administratorHex: string;
@@ -71,6 +71,10 @@ export function calculateFundingAmount(
     );
   }
   return amount;
+}
+
+export function safeDisplayDecimals(value: bigint | null): number | null {
+  return value !== null && value >= 0n && value <= 18n ? Number(value) : null;
 }
 
 export async function reviewFactory(
@@ -161,7 +165,7 @@ export async function readCreatedTokens(
             );
           let name = event.fields.name ?? "Unnamed token";
           let symbol = event.fields.symbol ?? "TOKEN";
-          let decimals = Number(event.fields.decimals ?? 0n);
+          let decimals = safeDisplayDecimals(event.fields.decimals);
           let balance: bigint | null = null;
           let readError = false;
           try {
@@ -195,7 +199,10 @@ export async function readCreatedTokens(
             ]);
             name = currentName.value ?? name;
             symbol = currentSymbol.value ?? symbol;
-            decimals = Number(currentDecimals.value ?? BigInt(decimals));
+            if (currentDecimals.value !== null) {
+              decimals = safeDisplayDecimals(currentDecimals.value);
+              if (decimals === null) readError = true;
+            }
             balance = currentBalance.value;
           } catch {
             readError = true;

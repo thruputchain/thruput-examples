@@ -39,6 +39,8 @@ export interface LaunchWorkflow {
   reviewedFeeRecipientHex: string | null;
   reviewedFundingAmount: string;
   reviewedReserve: string;
+  plannedFundingAmount: string;
+  plannedReserve: string;
   funding: WorkflowStep;
   creation: WorkflowStep;
   verification: {
@@ -107,6 +109,8 @@ export function createWorkflow(
         : toHex0x(review.config.fee_recipient),
     reviewedFundingAmount: review.fundingAmount.toString(),
     reviewedReserve: review.currentReserve.toString(),
+    plannedFundingAmount: review.fundingAmount.toString(),
+    plannedReserve: review.currentReserve.toString(),
     funding: { status: "idle", hash: null },
     creation: { status: "idle", hash: null },
     verification: {
@@ -196,6 +200,8 @@ export function workflowIntent(workflow: LaunchWorkflow): string {
     workflow.requiredTokenFunding,
     workflow.reviewedCreationFee,
     workflow.reviewedFeeRecipientHex,
+    workflow.plannedFundingAmount,
+    workflow.plannedReserve,
   ]);
 }
 
@@ -231,6 +237,10 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
         : hex(value.reviewedFeeRecipientHex),
     reviewedFundingAmount: signedAmount(value.reviewedFundingAmount),
     reviewedReserve: unsigned(value.reviewedReserve),
+    plannedFundingAmount: signedAmount(
+      value.plannedFundingAmount ?? value.reviewedFundingAmount,
+    ),
+    plannedReserve: unsigned(value.plannedReserve ?? value.reviewedReserve),
     funding: step(value.funding),
     creation: step(value.creation),
     verification: verification(value.verification),

@@ -75,7 +75,9 @@ export function WalletPortfolio({ read }: { read: WalletPortfolioReader }) {
           <span className="font-mono font-medium">
             {token.balance === null
               ? "Unavailable"
-              : formatUnits(token.balance, token.decimals)}
+              : token.decimals === null
+                ? `${token.balance} base units`
+                : formatUnits(token.balance, token.decimals)}
           </span>
         </div>
       ))}

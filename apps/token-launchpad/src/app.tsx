@@ -587,7 +587,7 @@ export function ReviewCard({
             review
               ? `${review.fundingAmount} HOG units`
               : workflow
-                ? `${workflow.reviewedFundingAmount} HOG units`
+                ? `${workflow.plannedFundingAmount} HOG units`
                 : "-"
           }
         />
@@ -851,12 +851,14 @@ function nextActionLabel(workflow: LaunchWorkflow): string {
   return workflow.creation.hash ? "Check creation transaction" : "Create token";
 }
 
-function TokensPage({
+export function TokensPage({
   config,
   client,
+  read = readCreatedTokens,
 }: {
   config: AppConfig;
   client: ReturnType<typeof createReadClient>;
+  read?: typeof readCreatedTokens;
 }) {
   const [state, setState] = useState<{
     loading: boolean;
@@ -873,7 +875,7 @@ function TokensPage({
   });
   function refresh() {
     setState((value) => ({ ...value, loading: true, error: null }));
-    void readCreatedTokens(client, config).then(
+    void read(client, config).then(
       (result) => setState({ loading: false, error: null, ...result }),
       (reason) =>
         setState({
@@ -885,7 +887,7 @@ function TokensPage({
         }),
     );
   }
-  useEffect(refresh, [client, config]);
+  useEffect(refresh, [client, config, read]);
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="mb-8 flex items-end justify-between gap-4">
@@ -939,7 +941,10 @@ function TokensPage({
                     <div>
                       <CardTitle>{token.name}</CardTitle>
                       <CardDescription>
-                        {token.symbol} · {token.decimals} decimals
+                        {token.symbol} ·{" "}
+                        {token.decimals === null
+                          ? "Unsupported decimals"
+                          : `${token.decimals} decimals`}
                       </CardDescription>
                     </div>
                     <Badge variant="secondary">
@@ -950,14 +955,17 @@ function TokensPage({
                 <CardContent className="space-y-3">
                   <Detail
                     label="Initial supply"
-                    value={formatUnits(token.initialSupply, token.decimals)}
+                    value={formatTokenAmount(
+                      token.initialSupply,
+                      token.decimals,
+                    )}
                   />
                   <Detail
                     label="Your balance"
                     value={
                       token.balance === null
                         ? "Unavailable"
-                        : formatUnits(token.balance, token.decimals)
+                        : formatTokenAmount(token.balance, token.decimals)
                     }
                   />
                   <Detail
@@ -1042,6 +1050,12 @@ function short(value: ArrayLike<number>): string {
 
 function shortHash(value: string): string {
   return `${value.slice(0, 10)}...${value.slice(-8)}`;
+}
+
+function formatTokenAmount(value: bigint, decimals: number | null): string {
+  return decimals === null
+    ? `${value.toString()} base units`
+    : formatUnits(value, decimals);
 }
 function ErrorPage({ message }: { message: string }) {
   return (

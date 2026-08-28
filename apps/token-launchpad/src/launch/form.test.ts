@@ -30,6 +30,22 @@ describe("parseTokenDraft", () => {
       supply: "0",
     });
     expect(result.errors.name).toMatch(/100 UTF-8 bytes/);
+    expect(
+      parseTokenDraft({
+        name: "é".repeat(50),
+        symbol: "é".repeat(5),
+        decimals: "7",
+        supply: "0",
+      }).errors,
+    ).toEqual({});
+    expect(
+      parseTokenDraft({
+        name: "Token",
+        symbol: "é".repeat(6),
+        decimals: "7",
+        supply: "0",
+      }).errors.symbol,
+    ).toMatch(/10 UTF-8 bytes/);
   });
 
   it("rejects excess precision and values above i128 max", () => {
@@ -49,6 +65,39 @@ describe("parseTokenDraft", () => {
         supply: (1n << 127n).toString(),
       }).errors.supply,
     ).toMatch(/128-bit/);
+  });
+
+  it("accepts zero and the exact signed 128-bit maximum", () => {
+    expect(
+      parseTokenDraft({
+        name: "Token",
+        symbol: "TOK",
+        decimals: "0",
+        supply: "0",
+      }).value?.initialSupply,
+    ).toBe(0n);
+    expect(
+      parseTokenDraft({
+        name: "Token",
+        symbol: "TOK",
+        decimals: "0",
+        supply: ((1n << 127n) - 1n).toString(),
+      }).value?.initialSupply,
+    ).toBe((1n << 127n) - 1n);
+  });
+
+  it("rejects empty metadata and malformed decimals", () => {
+    for (const decimals of ["-1", "1.5", "19", ""]) {
+      const result = parseTokenDraft({
+        name: " ",
+        symbol: " ",
+        decimals,
+        supply: "1",
+      });
+      expect(result.errors.name).toBeDefined();
+      expect(result.errors.symbol).toBeDefined();
+      expect(result.errors.decimals).toBeDefined();
+    }
   });
 });
 
