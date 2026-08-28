@@ -76,6 +76,22 @@ export function validateRuntimeManifest(manifest: RuntimeManifest): void {
       "The local node must provide Alice, Bob, and Carol accounts",
     );
   }
+  if (!manifest.bootstrapAccounts.some(({ role }) => role === "faucet")) {
+    throw new Error("The local node runtime manifest must include a faucet");
+  }
+}
+
+export function validateLocalRpcUrl(value: string): string {
+  const url = new URL(value);
+  if (
+    url.protocol !== "http:" ||
+    url.username !== "" ||
+    url.password !== "" ||
+    !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+  ) {
+    throw new Error("Local setup requires a loopback HTTP RPC URL");
+  }
+  return url.href;
 }
 
 export function renderEnvironment(input: {

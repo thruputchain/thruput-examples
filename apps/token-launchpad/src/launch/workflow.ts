@@ -2,6 +2,7 @@ import { toHex0x } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
 import type { FactoryReview } from "@/contracts/launchpad-client";
+import { userErrorMessage } from "@/errors";
 import type { ParsedToken } from "@/launch/form";
 import { MAX_SIGNED_AMOUNT } from "@/runtime";
 
@@ -237,7 +238,13 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
       value.createdAddressHex === null ? null : hex(value.createdAddressHex),
     creationBlock:
       value.creationBlock === null ? null : unsigned(value.creationBlock),
-    error: value.error === null ? null : string(value.error),
+    error:
+      value.error === null
+        ? null
+        : userErrorMessage(
+            new Error(string(value.error)),
+            "The saved launch failed",
+          ),
   };
   if (
     workflow.id.length === 0 ||

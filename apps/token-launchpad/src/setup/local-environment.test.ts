@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   renderEnvironment,
+  validateLocalRpcUrl,
   validateRuntimeManifest,
   type RuntimeManifest,
 } from "@/setup/local-environment";
@@ -22,12 +23,20 @@ function manifest(): RuntimeManifest {
       scheme: "groundhog-bootstrap-account-v1",
       seed: "test",
     },
-    bootstrapAccounts: [0, 1, 2].map((index) => ({
-      index,
-      role: "local_user" as const,
-      publicKey: `0x${String(index + 1).padStart(64, "0")}`,
-      walletAddress: `0x${String(index + 4).padStart(64, "0")}`,
-    })),
+    bootstrapAccounts: [
+      {
+        index: 10,
+        role: "faucet",
+        publicKey: `0x${"0a".repeat(32)}`,
+        walletAddress: `0x${"0b".repeat(32)}`,
+      },
+      ...[0, 1, 2].map((index) => ({
+        index,
+        role: "local_user" as const,
+        publicKey: `0x${String(index + 1).padStart(64, "0")}`,
+        walletAddress: `0x${String(index + 4).padStart(64, "0")}`,
+      })),
+    ],
     bootstrap: {
       devWallet: {
         deployEntrypoint: "0x0000000000000000",
@@ -64,6 +73,28 @@ describe("validateRuntimeManifest", () => {
     expect(() => validateRuntimeManifest(insufficient)).toThrow(
       /Alice, Bob, and Carol/,
     );
+    const noFaucet = manifest();
+    noFaucet.bootstrapAccounts = noFaucet.bootstrapAccounts.filter(
+      ({ role }) => role !== "faucet",
+    );
+    expect(() => validateRuntimeManifest(noFaucet)).toThrow(/faucet/);
+  });
+});
+
+describe("validateLocalRpcUrl", () => {
+  it("accepts loopback HTTP and rejects remote or credentialed targets", () => {
+    expect(validateLocalRpcUrl("http://127.0.0.1:9545")).toBe(
+      "http://127.0.0.1:9545/",
+    );
+    expect(() => validateLocalRpcUrl("http://rpc.example.com")).toThrow(
+      /loopback HTTP/,
+    );
+    expect(() => validateLocalRpcUrl("https://localhost:9545")).toThrow(
+      /loopback HTTP/,
+    );
+    expect(() =>
+      validateLocalRpcUrl("http://user:secret@localhost:9545"),
+    ).toThrow(/loopback HTTP/);
   });
 });
 

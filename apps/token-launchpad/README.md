@@ -4,7 +4,7 @@ Local-development application for creating standard tokens through the Groundhog
 
 ## Local setup
 
-Start a disposable local Groundhog node with at least three local-user accounts. Then point the setup command at its runtime manifest:
+Start a disposable local Groundhog node whose runtime manifest includes the faucet and at least three local-user accounts. Then point the setup command at its runtime manifest:
 
 ```bash
 export GROUNDHOG_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json

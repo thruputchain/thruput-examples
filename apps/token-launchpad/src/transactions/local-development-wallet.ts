@@ -28,6 +28,7 @@ import { CxsWriter, serialize } from "@groundhogchain/xdr";
 import { sha256 } from "@noble/hashes/sha2.js";
 
 import type { AppConfig } from "@/config";
+import { userErrorMessage } from "@/errors";
 import { createReadClient } from "@/groundhog/client";
 import {
   outcomeFromReceipt,
@@ -237,7 +238,8 @@ function wait(milliseconds: number): Promise<void> {
 }
 
 function describe(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : "The local development transaction could not be prepared";
+  return userErrorMessage(
+    error,
+    "The local development transaction could not be prepared",
+  );
 }

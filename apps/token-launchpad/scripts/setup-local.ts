@@ -40,6 +40,7 @@ import {
 import {
   renderEnvironment,
   REQUIRED_TOKEN_FUNDING,
+  validateLocalRpcUrl,
   validateRuntimeManifest,
   type EnvironmentPersona,
   type RuntimeManifest,
@@ -58,7 +59,7 @@ async function main(): Promise<void> {
   );
   const artifactRoot = resolve(requiredEnvironment("LAUNCHPAD_ARTIFACT_ROOT"));
   const environmentPath = resolve(requiredEnvironment("LAUNCHPAD_APP_ENV"));
-  const rpcUrl = requiredEnvironment("GROUNDHOG_RPC_URL");
+  const rpcUrl = validateLocalRpcUrl(requiredEnvironment("GROUNDHOG_RPC_URL"));
   const manifest = JSON.parse(
     await readFile(manifestPath, "utf8"),
   ) as RuntimeManifest;

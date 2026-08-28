@@ -60,6 +60,7 @@ import {
   publicPersona,
   type DevelopmentPersonaId,
 } from "@/development-personas";
+import { userErrorMessage } from "@/errors";
 import { createReadClient } from "@/groundhog/client";
 import { advanceWorkflow } from "@/launch/executor";
 import { formatUnits, parseTokenDraft, type TokenDraft } from "@/launch/form";
@@ -260,10 +261,10 @@ function CreatePage({
     } catch (error) {
       return {
         workflow: null,
-        error:
-          error instanceof Error
-            ? error.message
-            : "The saved launch workflow could not be read",
+        error: userErrorMessage(
+          error,
+          "The saved launch workflow could not be read",
+        ),
       };
     }
   });
@@ -315,9 +316,10 @@ function CreatePage({
       setWorkflow(nextWorkflow);
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "The configured token factory could not be verified.",
+        userErrorMessage(
+          reason,
+          "The configured token factory could not be verified.",
+        ),
       );
     } finally {
       setLoading(false);
@@ -344,11 +346,7 @@ function CreatePage({
       setReview(null);
       setWorkflow(next);
     } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "The launch could not continue.",
-      );
+      setError(userErrorMessage(reason, "The launch could not continue."));
     } finally {
       setLoading(false);
     }
@@ -385,9 +383,10 @@ function CreatePage({
       setError(null);
     } catch (reason) {
       setStorageError(
-        reason instanceof Error
-          ? reason.message
-          : "The saved launch workflow could not be cleared.",
+        userErrorMessage(
+          reason,
+          "The saved launch workflow could not be cleared.",
+        ),
       );
     } finally {
       setLoading(false);
@@ -882,10 +881,7 @@ function TokensPage({
           tokens: [],
           truncated: false,
           historyLimited: false,
-          error:
-            reason instanceof Error
-              ? reason.message
-              : "Token history is unavailable",
+          error: userErrorMessage(reason, "Token history is unavailable"),
         }),
     );
   }

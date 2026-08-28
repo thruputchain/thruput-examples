@@ -151,6 +151,24 @@ describe("launch workflow persistence", () => {
       );
     }
   });
+
+  it("redacts and bounds legacy persisted errors", () => {
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      review,
+    );
+    const secret = `0x${"ab".repeat(64)}`;
+    storage.value = JSON.stringify({
+      ...workflow,
+      error: `${secret} ${"upstream".repeat(100)}`,
+    });
+    const loaded = loadWorkflow(storage, "workflow")!;
+    expect(loaded.error).not.toContain(secret);
+    expect(loaded.error!.length).toBeLessThanOrEqual(300);
+  });
 });
 
 export class MemoryStorage implements Pick<Storage, "getItem" | "setItem"> {

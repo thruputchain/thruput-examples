@@ -16,6 +16,7 @@ const allowedRpcMethods = new Set([
   "groundhog_view",
 ]);
 const maxRpcBodyBytes = 1_000_000;
+const maxRpcResponseBytes = 1_000_000;
 
 export default defineConfig(({ command, isPreview, mode }) => {
   const environment = loadEnv(mode, root, "");
@@ -154,18 +155,15 @@ function localRpcProxy(target: string): Plugin {
         redirect: "error",
         signal: AbortSignal.timeout(10_000),
       });
+      const responseBody = await readUpstreamBody(upstream);
       response.statusCode = upstream.status;
       response.setHeader(
         "content-type",
         upstream.headers.get("content-type") ?? "application/json",
       );
-      response.end(await upstream.text());
-    } catch (error) {
-      sendProxyError(
-        response,
-        502,
-        error instanceof Error ? error.message : "Local RPC proxy failed",
-      );
+      response.end(responseBody);
+    } catch {
+      sendProxyError(response, 502, "Local RPC proxy failed");
     }
   };
   return {
@@ -179,7 +177,37 @@ function localRpcProxy(target: string): Plugin {
   };
 }
 
-async function readBody(request: IncomingMessage): Promise<string> {
+export async function readUpstreamBody(
+  response: Response,
+): Promise<Uint8Array> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxRpcResponseBytes) {
+    throw new Error("RPC response body is too large");
+  }
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.length;
+    if (length > maxRpcResponseBytes) {
+      await reader.cancel();
+      throw new Error("RPC response body is too large");
+    }
+    chunks.push(value);
+  }
+  const result = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+}
+
+export async function readBody(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   let length = 0;
   for await (const chunk of request) {
@@ -242,10 +270,18 @@ export function validateRpcTarget(value: string): void {
   if (url.username !== "" || url.password !== "") {
     throw new Error("VITE_GROUNDHOG_RPC_URL must not contain credentials");
   }
+  if (url.protocol !== "http:" || !isLoopback(url.hostname)) {
+    throw new Error(
+      "VITE_GROUNDHOG_RPC_URL must target a loopback HTTP server",
+    );
+  }
 }
 
 function isLoopback(hostname: string): boolean {
   return (
-    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname === "[::1]"
   );
 }
