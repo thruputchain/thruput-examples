@@ -23,18 +23,19 @@
 //! method calls and return decoding live in each contract's own test.
 
 use groundhog_contract_util::{NormalizedMethodSignature, contract_entrypoint_id};
-use groundhog_json_rpc_client::{GroundhogApiClient, HttpClientBuilder};
+use groundhog_json_rpc_client::{GroundhogApiClient, HttpClient, HttpClientBuilder};
 use groundhog_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
-use groundhog_json_rpc_types::runtime_manifest::RuntimeManifest;
+use groundhog_json_rpc_types::runtime_manifest::{RuntimeManifest, parse_runtime_manifest};
+use groundhog_json_rpc_types::transaction::{TransactionStatus, TxHash};
 use groundhog_signing::{
     BuildDevWalletDoActionTransaction, DEFAULT_TX_GAS_LIMIT, LocalSigner, SignTransactionParams,
     build_dev_wallet_do_action_transaction, derive_default_dev_account_signer,
     sign_and_encode_transaction_hex,
 };
 use groundhog_xdr::contract::ContractEntrypointID;
-use groundhog_xdr::types::ContractAddress;
+use groundhog_xdr::types::{ContractAddress, NetworkHash};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Legacy fallback for the dev wallet's `do_action` entrypoint (from the
 /// dev-wallet guest-binary exports), used only when the runtime manifest does
@@ -47,9 +48,97 @@ const WALLET_DO_ACTION_ENTRYPOINT: [u8; 8] = 0x1984_6D75_0FAD_81D6_u64.to_be_byt
 const WALLET_ENTRYPOINT_SOURCE_RUNTIME_MANIFEST: &str = "runtime_manifest";
 const WALLET_ENTRYPOINT_SOURCE_LEGACY_DEFAULT: &str = "legacy_default";
 
-/// How long to wait for a submitted transaction's receipt.
-const RECEIPT_POLL_ATTEMPTS: u32 = 30;
+/// Default transaction expiry and receipt polling configuration.
+const DEFAULT_EXPIRY_OFFSET: i64 = 1_000;
+const DEFAULT_RECEIPT_TIMEOUT: Duration = Duration::from_secs(30);
 const RECEIPT_POLL_INTERVAL: Duration = Duration::from_secs(1);
+
+/// How a transaction's expiry height is selected.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TransactionExpiry {
+    /// Add this many blocks to the chain tip observed before submission.
+    Offset(i64),
+    /// Use this exact block height.
+    Absolute(i64),
+}
+
+/// Per-invocation transaction and receipt polling settings.
+#[derive(Clone, Copy, Debug)]
+pub struct InvocationOptions {
+    /// Gas available to the outer dev-wallet transaction.
+    pub outer_transaction_gas_limit: u64,
+    /// Gas available to the target contract call.
+    pub target_call_gas_limit: u64,
+    /// Transaction expiry, relative to the current tip or absolute.
+    pub expiry: TransactionExpiry,
+    /// Maximum time to wait for a terminal result.
+    pub receipt_timeout: Duration,
+    /// Delay between receipt and status checks.
+    pub receipt_poll_interval: Duration,
+}
+
+impl Default for InvocationOptions {
+    fn default() -> Self {
+        Self {
+            outer_transaction_gas_limit: DEFAULT_TX_GAS_LIMIT,
+            target_call_gas_limit: DEFAULT_TX_GAS_LIMIT,
+            expiry: TransactionExpiry::Offset(DEFAULT_EXPIRY_OFFSET),
+            receipt_timeout: DEFAULT_RECEIPT_TIMEOUT,
+            receipt_poll_interval: RECEIPT_POLL_INTERVAL,
+        }
+    }
+}
+
+/// Terminal or currently observed result of submitting an invocation.
+#[derive(Debug)]
+pub enum SubmissionOutcome {
+    /// The transaction committed and did not deterministically fail.
+    Committed(TransactionReceipt),
+    /// The transaction committed but did not execute successfully.
+    Failed(TransactionReceipt),
+    /// The receipt timeout elapsed while the transaction could still commit.
+    Pending { tx_hash: TxHash },
+    /// The transaction did not commit before its expiry height.
+    Expired { tx_hash: TxHash },
+    /// The scheduler rejected the transaction.
+    Invalid { tx_hash: TxHash, reason: String },
+}
+
+/// Failure to build, submit, or query an invocation.
+#[derive(Debug)]
+pub enum SubmissionError {
+    BuildClient(String),
+    Rpc {
+        operation: &'static str,
+        message: String,
+        tx_hash: Option<TxHash>,
+    },
+    BuildTransaction(String),
+    SignTransaction(String),
+}
+
+impl std::fmt::Display for SubmissionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BuildClient(message) => write!(f, "build JSON-RPC client: {message}"),
+            Self::Rpc {
+                operation,
+                message,
+                tx_hash,
+            } => {
+                write!(f, "{operation}: {message}")?;
+                if let Some(tx_hash) = tx_hash {
+                    write!(f, " (transaction {tx_hash:?})")?;
+                }
+                Ok(())
+            }
+            Self::BuildTransaction(message) => write!(f, "build transaction: {message}"),
+            Self::SignTransaction(message) => write!(f, "sign transaction: {message}"),
+        }
+    }
+}
+
+impl std::error::Error for SubmissionError {}
 
 /// Everything needed to sign and submit calls against the live node, bound to a
 /// single deployed contract's interface and version.
@@ -69,6 +158,7 @@ pub struct Harness {
     wallet_entrypoint_source: &'static str,
     /// Runtime manifest, retained to resolve additional bootstrap wallets.
     manifest: RuntimeManifest,
+    network_hash: NetworkHash,
     /// Monotonic transaction nonce.
     nonce: AtomicU64,
 }
@@ -82,11 +172,10 @@ impl Harness {
         let contract = parse_address(&env("GROUNDHOG_CONTRACT_ADDRESS"));
 
         let manifest_path = env("GROUNDHOG_RUNTIME_MANIFEST");
-        let manifest: RuntimeManifest = serde_json::from_str(
-            &std::fs::read_to_string(&manifest_path)
-                .unwrap_or_else(|e| panic!("reading runtime manifest {manifest_path}: {e}")),
-        )
-        .expect("parsing runtime manifest");
+        let manifest_json = std::fs::read(&manifest_path)
+            .unwrap_or_else(|e| panic!("reading runtime manifest {manifest_path}: {e}"));
+        let manifest = parse_runtime_manifest(&manifest_json)
+            .unwrap_or_else(|e| panic!("parsing runtime manifest {manifest_path}: {e}"));
 
         // `dev-0`'s signing key is derived deterministically from the well-known
         // seed; its on-chain wallet address comes from the manifest.
@@ -97,6 +186,7 @@ impl Harness {
         // falling back to the baked-in default if the manifest's value can't be
         // parsed. The source is recorded for failure diagnostics.
         let (wallet_entrypoint, wallet_entrypoint_source) = resolve_wallet_entrypoint(&manifest);
+        let network_hash = manifest.network_hash.to_network_hash();
 
         // Seed the nonce from the wall clock so reruns against the same node
         // don't collide with earlier transactions.
@@ -116,6 +206,7 @@ impl Harness {
             wallet_entrypoint,
             wallet_entrypoint_source,
             manifest,
+            network_hash,
             nonce: AtomicU64::new(seed),
         }
     }
@@ -134,10 +225,48 @@ impl Harness {
     /// Sign and submit a call to `method` with the given calldata, wait for the
     /// receipt, and assert the transaction executed successfully.
     pub async fn invoke(&self, method: &str, calldata: Vec<u8>) -> TransactionReceipt {
-        let client = self.client();
+        match self
+            .submit(method, calldata, InvocationOptions::default())
+            .await
+            .unwrap_or_else(|e| panic!("submitting `{method}`: {e}"))
+        {
+            SubmissionOutcome::Committed(receipt) => {
+                assert!(
+                    matches!(receipt.status, ExecStatus::Ok),
+                    "{}",
+                    self.failure_diagnostics(method, &receipt)
+                );
+                receipt
+            }
+            SubmissionOutcome::Failed(receipt) => {
+                panic!("{}", self.failure_diagnostics(method, &receipt))
+            }
+            SubmissionOutcome::Pending { .. } => {
+                panic!("`{method}` receipt did not arrive within 30s")
+            }
+            SubmissionOutcome::Expired { .. } => panic!("`{method}` expired before committing"),
+            SubmissionOutcome::Invalid { reason, .. } => {
+                panic!("`{method}` was rejected by the scheduler: {reason}")
+            }
+        }
+    }
 
-        let tip = client.chain_tip().await.expect("chainTip");
-        let block_expiry_height = (*tip.height).saturating_add(1_000);
+    /// Sign and submit a call without panicking, using per-invocation settings.
+    ///
+    /// Receipts are authoritative. `RecentFailure` is advisory and remains a
+    /// pending result while the transaction is unexpired.
+    pub async fn submit(
+        &self,
+        method: &str,
+        calldata: Vec<u8>,
+        options: InvocationOptions,
+    ) -> Result<SubmissionOutcome, SubmissionError> {
+        let client = self.client()?;
+        let tip = client
+            .chain_tip()
+            .await
+            .map_err(|e| rpc_error("chainTip", e, None))?;
+        let block_expiry_height = expiry_height(*tip.height, options.expiry);
 
         let tx = build_dev_wallet_do_action_transaction(BuildDevWalletDoActionTransaction {
             wallet_address: self.wallet,
@@ -145,44 +274,79 @@ impl Harness {
             target_address: self.contract,
             target_entrypoint: self.entrypoint_id(method),
             target_calldata: &calldata,
-            gas_limit: DEFAULT_TX_GAS_LIMIT,
-            target_gas_limit: DEFAULT_TX_GAS_LIMIT,
+            gas_limit: options.outer_transaction_gas_limit,
+            target_gas_limit: options.target_call_gas_limit,
             block_expiry_height,
             nonce: self.nonce.fetch_add(1, Ordering::Relaxed),
         })
-        .expect("build dev-wallet transaction");
+        .map_err(|e| SubmissionError::BuildTransaction(e.to_string()))?;
 
-        let tx_hex =
-            sign_and_encode_transaction_hex(tx, &self.signer, SignTransactionParams::default())
-                .expect("sign transaction");
+        let tx_hex = sign_and_encode_transaction_hex(
+            tx,
+            &self.signer,
+            SignTransactionParams::default(),
+            &self.network_hash,
+        )
+        .map_err(|e| SubmissionError::SignTransaction(e.to_string()))?;
 
         let tx_hash = client
             .send_raw_transaction(tx_hex)
             .await
-            .unwrap_or_else(|e| panic!("sendRawTransaction for `{method}`: {e}"));
+            .map_err(|e| rpc_error("sendRawTransaction", e, None))?;
+        eprintln!(
+            "submitted `{method}`: tx={tx_hash:?}, expiry={block_expiry_height}, outer_gas={}, target_gas={}",
+            options.outer_transaction_gas_limit, options.target_call_gas_limit
+        );
+        let deadline = Instant::now().checked_add(options.receipt_timeout);
 
-        for _ in 0..RECEIPT_POLL_ATTEMPTS {
-            match client.get_transaction_receipt(tx_hash).await {
-                Ok(Some(receipt)) => {
-                    assert!(
-                        matches!(receipt.status, ExecStatus::Ok),
-                        "{}",
-                        self.failure_diagnostics(method, &receipt)
-                    );
-                    return receipt;
-                }
-                Ok(None) => tokio::time::sleep(RECEIPT_POLL_INTERVAL).await,
-                Err(e) => panic!("getTransactionReceipt for `{method}`: {e}"),
+        loop {
+            if let Some(receipt) = client
+                .get_transaction_receipt(tx_hash)
+                .await
+                .map_err(|e| rpc_error("getTransactionReceipt", e, Some(tx_hash)))?
+            {
+                return Ok(receipt_outcome(receipt));
             }
-        }
 
-        panic!("`{method}` receipt did not arrive within {RECEIPT_POLL_ATTEMPTS}s");
+            let status = client
+                .get_transaction_status(tx_hash)
+                .await
+                .map_err(|e| rpc_error("getTransactionStatus", e, Some(tx_hash)))?;
+            if let TransactionStatus::Invalid { reason } = status {
+                return Ok(SubmissionOutcome::Invalid { tx_hash, reason });
+            }
+
+            let tip = client
+                .chain_tip()
+                .await
+                .map_err(|e| rpc_error("chainTip", e, Some(tx_hash)))?;
+            let expired = *tip.height >= block_expiry_height;
+            let timed_out = deadline.is_some_and(|deadline| Instant::now() >= deadline);
+            if expired
+                && let Some(receipt) = client
+                    .get_transaction_receipt(tx_hash)
+                    .await
+                    .map_err(|e| rpc_error("getTransactionReceipt", e, Some(tx_hash)))?
+            {
+                return Ok(receipt_outcome(receipt));
+            }
+            if let Some(outcome) = unresolved_outcome(status, tx_hash, expired, timed_out) {
+                return Ok(outcome);
+            }
+
+            let sleep_for = deadline.map_or(options.receipt_poll_interval, |deadline| {
+                options
+                    .receipt_poll_interval
+                    .min(deadline.saturating_duration_since(Instant::now()))
+            });
+            tokio::time::sleep(sleep_for).await;
+        }
     }
 
-    fn client(&self) -> impl GroundhogApiClient {
+    fn client(&self) -> Result<HttpClient, SubmissionError> {
         HttpClientBuilder::default()
             .build(&self.rpc_url)
-            .expect("build JSON-RPC client")
+            .map_err(|e| SubmissionError::BuildClient(e.to_string()))
     }
 
     /// Derive the 8-byte entrypoint ID for one of the contract's methods.
@@ -214,6 +378,52 @@ impl Harness {
             format_contract_address(&self.contract),
             format_entrypoint_id(self.entrypoint_id(method)),
         )
+    }
+}
+
+fn expiry_height(tip_height: i64, expiry: TransactionExpiry) -> i64 {
+    match expiry {
+        TransactionExpiry::Offset(offset) => tip_height.saturating_add(offset),
+        TransactionExpiry::Absolute(height) => height,
+    }
+}
+
+fn receipt_outcome(receipt: TransactionReceipt) -> SubmissionOutcome {
+    match receipt.status {
+        ExecStatus::Ok => SubmissionOutcome::Committed(receipt),
+        _ => SubmissionOutcome::Failed(receipt),
+    }
+}
+
+fn unresolved_outcome(
+    status: TransactionStatus,
+    tx_hash: TxHash,
+    expired: bool,
+    timed_out: bool,
+) -> Option<SubmissionOutcome> {
+    match status {
+        TransactionStatus::Invalid { reason } => {
+            Some(SubmissionOutcome::Invalid { tx_hash, reason })
+        }
+        TransactionStatus::Committed { .. } if timed_out => {
+            Some(SubmissionOutcome::Pending { tx_hash })
+        }
+        TransactionStatus::Committed { .. } => None,
+        _ if expired => Some(SubmissionOutcome::Expired { tx_hash }),
+        _ if timed_out => Some(SubmissionOutcome::Pending { tx_hash }),
+        _ => None,
+    }
+}
+
+fn rpc_error(
+    operation: &'static str,
+    error: impl std::fmt::Display,
+    tx_hash: Option<TxHash>,
+) -> SubmissionError {
+    SubmissionError::Rpc {
+        operation,
+        message: error.to_string(),
+        tx_hash,
     }
 }
 
@@ -286,4 +496,111 @@ fn env(key: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| {
         panic!("{key} must be set (run this test via `groundhog test --integration`)")
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tx_hash() -> TxHash {
+        serde_json::from_str(&format!(r#""0x{}""#, "00".repeat(32)))
+            .expect("test transaction hash should deserialize")
+    }
+
+    fn receipt(status: serde_json::Value) -> TransactionReceipt {
+        serde_json::from_value(serde_json::json!({
+            "txHash": format!("0x{}", "00".repeat(32)),
+            "height": 10,
+            "status": status,
+            "events": []
+        }))
+        .expect("test receipt should deserialize")
+    }
+
+    #[test]
+    fn invocation_options_preserve_invoke_defaults() {
+        let options = InvocationOptions::default();
+
+        assert_eq!(options.outer_transaction_gas_limit, DEFAULT_TX_GAS_LIMIT);
+        assert_eq!(options.target_call_gas_limit, DEFAULT_TX_GAS_LIMIT);
+        assert_eq!(
+            options.expiry,
+            TransactionExpiry::Offset(DEFAULT_EXPIRY_OFFSET)
+        );
+        assert_eq!(options.receipt_timeout, Duration::from_secs(30));
+        assert_eq!(options.receipt_poll_interval, Duration::from_secs(1));
+    }
+
+    #[test]
+    fn expiry_supports_offset_and_absolute_heights() {
+        assert_eq!(expiry_height(42, TransactionExpiry::Offset(8)), 50);
+        assert_eq!(expiry_height(42, TransactionExpiry::Absolute(91)), 91);
+        assert_eq!(
+            expiry_height(i64::MAX - 1, TransactionExpiry::Offset(8)),
+            i64::MAX
+        );
+    }
+
+    #[test]
+    fn deterministic_receipts_are_exposed_separately() {
+        let reverted = receipt(serde_json::json!({
+            "result": "reverted",
+            "message": "expected failure"
+        }));
+        let successful = receipt(serde_json::json!({ "result": "ok" }));
+
+        assert!(matches!(
+            receipt_outcome(reverted),
+            SubmissionOutcome::Failed(_)
+        ));
+        assert!(matches!(
+            receipt_outcome(successful),
+            SubmissionOutcome::Committed(_)
+        ));
+    }
+
+    #[test]
+    fn recent_failure_remains_pending_while_unexpired() {
+        let status: TransactionStatus = serde_json::from_value(serde_json::json!({
+            "status": "recentFailure",
+            "attemptHeight": 9,
+            "conflict": {
+                "address": format!("0x{}", "00".repeat(32)),
+                "key": "0x",
+                "code": "exclusiveLock"
+            }
+        }))
+        .expect("test recent failure should deserialize");
+
+        assert!(matches!(
+            unresolved_outcome(status, tx_hash(), false, true),
+            Some(SubmissionOutcome::Pending { .. })
+        ));
+    }
+
+    #[test]
+    fn unresolved_transaction_is_expired_only_at_expiry_height() {
+        assert!(unresolved_outcome(TransactionStatus::Pending, tx_hash(), false, false).is_none());
+        assert!(matches!(
+            unresolved_outcome(TransactionStatus::Unknown, tx_hash(), true, false),
+            Some(SubmissionOutcome::Expired { .. })
+        ));
+    }
+
+    #[test]
+    fn invalid_status_exposes_rejection_reason() {
+        let outcome = unresolved_outcome(
+            TransactionStatus::Invalid {
+                reason: "bad nonce".to_owned(),
+            },
+            tx_hash(),
+            false,
+            false,
+        );
+
+        assert!(matches!(
+            outcome,
+            Some(SubmissionOutcome::Invalid { reason, .. }) if reason == "bad nonce"
+        ));
+    }
 }
