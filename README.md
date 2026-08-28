@@ -20,6 +20,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`multi-impl-traits`](contracts/multi-impl-traits/) | Defining contract interfaces as traits in a standalone crate |
 | [`multi-impl`](contracts/multi-impl/) | One contract implementing multiple traits from a separate crate |
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and an optional `metadata` feature |
+| [`standard-token*`](contracts/standard-token-factory/) | A fixed standard-token implementation and factory with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](docs/README-swap.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
 
 ### Simulation fixtures
@@ -42,6 +43,8 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples �
   ```sh
   cargo install --locked --registry groundhog groundhog-cli
   ```
+
+  Individual applications may require an exact CLI release. The token launchpad requires 0.10.4.
 
 - Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`).
 - For RPC-based tests, `groundhog-cli` must be able to find a "devnode" binary, for example via `GROUNDHOG_DEVNODE_BINARY`.

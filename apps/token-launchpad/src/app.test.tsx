@@ -1,5 +1,11 @@
 import { fixedBytes } from "@groundhogchain/client";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -32,6 +38,46 @@ function reviewed(): FactoryReview {
 }
 
 describe("launch review", () => {
+  it("associates field guidance and validation errors with each input", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <CreatePage
+          config={configuration()}
+          client={{} as never}
+          writer={{} as never}
+        />
+      </MemoryRouter>,
+    );
+    const fields = [
+      ["symbol", "Symbol"],
+      ["name", "Token name"],
+      ["decimals", "Decimals"],
+      ["supply", "Initial supply"],
+    ] as const;
+    for (const [id, label] of fields) {
+      expect(screen.getByLabelText(label)).toHaveAttribute(
+        "aria-describedby",
+        `${id}-description`,
+      );
+    }
+    fireEvent.change(screen.getByLabelText("Decimals"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Initial supply"), {
+      target: { value: "" },
+    });
+
+    fireEvent.submit(container.querySelector("form")!);
+
+    for (const [id, label] of fields) {
+      expect(screen.getByLabelText(label)).toHaveAttribute(
+        "aria-describedby",
+        `${id}-description ${id}-error`,
+      );
+      expect(document.getElementById(`${id}-error`)).not.toBeEmptyDOMElement();
+    }
+  });
+
   it("shows exact costs and insufficient-wallet feedback", () => {
     const config = configuration();
     const review = reviewed();

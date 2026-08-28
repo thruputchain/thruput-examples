@@ -409,8 +409,8 @@ On a clean local ledger:
 3. Verify prediction, funding, receipt return, event, metadata, supply, and balance.
 4. Switch to Bob and create the same metadata with a different nonce.
 5. Verify the address differs, each persona sees only their own launches in the filtered view, and the global directory includes both launches.
-6. Refresh after funding and resume without rotating the nonce or duplicating the transfer.
-7. Simulate an uncertain creation, stale second tab, delayed event index, and temporarily unavailable verification views; preserve evidence and avoid duplicate submissions.
+
+Deterministic workflow and component tests cover refresh after funding, uncertain creation, stale tabs, and unavailable verification views. The opt-in live acceptance journey covers delayed event indexing with bounded polling. These tests must preserve transaction evidence and prevent duplicate submissions.
 
 ## 13. Acceptance Criteria
 

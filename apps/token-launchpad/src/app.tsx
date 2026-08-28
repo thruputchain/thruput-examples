@@ -539,43 +539,52 @@ export function CreatePage({
                     ["decimals", "Decimals", "7"],
                     ["supply", "Initial supply", "1000000"],
                   ] as const
-                ).map(([key, label, placeholder]) => (
-                  <Field
-                    key={key}
-                    data-invalid={submitted && !!parsed.errors[key]}
-                  >
-                    <FieldLabel htmlFor={key}>{label}</FieldLabel>
-                    <Input
-                      id={key}
-                      name={key}
-                      value={draft[key]}
-                      placeholder={placeholder}
-                      type={key === "decimals" ? "number" : "text"}
-                      autoComplete="off"
-                      inputMode={
-                        key === "decimals" || key === "supply"
-                          ? "decimal"
-                          : "text"
-                      }
-                      aria-invalid={submitted && !!parsed.errors[key]}
-                      disabled={workflow !== null}
-                      onChange={(event) => {
-                        setReview(null);
-                        setDraft({ ...draft, [key]: event.target.value });
-                      }}
-                    />
-                    <FieldDescription>
-                      {key === "supply"
-                        ? "Assigned to the active wallet."
-                        : key === "decimals"
-                          ? "Choose 0 to 18."
-                          : "Required metadata."}
-                    </FieldDescription>
-                    {submitted && parsed.errors[key] ? (
-                      <FieldError>{parsed.errors[key]}</FieldError>
-                    ) : null}
-                  </Field>
-                ))}
+                ).map(([key, label, placeholder]) => {
+                  const hasError = submitted && !!parsed.errors[key];
+                  const descriptionId = `${key}-description`;
+                  const errorId = `${key}-error`;
+                  return (
+                    <Field key={key} data-invalid={hasError}>
+                      <FieldLabel htmlFor={key}>{label}</FieldLabel>
+                      <Input
+                        id={key}
+                        name={key}
+                        value={draft[key]}
+                        placeholder={placeholder}
+                        type={key === "decimals" ? "number" : "text"}
+                        autoComplete="off"
+                        inputMode={
+                          key === "decimals" || key === "supply"
+                            ? "decimal"
+                            : "text"
+                        }
+                        aria-describedby={
+                          hasError
+                            ? `${descriptionId} ${errorId}`
+                            : descriptionId
+                        }
+                        aria-invalid={hasError}
+                        disabled={workflow !== null}
+                        onChange={(event) => {
+                          setReview(null);
+                          setDraft({ ...draft, [key]: event.target.value });
+                        }}
+                      />
+                      <FieldDescription id={descriptionId}>
+                        {key === "supply"
+                          ? "Assigned to the active wallet."
+                          : key === "decimals"
+                            ? "Choose 0 to 18."
+                            : "Required metadata."}
+                      </FieldDescription>
+                      {hasError ? (
+                        <FieldError id={errorId}>
+                          {parsed.errors[key]}
+                        </FieldError>
+                      ) : null}
+                    </Field>
+                  );
+                })}
                 {workflow === null ? (
                   <Button
                     className="min-h-12"
