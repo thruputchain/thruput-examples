@@ -78,7 +78,7 @@ describe.skipIf(!runCleanLedger)("clean-ledger AMM acceptance", () => {
 
     const alicePortfolio = await createWalletPortfolioReader(aliceConfig)();
     expect(alicePortfolio.tokens.map(({ symbol }) => symbol)).toEqual(
-      expect.arrayContaining(["gEUR", "gUSD", "HOG"]),
+      expect.arrayContaining(["gEUR", "gJPY", "gUSD", "HOG"]),
     );
     expect(alicePortfolio.liquidityPositions).toHaveLength(1);
     expect(alicePortfolio.liquidityPositions[0]!.balance).toBeGreaterThan(0n);
@@ -327,6 +327,8 @@ function loadLocalConfig(): AppConfig {
     VITE_GROUNDHOG_WALLET_ADDRESS: import.meta.env
       .VITE_GROUNDHOG_WALLET_ADDRESS,
     VITE_NATIVE_HOG_ADDRESS: import.meta.env.VITE_NATIVE_HOG_ADDRESS,
+    VITE_KNOWN_TOKEN_ADDRESSES: import.meta.env
+      .VITE_KNOWN_TOKEN_ADDRESSES,
     VITE_SWAP_FACTORY_ADDRESS: import.meta.env.VITE_SWAP_FACTORY_ADDRESS,
     VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
     VITE_POOL_CONTRACT_FUNDING: import.meta.env.VITE_POOL_CONTRACT_FUNDING,

@@ -650,6 +650,11 @@ function renderEnvironment(
     `VITE_GROUNDHOG_WALLET_ADDRESS=${toHex0x(deployment.personas[0]!.account.address)}`,
     `VITE_GROUNDHOG_WALLET_ENTRYPOINT=${toHex0x(DevWallet.doAction.entrypoint)}`,
     `VITE_NATIVE_HOG_ADDRESS=${toHex0x(HOG_ADDRESS)}`,
+    `VITE_KNOWN_TOKEN_ADDRESSES=${[
+      deployment.tokenA,
+      deployment.tokenB,
+      deployment.tokenC,
+    ].map(toHex0x).join(",")}`,
     `VITE_SWAP_FACTORY_ADDRESS=${toHex0x(deployment.factory)}`,
     `VITE_SWAP_ROUTER_ADDRESS=${toHex0x(deployment.router)}`,
     `VITE_POOL_CONTRACT_FUNDING=${CONTRACT_FUNDING}`,

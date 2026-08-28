@@ -24,6 +24,7 @@ const config: GlobalConfig = {
   routerAddress: address(2),
   factoryAddress: address(3),
   nativeHogAddress: address(4),
+  knownTokenAddresses: [address(14)],
   poolContractFunding: 10_000_000n,
 };
 
@@ -56,12 +57,13 @@ describe("createWalletPortfolioReader", () => {
       ),
     } as never);
     const assets = new Map([
-      [4, token("Native HOG", "HOG", 6, 5_000_000n)],
-      [5, token("Token A", "A", 6, 2_000_000n)],
+      [4, token("Native HOG", "HOG", 6, 15_000_000_000n)],
+      [5, token("Token A", "A", 6, 1_000_000_000n)],
       [6, token("Token B", "B", 6, 0n)],
       [7, token(null, null, null, 30n)],
-      [8, token("Token C", "C", 6, 4_000_000n)],
+      [8, token("Token C", "C", 6, 1_000_000_000n)],
       [9, failingToken()],
+      [14, token("Groundhog JPY", "JPY", 6, 2_000_000_000n)],
     ]);
     vi.mocked(createErc20ReadAdapter).mockImplementation(
       ({ contract }) => assets.get(contract[0]!) as never,
@@ -69,14 +71,15 @@ describe("createWalletPortfolioReader", () => {
 
     await expect(createWalletPortfolioReader(config)()).resolves.toMatchObject({
       tokens: [
-        { symbol: "A", balance: 2_000_000n },
-        { symbol: "C", balance: 4_000_000n },
-        { symbol: "HOG", balance: 5_000_000n },
+        { symbol: "JPY", balance: 2_000_000_000n },
+        { symbol: "HOG", decimals: 7, balance: 15_000_000_000n },
+        { symbol: "A", balance: 1_000_000_000n },
+        { symbol: "C", balance: 1_000_000_000n },
       ],
       liquidityPositions: [
         {
           symbol: "LP",
-          decimals: 0,
+          decimals: 6,
           balance: 30n,
           poolSymbols: ["A", "B"],
         },
@@ -84,7 +87,7 @@ describe("createWalletPortfolioReader", () => {
       invalidPoolCount: 1,
       unavailableAssetCount: 1,
     });
-    expect(createErc20ReadAdapter).toHaveBeenCalledTimes(6);
+    expect(createErc20ReadAdapter).toHaveBeenCalledTimes(7);
     expect(
       vi
         .mocked(createErc20ReadAdapter)

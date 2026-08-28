@@ -1,4 +1,4 @@
-import { addressFromHex } from "@groundhogchain/client";
+import { addressFromHex, toHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 const NETWORK_ID_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
@@ -10,6 +10,7 @@ export interface AppConfig {
   routerAddress: ContractAddress;
   factoryAddress: ContractAddress;
   nativeHogAddress: ContractAddress;
+  knownTokenAddresses?: readonly ContractAddress[];
   poolContractFunding: bigint;
   pairAddress: ContractAddress;
   liquidityTokenAddress: ContractAddress;
@@ -30,6 +31,7 @@ export interface GlobalConfig {
   routerAddress: ContractAddress;
   factoryAddress: ContractAddress;
   nativeHogAddress: ContractAddress;
+  knownTokenAddresses?: readonly ContractAddress[];
   poolContractFunding: bigint;
 }
 
@@ -83,6 +85,10 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
     routerAddress: address(environment, "VITE_SWAP_ROUTER_ADDRESS"),
     factoryAddress: address(environment, "VITE_SWAP_FACTORY_ADDRESS"),
     nativeHogAddress: address(environment, "VITE_NATIVE_HOG_ADDRESS"),
+    knownTokenAddresses: optionalAddresses(
+      environment,
+      "VITE_KNOWN_TOKEN_ADDRESSES",
+    ),
     poolContractFunding: parseFunding(
       required(environment, "VITE_POOL_CONTRACT_FUNDING"),
     ),
@@ -125,6 +131,27 @@ function address(environment: Environment, key: string): ContractAddress {
   } catch {
     throw new ConfigurationError(`${key} must be a 32-byte 0x-prefixed address`);
   }
+}
+
+function optionalAddresses(
+  environment: Environment,
+  key: string,
+): ContractAddress[] {
+  const value = environment[key];
+  if (value === undefined || value === "") return [];
+  if (typeof value !== "string") {
+    throw new ConfigurationError(`${key} must be a comma-separated address list`);
+  }
+  const addresses = value.split(",").map((entry) => {
+    try {
+      return addressFromHex(entry.trim());
+    } catch {
+      throw new ConfigurationError(
+        `${key} must contain only 32-byte 0x-prefixed addresses`,
+      );
+    }
+  });
+  return [...new Map(addresses.map((item) => [toHex0x(item), item])).values()];
 }
 
 function parseRpcUrl(value: string): URL {

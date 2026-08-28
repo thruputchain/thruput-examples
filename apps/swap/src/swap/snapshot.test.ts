@@ -54,7 +54,7 @@ describe("createSnapshotReader", () => {
 
     const tokenA = tokenAdapter("Token A", "A", 10n, 1n, 8n);
     const tokenB = tokenAdapter("Token B", "B", 20n, 2n, 8n);
-    const liquidityToken = tokenAdapter("LP", "LP", 30n, 0n, 8n);
+    const liquidityToken = tokenAdapter(null, null, 30n, 0n, 8n, null);
     vi.mocked(createErc20ReadAdapter)
       .mockReturnValueOnce(tokenA)
       .mockReturnValueOnce(tokenB)
@@ -114,17 +114,18 @@ describe("createSnapshotReader", () => {
 });
 
 function tokenAdapter(
-  name: string,
-  symbol: string,
+  name: string | null,
+  symbol: string | null,
   balance: bigint,
   allowance: bigint,
   height: bigint,
+  decimals: number | null = 6,
 ) {
   return {
     metadata: vi.fn().mockResolvedValue({
       name: { value: name, height, events: [] },
       symbol: { value: symbol, height, events: [] },
-      decimals: { value: 6, height, events: [] },
+      decimals: { value: decimals, height, events: [] },
     }),
     balanceOf: vi
       .fn()

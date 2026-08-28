@@ -8,6 +8,7 @@ import {
 import { createSwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { createSwapPairReadAdapter } from "@/contracts/pair-adapter";
 import { createReadClient } from "@/groundhog/client";
+import { FALLBACK_LIQUIDITY_TOKEN_DECIMALS } from "@/pools/liquidity-token";
 
 export interface TokenSnapshot {
   address: ContractAddress;
@@ -142,7 +143,8 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         liquidityBalance: liquidityBalance.value,
         liquidityAllowance: liquidityAllowance.value,
         liquidityTokenSymbol: liquidityTokenMetadata.symbol?.trim() || "LP",
-        liquidityTokenDecimals: liquidityTokenMetadata.decimals ?? 0,
+        liquidityTokenDecimals:
+          liquidityTokenMetadata.decimals ?? FALLBACK_LIQUIDITY_TOKEN_DECIMALS,
         feeTo: feeTo.value,
         chainHeight: readHeight,
         readAt: Date.now(),
