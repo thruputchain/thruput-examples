@@ -11,7 +11,7 @@ groundhog build -p game-of-life
 groundhog build -p life-storage-admission
 ```
 
-Native mock-executor tests additionally require the Groundhog FFI credentials reported by `groundhog status`. The live tests below do not require those credentials.
+The shared core tests run without a node. Contract storage and lifecycle behavior is covered by the live tests below; native mock-executor coverage still requires Groundhog FFI credentials.
 
 ## Live Node
 

@@ -578,13 +578,9 @@ name = "game-of-life"
 version = "0.1.0"
 dependencies = [
  "batch-driver",
- "game-of-life",
  "game-of-life-core",
- "groundhog-native-exec",
- "integration-test",
  "sdk",
  "sha2 0.11.0",
- "tokio",
 ]
 
 [[package]]

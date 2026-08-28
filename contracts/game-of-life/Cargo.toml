@@ -34,15 +34,5 @@ rv32-entrypoints = ["entrypoints"]
 default = ["dev"]
 dev = ["sdk/dev", "batch-driver/dev"]
 
-[dev-dependencies]
-game-of-life = { path = ".", features = ["dev"] }
-groundhog-native-exec = { registry = "groundhog", version = "0.19.3" }
-integration-test = { path = "../../helpers/integration-test" }
-tokio = { workspace = true }
-
-[[test]]
-name = "integration"
-test = false
-
 [lints]
 clippy.result_large_err = "allow"
