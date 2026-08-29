@@ -1,11 +1,20 @@
+use futures_util::{StreamExt, TryStreamExt, stream};
+use game_of_life_core::digest::WorldDigest;
+use groundhog_json_rpc_types::error::codes;
+use groundhog_json_rpc_types::events::EventQuery;
 use groundhog_xdr::types::{ContractAddress, SHA256Hash};
 use integration_test::{
-    Harness, InvocationOptions, SubmissionOutcome, TransactionExpiry, decode_return, encode,
+    Harness, InvocationOptions, SubmissionError, SubmissionOutcome, TransactionExpiry,
+    decode_return, decode_view_return, encode,
 };
 use std::time::Duration;
 
 const INTERFACE: &str = "GameOfLife";
 const VERSION: &str = "0.1.0";
+const WORLD_HEIGHT: u32 = 10_000;
+const CHUNKS_PER_ROW: u32 = 2;
+const CHUNK_BYTES: usize = 1_000;
+const TAIL_BYTES: usize = 250;
 
 #[derive(Debug, xdrs::ReadXDR)]
 #[xdrs(crate = "::xdrs")]
@@ -30,6 +39,109 @@ struct TickResult {
 }
 
 #[tokio::test]
+#[ignore = "requires an initialized contract and a quiet live Groundhog node"]
+async fn downloads_and_verifies_complete_snapshot() {
+    let harness = Harness::from_env(INTERFACE, VERSION);
+    let started = std::time::Instant::now();
+    let deadline = started + Duration::from_secs(120);
+    let before_response = tokio::time::timeout(
+        deadline.saturating_duration_since(std::time::Instant::now()),
+        harness.view("get_metadata", encode(&())),
+    )
+    .await
+    .expect("snapshot protocol exceeded two minutes")
+    .expect("read metadata before snapshot");
+    let before_height = *before_response.height;
+    let before: WorldMetadata = decode_view_return(&before_response);
+    assert_eq!((before.width, before.height), (10_000, WORLD_HEIGHT));
+    assert_eq!(before.chunk_bytes, CHUNK_BYTES as u32);
+    assert_eq!(before.chunks_per_row, CHUNKS_PER_ROW);
+
+    let download = stream::iter(0..WORLD_HEIGHT * CHUNKS_PER_ROW)
+        .map(|key| {
+            let harness = &harness;
+            async move {
+                let response = harness
+                    .view(
+                        "get_chunk",
+                        encode(&(key / CHUNKS_PER_ROW, key % CHUNKS_PER_ROW)),
+                    )
+                    .await?;
+                let height = *response.height;
+                let chunk = decode_view_return(&response);
+                Ok::<_, integration_test::SubmissionError>((key, height, chunk))
+            }
+        })
+        .buffer_unordered(32)
+        .try_collect::<Vec<(u32, i64, [u8; CHUNK_BYTES])>>();
+    let mut chunks = tokio::time::timeout(
+        deadline.saturating_duration_since(std::time::Instant::now()),
+        download,
+    )
+    .await
+    .expect("snapshot download exceeded two minutes")
+    .expect("download every world chunk");
+    chunks.sort_unstable_by_key(|(key, _, _)| *key);
+
+    let after_response = tokio::time::timeout(
+        deadline.saturating_duration_since(std::time::Instant::now()),
+        harness.view("get_metadata", encode(&())),
+    )
+    .await
+    .expect("snapshot protocol exceeded two minutes")
+    .expect("read metadata after snapshot");
+    let after: WorldMetadata = decode_view_return(&after_response);
+    let tip = tokio::time::timeout(
+        deadline.saturating_duration_since(std::time::Instant::now()),
+        harness.chain_tip(),
+    )
+    .await
+    .expect("snapshot protocol exceeded two minutes")
+    .expect("read final chain tip");
+
+    assert_eq!(before_height, *after_response.height);
+    assert_eq!(before_height, *tip.height);
+    assert!(
+        chunks.iter().all(|(_, height, _)| *height == before_height),
+        "snapshot views crossed committed block heights"
+    );
+    assert_eq!(after.generation, before.generation);
+    assert_eq!(after.seed, before.seed);
+    assert_eq!(after.population, before.population);
+    assert_eq!(after.state_digest, before.state_digest);
+
+    let mut digest = WorldDigest::new(before.width, before.height, before.generation);
+    let mut population = 0u64;
+    for (key, _, chunk) in &chunks {
+        let canonical = if key % CHUNKS_PER_ROW == 0 {
+            chunk.as_slice()
+        } else {
+            assert!(
+                chunk[TAIL_BYTES..].iter().all(|byte| *byte == 0),
+                "tail chunk {key} contains nonzero transport padding"
+            );
+            &chunk[..TAIL_BYTES]
+        };
+        population += canonical
+            .iter()
+            .map(|byte| u64::from(byte.count_ones()))
+            .sum::<u64>();
+        digest.update(*key, canonical);
+    }
+
+    assert_eq!(population, before.population);
+    assert_eq!(SHA256Hash::new(digest.finish()), before.state_digest);
+    println!(
+        "verified {} canonical bytes at height {} ({:?}) in {:?}; block={:?}",
+        12_500_000,
+        before_height,
+        before.state_digest,
+        started.elapsed(),
+        tip.block_hash
+    );
+}
+
+#[tokio::test]
 #[ignore = "requires an initialized contract with at least two free queue slots"]
 async fn concurrent_requests_commit_with_distinct_ids() {
     let harness = Harness::from_env(INTERFACE, VERSION);
@@ -45,11 +157,86 @@ async fn concurrent_requests_commit_with_distinct_ids() {
     let one = receipt(one);
     let two = receipt(two);
     assert_eq!(one.height, two.height);
+    assert_ne!(one.tx_hash, two.tx_hash);
     let one_id: SHA256Hash = decode_return(&one);
     let two_id: SHA256Hash = decode_return(&two);
     assert_ne!(one_id, two_id);
     assert_eq!(one.events[0].topics[1].0, *one_id.as_ref());
     assert_eq!(two.events[0].topics[1].0, *two_id.as_ref());
+}
+
+#[tokio::test]
+#[ignore = "requires an initialized contract and live Groundhog node with committed events"]
+async fn rpc_capabilities_match_indexer_fallback_assumptions() {
+    let harness = Harness::from_env(INTERFACE, VERSION);
+
+    let before_tip = harness
+        .chain_tip()
+        .await
+        .expect("read chain tip before view");
+    let metadata = harness
+        .view("get_metadata", encode(&()))
+        .await
+        .expect("view metadata");
+    let tip = harness.chain_tip().await.expect("read chain tip");
+    assert!(*before_tip.height <= *metadata.height);
+    assert!(*metadata.height <= *tip.height);
+
+    let address = format!("0x{}", hex::encode(harness.contract().as_ref()));
+    let mut query: EventQuery = serde_json::from_value(serde_json::json!({
+        "filters": [{
+            "contractAddresses": [address],
+            "topics": { "topic0": [], "topic1": [], "topic2": [] }
+        }],
+        "order": "ascending",
+        "anchor": { "kind": "atBeginning" },
+        "cursor": "0x",
+        "limit": 1
+    }))
+    .expect("construct event query");
+    let first = harness
+        .events(query.clone())
+        .await
+        .expect("first event page");
+    assert_eq!(first.events.len(), 1);
+    assert!(!first.cursor.0.is_empty());
+    assert_eq!(*first.oldest_block, 0);
+
+    query.cursor = first.cursor;
+    let second = harness
+        .events(query.clone())
+        .await
+        .expect("second event page");
+    assert_eq!(second.events.len(), 1);
+    assert_ne!(first.events[0].tx_hash, second.events[0].tx_hash);
+
+    query.cursor = Default::default();
+    query.limit = 201;
+    let oversized = harness
+        .events(query)
+        .await
+        .expect_err("event page above the server cap must fail");
+    assert!(matches!(
+        oversized,
+        SubmissionError::Rpc {
+            operation: "getEvents",
+            code: Some(codes::INVALID_PARAMS),
+            ..
+        }
+    ));
+
+    let historical = harness
+        .block(tip.height)
+        .await
+        .expect_err("local backend does not implement historical block lookup");
+    assert!(matches!(
+        historical,
+        SubmissionError::Rpc {
+            operation: "getBlockByNumber",
+            code: Some(codes::NOT_IMPLEMENTED),
+            ..
+        }
+    ));
 }
 
 #[tokio::test]

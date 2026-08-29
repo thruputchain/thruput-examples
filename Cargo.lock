@@ -594,8 +594,13 @@ dependencies = [
 name = "game-of-life-live-test"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
+ "game-of-life-core",
+ "groundhog-json-rpc-types 0.10.4",
  "groundhog-xdr 0.24.0",
+ "hex",
  "integration-test",
+ "serde_json",
  "tokio",
  "xdrs",
 ]
@@ -1730,6 +1735,7 @@ dependencies = [
  "groundhog-signing 0.10.4",
  "groundhog-xdr 0.24.0",
  "hex",
+ "jsonrpsee-core",
  "serde_json",
  "tokio",
  "xdrs",

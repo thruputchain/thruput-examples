@@ -24,9 +24,13 @@
 
 use groundhog_contract_util::{NormalizedMethodSignature, contract_entrypoint_id};
 use groundhog_json_rpc_client::{GroundhogApiClient, HttpClient, HttpClientBuilder};
+use groundhog_json_rpc_types::block::{BlockInfo, ChainTip};
+use groundhog_json_rpc_types::events::{EventPage, EventQuery};
+use groundhog_json_rpc_types::hex::{Hex0x, HexBytes};
 use groundhog_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
 use groundhog_json_rpc_types::runtime_manifest::{RuntimeManifest, parse_runtime_manifest};
 use groundhog_json_rpc_types::transaction::{TransactionStatus, TxHash};
+use groundhog_json_rpc_types::view::{RootInvocationOutput, ViewRequest, ViewResponse};
 use groundhog_signing::{
     BuildDevWalletDoActionTransaction, DEFAULT_TX_GAS_LIMIT, LocalSigner, SignTransactionParams,
     build_dev_wallet_do_action_transaction, derive_default_dev_account_signer,
@@ -110,6 +114,7 @@ pub enum SubmissionError {
     BuildClient(String),
     Rpc {
         operation: &'static str,
+        code: Option<i32>,
         message: String,
         tx_hash: Option<TxHash>,
     },
@@ -123,6 +128,7 @@ impl std::fmt::Display for SubmissionError {
             Self::BuildClient(message) => write!(f, "build JSON-RPC client: {message}"),
             Self::Rpc {
                 operation,
+                code: _,
                 message,
                 tx_hash,
             } => {
@@ -143,7 +149,7 @@ impl std::error::Error for SubmissionError {}
 /// Everything needed to sign and submit calls against the live node, bound to a
 /// single deployed contract's interface and version.
 pub struct Harness {
-    rpc_url: String,
+    client: Result<HttpClient, String>,
     contract: ContractAddress,
     /// Interface name and version of the deployed contract, used to derive
     /// entrypoint IDs for the methods under test.
@@ -169,6 +175,9 @@ impl Harness {
     /// derive the entrypoint ID of each method under test).
     pub fn from_env(interface: &'static str, version: &'static str) -> Self {
         let rpc_url = env("GROUNDHOG_RPC_URL");
+        let client = HttpClientBuilder::default()
+            .build(&rpc_url)
+            .map_err(|e| format!("{rpc_url}: {e}"));
         let contract = parse_address(&env("GROUNDHOG_CONTRACT_ADDRESS"));
 
         let manifest_path = env("GROUNDHOG_RUNTIME_MANIFEST");
@@ -197,7 +206,7 @@ impl Harness {
             .unwrap_or(1);
 
         Self {
-            rpc_url,
+            client,
             contract,
             interface,
             version,
@@ -211,15 +220,70 @@ impl Harness {
         }
     }
 
+    fn client(&self) -> Result<&HttpClient, SubmissionError> {
+        self.client
+            .as_ref()
+            .map_err(|message| SubmissionError::BuildClient(message.clone()))
+    }
+
     /// dev-0's wallet address — the caller of every transaction this harness
     /// submits.
     pub fn wallet(&self) -> ContractAddress {
         self.wallet
     }
 
+    /// Address of the deployed contract this harness targets.
+    pub fn contract(&self) -> ContractAddress {
+        self.contract
+    }
+
     /// Resolve the wallet address for `dev-{index}` from the runtime manifest.
     pub fn dev_wallet(&self, index: u32) -> ContractAddress {
         wallet_address(&self.manifest, index)
+    }
+
+    /// Execute a read-only contract call against the latest committed snapshot.
+    pub async fn view(
+        &self,
+        method: &str,
+        calldata: Vec<u8>,
+    ) -> Result<ViewResponse, SubmissionError> {
+        self.client()?
+            .view(ViewRequest {
+                contract: Hex0x(self.contract),
+                entrypoint: HexBytes(self.entrypoint_id(method).into_inner().to_vec()),
+                calldata: HexBytes(calldata),
+                caller: Some(Hex0x(self.wallet)),
+            })
+            .await
+            .map_err(|e| rpc_error("view", e, None))
+    }
+
+    /// Read the current committed block height and hash.
+    pub async fn chain_tip(&self) -> Result<ChainTip, SubmissionError> {
+        self.client()?
+            .chain_tip()
+            .await
+            .map_err(|e| rpc_error("chainTip", e, None))
+    }
+
+    /// Query committed contract events through the live RPC indexer.
+    pub async fn events(&self, query: EventQuery) -> Result<EventPage, SubmissionError> {
+        self.client()?
+            .get_events(query)
+            .await
+            .map_err(|e| rpc_error("getEvents", e, None))
+    }
+
+    /// Read one committed block when the selected backend implements historical lookup.
+    pub async fn block(
+        &self,
+        height: groundhog_json_rpc_types::BlockHeight,
+    ) -> Result<Option<BlockInfo>, SubmissionError> {
+        self.client()?
+            .get_block_by_number(height)
+            .await
+            .map_err(|e| rpc_error("getBlockByNumber", e, None))
     }
 
     /// Sign and submit a call to `method` with the given calldata, wait for the
@@ -343,12 +407,6 @@ impl Harness {
         }
     }
 
-    fn client(&self) -> Result<HttpClient, SubmissionError> {
-        HttpClientBuilder::default()
-            .build(&self.rpc_url)
-            .map_err(|e| SubmissionError::BuildClient(e.to_string()))
-    }
-
     /// Derive the 8-byte entrypoint ID for one of the contract's methods.
     fn entrypoint_id(&self, method: &str) -> ContractEntrypointID {
         let sig = NormalizedMethodSignature::new(method);
@@ -417,11 +475,16 @@ fn unresolved_outcome(
 
 fn rpc_error(
     operation: &'static str,
-    error: impl std::fmt::Display,
+    error: jsonrpsee_core::client::Error,
     tx_hash: Option<TxHash>,
 ) -> SubmissionError {
+    let code = match &error {
+        jsonrpsee_core::client::Error::Call(error) => Some(error.code()),
+        _ => None,
+    };
     SubmissionError::Rpc {
         operation,
+        code,
         message: error.to_string(),
         tx_hash,
     }
@@ -443,6 +506,20 @@ where
         .as_ref()
         .expect("expected a return value");
     xdrs::cxs::decode(data.0.as_slice()).expect("decode return value")
+}
+
+/// Decode a successful view response's return value as `T`.
+pub fn decode_view_return<T>(response: &ViewResponse) -> T
+where
+    T: for<'a> xdrs::ReadXDR<'a>,
+{
+    let RootInvocationOutput::Return { return_data } = &response.output else {
+        panic!(
+            "expected a successful view return, got {:?}",
+            response.output
+        );
+    };
+    xdrs::cxs::decode(return_data.0.as_slice()).expect("decode view return value")
 }
 
 /// Resolve the dev-wallet `do_action` entrypoint, preferring the value the
