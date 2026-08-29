@@ -1,7 +1,12 @@
 //! Pure, deterministic snapshot derivation for the 100-million-cell Life world.
 
 mod schema;
+pub mod service;
 mod snapshot;
+pub mod source;
+pub mod state;
+pub mod storage;
+pub mod web;
 
 pub use schema::{
     EventKind, EvidenceKind, IndexerState, LatestPointer, LifeManifest, LifeProvenance, LifeStatus,
