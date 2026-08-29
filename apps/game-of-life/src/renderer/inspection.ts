@@ -14,6 +14,8 @@ export type Inspection =
       readonly generation: string;
       readonly x: number;
       readonly y: number;
+      readonly width: number;
+      readonly height: number;
       readonly live: number;
       readonly covered: number;
     }
@@ -47,15 +49,16 @@ export function inspect(
   const scale = cellsPerTexel(z);
   const originX = mapped.tile.x * TILE_SIZE * scale + mapped.texelX * scale;
   const originY = mapped.tile.y * TILE_SIZE * scale + mapped.texelY * scale;
-  const covered =
-    Math.max(0, Math.min(scale, WORLD_SIZE - originX)) *
-    Math.max(0, Math.min(scale, WORLD_SIZE - originY));
+  const width = Math.max(0, Math.min(scale, WORLD_SIZE - originX));
+  const height = Math.max(0, Math.min(scale, WORLD_SIZE - originY));
   return {
     kind: "density",
     generation,
-    x: Math.floor(x),
-    y: Math.floor(y),
+    x: originX,
+    y: originY,
+    width,
+    height,
     live: tile.values[mapped.texelY * TILE_SIZE + mapped.texelX] ?? 0,
-    covered,
+    covered: width * height,
   };
 }

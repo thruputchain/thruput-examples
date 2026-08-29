@@ -260,17 +260,22 @@ test("decodes density and exact cells for retained CPU inspection", async ({
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await expect(page.getByText(/cells live$/)).toBeVisible();
-  for (let count = 0; count < 12; count += 1)
-    await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect(page.getByText(/alive · \d+\.\d%$/)).toBeVisible();
+  const zoomIn = page.getByRole("button", { name: "Zoom in" });
+  for (let count = 0; count < 24 && (await zoomIn.isEnabled()); count += 1)
+    await zoomIn.click();
   await expect
     .poll(() => new URL(page.url()).searchParams.get("z"))
-    .toBe("0.000");
+    .toBe("4.000");
+  await expect(zoomIn).toBeDisabled();
+  await expect(page.getByText("Exact cells · 16 px per cell")).toBeVisible();
+  await expect(page.getByText("5 cells", { exact: true })).toBeVisible();
   await page.mouse.move(
     box!.x + box!.width / 2 + 1,
     box!.y + box!.height / 2 + 1,
   );
   await expect(page.getByText(/exact cell.*· (live|dead)$/)).toBeVisible();
+  await expect(page.getByTestId("cell-highlight")).toBeVisible();
 });
 
 test("supports tab focus and keyboard center inspection", async ({ page }) => {
@@ -295,7 +300,9 @@ test("supports tab focus and keyboard center inspection", async ({ page }) => {
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await expect(page.getByText(/Generation 0 · aggregate at x/)).toBeVisible();
+  await expect(
+    page.getByText(/Generation 0 · \d+ × \d+ region · x/),
+  ).toBeVisible();
   const liveRegion = page.locator("main > p[aria-live]");
   const pointerAnnouncement = await liveRegion.textContent();
   expect(pointerAnnouncement).toMatch(/Ready/);
@@ -303,9 +310,11 @@ test("supports tab focus and keyboard center inspection", async ({ page }) => {
   await expect
     .poll(async () => {
       await page.keyboard.press("Enter");
-      return page.getByText(/Generation 0 · aggregate at x/).textContent();
+      return page
+        .getByText(/Generation 0 · \d+ × \d+ region · x/)
+        .textContent();
     })
-    .toMatch(/aggregate at x/);
+    .toMatch(/region · x \d+/);
   await expect(liveRegion).not.toHaveText(pointerAnnouncement!);
   await expect(
     page.getByRole("group", { name: "World controls" }),
@@ -378,7 +387,7 @@ test("renders deterministic pixels and rebuilds after real context loss", async 
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  const inspection = page.getByText(/Generation 0 · aggregate at x/);
+  const inspection = page.getByText(/Generation 0 · \d+ × \d+ region · x/);
   await expect(inspection).toBeVisible();
   const beforeInspection = await inspection.textContent();
   const before = await screenshotHash(canvas);
@@ -418,7 +427,9 @@ test("renders deterministic pixels and rebuilds after real context loss", async 
     box!.y + box!.height / 2 + 18,
   );
   await expect
-    .poll(() => page.getByText(/Generation 0 · aggregate at x/).textContent())
+    .poll(() =>
+      page.getByText(/Generation 0 · \d+ × \d+ region · x/).textContent(),
+    )
     .not.toBe(beforeInspection);
   await expect
     .poll(async () => (await screenshotHash(canvas)).hash)
@@ -562,8 +573,15 @@ test("preserves controls and world context at 320 CSS pixels", async ({
     page.getByText("Ready · generation 0").locator(".."),
     page.getByText("Move over a loaded tile to inspect").locator(".."),
     page.getByLabel("World controls"),
+    page.getByLabel("World scale and rendering mode"),
     activity.locator(".."),
   ]);
+  const scale = await page
+    .getByLabel("World scale and rendering mode")
+    .boundingBox();
+  expect(scale).not.toBeNull();
+  expect(scale!.x).toBeGreaterThanOrEqual(11);
+  expect(scale!.x + scale!.width).toBeLessThanOrEqual(303);
   for (const name of ["Zoom out", "Zoom in", "Fit world", "Reset north-up"])
     await page.getByRole("button", { name }).click();
   await activity.click();
@@ -642,6 +660,10 @@ test("keeps the old digest visible until newer viewport coverage is ready", asyn
   const background = await worldBackgroundHash(canvas);
   await expect.poll(() => worldPixelsHash(canvas)).not.toBe(background);
   const oldPixels = await worldPixelsHash(canvas);
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await expect(page.getByText(/Generation 0 · exact cell x/)).toBeVisible();
   const world = page.getByRole("region", {
     name: "Interactive Game of Life world",
   });
@@ -667,6 +689,7 @@ test("keeps the old digest visible until newer viewport coverage is ready", asyn
     timeout: 10_000,
   });
   await expect(page.getByText("Visualized generation 1.")).toBeAttached();
+  await expect(page.getByText(/Generation 1 · exact cell x/)).toBeVisible();
   await expect.poll(() => worldPixelsHash(canvas)).not.toBe(oldPixels);
   await world.focus();
   await page.keyboard.press("Enter");
@@ -700,6 +723,25 @@ test("invalidates metadata-observation candidate when chain advances while stagi
   await page.waitForTimeout(500);
   await expect(page.getByText(/Ready · generation 1/)).toHaveCount(0);
   await expect(page.locator("aside").getByText("Generation 0")).toBeVisible();
+});
+
+test("publishes a candidate tile level selected across a hysteresis boundary", async ({
+  page,
+}) => {
+  await page.request.get("/__life-fixture?chain=1&published=0");
+  await page.goto("/?x=5000&y=5000&z=-3");
+  await expect(page.getByText("Displaying older generation 0")).toBeVisible();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect(
+    page.getByText("Density · 8 × 8 cells per sample"),
+  ).toBeVisible();
+  await page.request.get("/__life-fixture?published=1");
+  await expect(page.getByText("Ready · generation 1")).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(
+    page.getByText("Density · 4 × 4 cells per sample"),
+  ).toBeVisible();
 });
 
 test("stale status degrades health without invalidating static artifacts", async ({
@@ -833,7 +875,14 @@ test("keeps the world and required controls usable in mobile landscape", async (
     page.locator("header"),
     dialog,
     dialog.getByRole("button", { name: "Close sheet" }),
+    page.getByLabel("World scale and rendering mode"),
   ]);
+  const scale = await page
+    .getByLabel("World scale and rendering mode")
+    .boundingBox();
+  expect(scale).not.toBeNull();
+  expect(scale!.x).toBeGreaterThanOrEqual(7);
+  expect(scale!.x + scale!.width).toBeLessThanOrEqual(619);
   const landscapeClose = await dialog
     .getByRole("button", { name: "Close sheet" })
     .boundingBox();
@@ -933,7 +982,9 @@ test("survives repeated renderer mounts and cache stress", async ({ page }) => {
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
     await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-    await expect(page.getByText(/Generation 0 · aggregate at x/)).toBeVisible();
+    await expect(
+      page.getByText(/Generation 0 · \d+ × \d+ region · x/),
+    ).toBeVisible();
     await page.goto("about:blank");
   }
 });
@@ -953,7 +1004,9 @@ test("distinguishes a missing tile without discarding the renderer", async ({
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await expect(page.getByText(/Generation 0 · aggregate at x/)).toBeVisible();
+  await expect(
+    page.getByText(/Generation 0 · \d+ × \d+ region · x/),
+  ).toBeVisible();
   const normal = await screenshotHash(canvas);
   const centerTile = await page.evaluate(() => {
     const resources = performance

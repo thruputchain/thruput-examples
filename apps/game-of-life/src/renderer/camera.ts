@@ -6,7 +6,7 @@ export interface Camera {
   readonly zoom: number;
 }
 export const MIN_CAMERA_ZOOM = -6;
-export const MAX_CAMERA_ZOOM = 0;
+export const MAX_CAMERA_ZOOM = 4;
 export function clampCamera(
   camera: Camera,
   width: number,

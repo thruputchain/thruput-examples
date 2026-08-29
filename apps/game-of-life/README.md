@@ -104,6 +104,7 @@ Machine-readable results are written to ignored files in `benchmark-results/phas
 - Visible requests share seven slots and cancellable idle prefetch shares one; prefetched tiles are decoded into the shared digest-keyed CPU cache.
 - A 32 MiB shared decoded cache and two 16 MiB deck tile caches cap aggregate CPU ownership at 64 MiB. Live app-owned GPU allocations have a separate 64 MiB budget.
 - Density tiles are exact unsigned 16-bit little-endian counts. Exact tiles retain bit-packed LSB-first bytes for inspection and upload an integer cell texture.
+- The immutable pyramid ends at exact level six; the camera can overzoom those cells to 16 pixels square with nearest-neighbor sampling, an adaptive grid, and exact hover highlighting.
 - The browser requires immutable artifacts to match the configured world and either current chain metadata or valid retained event provenance. Metadata-observation provenance is current-only.
 - The configured indexer verifies the complete snapshot against the on-chain digest. Individual tile bytes do not carry proofs.
 - A temporary chain or indexer failure keeps the last verified snapshot visible. Regressions and same-generation digest conflicts never replace it.

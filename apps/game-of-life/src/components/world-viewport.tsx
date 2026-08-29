@@ -3,8 +3,17 @@ import { Focus, Minus, Plus, RotateCcw } from "lucide-react";
 import type { ImmutableSnapshot, IndexerClient } from "@/indexer/client";
 import type { RendererAvailability } from "@/synchronization";
 import { Button } from "@/components/ui/button";
-import type { Camera } from "@/renderer/camera";
+import {
+  MAX_CAMERA_ZOOM,
+  MIN_CAMERA_ZOOM,
+  type Camera,
+} from "@/renderer/camera";
 import type { Inspection } from "@/renderer/inspection";
+import {
+  cellScreenRect,
+  renderingMode,
+  scaleRuler,
+} from "@/renderer/viewport-presentation";
 import {
   WorldRenderer,
   type CandidateIdentity,
@@ -56,6 +65,7 @@ export function WorldViewport({
     onAvailability,
   };
   const [camera, setCamera] = useState(INITIAL_CAMERA);
+  const [level, setLevel] = useState(0);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [tileWarning, setTileWarning] = useState<string | null>(null);
@@ -84,6 +94,7 @@ export function WorldViewport({
         mountedSnapshot.current,
         {
           onCamera: setCamera,
+          onLevel: setLevel,
           onInspect: (value, announce) => {
             setInspection(value);
             if (announce && value)
@@ -123,6 +134,11 @@ export function WorldViewport({
   }, [candidate, candidateEpoch, client]);
 
   const controlsDisabled = fatalError !== null || contextLost;
+  const ruler = scaleRuler(camera.zoom);
+  const highlight =
+    inspection?.kind === "cell" && camera.zoom >= 2
+      ? cellScreenRect(camera, viewport, inspection.x, inspection.y)
+      : null;
 
   return (
     <section
@@ -142,6 +158,19 @@ export function WorldViewport({
         aria-label="Pan and zoom the 10,000 by 10,000 cell world"
         className="size-full touch-none"
       />
+      {highlight ? (
+        <span
+          aria-hidden="true"
+          data-testid="cell-highlight"
+          className="pointer-events-none absolute border border-primary bg-primary/15 shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--canvas)_75%,transparent),0_0_12px_color-mix(in_oklab,var(--primary)_45%,transparent)]"
+          style={{
+            left: highlight.left,
+            top: highlight.top,
+            width: highlight.size,
+            height: highlight.size,
+          }}
+        />
+      ) : null}
       <p id={canvasDescription} className="sr-only">
         Use the mouse wheel or plus and minus keys to zoom, drag or arrow keys
         to pan, zero to fit the world, and Enter to inspect the viewport center.
@@ -188,10 +217,13 @@ export function WorldViewport({
             </span>
           ) : (
             <span>
-              Generation {inspection.generation} · aggregate at x {inspection.x}
-              · y {inspection.y} ·{" "}
+              Generation {inspection.generation} · {inspection.width} ×{" "}
+              {inspection.height} region · x {inspection.x}–
+              {inspection.x + inspection.width - 1} · y {inspection.y}–
+              {inspection.y + inspection.height - 1} ·{" "}
               <strong>{inspection.live.toLocaleString()}</strong> /{" "}
-              {inspection.covered.toLocaleString()} cells live
+              {inspection.covered.toLocaleString()} alive ·{" "}
+              {formatPercentage(inspection.live, inspection.covered)}
             </span>
           )
         ) : (
@@ -212,7 +244,7 @@ export function WorldViewport({
             size="icon"
             className="size-12 sm:size-9 [@media(pointer:coarse)]:size-12"
             aria-label="Zoom out"
-            disabled={controlsDisabled}
+            disabled={controlsDisabled || camera.zoom <= MIN_CAMERA_ZOOM}
             onClick={() => renderer.current?.zoom(-0.5)}
           >
             <Minus />
@@ -222,7 +254,7 @@ export function WorldViewport({
             size="icon"
             className="size-12 sm:size-9 [@media(pointer:coarse)]:size-12"
             aria-label="Zoom in"
-            disabled={controlsDisabled}
+            disabled={controlsDisabled || camera.zoom >= MAX_CAMERA_ZOOM}
             onClick={() => renderer.current?.zoom(0.5)}
           >
             <Plus />
@@ -249,9 +281,24 @@ export function WorldViewport({
           </Button>
         </div>
       </div>
-      <div className="absolute bottom-[calc(var(--safe-bottom)+4.5rem)] left-[max(.75rem,var(--safe-left))] flex items-center gap-2 rounded-md border border-border bg-panel/95 px-3 py-2 font-mono text-sm backdrop-blur-md sm:bottom-[max(.75rem,var(--safe-bottom))]">
-        <span className="block h-px w-12 bg-primary" />{" "}
-        {scaleLabel(camera.zoom, 48)}
+      <div
+        aria-label="World scale and rendering mode"
+        className="absolute bottom-[calc(var(--safe-bottom)+4.5rem)] left-[max(.75rem,var(--safe-left))] w-fit rounded-md border border-border bg-panel/95 px-3 py-2 font-mono text-base backdrop-blur-md sm:bottom-[max(.75rem,var(--safe-bottom))] sm:text-sm"
+        style={{
+          maxWidth:
+            "calc(100% - max(.75rem, var(--safe-left)) - max(.75rem, var(--safe-right)))",
+        }}
+      >
+        <div className="text-muted-foreground">
+          {renderingMode(level, camera.zoom)}
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          <span
+            className="block h-px bg-primary"
+            style={{ width: ruler.pixels }}
+          />
+          <span>{ruler.label}</span>
+        </div>
       </div>
     </section>
   );
@@ -260,7 +307,7 @@ export function WorldViewport({
 function inspectionLabel(value: Inspection): string {
   return value.kind === "cell"
     ? `Generation ${value.generation}, cell ${value.x}, ${value.y} is ${value.alive ? "live" : "dead"}`
-    : `Generation ${value.generation}, ${value.live} of ${value.covered} sampled cells are live`;
+    : `Generation ${value.generation}, ${value.width} by ${value.height} region from ${value.x}, ${value.y}, ${value.live} of ${value.covered} cells are alive`;
 }
 
 function Minimap({
@@ -293,7 +340,6 @@ function Minimap({
     </div>
   );
 }
-function scaleLabel(zoom: number, pixels: number): string {
-  const cells = Math.max(1, Math.round(pixels / 2 ** zoom));
-  return `${cells.toLocaleString()} cells`;
+function formatPercentage(live: number, covered: number): string {
+  return `${((live / covered) * 100).toFixed(1)}%`;
 }

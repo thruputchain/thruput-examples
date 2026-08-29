@@ -36,6 +36,10 @@ describe("tile decoding and inspection", () => {
     tile.values[156 * 256 + 156] = 9;
     expect(inspect(tile, 9999, 9999, 0, "12")).toMatchObject({
       kind: "density",
+      x: 9984,
+      y: 9984,
+      width: 16,
+      height: 16,
       live: 9,
       covered: 256,
     });

@@ -16,6 +16,8 @@ import {
 import {
   clampCamera,
   fitCamera,
+  MAX_CAMERA_ZOOM,
+  MIN_CAMERA_ZOOM,
   parseCamera,
   serializeCamera,
   type Camera,
@@ -43,6 +45,7 @@ import { UnavailableTileLayer } from "./unavailable-tile-layer";
 
 export interface RendererCallbacks {
   onCamera(camera: Camera): void;
+  onLevel(level: number): void;
   onInspect(value: Inspection | null, announce: boolean): void;
   onError(message: string): void;
   onContext(lost: boolean): void;
@@ -84,6 +87,7 @@ export class WorldRenderer {
   private prefetchController: AbortController | null = null;
   private idleCallback = 0;
   private inspectTimer = 0;
+  private pointerPosition: readonly [number, number] | null = null;
   private cameraTimer = 0;
   private transitionFrame = 0;
   private transitionStarted = 0;
@@ -138,6 +142,7 @@ export class WorldRenderer {
     this.listen("pointermove", (event) => this.pointer(event as PointerEvent));
     this.listen("pointerleave", () => {
       clearTimeout(this.inspectTimer);
+      this.pointerPosition = null;
       callbacks.onInspect(null, false);
     });
     this.listen("webglcontextlost", (event) => this.contextLost(event), true);
@@ -191,7 +196,10 @@ export class WorldRenderer {
   zoom(delta: number): void {
     this.setCamera({
       ...this.camera,
-      zoom: Math.min(0, Math.max(-6, this.camera.zoom + delta)),
+      zoom: Math.min(
+        MAX_CAMERA_ZOOM,
+        Math.max(MIN_CAMERA_ZOOM, this.camera.zoom + delta),
+      ),
     });
   }
   fit(): void {
@@ -200,7 +208,11 @@ export class WorldRenderer {
     );
   }
   reset(): void {
-    this.setCamera({ x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, zoom: -6 });
+    this.setCamera({
+      x: WORLD_SIZE / 2,
+      y: WORLD_SIZE / 2,
+      zoom: MIN_CAMERA_ZOOM,
+    });
   }
   handleKey(event: KeyboardEvent): void {
     this.key(event);
@@ -346,7 +358,10 @@ export class WorldRenderer {
             this.callbacks.onError("Tile unavailable; showing diagonal hatch");
           queueMicrotask(() => {
             if (role === "candidate") this.evaluateCoverage();
-            else this.evaluateInitialCoverage();
+            else {
+              this.evaluateInitialCoverage();
+              if (this.pointerPosition) this.refreshInspection(false);
+            }
           });
           return data;
         }),
@@ -390,7 +405,8 @@ export class WorldRenderer {
       this.canvas.clientWidth,
       this.canvas.clientHeight,
     );
-    if (!sameCamera(this.camera, next)) this.resetInitialCoverage();
+    const changed = !sameCamera(this.camera, next);
+    if (changed) this.resetInitialCoverage();
     this.camera = next;
     this.deck?.setProps({
       viewState: {
@@ -398,6 +414,7 @@ export class WorldRenderer {
         zoom: this.camera.zoom,
       },
     });
+    if (changed) this.refreshInspection();
     this.publishCamera();
   }
   private viewChanged({
@@ -421,6 +438,7 @@ export class WorldRenderer {
     };
     this.deck?.setProps({ viewState: controlled });
     if (!sameCamera(previous, this.camera)) this.resetInitialCoverage();
+    if (!sameCamera(previous, this.camera)) this.refreshInspection();
     if (Object.values(interactionState).some(Boolean)) this.publishCamera();
     this.evaluateCoverage();
     this.evaluateInitialCoverage();
@@ -433,14 +451,20 @@ export class WorldRenderer {
     }, 120);
   }
   private pointer(event: PointerEvent): void {
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointerPosition = [
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+    ];
+    this.refreshInspection(false);
+  }
+  private refreshInspection(clear = true): void {
     clearTimeout(this.inspectTimer);
+    if (clear) this.callbacks.onInspect(null, false);
+    if (!this.pointerPosition) return;
     this.inspectTimer = window.setTimeout(() => {
-      const rect = this.canvas.getBoundingClientRect();
-      this.inspectScreen(
-        event.clientX - rect.left,
-        event.clientY - rect.top,
-        false,
-      );
+      if (this.pointerPosition)
+        this.inspectScreen(...this.pointerPosition, false);
     }, 80);
   }
   private key(event: KeyboardEvent): void {
@@ -489,11 +513,13 @@ export class WorldRenderer {
     );
   }
   private resized(): void {
-    this.camera = clampCamera(
+    const next = clampCamera(
       this.camera,
       this.canvas.clientWidth,
       this.canvas.clientHeight,
     );
+    const changed = !sameCamera(this.camera, next);
+    this.camera = next;
     this.deck?.setProps({
       width: this.canvas.clientWidth,
       height: this.canvas.clientHeight,
@@ -502,6 +528,11 @@ export class WorldRenderer {
         zoom: this.camera.zoom,
       },
     });
+    if (changed) {
+      this.callbacks.onCamera(this.camera);
+      this.refreshInspection();
+      this.publishCamera();
+    } else if (this.pointerPosition) this.refreshInspection();
   }
   private contextLost(event: Event): void {
     event.preventDefault();
@@ -559,7 +590,9 @@ export class WorldRenderer {
     if (selection.key === this.displayedSelection.key) return;
     loader.unpin(inspectionTiles(this.displayedSelection.tiles));
     this.displayedSelection = selection;
+    this.callbacks.onLevel(level);
     loader.pin(inspectionTiles(visible));
+    if (this.pointerPosition) this.refreshInspection(false);
     this.cancelPrefetch();
     this.schedulePrefetch(loader, visible);
     this.evaluateInitialCoverage();
@@ -707,6 +740,7 @@ export class WorldRenderer {
     this.displayed = this.candidate;
     this.displayedLoader = this.candidateLoader;
     this.displayedSelection = this.candidateSelection;
+    this.callbacks.onLevel(this.displayedSelection.level);
     this.displayedLoader.pin(inspectionTiles(this.displayedSelection.tiles));
     this.candidate = null;
     this.candidateEpoch = null;
@@ -721,6 +755,7 @@ export class WorldRenderer {
     previousLoader.purge();
     this.cancelPrefetch();
     this.schedulePrefetch(this.displayedLoader, this.displayedSelection.tiles);
+    this.refreshInspection();
     this.callbacks.onTransition("idle");
   }
 
@@ -785,6 +820,7 @@ export class WorldRenderer {
     this.initialIdentity = null;
     this.initialCoverageReadyFrame = null;
     this.initialCommitAfterFrame = null;
+    this.refreshInspection();
     this.callbacks.onTransition("idle");
   }
 
