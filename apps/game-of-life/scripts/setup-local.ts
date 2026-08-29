@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   bytesEqual,
@@ -106,9 +106,14 @@ async function main(): Promise<void> {
     "",
   ].join("\n");
   const destination = resolve(import.meta.dirname, "../.env.local");
-  const temporary = `${destination}.tmp`;
-  await writeFile(temporary, output, { encoding: "utf8", mode: 0o600 });
-  await rename(temporary, destination);
+  const temporary = `${destination}.${process.pid}.tmp`;
+  try {
+    await writeFile(temporary, output, { encoding: "utf8", mode: 0o600 });
+    await rename(temporary, destination);
+  } catch (cause) {
+    await rm(temporary, { force: true });
+    throw cause;
+  }
   process.stdout.write(
     `Wrote verified loopback configuration to ${destination}\n`,
   );

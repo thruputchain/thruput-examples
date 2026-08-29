@@ -8,6 +8,7 @@ React application for exploring synchronized immutable generations of the 10,000
 - Chromium at `/usr/bin/chromium`, or set `CHROMIUM_PATH`
 - A loopback Groundhog RPC endpoint and Phase 3 indexer
 - An initialized Game of Life contract and runtime manifest from the same node
+- For clean-ledger acceptance, `sqlite3`, a Groundhog CLI 0.10.1-compatible devnode, and its `built_contracts` directory
 
 ## Configuration
 
@@ -35,7 +36,7 @@ GAME_OF_LIFE_INDEXER_URL=http://127.0.0.1:8787 \
 npm run setup:local
 ```
 
-Setup validates the pinned local DevWallet artifact and entrypoint, derives each disposable signer from the runtime manifest, verifies its public key and wallet root, funds each persona for a full crank, and writes the ignored `.env.local` with mode `0600`. It then submits one request from each persona, verifies each emitted caller, processes the queue through Bob, and verifies an empty no-op. This caller check advances the disposable world by at least three generations; run it before starting the indexer. A failed check removes `.env.local` so writes cannot be enabled with an unverified caller.
+Setup validates the pinned local DevWallet artifact and entrypoint, derives each disposable signer from the runtime manifest, verifies its public key and wallet root, funds each persona for a full crank, and writes the ignored `.env.local` with mode `0600`. It serializes environment writers with an advisory lock, then submits one request from each persona, verifies each emitted caller, processes the queue through Bob, and verifies an empty no-op. This caller check advances the disposable world by at least three generations; run it before starting the indexer. A failed check restores any prior `.env.local` or removes the generated file so writes cannot remain enabled with an unverified caller.
 
 The generated transaction policies are the measured local profiles: request `100,000` outer/target gas with a 64-block expiry and 30-second observation window; crank `10,010,000,000` outer gas, `10,000,000,000` target gas, a two-block expiry, and a 300-second observation window.
 
@@ -51,11 +52,32 @@ npm run typecheck
 npm test
 npm run test:chromium
 RUN_GAME_OF_LIFE_LOCAL_INTEGRATION=1 npm run test:integration:local
+npm run test:e2e:local
 npm run build
 npm run verify
 ```
 
-The generated contract binding is committed so a fresh checkout can build without the Groundhog CLI. Regeneration first builds `game-of-life`, then replaces the binding from `target/groundhog/game_of_life.spec.xdr`. `check:contracts` generates into a temporary directory and compares without modifying the committed file. It uses `GROUNDHOG_CLI` when set, otherwise `groundhog` from `PATH`. `verify` runs the contract check, typecheck, unit tests, and production build; Chromium remains a separate command. Build, Playwright, coverage, and local environment outputs are ignored.
+The generated contract binding is committed so a fresh checkout can build without the Groundhog CLI. Regeneration first builds `game-of-life`, then replaces the binding from `target/groundhog/game_of_life.spec.xdr`. `check:contracts` generates into a temporary directory and compares without modifying the committed file. It uses `GROUNDHOG_CLI` when set, otherwise `groundhog` from `PATH`. `verify` runs the contract check, formatting check, typecheck, unit tests, and production build; Chromium and live acceptance remain separate commands. Build, Playwright, benchmark, coverage, and local environment outputs are ignored.
+
+## Clean-Ledger Acceptance
+
+Run the complete 100-million-cell demonstration with no node already active:
+
+```bash
+GROUNDHOG_CLI=/path/to/groundhog \
+GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
+GROUNDHOG_CONTRACT_ARTIFACTS_DIR=/path/to/built_contracts \
+GROUNDHOG_E2E_HOGD_PROTOCOL=hogp/<compatible-protocol> \
+npm run test:e2e:local
+```
+
+The command starts an ephemeral three-account node, builds and deploys the contract, prefunds its deterministic address, initializes all 100 million cells, verifies Alice, Bob, and Carol, starts the indexer and app, advances one generation through Chromium, waits for verified publication and renderer ownership, reloads durable transaction state, restarts the indexer, and tears down every process. It restores any pre-existing `.env.local` and project Groundhog configuration. No ledger, private key, SQLite database, tile tree, or machine-specific address survives in tracked files.
+
+Machine-readable results are written to ignored files in `benchmark-results/phase-7-*`. The live browser run records whether p95 interaction frames remain below 16.7 ms for its desktop viewport and 33.3 ms for its mobile viewport. Both run under Chromium with SwiftShader on the same host; they prove browser correctness and repeatable software profiling, not physical mobile GPU performance. The committed reference run missed the strict desktop budget before rounding and therefore does not complete the physical-device performance gate.
+
+## Dependency Review
+
+`npm audit --omit=dev` currently reports eight high-severity entries in the `@deck.gl/geo-layers` dependency chain. They lead to denial-of-service advisories in `image-size` through glTF and texture-compression modules. This application imports `TileLayer` but does not load glTF, 3D Tiles, compressed textures, or user-supplied images, and those parsers are absent from the production browser bundle. npm's proposed remediation downgrades deck.gl from 9.3.10 to 8.9.36, which conflicts with the verified renderer stack. Keep the pinned version until the deck.gl chain publishes a compatible fix, and reassess before any non-local deployment or expansion of accepted artifact formats.
 
 ## Boundaries
 

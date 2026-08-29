@@ -10,13 +10,15 @@
     "build": "vite build",
     "check:contracts": "bash scripts/check-contract-bindings.sh",
     "dev": "vite",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\" \"benchmarks/*.json\" \"*.{ts,json}\"",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "setup:local": "bash scripts/setup-local.sh",
     "test": "vitest run",
     "test:chromium": "playwright test",
+    "test:e2e:local": "bash scripts/test-clean-ledger.sh",
     "test:integration:local": "vitest run --mode local-integration src/integration/*.local.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "verify": "npm run check:contracts && npm run typecheck && npm test && npm run build"
+    "verify": "npm run check:contracts && npm run format:check && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@deck.gl/core": "9.3.10",

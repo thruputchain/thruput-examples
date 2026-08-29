@@ -78,7 +78,6 @@ export function createLifeReadAdapter(params: {
       const result = await GameOfLife.getMetadata.view({
         client: params.client,
         contract,
-        caller: contract,
       });
       const value = result.value;
       if (

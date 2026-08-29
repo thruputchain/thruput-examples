@@ -130,6 +130,7 @@ impl<S: ChainSource> IndexerService<S> {
     }
 
     pub async fn cycle(&mut self) -> Result<(), ServiceError> {
+        let cycle_started = std::time::Instant::now();
         let latest = self.reconcile_publication().await?;
         if self.pending.is_none() {
             let observed = self.source.metadata().await?;
@@ -156,7 +157,13 @@ impl<S: ChainSource> IndexerService<S> {
                 ProgressUnit::Chunks,
             )
             .await;
+            let download_started = std::time::Instant::now();
             let download = self.source.download().await?;
+            eprintln!(
+                "game_of_life_indexer_metric stage=download generation={} elapsed_ms={}",
+                observed.generation,
+                download_started.elapsed().as_millis()
+            );
             if download.metadata != observed {
                 return Err(SourceError::Mixed(
                     "poll observation changed before quiet-window acquisition".into(),
@@ -193,6 +200,7 @@ impl<S: ChainSource> IndexerService<S> {
         let download = self.pending.take().ok_or_else(|| {
             SourceError::Mixed("pending download disappeared before verification".into())
         })?;
+        let build_started = std::time::Instant::now();
         let snapshot = build_snapshot(
             &download.metadata,
             self.config.network_id.clone(),
@@ -200,6 +208,16 @@ impl<S: ChainSource> IndexerService<S> {
             download.chunks,
             provenance.clone(),
         )?;
+        let generated_bytes = snapshot
+            .artifacts
+            .iter()
+            .map(|artifact| artifact.bytes.len() as u64)
+            .sum::<u64>();
+        eprintln!(
+            "game_of_life_indexer_metric stage=build generation={} elapsed_ms={} generated_bytes={generated_bytes}",
+            metadata.generation,
+            build_started.elapsed().as_millis()
+        );
         let artifact_count =
             u32::try_from(snapshot.artifacts.len()).map_err(|_| crate::Error::Schema {
                 field: "artifacts",
@@ -209,6 +227,7 @@ impl<S: ChainSource> IndexerService<S> {
             .await;
         let provenance = self.state.persist_evidence(&provenance)?;
         self.fail_if(FailurePoint::BeforeArtifacts)?;
+        let publication_started = std::time::Instant::now();
         self.publisher.publish_snapshot(
             &self.config.network_id,
             &self.config.contract_address,
@@ -235,6 +254,12 @@ impl<S: ChainSource> IndexerService<S> {
         )?;
         self.fail_if(FailurePoint::AfterPromotion)?;
         self.reconcile_publication().await?;
+        eprintln!(
+            "game_of_life_indexer_metric stage=publication generation={} elapsed_ms={} total_ms={}",
+            metadata.generation,
+            publication_started.elapsed().as_millis(),
+            cycle_started.elapsed().as_millis()
+        );
         self.cleanup()?;
         let mut status = self.status.write().await;
         status.state = IndexerState::Idle;

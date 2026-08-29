@@ -505,7 +505,7 @@ function MobileSheets({
               Independent chain, indexer preparation, and visualization state.
             </SheetDescription>
           </SheetHeader>
-          <div className="overflow-y-auto">
+          <div className="min-h-0 overflow-y-auto">
             <ActivityContent
               state={state}
               rendererAvailability={rendererAvailability}
@@ -531,7 +531,7 @@ function MobileSheets({
               Snapshot identity, scope, and verification boundary.
             </SheetDescription>
           </SheetHeader>
-          <div className="overflow-y-auto">
+          <div className="min-h-0 overflow-y-auto">
             <DetailsContent state={state} config={config} />
           </div>
         </SheetContent>

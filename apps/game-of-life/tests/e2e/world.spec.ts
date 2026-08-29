@@ -606,6 +606,30 @@ test("preserves controls and world context at 320 CSS pixels", async ({
   ).toBeVisible();
 });
 
+test("keeps world controls and details usable on a tablet", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto("/");
+  await expect(page.getByText("Ready · generation 0")).toBeVisible();
+  await expect(page.getByLabel("World controls")).toBeVisible();
+  await expect(page.getByLabel("World minimap")).toBeVisible();
+  await page.getByRole("button", { name: "Open world details" }).click();
+  const dialog = page.getByRole("dialog", { name: "World details" });
+  await expect(dialog).toBeVisible();
+  await expect
+    .poll(async () => {
+      const current = await dialog.boundingBox();
+      return current ? current.y + current.height : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(1024);
+  const box = await dialog.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(768);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(1024);
+});
+
 test("keeps the old digest visible until newer viewport coverage is ready", async ({
   page,
 }) => {
@@ -715,6 +739,25 @@ test("latest endpoint failure retains an owned immutable snapshot", async ({
   );
   await expect(page.getByText(/Indexer request failed/).first()).toBeVisible();
   await expect(page.getByText("Ready · generation 0")).toBeVisible();
+});
+
+test("RPC loss retains the last verified chain and visualization", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText("Ready · generation 0")).toBeVisible();
+  await page.route("**/groundhog-rpc", (route) => route.abort("failed"));
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event("visibilitychange")),
+  );
+  await expect(page.getByText(/failed to fetch/i).first()).toBeVisible();
+  await expect(page.getByText("Ready · generation 0")).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Activity", exact: true })
+      .getByText("Generation 0", { exact: true })
+      .first(),
+  ).toBeVisible();
 });
 
 test("a malformed status remains distinct from endpoint unavailability", async ({
