@@ -41,16 +41,16 @@ impl SwapHandler for Handler {
         self.pair.initialize(factory, token0, token1, lp_token);
     }
 
-    fn liquidity_token(&self) -> ContractAddress {
-        self.pair.liquidity_token()
-    }
+    fn pool_state(&self) -> PoolState {
+        let (reserve0, reserve1, block_timestamp) = self.pair.get_reserves();
 
-    fn get_reserves(&self) -> (u128, u128, u32) {
-        self.pair.get_reserves()
-    }
-
-    fn get_liquidity(&self) -> Amount {
-        self.pair.get_liquidity()
+        PoolState {
+            reserves: [reserve0, reserve1],
+            block_timestamp,
+            liquidity: self.pair.get_liquidity(),
+            liquidity_token: self.pair.liquidity_token(),
+            cumulative_prices: self.pair.get_cumulative_prices(),
+        }
     }
 
     fn skim(&mut self, to: &Address) {

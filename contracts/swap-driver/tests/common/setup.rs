@@ -255,7 +255,7 @@ fn handler_deploy_init(
         driver_addr,
     );
 
-    (handler_addr, handler.liquidity_token())
+    (handler_addr, handler.pool_state().liquidity_token)
 }
 
 // Deploy and init a driver contract, pointed at the request handler.

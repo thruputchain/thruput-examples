@@ -77,13 +77,7 @@ impl Pair {
 
     /// The cumulative prices, as UQ112x112 fixed-point values, for use as a
     /// time-weighted-average-price oracle.
-    ///
-    /// Maintained on every reserve update, and readable by anything running
-    /// the pair's code -- but *not* exported by the handler, unlike the other
-    /// views.  Its `[U256; 2]` return costs more encoding than the handler has
-    /// room for: with the pair's code inside it, the handler sits within a few
-    /// hundred bytes of the guest artifact's code-size cap.  An on-chain oracle
-    /// reader would have to buy that room back somewhere else.
+
     pub fn get_cumulative_prices(&self) -> [U256; 2] {
         self.reserves.get().cumulative_prices
     }

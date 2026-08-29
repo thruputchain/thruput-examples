@@ -1,10 +1,31 @@
 //! The high-level swap-request handler interface.
 
 use crate::{
-    Address, Amount, BurnEvent, ERC20Error, MintEvent, SwapEvent, SwapPairError, SwapRequest,
-    SyncEvent,
+    Address, Amount, Amounts, BurnEvent, ERC20Error, MintEvent, SwapEvent, SwapPairError,
+    SwapRequest, SyncEvent, U256,
 };
 use sdk::*;
+
+/// Everything a pool will tell you about itself, in one call.
+///
+/// (Each exported method costs the contract a few hundred bytes of dispatch
+/// and codec, so grouping these saves on codesize.)
+#[contract_type]
+pub struct PoolState {
+    /// The last-recorded reserves, and when they were recorded.
+    pub reserves: Amounts,
+    pub block_timestamp: u32,
+
+    /// The total supply of LP tokens.
+    pub liquidity: Amount,
+
+    /// The LP token this pool mints and burns.
+    pub liquidity_token: Address,
+
+    /// The cumulative prices, as UQ112x112 fixed-point values, for use as a
+    /// time-weighted-average-price oracle.
+    pub cumulative_prices: [U256; 2],
+}
 
 /// Errors raised while handling a swap request (slippage limits exceeded).
 #[contract_exception]
@@ -19,8 +40,7 @@ pub enum SwapRequestError {
     /// which records the account that actually asked.
     ///
     /// (This lives here, rather than on a handler-specific error type, because
-    /// a distinct type costs several hundred bytes of encoding machinery and
-    /// the handler is close to the guest code-size cap.)
+    /// a distinct type costs several hundred bytes of encoding machinery.)
     Unauthorized = 100,
 
     InsufficientAmountA = 1,
@@ -85,17 +105,8 @@ pub trait SwapHandler {
     /// which records the account that actually asked.
     fn handle_request(&mut self, request: SwapRequest);
 
-    /// The LP token this pool mints and burns.
-    fn liquidity_token(&self) -> ContractAddress;
-
-    /// The last-recorded reserves, and when they were recorded.
-    fn get_reserves(&self) -> (u128, u128, u32);
-
-    /// The total supply of LP tokens.
-    fn get_liquidity(&self) -> Amount;
-
-    // The pair's cumulative-price oracle is deliberately not exported here;
-    // see `Pair::get_cumulative_prices` for why.
+    /// Everything this pool will report about itself.
+    fn pool_state(&self) -> PoolState;
 
     /// Send any balance in excess of the recorded reserves to `to`.
     ///

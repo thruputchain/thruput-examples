@@ -58,15 +58,20 @@ three contracts now (LP token, handler, driver) rather than four.
   Everywhere the app used the pair's address it wants the handler's, which it
   already has as `config.handlerAddress`.
 
-* **Reserves come from the handler.**
+* **Reserves come from the handler, in one call.**
   [`pair-adapter.ts`](apps/swap/src/contracts/pair-adapter.ts) and
   [`setup-local.ts`](apps/swap/scripts/setup-local.ts) call
-  `SwapPair.getReserves`; the same view is now `SwapHandler.getReserves`,
-  alongside `getLiquidity`, `liquidityToken`, `skim` and `sync`.  Not
-  `getCumulativePrices`: with the pair's code inside it the handler sits within
-  a few hundred bytes of the guest code-size cap, and that view's `[U256; 2]`
-  return was what had to give.  The pair still maintains the cumulative prices;
-  nothing reads them on-chain any more.  The generated `swap-pair.ts` should be deleted and a `swap-handler.ts`
+  `SwapPair.getReserves`.  The pair's four read-only views are now a single
+  `SwapHandler.poolState()`, returning a struct:
+
+  ```
+  PoolState { reserves, block_timestamp, liquidity, liquidity_token, cumulative_prices }
+  ```
+
+  So a caller that wanted reserves *and* supply -- as `setup-local.ts` does --
+  makes one view call rather than several.
+
+  The generated `swap-pair.ts` should be deleted and a `swap-handler.ts`
   generated in its place -- the handler had no views worth binding before, so
   there is no such file yet.
 

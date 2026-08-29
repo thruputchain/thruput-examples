@@ -179,8 +179,9 @@ fn create_pair_brings_up_pool() {
 
         // The pair adopted its LP token and is initialized (empty reserves).
         let pool_client = SwapHandlerClient::new(&pool.handler);
-        assert_eq!(pool_client.liquidity_token(), pool.liquidity_token);
-        let (r0, r1, _) = pool_client.get_reserves();
+        let state = pool_client.pool_state();
+        assert_eq!(state.liquidity_token, pool.liquidity_token);
+        let [r0, r1] = state.reserves;
         assert_eq!((r0, r1), (0, 0));
     })
     .unwrap();
@@ -211,12 +212,12 @@ fn fee_accrues_to_factory_fee_to() {
     assert_eq!(fee_before, 0, "the first liquidity event mints no fee");
 
     // Snapshot the reserves and supply the next liquidity event will see.
-    let (r0, r1, _) = exec_tx(&s.env, &DEPLOYER, || {
-        SwapHandlerClient::new(&pair).get_reserves()
+    let [r0, r1] = exec_tx(&s.env, &DEPLOYER, || {
+        SwapHandlerClient::new(&pair).pool_state().reserves
     })
     .unwrap();
     let supply = exec_tx(&s.env, &DEPLOYER, || {
-        SwapHandlerClient::new(&pair).get_liquidity()
+        SwapHandlerClient::new(&pair).pool_state().liquidity
     })
     .unwrap();
     // k at the previous liquidity event (the prime, with equal reserves).

@@ -62,7 +62,7 @@ impl Ctx {
     pub fn quote01(&self, amount0: Amount) -> Amount {
         assert!(amount0 > 0, "Insufficient amount");
 
-        let (r0, r1, _) = self.pair().get_reserves();
+        let [r0, r1] = self.pair().pool_state().reserves;
         assert!(r0 > 0 && r1 > 0, "Insufficient liquidity");
 
         let amount1 = (U256::from(amount0) * U256::from(r1)) / U256::from(r0);
