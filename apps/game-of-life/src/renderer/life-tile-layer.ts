@@ -17,6 +17,11 @@ interface Props extends LayerProps {
   bounds: TileBounds;
   content: LoadedTileData;
   gpuBudget: ActiveByteBudget;
+  resourceKey: string;
+  onResourceReady: (key: string) => void;
+  onResourceReleased: (key: string) => void;
+  onResourceError: (message: string) => void;
+  transitionOpacity: number;
 }
 interface Resources {
   readonly model: Model;
@@ -27,7 +32,9 @@ interface State {
   [key: string]: unknown;
   resources: Resources | undefined;
 }
-const defaultProps = {} as DefaultProps<Props>;
+const defaultProps = {
+  transitionOpacity: { type: "number", value: 1, min: 0, max: 1 },
+} as DefaultProps<Props>;
 const uniforms = {
   name: "life",
   fs: `uniform highp usampler2D integerTexture;
@@ -35,24 +42,34 @@ layout(std140) uniform lifeUniforms {
   vec2 tileOrigin;
   float cellsPerTexel;
   float exact;
+  float layerOpacity;
 } life;`,
-  uniformTypes: { tileOrigin: "vec2<f32>", cellsPerTexel: "f32", exact: "f32" },
+  uniformTypes: {
+    tileOrigin: "vec2<f32>",
+    cellsPerTexel: "f32",
+    exact: "f32",
+    layerOpacity: "f32",
+  },
 };
 const vertex = `#version 300 es
 in vec3 positions; in vec2 texCoords; out vec2 lifeUv;
 void main(void) { geometry.worldPosition = positions; geometry.uv = texCoords; geometry.pickingColor = vec3(1.,0.,0.); gl_Position = project_position_to_clipspace(positions, vec3(0.), vec3(0.), geometry.position); DECKGL_FILTER_GL_POSITION(gl_Position, geometry); lifeUv = texCoords; }`;
-const fragment = `#version 300 es
+export const LIFE_FRAGMENT_SHADER = `#version 300 es
 precision highp float; precision highp usampler2D; in vec2 lifeUv; out vec4 fragColor;
-void main(void) { ivec2 texel = clamp(ivec2(floor(lifeUv * 256.)), ivec2(0), ivec2(255)); vec2 cellMin = life.tileOrigin + vec2(texel) * life.cellsPerTexel; vec2 covered = max(min(vec2(10000.) - cellMin, vec2(life.cellsPerTexel)), vec2(0.)); if (covered.x * covered.y <= 0.) discard; float value = float(texelFetch(integerTexture, texel, 0).r); float density = life.exact > .5 ? value : value / (covered.x * covered.y); vec3 dead = vec3(.025,.055,.051); vec3 live = vec3(.40,1.,.75); vec3 color = mix(dead, live, pow(density, .42)); if (life.exact > .5 && min(fract(lifeUv.x*256.), fract(lifeUv.y*256.)) < .035) color *= .55; fragColor = vec4(color, 1.); DECKGL_FILTER_COLOR(fragColor, geometry); }`;
+void main(void) { ivec2 texel = clamp(ivec2(floor(lifeUv * 256.)), ivec2(0), ivec2(255)); vec2 cellMin = life.tileOrigin + vec2(texel) * life.cellsPerTexel; vec2 covered = max(min(vec2(10000.) - cellMin, vec2(life.cellsPerTexel)), vec2(0.)); if (covered.x * covered.y <= 0.) discard; float value = float(texelFetch(integerTexture, texel, 0).r); float density = life.exact > .5 ? value : value / (covered.x * covered.y); vec3 dead = vec3(.025,.055,.051); vec3 live = vec3(.40,1.,.75); vec3 color = mix(dead, live, pow(density, .42)); if (life.exact > .5 && min(fract(lifeUv.x*256.), fract(lifeUv.y*256.)) < .035) color *= .55; float alpha = clamp(life.layerOpacity, 0., 1.); fragColor = vec4(color, alpha); DECKGL_FILTER_COLOR(fragColor, geometry); }`;
 
 export class LifeTileTextureLayer extends Layer<Props> {
   declare state: State;
   static override layerName = "LifeTileTextureLayer";
   static override defaultProps = defaultProps;
+  override getModels(): Model[] {
+    const model = this.state?.resources?.model;
+    return model ? [model] : [];
+  }
   override getShaders() {
     return super.getShaders({
       vs: vertex,
-      fs: fragment,
+      fs: LIFE_FRAGMENT_SHADER,
       modules: [project32, picking, uniforms],
     });
   }
@@ -73,6 +90,7 @@ export class LifeTileTextureLayer extends Layer<Props> {
     this.destroyResources();
   }
   override draw(): void {
+    if (this.props.transitionOpacity <= 0) return;
     const { model, texture } = this.state.resources ?? {};
     if (!model || !texture) return;
     const { content } = this.props;
@@ -84,6 +102,7 @@ export class LifeTileTextureLayer extends Layer<Props> {
         tileOrigin: [content.index.x * span, content.index.y * span],
         cellsPerTexel: scale,
         exact: content.tile.kind === "cells" ? 1 : 0,
+        layerOpacity: this.props.transitionOpacity,
       },
     });
     model.draw(this.context.renderPass);
@@ -165,17 +184,21 @@ export class LifeTileTextureLayer extends Layer<Props> {
         }),
       });
       this.setState({ resources: { texture, model, release } });
+      this.props.onResourceReady(this.props.resourceKey);
     } catch (error) {
       model?.destroy();
       texture?.destroy();
       release();
-      throw error;
+      this.props.onResourceError(
+        error instanceof Error ? error.message : "GPU tile allocation failed",
+      );
     }
   }
   private destroyResources(): void {
     const resources = this.state.resources;
     if (!resources) return;
     this.state.resources = undefined;
+    this.props.onResourceReleased(this.props.resourceKey);
     resources.model.destroy();
     resources.texture.destroy();
     resources.release();

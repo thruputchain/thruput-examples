@@ -188,4 +188,81 @@ describe("artifact schemas", () => {
       }),
     ).toThrow(/scope/);
   });
+  test("accepts historical event evidence but not historical metadata evidence", () => {
+    const current = {
+      width: 10000,
+      height: 10000,
+      generation: "1",
+      seed: "7",
+      population: "2",
+      stateDigest: `0x${"dd".repeat(32)}`,
+    };
+    expect(() =>
+      assertSnapshotEligible(
+        parseManifest(manifest),
+        parseProvenance(provenance),
+        current,
+        { networkId: network, contractAddress: contract },
+      ),
+    ).not.toThrow();
+    const metadata = {
+      ...provenance,
+      evidenceKind: "metadata-observation",
+      transactionHash: null,
+      eventIndex: null,
+      eventKind: null,
+    };
+    expect(() =>
+      assertSnapshotEligible(
+        parseManifest(manifest),
+        parseProvenance(metadata),
+        current,
+        { networkId: network, contractAddress: contract },
+      ),
+    ).toThrow(/current chain state/);
+  });
+  test("rejects event-backed candidates ahead of accepted chain metadata", () => {
+    const advanced = parseProvenance({
+      ...provenance,
+      generation: "1",
+      evidenceKind: "generation-advanced-event",
+      eventKind: "GenerationAdvanced",
+      requestId: digest,
+      requester: contract,
+    });
+    const aheadManifest = parseManifest({ ...manifest, generation: "1" });
+    expect(() =>
+      assertSnapshotEligible(
+        aheadManifest,
+        advanced,
+        {
+          width: 10000,
+          height: 10000,
+          generation: "0",
+          seed: "7",
+          population: "1",
+          stateDigest: digest,
+        },
+        { networkId: network, contractAddress: contract },
+      ),
+    ).toThrow(/ahead/);
+  });
+
+  test("requires exact identity at the accepted current generation", () => {
+    expect(() =>
+      assertSnapshotEligible(
+        parseManifest(manifest),
+        parseProvenance(provenance),
+        {
+          width: 10000,
+          height: 10000,
+          generation: "0",
+          seed: "7",
+          population: "2",
+          stateDigest: digest,
+        },
+        { networkId: network, contractAddress: contract },
+      ),
+    ).toThrow(/population/);
+  });
 });

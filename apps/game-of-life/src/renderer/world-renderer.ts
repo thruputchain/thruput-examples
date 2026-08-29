@@ -9,8 +9,9 @@ import type { ImmutableSnapshot, IndexerClient } from "@/indexer/client";
 import { WORLD_SIZE } from "@/indexer/schema";
 import {
   ActiveByteBudget,
-  CPU_CACHE_BUDGET,
+  DECK_LAYER_CACHE_BUDGET,
   DEFAULT_GPU_BUDGET,
+  SHARED_CPU_CACHE_BUDGET,
 } from "./budget";
 import {
   clampCamera,
@@ -20,6 +21,7 @@ import {
   type Camera,
 } from "./camera";
 import { inspect, type Inspection } from "./inspection";
+import { hasRequiredCoverage } from "./coverage";
 import { clippedBounds, LifeTileTextureLayer } from "./life-tile-layer";
 import { LifeTileLayer, LifeTileset } from "./life-tileset";
 import {
@@ -31,34 +33,73 @@ import {
   type RefinementTile,
   type TileIndex,
 } from "./pyramid";
-import { TileLoader, type TileData } from "./tile-loader";
+import {
+  createTileResources,
+  TileLoader,
+  type TileData,
+  type TileResources,
+} from "./tile-loader";
 import { UnavailableTileLayer } from "./unavailable-tile-layer";
 
 export interface RendererCallbacks {
   onCamera(camera: Camera): void;
-  onInspect(value: Inspection | null): void;
+  onInspect(value: Inspection | null, announce: boolean): void;
   onError(message: string): void;
   onContext(lost: boolean): void;
+  onTransition(state: "staging" | "crossfading" | "idle"): void;
+  approveSnapshotCommit(
+    snapshot: ImmutableSnapshot,
+    identity: CandidateIdentity,
+  ): boolean;
 }
+export interface CandidateIdentity {
+  readonly epoch: number;
+  readonly digest: string;
+}
+interface Selection {
+  readonly level: number;
+  readonly tiles: readonly TileIndex[];
+  readonly key: string;
+}
+const EMPTY_SELECTION: Selection = { level: 0, tiles: [], key: "" };
+
 export class WorldRenderer {
-  readonly loader: TileLoader;
   readonly gpu = new ActiveByteBudget(DEFAULT_GPU_BUDGET);
+  private readonly resources: TileResources;
+  private displayed: ImmutableSnapshot;
+  private displayedLoader: TileLoader;
+  private candidate: ImmutableSnapshot | null = null;
+  private candidateEpoch: number | null = null;
+  private candidateLoader: TileLoader | null = null;
   private deck: Deck<OrthographicView> | null = null;
   private camera: Camera;
   private resize: ResizeObserver;
-  private selectedLevel = 0;
-  private selectionKey = "";
+  private readonly tabIndexObserver: MutationObserver;
+  private displayedSelection = EMPTY_SELECTION;
+  private candidateSelection = EMPTY_SELECTION;
+  private readonly renderReady = new Map<string, number>();
+  private renderFrame = 0;
+  private coverageReadyFrame: number | null = null;
+  private commitAfterFrame: number | null = null;
   private prefetchController: AbortController | null = null;
   private idleCallback = 0;
   private inspectTimer = 0;
   private cameraTimer = 0;
+  private transitionFrame = 0;
+  private transitionStarted = 0;
+  private candidateOpacity = 0;
+  private initialIdentity: CandidateIdentity | null;
+  private initialOpacity: 0 | 1;
+  private initialCoverageReadyFrame: number | null = null;
+  private initialCommitAfterFrame: number | null = null;
   private destroyed = false;
   private readonly listeners: Array<() => void> = [];
   constructor(
     private readonly canvas: HTMLCanvasElement,
     client: IndexerClient,
-    private readonly snapshot: ImmutableSnapshot,
+    snapshot: ImmutableSnapshot,
     private readonly callbacks: RendererCallbacks,
+    initialIdentity: CandidateIdentity | null = null,
   ) {
     const gl = canvas.getContext("webgl2", {
       antialias: false,
@@ -66,6 +107,18 @@ export class WorldRenderer {
     });
     if (!gl)
       throw new Error("WebGL2 is unavailable; metadata remains available.");
+    this.displayed = snapshot;
+    this.initialIdentity = initialIdentity;
+    this.initialOpacity = initialIdentity ? 0 : 1;
+    this.resources = createTileResources(SHARED_CPU_CACHE_BUDGET);
+    this.displayedLoader = new TileLoader(
+      client,
+      snapshot,
+      undefined,
+      (...args) => globalThis.fetch(...args),
+      SHARED_CPU_CACHE_BUDGET,
+      this.resources,
+    );
     this.camera =
       parseCamera(location.search) ??
       fitCamera(canvas.clientWidth || 800, canvas.clientHeight || 600);
@@ -74,30 +127,34 @@ export class WorldRenderer {
       canvas.clientWidth || 800,
       canvas.clientHeight || 600,
     );
-    this.loader = new TileLoader(
-      client,
-      snapshot,
-      undefined,
-      (...args) => globalThis.fetch(...args),
-      CPU_CACHE_BUDGET,
-    );
     this.resize = new ResizeObserver(() => this.resized());
+    this.tabIndexObserver = new MutationObserver(() => {
+      if (canvas.tabIndex !== -1) canvas.tabIndex = -1;
+    });
+    this.tabIndexObserver.observe(canvas, {
+      attributes: true,
+      attributeFilter: ["tabindex"],
+    });
     this.listen("pointermove", (event) => this.pointer(event as PointerEvent));
     this.listen("pointerleave", () => {
       clearTimeout(this.inspectTimer);
-      callbacks.onInspect(null);
+      callbacks.onInspect(null, false);
     });
     this.listen("webglcontextlost", (event) => this.contextLost(event), true);
     this.listen("webglcontextrestored", () => this.contextRestored(), true);
     this.listen("keydown", (event) => this.key(event as KeyboardEvent), true);
     try {
       this.createDeck();
+      this.canvas.tabIndex = -1;
       this.resize.observe(canvas);
       callbacks.onCamera(this.camera);
     } catch (cause) {
       this.resize.disconnect();
+      this.tabIndexObserver.disconnect();
       for (const remove of this.listeners.splice(0)) remove();
-      this.loader.close();
+      this.displayedLoader.close();
+      this.resources.pool.close();
+      this.resources.cache.clear();
       throw cause;
     }
   }
@@ -123,11 +180,12 @@ export class WorldRenderer {
         target: [this.camera.x, this.camera.y, 0],
         zoom: this.camera.zoom,
       },
-      layers: [this.layer()],
+      layers: this.layers(),
       onViewStateChange: (event) => {
         this.viewChanged(event);
       },
       onError: (error) => this.callbacks.onError(error.message),
+      onAfterRender: () => this.afterRender(),
     });
   }
   zoom(delta: number): void {
@@ -144,22 +202,134 @@ export class WorldRenderer {
   reset(): void {
     this.setCamera({ x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, zoom: -6 });
   }
+  handleKey(event: KeyboardEvent): void {
+    this.key(event);
+  }
+  stageSnapshot(
+    snapshot: ImmutableSnapshot,
+    client: IndexerClient,
+    epoch: number,
+  ): void {
+    if (this.destroyed) return;
+    const displayedGeneration = BigInt(this.displayed.manifest.generation);
+    const nextGeneration = BigInt(snapshot.manifest.generation);
+    if (nextGeneration < displayedGeneration) return;
+    if (nextGeneration === displayedGeneration) {
+      if (
+        snapshot.manifest.stateDigest !== this.displayed.manifest.stateDigest
+      ) {
+        this.cancelCandidate();
+        this.callbacks.onError(
+          "Indexer returned conflicting digests for the visualized generation",
+        );
+      }
+      return;
+    }
+    if (this.candidate) {
+      const candidateGeneration = BigInt(this.candidate.manifest.generation);
+      if (nextGeneration < candidateGeneration) return;
+      if (nextGeneration === candidateGeneration) {
+        if (
+          snapshot.manifest.stateDigest !== this.candidate.manifest.stateDigest
+        ) {
+          this.cancelCandidate();
+          this.callbacks.onError(
+            "Indexer returned conflicting digests for the candidate generation",
+          );
+        }
+        return;
+      }
+    }
+    this.cancelCandidate();
+    this.candidate = snapshot;
+    this.candidateEpoch = epoch;
+    this.candidateLoader = new TileLoader(
+      client,
+      snapshot,
+      undefined,
+      (...args) => globalThis.fetch(...args),
+      SHARED_CPU_CACHE_BUDGET,
+      this.resources,
+    );
+    this.candidateOpacity = 0;
+    this.candidateSelection = EMPTY_SELECTION;
+    this.coverageReadyFrame = null;
+    this.callbacks.onTransition("staging");
+    this.updateLayers();
+    this.evaluateCoverage();
+  }
+  cancelCandidate(expected?: CandidateIdentity): void {
+    if (!this.candidate || !this.candidateLoader) return;
+    if (
+      expected &&
+      (expected.epoch !== this.candidateEpoch ||
+        expected.digest !== this.candidate.manifest.stateDigest)
+    )
+      return;
+    const loader = this.candidateLoader;
+    const digest = this.candidate.manifest.stateDigest;
+    this.cancelTransition();
+    this.candidate = null;
+    this.candidateEpoch = null;
+    this.candidateLoader = null;
+    this.candidateSelection = EMPTY_SELECTION;
+    this.coverageReadyFrame = null;
+    this.commitAfterFrame = null;
+    this.candidateOpacity = 0;
+    this.updateLayers();
+    loader.close();
+    this.removeReadyDigest(digest);
+    loader.purge();
+    this.callbacks.onTransition("idle");
+  }
   destroy(): void {
     this.destroyed = true;
     clearTimeout(this.inspectTimer);
     clearTimeout(this.cameraTimer);
+    this.cancelTransition();
     this.cancelPrefetch();
     this.resize.disconnect();
+    this.tabIndexObserver.disconnect();
     for (const remove of this.listeners) remove();
     this.deck?.finalize();
     this.deck = null;
-    this.loader.close();
+    this.displayedLoader.unpin(inspectionTiles(this.displayedSelection.tiles));
+    this.displayedLoader.close();
+    this.candidateLoader?.close();
+    this.resources.pool.close();
+    this.resources.cache.clear();
   }
-  private layer(): LifeTileLayer<TileData> {
-    const digest = this.snapshot.manifest.stateDigest;
+  private layers(): LifeTileLayer<TileData>[] {
+    const layers = [
+      this.layer(
+        this.displayed,
+        this.displayedLoader,
+        "displayed",
+        this.initialOpacity,
+      ),
+    ];
+    if (this.candidate && this.candidateLoader)
+      layers.push(
+        this.layer(
+          this.candidate,
+          this.candidateLoader,
+          "candidate",
+          this.candidateOpacity,
+        ),
+      );
+    return layers;
+  }
+  private layer(
+    snapshot: ImmutableSnapshot,
+    loader: TileLoader,
+    role: "displayed" | "candidate",
+    opacity: number,
+  ): LifeTileLayer<TileData> {
+    const digest = snapshot.manifest.stateDigest;
     return new LifeTileLayer<TileData>({
       id: `life-${digest}`,
-      data: this.snapshot.manifestUrl.href,
+      data: snapshot.manifestUrl.href,
+      opacity,
       TilesetClass: LifeTileset,
       extent: [0, 0, WORLD_SIZE, WORLD_SIZE],
       tileSize: 16_384,
@@ -167,12 +337,17 @@ export class WorldRenderer {
       maxZoom: 6,
       zoomOffset: 6,
       maxRequests: 7,
-      maxCacheByteSize: CPU_CACHE_BUDGET,
-      onSelection: (level, visible) => this.selectionChanged(level, visible),
+      maxCacheByteSize: DECK_LAYER_CACHE_BUDGET,
+      onSelection: (level, visible) =>
+        this.selectionChanged(level, visible, loader, role),
       getTileData: ({ index, signal }) =>
-        this.loader.load(index, signal).then((data) => {
+        loader.load(index, signal).then((data) => {
           if (data.availability === "missing")
             this.callbacks.onError("Tile unavailable; showing diagonal hatch");
+          queueMicrotask(() => {
+            if (role === "candidate") this.evaluateCoverage();
+            else this.evaluateInitialCoverage();
+          });
           return data;
         }),
       refinementStrategy: (tiles) =>
@@ -186,24 +361,37 @@ export class WorldRenderer {
             id: `${props.id}-unavailable`,
             bounds,
             gpuBudget: this.gpu,
+            transitionOpacity: props.opacity ?? 1,
+            onResourceError: (message) => this.callbacks.onError(message),
             pickable: false,
           });
+        const resourceKey = `${digest}:${tileId(props.data.index)}`;
         return new LifeTileTextureLayer(props, {
           id: `${props.id}-texture`,
           bounds,
           content: props.data,
           gpuBudget: this.gpu,
+          transitionOpacity: props.opacity ?? 1,
+          resourceKey,
+          onResourceReady: (key) => this.resourceReady(key),
+          onResourceReleased: (key) => this.resourceReleased(key),
+          onResourceError: (message) => this.callbacks.onError(message),
           pickable: false,
         });
       },
     });
   }
+  private updateLayers(): void {
+    this.deck?.setProps({ layers: this.layers() });
+  }
   private setCamera(camera: Camera): void {
-    this.camera = clampCamera(
+    const next = clampCamera(
       camera,
       this.canvas.clientWidth,
       this.canvas.clientHeight,
     );
+    if (!sameCamera(this.camera, next)) this.resetInitialCoverage();
+    this.camera = next;
     this.deck?.setProps({
       viewState: {
         target: [this.camera.x, this.camera.y, 0],
@@ -216,6 +404,7 @@ export class WorldRenderer {
     viewState,
     interactionState,
   }: ViewStateChangeParameters) {
+    const previous = this.camera;
     const target = viewState.target ?? [this.camera.x, this.camera.y, 0];
     this.camera = clampCamera(
       {
@@ -231,7 +420,10 @@ export class WorldRenderer {
       zoom: this.camera.zoom,
     };
     this.deck?.setProps({ viewState: controlled });
+    if (!sameCamera(previous, this.camera)) this.resetInitialCoverage();
     if (Object.values(interactionState).some(Boolean)) this.publishCamera();
+    this.evaluateCoverage();
+    this.evaluateInitialCoverage();
   }
   private publishCamera(): void {
     clearTimeout(this.cameraTimer);
@@ -244,7 +436,11 @@ export class WorldRenderer {
     clearTimeout(this.inspectTimer);
     this.inspectTimer = window.setTimeout(() => {
       const rect = this.canvas.getBoundingClientRect();
-      this.inspectScreen(event.clientX - rect.left, event.clientY - rect.top);
+      this.inspectScreen(
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+        false,
+      );
     }, 80);
   }
   private key(event: KeyboardEvent): void {
@@ -263,6 +459,7 @@ export class WorldRenderer {
       this.inspectScreen(
         this.canvas.clientWidth / 2,
         this.canvas.clientHeight / 2,
+        true,
       );
     } else if (event.key.startsWith("Arrow")) {
       event.preventDefault();
@@ -310,6 +507,18 @@ export class WorldRenderer {
     event.preventDefault();
     this.callbacks.onContext(true);
     this.cancelPrefetch();
+    this.cancelTransition();
+    this.renderReady.clear();
+    this.coverageReadyFrame = null;
+    this.commitAfterFrame = null;
+    this.initialCoverageReadyFrame = null;
+    this.initialCommitAfterFrame = null;
+    if (this.initialIdentity) this.initialOpacity = 0;
+    if (this.candidate) {
+      this.candidateOpacity = 0;
+      this.callbacks.onTransition("staging");
+    }
+    if (this.initialIdentity) this.callbacks.onTransition("staging");
     const deck = this.deck;
     this.deck = null;
     deck?.finalize();
@@ -319,18 +528,46 @@ export class WorldRenderer {
     try {
       this.createDeck();
       this.callbacks.onContext(false);
+      this.evaluateCoverage();
+      this.evaluateInitialCoverage();
     } catch (cause) {
       this.callbacks.onError(
         cause instanceof Error ? cause.message : "Renderer restoration failed",
       );
     }
   }
-  private selectionChanged(level: number, visible: readonly TileIndex[]): void {
-    this.selectedLevel = level;
-    const key = `${level}:${visible.map(tileId).sort().join(",")}`;
-    if (key === this.selectionKey) return;
-    this.selectionKey = key;
+  private selectionChanged(
+    level: number,
+    visible: readonly TileIndex[],
+    loader: TileLoader,
+    role: "displayed" | "candidate",
+  ): void {
+    const selection = createSelection(level, visible);
+    if (role === "candidate") {
+      if (selection.key === this.candidateSelection.key) return;
+      this.candidateSelection = selection;
+      this.coverageReadyFrame = null;
+      if (
+        this.candidateOpacity > 0 ||
+        this.transitionFrame ||
+        this.commitAfterFrame
+      )
+        this.returnToStaging();
+      this.evaluateCoverage();
+      return;
+    }
+    if (selection.key === this.displayedSelection.key) return;
+    loader.unpin(inspectionTiles(this.displayedSelection.tiles));
+    this.displayedSelection = selection;
+    loader.pin(inspectionTiles(visible));
     this.cancelPrefetch();
+    this.schedulePrefetch(loader, visible);
+    this.evaluateInitialCoverage();
+  }
+  private schedulePrefetch(
+    loader: TileLoader,
+    visible: readonly TileIndex[],
+  ): void {
     const visibleIds = new Set(visible.map(tileId));
     const candidates = ring(visible).filter(
       (index) => !visibleIds.has(tileId(index)),
@@ -340,7 +577,7 @@ export class WorldRenderer {
     this.prefetchController = controller;
     this.idleCallback = requestIdle(() => {
       this.idleCallback = 0;
-      void this.loader
+      void loader
         .prefetch(candidates, controller.signal)
         .catch(() => undefined);
     });
@@ -352,21 +589,26 @@ export class WorldRenderer {
     this.prefetchController = null;
   }
   private cacheKey(index: TileIndex): string {
-    return `${this.snapshot.manifest.stateDigest}:${tileId(index)}`;
+    return `${this.displayed.manifest.stateDigest}:${tileId(index)}`;
   }
-  private inspectScreen(screenX: number, screenY: number): void {
+  private inspectScreen(
+    screenX: number,
+    screenY: number,
+    announce: boolean,
+  ): void {
+    if (this.initialIdentity) return this.callbacks.onInspect(null, false);
     const viewport = this.deck?.getViewports()[0];
     if (!(viewport instanceof OrthographicViewport)) return;
     const world = viewport.unproject([screenX, screenY]);
     const x = Math.floor(world[0]!);
     const y = Math.floor(world[1]!);
     if (x < 0 || x >= WORLD_SIZE || y < 0 || y >= WORLD_SIZE)
-      return this.callbacks.onInspect(null);
-    const mapped = worldToTile(x, y, this.selectedLevel);
-    let data = this.loader.cache.get(this.cacheKey(mapped.tile));
+      return this.callbacks.onInspect(null, false);
+    const mapped = worldToTile(x, y, this.displayedSelection.level);
+    let data = this.displayedLoader.cache.get(this.cacheKey(mapped.tile));
     if (!data) {
       const parent = parentIndex(mapped.tile);
-      if (parent) data = this.loader.cache.get(this.cacheKey(parent));
+      if (parent) data = this.displayedLoader.cache.get(this.cacheKey(parent));
     }
     this.callbacks.onInspect(
       data?.availability === "loaded"
@@ -375,11 +617,246 @@ export class WorldRenderer {
             x,
             y,
             data.index.z,
-            this.snapshot.manifest.generation,
+            this.displayed.manifest.generation,
           )
         : null,
+      announce,
     );
   }
+
+  private evaluateCoverage(): void {
+    if (!this.candidate || !this.candidateLoader || !this.deck) return;
+    const digest = this.candidate.manifest.stateDigest;
+    const covered = hasRequiredCoverage(
+      this.candidateSelection.tiles,
+      digest,
+      (key) => this.renderReady.has(key),
+    );
+    if (!covered) {
+      this.coverageReadyFrame = null;
+      if (
+        this.candidateOpacity > 0 ||
+        this.transitionFrame ||
+        this.commitAfterFrame
+      )
+        this.returnToStaging();
+      return;
+    }
+    if (this.coverageReadyFrame === null) {
+      this.coverageReadyFrame = this.renderFrame;
+      return;
+    }
+    if (
+      this.renderFrame > this.coverageReadyFrame &&
+      !this.transitionFrame &&
+      this.commitAfterFrame === null &&
+      this.candidateOpacity === 0
+    )
+      this.beginTransition();
+  }
+
+  private beginTransition(): void {
+    if (!this.candidate || !this.candidateLoader) return;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.callbacks.onTransition("crossfading");
+    if (reduced) {
+      this.candidateOpacity = 1;
+      this.updateLayers();
+      this.commitAfterFrame = this.renderFrame;
+      return;
+    }
+    this.transitionStarted = performance.now();
+    const animate = (now: number) => {
+      const progress = Math.min(1, (now - this.transitionStarted) / 240);
+      this.candidateOpacity = progress;
+      this.updateLayers();
+      if (progress < 1) this.transitionFrame = requestAnimationFrame(animate);
+      else {
+        this.transitionFrame = 0;
+        this.commitAfterFrame = this.renderFrame;
+      }
+    };
+    this.transitionFrame = requestAnimationFrame(animate);
+  }
+
+  private commitCandidate(): void {
+    if (
+      !this.candidate ||
+      !this.candidateLoader ||
+      this.candidateEpoch === null ||
+      !hasRequiredCoverage(
+        this.candidateSelection.tiles,
+        this.candidate.manifest.stateDigest,
+        (key) => this.renderReady.has(key),
+      )
+    ) {
+      this.returnToStaging();
+      return;
+    }
+    const previousLoader = this.displayedLoader;
+    const previousDigest = this.displayed.manifest.stateDigest;
+    const identity = {
+      epoch: this.candidateEpoch,
+      digest: this.candidate.manifest.stateDigest,
+    };
+    if (!this.callbacks.approveSnapshotCommit(this.candidate, identity)) {
+      this.returnToStaging();
+      return;
+    }
+    previousLoader.unpin(inspectionTiles(this.displayedSelection.tiles));
+    this.displayed = this.candidate;
+    this.displayedLoader = this.candidateLoader;
+    this.displayedSelection = this.candidateSelection;
+    this.displayedLoader.pin(inspectionTiles(this.displayedSelection.tiles));
+    this.candidate = null;
+    this.candidateEpoch = null;
+    this.candidateLoader = null;
+    this.candidateSelection = EMPTY_SELECTION;
+    this.coverageReadyFrame = null;
+    this.commitAfterFrame = null;
+    this.candidateOpacity = 0;
+    this.updateLayers();
+    previousLoader.close();
+    this.removeReadyDigest(previousDigest);
+    previousLoader.purge();
+    this.cancelPrefetch();
+    this.schedulePrefetch(this.displayedLoader, this.displayedSelection.tiles);
+    this.callbacks.onTransition("idle");
+  }
+
+  private evaluateInitialCoverage(): void {
+    if (!this.initialIdentity || !this.deck) return;
+    const covered = hasRequiredCoverage(
+      this.displayedSelection.tiles,
+      this.initialIdentity.digest,
+      (key) => this.renderReady.has(key),
+    );
+    if (!covered) {
+      this.initialCoverageReadyFrame = null;
+      this.initialCommitAfterFrame = null;
+      if (this.initialOpacity !== 0) {
+        this.initialOpacity = 0;
+        this.updateLayers();
+      }
+      return;
+    }
+    if (this.initialCoverageReadyFrame === null) {
+      this.initialCoverageReadyFrame = this.renderFrame;
+      return;
+    }
+    if (
+      this.renderFrame > this.initialCoverageReadyFrame &&
+      this.initialOpacity === 0 &&
+      this.initialCommitAfterFrame === null
+    ) {
+      this.initialOpacity = 1;
+      this.updateLayers();
+      this.initialCommitAfterFrame = this.renderFrame;
+    }
+  }
+
+  private resetInitialCoverage(): void {
+    if (!this.initialIdentity) return;
+    this.initialCoverageReadyFrame = null;
+    this.initialCommitAfterFrame = null;
+    if (this.initialOpacity !== 0) {
+      this.initialOpacity = 0;
+      this.updateLayers();
+    }
+    this.callbacks.onTransition("staging");
+  }
+
+  private commitInitial(): void {
+    const identity = this.initialIdentity;
+    if (
+      !identity ||
+      !hasRequiredCoverage(
+        this.displayedSelection.tiles,
+        identity.digest,
+        (key) => this.renderReady.has(key),
+      ) ||
+      !this.callbacks.approveSnapshotCommit(this.displayed, identity)
+    ) {
+      this.initialOpacity = 0;
+      this.initialCommitAfterFrame = null;
+      this.updateLayers();
+      return;
+    }
+    this.initialIdentity = null;
+    this.initialCoverageReadyFrame = null;
+    this.initialCommitAfterFrame = null;
+    this.callbacks.onTransition("idle");
+  }
+
+  private cancelTransition(): void {
+    if (this.transitionFrame) cancelAnimationFrame(this.transitionFrame);
+    this.transitionFrame = 0;
+    this.commitAfterFrame = null;
+  }
+  private returnToStaging(): void {
+    this.cancelTransition();
+    this.candidateOpacity = 0;
+    this.updateLayers();
+    if (this.candidate) this.callbacks.onTransition("staging");
+  }
+  private resourceReady(key: string): void {
+    this.renderReady.set(key, (this.renderReady.get(key) ?? 0) + 1);
+    this.evaluateCoverage();
+    this.evaluateInitialCoverage();
+  }
+  private resourceReleased(key: string): void {
+    const owners = this.renderReady.get(key) ?? 0;
+    if (owners <= 1) this.renderReady.delete(key);
+    else this.renderReady.set(key, owners - 1);
+    this.evaluateCoverage();
+    this.evaluateInitialCoverage();
+  }
+  private removeReadyDigest(digest: string): void {
+    for (const key of this.renderReady.keys())
+      if (key.startsWith(`${digest}:`)) this.renderReady.delete(key);
+  }
+  private afterRender(): void {
+    if (this.canvas.tabIndex !== -1) this.canvas.tabIndex = -1;
+    this.renderFrame += 1;
+    this.evaluateCoverage();
+    this.evaluateInitialCoverage();
+    if (
+      this.commitAfterFrame !== null &&
+      this.renderFrame > this.commitAfterFrame
+    )
+      this.commitCandidate();
+    if (
+      this.initialCommitAfterFrame !== null &&
+      this.renderFrame > this.initialCommitAfterFrame
+    )
+      this.commitInitial();
+  }
+}
+
+function createSelection(
+  level: number,
+  tiles: readonly TileIndex[],
+): Selection {
+  return {
+    level,
+    tiles: [...tiles],
+    key: `${level}:${tiles.map(tileId).sort().join(",")}`,
+  };
+}
+
+function sameCamera(left: Camera, right: Camera): boolean {
+  return left.x === right.x && left.y === right.y && left.zoom === right.zoom;
+}
+
+function inspectionTiles(tiles: readonly TileIndex[]): TileIndex[] {
+  return [
+    ...new Map(
+      tiles
+        .flatMap((index) => [index, parentIndex(index)])
+        .filter((index): index is TileIndex => index !== null)
+        .map((index) => [tileId(index), index]),
+    ).values(),
+  ];
 }
 
 function requestIdle(callback: () => void): number {

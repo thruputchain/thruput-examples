@@ -1,6 +1,10 @@
 import type { ImmutableSnapshot, IndexerClient } from "@/indexer/client";
 import { CELLS_CONTENT_TYPE, DENSITY_CONTENT_TYPE } from "@/indexer/schema";
-import { ByteBudget, DEFAULT_CPU_BUDGET } from "./budget";
+import {
+  ByteBudget,
+  DEFAULT_CPU_BUDGET,
+  SHARED_CPU_CACHE_BUDGET,
+} from "./budget";
 import type { DecodedTile } from "./inspection";
 import { tileId, type TileIndex } from "./pyramid";
 import { TileWorkerPool } from "./worker-pool";
@@ -19,6 +23,23 @@ export interface MissingTileData {
   readonly index: TileIndex;
 }
 export type TileData = LoadedTileData | MissingTileData;
+export interface TileResources {
+  readonly cache: ByteBudget<TileData>;
+  readonly requests: ConcurrencyGate;
+  readonly prefetchRequests: ConcurrencyGate;
+  readonly pool: TileWorkerPool;
+}
+
+export function createTileResources(
+  budget = SHARED_CPU_CACHE_BUDGET,
+): TileResources {
+  return {
+    cache: new ByteBudget(budget),
+    requests: new ConcurrencyGate(7),
+    prefetchRequests: new ConcurrencyGate(1),
+    pool: new TileWorkerPool(2),
+  };
+}
 interface InFlightTile {
   readonly controller: AbortController;
   promise: Promise<TileData>;
@@ -28,18 +49,26 @@ interface InFlightTile {
 export class TileLoader {
   readonly cache: ByteBudget<TileData>;
   private readonly inFlight = new Map<string, InFlightTile>();
-  private readonly requests = new ConcurrencyGate(7);
-  private readonly prefetchRequests = new ConcurrencyGate(1);
+  private readonly requests: ConcurrencyGate;
+  private readonly prefetchRequests: ConcurrencyGate;
+  private readonly pool: Pick<TileWorkerPool, "decode" | "close">;
+  private readonly ownsResources: boolean;
   private readonly lifetime = new AbortController();
   constructor(
     private readonly client: IndexerClient,
     private readonly snapshot: ImmutableSnapshot,
-    private readonly pool = new TileWorkerPool(2),
+    pool: Pick<TileWorkerPool, "decode" | "close"> | undefined = undefined,
     private readonly fetcher: typeof fetch = (...args) =>
       globalThis.fetch(...args),
     budget = DEFAULT_CPU_BUDGET,
+    resources?: TileResources,
   ) {
-    this.cache = new ByteBudget(budget);
+    this.ownsResources = resources === undefined;
+    this.pool = resources?.pool ?? pool ?? new TileWorkerPool(2);
+    this.cache = resources?.cache ?? new ByteBudget(budget);
+    this.requests = resources?.requests ?? new ConcurrencyGate(7);
+    this.prefetchRequests =
+      resources?.prefetchRequests ?? new ConcurrencyGate(1);
   }
   load(index: TileIndex, signal?: AbortSignal): Promise<TileData> {
     if (signal?.aborted) return Promise.reject(signal.reason);
@@ -80,8 +109,23 @@ export class TileLoader {
   }
   close(): void {
     this.lifetime.abort(new DOMException("Tile loader closed", "AbortError"));
-    this.pool.close();
-    this.cache.clear();
+    if (this.ownsResources) {
+      this.pool.close();
+      this.cache.clear();
+    }
+  }
+  pin(indices: readonly TileIndex[]): void {
+    for (const index of indices)
+      this.cache.pin(`${this.snapshot.manifest.stateDigest}:${tileId(index)}`);
+  }
+  unpin(indices: readonly TileIndex[]): void {
+    for (const index of indices)
+      this.cache.unpin(
+        `${this.snapshot.manifest.stateDigest}:${tileId(index)}`,
+      );
+  }
+  purge(): void {
+    this.cache.deletePrefix(`${this.snapshot.manifest.stateDigest}:`);
   }
   async prefetch(
     indices: readonly TileIndex[],

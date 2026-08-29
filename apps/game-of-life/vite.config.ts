@@ -405,80 +405,137 @@ function isLoopback(host: string): boolean {
 }
 
 function fixtureArtifacts(network: string, contract: string): Plugin {
-  const digest = `0x${"aa".repeat(32)}`;
+  const digests = [
+    `0x${"aa".repeat(32)}`,
+    `0x${"dd".repeat(32)}`,
+    `0x${"ee".repeat(32)}`,
+  ] as const;
   const block = `0x${"bb".repeat(32)}`;
   const transaction = `0x${"cc".repeat(32)}`;
   const base = `/v1/worlds/${network}/${contract}`;
-  const identity = {
+  const fixture = {
+    chainGeneration: 0,
+    publishedGeneration: 0,
+    status: "idle" as
+      "idle" | "preparing" | "error" | "unavailable" | "malformed",
+    stale: false,
+    tileDelay: 0,
+    holdCandidateTiles: false,
+    candidateTileHeld: false,
+    latestUnavailable: false,
+    candidateEvidence: "event" as "event" | "metadata",
+  };
+  let heldCandidateTiles: Array<() => void> = [];
+  const identity = (generation: number) => ({
     networkId: network,
     contractAddress: contract,
-    generation: "0",
+    generation: String(generation),
     seed: "7",
-    population: "32768",
-    stateDigest: digest,
-  };
-  const json = new Map<string, unknown>([
-    [
-      `${base}/latest.json`,
-      {
+    population: String(32768 + generation),
+    stateDigest: digests[generation]!,
+  });
+  const artifact = (pathname: string): unknown => {
+    const published = fixture.publishedGeneration;
+    const digest = digests[published]!;
+    if (pathname === `${base}/latest.json`) {
+      if (fixture.latestUnavailable) return undefined;
+      return {
         schemaVersion: 1,
-        generation: "0",
+        generation: String(published),
         stateDigest: digest,
         manifestUrl: `${base}/${digest}/manifest.json`,
-        sourceBlockHeight: "9",
+        sourceBlockHeight: String(9 + published),
         sourceBlockHash: block,
         publishedAt: "2026-08-28T01:02:03Z",
-      },
-    ],
-    [
-      `${base}/${digest}/manifest.json`,
-      {
+      };
+    }
+    if (pathname === `${base}/status.json`) {
+      if (fixture.status === "unavailable") return undefined;
+      if (fixture.status === "malformed") return { schemaVersion: 2 };
+      const preparing = fixture.status === "preparing" ? 1 : null;
+      return {
         schemaVersion: 1,
-        ...identity,
-        width: 10000,
-        height: 10000,
-        population: "32768",
-        tileSize: 256,
-        maxZoom: 6,
-        densityEncoding: "u16le-live-count",
-        cellEncoding: "row-major-lsb-first",
-        tilePathTemplate: "tiles/{z}/{x}/{y}.bin",
-        verification: {
-          canonicalDownloadVerified: true,
-          individualTileProofs: false,
-        },
-      },
-    ],
-    [
-      `${base}/${digest}/provenance.json`,
-      {
-        schemaVersion: 1,
-        ...identity,
-        sourceBlockHeight: "9",
-        sourceBlockHash: block,
-        evidenceKind: "world-initialized-event",
-        transactionHash: transaction,
-        eventIndex: 0,
-        eventKind: "WorldInitialized",
-        requestId: null,
-        requester: null,
-        verifiedAt: "2026-08-28T01:02:03Z",
-      },
-    ],
-    [
-      `${base}/status.json`,
-      {
-        schemaVersion: 1,
-        state: "idle",
-        observed: { generation: "0", stateDigest: digest },
-        preparing: null,
-        published: { generation: "0", stateDigest: digest },
-        retry: null,
-        errorCode: null,
-        heartbeatAt: "2026-08-28T01:02:03Z",
-      },
-    ],
-  ]);
+        state: fixture.status,
+        observed: { generation: "1", stateDigest: digests[1] },
+        preparing:
+          preparing === null
+            ? null
+            : {
+                generation: "1",
+                stateDigest: digests[1],
+                completedUnits: 7,
+                totalUnits: 12,
+                unit: "tiles",
+              },
+        published: { generation: String(published), stateDigest: digest },
+        retry:
+          fixture.status === "error"
+            ? { attempt: 2, nextAt: "2026-08-29T01:03:00Z" }
+            : null,
+        errorCode: fixture.status === "error" ? "BUILD_FAILED" : null,
+        heartbeatAt: fixture.stale
+          ? "2026-08-28T01:02:03Z"
+          : new Date().toISOString(),
+      };
+    }
+    for (const generation of [0, 1]) {
+      const value = identity(generation);
+      const root = `${base}/${value.stateDigest}`;
+      if (pathname === `${root}/manifest.json`)
+        return {
+          schemaVersion: 1,
+          ...value,
+          width: 10000,
+          height: 10000,
+          tileSize: 256,
+          maxZoom: 6,
+          densityEncoding: "u16le-live-count",
+          cellEncoding: "row-major-lsb-first",
+          tilePathTemplate: "tiles/{z}/{x}/{y}.bin",
+          verification: {
+            canonicalDownloadVerified: true,
+            individualTileProofs: false,
+          },
+        };
+      if (pathname === `${root}/provenance.json`)
+        return {
+          schemaVersion: 1,
+          ...value,
+          sourceBlockHeight: String(9 + generation),
+          sourceBlockHash: block,
+          evidenceKind:
+            generation === 1 && fixture.candidateEvidence === "metadata"
+              ? "metadata-observation"
+              : generation === 0
+                ? "world-initialized-event"
+                : "generation-advanced-event",
+          transactionHash:
+            generation === 1 && fixture.candidateEvidence === "metadata"
+              ? null
+              : transaction,
+          eventIndex:
+            generation === 1 && fixture.candidateEvidence === "metadata"
+              ? null
+              : generation,
+          eventKind:
+            generation === 1 && fixture.candidateEvidence === "metadata"
+              ? null
+              : generation === 0
+                ? "WorldInitialized"
+                : "GenerationAdvanced",
+          requestId:
+            generation === 0 || fixture.candidateEvidence === "metadata"
+              ? null
+              : `0x${"ef".repeat(32)}`,
+          requester:
+            generation === 0 || fixture.candidateEvidence === "metadata"
+              ? null
+              : contract,
+          verifiedAt: "2026-08-28T01:02:03Z",
+        };
+    }
+    return undefined;
+  };
   const metadataMethod = lifeSpec.interfaces[0]!.methods.find(
     (method) => method.name === "get_metadata",
   )!;
@@ -486,25 +543,90 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
     metadataMethod.return_type,
     buildNamedCodecs([...lifeSpec.type_defs]),
   );
-  const metadataBytes = serializeCxs(
-    {
-      width: 10_000n,
-      height: 10_000n,
-      generation: 0n,
-      seed: 7n,
-      population: 32_768n,
-      state_digest: new Uint8Array(32).fill(0xaa),
-      chunk_bytes: 1_000n,
-      chunks_per_row: 2n,
-      max_queue_len: 16n,
-    },
-    metadataCodec,
-  );
+  const metadataBytes = (generation: number) =>
+    serializeCxs(
+      {
+        width: 10_000n,
+        height: 10_000n,
+        generation: BigInt(generation),
+        seed: 7n,
+        population: BigInt(32_768 + generation),
+        state_digest: new Uint8Array(32).fill(
+          generation === 0 ? 0xaa : generation === 1 ? 0xdd : 0xee,
+        ),
+        chunk_bytes: 1_000n,
+        chunks_per_row: 2n,
+        max_queue_len: 16n,
+      },
+      metadataCodec,
+    );
   return {
     name: "life-e2e-artifacts",
     configureServer(server) {
       server.middlewares.use(async (request, response, next) => {
         const pathname = request.url?.split("?", 1)[0] ?? "";
+        if (request.method === "GET" && pathname === "/__life-fixture") {
+          const url = new URL(request.url!, "http://127.0.0.1");
+          if (url.searchParams.has("reset")) {
+            fixture.chainGeneration = 0;
+            fixture.publishedGeneration = 0;
+            fixture.status = "idle";
+            fixture.stale = false;
+            fixture.tileDelay = 0;
+            fixture.holdCandidateTiles = false;
+            fixture.candidateTileHeld = false;
+            fixture.latestUnavailable = false;
+            fixture.candidateEvidence = "event";
+            for (const release of heldCandidateTiles) release();
+            heldCandidateTiles = [];
+          }
+          if (url.searchParams.has("chain")) {
+            const chain = Number(url.searchParams.get("chain"));
+            if (chain === 0 || chain === 1 || chain === 2)
+              fixture.chainGeneration = chain;
+          }
+          if (url.searchParams.has("published")) {
+            const published = Number(url.searchParams.get("published"));
+            if (published === 0 || published === 1)
+              fixture.publishedGeneration = published;
+          }
+          const status = url.searchParams.get("status");
+          if (
+            status === "idle" ||
+            status === "preparing" ||
+            status === "error" ||
+            status === "unavailable" ||
+            status === "malformed"
+          )
+            fixture.status = status;
+          if (url.searchParams.has("stale"))
+            fixture.stale = url.searchParams.get("stale") === "1";
+          if (url.searchParams.has("tileDelay")) {
+            const delay = Number(url.searchParams.get("tileDelay"));
+            if (Number.isSafeInteger(delay) && delay >= 0 && delay <= 10_000)
+              fixture.tileDelay = delay;
+          }
+          if (url.searchParams.has("holdCandidate"))
+            fixture.holdCandidateTiles =
+              url.searchParams.get("holdCandidate") === "1";
+          if (url.searchParams.get("releaseCandidate") === "1") {
+            fixture.holdCandidateTiles = false;
+            fixture.candidateTileHeld = false;
+            for (const release of heldCandidateTiles) release();
+            heldCandidateTiles = [];
+          }
+          if (url.searchParams.has("latest"))
+            fixture.latestUnavailable =
+              url.searchParams.get("latest") === "unavailable";
+          if (url.searchParams.has("evidence"))
+            fixture.candidateEvidence =
+              url.searchParams.get("evidence") === "metadata"
+                ? "metadata"
+                : "event";
+          response.statusCode = 204;
+          response.end();
+          return;
+        }
         if (request.method === "POST" && pathname === "/") {
           const envelope = JSON.parse(await readBody(request)) as {
             readonly id: string | number;
@@ -513,7 +635,10 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
             jsonrpc: "2.0",
             id: envelope.id,
             result: {
-              output: { result: "return", returnData: hex(metadataBytes) },
+              output: {
+                result: "return",
+                returnData: hex(metadataBytes(fixture.chainGeneration)),
+              },
               events: [],
               height: "9",
             },
@@ -524,8 +649,13 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
           response.end(body);
           return;
         }
-        const value = json.get(pathname);
-        if (value) {
+        if (pathname === `${base}/latest.json` && fixture.latestUnavailable) {
+          response.statusCode = 503;
+          response.end("unavailable");
+          return;
+        }
+        const value = artifact(pathname);
+        if (value !== undefined) {
           const body = JSON.stringify(value);
           response.statusCode = 200;
           response.setHeader("content-type", "application/json");
@@ -534,11 +664,30 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
           return;
         }
         const tile = pathname.match(
-          new RegExp(`^${base}/${digest}/tiles/(\\d)/(\\d+)/(\\d+)\\.bin$`),
+          new RegExp(
+            `^${base}/(0x[0-9a-f]{64})/tiles/(\\d)/(\\d+)/(\\d+)\\.bin$`,
+          ),
         );
         if (!tile) return next();
-        const z = Number(tile[1]);
-        const bytes = z === 6 ? fixtureCells() : fixtureDensity(z);
+        const generation = digests.indexOf(tile[1] as (typeof digests)[number]);
+        if (generation < 0) return next();
+        const z = Number(tile[2]);
+        const bytes =
+          z === 6 ? fixtureCells(generation) : fixtureDensity(z, generation);
+        if (
+          generation === 1 &&
+          fixture.holdCandidateTiles &&
+          !fixture.candidateTileHeld
+        ) {
+          fixture.candidateTileHeld = true;
+          await new Promise<void>((resolve) =>
+            heldCandidateTiles.push(resolve),
+          );
+        }
+        if (generation === 1 && fixture.tileDelay)
+          await new Promise((resolve) =>
+            setTimeout(resolve, fixture.tileDelay),
+          );
         response.statusCode = 200;
         response.setHeader(
           "content-type",
@@ -555,17 +704,20 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
 function hex(bytes: Uint8Array): string {
   return `0x${Buffer.from(bytes).toString("hex")}`;
 }
-function fixtureDensity(z: number): Buffer {
+function fixtureDensity(z: number, generation = 0): Buffer {
   const bytes = Buffer.alloc(131072);
   const scale = 2 ** (6 - z);
   const maximum = scale * scale;
-  for (let index = 0; index < 65536; index += 1)
-    bytes.writeUInt16LE(index % (maximum + 1), index * 2);
+  for (let index = 0; index < 65536; index += 1) {
+    const density = index % (maximum + 1);
+    bytes.writeUInt16LE(generation ? maximum - density : density, index * 2);
+  }
   return bytes;
 }
-function fixtureCells(): Buffer {
+function fixtureCells(generation = 0): Buffer {
   const bytes = Buffer.alloc(8192);
   for (let index = 0; index < bytes.length; index += 1)
-    bytes[index] = index % 2 ? 0xaa : 0x55;
+    bytes[index] =
+      index % 2 ? (generation ? 0x33 : 0xaa) : generation ? 0xcc : 0x55;
   return bytes;
 }

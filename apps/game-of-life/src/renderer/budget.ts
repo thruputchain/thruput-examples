@@ -1,6 +1,7 @@
 export const DEFAULT_CPU_BUDGET = 64 * 1024 * 1024;
 export const DEFAULT_GPU_BUDGET = 64 * 1024 * 1024;
-export const CPU_CACHE_BUDGET = DEFAULT_CPU_BUDGET / 2;
+export const SHARED_CPU_CACHE_BUDGET = DEFAULT_CPU_BUDGET / 2;
+export const DECK_LAYER_CACHE_BUDGET = DEFAULT_CPU_BUDGET / 4;
 
 export class ByteBudget<T> {
   private readonly entries = new Map<
@@ -8,6 +9,7 @@ export class ByteBudget<T> {
     { value: T; bytes: number; finalize?: () => void }
   >();
   private used = 0;
+  private readonly pinned = new Set<string>();
   constructor(readonly limit: number) {
     if (!Number.isSafeInteger(limit) || limit <= 0)
       throw new RangeError("budget must be positive");
@@ -28,16 +30,28 @@ export class ByteBudget<T> {
   set(key: string, value: T, bytes: number, finalize?: () => void): void {
     if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > this.limit)
       throw new RangeError("resource exceeds budget");
-    this.delete(key);
+    this.delete(key, true);
     this.entries.set(key, { value, bytes, ...(finalize ? { finalize } : {}) });
     this.used += bytes;
     while (this.used > this.limit) {
-      const oldest = this.entries.keys().next().value as string | undefined;
-      if (oldest === undefined) break;
+      const oldest = [...this.entries.keys()].find(
+        (candidate) => !this.pinned.has(candidate),
+      );
+      if (oldest === undefined) {
+        this.delete(key, true);
+        throw new RangeError("pinned resources exceed budget");
+      }
       this.delete(oldest);
     }
   }
-  delete(key: string): boolean {
+  pin(key: string): void {
+    this.pinned.add(key);
+  }
+  unpin(key: string): void {
+    this.pinned.delete(key);
+  }
+  delete(key: string, force = false): boolean {
+    if (!force && this.pinned.has(key)) return false;
     const entry = this.entries.get(key);
     if (!entry) return false;
     this.entries.delete(key);
@@ -46,7 +60,12 @@ export class ByteBudget<T> {
     return true;
   }
   clear(): void {
-    for (const key of [...this.entries.keys()]) this.delete(key);
+    this.pinned.clear();
+    for (const key of [...this.entries.keys()]) this.delete(key, true);
+  }
+  deletePrefix(prefix: string): void {
+    for (const key of [...this.entries.keys()])
+      if (key.startsWith(prefix)) this.delete(key, true);
   }
 }
 

@@ -12,6 +12,8 @@ import type { TileBounds } from "./pyramid";
 interface Props extends LayerProps {
   readonly bounds: TileBounds;
   readonly gpuBudget: ActiveByteBudget;
+  readonly transitionOpacity: number;
+  readonly onResourceError: (message: string) => void;
 }
 interface Resources {
   readonly model: Model;
@@ -29,23 +31,39 @@ void main(void) {
   gl_Position = project_position_to_clipspace(positions, vec3(0.), vec3(0.), geometry.position);
   DECKGL_FILTER_GL_POSITION(gl_Position, geometry);
 }`;
-const fragment = `#version 300 es
+const hatchUniforms = {
+  name: "hatch",
+  fs: `layout(std140) uniform hatchUniforms { float layerOpacity; } hatch;`,
+  uniformTypes: { layerOpacity: "f32" },
+};
+export const HATCH_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 out vec4 fragColor;
 void main(void) {
   float stripe = step(.5, fract((gl_FragCoord.x + gl_FragCoord.y) / 10.));
   vec3 color = mix(vec3(.10, .045, .035), vec3(.42, .16, .075), stripe);
-  fragColor = vec4(color, 1.);
+  float alpha = clamp(hatch.layerOpacity, 0., 1.);
+  fragColor = vec4(color, alpha);
   DECKGL_FILTER_COLOR(fragColor, geometry);
 }`;
 
 export class UnavailableTileLayer extends Layer<Props> {
   declare state: State;
   static override layerName = "UnavailableTileLayer";
-  static override defaultProps = {} as DefaultProps<Props>;
+  static override defaultProps = {
+    transitionOpacity: { type: "number", value: 1, min: 0, max: 1 },
+  } as DefaultProps<Props>;
+  override getModels(): Model[] {
+    const model = this.state?.resources?.model;
+    return model ? [model] : [];
+  }
 
   override getShaders() {
-    return super.getShaders({ vs: vertex, fs: fragment, modules: [project32] });
+    return super.getShaders({
+      vs: vertex,
+      fs: HATCH_FRAGMENT_SHADER,
+      modules: [project32, hatchUniforms],
+    });
   }
   override initializeState(): void {
     this.createResources();
@@ -63,7 +81,13 @@ export class UnavailableTileLayer extends Layer<Props> {
     this.destroyResources();
   }
   override draw(): void {
-    this.state.resources?.model.draw(this.context.renderPass);
+    if (this.props.transitionOpacity <= 0) return;
+    const model = this.state.resources?.model;
+    if (!model) return;
+    model.shaderInputs.setProps({
+      hatch: { layerOpacity: this.props.transitionOpacity },
+    });
+    model.draw(this.context.renderPass);
   }
   private createResources(): void {
     const { bounds, gpuBudget } = this.props;
@@ -101,7 +125,9 @@ export class UnavailableTileLayer extends Layer<Props> {
     } catch (cause) {
       model?.destroy();
       release();
-      throw cause;
+      this.props.onResourceError(
+        cause instanceof Error ? cause.message : "GPU hatch allocation failed",
+      );
     }
   }
   private destroyResources(): void {

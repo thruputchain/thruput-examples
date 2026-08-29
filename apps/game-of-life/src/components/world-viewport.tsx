@@ -1,22 +1,60 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Focus, Minus, Plus, RotateCcw } from "lucide-react";
 import type { ImmutableSnapshot, IndexerClient } from "@/indexer/client";
+import type { RendererAvailability } from "@/synchronization";
 import { Button } from "@/components/ui/button";
 import type { Camera } from "@/renderer/camera";
 import type { Inspection } from "@/renderer/inspection";
-import { WorldRenderer } from "@/renderer/world-renderer";
+import {
+  WorldRenderer,
+  type CandidateIdentity,
+} from "@/renderer/world-renderer";
 
 interface Props {
   readonly client: IndexerClient;
-  readonly snapshot: ImmutableSnapshot;
+  readonly initialSnapshot: ImmutableSnapshot;
+  readonly initialIdentity: CandidateIdentity | null;
+  readonly candidate: ImmutableSnapshot | null;
+  readonly candidateEpoch: number | null;
+  readonly onTransition: (state: "staging" | "crossfading" | "idle") => void;
+  readonly approveCommit: (
+    snapshot: ImmutableSnapshot,
+    identity: CandidateIdentity,
+  ) => boolean;
+  readonly onAnnouncement: (message: string) => void;
+  readonly onAvailability: (value: RendererAvailability) => void;
 }
 const INITIAL_CAMERA: Camera = { x: 5_000, y: 5_000, zoom: -6 };
 
-export function WorldViewport({ client, snapshot }: Props) {
+export function WorldViewport({
+  client,
+  initialSnapshot,
+  initialIdentity,
+  candidate,
+  candidateEpoch,
+  onTransition,
+  approveCommit,
+  onAnnouncement,
+  onAvailability,
+}: Props) {
   const section = useRef<HTMLElement>(null);
   const canvasDescription = useId();
   const canvas = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<WorldRenderer>(null);
+  const mountedSnapshot = useRef(initialSnapshot);
+  const mountedIdentity = useRef(initialIdentity);
+  const lifecycle = useRef({
+    onTransition,
+    approveCommit,
+    onAnnouncement,
+    onAvailability,
+  });
+  lifecycle.current = {
+    onTransition,
+    approveCommit,
+    onAnnouncement,
+    onAvailability,
+  };
   const [camera, setCamera] = useState(INITIAL_CAMERA);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -40,45 +78,76 @@ export function WorldViewport({ client, snapshot }: Props) {
   useEffect(() => {
     if (!canvas.current) return;
     try {
-      renderer.current = new WorldRenderer(canvas.current, client, snapshot, {
-        onCamera: setCamera,
-        onInspect: setInspection,
-        onError: setTileWarning,
-        onContext: setContextLost,
-      });
+      renderer.current = new WorldRenderer(
+        canvas.current,
+        client,
+        mountedSnapshot.current,
+        {
+          onCamera: setCamera,
+          onInspect: (value, announce) => {
+            setInspection(value);
+            if (announce && value)
+              lifecycle.current.onAnnouncement(inspectionLabel(value));
+            else if (!value) lifecycle.current.onAnnouncement("");
+          },
+          onError: setTileWarning,
+          onContext: (lost) => {
+            setContextLost(lost);
+            lifecycle.current.onAvailability(
+              lost ? "context-lost" : "available",
+            );
+          },
+          onTransition: (value) => lifecycle.current.onTransition(value),
+          approveSnapshotCommit: (value, identity) =>
+            lifecycle.current.approveCommit(value, identity),
+        },
+        mountedIdentity.current,
+      );
+      lifecycle.current.onAvailability("available");
     } catch (cause) {
       setFatalError(
         cause instanceof Error ? cause.message : "Renderer failed to start",
       );
+      lifecycle.current.onAvailability("unavailable");
     }
     return () => {
       renderer.current?.destroy();
       renderer.current = null;
     };
-  }, [client, snapshot]);
+  }, [client]);
+
+  useEffect(() => {
+    if (candidate && candidateEpoch !== null)
+      renderer.current?.stageSnapshot(candidate, client, candidateEpoch);
+    else renderer.current?.cancelCandidate();
+  }, [candidate, candidateEpoch, client]);
+
+  const controlsDisabled = fatalError !== null || contextLost;
 
   return (
     <section
       ref={section}
       className="relative min-h-0 flex-1 overflow-hidden bg-canvas"
       aria-label="Interactive Game of Life world"
+      tabIndex={controlsDisabled ? -1 : 0}
+      aria-describedby={canvasDescription}
+      onKeyDown={(event) => {
+        if (event.currentTarget === event.target)
+          renderer.current?.handleKey(event.nativeEvent);
+      }}
     >
       <canvas
         ref={canvas}
-        tabIndex={0}
+        tabIndex={-1}
         aria-label="Pan and zoom the 10,000 by 10,000 cell world"
-        aria-describedby={canvasDescription}
-        className="size-full touch-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="size-full touch-none"
       />
       <p id={canvasDescription} className="sr-only">
         Use the mouse wheel or plus and minus keys to zoom, drag or arrow keys
         to pan, zero to fit the world, and Enter to inspect the viewport center.
       </p>
       {fatalError ? (
-        <div
-          role="status"
-          className="absolute inset-0 grid place-items-center bg-canvas/90 p-6"
-        >
+        <div className="absolute inset-0 grid place-items-center bg-canvas/90 p-6">
           <div className="max-w-[46ch] rounded-lg border border-border bg-panel p-5 text-center">
             <h2 className="text-balance text-lg font-semibold">
               Visualization unavailable
@@ -87,7 +156,8 @@ export function WorldViewport({ client, snapshot }: Props) {
               {fatalError}
             </p>
             <p className="mt-2 text-pretty text-base text-muted-foreground sm:text-sm">
-              Snapshot metadata and provenance remain available above.
+              Snapshot metadata and provenance remain available in world
+              details.
             </p>
           </div>
         </div>
@@ -95,7 +165,7 @@ export function WorldViewport({ client, snapshot }: Props) {
       {tileWarning && !fatalError ? (
         <div
           role="status"
-          className="absolute inset-x-3 top-16 rounded-md border border-warning/40 bg-panel/95 px-3 py-2 text-base text-warning sm:inset-x-auto sm:right-3 sm:text-sm"
+          className="absolute top-[calc(var(--safe-top)+8rem)] right-[max(.75rem,var(--safe-right))] left-[max(.75rem,var(--safe-left))] rounded-md border border-warning/40 bg-panel/95 px-3 py-2 text-base text-warning sm:left-auto sm:text-sm"
         >
           {tileWarning}
         </div>
@@ -103,17 +173,12 @@ export function WorldViewport({ client, snapshot }: Props) {
       {contextLost ? (
         <div
           role="status"
-          className="absolute inset-x-4 top-4 rounded-md border border-border bg-panel px-3 py-2 text-base sm:text-sm"
+          className="absolute top-[calc(var(--safe-top)+4.5rem)] right-[max(.75rem,var(--safe-right))] left-[max(.75rem,var(--safe-left))] rounded-md border border-border bg-panel px-3 py-2 text-base sm:text-sm"
         >
           WebGL context lost. Waiting for restoration.
         </div>
       ) : null}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="absolute top-3 left-3 rounded-md border border-border bg-panel/95 px-3 py-2 font-mono text-sm shadow-sm backdrop-blur-md"
-      >
+      <div className="absolute top-[calc(var(--safe-top)+4.5rem)] left-[max(.75rem,var(--safe-left))] max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-panel/95 px-3 py-2 font-mono text-sm shadow-sm backdrop-blur-md sm:left-[max(1rem,var(--safe-left))]">
         {inspection ? (
           inspection.kind === "cell" ? (
             <span>
@@ -135,7 +200,7 @@ export function WorldViewport({ client, snapshot }: Props) {
           </span>
         )}
       </div>
-      <div className="absolute right-3 bottom-3 flex items-end gap-3">
+      <div className="absolute right-[max(.75rem,var(--safe-right))] bottom-[max(.75rem,var(--safe-bottom))] flex items-end gap-3">
         <Minimap camera={camera} viewport={viewport} />
         <div
           role="group"
@@ -145,8 +210,9 @@ export function WorldViewport({ client, snapshot }: Props) {
           <Button
             variant="ghost"
             size="icon"
-            className="[@media(pointer:coarse)]:size-12"
+            className="size-12 sm:size-9 [@media(pointer:coarse)]:size-12"
             aria-label="Zoom out"
+            disabled={controlsDisabled}
             onClick={() => renderer.current?.zoom(-0.5)}
           >
             <Minus />
@@ -154,8 +220,9 @@ export function WorldViewport({ client, snapshot }: Props) {
           <Button
             variant="ghost"
             size="icon"
-            className="[@media(pointer:coarse)]:size-12"
+            className="size-12 sm:size-9 [@media(pointer:coarse)]:size-12"
             aria-label="Zoom in"
+            disabled={controlsDisabled}
             onClick={() => renderer.current?.zoom(0.5)}
           >
             <Plus />
@@ -163,8 +230,9 @@ export function WorldViewport({ client, snapshot }: Props) {
           <Button
             variant="ghost"
             size="icon"
-            className="[@media(pointer:coarse)]:size-12"
+            className="size-12 sm:size-9 [@media(pointer:coarse)]:size-12"
             aria-label="Fit world"
+            disabled={controlsDisabled}
             onClick={() => renderer.current?.fit()}
           >
             <Focus />
@@ -172,20 +240,27 @@ export function WorldViewport({ client, snapshot }: Props) {
           <Button
             variant="ghost"
             size="icon"
-            className="[@media(pointer:coarse)]:size-12"
+            className="size-12 sm:size-9 [@media(pointer:coarse)]:size-12"
             aria-label="Reset north-up"
+            disabled={controlsDisabled}
             onClick={() => renderer.current?.reset()}
           >
             <RotateCcw />
           </Button>
         </div>
       </div>
-      <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-md border border-border bg-panel/95 px-3 py-2 font-mono text-sm backdrop-blur-md">
+      <div className="absolute bottom-[calc(var(--safe-bottom)+4.5rem)] left-[max(.75rem,var(--safe-left))] flex items-center gap-2 rounded-md border border-border bg-panel/95 px-3 py-2 font-mono text-sm backdrop-blur-md sm:bottom-[max(.75rem,var(--safe-bottom))]">
         <span className="block h-px w-12 bg-primary" />{" "}
         {scaleLabel(camera.zoom, 48)}
       </div>
     </section>
   );
+}
+
+function inspectionLabel(value: Inspection): string {
+  return value.kind === "cell"
+    ? `Generation ${value.generation}, cell ${value.x}, ${value.y} is ${value.alive ? "live" : "dead"}`
+    : `Generation ${value.generation}, ${value.live} of ${value.covered} sampled cells are live`;
 }
 
 function Minimap({

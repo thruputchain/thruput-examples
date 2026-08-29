@@ -385,26 +385,30 @@ export function assertSnapshotEligible(
     manifest.contractAddress !== scope.contractAddress
   )
     throw new SchemaError("snapshot is outside the configured world scope");
-  const keys = [
-    "width",
-    "height",
-    "generation",
-    "seed",
-    "population",
-    "stateDigest",
-  ] as const;
-  for (const key of keys)
+  for (const key of ["width", "height", "seed"] as const)
     if (manifest[key] !== current[key])
       throw new SchemaError(`snapshot and current chain ${key} disagree`);
-  if (
-    provenance.evidenceKind === "metadata-observation" &&
-    (["generation", "seed", "population", "stateDigest"] as const).some(
-      (key) => provenance[key] !== current[key],
-    )
-  )
+
+  const generation = BigInt(manifest.generation);
+  const currentGeneration = BigInt(current.generation);
+  if (generation > currentGeneration)
+    throw new SchemaError("snapshot is ahead of accepted chain metadata");
+  if (generation === currentGeneration) {
+    for (const key of ["population", "stateDigest"] as const)
+      if (manifest[key] !== current[key])
+        throw new SchemaError(`snapshot and current chain ${key} disagree`);
+    return;
+  }
+  if (provenance.evidenceKind === "metadata-observation")
     throw new SchemaError(
       "metadata observation does not describe current chain state",
     );
+  if (
+    provenance.evidenceKind === "world-initialized-event" ||
+    provenance.evidenceKind === "generation-advanced-event"
+  )
+    return;
+  throw new SchemaError("snapshot has no eligible committed evidence");
 }
 
 export function canonicalHex32(input: unknown, field = "identifier"): string {

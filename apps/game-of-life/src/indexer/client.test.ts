@@ -68,11 +68,12 @@ describe("immutable indexer client", () => {
         headers: { "content-type": "application/json" },
       });
     });
-    const snapshot = await new IndexerClient(
+    const client = new IndexerClient(
       config,
       fetcher as typeof fetch,
       config.indexerUrl,
-    ).snapshot();
+    );
+    const snapshot = await client.snapshotFromPointer(await client.latest());
     expect(snapshot.manifest.stateDigest).toBe(digest);
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(snapshot.manifestUrl.origin).toBe(config.indexerUrl.origin);
@@ -87,7 +88,7 @@ describe("immutable indexer client", () => {
         config,
         fetcher as typeof fetch,
         config.indexerUrl,
-      ).snapshot(),
+      ).latest(),
     ).rejects.toThrow(/content type/);
   });
   test("builds canonical immutable tile URLs", () => {

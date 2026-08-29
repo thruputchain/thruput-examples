@@ -40,13 +40,18 @@ export class IndexerClient {
         : new URL(config.indexerProxyPath, window.location.origin));
   }
 
-  async snapshot(signal?: AbortSignal): Promise<ImmutableSnapshot> {
-    const base = this.worldBase();
-    const latest = parseLatest(
-      await this.json(new URL("latest.json", base), signal),
+  async latest(signal?: AbortSignal): Promise<LatestPointer> {
+    return parseLatest(
+      await this.json(new URL("latest.json", this.worldBase()), signal),
       this.config.networkId,
       this.config.contractAddress,
     );
+  }
+
+  async snapshotFromPointer(
+    latest: LatestPointer,
+    signal?: AbortSignal,
+  ): Promise<ImmutableSnapshot> {
     const manifestUrl = this.confined(latest.manifestUrl);
     const provenanceUrl = new URL("provenance.json", manifestUrl);
     const [manifest, provenance] = await Promise.all([
