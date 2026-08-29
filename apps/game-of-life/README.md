@@ -1,12 +1,13 @@
 # Game of Life Explorer
 
-Phase 5 read-only React application for exploring synchronized immutable generations of the 10,000 by 10,000 Groundhog Game of Life world.
+React application for exploring synchronized immutable generations of the 10,000 by 10,000 Groundhog Game of Life world, admitting tick requests, and processing one queued generation at a time.
 
 ## Requirements
 
 - Node.js 22.12 or newer
 - Chromium at `/usr/bin/chromium`, or set `CHROMIUM_PATH`
 - A loopback Groundhog RPC endpoint and Phase 3 indexer
+- An initialized Game of Life contract and runtime manifest from the same node
 
 ## Configuration
 
@@ -21,7 +22,24 @@ VITE_GAME_OF_LIFE_INDEXER_URL=http://127.0.0.1:8787
 
 The indexer URL must be an origin root. Paths, queries, and fragments are rejected.
 
-The browser always uses same-origin `/groundhog-rpc` and `/groundhog-indexer` endpoints. Their loopback-only development proxies expose only the configured contract's read APIs. Phase 5 has no write methods, wallet, or credentials.
+The browser always uses same-origin `/groundhog-rpc` and `/groundhog-indexer` endpoints. Production builds and previews expose read methods only and never contain development credentials.
+
+Generate the loopback-only Alice, Bob, and Carol configuration after deployment and initialization:
+
+```bash
+GROUNDHOG_CLI=/path/to/validated/groundhog \
+GROUNDHOG_RUNTIME_MANIFEST=/path/to/runtime-manifest.json \
+GROUNDHOG_RPC_URL=http://127.0.0.1:9545 \
+GROUNDHOG_CONTRACT_ADDRESS=0x... \
+GAME_OF_LIFE_INDEXER_URL=http://127.0.0.1:8787 \
+npm run setup:local
+```
+
+Setup validates the pinned local DevWallet artifact and entrypoint, derives each disposable signer from the runtime manifest, verifies its public key and wallet root, funds each persona for a full crank, and writes the ignored `.env.local` with mode `0600`. It then submits one request from each persona, verifies each emitted caller, processes the queue through Bob, and verifies an empty no-op. This caller check advances the disposable world by at least three generations; run it before starting the indexer. A failed check removes `.env.local` so writes cannot be enabled with an unverified caller.
+
+The generated transaction policies are the measured local profiles: request `100,000` outer/target gas with a 64-block expiry and 30-second observation window; crank `10,010,000,000` outer gas, `10,000,000,000` target gas, a two-block expiry, and a 300-second observation window.
+
+Credential injection occurs only during `vite serve`. The development server rejects non-loopback hosts, cross-site requests, and mismatched origins before serving credential-bearing modules. The proxy enables submission, status, and receipt RPC methods only in that mode. These keys are disposable local-ledger credentials, not production custody.
 
 ## Commands
 
@@ -32,6 +50,7 @@ npm run check:contracts
 npm run typecheck
 npm test
 npm run test:chromium
+RUN_GAME_OF_LIFE_LOCAL_INTEGRATION=1 npm run test:integration:local
 npm run build
 npm run verify
 ```
@@ -51,4 +70,8 @@ The generated contract binding is committed so a fresh checkout can build withou
 - The configured indexer verifies the complete snapshot against the on-chain digest. Individual tile bytes do not carry proofs.
 - A temporary chain or indexer failure keeps the last verified snapshot visible. Regressions and same-generation digest conflicts never replace it.
 - A newer digest is loaded in a separate layer. Level six requires digest-qualified GPU resources for every selected tile; density levels permit render-ready selected tiles or their immediate parents. The old layer remains opaque while the candidate fades over it with straight-alpha blending. Ownership changes only after coverage, a confirmed rendered frame, and current epoch/digest/chain approval; reduced motion switches without blending through the same gate.
-- Phase 5 remains read-only. Requests, cranks, transactions, wallets, personas, and recovery belong to Phase 6.
+- Request and crank histories are separate versioned records scoped by network, expected caller, and Life contract. The same scope controls an exclusive Web Lock, migrations, signing, and cross-tab reconciliation.
+- The canonical transaction hash is persisted before submission. Invalid, failed, pending, indeterminate, accepted, untracked, advanced, no-work, and incompatible outcomes remain distinct. Indeterminate transactions are observed by their original hash and never retried automatically.
+- `TickRequested` is the only acceptance proof. `GenerationAdvanced` completes a local request only when its request ID and requester match. A crank can accurately report processing another persona's request without completing the wrong local record.
+- Automatic mode submits at most one crank after durable admission while retaining the same lock. Manual mode separates request-only and process-one controls. Mounts, reloads, account switches, indexer updates, and event polling never initiate writes.
+- Local RPC event retention is finite. If retained history no longer covers an unresolved request, the record becomes permanently unknown instead of failed or complete.

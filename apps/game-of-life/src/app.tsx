@@ -22,6 +22,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { WorldViewport } from "@/components/world-viewport";
+import { TransactionActivity } from "@/components/transaction-activity";
+import type {
+  DevelopmentPersona,
+  DevelopmentPersonaId,
+  PublicDevelopmentPersona,
+} from "@/development-personas";
 import { IndexerClient, type ImmutableSnapshot } from "@/indexer/client";
 import { assertSnapshotEligible, SchemaError } from "@/indexer/schema";
 import { createVisiblePoller, type Poller } from "@/polling";
@@ -35,7 +41,19 @@ import {
 } from "@/synchronization";
 
 const REQUEST_TIMEOUT = 8_000;
-export function App({ config }: { readonly config: Readonly<AppConfig> }) {
+interface TransactionRuntime {
+  readonly active: DevelopmentPersona;
+  readonly personas: readonly PublicDevelopmentPersona[];
+  readonly switchPersona: (id: DevelopmentPersonaId) => Promise<void>;
+}
+
+export function App({
+  config,
+  transaction = null,
+}: {
+  readonly config: Readonly<AppConfig>;
+  readonly transaction?: TransactionRuntime | null;
+}) {
   const [state, dispatch] = useReducer(
     synchronizationReducer,
     INITIAL_SYNCHRONIZATION_STATE,
@@ -50,12 +68,14 @@ export function App({ config }: { readonly config: Readonly<AppConfig> }) {
   const [statusClock, setStatusClock] = useState(Date.now());
   const lastAnnouncement = useRef("");
   const [indexer] = useState(() => new IndexerClient(config));
+  const [rpcClient] = useState(() => createReadClient(config));
   const [chain] = useState(() =>
     createLifeReadAdapter({
-      client: createReadClient(config),
+      client: rpcClient,
       contractAddress: config.contractAddress,
     }),
   );
+  const chainRefresh = useRef<(() => void) | null>(null);
 
   const send = (action: SynchronizationAction) => {
     stateRef.current = synchronizationReducer(stateRef.current, action);
@@ -74,8 +94,10 @@ export function App({ config }: { readonly config: Readonly<AppConfig> }) {
 
   useEffect(() => {
     const pollers: Poller[] = [];
-    pollers.push(
-      createVisiblePoller(15_000, REQUEST_TIMEOUT, async (signal, commit) => {
+    const chainPoller = createVisiblePoller(
+      15_000,
+      REQUEST_TIMEOUT,
+      async (signal, commit) => {
         try {
           const result = await raceAbort(chain.metadata(), signal);
           commit(() => send({ type: "chain-read", value: result.value }));
@@ -83,7 +105,11 @@ export function App({ config }: { readonly config: Readonly<AppConfig> }) {
           commit(() => send({ type: "chain-failed", error: message(cause) }));
           throw cause;
         }
-      }),
+      },
+    );
+    chainRefresh.current = () => chainPoller.refresh();
+    pollers.push(
+      chainPoller,
       createVisiblePoller(5_000, REQUEST_TIMEOUT, async (signal, commit) => {
         try {
           const pointer = await indexer.latest(signal);
@@ -159,6 +185,7 @@ export function App({ config }: { readonly config: Readonly<AppConfig> }) {
     document.addEventListener("visibilitychange", refresh);
     refresh();
     return () => {
+      chainRefresh.current = null;
       for (const poller of pollers) poller.dispose();
       document.removeEventListener("visibilitychange", refresh);
     };
@@ -271,7 +298,11 @@ export function App({ config }: { readonly config: Readonly<AppConfig> }) {
   void statusClock;
   return (
     <main className="flex min-h-dvh min-w-80 flex-col overflow-hidden bg-background text-foreground">
-      <TopBar state={state} rendererAvailability={rendererAvailability} />
+      <TopBar
+        state={state}
+        rendererAvailability={rendererAvailability}
+        transaction={transaction}
+      />
       <div className="relative flex min-h-0 flex-1">
         <div className="relative flex min-w-0 flex-1 flex-col">
           {rendererSnapshot ? (
@@ -301,6 +332,16 @@ export function App({ config }: { readonly config: Readonly<AppConfig> }) {
             config={config}
             rendererAvailability={rendererAvailability}
           />
+          {transaction && config.transactionProfiles ? (
+            <TransactionActivity
+              key={`${config.networkId}:${transaction.active.expectedCallerHex}:${config.contractAddress}`}
+              config={config}
+              profiles={config.transactionProfiles}
+              persona={transaction.active}
+              client={rpcClient}
+              onCrankCommitted={() => chainRefresh.current?.()}
+            />
+          ) : null}
         </div>
         <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border bg-panel/95 lg:block">
           <ActivityContent
@@ -327,9 +368,11 @@ export function App({ config }: { readonly config: Readonly<AppConfig> }) {
 function TopBar({
   state,
   rendererAvailability,
+  transaction,
 }: {
   readonly state: SynchronizationState;
   readonly rendererAvailability: RendererAvailability;
+  readonly transaction: TransactionRuntime | null;
 }) {
   const identity = state.visualized?.manifest;
   return (
@@ -372,7 +415,31 @@ function TopBar({
           mono
         />
       </div>
-      <IndexerHealth state={state} />
+      <div className="flex items-center gap-2">
+        {transaction ? (
+          <label className="sr-only sm:not-sr-only sm:flex sm:items-center sm:gap-2 sm:text-xs sm:text-muted-foreground">
+            <span>Persona</span>
+            <select
+              data-development-wallet-trigger
+              aria-label="Development persona"
+              value={transaction.active.id}
+              onChange={(event) =>
+                void transaction.switchPersona(
+                  event.target.value as DevelopmentPersonaId,
+                )
+              }
+              className="h-9 rounded-md border border-border bg-background px-2 font-mono text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {transaction.personas.map((persona) => (
+                <option key={persona.id} value={persona.id}>
+                  {persona.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <IndexerHealth state={state} />
+      </div>
     </header>
   );
 }

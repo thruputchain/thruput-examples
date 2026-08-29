@@ -145,7 +145,15 @@ async fn downloads_and_verifies_complete_snapshot() {
 #[ignore = "requires an initialized contract with at least two free queue slots"]
 async fn concurrent_requests_commit_with_distinct_ids() {
     let harness = Harness::from_env(INTERFACE, VERSION);
-    let options = InvocationOptions::default();
+    let target_gas = env_u64("GAME_OF_LIFE_REQUEST_TARGET_GAS", 10_000_000);
+    let options = InvocationOptions {
+        outer_transaction_gas_limit: env_u64("GAME_OF_LIFE_REQUEST_OUTER_GAS", target_gas),
+        target_call_gas_limit: target_gas,
+        expiry: TransactionExpiry::Offset(env_u64("GAME_OF_LIFE_REQUEST_EXPIRY_BLOCKS", 64) as i64),
+        receipt_timeout: Duration::from_secs(env_u64("GAME_OF_LIFE_REQUEST_TIMEOUT_SECONDS", 30)),
+        receipt_poll_interval: Duration::from_secs(1),
+    };
+    let started = std::time::Instant::now();
     let (one, two) = tokio::join!(
         harness.submit("request_tick", encode(&()), options),
         harness.submit("request_tick", encode(&()), options),
@@ -163,6 +171,13 @@ async fn concurrent_requests_commit_with_distinct_ids() {
     assert_ne!(one_id, two_id);
     assert_eq!(one.events[0].topics[1].0, *one_id.as_ref());
     assert_eq!(two.events[0].topics[1].0, *two_id.as_ref());
+    println!(
+        "committed two concurrent requests at height {} in {:?}; outer_gas={}, target_gas={}",
+        *one.height,
+        started.elapsed(),
+        options.outer_transaction_gas_limit,
+        options.target_call_gas_limit,
+    );
 }
 
 #[tokio::test]
@@ -382,12 +397,12 @@ async fn advances_complete_world_once() {
     let request_id: SHA256Hash = decode_return(&request);
     assert_eq!(request.events[0].topics[1].0, *request_id.as_ref());
 
-    let target_gas = env_u64("GAME_OF_LIFE_TARGET_GAS", 500_000_000_000);
+    let target_gas = env_u64("GAME_OF_LIFE_TARGET_GAS", 10_000_000_000);
     let process_options = InvocationOptions {
         outer_transaction_gas_limit: env_u64("GAME_OF_LIFE_OUTER_GAS", target_gas + 10_000_000),
         target_call_gas_limit: target_gas,
-        expiry: TransactionExpiry::Offset(1_000),
-        receipt_timeout: Duration::from_secs(env_u64("GAME_OF_LIFE_TIMEOUT_SECONDS", 600)),
+        expiry: TransactionExpiry::Offset(env_u64("GAME_OF_LIFE_CRANK_EXPIRY_BLOCKS", 2) as i64),
+        receipt_timeout: Duration::from_secs(env_u64("GAME_OF_LIFE_TIMEOUT_SECONDS", 300)),
         receipt_poll_interval: Duration::from_secs(1),
     };
     let started = std::time::Instant::now();

@@ -11,8 +11,10 @@
     "check:contracts": "bash scripts/check-contract-bindings.sh",
     "dev": "vite",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
+    "setup:local": "bash scripts/setup-local.sh",
     "test": "vitest run",
     "test:chromium": "playwright test",
+    "test:integration:local": "vitest run --mode local-integration src/integration/*.local.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "verify": "npm run check:contracts && npm run typecheck && npm test && npm run build"
   },
@@ -26,6 +28,7 @@
     "@groundhogchain/xdr": "0.8.0",
     "@luma.gl/core": "9.3.6",
     "@luma.gl/engine": "9.3.6",
+    "@noble/hashes": "2.2.0",
     "@radix-ui/react-dialog": "1.1.15",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
@@ -39,9 +42,10 @@
   "devDependencies": {
     "@playwright/test": "1.62.1",
     "@tailwindcss/vite": "4.1.11",
-    "@testing-library/jest-dom": "6.9.1",
     "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
     "@types/node": "25.9.1",
     "@types/react": "19.1.9",
     "@types/react-dom": "19.1.7",
@@ -49,6 +53,7 @@
     "jsdom": "26.1.0",
     "prettier": "3.9.6",
     "tailwindcss": "4.1.11",
+    "tsx": "4.22.4",
     "typescript": "6.0.3",
     "vite": "7.3.6",
     "vitest": "4.1.8"

@@ -18,6 +18,11 @@ const READ_RPC_METHODS = new Set([
   "groundhog_getEvents",
   "groundhog_view",
 ]);
+const WRITE_RPC_METHODS = new Set([
+  "groundhog_sendRawTransaction",
+  "groundhog_getTransactionReceipt",
+  "groundhog_getTransactionStatus",
+]);
 const MAX_BODY = 1_000_000;
 const MAX_INDEXER_JSON = 1_000_000;
 const MAX_INDEXER_TILE = 131_072;
@@ -44,17 +49,37 @@ export default defineConfig(({ command, mode }) => {
   );
   validateRpcTarget(target);
   validateIndexerTarget(indexerTarget);
+  const developmentPersonas = developmentPersonaDefinition(
+    command,
+    environment,
+  );
+  const writesEnabled = developmentPersonas !== undefined;
   return {
     envPrefix: [
       "VITE_GROUNDHOG_RPC_URL",
       "VITE_GROUNDHOG_NETWORK_ID",
       "VITE_GAME_OF_LIFE_CONTRACT_ADDRESS",
       "VITE_GAME_OF_LIFE_INDEXER_URL",
+      "VITE_GAME_OF_LIFE_REQUEST_TRANSACTION_GAS_LIMIT",
+      "VITE_GAME_OF_LIFE_REQUEST_TARGET_GAS_LIMIT",
+      "VITE_GAME_OF_LIFE_REQUEST_EXPIRY_BLOCKS",
+      "VITE_GAME_OF_LIFE_REQUEST_TIMEOUT_MS",
+      "VITE_GAME_OF_LIFE_CRANK_TRANSACTION_GAS_LIMIT",
+      "VITE_GAME_OF_LIFE_CRANK_TARGET_GAS_LIMIT",
+      "VITE_GAME_OF_LIFE_CRANK_EXPIRY_BLOCKS",
+      "VITE_GAME_OF_LIFE_CRANK_TIMEOUT_MS",
     ],
+    define: {
+      "import.meta.env.GROUNDHOG_DEV_PERSONAS":
+        developmentPersonas === undefined
+          ? "undefined"
+          : JSON.stringify(developmentPersonas),
+    },
     plugins: [
+      ...(writesEnabled ? [credentialRequestGuard()] : []),
       react(),
       tailwindcss(),
-      readOnlyRpcProxy(target),
+      localRpcProxy(target, writesEnabled),
       readOnlyIndexerProxy(indexerTarget, networkId, contractAddress),
       ...(mode === "e2e" ? [fixtureArtifacts(networkId, contractAddress)] : []),
     ],
@@ -117,7 +142,10 @@ export function indexerProxyScope(
   return { networkId, contractAddress };
 }
 
-export function isAllowedRpcRequest(input: unknown): boolean {
+export function isAllowedRpcRequest(
+  input: unknown,
+  allowWrites = false,
+): boolean {
   if (typeof input !== "object" || input === null || Array.isArray(input))
     return false;
   const value = input as Record<string, unknown>;
@@ -125,11 +153,62 @@ export function isAllowedRpcRequest(input: unknown): boolean {
     value.jsonrpc === "2.0" &&
     (typeof value.id === "string" || typeof value.id === "number") &&
     typeof value.method === "string" &&
-    READ_RPC_METHODS.has(value.method) &&
+    (READ_RPC_METHODS.has(value.method) ||
+      (allowWrites && WRITE_RPC_METHODS.has(value.method))) &&
     Object.keys(value).every((key) =>
       ["jsonrpc", "id", "method", "params"].includes(key),
     )
   );
+}
+
+export function developmentPersonaDefinition(
+  command: "build" | "serve",
+  environment: Record<string, string | undefined>,
+): string | undefined {
+  const serialized = environment.GROUNDHOG_DEV_PERSONAS;
+  if (command !== "serve" || !serialized?.trim()) return undefined;
+  const profileKeys = [
+    "VITE_GAME_OF_LIFE_REQUEST_TRANSACTION_GAS_LIMIT",
+    "VITE_GAME_OF_LIFE_REQUEST_TARGET_GAS_LIMIT",
+    "VITE_GAME_OF_LIFE_REQUEST_EXPIRY_BLOCKS",
+    "VITE_GAME_OF_LIFE_REQUEST_TIMEOUT_MS",
+    "VITE_GAME_OF_LIFE_CRANK_TRANSACTION_GAS_LIMIT",
+    "VITE_GAME_OF_LIFE_CRANK_TARGET_GAS_LIMIT",
+    "VITE_GAME_OF_LIFE_CRANK_EXPIRY_BLOCKS",
+    "VITE_GAME_OF_LIFE_CRANK_TIMEOUT_MS",
+  ];
+  if (profileKeys.some((key) => !environment[key]?.trim()))
+    throw new Error(
+      "Development credentials require complete transaction profiles",
+    );
+  return serialized;
+}
+
+export function isSafeCredentialRequest(
+  headers: IncomingMessage["headers"],
+  remoteAddress: string | undefined,
+): boolean {
+  if (
+    !isLoopbackRemoteAddress(remoteAddress) ||
+    !headers.host ||
+    headers["sec-fetch-site"] === "cross-site"
+  )
+    return false;
+  let host: URL;
+  try {
+    host = new URL(`http://${headers.host}`);
+  } catch {
+    return false;
+  }
+  if (!isLoopback(host.hostname)) return false;
+  const source = headers.origin ?? headers.referer;
+  if (!source) return true;
+  try {
+    const url = new URL(source);
+    return isLoopback(url.hostname) && url.host === headers.host;
+  } catch {
+    return false;
+  }
 }
 
 export function isSameOriginLoopback(
@@ -197,67 +276,103 @@ export function allowedIndexerRoute(
   };
 }
 
-function readOnlyRpcProxy(target: string): Plugin {
+function localRpcProxy(target: string, writesEnabled: boolean): Plugin {
   const targetUrl = new URL(target);
-  const middleware = async (
-    request: IncomingMessage,
-    response: ServerResponse,
-  ) => {
-    if (request.method !== "POST")
-      return error(response, 405, "POST is required");
-    if (!isSameOriginLoopback(request.headers))
-      return error(response, 403, "Same-origin loopback request required");
-    if (
-      request.headers["content-type"]?.split(";", 1)[0]?.toLowerCase() !==
-      "application/json"
-    )
-      return error(response, 415, "application/json is required");
-    try {
-      const body = await readBody(request);
-      const envelope: unknown = JSON.parse(body);
-      if (!isAllowedRpcRequest(envelope))
-        return error(
-          response,
-          403,
-          "RPC method is not available through this read-only proxy",
-        );
-      const upstream = await fetch(targetUrl, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body,
-        redirect: "error",
-        signal: AbortSignal.timeout(10_000),
-      });
+  const middleware =
+    (allowWrites: boolean) =>
+    async (request: IncomingMessage, response: ServerResponse) => {
+      if (request.method !== "POST")
+        return error(response, 405, "POST is required");
+      if (!isSameOriginLoopback(request.headers))
+        return error(response, 403, "Same-origin loopback request required");
       if (
-        mediaType(upstream.headers.get("content-type")) !== "application/json"
+        request.headers["content-type"]?.split(";", 1)[0]?.toLowerCase() !==
+        "application/json"
       )
+        return error(response, 415, "application/json is required");
+      try {
+        const body = await readBody(request);
+        const envelope: unknown = JSON.parse(body);
+        if (!isAllowedRpcRequest(envelope, allowWrites))
+          return error(
+            response,
+            403,
+            "RPC method is not available through this local proxy",
+          );
+        const upstream = await fetch(targetUrl, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+          redirect: "error",
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (
+          mediaType(upstream.headers.get("content-type")) !== "application/json"
+        )
+          return error(
+            response,
+            502,
+            "RPC upstream returned an unsafe content type",
+          );
+        const bytes = await readBoundedResponse(upstream, MAX_BODY);
+        response.statusCode = upstream.status;
+        response.setHeader("content-type", "application/json");
+        response.setHeader("content-length", bytes.length);
+        response.end(bytes);
+      } catch (cause) {
         return error(
           response,
           502,
-          "RPC upstream returned an unsafe content type",
+          cause instanceof Error ? cause.message : "RPC proxy failed",
         );
-      const bytes = await readBoundedResponse(upstream, MAX_BODY);
-      response.statusCode = upstream.status;
-      response.setHeader("content-type", "application/json");
-      response.setHeader("content-length", bytes.length);
-      response.end(bytes);
-    } catch (cause) {
-      return error(
-        response,
-        502,
-        cause instanceof Error ? cause.message : "RPC proxy failed",
-      );
-    }
-  };
+      }
+    };
   return {
-    name: "groundhog-read-only-rpc",
+    name: "groundhog-local-rpc",
     configureServer(server) {
-      server.middlewares.use("/groundhog-rpc", middleware);
+      server.middlewares.use("/groundhog-rpc", middleware(writesEnabled));
     },
     configurePreviewServer(server) {
-      server.middlewares.use("/groundhog-rpc", middleware);
+      server.middlewares.use("/groundhog-rpc", middleware(false));
     },
   };
+}
+
+function credentialRequestGuard(): Plugin {
+  return {
+    name: "groundhog-credential-request-guard",
+    enforce: "pre",
+    configureServer(server) {
+      validateCredentialServerHost(server.config.server.host);
+      server.middlewares.use((request, response, next) => {
+        if (
+          !isSafeCredentialRequest(
+            request.headers,
+            request.socket.remoteAddress,
+          )
+        )
+          return error(response, 403, "Loopback same-origin request required");
+        next();
+      });
+    },
+  };
+}
+
+export function validateCredentialServerHost(
+  host: string | boolean | undefined,
+): void {
+  if (typeof host !== "string" || !isLoopback(host))
+    throw new Error(
+      "Development credentials require Vite to listen on a loopback host",
+    );
+}
+
+function isLoopbackRemoteAddress(address: string | undefined): boolean {
+  return (
+    address === "127.0.0.1" ||
+    address === "::1" ||
+    address === "::ffff:127.0.0.1"
+  );
 }
 
 function readOnlyIndexerProxy(

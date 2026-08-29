@@ -43,6 +43,58 @@ test("renders one immutable generation with accessible controls", async ({
   expect(writes).toEqual([]);
 });
 
+test("keeps accepted requests account-scoped across persona switches", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const caller = `0x${"0a".padStart(64, "0")}`;
+  const key = [
+    "groundhog-life:requests:v1",
+    "aa".repeat(32),
+    caller,
+    `0x${"22".repeat(32)}`,
+  ].join(":");
+  await page.evaluate(
+    ({ key, caller }) => {
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          version: 1,
+          requests: [
+            {
+              schemaVersion: 1,
+              localId: "accepted-alice",
+              requester: caller,
+              status: "accepted",
+              transactionHash: `0x${"44".repeat(32)}`,
+              requestId: `0x${"55".repeat(32)}`,
+              receiptBlock: "7",
+              submittedAt: "2026-08-29T00:00:00.000Z",
+              acceptedAt: "2026-08-29T00:00:01.000Z",
+              observedThroughBlock: null,
+              resultingGeneration: null,
+              resultingPopulation: null,
+              resultingStateDigest: null,
+              advancedTransactionHash: null,
+              diagnostic: null,
+            },
+          ],
+        }),
+      );
+    },
+    { key, caller },
+  );
+  await page.reload();
+  await expect(page.getByText("accepted", { exact: true })).toBeVisible();
+  await page.getByLabel("Development persona").selectOption("bob");
+  await expect(page.getByText("No local request")).toBeVisible();
+  await page.getByLabel("Development persona").selectOption("alice");
+  await expect(page.getByText("accepted", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Advance 100,000,000 cells" }),
+  ).toBeEnabled();
+});
+
 test("does not claim initial ownership until visible GPU coverage renders", async ({
   page,
 }) => {
@@ -236,6 +288,7 @@ test("supports tab focus and keyboard center inspection", async ({ page }) => {
   });
   await expect(world).toHaveAccessibleDescription(/Enter to inspect/);
   await expect(canvas).toHaveAttribute("tabindex", "-1");
+  await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await expect(world).toBeFocused();
