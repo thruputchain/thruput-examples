@@ -9,12 +9,19 @@ devnode_binary="${GROUNDHOG_DEVNODE_BINARY:-$(command -v hog-devnode || true)}"
 default_artifacts_dir="$(cd "$(dirname "$devnode_binary")/../.." 2>/dev/null && pwd)/built_contracts"
 contract_artifacts_dir="${GROUNDHOG_CONTRACT_ARTIFACTS_DIR:-$default_artifacts_dir}"
 environment_path="$app_dir/.env.local"
+dev_server="${GAME_OF_LIFE_DEV_SERVER:-0}"
 node_pid=""
 indexer_pid=""
 vite_pid=""
 had_environment=0
 generated_environment_fingerprint=""
 initial_environment_fingerprint=""
+received_signal=0
+
+if [[ "$dev_server" != "0" && "$dev_server" != "1" ]]; then
+  printf 'GAME_OF_LIFE_DEV_SERVER must be 0 or 1.\n' >&2
+  exit 1
+fi
 
 if [[ -z "$groundhog_cli" || ! -x "$groundhog_cli" ]]; then
   printf 'Set GROUNDHOG_CLI to an executable Groundhog CLI.\n' >&2
@@ -32,7 +39,7 @@ if [[ ! -f "$contract_artifacts_dir/dev_wallet.rv32a" ]]; then
   printf 'The contract artifact directory does not contain dev_wallet.rv32a.\n' >&2
   exit 1
 fi
-if ! command -v sqlite3 >/dev/null; then
+if [[ "$dev_server" == "0" ]] && ! command -v sqlite3 >/dev/null; then
   printf 'sqlite3 is required for durable restart verification.\n' >&2
   exit 1
 fi
@@ -94,9 +101,9 @@ cleanup() {
       rm -f "$environment_path"
     fi
   else
-    printf 'Preserving .env.local because it changed during clean-ledger acceptance.\n' >&2
+    printf 'Preserving .env.local because it changed while the local stack was running.\n' >&2
   fi
-  if (( exit_code != 0 )); then
+  if (( exit_code != 0 && received_signal == 0 )); then
     for log in "$node_log" "$indexer_log" "$vite_log"; do
       if [[ -s "$log" ]]; then
         printf '\n%s:\n' "$(basename "$log")" >&2
@@ -121,8 +128,8 @@ if [[ -f "$environment_path" ]]; then
 fi
 
 trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'received_signal=1; exit 130' INT
+trap 'received_signal=1; exit 143' TERM
 
 free_port() {
   node -e 'const net=require("node:net");const server=net.createServer();server.listen(0,"127.0.0.1",()=>{process.stdout.write(String(server.address().port));server.close();});'
@@ -132,16 +139,24 @@ millis() {
   date +%s%3N
 }
 
+if [[ "$dev_server" == "1" ]]; then
+  account_hog="${GROUNDHOG_LOCAL_ACCOUNT_HOG:-1000}"
+  hogd_protocol="${GROUNDHOG_LOCAL_HOGD_PROTOCOL:-}"
+else
+  account_hog="${GROUNDHOG_E2E_ACCOUNT_HOG:-1000}"
+  hogd_protocol="${GROUNDHOG_E2E_HOGD_PROTOCOL:-}"
+fi
+
 node_args=(
   --json
   --port 0
   --dev-account-count 3
-  --dev-account-hog "${GROUNDHOG_E2E_ACCOUNT_HOG:-1000}"
+  --dev-account-hog "$account_hog"
   --hog-devnode-binary "$devnode_binary"
   --contract-artifacts-dir "$contract_artifacts_dir"
 )
-if [[ -n "${GROUNDHOG_E2E_HOGD_PROTOCOL:-}" ]]; then
-  node_args+=(--hogd-protocol "$GROUNDHOG_E2E_HOGD_PROTOCOL")
+if [[ -n "$hogd_protocol" ]]; then
+  node_args+=(--hogd-protocol "$hogd_protocol")
 fi
 
 overall_started="$(millis)"
@@ -293,7 +308,11 @@ done
 curl --fail --silent --show-error "$latest_url" >/dev/null
 first_ready_manifest_ms=$(( $(millis) - index_started ))
 
-printf 'Starting the credential-guarded app and running the live browser journey\n'
+if [[ "$dev_server" == "1" ]]; then
+  printf 'Starting the credential-guarded app\n'
+else
+  printf 'Starting the credential-guarded app and running the live browser journey\n'
+fi
 cd "$app_dir"
 setsid npm run dev -- --host 127.0.0.1 --port "$app_port" >"$vite_log" 2>&1 &
 vite_pid=$!
@@ -306,6 +325,25 @@ for (( attempt = 0; attempt < 240; attempt += 1 )); do
   curl --fail --silent --show-error "$app_url" >/dev/null 2>&1 && break
   sleep 0.25
 done
+curl --fail --silent --show-error "$app_url" >/dev/null
+
+if [[ "$dev_server" == "1" ]]; then
+  printf '\nGame of Life local stack is ready:\n'
+  printf '  App:     %s\n' "$app_url"
+  printf '  Indexer: %s\n' "$indexer_url"
+  printf '  RPC:     %s\n' "$rpc_url"
+  printf 'Press Ctrl-C to stop the stack and restore .env.local.\n'
+  set +e
+  wait -n "$node_pid" "$indexer_pid" "$vite_pid"
+  stopped_status=$?
+  set -e
+  printf 'A local service exited unexpectedly.\n' >&2
+  if (( stopped_status == 0 )); then
+    exit 1
+  fi
+  exit "$stopped_status"
+fi
+
 mkdir -p "$evidence_dir"
 browser_started="$(millis)"
 GAME_OF_LIFE_APP_URL="$app_url" \

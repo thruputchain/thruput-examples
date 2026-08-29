@@ -10,6 +10,21 @@ React application for exploring synchronized immutable generations of the 10,000
 - An initialized Game of Life contract and runtime manifest from the same node
 - For clean-ledger acceptance, `sqlite3`, a Groundhog CLI 0.10.1-compatible devnode, and its `built_contracts` directory
 
+## Local Development
+
+Start a complete disposable node, deploy and initialize the contract, verify the local personas, and run the indexer and frontend with one command:
+
+```bash
+npm ci
+GROUNDHOG_CLI=/path/to/groundhog \
+GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
+GROUNDHOG_CONTRACT_ARTIFACTS_DIR=/path/to/built_contracts \
+GROUNDHOG_LOCAL_HOGD_PROTOCOL=hogp/<compatible-protocol> \
+npm run dev:local
+```
+
+The command prints the randomized loopback app, indexer, and RPC URLs when the stack is ready. Keep it running while developing, then press `Ctrl-C` to stop every process and restore any pre-existing `.env.local`. Restoration occurs only if the generated file is unchanged; manual edits are preserved and may retain disposable credentials. The node ledger, deployment credentials, indexer database, and generated artifacts are disposable and remain outside the repository.
+
 ## Configuration
 
 Set these public values before starting or building. Configuration is validated before React mounts.
@@ -47,6 +62,7 @@ Credential injection occurs only during `vite serve`. The development server rej
 ```bash
 npm ci
 GROUNDHOG_CLI=/path/to/validated/groundhog npm run generate:contracts
+npm run dev:local
 npm run check:contracts
 npm run typecheck
 npm test
