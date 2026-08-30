@@ -304,6 +304,7 @@ test("supports tab focus and keyboard center inspection", async ({ page }) => {
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
   await expect(world).toBeFocused();
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();

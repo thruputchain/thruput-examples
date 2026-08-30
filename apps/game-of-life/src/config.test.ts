@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ConfigurationError, loadAppConfig } from "./config";
+import { ConfigurationError, loadAppConfig, loadReadAppConfig } from "./config";
 
 const valid = {
   VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
@@ -70,6 +70,13 @@ describe("startup configuration", () => {
   });
   test("keeps the read-only application valid when profiles are absent", () =>
     expect(loadAppConfig(valid).transactionProfiles).toBeNull());
+  test("loads read-only routes without parsing transaction profiles", () =>
+    expect(
+      loadReadAppConfig({
+        ...valid,
+        VITE_GAME_OF_LIFE_REQUEST_TRANSACTION_GAS_LIMIT: "invalid",
+      }).contractAddress,
+    ).toBe(valid.VITE_GAME_OF_LIFE_CONTRACT_ADDRESS));
   test("rejects partial and placeholder crank profiles", () => {
     expect(() =>
       loadAppConfig({

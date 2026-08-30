@@ -416,6 +416,12 @@ function TopBar({
         />
       </div>
       <div className="flex items-center gap-2">
+        <a
+          href="/xray"
+          className="inline-flex h-12 items-center rounded-md px-2.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:h-9 [@media(pointer:coarse)]:h-12"
+        >
+          X-Ray
+        </a>
         {transaction ? (
           <label className="sr-only sm:not-sr-only sm:flex sm:items-center sm:gap-2 sm:text-xs sm:text-muted-foreground">
             <span>Persona</span>

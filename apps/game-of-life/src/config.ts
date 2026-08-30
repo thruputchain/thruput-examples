@@ -2,13 +2,16 @@ import { normalizeNetworkId } from "./config-values";
 
 const HEX32_PATTERN = /^0x[0-9a-f]{64}$/;
 
-export interface AppConfig {
+export interface ReadAppConfig {
   readonly rpcUrl: URL;
   readonly rpcProxyPath: "/groundhog-rpc";
   readonly networkId: string;
   readonly contractAddress: string;
   readonly indexerUrl: URL;
   readonly indexerProxyPath: "/groundhog-indexer/";
+}
+
+export interface AppConfig extends ReadAppConfig {
   readonly transactionProfiles: LifeTransactionProfiles | null;
 }
 
@@ -36,6 +39,15 @@ export class ConfigurationError extends Error {
 }
 
 export function loadAppConfig(environment: Environment): Readonly<AppConfig> {
+  return Object.freeze({
+    ...loadReadAppConfig(environment),
+    transactionProfiles: transactionProfiles(environment),
+  });
+}
+
+export function loadReadAppConfig(
+  environment: Environment,
+): Readonly<ReadAppConfig> {
   const networkInput = required(environment, "VITE_GROUNDHOG_NETWORK_ID");
   let networkId: string;
   try {
@@ -68,7 +80,6 @@ export function loadAppConfig(environment: Environment): Readonly<AppConfig> {
       "VITE_GAME_OF_LIFE_INDEXER_URL",
     ),
     indexerProxyPath: "/groundhog-indexer/",
-    transactionProfiles: transactionProfiles(environment),
   });
 }
 
