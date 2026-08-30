@@ -128,6 +128,7 @@ if [[ -f "$environment_path" ]]; then
 fi
 
 trap cleanup EXIT
+trap 'received_signal=1; exit 129' HUP
 trap 'received_signal=1; exit 130' INT
 trap 'received_signal=1; exit 143' TERM
 
@@ -160,7 +161,8 @@ if [[ -n "$hogd_protocol" ]]; then
 fi
 
 overall_started="$(millis)"
-setsid "$groundhog_cli" node "${node_args[@]}" >"$node_output" 2>"$node_log" &
+# Long-lived children must not retain the environment lock if the supervisor dies.
+setsid "$groundhog_cli" node "${node_args[@]}" 9>&- >"$node_output" 2>"$node_log" &
 node_pid=$!
 
 startup=""
@@ -293,7 +295,7 @@ export GAME_OF_LIFE_INDEXER_DB="$work_dir/indexer.sqlite3"
 export GAME_OF_LIFE_INDEXER_LISTEN="127.0.0.1:$indexer_port"
 export GAME_OF_LIFE_CORS_ORIGINS="$app_url"
 index_started="$(millis)"
-setsid "$repo_root/target/release/game-of-life-indexer" >"$indexer_log" 2>&1 &
+setsid "$repo_root/target/release/game-of-life-indexer" 9>&- >"$indexer_log" 2>&1 &
 indexer_pid=$!
 latest_url="$indexer_url/v1/worlds/$network_id/$contract_address/latest.json"
 for (( attempt = 0; attempt < 600; attempt += 1 )); do
@@ -314,7 +316,7 @@ else
   printf 'Starting the credential-guarded app and running the live browser journey\n'
 fi
 cd "$app_dir"
-setsid npm run dev -- --host 127.0.0.1 --port "$app_port" >"$vite_log" 2>&1 &
+setsid npm run dev -- --host 127.0.0.1 --port "$app_port" 9>&- >"$vite_log" 2>&1 &
 vite_pid=$!
 for (( attempt = 0; attempt < 240; attempt += 1 )); do
   if ! kill -0 "$vite_pid" 2>/dev/null; then
@@ -368,7 +370,7 @@ if [[ -z "$cursor_before" || "$evidence_before" -lt 1 || "$events_before" -lt 1 
 fi
 stop_process "$indexer_pid"
 indexer_pid=""
-setsid "$repo_root/target/release/game-of-life-indexer" >>"$indexer_log" 2>&1 &
+setsid "$repo_root/target/release/game-of-life-indexer" 9>&- >>"$indexer_log" 2>&1 &
 indexer_pid=$!
 for (( attempt = 0; attempt < 240; attempt += 1 )); do
   curl --fail --silent --show-error "$latest_url" >/dev/null 2>&1 && break
