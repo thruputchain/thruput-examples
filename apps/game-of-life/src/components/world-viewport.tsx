@@ -162,7 +162,7 @@ export function WorldViewport({
         <span
           aria-hidden="true"
           data-testid="cell-highlight"
-          className="pointer-events-none absolute border border-primary bg-primary/15 shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--canvas)_75%,transparent),0_0_12px_color-mix(in_oklab,var(--primary)_45%,transparent)]"
+          className="pointer-events-none absolute border border-primary bg-primary/15 shadow-[0_0_12px_color-mix(in_oklab,var(--primary)_45%,transparent)]"
           style={{
             left: highlight.left,
             top: highlight.top,
