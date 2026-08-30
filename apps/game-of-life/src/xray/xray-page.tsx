@@ -2,8 +2,12 @@ import { useId, useState, type FormEvent } from "react";
 import { Dna } from "lucide-react";
 import type { ReadAppConfig } from "@/config";
 import { cn } from "@/lib/utils";
+import { ComparisonFramework } from "./comparison-framework";
+import { EvidencePipeline } from "./evidence-pipeline";
 import { TransactionAnatomy } from "./transaction-anatomy";
+import { useXrayEvidence } from "./use-xray-evidence";
 import {
+  bankRolesForGeneration,
   formatCount,
   LIFE_WORKLOAD,
   mapCellToStorage,
@@ -11,6 +15,7 @@ import {
   parseCoordinateInput,
   withCellQuery,
   type CellStorageAddress,
+  type BankRoles,
 } from "./workload";
 
 const WORLD_WIDTH = formatCount(LIFE_WORKLOAD.worldWidth);
@@ -97,6 +102,11 @@ export function XrayPage({
     const coordinate = parseCellQuery(window.location.search);
     return mapCellToStorage(coordinate.x, coordinate.y);
   });
+  const evidence = useXrayEvidence(config);
+  const bankRoles =
+    evidence.state.chain.value && !evidence.state.chain.integrity
+      ? bankRolesForGeneration(BigInt(evidence.state.chain.value.generation))
+      : null;
   const scale = SCALES.find(({ id }) => id === selectedScale) ?? SCALES[0];
   const selectAddress = (x: number, y: number) => {
     const nextAddress = mapCellToStorage(x, y);
@@ -116,7 +126,7 @@ export function XrayPage({
       >
         Skip to X-Ray content
       </a>
-      <XrayHeader config={config} />
+      <XrayHeader config={config} sourceHealth={evidence.relationship.label} />
       <main id="xray-content" className="isolate overflow-x-clip">
         <Hero />
         <ScaleSection
@@ -124,19 +134,40 @@ export function XrayPage({
           selectedScale={selectedScale}
           onSelect={setSelectedScale}
         />
-        <StorageAtlas address={address} selectedScale={selectedScale} />
+        <StorageAtlas
+          address={address}
+          selectedScale={selectedScale}
+          bankRoles={bankRoles}
+          rolesAreStale={evidence.state.chain.status === "stale"}
+        />
         <CellMicroscope
           address={address}
           selectedScale={selectedScale}
           onSelect={selectAddress}
         />
         <TransactionAnatomy />
+        <EvidencePipeline
+          config={config}
+          state={evidence.state}
+          relationship={evidence.relationship}
+          onRetry={evidence.retry}
+        />
+        <ComparisonFramework />
       </main>
+      <p aria-live="polite" className="sr-only">
+        {evidence.announcement}
+      </p>
     </div>
   );
 }
 
-function XrayHeader({ config }: { readonly config: Readonly<ReadAppConfig> }) {
+function XrayHeader({
+  config,
+  sourceHealth,
+}: {
+  readonly config: Readonly<ReadAppConfig>;
+  readonly sourceHealth: string;
+}) {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[max(.5rem,var(--safe-top))] pr-[max(.75rem,var(--safe-right))] pb-2 pl-[max(.75rem,var(--safe-left))] backdrop-blur-xl sm:pr-[max(1.5rem,var(--safe-right))] sm:pl-[max(1.5rem,var(--safe-left))]">
       <div className="mx-auto flex max-w-[90rem] items-center justify-between gap-4">
@@ -155,24 +186,29 @@ function XrayHeader({ config }: { readonly config: Readonly<ReadAppConfig> }) {
             </span>
           </span>
         </a>
-        <nav
-          aria-label="Primary navigation"
-          className="flex items-center gap-1"
-        >
-          <a
-            href="/"
-            className="inline-flex h-12 items-center rounded-md px-3 text-base text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-sm"
+        <div className="flex items-center gap-3">
+          <p className="hidden max-w-48 truncate font-mono text-sm text-muted-foreground lg:block">
+            ● {sourceHealth}
+          </p>
+          <nav
+            aria-label="Primary navigation"
+            className="flex items-center gap-1"
           >
-            World
-          </a>
-          <a
-            href="/xray"
-            aria-current="page"
-            className="inline-flex h-12 items-center rounded-md bg-muted px-3 text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-sm"
-          >
-            X-Ray
-          </a>
-        </nav>
+            <a
+              href="/"
+              className="inline-flex h-12 items-center rounded-md px-3 text-base text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-sm"
+            >
+              World
+            </a>
+            <a
+              href="/xray"
+              aria-current="page"
+              className="inline-flex h-12 items-center rounded-md bg-muted px-3 text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-sm"
+            >
+              X-Ray
+            </a>
+          </nav>
+        </div>
       </div>
     </header>
   );
@@ -672,9 +708,13 @@ function AddressMetric({
 function StorageAtlas({
   address,
   selectedScale,
+  bankRoles,
+  rolesAreStale,
 }: {
   readonly address: CellStorageAddress;
   readonly selectedScale: ScaleId;
+  readonly bankRoles: BankRoles | null;
+  readonly rolesAreStale: boolean;
 }) {
   return (
     <section
@@ -705,11 +745,13 @@ function StorageAtlas({
               address={address}
               bank="A"
               selectedScale={selectedScale}
+              role={bankRole("A", bankRoles, rolesAreStale)}
             />
             <BankPanel
               address={address}
               bank="B"
               selectedScale={selectedScale}
+              role={bankRole("B", bankRoles, rolesAreStale)}
             />
           </div>
           <figcaption className="mt-6 flex flex-wrap gap-x-8 gap-y-3 border-t border-border pt-5 text-base text-muted-foreground sm:text-sm">
@@ -746,10 +788,12 @@ function BankPanel({
   address,
   bank,
   selectedScale,
+  role,
 }: {
   readonly address: CellStorageAddress;
   readonly bank: "A" | "B";
   readonly selectedScale: ScaleId;
+  readonly role: string;
 }) {
   const titleId = useId();
   const gridId = `bank-${bank.toLowerCase()}-row-grid`;
@@ -769,7 +813,7 @@ function BankPanel({
         </h3>
         <div className="text-right font-mono text-base text-muted-foreground sm:text-sm">
           <p>{CHUNKS_PER_BANK} chunk keys</p>
-          <p>Role unknown</p>
+          <p>{role}</p>
         </div>
       </div>
       <div className="relative mt-4 overflow-hidden rounded-md border border-border bg-background p-3">
@@ -858,4 +902,14 @@ function BankPanel({
       </dl>
     </div>
   );
+}
+
+function bankRole(
+  bank: "A" | "B",
+  roles: BankRoles | null,
+  stale: boolean,
+): string {
+  if (!roles) return "Role unknown";
+  const role = roles.active === bank ? "Active" : "Inactive";
+  return `${stale ? "Last observed " : ""}${role} / Contract-derived from generation parity`;
 }

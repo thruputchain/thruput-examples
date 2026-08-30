@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
 
 test.afterEach(({ page }) => expect(browserErrors.get(page) ?? []).toEqual([]));
 
-test("loads the X-Ray route directly without world payloads", async ({
+test("loads read-only X-Ray evidence without world payloads", async ({
   page,
 }) => {
   const applicationRequests: string[] = [];
@@ -27,6 +27,7 @@ test("loads the X-Ray route directly without world payloads", async ({
       dataRequests.push(url.pathname);
   });
 
+  await page.request.get("/__life-fixture?chain=1&published=1&evidence=event");
   await page.goto("/xray");
 
   await expect(
@@ -40,7 +41,37 @@ test("loads the X-Ray route directly without world payloads", async ({
     "aria-pressed",
     "true",
   );
-  expect(dataRequests).toEqual([]);
+  await expect(
+    page.getByText(/RELATIONSHIP \/ Chain and snapshot aligned/),
+  ).toBeVisible();
+  const snapshotEvidence = page
+    .getByRole("article")
+    .filter({ hasText: "Immutable visualization snapshot" });
+  await expect(snapshotEvidence).toContainText("generation-advanced-event");
+  await expect(snapshotEvidence).toContainText("GenerationAdvanced");
+  await expect(snapshotEvidence).toContainText("Event index1");
+  await expect(snapshotEvidence).toContainText(`0x${"cc".repeat(32)}`);
+  await expect(snapshotEvidence).toContainText(`0x${"ef".repeat(32)}`);
+  await expect(snapshotEvidence).toContainText("2026-08-28T01:02:03Z");
+  await expect(
+    page
+      .getByRole("heading", { name: "Inspectable claim bundle" })
+      .locator(".."),
+  ).toContainText(/GenerationAdvanced \/ event index 1 \/ request/);
+  await expect(page.getByText(/individual tile proofs do not/i)).toBeVisible();
+  expect(dataRequests.filter((path) => path.includes("/tiles/"))).toEqual([]);
+  expect(
+    dataRequests.filter((path) => path.startsWith("/groundhog-rpc")),
+  ).toHaveLength(1);
+  expect(
+    dataRequests.filter((path) => path.endsWith("/latest.json")),
+  ).toHaveLength(1);
+  expect(
+    dataRequests.filter((path) => path.endsWith("/manifest.json")),
+  ).toHaveLength(1);
+  expect(
+    dataRequests.filter((path) => path.endsWith("/provenance.json")),
+  ).toHaveLength(1);
   expect(
     applicationRequests.filter((path) =>
       [
@@ -51,6 +82,76 @@ test("loads the X-Ray route directly without world payloads", async ({
       ].some((privatePath) => path.includes(privatePath)),
     ),
   ).toEqual([]);
+});
+
+test("keeps chain and indexer failures independent", async ({ page }) => {
+  await page.request.get("/__life-fixture?latest=unavailable");
+  await page.goto("/xray");
+  await expect(page.getByText(/RELATIONSHIP \/ Chain only/)).toBeVisible();
+  await expect(page.getByText("● Unavailable", { exact: true })).toBeVisible();
+  await expect(page.getByText("32,768", { exact: true })).toBeVisible();
+
+  await page.request.get("/__life-fixture?reset=1&rpc=unavailable");
+  await page.reload();
+  await expect(
+    page.getByText(/RELATIONSHIP \/ Snapshot retained/),
+  ).toBeVisible();
+  await expect(page.getByText("● Unavailable", { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-relationship="snapshot-retained"]'),
+  ).toContainText(/is retained evidence and is not labeled as current/);
+
+  await page.request.get("/__life-fixture?reset=1&rpc=malformed");
+  await page.reload();
+  await expect(
+    page.getByText(/RELATIONSHIP \/ Snapshot retained/),
+  ).toBeVisible();
+  await expect(page.getByText(/Malformed · rejected/)).toBeVisible();
+});
+
+test("rejects a malformed refresh without losing retained evidence", async ({
+  page,
+}) => {
+  await page.goto("/xray");
+  await expect(
+    page.getByText(/RELATIONSHIP \/ Chain and snapshot aligned/),
+  ).toBeVisible();
+  await page.request.get("/__life-fixture?latest=malformed");
+  await page.getByRole("button", { name: "Refresh evidence" }).click();
+  await expect(
+    page.getByText(/RELATIONSHIP \/ Retained snapshot; incompatible refresh/),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Stale · malformed refresh rejected/),
+  ).toBeVisible();
+});
+
+test("rejects malformed and ineligible snapshot evidence", async ({ page }) => {
+  await page.request.get("/__life-fixture?latest=malformed");
+  await page.goto("/xray");
+  await expect(
+    page.getByText(/RELATIONSHIP \/ Incompatible snapshot/),
+  ).toBeVisible();
+  await expect(page.getByText(/Malformed · rejected/)).toBeVisible();
+
+  await page.request.get(
+    "/__life-fixture?reset=1&chain=2&published=1&evidence=metadata",
+  );
+  await page.reload();
+  await expect(
+    page.getByText(/RELATIONSHIP \/ Integrity conflict/),
+  ).toBeVisible();
+  await expect(
+    page.locator('[data-relationship="integrity-conflict"]'),
+  ).toContainText(/metadata observation does not describe current chain state/);
+  const rejected = page.getByRole("article").filter({
+    hasText: "Immutable visualization snapshot",
+  });
+  await rejected.getByText("Rejected snapshot identity").click();
+  await expect(rejected.getByText("1", { exact: true })).toBeVisible();
+  await expect(rejected).toContainText(
+    "not used as visualized or headline evidence",
+  );
 });
 
 test("supports direct trailing-slash and not-found routes", async ({

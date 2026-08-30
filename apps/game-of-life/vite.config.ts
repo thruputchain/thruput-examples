@@ -537,7 +537,8 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
     tileDelay: 0,
     holdCandidateTiles: false,
     candidateTileHeld: false,
-    latestUnavailable: false,
+    latestState: "ready" as "ready" | "unavailable" | "malformed",
+    rpcState: "ready" as "ready" | "unavailable" | "malformed",
     candidateEvidence: "event" as "event" | "metadata",
   };
   let heldCandidateTiles: Array<() => void> = [];
@@ -553,7 +554,8 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
     const published = fixture.publishedGeneration;
     const digest = digests[published]!;
     if (pathname === `${base}/latest.json`) {
-      if (fixture.latestUnavailable) return undefined;
+      if (fixture.latestState === "unavailable") return undefined;
+      if (fixture.latestState === "malformed") return { schemaVersion: 2 };
       return {
         schemaVersion: 1,
         generation: String(published),
@@ -690,7 +692,8 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
             fixture.tileDelay = 0;
             fixture.holdCandidateTiles = false;
             fixture.candidateTileHeld = false;
-            fixture.latestUnavailable = false;
+            fixture.latestState = "ready";
+            fixture.rpcState = "ready";
             fixture.candidateEvidence = "event";
             for (const release of heldCandidateTiles) release();
             heldCandidateTiles = [];
@@ -731,8 +734,19 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
             heldCandidateTiles = [];
           }
           if (url.searchParams.has("latest"))
-            fixture.latestUnavailable =
-              url.searchParams.get("latest") === "unavailable";
+            fixture.latestState =
+              url.searchParams.get("latest") === "unavailable"
+                ? "unavailable"
+                : url.searchParams.get("latest") === "malformed"
+                  ? "malformed"
+                  : "ready";
+          if (url.searchParams.has("rpc"))
+            fixture.rpcState =
+              url.searchParams.get("rpc") === "unavailable"
+                ? "unavailable"
+                : url.searchParams.get("rpc") === "malformed"
+                  ? "malformed"
+                  : "ready";
           if (url.searchParams.has("evidence"))
             fixture.candidateEvidence =
               url.searchParams.get("evidence") === "metadata"
@@ -743,6 +757,11 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
           return;
         }
         if (request.method === "POST" && pathname === "/") {
+          if (fixture.rpcState === "unavailable") {
+            response.statusCode = 503;
+            response.end("unavailable");
+            return;
+          }
           const envelope = JSON.parse(await readBody(request)) as {
             readonly id: string | number;
           };
@@ -752,7 +771,10 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
             result: {
               output: {
                 result: "return",
-                returnData: hex(metadataBytes(fixture.chainGeneration)),
+                returnData:
+                  fixture.rpcState === "malformed"
+                    ? "0x00"
+                    : hex(metadataBytes(fixture.chainGeneration)),
               },
               events: [],
               height: "9",
@@ -764,7 +786,10 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
           response.end(body);
           return;
         }
-        if (pathname === `${base}/latest.json` && fixture.latestUnavailable) {
+        if (
+          pathname === `${base}/latest.json` &&
+          fixture.latestState === "unavailable"
+        ) {
           response.statusCode = 503;
           response.end("unavailable");
           return;
