@@ -11,6 +11,7 @@ contract_artifacts_dir="${GROUNDHOG_CONTRACT_ARTIFACTS_DIR:-$default_artifacts_d
 environment_path="$app_dir/.env.local"
 dev_server="${GAME_OF_LIFE_DEV_SERVER:-0}"
 node_pid=""
+devnode_pid=""
 indexer_pid=""
 vite_pid=""
 had_environment=0
@@ -49,6 +50,9 @@ if ! command -v flock >/dev/null; then
 fi
 
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/groundhog-life-e2e.XXXXXX")"
+export XDG_CONFIG_HOME="$work_dir/config"
+export XDG_CACHE_HOME="$work_dir/cache"
+devnode_pid_file="$XDG_CACHE_HOME/groundhog/hog-devnode.pid"
 exec 9>"$app_dir/.env.local.lock"
 if ! flock -n 9; then
   printf 'Another Game of Life setup or acceptance run owns .env.local.\n' >&2
@@ -67,6 +71,17 @@ run_evidence="$evidence_dir/phase-7-clean-ledger.json"
 
 stop_process() {
   local pid="$1"
+  local expected_executable="${2:-}"
+  local actual_executable=""
+  local process_group=""
+  if [[ -n "$expected_executable" ]]; then
+    actual_executable="$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)"
+    process_group="$(ps -o pgid= -p "$pid" 2>/dev/null || true)"
+    process_group="${process_group//[[:space:]]/}"
+    if [[ "$actual_executable" != "$(readlink -f "$expected_executable")" || "$process_group" != "$pid" ]]; then
+      return
+    fi
+  fi
   if [[ -n "$pid" ]] && kill -0 -- "-$pid" 2>/dev/null; then
     kill -TERM -- "-$pid" 2>/dev/null || true
     for (( attempt = 0; attempt < 50; attempt += 1 )); do
@@ -74,17 +89,39 @@ stop_process() {
       sleep 0.1
     done
     if kill -0 -- "-$pid" 2>/dev/null; then
-      kill -KILL -- "-$pid" 2>/dev/null || true
+      process_group="$(ps -o pgid= -p "$pid" 2>/dev/null || true)"
+      process_group="${process_group//[[:space:]]/}"
+      if [[ -z "$expected_executable" || ( "$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)" == "$(readlink -f "$expected_executable")" && "$process_group" == "$pid" ) ]]; then
+        kill -KILL -- "-$pid" 2>/dev/null || true
+      fi
     fi
     wait "$pid" 2>/dev/null || true
   fi
 }
 
+capture_devnode_pid() {
+  if [[ -n "$devnode_pid" || ! -f "$devnode_pid_file" ]]; then
+    return
+  fi
+  local candidate=""
+  IFS= read -r candidate <"$devnode_pid_file" || true
+  if [[ ! "$candidate" =~ ^[1-9][0-9]*$ ]]; then
+    return
+  fi
+  local actual_executable=""
+  actual_executable="$(readlink -f "/proc/$candidate/exe" 2>/dev/null || true)"
+  if [[ "$actual_executable" == "$(readlink -f "$devnode_binary")" ]]; then
+    devnode_pid="$candidate"
+  fi
+}
+
 cleanup() {
   local exit_code=$?
+  capture_devnode_pid
+  stop_process "$devnode_pid" "$devnode_binary"
+  stop_process "$node_pid"
   stop_process "$vite_pid"
   stop_process "$indexer_pid"
-  stop_process "$node_pid"
   current_fingerprint=""
   if [[ -f "$environment_path" && ! -L "$environment_path" ]]; then
     current_fingerprint="$(sha256sum "$environment_path")"
@@ -206,7 +243,6 @@ node -e '
 printf 'Building and deploying Game of Life to clean ledger at %s\n' "$rpc_url"
 cd "$repo_root"
 "$groundhog_cli" build -p game-of-life
-export XDG_CONFIG_HOME="$work_dir/config"
 "$groundhog_cli" keys generate phase-7-deployer >/dev/null
 mkdir -p "$work_dir/contracts"
 cp "$contract_artifacts_dir/dev_wallet.rv32a" "$work_dir/contracts/dev_wallet.rv32a"

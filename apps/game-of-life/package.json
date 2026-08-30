@@ -10,7 +10,7 @@
     "build": "vite build",
     "check:contracts": "bash scripts/check-contract-bindings.sh",
     "dev": "vite",
-    "dev:local": "GAME_OF_LIFE_DEV_SERVER=1 bash scripts/test-clean-ledger.sh",
+    "dev:local": "exec node scripts/dev-local.mjs",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\" \"benchmarks/*.json\" \"*.{ts,json}\"",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "setup:local": "bash scripts/setup-local.sh",
