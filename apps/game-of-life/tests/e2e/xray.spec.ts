@@ -86,7 +86,34 @@ test("navigates between the world and X-Ray with ordinary links", async ({
   ).toBeVisible();
 });
 
-test("keeps the Phase 1 instrument within a 320 pixel viewport", async ({
+test("maps and shares an exact boundary cell without losing other query state", async ({
+  page,
+}) => {
+  await page.goto("/xray?view=proof");
+  await page.getByLabel("Coordinate x").fill("9999");
+  await page.getByLabel("Coordinate y").fill("9999");
+  await page.getByRole("button", { name: "Locate cell" }).click();
+
+  await expect(page).toHaveURL(/\/xray\?view=proof&cellX=9999&cellY=9999$/);
+  await expect(page.getByLabel("Bit 7, cell x 9999, selected")).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await expect(page.getByRole("status")).toHaveText(
+    "Cell 9999, 9999 maps to chunk 19999, byte 249, bit 7.",
+  );
+
+  await page.getByLabel("Coordinate x").fill("10000");
+  await page.getByRole("button", { name: "Locate cell" }).click();
+  await expect(page.getByRole("alert")).toContainText("0 through 9,999");
+  await expect(page).toHaveURL(/\/xray\?view=proof&cellX=9999&cellY=9999$/);
+
+  await page.reload();
+  await expect(page.getByLabel("Coordinate x")).toHaveValue("9999");
+  await expect(page.getByLabel("Coordinate y")).toHaveValue("9999");
+});
+
+test("keeps the microscope usable within a 320 pixel viewport", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 780 });
@@ -95,6 +122,37 @@ test("keeps the Phase 1 instrument within a 320 pixel viewport", async ({
     page.getByRole("navigation", { name: "Primary navigation" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: /Block/ })).toBeVisible();
+  await page
+    .getByRole("heading", { name: "Pinpoint any cell in canonical storage" })
+    .scrollIntoViewIfNeeded();
+  await expect(page.getByLabel("Coordinate x")).toBeVisible();
+  await expect(page.getByLabel("Coordinate y")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Locate cell" })).toBeVisible();
+  expect(
+    await page
+      .getByRole("list", { name: /bit positions/ })
+      .evaluate((element) => element.scrollWidth > element.clientWidth),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+});
+
+test("keeps microscope controls operable in mobile landscape", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 780, height: 360 });
+  await page.goto("/xray?cellX=8&cellY=9");
+  await page
+    .getByRole("heading", { name: "Pinpoint any cell in canonical storage" })
+    .scrollIntoViewIfNeeded();
+  await expect(page.getByLabel("Coordinate x")).toHaveValue("8");
+  await expect(page.getByLabel("Coordinate y")).toHaveValue("9");
+  await page.getByLabel("Coordinate x").fill("7");
+  await page.getByRole("button", { name: "Locate cell" }).click();
+  await expect(page).toHaveURL(/cellX=7&cellY=9/);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,

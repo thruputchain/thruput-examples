@@ -1,9 +1,13 @@
 import { describe, expect, test } from "vitest";
 import {
   bankRolesForGeneration,
+  DEFAULT_CELL,
   formatCount,
   LIFE_WORKLOAD,
   mapCellToStorage,
+  parseCellQuery,
+  parseCoordinateInput,
+  withCellQuery,
 } from "./workload";
 
 describe("Transaction X-Ray workload", () => {
@@ -105,5 +109,54 @@ describe("Transaction X-Ray workload", () => {
   test("formats exact decimal counts consistently", () => {
     expect(formatCount(100_000_000)).toBe("100,000,000");
     expect(formatCount(12_500_000n)).toBe("12,500,000");
+  });
+
+  test.each([
+    ["?cellX=0&cellY=9999", { x: 0, y: 9_999 }],
+    ["?cellX=5000&cellY=5000", { x: 5_000, y: 5_000 }],
+    ["?view=proof&cellX=42&cellY=7", { x: 42, y: 7 }],
+  ])("parses canonical X-Ray query %s", (search, expected) => {
+    expect(parseCellQuery(search)).toEqual(expected);
+  });
+
+  test.each([
+    "",
+    "?cellX=1",
+    "?cellY=1",
+    "?cellX=1&cellX=2&cellY=3",
+    "?cellX=1&cellY=2&cellY=3",
+    "?cellX=01&cellY=2",
+    "?cellX=+1&cellY=2",
+    "?cellX=-0&cellY=2",
+    "?cellX=%201&cellY=2",
+    "?cellX=1.5&cellY=2",
+    "?cellX=1e2&cellY=2",
+    "?cellX=10000&cellY=2",
+    "?cellX=1&cellY=10000",
+  ])("falls back for invalid X-Ray query %s", (search) => {
+    expect(parseCellQuery(search)).toEqual(DEFAULT_CELL);
+  });
+
+  test.each([
+    ["0", 0],
+    ["0008", 8],
+    ["9999", 9_999],
+    ["", null],
+    ["-1", null],
+    ["1.5", null],
+    ["10 00", null],
+    ["10000", null],
+  ])("validates coordinate input %s", (input, expected) => {
+    expect(parseCoordinateInput(input)).toBe(expected);
+  });
+
+  test("updates only namespaced coordinate query values", () => {
+    const input = new URL(
+      "http://127.0.0.1/xray?cellX=1&cellX=2&cellY=3&view=proof#atlas",
+    );
+    expect(withCellQuery(input, { x: 8_000, y: 4_321 }).href).toBe(
+      "http://127.0.0.1/xray?cellX=8000&cellY=4321&view=proof#atlas",
+    );
+    expect(input.searchParams.getAll("cellX")).toEqual(["1", "2"]);
   });
 });

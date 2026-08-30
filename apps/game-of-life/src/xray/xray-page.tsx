@@ -1,8 +1,16 @@
-import { useId, useState } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { Dna } from "lucide-react";
 import type { ReadAppConfig } from "@/config";
 import { cn } from "@/lib/utils";
-import { formatCount, LIFE_WORKLOAD } from "./workload";
+import {
+  formatCount,
+  LIFE_WORKLOAD,
+  mapCellToStorage,
+  parseCellQuery,
+  parseCoordinateInput,
+  withCellQuery,
+  type CellStorageAddress,
+} from "./workload";
 
 const WORLD_WIDTH = formatCount(LIFE_WORKLOAD.worldWidth);
 const WORLD_HEIGHT = formatCount(LIFE_WORKLOAD.worldHeight);
@@ -12,9 +20,6 @@ const BANK_BYTES = formatCount(LIFE_WORKLOAD.bankBytes);
 const CHUNKS_PER_BANK = formatCount(LIFE_WORKLOAD.chunksPerBank);
 const STEADY_STATE_BYTES = formatCount(LIFE_WORKLOAD.steadyStateBankBytes);
 const RULE_EVALUATIONS = formatCount(LIFE_WORKLOAD.ruleEvaluations);
-const REFERENCE_ROW = 5_000;
-const REFERENCE_ATLAS_X = REFERENCE_ROW % 100;
-const REFERENCE_ATLAS_Y = Math.floor(REFERENCE_ROW / 100);
 
 const SCALES = [
   {
@@ -87,7 +92,21 @@ export function XrayPage({
   readonly config: Readonly<ReadAppConfig>;
 }) {
   const [selectedScale, setSelectedScale] = useState<ScaleId>("cell");
+  const [address, setAddress] = useState(() => {
+    const coordinate = parseCellQuery(window.location.search);
+    return mapCellToStorage(coordinate.x, coordinate.y);
+  });
   const scale = SCALES.find(({ id }) => id === selectedScale) ?? SCALES[0];
+  const selectAddress = (x: number, y: number) => {
+    const nextAddress = mapCellToStorage(x, y);
+    const nextUrl = withCellQuery(new URL(window.location.href), { x, y });
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`,
+    );
+    setAddress(nextAddress);
+  };
   return (
     <div className="min-h-dvh bg-background text-foreground antialiased">
       <a
@@ -104,7 +123,12 @@ export function XrayPage({
           selectedScale={selectedScale}
           onSelect={setSelectedScale}
         />
-        <StorageAtlas selectedScale={selectedScale} />
+        <StorageAtlas address={address} selectedScale={selectedScale} />
+        <CellMicroscope
+          address={address}
+          selectedScale={selectedScale}
+          onSelect={selectAddress}
+        />
       </main>
     </div>
   );
@@ -324,7 +348,332 @@ function ScaleSection({
   );
 }
 
-function StorageAtlas({ selectedScale }: { readonly selectedScale: ScaleId }) {
+function CellMicroscope({
+  address,
+  selectedScale,
+  onSelect,
+}: {
+  readonly address: CellStorageAddress;
+  readonly selectedScale: ScaleId;
+  readonly onSelect: (x: number, y: number) => void;
+}) {
+  const errorId = useId();
+  const [xInput, setXInput] = useState(String(address.x));
+  const [yInput, setYInput] = useState(String(address.y));
+  const [error, setError] = useState<string | null>(null);
+  const [invalid, setInvalid] = useState({ x: false, y: false });
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const x = parseCoordinateInput(xInput);
+    const y = parseCoordinateInput(yInput);
+    setInvalid({ x: x === null, y: y === null });
+    if (x === null || y === null) {
+      const axes = [x === null ? "x" : null, y === null ? "y" : null].filter(
+        (axis): axis is string => axis !== null,
+      );
+      setError(
+        `Enter a whole-number ${axes.join(" and ")} coordinate from 0 through 9,999.`,
+      );
+      return;
+    }
+    setInvalid({ x: false, y: false });
+    setError(null);
+    setXInput(String(x));
+    setYInput(String(y));
+    onSelect(x, y);
+  };
+  const firstCellInByte = address.byteInRow * LIFE_WORKLOAD.bitsPerByte;
+  return (
+    <section
+      className="border-t border-border py-16 sm:py-20 lg:py-24"
+      aria-labelledby="microscope-title"
+      data-scale-focus={selectedScale}
+    >
+      <div className="mx-auto max-w-[90rem] px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-3">
+          <p className="font-mono text-base tracking-wide text-warning sm:text-sm">
+            CELL MICROSCOPE / EXACT ADDRESS
+          </p>
+          <h2
+            id="microscope-title"
+            className="max-w-[35ch] text-balance text-4xl font-semibold tracking-tight"
+          >
+            Pinpoint any cell in canonical storage
+          </h2>
+          <p className="max-w-[58ch] text-pretty text-lg text-muted-foreground sm:text-base">
+            Coordinates map deterministically to one byte, one LSB-first bit,
+            and one chunk key. This view exposes address positions, not live or
+            dead cell values.
+          </p>
+        </div>
+
+        <form
+          onSubmit={submit}
+          className="mt-10 flex max-w-2xl flex-col gap-4 rounded-lg border border-border bg-panel p-4 sm:flex-row sm:flex-wrap sm:items-end sm:p-5"
+          noValidate
+        >
+          <CoordinateInput
+            axis="x"
+            describedBy={error ? errorId : undefined}
+            invalid={invalid.x}
+            value={xInput}
+            onChange={setXInput}
+          />
+          <CoordinateInput
+            axis="y"
+            describedBy={error ? errorId : undefined}
+            invalid={invalid.y}
+            value={yInput}
+            onChange={setYInput}
+          />
+          <button
+            type="submit"
+            className="inline-flex h-12 shrink-0 items-center justify-center rounded-md bg-primary px-3 text-base font-medium text-primary-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:h-9 sm:text-sm"
+          >
+            Locate cell
+          </button>
+          {error ? (
+            <p
+              id={errorId}
+              role="alert"
+              className="text-base text-destructive sm:basis-full sm:text-sm"
+            >
+              {error}
+            </p>
+          ) : null}
+        </form>
+
+        <div className="mt-10 grid gap-8 lg:grid-cols-[3fr_2fr] lg:gap-12">
+          <div
+            className={cn(
+              "min-w-0 rounded-lg border p-5",
+              ["cell", "bit", "byte"].includes(selectedScale)
+                ? "border-warning/50 bg-warning/5"
+                : "border-border",
+            )}
+          >
+            <div className="flex items-baseline justify-between gap-4 border-b border-border pb-4">
+              <h3 className="text-balance text-2xl font-semibold tracking-tight">
+                Byte {formatCount(address.byteInRow)}
+              </h3>
+              <p className="font-mono text-base text-muted-foreground sm:text-sm">
+                LSB first / x {formatCount(firstCellInByte)}–
+                {formatCount(firstCellInByte + LIFE_WORKLOAD.bitsPerByte - 1)}
+              </p>
+            </div>
+            <ol
+              role="list"
+              aria-label={`Byte ${address.byteInRow} bit positions`}
+              className="mt-5 flex gap-2 overflow-x-auto pb-2"
+            >
+              {Array.from({ length: LIFE_WORKLOAD.bitsPerByte }, (_, bit) => {
+                const selected = bit === address.bit;
+                return (
+                  <li
+                    key={bit}
+                    aria-current={selected ? "true" : undefined}
+                    aria-label={`Bit ${bit}, cell x ${firstCellInByte + bit}${selected ? ", selected" : ""}`}
+                    className={cn(
+                      "flex size-20 shrink-0 flex-col items-center justify-center gap-1 rounded-md border font-mono tabular-nums sm:size-auto sm:aspect-square sm:flex-1",
+                      selected
+                        ? "border-warning bg-warning/10 text-warning"
+                        : "border-border bg-panel text-muted-foreground",
+                    )}
+                  >
+                    <span className="text-lg">b{bit}</span>
+                    <span className="text-base sm:text-sm">
+                      x{formatCount(firstCellInByte + bit)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+            <p className="mt-4 max-w-[58ch] text-pretty text-base text-muted-foreground sm:text-sm">
+              The highlighted position identifies the selected cell. Bit values
+              remain deliberately unknown until a verified generation supplies
+              exact cell data.
+            </p>
+          </div>
+
+          <div
+            className={cn(
+              "rounded-lg border bg-canvas p-5",
+              ["chunk", "row", "bank"].includes(selectedScale)
+                ? "border-warning/50"
+                : "border-border",
+            )}
+          >
+            <p className="font-mono text-base text-primary sm:text-sm">
+              ROW {formatCount(address.y)} / PART {address.part}
+            </p>
+            <dl className="mt-5 grid grid-cols-2 border-y border-border">
+              <AddressMetric
+                focused={selectedScale === "cell"}
+                label="x"
+                value={address.x}
+              />
+              <AddressMetric
+                focused={selectedScale === "row"}
+                label="y"
+                value={address.y}
+              />
+              <AddressMetric
+                focused={selectedScale === "byte"}
+                label="byte_in_row"
+                value={address.byteInRow}
+              />
+              <AddressMetric
+                focused={selectedScale === "bit"}
+                label="bit"
+                value={address.bit}
+              />
+              <AddressMetric
+                focused={selectedScale === "chunk"}
+                label="part"
+                value={address.part}
+              />
+              <AddressMetric
+                focused={selectedScale === "chunk"}
+                label="byte_in_part"
+                value={address.byteInPart}
+              />
+              <AddressMetric
+                focused={selectedScale === "chunk"}
+                label="chunk_key"
+                value={address.chunkKey}
+                wide
+              />
+            </dl>
+            <div
+              aria-label="Address derivation"
+              className="mt-5 flex flex-col gap-2 border-l border-primary/35 pl-4 font-mono text-base text-muted-foreground sm:text-sm"
+            >
+              <p>
+                byte_in_row = floor({formatCount(address.x)} /{" "}
+                {LIFE_WORKLOAD.bitsPerByte}) ={" "}
+                <strong className="font-medium text-foreground">
+                  {formatCount(address.byteInRow)}
+                </strong>
+              </p>
+              <p>
+                bit = {formatCount(address.x)} mod {LIFE_WORKLOAD.bitsPerByte} ={" "}
+                <strong className="font-medium text-foreground">
+                  {address.bit}
+                </strong>
+              </p>
+              <p>
+                part = byte_in_row &lt; {formatCount(LIFE_WORKLOAD.chunkBytes)}?
+                0 : 1 ={" "}
+                <strong className="font-medium text-foreground">
+                  {address.part}
+                </strong>
+              </p>
+              <p>
+                byte_in_part ={" "}
+                {address.part === 0
+                  ? formatCount(address.byteInRow)
+                  : `${formatCount(address.byteInRow)} - ${formatCount(LIFE_WORKLOAD.chunkBytes)}`}{" "}
+                ={" "}
+                <strong className="font-medium text-foreground">
+                  {formatCount(address.byteInPart)}
+                </strong>
+              </p>
+              <p>
+                chunk_key = {formatCount(address.y)} ×{" "}
+                {LIFE_WORKLOAD.chunksPerRow} + {address.part} ={" "}
+                <strong className="font-medium text-foreground">
+                  {formatCount(address.chunkKey)}
+                </strong>
+              </p>
+            </div>
+            <p className="mt-3 max-w-[48ch] text-pretty text-base text-muted-foreground sm:text-sm">
+              The same chunk key exists in both banks. Its active or inactive
+              role requires validated chain generation evidence.
+            </p>
+            <p
+              role="status"
+              aria-live="polite"
+              className="sr-only"
+            >{`Cell ${address.x}, ${address.y} maps to chunk ${address.chunkKey}, byte ${address.byteInPart}, bit ${address.bit}.`}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CoordinateInput({
+  axis,
+  describedBy,
+  invalid,
+  value,
+  onChange,
+}: {
+  readonly axis: "x" | "y";
+  readonly describedBy: string | undefined;
+  readonly invalid: boolean;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+}) {
+  const id = useId();
+  return (
+    <label htmlFor={id} className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <span className="font-mono text-base font-medium text-foreground sm:text-sm">
+        Coordinate {axis}
+      </span>
+      <input
+        id={id}
+        name={`cell-${axis}`}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        value={value}
+        aria-invalid={invalid}
+        aria-describedby={describedBy}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-12 min-w-0 rounded-md border border-border bg-background px-3 font-mono text-base text-foreground tabular-nums outline-none focus-visible:-outline-offset-1 focus-visible:outline-2 focus-visible:outline-ring sm:h-10"
+      />
+    </label>
+  );
+}
+
+function AddressMetric({
+  focused,
+  label,
+  value,
+  wide = false,
+}: {
+  readonly focused: boolean;
+  readonly label: string;
+  readonly value: number;
+  readonly wide?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "border-t border-border py-3 first:border-t-0 odd:pr-3 even:border-l even:pl-3",
+        wide && "col-span-2 border-l-0 pl-0 odd:pr-0",
+        focused && "bg-warning/5",
+      )}
+      data-focused={focused ? "true" : undefined}
+    >
+      <dt className="font-mono text-base font-medium text-foreground sm:text-sm">
+        {label}
+      </dt>
+      <dd className="font-mono text-lg text-warning tabular-nums">
+        {formatCount(value)}
+      </dd>
+    </div>
+  );
+}
+
+function StorageAtlas({
+  address,
+  selectedScale,
+}: {
+  readonly address: CellStorageAddress;
+  readonly selectedScale: ScaleId;
+}) {
   return (
     <section
       className="border-y border-border bg-canvas py-16 sm:py-20 lg:py-24"
@@ -350,8 +699,16 @@ function StorageAtlas({ selectedScale }: { readonly selectedScale: ScaleId }) {
         </div>
         <figure className="mt-10">
           <div className="grid gap-6 lg:grid-cols-2">
-            <BankPanel bank="A" selectedScale={selectedScale} />
-            <BankPanel bank="B" selectedScale={selectedScale} />
+            <BankPanel
+              address={address}
+              bank="A"
+              selectedScale={selectedScale}
+            />
+            <BankPanel
+              address={address}
+              bank="B"
+              selectedScale={selectedScale}
+            />
           </div>
           <figcaption className="mt-6 flex flex-wrap gap-x-8 gap-y-3 border-t border-border pt-5 text-base text-muted-foreground sm:text-sm">
             <span>
@@ -369,6 +726,13 @@ function StorageAtlas({ selectedScale }: { readonly selectedScale: ScaleId }) {
               raw bank bytes total
             </span>
             <span>Roles alternate after each committed generation</span>
+            <span>
+              Selected row {formatCount(address.y)} / chunk key{" "}
+              {formatCount(address.chunkKey)}
+            </span>
+            <span>
+              The selected address is highlighted in both bank keyspaces
+            </span>
           </figcaption>
         </figure>
       </div>
@@ -377,9 +741,11 @@ function StorageAtlas({ selectedScale }: { readonly selectedScale: ScaleId }) {
 }
 
 function BankPanel({
+  address,
   bank,
   selectedScale,
 }: {
+  readonly address: CellStorageAddress;
   readonly bank: "A" | "B";
   readonly selectedScale: ScaleId;
 }) {
@@ -388,6 +754,8 @@ function BankPanel({
   const fieldFocused = ["cell", "bit", "byte", "chunk", "row"].includes(
     selectedScale,
   );
+  const atlasX = address.y % 100;
+  const atlasY = Math.floor(address.y / 100);
   return (
     <div className="rounded-lg border border-border bg-panel p-4 sm:p-5">
       <div className="flex items-baseline justify-between gap-4">
@@ -397,9 +765,10 @@ function BankPanel({
         >
           Bank {bank}
         </h3>
-        <p className="font-mono text-base text-muted-foreground sm:text-sm">
-          {CHUNKS_PER_BANK} chunk keys
-        </p>
+        <div className="text-right font-mono text-base text-muted-foreground sm:text-sm">
+          <p>{CHUNKS_PER_BANK} chunk keys</p>
+          <p>Role unknown</p>
+        </div>
       </div>
       <div className="relative mt-4 overflow-hidden rounded-md border border-border bg-background p-3">
         <svg
@@ -425,8 +794,9 @@ function BankPanel({
           <rect width="100" height="100" className="fill-panel" />
           <rect width="100" height="100" fill={`url(#${gridId})`} />
           <rect
-            x={REFERENCE_ATLAS_X}
-            y={REFERENCE_ATLAS_Y}
+            data-testid={`bank-${bank.toLowerCase()}-selected-row`}
+            x={atlasX}
+            y={atlasY}
             width="1"
             height="1"
             className={cn(fieldFocused ? "fill-warning/80" : "fill-primary/35")}
@@ -434,19 +804,39 @@ function BankPanel({
         </svg>
         <p className="absolute right-4 bottom-4 left-4 rounded-sm bg-background/90 px-2 py-1 font-mono text-base text-foreground backdrop-blur-sm sm:text-sm">
           {fieldFocused
-            ? `Reference row ${formatCount(REFERENCE_ROW)} / ${selectedScale} focus`
-            : `${selectedScale} boundary / complete bank`}
+            ? `Row ${formatCount(address.y)} / ${selectedScale} focus`
+            : `Row ${formatCount(address.y)} / ${selectedScale} context`}
         </p>
       </div>
       <div className="mt-4 grid grid-cols-[4fr_1fr] gap-1 font-mono text-base sm:text-sm">
-        <div className="border-t-2 border-primary pt-2">
-          <p className="text-foreground">Part 0</p>
+        <div
+          aria-current={address.part === 0 ? "true" : undefined}
+          className={cn(
+            "border-t-2 pt-2",
+            address.part === 0
+              ? "border-warning bg-warning/5"
+              : "border-primary",
+          )}
+        >
+          <p className="text-foreground">
+            {address.part === 0 ? "Selected · " : ""}Part 0
+          </p>
           <p className="text-muted-foreground">
             {formatCount(LIFE_WORKLOAD.chunkBytes)} bytes
           </p>
         </div>
-        <div className="border-t-2 border-warning pt-2 pl-2">
-          <p className="text-foreground">Part 1</p>
+        <div
+          aria-current={address.part === 1 ? "true" : undefined}
+          className={cn(
+            "border-t-2 pt-2 pl-2",
+            address.part === 1
+              ? "border-warning bg-warning/5"
+              : "border-primary",
+          )}
+        >
+          <p className="text-foreground">
+            {address.part === 1 ? "Selected · " : ""}Part 1
+          </p>
           <p className="text-muted-foreground">
             {formatCount(LIFE_WORKLOAD.tailBytes)} bytes
           </p>

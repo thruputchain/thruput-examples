@@ -21,6 +21,14 @@ export const LIFE_WORKLOAD = Object.freeze({
 const COUNT_FORMATTER = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
+const CANONICAL_URL_COORDINATE = /^(?:0|[1-9][0-9]{0,3})$/;
+
+export const DEFAULT_CELL = Object.freeze({ x: 5_000, y: 5_000 });
+
+export interface CellCoordinate {
+  readonly x: number;
+  readonly y: number;
+}
 
 export interface CellStorageAddress {
   readonly x: number;
@@ -58,6 +66,40 @@ export function bankRolesForGeneration(generation: bigint): BankRoles {
   return generation % 2n === 0n
     ? Object.freeze({ active: "A", inactive: "B" })
     : Object.freeze({ active: "B", inactive: "A" });
+}
+
+export function parseCellQuery(search: string): CellCoordinate {
+  const query = new URLSearchParams(search);
+  const xValues = query.getAll("cellX");
+  const yValues = query.getAll("cellY");
+  if (
+    xValues.length !== 1 ||
+    yValues.length !== 1 ||
+    !CANONICAL_URL_COORDINATE.test(xValues[0] ?? "") ||
+    !CANONICAL_URL_COORDINATE.test(yValues[0] ?? "")
+  )
+    return DEFAULT_CELL;
+  const x = Number(xValues[0]);
+  const y = Number(yValues[0]);
+  return x < LIFE_WORKLOAD.worldWidth && y < LIFE_WORKLOAD.worldHeight
+    ? Object.freeze({ x, y })
+    : DEFAULT_CELL;
+}
+
+export function parseCoordinateInput(input: string): number | null {
+  if (!/^[0-9]+$/.test(input)) return null;
+  const value = Number(input);
+  return Number.isSafeInteger(value) && value < LIFE_WORKLOAD.worldWidth
+    ? value
+    : null;
+}
+
+export function withCellQuery(input: URL, coordinate: CellCoordinate): URL {
+  mapCellToStorage(coordinate.x, coordinate.y);
+  const result = new URL(input);
+  result.searchParams.set("cellX", String(coordinate.x));
+  result.searchParams.set("cellY", String(coordinate.y));
+  return result;
 }
 
 export function formatCount(value: number | bigint): string {
