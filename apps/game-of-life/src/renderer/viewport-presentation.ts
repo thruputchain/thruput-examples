@@ -1,6 +1,4 @@
 import { MAX_ZOOM } from "@/indexer/schema";
-import type { Camera } from "./camera";
-
 export interface ScaleRuler {
   readonly cells: number;
   readonly pixels: number;
@@ -30,19 +28,5 @@ export function scaleRuler(zoom: number, targetPixels = 80): ScaleRuler {
     cells,
     pixels: cells * scale,
     label: `${cells.toLocaleString()} ${cells === 1 ? "cell" : "cells"}`,
-  };
-}
-
-export function cellScreenRect(
-  camera: Camera,
-  viewport: { readonly width: number; readonly height: number },
-  x: number,
-  y: number,
-) {
-  const scale = 2 ** camera.zoom;
-  return {
-    left: viewport.width / 2 + (x - camera.x) * scale,
-    top: viewport.height / 2 + (y - camera.y) * scale,
-    size: scale,
   };
 }

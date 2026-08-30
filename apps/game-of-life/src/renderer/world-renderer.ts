@@ -46,7 +46,11 @@ import { UnavailableTileLayer } from "./unavailable-tile-layer";
 export interface RendererCallbacks {
   onCamera(camera: Camera): void;
   onLevel(level: number): void;
-  onInspect(value: Inspection | null, announce: boolean): void;
+  onInspect(
+    value: Inspection | null,
+    announce: boolean,
+    highlight: CellHighlight | null,
+  ): void;
   onError(message: string): void;
   onContext(lost: boolean): void;
   onTransition(state: "staging" | "crossfading" | "idle"): void;
@@ -54,6 +58,12 @@ export interface RendererCallbacks {
     snapshot: ImmutableSnapshot,
     identity: CandidateIdentity,
   ): boolean;
+}
+export interface CellHighlight {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
 }
 export interface CandidateIdentity {
   readonly epoch: number;
@@ -87,7 +97,7 @@ export class WorldRenderer {
   private prefetchController: AbortController | null = null;
   private idleCallback = 0;
   private inspectTimer = 0;
-  private pointerPosition: readonly [number, number] | null = null;
+  private pointerClientPosition: readonly [number, number] | null = null;
   private cameraTimer = 0;
   private transitionFrame = 0;
   private transitionStarted = 0;
@@ -142,8 +152,8 @@ export class WorldRenderer {
     this.listen("pointermove", (event) => this.pointer(event as PointerEvent));
     this.listen("pointerleave", () => {
       clearTimeout(this.inspectTimer);
-      this.pointerPosition = null;
-      callbacks.onInspect(null, false);
+      this.pointerClientPosition = null;
+      callbacks.onInspect(null, false, null);
     });
     this.listen("webglcontextlost", (event) => this.contextLost(event), true);
     this.listen("webglcontextrestored", () => this.contextRestored(), true);
@@ -360,7 +370,7 @@ export class WorldRenderer {
             if (role === "candidate") this.evaluateCoverage();
             else {
               this.evaluateInitialCoverage();
-              if (this.pointerPosition) this.refreshInspection(false);
+              if (this.pointerClientPosition) this.refreshInspection(false);
             }
           });
           return data;
@@ -451,20 +461,22 @@ export class WorldRenderer {
     }, 120);
   }
   private pointer(event: PointerEvent): void {
-    const rect = this.canvas.getBoundingClientRect();
-    this.pointerPosition = [
-      event.clientX - rect.left,
-      event.clientY - rect.top,
-    ];
+    this.pointerClientPosition = [event.clientX, event.clientY];
     this.refreshInspection(false);
   }
   private refreshInspection(clear = true): void {
     clearTimeout(this.inspectTimer);
-    if (clear) this.callbacks.onInspect(null, false);
-    if (!this.pointerPosition) return;
+    if (clear) this.callbacks.onInspect(null, false, null);
+    if (!this.pointerClientPosition) return;
     this.inspectTimer = window.setTimeout(() => {
-      if (this.pointerPosition)
-        this.inspectScreen(...this.pointerPosition, false);
+      if (this.pointerClientPosition) {
+        const rect = this.canvas.getBoundingClientRect();
+        this.inspectScreen(
+          this.pointerClientPosition[0] - rect.left,
+          this.pointerClientPosition[1] - rect.top,
+          false,
+        );
+      }
     }, 80);
   }
   private key(event: KeyboardEvent): void {
@@ -532,7 +544,7 @@ export class WorldRenderer {
       this.callbacks.onCamera(this.camera);
       this.refreshInspection();
       this.publishCamera();
-    } else if (this.pointerPosition) this.refreshInspection();
+    } else if (this.pointerClientPosition) this.refreshInspection();
   }
   private contextLost(event: Event): void {
     event.preventDefault();
@@ -592,7 +604,7 @@ export class WorldRenderer {
     this.displayedSelection = selection;
     this.callbacks.onLevel(level);
     loader.pin(inspectionTiles(visible));
-    if (this.pointerPosition) this.refreshInspection(false);
+    if (this.pointerClientPosition) this.refreshInspection(false);
     this.cancelPrefetch();
     this.schedulePrefetch(loader, visible);
     this.evaluateInitialCoverage();
@@ -629,21 +641,22 @@ export class WorldRenderer {
     screenY: number,
     announce: boolean,
   ): void {
-    if (this.initialIdentity) return this.callbacks.onInspect(null, false);
+    if (this.initialIdentity)
+      return this.callbacks.onInspect(null, false, null);
     const viewport = this.deck?.getViewports()[0];
     if (!(viewport instanceof OrthographicViewport)) return;
     const world = viewport.unproject([screenX, screenY]);
     const x = Math.floor(world[0]!);
     const y = Math.floor(world[1]!);
     if (x < 0 || x >= WORLD_SIZE || y < 0 || y >= WORLD_SIZE)
-      return this.callbacks.onInspect(null, false);
+      return this.callbacks.onInspect(null, false, null);
     const mapped = worldToTile(x, y, this.displayedSelection.level);
     let data = this.displayedLoader.cache.get(this.cacheKey(mapped.tile));
     if (!data) {
       const parent = parentIndex(mapped.tile);
       if (parent) data = this.displayedLoader.cache.get(this.cacheKey(parent));
     }
-    this.callbacks.onInspect(
+    const inspection =
       data?.availability === "loaded"
         ? inspect(
             data.tile,
@@ -652,8 +665,13 @@ export class WorldRenderer {
             data.index.z,
             this.displayed.manifest.generation,
           )
-        : null,
+        : null;
+    this.callbacks.onInspect(
+      inspection,
       announce,
+      inspection?.kind === "cell"
+        ? projectCell(viewport, inspection.x, inspection.y)
+        : null,
     );
   }
 
@@ -882,6 +900,23 @@ function createSelection(
 
 function sameCamera(left: Camera, right: Camera): boolean {
   return left.x === right.x && left.y === right.y && left.zoom === right.zoom;
+}
+
+function projectCell(
+  viewport: OrthographicViewport,
+  x: number,
+  y: number,
+): CellHighlight {
+  const first = viewport.project([x, y, 0]);
+  const second = viewport.project([x + 1, y + 1, 0]);
+  const left = Math.min(first[0]!, second[0]!);
+  const top = Math.min(first[1]!, second[1]!);
+  return {
+    left,
+    top,
+    width: Math.abs(second[0]! - first[0]!),
+    height: Math.abs(second[1]! - first[1]!),
+  };
 }
 
 function inspectionTiles(tiles: readonly TileIndex[]): TileIndex[] {

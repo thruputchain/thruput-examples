@@ -1,9 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  cellScreenRect,
-  renderingMode,
-  scaleRuler,
-} from "./viewport-presentation";
+import { renderingMode, scaleRuler } from "./viewport-presentation";
 
 describe("viewport presentation", () => {
   test.each([
@@ -23,16 +19,5 @@ describe("viewport presentation", () => {
     const ruler = scaleRuler(zoom);
     expect(ruler.cells).toBe(cells);
     expect(ruler.pixels).toBeCloseTo(pixels, 2);
-  });
-
-  test("projects an exact cell into the viewport", () => {
-    expect(
-      cellScreenRect(
-        { x: 100, y: 200, zoom: 3 },
-        { width: 800, height: 600 },
-        101,
-        198,
-      ),
-    ).toEqual({ left: 408, top: 284, size: 8 });
   });
 });

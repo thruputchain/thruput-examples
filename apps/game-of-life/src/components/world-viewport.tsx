@@ -9,14 +9,11 @@ import {
   type Camera,
 } from "@/renderer/camera";
 import type { Inspection } from "@/renderer/inspection";
-import {
-  cellScreenRect,
-  renderingMode,
-  scaleRuler,
-} from "@/renderer/viewport-presentation";
+import { renderingMode, scaleRuler } from "@/renderer/viewport-presentation";
 import {
   WorldRenderer,
   type CandidateIdentity,
+  type CellHighlight,
 } from "@/renderer/world-renderer";
 
 interface Props {
@@ -67,6 +64,9 @@ export function WorldViewport({
   const [camera, setCamera] = useState(INITIAL_CAMERA);
   const [level, setLevel] = useState(0);
   const [inspection, setInspection] = useState<Inspection | null>(null);
+  const [cellHighlight, setCellHighlight] = useState<CellHighlight | null>(
+    null,
+  );
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [tileWarning, setTileWarning] = useState<string | null>(null);
   const [contextLost, setContextLost] = useState(false);
@@ -95,8 +95,9 @@ export function WorldViewport({
         {
           onCamera: setCamera,
           onLevel: setLevel,
-          onInspect: (value, announce) => {
+          onInspect: (value, announce, highlight) => {
             setInspection(value);
+            setCellHighlight(highlight);
             if (announce && value)
               lifecycle.current.onAnnouncement(inspectionLabel(value));
             else if (!value) lifecycle.current.onAnnouncement("");
@@ -135,10 +136,7 @@ export function WorldViewport({
 
   const controlsDisabled = fatalError !== null || contextLost;
   const ruler = scaleRuler(camera.zoom);
-  const highlight =
-    inspection?.kind === "cell" && camera.zoom >= 2
-      ? cellScreenRect(camera, viewport, inspection.x, inspection.y)
-      : null;
+  const highlight = camera.zoom >= 2 ? cellHighlight : null;
 
   return (
     <section
@@ -166,8 +164,8 @@ export function WorldViewport({
           style={{
             left: highlight.left,
             top: highlight.top,
-            width: highlight.size,
-            height: highlight.size,
+            width: highlight.width,
+            height: highlight.height,
           }}
         />
       ) : null}

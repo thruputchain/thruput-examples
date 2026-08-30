@@ -270,12 +270,20 @@ test("decodes density and exact cells for retained CPU inspection", async ({
   await expect(zoomIn).toBeDisabled();
   await expect(page.getByText("Exact cells · 16 px per cell")).toBeVisible();
   await expect(page.getByText("5 cells", { exact: true })).toBeVisible();
-  await page.mouse.move(
-    box!.x + box!.width / 2 + 1,
-    box!.y + box!.height / 2 + 1,
-  );
+  const pointer = {
+    x: box!.x + box!.width / 2 + 1,
+    y: box!.y + box!.height / 2 + 1,
+  };
+  await page.mouse.move(pointer.x, pointer.y);
   await expect(page.getByText(/exact cell.*· (live|dead)$/)).toBeVisible();
-  await expect(page.getByTestId("cell-highlight")).toBeVisible();
+  const highlight = page.getByTestId("cell-highlight");
+  await expect(highlight).toBeVisible();
+  const highlightBox = await highlight.boundingBox();
+  expect(highlightBox).not.toBeNull();
+  expect(pointer.x).toBeGreaterThanOrEqual(highlightBox!.x);
+  expect(pointer.x).toBeLessThan(highlightBox!.x + highlightBox!.width);
+  expect(pointer.y).toBeGreaterThanOrEqual(highlightBox!.y);
+  expect(pointer.y).toBeLessThan(highlightBox!.y + highlightBox!.height);
 });
 
 test("supports tab focus and keyboard center inspection", async ({ page }) => {
