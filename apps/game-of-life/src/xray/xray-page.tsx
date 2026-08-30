@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from "react";
 import { Dna } from "lucide-react";
 import type { ReadAppConfig } from "@/config";
 import { cn } from "@/lib/utils";
+import { TransactionAnatomy } from "./transaction-anatomy";
 import {
   formatCount,
   LIFE_WORKLOAD,
@@ -129,6 +130,7 @@ export function XrayPage({
           selectedScale={selectedScale}
           onSelect={selectAddress}
         />
+        <TransactionAnatomy />
       </main>
     </div>
   );

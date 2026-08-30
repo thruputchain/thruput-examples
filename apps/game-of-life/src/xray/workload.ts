@@ -16,6 +16,14 @@ export const LIFE_WORKLOAD = Object.freeze({
   tickBankReadBytes: 12_502_500,
   tickBankWriteBytes: 12_500_000,
   ruleEvaluations: 100_000_000,
+  initialWindowRows: 3,
+  initialBankChunkReads: 6,
+  streamBankChunkReads: 19_998,
+  sourceRowBuffers: 3,
+  destinationRowBuffers: 1,
+  visibleRowWorkingSetBytes: 5_000,
+  resultingPopulationCounts: 1,
+  streamingDigests: 1,
 });
 
 const COUNT_FORMATTER = new Intl.NumberFormat("en-US", {

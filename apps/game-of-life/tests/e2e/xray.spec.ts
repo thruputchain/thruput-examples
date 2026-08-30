@@ -113,6 +113,47 @@ test("maps and shares an exact boundary cell without losing other query state", 
   await expect(page.getByLabel("Coordinate y")).toHaveValue("9999");
 });
 
+test("explains the complete atomic tick without inventing receipt measurements", async ({
+  page,
+}) => {
+  await page.goto("/xray");
+  await page
+    .getByRole("heading", { name: "One invocation, one indivisible outcome" })
+    .scrollIntoViewIfNeeded();
+  const stages = page
+    .getByRole("list", { name: "Atomic tick stages" })
+    .getByRole("listitem");
+  await expect(stages).toHaveCount(7);
+  await expect(stages.nth(0)).toContainText("Read required world state");
+  await expect(stages.nth(6)).toContainText(
+    "Committed block or complete revert",
+  );
+  await expect(page.getByText(/interleaves stages 03 and 04/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Count what the contract must do" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Receipt measurement not connected/i),
+  ).toBeVisible();
+  await expect(page.getByText(/does not infer consumption/)).toBeVisible();
+});
+
+test("keeps the transaction explanation complete under reduced motion", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/xray");
+  await page
+    .getByRole("heading", { name: "One invocation, one indivisible outcome" })
+    .scrollIntoViewIfNeeded();
+  await expect(
+    page
+      .getByRole("list", { name: "Atomic tick stages" })
+      .getByRole("listitem"),
+  ).toHaveCount(7);
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+});
+
 test("keeps the microscope usable within a 320 pixel viewport", async ({
   page,
 }) => {

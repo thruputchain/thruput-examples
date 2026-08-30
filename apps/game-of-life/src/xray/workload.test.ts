@@ -25,6 +25,14 @@ describe("Transaction X-Ray workload", () => {
     expect(LIFE_WORKLOAD.persistentBanks).toBe(2);
     expect(LIFE_WORKLOAD.steadyStateBankBytes).toBe(25_000_000);
     expect(LIFE_WORKLOAD.ruleEvaluations).toBe(100_000_000);
+    expect(LIFE_WORKLOAD.initialWindowRows).toBe(3);
+    expect(LIFE_WORKLOAD.initialBankChunkReads).toBe(6);
+    expect(LIFE_WORKLOAD.streamBankChunkReads).toBe(19_998);
+    expect(LIFE_WORKLOAD.sourceRowBuffers).toBe(3);
+    expect(LIFE_WORKLOAD.destinationRowBuffers).toBe(1);
+    expect(LIFE_WORKLOAD.visibleRowWorkingSetBytes).toBe(5_000);
+    expect(LIFE_WORKLOAD.resultingPopulationCounts).toBe(1);
+    expect(LIFE_WORKLOAD.streamingDigests).toBe(1);
     expect(LIFE_WORKLOAD.cellCount).toBe(
       LIFE_WORKLOAD.worldWidth * LIFE_WORKLOAD.worldHeight,
     );
@@ -42,13 +50,14 @@ describe("Transaction X-Ray workload", () => {
       LIFE_WORKLOAD.bankBytes * LIFE_WORKLOAD.persistentBanks,
     );
     expect(LIFE_WORKLOAD.tickBankChunkReads).toBe(20_004);
-    expect(3 * LIFE_WORKLOAD.chunksPerRow).toBe(6);
+    expect(LIFE_WORKLOAD.initialWindowRows * LIFE_WORKLOAD.chunksPerRow).toBe(
+      LIFE_WORKLOAD.initialBankChunkReads,
+    );
     expect((LIFE_WORKLOAD.worldHeight - 1) * LIFE_WORKLOAD.chunksPerRow).toBe(
-      19_998,
+      LIFE_WORKLOAD.streamBankChunkReads,
     );
     expect(
-      3 * LIFE_WORKLOAD.chunksPerRow +
-        (LIFE_WORKLOAD.worldHeight - 1) * LIFE_WORKLOAD.chunksPerRow,
+      LIFE_WORKLOAD.initialBankChunkReads + LIFE_WORKLOAD.streamBankChunkReads,
     ).toBe(LIFE_WORKLOAD.tickBankChunkReads);
     expect(LIFE_WORKLOAD.tickBankChunkWrites).toBe(20_000);
     expect(LIFE_WORKLOAD.tickBankReadBytes).toBe(12_502_500);
@@ -57,6 +66,10 @@ describe("Transaction X-Ray workload", () => {
       LIFE_WORKLOAD.bankBytes + 2 * LIFE_WORKLOAD.rowBytes,
     );
     expect(LIFE_WORKLOAD.tickBankWriteBytes).toBe(LIFE_WORKLOAD.bankBytes);
+    expect(
+      (LIFE_WORKLOAD.sourceRowBuffers + LIFE_WORKLOAD.destinationRowBuffers) *
+        LIFE_WORKLOAD.rowBytes,
+    ).toBe(LIFE_WORKLOAD.visibleRowWorkingSetBytes);
   });
 
   test.each([

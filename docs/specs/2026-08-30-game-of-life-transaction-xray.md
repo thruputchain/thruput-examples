@@ -138,10 +138,10 @@ As a technical evaluator, I want to follow the complete tick path so that I know
 Acceptance criteria:
 
 - The transaction anatomy contains these ordered stages:
-  1. Read and validate world metadata.
-  2. Consume one queued request.
-  3. Stream the active bank and evaluate Conway's rule for all 100 million cells.
-  4. Write every row to the inactive bank.
+  1. Read required world state and reject an uninitialized contract.
+  2. Consume one queued request in transactional working state.
+  3. Check generation overflow, validate the active bank, and begin streaming it.
+  4. Evaluate and write every row to the inactive bank while streaming population and digest.
   5. Update generation, the internal `WorldState.active_bank`, population, and state digest exclusively. The UI derives the resulting bank role from generation parity because the public metadata view omits `active_bank`.
   6. Release one queue-capacity slot and emit `GenerationAdvanced`.
   7. Include all changes in the committed block or revert all changes.
@@ -149,6 +149,7 @@ Acceptance criteria:
 - The page states that a failed invocation commits neither a partial bank nor partial metadata.
 - The page does not imply eight independent VM operations per cell; `100,000,000 rule evaluations` describes logical cell outcomes.
 - The visual trace is explicitly labeled as an explanation, not a live execution timeline.
+- The order matches `process_next_tick()`: generation-overflow and active-bank validation occur after transactional queue consumption. A later failure reverts that consumption with every other invocation effect.
 
 #### Story 4: Distinguish Fixed Facts from Measurements
 
