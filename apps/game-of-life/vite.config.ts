@@ -79,6 +79,7 @@ export default defineConfig(({ command, mode }) => {
       ...(writesEnabled ? [credentialRequestGuard()] : []),
       react(),
       tailwindcss(),
+      xrayBundleBoundary(),
       localRpcProxy(target, writesEnabled),
       readOnlyIndexerProxy(indexerTarget, networkId, contractAddress),
       ...(mode === "e2e" ? [fixtureArtifacts(networkId, contractAddress)] : []),
@@ -111,6 +112,97 @@ export function validateRpcTarget(input: string): void {
       "The Phase 4 RPC proxy requires a credential-free loopback HTTP(S) target",
     );
   }
+}
+
+function xrayBundleBoundary(): Plugin {
+  const forbidden = [
+    "/src/world-bootstrap.tsx",
+    "/src/development-personas.ts",
+    "/src/transactions/",
+    "/src/components/world-viewport.tsx",
+    "/src/rendering/",
+    "/node_modules/@deck.gl/",
+    "/node_modules/@luma.gl/",
+    "/node_modules/@groundhogchain/client/dist/index.js",
+    "/node_modules/@groundhogchain/client/dist/transaction",
+    "/node_modules/@groundhogchain/client/dist/signers",
+    "/node_modules/@groundhogchain/client/dist/local-dev",
+  ] as const;
+  const forbiddenSymbols = [
+    "groundhog_sendRawTransaction",
+    "serializeSignedTransaction",
+    "createWalletClient",
+    "defaultWalletAdapter",
+    "devWalletAdapter",
+  ] as const;
+  return {
+    name: "xray-bundle-boundary",
+    generateBundle(_, bundle) {
+      const chunks = Object.values(bundle).filter(
+        (output) => output.type === "chunk",
+      );
+      const entry = chunks.find((chunk) =>
+        normalizeModuleId(chunk.facadeModuleId).endsWith(
+          "/src/xray/xray-page.tsx",
+        ),
+      );
+      if (!entry)
+        throw new Error("X-Ray production entry chunk was not emitted");
+
+      const byFile = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
+      const worldEntry = chunks.find((chunk) =>
+        normalizeModuleId(chunk.facadeModuleId).endsWith(
+          "/src/world-bootstrap.tsx",
+        ),
+      );
+      const reachable = new Set<string>();
+      const pending = [entry.fileName];
+      while (pending.length > 0) {
+        const fileName = pending.pop()!;
+        if (reachable.has(fileName)) continue;
+        reachable.add(fileName);
+        const chunk = byFile.get(fileName);
+        if (!chunk) continue;
+        const isRouteDispatcher = Object.keys(chunk.modules).some((moduleId) =>
+          normalizeModuleId(moduleId).endsWith("/src/main.tsx"),
+        );
+        const dynamicImports = isRouteDispatcher
+          ? chunk.dynamicImports.filter(
+              (dependency) => dependency !== worldEntry?.fileName,
+            )
+          : chunk.dynamicImports;
+        for (const dependency of [...chunk.imports, ...dynamicImports])
+          pending.push(dependency);
+      }
+
+      const violations = chunks
+        .filter((chunk) => reachable.has(chunk.fileName))
+        .flatMap((chunk) => Object.keys(chunk.modules))
+        .map(normalizeModuleId)
+        .filter((moduleId) =>
+          forbidden.some((value) => moduleId.includes(value)),
+        );
+      if (violations.length > 0)
+        throw new Error(
+          `X-Ray bundle includes forbidden modules:\n${violations.join("\n")}`,
+        );
+      const symbolViolations = chunks
+        .filter((chunk) => reachable.has(chunk.fileName))
+        .flatMap((chunk) =>
+          forbiddenSymbols
+            .filter((symbol) => chunk.code.includes(symbol))
+            .map((symbol) => `${chunk.fileName}: ${symbol}`),
+        );
+      if (symbolViolations.length > 0)
+        throw new Error(
+          `X-Ray bundle includes transaction or wallet symbols:\n${symbolViolations.join("\n")}`,
+        );
+    },
+  };
+}
+
+function normalizeModuleId(value: string | null): string {
+  return (value ?? "").replaceAll("\\", "/");
 }
 
 export function validateIndexerTarget(input: string): void {
@@ -538,7 +630,12 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
     holdCandidateTiles: false,
     candidateTileHeld: false,
     latestState: "ready" as "ready" | "unavailable" | "malformed",
-    rpcState: "ready" as "ready" | "unavailable" | "malformed",
+    rpcState: "ready" as
+      | "ready"
+      | "unavailable"
+      | "malformed"
+      | "malformed-schema"
+      | "malformed-envelope",
     candidateEvidence: "event" as "event" | "metadata",
   };
   let heldCandidateTiles: Array<() => void> = [];
@@ -746,7 +843,11 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
                 ? "unavailable"
                 : url.searchParams.get("rpc") === "malformed"
                   ? "malformed"
-                  : "ready";
+                  : url.searchParams.get("rpc") === "malformed-schema"
+                    ? "malformed-schema"
+                    : url.searchParams.get("rpc") === "malformed-envelope"
+                      ? "malformed-envelope"
+                      : "ready";
           if (url.searchParams.has("evidence"))
             fixture.candidateEvidence =
               url.searchParams.get("evidence") === "metadata"
@@ -765,20 +866,29 @@ function fixtureArtifacts(network: string, contract: string): Plugin {
           const envelope = JSON.parse(await readBody(request)) as {
             readonly id: string | number;
           };
+          if (fixture.rpcState === "malformed-envelope") {
+            response.statusCode = 200;
+            response.setHeader("content-type", "application/json");
+            response.end("not-json");
+            return;
+          }
           const body = JSON.stringify({
             jsonrpc: "2.0",
             id: envelope.id,
-            result: {
-              output: {
-                result: "return",
-                returnData:
-                  fixture.rpcState === "malformed"
-                    ? "0x00"
-                    : hex(metadataBytes(fixture.chainGeneration)),
-              },
-              events: [],
-              height: "9",
-            },
+            result:
+              fixture.rpcState === "malformed-schema"
+                ? { output: null, events: "invalid", height: "9" }
+                : {
+                    output: {
+                      result: "return",
+                      returnData:
+                        fixture.rpcState === "malformed"
+                          ? "0x00"
+                          : hex(metadataBytes(fixture.chainGeneration)),
+                    },
+                    events: [],
+                    height: "9",
+                  },
           });
           response.statusCode = 200;
           response.setHeader("content-type", "application/json");

@@ -479,12 +479,19 @@ function snapshotFields(
     ["Source block height", count(provenance?.sourceBlockHeight, source)],
     ["Source block hash", provenance?.sourceBlockHash ?? unavailable(source)],
     ["Evidence kind", provenance?.evidenceKind ?? unavailable(source)],
-    ["Event kind", provenance?.eventKind ?? "Not applicable"],
+    [
+      "Event kind",
+      provenance
+        ? (provenance.eventKind ?? "Not applicable")
+        : unavailable(source),
+    ],
     [
       "Event index",
-      provenance?.eventIndex === null || provenance?.eventIndex === undefined
-        ? "Not applicable"
-        : formatCount(provenance.eventIndex),
+      provenance
+        ? provenance.eventIndex === null
+          ? "Not applicable"
+          : formatCount(provenance.eventIndex)
+        : unavailable(source),
     ],
     [
       "Transaction hash",

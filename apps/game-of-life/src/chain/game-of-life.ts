@@ -1,10 +1,7 @@
-import {
-  addressFromHex,
-  bytesEqual,
-  toHex0x,
-  type ContractView,
-  type EventPage,
-  type GroundhogClient,
+import type {
+  ContractView,
+  EventPage,
+  GroundhogClient,
 } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 import {
@@ -72,7 +69,7 @@ export function createLifeReadAdapter(params: {
   readonly client: Pick<GroundhogClient, "view" | "getEvents">;
   readonly contractAddress: string;
 }): LifeReadAdapter {
-  const contract = addressFromHex(params.contractAddress);
+  const contract = contractAddressFromHex(params.contractAddress);
   return {
     async metadata() {
       const result = await GameOfLife.getMetadata.view({
@@ -126,15 +123,16 @@ export function createLifeReadAdapter(params: {
           ...(cursor ? { cursor } : {}),
         });
         for (const identified of page.events) {
-          if (!bytesEqual(identified.event.contractAddress, contract)) continue;
-          const key = `${toHex0x(identified.txHash)}:${identified.sequenceNumber}`;
+          if (!sameAddress(identified.event.contractAddress, contract))
+            continue;
+          const key = `${hex(identified.txHash)}:${identified.sequenceNumber}`;
           if (seenEvents.has(key)) continue;
           seenEvents.add(key);
           const event = decodeEvent(identified.event);
           if (!event) continue;
           const common = {
             blockHeight: identified.blockHeight.toString(),
-            transactionHash: toHex0x(identified.txHash),
+            transactionHash: hex(identified.txHash),
             sequenceNumber: identified.sequenceNumber,
           };
           if (event.name === "WorldInitialized") {
@@ -177,7 +175,7 @@ export function createLifeReadAdapter(params: {
           }
         }
         if (page.cursor.length === 0) break;
-        const cursorKey = toHex0x(page.cursor);
+        const cursorKey = hex(page.cursor);
         if (seenCursors.has(cursorKey))
           throw new Error("Event query returned a repeated cursor");
         seenCursors.add(cursorKey);
@@ -201,4 +199,15 @@ export function sameAddress(
 
 function hex(bytes: Uint8Array): string {
   return `0x${[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function contractAddressFromHex(value: string): ContractAddress {
+  if (!/^0x[0-9a-f]{64}$/.test(value))
+    throw new Error("Contract address must be canonical lowercase hex32");
+  return Uint8Array.from(
+    value
+      .slice(2)
+      .match(/../g)!
+      .map((byte) => Number.parseInt(byte, 16)),
+  ) as ContractAddress;
 }

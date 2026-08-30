@@ -40,6 +40,8 @@ The indexer URL must be an origin root. Paths, queries, and fragments are reject
 
 The browser always uses same-origin `/groundhog-rpc` and `/groundhog-indexer` endpoints. Production builds and previews expose read methods only and never contain development credentials.
 
+The read-only Transaction X-Ray is available at `/xray`. Production hosts must rewrite both `/xray` and `/xray/` to `/index.html`; the client selects the route after startup. Do not redirect these paths to `/`, because shared X-Ray URLs must retain their `cellX`, `cellY`, and unrelated query parameters. The local Vite development, preview, and deterministic fixture servers already provide this fallback.
+
 Generate the loopback-only Alice, Bob, and Carol configuration after deployment and initialization:
 
 ```bash
@@ -93,7 +95,7 @@ Machine-readable results are written to ignored files in `benchmark-results/phas
 
 ## Dependency Review
 
-`npm audit --omit=dev` currently reports eight high-severity entries in the `@deck.gl/geo-layers` dependency chain. They lead to denial-of-service advisories in `image-size` through glTF and texture-compression modules. This application imports `TileLayer` but does not load glTF, 3D Tiles, compressed textures, or user-supplied images, and those parsers are absent from the production browser bundle. npm's proposed remediation downgrades deck.gl from 9.3.10 to 8.9.36, which conflicts with the verified renderer stack. Keep the pinned version until the deck.gl chain publishes a compatible fix, and reassess before any non-local deployment or expansion of accepted artifact formats.
+`npm audit --omit=dev` currently reports eight high-severity entries in the `@deck.gl/geo-layers` dependency chain. They lead to denial-of-service advisories in `image-size` through glTF and texture-compression modules. This application imports `TileLayer` for the World route but does not load glTF, 3D Tiles, compressed textures, or user-supplied images. A production-build plugin fails the build if the X-Ray chunk graph reaches Deck.gl, Luma.gl, world rendering, development personas, or transaction modules. npm's proposed remediation downgrades deck.gl from 9.3.10 to 8.9.36, which conflicts with the verified renderer stack. Keep the pinned version until the deck.gl chain publishes a compatible fix, and reassess before any non-local deployment or expansion of accepted artifact formats.
 
 ## Boundaries
 

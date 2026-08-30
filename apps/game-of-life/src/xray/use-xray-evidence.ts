@@ -1,6 +1,9 @@
 import { useEffect, useReducer, useRef, useState } from "react";
-import { createReadClient } from "@/chain/client";
 import { createLifeReadAdapter } from "@/chain/game-of-life";
+import {
+  createReadOnlyClient,
+  MalformedRpcResponseError,
+} from "@/chain/read-only-client";
 import type { ReadAppConfig } from "@/config";
 import { IndexerClient } from "@/indexer/client";
 import { SchemaError } from "@/indexer/schema";
@@ -20,7 +23,7 @@ export function useXrayEvidence(config: Readonly<ReadAppConfig>) {
   const [indexer] = useState(() => new IndexerClient(config));
   const [chain] = useState(() =>
     createLifeReadAdapter({
-      client: createReadClient(config),
+      client: createReadOnlyClient(config),
       contractAddress: config.contractAddress,
     }),
   );
@@ -111,8 +114,12 @@ function artifactFailure(cause: unknown): "unavailable" | "malformed" {
 }
 
 function chainFailure(cause: unknown): "unavailable" | "malformed" {
-  return cause instanceof Error &&
-    /decode|metadata|return data|schema|unsupported/i.test(cause.message)
+  return cause instanceof MalformedRpcResponseError ||
+    cause instanceof SyntaxError ||
+    (cause instanceof Error &&
+      /decode|metadata|return data|schema|unsupported|invalid json-rpc .*response/i.test(
+        cause.message,
+      ))
     ? "malformed"
     : "unavailable";
 }

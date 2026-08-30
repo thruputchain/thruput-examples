@@ -322,6 +322,7 @@ function ScaleSection({
         <div className="mt-10 grid gap-8 lg:grid-cols-[2fr_3fr] lg:gap-12">
           <ol
             role="list"
+            data-xray-horizontal-scroll="scale"
             className="flex snap-x gap-2 overflow-x-auto pb-2 lg:grid lg:grid-cols-2 lg:overflow-visible lg:pb-0"
           >
             {SCALES.map((item, index) => (
@@ -502,6 +503,7 @@ function CellMicroscope({
             <ol
               role="list"
               aria-label={`Byte ${address.byteInRow} bit positions`}
+              data-xray-horizontal-scroll="bits"
               className="mt-5 flex gap-2 overflow-x-auto pb-2"
             >
               {Array.from({ length: LIFE_WORKLOAD.bitsPerByte }, (_, bit) => {

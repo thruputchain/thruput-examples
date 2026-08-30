@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const browserErrors = new WeakMap<object, string[]>();
 
@@ -59,7 +59,15 @@ test("loads read-only X-Ray evidence without world payloads", async ({
       .locator(".."),
   ).toContainText(/GenerationAdvanced \/ event index 1 \/ request/);
   await expect(page.getByText(/individual tile proofs do not/i)).toBeVisible();
-  expect(dataRequests.filter((path) => path.includes("/tiles/"))).toEqual([]);
+  expect(
+    dataRequests.filter(
+      (path) =>
+        !path.startsWith("/groundhog-rpc") &&
+        !path.endsWith("/latest.json") &&
+        !path.endsWith("/manifest.json") &&
+        !path.endsWith("/provenance.json"),
+    ),
+  ).toEqual([]);
   expect(
     dataRequests.filter((path) => path.startsWith("/groundhog-rpc")),
   ).toHaveLength(1);
@@ -73,6 +81,12 @@ test("loads read-only X-Ray evidence without world payloads", async ({
     dataRequests.filter((path) => path.endsWith("/provenance.json")),
   ).toHaveLength(1);
   expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  expect(await clippedContent(page)).toEqual([]);
+  expect(
     applicationRequests.filter((path) =>
       [
         "world-bootstrap",
@@ -82,6 +96,153 @@ test("loads read-only X-Ray evidence without world payloads", async ({
       ].some((privatePath) => path.includes(privatePath)),
     ),
   ).toEqual([]);
+});
+
+test("keeps the complete educational path when both live sources fail", async ({
+  page,
+}) => {
+  await page.request.get("/__life-fixture?latest=unavailable&rpc=unavailable");
+  await page.goto("/xray");
+  await expect(
+    page.getByText(/RELATIONSHIP \/ No live evidence/),
+  ).toBeVisible();
+  await expect(
+    page.locator('[data-relationship="no-live-evidence"]'),
+  ).toContainText(/Fixed contract-derived explanations remain available/);
+  await expect(
+    page.getByRole("heading", {
+      name: "100,000,000 cells. One atomic transition.",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Ask the same atomic workload of every system",
+    }),
+  ).toBeVisible();
+  for (const heading of [
+    "From one cell to one committed block",
+    "Two persistent banks, one atomic handoff",
+    "Pinpoint any cell in canonical storage",
+    "One invocation, one indivisible outcome",
+    "Three zones, no transferred authority",
+  ])
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+});
+
+test("supports keyboard focus, semantic headings, and retry announcements", async ({
+  page,
+}) => {
+  await page.goto("/xray");
+  await expect(
+    page.getByText(/RELATIONSHIP \/ Chain and snapshot aligned/),
+  ).toBeVisible();
+  expect(await page.locator("h1").count()).toBe(1);
+  const levels = await page
+    .locator("h1, h2, h3, h4, h5, h6")
+    .evaluateAll((headings) =>
+      headings.map((heading) => Number(heading.tagName.slice(1))),
+    );
+  expect(levels[0]).toBe(1);
+  expect(
+    levels.every(
+      (level, index) => index === 0 || level <= levels[index - 1]! + 1,
+    ),
+  ).toBe(true);
+
+  await page.keyboard.press("Tab");
+  const skipLink = page.getByRole("link", { name: "Skip to X-Ray content" });
+  await expect(skipLink).toBeFocused();
+  await expect(skipLink).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#xray-content$/);
+
+  const coordinateX = page.getByRole("textbox", { name: "Coordinate x" });
+  const coordinateY = page.getByRole("textbox", { name: "Coordinate y" });
+  const locate = page.getByRole("button", { name: "Locate cell" });
+  await tabUntil(page, coordinateX, 16);
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("12");
+  await page.keyboard.press("Tab");
+  await expect(coordinateY).toBeFocused();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("34");
+  await page.keyboard.press("Tab");
+  await expect(locate).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/cellX=12&cellY=34/);
+
+  const retry = page.getByRole("button", { name: "Refresh evidence" });
+  await page.route("**/latest.json", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await route.continue();
+  });
+  await tabUntil(page, retry, 4);
+  await expect(retry).toBeFocused();
+  expect(
+    await retry.evaluate(
+      (element) => getComputedStyle(element).boxShadow !== "none",
+    ),
+  ).toBe(true);
+  await page.keyboard.press("Enter");
+  await expect(page.locator('p[aria-live="polite"]:not([role])')).toHaveText(
+    "Evidence refresh requested.",
+  );
+
+  expect(await page.getByRole("button", { name: /\S/ }).count()).toBe(
+    await page.getByRole("button").count(),
+  );
+  expect(await page.getByRole("link", { name: /\S/ }).count()).toBe(
+    await page.getByRole("link").count(),
+  );
+  await expect(
+    page.getByRole("textbox", { name: "Coordinate x" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Coordinate y" }),
+  ).toBeVisible();
+});
+
+test("meets automated theme-token contrast checks", async ({ page }) => {
+  await page.goto("/xray");
+  const ratios = await page.evaluate(() => {
+    const style = getComputedStyle(document.documentElement);
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext("2d", { willReadFrequently: true })!;
+    const rgb = (value: string) => {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    };
+    const luminance = (color: number[]) =>
+      color.reduce((total, channel, index) => {
+        const normalized = channel! / 255;
+        const linear =
+          normalized <= 0.04045
+            ? normalized / 12.92
+            : ((normalized + 0.055) / 1.055) ** 2.4;
+        return total + linear * [0.2126, 0.7152, 0.0722][index]!;
+      }, 0);
+    const contrast = (left: string, right: string) => {
+      const a = luminance(rgb(style.getPropertyValue(left)));
+      const b = luminance(rgb(style.getPropertyValue(right)));
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    };
+    return {
+      foreground: contrast("--foreground", "--background"),
+      muted: contrast("--muted-foreground", "--background"),
+      primary: contrast("--primary", "--background"),
+      warning: contrast("--warning", "--background"),
+      selectedEdge: contrast("--warning", "--panel"),
+    };
+  });
+  expect(ratios.foreground).toBeGreaterThanOrEqual(4.5);
+  expect(ratios.muted).toBeGreaterThanOrEqual(4.5);
+  expect(ratios.primary).toBeGreaterThanOrEqual(4.5);
+  expect(ratios.warning).toBeGreaterThanOrEqual(4.5);
+  expect(ratios.selectedEdge).toBeGreaterThanOrEqual(3);
 });
 
 test("keeps chain and indexer failures independent", async ({ page }) => {
@@ -106,6 +267,14 @@ test("keeps chain and indexer failures independent", async ({ page }) => {
   await expect(
     page.getByText(/RELATIONSHIP \/ Snapshot retained/),
   ).toBeVisible();
+  await expect(page.getByText(/Malformed · rejected/)).toBeVisible();
+
+  await page.request.get("/__life-fixture?reset=1&rpc=malformed-schema");
+  await page.reload();
+  await expect(page.getByText(/Malformed · rejected/)).toBeVisible();
+
+  await page.request.get("/__life-fixture?reset=1&rpc=malformed-envelope");
+  await page.reload();
   await expect(page.getByText(/Malformed · rejected/)).toBeVisible();
 });
 
@@ -280,24 +449,91 @@ test("keeps the microscope usable within a 320 pixel viewport", async ({
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+  expect(await clippedContent(page)).toEqual([]);
 });
 
 test("keeps microscope controls operable in mobile landscape", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 780, height: 360 });
+  await page.request.get(
+    "/__life-fixture?chain=2&published=1&evidence=metadata",
+  );
   await page.goto("/xray?cellX=8&cellY=9");
   await page
     .getByRole("heading", { name: "Pinpoint any cell in canonical storage" })
     .scrollIntoViewIfNeeded();
-  await expect(page.getByLabel("Coordinate x")).toHaveValue("8");
-  await expect(page.getByLabel("Coordinate y")).toHaveValue("9");
-  await page.getByLabel("Coordinate x").fill("7");
-  await page.getByRole("button", { name: "Locate cell" }).click();
+  const coordinateX = page.getByRole("textbox", { name: "Coordinate x" });
+  const coordinateY = page.getByRole("textbox", { name: "Coordinate y" });
+  await expect(coordinateX).toHaveValue("8");
+  await expect(coordinateY).toHaveValue("9");
+  await tabUntil(page, coordinateX, 16);
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("7");
+  await page.keyboard.press("Tab");
+  await expect(coordinateY).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Locate cell" })).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/cellX=7&cellY=9/);
+  const disclosure = page.getByText("Rejected snapshot identity");
+  await disclosure.scrollIntoViewIfNeeded();
+  await tabUntil(page, disclosure, 4);
+  await page.keyboard.press("Enter");
+  await expect(disclosure.locator("..")).toHaveAttribute("open", "");
+  const rejectedSnapshot = page.getByRole("article").filter({
+    hasText: "Immutable visualization snapshot",
+  });
+  await expect(
+    rejectedSnapshot.getByText(`0x${"dd".repeat(32)}`),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Three zones, no transferred authority",
+    }),
+  ).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+  expect(await clippedContent(page)).toEqual([]);
 });
+
+async function clippedContent(page: Page): Promise<string[]> {
+  return page.locator("body *").evaluateAll((elements) =>
+    elements.flatMap((element) => {
+      const style = getComputedStyle(element);
+      const box = element.getBoundingClientRect();
+      const insideHorizontalScroller = Boolean(
+        element.closest("[data-xray-horizontal-scroll]"),
+      );
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        box.width === 0 ||
+        box.height === 0 ||
+        element.closest("[aria-live]") ||
+        insideHorizontalScroller
+      )
+        return [];
+      if (box.left >= -0.5 && box.right <= window.innerWidth + 0.5) return [];
+      return [
+        `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ""}: ${element.textContent?.trim().slice(0, 60) ?? ""}`,
+      ];
+    }),
+  );
+}
+
+async function tabUntil(
+  page: Page,
+  target: Locator,
+  maximumTabs: number,
+): Promise<void> {
+  for (let index = 0; index < maximumTabs; index += 1) {
+    if (await target.evaluate((element) => element === document.activeElement))
+      return;
+    await page.keyboard.press("Tab");
+  }
+  await expect(target).toBeFocused();
+}
