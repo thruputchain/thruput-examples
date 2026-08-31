@@ -9,18 +9,17 @@ publish = false
 
 [features]
 entrypoints = []
-rv32-entrypoints = ["entrypoints"]
 dev = ["sdk/dev", "groundhog-erc20-if/dev"]
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 doctest = false
 test = false
 
 [[bin]]
 name = "token_factory_test_wallet"
 path = "src/main.rs"
-required-features = ["rv32-entrypoints"]
+required-features = ["entrypoints"]
 test = false
 bench = false
 

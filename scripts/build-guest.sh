@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build guest binaries (rv32 or wasm).
+# Build guest binaries.
 #
 # Set CARGO_UNLOCK to omit --locked
 
@@ -15,8 +15,11 @@ groundhog_build() {
     echo "::endgroup::"
 }
 
-pkgs_with_cdylib='.packages[] | select([.targets[].kind[]] | index("cdylib")) | .name'
-contract_packages="$(cargo metadata --no-deps --format-version 1 | jq -r "$pkgs_with_cdylib")"
+# Contract crates are the ones that produce a guest binary. The lib
+# crate-type is plain rlib, and the `entrypoints` feature is also declared by
+# interface-only crates that have no bin, so the bin target is the marker.
+contract_pkgs='.packages[] | select([.targets[].kind[]] | index("bin")) | .name'
+contract_packages="$(cargo metadata --no-deps --format-version 1 | jq -r "$contract_pkgs")"
 
 for pkg in ${contract_packages} ; do
     cargo_args=()

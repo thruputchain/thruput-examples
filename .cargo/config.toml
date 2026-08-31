@@ -1,16 +1,3 @@
-[target.wasm32-unknown-unknown]
-rustflags = [
-    # Panic sites compile straight to an abort instead of routing through the
-    # panic machinery, which strips the panic formatting code by construction.
-    # Requires unstable-options, and `-Zbuild-std` so `core` is rebuilt with
-    # the same panic strategy — `groundhog build` supplies that through the
-    # `.cargo/contract.toml` overlay.
-    "-C", "panic=immediate-abort",
-    "-C", "link-args=-zstack-size=30000",
-    "-Z", "unstable-options",
-    "--deny", "warnings",
-    ]
-
 [target.riscv32im-unknown-none-elf]
 rustflags = [
     # The Groundhog rv32 VM permits unaligned data loads/stores, so let LLVM

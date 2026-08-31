@@ -7,18 +7,17 @@ license.workspace = true
 
 [features]
 entrypoints = []
-rv32-entrypoints = ["entrypoints"]
 dev = ["sdk/dev", "sdk/debugging"]
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 doctest = false
 test = false
 
 [[bin]]
 name = "multi_throws"
 path = "src/main.rs"
-required-features = ["rv32-entrypoints"]
+required-features = ["entrypoints"]
 test = false
 bench = false
 

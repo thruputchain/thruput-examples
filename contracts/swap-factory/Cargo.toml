@@ -11,14 +11,14 @@ keywords.workspace = true
 categories.workspace = true
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 doctest = false
 test = false # suppress output from our zero unit-tests
 
 [[bin]]
 name = "swap_factory"
 path = "src/main.rs"
-required-features = ["rv32-entrypoints"]
+required-features = ["entrypoints"]
 test = false
 bench = false
 
@@ -28,7 +28,6 @@ swap-if = { path = "../swap-if" }
 
 [features]
 entrypoints = ["sdk/alloc"]
-rv32-entrypoints = ["entrypoints"]
 dev = ["sdk/dev", "swap-if/dev"]
 guest_test = []
 

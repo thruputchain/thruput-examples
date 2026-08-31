@@ -37,7 +37,7 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 ## Prerequisites
 
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
-  picked up automatically by rustup, including the `wasm32-unknown-unknown`
+  picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
 - The `groundhog` CLI, **version 0.1.19 or newer**:
 
@@ -107,11 +107,8 @@ request-batching driver pattern.
 
 ### Special cases
 
-Beyond the tests in the table, there are three specially-handled kinds of test:
+Beyond the tests in the table, there are two specially-handled kinds of test:
 
-- **WASM.** `counter` and `erc20` each carry a `tests/test_wasm.rs` that
-  mirrors their rv32 test, but compiles the contract to WASM instead. Run with
-  `groundhog test --target wasm -p <crate>`.
 - **Guest tests.** `swap-driver`, `swap-router` and `swap-factory` have a `guest_test` feature
   that swaps their natively-linked collaborator contracts for built guest
   binaries â€” run them with `cargo test -p <crate> -F guest_test`, which is what
@@ -124,8 +121,8 @@ Beyond the tests in the table, there are three specially-handled kinds of test:
 
 ### Running them
 
-`cargo test --all` runs every **native** test in the workspace and skips the rest (rv32 and wasm
-tests are `#[ignore]`d; guest tests need a feature flag; rpc tests are `test = false`):
+`cargo test --all` runs every **native** test in the workspace and skips the rest (rv32 tests
+are `#[ignore]`d; guest tests need a feature flag; rpc tests are `test = false`):
 
 ```sh
 cargo test --all
