@@ -19,6 +19,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`multi-throws`](contracts/multi-throws/) | Declaring multiple error types with `throws(A, B)` |
 | [`multi-impl-traits`](contracts/multi-impl-traits/) | Defining contract interfaces as traits in a standalone crate |
 | [`multi-impl`](contracts/multi-impl/) | One contract implementing multiple traits from a separate crate |
+| [`mixed-impl`](contracts/mixed-impl/) | One contract exposing both an inherent (`notrait`) `#[contract]` impl and a trait `#[contract]` impl |
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and an optional `metadata` feature |
 | [`standard-token*`](contracts/standard-token-factory/) | A fixed standard-token implementation and factory with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](docs/README-swap.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
@@ -84,6 +85,7 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`multi-throws`](contracts/multi-throws/) | ✅ | — | — |
 | [`multi-impl-traits`](contracts/multi-impl-traits/) | — | — | — |
 | [`multi-impl`](contracts/multi-impl/) | ✅ | — | — |
+| [`mixed-impl`](contracts/mixed-impl/) | ✅ | — | — |
 | [`erc20`](contracts/erc20/) | ✅ | ✅ | ✅ |
 | [`swap-handler`](contracts/swap-handler/) | — | — | — |
 | [`swap-pair`](contracts/swap-pair/) | ✅ | — | — |
