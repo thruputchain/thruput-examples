@@ -24,6 +24,7 @@ bench = false
 
 [dependencies]
 sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
 swap-if = { path = "../../interfaces/swap-if" }
 
 [features]
@@ -39,6 +40,9 @@ swap-driver = { path = "../swap-driver", features = ["dev"] }
 swap-router = { path = "../swap-router", features = ["dev"] }
 erc20 = { path = "../erc20", features = ["dev"] }
 groundhog-erc20-if = { workspace = true }
+# Registering the native HOG token at its precompiled address, which the
+# factory spends the pool's funding from.
+groundhog-xdr = { workspace = true }
 # Reading per-syscall gas out of a frame trace, for the guest-only
 # protocol-fee calibration.
 groundhog-trace = { workspace = true }

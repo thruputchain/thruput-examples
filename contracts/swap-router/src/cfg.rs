@@ -1,5 +1,5 @@
 use sdk::*;
-use swap_if::{Address, SwapDriverClient, SwapFactoryClient};
+use swap_if::{Address, SwapDriverClient, SwapFactoryClient, SwapRouterError};
 
 #[contract_type]
 pub struct Cfg {
@@ -12,23 +12,27 @@ impl Cfg {
         SwapFactoryClient::new(&self.factory)
     }
 
-    /// The driver for the `token_a`/`token_b` pair, creating the pair's pool
-    /// through the factory if it doesn't exist yet -- cf. UniswapV2Router, whose
-    /// `addLiquidity` creates the pair on first use.
-    pub fn get_or_create_pair(&self, token_a: &Address, token_b: &Address) -> SwapDriverClient {
-        let factory = self.factory();
-        let pool = match factory.get_pair(token_a, token_b) {
-            Some(_) => factory.pool_addresses(token_a, token_b),
-            None => factory.create_pair(token_a, token_b),
-        };
-        SwapDriverClient::new(&pool.driver)
-    }
-
-    /// The driver for an *existing* `token_a`/`token_b` pair.  Unlike
-    /// `get_or_create_pair`, this never creates the pair -- UniswapV2 only
-    /// creates on `addLiquidity` -- so routing here fails if it doesn't exist.
+    /// The driver for an *existing* `token_a`/`token_b` pair.
+    ///
+    /// The router never creates a pool.  UniswapV2's router does, on first
+    /// `addLiquidity`, but creating one here costs its creator real HOG -- the
+    /// pool's contracts are funded as they are deployed -- and that is not
+    /// something to have happen as a side effect of adding liquidity.  Pools
+    /// are created by calling [`SwapFactory::create_pair`] directly.
     pub fn get_pair(&self, token_a: &Address, token_b: &Address) -> SwapDriverClient {
         SwapDriverClient::new(&self.factory().pool_addresses(token_a, token_b).driver)
+    }
+
+    /// Like [`get_pair`](Self::get_pair), but refuses a pair the factory has
+    /// no record of, rather than routing at an address with nothing behind it.
+    pub fn get_existing_pair(&self, token_a: &Address, token_b: &Address) -> SwapDriverClient {
+        let factory = self.factory();
+        ensure(
+            factory.get_pair(token_a, token_b).is_some(),
+            SwapRouterError::NoSuchPair,
+        );
+
+        SwapDriverClient::new(&factory.pool_addresses(token_a, token_b).driver)
     }
 
     /// Like `get_pair`, but accepts the tokens in either order; additionally

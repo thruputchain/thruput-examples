@@ -4,11 +4,11 @@
 //! in-process executor), this drives the real contracts on a live local
 //! `hog-devnode` using `groundhog-testkit`.
 //!
-//! An `admin` agent deploys the factory and router, pre-funds the pair's
-//! (deterministic) contract addresses, and then primes the pool with an
-//! `add_liquidity` through the router -- which is what actually creates the
-//! pair, so this exercises a router-triggered `create_pair` under real HOG
-//! funding. The admin also acts as the request-queue operator. Two independent
+//! An `admin` agent deploys the factory and router, has the factory create the
+//! pool -- funding, deploying and initializing its three contracts in one
+//! transaction out of the admin's own HOG -- and then primes it with an
+//! `add_liquidity` through the router. The admin also acts as the
+//! request-queue operator. Two independent
 //! liquidity providers (`alice`, `bob`) each run as their own agent: they learn the
 //! contract addresses over the harness mailbox, approve the request handler,
 //! submit an `add_liquidity` request through the router, and — once the admin
@@ -19,7 +19,7 @@
 //!
 //! ```text
 //! cd groundhog-examples
-//! for c in erc20 swap-pair swap-handler swap-driver swap-router swap-factory; do groundhog build -p "$c"; done
+//! for c in erc20 swap-handler swap-driver swap-router swap-factory; do groundhog build -p "$c"; done
 //! RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
 //! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
 //! GROUNDHOG_TESTKIT_ARTIFACT_ROOT=/path/to/target/groundhog \
@@ -33,6 +33,7 @@ use groundhog_testkit::xdr::types::ContractAddress;
 use groundhog_testkit::{
     Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Result, Scenario, xdrs,
 };
+use swap_factory::POOL_FUNDING;
 use swap_if::{Pool, SwapHashes};
 
 /// An alias to match the contracts' `Address` type.
@@ -125,9 +126,9 @@ impl LPConfig {
 
 /// As admin
 /// - register the suite's code
-/// - deploy two tokens and the factory
-/// - initialize the factory
-/// - fund addresses necessary for the test
+/// - deploy two tokens, the factory and the router
+/// - initialize both
+/// - have the factory create the pool, funding it out of our own HOG
 async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Swap> {
     let me = ctx.address();
 
@@ -135,7 +136,6 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     // we deploy the tokens below; the rest we register explicitly, since the
     // factory -- not us -- deploys their instances.  The router is deployed
     // directly below, so it needs no registration by hash.)
-    ctx.register_artifact("swap_pair").await?;
     ctx.register_artifact("swap_handler").await?;
     ctx.register_artifact("swap_driver").await?;
 
@@ -152,46 +152,54 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     token0.call(ctx, "mint", &(me, SUPPLY)).await?;
     token1.call(ctx, "mint", &(me, SUPPLY)).await?;
 
-    // Deploy, fund, and initialize the factory with the code hashes it needs
-    // and the protocol fee disabled.
+    // Deploy and fund the factory and the router.  Each driver the factory
+    // creates takes requests from the router alone, so the factory has to be
+    // told the router's address -- which means deploying the router first, and
+    // initializing it second.
     let factory = Contract::new(
         ctx.deploy_artifact("swap_factory").await?.address,
         FACTORY.0,
         FACTORY.1,
     );
     fund(ctx, native, factory.address()).await?;
-    let hashes = SwapHashes {
-        token: ctx.contract_hash("erc20")?,
-        handler: ctx.contract_hash("swap_handler")?,
-        driver: ctx.contract_hash("swap_driver")?,
-    };
-    let fee_to: Option<Address> = None;
-    factory.call(ctx, "initialize", &(hashes, fee_to)).await?;
-
-    // Deploy the single, suite-wide router, pointed at the factory.
     let router = Contract::new(
         ctx.deploy_artifact("swap_router").await?.address,
         ROUTER.0,
         ROUTER.1,
     );
     fund(ctx, native, router.address()).await?;
+
+    let hashes = SwapHashes {
+        token: ctx.contract_hash("erc20")?,
+        handler: ctx.contract_hash("swap_handler")?,
+        driver: ctx.contract_hash("swap_driver")?,
+    };
+    let fee_to: Option<Address> = None;
+    factory
+        .call(ctx, "initialize", &(hashes, fee_to, router.address()))
+        .await?;
     router.call(ctx, "initialize", &factory.address()).await?;
 
-    // Ask the factory where it *will* deploy the pair's contracts, and fund each
-    // of those addresses.
-    //
-    // We deliberately do NOT create the pair (with its handler and driver
-    // contracts) here: the first `add_liquidity` routed through the router
-    // (see `prime_pool`) will create it, deploying *and* initializing these
-    // contracts in one transaction -- so each must already be solvent to pay
-    // for its init writes. Pre-funding the deterministic addresses is what
-    // makes that possible.
+    // Create the pool.  The factory funds its three contracts as it deploys
+    // them, out of *our* HOG, so it needs an allowance covering all three --
+    // and that one transaction leaves them deployed, solvent and initialized.
     let (t0, t1) = (token0.address(), token1.address());
+    native
+        .call(
+            ctx,
+            "adjust_allowance",
+            &(factory.address(), 3 * POOL_FUNDING),
+        )
+        .await?;
+    factory
+        .call(ctx, "create_pair", &(t0, t1, POOL_FUNDING))
+        .await?;
+
+    // `create_pair` returns the pool, but a call yields a receipt rather than a
+    // decoded value; the same addresses come back from `pool_addresses`, which
+    // is deterministic in the token pair and so answers for a pool that exists
+    // just as well as for one that does not.
     let pool: Pool = factory.view(ctx, "pool_addresses", &(t0, t1), None).await?;
-    fund(ctx, native, pool.liquidity_token).await?;
-    fund(ctx, native, pool.handler).await?;
-    fund(ctx, native, pool.handler).await?;
-    fund(ctx, native, pool.driver).await?;
 
     Ok(Swap {
         token0,
@@ -206,12 +214,8 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
 /// As admin, prime the pool through the router, establishing the initial price
 /// the providers add against.
 ///
-/// Crucially, the pair does not exist yet: this first `add_liquidity` is what
-/// creates it (the router calls `factory.create_pair`, deploying and
-/// initializing the whole pool inline).  That deployment can only pay for
-/// its storage because `deploy_and_init` pre-funded the pool's deterministic
-/// addresses -- so this exercises whether the HOG-funding structure supports a
-/// router-triggered pair creation.
+/// The pool already exists: the router never creates one, so `deploy_and_init`
+/// had the factory create it.  This is the first liquidity in it.
 async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
     let me = ctx.address();
 

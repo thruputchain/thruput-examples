@@ -1,6 +1,7 @@
 use super::*;
+use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use std::env;
-use swap_factory::{SwapFactoryClient, SwapHashes};
+use swap_factory::{POOL_FUNDING, SwapFactoryClient, SwapHashes};
 
 pub fn setup_etx() -> Result<Etx> {
     #[cfg(not(feature = "guest_test"))]
@@ -86,9 +87,23 @@ pub fn setup_contracts(
     router_hash: SHA256Hash,
 ) -> Result<Etx> {
 
+    // The factory pays for the pool's contracts out of the creator's HOG, so
+    // the native HOG token has to be reachable at its precompiled address --
+    // and, like any other contract, it pays for the allowance ledger it keeps
+    // in its own storage.
+    env.setup_create_deployment(
+        &ADDRESS_PRECOMPILED_HOG_TOKEN,
+        &Contract::kNative {
+            native_contract_id:
+                groundhog_xdr::precompiles::HogexecPrecompiledNativeContracts::kNativeContractHogToken,
+        },
+    );
+    env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);
+
     // Under the default cost model each contract pays for the storage it
     // writes, so pre-fund everything before it is deployed: the test-user
     // addresses, and each directly-deployed contract.
+    env.setup_grant_storage_tokens(&TEST_ADDR, CONTRACT_FUNDING);
     for u in USERS {
         env.setup_grant_storage_tokens(u.addr, CONTRACT_FUNDING);
     }
@@ -141,22 +156,22 @@ pub fn setup_contracts(
 
     /* ----- */ env.advance_block(); /* ----- */
 
-    // The factory deploys this pair's contracts (LP, pair, handler, driver)
-    // inside `create_pair`, so pre-fund them at their predicted addresses first.
-    let predicted = exec_tx(env, &TEST_ADDR, move || {
-        SwapFactoryClient::new(&factory_addr).pool_addresses(&token_addrs[0], &token_addrs[1])
+    // The factory funds this pair's contracts (LP token, handler, driver) as it
+    // deploys them, on the allowance it is granted here.
+    exec_tx(env, &TEST_ADDR, move || {
+        ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
+            .adjust_allowance(&factory_addr, 3 * POOL_FUNDING as i128);
     })?;
-    for addr in [
-        predicted.liquidity_token,
-        predicted.handler,
-        predicted.driver,
-    ] {
-        env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
-    }
+
+    /* ----- */ env.advance_block(); /* ----- */
 
     // Create this pair's contracts via the factory.
     let pool = exec_tx(env, &TEST_ADDR, move || {
-        SwapFactoryClient::new(&factory_addr).create_pair(&token_addrs[0], &token_addrs[1])
+        SwapFactoryClient::new(&factory_addr).create_pair(
+            &token_addrs[0],
+            &token_addrs[1],
+            POOL_FUNDING,
+        )
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */

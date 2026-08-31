@@ -1,24 +1,27 @@
 # Swap App: Pending Contract Changes
 
-The `swap-*` contracts were reworked in four rounds: the identities behind an
+The `swap-*` contracts were reworked in five rounds: the identities behind an
 operation were separated, queue-cranking became permissionless with the cranker
-sizing its own batch, the pair was collapsed into the handler, and the call
-chain from router to pair was permissioned.  This is the list of what changed
-and what it means for the frontend.
+sizing its own batch, the pair was collapsed into the handler, the call chain
+from router to pair was permissioned, and pool creation became a single funded
+transaction.  This is the list of what changed and what it means for the
+frontend.
 
 The reasoning behind the contract side is in
 [`docs/README-swap.md`](docs/README-swap.md) ("Why a Request Queue", "Cranking
 the Queue") and in the [`batch-driver`](helpers/batch-driver/src/lib.rs) module
 docs; the constants carry their own measured justifications.
 
-**The app is now broken against these contracts**, in three ways, which are the
-first three sections below.  There is no pair contract any more
+**The app is now broken against these contracts**, in four ways, which are the
+first four sections below.  There is no pair contract any more
 ([Collapsing the pair](#collapsing-the-pair-into-the-handler)); the event the
 app watches no longer says what it used to
-([Sender and recipient](#sender-and-recipient)); and local setup brings the
+([Sender and recipient](#sender-and-recipient)); local setup brings the
 contracts up in an order the factory no longer accepts
-([The call chain is permissioned](#the-call-chain-is-permissioned)).  The
-cranking items after those are things to take up rather than breakage.
+([The call chain is permissioned](#the-call-chain-is-permissioned)); and a pool
+is now created by asking the factory for one rather than by adding liquidity
+([Creating a pool](#creating-a-pool-is-one-funded-call)).  The cranking items
+after those are things to take up rather than breakage.
 
 The app's own runtime paths -- submitting through the router, cranking through
 the driver -- are otherwise intact: what broke is what it reads, and how setup
@@ -137,6 +140,46 @@ open to anyone -- cranking is still permissionless.  What changes is setup.
   produce, so they are worth recognising: they mean the caller is not the
   contract's designated predecessor, not that anything was wrong with the
   request.
+
+## Creating a pool is one funded call
+
+A pool's three contracts each pay for their own storage, so each needs HOG
+before it writes any.  `create_pair` now does that itself: it takes `funding`,
+moves that much to each of the three addresses, deploys them, and initializes
+them -- funding, deployment and wiring in the one transaction.
+
+The HOG comes from the caller, on an allowance granted to the factory
+beforehand; taking it from the factory's own balance would let anyone drain the
+factory by creating pools.
+
+* **`SwapFactory::create_pair` gains a `funding` argument**, and wants an
+  allowance: `adjust_allowance(HOG, factory, 3 * funding)` on the native token
+  at `0x00…01`, then `create_pair(tokenA, tokenB, funding)`.  The factory
+  recommends `POOL_FUNDING` (10_000_000 under the default cost model, room for
+  some 800 storage items per contract) and refuses anything below a floor of
+  128_000 with `SwapFactoryError::InsufficientFunding`.
+
+* **`setup-local.ts` step 6 goes away.**  It reads `poolAddresses` and sends the
+  faucet at each of four predicted addresses (one of which, `pool.pair`, no
+  longer exists) so that a later `addLiquidity` can deploy into them.  Replace
+  the whole loop with the allowance and the `create_pair` call above; the
+  approve-and-add-liquidity steps that follow are unchanged, and `poolAddresses`
+  is still how the app learns the handler, driver and LP token.
+
+* **The router no longer creates pools.**  UniswapV2's router creates a pair on
+  the first `addLiquidity`; ours will not, because creating one now spends the
+  caller's HOG, which is not a thing to do as a side effect of adding
+  liquidity.  `addLiquidity` on a pair the factory has no record of throws
+  `SwapRouterError::NoSuchPair` (new, code 2).  Since setup now creates the pool
+  explicitly, the app only meets this if it routes to a pair nobody made.
+
+* **Under-funding past the floor reports nothing.**  A storage deposit is
+  settled when the transaction commits, so a `funding` that clears the floor but
+  does not cover bring-up cannot be caught inside `create_pair`.  The
+  transaction fails reservation instead: it goes back to the mempool, retries,
+  keeps failing, and expires with no pool and no error.  A `create_pair` that
+  never lands and never aborts means the funding was too small, not that the
+  node lost it.
 
 ## Cranking
 

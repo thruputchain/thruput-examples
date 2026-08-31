@@ -193,11 +193,32 @@ first call there is no principal to check against, and any address passed in for
 comparison would be supplied by the very caller being checked.
 
 What protects them instead is that a pool is deployed *and* initialized inside a
-single transaction — `SwapFactory::create_pair` deploys the LP token, handler
-and driver, then wires them together before it returns — so nothing can act on
-those contracts in between. A second call is refused. And a deployed address
+single transaction — `SwapFactory::create_pair` funds, deploys and initializes
+the LP token, handler and driver before it returns — so nothing can act on those
+contracts in between. A second call is refused. And a deployed address
 derives from its deployer, so no one else can deploy to the address the factory
 predicted for a pool.
+
+Funding is part of the same transaction. Each of the three contracts pays for
+its own storage, so each must hold HOG before it writes any; `create_pair` takes
+a `funding` and moves that much to each address *before* deploying to it, which
+deterministic deploy addresses make possible. The HOG comes from the caller, on
+an allowance granted to the factory — out of the factory's own balance, anyone
+could drain it by creating pools.
+
+That the funding and the writes it pays for share a transaction is also why
+`create_pair` cannot verify the funding was enough. A storage deposit is settled
+when the transaction commits; a commit-locked (`try_`) initialization, which
+would settle each contract's deposit as its call returned, weighs that contract
+against the balance committed *before* this transaction — and so cannot see
+funding paid within it. The factory checks a floor and no more. Past the floor,
+a shortfall is felt at the transaction's reservation, which returns it to the
+mempool to retry and expire rather than including a failure in the block.
+
+Because creation spends the creator's HOG, the router does not do it.
+UniswapV2's router creates a pair on the first `addLiquidity`; ours throws
+`SwapRouterError::NoSuchPair` instead, leaving pool creation an explicit call to
+the factory.
 
 The one ordering this imposes reaches outside the factory: each driver is told
 the router whose requests it will accept, so the factory must be told the router

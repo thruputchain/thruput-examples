@@ -1,7 +1,8 @@
 //! The factory interface: deploys and wires a whole pool (cf. UniswapV2Factory).
 
 use crate::{
-    Address, Addresses, ERC20Error, PoolCreated, SwapLibraryError, SwapPairError, SwapRequestError,
+    Address, Addresses, Amount, ERC20Error, PoolCreated, SwapLibraryError, SwapPairError,
+    SwapRequestError,
 };
 use core::fmt;
 use sdk::*;
@@ -13,6 +14,18 @@ pub enum SwapFactoryError {
     IdenticalTokens = 2,
     ZeroAddress = 3,
     PairExists = 4,
+
+    /// The `funding` offered for a new pool's contracts was below the floor
+    /// the factory will accept.
+    ///
+    /// This catches an obviously wrong `funding` -- zero, or a figure from a
+    /// much cheaper cost model -- and nothing subtler: a storage deposit is
+    /// settled when the transaction commits, so a shortfall above the floor is
+    /// not visible while the pool is being brought up.  That one costs the
+    /// creator nothing but time: the transaction fails reservation and is
+    /// returned to the mempool, where it retries -- and keeps failing -- until
+    /// it expires, with no pool created and no error reported.
+    InsufficientFunding = 5,
 }
 
 impl fmt::Display for SwapFactoryError {
@@ -70,7 +83,20 @@ pub trait SwapFactory {
 
     /// Deploy and initialize a pair's contracts (LP token, pair, request
     /// handler, driver) for the given token pair, in one transaction.
-    fn create_pair(&mut self, token_a: &Address, token_b: &Address) -> Pool;
+    /// `funding` is the HOG given to *each* of the pool's contracts to pay for
+    /// the storage it will hold.  The factory takes `3 * funding` from the
+    /// caller, which must therefore have granted it that allowance on the
+    /// native token beforehand, so that funding, deployment and initialization
+    /// all happen in this one transaction.
+    ///
+    /// Below the factory's floor the call aborts with
+    /// [`InsufficientFunding`](SwapFactoryError::InsufficientFunding), leaving
+    /// nothing behind; above it but still short, the transaction fails
+    /// reservation instead and reports nothing (see that error).  How much is
+    /// enough depends on the cost model and on how deep the pool's queue is
+    /// allowed to get; see `POOL_FUNDING` in the factory's implementation for
+    /// the figure it recommends.
+    fn create_pair(&mut self, token_a: &Address, token_b: &Address, funding: Amount) -> Pool;
 
     /// The addresses [`create_pair`] would deploy the pool to for this token
     /// pair, computed deterministically without deploying anything (like a

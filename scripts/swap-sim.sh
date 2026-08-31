@@ -12,6 +12,7 @@ build() {
     groundhog build -p swap-driver
     groundhog build -p swap-router
     groundhog build -p swap-handler
+    groundhog build -p swap-factory
 }
 
 if [ ! -v NO_BUILD ]; then

@@ -16,7 +16,7 @@ sdk::declare_mock_contract!();
 extern crate alloc;
 
 mod factory;
-pub use factory::Factory;
+pub use factory::{Factory, POOL_FUNDING};
 
 // Contract interface (re-exported for convenience)
 pub use swap_if::{

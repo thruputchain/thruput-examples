@@ -18,6 +18,15 @@ use sdk::*;
 pub enum SwapRouterError {
     /// `initialize` was called on a router that is already running.
     AlreadyInitialized = 1,
+
+    /// The factory has no pool for the requested token pair.
+    ///
+    /// Unlike UniswapV2's router, this one never creates one: a pool's
+    /// contracts are funded as they are deployed, so creating one costs its
+    /// creator real HOG and is not something to do as a side effect of adding
+    /// liquidity.  Call [`SwapFactory::create_pair`](crate::SwapFactory::create_pair)
+    /// first.
+    NoSuchPair = 2,
 }
 
 #[contract(
