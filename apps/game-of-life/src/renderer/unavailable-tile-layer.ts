@@ -14,6 +14,7 @@ interface Props extends LayerProps {
   readonly gpuBudget: ActiveByteBudget;
   readonly transitionOpacity: number;
   readonly onResourceError: (message: string) => void;
+  readonly onResourceReady: () => void;
 }
 interface Resources {
   readonly model: Model;
@@ -122,6 +123,7 @@ export class UnavailableTileLayer extends Layer<Props> {
         }),
       });
       this.setState({ resources: { model, release } });
+      this.props.onResourceReady();
     } catch (cause) {
       model?.destroy();
       release();

@@ -68,6 +68,7 @@ export function WorldViewport({
     null,
   );
   const [fatalError, setFatalError] = useState<string | null>(null);
+  const [rendererWarning, setRendererWarning] = useState<string | null>(null);
   const [tileWarning, setTileWarning] = useState<string | null>(null);
   const [contextLost, setContextLost] = useState(false);
   const [viewport, setViewport] = useState({ width: 800, height: 600 });
@@ -102,12 +103,19 @@ export function WorldViewport({
               lifecycle.current.onAnnouncement(inspectionLabel(value));
             else if (!value) lifecycle.current.onAnnouncement("");
           },
-          onError: setTileWarning,
+          onError: setRendererWarning,
+          onTileError: setTileWarning,
+          onTileLoad: () => setTileWarning(null),
           onContext: (lost) => {
             setContextLost(lost);
             lifecycle.current.onAvailability(
               lost ? "context-lost" : "available",
             );
+          },
+          onUnavailable: (message) => {
+            setContextLost(false);
+            setFatalError(message);
+            lifecycle.current.onAvailability("unavailable");
           },
           onTransition: (value) => lifecycle.current.onTransition(value),
           approveSnapshotCommit: (value, identity) =>
@@ -189,12 +197,12 @@ export function WorldViewport({
           </div>
         </div>
       ) : null}
-      {tileWarning && !fatalError ? (
+      {(rendererWarning ?? tileWarning) && !fatalError ? (
         <div
           role="status"
           className="absolute top-[calc(var(--safe-top)+8rem)] right-[max(.75rem,var(--safe-right))] left-[max(.75rem,var(--safe-left))] rounded-md border border-warning/40 bg-panel/95 px-3 py-2 text-base text-warning sm:left-auto sm:text-sm"
         >
-          {tileWarning}
+          {rendererWarning ?? tileWarning}
         </div>
       ) : null}
       {contextLost ? (

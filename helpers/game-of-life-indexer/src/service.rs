@@ -65,6 +65,8 @@ pub struct IndexerService<S> {
     status: Arc<RwLock<LifeStatus>>,
     events: Vec<ChainEvent>,
     pending: Option<CoherentDownload>,
+    latest_publication: Option<LatestPointer>,
+    publication_reconciled: bool,
     retry_attempt: u32,
     failure_point: Option<FailurePoint>,
 }
@@ -85,6 +87,8 @@ impl<S: ChainSource> IndexerService<S> {
             status,
             events: Vec::new(),
             pending: None,
+            latest_publication: None,
+            publication_reconciled: false,
             retry_attempt: 0,
             failure_point: None,
         }
@@ -131,7 +135,10 @@ impl<S: ChainSource> IndexerService<S> {
 
     pub async fn cycle(&mut self) -> Result<(), ServiceError> {
         let cycle_started = std::time::Instant::now();
-        let latest = self.reconcile_publication().await?;
+        if !self.publication_reconciled {
+            self.reconcile_publication().await?;
+        }
+        let latest = self.latest_publication.clone();
         if self.pending.is_none() {
             let observed = self.source.metadata().await?;
             let digest = hex32(&observed.state_digest);
@@ -247,6 +254,8 @@ impl<S: ChainSource> IndexerService<S> {
             source_block_hash: provenance.source_block_hash.clone(),
             published_at: now(),
         };
+        // Promotion can become visible before a final directory sync reports failure.
+        self.publication_reconciled = false;
         self.publisher.promote(
             &self.config.network_id,
             &self.config.contract_address,
@@ -421,6 +430,8 @@ impl<S: ChainSource> IndexerService<S> {
             .publisher
             .latest(&self.config.network_id, &self.config.contract_address)?;
         let Some(latest) = latest else {
+            self.latest_publication = None;
+            self.publication_reconciled = true;
             return Ok(None);
         };
         let current_generation: u64 =
@@ -475,6 +486,8 @@ impl<S: ChainSource> IndexerService<S> {
         )?;
         self.status.write().await.published =
             Some(identity(current_generation, &latest.state_digest));
+        self.latest_publication = Some(latest.clone());
+        self.publication_reconciled = true;
         Ok(Some(latest))
     }
 

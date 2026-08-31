@@ -56,6 +56,7 @@ export function TransactionActivity({
   const [mode, setMode] = useState<"automatic" | "manual">("automatic");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(initial.error);
+  const [observerError, setObserverError] = useState<string | null>(null);
 
   const apply = (result: WorkflowResult) => {
     startTransition(() => {
@@ -98,6 +99,7 @@ export function TransactionActivity({
           contractAddress: config.contractAddress,
           requests: scanned,
         });
+        if (!disposed) setObserverError(null);
         if (
           disposed ||
           (batch.observations.length === 0 &&
@@ -113,7 +115,7 @@ export function TransactionActivity({
         if (!disposed) startTransition(() => setRequests(next));
         if (batch.observations.length > 0) onCrankCommitted();
       } catch (cause) {
-        if (!disposed) setError(message(cause));
+        if (!disposed) setObserverError(message(cause));
       } finally {
         running = false;
       }
@@ -291,9 +293,9 @@ export function TransactionActivity({
           </ol>
         </details>
       ) : null}
-      {error ? (
+      {(error ?? observerError) ? (
         <p role="alert" className="mt-2 text-xs text-destructive">
-          {error}
+          {error ?? observerError}
         </p>
       ) : null}
       <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">

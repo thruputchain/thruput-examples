@@ -145,6 +145,54 @@ fn stale_build_does_not_replace_latest() {
 }
 
 #[test]
+fn generation_mismatch_cannot_poison_latest_as_stale() {
+    let fixture = Fixture::new();
+    fixture.ready(0, DIGEST0);
+    let error = fixture
+        .publisher
+        .promote(NETWORK, CONTRACT, &pointer(99, DIGEST0))
+        .expect_err("pointer generation must match ready artifacts");
+    assert!(matches!(error, StorageError::Collision(_)));
+    assert!(!fixture.latest().exists());
+
+    fixture.ready(1, DIGEST1);
+    assert!(
+        fixture
+            .publisher
+            .promote(NETWORK, CONTRACT, &pointer(1, DIGEST1))
+            .expect("valid generation must not be made stale")
+    );
+}
+
+#[test]
+fn source_block_mismatch_is_rejected_by_promote_and_latest() {
+    let fixture = Fixture::new();
+    fixture.ready(0, DIGEST0);
+    let mut mismatched = pointer(0, DIGEST0);
+    mismatched.source_block_height = "10".into();
+    assert!(matches!(
+        fixture.publisher.promote(NETWORK, CONTRACT, &mismatched),
+        Err(StorageError::Collision(_))
+    ));
+
+    fixture
+        .publisher
+        .promote(NETWORK, CONTRACT, &pointer(0, DIGEST0))
+        .expect("promote matching pointer");
+    mismatched.source_block_height = "9".into();
+    mismatched.source_block_hash = format!("0x{}", "e".repeat(64));
+    fs::write(
+        fixture.latest(),
+        serde_json::to_vec(&mismatched).expect("latest JSON"),
+    )
+    .expect("poison latest source block");
+    assert!(matches!(
+        fixture.publisher.latest(NETWORK, CONTRACT),
+        Err(StorageError::Collision(_))
+    ));
+}
+
+#[test]
 fn digest_mismatch_cannot_be_promoted() {
     let fixture = Fixture::new();
     fixture.ready(0, DIGEST0);
@@ -651,6 +699,37 @@ async fn retries_back_off_bound_and_reset_while_preserving_published_status() {
     );
     assert_eq!(service.step().await, Duration::from_millis(10));
     assert!(status.read().await.retry.is_none());
+}
+
+#[tokio::test]
+async fn unchanged_cycles_do_not_repeat_ready_inventory_discovery() {
+    let fixture = Fixture::new();
+    fixture.ready(0, DIGEST0);
+    let Fixture { temp, publisher } = fixture;
+    publisher
+        .promote(NETWORK, CONTRACT, &pointer(0, DIGEST0))
+        .expect("promote ready fixture");
+    let missing_after_startup = publisher
+        .root()
+        .join("v1/worlds")
+        .join(NETWORK)
+        .join(CONTRACT)
+        .join(DIGEST0)
+        .join(format!("tiles/{MAX_ZOOM}/0/0.bin"));
+    let mut service = IndexerService::new(
+        service_config(),
+        FailThenMetadata {
+            attempts: Arc::new(AtomicUsize::new(2)),
+        },
+        StateStore::open(&temp.path().join("state.sqlite3")).expect("state"),
+        publisher,
+        Arc::new(RwLock::new(initial_status())),
+    );
+
+    service.cycle().await.expect("startup reconciliation");
+    fs::remove_file(missing_after_startup).expect("remove tile after startup validation");
+    service.cycle().await.expect("first unchanged cycle");
+    service.cycle().await.expect("second unchanged cycle");
 }
 
 #[test]

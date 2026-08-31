@@ -5,15 +5,39 @@ test.beforeEach(async ({ page }) => {
   await page.waitForFunction(() => "fixture" in window);
 });
 
-test("uploads and samples unsigned 16-bit integer textures exactly", async ({ page }) => {
-  const result = await page.evaluate(() => window.fixture.runIntegerTextureProbe());
+test("uploads and samples unsigned 16-bit integer textures exactly", async ({
+  page,
+}) => {
+  const result = await page.evaluate(() =>
+    window.fixture.runIntegerTextureProbe(),
+  );
   expect(result.error).toBe(0);
   expect(result.pixels).toEqual([1, 2, 0, 255, 255, 15, 0, 255]);
   expect(result.renderer.length).toBeGreaterThan(0);
 });
 
-test("keeps digest layers isolated and cleans up tile work", async ({ page }) => {
-  const result = await page.evaluate(() => window.fixture.runDeckLifecycleProbe());
+test("decodes, uploads, picks, and releases zoom-six exact-cell tiles", async ({
+  page,
+}) => {
+  const result = await page.evaluate(() => window.fixture.runExactCellProbe());
+  expect(result.errors).toEqual([]);
+  expect(result.zooms).toEqual([6, 6]);
+  expect(result.values).toEqual([1, 0]);
+  expect(result.byteLength).toBe(73_728);
+  expect(result.packedByteLength).toBe(8_192);
+  expect(result.decodedByteLength).toBe(65_536);
+  expect(result.pixels[0]).toEqual([255, 217, 230, 255]);
+  expect(result.pixels[1]).toEqual([0, 38, 89, 255]);
+  expect(result.resourcesCreated).toBeGreaterThan(0);
+  expect(result.resourcesDestroyed).toBe(result.resourcesCreated);
+});
+
+test("keeps digest layers isolated and cleans up tile work", async ({
+  page,
+}) => {
+  const result = await page.evaluate(() =>
+    window.fixture.runDeckLifecycleProbe(),
+  );
   expect(result.loadedDigests).toEqual(["new", "old"]);
   expect(result.requested).toContain("new:0/0/0");
   expect(result.requested).toContain("old:0/0/0");
@@ -41,7 +65,9 @@ test("keeps digest layers isolated and cleans up tile work", async ({ page }) =>
 });
 
 test("normalizes and clips the partial world-edge texel", async ({ page }) => {
-  const result = await page.evaluate(() => window.fixture.runClippedEdgeProbe());
+  const result = await page.evaluate(() =>
+    window.fixture.runClippedEdgeProbe(),
+  );
   expect(result.errors).toEqual([]);
   expect(result.coveredCells).toBe(256);
   const density = result.value / result.coveredCells;
@@ -52,7 +78,9 @@ test("normalizes and clips the partial world-edge texel", async ({ page }) => {
   expect(result.outsidePixel).toEqual([0, 0, 0, 0]);
 });
 
-test("clamps orthographic controller interaction to the real world", async ({ page }) => {
+test("clamps orthographic controller interaction to the real world", async ({
+  page,
+}) => {
   await page.evaluate(() => window.fixture.setupControllerProbe());
   const canvas = page.locator("#fixture");
   const bounds = await canvas.boundingBox();
@@ -66,7 +94,9 @@ test("clamps orthographic controller interaction to the real world", async ({ pa
     await page.mouse.move(bounds!.x + bounds!.width - 1, centerY, { steps: 4 });
     await page.mouse.up();
   }
-  const minimum = await page.evaluate(() => window.fixture.getControllerTarget());
+  const minimum = await page.evaluate(() =>
+    window.fixture.getControllerTarget(),
+  );
   expect(minimum[0]).not.toBe(5_000);
   expect(minimum[0]).toBeCloseTo(256, 0);
 
@@ -76,16 +106,22 @@ test("clamps orthographic controller interaction to the real world", async ({ pa
     await page.mouse.move(bounds!.x + 1, centerY, { steps: 4 });
     await page.mouse.up();
   }
-  const maximum = await page.evaluate(() => window.fixture.getControllerTarget());
+  const maximum = await page.evaluate(() =>
+    window.fixture.getControllerTarget(),
+  );
   expect(maximum[0]).toBeCloseTo(9_744, 0);
 
   for (let attempt = 0; attempt < 40; attempt += 1) {
     await page.mouse.move(centerX, centerY);
     await page.mouse.down();
-    await page.mouse.move(centerX, bounds!.y + bounds!.height - 1, { steps: 4 });
+    await page.mouse.move(centerX, bounds!.y + bounds!.height - 1, {
+      steps: 4,
+    });
     await page.mouse.up();
   }
-  const verticalMinimum = await page.evaluate(() => window.fixture.getControllerTarget());
+  const verticalMinimum = await page.evaluate(() =>
+    window.fixture.getControllerTarget(),
+  );
   expect(verticalMinimum[1]).not.toBe(5_000);
   expect(verticalMinimum[1]).toBeCloseTo(256, 0);
 
@@ -95,7 +131,9 @@ test("clamps orthographic controller interaction to the real world", async ({ pa
     await page.mouse.move(centerX, bounds!.y + 1, { steps: 4 });
     await page.mouse.up();
   }
-  const verticalMaximum = await page.evaluate(() => window.fixture.getControllerTarget());
+  const verticalMaximum = await page.evaluate(() =>
+    window.fixture.getControllerTarget(),
+  );
   expect(verticalMaximum[1]).toBeCloseTo(9_744, 0);
   await page.evaluate(() => window.fixture.finalizeControllerProbe());
 });

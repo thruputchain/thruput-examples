@@ -109,11 +109,10 @@ impl Publisher {
         match fs::read(&path) {
             Ok(bytes) => {
                 let latest = LatestPointer::from_json_for(&bytes, network, contract)?;
-                let candidate = path
+                let scope = path
                     .parent()
-                    .ok_or_else(|| StorageError::InvalidPath(path.display().to_string()))?
-                    .join(&latest.state_digest);
-                self.verify_ready(network, contract, &candidate, &latest.state_digest)?;
+                    .ok_or_else(|| StorageError::InvalidPath(path.display().to_string()))?;
+                self.verify_pointer_ready(network, contract, scope, &latest)?;
                 Ok(Some(latest))
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -214,18 +213,11 @@ impl Publisher {
     ) -> Result<bool, StorageError> {
         pointer.validate_for(network, contract)?;
         let scope = self.root.join("v1/worlds").join(network).join(contract);
-        let candidate = scope.join(&pointer.state_digest).join("manifest.json");
-        self.verify_ready(
-            network,
-            contract,
-            candidate
-                .parent()
-                .ok_or_else(|| StorageError::InvalidPath(candidate.display().to_string()))?,
-            &pointer.state_digest,
-        )?;
+        self.verify_pointer_ready(network, contract, &scope, pointer)?;
         let latest = scope.join("latest.json");
         if let Ok(bytes) = fs::read(&latest) {
             let current = LatestPointer::from_json_for(&bytes, network, contract)?;
+            self.verify_pointer_ready(network, contract, &scope, &current)?;
             let current_generation: u64 =
                 current
                     .generation
@@ -299,6 +291,25 @@ impl Publisher {
         }
         identities.sort_by_key(|identity| identity.generation);
         Ok(identities)
+    }
+
+    fn verify_pointer_ready(
+        &self,
+        network: &str,
+        contract: &str,
+        scope: &Path,
+        pointer: &LatestPointer,
+    ) -> Result<(LifeManifest, LifeProvenance), StorageError> {
+        let base = scope.join(&pointer.state_digest);
+        let (manifest, provenance) =
+            self.verify_ready(network, contract, &base, &pointer.state_digest)?;
+        if pointer.generation != manifest.generation
+            || pointer.source_block_height != provenance.source_block_height
+            || pointer.source_block_hash != provenance.source_block_hash
+        {
+            return Err(StorageError::Collision(base.display().to_string()));
+        }
+        Ok((manifest, provenance))
     }
 
     pub fn cleanup(

@@ -4,12 +4,23 @@ import {
   toHex0x,
   type GroundhogClient,
 } from "@groundhogchain/client";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, test, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import type { AppConfig } from "@/config";
 import { parseDevelopmentPersonas } from "@/development-personas";
-import { requestStorageKey, transactionScope } from "@/transactions/records";
+import { observeCompletions } from "@/transactions/observer";
+import {
+  requestStorageKey,
+  saveRequests,
+  transactionScope,
+  type TickRequestRecord,
+} from "@/transactions/records";
 import { TransactionActivity } from "./transaction-activity";
+
+vi.mock("@/transactions/observer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/transactions/observer")>()),
+  observeCompletions: vi.fn(),
+}));
 
 const config = {
   networkId: "11".repeat(32),
@@ -50,6 +61,89 @@ describe("transaction activity", () => {
     ).toBeEnabled();
     expect(localStorage.getItem(requestStorageKey(scope))).toBe("malformed");
   });
+
+  test("clears an observer error after a successful no-op scan", async () => {
+    const persona = parseDevelopmentPersonas(JSON.stringify(personas()))![0]!;
+    const scope = transactionScope(config, persona.expectedCallerHex);
+    saveRequests(scope, [acceptedRequest(persona.expectedCallerHex)]);
+    vi.mocked(observeCompletions)
+      .mockRejectedValueOnce(new Error("observer unavailable"))
+      .mockResolvedValueOnce({
+        observations: [],
+        observedThroughBlock: null,
+        retentionGapRequestIds: new Set(),
+      });
+    let rescan: (() => Promise<void>) | null = null;
+    vi.spyOn(window, "setInterval").mockImplementation((handler) => {
+      rescan ??= handler as () => Promise<void>;
+      return {} as ReturnType<typeof setInterval>;
+    });
+
+    render(
+      <TransactionActivity
+        config={config}
+        profiles={config.transactionProfiles!}
+        persona={persona}
+        client={{} as GroundhogClient}
+        onCrankCommitted={vi.fn()}
+      />,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "observer unavailable",
+    );
+
+    await act(() => Promise.resolve());
+    await act(async () => {
+      await rescan!();
+    });
+    expect(observeCompletions).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  test("does not clear a newer storage error when an older scan succeeds", async () => {
+    const persona = parseDevelopmentPersonas(JSON.stringify(personas()))![0]!;
+    const scope = transactionScope(config, persona.expectedCallerHex);
+    saveRequests(scope, [acceptedRequest(persona.expectedCallerHex)]);
+    let resolveObservation!: (
+      value: Awaited<ReturnType<typeof observeCompletions>>,
+    ) => void;
+    vi.mocked(observeCompletions).mockImplementation(
+      () => new Promise((resolve) => (resolveObservation = resolve)),
+    );
+
+    render(
+      <TransactionActivity
+        config={config}
+        profiles={config.transactionProfiles!}
+        persona={persona}
+        client={{} as GroundhogClient}
+        onCrankCommitted={vi.fn()}
+      />,
+    );
+    await vi.waitFor(() => expect(observeCompletions).toHaveBeenCalledOnce());
+
+    act(() => {
+      localStorage.setItem(requestStorageKey(scope), "malformed");
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: requestStorageKey(scope) }),
+      );
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(/invalid/);
+
+    await act(async () => {
+      resolveObservation({
+        observations: [],
+        observedThroughBlock: null,
+        retentionGapRequestIds: new Set(),
+      });
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(/invalid/);
+  });
+});
+
+afterEach(() => {
+  vi.mocked(observeCompletions).mockReset();
+  vi.restoreAllMocks();
 });
 
 function personas() {
@@ -68,4 +162,24 @@ function personas() {
       callerVerified: true,
     };
   });
+}
+
+function acceptedRequest(requester: string): TickRequestRecord {
+  return {
+    schemaVersion: 1,
+    localId: "request-1",
+    requester,
+    status: "accepted",
+    transactionHash: `0x${"44".repeat(32)}`,
+    requestId: `0x${"55".repeat(32)}`,
+    receiptBlock: "7",
+    submittedAt: "2026-08-29T00:00:00.000Z",
+    acceptedAt: "2026-08-29T00:00:01.000Z",
+    observedThroughBlock: null,
+    resultingGeneration: null,
+    resultingPopulation: null,
+    resultingStateDigest: null,
+    advancedTransactionHash: null,
+    diagnostic: null,
+  };
 }

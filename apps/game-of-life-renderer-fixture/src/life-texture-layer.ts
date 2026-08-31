@@ -8,12 +8,16 @@ import {
 import type { Texture } from "@luma.gl/core";
 import { Geometry, Model } from "@luma.gl/engine";
 
+type LifeTextureTile =
+  | { kind: "density"; values: Uint16Array }
+  | { kind: "cells"; packed: Uint8Array; values: Uint8Array };
+
 export interface LifeTextureData {
   byteLength: number;
   cellsPerTexel: number;
   digest: string;
+  tile: LifeTextureTile;
   tileOrigin: [number, number];
-  values: Uint16Array;
 }
 
 interface LifeTextureLayerProps extends LayerProps {
@@ -38,10 +42,12 @@ const lifeUniforms = {
     layout(std140) uniform lifeUniforms {
       vec2 tileOrigin;
       float cellsPerTexel;
+      float exact;
     } life;`,
   uniformTypes: {
     tileOrigin: "vec2<f32>",
     cellsPerTexel: "f32",
+    exact: "f32",
   },
 };
 
@@ -75,7 +81,7 @@ const fragmentShader = `#version 300 es
     if (coveredCells == 0.0) {
       discard;
     }
-    float density = float(count) / coveredCells;
+    float density = life.exact > 0.5 ? float(count) : float(count) / coveredCells;
     fragColor = vec4(density, 0.15 + density * 0.7, 0.35 + density * 0.55, 1.0);
     DECKGL_FILTER_COLOR(fragColor, geometry);
   }
@@ -96,13 +102,14 @@ export class LifeTextureLayer extends Layer<LifeTextureLayerProps> {
 
   override initializeState(): void {
     const { bounds, content } = this.props;
+    const exact = content.tile.kind === "cells";
     let texture: Texture | undefined;
     let model: Model | undefined;
     try {
       texture = this.context.device.createTexture({
         width: 256,
         height: 256,
-        format: "r16uint",
+        format: exact ? "r8uint" : "r16uint",
         sampler: {
           minFilter: "nearest",
           magFilter: "nearest",
@@ -110,10 +117,10 @@ export class LifeTextureLayer extends Layer<LifeTextureLayerProps> {
           addressModeV: "clamp-to-edge",
         },
       });
-      texture.writeData(content.values, {
+      texture.writeData(content.tile.values, {
         width: 256,
         height: 256,
-        bytesPerRow: 512,
+        bytesPerRow: exact ? 256 : 512,
       });
       const [left, top, right, bottom] = bounds;
       const tileSpan = 256 * content.cellsPerTexel;
@@ -193,9 +200,9 @@ export class LifeTextureLayer extends Layer<LifeTextureLayerProps> {
         lifeTexture: texture,
         tileOrigin: this.props.content.tileOrigin,
         cellsPerTexel: this.props.content.cellsPerTexel,
+        exact: this.props.content.tile.kind === "cells" ? 1 : 0,
       },
     });
     model.draw(this.context.renderPass);
   }
-
 }

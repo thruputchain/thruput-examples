@@ -52,7 +52,10 @@ export interface RendererCallbacks {
     highlight: CellHighlight | null,
   ): void;
   onError(message: string): void;
+  onTileError(message: string): void;
+  onTileLoad(): void;
   onContext(lost: boolean): void;
+  onUnavailable(message: string): void;
   onTransition(state: "staging" | "crossfading" | "idle"): void;
   approveSnapshotCommit(
     snapshot: ImmutableSnapshot,
@@ -98,6 +101,18 @@ export class WorldRenderer {
   private idleCallback = 0;
   private inspectTimer = 0;
   private pointerClientPosition: readonly [number, number] | null = null;
+  private readonly tileWarnings = new Map<
+    string,
+    {
+      role: "displayed" | "candidate";
+      digest: string;
+      tileId: string;
+      loader: TileLoader;
+      source: "load" | "resource";
+      message: string;
+    }
+  >();
+  private activeTileWarningKey: string | null = null;
   private cameraTimer = 0;
   private transitionFrame = 0;
   private transitionStarted = 0;
@@ -295,6 +310,7 @@ export class WorldRenderer {
     this.candidateEpoch = null;
     this.candidateLoader = null;
     this.candidateSelection = EMPTY_SELECTION;
+    this.clearIrrelevantTileWarning("candidate");
     this.coverageReadyFrame = null;
     this.commitAfterFrame = null;
     this.candidateOpacity = 0;
@@ -305,6 +321,7 @@ export class WorldRenderer {
     this.callbacks.onTransition("idle");
   }
   destroy(): void {
+    if (this.destroyed) return;
     this.destroyed = true;
     clearTimeout(this.inspectTimer);
     clearTimeout(this.cameraTimer);
@@ -363,34 +380,72 @@ export class WorldRenderer {
       onSelection: (level, visible) =>
         this.selectionChanged(level, visible, loader, role),
       getTileData: ({ index, signal }) =>
-        loader.load(index, signal).then((data) => {
-          if (data.availability === "missing")
-            this.callbacks.onError("Tile unavailable; showing diagonal hatch");
-          queueMicrotask(() => {
-            if (role === "candidate") this.evaluateCoverage();
-            else {
-              this.evaluateInitialCoverage();
-              if (this.pointerClientPosition) this.refreshInspection(false);
-            }
-          });
-          return data;
-        }),
+        loader.load(index, signal).then(
+          (data) => {
+            const id = tileId(index);
+            if (data.availability === "missing")
+              this.tileWarning(
+                "load",
+                "Tile unavailable; showing diagonal hatch",
+                role,
+                digest,
+                id,
+                loader,
+              );
+            else this.tileLoaded("load", role, digest, id, loader);
+            queueMicrotask(() => {
+              if (role === "candidate") this.evaluateCoverage();
+              else {
+                this.evaluateInitialCoverage();
+                if (this.pointerClientPosition) this.refreshInspection(false);
+              }
+            });
+            return data;
+          },
+          (cause) => {
+            if (!signal?.aborted)
+              this.tileWarning(
+                "load",
+                cause instanceof Error ? cause.message : "Tile loading failed",
+                role,
+                digest,
+                tileId(index),
+                loader,
+              );
+            throw cause;
+          },
+        ),
       refinementStrategy: (tiles) =>
         immediateParentRefinement(tiles as unknown as RefinementTile[], digest),
-      onTileError: (error) => this.callbacks.onError(error.message),
       renderSubLayers: (props) => {
         if (!props.data) return null;
         const bounds = clippedBounds(props.tile.bbox as NonGeoBoundingBox);
+        const resourceKey = `${digest}:${tileId(props.data.index)}`;
         if (props.data.availability === "missing")
           return new UnavailableTileLayer(props, {
             id: `${props.id}-unavailable`,
             bounds,
             gpuBudget: this.gpu,
             transitionOpacity: props.opacity ?? 1,
-            onResourceError: (message) => this.callbacks.onError(message),
+            onResourceError: (message) =>
+              this.tileWarning(
+                "resource",
+                message,
+                role,
+                digest,
+                tileId(props.data.index),
+                loader,
+              ),
+            onResourceReady: () =>
+              this.tileLoaded(
+                "resource",
+                role,
+                digest,
+                tileId(props.data.index),
+                loader,
+              ),
             pickable: false,
           });
-        const resourceKey = `${digest}:${tileId(props.data.index)}`;
         return new LifeTileTextureLayer(props, {
           id: `${props.id}-texture`,
           bounds,
@@ -398,13 +453,127 @@ export class WorldRenderer {
           gpuBudget: this.gpu,
           transitionOpacity: props.opacity ?? 1,
           resourceKey,
-          onResourceReady: (key) => this.resourceReady(key),
+          onResourceReady: (key) => {
+            this.resourceReady(key);
+            this.tileLoaded(
+              "resource",
+              role,
+              digest,
+              tileId(props.data.index),
+              loader,
+            );
+          },
           onResourceReleased: (key) => this.resourceReleased(key),
-          onResourceError: (message) => this.callbacks.onError(message),
+          onResourceError: (message) =>
+            this.tileWarning(
+              "resource",
+              message,
+              role,
+              digest,
+              tileId(props.data.index),
+              loader,
+            ),
           pickable: false,
         });
       },
     });
+  }
+  private tileWarning(
+    source: "load" | "resource",
+    message: string,
+    role: "displayed" | "candidate",
+    digest: string,
+    id: string,
+    loader: TileLoader,
+  ): void {
+    if (this.destroyed || !this.tileIsSelected(role, digest, id, loader))
+      return;
+    const key = `${source}:${role}:${digest}:${id}`;
+    this.tileWarnings.delete(key);
+    this.tileWarnings.set(key, {
+      role,
+      digest,
+      tileId: id,
+      loader,
+      source,
+      message,
+    });
+    this.activeTileWarningKey = key;
+    this.callbacks.onTileError(message);
+  }
+  private tileLoaded(
+    source: "load" | "resource",
+    role: "displayed" | "candidate",
+    digest: string,
+    id: string,
+    loader: TileLoader,
+  ): void {
+    this.removeTileWarnings(
+      (warning) =>
+        warning.source === source &&
+        warning.role === role &&
+        warning.digest === digest &&
+        warning.tileId === id &&
+        warning.loader === loader,
+    );
+  }
+  private clearIrrelevantTileWarning(role: "displayed" | "candidate"): void {
+    this.removeTileWarnings(
+      (warning) =>
+        warning.role === role &&
+        !this.tileIsSelected(
+          role,
+          warning.digest,
+          warning.tileId,
+          warning.loader,
+        ),
+    );
+  }
+  private removeTileWarnings(
+    predicate: (warning: {
+      role: "displayed" | "candidate";
+      digest: string;
+      tileId: string;
+      loader: TileLoader;
+      source: "load" | "resource";
+      message: string;
+    }) => boolean,
+  ): void {
+    let activeRemoved = false;
+    for (const [key, warning] of this.tileWarnings) {
+      if (!predicate(warning)) continue;
+      this.tileWarnings.delete(key);
+      if (key === this.activeTileWarningKey) activeRemoved = true;
+    }
+    if (!activeRemoved) return;
+    const remaining = [...this.tileWarnings.entries()].at(-1);
+    if (remaining) {
+      this.activeTileWarningKey = remaining[0];
+      this.callbacks.onTileError(remaining[1].message);
+    } else {
+      this.activeTileWarningKey = null;
+      this.callbacks.onTileLoad();
+    }
+  }
+  private tileIsSelected(
+    role: "displayed" | "candidate",
+    digest: string,
+    id: string,
+    loader: TileLoader,
+  ): boolean {
+    const snapshot = role === "displayed" ? this.displayed : this.candidate;
+    const currentLoader =
+      role === "displayed" ? this.displayedLoader : this.candidateLoader;
+    return (
+      currentLoader === loader &&
+      snapshot?.manifest.stateDigest === digest &&
+      this.selectionFor(role).tiles.some((index) => tileId(index) === id)
+    );
+  }
+  private selectionFor(role: "displayed" | "candidate"): Selection {
+    return role === "displayed"
+      ? this.displayedSelection
+      : this.candidateSelection;
   }
   private updateLayers(): void {
     this.deck?.setProps({ layers: this.layers() });
@@ -574,7 +743,8 @@ export class WorldRenderer {
       this.evaluateCoverage();
       this.evaluateInitialCoverage();
     } catch (cause) {
-      this.callbacks.onError(
+      this.destroy();
+      this.callbacks.onUnavailable(
         cause instanceof Error ? cause.message : "Renderer restoration failed",
       );
     }
@@ -589,6 +759,7 @@ export class WorldRenderer {
     if (role === "candidate") {
       if (selection.key === this.candidateSelection.key) return;
       this.candidateSelection = selection;
+      this.clearIrrelevantTileWarning(role);
       this.coverageReadyFrame = null;
       if (
         this.candidateOpacity > 0 ||
@@ -602,6 +773,7 @@ export class WorldRenderer {
     if (selection.key === this.displayedSelection.key) return;
     loader.unpin(inspectionTiles(this.displayedSelection.tiles));
     this.displayedSelection = selection;
+    this.clearIrrelevantTileWarning(role);
     this.callbacks.onLevel(level);
     loader.pin(inspectionTiles(visible));
     if (this.pointerClientPosition) this.refreshInspection(false);
@@ -758,12 +930,14 @@ export class WorldRenderer {
     this.displayed = this.candidate;
     this.displayedLoader = this.candidateLoader;
     this.displayedSelection = this.candidateSelection;
+    this.clearIrrelevantTileWarning("displayed");
     this.callbacks.onLevel(this.displayedSelection.level);
     this.displayedLoader.pin(inspectionTiles(this.displayedSelection.tiles));
     this.candidate = null;
     this.candidateEpoch = null;
     this.candidateLoader = null;
     this.candidateSelection = EMPTY_SELECTION;
+    this.clearIrrelevantTileWarning("candidate");
     this.coverageReadyFrame = null;
     this.commitAfterFrame = null;
     this.candidateOpacity = 0;

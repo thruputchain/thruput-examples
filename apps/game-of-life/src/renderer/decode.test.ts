@@ -12,6 +12,24 @@ describe("tile decoding and inspection", () => {
     expect(tile.kind).toBe("density");
     if (tile.kind === "density") expect(tile.values[1]).toBe(513);
   });
+  test.each([
+    [0, 4_096],
+    [5, 4],
+  ])("accepts the maximum density at zoom %i", (z, maximum) => {
+    const bytes = new ArrayBuffer(DENSITY_BYTES);
+    new DataView(bytes).setUint16(0, maximum, true);
+    expect(() => decodeTile(bytes, DENSITY_CONTENT_TYPE, z)).not.toThrow();
+  });
+  test.each([
+    [0, 4_097],
+    [5, 5],
+  ])("rejects impossible density at zoom %i", (z, density) => {
+    const bytes = new ArrayBuffer(DENSITY_BYTES);
+    new DataView(bytes).setUint16(0, density, true);
+    expect(() => decodeTile(bytes, DENSITY_CONTENT_TYPE, z)).toThrow(
+      "invalid density tile response",
+    );
+  });
   test("decodes exact LSB-first bits while retaining packed bytes", () => {
     const bytes = new ArrayBuffer(CELL_BYTES);
     new Uint8Array(bytes)[0] = 0b10000001;
@@ -50,6 +68,11 @@ describe("tile decoding and inspection", () => {
     [new ArrayBuffer(CELL_BYTES), DENSITY_CONTENT_TYPE, 6],
   ] as const)("rejects wrong length or type", (bytes, type, z) =>
     expect(() => decodeTile(bytes, type, z)).toThrow(),
+  );
+  test.each([-1, 0.5, 7, Number.NaN])("rejects invalid zoom %s", (z) =>
+    expect(() =>
+      decodeTile(new ArrayBuffer(DENSITY_BYTES), DENSITY_CONTENT_TYPE, z),
+    ).toThrow("invalid tile zoom"),
   );
 });
 describe("byte budget", () => {

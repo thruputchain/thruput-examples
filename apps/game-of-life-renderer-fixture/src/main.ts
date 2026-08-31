@@ -31,6 +31,7 @@ interface Metrics {
   refinementCalls: number;
   requested: string[];
   loadedDigests: string[];
+  loadedZooms: number[];
   tileUnloads: number;
 }
 
@@ -43,6 +44,7 @@ const metrics: Metrics = {
   refinementCalls: 0,
   requested: [],
   loadedDigests: [],
+  loadedZooms: [],
   tileUnloads: 0,
 };
 let controllerDeck: Deck<OrthographicView> | null = null;
@@ -73,7 +75,10 @@ function createTileLayer(
         }
       >;
       applyStrictImmediateParentRefinement(typedTiles, digest);
-      if (requireCompleteCoverage && !hasCompleteSelectedCoverage(typedTiles, digest)) {
+      if (
+        requireCompleteCoverage &&
+        !hasCompleteSelectedCoverage(typedTiles, digest)
+      ) {
         for (const tile of typedTiles) {
           tile.isVisible = false;
         }
@@ -82,6 +87,7 @@ function createTileLayer(
     onTileLoad: (tile) => {
       if (tile.content) {
         metrics.loadedDigests.push(tile.content.digest);
+        metrics.loadedZooms.push(tile.content.index.z);
       }
     },
     onTileUnload: () => {
@@ -164,16 +170,44 @@ function createContent(
     index.x * 256 * cellsPerTexel,
     index.y * 256 * cellsPerTexel,
   ];
+  if (index.z === 6) {
+    const packed = new Uint8Array(8_192);
+    for (let position = 0; position < packed.length; position += 1) {
+      const value = position % 2 === 0 ? 0x55 : 0xaa;
+      packed[position] = digest === "new" ? value : value ^ 0xff;
+    }
+    const values = new Uint8Array(256 * 256);
+    for (let y = 0; y < 256; y += 1) {
+      for (let x = 0; x < 256; x += 1) {
+        values[y * 256 + x] =
+          (packed[y * 32 + Math.floor(x / 8)]! >> (x % 8)) & 1;
+      }
+    }
+    return {
+      byteLength: packed.byteLength + values.byteLength,
+      cellsPerTexel,
+      digest,
+      tile: { kind: "cells", packed, values },
+      tileOrigin,
+    };
+  }
+
   const values = new Uint16Array(256 * 256);
   for (let position = 0; position < values.length; position += 1) {
     const texelX = position % 256;
     const texelY = Math.floor(position / 256);
     const coveredX = Math.max(
-      Math.min(10_000 - (tileOrigin[0] + texelX * cellsPerTexel), cellsPerTexel),
+      Math.min(
+        10_000 - (tileOrigin[0] + texelX * cellsPerTexel),
+        cellsPerTexel,
+      ),
       0,
     );
     const coveredY = Math.max(
-      Math.min(10_000 - (tileOrigin[1] + texelY * cellsPerTexel), cellsPerTexel),
+      Math.min(
+        10_000 - (tileOrigin[1] + texelY * cellsPerTexel),
+        cellsPerTexel,
+      ),
       0,
     );
     const coveredCells = coveredX * coveredY;
@@ -184,8 +218,8 @@ function createContent(
     byteLength: values.byteLength,
     cellsPerTexel,
     digest,
+    tile: { kind: "density", values },
     tileOrigin,
-    values,
   };
 }
 
@@ -220,7 +254,10 @@ async function runDeckLifecycleProbe(): Promise<{
     height: 512,
     views: new OrthographicView({ id: "life", flipY: true, controller: false }),
     initialViewState: { target: [5_000, 5_000, 0], zoom: -6 },
-    layers: [createTileLayer("old", 5), createTileLayer("new", 5, undefined, true)],
+    layers: [
+      createTileLayer("old", 5),
+      createTileLayer("new", 5, undefined, true),
+    ],
     onError: (error) => {
       metrics.errors.push(error.message);
     },
@@ -233,13 +270,16 @@ async function runDeckLifecycleProbe(): Promise<{
   await nextFrame();
 
   const picked = pickWorldSample(deck, canvas, [5_000, 5_000]);
-  const outsideWorldPicked = pickWorldSample(deck, canvas, [10_032, 10_032]).data !== null;
+  const outsideWorldPicked =
+    pickWorldSample(deck, canvas, [10_032, 10_032]).data !== null;
 
   deck.setProps({
     viewState: { target: [256, 256, 0], zoom: 0 },
     layers: [createTileLayer("eviction", 5, 150_000)],
   });
-  await waitFor(() => metrics.requested.some((request) => request.startsWith("eviction:6/")));
+  await waitFor(() =>
+    metrics.requested.some((request) => request.startsWith("eviction:6/")),
+  );
   await waitFor(() => metrics.loadedDigests.includes("eviction"));
   const unloadsBeforeMove = metrics.tileUnloads;
   const destroyedBeforeMove = metrics.resourcesDestroyed;
@@ -247,16 +287,21 @@ async function runDeckLifecycleProbe(): Promise<{
     viewState: { target: [9_744, 9_744, 0], zoom: 0 },
     layers: [createTileLayer("eviction", 5, 150_000)],
   });
-  await waitFor(() => metrics.requested.some((request) => request === "eviction:6/39/39"));
+  await waitFor(() =>
+    metrics.requested.some((request) => request === "eviction:6/39/39"),
+  );
   await waitFor(() => metrics.tileUnloads > unloadsBeforeMove);
   await waitFor(() => metrics.resourcesDestroyed > destroyedBeforeMove);
-  const evictionResourceDestructions = metrics.resourcesDestroyed - destroyedBeforeMove;
+  const evictionResourceDestructions =
+    metrics.resourcesDestroyed - destroyedBeforeMove;
 
   deck.setProps({
     viewState: { target: [5_000, 5_000, 0], zoom: -6 },
     layers: [createTileLayer("delayed", 10_000)],
   });
-  await waitFor(() => metrics.requested.some((request) => request.startsWith("delayed:")));
+  await waitFor(() =>
+    metrics.requested.some((request) => request.startsWith("delayed:")),
+  );
   deck.finalize();
   await new Promise((resolve) => window.setTimeout(resolve, 20));
 
@@ -327,7 +372,7 @@ async function runClippedEdgeProbe(): Promise<{
 
   const texel = 156;
   const coveredCells = coveredCellCount(content, texel, texel);
-  const value = content.values[texel * 256 + texel]!;
+  const value = content.tile.values[texel * 256 + texel]!;
   const insidePixel = readWorldPixel(deck, canvas, [9_992, 9_992]);
   const outsidePixel = readWorldPixel(deck, canvas, [10_008, 10_008]);
   deck.finalize();
@@ -338,6 +383,68 @@ async function runClippedEdgeProbe(): Promise<{
     outsidePixel,
     value,
   };
+}
+
+async function runExactCellProbe(): Promise<{
+  byteLength: number;
+  decodedByteLength: number;
+  errors: string[];
+  packedByteLength: number;
+  pixels: number[][];
+  resourcesCreated: number;
+  resourcesDestroyed: number;
+  values: Array<number | null>;
+  zooms: Array<number | null>;
+}> {
+  resetMetrics();
+  const canvas = document.querySelector<HTMLCanvasElement>("#fixture");
+  if (!canvas) {
+    throw new Error("fixture canvas is missing");
+  }
+  const deck = new Deck({
+    canvas,
+    width: 512,
+    height: 512,
+    views: new OrthographicView({
+      id: "exact",
+      flipY: true,
+      controller: false,
+    }),
+    initialViewState: { target: [384, 384, 0], zoom: 2 },
+    layers: [createTileLayer("new", 5)],
+    onError: (error) => {
+      metrics.errors.push(error.message);
+    },
+  });
+  await waitFor(() => metrics.loadedZooms.includes(6));
+  await waitFor(() => metrics.resourcesCreated >= 2);
+  deck.redraw("exact-cells-ready");
+  await nextFrame();
+  await nextFrame();
+
+  const samples = [
+    pickWorldSample(deck, canvas, [384.25, 384.25]),
+    pickWorldSample(deck, canvas, [385.25, 384.25]),
+  ];
+  const content = samples[0]?.data?.content;
+  if (!content || content.tile.kind !== "cells") {
+    deck.finalize();
+    throw new Error("zoom-six exact-cell tile was not picked");
+  }
+  const result = {
+    byteLength: content.byteLength,
+    decodedByteLength: content.tile.values.byteLength,
+    errors: [...metrics.errors],
+    packedByteLength: content.tile.packed.byteLength,
+    pixels: samples.map(({ pixel }) => pixel),
+    resourcesCreated: metrics.resourcesCreated,
+    resourcesDestroyed: 0,
+    values: samples.map(({ value }) => value),
+    zooms: samples.map(({ data }) => data?.content.index.z ?? null),
+  };
+  deck.finalize();
+  result.resourcesDestroyed = metrics.resourcesDestroyed;
+  return result;
 }
 
 function setupControllerProbe(): void {
@@ -423,7 +530,9 @@ function runIntegerTextureProbe(): {
   gl.attachShader(program, fragment);
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error(gl.getProgramInfoLog(program) ?? "WebGL program link failed");
+    throw new Error(
+      gl.getProgramInfoLog(program) ?? "WebGL program link failed",
+    );
   }
 
   gl.bindVertexArray(vertexArray);
@@ -470,7 +579,9 @@ function compileShader(
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(shader) ?? "WebGL shader compile failed");
+    throw new Error(
+      gl.getShaderInfoLog(shader) ?? "WebGL shader compile failed",
+    );
   }
   return shader;
 }
@@ -506,11 +617,17 @@ function pickWorldSample(
     };
   }
   const texel = [
-    Math.floor((world[0] - data.content.tileOrigin[0]) / data.content.cellsPerTexel),
-    Math.floor((world[1] - data.content.tileOrigin[1]) / data.content.cellsPerTexel),
+    Math.floor(
+      (world[0] - data.content.tileOrigin[0]) / data.content.cellsPerTexel,
+    ),
+    Math.floor(
+      (world[1] - data.content.tileOrigin[1]) / data.content.cellsPerTexel,
+    ),
   ];
   if (texel.some((coordinate) => coordinate < 0 || coordinate >= 256)) {
-    throw new Error("picked tile does not contain the requested world coordinate");
+    throw new Error(
+      "picked tile does not contain the requested world coordinate",
+    );
   }
   return {
     coveredCells: coveredCellCount(data.content, texel[0]!, texel[1]!),
@@ -518,7 +635,7 @@ function pickWorldSample(
     layerId: picked?.layer?.id ?? null,
     pixel,
     texel,
-    value: data.content.values[texel[1]! * 256 + texel[0]!] ?? null,
+    value: data.content.tile.values[texel[1]! * 256 + texel[0]!] ?? null,
   };
 }
 
@@ -549,7 +666,11 @@ function readWorldPixel(
   return [...pixel];
 }
 
-function coveredCellCount(content: LifeTextureData, texelX: number, texelY: number): number {
+function coveredCellCount(
+  content: LifeTextureData,
+  texelX: number,
+  texelY: number,
+): number {
   const coveredX = Math.max(
     Math.min(
       10_000 - (content.tileOrigin[0] + texelX * content.cellsPerTexel),
@@ -576,6 +697,7 @@ function resetMetrics(): void {
   metrics.refinementCalls = 0;
   metrics.requested = [];
   metrics.loadedDigests = [];
+  metrics.loadedZooms = [];
   metrics.tileUnloads = 0;
 }
 
@@ -600,6 +722,7 @@ declare global {
       getControllerTarget: typeof getControllerTarget;
       runClippedEdgeProbe: typeof runClippedEdgeProbe;
       runDeckLifecycleProbe: typeof runDeckLifecycleProbe;
+      runExactCellProbe: typeof runExactCellProbe;
       runIntegerTextureProbe: typeof runIntegerTextureProbe;
       setupControllerProbe: typeof setupControllerProbe;
     };
@@ -611,6 +734,7 @@ window.fixture = {
   getControllerTarget,
   runClippedEdgeProbe,
   runDeckLifecycleProbe,
+  runExactCellProbe,
   runIntegerTextureProbe,
   setupControllerProbe,
 };
