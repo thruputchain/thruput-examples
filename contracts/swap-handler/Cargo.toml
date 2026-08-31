@@ -18,7 +18,7 @@ test = false # suppress output from our zero unit-tests
 [[bin]]
 name = "swap_handler"
 path = "src/main.rs"
-required-features = ["rv32-entrypoints"]
+required-features = ["entrypoints"]
 test = false
 bench = false
 
@@ -30,7 +30,6 @@ swap-if = { path = "../swap-if" }
 [features]
 # `entrypoints` builds the deployable handler contract (its exported methods).
 entrypoints = ["implementation", "sdk/alloc"]
-rv32-entrypoints = ["entrypoints"]
 implementation = []
 dev = ["sdk/dev", "swap-if/dev", "implementation"]
 

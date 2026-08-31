@@ -15,9 +15,10 @@ groundhog_build() {
     echo "::endgroup::"
 }
 
-# Contract crates are the ones that expose an rv32 entrypoints feature; the
-# lib crate-type is plain rlib, so it cannot be used to tell them apart.
-contract_pkgs='.packages[] | select(.features | has("rv32-entrypoints")) | .name'
+# Contract crates are the ones that produce a guest binary. The lib
+# crate-type is plain rlib, and the `entrypoints` feature is also declared by
+# interface-only crates that have no bin, so the bin target is the marker.
+contract_pkgs='.packages[] | select([.targets[].kind[]] | index("bin")) | .name'
 contract_packages="$(cargo metadata --no-deps --format-version 1 | jq -r "$contract_pkgs")"
 
 for pkg in ${contract_packages} ; do

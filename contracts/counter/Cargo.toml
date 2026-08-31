@@ -11,13 +11,12 @@ test = false
 [[bin]]
 name = "counter"
 path = "src/main.rs"
-required-features = ["rv32-entrypoints"]
+required-features = ["entrypoints"]
 test = false
 bench = false
 
 [features]
 entrypoints = []
-rv32-entrypoints = ["entrypoints"]
 default = ["dev"]
 dev = ["sdk/dev"]
 

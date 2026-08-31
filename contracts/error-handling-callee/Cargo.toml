@@ -7,7 +7,6 @@ license.workspace = true
 
 [features]
 entrypoints = []
-rv32-entrypoints = ["entrypoints"]
 dev = ["sdk/dev", "sdk/debugging"]
 
 [lib]
@@ -18,7 +17,7 @@ test = false
 [[bin]]
 name = "error_handling_callee"
 path = "src/main.rs"
-required-features = ["rv32-entrypoints"]
+required-features = ["entrypoints"]
 test = false
 bench = false
 
