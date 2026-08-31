@@ -180,6 +180,52 @@ describe("X-Ray evidence reconciliation", () => {
     });
   });
 
+  test("retains an accepted snapshot after a regressed refresh", () => {
+    const accepted = snapshot();
+    const state = evidenceReducer(readyState(accepted), {
+      type: "snapshot-read",
+      value: snapshot("0"),
+    });
+
+    expect(state.snapshot.value).toBe(accepted);
+    expect(state.snapshot.failure).toBe("integrity");
+    expect(reconcileEvidence(state, scope)).toMatchObject({
+      relationship: "integrity-conflict",
+      label: "Retained snapshot; conflicting refresh",
+      stale: true,
+    });
+  });
+
+  test("retains an accepted snapshot after a same-generation digest conflict", () => {
+    const accepted = snapshot();
+    const otherDigest = `0x${"ee".repeat(32)}`;
+    const candidate = snapshot();
+    const conflicting = {
+      ...candidate,
+      manifest: { ...candidate.manifest, stateDigest: otherDigest },
+      provenance: { ...candidate.provenance, stateDigest: otherDigest },
+    };
+    const state = evidenceReducer(readyState(accepted), {
+      type: "snapshot-read",
+      value: conflicting,
+    });
+
+    expect(state.snapshot.value).toBe(accepted);
+    expect(state.snapshot.error).toMatch(/digest/i);
+  });
+
+  test("retains an accepted snapshot when a candidate is ahead of chain", () => {
+    const accepted = snapshot();
+    const state = evidenceReducer(readyState(accepted), {
+      type: "snapshot-read",
+      value: snapshot("2"),
+    });
+
+    expect(state.snapshot.value).toBe(accepted);
+    expect(state.snapshot.failure).toBe("integrity");
+    expect(state.snapshot.error).toMatch(/ahead of accepted chain metadata/);
+  });
+
   test("gives a malformed refresh precedence while retaining prior evidence", () => {
     let state = evidenceReducer(readyState(snapshot()), {
       type: "chain-read",

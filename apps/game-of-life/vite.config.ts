@@ -120,7 +120,6 @@ function xrayBundleBoundary(): Plugin {
     "/src/development-personas.ts",
     "/src/transactions/",
     "/src/components/world-viewport.tsx",
-    "/src/rendering/",
     "/node_modules/@deck.gl/",
     "/node_modules/@luma.gl/",
     "/node_modules/@groundhogchain/client/dist/index.js",
@@ -179,8 +178,11 @@ function xrayBundleBoundary(): Plugin {
         .filter((chunk) => reachable.has(chunk.fileName))
         .flatMap((chunk) => Object.keys(chunk.modules))
         .map(normalizeModuleId)
-        .filter((moduleId) =>
-          forbidden.some((value) => moduleId.includes(value)),
+        .filter(
+          (moduleId) =>
+            forbidden.some((value) => moduleId.includes(value)) ||
+            (moduleId.includes("/src/renderer/") &&
+              !moduleId.endsWith("/src/renderer/pyramid.ts")),
         );
       if (violations.length > 0)
         throw new Error(

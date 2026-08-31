@@ -2,6 +2,95 @@
 
 This contract stores a bit-packed 10,000 by 10,000 toroidal Conway world. One successful non-empty `process_next_tick` invocation consumes one queued request and atomically writes the complete next generation.
 
+## Canonical World and Storage Layout
+
+The world contains `100,000,000` cells. Cells are stored row-major with one LSB-first bit per cell, so each 10,000-cell row occupies exactly `1,250` bytes with no padding. The contract bytestring limit splits every row into a `1,000`-byte head and `250`-byte tail.
+
+One complete generation therefore contains:
+
+| Value | Amount |
+| --- | ---: |
+| Rows | `10,000` |
+| Bytes per row | `1,250` |
+| Chunks per row | `2` |
+| Chunks per bank | `20,000` |
+| Bytes per bank | `12,500,000` |
+| Persistent banks at steady state | `2` |
+| Raw bytes across both banks | `25,000,000` |
+
+The two persistent banks are named A and B. One bank is immutable input for the current generation while the other receives the next generation. Even generations read A and write B; odd generations read B and write A. Initialization materializes Bank A, and the first non-empty tick materializes Bank B.
+
+### Cell-to-Storage Addressing
+
+For a coordinate `(x, y)`, where both values are in `0..=9,999`, the canonical storage address is:
+
+```text
+byte_in_row  = floor(x / 8)
+bit          = x % 8
+part         = byte_in_row < 1000 ? 0 : 1
+byte_in_part = part == 0 ? byte_in_row : byte_in_row - 1000
+chunk_key    = y * 2 + part
+```
+
+Each byte holds eight adjacent horizontal cells. Bit zero stores the leftmost cell in that byte. The same `chunk_key` exists in both banks; generation parity determines which bank is source and which is destination.
+
+## Tick Request and Processing Semantics
+
+Request admission and generation processing are separate transactions:
+
+1. `request_tick()` inserts attributed intent into the bounded queue.
+2. A later permissionless `process_next_tick()` consumes one queued request and advances one generation.
+3. The crank submitter does not need to be the original requester. `request_id` and `requester` in `GenerationAdvanced` preserve attribution.
+4. An empty crank returns without advancing the generation.
+
+A non-empty `process_next_tick()` performs this ordered work:
+
+1. Read and validate `WorldState`.
+2. Consume one queued request in transactional working state.
+3. Validate generation and active-bank invariants.
+4. Seed a toroidal three-row window from the active bank.
+5. Evaluate each destination row, write its two chunks to the inactive bank, and stream population and digest updates.
+6. Exclusively switch generation, active bank, population, and digest metadata.
+7. Release the queue slot and emit `GenerationAdvanced`.
+8. Include the complete result in a block.
+
+The row loop interleaves reads, evaluation, and writes. The active bank remains immutable input throughout the invocation; only the inactive bank receives writes.
+
+### Atomic Commit and Revert Semantics
+
+The inactive bank, metadata handoff, queue slot release, and event commit together. External observers see either the complete state before the tick or the complete state after it. They never see a partially written generation as canonical.
+
+If any step fails, all invocation effects revert: the consumed request returns, bank writes disappear, metadata remains unchanged, queue capacity is not released, and no event survives.
+
+## Fixed Workload
+
+One non-empty tick has this contract-derived workload:
+
+| Work | Amount |
+| --- | ---: |
+| Logical Conway outcomes | `100,000,000` |
+| Canonical bank-chunk reads | `20,004` |
+| Canonical bank bytes read | `12,502,500` |
+| Canonical bank-chunk writes | `20,000` |
+| Canonical bank bytes written | `12,500,000` |
+| Visible core row working set | `5,000` bytes |
+| Resulting population counts | `1` |
+| Streaming state digests | `1` |
+
+These chunk totals exclude metadata, queue, map-key, event, serialization, and runtime operations. The 5,000-byte visible working set consists of three 1,250-byte source rows and one 1,250-byte destination row; SDK and compiler temporaries may raise actual peak guest memory.
+
+### Why One Tick Reads 20,004 Chunks
+
+The toroidal algorithm first loads three rows, or six chunks. It then streams the remaining 9,999 row loads, or 19,998 chunks:
+
+```text
+initial window = 3 rows * 2 chunks = 6 reads
+stream         = 9,999 rows * 2 chunks = 19,998 reads
+total          = 6 + 19,998 = 20,004 reads
+```
+
+The two additional row loads preserve wraparound at the top and bottom boundary. They add `2,500` bytes beyond reading one complete bank.
+
 ## Local Checks
 
 ```bash
@@ -114,7 +203,7 @@ cargo test -p game-of-life-live-test --test feasibility \
 
 This transaction performs the production storage shape: 20,004 fixed-size chunk reads totaling 12,502,500 bytes and 20,000 writes totaling 12,500,000 bytes.
 
-## Recorded Result
+## Measured Local Results
 
 On the local `hogp/81e1cb073cfb` devnode used during implementation:
 

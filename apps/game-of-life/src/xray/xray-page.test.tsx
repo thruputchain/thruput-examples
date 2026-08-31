@@ -12,141 +12,137 @@ const config = {
   indexerProxyPath: "/groundhog-indexer/",
 } satisfies ReadAppConfig;
 
-describe("Transaction X-Ray foundation", () => {
-  beforeEach(() => window.history.replaceState(null, "", "/"));
+describe("Transaction X-Ray workbench", () => {
+  beforeEach(() => window.history.replaceState(null, "", "/xray"));
 
-  test("renders the exact fixed workload and both storage banks", () => {
+  test("presents one connected cell and storage debugger", () => {
     const { container } = render(<XrayPage config={config} />);
+
+    expect(
+      screen.getByRole("heading", { name: "Transaction X-Ray" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "3 × 3 neighborhood" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "100,000,000 cells. One atomic transition.",
+        name: "One cell, one bit, the same address next generation",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Bank A" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Bank B" })).toBeInTheDocument();
-    expect(screen.getAllByText("Role unknown")).toHaveLength(2);
-    expect(screen.getAllByText("12,500,000").length).toBeGreaterThan(0);
-    expect(screen.getByText("25,000,000")).toBeInTheDocument();
-    expect(container.querySelectorAll("button[aria-pressed]")).toHaveLength(8);
+    expect(
+      within(
+        screen.getByRole("list", { name: "Selected cell neighborhood" }),
+      ).getAllByRole("listitem"),
+    ).toHaveLength(9);
+    expect(
+      within(
+        screen.getByRole("list", { name: "Byte 625 bit values" }),
+      ).getAllByRole("listitem"),
+    ).toHaveLength(8);
+    expect(
+      within(
+        screen.getByRole("list", { name: "Byte 625 bit values" }),
+      ).getAllByRole("listitem")[0],
+    ).toHaveAccessibleName(/^Bit 0: not loaded/);
+    expect(screen.getByText("x 0–7,999")).toBeInTheDocument();
+    expect(screen.getByText("625 − 0")).toBeInTheDocument();
+    expect(screen.getByText("5,000 × 2 + 0")).toBeInTheDocument();
+    expect(
+      screen.getByText("The left chunk starts at row byte 0", {
+        exact: false,
+      }),
+    ).toHaveTextContent("byte 625 inside the chunk");
+    expect(
+      screen.queryByRole("list", { name: "Cell journey stages" }),
+    ).toBeNull();
+    expect(screen.queryByText("COMMIT BOUNDARY")).toBeNull();
+    expect(container.querySelectorAll('svg[role="img"]')).toHaveLength(0);
   });
 
-  test("moves the focused explanation across the scale ladder", () => {
+  test("shows substituted packed-storage calculations", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/xray?cellX=8657&cellY=3009&view=proof",
+    );
     render(<XrayPage config={config} />);
-    fireEvent.click(screen.getByRole("button", { name: /Byte/ }));
-    expect(screen.getByText("8", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("horizontal cells")).toBeInTheDocument();
+
     expect(
-      screen.getByText(/One canonical byte carries 8 adjacent cells/),
+      screen.getByRole("heading", { name: "Find the byte" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Byte/ })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-  });
-
-  test("uses constant-complexity atlas markup", () => {
-    const { container } = render(<XrayPage config={config} />);
-    const atlasGraphics = container.querySelectorAll('svg[role="img"]');
-    expect(atlasGraphics).toHaveLength(2);
     expect(
-      Array.from(atlasGraphics).reduce(
-        (total, graphic) => total + graphic.querySelectorAll("*").length,
-        0,
-      ),
-    ).toBeLessThan(30);
-    expect(container.querySelectorAll("rect").length).toBeLessThan(20);
-  });
-
-  test("maps a submitted cell through the byte and chunk boundaries", () => {
-    render(<XrayPage config={config} />);
-    fireEvent.change(screen.getByLabelText("Coordinate x"), {
-      target: { value: "8000" },
-    });
-    fireEvent.change(screen.getByLabelText("Coordinate y"), {
-      target: { value: "4321" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Locate cell" }));
-
+      screen.getByText("One byte holds 8 cells.", { exact: false }),
+    ).toHaveTextContent("Cell x 8,657 is stored in byte 1,082.");
     expect(
-      screen.getByLabelText("Bit 0, cell x 8000, selected"),
+      screen.getByRole("heading", { name: "Find the bit" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("This is position 2 of 8", { exact: false }),
+    ).toHaveTextContent("stored as bit 1");
+    expect(
+      screen.getByRole("heading", { name: "Choose the row chunk" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Find the byte inside the chunk" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Build the storage key" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The right chunk starts at row byte 1,000", {
+        exact: false,
+      }),
+    ).toHaveTextContent("byte 82 inside the chunk");
+    expect(
+      screen.getByText("Every row has two chunk keys.", { exact: false }),
+    ).toHaveTextContent("right chunk uses key 6,019");
+    expect(screen.getByText("floor(8,657 ÷ 8)")).toBeInTheDocument();
+    expect(screen.getByText("8,657 mod 8")).toBeInTheDocument();
+    expect(screen.getByText("x 8,000–9,999")).toBeInTheDocument();
+    expect(screen.getByText("1,082 − 1,000")).toBeInTheDocument();
+    expect(screen.getByText("3,009 × 2 + 1")).toBeInTheDocument();
+    expect(
+      screen.getByText("Same location:", { exact: false }),
+    ).toHaveTextContent("row 3,009 / key 6,019 / byte 82 / bit 1");
+    expect(
+      screen.getByRole("listitem", {
+        name: /Bit 1: not loaded, selected cell/,
+      }),
     ).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Cell 8000, 4321 maps to chunk 8643, byte 0, bit 0.",
-    );
-    const bits = within(
-      screen.getByRole("list", { name: "Byte 1000 bit positions" }),
-    ).getAllByRole("listitem");
-    expect(bits).toHaveLength(8);
-    expect(bits.map((bit) => bit.getAttribute("aria-label"))).toEqual([
-      "Bit 0, cell x 8000, selected",
-      "Bit 1, cell x 8001",
-      "Bit 2, cell x 8002",
-      "Bit 3, cell x 8003",
-      "Bit 4, cell x 8004",
-      "Bit 5, cell x 8005",
-      "Bit 6, cell x 8006",
-      "Bit 7, cell x 8007",
-    ]);
-    expect(screen.getAllByText("Selected · Part 1")).toHaveLength(2);
-    expect(screen.getByLabelText("Address derivation")).toHaveTextContent(
-      /byte_in_row = floor\(8,000 \/ 8\) = 1,000/,
-    );
-    expect(screen.getByTestId("bank-a-selected-row")).toHaveAttribute(
-      "x",
-      "21",
-    );
-    expect(screen.getByTestId("bank-a-selected-row")).toHaveAttribute(
-      "y",
-      "43",
-    );
-    expect(window.location.search).toBe("?cellX=8000&cellY=4321");
   });
 
-  test("preserves the last valid address when form input is invalid", () => {
+  test("preserves the last valid address when input is invalid", () => {
     render(<XrayPage config={config} />);
     fireEvent.change(screen.getByLabelText("Coordinate x"), {
       target: { value: "10000" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Locate cell" }));
+    fireEvent.submit(screen.getByLabelText("Coordinate x").closest("form")!);
 
     expect(screen.getByRole("alert")).toHaveTextContent(/0 through 9,999/);
     expect(screen.getByLabelText("Coordinate x")).toHaveAttribute(
       "aria-invalid",
       "true",
     );
-    expect(screen.getByLabelText("Coordinate y")).toHaveAttribute(
-      "aria-invalid",
-      "false",
-    );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Cell 5000, 5000 maps to chunk 10000, byte 625, bit 0.",
-    );
+    expect(
+      screen.getByText(/Generation — \/ cell 5,000,5,000/),
+    ).toBeInTheDocument();
     expect(window.location.search).toBe("");
   });
 
-  test("hydrates a canonical shareable coordinate from the URL", () => {
-    window.history.replaceState(
-      null,
-      "",
-      "/xray?cellX=9999&cellY=9999&view=proof",
-    );
+  test("updates valid address state without loading exact data", () => {
     render(<XrayPage config={config} />);
-    expect(screen.getByLabelText("Coordinate x")).toHaveValue("9999");
-    expect(screen.getByLabelText("Coordinate y")).toHaveValue("9999");
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Cell 9999, 9999 maps to chunk 19999, byte 249, bit 7.",
-    );
-  });
+    fireEvent.change(screen.getByLabelText("Coordinate x"), {
+      target: { value: "12" },
+    });
+    fireEvent.change(screen.getByLabelText("Coordinate y"), {
+      target: { value: "34" },
+    });
 
-  test("cross-highlights microscope address fields from the scale ladder", () => {
-    const { container } = render(<XrayPage config={config} />);
-    fireEvent.click(screen.getByRole("button", { name: /Chunk/ }));
-    const microscope = container.querySelector(
-      'section[data-scale-focus="chunk"]',
+    expect(screen.getByText(/Generation — \/ cell 12,34/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "No exact cell data loaded.",
     );
-    expect(microscope).not.toBeNull();
-    expect(microscope!.querySelectorAll('[data-focused="true"]')).toHaveLength(
-      3,
-    );
+    expect(screen.getByText("34 × 2 + 0")).toBeInTheDocument();
+    expect(window.location.search).toBe("?cellX=12&cellY=34");
   });
 });

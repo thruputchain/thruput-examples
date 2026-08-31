@@ -25,6 +25,53 @@ npm run dev:local
 
 The command prints the randomized loopback app, indexer, and RPC URLs when the stack is ready. Keep it running while developing, then press `Ctrl-C` to stop every process and restore any pre-existing `.env.local`. Restoration occurs only if the generated file is unchanged; manual edits are preserved and may retain disposable credentials. The node ledger, deployment credentials, indexer database, and generated artifacts are disposable and remain outside the repository.
 
+## Transaction X-Ray
+
+The read-only Transaction X-Ray at `/xray` shows one selected cell's exact neighborhood, Conway result, packed contract address, current bank value, and expected value at the same location in the next bank. Transaction-wide commit semantics and detailed storage derivations live in the [contract README](../../contracts/game-of-life/README.md).
+
+The initial route loads chain metadata plus the latest immutable manifest and provenance. It requests no tile or canonical chunk payload. Activating **Inspect exact cell** fetches only the level-six exact tiles needed for the selected cell's toroidal 3 by 3 neighborhood: one tile normally and at most four at tile or world boundaries. It performs no adjacent prefetch.
+
+The resulting cell values are immutable, digest-scoped indexer artifacts. The indexer verifies its complete canonical download against the on-chain digest, but individual tile bytes do not carry independent proofs. The browser derives the selected cell's expected Conway result from those nine values; that result is explanatory and does not become canonical until a contract invocation commits the next generation.
+
+### Route and Hosting
+
+Production hosts must rewrite both `/xray` and `/xray/` to `/index.html`; the client selects the route after startup. Do not redirect these paths to `/`, because shared X-Ray URLs preserve `cellX`, `cellY`, and unrelated query parameters. Local Vite development, preview, and deterministic fixture servers already provide this fallback.
+
+### Read-Only Runtime Boundary
+
+The X-Ray route does not initialize personas, wallet material, signing, submission, transaction records, Deck.gl, Luma.gl, or the World renderer. A production-build plugin follows the emitted X-Ray chunk graph and fails the build if that graph reaches private transaction or world-rendering modules. The same-origin RPC proxy exposes read methods only outside credential-enabled local development.
+
+### Evidence Sources and Reconciliation
+
+X-Ray keeps these sources distinct:
+
+- **Contract-derived:** fixed by the pinned encoding and algorithm.
+- **Chain metadata:** returned by the current validated contract view.
+- **Indexer-attested provenance:** validated identity and publication information for an immutable snapshot.
+- **Browser-derived:** calculated from displayed immutable inputs, such as one Conway rule result.
+- **Receipt-measured:** decoded from a committed transaction receipt.
+- **Benchmark-measured:** recorded with a versioned method and environment.
+- **Configured limit:** an execution budget, never measured consumption.
+- **Illustrative:** explanatory structure or motion, never timing evidence.
+
+Chain metadata and indexer snapshots poll independently. Their relationship can be aligned, indexer behind, chain only, retained snapshot, incompatible refresh, integrity conflict, or unavailable. A temporary failure preserves the last valid identity with a stale label. Regressions, scope mismatches, malformed artifacts, and same-generation digest conflicts never replace valid evidence.
+
+### Chain, Indexer, and Browser Responsibilities
+
+| Zone    | Responsibility                                                                                                                                   |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Chain   | Owns canonical banks, metadata, queue semantics, rule evaluation, digest, population, and atomic commit.                                         |
+| Indexer | Downloads a complete immutable generation, verifies its digest, and publishes scoped manifests, provenance, density tiles, and exact-cell tiles. |
+| Browser | Validates configured scope and document agreement, requests only data needed by the current view, and presents source-qualified values.          |
+
+Neither the indexer nor browser can replace the chain's authority or compute canonical next state.
+
+### Claim and Comparison Guardrails
+
+The X-Ray links to pinned source revision `51ec6b868d563b86dadc174956eb5ab5998cef6b`, but application configuration does not cryptographically bind deployed bytecode to that revision. Actual gas consumption and execution duration remain unavailable until exposed through a typed committed-receipt source; configured gas limits are not substituted.
+
+Comparisons with other systems must use the same 100-million-cell workload and atomicity definition, a versioned implementation, reproducible measurements, and explicit admission, execution, state-delta, block-production, finality, and data-availability assumptions. The application makes no unsupported cross-system ranking.
+
 ## Configuration
 
 Set these public values before starting or building. Configuration is validated before React mounts.
@@ -39,8 +86,6 @@ VITE_GAME_OF_LIFE_INDEXER_URL=http://127.0.0.1:8787
 The indexer URL must be an origin root. Paths, queries, and fragments are rejected.
 
 The browser always uses same-origin `/groundhog-rpc` and `/groundhog-indexer` endpoints. Production builds and previews expose read methods only and never contain development credentials.
-
-The read-only Transaction X-Ray is available at `/xray`. Production hosts must rewrite both `/xray` and `/xray/` to `/index.html`; the client selects the route after startup. Do not redirect these paths to `/`, because shared X-Ray URLs must retain their `cellX`, `cellY`, and unrelated query parameters. The local Vite development, preview, and deterministic fixture servers already provide this fallback.
 
 Generate the loopback-only Alice, Bob, and Carol configuration after deployment and initialization:
 

@@ -13,7 +13,9 @@ import {
   evidenceReducer,
   message,
   reconcileEvidence,
+  type XrayEvidenceState,
 } from "./evidence";
+import { inspectExactCell } from "./exact-cell";
 
 const REQUEST_TIMEOUT = 8_000;
 
@@ -26,6 +28,16 @@ export function useXrayEvidence(config: Readonly<ReadAppConfig>) {
       client: createReadOnlyClient(config),
       contractAddress: config.contractAddress,
     }),
+  );
+  const [inspectCell] = useState(
+    () =>
+      (
+        snapshot: NonNullable<XrayEvidenceState["snapshot"]["value"]>,
+        x: number,
+        y: number,
+        signal: AbortSignal,
+      ) =>
+        inspectExactCell(indexer, snapshot, x, y, signal),
   );
   const pollers = useRef<readonly Poller[]>([]);
   const previousAnnouncement = useRef("");
@@ -99,7 +111,7 @@ export function useXrayEvidence(config: Readonly<ReadAppConfig>) {
     for (const poller of pollers.current) poller.refresh();
   };
 
-  return { state, relationship, announcement, retry } as const;
+  return { state, relationship, announcement, retry, inspectCell } as const;
 }
 
 function artifactFailure(cause: unknown): "unavailable" | "malformed" {

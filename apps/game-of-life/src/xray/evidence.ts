@@ -14,7 +14,7 @@ export interface EvidenceSource<T> {
   readonly status: EvidenceStatus;
   readonly value: T | null;
   readonly error: string | null;
-  readonly failure: "unavailable" | "malformed" | null;
+  readonly failure: "unavailable" | "malformed" | "integrity" | null;
 }
 
 export interface XrayEvidenceState {
@@ -121,7 +121,22 @@ export function evidenceReducer(
         },
       };
     }
-    case "snapshot-read":
+    case "snapshot-read": {
+      const conflict = snapshotRefreshConflict(
+        state.snapshot.value,
+        action.value,
+        state.chain.value,
+      );
+      if (conflict)
+        return {
+          ...state,
+          snapshot: {
+            status: "stale",
+            value: state.snapshot.value,
+            error: conflict,
+            failure: "integrity",
+          },
+        };
       return {
         ...state,
         snapshot: {
@@ -131,6 +146,7 @@ export function evidenceReducer(
           failure: null,
         },
       };
+    }
     case "snapshot-failed":
       return {
         ...state,
@@ -163,6 +179,13 @@ export function reconcileEvidence(
       state.snapshot.error ?? "Snapshot validation failed.",
       stale,
     );
+  if (state.snapshot.failure === "integrity")
+    return result(
+      "integrity-conflict",
+      "Retained snapshot; conflicting refresh",
+      state.snapshot.error ?? "Snapshot identity changed incompatibly.",
+      true,
+    );
   if (state.chain.integrity)
     return result(
       "integrity-conflict",
@@ -192,18 +215,12 @@ export function reconcileEvidence(
       stale,
     );
 
-  try {
-    assertSnapshotEligible(
-      snapshot!.manifest,
-      snapshot!.provenance,
-      chain!,
-      scope,
-    );
-  } catch (cause) {
+  const eligibilityError = snapshotEligibilityError(snapshot!, chain!, scope);
+  if (eligibilityError) {
     return result(
       "integrity-conflict",
       `${prefix}Integrity conflict`,
-      message(cause),
+      eligibilityError,
       stale,
     );
   }
@@ -223,6 +240,24 @@ export function reconcileEvidence(
   );
 }
 
+export function snapshotEligibilityError(
+  snapshot: ImmutableSnapshot,
+  chain: ChainMetadata,
+  scope: Pick<ReadAppConfig, "networkId" | "contractAddress">,
+): string | null {
+  try {
+    assertSnapshotEligible(
+      snapshot.manifest,
+      snapshot.provenance,
+      chain,
+      scope,
+    );
+    return null;
+  } catch (cause) {
+    return message(cause);
+  }
+}
+
 function result(
   relationship: EvidenceRelationship,
   label: string,
@@ -234,4 +269,44 @@ function result(
 
 export function message(cause: unknown): string {
   return cause instanceof Error ? cause.message : "Evidence request failed";
+}
+
+function snapshotRefreshConflict(
+  accepted: ImmutableSnapshot | null,
+  candidate: ImmutableSnapshot,
+  chain: ChainMetadata | null,
+): string | null {
+  if (!accepted) return null;
+  for (const field of [
+    "networkId",
+    "contractAddress",
+    "seed",
+    "width",
+    "height",
+    "tileSize",
+    "maxZoom",
+    "densityEncoding",
+    "cellEncoding",
+  ] as const)
+    if (candidate.manifest[field] !== accepted.manifest[field])
+      return `Snapshot ${field} changed incompatibly.`;
+  if (chain)
+    try {
+      assertSnapshotEligible(candidate.manifest, candidate.provenance, chain, {
+        networkId: candidate.manifest.networkId,
+        contractAddress: candidate.manifest.contractAddress,
+      });
+    } catch (cause) {
+      return message(cause);
+    }
+  const acceptedGeneration = BigInt(accepted.manifest.generation);
+  const candidateGeneration = BigInt(candidate.manifest.generation);
+  if (candidateGeneration < acceptedGeneration)
+    return `Snapshot generation regressed from ${acceptedGeneration} to ${candidateGeneration}.`;
+  if (
+    candidateGeneration === acceptedGeneration &&
+    candidate.manifest.stateDigest !== accepted.manifest.stateDigest
+  )
+    return `Snapshot digest changed within generation ${candidateGeneration}.`;
+  return null;
 }
