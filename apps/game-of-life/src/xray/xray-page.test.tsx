@@ -30,6 +30,14 @@ describe("Transaction X-Ray workbench", () => {
       }),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("heading", { name: "From one bit to one atomic tick" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "One tick against current documented limits",
+      }),
+    ).toBeInTheDocument();
+    expect(
       within(
         screen.getByRole("list", { name: "Selected cell neighborhood" }),
       ).getAllByRole("listitem"),

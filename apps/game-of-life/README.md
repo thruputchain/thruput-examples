@@ -27,7 +27,9 @@ The command prints the randomized loopback app, indexer, and RPC URLs when the s
 
 ## Transaction X-Ray
 
-The read-only Transaction X-Ray at `/xray` shows one selected cell's exact neighborhood, Conway result, packed contract address, current bank value, and expected value at the same location in the next bank. Transaction-wide commit semantics and detailed storage derivations live in the [contract README](../../contracts/game-of-life/README.md).
+The read-only Transaction X-Ray at `/xray` shows one selected cell's exact neighborhood, Conway result, packed contract address, current bank value, and expected value at the same location in the next bank. It then connects that bit to one byte, one row, one 12.5 MB generation bank, and the 25 MB two-bank world. A local phase selector exposes the fixed work of one non-empty tick: 20,004 chunk reads, 12,502,500 bytes read, 100,000,000 scalar cell outcomes, 20,000 chunk writes, 12,500,000 bytes written, and one atomic bank, metadata, queue-slot, and event handoff. Transaction semantics and detailed derivations live in the [contract README](../../contracts/game-of-life/README.md).
+
+The workload selector is explanatory UI, not transaction playback or timing evidence. It performs no network request and X-Ray provides no wallet, tick request, crank, signing, or live-run integration. Live transaction controls remain in the World application.
 
 The initial route loads chain metadata plus the latest immutable manifest and provenance. It requests no tile or canonical chunk payload. Activating **Inspect exact cell** fetches only the level-six exact tiles needed for the selected cell's toroidal 3 by 3 neighborhood: one tile normally and at most four at tile or world boundaries. It performs no adjacent prefetch.
 
@@ -68,7 +70,11 @@ Neither the indexer nor browser can replace the chain's authority or compute can
 
 ### Claim and Comparison Guardrails
 
-The X-Ray links to pinned source revision `51ec6b868d563b86dadc174956eb5ab5998cef6b`, but application configuration does not cryptographically bind deployed bytecode to that revision. Actual gas consumption and execution duration remain unavailable until exposed through a typed committed-receipt source; configured gas limits are not substituted.
+The execution-envelope table compares the fixed workload with published chain limits. On Groundhog protocol `hogp/81e1cb073cfb`, one transaction evaluated all 100,000,000 cells, wrote the complete 12,500,000-byte destination bank, and committed in 7.04 seconds locally.
+
+The Solana column cites the official [account limits](https://solana.com/docs/core/accounts), [compute-budget documentation](https://solana.com/docs/core/fees), and [SBF instruction meter](https://github.com/anza-xyz/sbpf/blob/v0.13.1/src/vm.rs) for Agave `v3.1.8`. A 12,500,000-byte bank exceeds the 10,485,760-byte account maximum by 2,014,240 bytes and must be split across at least two accounts. More decisively, the 1,400,000-CU transaction cap leaves 0.014 CU for each of 100,000,000 scalar cell outcomes. Assigning only one metered SBF instruction, one CU, to each cell would require 100,000,000 CU, 71.4 times the cap, before the actual rule, reads, or writes.
+
+The Ethereum column cites the currently documented [60-million-gas block limit](https://ethereum.org/en/developers/docs/blocks/), [EVM opcode costs](https://ethereum.org/en/developers/docs/evm/opcodes/), and the final [EIP-2930](https://eips.ethereum.org/EIPS/eip-2930) access-list cost of 1,900 gas per storage key. A 12,500,000-byte bank occupies 390,625 32-byte storage slots. The EIP-2930 storage-key entries alone cost 742,187,500 intrinsic gas, 12.4 times the current documented block limit, before the address entry, normal transaction gas, `SSTORE`, or Conway computation; cold access costs more. The block limit also leaves only 0.6 gas per scalar cell. Assigning only one PUSH0-priced, 2-gas opcode to each cell would cost 200,000,000 gas before the actual rule or storage work.
 
 Comparisons with other systems must use the same 100-million-cell workload and atomicity definition, a versioned implementation, reproducible measurements, and explicit admission, execution, state-delta, block-production, finality, and data-availability assumptions. The application makes no unsupported cross-system ranking.
 

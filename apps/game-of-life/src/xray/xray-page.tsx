@@ -10,6 +10,10 @@ import {
 } from "./exact-cell";
 import { useXrayEvidence } from "./use-xray-evidence";
 import {
+  ExecutionEnvelopeComparison,
+  WholeWorldWorkload,
+} from "./workload-inspector";
+import {
   bankRolesForGeneration,
   formatCount,
   mapCellToStorage,
@@ -189,6 +193,8 @@ export function XrayPage({
             onXChange={(value) => changeCoordinate("x", value)}
             onYChange={(value) => changeCoordinate("y", value)}
           />
+          <WholeWorldWorkload />
+          <ExecutionEnvelopeComparison />
         </div>
       </main>
       <p aria-live="polite" className="sr-only">

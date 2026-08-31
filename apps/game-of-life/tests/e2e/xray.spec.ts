@@ -99,6 +99,59 @@ test("loads one exact tile and shows the cell, storage, and next value", async (
   await expect(page.getByText("COMMIT BOUNDARY")).toHaveCount(0);
 });
 
+test("connects one bit to the fixed tick and cited execution envelopes", async ({
+  page,
+}) => {
+  await page.goto("/xray");
+  await page.waitForLoadState("networkidle");
+  const interactionRequests: string[] = [];
+  page.on("request", (request) =>
+    interactionRequests.push(new URL(request.url()).pathname),
+  );
+
+  const scale = page.getByRole("list", { name: "Storage scale levels" });
+  await scale.getByRole("button", { name: /One bank/ }).click();
+  await expect(
+    page.getByText("10,000 rows × 1,250 bytes = 12,500,000 bytes", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await scale.getByRole("button", { name: /Persistent world/ }).click();
+  await expect(
+    page.getByText("2 banks × 12,500,000 bytes = 25,000,000 bytes", {
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  const phases = page.getByRole("list", { name: "Atomic tick phases" });
+  await phases.getByRole("button", { name: /Evaluate world/ }).click();
+  await expect(page.getByText("100,000,000", { exact: true })).toBeVisible();
+  await phases.getByRole("button", { name: /Write destination/ }).click();
+  await expect(page.getByText("12,500,000", { exact: true })).toBeVisible();
+  await phases.getByRole("button", { name: /Commit together/ }).click();
+  await expect(
+    page.getByText("Generation + bank switch", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Queue slot + event", { exact: true }),
+  ).toBeVisible();
+
+  await expect(page.getByText("10,485,760 bytes max / account")).toBeVisible();
+  await expect(page.getByText("0.014 CU available / cell")).toBeVisible();
+  await expect(page.getByText("0.6 gas available / cell")).toBeVisible();
+  await expect(page.getByText("Possible on Groundhog")).toBeVisible();
+  await expect(
+    page.getByText("Blocked by the transaction compute cap"),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Blocked by storage gas + compute gas"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Solana compute budget" }),
+  ).toHaveAttribute("href", "https://solana.com/docs/core/fees");
+  expect(interactionRequests).toEqual([]);
+});
+
 test("loads only four deduplicated exact tiles for a wrapped corner", async ({
   page,
 }) => {
@@ -251,7 +304,7 @@ test("supports keyboard use, reduced motion, and a 320 pixel viewport", async ({
   await expect(page).toHaveURL(/#xray-content$/);
   await skip.evaluate((element) => (element as HTMLElement).blur());
   const refresh = page.getByRole("button", { name: /Refresh evidence/ });
-  await tabUntil(page, refresh, 16);
+  await tabUntil(page, refresh, 64);
   await expect(refresh).toBeFocused();
   await page.keyboard.press("Enter");
   await refresh.evaluate((element) => (element as HTMLElement).blur());
@@ -269,6 +322,29 @@ test("supports keyboard use, reduced motion, and a 320 pixel viewport", async ({
   await expect(inspect).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("Loaded cell 12, 34");
+  const bankScale = page
+    .getByRole("list", { name: "Storage scale levels" })
+    .getByRole("button", { name: /One bank/ });
+  await tabUntil(page, bankScale, 16);
+  await expect(bankScale).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByText("10,000 rows × 1,250 bytes = 12,500,000 bytes", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const evaluatePhase = page
+    .getByRole("list", { name: "Atomic tick phases" })
+    .getByRole("button", { name: /Evaluate world/ });
+  await tabUntil(page, evaluatePhase, 16);
+  await expect(evaluatePhase).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("100,000,000", { exact: true })).toBeVisible();
+  const comparison = page.getByRole("region", {
+    name: "Execution evidence comparison",
+  });
+  await tabUntil(page, comparison, 16);
+  await expect(comparison).toBeFocused();
   await expect(
     page.getByRole("navigation", { name: "Primary navigation" }),
   ).toBeVisible();

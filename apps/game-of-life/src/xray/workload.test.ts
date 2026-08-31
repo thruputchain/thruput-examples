@@ -2,11 +2,23 @@ import { describe, expect, test } from "vitest";
 import {
   bankRolesForGeneration,
   DEFAULT_CELL,
+  ETHEREUM_ACCESS_GAS_BLOCK_MULTIPLE,
+  ETHEREUM_DIRECT_SLOT_ACCESS_LIST_GAS,
+  ETHEREUM_GAS_PER_CELL,
+  ETHEREUM_ONE_OPCODE_SCALAR_GAS,
+  ETHEREUM_PERSISTENT_SLOT_COUNT,
+  ETHEREUM_SCALAR_FLOOR_BLOCK_MULTIPLE,
+  ETHEREUM_WRITE_SLOT_COUNT,
+  EXECUTION_EVIDENCE,
   formatCount,
   LIFE_WORKLOAD,
   mapCellToStorage,
   parseCellQuery,
   parseCoordinateInput,
+  SOLANA_BANK_OVERFLOW_BYTES,
+  SOLANA_COMPUTE_UNITS_PER_CELL,
+  SOLANA_MIN_ACCOUNTS_PER_BANK,
+  SOLANA_SCALAR_FLOOR_MULTIPLE,
   withCellQuery,
 } from "./workload";
 
@@ -70,6 +82,37 @@ describe("Transaction X-Ray workload", () => {
       (LIFE_WORKLOAD.sourceRowBuffers + LIFE_WORKLOAD.destinationRowBuffers) *
         LIFE_WORKLOAD.rowBytes,
     ).toBe(LIFE_WORKLOAD.visibleRowWorkingSetBytes);
+  });
+
+  test("pins execution limits and comparison arithmetic", () => {
+    expect(EXECUTION_EVIDENCE.groundhog).toMatchObject({
+      protocol: "hogp/81e1cb073cfb",
+      measuredSeconds: 7.04,
+    });
+    expect(EXECUTION_EVIDENCE.solana).toMatchObject({
+      agaveVersion: "v3.1.8",
+      maxAccountDataBytes: 10_485_760,
+      maxTransactionComputeUnits: 1_400_000,
+    });
+    expect(EXECUTION_EVIDENCE.ethereum).toMatchObject({
+      documentedBlockGasLimit: 60_000_000,
+      storageSlotBytes: 32,
+      accessListStorageKeyGas: 1_900,
+    });
+    expect(SOLANA_BANK_OVERFLOW_BYTES).toBe(2_014_240);
+    expect(SOLANA_MIN_ACCOUNTS_PER_BANK).toBe(2);
+    expect(SOLANA_COMPUTE_UNITS_PER_CELL).toBe(0.014);
+    expect(SOLANA_SCALAR_FLOOR_MULTIPLE).toBeCloseTo(71.43);
+    expect(ETHEREUM_PERSISTENT_SLOT_COUNT).toBe(781_250);
+    expect(ETHEREUM_WRITE_SLOT_COUNT).toBe(390_625);
+    expect(ETHEREUM_DIRECT_SLOT_ACCESS_LIST_GAS).toBe(742_187_500);
+    expect(ETHEREUM_ACCESS_GAS_BLOCK_MULTIPLE).toBeCloseTo(12.37);
+    expect(ETHEREUM_GAS_PER_CELL).toBe(0.6);
+    expect(ETHEREUM_ONE_OPCODE_SCALAR_GAS).toBe(200_000_000);
+    expect(ETHEREUM_SCALAR_FLOOR_BLOCK_MULTIPLE).toBeCloseTo(3.33);
+    expect(ETHEREUM_DIRECT_SLOT_ACCESS_LIST_GAS).toBeGreaterThan(
+      EXECUTION_EVIDENCE.ethereum.documentedBlockGasLimit,
+    );
   });
 
   test.each([

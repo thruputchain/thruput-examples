@@ -26,6 +26,66 @@ export const LIFE_WORKLOAD = Object.freeze({
   streamingDigests: 1,
 });
 
+export const EXECUTION_EVIDENCE = Object.freeze({
+  groundhog: Object.freeze({
+    protocol: "hogp/81e1cb073cfb",
+    measuredSeconds: 7.04,
+    source:
+      "https://github.com/groundhogchain/groundhog-examples/blob/e1598b0d7c6dafde2199bcd2cdcc1ac88ddf995f/contracts/game-of-life/README.md",
+  }),
+  solana: Object.freeze({
+    agaveVersion: "v3.1.8",
+    maxAccountDataBytes: 10_485_760,
+    maxTransactionComputeUnits: 1_400_000,
+    accountsSource: "https://solana.com/docs/core/accounts",
+    feesSource: "https://solana.com/docs/core/fees",
+    meteringSource: "https://github.com/anza-xyz/sbpf/blob/v0.13.1/src/vm.rs",
+  }),
+  ethereum: Object.freeze({
+    documentedBlockGasLimit: 60_000_000,
+    illustrativeOpcodeGas: 2,
+    storageSlotBytes: 32,
+    accessListStorageKeyGas: 1_900,
+    blocksSource: "https://ethereum.org/en/developers/docs/blocks/",
+    opcodesSource: "https://ethereum.org/en/developers/docs/evm/opcodes/",
+    storageSource: "https://eips.ethereum.org/EIPS/eip-2930",
+  }),
+});
+
+export const SOLANA_BANK_OVERFLOW_BYTES =
+  LIFE_WORKLOAD.bankBytes - EXECUTION_EVIDENCE.solana.maxAccountDataBytes;
+export const SOLANA_MIN_ACCOUNTS_PER_BANK = Math.ceil(
+  LIFE_WORKLOAD.bankBytes / EXECUTION_EVIDENCE.solana.maxAccountDataBytes,
+);
+export const SOLANA_COMPUTE_UNITS_PER_CELL =
+  EXECUTION_EVIDENCE.solana.maxTransactionComputeUnits /
+  LIFE_WORKLOAD.ruleEvaluations;
+export const SOLANA_SCALAR_FLOOR_MULTIPLE =
+  LIFE_WORKLOAD.ruleEvaluations /
+  EXECUTION_EVIDENCE.solana.maxTransactionComputeUnits;
+
+export const ETHEREUM_WRITE_SLOT_COUNT =
+  LIFE_WORKLOAD.tickBankWriteBytes /
+  EXECUTION_EVIDENCE.ethereum.storageSlotBytes;
+export const ETHEREUM_PERSISTENT_SLOT_COUNT =
+  LIFE_WORKLOAD.steadyStateBankBytes /
+  EXECUTION_EVIDENCE.ethereum.storageSlotBytes;
+export const ETHEREUM_DIRECT_SLOT_ACCESS_LIST_GAS =
+  ETHEREUM_WRITE_SLOT_COUNT *
+  EXECUTION_EVIDENCE.ethereum.accessListStorageKeyGas;
+export const ETHEREUM_ACCESS_GAS_BLOCK_MULTIPLE =
+  ETHEREUM_DIRECT_SLOT_ACCESS_LIST_GAS /
+  EXECUTION_EVIDENCE.ethereum.documentedBlockGasLimit;
+export const ETHEREUM_GAS_PER_CELL =
+  EXECUTION_EVIDENCE.ethereum.documentedBlockGasLimit /
+  LIFE_WORKLOAD.ruleEvaluations;
+export const ETHEREUM_ONE_OPCODE_SCALAR_GAS =
+  LIFE_WORKLOAD.ruleEvaluations *
+  EXECUTION_EVIDENCE.ethereum.illustrativeOpcodeGas;
+export const ETHEREUM_SCALAR_FLOOR_BLOCK_MULTIPLE =
+  ETHEREUM_ONE_OPCODE_SCALAR_GAS /
+  EXECUTION_EVIDENCE.ethereum.documentedBlockGasLimit;
+
 const COUNT_FORMATTER = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
