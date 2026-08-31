@@ -23,7 +23,7 @@ dev = [
 metadata = ["dep:groundhog-erc20-metadata-if"]
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 doctest = false
 test = false
 

@@ -12,13 +12,13 @@ lint() {
 
     cargo clippy -p $package \
         --release \
-        --target wasm32-unknown-unknown \
+        --target riscv32im-unknown-none-elf \
         -F entrypoints \
         -- -Dwarnings
 }
 
 cargo clippy -p batch-driver -F dev -- -Dwarnings
-cargo clippy -p batch-driver --release --target wasm32-unknown-unknown -- -Dwarnings
+cargo clippy -p batch-driver --release --target riscv32im-unknown-none-elf -- -Dwarnings
 
 lint "erc20 -F metadata"
 

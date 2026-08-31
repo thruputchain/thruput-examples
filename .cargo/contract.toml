@@ -1,5 +1,5 @@
 # CLI-only overlay. `groundhog build` passes this as
-# `cargo --config .cargo/contract.toml` for BOTH wasm and rv32.
+# `cargo --config .cargo/contract.toml` for rv32 builds.
 #
 # DO NOT add [target.*] rustflags here. Cargo JOINS target-rustflags arrays
 # across config layers, so a flag in both this file and .cargo/config.toml is

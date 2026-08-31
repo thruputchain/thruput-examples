@@ -11,7 +11,7 @@ rv32-entrypoints = ["entrypoints"]
 dev = ["sdk/dev", "sdk/debugging", "fibonacci/dev"]
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 doctest = false
 test = false
 
