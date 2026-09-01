@@ -216,9 +216,10 @@ a shortfall is felt at the transaction's reservation, which returns it to the
 mempool to retry and expire rather than including a failure in the block.
 
 Because creation spends the creator's HOG, the router does not do it.
-UniswapV2's router creates a pair on the first `addLiquidity`; ours throws
-`SwapRouterError::NoSuchPair` instead, leaving pool creation an explicit call to
-the factory.
+UniswapV2's router creates a pair on the first `addLiquidity`; ours resolves
+every operation's pair against the factory's registry and throws
+`SwapRouterError::NoSuchPair` if it is not there, leaving pool creation an
+explicit call to the factory.
 
 The one ordering this imposes reaches outside the factory: each driver is told
 the router whose requests it will accept, so the factory must be told the router

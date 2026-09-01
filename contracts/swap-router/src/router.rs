@@ -17,8 +17,9 @@ pub struct Router {
 
 #[contract(exports = "swap_router_exports")]
 impl SwapRouter for Router {
-    // Initialize the router with the factory it resolves pairs through.  The
-    // factory creates a pair's pool on first use (see `Cfg::get_pair`).
+    // Initialize the router with the factory it resolves pairs through.  Every
+    // operation resolves its pair against that factory's registry, and is
+    // refused if the pair is not in it (see `Cfg::get_existing_pair`).
     fn initialize(&mut self, factory: &Address) {
         if self.cfg.try_get().none_if_missing().is_some() {
             throw(SwapRouterError::AlreadyInitialized);
@@ -41,7 +42,6 @@ impl SwapRouter for Router {
         recipient: &Address,
     ) -> RequestId {
         let cfg = self.cfg.get();
-        // `addLiquidity` is the one entry point that creates the pair on first use.
         let driver = cfg.get_existing_pair(token_a, token_b);
 
         let purchaser = get_caller();
@@ -68,7 +68,7 @@ impl SwapRouter for Router {
         recipient: &Address,
     ) -> RequestId {
         let cfg = self.cfg.get();
-        let driver = cfg.get_pair(token_a, token_b);
+        let driver = cfg.get_existing_pair(token_a, token_b);
 
         let redeemer = get_caller();
         driver.request(SwapRequest::remove_liquidity(

@@ -169,8 +169,10 @@ factory by creating pools.
 * **The router no longer creates pools.**  UniswapV2's router creates a pair on
   the first `addLiquidity`; ours will not, because creating one now spends the
   caller's HOG, which is not a thing to do as a side effect of adding
-  liquidity.  `addLiquidity` on a pair the factory has no record of throws
-  `SwapRouterError::NoSuchPair` (new, code 2).  Since setup now creates the pool
+  liquidity.  Every router operation -- `addLiquidity`, `removeLiquidity`, and
+  both swaps -- now resolves its pair against the factory's registry and throws
+  `SwapRouterError::NoSuchPair` (new, code 2) if it is not there, instead of
+  calling an address with nothing behind it.  Since setup now creates the pool
   explicitly, the app only meets this if it routes to a pair nobody made.
 
 * **Under-funding past the floor reports nothing.**  A storage deposit is
