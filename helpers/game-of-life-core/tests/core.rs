@@ -164,12 +164,12 @@ fn world_from_cells<const H: usize, const N: usize>(cells: &[(usize, usize)]) ->
 
 fn kernel_step<const H: usize, const N: usize>(world: [[u8; N]; H]) -> [[u8; N]; H] {
     let mut output = [[0u8; N]; H];
-    for y in 0..H {
+    for (y, output_row) in output.iter_mut().enumerate() {
         compute_next_row(
             &world[(y + H - 1) % H],
             &world[y],
             &world[(y + 1) % H],
-            &mut output[y],
+            output_row,
         );
     }
     output
@@ -178,7 +178,7 @@ fn kernel_step<const H: usize, const N: usize>(world: [[u8; N]; H]) -> [[u8; N];
 fn reference_step<const H: usize, const N: usize>(world: [[u8; N]; H]) -> [[u8; N]; H] {
     let width = N * 8;
     let mut output = [[0u8; N]; H];
-    for y in 0..H {
+    for (y, output_row) in output.iter_mut().enumerate() {
         for x in 0..width {
             let mut neighbors = 0;
             for dy in [H - 1, 0, 1] {
@@ -191,7 +191,7 @@ fn reference_step<const H: usize, const N: usize>(world: [[u8; N]; H]) -> [[u8; 
             }
             let alive = cell(&world, x, y) != 0;
             if neighbors == 3 || (alive && neighbors == 2) {
-                output[y][x / 8] |= 1 << (x % 8);
+                output_row[x / 8] |= 1 << (x % 8);
             }
         }
     }
