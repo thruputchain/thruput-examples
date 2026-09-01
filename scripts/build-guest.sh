@@ -15,10 +15,8 @@ groundhog_build() {
     echo "::endgroup::"
 }
 
-# Contract crates are the ones that produce a guest binary. The lib
-# crate-type is plain rlib, and the `entrypoints` feature is also declared by
-# interface-only crates that have no bin, so the bin target is the marker.
-contract_pkgs='.packages[] | select([.targets[].kind[]] | index("bin")) | .name'
+# Contract crates expose a binary gated by the `entrypoints` feature.
+contract_pkgs='.packages[] | select(any(.targets[]; (.kind | index("bin")) and ((.["required-features"] // []) | index("entrypoints")))) | .name'
 contract_packages="$(cargo metadata --no-deps --format-version 1 | jq -r "$contract_pkgs")"
 
 for pkg in ${contract_packages} ; do

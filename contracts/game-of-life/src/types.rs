@@ -43,7 +43,6 @@ pub struct TickResult {
 }
 
 #[contract_exception]
-#[cfg_attr(feature = "dev", derive(Debug, PartialEq, Eq))]
 pub enum GameOfLifeError {
     AlreadyInitialized = 1,
     NotInitialized = 2,

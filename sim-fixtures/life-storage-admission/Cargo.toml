@@ -5,14 +5,14 @@ edition.workspace = true
 publish = false
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 doctest = false
 test = false
 
 [[bin]]
 name = "life_storage_admission"
 path = "src/main.rs"
-required-features = ["rv32-entrypoints"]
+required-features = ["entrypoints"]
 test = false
 bench = false
 
@@ -21,6 +21,5 @@ sdk = { workspace = true }
 
 [features]
 entrypoints = []
-rv32-entrypoints = ["entrypoints"]
 default = ["dev"]
 dev = ["sdk/dev"]
