@@ -1,0 +1,25 @@
+[package]
+name = "life-storage-admission"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "life_storage_admission"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+sdk = { workspace = true }
+
+[features]
+entrypoints = []
+default = ["dev"]
+dev = ["sdk/dev"]
