@@ -2999,7 +2999,7 @@ version = "0.1.0"
 dependencies = [
  "groundhog-erc20-if",
  "groundhog-erc20-metadata-if",
- "groundhog-xdr",
+ "groundhog-xdr 0.20.7",
  "sdk",
  "standard-token",
  "standard-token-factory-if",
@@ -3010,7 +3010,7 @@ name = "standard-token-factory"
 version = "0.1.0"
 dependencies = [
  "groundhog-erc20-if",
- "groundhog-json-rpc-types",
+ "groundhog-json-rpc-types 0.9.2",
  "groundhog-testkit",
  "sdk",
  "serde_json",

@@ -333,7 +333,7 @@ fn full_seed_zero_fixture_matches_contract_and_is_deterministic() {
     assert_eq!(hashes, artifact_hashes(&second));
 
     let edge = artifact(&second, "tiles/6/39/0.bin");
-    for row in edge.chunks_exact(32) {
+    for row in edge.as_chunks::<32>().0 {
         assert!(row[2..].iter().all(|byte| *byte == 0));
     }
 }
