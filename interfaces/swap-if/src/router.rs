@@ -1,18 +1,11 @@
 //! The high-level router interface (cf. UniswapV2Router).
 
 use crate::{
-    Address, Amount, Amounts, ERC20Error, RequestId, SwapFactoryError, SwapLibraryError,
-    SwapPairError, SwapRequestError,
+    Address, Amount, Amounts, ERC20Error, RequestId, SwapDriverError, SwapFactoryError,
+    SwapLibraryError, SwapPairError, SwapRequestError,
 };
 use sdk::*;
 
-/// Builds [`SwapRequest`](crate::SwapRequest)s from high-level user operations
-/// and enqueues them with the driver.  Performs no price calculation itself --
-/// the optimizing math happens when requests are dequeued and handled.
-///
-/// The router resolves each pair through the factory, creating it on first use
-/// (cf. UniswapV2Router's `addLiquidity`), so `throws` includes the factory's
-/// errors.
 /// Errors from the router itself, as opposed to the operations it forwards.
 #[contract_exception]
 pub enum SwapRouterError {
@@ -29,6 +22,13 @@ pub enum SwapRouterError {
     NoSuchPair = 2,
 }
 
+/// Builds [`SwapRequest`](crate::SwapRequest)s from high-level user operations
+/// and enqueues them with the driver.  Performs no price calculation itself --
+/// the optimizing math happens when requests are dequeued and handled.
+///
+/// Every operation resolves its pair through the factory and hands the request
+/// to that pair's driver, so `throws` covers both: the factory's errors from
+/// the lookup, and the driver's from the enqueue.
 #[contract(
     client = SwapRouterClient,
     throws(
@@ -37,6 +37,7 @@ pub enum SwapRouterError {
         SwapRequestError,
         SwapLibraryError,
         SwapFactoryError,
+        SwapDriverError,
         SwapRouterError
     )
 )]
