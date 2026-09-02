@@ -110,7 +110,7 @@ impl TokenContract {
     }
 }
 
-#[contract(version = "0.1.9")]
+#[contract(version = "0.1.19")]
 impl ERC20 for TokenContract {
     fn initialize(&mut self, administrator: &ContractAddress) {
         self.initialize_once(
@@ -185,7 +185,7 @@ impl ERC20 for TokenContract {
     }
 }
 
-#[contract(version = "0.1.9")]
+#[contract(version = "0.1.19")]
 impl ERC20Metadata for TokenContract {
     fn initialize(
         &mut self,
