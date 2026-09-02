@@ -21,8 +21,11 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`multi-impl`](contracts/multi-impl/) | One contract implementing multiple traits from a separate crate |
 | [`mixed-impl`](contracts/mixed-impl/) | One contract exposing both an inherent (`notrait`) `#[contract]` impl and a trait `#[contract]` impl |
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and an optional `metadata` feature |
-| [`standard-token*`](contracts/standard-token-factory/) | A fixed standard-token implementation and factory with a [local launchpad](apps/token-launchpad/README.md) |
+| [`standard-token`](contracts/standard-token/) | A fixed, metadata-enabled standard token, deployed by the factory below |
+| [`standard-token-factory`](contracts/standard-token-factory/) | Deterministic factory deployments of `standard-token`, with a [local launchpad](apps/token-launchpad/README.md) |
+| [`standard-token-factory-if`](contracts/standard-token-factory-if/) | The interfaces shared between the standard token and its factory |
 | [`swap-*`](docs/README-swap.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
+| [`game-of-life`](contracts/game-of-life/) | A bit-packed 10,000 by 10,000 toroidal Conway world (100M cells): request queue, batch driver, and one atomic generation per tick, with a [local frontend](apps/game-of-life/README.md) |
 
 ### Simulation fixtures
 
@@ -33,13 +36,28 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples �
 | [`caller-counter`](sim-fixtures/caller-counter/) | Per-caller counter exercising read-after-write storage patterns |
 | [`calldata`](sim-fixtures/calldata/) | Calldata-heavy entry points |
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | NNInt-heavy writes with refund capping |
+| [`life-storage-admission`](sim-fixtures/life-storage-admission/) | Bulk bytestring-map writes and a full world copy, sized like the Game of Life world, for storage-admission testing |
+
+### Supporting and test-only crates
+
+The rest of the workspace is not example material either. These crates exist to support the examples above, or to give their tests something specific to run against:
+
+| Crate | Role |
+|-------|------|
+| [`batch-driver`](helpers/batch-driver/) | Reusable core of the request-batching driver pattern: the drain-and-handle loop, its gas budgeting, and its failure accounting. Used by `game-of-life` |
+| [`game-of-life-core`](helpers/game-of-life-core/) | `no_std` logic shared by the contract and the indexer: the Life kernel, the world digest, and the PRNG |
+| [`game-of-life-indexer`](helpers/game-of-life-indexer/) | Off-chain service. Downloads a coherent world snapshot, verifies its population and digest, derives immutable tiles, and serves them over loopback HTTP |
+| [`game-of-life-live-test`](helpers/game-of-life-live-test/) | Test-only. Live-node feasibility tests that do not need the native mock executor |
+| [`integration-test`](helpers/integration-test/) | Test-only. Shared harness for the rpc tests: signs and submits transactions through the bootstrapped dev wallet and hands back each receipt |
+| [`token-factory-failing-child`](helpers/token-factory-failing-child/) | Test-only. A child contract whose initializer always fails, for token factory rollback tests |
+| [`token-factory-test-wallet`](helpers/token-factory-test-wallet/) | Test-only. Atomic storage top-up caller for the token factory integration tests |
 
 ## Prerequisites
 
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI, **version 0.1.19 or newer**:
+- The `groundhog` CLI, **version 0.9.2 or newer** (the release CI installs, see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
 
   ```sh
   cargo install --locked --registry groundhog groundhog-cli
