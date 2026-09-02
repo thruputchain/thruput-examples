@@ -1,6 +1,7 @@
 use super::*;
+use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use std::env;
-use swap_factory::{SwapFactoryClient, SwapHashes};
+use swap_factory::{POOL_FUNDING, SwapFactoryClient, SwapHashes};
 
 pub fn setup_etx() -> Result<Etx> {
     #[cfg(not(feature = "guest_test"))]
@@ -21,7 +22,6 @@ pub fn setup_etx_native() -> Result<Etx> {
     // single suite-wide router (both deployed directly).
     let hashes = SwapHashes {
         token: *erc20::register_mock_contract(&env).as_hash(),
-        pair: *swap_pair::register_mock_contract(&env).as_hash(),
         handler: *swap_handler::register_mock_contract(&env).as_hash(),
         driver: *swap_driver::register_mock_contract(&env).as_hash(),
     };
@@ -38,7 +38,6 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let load = |name: &str| load_rv32_contract(guest_path(name, "rv32a"));
 
     let token_contract = load("erc20");
-    let pair_contract = load("swap_pair");
     let handler_contract = load("swap_handler");
     let driver_contract = load("swap_driver");
     let router_contract = load("swap_router");
@@ -48,7 +47,6 @@ pub fn setup_etx_guest() -> Result<Etx> {
 
     let hashes = SwapHashes {
         token: env.setup_create_contract(&token_contract),
-        pair: env.setup_create_contract(&pair_contract),
         handler: env.setup_create_contract(&handler_contract),
         driver: env.setup_create_contract(&driver_contract),
     };
@@ -89,9 +87,23 @@ pub fn setup_contracts(
     router_hash: SHA256Hash,
 ) -> Result<Etx> {
 
+    // The factory pays for the pool's contracts out of the creator's HOG, so
+    // the native HOG token has to be reachable at its precompiled address --
+    // and, like any other contract, it pays for the allowance ledger it keeps
+    // in its own storage.
+    env.setup_create_deployment(
+        &ADDRESS_PRECOMPILED_HOG_TOKEN,
+        &Contract::kNative {
+            native_contract_id:
+                groundhog_xdr::precompiles::HogexecPrecompiledNativeContracts::kNativeContractHogToken,
+        },
+    );
+    env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);
+
     // Under the default cost model each contract pays for the storage it
     // writes, so pre-fund everything before it is deployed: the test-user
     // addresses, and each directly-deployed contract.
+    env.setup_grant_storage_tokens(&TEST_ADDR, CONTRACT_FUNDING);
     for u in USERS {
         env.setup_grant_storage_tokens(u.addr, CONTRACT_FUNDING);
     }
@@ -116,10 +128,16 @@ pub fn setup_contracts(
     // with the pair's reserve0/reserve1.
     let token_addrs = sorted(deployed);
 
+    // Each driver the factory creates takes requests from the router alone, so
+    // the factory has to be told the router's address -- deterministic, and so
+    // knowable before the router is deployed just below.
+    let router_addr_predicted =
+        exec_tx(env, &TEST_ADDR, move || get_deploy_address(&ROUTER_NONCE, &router_hash))?;
+
     // Deploy and initialize the factory (protocol fee disabled).
     let factory_addr = exec_tx(env, &TEST_ADDR, move || {
         let factory_addr = deploy_contract(&FACTORY_NONCE, &factory_hash);
-        SwapFactoryClient::new(&factory_addr).initialize(hashes, None);
+        SwapFactoryClient::new(&factory_addr).initialize(hashes, None, &router_addr_predicted);
         factory_addr
     })?;
 
@@ -131,26 +149,29 @@ pub fn setup_contracts(
         SwapRouterClient::new(&router_addr).initialize(&factory_addr);
         router_addr
     })?;
+    assert_eq!(
+        router_addr, router_addr_predicted,
+        "the router must land at the address the factory was told"
+    );
 
     /* ----- */ env.advance_block(); /* ----- */
 
-    // The factory deploys this pair's contracts (LP, pair, handler, driver)
-    // inside `create_pair`, so pre-fund them at their predicted addresses first.
-    let predicted = exec_tx(env, &TEST_ADDR, move || {
-        SwapFactoryClient::new(&factory_addr).pool_addresses(&token_addrs[0], &token_addrs[1])
+    // The factory funds this pair's contracts (LP token, handler, driver) as it
+    // deploys them, on the allowance it is granted here.
+    exec_tx(env, &TEST_ADDR, move || {
+        ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
+            .adjust_allowance(&factory_addr, 3 * POOL_FUNDING.recommended as i128);
     })?;
-    for addr in [
-        predicted.liquidity_token,
-        predicted.pair,
-        predicted.handler,
-        predicted.driver,
-    ] {
-        env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
-    }
+
+    /* ----- */ env.advance_block(); /* ----- */
 
     // Create this pair's contracts via the factory.
     let pool = exec_tx(env, &TEST_ADDR, move || {
-        SwapFactoryClient::new(&factory_addr).create_pair(&token_addrs[0], &token_addrs[1])
+        SwapFactoryClient::new(&factory_addr).create_pair(
+            &token_addrs[0],
+            &token_addrs[1],
+            POOL_FUNDING.recommended,
+        )
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
@@ -160,7 +181,6 @@ pub fn setup_contracts(
         router_addr,
         driver_addr: pool.driver,
         request_handler_addr: pool.handler,
-        pair_addr: pool.pair,
         liquidity_token: pool.liquidity_token,
         token_addrs,
     };
@@ -173,7 +193,13 @@ pub fn setup_etx_primed() -> Result<Etx> {
     let etx = setup_etx()?;
 
     // Primer buys liquidity tokens, establishing a stable price
-    etx.exec_user_tx(PRIMER, |u| etx.ctx.user_buy_unpriced(u))?;
+    let ctx = etx.ctx;
+    let minted = etx.exec_depositing_as_pair(
+        PRIMER,
+        |u| ctx.user_buy_unpriced(u),
+        |pair| pair.mint_lp(PRIMER.addr),
+    )?;
+    println!("> {} bought {:.3} LP", PRIMER.name, decimalized(minted));
 
     /* ----- */ etx.advance_block(); /* ----- */
 

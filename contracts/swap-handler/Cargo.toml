@@ -25,13 +25,14 @@ bench = false
 [dependencies]
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
-swap-if = { path = "../swap-if" }
+swap-if = { path = "../../interfaces/swap-if" }
+swap-pair = { path = "../../engines/swap-pair" }
 
 [features]
 # `entrypoints` builds the deployable handler contract (its exported methods).
 entrypoints = ["implementation", "sdk/alloc"]
 implementation = []
-dev = ["sdk/dev", "swap-if/dev", "implementation"]
+dev = ["sdk/dev", "swap-if/dev", "swap-pair/dev", "implementation"]
 
 [dev-dependencies]
 swap-handler = { path = ".", features = ["dev"] }

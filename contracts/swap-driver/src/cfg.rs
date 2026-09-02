@@ -7,6 +7,9 @@ pub struct Cfg {
     // The contract that handles dequeued requests.
     pub handler: ContractAddress,
 
+    // The only contract whose requests this driver will enqueue.
+    pub router: ContractAddress,
+
     // The queue's ceiling, kept here so that `process_requests` can tell how
     // deep the queue is: `Slots` counts the room *left*, and the difference is
     // what is waiting.

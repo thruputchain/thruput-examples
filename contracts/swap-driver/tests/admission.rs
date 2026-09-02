@@ -79,13 +79,14 @@ fn draining_frees_room_for_the_deferred_request() {
 fn enqueue(etx: &Etx, nth: u32) -> Result<RequestId, TransactResult> {
     let ctx = &etx.ctx;
 
-    etx.exec_user_tx(ALICE, |u| {
+    // Enqueued as the router: the driver takes requests from it alone.
+    etx.exec_tx(&ROUTER_ADDR, move || {
         ctx.driver().request(SwapRequest::swap_exact_in(
-            u.addr,
+            ALICE.addr,
             UNIT_AMT + u128::from(nth),
             0,
             0,
-            u.addr,
+            ALICE.addr,
         ))
     })
 }

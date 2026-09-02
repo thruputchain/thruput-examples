@@ -26,8 +26,8 @@ bench = false
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
 thiserror = { workspace = true }
-swap-if = { path = "../swap-if" }
-swap-pair = { path = "../swap-pair" }
+swap-if = { path = "../../interfaces/swap-if" }
+swap-pair = { path = "../../engines/swap-pair" }
 swap-driver = { path = "../swap-driver" }
 swap-handler = { path = "../swap-handler" }
 
@@ -45,6 +45,9 @@ guest_test = [] # Test contracts compiled to guest binaries (instead of compilin
 swap-router = { path = ".", features = ["dev"] }
 swap-factory = { path = "../swap-factory", features = ["dev"] }
 groundhog-testkit = { workspace = true }
+# Registering the native HOG token at its precompiled address, which the
+# factory spends the pool's funding from.
+groundhog-xdr = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uint = { version = "0.10.0", default-features = false }
 

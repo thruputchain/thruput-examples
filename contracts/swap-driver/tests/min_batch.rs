@@ -167,10 +167,12 @@ fn a_crank_never_owes_more_than_the_floor() {
 /////////////////////// helpers /////////////////////////////////////////////
 
 fn enqueue(etx: &Etx) -> Result<RequestId, TransactResult> {
-    let ctx = &etx.ctx;
-    etx.exec_user_tx(ALICE, |u| {
-        ctx.driver()
-            .request(SwapRequest::swap_exact_in(u.addr, UNIT_AMT, 0, 0, u.addr))
+    let ctx = etx.ctx;
+    // Enqueued as the router: the driver takes requests from it alone.
+    etx.exec_tx(&ROUTER_ADDR, move || {
+        ctx.driver().request(SwapRequest::swap_exact_in(
+            ALICE.addr, UNIT_AMT, 0, 0, ALICE.addr,
+        ))
     })
 }
 

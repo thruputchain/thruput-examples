@@ -48,13 +48,14 @@ fn a_successful_batch_reports_no_failures() {
         etx.advance_block();
 
         for user in [ALICE, BOB] {
-            etx.exec_user_tx(user, |u| {
+            // Enqueued as the router: the driver takes requests from it alone.
+            etx.exec_tx(&ROUTER_ADDR, move || {
                 ctx.driver().request(SwapRequest::swap_exact_in(
-                    u.addr,
+                    user.addr,
                     SWAP_IN_AMT,
                     0,
                     0,
-                    u.addr,
+                    user.addr,
                 ))
             })?;
         }
@@ -109,7 +110,8 @@ fn the_summary_identifies_its_driver_by_the_emitting_address() {
         let (r, _) = process_capturing(&etx);
 
         assert_eq!(summaries_from(&r, &ctx.driver_addr), vec![(1, 1)]);
-        for other in [&ctx.pair_addr, &ctx.request_handler_addr] {
+        {
+            let other = &ctx.request_handler_addr;
             assert_eq!(
                 summaries_from(&r, other),
                 vec![],
@@ -134,11 +136,13 @@ fn summaries_from(r: &TransactResult, address: &Address) -> Vec<(u32, u32)> {
 }
 
 fn enqueue_unfunded(etx: &Etx) -> Result<RequestId, TransactResult> {
-    let ctx = &etx.ctx;
+    let ctx = etx.ctx;
 
-    etx.exec_user_tx(ALICE, |u| {
-        ctx.driver()
-            .request(SwapRequest::swap_exact_in(u.addr, UNIT_AMT, 0, 0, u.addr))
+    // Enqueued as the router: the driver takes requests from it alone.
+    etx.exec_tx(&ROUTER_ADDR, move || {
+        ctx.driver().request(SwapRequest::swap_exact_in(
+            ALICE.addr, UNIT_AMT, 0, 0, ALICE.addr,
+        ))
     })
 }
 

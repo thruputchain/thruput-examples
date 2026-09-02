@@ -1,0 +1,33 @@
+[package]
+name = "swap-pair"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+doctest = false
+test = false # suppress output from our zero unit-tests
+
+[dependencies]
+sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
+swap-if = { path = "../../interfaces/swap-if" }
+heapless = { workspace = true }
+
+# Optional
+erc20 = { path = "../../contracts/erc20", features = ["dev"], optional = true }
+
+[features]
+dev = ["sdk/dev", "dep:erc20", "swap-if/dev"]
+
+[dev-dependencies]
+swap-pair = { path = ".", features = ["dev"] }
+
+[lints]
+clippy.result_large_err = "allow"

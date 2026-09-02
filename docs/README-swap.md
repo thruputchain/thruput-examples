@@ -3,7 +3,7 @@
 The `swap-*` contracts are an example port (not for production) from Ethereum to
 Groundhog of UniswapV2, adding a request-batching layer:
 
-- `swap-if`: Interface-only crate.  It defines every swap contract's trait,
+- [`swap-if`](../interfaces/swap-if/): Interface-only crate.  It defines every swap contract's trait,
   client, and error type, plus the shared value types (including the
   `SwapRequest` request types), so the contracts can call one another -- and be
   created by the factory -- without depending on each other's implementations.
@@ -149,6 +149,83 @@ An operator wanting better latency can run a keeper that cranks every block.
 The two compose without a mode switch: while the keeper runs, it wins each
 block and users' cranks defer harmlessly behind it; if it stops, theirs start
 winning the very next block. Nothing has to detect which is happening.
+
+## Trust and Permissions
+
+An operation reaches the reserves along one path:
+
+```
+router  ->  driver  ->  handler  ->  the pair's code
+```
+
+The router is the public entry point and the only contract that sees the user
+directly, so it is where the operation's payer is recorded. Every stage below it
+carries that identity along as *data* — a `SwapRequest` names the account whose
+tokens it will spend, and the handler spends them on that account's standing
+allowance to it.
+
+That makes each stage's willingness to be called a security property, because
+nothing downstream can check the claim the data makes. So each link takes work
+from its predecessor alone: `SwapDriver::request` admits only the router, and
+`SwapHandler::handle_request` only that pool's driver. Both refuse anyone else
+with an `Unauthorized` error. Without those, anyone could enqueue a request
+naming a victim as the payer and themselves as the recipient, and be paid out of
+the victim's approval.
+
+The pair needs no such guard, because it is no longer a contract: its operations
+run inside the handler's own invocation, so there is no entry point to defend.
+That is the security dividend of collapsing it — a boundary that cannot be
+called wrongly beats one that is checked correctly.
+
+### What is deliberately open
+
+- **`process_requests`**, so that cranking stays permissionless. The queue is
+  the pool's throughput, and making it depend on a privileged keeper would
+  defeat the point; see [Cranking the Queue](#cranking-the-queue).
+- **`skim` and `sync`**, as in UniswapV2. They attribute nothing and can only
+  move what the reserves do not already account for, so they remain available
+  for recovering tokens sent to a pool by mistake.
+
+### Initialization
+
+None of the `initialize` methods checks its caller, and none can: before the
+first call there is no principal to check against, and any address passed in for
+comparison would be supplied by the very caller being checked.
+
+What protects them instead is that a pool is deployed *and* initialized inside a
+single transaction — `SwapFactory::create_pair` funds, deploys and initializes
+the LP token, handler and driver before it returns — so nothing can act on those
+contracts in between. A second call is refused. And a deployed address
+derives from its deployer, so no one else can deploy to the address the factory
+predicted for a pool.
+
+Funding is part of the same transaction. Each of the three contracts pays for
+its own storage, so each must hold HOG before it writes any; `create_pair` takes
+a `funding` and moves that much to each address *before* deploying to it, which
+deterministic deploy addresses make possible. The HOG comes from the caller, on
+an allowance granted to the factory — out of the factory's own balance, anyone
+could drain it by creating pools.
+
+That the funding and the writes it pays for share a transaction is also why
+`create_pair` cannot verify the funding was enough. A storage deposit is settled
+when the transaction commits; a commit-locked (`try_`) initialization, which
+would settle each contract's deposit as its call returned, weighs that contract
+against the balance committed *before* this transaction — and so cannot see
+funding paid within it. The factory checks a floor and no more — `pool_funding`
+answers with that floor and the figure it recommends instead. Past the floor,
+a shortfall is felt at the transaction's reservation, which returns it to the
+mempool to retry and expire rather than including a failure in the block.
+
+Because creation spends the creator's HOG, the router does not do it.
+UniswapV2's router creates a pair on the first `addLiquidity`; ours resolves
+every operation's pair against the factory's registry and throws
+`SwapRouterError::NoSuchPair` if it is not there, leaving pool creation an
+explicit call to the factory.
+
+The one ordering this imposes reaches outside the factory: each driver is told
+the router whose requests it will accept, so the factory must be told the router
+too, at its own initialization. The router therefore has to be *deployed* —
+though not yet initialized — before `SwapFactory::initialize` is called.
 
 ## Frontend
 

@@ -1,15 +1,24 @@
 //! Tests for the swap factory: one-transaction pool bring-up, the pair
 //! registry, and the protocol fee flowing to the factory's `fee_to`.
 
-use groundhog_erc20_if::ERC20Client;
+use groundhog_erc20_if::{Amount, Difference, ERC20Client};
+use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
+use sdk::storage::Node;
 use sdk::*;
-use swap_factory::{Addresses, SwapFactoryClient, SwapFactoryClientError, SwapFactoryError};
+use swap_factory::{
+    Addresses, POOL_FUNDING, SwapFactoryClient, SwapFactoryClientError, SwapFactoryError,
+};
+use swap_handler::SwapHandlerClient;
 use swap_if::SwapHashes;
-use swap_pair::SwapPairClient;
+use swap_pair::Pair;
 use swap_pair::u256::U256;
 
 hash_ident! { pub static DEPLOYER: ContractAddress; }
 hash_ident! { pub static FEE_ADDR: ContractAddress; }
+// The factory hands this on to every driver it creates, as the only address
+// whose requests they will take.  Nothing here enqueues, so a bare address
+// stands in for the router contract.
+hash_ident! { pub static ROUTER_ADDR: ContractAddress; }
 
 // Enough for the fee test's prime + donation + second add.
 const SUPPLY: u128 = 3_000_000;
@@ -17,6 +26,9 @@ const SUPPLY: u128 = 3_000_000;
 // Storage tokens granted to each contract under the default cost model, well
 // above what these tests spend.
 const CONTRACT_FUNDING: i64 = 1_000_000_000;
+
+// What the tests hand `create_pair` for each of the pool's three contracts.
+const FUNDING: Amount = POOL_FUNDING.recommended;
 
 // Deploy nonces, at module scope so a contract's deterministic address can be
 // computed (and funded) before it is deployed.
@@ -54,7 +66,6 @@ fn register_contracts(env: &TestEnvironmentHandle) -> (SwapHashes, SHA256Hash) {
     (
         SwapHashes {
             token: *erc20::register_mock_contract(env).as_hash(),
-            pair: *swap_pair::register_mock_contract(env).as_hash(),
             handler: *swap_handler::register_mock_contract(env).as_hash(),
             driver: *swap_driver::register_mock_contract(env).as_hash(),
         },
@@ -69,7 +80,6 @@ fn register_contracts(env: &TestEnvironmentHandle) -> (SwapHashes, SHA256Hash) {
     (
         SwapHashes {
             token: env.setup_create_contract(&load("erc20")),
-            pair: env.setup_create_contract(&load("swap_pair")),
             handler: env.setup_create_contract(&load("swap_handler")),
             driver: env.setup_create_contract(&load("swap_driver")),
         },
@@ -81,6 +91,19 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     let env = sdk::TestEnvironment::new(None); // use default cost model
 
     let (hashes, factory_hash) = register_contracts(&env);
+
+    // The factory pays for the pool's contracts out of the creator's HOG, so
+    // the native HOG token has to be reachable at its precompiled address.
+    env.setup_create_deployment(
+        &ADDRESS_PRECOMPILED_HOG_TOKEN,
+        &Contract::kNative {
+            native_contract_id:
+                groundhog_xdr::precompiles::HogexecPrecompiledNativeContracts::kNativeContractHogToken,
+        },
+    );
+    // The token keeps its allowance ledger in its own storage, and pays for it
+    // like any other contract.
+    env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);
 
     // Under the default cost model each contract pays for the storage it writes,
     // so pre-fund the deployer and the contracts it deploys directly.
@@ -105,26 +128,20 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     // Deploy + init the factory.
     let factory = exec_tx(&env, &DEPLOYER, || {
         let f = deploy_contract(&FACTORY_NONCE, &factory_hash);
-        SwapFactoryClient::new(&f).initialize(hashes, fee_to);
+        SwapFactoryClient::new(&f).initialize(hashes, fee_to, &ROUTER_ADDR);
         f
     })
     .unwrap();
     env.advance_block();
 
-    // Pre-fund the pair's contracts, which the factory deploys inside
-    // `create_pair` (called by the tests).
-    let predicted = exec_tx(&env, &DEPLOYER, || {
-        SwapFactoryClient::new(&factory).pool_addresses(&token0, &token1)
+    // The factory funds the pool's three contracts as it deploys them, on the
+    // allowance the creator grants it.
+    exec_tx(&env, &DEPLOYER, || {
+        ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
+            .adjust_allowance(&factory, CONTRACT_FUNDING as Difference);
     })
     .unwrap();
-    for addr in [
-        predicted.liquidity_token,
-        predicted.pair,
-        predicted.handler,
-        predicted.driver,
-    ] {
-        env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
-    }
+    env.advance_block();
 
     Setup {
         env: env.clone(),
@@ -132,6 +149,36 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
         token0,
         token1,
     }
+}
+
+// A `funding` below the factory's floor is refused outright, before anything
+// is deployed.  This is the only under-funding the factory can report: past
+// the floor a shortfall is only felt when the transaction's storage deposits
+// are reserved, which returns the transaction to the mempool rather than
+// aborting it -- see `SwapFactoryError::InsufficientFunding`.
+#[test]
+fn create_pair_refuses_funding_below_the_floor() {
+    let s = setup();
+
+    let result = exec_tx(&s.env, &DEPLOYER, || {
+        SwapFactoryClient::new(&s.factory).try_create_pair(&s.token0, &s.token1, 1)
+    })
+    .unwrap();
+    assert!(matches!(
+        result,
+        Err(SwapFactoryClientError::SwapFactoryError(
+            SwapFactoryError::InsufficientFunding
+        ))
+    ));
+    s.env.advance_block();
+
+    // Nothing was created: the pair is still absent from the registry.
+    exec_tx(&s.env, &DEPLOYER, || {
+        let factory = SwapFactoryClient::new(&s.factory);
+        assert_eq!(factory.get_pair(&s.token0, &s.token1), None);
+        assert_eq!(factory.all_pairs_length(), 0);
+    })
+    .unwrap();
 }
 
 #[test]
@@ -148,7 +195,7 @@ fn create_pair_brings_up_pool() {
     // The whole pool is deployed and wired in a single transaction.  If any
     // sub-initialization had failed, `create_pair` would have thrown.
     let pool = exec_tx(&s.env, &DEPLOYER, || {
-        SwapFactoryClient::new(&s.factory).create_pair(&s.token0, &s.token1)
+        SwapFactoryClient::new(&s.factory).create_pair(&s.token0, &s.token1, FUNDING)
     })
     .unwrap();
     s.env.advance_block();
@@ -161,8 +208,8 @@ fn create_pair_brings_up_pool() {
         let factory = SwapFactoryClient::new(&s.factory);
 
         // Registry, order-independent.
-        assert_eq!(factory.get_pair(&s.token0, &s.token1), Some(pool.pair));
-        assert_eq!(factory.get_pair(&s.token1, &s.token0), Some(pool.pair));
+        assert_eq!(factory.get_pair(&s.token0, &s.token1), Some(pool.handler));
+        assert_eq!(factory.get_pair(&s.token1, &s.token0), Some(pool.handler));
         assert_eq!(factory.all_pairs_length(), 1);
         assert_eq!(factory.fee_to(), Some(FEE_ADDR));
 
@@ -175,16 +222,18 @@ fn create_pair_brings_up_pool() {
         assert_eq!(factory.pair_at(1), None);
 
         // The pair adopted its LP token and is initialized (empty reserves).
-        let pair = SwapPairClient::new(&pool.pair);
-        assert_eq!(pair.liquidity_token(), pool.liquidity_token);
-        let (r0, r1, _) = pair.get_reserves();
+        let pool_client = SwapHandlerClient::new(&pool.handler);
+        let state = pool_client.pool_state();
+        assert_eq!(state.liquidity_token, pool.liquidity_token);
+        let [r0, r1] = state.reserves;
         assert_eq!((r0, r1), (0, 0));
     })
     .unwrap();
 
-    // Creating the same pair again is rejected.
+    // Creating the same pair again is rejected.  (Both arms of `create_pair`'s
+    // guard, in the one test, so the successful bring-up above is not repeated.)
     let dup = exec_tx(&s.env, &DEPLOYER, || {
-        SwapFactoryClient::new(&s.factory).try_create_pair(&s.token0, &s.token1)
+        SwapFactoryClient::new(&s.factory).try_create_pair(&s.token0, &s.token1, FUNDING)
     })
     .unwrap();
     assert!(matches!(
@@ -208,12 +257,12 @@ fn fee_accrues_to_factory_fee_to() {
     assert_eq!(fee_before, 0, "the first liquidity event mints no fee");
 
     // Snapshot the reserves and supply the next liquidity event will see.
-    let (r0, r1, _) = exec_tx(&s.env, &DEPLOYER, || {
-        SwapPairClient::new(&pair).get_reserves()
+    let [r0, r1] = exec_tx(&s.env, &DEPLOYER, || {
+        SwapHandlerClient::new(&pair).pool_state().reserves
     })
     .unwrap();
     let supply = exec_tx(&s.env, &DEPLOYER, || {
-        SwapPairClient::new(&pair).get_liquidity()
+        SwapHandlerClient::new(&pair).pool_state().liquidity
     })
     .unwrap();
     // k at the previous liquidity event (the prime, with equal reserves).
@@ -262,25 +311,20 @@ fn prime_and_grow(
     let (factory, token0, token1) = (s.factory, s.token0, s.token1);
 
     let pool = exec_tx(&s.env, &DEPLOYER, || {
-        SwapFactoryClient::new(&factory).create_pair(&token0, &token1)
+        SwapFactoryClient::new(&factory).create_pair(&token0, &token1, FUNDING)
     })
     .unwrap();
     s.env.advance_block();
 
-    let (pair, lp, t0, t1) = (pool.pair, pool.liquidity_token, token0, token1);
+    let (pair, lp, t0, t1) = (pool.handler, pool.liquidity_token, token0, token1);
 
-    exec_tx(&s.env, &DEPLOYER, || {
-        ERC20Client::new(&t0).transfer(&pair, PRIME);
-        ERC20Client::new(&t1).transfer(&pair, PRIME);
-        SwapPairClient::new(&pair).mint_lp(&DEPLOYER, None);
-    })
-    .unwrap();
+    deposit_and_mint(&s.env, pair, t0, t1).assert_success();
     s.env.advance_block();
 
     exec_tx(&s.env, &DEPLOYER, || {
         ERC20Client::new(&t0).transfer(&pair, PRIME);
         ERC20Client::new(&t1).transfer(&pair, PRIME);
-        SwapPairClient::new(&pair).sync();
+        SwapHandlerClient::new(&pair).sync();
     })
     .unwrap();
     s.env.advance_block();
@@ -296,13 +340,7 @@ fn second_liquidity_event(
     t0: ContractAddress,
     t1: ContractAddress,
 ) -> TransactResult {
-    env.transact(|tx| {
-        tx.call(&DEPLOYER).run(move || {
-            ERC20Client::new(&t0).transfer(&pair, PRIME);
-            ERC20Client::new(&t1).transfer(&pair, PRIME);
-            SwapPairClient::new(&pair).mint_lp(&DEPLOYER, None);
-        })
-    })
+    env.transact(|tx| deposit_and_mint_frame(tx, pair, t0, t1))
 }
 
 /////////////////////// protocol-fee gas ////////////////////////////////////
@@ -388,6 +426,43 @@ fn measure_fee_event(fee_to: Option<ContractAddress>) -> u64 {
         })
         .last()
         .expect("an invoke of the pair")
+}
+
+// A liquidity event: the depositor moves its tokens into the pool, and then
+// the pool's own frame mints against them.  Both in one transaction, so the
+// mint sees the deposit -- a second transaction would read the balances its
+// own block began with.
+fn deposit_and_mint(
+    env: &TestEnvironmentHandle,
+    pool: ContractAddress,
+    t0: ContractAddress,
+    t1: ContractAddress,
+) -> TransactResult {
+    env.transact(|tx| deposit_and_mint_frame(tx, pool, t0, t1))
+}
+
+fn deposit_and_mint_frame(
+    tx: &mut MockTransactionHandler,
+    pool: ContractAddress,
+    t0: ContractAddress,
+    t1: ContractAddress,
+) -> FrameResult {
+    tx.call(&DEPLOYER)
+        .run_continuable(|frame| {
+            ERC20Client::new(&t0).transfer(&pool, PRIME);
+            ERC20Client::new(&t1).transfer(&pool, PRIME);
+
+            frame
+                .child_call(&pool)
+                .run(|| {
+                    let mut pair: Node<Pair> = swap_handler::pair_state();
+                    pair.mint_lp(&DEPLOYER);
+                })
+                .assert_success();
+
+            FrameAction::Close
+        })
+        .finish()
 }
 
 // The factory's canonical (ascending) token order, which its registry uses.

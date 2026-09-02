@@ -16,22 +16,22 @@ fn _serial_redeem(etx: &Etx) -> Result<()> {
         let ctx = &etx.ctx;
 
     // Alice buys liquidity tokens
-    etx.exec_user_tx(ALICE, |u| ctx.user_buy(u))?;
+    etx.user_buy(ALICE)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
     // Bob buys liquidity tokens
-    etx.exec_user_tx(BOB, |u| ctx.user_buy(u))?;
+    etx.user_buy(BOB)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
     // Bob redeems liquidity tokens
-    etx.exec_user_tx(BOB, |u| ctx.user_redeem(u))?;
+    etx.user_redeem(BOB)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
     // Alice redeems liquidity tokens
-    etx.exec_user_tx(ALICE, |u| ctx.user_redeem(u))?;
+    etx.user_redeem(ALICE)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
@@ -61,12 +61,12 @@ fn _concurrent_redeem(etx: &Etx) -> Result<()> {
     let ctx = &etx.ctx;
 
     // Alice buys liquidity tokens
-    etx.exec_user_tx(ALICE, |u| ctx.user_buy(u))?;
+    etx.user_buy(ALICE)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
     // Bob buys liquidity tokens
-    etx.exec_user_tx(BOB, |u| ctx.user_buy(u))?;
+    etx.user_buy(BOB)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
@@ -87,10 +87,14 @@ fn _concurrent_redeem(etx: &Etx) -> Result<()> {
     /* ----- */ etx.advance_block(); /* ----- */
 
     // Bob requests redemption
-    etx.exec_user_tx(BOB, |u| ctx.user_redeem_request(u, bob_allowed))?;
+    etx.exec_tx(&ROUTER_ADDR, move || {
+        ctx.user_redeem_request(&BOB, bob_allowed)
+    })?;
 
     // Bob requests redemption
-    etx.exec_user_tx(ALICE, |u| ctx.user_redeem_request(u, alice_allowed))?;
+    etx.exec_tx(&ROUTER_ADDR, move || {
+        ctx.user_redeem_request(&ALICE, alice_allowed)
+    })?;
 
     let (n_processed, n_failed) =
         etx.exec_tx(&TEST_ADDR, || ctx.driver().process_requests())?;

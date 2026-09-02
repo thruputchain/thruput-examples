@@ -159,8 +159,10 @@ fn pledge_and_request(etx: &Etx) {
     let ctx = etx.ctx;
     pledge(etx, ALICE);
     etx.advance_block();
-    etx.exec_user_tx(ALICE, |u| ctx.driver().request(swap_request(u)))
-        .expect("request");
+    etx.exec_tx(&ROUTER_ADDR, move || {
+        ctx.driver().request(swap_request(&ALICE))
+    })
+    .expect("request");
 }
 
 fn swap_request(u: &User) -> SwapRequest {

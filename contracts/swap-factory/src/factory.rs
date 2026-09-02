@@ -1,6 +1,7 @@
 //! The factory contract implementation.
 
-use crate::events::*;
+use groundhog_erc20_if::ERC20Client;
+use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use sdk::storage::*;
 use sdk::*;
 use swap_if::*;
@@ -14,6 +15,10 @@ pub struct Factory {
 
     // The protocol-fee recipient consulted by every pair (`None` disables it).
     fee_to: Value<Option<Address>>,
+
+    // The router that fronts this factory's pools: each driver it creates
+    // takes requests from that address alone.
+    router: Value<Address>,
 
     // Registry: sorted token pair -> pair address, and the creation-ordered
     // list of those token pairs (each one a key into `pairs`, and the input
@@ -55,54 +60,126 @@ const MAX_QUEUE_LEN: u32 = 256;
 /// along, and who must fund this batch as soon as that many are waiting.
 const MIN_CRANK_BATCH: u32 = 8;
 
+/// What this factory asks for each of a new pool's three contracts, answered
+/// to callers by [`SwapFactory::pool_funding`].
+///
+/// `min` is a floor that rejects an obviously wrong `funding`, not an estimate
+/// of what a pool will spend: bringing one up costs a shade under 84_000 per
+/// contract under the default cost model (measured in `tests/factory.rs`), and
+/// a driver's queue adds `12_000 + 8 * MAX_QUEUE_LEN` once it fills.  It
+/// covers both and nothing more.
+///
+/// `recommended` is room for some 800 storage items per contract -- far more
+/// than bring-up and a full queue need, and enough that the handler and the LP
+/// token, which grow with the pool's users, will not need topping up for a
+/// long while.  A caller may pass more for a pool it expects to be busy, or
+/// less under a cheaper cost model.
+pub const POOL_FUNDING: PoolFunding = PoolFunding {
+    min: 128_000,
+    recommended: 10_000_000,
+};
+
 #[contract(exports = "swap_factory_exports")]
 impl SwapFactory for Factory {
-    fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>) {
+    fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>, router: &Address) {
         if self.hashes.try_get().none_if_missing().is_some() {
             throw(SwapFactoryError::AlreadyInitialized);
         }
 
         self.hashes.set(&hashes);
         self.fee_to.set(&fee_to);
+        self.router.set(router);
     }
 
     fn fee_to(&self) -> Option<Address> {
         self.fee_to.get()
     }
 
-    fn create_pair(&mut self, token_a: &Address, token_b: &Address) -> Pool {
+    fn pool_funding(&self) -> PoolFunding {
+        POOL_FUNDING
+    }
+
+    fn create_pair(&mut self, token_a: &Address, token_b: &Address, funding: Amount) -> Pool {
         let tokens = TokenPair::new(token_a, token_b);
         let [token0, token1] = tokens.as_refs();
         ensure(
             self.get_pair(token0, token1).is_none(),
             SwapFactoryError::PairExists,
         );
+        // The only under-funding this contract can catch.  A deposit is
+        // settled when the transaction commits, so a `funding` that clears
+        // this floor but runs out later is not visible from in here -- see the
+        // note on the initialization calls below.
+        ensure(
+            funding >= POOL_FUNDING.min,
+            SwapFactoryError::InsufficientFunding,
+        );
 
-        // Deploy the pool.  Distinct salts (per role) keep the child addresses
-        // distinct while remaining deterministic in the token pair.
+        // Fund, deploy and initialize the pool, all here.  A contract pays for
+        // its own storage, so each of these has to hold HOG before it writes
+        // any -- and the funding goes to the address *before* the deploy, since
+        // a deployment is itself storage the new contract may be charged for.
+        // Deploy addresses are deterministic, so an address can be funded
+        // before anything is there.
+        //
+        // The HOG comes from whoever asked for the pool, on the allowance they
+        // granted this contract.  Taking it from the factory's own balance
+        // would let anyone drain it by creating pools.  Distinct salts (per
+        // role) keep the child addresses distinct while remaining
+        // deterministic in the token pair.
         let hashes = self.hashes.get();
-        let liquidity_token = deploy_contract(&tokens.nonce_for(Role::LP), &hashes.token);
-        let pair = deploy_contract(&tokens.nonce_for(Role::Pair), &hashes.pair);
-        let handler = deploy_contract(&tokens.nonce_for(Role::Handler), &hashes.handler);
-        let driver = deploy_contract(&tokens.nonce_for(Role::Driver), &hashes.driver);
+        let payer = get_caller();
+        let hog = ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN);
+
+        let deploy_funded = |role: Role, hash: &SHA256Hash| -> Address {
+            let nonce = tokens.nonce_for(role);
+            hog.transfer_from(&payer, &get_deploy_address(&nonce, hash), funding);
+            deploy_contract(&nonce, hash)
+        };
+
+        let liquidity_token = deploy_funded(Role::LP, &hashes.token);
+        let handler = deploy_funded(Role::Handler, &hashes.handler);
+        let driver = deploy_funded(Role::Driver, &hashes.driver);
 
         // Initialize and wire them together.  A newly deployed contract is
         // callable within this same transaction.  These are plain (non-`try`)
         // calls: a callee's failure propagates with its own error type, which
-        // is among those mentioned in this trait's `throws` annotation.
+        // is among those mentioned in this trait's `throws` annotation, and
+        // aborting here discards the deployments too, so a pool is never left
+        // half-built.
+        //
+        // Commit-locking them (`try_initialize` on a `with_commit_locking`
+        // client) would be the obvious way to turn a funding shortfall into an
+        // error this contract could report.  It cannot be used here: pulling a
+        // child's two-phase-commit lock forward to the end of its call weighs
+        // that child's storage against the balance committed *before* this
+        // transaction, and the funding above is a delta within it.  Every
+        // `create_pair` would fail, however well funded.  Funding a pool in an
+        // earlier transaction would let the lock see it, but that is exactly
+        // the two-step dance this signature exists to remove.
+        //
+        // So a shortfall past the floor checked above shows up where storage
+        // deposits are always settled: at this transaction's reservation,
+        // which returns it to the mempool rather than including a failure in
+        // the block.  It will retry, and keep failing, until it expires.
         let me = get_current_address();
-        SwapPairClient::new(&pair).initialize(&me, token0, token1, &liquidity_token);
-        SwapHandlerClient::new(&handler).initialize(&pair, token0, token1);
-        SwapDriverClient::new(&driver).initialize(&handler, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
+
+        SwapHandlerClient::new(&handler).initialize(&me, token0, token1, &liquidity_token, &driver);
+        SwapDriverClient::new(&driver).initialize(
+            &handler,
+            &self.router.get(),
+            MAX_QUEUE_LEN,
+            MIN_CRANK_BATCH,
+        );
 
         // Record the new pair: by tokens (for `get_pair`) and in creation
-        // order (for `pair_at`).
-        self.pairs.at_mut(tokens.key()).set(&pair);
+        // order (for `pair_at`).  A pair is its handler -- that is the
+        // contract holding its reserves and performing its operations.
+        self.pairs.at_mut(tokens.key()).set(&handler);
         self.all_pairs.push_with(|slot| slot.set(tokens.key()));
 
         let pool = Pool {
             liquidity_token,
-            pair,
             handler,
             driver,
         };
@@ -110,7 +187,6 @@ impl SwapFactory for Factory {
         log_event(&PoolCreated {
             token0,
             token1,
-            pair,
             liquidity_token,
             handler,
             driver,
@@ -128,7 +204,6 @@ impl SwapFactory for Factory {
         let hashes = self.hashes.get();
         Pool {
             liquidity_token: get_deploy_address(&tokens.nonce_for(Role::LP), &hashes.token),
-            pair: get_deploy_address(&tokens.nonce_for(Role::Pair), &hashes.pair),
             handler: get_deploy_address(&tokens.nonce_for(Role::Handler), &hashes.handler),
             driver: get_deploy_address(&tokens.nonce_for(Role::Driver), &hashes.driver),
         }
@@ -195,7 +270,6 @@ impl TokenPair {
 #[repr(i32)]
 enum Role {
     LP = 0,
-    Pair = 1,
-    Handler = 2,
-    Driver = 3,
+    Handler = 1,
+    Driver = 2,
 }

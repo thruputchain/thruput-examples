@@ -20,21 +20,28 @@ pub const MIN_CRANK_BATCH: u32 = 4;
 hash_ident! { static TOKEN_0_NONCE: SHA256Hash; }
 hash_ident! { static TOKEN_1_NONCE: SHA256Hash; }
 hash_ident! { static LP_NONCE: SHA256Hash; }
-hash_ident! { static PAIR_NONCE: SHA256Hash; }
 hash_ident! { static HANDLER_NONCE: SHA256Hash; }
 hash_ident! { static DRIVER_NONCE: SHA256Hash; }
 
 // Under the default cost model a contract pays for the storage it writes.  Grant
 // storage tokens to the (deterministic) address `deployer` will deploy `hash` to
 // with `nonce`, so the freshly deployed contract is solvent.
+fn deploy_address_of(
+    env: &TestEnvironmentHandle,
+    deployer: &ContractAddress,
+    nonce: &SHA256Hash,
+    hash: &SHA256Hash,
+) -> Address {
+    exec_tx(env, deployer, || get_deploy_address(nonce, hash)).expect("compute deploy address")
+}
+
 fn fund_deploy_target(
     env: &TestEnvironmentHandle,
     deployer: &ContractAddress,
     nonce: &SHA256Hash,
     hash: &SHA256Hash,
 ) {
-    let addr =
-        exec_tx(env, deployer, || get_deploy_address(nonce, hash)).expect("compute deploy address");
+    let addr = deploy_address_of(env, deployer, nonce, hash);
     env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
 }
 
@@ -57,10 +64,6 @@ pub fn setup_etx_native() -> Result<Etx> {
     let token_contract = erc20::register_mock_contract(&env);
     let token_hash = *token_contract.as_hash();
 
-    // Register the swap-pair contract
-    let pair_contract = swap_pair::register_mock_contract(&env);
-    let pair_hash = *pair_contract.as_hash();
-
     // Register the request-handler contract
     let handler_contract = swap_handler::register_mock_contract(&env);
     let handler_hash = *handler_contract.as_hash();
@@ -69,7 +72,7 @@ pub fn setup_etx_native() -> Result<Etx> {
     let driver_contract = swap_driver::register_mock_contract(&env);
     let driver_hash = *driver_contract.as_hash();
 
-    setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash)
+    setup_contracts(&env, token_hash, handler_hash, driver_hash)
 }
 
 #[cfg(feature = "guest_test")]
@@ -79,7 +82,6 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let load = |name: &str| load_rv32_contract(guest_path(name, "rv32a"));
 
     let token_contract = load("erc20");
-    let pair_contract = load("swap_pair");
     let handler_contract = load("swap_handler");
     let driver_contract = load("swap_driver");
     let router_contract = load("swap_router");
@@ -88,18 +90,16 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let env = sdk::TestEnvironment::new(None); // use default cost model
 
     let token_hash = env.setup_create_contract(&token_contract);
-    let pair_hash = env.setup_create_contract(&pair_contract);
     let handler_hash = env.setup_create_contract(&handler_contract);
     let driver_hash = env.setup_create_contract(&driver_contract);
 
-    setup_contracts(&env, token_hash, pair_hash, handler_hash, driver_hash)
+    setup_contracts(&env, token_hash, handler_hash, driver_hash)
 }
 
 #[rustfmt::skip]
 pub fn setup_contracts(
     env: &TestEnvironmentHandle,
     token_hash: SHA256Hash,
-    pair_hash: SHA256Hash,
     handler_hash: SHA256Hash,
     driver_hash: SHA256Hash,
 ) -> Result<Etx> {
@@ -113,7 +113,6 @@ pub fn setup_contracts(
     fund_deploy_target(env, &TEST_ADDR, &TOKEN_0_NONCE, &token_hash);
     fund_deploy_target(env, &TEST_ADDR, &TOKEN_1_NONCE, &token_hash);
     fund_deploy_target(env, &FACTORY_ADDR, &LP_NONCE, &token_hash);
-    fund_deploy_target(env, &FACTORY_ADDR, &PAIR_NONCE, &pair_hash);
     fund_deploy_target(env, &FACTORY_ADDR, &HANDLER_NONCE, &handler_hash);
     fund_deploy_target(env, &FACTORY_ADDR, &DRIVER_NONCE, &driver_hash);
 
@@ -127,16 +126,15 @@ pub fn setup_contracts(
 
     /* ----- */ env.advance_block(); /* ----- */
 
-    // As the factory, deploy and init a swap-pair contract
-    let (pair_addr, liquidity_token) = exec_tx(env, &FACTORY_ADDR, || {
-        swap_pair_deploy_init(&pair_hash, &token_hash, token_addrs)
-    })?;
+    // As the factory, deploy and init the handler.  It is the pool: it adopts
+    // the LP token, holds the reserves, and performs the pair's operations
+    // itself.
+    // The handler takes requests from its driver alone, and the driver is
+    // deployed below -- but to a deterministic address, so it can be told now.
+    let driver_addr_predicted = deploy_address_of(env, &FACTORY_ADDR, &DRIVER_NONCE, &driver_hash);
 
-    /* ----- */ env.advance_block(); /* ----- */
-
-    // As the factory, deploy and init the request-handler contract
-    let request_handler_addr = exec_tx(env, &FACTORY_ADDR, || {
-        request_handler_deploy_init(&handler_hash, &pair_addr, &token_addrs)
+    let (request_handler_addr, liquidity_token) = exec_tx(env, &FACTORY_ADDR, || {
+        handler_deploy_init(&handler_hash, &token_hash, token_addrs, &driver_addr_predicted)
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
@@ -145,6 +143,10 @@ pub fn setup_contracts(
     let driver_addr = exec_tx(env, &FACTORY_ADDR, || {
         driver_deploy_init(&driver_hash, &request_handler_addr)
     })?;
+    assert_eq!(
+        driver_addr, driver_addr_predicted,
+        "the driver must land at the address the handler was told"
+    );
 
     /* ----- */ env.advance_block(); /* ----- */
 
@@ -152,7 +154,6 @@ pub fn setup_contracts(
     let ctx = Ctx {
         driver_addr,
         request_handler_addr,
-        pair_addr,
         liquidity_token,
         token_addrs
     };
@@ -165,7 +166,7 @@ pub fn setup_etx_primed() -> Result<Etx> {
     let etx = setup_etx()?;
 
     // Primer buys liquidity tokens, establishing a stable price
-    etx.exec_user_tx(PRIMER, |u| etx.ctx.user_buy_unpriced(u))?;
+    etx.user_buy_unpriced(PRIMER)?;
 
     /* ----- */ etx.advance_block(); /* ----- */
 
@@ -230,49 +231,31 @@ fn airdrop_tokens(token_addrs: &Addresses) {
     }
 }
 
-// Deploy and init a swap-pair contract, given hashes of a registered pair
-// contract and a registered token contract.
-fn swap_pair_deploy_init(
-    pair_hash: &SHA256Hash,
+// Deploy and init the handler, which is the pool: it adopts the LP token and
+// performs the pair's operations in its own frame.
+fn handler_deploy_init(
+    handler_hash: &SHA256Hash,
     token_hash: &SHA256Hash,
     token_addrs: Addresses,
+    driver_addr: &Address,
 ) -> (Address, Address) {
     assert_eq!(&get_current_address(), &FACTORY_ADDR);
 
-    // Deploy the LP-token contract (to be initialized below by
-    // `pair.initialize`)
+    // Deploy the LP-token contract (to be initialized by the handler)
     let lp_addr = deploy_contract(&LP_NONCE, token_hash);
 
-    // Deploy a new swap-pair contract
-    let pair_addr = deploy_contract(&PAIR_NONCE, pair_hash);
-
-    let pair = SwapPairClient::new(&pair_addr);
-
-    // Initialize the pair contract with the two tokens
-    // (This also initializes its embedded LP-token implementation.)
-    pair.initialize(&FACTORY_ADDR, &token_addrs[0], &token_addrs[1], &lp_addr);
-
-    let liquidity_token = pair.liquidity_token();
-
-    (pair_addr, liquidity_token)
-}
-
-// Deploy and init the request-handler contract, given the hash of a
-// registered handler contract and the pair it should drive.
-fn request_handler_deploy_init(
-    handler_hash: &SHA256Hash,
-    pair_addr: &Address,
-    token_addrs: &Addresses,
-) -> Address {
-    assert_eq!(&get_current_address(), &FACTORY_ADDR);
-
     let handler_addr = deploy_contract(&HANDLER_NONCE, handler_hash);
-
     let handler = SwapHandlerClient::new(&handler_addr);
 
-    handler.initialize(pair_addr, &token_addrs[0], &token_addrs[1]);
+    handler.initialize(
+        &FACTORY_ADDR,
+        &token_addrs[0],
+        &token_addrs[1],
+        &lp_addr,
+        driver_addr,
+    );
 
-    handler_addr
+    (handler_addr, handler.pool_state().liquidity_token)
 }
 
 // Deploy and init a driver contract, pointed at the request handler.
@@ -283,7 +266,7 @@ fn driver_deploy_init(driver_hash: &SHA256Hash, handler_addr: &Address) -> Addre
 
     let driver = SwapDriverClient::new(&driver_addr);
 
-    driver.initialize(handler_addr, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
+    driver.initialize(handler_addr, &ROUTER_ADDR, MAX_QUEUE_LEN, MIN_CRANK_BATCH);
 
     driver_addr
 }

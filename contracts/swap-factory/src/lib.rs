@@ -15,13 +15,11 @@ sdk::declare_mock_contract!();
 
 extern crate alloc;
 
-mod events;
 mod factory;
+pub use factory::{Factory, POOL_FUNDING};
 
 // Contract interface (re-exported for convenience)
-pub use events::*;
-pub use factory::Factory;
 pub use swap_if::{
-    Address, Addresses, Pool, SwapFactory, SwapFactoryClient, SwapFactoryClientError,
+    Address, Addresses, Pool, PoolCreated, SwapFactory, SwapFactoryClient, SwapFactoryClientError,
     SwapFactoryError, SwapHashes,
 };
