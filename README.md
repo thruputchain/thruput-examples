@@ -4,13 +4,19 @@ Example smart contracts for the [Groundhog SDK](https://github.com/groundhogchai
 crate in this Cargo workspace demonstrates a specific SDK feature, from a minimal stateless contract
 up to cross-contract calls, error handling, and event emission.
 
+New to Groundhog? Start with [Getting Started](https://docs.groundhog.dev/start/getting-started/)
+on the developer docs site, which walks through installing the CLI and scaffolding a project with
+`groundhog new`. The [Build a Counter](https://docs.groundhog.dev/tutorials/build-a-counter/) and
+[Build a Token](https://docs.groundhog.dev/tutorials/build-a-token/) tutorials cover the `counter`
+and `erc20` crates here line by line.
+
 ## Examples
 
 A suggested reading order for newcomers is `fibonacci` → `cross-call` → `events`, then the error-handling pair.
 
 | Crate | Demonstrates |
 |-------|--------------|
-| [`counter`](contracts/counter/) | Minimal contract |
+| [`counter`](contracts/counter/) | Storage (`NNInt`), an event, and a contract error in one small contract; the same contract `groundhog new` generates |
 | [`fibonacci`](contracts/fibonacci/) | Minimal stateless contract: one method, one error type, one event |
 | [`cross-call`](contracts/cross-call/) | Cross-contract call patterns via a generated client (`call`, `try_*`, error forwarding); calls `fibonacci` |
 | [`events`](contracts/events/) | `#[derive(Event)]` with the full range of topic and payload patterns: payload-only, address topics, hashed topics, topics-only, multi-emit |
@@ -39,15 +45,21 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples �
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI, **version 0.1.19 or newer**:
+- The `groundhog` CLI. CI runs the workspace against the version pinned in
+  [`.github/workflows/ci.yml`](.github/workflows/ci.yml); a newer release
+  normally works too. Install it with:
 
   ```sh
+  export CARGO_REGISTRIES_GROUNDHOG_INDEX="sparse+https://groundhog.dev/crates/api/v1/crates/"
   cargo install --locked --registry groundhog groundhog-cli
   ```
 
+  (`cargo install` is global, so it does not see this repo's
+  `.cargo/config.toml`; the environment variable supplies the registry index.)
   Individual applications may require an exact CLI release. The token launchpad requires 0.10.4.
 
-- Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`).
+- Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`). Get a token at [groundhog.dev/crates](https://groundhog.dev/crates).
+- `jq`, used by [`scripts/build-guest.sh`](scripts/build-guest.sh).
 - For RPC-based tests, `groundhog-cli` must be able to find a "devnode" binary, for example via `GROUNDHOG_DEVNODE_BINARY`.
 
 ## Building
