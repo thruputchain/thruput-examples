@@ -6,9 +6,6 @@
 
 set -euo pipefail
 
-target="${TARGET:-rv32}"
-build_args=(--target "$target")
-
 groundhog_build() {
     echo "::group::groundhog build ${@}" &&
     groundhog build "${@}" &&
@@ -34,7 +31,7 @@ for pkg in ${contract_packages} ; do
         extra="-- ${cargo_args[*]}"
     fi
 
-    groundhog_build -p "$pkg" "${build_args[@]}" $extra || {
+    groundhog_build -p "$pkg" $extra || {
         printf "Build failed for contract %s\n" "$pkg"
         exit 1
     }
