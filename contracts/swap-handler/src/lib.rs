@@ -13,8 +13,8 @@ extern crate alloc;
 // Interface (defined in `swap-if`), re-exported for convenience.
 pub use swap_if::{
     AddLiquidityRequest, Address, Amount, Amounts, REQUEST_GAS_MAX, RemoveLiquidityRequest,
-    SwapExactInRequest, SwapExactOutRequest, SwapHandler, SwapHandlerClient,
-    SwapHandlerClientError, SwapLibraryError, SwapRequest, SwapRequestError,
+    SwapExactInRequest, SwapExactOutRequest, SwapHandler, SwapHandlerClient, SwapLibraryError,
+    SwapRequest, SwapRequestError,
 };
 
 // Price-optimizing calculations used by the handler.

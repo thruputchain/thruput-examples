@@ -31,7 +31,8 @@ fn test_succeed() {
 }
 
 // ── Declared error types match directly ──────────────────────────────────
-// Each declared error type gets its own variant in MultiThrowsClientError.
+// A declared error is matched by naming its type in a `match_exn!` arm.
+// `try_as` is the shorthand when only one type is of interest.
 
 #[test]
 fn test_throw_alpha_not_found() {
@@ -42,10 +43,10 @@ fn test_throw_alpha_not_found() {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
             let client = MultiThrowsClient::new(&addr);
 
-            match client.try_throw_alpha_not_found() {
-                Err(MultiThrowsClientError::AlphaError(AlphaError::NotFound)) => {}
-                other => panic!("Expected AlphaError::NotFound, got: {:?}", other),
-            }
+            assert_eq!(
+                client.try_throw_alpha_not_found().unwrap_err().try_as(),
+                Some(AlphaError::NotFound),
+            );
         })
     });
     result.assert_success();
@@ -60,10 +61,10 @@ fn test_throw_alpha_overflow() {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
             let client = MultiThrowsClient::new(&addr);
 
-            match client.try_throw_alpha_overflow() {
-                Err(MultiThrowsClientError::AlphaError(AlphaError::Overflow)) => {}
-                other => panic!("Expected AlphaError::Overflow, got: {:?}", other),
-            }
+            assert_eq!(
+                client.try_throw_alpha_overflow().unwrap_err().try_as(),
+                Some(AlphaError::Overflow),
+            );
         })
     });
     result.assert_success();
@@ -78,18 +79,18 @@ fn test_throw_beta_denied() {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
             let client = MultiThrowsClient::new(&addr);
 
-            match client.try_throw_beta_denied() {
-                Err(MultiThrowsClientError::BetaError(BetaError::Denied)) => {}
-                other => panic!("Expected BetaError::Denied, got: {:?}", other),
-            }
+            assert_eq!(
+                client.try_throw_beta_denied().unwrap_err().try_as(),
+                Some(BetaError::Denied),
+            );
         })
     });
     result.assert_success();
 }
 
-// ── Undeclared errors arrive as Unknown ──────────────────────────────────
-// Errors not listed in throws() land in the Unknown variant. If you know
-// the type, you can decode it with try_as.
+// ── Undeclared errors are matched the same way ───────────────────────────
+// An error absent from throws() needs nothing special: the selector
+// identifies its type either way, so it is a peer of the declared ones.
 
 #[test]
 fn test_throw_undeclared_arrives_as_unknown() {
@@ -100,15 +101,15 @@ fn test_throw_undeclared_arrives_as_unknown() {
             let addr = deploy_contract(&NONCE_1, &contract_hash);
             let client = MultiThrowsClient::new(&addr);
 
-            // SecretError is not in the throws list, so it arrives as Unknown.
-            // The caller can still decode it with try_as if it knows the type.
-            match client.try_throw_undeclared() {
-                Err(MultiThrowsClientError::Unknown(ref raw)) => {
-                    let secret = raw.try_as::<SecretError>();
-                    assert_eq!(secret, Some(SecretError::Secret));
-                }
-                other => panic!("Expected Unknown(SecretError), got: {:?}", other),
-            }
+            // SecretError is not in the throws list, and needs no detour:
+            // a `match_exn!` arm names it exactly like a declared error.
+            let err = client.try_throw_undeclared().unwrap_err();
+            assert!(match_exn!(err, {
+                SecretError::Secret => true,
+                AlphaError::NotFound | AlphaError::Overflow => false,
+                BetaError::Denied => false,
+                _ => false,
+            }));
         })
     });
     result.assert_success();
@@ -130,10 +131,10 @@ fn test_forward_declared_error() {
 
             // addr1 calls throw_alpha_not_found on addr2 via non-try method.
             // The error is forwarded through the call chain.
-            match client.try_forward_error(addr2) {
-                Err(MultiThrowsClientError::AlphaError(AlphaError::NotFound)) => {}
-                other => panic!("Expected forwarded AlphaError::NotFound, got: {:?}", other),
-            }
+            assert_eq!(
+                client.try_forward_error(addr2).unwrap_err().try_as(),
+                Some(AlphaError::NotFound),
+            );
         })
     });
     result.assert_success();
@@ -149,15 +150,12 @@ fn test_forward_undeclared_error() {
             let addr2 = deploy_contract(&NONCE_2, &contract_hash);
             let client = MultiThrowsClient::new(&addr1);
 
-            // addr1 calls throw_undeclared on addr2. SecretError is forwarded
-            // as raw bytes and arrives as Unknown with the original selector.
-            match client.try_forward_undeclared(addr2) {
-                Err(MultiThrowsClientError::Unknown(ref raw)) => {
-                    let secret = raw.try_as::<SecretError>();
-                    assert_eq!(secret, Some(SecretError::Secret));
-                }
-                other => panic!("Expected forwarded Unknown(SecretError), got: {:?}", other),
-            }
+            // addr1 calls throw_undeclared on addr2. SecretError is
+            // forwarded verbatim, so its selector survives both hops.
+            assert_eq!(
+                client.try_forward_undeclared(addr2).unwrap_err().try_as(),
+                Some(SecretError::Secret),
+            );
         })
     });
     result.assert_success();
@@ -176,8 +174,10 @@ fn test_panics_becomes_fault() {
             let client = MultiThrowsClient::new(&addr);
 
             // A panic in the contract becomes a Fault error
+            // A fault carries no exception, so it stays an ordinary
+            // `match` on `CallError`.
             match client.try_panics() {
-                Err(MultiThrowsClientError::Fault(_)) => {}
+                Err(CallError::Fault(_)) => {}
                 other => panic!("Expected Fault, got: {:?}", other),
             }
         })
@@ -198,7 +198,7 @@ fn test_forward_fault() {
             // addr1 calls panics() on addr2 via non-try method.
             // The fault propagates through the call chain.
             match client.try_forward_fault(addr2) {
-                Err(MultiThrowsClientError::Fault(_)) => {}
+                Err(CallError::Fault(_)) => {}
                 other => panic!("Expected forwarded Fault, got: {:?}", other),
             }
         })

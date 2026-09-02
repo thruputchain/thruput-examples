@@ -1,4 +1,4 @@
-use counter::{CounterClient, CounterClientError, register_mock_contract};
+use counter::{CounterClient, register_mock_contract};
 use sdk::*;
 
 static NONCE: SHA256Hash = sdk::sha256_static!("COUNTER_NONCE");
@@ -47,16 +47,10 @@ fn test_counter_underflow() {
 
             // Decrementing past zero aborts because
             // NNInt enforces non-negative values.
-            match client.try_decrement(10) {
-                Ok(_) => panic!("expected underflow"),
-                Err(err) => assert!(
-                    matches!(
-                        err,
-                        CounterClientError::Library(LibraryExn::NonNegativeIntUnderflow)
-                    ),
-                    "expected underflow, got: {err:?}"
-                ),
-            }
+            assert_eq!(
+                client.try_decrement(10).unwrap_err().try_as(),
+                Some(LibraryExn::NonNegativeIntUnderflow),
+            );
         })
     })
     .assert_success();

@@ -16,10 +16,10 @@ fn initializing_twice_is_refused() {
             )
         })?;
 
-        match refused {
-            Err(SwapDriverClientError::SwapDriverError(SwapDriverError::AlreadyInitialized)) => {}
-            other => panic!("expected AlreadyInitialized, got {other:?}"),
-        }
+        assert_eq!(
+            refused.unwrap_err().try_as(),
+            Some(SwapDriverError::AlreadyInitialized),
+        );
 
         Ok(())
     })

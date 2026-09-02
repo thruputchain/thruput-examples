@@ -1,8 +1,6 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use error_handling_callee::{
-    CalleeError, ErrorHandlingCalleeClient, ErrorHandlingCalleeClientError,
-};
+use error_handling_callee::{CalleeError, ErrorHandlingCalleeClient};
 use sdk::*;
 
 sdk::declare_mock_contract!();
@@ -27,23 +25,27 @@ impl ErrorHandlingCaller {
 
     /// Call the callee's throw_error, catch the error, verify it is
     /// CalleeError::Deliberate, and return true.
+    ///
+    /// A caught exception arrives undecoded; `match_exn!` decodes it against
+    /// the types this caller names. Anything else — a different exception, a
+    /// fault, an unreachable contract — falls to `_`.
     pub fn call_and_catch_error(callee: &ContractAddress) -> bool {
         let client = ErrorHandlingCalleeClient::new(callee);
-        matches!(
-            client.try_throw_error(),
-            Err(ErrorHandlingCalleeClientError::CalleeError(
-                CalleeError::Deliberate
-            ))
-        )
+        match client.try_throw_error() {
+            Err(e) => match_exn!(e, {
+                CalleeError::Deliberate => true,
+                _ => false,
+            }),
+            Ok(_) => false,
+        }
     }
 
     /// Call the callee's fault method, catch the Fault, and return true.
     pub fn call_and_catch_fault(callee: &ContractAddress) -> bool {
         let client = ErrorHandlingCalleeClient::new(callee);
-        matches!(
-            client.try_fault(),
-            Err(ErrorHandlingCalleeClientError::Fault(_))
-        )
+        // A fault carries no exception, so it is an ordinary `match` on
+        // `CallError` rather than a `match_exn!` arm.
+        matches!(client.try_fault(), Err(CallError::Fault(_)))
     }
 
     /// Call the callee's spin method with a gas limit. If the callee runs out of gas,
@@ -52,7 +54,7 @@ impl ErrorHandlingCaller {
         let client = ErrorHandlingCalleeClient::new(callee);
         matches!(
             client.with_gas_limit(gas_limit).try_spin(iterations),
-            Err(ErrorHandlingCalleeClientError::Fault(_))
+            Err(CallError::Fault(_))
         )
     }
 

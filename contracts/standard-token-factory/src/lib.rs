@@ -8,6 +8,6 @@ mod implementation;
 
 pub use implementation::StandardTokenFactoryContract;
 pub use standard_token_factory_if::{
-    Amount, FactoryConfig, Name, StandardTokenFactory, StandardTokenFactoryClient,
-    StandardTokenFactoryClientError, Symbol, TokenCreated, TokenFactoryError,
+    Amount, FactoryConfig, Name, StandardTokenFactory, StandardTokenFactoryClient, Symbol,
+    TokenCreated, TokenFactoryError,
 };

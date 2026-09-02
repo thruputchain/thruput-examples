@@ -5,9 +5,7 @@ use groundhog_erc20_if::{Amount, Difference, ERC20Client};
 use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use sdk::storage::Node;
 use sdk::*;
-use swap_factory::{
-    Addresses, POOL_FUNDING, SwapFactoryClient, SwapFactoryClientError, SwapFactoryError,
-};
+use swap_factory::{Addresses, POOL_FUNDING, SwapFactoryClient, SwapFactoryError};
 use swap_handler::SwapHandlerClient;
 use swap_if::SwapHashes;
 use swap_pair::Pair;
@@ -164,12 +162,10 @@ fn create_pair_refuses_funding_below_the_floor() {
         SwapFactoryClient::new(&s.factory).try_create_pair(&s.token0, &s.token1, 1)
     })
     .unwrap();
-    assert!(matches!(
-        result,
-        Err(SwapFactoryClientError::SwapFactoryError(
-            SwapFactoryError::InsufficientFunding
-        ))
-    ));
+    assert_eq!(
+        result.unwrap_err().try_as(),
+        Some(SwapFactoryError::InsufficientFunding),
+    );
     s.env.advance_block();
 
     // Nothing was created: the pair is still absent from the registry.
@@ -236,12 +232,10 @@ fn create_pair_brings_up_pool() {
         SwapFactoryClient::new(&s.factory).try_create_pair(&s.token0, &s.token1, FUNDING)
     })
     .unwrap();
-    assert!(matches!(
-        dup,
-        Err(SwapFactoryClientError::SwapFactoryError(
-            SwapFactoryError::PairExists
-        ))
-    ));
+    assert_eq!(
+        dup.unwrap_err().try_as(),
+        Some(SwapFactoryError::PairExists),
+    );
 }
 
 #[test]

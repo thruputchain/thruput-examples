@@ -44,10 +44,10 @@ fn test_add_overflow() {
             let client = AdderClient::new(&addr);
 
             // Adding u64::MAX + 1 should throw AdderError::Overflow
-            match client.try_add(u64::MAX, 1) {
-                Err(AdderClientError::AdderError(AdderError::Overflow)) => {}
-                other => panic!("Expected AdderError::Overflow, got: {:?}", other),
-            }
+            assert_eq!(
+                client.try_add(u64::MAX, 1).unwrap_err().try_as(),
+                Some(AdderError::Overflow),
+            );
         })
     });
     result.assert_success();
@@ -97,10 +97,10 @@ fn test_multiply_overflow() {
             let client = MultiplierClient::new(&addr);
 
             // Multiplying u64::MAX * 2 should throw MultiplierError::Overflow
-            match client.try_multiply(u64::MAX, 2) {
-                Err(MultiplierClientError::MultiplierError(MultiplierError::Overflow)) => {}
-                other => panic!("Expected MultiplierError::Overflow, got: {:?}", other),
-            }
+            assert_eq!(
+                client.try_multiply(u64::MAX, 2).unwrap_err().try_as(),
+                Some(MultiplierError::Overflow),
+            );
         })
     });
     result.assert_success();

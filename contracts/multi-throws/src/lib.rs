@@ -29,8 +29,10 @@ pub enum SecretError {
 // ── Contract trait ───────────────────────────────────────────────────────
 
 /// Demonstrates the `throws(A, B)` syntax for declaring multiple error types
-/// on a single contract trait. The generated `MultiThrowsClientError` enum has
-/// a variant for each declared error type, plus Library, Unknown, and Fault.
+/// on a single contract trait. `throws` publishes the interface's error
+/// contract in the contract spec; it does not limit what a caller can catch,
+/// since exceptions are identified on the wire by a selector derived from the
+/// type. A caller matches any of them — declared or not — with `match_exn!`.
 #[contract(throws(AlphaError, BetaError))]
 pub trait MultiThrows {
     /// Returns 42 on success.

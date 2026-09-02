@@ -42,10 +42,10 @@ fn test_fib_input_too_large() {
             let client = FibonacciClient::new(&addr);
 
             // n=31 exceeds MAX_FIB_INPUT (30) — should throw FibError::InputTooLarge
-            match client.try_compute(31) {
-                Err(FibonacciClientError::FibError(FibError::InputTooLarge)) => {}
-                other => panic!("Expected FibError::InputTooLarge, got: {:?}", other),
-            }
+            assert_eq!(
+                client.try_compute(31).unwrap_err().try_as(),
+                Some(FibError::InputTooLarge),
+            );
         })
     });
     result.assert_success();
