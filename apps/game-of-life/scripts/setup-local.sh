@@ -3,13 +3,14 @@
 set -euo pipefail
 
 app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$app_dir/../.." && pwd)"
 groundhog_cli="${GROUNDHOG_CLI:-groundhog}"
 environment_path="$app_dir/.env.local"
 
 : "${GROUNDHOG_RUNTIME_MANIFEST:?Set GROUNDHOG_RUNTIME_MANIFEST to the active runtime manifest}"
-: "${GROUNDHOG_CONTRACT_ADDRESS:?Set GROUNDHOG_CONTRACT_ADDRESS to the initialized Life contract}"
-: "${GAME_OF_LIFE_INDEXER_URL:?Set GAME_OF_LIFE_INDEXER_URL to the loopback indexer origin}"
 export GROUNDHOG_RPC_URL="${GROUNDHOG_RPC_URL:-http://127.0.0.1:9545}"
+export GAME_OF_LIFE_INDEXER_URL="${GAME_OF_LIFE_INDEXER_URL:-http://127.0.0.1:8787}"
+export GAME_OF_LIFE_ARTIFACT_ROOT="$repo_root/target/groundhog"
 if [[ "${GAME_OF_LIFE_ENV_LOCK_HELD:-0}" != "1" ]]; then
   exec 9>"$app_dir/.env.local.lock"
   if ! flock -n 9; then
@@ -60,11 +61,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 cd "$app_dir"
 
-for persona in dev-1 dev-2 dev-3; do
-  "$groundhog_cli" airdrop "$persona" --amount 1000 --yes \
-    --rpc-url "$GROUNDHOG_RPC_URL" \
-    --runtime-manifest "$GROUNDHOG_RUNTIME_MANIFEST" >/dev/null
-done
+"$groundhog_cli" build -p game-of-life -- --locked
 
 "$app_dir/node_modules/.bin/tsx" "$app_dir/scripts/setup-local.ts"
 generated_environment_fingerprint="$(sha256sum "$environment_path")"

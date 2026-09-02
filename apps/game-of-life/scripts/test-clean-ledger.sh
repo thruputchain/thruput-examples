@@ -9,20 +9,14 @@ devnode_binary="${GROUNDHOG_DEVNODE_BINARY:-$(command -v hog-devnode || true)}"
 default_artifacts_dir="$(cd "$(dirname "$devnode_binary")/../.." 2>/dev/null && pwd)/built_contracts"
 contract_artifacts_dir="${GROUNDHOG_CONTRACT_ARTIFACTS_DIR:-$default_artifacts_dir}"
 environment_path="$app_dir/.env.local"
-dev_server="${GAME_OF_LIFE_DEV_SERVER:-0}"
 node_pid=""
 devnode_pid=""
+stack_pid=""
 indexer_pid=""
-vite_pid=""
 had_environment=0
 generated_environment_fingerprint=""
 initial_environment_fingerprint=""
 received_signal=0
-
-if [[ "$dev_server" != "0" && "$dev_server" != "1" ]]; then
-  printf 'GAME_OF_LIFE_DEV_SERVER must be 0 or 1.\n' >&2
-  exit 1
-fi
 
 if [[ -z "$groundhog_cli" || ! -x "$groundhog_cli" ]]; then
   printf 'Set GROUNDHOG_CLI to an executable Groundhog CLI.\n' >&2
@@ -40,12 +34,16 @@ if [[ ! -f "$contract_artifacts_dir/dev_wallet.rv32a" ]]; then
   printf 'The contract artifact directory does not contain dev_wallet.rv32a.\n' >&2
   exit 1
 fi
-if [[ "$dev_server" == "0" ]] && ! command -v sqlite3 >/dev/null; then
+if ! command -v sqlite3 >/dev/null; then
   printf 'sqlite3 is required for durable restart verification.\n' >&2
   exit 1
 fi
 if ! command -v flock >/dev/null; then
   printf 'flock is required to serialize local environment updates.\n' >&2
+  exit 1
+fi
+if ! command -v setsid >/dev/null; then
+  printf 'setsid is required to supervise local processes.\n' >&2
   exit 1
 fi
 
@@ -63,7 +61,6 @@ export GAME_OF_LIFE_ENV_LOCK_HELD=1
 node_output="$work_dir/node.json"
 node_log="$work_dir/node.log"
 indexer_log="$work_dir/indexer.log"
-vite_log="$work_dir/vite.log"
 environment_backup="$work_dir/env.local"
 evidence_dir="$app_dir/benchmark-results"
 browser_evidence="$evidence_dir/phase-7-browser.json"
@@ -118,10 +115,10 @@ capture_devnode_pid() {
 cleanup() {
   local exit_code=$?
   capture_devnode_pid
+  stop_process "$indexer_pid"
+  stop_process "$stack_pid"
   stop_process "$devnode_pid" "$devnode_binary"
   stop_process "$node_pid"
-  stop_process "$vite_pid"
-  stop_process "$indexer_pid"
   current_fingerprint=""
   if [[ -f "$environment_path" && ! -L "$environment_path" ]]; then
     current_fingerprint="$(sha256sum "$environment_path")"
@@ -141,7 +138,7 @@ cleanup() {
     printf 'Preserving .env.local because it changed while the local stack was running.\n' >&2
   fi
   if (( exit_code != 0 && received_signal == 0 )); then
-    for log in "$node_log" "$indexer_log" "$vite_log"; do
+    for log in "$node_log" "$indexer_log"; do
       if [[ -s "$log" ]]; then
         printf '\n%s:\n' "$(basename "$log")" >&2
         while IFS= read -r line; do printf '  %s\n' "$line" >&2; done < "$log"
@@ -177,13 +174,8 @@ millis() {
   date +%s%3N
 }
 
-if [[ "$dev_server" == "1" ]]; then
-  account_hog="${GROUNDHOG_LOCAL_ACCOUNT_HOG:-1000}"
-  hogd_protocol="${GROUNDHOG_LOCAL_HOGD_PROTOCOL:-}"
-else
-  account_hog="${GROUNDHOG_E2E_ACCOUNT_HOG:-1000}"
-  hogd_protocol="${GROUNDHOG_E2E_HOGD_PROTOCOL:-}"
-fi
+account_hog="${GROUNDHOG_E2E_ACCOUNT_HOG:-1000}"
+hogd_protocol="${GROUNDHOG_E2E_HOGD_PROTOCOL:-}"
 
 node_args=(
   --json
@@ -240,104 +232,41 @@ node -e '
   if(url.protocol!=="http:"||!["127.0.0.1","localhost","[::1]"].includes(url.hostname)||url.username||url.password||url.pathname!=="/"||url.search||url.hash)process.exit(1);
 ' "$rpc_url" || { printf 'Groundhog node returned a non-loopback RPC origin.\n' >&2; exit 1; }
 
-printf 'Building and deploying Game of Life to clean ledger at %s\n' "$rpc_url"
-cd "$repo_root"
-"$groundhog_cli" build -p game-of-life
-"$groundhog_cli" keys generate phase-7-deployer >/dev/null
-mkdir -p "$work_dir/contracts"
-cp "$contract_artifacts_dir/dev_wallet.rv32a" "$work_dir/contracts/dev_wallet.rv32a"
-cd "$work_dir"
-"$groundhog_cli" config new local --network local --rpc-url "$rpc_url" \
-  --network-hash "$network_id" --default-key phase-7-deployer --use --global >/dev/null
-"$groundhog_cli" wallet create --key phase-7-deployer --name game-of-life-dev \
-  --prefund 1000 --yes --rpc-url "$rpc_url" \
-  --runtime-manifest "$runtime_manifest" >/dev/null
-"$groundhog_cli" deploy --artifact "$repo_root/target/groundhog/game_of_life.rv32a" \
-  --wallet game-of-life-dev \
-  --rpc-url "$rpc_url" --runtime-manifest "$runtime_manifest" \
-  --dry-run --json > "$work_dir/deploy-dry-run.json"
-contract_address="$(node -e '
-  const fs=require("node:fs");const value=JSON.parse(fs.readFileSync(process.argv[1],"utf8"))?.data?.predictedAddress;
-  if(typeof value!=="string"||!/^0x[0-9a-f]{64}$/.test(value))process.exit(1);process.stdout.write(value);
-' "$work_dir/deploy-dry-run.json")"
-prefund_hog="$(node -e '
-  const fs=require("node:fs");const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const bytes=BigInt(fs.statSync(process.argv[2]).size);
-  const c=m.bootstrap.storageCostModel;const raw=40004n*BigInt(c.baseDataItemCost)+25001024n*BigInt(c.bytestringCostPerByte)+64n*BigInt(c.rcqCostPerEntry)+BigInt(c.baseContractDeploymentCost)+bytes*BigInt(c.contractDeploymentCostPerByte);
-  process.stdout.write(String((raw+9999999n)/10000000n));
-' "$runtime_manifest" "$repo_root/target/groundhog/game_of_life.rv32a")"
-"$groundhog_cli" transfer "$contract_address" "$prefund_hog" \
-  --from game-of-life-dev --rpc-url "$rpc_url" \
-  --runtime-manifest "$runtime_manifest" >/dev/null
-node -e '
-  const fs=require("node:fs");
-  const envelope=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-  const signed=envelope?.data?.signedTx;
-  const rpcUrl=process.argv[2];
-  if(typeof signed!=="string")throw new Error("dry-run deployment omitted signedTx");
-  let id=0;
-  const rpc=async(method,params)=>{
-    const response=await fetch(rpcUrl,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:++id,method,params})});
-    const value=await response.json();
-    if(!response.ok||value.error)throw new Error(`${method} failed: ${JSON.stringify(value.error??value)}`);
-    return value.result;
-  };
-  (async()=>{
-    const hash=await rpc("groundhog_sendRawTransaction",[signed]);
-    if(typeof hash!=="string"||!/^0x[0-9a-f]{64}$/.test(hash))throw new Error("deployment returned an invalid transaction hash");
-    const deadline=Date.now()+120000;
-    while(Date.now()<deadline){
-      const receipt=await rpc("groundhog_getTransactionReceipt",[hash]);
-      if(receipt!==null){process.stdout.write(`Deployment committed: ${hash}\n`);return;}
-      await new Promise(resolve=>setTimeout(resolve,500));
-    }
-    throw new Error(`timed out waiting for deployment ${hash}`);
-  })().catch(error=>{console.error(error);process.exit(1)});
-' "$work_dir/deploy-dry-run.json" "$rpc_url"
-
-initialization_started="$(millis)"
-cd "$repo_root"
-GROUNDHOG_RPC_URL="$rpc_url" \
-GROUNDHOG_RUNTIME_MANIFEST="$runtime_manifest" \
-GROUNDHOG_CONTRACT_ADDRESS="$contract_address" \
-GAME_OF_LIFE_OUTER_GAS=60000000000 \
-GAME_OF_LIFE_TARGET_GAS=59000000000 \
-GAME_OF_LIFE_TIMEOUT_SECONDS=600 \
-  cargo test -p game-of-life-live-test --release --test feasibility \
-    initializes_complete_world --locked -- --ignored --exact --nocapture
-initialization_ms=$(( $(millis) - initialization_started ))
-
 indexer_port="$(free_port)"
 app_port="$(free_port)"
 indexer_url="http://127.0.0.1:$indexer_port"
 app_url="http://127.0.0.1:$app_port"
-persona_setup_started="$(millis)"
+setup_started="$(millis)"
 GROUNDHOG_CLI="$groundhog_cli" \
 GROUNDHOG_RPC_URL="$rpc_url" \
 GROUNDHOG_RUNTIME_MANIFEST="$runtime_manifest" \
-GROUNDHOG_CONTRACT_ADDRESS="$contract_address" \
 GAME_OF_LIFE_INDEXER_URL="$indexer_url" \
+GAME_OF_LIFE_INITIALIZATION_MS_FILE="$work_dir/initialization-ms" \
 GAME_OF_LIFE_ENV_FINGERPRINT_FILE="$work_dir/env.fingerprint" \
   bash "$app_dir/scripts/setup-local.sh"
-persona_setup_ms=$(( $(millis) - persona_setup_started ))
+setup_ms=$(( $(millis) - setup_started ))
+initialization_ms="$(<"$work_dir/initialization-ms")"
+persona_setup_ms=$(( setup_ms - initialization_ms ))
 generated_environment_fingerprint="$(<"$work_dir/env.fingerprint")"
+contract_address="$(node -e '
+  const fs=require("node:fs");const env=fs.readFileSync(process.argv[1],"utf8");
+  const match=env.match(/^VITE_GAME_OF_LIFE_CONTRACT_ADDRESS=(0x[0-9a-f]{64})$/m);
+  if(!match)process.exit(1);process.stdout.write(match[1]);
+' "$environment_path")"
 
 printf 'Starting indexer and waiting for the first complete publication\n'
-cargo build -p game-of-life-indexer --release --locked
-export GROUNDHOG_RPC_URL="$rpc_url"
-export GROUNDHOG_NETWORK_ID="$network_id"
-export GROUNDHOG_CONTRACT_ADDRESS="$contract_address"
 export GAME_OF_LIFE_ARTIFACT_ROOT="$work_dir/artifacts"
 export GAME_OF_LIFE_INDEXER_DB="$work_dir/indexer.sqlite3"
-export GAME_OF_LIFE_INDEXER_LISTEN="127.0.0.1:$indexer_port"
-export GAME_OF_LIFE_CORS_ORIGINS="$app_url"
+export GAME_OF_LIFE_APP_URL="$app_url"
 index_started="$(millis)"
-setsid "$repo_root/target/release/game-of-life-indexer" 9>&- >"$indexer_log" 2>&1 &
-indexer_pid=$!
+cd "$app_dir"
+setsid npm run dev 9>&- >"$indexer_log" 2>&1 &
+stack_pid=$!
 latest_url="$indexer_url/v1/worlds/$network_id/$contract_address/latest.json"
 for (( attempt = 0; attempt < 600; attempt += 1 )); do
-  if ! kill -0 "$indexer_pid" 2>/dev/null; then
-    wait "$indexer_pid" || true
-    printf 'Indexer exited before publishing.\n' >&2
+  if ! kill -0 "$stack_pid" 2>/dev/null; then
+    wait "$stack_pid" || true
+    printf 'Application services exited before publishing.\n' >&2
     exit 1
   fi
   curl --fail --silent --show-error "$latest_url" >/dev/null 2>&1 && break
@@ -346,41 +275,17 @@ done
 curl --fail --silent --show-error "$latest_url" >/dev/null
 first_ready_manifest_ms=$(( $(millis) - index_started ))
 
-if [[ "$dev_server" == "1" ]]; then
-  printf 'Starting the credential-guarded app\n'
-else
-  printf 'Starting the credential-guarded app and running the live browser journey\n'
-fi
-cd "$app_dir"
-setsid npm run dev -- --host 127.0.0.1 --port "$app_port" 9>&- >"$vite_log" 2>&1 &
-vite_pid=$!
+printf 'Waiting for the credential-guarded app\n'
 for (( attempt = 0; attempt < 240; attempt += 1 )); do
-  if ! kill -0 "$vite_pid" 2>/dev/null; then
-    wait "$vite_pid" || true
-    printf 'Vite exited before becoming ready.\n' >&2
+  if ! kill -0 "$stack_pid" 2>/dev/null; then
+    wait "$stack_pid" || true
+    printf 'Application services exited before Vite became ready.\n' >&2
     exit 1
   fi
   curl --fail --silent --show-error "$app_url" >/dev/null 2>&1 && break
   sleep 0.25
 done
 curl --fail --silent --show-error "$app_url" >/dev/null
-
-if [[ "$dev_server" == "1" ]]; then
-  printf '\nGame of Life local stack is ready:\n'
-  printf '  App:     %s\n' "$app_url"
-  printf '  Indexer: %s\n' "$indexer_url"
-  printf '  RPC:     %s\n' "$rpc_url"
-  printf 'Press Ctrl-C to stop the stack and restore .env.local.\n'
-  set +e
-  wait -n "$node_pid" "$indexer_pid" "$vite_pid"
-  stopped_status=$?
-  set -e
-  printf 'A local service exited unexpectedly.\n' >&2
-  if (( stopped_status == 0 )); then
-    exit 1
-  fi
-  exit "$stopped_status"
-fi
 
 mkdir -p "$evidence_dir"
 browser_started="$(millis)"
@@ -404,8 +309,13 @@ if [[ -z "$cursor_before" || "$evidence_before" -lt 1 || "$events_before" -lt 1 
   printf 'Indexer did not persist its cursor and verified event evidence.\n' >&2
   exit 1
 fi
-stop_process "$indexer_pid"
-indexer_pid=""
+stop_process "$stack_pid"
+stack_pid=""
+export GROUNDHOG_RPC_URL="$rpc_url"
+export GROUNDHOG_NETWORK_ID="$network_id"
+export GROUNDHOG_CONTRACT_ADDRESS="$contract_address"
+export GAME_OF_LIFE_INDEXER_LISTEN="127.0.0.1:$indexer_port"
+export GAME_OF_LIFE_CORS_ORIGINS="$app_url"
 setsid "$repo_root/target/release/game-of-life-indexer" 9>&- >>"$indexer_log" 2>&1 &
 indexer_pid=$!
 for (( attempt = 0; attempt < 240; attempt += 1 )); do
