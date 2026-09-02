@@ -23,21 +23,21 @@ categories = ["blockchain"]
 
 [workspace.dependencies]
 # from sdk_rs repo:
-sdk = { registry = "groundhog", version = "0.19.3" }
-groundhog-contract-util = { registry = "groundhog", version = "0.19.3" }
-groundhog-u256 = { registry = "groundhog", version = "0.19.3", default-features = false }
-groundhog-erc20-if = { registry = "groundhog", version = "0.1.9" }
-groundhog-erc20-metadata-if = { registry = "groundhog", version = "0.1.9" }
+sdk = { registry = "groundhog", version = "0.27.0" }
+groundhog-contract-util = { registry = "groundhog", version = "0.27.0" }
+groundhog-u256 = { registry = "groundhog", version = "0.27.0", default-features = false }
+groundhog-erc20-if = { registry = "groundhog", version = "0.1.19" }
+groundhog-erc20-metadata-if = { registry = "groundhog", version = "0.1.19" }
 
 # from groundhog-rpc repo:
-groundhog-json-rpc-client = { registry = "groundhog", version = "=0.9.2" }
-groundhog-json-rpc-types = { registry = "groundhog", version = "=0.9.2" }
-groundhog-signing = { registry = "groundhog", version = "=0.9.2" }
-groundhog-testkit = { registry = "groundhog", version = "=0.9.2" }
+groundhog-json-rpc-client = { registry = "groundhog", version = "=0.11.1" }
+groundhog-json-rpc-types = { registry = "groundhog", version = "=0.11.1" }
+groundhog-signing = { registry = "groundhog", version = "=0.11.1" }
+groundhog-testkit = { registry = "groundhog", version = "=0.11.1" }
 
 # from other groundhog crates:
-groundhog-xdr = { registry = "groundhog", version = "=0.20.7", features = ["serde", "xdrs"] }
-groundhog-trace = { registry = "groundhog", version = "=0.20.7" }
+groundhog-xdr = { registry = "groundhog", version = "=0.30.0", features = ["serde", "xdrs"] }
+groundhog-trace = { registry = "groundhog", version = "=0.30.0" }
 xdrs = { registry = "groundhog", version = "0.8.4", features = ["alloc"] }
 
 # from crates.io:
