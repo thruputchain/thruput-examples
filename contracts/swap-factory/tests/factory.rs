@@ -90,15 +90,6 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
 
     let (hashes, factory_hash) = register_contracts(&env);
 
-    // The factory pays for the pool's contracts out of the creator's HOG, so
-    // the native HOG token has to be reachable at its precompiled address.
-    env.setup_create_deployment(
-        &ADDRESS_PRECOMPILED_HOG_TOKEN,
-        &Contract::kNative {
-            native_contract_id:
-                groundhog_xdr::precompiles::HogexecPrecompiledNativeContracts::kNativeContractHogToken,
-        },
-    );
     // The token keeps its allowance ledger in its own storage, and pays for it
     // like any other contract.
     env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);

@@ -3,19 +3,8 @@ use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use std::env;
 use swap_factory::{POOL_FUNDING, SwapFactoryClient, SwapHashes};
 
+#[cfg(not(feature = "guest_test"))]
 pub fn setup_etx() -> Result<Etx> {
-    #[cfg(not(feature = "guest_test"))]
-    {
-        setup_etx_native()
-    }
-
-    #[cfg(feature = "guest_test")]
-    {
-        setup_etx_guest()
-    }
-}
-
-pub fn setup_etx_native() -> Result<Etx> {
     let env = sdk::TestEnvironment::new(None); // use default cost model
 
     // Register the contracts the factory deploys, plus the factory and the
@@ -32,7 +21,7 @@ pub fn setup_etx_native() -> Result<Etx> {
 }
 
 #[cfg(feature = "guest_test")]
-pub fn setup_etx_guest() -> Result<Etx> {
+pub fn setup_etx() -> Result<Etx> {
     let guest_path =
         |name: &str, arch: &str| -> String { format!("../../target/groundhog/{name}.{arch}") };
     let load = |name: &str| load_rv32_contract(guest_path(name, "rv32a"));
@@ -86,18 +75,8 @@ pub fn setup_contracts(
     factory_hash: SHA256Hash,
     router_hash: SHA256Hash,
 ) -> Result<Etx> {
-
-    // The factory pays for the pool's contracts out of the creator's HOG, so
-    // the native HOG token has to be reachable at its precompiled address --
-    // and, like any other contract, it pays for the allowance ledger it keeps
-    // in its own storage.
-    env.setup_create_deployment(
-        &ADDRESS_PRECOMPILED_HOG_TOKEN,
-        &Contract::kNative {
-            native_contract_id:
-                groundhog_xdr::precompiles::HogexecPrecompiledNativeContracts::kNativeContractHogToken,
-        },
-    );
+    // The token keeps its allowance ledger in its own storage, and pays for it
+    // like any other contract.
     env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);
 
     // Under the default cost model each contract pays for the storage it
