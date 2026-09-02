@@ -7,7 +7,10 @@ default_key = "dev-0"
 # my-contract = "0x0000000000000000000000000000000000000000000000000000000000000000"
 
 [profile.testnet]
-rpc_url = "https://testnet.groundhog.network"
+# No hosted Groundhog endpoint hostname is published yet, so this is left
+# unset on purpose. Fill in the endpoint you were given before using this
+# profile. See https://github.com/groundhogchain/ops/issues/110.
+# rpc_url = "https://<your-endpoint>"
 default_key = "default"
 
 [profile.testnet.contracts]
