@@ -160,7 +160,7 @@ pub fn setup_contracts(
     // deploys them, on the allowance it is granted here.
     exec_tx(env, &TEST_ADDR, move || {
         ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
-            .adjust_allowance(&factory_addr, 3 * POOL_FUNDING as i128);
+            .adjust_allowance(&factory_addr, 3 * POOL_FUNDING.recommended as i128);
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */
@@ -170,7 +170,7 @@ pub fn setup_contracts(
         SwapFactoryClient::new(&factory_addr).create_pair(
             &token_addrs[0],
             &token_addrs[1],
-            POOL_FUNDING,
+            POOL_FUNDING.recommended,
         )
     })?;
 

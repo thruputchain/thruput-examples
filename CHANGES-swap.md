@@ -153,11 +153,17 @@ beforehand; taking it from the factory's own balance would let anyone drain the
 factory by creating pools.
 
 * **`SwapFactory::create_pair` gains a `funding` argument**, and wants an
-  allowance: `adjust_allowance(HOG, factory, 3 * funding)` on the native token
-  at `0x00…01`, then `create_pair(tokenA, tokenB, funding)`.  The factory
-  recommends `POOL_FUNDING` (10_000_000 under the default cost model, room for
-  some 800 storage items per contract) and refuses anything below a floor of
-  128_000 with `SwapFactoryError::InsufficientFunding`.
+  allowance: `adjust_allowance(HOG, factory, 3 * funding)` on the native token,
+  then `create_pair(tokenA, tokenB, funding)`.
+
+* **`SwapFactory::pool_funding` is new**, and answers what to pass: a
+  `PoolFunding { min, recommended }`, per contract.  Under the default cost
+  model that is `{ 128_000, 10_000_000 }` -- the floor covers bringing a pool
+  up and filling its queue, the recommendation leaves room for some 800 storage
+  items per contract.  Both depend on the chain's cost model, so ask rather
+  than hard-coding: `pool_funding()`, then grant `3 * recommended` and pass
+  `recommended`.  Below `min`, `create_pair` throws
+  `SwapFactoryError::InsufficientFunding`.
 
 * **`setup-local.ts` step 6 goes away.**  It reads `poolAddresses` and sends the
   faucet at each of four predicted addresses (one of which, `pool.pair`, no

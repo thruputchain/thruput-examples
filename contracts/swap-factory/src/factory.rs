@@ -60,26 +60,24 @@ const MAX_QUEUE_LEN: u32 = 256;
 /// along, and who must fund this batch as soon as that many are waiting.
 const MIN_CRANK_BATCH: u32 = 8;
 
-/// The least `funding` [`SwapFactory::create_pair`] will accept for each of a
-/// pool's three contracts.
+/// What this factory asks for each of a new pool's three contracts, answered
+/// to callers by [`SwapFactory::pool_funding`].
 ///
-/// Bringing a pool up costs a shade under 84_000 per contract under the
-/// default cost model (measured in `tests/factory.rs`), and a driver's queue
-/// adds `12_000 + 8 * MAX_QUEUE_LEN` once it fills.  This covers both, and
-/// nothing more: it is a floor that rejects an obviously wrong `funding`, not
-/// an estimate of what a pool will spend.  Fund at [`POOL_FUNDING`] instead.
-const MIN_POOL_FUNDING: Amount = 128_000;
-
-/// A recommended `funding` for [`SwapFactory::create_pair`]: what to give each
-/// of a pool's three contracts.
+/// `min` is a floor that rejects an obviously wrong `funding`, not an estimate
+/// of what a pool will spend: bringing one up costs a shade under 84_000 per
+/// contract under the default cost model (measured in `tests/factory.rs`), and
+/// a driver's queue adds `12_000 + 8 * MAX_QUEUE_LEN` once it fills.  It
+/// covers both and nothing more.
 ///
-/// Under the current cost model a storage item costs 12_000, so this is room
-/// for some 800 of them per contract -- far more than bring-up and a full
-/// queue need, and enough that the handler and the LP token, which grow with
-/// the pool's users, will not need topping up for a long while.  A caller may
-/// pass more for a pool it expects to be busy, or less under a cheaper cost
-/// model.
-pub const POOL_FUNDING: Amount = 10_000_000;
+/// `recommended` is room for some 800 storage items per contract -- far more
+/// than bring-up and a full queue need, and enough that the handler and the LP
+/// token, which grow with the pool's users, will not need topping up for a
+/// long while.  A caller may pass more for a pool it expects to be busy, or
+/// less under a cheaper cost model.
+pub const POOL_FUNDING: PoolFunding = PoolFunding {
+    min: 128_000,
+    recommended: 10_000_000,
+};
 
 #[contract(exports = "swap_factory_exports")]
 impl SwapFactory for Factory {
@@ -97,6 +95,10 @@ impl SwapFactory for Factory {
         self.fee_to.get()
     }
 
+    fn pool_funding(&self) -> PoolFunding {
+        POOL_FUNDING
+    }
+
     fn create_pair(&mut self, token_a: &Address, token_b: &Address, funding: Amount) -> Pool {
         let tokens = TokenPair::new(token_a, token_b);
         let [token0, token1] = tokens.as_refs();
@@ -109,7 +111,7 @@ impl SwapFactory for Factory {
         // this floor but runs out later is not visible from in here -- see the
         // note on the initialization calls below.
         ensure(
-            funding >= MIN_POOL_FUNDING,
+            funding >= POOL_FUNDING.min,
             SwapFactoryError::InsufficientFunding,
         );
 

@@ -48,6 +48,25 @@ pub struct Pool {
     pub driver: Address,
 }
 
+/// What a factory asks for a new pool's contracts, from
+/// [`SwapFactory::pool_funding`].
+///
+/// Both figures are per contract, and a pool has three, so a creator's
+/// allowance must cover three times whatever it intends to pass.
+#[contract_type]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct PoolFunding {
+    /// The least [`create_pair`](SwapFactory::create_pair) will accept.  Below
+    /// this it aborts with
+    /// [`InsufficientFunding`](SwapFactoryError::InsufficientFunding).
+    pub min: Amount,
+
+    /// What to pass unless there is reason to do otherwise.  Comfortably above
+    /// [`min`](Self::min): the floor covers bringing a pool up and filling its
+    /// queue, this covers living in it.
+    pub recommended: Amount,
+}
+
 /// The code hashes of the contracts the factory deploys.
 #[contract_type]
 #[derive(Copy, Clone, Debug)]
@@ -81,6 +100,15 @@ pub trait SwapFactory {
     /// The protocol-fee recipient, consulted by each pair's fee logic.
     fn fee_to(&self) -> Option<Address>;
 
+    /// What this factory asks for each of a new pool's three contracts.
+    ///
+    /// Both figures depend on the cost model the chain is running and on the
+    /// queue depth this factory configures its drivers with, so they are
+    /// answered here rather than fixed in a client: ask, multiply the answer
+    /// by three, and grant that allowance before calling
+    /// [`create_pair`](Self::create_pair).
+    fn pool_funding(&self) -> PoolFunding;
+
     /// Deploy and initialize a pair's contracts (LP token, pair, request
     /// handler, driver) for the given token pair, in one transaction.
     /// `funding` is the HOG given to *each* of the pool's contracts to pay for
@@ -89,13 +117,11 @@ pub trait SwapFactory {
     /// native token beforehand, so that funding, deployment and initialization
     /// all happen in this one transaction.
     ///
-    /// Below the factory's floor the call aborts with
+    /// See [`pool_funding`](Self::pool_funding) for what this factory asks.
+    /// Below its floor the call aborts with
     /// [`InsufficientFunding`](SwapFactoryError::InsufficientFunding), leaving
     /// nothing behind; above it but still short, the transaction fails
-    /// reservation instead and reports nothing (see that error).  How much is
-    /// enough depends on the cost model and on how deep the pool's queue is
-    /// allowed to get; see `POOL_FUNDING` in the factory's implementation for
-    /// the figure it recommends.
+    /// reservation instead and reports nothing (see that error).
     fn create_pair(&mut self, token_a: &Address, token_b: &Address, funding: Amount) -> Pool;
 
     /// The addresses [`create_pair`] would deploy the pool to for this token

@@ -28,7 +28,7 @@ const SUPPLY: u128 = 3_000_000;
 const CONTRACT_FUNDING: i64 = 1_000_000_000;
 
 // What the tests hand `create_pair` for each of the pool's three contracts.
-const FUNDING: Amount = POOL_FUNDING;
+const FUNDING: Amount = POOL_FUNDING.recommended;
 
 // Deploy nonces, at module scope so a contract's deterministic address can be
 // computed (and funded) before it is deployed.

@@ -188,11 +188,11 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
         .call(
             ctx,
             "adjust_allowance",
-            &(factory.address(), 3 * POOL_FUNDING),
+            &(factory.address(), 3 * POOL_FUNDING.recommended),
         )
         .await?;
     factory
-        .call(ctx, "create_pair", &(t0, t1, POOL_FUNDING))
+        .call(ctx, "create_pair", &(t0, t1, POOL_FUNDING.recommended))
         .await?;
 
     // `create_pair` returns the pool, but a call yields a receipt rather than a

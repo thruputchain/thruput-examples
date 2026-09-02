@@ -211,7 +211,8 @@ That the funding and the writes it pays for share a transaction is also why
 when the transaction commits; a commit-locked (`try_`) initialization, which
 would settle each contract's deposit as its call returned, weighs that contract
 against the balance committed *before* this transaction — and so cannot see
-funding paid within it. The factory checks a floor and no more. Past the floor,
+funding paid within it. The factory checks a floor and no more — `pool_funding`
+answers with that floor and the figure it recommends instead. Past the floor,
 a shortfall is felt at the transaction's reservation, which returns it to the
 mempool to retry and expire rather than including a failure in the block.
 
