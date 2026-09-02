@@ -77,7 +77,6 @@ impl Pair {
 
     /// The cumulative prices, as UQ112x112 fixed-point values, for use as a
     /// time-weighted-average-price oracle.
-
     pub fn get_cumulative_prices(&self) -> [U256; 2] {
         self.reserves.get().cumulative_prices
     }
