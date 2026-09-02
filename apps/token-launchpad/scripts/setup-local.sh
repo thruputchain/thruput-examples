@@ -16,8 +16,12 @@ export LAUNCHPAD_APP_ENV="$app_dir/.env.local"
 # after a setup attempt has begun.
 rm -f "$LAUNCHPAD_APP_ENV"
 
-if [[ "$("$groundhog_cli" --version)" != "groundhog 0.10.4" ]]; then
-  printf 'Groundhog CLI 0.10.4 is required.\n' >&2
+cli_version="$("$groundhog_cli" --version)"
+if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)($|[[:space:]].*) ]] ||
+   (( BASH_REMATCH[1] == 0 &&
+      (BASH_REMATCH[2] < 10 ||
+       (BASH_REMATCH[2] == 10 && BASH_REMATCH[3] < 4)) )); then
+  printf 'Groundhog CLI 0.10.4 or newer is required; found %s.\n' "$cli_version" >&2
   exit 1
 fi
 

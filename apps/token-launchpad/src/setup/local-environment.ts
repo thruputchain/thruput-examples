@@ -5,6 +5,7 @@ import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../runtime";
 
 export const REQUIRED_TOKEN_FUNDING = 350_770n;
 export const EXPECTED_BALANCE_COST = PINNED_NATIVE_BALANCE_ITEM_COST.toString();
+const MINIMUM_DEVNODE_VERSION = "0.1.25-rc.1";
 
 export interface RuntimeManifest {
   schemaVersion: number;
@@ -49,7 +50,6 @@ export function validateRuntimeManifest(manifest: RuntimeManifest): void {
     manifest.kind !== "hogd-dev-runtime" ||
     manifest.chainState !== "fresh" ||
     manifest.producer.binary !== "hog-devnode" ||
-    manifest.producer.version !== "0.1.25-rc.1" ||
     manifest.producer.commitHash.length === 0 ||
     manifest.bootstrapAccountDerivation.scheme !==
       "groundhog-bootstrap-account-v1" ||
@@ -66,6 +66,11 @@ export function validateRuntimeManifest(manifest: RuntimeManifest): void {
   ) {
     throw new Error(
       "The runtime manifest does not match the pinned local runtime",
+    );
+  }
+  if (!isSupportedDevnodeVersion(manifest.producer.version)) {
+    throw new Error(
+      `hog-devnode >=${MINIMUM_DEVNODE_VERSION} is required; found ${manifest.producer.version}`,
     );
   }
   const users = manifest.bootstrapAccounts.filter(
@@ -95,9 +100,26 @@ export function validateLocalRpcUrl(value: string): string {
 }
 
 export function validateWireFormat(value: string): void {
-  if (!/^4\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(value)) {
-    throw new Error(`Groundhog wire format 4.x is required; found ${value}`);
+  if (!/^(?:[4-9]|[1-9]\d+)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(value)) {
+    throw new Error(
+      `Groundhog wire format >=4.0.0 is required; found ${value}`,
+    );
   }
+}
+
+function isSupportedDevnodeVersion(value: string): boolean {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(value);
+  if (match === null) return false;
+
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  if (major !== 0) return major > 0;
+  if (minor !== 1) return minor > 1;
+  if (patch !== 25) return patch > 25;
+
+  const prerelease = match[4];
+  return prerelease === undefined || /^rc\.[1-9]\d*$/.test(prerelease);
 }
 
 export function renderEnvironment(input: {

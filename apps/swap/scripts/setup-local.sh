@@ -16,7 +16,7 @@ export SWAP_CLI_CONFIG_HOME="$app_dir/.groundhog-config"
 rm -f "$SWAP_APP_ENV" "$SWAP_CLI_CONFIG_HOME/groundhog/config.toml"
 
 cli_version="$("$groundhog_cli" --version)"
-if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] ||
+if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)($|[[:space:]].*) ]] ||
    (( BASH_REMATCH[1] == 0 &&
       (BASH_REMATCH[2] < 9 ||
        (BASH_REMATCH[2] == 9 && BASH_REMATCH[3] < 6)) )); then

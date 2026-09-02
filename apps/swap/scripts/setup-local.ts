@@ -54,7 +54,7 @@ const CONTRACT_FUNDING = 10_000_000n;
 const MINT_AMOUNT = 2_000_000_000n;
 const LIQUIDITY_AMOUNT = 1_000_000_000n;
 const TOKEN_DECIMALS = 6n;
-const SUPPORTED_WIRE_FORMAT = /^3\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
+const SUPPORTED_WIRE_FORMAT = /^(?:[3-9]|[1-9]\d+)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
 interface RuntimeManifest {
   networkHash: string;
@@ -163,7 +163,7 @@ async function main(): Promise<void> {
   const version = await client.getVersion();
   if (!SUPPORTED_WIRE_FORMAT.test(version.wireFormat)) {
     throw new Error(
-      `Groundhog wire format >=3.0.0 <4.0.0 is required; found ${version.wireFormat}`,
+      `Groundhog wire format >=3.0.0 is required; found ${version.wireFormat}`,
     );
   }
   const requiredPersonaHog = CONTRACT_FUNDING * 4n;

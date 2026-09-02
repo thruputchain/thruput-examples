@@ -59,8 +59,22 @@ function manifest(): RuntimeManifest {
 }
 
 describe("validateRuntimeManifest", () => {
-  it("accepts the pinned fresh local runtime", () => {
-    expect(() => validateRuntimeManifest(manifest())).not.toThrow();
+  it("accepts supported fresh local runtime versions without an upper limit", () => {
+    for (const version of ["0.1.25-rc.1", "0.1.25", "0.1.26", "1.0.0"]) {
+      const supported = manifest();
+      supported.producer.version = version;
+      expect(() => validateRuntimeManifest(supported)).not.toThrow();
+    }
+  });
+
+  it("rejects devnode versions below 0.1.25-rc.1", () => {
+    for (const version of ["0.1.24", "0.1.25-rc.0", "invalid"]) {
+      const unsupported = manifest();
+      unsupported.producer.version = version;
+      expect(() => validateRuntimeManifest(unsupported)).toThrow(
+        /hog-devnode >=0\.1\.25-rc\.1/,
+      );
+    }
   });
 
   it("rejects changed costs and insufficient accounts", () => {
@@ -100,11 +114,12 @@ describe("validateLocalRpcUrl", () => {
 });
 
 describe("validateWireFormat", () => {
-  it("accepts stable wire 4 releases and rejects other majors", () => {
-    expect(() => validateWireFormat("4.0.0")).not.toThrow();
-    expect(() => validateWireFormat("4.12.3")).not.toThrow();
-    for (const value of ["3.9.0", "5.0.0", "4.0.0-rc.1", "invalid"]) {
-      expect(() => validateWireFormat(value)).toThrow(/wire format 4.x/);
+  it("accepts stable wire formats from 4.0.0 onward", () => {
+    for (const value of ["4.0.0", "4.12.3", "5.0.0", "10.0.0"]) {
+      expect(() => validateWireFormat(value)).not.toThrow();
+    }
+    for (const value of ["3.9.0", "4.0.0-rc.1", "invalid"]) {
+      expect(() => validateWireFormat(value)).toThrow(/wire format >=4\.0\.0/);
     }
   });
 });

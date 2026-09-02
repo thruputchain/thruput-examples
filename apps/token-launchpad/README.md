@@ -6,8 +6,8 @@ Local-development application for creating standard tokens through the Groundhog
 
 - Node.js 22.12 or newer
 - npm
-- Groundhog CLI 0.10.4
-- `hog-devnode` 0.1.25-rc.1
+- Groundhog CLI 0.10.4 or newer
+- `hog-devnode` 0.1.25-rc.1 or newer
 - A disposable local node with at least three `local_user` accounts
 
 ## Install
@@ -49,6 +49,6 @@ export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
 npm --prefix apps/token-launchpad run test:e2e:local
 ```
 
-The command requires Linux with Bash, `flock`, and `setsid`, Groundhog CLI 0.10.4, and the pinned `hog-devnode` release. It must be run explicitly. The harness owns a disposable ledger, temporarily replaces and restores `.env.local`, and uses the repository's ignored build output.
+The command requires Linux with Bash, `flock`, and `setsid`, Groundhog CLI 0.10.4 or newer, and `hog-devnode` 0.1.25-rc.1 or newer. It must be run explicitly. The harness owns a disposable ledger, temporarily replaces and restores `.env.local`, and uses the repository's ignored build output.
 
 This is a service-level acceptance journey: it exercises the same workflow, wallet boundary, RPC client, and discovery code as the app without driving a browser. Component tests cover configuration injection, routing, persona switching, recovery, and UI states.
