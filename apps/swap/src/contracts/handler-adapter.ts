@@ -69,8 +69,8 @@ function normalizePoolStateU256(data: Uint8Array): Uint8Array {
     throw new Error("Handler pool state is missing cumulative-price data");
   }
 
-  // TODO: Remove this compatibility shim once groundhog-u256's fixed 32-byte
-  // runtime encoding matches its advertised [u32; 8] CXS contract spec.
+  // TODO: Remove this compatibility shim once the contract-spec protocol has
+  // native U256/I256 types that advertise the existing fixed 32-byte encoding.
   const prefixLength = data.length - cumulativePriceBytes;
   const limbs = new CxsWriter();
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
