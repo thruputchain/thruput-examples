@@ -2,7 +2,7 @@ import { contractAddress, ExecResult, sha256Hash } from "@groundhogchain/protoco
 import { CxsWriter } from "@groundhogchain/xdr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { GlobalConfig } from "@/config";
+import type { AppConfig, GlobalConfig } from "@/config";
 import type { Erc20ReadAdapter } from "@/contracts/erc20-adapter";
 import type { PoolAddresses, SwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
@@ -19,6 +19,7 @@ import {
   loadCreationWorkflow,
   saveCreationWorkflow,
 } from "./creation-workflow";
+import { createCrankAttempt, saveCrankAttempt } from "./crank-attempt";
 import type { WriteBoundary, WriteResult } from "./write-boundary";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
@@ -38,6 +39,18 @@ const config = {
   nativeHogAddress: address(6),
   knownTokenAddresses: [],
 } satisfies GlobalConfig;
+const poolConfig = {
+  ...config,
+  liquidityTokenAddress: pool.liquidityToken,
+  handlerAddress: pool.handler,
+  driverAddress: pool.driver,
+  tokenAAddress: address(1),
+  tokenBAddress: address(2),
+  tokenASymbol: "T1",
+  tokenBSymbol: "T2",
+  tokenADecimals: 0,
+  tokenBDecimals: 0,
+} satisfies AppConfig;
 
 describe("creation executor", () => {
   beforeEach(() => window.localStorage.clear());
@@ -124,6 +137,22 @@ describe("creation executor", () => {
     const reset = confirmCreationStepWasNotSigned(config, workflow, "approveFunding");
     expect(reset.steps.approveFunding.status).toBe("pending");
     expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(reset);
+  });
+
+  it("blocks creation while any account crank is unresolved", async () => {
+    saveCrankAttempt(poolConfig, {
+      ...createCrankAttempt(poolConfig),
+      status: "indeterminate",
+      transactionHash: hex(40),
+    });
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const execute = vi.fn();
+
+    await expect(runCreationWorkflow(config, workflow, {
+      ...dependencies({ created: false, fundingAllowance: 0n }),
+      writeBoundary: { execute },
+    })).rejects.toThrow("queue-processing transaction");
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("records a race without submitting when the pool already exists", async () => {

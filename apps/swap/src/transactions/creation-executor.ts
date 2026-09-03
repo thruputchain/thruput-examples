@@ -31,6 +31,7 @@ import {
 import {
   creationStepOrder,
   hasBlockingCreationTransaction,
+  hasCreationFundingExposure,
   hasCreationExecutionExposure,
   loadAccountCreationWorkflows,
   loadCreationWorkflow,
@@ -61,6 +62,7 @@ import {
   hasExecutionExposure,
   loadAccountRequestRecords,
   loadRequestCollectionForUpdate,
+  needsQueueProcessing,
   saveRequestCollection,
 } from "@/transactions/request-collection";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
@@ -287,9 +289,9 @@ async function revalidateWorkflow(
       + reservedLiquidityTokenAmount(liquidityOperations, nativeHogHex),
     {
       ...dependencies,
-      requiredNativeHog: workflow.steps.createPool.status === "committed"
-        ? 0n
-        : BigInt(workflow.totalFunding),
+      requiredNativeHog: hasCreationFundingExposure(workflow)
+        ? BigInt(workflow.totalFunding)
+        : 0n,
       ...(workflow.pool === null ? {} : { existingPool: poolAddresses(workflow.pool) }),
     },
   );
@@ -328,8 +330,7 @@ function assertAccountCanSign(
   if (hasBlockingAllowanceCleanup(config)) {
     throw new Error("Resolve the account's pending allowance cleanup first");
   }
-  const poolConfig = workflow.pool === null ? null : workflowAppConfig(config, workflow);
-  if (poolConfig !== null && loadAccountCrankAttempts(poolConfig).some(isBlockingCrankAttempt)) {
+  if (loadAccountCrankAttempts(config).some(isBlockingCrankAttempt)) {
     throw new Error("Resolve the account's indeterminate queue-processing transaction first");
   }
   if (loadAccountRequestRecords(config).some((request) =>
@@ -555,8 +556,10 @@ function reconcileRelatedReceipt(
   const poolConfig = workflowAppConfig(config, workflow);
   decodeRequestsProcessedSummary(receipt, poolConfig.driverAddress);
   const requests = loadRequestCollectionForUpdate(poolConfig);
-  const queued = requests.filter(({ status, criteria }) =>
-    status === "queued" && criteria.driverAddress === toHex0x(poolConfig.driverAddress)
+  const queued = requests.filter((request) =>
+    needsQueueProcessing(request)
+    && request.requestId !== null
+    && request.criteria.driverAddress === toHex0x(poolConfig.driverAddress)
   );
   if (queued.length > 0) {
     saveRequestCollection(

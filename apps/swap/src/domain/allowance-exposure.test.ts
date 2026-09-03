@@ -67,12 +67,19 @@ describe("requiredAllowanceFor", () => {
   it("excludes terminal operations", () => {
     const request = swapRequest(hex(1), hex(12), 3n);
     request.status = "failed";
+    const creation = createCreationWorkflow(config, creationReview());
+    creation.steps.createPool.status = "skipped";
 
     expect(requiredAllowanceFor({
       requests: [request],
       liquidityOperations: [],
-      creationWorkflows: [],
+      creationWorkflows: [creation],
     }, hex(1), hex(12))).toBe(0n);
+    expect(requiredAllowanceFor({
+      requests: [],
+      liquidityOperations: [],
+      creationWorkflows: [creation],
+    }, hex(6), hex(7))).toBe(0n);
   });
 
   it("requires allowance reads after terminal evidence", () => {

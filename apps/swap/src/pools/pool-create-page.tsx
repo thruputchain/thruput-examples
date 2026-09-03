@@ -119,13 +119,7 @@ export function PoolCreatePage({
   const run = dependencies.run ?? runCreationWorkflow;
   const currentFactory = toHex0x(config.factoryAddress);
   const recoverable = accountWorkflows.filter((candidate) =>
-    candidate.factoryAddress === currentFactory
-    && (candidate.status === "active"
-      || candidate.status === "queued"
-      || candidate.status === "race"
-      || (candidate.status === "failed"
-        && candidate.steps.approveFunding.status === "committed"
-        && candidate.steps.createPool.status !== "committed"))
+    isRecoverableCreationWorkflow(candidate, currentFactory)
   );
   const obsolete = accountWorkflows.find((candidate) =>
     candidate.factoryAddress !== currentFactory
@@ -181,7 +175,7 @@ export function PoolCreatePage({
         workflow !== null
         && (workflow.status === "race" || workflow.status === "failed")
         && workflow.steps.approveFunding.status === "committed"
-        && workflow.steps.createPool.status !== "committed"
+        && workflow.steps.createPool.status === "failed"
       ) {
         const cleanup = await runAllowanceCleanup(
           config,
@@ -215,7 +209,8 @@ export function PoolCreatePage({
         if (current === null) {
           if (review === null) throw new Error("Review the pool before creating it");
           const existing = loadAccountCreationWorkflows(config).find((candidate) =>
-            candidate.token0.address === review.token0.addressHex
+            isRecoverableCreationWorkflow(candidate, currentFactory)
+            && candidate.token0.address === review.token0.addressHex
             && candidate.token1.address === review.token1.addressHex
           );
           current = existing ?? saveCreationWorkflow(
@@ -643,7 +638,7 @@ function CreationProgressCard({
   const canContinueRace = workflow.status === "race" && workflow.pool !== null;
   const needsFundingCleanup = workflow.status === "failed"
     && workflow.steps.approveFunding.status === "committed"
-    && workflow.steps.createPool.status !== "committed";
+    && workflow.steps.createPool.status === "failed";
   const terminal = ["executed", "failed"].includes(workflow.status)
     || (workflow.status === "race" && !canContinueRace);
   const actionLabel = blocking
@@ -767,15 +762,10 @@ function readCreationState(config: GlobalConfig): {
   try {
     const workflows = loadAccountCreationWorkflows(config);
     const current = workflows
-      .filter((workflow) => workflow.factoryAddress === toHex0x(config.factoryAddress))
-      .filter((workflow) =>
-        workflow.status === "active"
-        || workflow.status === "queued"
-        || workflow.status === "race"
-        || (workflow.status === "failed"
-          && workflow.steps.approveFunding.status === "committed"
-          && workflow.steps.createPool.status !== "committed")
-      )
+      .filter((workflow) => isRecoverableCreationWorkflow(
+        workflow,
+        toHex0x(config.factoryAddress),
+      ))
       .sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
     return { workflows, current, error: null };
   } catch {
@@ -786,6 +776,19 @@ function readCreationState(config: GlobalConfig): {
         "Stored account creation workflows could not be loaded safely. Clear or repair local site data before signing.",
     };
   }
+}
+
+function isRecoverableCreationWorkflow(
+  workflow: CreationWorkflow,
+  factoryAddress: string,
+): boolean {
+  return workflow.factoryAddress === factoryAddress
+    && (workflow.status === "active"
+      || workflow.status === "queued"
+      || workflow.status === "race"
+      || (workflow.status === "failed"
+        && workflow.steps.approveFunding.status === "committed"
+        && workflow.steps.createPool.status === "failed"));
 }
 
 function describeError(error: unknown): string {

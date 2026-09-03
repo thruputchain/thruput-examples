@@ -219,9 +219,15 @@ export function canArchiveCreationWorkflow(workflow: CreationWorkflow): boolean 
 
 export function reservedCreationHog(workflows: readonly CreationWorkflow[]): bigint {
   return workflows.reduce((total, workflow) =>
-    workflow.status === "active" && workflow.steps.createPool.status !== "committed"
+    hasCreationFundingExposure(workflow)
       ? total + BigInt(workflow.totalFunding)
       : total, 0n);
+}
+
+export function hasCreationFundingExposure(workflow: CreationWorkflow): boolean {
+  return workflow.status === "active"
+    && workflow.steps.createPool.status !== "committed"
+    && workflow.steps.createPool.status !== "skipped";
 }
 
 export function reservedCreationToken(

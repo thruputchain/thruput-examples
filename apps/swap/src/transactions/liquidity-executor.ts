@@ -52,6 +52,7 @@ import {
   hasExecutionExposure,
   loadAccountRequestRecords,
   loadRequestCollectionForUpdate,
+  needsQueueProcessing,
   saveRequestCollection,
 } from "@/transactions/request-collection";
 import {
@@ -285,8 +286,10 @@ async function reconcileCrankReceipt(
 ): Promise<LiquidityOperation> {
   decodeRequestsProcessedSummary(receipt, config.driverAddress);
   const requests = loadRequestCollectionForUpdate(config);
-  const queuedRequests = requests.filter(({ status, criteria }) =>
-    status === "queued" && criteria.driverAddress === toHex0x(config.driverAddress)
+  const queuedRequests = requests.filter((request) =>
+    needsQueueProcessing(request)
+    && request.requestId !== null
+    && request.criteria.driverAddress === toHex0x(config.driverAddress)
   );
   if (queuedRequests.length > 0) {
     saveRequestCollection(

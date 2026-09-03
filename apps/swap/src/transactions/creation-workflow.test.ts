@@ -57,6 +57,9 @@ describe("creation workflow", () => {
     expect(reservedCreationHog([workflow])).toBe(300n);
     expect(reservedCreationToken([workflow], hex(1))).toBe(11n);
     expect(reservedCreationToken([workflow], hex(2))).toBe(13n);
+
+    workflow.steps.createPool.status = "skipped";
+    expect(reservedCreationHog([workflow])).toBe(0n);
   });
 
   it("archives only workflows without execution exposure", () => {

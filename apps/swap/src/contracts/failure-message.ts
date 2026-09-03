@@ -97,6 +97,7 @@ function declaredMessage(name: string, value: unknown): string {
         "2": "The second token amount is below the submitted minimum.",
         "3": "The swap output is below the submitted minimum.",
         "4": "The swap input exceeds the submitted maximum.",
+        "100": "The request is not authorized for this handler.",
       },
       SwapLibraryError: {
         "1": "The submitted amount is insufficient.",

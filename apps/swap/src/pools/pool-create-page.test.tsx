@@ -219,6 +219,61 @@ describe("PoolCreatePage", () => {
       expect.any(Object),
     );
   });
+
+  it("does not reuse a workflow from another factory for a new creation", async () => {
+    const user = userEvent.setup();
+    const otherConfig = { ...config, factoryAddress: address(17) };
+    const obsolete = saveCreationWorkflow(
+      otherConfig,
+      createCreationWorkflow(otherConfig, review(), 10),
+    );
+    const run = vi.fn(async (_config: GlobalConfig, current: CreationWorkflow) => current);
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run });
+
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    await user.click(await screen.findByRole("button", { name: "Create pool" }));
+
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    expect(run.mock.calls[0]![1]).toMatchObject({ factoryAddress: hex(7) });
+    expect(run.mock.calls[0]![1].id).not.toBe(obsolete.id);
+  });
+
+  it("starts fresh when raced pool liquidity later fails", async () => {
+    const user = userEvent.setup();
+    const failed = createCreationWorkflow(config, review(), 10);
+    failed.status = "failed";
+    failed.pool = {
+      liquidityToken: hex(21),
+      handler: hex(22),
+      driver: hex(23),
+    };
+    failed.requestId = hex(30);
+    failed.enqueueReceiptBlock = "12";
+    failed.steps.approveFunding = {
+      status: "committed",
+      transactionHash: hex(40),
+      receiptBlock: "10",
+      message: null,
+      updatedAt: 10,
+    };
+    failed.steps.createPool.status = "skipped";
+    failed.steps.enqueue = {
+      status: "committed",
+      transactionHash: hex(41),
+      receiptBlock: "12",
+      message: null,
+      updatedAt: 12,
+    };
+    saveCreationWorkflow(config, failed);
+    const run = vi.fn(async (_config: GlobalConfig, current: CreationWorkflow) => current);
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run });
+
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    await user.click(await screen.findByRole("button", { name: "Create pool" }));
+
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    expect(run.mock.calls[0]![1].id).not.toBe(failed.id);
+  });
 });
 
 function renderPage(

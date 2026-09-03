@@ -1,4 +1,7 @@
-import type { CreationWorkflow } from "@/transactions/creation-workflow";
+import {
+  hasCreationFundingExposure,
+  type CreationWorkflow,
+} from "@/transactions/creation-workflow";
 import type { LiquidityOperation } from "@/transactions/liquidity-operation";
 import {
   hasExecutionExposure,
@@ -62,8 +65,7 @@ export function requiredAllowanceFor(
     if (
       workflow.nativeHogAddress === tokenAddress
       && workflow.factoryAddress === spenderAddress
-      && workflow.status === "active"
-      && workflow.steps.createPool.status !== "committed"
+      && hasCreationFundingExposure(workflow)
     ) required += BigInt(workflow.totalFunding);
   }
   return required;
