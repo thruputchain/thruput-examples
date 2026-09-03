@@ -2,8 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { loadAppConfig } from "@/config";
-import { orderTokens } from "@/domain/tokens";
+import { loadGlobalConfig } from "@/config";
+import { formatAmount } from "@/domain/amount";
 import {
   deriveAddLiquidityQuote,
   deriveRemoveLiquidityQuote,
@@ -25,9 +25,7 @@ const runLocalIntegration = import.meta.env.MODE === "local-integration"
 describe.skipIf(!runLocalIntegration)("local liquidity integration", () => {
   it("adds and removes liquidity through request execution", async () => {
     window.localStorage.clear();
-    const configured = loadLocalConfig();
-    const ordered = orderTokens(configured.tokenAAddress, configured.tokenBAddress);
-    const config = await resolvePoolConfig(configured, ordered.token0, ordered.token1);
+    const config = await loadLocalConfig();
     const readSnapshot = createSnapshotReader(config);
     const writer = createBrowserLocalWriteBoundary(
       config,
@@ -61,7 +59,10 @@ describe.skipIf(!runLocalIntegration)("local liquidity integration", () => {
     const afterAdd = await readSnapshot();
     const removeQuote = deriveRemoveLiquidityQuote(
       afterAdd,
-      added.result.liquidityMinted,
+      formatAmount(
+        BigInt(added.result.liquidityMinted),
+        afterAdd.liquidityTokenDecimals,
+      ),
       100n,
     );
     expect(removeQuote.ok).toBe(true);
@@ -85,24 +86,19 @@ describe.skipIf(!runLocalIntegration)("local liquidity integration", () => {
   }, 120_000);
 });
 
-function loadLocalConfig() {
-  return loadAppConfig({
+async function loadLocalConfig() {
+  const global = loadGlobalConfig({
     VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
     VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
     VITE_GROUNDHOG_WALLET_ADDRESS: import.meta.env.VITE_GROUNDHOG_WALLET_ADDRESS,
     VITE_NATIVE_HOG_ADDRESS: import.meta.env.VITE_NATIVE_HOG_ADDRESS,
     VITE_SWAP_FACTORY_ADDRESS: import.meta.env.VITE_SWAP_FACTORY_ADDRESS,
     VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
-    VITE_POOL_CONTRACT_FUNDING: import.meta.env.VITE_POOL_CONTRACT_FUNDING,
-    VITE_SWAP_PAIR_ADDRESS: import.meta.env.VITE_SWAP_PAIR_ADDRESS,
-    VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS:
-      import.meta.env.VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS,
-    VITE_SWAP_HANDLER_ADDRESS: import.meta.env.VITE_SWAP_HANDLER_ADDRESS,
-    VITE_SWAP_DRIVER_ADDRESS: import.meta.env.VITE_SWAP_DRIVER_ADDRESS,
-    VITE_TOKEN_A_ADDRESS: import.meta.env.VITE_TOKEN_A_ADDRESS,
-    VITE_TOKEN_B_ADDRESS: import.meta.env.VITE_TOKEN_B_ADDRESS,
-    VITE_TOKEN_A_SYMBOL: import.meta.env.VITE_TOKEN_A_SYMBOL,
-    VITE_TOKEN_B_SYMBOL: import.meta.env.VITE_TOKEN_B_SYMBOL,
-    VITE_TOKEN_DECIMALS: import.meta.env.VITE_TOKEN_DECIMALS,
+    VITE_KNOWN_TOKEN_ADDRESSES: import.meta.env.VITE_KNOWN_TOKEN_ADDRESSES,
   });
+  const [tokenA, tokenB] = global.knownTokenAddresses ?? [];
+  if (tokenA === undefined || tokenB === undefined) {
+    throw new Error("Local integration requires at least two known tokens");
+  }
+  return resolvePoolConfig(global, tokenA, tokenB);
 }

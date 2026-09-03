@@ -1,14 +1,16 @@
-import { sha256Hash } from "@groundhogchain/protocol";
-import { contractAddress, ExecResult } from "@groundhogchain/protocol";
+import { contractAddress, ExecResult, sha256Hash } from "@groundhogchain/protocol";
+import { CxsWriter } from "@groundhogchain/xdr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GlobalConfig } from "@/config";
 import type { Erc20ReadAdapter } from "@/contracts/erc20-adapter";
-import type { SwapFactoryReadAdapter } from "@/contracts/factory-adapter";
+import type { PoolAddresses, SwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
+import { PoolCreated } from "@/contracts/generated/swap-factory";
 import type { PoolCreationReview } from "@/pools/pool-creation";
 import {
   confirmCreationStepWasNotSigned,
+  continueSupersededCreation,
   runCreationWorkflow,
 } from "./creation-executor";
 import {
@@ -22,6 +24,11 @@ import type { WriteBoundary, WriteResult } from "./write-boundary";
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
 const view = <T>(value: T) => ({ value, height: 7n, events: [] });
+const pool: PoolAddresses = {
+  liquidityToken: address(21),
+  handler: address(22),
+  driver: address(23),
+};
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkIdHex: "00".repeat(32),
@@ -29,50 +36,52 @@ const config = {
   routerAddress: address(8),
   factoryAddress: address(7),
   nativeHogAddress: address(6),
-  poolContractFunding: 100n,
+  knownTokenAddresses: [],
 } satisfies GlobalConfig;
 
 describe("creation executor", () => {
   beforeEach(() => window.localStorage.clear());
 
-  it("funds contracts sequentially and stops safely before a failed enqueue", async () => {
-    const workflow = saveCreationWorkflow(
-      config,
-      createCreationWorkflow(config, review(), 10),
-    );
-    const execute = vi.fn()
-      .mockResolvedValueOnce(committed(11n))
-      .mockResolvedValueOnce(committed(12n))
-      .mockResolvedValueOnce(committed(13n))
-      .mockResolvedValueOnce(committed(14n))
-      .mockResolvedValueOnce({
-        kind: "preSubmissionFailure",
-        hash: null,
-        message: "wallet unavailable",
-      } satisfies WriteResult);
+  it("approves factory funding, creates one atomic pool, and durably enqueues liquidity", async () => {
+    const state = { created: false, fundingAllowance: 0n };
+    const requestId = new Uint8Array(32).fill(60);
+    const execute = vi.fn(async () => {
+      const call = execute.mock.calls.length;
+      if (call === 1) {
+        state.fundingAllowance = 300n;
+        return committed(11n);
+      }
+      if (call === 2) {
+        state.created = true;
+        return committed(12n, [poolCreatedEvent()]);
+      }
+      return committed(13n, [acceptedEvent(requestId)]);
+    });
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
 
     const result = await runCreationWorkflow(config, workflow, {
-      ...dependencies(),
+      ...dependencies(state),
       writeBoundary: { execute },
+      automaticProcessing: false,
     });
 
-    expect(execute).toHaveBeenCalledTimes(5);
-    expect(result.steps.fundLiquidityToken.status).toBe("committed");
-    expect(result.steps.fundDriver.status).toBe("committed");
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(result.status).toBe("queued");
+    expect(result.pool).toEqual({
+      liquidityToken: hex(21),
+      handler: hex(22),
+      driver: hex(23),
+    });
+    expect(result.requestId).toBe(hex(60));
+    expect(result.steps.approveFunding.status).toBe("committed");
+    expect(result.steps.createPool.status).toBe("committed");
     expect(result.steps.approveToken0.status).toBe("skipped");
     expect(result.steps.approveToken1.status).toBe("skipped");
-    expect(result.steps.enqueue).toMatchObject({
-      status: "failed",
-      transactionHash: null,
-      message: "wallet unavailable",
-    });
+    expect(result.steps.crank.status).toBe("pending");
   });
 
-  it("preserves an indeterminate hash for observation", async () => {
-    const workflow = saveCreationWorkflow(
-      config,
-      createCreationWorkflow(config, review(), 10),
-    );
+  it("preserves an indeterminate funding approval hash for observation", async () => {
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
     const writer: WriteBoundary = {
       execute: vi.fn(async (_target, observer) => {
         observer?.onSigned(hex(40));
@@ -90,116 +99,114 @@ describe("creation executor", () => {
     };
 
     const blocked = await runCreationWorkflow(config, workflow, {
-      ...dependencies(),
+      ...dependencies({ created: false, fundingAllowance: 0n }),
       writeBoundary: writer,
     });
-    expect(blocked.steps.fundLiquidityToken).toMatchObject({
+    expect(blocked.steps.approveFunding).toMatchObject({
       status: "indeterminate",
       transactionHash: hex(40),
     });
     expect(hasBlockingCreationTransaction(blocked)).toBe(true);
 
     const recovered = await runCreationWorkflow(config, blocked, {
-      ...dependencies(),
+      ...dependencies({ created: false, fundingAllowance: 0n }),
       writeBoundary: writer,
     });
     expect(writer.observe).toHaveBeenCalledWith(hex(40));
-    expect(recovered.steps.fundLiquidityToken.status).toBe("failed");
+    expect(recovered.steps.approveFunding.status).toBe("failed");
   });
 
   it("requires explicit confirmation before retrying a pre-hash step", () => {
     const workflow = createCreationWorkflow(config, review(), 10);
-    workflow.steps.fundLiquidityToken.status = "signing";
+    workflow.steps.approveFunding.status = "signing";
     saveCreationWorkflow(config, workflow);
 
-    const reset = confirmCreationStepWasNotSigned(
-      config,
-      workflow,
-      "fundLiquidityToken",
-    );
-
-    expect(reset.steps.fundLiquidityToken.status).toBe("pending");
+    const reset = confirmCreationStepWasNotSigned(config, workflow, "approveFunding");
+    expect(reset.steps.approveFunding.status).toBe("pending");
     expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(reset);
   });
 
-  it("reloads authoritative progress after acquiring the account lock", async () => {
-    const stale = createCreationWorkflow(config, review(), 10);
-    saveCreationWorkflow(config, stale);
-    saveCreationWorkflow(config, {
-      ...stale,
-      updatedAt: 11,
-      steps: {
-        ...stale.steps,
-        fundLiquidityToken: {
-          status: "committed",
-          transactionHash: hex(50),
-          message: null,
-          updatedAt: 11,
-        },
-      },
-    });
-    const execute = vi.fn().mockResolvedValue({
-      kind: "preSubmissionFailure",
-      hash: null,
-      message: "stop after one attempt",
-    } satisfies WriteResult);
-
-    const result = await runCreationWorkflow(config, stale, {
-      ...dependencies(),
+  it("records a race without submitting when the pool already exists", async () => {
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const execute = vi.fn();
+    const result = await runCreationWorkflow(config, workflow, {
+      ...dependencies({ created: true, fundingAllowance: 0n }),
       writeBoundary: { execute },
     });
 
-    expect(execute).toHaveBeenCalledTimes(1);
-    expect(result.steps.fundLiquidityToken.status).toBe("committed");
-    expect(result.steps.fundPair.status).toBe("failed");
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.status).toBe("race");
+    expect(result.pool?.handler).toBe(hex(22));
   });
 
-  it("stops after a durable enqueue in manual mode and continues with only a crank", async () => {
-    const workflow = saveCreationWorkflow(
-      config,
-      createCreationWorkflow(config, review(), 10),
-    );
-    const requestId = new Uint8Array(32).fill(60);
-    const enqueueHash = hex(41);
-    const enqueue = committed(15n, [acceptedEvent(requestId)]);
-    const execute = vi.fn()
-      .mockResolvedValueOnce(committed(11n))
-      .mockResolvedValueOnce(committed(12n))
-      .mockResolvedValueOnce(committed(13n))
-      .mockResolvedValueOnce(committed(14n))
-      .mockResolvedValueOnce(enqueue);
+  it("skips an unsubmitted funding approval when continuing an early race", () => {
+    const workflow = createCreationWorkflow(config, review(), 10);
+    workflow.status = "race";
+    workflow.pool = {
+      liquidityToken: hex(21),
+      handler: hex(22),
+      driver: hex(23),
+    };
+    workflow.steps.approveFunding.status = "failed";
+    workflow.steps.approveFunding.message = "Pool already exists";
+    saveCreationWorkflow(config, workflow);
 
-    const queued = await runCreationWorkflow(config, workflow, {
-      ...dependencies(),
+    const continued = continueSupersededCreation(config, workflow);
+    expect(continued.steps.approveFunding.status).toBe("skipped");
+    expect(continued.steps.createPool.status).toBe("skipped");
+  });
+
+  it("resolves factory state when a committed creation receipt has no event", async () => {
+    const state = { created: false, fundingAllowance: 300n };
+    const execute = vi.fn(async () => {
+      if (execute.mock.calls.length === 1) {
+        state.created = true;
+        return committed(11n);
+      }
+      return {
+        kind: "preSubmissionFailure",
+        hash: null,
+        message: "stop after creation",
+      } satisfies WriteResult;
+    });
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+
+    const result = await runCreationWorkflow(config, workflow, {
+      ...dependencies(state),
       writeBoundary: { execute },
       automaticProcessing: false,
     });
 
-    expect(execute).toHaveBeenCalledTimes(5);
-    expect(queued).toMatchObject({
-      status: "queued",
-      requestId: toHex(requestId),
-      steps: {
-        enqueue: { status: "committed", transactionHash: enqueueHash },
-        crank: { status: "pending", transactionHash: null },
-      },
+    expect(result.pool?.handler).toBe(hex(22));
+    expect(result.steps.createPool.status).toBe("committed");
+    expect(result.steps.enqueue.status).toBe("failed");
+  });
+
+  it("makes a committed funding approval cleanable when revalidation fails", async () => {
+    const state = { created: false, fundingAllowance: 0n };
+    const deps = dependencies(state);
+    vi.mocked(deps.factory.poolFunding)
+      .mockResolvedValueOnce(view({ min: 50n, recommended: 100n }))
+      .mockResolvedValueOnce(view({ min: 101n, recommended: 100n }));
+    const execute = vi.fn(async () => {
+      state.fundingAllowance = 300n;
+      return committed(11n);
+    });
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+
+    const result = await runCreationWorkflow(config, workflow, {
+      ...deps,
+      writeBoundary: { execute },
     });
 
-    const crank = vi.fn().mockResolvedValue(committed(16n));
-    const continued = await runCreationWorkflow(config, queued, {
-      ...dependencies(),
-      writeBoundary: { execute: crank },
-      automaticProcessing: true,
-    });
-
-    expect(crank).toHaveBeenCalledTimes(1);
-    expect(continued.steps.enqueue.transactionHash).toBe(enqueueHash);
-    expect(continued.requestId).toBe(toHex(requestId));
-    expect(continued.steps.crank.status).toBe("committed");
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("failed");
+    expect(result.steps.approveFunding.status).toBe("committed");
+    expect(result.steps.createPool.status).toBe("failed");
   });
 });
 
-function dependencies(): {
+function dependencies(state: { created: boolean; fundingAllowance: bigint }): {
   factory: SwapFactoryReadAdapter;
   token: (token: ReturnType<typeof address>) => Erc20ReadAdapter;
 } {
@@ -207,13 +214,14 @@ function dependencies(): {
     factory: {
       allPairsLength: async () => view(0n),
       pairAt: async () => view(null),
-      getPair: async () => view(null),
-      poolAddresses: async () => view(review().pool),
+      getPair: async () => view(state.created ? pool.handler : null),
+      poolAddresses: async () => view(pool),
+      poolFunding: vi.fn(async () => view({ min: 50n, recommended: 100n })),
       feeTo: async () => view(null),
     },
     token: (token) => ({
       balanceOf: async () => view(token[0] === 6 ? 10_000n : 20_000n),
-      allowance: async () => view(20_000n),
+      allowance: async () => view(token[0] === 6 ? state.fundingAllowance : 20_000n),
       metadata: async () => ({
         name: view(`Token ${token[0]}`),
         symbol: view(`T${token[0]}`),
@@ -224,38 +232,27 @@ function dependencies(): {
 }
 
 function review(): PoolCreationReview {
+  const token = (byte: number, amount: bigint) => ({
+    address: address(byte),
+    addressHex: hex(byte),
+    name: `Token ${byte}`,
+    symbol: `T${byte}`,
+    decimals: 3,
+    balance: 20_000n,
+    allowance: 0n,
+    amount,
+    approvalDifference: amount,
+  });
   return {
-    token0: {
-      address: address(1),
-      addressHex: hex(1),
-      name: "Token 1",
-      symbol: "T1",
-      decimals: 3,
-      balance: 20_000n,
-      allowance: 20_000n,
-      amount: 2_000n,
-      approvalDifference: 0n,
-    },
-    token1: {
-      address: address(2),
-      addressHex: hex(2),
-      name: "Token 2",
-      symbol: "T2",
-      decimals: 3,
-      balance: 20_000n,
-      allowance: 20_000n,
-      amount: 3_000n,
-      approvalDifference: 0n,
-    },
-    pool: {
-      pair: address(20),
-      liquidityToken: address(21),
-      handler: address(22),
-      driver: address(23),
-    },
+    token0: token(1, 2_000n),
+    token1: token(2, 3_000n),
+    pool: null,
     nativeHogBalance: 10_000n,
-    fixedFundingPerContract: 100n,
-    totalFixedFunding: 400n,
+    nativeHogAllowance: 0n,
+    fundingMinimum: 50n,
+    fundingPerContract: 100n,
+    totalFunding: 300n,
+    fundingApprovalDifference: 300n,
     initialLiquidity: 2_449n,
     readHeight: 7n,
   };
@@ -263,11 +260,7 @@ function review(): PoolCreationReview {
 
 function committed(
   height: bigint,
-  events: Array<{
-    contractAddress: ReturnType<typeof address>;
-    topics: Uint8Array[];
-    data: Uint8Array;
-  }> = [],
+  events: Array<{ contractAddress: ReturnType<typeof address>; topics: Uint8Array[]; data: Uint8Array }> = [],
 ): Extract<WriteResult, { kind: "committedSuccess" }> {
   return {
     kind: "committedSuccess",
@@ -283,14 +276,23 @@ function committed(
   };
 }
 
-function acceptedEvent(requestId: Uint8Array) {
+function poolCreatedEvent() {
+  const writer = new CxsWriter();
+  writer.writeFixedOpaque(pool.liquidityToken, 32);
+  writer.writeFixedOpaque(pool.handler, 32);
+  writer.writeFixedOpaque(pool.driver, 32);
+  writer.writeUint32(1n);
   return {
-    contractAddress: review().pool.driver,
-    topics: [RequestAccepted.signature, requestId],
-    data: new Uint8Array(),
+    contractAddress: config.factoryAddress,
+    topics: [PoolCreated.signature, address(1), address(2)],
+    data: writer.finish(),
   };
 }
 
-function toHex(value: Uint8Array): string {
-  return `0x${Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+function acceptedEvent(requestId: Uint8Array) {
+  return {
+    contractAddress: pool.driver,
+    topics: [RequestAccepted.signature, requestId],
+    data: new Uint8Array(),
+  };
 }

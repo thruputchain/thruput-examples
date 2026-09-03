@@ -16,7 +16,7 @@ import { RequestFailed } from "@/contracts/generated/swap-driver";
 import {
   SwapEvent as GeneratedSwapEvent,
   type SwapEvent,
-} from "@/contracts/generated/swap-pair";
+} from "@/contracts/generated/swap-handler";
 import { orderTokens } from "@/domain/tokens";
 import { createReadClient } from "@/groundhog/client";
 import type { OutstandingRequest } from "@/transactions/outstanding-request";
@@ -93,11 +93,7 @@ export function createRequestObserver(
     );
     const filters = [
       GeneratedSwapEvent.filter({
-        contractAddresses: [config.pairAddress],
-        topics: {
-          sender: config.handlerAddress,
-          recipient: config.accountAddress,
-        },
+        contractAddresses: [config.handlerAddress],
       }),
       RequestFailed.filter({
         contractAddresses: [config.driverAddress],
@@ -286,7 +282,7 @@ export function observationsFromReceipt(
   };
 
   for (const decoded of GeneratedSwapEvent.allFromReceipt(receipt, {
-    contractAddress: config.pairAddress,
+    contractAddress: config.handlerAddress,
   })) {
     const requestBytes = decoded.fields.request_id;
     if (requestBytes === null) continue;
@@ -334,7 +330,7 @@ function terminalRequestId(
     const failed = RequestFailed.decode(identified.event);
     return failed === null ? null : toHex0x(failed.topics.request_id);
   }
-  if (!bytesEqual(identified.event.contractAddress, config.pairAddress))
+  if (!bytesEqual(identified.event.contractAddress, config.handlerAddress))
     return null;
   const swap = GeneratedSwapEvent.decode(identified.event);
   return swap?.fields.request_id === null ||
@@ -350,7 +346,7 @@ function matchTerminalEvent(
 ): RequestObservation | null {
   if (identified.blockHeight < request.receiptBlock!) return null;
   const event = identified.event;
-  const pairAddress = addressFromHex(request.criteria.pairAddress);
+  const handlerAddress = addressFromHex(request.criteria.handlerAddress);
   const driverAddress = addressFromHex(request.criteria.driverAddress);
 
   if (bytesEqual(event.contractAddress, driverAddress)) {
@@ -366,7 +362,7 @@ function matchTerminalEvent(
         );
   }
 
-  if (!bytesEqual(event.contractAddress, pairAddress)) return null;
+  if (!bytesEqual(event.contractAddress, handlerAddress)) return null;
   const swap = GeneratedSwapEvent.decode(event);
   return swap === null
     ? null
@@ -405,12 +401,12 @@ function matchSwapEvent(
   blockHeight: bigint,
 ): RequestObservation | null {
   if (blockHeight < request.receiptBlock!) return null;
-  const handlerAddress = addressFromHex(request.criteria.handlerAddress);
+  const sender = addressFromHex(request.criteria.sender);
   const recipient = addressFromHex(request.criteria.recipient);
   if (
     swap.fields.request_id === null ||
     !bytesEqual(swap.fields.request_id, requestId) ||
-    !bytesEqual(swap.topics.sender, handlerAddress) ||
+    !bytesEqual(swap.topics.sender, sender) ||
     !bytesEqual(swap.topics.recipient, recipient)
   )
     return null;

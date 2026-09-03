@@ -32,6 +32,7 @@ const entrypoints = {
     initialize: contractEntrypointID(fromHex("572a56f10d32b386")),
     pairAt: contractEntrypointID(fromHex("9a0ddc11432790bc")),
     poolAddresses: contractEntrypointID(fromHex("31e651e7a88e0015")),
+    poolFunding: contractEntrypointID(fromHex("2d0a74a4c0ac991b")),
   },
 } as const;
 
@@ -45,10 +46,14 @@ export const ERC20Error = {
 export type ERC20Error = (typeof ERC20Error)[keyof typeof ERC20Error];
 
 export interface Pool {
-  pair: ContractAddress;
   liquidity_token: ContractAddress;
   handler: ContractAddress;
   driver: ContractAddress;
+}
+
+export interface PoolFunding {
+  min: bigint;
+  recommended: bigint;
 }
 
 export const SwapFactoryError = {
@@ -56,6 +61,7 @@ export const SwapFactoryError = {
   IdenticalTokens: 2n,
   ZeroAddress: 3n,
   PairExists: 4n,
+  InsufficientFunding: 5n,
 } as const;
 
 export type SwapFactoryError =
@@ -63,7 +69,6 @@ export type SwapFactoryError =
 
 export interface SwapHashes {
   token: FixedBytes<32>;
-  pair: FixedBytes<32>;
   handler: FixedBytes<32>;
   driver: FixedBytes<32>;
 }
@@ -94,6 +99,7 @@ export type SwapPairError =
   | { case: "LPTokenFailure"; value: readonly [ERC20Error] };
 
 export const SwapRequestError = {
+  Unauthorized: 100n,
   InsufficientAmountA: 1n,
   InsufficientAmountB: 2n,
   InsufficientOutputAmount: 3n,
@@ -109,6 +115,7 @@ export type SwapFactoryAllPairsLengthResult = bigint;
 export interface SwapFactoryCreatePairArgs {
   tokenA: ContractAddress;
   tokenB: ContractAddress;
+  funding: bigint;
 }
 export type SwapFactoryCreatePairResult = Pool;
 
@@ -124,6 +131,7 @@ export type SwapFactoryGetPairResult = ContractAddress | null;
 export interface SwapFactoryInitializeArgs {
   hashes: SwapHashes;
   feeTo: ContractAddress | null;
+  router: ContractAddress;
 }
 export type SwapFactoryInitializeResult = void;
 
@@ -138,6 +146,9 @@ export interface SwapFactoryPoolAddressesArgs {
   tokenB: ContractAddress;
 }
 export type SwapFactoryPoolAddressesResult = Pool;
+
+export type SwapFactoryPoolFundingArgs = void;
+export type SwapFactoryPoolFundingResult = PoolFunding;
 
 export type SwapFactoryDeclaredException =
   | {
@@ -211,6 +222,7 @@ export const spec: ContractSpec = {
           args: [
             { name: s("token_a"), ty: { v: ContractTypeKind.Address } },
             { name: s("token_b"), ty: { v: ContractTypeKind.Address } },
+            { name: s("funding"), ty: { v: ContractTypeKind.U128 } },
           ],
           return_type: { v: ContractTypeKind.Named, named: s("Pool") },
         },
@@ -247,6 +259,7 @@ export const spec: ContractSpec = {
                 option_inner: { v: ContractTypeKind.Address },
               },
             },
+            { name: s("router"), ty: { v: ContractTypeKind.Address } },
           ],
           return_type: { v: ContractTypeKind.Void },
         },
@@ -269,6 +282,11 @@ export const spec: ContractSpec = {
           ],
           return_type: { v: ContractTypeKind.Named, named: s("Pool") },
         },
+        {
+          name: s("pool_funding"),
+          args: [],
+          return_type: { v: ContractTypeKind.Named, named: s("PoolFunding") },
+        },
       ],
     },
   ],
@@ -290,10 +308,19 @@ export const spec: ContractSpec = {
       struct_def: {
         name: s("Pool"),
         fields: [
-          { name: s("pair"), ty: { v: ContractTypeKind.Address } },
           { name: s("liquidity_token"), ty: { v: ContractTypeKind.Address } },
           { name: s("handler"), ty: { v: ContractTypeKind.Address } },
           { name: s("driver"), ty: { v: ContractTypeKind.Address } },
+        ],
+      },
+    },
+    {
+      v: ContractTypeDefKind.TypeDefStruct,
+      struct_def: {
+        name: s("PoolFunding"),
+        fields: [
+          { name: s("min"), ty: { v: ContractTypeKind.U128 } },
+          { name: s("recommended"), ty: { v: ContractTypeKind.U128 } },
         ],
       },
     },
@@ -306,6 +333,7 @@ export const spec: ContractSpec = {
           { name: s("IdenticalTokens"), value: 2n },
           { name: s("ZeroAddress"), value: 3n },
           { name: s("PairExists"), value: 4n },
+          { name: s("InsufficientFunding"), value: 5n },
         ],
       },
     },
@@ -316,13 +344,6 @@ export const spec: ContractSpec = {
         fields: [
           {
             name: s("token"),
-            ty: {
-              v: ContractTypeKind.Array,
-              array: { element: { v: ContractTypeKind.U8 }, len: 32n },
-            },
-          },
-          {
-            name: s("pair"),
             ty: {
               v: ContractTypeKind.Array,
               array: { element: { v: ContractTypeKind.U8 }, len: 32n },
@@ -438,6 +459,7 @@ export const spec: ContractSpec = {
       enum_def: {
         name: s("SwapRequestError"),
         variants: [
+          { name: s("Unauthorized"), value: 100n },
           { name: s("InsufficientAmountA"), value: 1n },
           { name: s("InsufficientAmountB"), value: 2n },
           { name: s("InsufficientOutputAmount"), value: 3n },
@@ -459,7 +481,6 @@ export const spec: ContractSpec = {
         { name: s("token1"), ty: { v: ContractTypeKind.Address } },
       ],
       fields: [
-        { name: s("pair"), ty: { v: ContractTypeKind.Address } },
         { name: s("liquidity_token"), ty: { v: ContractTypeKind.Address } },
         { name: s("handler"), ty: { v: ContractTypeKind.Address } },
         { name: s("driver"), ty: { v: ContractTypeKind.Address } },
@@ -525,6 +546,11 @@ export const SwapFactory = {
         abiName: "token_b",
         publicName: "tokenB",
         type: spec.interfaces[0]!.methods[1]!.args[1]!.ty,
+      },
+      {
+        abiName: "funding",
+        publicName: "funding",
+        type: spec.interfaces[0]!.methods[1]!.args[2]!.ty,
       },
     ],
     returnType: spec.interfaces[0]!.methods[1]!.return_type,
@@ -659,6 +685,11 @@ export const SwapFactory = {
         publicName: "feeTo",
         type: spec.interfaces[0]!.methods[4]!.args[1]!.ty,
       },
+      {
+        abiName: "router",
+        publicName: "router",
+        type: spec.interfaces[0]!.methods[4]!.args[2]!.ty,
+      },
     ],
     returnType: spec.interfaces[0]!.methods[4]!.return_type,
     throws: [
@@ -781,13 +812,49 @@ export const SwapFactory = {
     ],
     codecs,
   }),
+  poolFunding: defineContractMethod<
+    SwapFactoryPoolFundingArgs,
+    SwapFactoryPoolFundingResult,
+    SwapFactoryDeclaredException
+  >({
+    entrypoint: entrypoints.SwapFactory.poolFunding,
+    args: [],
+    returnType: spec.interfaces[0]!.methods[7]!.return_type,
+    throws: [
+      {
+        selector: 0x17e7e152700d9279n,
+        name: "SwapLibraryError",
+        type: spec.interfaces[0]!.throws[0]!.ty,
+      },
+      {
+        selector: 0x25d002d47b07640dn,
+        name: "SwapPairError",
+        type: spec.interfaces[0]!.throws[1]!.ty,
+      },
+      {
+        selector: 0x93e5de5a4268821fn,
+        name: "SwapFactoryError",
+        type: spec.interfaces[0]!.throws[2]!.ty,
+      },
+      {
+        selector: 0x947bdd51feea1ccen,
+        name: "SwapRequestError",
+        type: spec.interfaces[0]!.throws[3]!.ty,
+      },
+      {
+        selector: 0xb19947acb2fa14ffn,
+        name: "ERC20Error",
+        type: spec.interfaces[0]!.throws[4]!.ty,
+      },
+    ],
+    codecs,
+  }),
 } as const;
 
 export interface PoolCreated extends DecodedContractEvent<
   "PoolCreated",
   { token0: ContractAddress; token1: ContractAddress },
   {
-    pair: ContractAddress;
     liquidity_token: ContractAddress;
     handler: ContractAddress;
     driver: ContractAddress;
@@ -821,11 +888,10 @@ export const PoolCreated = defineContractEvent<
     },
   ],
   fields: [
-    { name: "pair", type: spec.events[0]!.fields[0]!.ty },
-    { name: "liquidity_token", type: spec.events[0]!.fields[1]!.ty },
-    { name: "handler", type: spec.events[0]!.fields[2]!.ty },
-    { name: "driver", type: spec.events[0]!.fields[3]!.ty },
-    { name: "pair_count", type: spec.events[0]!.fields[4]!.ty },
+    { name: "liquidity_token", type: spec.events[0]!.fields[0]!.ty },
+    { name: "handler", type: spec.events[0]!.fields[1]!.ty },
+    { name: "driver", type: spec.events[0]!.fields[2]!.ty },
+    { name: "pair_count", type: spec.events[0]!.fields[3]!.ty },
   ],
   codecs,
 });

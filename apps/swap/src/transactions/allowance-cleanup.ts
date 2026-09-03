@@ -1,7 +1,7 @@
 import { toHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
-import type { AppConfig } from "@/config";
+import type { GlobalConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { allowanceDifference } from "@/domain/allowance";
 import {
@@ -23,7 +23,7 @@ import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 const ADDRESS_PATTERN = /^0x[0-9a-f]{64}$/;
 
 export interface AllowanceCleanupRecord {
@@ -31,7 +31,7 @@ export interface AllowanceCleanupRecord {
   networkIdHex: string;
   accountAddress: string;
   tokenAddress: string;
-  handlerAddress: string;
+  spenderAddress: string;
   status: "signing" | "indeterminate";
   transactionHash: string | null;
   difference: string;
@@ -60,11 +60,11 @@ export interface AllowanceCleanupDependencies {
   now?: () => number;
 }
 
-type AllowanceCleanupScope = Pick<AppConfig, "networkIdHex" | "accountAddress">;
+type AllowanceCleanupScope = Pick<GlobalConfig, "networkIdHex" | "accountAddress">;
 
 export function allowanceCleanupKey(config: AllowanceCleanupScope): string {
   return [
-    "groundhog-swap:allowance-cleanup:v1",
+    "groundhog-swap:allowance-cleanup:v2",
     config.networkIdHex,
     toHex0x(config.accountAddress),
   ].join(":");
@@ -102,19 +102,19 @@ export async function confirmAllowanceCleanupWasNotSigned(
 }
 
 export async function runAllowanceCleanup(
-  config: AppConfig,
+  config: GlobalConfig,
   token: ContractAddress,
-  handler: ContractAddress,
+  spender: ContractAddress,
   dependencies: AllowanceCleanupDependencies,
 ): Promise<AllowanceCleanupResult> {
   return withOutstandingRequestLock(config, async () => {
     const tokenAddress = toHex0x(token);
-    const handlerAddress = toHex0x(handler);
+    const spenderAddress = toHex0x(spender);
     const existing = loadAllowanceCleanup(config);
     if (
       existing !== null
       && (existing.tokenAddress !== tokenAddress
-        || existing.handlerAddress !== handlerAddress)
+        || existing.spenderAddress !== spenderAddress)
     ) {
       throw new Error("Resolve the account's pending allowance cleanup first");
     }
@@ -135,9 +135,9 @@ export async function runAllowanceCleanup(
     const requirement = loadCleanupAllowanceRequirement(
       config,
       tokenAddress,
-      handlerAddress,
+      spenderAddress,
     );
-    const current = await dependencies.readAllowance(token, handler);
+    const current = await dependencies.readAllowance(token, spender);
     if (current.height < requirement.minimumReadHeight) {
       throw new Error("The allowance view is older than the terminal operation evidence");
     }
@@ -158,7 +158,7 @@ export async function runAllowanceCleanup(
       networkIdHex: config.networkIdHex,
       accountAddress: toHex0x(config.accountAddress),
       tokenAddress,
-      handlerAddress,
+      spenderAddress,
       status: "signing",
       transactionHash: null,
       difference: difference.difference.toString(),
@@ -166,7 +166,7 @@ export async function runAllowanceCleanup(
     };
     saveAllowanceCleanup(config, record);
     const result = await dependencies.writeBoundary.execute(
-      buildApprovalTarget(token, handler, difference.difference),
+      buildApprovalTarget(token, spender, difference.difference),
       {
         onSigned: (transactionHash) => {
           record = { ...record, transactionHash, updatedAt: now() };
@@ -185,13 +185,13 @@ export async function runAllowanceCleanup(
 }
 
 function applyWriteResult(
-  config: AppConfig,
+  config: GlobalConfig,
   record: AllowanceCleanupRecord,
   result: WriteResult,
   requiredAllowance = loadCleanupAllowanceRequirement(
     config,
     record.tokenAddress,
-    record.handlerAddress,
+    record.spenderAddress,
   ).requiredAllowance,
   now: () => number = Date.now,
 ): AllowanceCleanupResult {
@@ -213,7 +213,7 @@ function applyWriteResult(
   return { kind: "failed", message: cleanupFailureMessage(result) };
 }
 
-function assertAccountCanClean(config: AppConfig): void {
+function assertAccountCanClean(config: GlobalConfig): void {
   if (loadAccountCrankAttempts(config).some(isBlockingCrankAttempt)) {
     throw new Error("Resolve the account's pending queue-processing transaction first");
   }
@@ -252,8 +252,8 @@ function isCleanupRecord(
     && value.accountAddress === toHex0x(config.accountAddress)
     && typeof value.tokenAddress === "string"
     && ADDRESS_PATTERN.test(value.tokenAddress)
-    && typeof value.handlerAddress === "string"
-    && ADDRESS_PATTERN.test(value.handlerAddress)
+    && typeof value.spenderAddress === "string"
+    && ADDRESS_PATTERN.test(value.spenderAddress)
     && (value.status === "signing" || value.status === "indeterminate")
     && (value.transactionHash === null
       || (typeof value.transactionHash === "string"

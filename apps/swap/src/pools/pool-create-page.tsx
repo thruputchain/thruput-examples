@@ -20,6 +20,7 @@ import { Field, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { GlobalConfig } from "@/config";
+import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
 import { AmmPage } from "@/pools/amm-page";
@@ -31,8 +32,10 @@ import {
 import { resolvePoolConfig } from "@/pools/pool-context";
 import { poolPath } from "@/pools/pool-route";
 import { createSnapshotReader } from "@/swap/snapshot";
+import { createReadClient } from "@/groundhog/client";
 import {
   confirmCreationStepWasNotSigned,
+  continueSupersededCreation,
   resetCreationCrank,
   runCreationWorkflow,
 } from "@/transactions/creation-executor";
@@ -52,7 +55,10 @@ import {
 } from "@/transactions/creation-workflow";
 import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
 import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
-import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
+import {
+  hasBlockingAllowanceCleanup,
+  runAllowanceCleanup,
+} from "@/transactions/allowance-cleanup";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import {
   loadAccountLiquidityOperations,
@@ -68,13 +74,11 @@ const emptyInput: PoolCreationInput = {
 };
 
 const stepLabels: Record<CreationStepName, string> = {
-  fundLiquidityToken: "Fund LP token contract",
-  fundPair: "Fund pair contract",
-  fundHandler: "Fund handler contract",
-  fundDriver: "Fund driver contract",
+  approveFunding: "Approve factory funding",
+  createPool: "Create pool contracts",
   approveToken0: "Approve token 0",
   approveToken1: "Approve token 1",
-  enqueue: "Create pool and enqueue liquidity",
+  enqueue: "Submit initial liquidity",
   crank: "Process liquidity queue",
 };
 
@@ -83,6 +87,7 @@ interface PoolCreatePageDependencies {
   writer?: WriteBoundary;
   run?: typeof runCreationWorkflow;
   verifyResult?: (workflow: CreationWorkflow) => Promise<void>;
+  readFactoryAllowance?: () => Promise<{ value: bigint; height: bigint }>;
 }
 
 export function PoolCreatePage({
@@ -117,13 +122,16 @@ export function PoolCreatePage({
     candidate.factoryAddress === currentFactory
     && (candidate.status === "active"
       || candidate.status === "queued"
-      || (candidate.status === "race" && candidate.requestId !== null))
+      || candidate.status === "race"
+      || (candidate.status === "failed"
+        && candidate.steps.approveFunding.status === "committed"
+        && candidate.steps.createPool.status !== "committed"))
   );
   const obsolete = accountWorkflows.find((candidate) =>
     candidate.factoryAddress !== currentFactory
     && (candidate.status === "active"
       || candidate.status === "queued"
-      || (candidate.status === "race" && candidate.requestId !== null))
+      || candidate.status === "race")
   ) ?? null;
 
   const applyWorkflow = (next: CreationWorkflow) => {
@@ -169,6 +177,36 @@ export function PoolCreatePage({
     setIsRunning(true);
     setError(null);
     try {
+      if (
+        workflow !== null
+        && (workflow.status === "race" || workflow.status === "failed")
+        && workflow.steps.approveFunding.status === "committed"
+        && workflow.steps.createPool.status !== "committed"
+      ) {
+        const cleanup = await runAllowanceCleanup(
+          config,
+          config.nativeHogAddress,
+          config.factoryAddress,
+          {
+            writeBoundary: writer,
+            readAllowance: dependencies.readFactoryAllowance
+              ?? (() => readFactoryAllowance(config)),
+          },
+        );
+        if (cleanup.kind === "pending") {
+          throw new Error(
+            "The factory allowance cleanup outcome is uncertain. Check it before continuing.",
+          );
+        }
+        if (cleanup.kind === "failed") throw new Error(cleanup.message);
+        if (workflow.status === "failed") {
+          const archived = await withOutstandingRequestLock(config, async () =>
+            archiveCreationWorkflow(config, workflow)
+          );
+          applyWorkflow(archived);
+          return;
+        }
+      }
       const result = await withOutstandingRequestLock(config, async () => {
         if (hasBlockingAllowanceCleanup(config)) {
           throw new Error("Resolve the account's pending allowance cleanup first");
@@ -204,6 +242,10 @@ export function PoolCreatePage({
           current = resetCreationCrank(config, current);
           applyWorkflow(current);
         }
+        if (current.status === "race" && current.requestId === null) {
+          current = continueSupersededCreation(config, current);
+          applyWorkflow(current);
+        }
         return run(config, current, {
           writeBoundary: writer,
           automaticProcessing: processQueue || !manualProcessing,
@@ -215,6 +257,7 @@ export function PoolCreatePage({
         if (dependencies.verifyResult !== undefined) {
           await dependencies.verifyResult(result);
         } else {
+          if (result.pool === null) throw new Error("The created pool is unavailable");
           const token0 = addressFromHex(result.token0.address);
           const token1 = addressFromHex(result.token1.address);
           const poolConfig = await resolvePoolConfig(config, token0, token1);
@@ -307,7 +350,7 @@ export function PoolCreatePage({
   return (
     <AmmPage
       title="Create pool"
-      description="Review deterministic contracts, fixed development funding, and exact initial liquidity before signing."
+      description="Review factory-recommended funding and exact initial liquidity before signing."
     >
       {error === null ? null : (
         <Alert variant="destructive">
@@ -390,7 +433,7 @@ export function PoolCreatePage({
           onConfirmNotSigned={confirmNotSigned}
           onContinue={() => startOrContinue(
             workflow.status === "queued"
-            || (workflow.status === "race" && workflow.requestId !== null),
+            || workflow.status === "race",
           )}
           onStartOver={() => {
             if (workflow !== null) {
@@ -519,12 +562,6 @@ function CreationReviewCard({
   isRunning: boolean;
   onCreate: () => void;
 }) {
-  const destinations = [
-    ["LP token", review.pool.liquidityToken],
-    ["Pair", review.pool.pair],
-    ["Handler", review.pool.handler],
-    ["Driver", review.pool.driver],
-  ] as const;
   return (
     <Card>
       <CardHeader>
@@ -554,40 +591,19 @@ function CreationReviewCard({
             label="Estimated LP before lock"
             value={`${review.initialLiquidity} base units`}
           />
-          <ReviewRow
-            label={`${review.token0.symbol} approval`}
-            value={`${review.token0.approvalDifference} base units`}
-          />
-          <ReviewRow
-            label={`${review.token1.symbol} approval`}
-            value={`${review.token1.approvalDifference} base units`}
-          />
+          <ReviewRow label="Funding minimum" value={`${review.fundingMinimum} HOG base units per contract`} />
+          <ReviewRow label="Recommended funding" value={`${review.fundingPerContract} HOG base units per contract`} />
         </dl>
         <div className="flex flex-col gap-3">
           <div>
-            <h3 className="font-medium">Fixed development storage reserve</h3>
+            <h3 className="font-medium">Atomic factory funding</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {review.totalFixedFunding} HOG base units total. This conservative
-              configured amount is not a fee or quote, is not refunded, does not
-              reimburse factory growth, and is not atomic with pool creation.
+              The factory recommends {review.totalFunding} HOG base units across
+              the LP token, handler, and driver. The app will approve
+              {" "}{review.fundingApprovalDifference} additional base units, then
+              create and fund all three contracts atomically.
             </p>
           </div>
-          <ul className="grid gap-2 text-sm">
-            {destinations.map(([label, address]) => (
-              <li className="flex items-center justify-between gap-4" key={label}>
-                <span className="flex flex-col">
-                  <span>{label}</span>
-                  <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {review.fixedFundingPerContract} HOG base units
-                  </span>
-                </span>
-                <BlockchainIdentifier
-                  value={toHex0x(address)}
-                  label={`${label} address`}
-                />
-              </li>
-            ))}
-          </ul>
         </div>
       </CardContent>
       <CardFooter>
@@ -624,16 +640,23 @@ function CreationProgressCard({
   onStartOver: () => void;
 }) {
   const blocking = hasBlockingCreationTransaction(workflow);
-  const acceptedRace = workflow.status === "race" && workflow.requestId !== null;
-  const terminal = ["executed", "failed", "race"].includes(workflow.status)
-    && !acceptedRace;
+  const canContinueRace = workflow.status === "race" && workflow.pool !== null;
+  const needsFundingCleanup = workflow.status === "failed"
+    && workflow.steps.approveFunding.status === "committed"
+    && workflow.steps.createPool.status !== "committed";
+  const terminal = ["executed", "failed"].includes(workflow.status)
+    || (workflow.status === "race" && !canContinueRace);
   const actionLabel = blocking
     ? "Check transaction and continue"
-    : workflow.status === "queued" || acceptedRace
+    : workflow.status === "queued"
       ? workflow.steps.crank.status === "committed"
         ? "Retry queue processing"
         : "Process liquidity queue"
-      : "Continue creation";
+      : canContinueRace
+        ? "Remove funding allowance and continue"
+        : needsFundingCleanup
+          ? "Remove factory funding allowance"
+          : "Continue creation";
   return (
     <Card>
       <CardHeader>
@@ -647,36 +670,19 @@ function CreationProgressCard({
           <Badge variant="outline">{workflow.status}</Badge>
         </div>
       </CardHeader>
-      <CardContent>
-        <ol aria-label="Pool creation stages" className="grid gap-3">
-          {creationStepOrder.map((name) => {
-            const step = workflow.steps[name];
-            return (
-              <li className="flex items-start gap-3" key={name}>
-                <StepIcon status={step.status} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-medium">{stepLabels[name]}</span>
-                    <span className="text-xs text-muted-foreground">{step.status}</span>
-                  </div>
-                  {step.message === null ? null : (
-                    <p className="mt-1 text-sm text-muted-foreground">{step.message}</p>
-                  )}
-                  {step.transactionHash === null ? null : (
-                    <div className="mt-1 text-xs">
-                      <BlockchainIdentifier
-                        value={step.transactionHash}
-                        label={`${stepLabels[name]} transaction hash`}
-                      />
-                    </div>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+      <CardContent className="grid gap-6">
+        <CreationSteps
+          label="Pool contract creation"
+          names={creationStepOrder.slice(0, 2)}
+          workflow={workflow}
+        />
+        <CreationSteps
+          label="Initial liquidity"
+          names={creationStepOrder.slice(2)}
+          workflow={workflow}
+        />
       </CardContent>
-      {terminal ? (
+      {terminal && !needsFundingCleanup ? (
         <CardFooter>
           <Button variant="outline" onClick={onStartOver}>Start another pool</Button>
         </CardFooter>
@@ -694,6 +700,49 @@ function CreationProgressCard({
         </CardFooter>
       )}
     </Card>
+  );
+}
+
+function CreationSteps({
+  label,
+  names,
+  workflow,
+}: {
+  label: string;
+  names: readonly CreationStepName[];
+  workflow: CreationWorkflow;
+}) {
+  return (
+    <section>
+      <h3 className="mb-3 text-sm font-medium text-muted-foreground">{label}</h3>
+      <ol aria-label={`${label} stages`} className="grid gap-3">
+        {names.map((name) => {
+          const step = workflow.steps[name];
+          return (
+            <li className="flex items-start gap-3" key={name}>
+              <StepIcon status={step.status} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium">{stepLabels[name]}</span>
+                  <span className="text-xs text-muted-foreground">{step.status}</span>
+                </div>
+                {step.message === null ? null : (
+                  <p className="mt-1 text-sm text-muted-foreground">{step.message}</p>
+                )}
+                {step.transactionHash === null ? null : (
+                  <div className="mt-1 text-xs">
+                    <BlockchainIdentifier
+                      value={step.transactionHash}
+                      label={`${stepLabels[name]} transaction hash`}
+                    />
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 
@@ -722,7 +771,10 @@ function readCreationState(config: GlobalConfig): {
       .filter((workflow) =>
         workflow.status === "active"
         || workflow.status === "queued"
-        || (workflow.status === "race" && workflow.requestId !== null)
+        || workflow.status === "race"
+        || (workflow.status === "failed"
+          && workflow.steps.approveFunding.status === "committed"
+          && workflow.steps.createPool.status !== "committed")
       )
       .sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
     return { workflows, current, error: null };
@@ -738,4 +790,16 @@ function readCreationState(config: GlobalConfig): {
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : "Pool creation could not continue";
+}
+
+async function readFactoryAllowance(
+  config: GlobalConfig,
+): Promise<{ value: bigint; height: bigint }> {
+  const token = createErc20ReadAdapter({
+    client: createReadClient(config),
+    contract: config.nativeHogAddress,
+    caller: config.accountAddress,
+  });
+  const view = await token.allowance(config.accountAddress, config.factoryAddress);
+  return { value: view.value, height: view.height };
 }

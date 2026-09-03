@@ -22,11 +22,9 @@ const globalConfig: GlobalConfig = {
   routerAddress: address(2),
   factoryAddress: address(3),
   nativeHogAddress: address(4),
-  poolContractFunding: 10_000_000n,
 };
 const poolConfig: AppConfig = {
   ...globalConfig,
-  pairAddress: address(7),
   liquidityTokenAddress: address(8),
   handlerAddress: address(9),
   driverAddress: address(10),
@@ -79,7 +77,7 @@ describe("PoolDirectoryPage", () => {
     expect(screen.getByText("1")).toBeVisible();
     expect(screen.getByText("2")).toBeVisible();
     expect(screen.getByRole("button", {
-      name: `Pair address: ${toHex0x(poolConfig.pairAddress)}`,
+      name: `Handler address: ${toHex0x(poolConfig.handlerAddress)}`,
     })).toBeVisible();
     expect(screen.getByRole("link", { name: "View pool" })).toBeVisible();
   });

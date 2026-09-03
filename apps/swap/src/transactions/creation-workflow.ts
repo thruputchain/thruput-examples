@@ -4,14 +4,12 @@ import type { GlobalConfig } from "@/config";
 import type { PoolCreationReview } from "@/pools/pool-creation";
 import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
 
 export const creationStepOrder = [
-  "fundLiquidityToken",
-  "fundPair",
-  "fundHandler",
-  "fundDriver",
+  "approveFunding",
+  "createPool",
   "approveToken0",
   "approveToken1",
   "enqueue",
@@ -30,8 +28,15 @@ export type CreationStepStatus =
 export interface CreationStep {
   status: CreationStepStatus;
   transactionHash: string | null;
+  receiptBlock: string | null;
   message: string | null;
   updatedAt: number;
+}
+
+export interface CreationPool {
+  liquidityToken: string;
+  handler: string;
+  driver: string;
 }
 
 export interface CreationWorkflow {
@@ -44,18 +49,15 @@ export interface CreationWorkflow {
   nativeHogAddress: string;
   token0: CreationTokenIntent;
   token1: CreationTokenIntent;
-  pool: {
-    liquidityToken: string;
-    pair: string;
-    handler: string;
-    driver: string;
-  };
-  fixedFundingPerContract: string;
-  totalFixedFunding: string;
+  pool: CreationPool | null;
+  fundingMinimum: string;
+  fundingPerContract: string;
+  totalFunding: string;
   status: "active" | "queued" | "executed" | "failed" | "race" | "archived";
   requestId: string | null;
-  enqueueReceiptBlock?: string | null;
-  terminalBlock?: string | null;
+  enqueueReceiptBlock: string | null;
+  observedThroughBlock: string | null;
+  terminalBlock: string | null;
   steps: Record<CreationStepName, CreationStep>;
   createdAt: number;
   updatedAt: number;
@@ -82,7 +84,7 @@ export function creationWorkflowKey(
   token1Address: string,
 ): string {
   return [
-    "groundhog-swap:pool-creation:v1",
+    "groundhog-swap:pool-creation:v2",
     config.networkIdHex,
     toHex0x(config.accountAddress),
     toHex0x(config.factoryAddress),
@@ -103,9 +105,11 @@ export function createCreationWorkflow(
   review: PoolCreationReview,
   now = Date.now(),
 ): CreationWorkflow {
+  if (review.pool !== null) throw new CreationWorkflowError();
   const pending = (): CreationStep => ({
     status: "pending",
     transactionHash: null,
+    receiptBlock: null,
     message: null,
     updatedAt: now,
   });
@@ -122,17 +126,14 @@ export function createCreationWorkflow(
     nativeHogAddress: toHex0x(config.nativeHogAddress),
     token0: tokenIntent(review.token0),
     token1: tokenIntent(review.token1),
-    pool: {
-      liquidityToken: toHex0x(review.pool.liquidityToken),
-      pair: toHex0x(review.pool.pair),
-      handler: toHex0x(review.pool.handler),
-      driver: toHex0x(review.pool.driver),
-    },
-    fixedFundingPerContract: review.fixedFundingPerContract.toString(),
-    totalFixedFunding: review.totalFixedFunding.toString(),
+    pool: null,
+    fundingMinimum: review.fundingMinimum.toString(),
+    fundingPerContract: review.fundingPerContract.toString(),
+    totalFunding: review.totalFunding.toString(),
     status: "active",
     requestId: null,
     enqueueReceiptBlock: null,
+    observedThroughBlock: null,
     terminalBlock: null,
     steps,
     createdAt: now,
@@ -145,25 +146,12 @@ export function saveCreationWorkflow(
   workflow: CreationWorkflow,
 ): CreationWorkflow {
   if (!isCreationWorkflow(workflow, config)) throw new CreationWorkflowError();
-  if (workflow.terminalBlock !== undefined && workflow.terminalBlock !== null) {
+  if (workflow.terminalBlock !== null && workflow.pool !== null) {
     const block = BigInt(workflow.terminalBlock);
-    recordAllowanceTerminalEvidence(
-      config,
-      workflow.token0.address,
-      workflow.pool.handler,
-      block,
-    );
-    recordAllowanceTerminalEvidence(
-      config,
-      workflow.token1.address,
-      workflow.pool.handler,
-      block,
-    );
+    recordAllowanceTerminalEvidence(config, workflow.token0.address, workflow.pool.handler, block);
+    recordAllowanceTerminalEvidence(config, workflow.token1.address, workflow.pool.handler, block);
   }
-  window.localStorage.setItem(
-    creationWorkflowKey(config, workflow.token0.address, workflow.token1.address),
-    JSON.stringify(workflow),
-  );
+  window.localStorage.setItem(workflowStorageKey(workflow), JSON.stringify(workflow));
   return workflow;
 }
 
@@ -173,39 +161,31 @@ export function loadCreationWorkflow(
   token1Address: string,
 ): CreationWorkflow | null {
   if (typeof window === "undefined") return null;
-  const stored = window.localStorage.getItem(
-    creationWorkflowKey(config, token0Address, token1Address),
-  );
+  const key = creationWorkflowKey(config, token0Address, token1Address);
+  const stored = window.localStorage.getItem(key);
   if (stored === null) return null;
   try {
     const parsed: unknown = JSON.parse(stored);
-    if (
-      !isCreationWorkflow(parsed, config)
-      || workflowStorageKey(parsed)
-        !== creationWorkflowKey(config, token0Address, token1Address)
-    ) throw new Error("invalid workflow");
+    if (!isCreationWorkflow(parsed, config) || workflowStorageKey(parsed) !== key) {
+      throw new Error("invalid workflow");
+    }
     return parsed;
   } catch {
     throw new CreationWorkflowError();
   }
 }
 
-export function loadAccountCreationWorkflows(
-  config: GlobalConfig,
-): CreationWorkflow[] {
+export function loadAccountCreationWorkflows(config: GlobalConfig): CreationWorkflow[] {
   if (typeof window === "undefined") return [];
   const workflows: CreationWorkflow[] = [];
   for (let index = 0; index < window.localStorage.length; index += 1) {
     const key = window.localStorage.key(index);
-    if (key === null || !isAccountCreationWorkflowKey(config, key)) continue;
-    const value = window.localStorage.getItem(key);
-    if (value === null) continue;
+    if (!isAccountCreationWorkflowKey(config, key)) continue;
+    const stored = window.localStorage.getItem(key!);
+    if (stored === null) continue;
     try {
-      const parsed: unknown = JSON.parse(value);
-      if (
-        !isCreationWorkflow(parsed, config, "account")
-        || workflowStorageKey(parsed) !== key
-      ) {
+      const parsed: unknown = JSON.parse(stored);
+      if (!isCreationWorkflow(parsed, config, "account") || workflowStorageKey(parsed) !== key) {
         throw new Error("invalid workflow");
       }
       workflows.push(parsed);
@@ -221,41 +201,27 @@ export function archiveCreationWorkflow(
   workflow: CreationWorkflow,
 ): CreationWorkflow {
   const stored = loadAccountCreationWorkflows(config).find(({ id }) => id === workflow.id);
-  if (
-    stored === undefined
-    || !isCreationWorkflow(stored, config, "account")
-    || !canArchiveCreationWorkflow(stored)
-  ) {
+  if (stored === undefined || !canArchiveCreationWorkflow(stored)) {
     throw new CreationWorkflowError();
   }
-  const archived: CreationWorkflow = {
+  return saveCreationWorkflow(config, {
     ...stored,
     status: "archived",
     updatedAt: Date.now(),
-  };
-  window.localStorage.setItem(workflowStorageKey(archived), JSON.stringify(archived));
-  return archived;
+  });
 }
 
-export function canArchiveCreationWorkflow(
-  workflow: CreationWorkflow,
-): boolean {
+export function canArchiveCreationWorkflow(workflow: CreationWorkflow): boolean {
   return workflow.requestId === null
     && !hasCreationExecutionExposure(workflow)
     && !hasBlockingCreationTransaction(workflow);
 }
 
 export function reservedCreationHog(workflows: readonly CreationWorkflow[]): bigint {
-  return workflows.reduce((total, workflow) => {
-    if (workflow.status !== "active") return total;
-    const remainingTransfers = [
-      workflow.steps.fundLiquidityToken,
-      workflow.steps.fundPair,
-      workflow.steps.fundHandler,
-      workflow.steps.fundDriver,
-    ].filter(({ status }) => status !== "committed").length;
-    return total + BigInt(workflow.fixedFundingPerContract) * BigInt(remainingTransfers);
-  }, 0n);
+  return workflows.reduce((total, workflow) =>
+    workflow.status === "active" && workflow.steps.createPool.status !== "committed"
+      ? total + BigInt(workflow.totalFunding)
+      : total, 0n);
 }
 
 export function reservedCreationToken(
@@ -264,32 +230,23 @@ export function reservedCreationToken(
 ): bigint {
   let reserved = 0n;
   for (const workflow of workflows) {
-    if (
-      workflow.status !== "active"
-      && workflow.status !== "queued"
-      && !(workflow.status === "race" && workflow.requestId !== null)
-    ) continue;
+    if (workflow.status !== "active" && workflow.status !== "queued") continue;
     if (workflow.token0.address === tokenAddress) reserved += BigInt(workflow.token0.amount);
     if (workflow.token1.address === tokenAddress) reserved += BigInt(workflow.token1.amount);
   }
   return reserved;
 }
 
-export function hasBlockingCreationTransaction(
-  workflow: CreationWorkflow,
-): boolean {
+export function hasBlockingCreationTransaction(workflow: CreationWorkflow): boolean {
   if (workflow.status !== "active" && workflow.status !== "queued") return false;
-  return creationStepOrder.some((name) =>
-    workflow.steps[name].status === "signing"
-    || workflow.steps[name].status === "indeterminate"
-  );
+  return creationStepOrder.some((name) => {
+    const status = workflow.steps[name].status;
+    return status === "signing" || status === "indeterminate";
+  });
 }
 
-export function hasCreationExecutionExposure(
-  workflow: CreationWorkflow,
-): boolean {
+export function hasCreationExecutionExposure(workflow: CreationWorkflow): boolean {
   return workflow.status === "queued"
-    || (workflow.status === "race" && workflow.requestId !== null)
     || (workflow.status === "active"
       && (workflow.steps.enqueue.status === "signing"
         || workflow.steps.enqueue.status === "indeterminate"));
@@ -307,7 +264,7 @@ function tokenIntent(token: PoolCreationReview["token0"]): CreationTokenIntent {
 
 function accountCreationWorkflowPrefix(config: GlobalConfig): string {
   return [
-    "groundhog-swap:pool-creation:v1",
+    "groundhog-swap:pool-creation:v2",
     config.networkIdHex,
     toHex0x(config.accountAddress),
     "",
@@ -319,71 +276,57 @@ function isCreationWorkflow(
   config: GlobalConfig,
   scope: "factory" | "account" = "factory",
 ): value is CreationWorkflow {
-  if (!isRecord(value) || value.version !== STORAGE_VERSION) return false;
-  const steps = value.steps;
+  if (!isRecord(value) || value.version !== STORAGE_VERSION || !isRecord(value.steps)) return false;
   if (
     typeof value.id !== "string"
     || value.id.length === 0
     || value.networkIdHex !== config.networkIdHex
     || value.accountAddress !== toHex0x(config.accountAddress)
-    || typeof value.factoryAddress !== "string"
-    || !HASH_PATTERN.test(value.factoryAddress)
-    || typeof value.routerAddress !== "string"
-    || !HASH_PATTERN.test(value.routerAddress)
-    || typeof value.nativeHogAddress !== "string"
-    || !HASH_PATTERN.test(value.nativeHogAddress)
-    || (scope === "factory"
-      && value.factoryAddress !== toHex0x(config.factoryAddress))
-    || (scope === "factory"
-      && value.routerAddress !== toHex0x(config.routerAddress))
+    || !isHash(value.factoryAddress)
+    || !isHash(value.routerAddress)
     || value.nativeHogAddress !== toHex0x(config.nativeHogAddress)
+    || (scope === "factory" && value.factoryAddress !== toHex0x(config.factoryAddress))
+    || (scope === "factory" && value.routerAddress !== toHex0x(config.routerAddress))
     || !isTokenIntent(value.token0)
     || !isTokenIntent(value.token1)
     || value.token0.address >= value.token1.address
-    || !isPool(value.pool)
-    || !isPositiveInteger(value.fixedFundingPerContract)
-    || !isPositiveInteger(value.totalFixedFunding)
-    || BigInt(value.totalFixedFunding) !== BigInt(value.fixedFundingPerContract) * 4n
-    || !["active", "queued", "executed", "failed", "race", "archived"]
-      .includes(String(value.status))
-    || !(value.requestId === null
-      || (typeof value.requestId === "string" && HASH_PATTERN.test(value.requestId)))
-    || !(value.enqueueReceiptBlock === undefined
-      || value.enqueueReceiptBlock === null
-      || isPositiveInteger(value.enqueueReceiptBlock))
-    || !(value.terminalBlock === undefined
-      || value.terminalBlock === null
-      || isPositiveInteger(value.terminalBlock))
-    || !isRecord(steps)
-    || !creationStepOrder.every((name) => isStep(steps[name]))
+    || !(value.pool === null || isPool(value.pool))
+    || !isPositiveInteger(value.fundingMinimum)
+    || !isPositiveInteger(value.fundingPerContract)
+    || !isPositiveInteger(value.totalFunding)
+    || BigInt(value.fundingPerContract) < BigInt(value.fundingMinimum)
+    || BigInt(value.totalFunding) !== BigInt(value.fundingPerContract) * 3n
+    || !["active", "queued", "executed", "failed", "race", "archived"].includes(String(value.status))
+    || !(value.requestId === null || isHash(value.requestId))
+    || !(value.enqueueReceiptBlock === null || isPositiveInteger(value.enqueueReceiptBlock))
+    || !(value.observedThroughBlock === null || isPositiveInteger(value.observedThroughBlock))
+    || !(value.terminalBlock === null || isPositiveInteger(value.terminalBlock))
+    || !creationStepOrder.every((name) => isStep(value.steps[name]))
     || !validTime(value.createdAt)
     || !validTime(value.updatedAt)
     || value.updatedAt < value.createdAt
   ) return false;
-  const enqueue = steps.enqueue as CreationStep;
-  const crank = steps.crank as CreationStep;
-  if (
-    value.terminalBlock !== undefined
-    && value.terminalBlock !== null
-    && (!value.requestId
-      || !value.enqueueReceiptBlock
-      || !["executed", "failed"].includes(String(value.status))
-      || BigInt(value.terminalBlock) < BigInt(value.enqueueReceiptBlock))
-  ) return false;
-  if (
-    (value.requestId !== null && enqueue.status !== "committed")
-    || (["queued", "executed"].includes(String(value.status))
-      && (value.requestId === null || enqueue.status !== "committed"))
-    || (crank.status !== "pending"
-      && (value.requestId === null || enqueue.status !== "committed"))
-  ) return false;
+  if (value.steps.createPool.status === "committed" && value.pool === null) return false;
+  if (value.pool === null && ["queued", "executed"].includes(String(value.status))) return false;
+  if (value.requestId !== null && value.steps.enqueue.status !== "committed") return false;
+  if (["queued", "executed"].includes(String(value.status)) && value.requestId === null) return false;
+  if (value.terminalBlock !== null) {
+    if (value.enqueueReceiptBlock === null || !["executed", "failed"].includes(String(value.status))) return false;
+    if (BigInt(value.terminalBlock) < BigInt(value.enqueueReceiptBlock)) return false;
+  }
   return true;
+}
+
+function isPool(value: unknown): value is CreationPool {
+  return isRecord(value)
+    && isHash(value.liquidityToken)
+    && isHash(value.handler)
+    && isHash(value.driver);
 }
 
 function isTokenIntent(value: unknown): value is CreationTokenIntent {
   return isRecord(value)
-    && typeof value.address === "string"
-    && HASH_PATTERN.test(value.address)
+    && isHash(value.address)
     && typeof value.name === "string"
     && typeof value.symbol === "string"
     && typeof value.decimals === "number"
@@ -393,27 +336,36 @@ function isTokenIntent(value: unknown): value is CreationTokenIntent {
     && isPositiveInteger(value.amount);
 }
 
-function isPool(value: unknown): value is CreationWorkflow["pool"] {
-  return isRecord(value)
-    && ["liquidityToken", "pair", "handler", "driver"].every((key) =>
-      typeof value[key] === "string" && HASH_PATTERN.test(value[key])
-    );
+function isStep(value: unknown): value is CreationStep {
+  if (!isRecord(value)) return false;
+  if (
+    !["pending", "signing", "committed", "skipped", "failed", "indeterminate"].includes(String(value.status))
+    || !(value.transactionHash === null || isHash(value.transactionHash))
+    || !(value.receiptBlock === null || isPositiveInteger(value.receiptBlock))
+    || !(value.message === null || typeof value.message === "string")
+    || !validTime(value.updatedAt)
+  ) return false;
+  if (["pending", "skipped"].includes(String(value.status))) return value.transactionHash === null;
+  if (value.status === "committed") {
+    return value.transactionHash !== null && value.receiptBlock !== null;
+  }
+  if (value.receiptBlock !== null) return false;
+  return true;
 }
 
-function isStep(value: unknown): value is CreationStep {
-  if (!(isRecord(value)
-    && ["pending", "signing", "committed", "skipped", "failed", "indeterminate"]
-      .includes(String(value.status))
-    && (value.transactionHash === null
-      || (typeof value.transactionHash === "string"
-        && HASH_PATTERN.test(value.transactionHash)))
-    && (value.message === null || typeof value.message === "string")
-    && validTime(value.updatedAt))) return false;
-  if (value.status === "committed") return value.transactionHash !== null;
-  if (value.status === "skipped" || value.status === "pending") {
-    return value.transactionHash === null;
-  }
-  return true;
+function workflowStorageKey(workflow: CreationWorkflow): string {
+  return [
+    "groundhog-swap:pool-creation:v2",
+    workflow.networkIdHex,
+    workflow.accountAddress,
+    workflow.factoryAddress,
+    workflow.token0.address,
+    workflow.token1.address,
+  ].join(":");
+}
+
+function isHash(value: unknown): value is string {
+  return typeof value === "string" && HASH_PATTERN.test(value);
 }
 
 function isPositiveInteger(value: unknown): value is string {
@@ -424,17 +376,6 @@ function validTime(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function workflowStorageKey(workflow: CreationWorkflow): string {
-  return [
-    "groundhog-swap:pool-creation:v1",
-    workflow.networkIdHex,
-    workflow.accountAddress,
-    workflow.factoryAddress,
-    workflow.token0.address,
-    workflow.token1.address,
-  ].join(":");
 }

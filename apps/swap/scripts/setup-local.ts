@@ -40,13 +40,19 @@ import { stringify } from "smol-toml";
 
 import { ERC20, ERC20Metadata } from "../src/contracts/generated/erc20";
 import { DevWallet } from "../src/contracts/generated/dev-wallet";
-import { SwapDriver } from "../src/contracts/generated/swap-driver";
+import {
+  RequestAccepted,
+  RequestFailed,
+  RequestsProcessed,
+  SwapDriver,
+} from "../src/contracts/generated/swap-driver";
 import {
   SwapFactory,
   type Pool,
 } from "../src/contracts/generated/swap-factory";
-import { SwapPair } from "../src/contracts/generated/swap-pair";
+import { MintEvent } from "../src/contracts/generated/swap-handler";
 import { SwapRouter } from "../src/contracts/generated/swap-router";
+import { createSwapHandlerReadAdapter } from "../src/contracts/handler-adapter";
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 const EXPIRY_BLOCKS = 1_000n;
@@ -54,6 +60,7 @@ const CONTRACT_FUNDING = 10_000_000n;
 const MINT_AMOUNT = 2_000_000_000n;
 const LIQUIDITY_AMOUNT = 1_000_000_000n;
 const TOKEN_DECIMALS = 6n;
+const U128_MAX = (1n << 128n) - 1n;
 const SUPPORTED_WIRE_FORMAT = /^(?:[3-9]|[1-9]\d+)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
 interface RuntimeManifest {
@@ -73,7 +80,6 @@ interface Artifacts {
   router: Contract;
   handler: Contract;
   driver: Contract;
-  pair: Contract;
 }
 
 interface Deployment {
@@ -253,20 +259,9 @@ async function configureSwap(
   artifacts: Artifacts,
 ): Promise<Deployment> {
   const alice = personas[0]!.account;
-  // 1. Register the pair, handler, and driver binaries. The returned instances
+  // 1. Register the handler and driver binaries. The returned instances
   // are only registration seeds; the factory later deploys the instances used by
   // this pool from these hashes.
-  const pairHash = hashContract(artifacts.pair);
-  await submit(
-    client,
-    alice,
-    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
-      nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
-      contractHash: fixedBytes(pairHash, 32),
-    }),
-    [artifacts.pair],
-  );
-
   const handlerHash = hashContract(artifacts.handler);
   await submit(
     client,
@@ -378,8 +373,7 @@ async function configureSwap(
     }
   }
 
-  // 4. Deploy and fund the factory, then initialize it with every binary hash it
-  // needs to create a pair-specific LP token, pair, handler, and driver.
+  // 4. Deploy and fund the factory. It is initialized after the router is deployed.
   const factoryHash = hashContract(artifacts.factory);
   const factoryReceipt = await submit(
     client,
@@ -403,27 +397,8 @@ async function configureSwap(
   });
   await submit(client, faucet, fundFactory, []);
 
-  const initializeFactory = DevWallet.doAction.invocation(
-    alice.address,
-    GAS_LIMIT,
-    {
-      invocationBytes: serialize(
-        SwapFactory.initialize.invocation(factory, GAS_LIMIT, {
-          hashes: {
-            token: fixedBytes(tokenHash, 32),
-            pair: fixedBytes(pairHash, 32),
-            handler: fixedBytes(handlerHash, 32),
-            driver: fixedBytes(driverHash, 32),
-          },
-          feeTo: null,
-        }),
-        codec.Invocation,
-      ),
-    },
-  );
-  await submit(client, alice, initializeFactory, []);
-
-  // 5. Deploy and fund the router, then connect it to the initialized factory.
+  // 5. Deploy and fund the router, initialize the factory with it, then connect
+  // the router back to the factory.
   const routerHash = hashContract(artifacts.router);
   const routerReceipt = await submit(
     client,
@@ -447,6 +422,26 @@ async function configureSwap(
   });
   await submit(client, faucet, fundRouter, []);
 
+  const initializeFactory = DevWallet.doAction.invocation(
+    alice.address,
+    GAS_LIMIT,
+    {
+      invocationBytes: serialize(
+        SwapFactory.initialize.invocation(factory, GAS_LIMIT, {
+          hashes: {
+            token: fixedBytes(tokenHash, 32),
+            handler: fixedBytes(handlerHash, 32),
+            driver: fixedBytes(driverHash, 32),
+          },
+          feeTo: null,
+          router,
+        }),
+        codec.Invocation,
+      ),
+    },
+  );
+  await submit(client, alice, initializeFactory, []);
+
   const initializeRouter = DevWallet.doAction.invocation(
     alice.address,
     GAS_LIMIT,
@@ -459,38 +454,77 @@ async function configureSwap(
   );
   await submit(client, alice, initializeRouter, []);
 
-  // 6. Resolve the deterministic addresses the factory will use for this token
-  // pair. Funding them now ensures they have HOG when the queued liquidity request
-  // deploys or invokes them.
-  const pool = (
-    await SwapFactory.poolAddresses.view({
+  // 6. Fund native-token storage before creating its first allowance row, then
+  // approve the factory's recommended funding and create the pool atomically.
+  const nativeTokenAirdrop = await client.requestAirdrop({
+    recipient: HOG_ADDRESS,
+  });
+  if (
+    nativeTokenAirdrop.status.result !== "ok"
+    || nativeTokenAirdrop.rawAmount < CONTRACT_FUNDING
+  ) {
+    throw new Error("Native HOG airdrop did not provide the required storage reserve");
+  }
+  const funding = (
+    await SwapFactory.poolFunding.view({
+      client,
+      contract: factory,
+      caller: alice.address,
+    })
+  ).value;
+  if (
+    funding.min <= 0n
+    || funding.recommended < funding.min
+    || funding.recommended > U128_MAX / 3n
+  ) {
+    throw new Error("Factory returned an invalid pool funding policy");
+  }
+  const totalFunding = funding.recommended * 3n;
+  const approveFunding = DevWallet.doAction.invocation(alice.address, GAS_LIMIT, {
+    invocationBytes: serialize(
+      ERC20.adjustAllowance.invocation(HOG_ADDRESS, GAS_LIMIT, {
+        spender: factory,
+        diff: totalFunding,
+      }),
+      codec.Invocation,
+    ),
+  });
+  await submit(client, alice, approveFunding, []);
+  const createPool = DevWallet.doAction.invocation(alice.address, GAS_LIMIT, {
+    invocationBytes: serialize(
+      SwapFactory.createPair.invocation(factory, GAS_LIMIT, {
+        tokenA,
+        tokenB,
+        funding: funding.recommended,
+      }),
+      codec.Invocation,
+    ),
+  });
+  const poolReceipt = await submit(client, alice, createPool, []);
+  const pool = SwapFactory.createPair.decodeReceipt(poolReceipt).value;
+  const [registered, resolved] = await Promise.all([
+    SwapFactory.getPair.view({
       client,
       contract: factory,
       caller: alice.address,
       args: { tokenA, tokenB },
-    })
-  ).value;
-
-  for (const address of [
-    pool.liquidity_token,
-    pool.pair,
-    pool.handler,
-    pool.driver,
-  ]) {
-    const fundPoolContract = DevWallet.doAction.invocation(
-      faucet.address,
-      GAS_LIMIT,
-      {
-        invocationBytes: serialize(
-          ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
-            receiver: address,
-            amount: CONTRACT_FUNDING,
-          }),
-          codec.Invocation,
-        ),
-      },
-    );
-    await submit(client, faucet, fundPoolContract, []);
+    }),
+    SwapFactory.poolAddresses.view({
+      client,
+      contract: factory,
+      caller: alice.address,
+      args: { tokenA, tokenB },
+    }),
+  ]);
+  if (
+    registered.value === null
+    || registered.height !== resolved.height
+    || !bytesEqual(registered.value, resolved.value.handler)
+    || !bytesEqual(pool.liquidity_token, resolved.value.liquidity_token)
+    || !bytesEqual(pool.handler, resolved.value.handler)
+    || !bytesEqual(pool.driver, resolved.value.driver)
+  ) {
+    throw new Error("Created pool does not match the factory registry");
   }
 
   // 7. Authorize the handler to consume exactly the amount of each token that will
@@ -513,7 +547,7 @@ async function configureSwap(
   }
 
   // 8. Adding liquidity only queues a request. The separate driver call executes
-  // it and transfers the approved token amounts into the pair.
+  // it and transfers the approved token amounts into the handler.
   const addLiquidity = DevWallet.doAction.invocation(
     alice.address,
     GAS_LIMIT,
@@ -530,7 +564,10 @@ async function configureSwap(
       ),
     },
   );
-  await submit(client, alice, addLiquidity, []);
+  const addReceipt = await submit(client, alice, addLiquidity, []);
+  const requestId = RequestAccepted.singleFromReceipt(addReceipt, {
+    contractAddress: pool.driver,
+  }).topics.request_id;
 
   const processRequests = DevWallet.doAction.invocation(
     alice.address,
@@ -542,17 +579,47 @@ async function configureSwap(
       ),
     },
   );
-  await submit(client, alice, processRequests, []);
+  const processReceipt = await submit(client, alice, processRequests, []);
+  const [processed, failedCount] = SwapDriver.processRequests.decodeReceipt(
+    processReceipt,
+  ).value;
+  const summary = RequestsProcessed.singleFromReceipt(processReceipt, {
+    contractAddress: pool.driver,
+  });
+  if (
+    summary.fields.processed !== processed
+    || summary.fields.failed !== failedCount
+    || processed < 1n
+    || failedCount !== 0n
+  ) {
+    throw new Error("Queue processing returned an invalid summary");
+  }
+  const failures = RequestFailed.allFromReceipt(processReceipt, {
+    contractAddress: pool.driver,
+  }).filter((event) => bytesEqual(event.topics.request_id, requestId));
+  const mints = MintEvent.allFromReceipt(processReceipt, {
+    contractAddress: pool.handler,
+  }).filter((event) =>
+    event.fields.request_id !== null
+    && bytesEqual(event.fields.request_id, requestId)
+    && bytesEqual(event.topics.sender, alice.address)
+    && bytesEqual(event.topics.recipient, alice.address)
+    && event.fields.amount_minted > 0n
+  );
+  if (failures.length !== 0 || mints.length !== 1) {
+    throw new Error("Initial liquidity did not emit one matching handler mint");
+  }
 
   // 9. Confirm that queue processing produced the balanced pool expected by the
   // frontend. Swap behavior itself is covered by the live integration test.
-  const [reserve0, reserve1] = (
-    await SwapPair.getReserves.view({
+  const poolState = (
+    await createSwapHandlerReadAdapter({
       client,
-      contract: pool.pair,
+      contract: pool.handler,
       caller: alice.address,
-    })
+    }).poolState()
   ).value;
+  const { reserve0, reserve1 } = poolState;
   if (reserve0 !== LIQUIDITY_AMOUNT || reserve1 !== LIQUIDITY_AMOUNT) {
     throw new Error(
       `Expected initial reserves of ${LIQUIDITY_AMOUNT}; got ${reserve0} and ${reserve1}`,
@@ -621,15 +688,14 @@ async function loadArtifacts(root: string): Promise<Artifacts> {
     contract_type: ContractType.kRv32,
     rv32_contract: { data: await readFile(join(root, name)) },
   });
-  const [erc20, factory, router, handler, driver, pair] = await Promise.all([
+  const [erc20, factory, router, handler, driver] = await Promise.all([
     contract("erc20.rv32a"),
     contract("swap_factory.rv32a"),
     contract("swap_router.rv32a"),
     contract("swap_handler.rv32a"),
     contract("swap_driver.rv32a"),
-    contract("swap_pair.rv32a"),
   ]);
-  return { erc20, factory, router, handler, driver, pair };
+  return { erc20, factory, router, handler, driver };
 }
 
 function renderEnvironment(
@@ -657,17 +723,10 @@ function renderEnvironment(
     ].map(toHex0x).join(",")}`,
     `VITE_SWAP_FACTORY_ADDRESS=${toHex0x(deployment.factory)}`,
     `VITE_SWAP_ROUTER_ADDRESS=${toHex0x(deployment.router)}`,
-    `VITE_POOL_CONTRACT_FUNDING=${CONTRACT_FUNDING}`,
-    `VITE_SWAP_PAIR_ADDRESS=${toHex0x(deployment.pool.pair)}`,
-    `VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS=${toHex0x(deployment.pool.liquidity_token)}`,
-    `VITE_SWAP_HANDLER_ADDRESS=${toHex0x(deployment.pool.handler)}`,
-    `VITE_SWAP_DRIVER_ADDRESS=${toHex0x(deployment.pool.driver)}`,
+    `SWAP_POOL_ADDRESS=${toHex0x(deployment.pool.handler)}`,
+    `SWAP_LIQUIDITY_TOKEN_ADDRESS=${toHex0x(deployment.pool.liquidity_token)}`,
+    `SWAP_DRIVER_ADDRESS=${toHex0x(deployment.pool.driver)}`,
     `SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT=${toHex0x(SwapDriver.processRequests.entrypoint)}`,
-    `VITE_TOKEN_A_ADDRESS=${toHex0x(deployment.tokenA)}`,
-    `VITE_TOKEN_B_ADDRESS=${toHex0x(deployment.tokenB)}`,
-    "VITE_TOKEN_A_SYMBOL=gUSD",
-    "VITE_TOKEN_B_SYMBOL=gEUR",
-    `VITE_TOKEN_DECIMALS=${TOKEN_DECIMALS}`,
     "",
   ].join("\n");
 }

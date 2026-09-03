@@ -1,4 +1,5 @@
 import { contractAddress } from "@groundhogchain/protocol";
+import type { TransactionReceipt } from "@groundhogchain/client";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -26,7 +27,6 @@ const config = {
   routerAddress: address(8),
   factoryAddress: address(7),
   nativeHogAddress: address(6),
-  poolContractFunding: 100n,
 } satisfies GlobalConfig;
 
 describe("PoolCreatePage", () => {
@@ -50,8 +50,9 @@ describe("PoolCreatePage", () => {
     await user.click(screen.getByRole("button", { name: "Review pool" }));
 
     expect(await screen.findByRole("heading", { name: "Creation review" })).toBeVisible();
-    expect(screen.getByText(/400 HOG base units total/)).toBeVisible();
-    expect(screen.getAllByText("100 HOG base units")).toHaveLength(4);
+    expect(screen.getByText(/300 HOG base units across/)).toBeVisible();
+    expect(screen.getByText("50 HOG base units per contract")).toBeVisible();
+    expect(screen.getByText("100 HOG base units per contract")).toBeVisible();
     expect(screen.getByText("2 T1 : 3 T2")).toBeVisible();
     await user.click(screen.getByRole("switch", { name: "Manual queue processing" }));
     await user.click(screen.getByRole("button", { name: "Create pool" }));
@@ -69,7 +70,7 @@ describe("PoolCreatePage", () => {
   it("requires explicit confirmation for a restored pre-hash signing step", async () => {
     const user = userEvent.setup();
     const workflow = createCreationWorkflow(config, review(), 10);
-    workflow.steps.fundLiquidityToken.status = "signing";
+    workflow.steps.approveFunding.status = "signing";
     saveCreationWorkflow(config, workflow);
     renderPage({});
 
@@ -79,7 +80,7 @@ describe("PoolCreatePage", () => {
     await user.click(confirm);
 
     await waitFor(() => expect(
-      loadCreationWorkflow(config, hex(1), hex(2))?.steps.fundLiquidityToken,
+       loadCreationWorkflow(config, hex(1), hex(2))?.steps.approveFunding,
     ).toMatchObject({ status: "pending", transactionHash: null }));
     expect(screen.getByRole("button", { name: "Continue creation" })).toBeEnabled();
   });
@@ -87,7 +88,7 @@ describe("PoolCreatePage", () => {
   it("does not let stale pre-hash confirmation overwrite committed progress", async () => {
     const user = userEvent.setup();
     const workflow = createCreationWorkflow(config, review(), 10);
-    workflow.steps.fundLiquidityToken.status = "signing";
+    workflow.steps.approveFunding.status = "signing";
     saveCreationWorkflow(config, workflow);
     renderPage({});
     saveCreationWorkflow(config, {
@@ -95,15 +96,17 @@ describe("PoolCreatePage", () => {
       updatedAt: 11,
       steps: {
         ...workflow.steps,
-        fundLiquidityToken: {
+        approveFunding: {
           status: "committed",
           transactionHash: hex(50),
+          receiptBlock: "11",
           message: null,
           updatedAt: 11,
         },
-        fundPair: {
+        createPool: {
           status: "signing",
           transactionHash: null,
+          receiptBlock: null,
           message: null,
           updatedAt: 11,
         },
@@ -115,9 +118,9 @@ describe("PoolCreatePage", () => {
     }));
 
     await waitFor(() => expect(
-      loadCreationWorkflow(config, hex(1), hex(2))?.steps.fundLiquidityToken,
+      loadCreationWorkflow(config, hex(1), hex(2))?.steps.approveFunding,
     ).toMatchObject({ status: "committed", transactionHash: hex(50) }));
-    expect(loadCreationWorkflow(config, hex(1), hex(2))?.steps.fundPair)
+    expect(loadCreationWorkflow(config, hex(1), hex(2))?.steps.createPool)
       .toMatchObject({ status: "signing", transactionHash: null });
   });
 
@@ -128,12 +131,19 @@ describe("PoolCreatePage", () => {
       workflow.steps[name] = {
         status: "committed",
         transactionHash: hex(50),
+        receiptBlock: "11",
         message: null,
         updatedAt: 11,
       };
     }
     workflow.status = "queued";
     workflow.requestId = hex(60);
+    workflow.enqueueReceiptBlock = "11";
+    workflow.pool = {
+      liquidityToken: hex(21),
+      handler: hex(22),
+      driver: hex(23),
+    };
     workflow.updatedAt = 11;
     saveCreationWorkflow(config, workflow);
     const run = vi.fn(async (_config: GlobalConfig, current: CreationWorkflow) => current);
@@ -151,6 +161,63 @@ describe("PoolCreatePage", () => {
       expect.objectContaining({ automaticProcessing: true }),
     ));
     expect(loadCreationWorkflow(config, hex(1), hex(2))?.status).toBe("executed");
+  });
+
+  it("removes an unused factory allowance before continuing after a race", async () => {
+    const user = userEvent.setup();
+    const workflow = createCreationWorkflow(config, review(), 10);
+    workflow.status = "race";
+    workflow.pool = {
+      liquidityToken: hex(21),
+      handler: hex(22),
+      driver: hex(23),
+    };
+    workflow.steps.approveFunding = {
+      status: "committed",
+      transactionHash: hex(40),
+      receiptBlock: "11",
+      message: null,
+      updatedAt: 11,
+    };
+    workflow.steps.createPool = {
+      status: "failed",
+      transactionHash: hex(41),
+      receiptBlock: null,
+      message: "Another account created this pool.",
+      updatedAt: 11,
+    };
+    workflow.updatedAt = 11;
+    saveCreationWorkflow(config, workflow);
+    const execute = vi.fn(async (_target, observer) => {
+      observer?.onSigned(hex(42));
+      return {
+        kind: "committedSuccess" as const,
+        hash: hex(42),
+        receipt: {} as TransactionReceipt,
+      };
+    });
+    const run = vi.fn(async (_config: GlobalConfig, current: CreationWorkflow) => current);
+    renderPage({
+      writer: { execute },
+      readFactoryAllowance: async () => ({ value: 300n, height: 11n }),
+      run,
+    });
+
+    await user.click(await screen.findByRole("button", {
+      name: "Remove funding allowance and continue",
+    }));
+
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+    expect(run).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({
+        status: "active",
+        steps: expect.objectContaining({
+          createPool: expect.objectContaining({ status: "skipped" }),
+        }),
+      }),
+      expect.any(Object),
+    );
   });
 });
 
@@ -195,15 +262,13 @@ function review(): PoolCreationReview {
       amount: 3_000n,
       approvalDifference: 0n,
     },
-    pool: {
-      pair: address(20),
-      liquidityToken: address(21),
-      handler: address(22),
-      driver: address(23),
-    },
+    pool: null,
     nativeHogBalance: 10_000n,
-    fixedFundingPerContract: 100n,
-    totalFixedFunding: 400n,
+    nativeHogAllowance: 0n,
+    fundingMinimum: 50n,
+    fundingPerContract: 100n,
+    totalFunding: 300n,
+    fundingApprovalDifference: 300n,
     initialLiquidity: 2_449n,
     readHeight: 7n,
   };

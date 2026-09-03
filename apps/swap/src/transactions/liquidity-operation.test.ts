@@ -24,8 +24,6 @@ const config = {
   routerAddress: address(8),
   factoryAddress: address(7),
   nativeHogAddress: address(6),
-  poolContractFunding: 100n,
-  pairAddress: address(10),
   liquidityTokenAddress: address(11),
   handlerAddress: address(12),
   driverAddress: address(13),
@@ -105,7 +103,7 @@ describe("liquidity operation storage", () => {
     });
     saveLiquidityOperations(config, [add]);
     const stored = JSON.parse(window.localStorage.getItem(liquidityOperationKey(config))!);
-    stored.operations[0].pairAddress = hex(99);
+    stored.operations[0].handlerAddress = hex(99);
     window.localStorage.setItem(liquidityOperationKey(config), JSON.stringify(stored));
 
     expect(() => loadLiquidityOperations(config)).toThrow(LiquidityOperationError);

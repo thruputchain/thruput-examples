@@ -24,8 +24,6 @@ const config: AppConfig = {
   routerAddress: address(2),
   factoryAddress: address(3),
   nativeHogAddress: address(4),
-  poolContractFunding: 100n,
-  pairAddress: address(7),
   liquidityTokenAddress: address(8),
   handlerAddress: address(9),
   driverAddress: address(10),

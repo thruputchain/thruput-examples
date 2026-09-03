@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
 import { RequestFailed } from "@/contracts/generated/swap-driver";
-import { SwapEvent } from "@/contracts/generated/swap-pair";
+import { SwapEvent } from "@/contracts/generated/swap-handler";
 import type { OutstandingRequest } from "@/transactions/outstanding-request";
 import {
   createRequestRecord,
@@ -31,8 +31,6 @@ const config: AppConfig = {
   routerAddress: address(8),
   factoryAddress: address(10),
   nativeHogAddress: address(11),
-  poolContractFunding: 10_000_000n,
-  pairAddress: address(7),
   liquidityTokenAddress: address(12),
   handlerAddress: address(6),
   driverAddress: address(5),
@@ -53,9 +51,9 @@ const request: OutstandingRequest = {
   visibleObservationMs: 0,
   observationBaseline: null,
   criteria: {
-    pairAddress: hex(7),
     handlerAddress: hex(6),
     driverAddress: hex(5),
+    sender: hex(9),
     recipient: hex(9),
     tokenIn: hex(1),
     tokenOut: hex(2),
@@ -421,10 +419,10 @@ function swapEvent(
   writer.writeUint32(1n);
   writer.writeFixedOpaque(requestId, 32);
   return {
-    contractAddress: options.contractAddress ?? config.pairAddress,
+    contractAddress: options.contractAddress ?? config.handlerAddress,
     topics: [
       SwapEvent.signature,
-      options.sender ?? config.handlerAddress,
+      options.sender ?? config.accountAddress,
       options.recipient ?? config.accountAddress,
     ],
     data: writer.finish(),

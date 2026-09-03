@@ -144,7 +144,7 @@ export function PoolDetailPage({ config }: { config: AppConfig }) {
             </CardHeader>
             <CardContent>
               <dl className="grid gap-4 sm:grid-cols-2">
-                <Address label="Pair" value={config.pairAddress} />
+                <Address label="Pool" value={config.handlerAddress} />
                 <Address label="LP token" value={config.liquidityTokenAddress} />
                 <Address label="Handler" value={config.handlerAddress} />
                 <Address label="Driver" value={config.driverAddress} />
@@ -179,7 +179,7 @@ function Address({
   value,
 }: {
   label: string;
-  value: AppConfig["pairAddress"];
+  value: AppConfig["handlerAddress"];
 }) {
   return (
     <div className="min-w-0">

@@ -72,6 +72,7 @@ function request(
   tokenIn: string,
   amountIn: bigint,
 ): RequestRecord {
+  const account = `0x${"09".repeat(32)}`;
   return {
     localId: `${status}-${phase}-${tokenIn}-${amountIn}`,
     status,
@@ -83,7 +84,7 @@ function request(
     visibleObservationMs: 0,
     observationBaseline: null,
     criteria: {
-      pairAddress: tokenA,
+      sender: account,
       handlerAddress: tokenA,
       driverAddress: tokenA,
       recipient: tokenA,

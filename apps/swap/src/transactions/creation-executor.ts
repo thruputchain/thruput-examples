@@ -1,23 +1,33 @@
-import { addressFromHex, toHex0x, type TransactionReceipt } from "@groundhogchain/client";
-import type { ContractAddress, Invocation } from "@groundhogchain/protocol";
+import { addressFromHex, bytesEqual, toHex0x, type TransactionReceipt } from "@groundhogchain/client";
+import type { Invocation } from "@groundhogchain/protocol";
 
 import type { AppConfig, GlobalConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
-import { buildProcessRequestsTarget } from "@/contracts/driver-target";
+import {
+  buildProcessRequestsTarget,
+  decodeRequestsProcessedSummary,
+} from "@/contracts/driver-target";
+import { createSwapFactoryReadAdapter, type PoolAddresses } from "@/contracts/factory-adapter";
+import { buildCreatePairTarget } from "@/contracts/factory-target";
+import { creationFailureMessage } from "@/contracts/failure-message";
+import { RequestAccepted } from "@/contracts/generated/swap-driver";
 import { PoolCreated } from "@/contracts/generated/swap-factory";
-import { RequestAccepted, RequestFailed } from "@/contracts/generated/swap-driver";
-import { MintEvent } from "@/contracts/generated/swap-pair";
 import { buildAddLiquidityTarget } from "@/contracts/router-target";
-import { buildTransferTarget } from "@/contracts/transfer-target";
 import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
+import { createReadClient } from "@/groundhog/client";
 import {
   PoolCreationValidationError,
   preparePoolCreation,
   type PoolCreationDependencies,
   type PoolCreationReview,
 } from "@/pools/pool-creation";
+import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
+import {
+  applyCreationReceipt,
+  createCreationObserver,
+} from "@/transactions/creation-observer";
 import {
   creationStepOrder,
   hasBlockingCreationTransaction,
@@ -27,34 +37,40 @@ import {
   reservedCreationHog,
   reservedCreationToken,
   saveCreationWorkflow,
+  type CreationPool,
   type CreationStepName,
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
 import { isBlockingCrankAttempt, loadAccountCrankAttempts } from "@/transactions/crank-attempt";
 import {
-  hasExecutionExposure,
-  loadAccountRequestRecords,
-} from "@/transactions/request-collection";
-import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
+  applyLiquidityReceipt,
+} from "@/transactions/liquidity-executor";
 import {
   hasBlockingLiquidityTransaction,
   hasLiquidityExecutionExposure,
   loadAccountLiquidityOperations,
+  loadLiquidityOperations,
   reservedLiquidityTokenAmount,
+  saveLiquidityOperations,
 } from "@/transactions/liquidity-operation";
-import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
+import {
+  applyObservationBatch,
+  observationsFromReceipt,
+} from "@/transactions/request-observer";
+import {
+  hasExecutionExposure,
+  loadAccountRequestRecords,
+  loadRequestCollectionForUpdate,
+  saveRequestCollection,
+} from "@/transactions/request-collection";
+import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 
 const MAX_EXECUTION_EXPOSURE = 10;
-const FUNDING_STEPS = [
-  "fundLiquidityToken",
-  "fundPair",
-  "fundHandler",
-  "fundDriver",
-] as const satisfies readonly CreationStepName[];
 
 export interface CreationExecutorDependencies extends PoolCreationDependencies {
   writeBoundary: WriteBoundary;
   automaticProcessing?: boolean;
+  observeQueued?: (workflow: CreationWorkflow) => Promise<CreationWorkflow>;
   onUpdate?: (workflow: CreationWorkflow) => void;
 }
 
@@ -70,11 +86,7 @@ export async function runCreationWorkflow(
   initial: CreationWorkflow,
   dependencies: CreationExecutorDependencies,
 ): Promise<CreationWorkflow> {
-  const persisted = loadCreationWorkflow(
-    config,
-    initial.token0.address,
-    initial.token1.address,
-  );
+  const persisted = loadCreationWorkflow(config, initial.token0.address, initial.token1.address);
   if (persisted === null || persisted.id !== initial.id) {
     throw new Error("The pool-creation workflow changed before the account lock was acquired");
   }
@@ -84,38 +96,47 @@ export async function runCreationWorkflow(
     dependencies.onUpdate?.(workflow);
     return workflow;
   };
-  if (workflow.status === "race" && workflow.requestId !== null) {
-    workflow = update({
-      ...workflow,
-      status: "queued",
-      updatedAt: Date.now(),
-    });
+
+  if (workflow.status === "queued") {
+    const observed = await (
+      dependencies.observeQueued
+      ?? createCreationObserver(config).scan
+    )(workflow);
+    if (observed !== workflow) workflow = update(observed);
+    if (workflow.status === "executed" || workflow.status === "failed") {
+      return workflow;
+    }
   }
 
   for (const name of creationStepOrder) {
-    if (["executed", "failed", "race"].includes(workflow.status)) break;
-    if (
-      name === "crank"
-      && workflow.status === "queued"
-      && dependencies.automaticProcessing === false
-    ) return workflow;
-    let step = workflow.steps[name];
+    if (["executed", "failed", "race", "archived"].includes(workflow.status)) break;
+    if (name === "crank" && workflow.status === "queued" && dependencies.automaticProcessing === false) {
+      return workflow;
+    }
+    const step = workflow.steps[name];
     if (step.status === "committed" || step.status === "skipped") continue;
 
     if (step.status === "signing" || step.status === "indeterminate") {
-      if (step.transactionHash === null) {
-        throw new CreationRecoveryRequiredError(name);
-      }
+      if (step.transactionHash === null) throw new CreationRecoveryRequiredError(name);
       if (dependencies.writeBoundary.observe === undefined) {
         throw new Error("This wallet cannot recover the stored transaction");
       }
       const observed = await dependencies.writeBoundary.observe(step.transactionHash);
       workflow = applyWriteResult(workflow, name, observed, update);
-      if (observed.kind !== "committedSuccess") return workflow;
-      workflow = applyCommittedStep(config, workflow, name, observed.receipt, update);
-      if (["failed", "race"].includes(workflow.status)) return workflow;
-      step = workflow.steps[name];
-      if (step.status !== "committed") return workflow;
+      if (observed.kind !== "committedSuccess") {
+        if (name === "createPool" && observed.kind !== "indeterminate") {
+          workflow = await markRaceIfPoolExists(config, workflow, name, dependencies, update);
+        }
+        return workflow;
+      }
+      workflow = await applyCommittedStep(
+        config,
+        workflow,
+        name,
+        observed.receipt,
+        dependencies,
+        update,
+      );
       continue;
     }
 
@@ -125,13 +146,21 @@ export async function runCreationWorkflow(
         review = await revalidateWorkflow(config, workflow, dependencies);
       } catch (error) {
         if (error instanceof PoolCreationValidationError && error.code === "poolExists") {
-          const raced = updateStep(workflow, name, {
+          return markRace(config, workflow, name, dependencies, update);
+        }
+        if (
+          name === "createPool"
+          && workflow.steps.approveFunding.status === "committed"
+        ) {
+          const next = updateStep(workflow, name, {
             status: "failed",
-            message:
-              "This pool now exists. Committed prefunding remains at its canonical contracts; no additional transaction was signed.",
+            transactionHash: null,
+            receiptBlock: null,
+            message: error instanceof Error
+              ? error.message
+              : "Pool creation could not be revalidated",
           });
-          workflow = update({ ...raced, status: "race", updatedAt: Date.now() });
-          return workflow;
+          return update({ ...next, status: "failed", updatedAt: Date.now() });
         }
         throw error;
       }
@@ -139,12 +168,11 @@ export async function runCreationWorkflow(
     assertAccountCanSign(config, workflow, name);
     const target = targetForStep(config, workflow, review, name);
     if (target === null) {
-      workflow = updateStep(workflow, name, {
+      workflow = update(updateStep(workflow, name, {
         status: "skipped",
         transactionHash: null,
         message: null,
-      });
-      workflow = update(workflow);
+      }));
       continue;
     }
 
@@ -159,9 +187,20 @@ export async function runCreationWorkflow(
       },
     });
     workflow = applyWriteResult(workflow, name, result, update);
-    if (result.kind !== "committedSuccess") return workflow;
-    workflow = applyCommittedStep(config, workflow, name, result.receipt, update);
-    if (["failed", "race"].includes(workflow.status)) return workflow;
+    if (result.kind !== "committedSuccess") {
+      if (name === "createPool" && result.kind !== "indeterminate") {
+        workflow = await markRaceIfPoolExists(config, workflow, name, dependencies, update);
+      }
+      return workflow;
+    }
+    workflow = await applyCommittedStep(
+      config,
+      workflow,
+      name,
+      result.receipt,
+      dependencies,
+      update,
+    );
   }
   return workflow;
 }
@@ -172,15 +211,13 @@ export function confirmCreationStepWasNotSigned(
   expectedStep: CreationStepName,
 ): CreationWorkflow {
   const step = workflow.steps[expectedStep];
-  if (
-    (step.status !== "signing" && step.status !== "indeterminate")
-    || step.transactionHash !== null
-  ) {
+  if ((step.status !== "signing" && step.status !== "indeterminate") || step.transactionHash !== null) {
     throw new Error("The creation workflow advanced in another tab; review its current step");
   }
   return saveCreationWorkflow(config, updateStep(workflow, expectedStep, {
     status: "pending",
     transactionHash: null,
+    receiptBlock: null,
     message: "Confirmed locally as not signed",
   }));
 }
@@ -199,31 +236,50 @@ export function resetCreationCrank(
   }));
 }
 
+export function continueSupersededCreation(
+  config: GlobalConfig,
+  workflow: CreationWorkflow,
+): CreationWorkflow {
+  if (workflow.status !== "race" || workflow.pool === null || workflow.requestId !== null) {
+    throw new Error("This creation workflow is not waiting for liquidity continuation");
+  }
+  const funding = workflow.steps.approveFunding.status === "committed"
+    ? workflow
+    : updateStep(workflow, "approveFunding", {
+      status: "skipped",
+      transactionHash: null,
+      receiptBlock: null,
+      message: "The existing pool does not require factory funding.",
+    });
+  const next = updateStep(funding, "createPool", {
+    status: "skipped",
+    transactionHash: null,
+    receiptBlock: null,
+    message: "Using the pool created by another account.",
+  });
+  return saveCreationWorkflow(config, {
+    ...next,
+    status: "active",
+    updatedAt: Date.now(),
+  });
+}
+
 async function revalidateWorkflow(
   config: GlobalConfig,
   workflow: CreationWorkflow,
   dependencies: PoolCreationDependencies,
 ): Promise<PoolCreationReview> {
-  const accountWorkflows = loadAccountCreationWorkflows(config);
-  const otherWorkflows = accountWorkflows.filter(({ id }) => id !== workflow.id);
+  const otherWorkflows = loadAccountCreationWorkflows(config).filter(({ id }) => id !== workflow.id);
   const requests = loadAccountRequestRecords(config);
   const liquidityOperations = loadAccountLiquidityOperations(config);
   const nativeHogHex = toHex0x(config.nativeHogAddress);
-  const remainingFunding = fundingSteps()
-    .filter((name) => workflow.steps[name].status !== "committed").length;
   const review = await preparePoolCreation(
     config,
     {
       tokenA: workflow.token0.address,
       tokenB: workflow.token1.address,
-      amountA: formatAmount(
-        BigInt(workflow.token0.amount),
-        workflow.token0.decimals,
-      ),
-      amountB: formatAmount(
-        BigInt(workflow.token1.amount),
-        workflow.token1.decimals,
-      ),
+      amountA: formatAmount(BigInt(workflow.token0.amount), workflow.token0.decimals),
+      amountB: formatAmount(BigInt(workflow.token1.amount), workflow.token1.decimals),
     },
     reservedCreationHog(otherWorkflows)
       + reservedCreationToken(otherWorkflows, nativeHogHex)
@@ -231,39 +287,36 @@ async function revalidateWorkflow(
       + reservedLiquidityTokenAmount(liquidityOperations, nativeHogHex),
     {
       ...dependencies,
-      requiredNativeHog:
-        BigInt(workflow.fixedFundingPerContract) * BigInt(remainingFunding),
+      requiredNativeHog: workflow.steps.createPool.status === "committed"
+        ? 0n
+        : BigInt(workflow.totalFunding),
+      ...(workflow.pool === null ? {} : { existingPool: poolAddresses(workflow.pool) }),
     },
   );
-  assertReviewMatchesWorkflow(review, workflow);
+  if (
+    review.token0.addressHex !== workflow.token0.address
+    || review.token1.addressHex !== workflow.token1.address
+    || review.token0.amount !== BigInt(workflow.token0.amount)
+    || review.token1.amount !== BigInt(workflow.token1.amount)
+    || review.fundingMinimum !== BigInt(workflow.fundingMinimum)
+    || review.fundingPerContract !== BigInt(workflow.fundingPerContract)
+    || review.totalFunding !== BigInt(workflow.totalFunding)
+  ) throw new Error("The creation review no longer matches the saved workflow");
 
   for (const token of [review.token0, review.token1]) {
-    const otherCreationReservation = reservedCreationToken(
-      otherWorkflows,
-      token.addressHex,
-    );
-    const requestReservation = reservedInputForToken(requests, token.addressHex);
-    const liquidityReservation = reservedLiquidityTokenAmount(
-      liquidityOperations,
-      token.addressHex,
-    );
-    if (
-      token.balance < token.amount + otherCreationReservation
-        + requestReservation + liquidityReservation
-    ) {
+    const reserved = reservedCreationToken(otherWorkflows, token.addressHex)
+      + reservedInputForToken(requests, token.addressHex)
+      + reservedLiquidityTokenAmount(liquidityOperations, token.addressHex);
+    if (token.balance < token.amount + reserved) {
       throw new Error(`The unreserved ${token.symbol} balance is no longer sufficient`);
     }
   }
-  const handlerAddress = toHex0x(review.pool.handler);
-  const allowanceRecords = {
-    requests,
-    liquidityOperations,
-    creationWorkflows: otherWorkflows,
-  };
+  if (review.pool === null) return review;
+  const records = { requests, liquidityOperations, creationWorkflows: otherWorkflows };
   return {
     ...review,
-    token0: withAggregateApproval(review.token0, allowanceRecords, handlerAddress),
-    token1: withAggregateApproval(review.token1, allowanceRecords, handlerAddress),
+    token0: withAggregateApproval(review.token0, records, workflow.pool!.handler),
+    token1: withAggregateApproval(review.token1, records, workflow.pool!.handler),
   };
 }
 
@@ -272,32 +325,25 @@ function assertAccountCanSign(
   workflow: CreationWorkflow,
   step: CreationStepName,
 ): void {
-  const scopedConfig = workflowAppConfig(config, workflow);
-  if (hasBlockingAllowanceCleanup(scopedConfig)) {
+  if (hasBlockingAllowanceCleanup(config)) {
     throw new Error("Resolve the account's pending allowance cleanup first");
   }
-  if (loadAccountCrankAttempts(scopedConfig).some(isBlockingCrankAttempt)) {
+  const poolConfig = workflow.pool === null ? null : workflowAppConfig(config, workflow);
+  if (poolConfig !== null && loadAccountCrankAttempts(poolConfig).some(isBlockingCrankAttempt)) {
     throw new Error("Resolve the account's indeterminate queue-processing transaction first");
   }
-  const blockingRequest = loadAccountRequestRecords(scopedConfig).some((request) =>
-    request.status === "approving"
-    || request.status === "submitting"
-    || request.status === "indeterminate"
-  );
-  if (blockingRequest) throw new Error("Resolve the account's pending transaction first");
+  if (loadAccountRequestRecords(config).some((request) =>
+    request.status === "approving" || request.status === "submitting" || request.status === "indeterminate"
+  )) throw new Error("Resolve the account's pending transaction first");
   const liquidityOperations = loadAccountLiquidityOperations(config);
   if (liquidityOperations.some(hasBlockingLiquidityTransaction)) {
     throw new Error("Resolve the account's pending liquidity transaction first");
   }
-  const otherBlockingCreation = loadAccountCreationWorkflows(config).some(
-    (candidate) => candidate.id !== workflow.id && hasBlockingCreationTransaction(candidate),
-  );
-  if (otherBlockingCreation) {
-    throw new Error("Resolve the account's other pool-creation transaction first");
-  }
+  if (loadAccountCreationWorkflows(config).some((candidate) =>
+    candidate.id !== workflow.id && hasBlockingCreationTransaction(candidate)
+  )) throw new Error("Resolve the account's other pool-creation transaction first");
   if (step === "enqueue") {
-    const exposed = loadAccountRequestRecords(scopedConfig)
-        .filter(hasExecutionExposure).length
+    const exposed = loadAccountRequestRecords(config).filter(hasExecutionExposure).length
       + loadAccountCreationWorkflows(config).filter(hasCreationExecutionExposure).length
       + liquidityOperations.filter(hasLiquidityExecutionExposure).length;
     if (exposed >= MAX_EXECUTION_EXPOSURE) {
@@ -311,13 +357,10 @@ function withAggregateApproval(
   records: Parameters<typeof requiredAllowanceFor>[0],
   handlerAddress: string,
 ): PoolCreationReview["token0"] {
-  const required = token.amount
-    + requiredAllowanceFor(records, token.addressHex, handlerAddress);
+  const required = token.amount + requiredAllowanceFor(records, token.addressHex, handlerAddress);
   return {
     ...token,
-    approvalDifference: token.allowance >= required
-      ? 0n
-      : required - token.allowance,
+    approvalDifference: token.allowance >= required ? 0n : required - token.allowance,
   };
 }
 
@@ -327,37 +370,30 @@ function targetForStep(
   review: PoolCreationReview | null,
   name: CreationStepName,
 ): Invocation | null {
-  if (fundingSteps().includes(name)) {
+  if (name === "approveFunding") {
     if (review === null) throw new Error("Creation review is unavailable");
-    const destination = {
-      fundLiquidityToken: review.pool.liquidityToken,
-      fundPair: review.pool.pair,
-      fundHandler: review.pool.handler,
-      fundDriver: review.pool.driver,
-    }[name as (typeof FUNDING_STEPS)[number]];
-    return buildTransferTarget(
-      config.nativeHogAddress,
-      destination,
-      BigInt(workflow.fixedFundingPerContract),
+    return review.fundingApprovalDifference === 0n
+      ? null
+      : buildApprovalTarget(config.nativeHogAddress, config.factoryAddress, review.fundingApprovalDifference);
+  }
+  if (name === "createPool") {
+    return buildCreatePairTarget(
+      config.factoryAddress,
+      addressFromHex(workflow.token0.address),
+      addressFromHex(workflow.token1.address),
+      BigInt(workflow.fundingPerContract),
     );
   }
   if (name === "approveToken0" || name === "approveToken1") {
-    if (review === null) throw new Error("Creation review is unavailable");
+    if (review?.pool === null || review === null) throw new Error("The created pool is unavailable");
     const token = name === "approveToken0" ? review.token0 : review.token1;
     return token.approvalDifference === 0n
       ? null
-      : buildApprovalTarget(
-          token.address,
-          review.pool.handler,
-          token.approvalDifference,
-        );
+      : buildApprovalTarget(token.address, review.pool.handler, token.approvalDifference);
   }
   if (name === "enqueue") {
-    if (review === null) throw new Error("Creation review is unavailable");
-    if (
-      review.token0.approvalDifference !== 0n
-      || review.token1.approvalDifference !== 0n
-    ) {
+    if (review?.pool === null || review === null) throw new Error("The created pool is unavailable");
+    if (review.token0.approvalDifference !== 0n || review.token1.approvalDifference !== 0n) {
       throw new Error("The reviewed token allowances have not been observed yet");
     }
     return buildAddLiquidityTarget(config.routerAddress, {
@@ -368,10 +404,8 @@ function targetForStep(
       recipient: config.accountAddress,
     });
   }
-  if (name === "crank") {
-    return buildProcessRequestsTarget(addressFromHex(workflow.pool.driver));
-  }
-  return null;
+  if (workflow.pool === null) throw new Error("The created pool is unavailable");
+  return buildProcessRequestsTarget(addressFromHex(workflow.pool.driver));
 }
 
 function applyWriteResult(
@@ -392,50 +426,103 @@ function applyWriteResult(
     ? result.message
     : result.kind === "invalid"
       ? result.reason
-      : "The transaction committed with a failed execution result";
-  return update(updateStep(workflow, name, {
+      : creationFailureMessage(name, result.receipt)
+        ?? "The transaction committed with a failed execution result";
+  const next = updateStep(workflow, name, {
     status: "failed",
     transactionHash: result.hash,
     message,
-  }));
+  });
+  return update(name === "createPool"
+    ? { ...next, status: "failed", updatedAt: Date.now() }
+    : next);
 }
 
-function applyCommittedStep(
+async function applyCommittedStep(
   config: GlobalConfig,
   workflow: CreationWorkflow,
   name: CreationStepName,
   receipt: TransactionReceipt,
+  dependencies: PoolCreationDependencies,
   update: (workflow: CreationWorkflow) => CreationWorkflow,
-): CreationWorkflow {
+): Promise<CreationWorkflow> {
   let next = updateStep(workflow, name, {
     status: "committed",
     transactionHash: toHex0x(receipt.txHash),
+    receiptBlock: receipt.height.toString(),
     message: null,
   });
-  if (name === "enqueue") {
-    const created = PoolCreated.allFromReceipt(receipt, {
-      contractAddress: config.factoryAddress,
-    }).filter((event) => poolCreatedMatches(event, workflow));
-    const accepted = RequestAccepted.allFromReceipt(receipt, {
-      contractAddress: addressFromHex(workflow.pool.driver),
-    });
-    if (accepted.length === 1) {
+  if (name === "createPool") {
+    let created: ReturnType<typeof PoolCreated.allFromReceipt> = [];
+    try {
+      created = PoolCreated.allFromReceipt(receipt, {
+        contractAddress: config.factoryAddress,
+      }).filter((event) =>
+        toHex0x(event.topics.token0) === workflow.token0.address
+        && toHex0x(event.topics.token1) === workflow.token1.address
+      );
+    } catch {
+      // Factory state remains authoritative when receipt event decoding is unavailable.
+    }
+    if (created.length === 1) {
+      const event = created[0]!;
       next = {
         ...next,
-        requestId: toHex0x(accepted[0]!.topics.request_id),
-        enqueueReceiptBlock: receipt.height.toString(),
+        pool: {
+          liquidityToken: toHex0x(event.fields.liquidity_token),
+          handler: toHex0x(event.fields.handler),
+          driver: toHex0x(event.fields.driver),
+        },
       };
+    } else {
+      try {
+        next = {
+          ...next,
+          pool: await resolveExistingPool(config, workflow, dependencies),
+        };
+      } catch {
+        return update(updateStep(workflow, name, {
+          status: "indeterminate",
+          transactionHash: toHex0x(receipt.txHash),
+          receiptBlock: null,
+          message: "Pool creation committed, but its factory record could not be resolved yet.",
+        }));
+      }
     }
+    if (created.length === 1) {
+      const eventPool = next.pool!;
+      try {
+        const resolved = await resolveExistingPool(config, workflow, dependencies);
+        if (
+          resolved.liquidityToken !== eventPool.liquidityToken
+          || resolved.handler !== eventPool.handler
+          || resolved.driver !== eventPool.driver
+        ) throw new Error("factory mismatch");
+      } catch {
+        return update(updateStep(workflow, name, {
+          status: "indeterminate",
+          transactionHash: toHex0x(receipt.txHash),
+          receiptBlock: null,
+          message: "Pool creation committed, but its receipt does not match factory state yet.",
+        }));
+      }
+    }
+  }
+  if (name === "enqueue") {
+    if (next.pool === null) throw new Error("The created pool is unavailable");
+    const accepted = RequestAccepted.allFromReceipt(receipt, {
+      contractAddress: addressFromHex(next.pool.driver),
+    });
     if (accepted.length !== 1) {
       return update({
         ...next,
-        status: "race",
+        status: "failed",
         updatedAt: Date.now(),
         steps: {
           ...next.steps,
           enqueue: {
             ...next.steps.enqueue,
-            message: "Creation could not be verified from one matching RequestAccepted event.",
+            message: "Liquidity submission did not emit one RequestAccepted event.",
           },
         },
       });
@@ -443,87 +530,113 @@ function applyCommittedStep(
     next = {
       ...next,
       status: "queued",
+      requestId: toHex0x(accepted[0]!.topics.request_id),
+      enqueueReceiptBlock: receipt.height.toString(),
       updatedAt: Date.now(),
-      steps: created.length === 0
-        ? {
-            ...next.steps,
-            enqueue: {
-              ...next.steps.enqueue,
-              message:
-                "Another creator may have won the pool race. The accepted liquidity request is preserved and will still be processed; this workflow does not claim pool creation.",
-            },
-          }
-        : created.length > 1
-          ? {
-              ...next.steps,
-              enqueue: {
-                ...next.steps.enqueue,
-                message:
-                  "Creation emitted conflicting PoolCreated evidence. The accepted liquidity request is preserved and can still be processed.",
-              },
-            }
-          : next.steps,
     };
   }
   if (name === "crank") {
+    reconcileRelatedReceipt(config, next, receipt);
     next = applyCreationReceipt(next, receipt);
     if (next.status === "queued") {
-      next = {
-        ...next,
-        steps: {
-          ...next.steps,
-          crank: {
-            ...next.steps.crank,
-            message: "The crank committed without a matching terminal mint event.",
-          },
-        },
-      };
+      next = updateStep(next, "crank", {
+        message: "The queue-processing transaction committed without this request's terminal event.",
+      });
     }
   }
   return update(next);
 }
 
-export function applyCreationReceipt(
+function reconcileRelatedReceipt(
+  config: GlobalConfig,
   workflow: CreationWorkflow,
   receipt: TransactionReceipt,
-): CreationWorkflow {
+): void {
+  const poolConfig = workflowAppConfig(config, workflow);
+  decodeRequestsProcessedSummary(receipt, poolConfig.driverAddress);
+  const requests = loadRequestCollectionForUpdate(poolConfig);
+  const queued = requests.filter(({ status, criteria }) =>
+    status === "queued" && criteria.driverAddress === toHex0x(poolConfig.driverAddress)
+  );
+  if (queued.length > 0) {
+    saveRequestCollection(
+      poolConfig,
+      applyObservationBatch(
+        requests,
+        queued,
+        observationsFromReceipt(poolConfig, queued, receipt),
+      ),
+    );
+  }
+  const liquidity = loadLiquidityOperations(poolConfig);
+  saveLiquidityOperations(
+    poolConfig,
+    applyLiquidityReceipt(poolConfig, liquidity, receipt),
+  );
+  for (const candidate of loadAccountCreationWorkflows(config)) {
+    if (candidate.id === workflow.id) continue;
+    const observed = applyCreationReceipt(candidate, receipt);
+    if (observed !== candidate) saveCreationWorkflow(config, observed);
+  }
+}
+
+async function markRace(
+  config: GlobalConfig,
+  workflow: CreationWorkflow,
+  step: CreationStepName,
+  dependencies: PoolCreationDependencies,
+  update: (workflow: CreationWorkflow) => CreationWorkflow,
+): Promise<CreationWorkflow> {
+  const pool = await resolveExistingPool(config, workflow, dependencies);
+  const next = updateStep(workflow, step, {
+    status: "failed",
+    message: workflow.steps.approveFunding.status === "committed"
+      ? "Another account created this pool. The unused factory allowance should be removed before continuing."
+      : "Another account created this pool before a funding approval was submitted.",
+  });
+  return update({ ...next, pool, status: "race", updatedAt: Date.now() });
+}
+
+async function markRaceIfPoolExists(
+  config: GlobalConfig,
+  workflow: CreationWorkflow,
+  step: CreationStepName,
+  dependencies: PoolCreationDependencies,
+  update: (workflow: CreationWorkflow) => CreationWorkflow,
+): Promise<CreationWorkflow> {
+  try {
+    return await markRace(config, workflow, step, dependencies, update);
+  } catch {
+    return workflow;
+  }
+}
+
+async function resolveExistingPool(
+  config: GlobalConfig,
+  workflow: CreationWorkflow,
+  dependencies: PoolCreationDependencies,
+): Promise<CreationPool> {
+  const factory = dependencies.factory ?? createSwapFactoryReadAdapter({
+    client: createReadClient(config),
+    contract: config.factoryAddress,
+    caller: config.accountAddress,
+  });
+  const token0 = addressFromHex(workflow.token0.address);
+  const token1 = addressFromHex(workflow.token1.address);
+  const [registered, addresses] = await Promise.all([
+    factory.getPair(token0, token1),
+    factory.poolAddresses(token0, token1),
+  ]);
   if (
-    (workflow.status !== "queued" && workflow.status !== "race")
-    || workflow.requestId === null
-  ) return workflow;
-  const minted = MintEvent.allFromReceipt(receipt, {
-    contractAddress: addressFromHex(workflow.pool.pair),
-  }).filter((event) => event.fields.request_id !== null
-    && toHex0x(event.fields.request_id) === workflow.requestId
-    && toHex0x(event.topics.sender) === workflow.pool.handler
-    && event.fields.amount_minted > 0n);
-  const failed = RequestFailed.allFromReceipt(receipt, {
-    contractAddress: addressFromHex(workflow.pool.driver),
-  }).filter((event) => toHex0x(event.topics.request_id) === workflow.requestId);
-  if (minted.length > 1 || failed.length > 1 || (minted.length && failed.length)) {
-    throw new Error("Queue receipt contains conflicting terminal creation events");
-  }
-  if (failed.length === 1) {
-    return {
-      ...workflow,
-      status: "failed",
-      enqueueReceiptBlock:
-        workflow.enqueueReceiptBlock ?? receipt.height.toString(),
-      terminalBlock: receipt.height.toString(),
-      updatedAt: Date.now(),
-    };
-  }
-  if (minted.length === 1) {
-    return {
-      ...workflow,
-      status: "executed",
-      enqueueReceiptBlock:
-        workflow.enqueueReceiptBlock ?? receipt.height.toString(),
-      terminalBlock: receipt.height.toString(),
-      updatedAt: Date.now(),
-    };
-  }
-  return workflow;
+    registered.value === null
+    || registered.height !== addresses.height
+    || !bytesEqual(registered.value, addresses.value.handler)
+  ) throw new Error("The existing pool could not be resolved consistently");
+  return {
+    liquidityToken: toHex0x(addresses.value.liquidityToken),
+    handler: toHex0x(addresses.value.handler),
+    driver: toHex0x(addresses.value.driver),
+  };
 }
 
 function updateStep(
@@ -542,44 +655,18 @@ function updateStep(
   };
 }
 
-function assertReviewMatchesWorkflow(
-  review: PoolCreationReview,
-  workflow: CreationWorkflow,
-): void {
-  const matches = review.token0.addressHex === workflow.token0.address
-    && review.token1.addressHex === workflow.token1.address
-    && review.token0.amount === BigInt(workflow.token0.amount)
-    && review.token1.amount === BigInt(workflow.token1.amount)
-    && toHex0x(review.pool.liquidityToken) === workflow.pool.liquidityToken
-    && toHex0x(review.pool.pair) === workflow.pool.pair
-    && toHex0x(review.pool.handler) === workflow.pool.handler
-    && toHex0x(review.pool.driver) === workflow.pool.driver;
-  if (!matches) throw new Error("The factory prediction no longer matches the reviewed pool");
+function poolAddresses(pool: CreationPool): PoolAddresses {
+  return {
+    liquidityToken: addressFromHex(pool.liquidityToken),
+    handler: addressFromHex(pool.handler),
+    driver: addressFromHex(pool.driver),
+  };
 }
 
-function poolCreatedMatches(
-  event: ReturnType<typeof PoolCreated.allFromReceipt>[number],
-  workflow: CreationWorkflow,
-): boolean {
-  return toHex0x(event.topics.token0) === workflow.token0.address
-    && toHex0x(event.topics.token1) === workflow.token1.address
-    && toHex0x(event.fields.liquidity_token) === workflow.pool.liquidityToken
-    && toHex0x(event.fields.pair) === workflow.pool.pair
-    && toHex0x(event.fields.handler) === workflow.pool.handler
-    && toHex0x(event.fields.driver) === workflow.pool.driver;
-}
-
-function fundingSteps(): readonly CreationStepName[] {
-  return FUNDING_STEPS;
-}
-
-function workflowAppConfig(
-  config: GlobalConfig,
-  workflow: CreationWorkflow,
-): AppConfig {
+function workflowAppConfig(config: GlobalConfig, workflow: CreationWorkflow): AppConfig {
+  if (workflow.pool === null) throw new Error("The created pool is unavailable");
   return {
     ...config,
-    pairAddress: addressFromHex(workflow.pool.pair),
     liquidityTokenAddress: addressFromHex(workflow.pool.liquidityToken),
     handlerAddress: addressFromHex(workflow.pool.handler),
     driverAddress: addressFromHex(workflow.pool.driver),

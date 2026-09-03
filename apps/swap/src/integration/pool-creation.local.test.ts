@@ -30,7 +30,6 @@ describe.skipIf(!runLocalIntegration)("local pool creation", () => {
       VITE_NATIVE_HOG_ADDRESS: import.meta.env.VITE_NATIVE_HOG_ADDRESS,
       VITE_SWAP_FACTORY_ADDRESS: import.meta.env.VITE_SWAP_FACTORY_ADDRESS,
       VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
-      VITE_POOL_CONTRACT_FUNDING: import.meta.env.VITE_POOL_CONTRACT_FUNDING,
     });
     const tokenA = process.env.AMM_CREATE_TOKEN_A!;
     const tokenB = process.env.AMM_CREATE_TOKEN_B!;
