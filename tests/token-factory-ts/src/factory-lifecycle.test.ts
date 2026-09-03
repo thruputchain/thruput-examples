@@ -261,7 +261,9 @@ describe.sequential("standard token factory on a clean local node", () => {
       args: { creator: creator.address, nonce: feeNonce },
     })).value;
     await call(creator, [ERC20.transfer.invocation(HOG_ADDRESS, childGas, { receiver: feeToken, amount: tokenSourceFunding })]);
-    await call(creator, [ERC20.transfer.invocation(HOG_ADDRESS, childGas, { receiver: HOG_ADDRESS, amount: nativeTokenFunding })]);
+    const nativeTokenAirdrop = await node.client.requestAirdrop({ recipient: HOG_ADDRESS });
+    expect(nativeTokenAirdrop.status.result).toBe("ok");
+    expect(nativeTokenAirdrop.rawAmount).toBeGreaterThanOrEqual(nativeTokenFunding);
     await call(creator, [ERC20.adjustAllowance.invocation(HOG_ADDRESS, childGas, { spender: feeFactory, diff: creationFee })]);
     const treasuryBefore = (await node.client.getBalance(spender.address)).rawBalance;
     const creatorHogBeforeFee = (await node.client.getBalance(creator.address)).rawBalance;

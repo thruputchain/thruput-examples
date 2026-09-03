@@ -3,7 +3,7 @@ import { toHex0x } from "@groundhogchain/client";
 import type { AppConfig } from "@/config";
 import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 const TERMINAL_LIMIT = 50;
 const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
 
@@ -33,7 +33,6 @@ interface LiquidityOperationBase {
   networkIdHex: string;
   accountAddress: string;
   factoryAddress: string;
-  pairAddress: string;
   handlerAddress: string;
   driverAddress: string;
   liquidityTokenAddress: string;
@@ -96,11 +95,11 @@ export class LiquidityOperationError extends Error {
 
 export function liquidityOperationKey(config: AppConfig): string {
   return [
-    "groundhog-swap:liquidity:v1",
+    "groundhog-swap:liquidity:v2",
     config.networkIdHex,
     toHex0x(config.accountAddress),
     toHex0x(config.factoryAddress),
-    toHex0x(config.pairAddress),
+    toHex0x(config.handlerAddress),
   ].join(":");
 }
 
@@ -109,7 +108,7 @@ export function isAccountLiquidityOperationKey(
   key: string | null,
 ): boolean {
   return key?.startsWith([
-    "groundhog-swap:liquidity:v1",
+    "groundhog-swap:liquidity:v2",
     config.networkIdHex,
     toHex0x(config.accountAddress),
     "",
@@ -306,7 +305,6 @@ function baseOperation(
     networkIdHex: config.networkIdHex,
     accountAddress: toHex0x(config.accountAddress),
     factoryAddress: toHex0x(config.factoryAddress),
-    pairAddress: toHex0x(config.pairAddress),
     handlerAddress: toHex0x(config.handlerAddress),
     driverAddress: toHex0x(config.driverAddress),
     liquidityTokenAddress: toHex0x(config.liquidityTokenAddress),
@@ -373,7 +371,7 @@ function isOperation(
     || !["active", "queued", "executed", "failed"].includes(String(value.status))
     || value.networkIdHex !== config.networkIdHex
     || value.accountAddress !== toHex0x(config.accountAddress)
-    || !["factoryAddress", "pairAddress", "handlerAddress", "driverAddress",
+    || !["factoryAddress", "handlerAddress", "driverAddress",
       "liquidityTokenAddress", "token0Address", "token1Address", "recipient"]
       .every((key) => typeof value[key] === "string" && HASH_PATTERN.test(value[key]))
     || value.recipient !== toHex0x(config.accountAddress)
@@ -397,7 +395,6 @@ function isOperation(
     const pool = config as AppConfig;
     if (
       value.factoryAddress !== toHex0x(pool.factoryAddress)
-      || value.pairAddress !== toHex0x(pool.pairAddress)
       || value.handlerAddress !== toHex0x(pool.handlerAddress)
       || value.driverAddress !== toHex0x(pool.driverAddress)
       || value.liquidityTokenAddress !== toHex0x(pool.liquidityTokenAddress)
@@ -477,11 +474,11 @@ function isStep(value: unknown): value is LiquidityStep {
 
 function operationStorageKey(operation: LiquidityOperation): string {
   return [
-    "groundhog-swap:liquidity:v1",
+    "groundhog-swap:liquidity:v2",
     operation.networkIdHex,
     operation.accountAddress,
     operation.factoryAddress,
-    operation.pairAddress,
+    operation.handlerAddress,
   ].join(":");
 }
 

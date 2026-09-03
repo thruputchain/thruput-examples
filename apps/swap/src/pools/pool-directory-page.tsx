@@ -164,10 +164,10 @@ export function PoolDirectoryPage({ config }: { config: GlobalConfig }) {
                     <Reserve label={snapshot.tokenB.symbol} value={formatTokenAmount(snapshot.reserve1, snapshot.tokenB.decimals, 6)} />
                   </dl>
                   <div className="mt-4 border-t border-foreground/10 pt-4 text-sm">
-                    <span className="mr-2 text-muted-foreground">Pair</span>
+                    <span className="mr-2 text-muted-foreground">Pool</span>
                     <BlockchainIdentifier
-                      value={toHex0x(pool.pairAddress)}
-                      label="Pair address"
+                      value={toHex0x(pool.handlerAddress)}
+                      label="Handler address"
                     />
                   </div>
                 </CardContent>

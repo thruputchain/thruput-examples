@@ -3,7 +3,7 @@
 import { toHex0x, type TransactionReceipt } from "@groundhogchain/client";
 import { describe, expect, it } from "vitest";
 
-import { loadAppConfig, type AppConfig } from "@/config";
+import { loadGlobalConfig, type GlobalConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { buildProcessRequestsTarget } from "@/contracts/driver-target";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
@@ -11,9 +11,10 @@ import {
   BurnEvent,
   MintEvent,
   SwapEvent,
-} from "@/contracts/generated/swap-pair";
+} from "@/contracts/generated/swap-handler";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { parseDevelopmentPersonas } from "@/development-personas";
+import { formatAmount } from "@/domain/amount";
 import { orientReserves, orderTokens } from "@/domain/tokens";
 import {
   deriveAddLiquidityQuote,
@@ -62,9 +63,6 @@ describe.skipIf(!runCleanLedger)("clean-ledger AMM acceptance", () => {
     );
     expect(directory.invalidEntryCount).toBe(0);
     expect(directory.entries).toHaveLength(1);
-    expect(toHex0x(directory.entries[0]!.config.pairAddress)).toBe(
-      toHex0x(baseConfig.pairAddress),
-    );
     const aliceConfig = directory.entries[0]!.config;
     const bobConfig = forPersona(aliceConfig, bob!.accountAddress);
     const carolConfig = forPersona(aliceConfig, carol!.accountAddress);
@@ -116,7 +114,7 @@ describe.skipIf(!runCleanLedger)("clean-ledger AMM acceptance", () => {
     expect(
       carolReceipts.flatMap((receipt) =>
         MintEvent.allFromReceipt(receipt, {
-          contractAddress: carolConfig.pairAddress,
+          contractAddress: carolConfig.handlerAddress,
         }),
       ),
     ).toHaveLength(1);
@@ -128,7 +126,7 @@ describe.skipIf(!runCleanLedger)("clean-ledger AMM acceptance", () => {
     expect(afterAdd.liquidityBalance).toBe(beforeAdd.liquidityBalance + minted);
     const removeQuote = deriveRemoveLiquidityQuote(
       afterAdd,
-      (minted / 2n).toString(),
+      formatAmount(minted / 2n, afterAdd.liquidityTokenDecimals),
       100n,
     );
     expect(removeQuote.ok).toBe(true);
@@ -148,7 +146,7 @@ describe.skipIf(!runCleanLedger)("clean-ledger AMM acceptance", () => {
     expect(
       carolReceipts.flatMap((receipt) =>
         BurnEvent.allFromReceipt(receipt, {
-          contractAddress: carolConfig.pairAddress,
+          contractAddress: carolConfig.handlerAddress,
         }),
       ),
     ).toHaveLength(1);
@@ -216,9 +214,9 @@ describe.skipIf(!runCleanLedger)("clean-ledger AMM acceptance", () => {
       visibleObservationMs: 0,
       observationBaseline: null,
       criteria: {
-        pairAddress: toHex0x(bobConfig.pairAddress),
         handlerAddress: toHex0x(bobConfig.handlerAddress),
         driverAddress: toHex0x(bobConfig.driverAddress),
+        sender: toHex0x(bobConfig.accountAddress),
         recipient: toHex0x(bobConfig.accountAddress),
         tokenIn: toHex0x(bobConfig.tokenAAddress),
         tokenOut: toHex0x(bobConfig.tokenBAddress),
@@ -231,7 +229,7 @@ describe.skipIf(!runCleanLedger)("clean-ledger AMM acceptance", () => {
     expect(crank.kind).toBe("committedSuccess");
     if (crank.kind !== "committedSuccess") return;
     const swaps = SwapEvent.allFromReceipt(crank.receipt, {
-      contractAddress: bobConfig.pairAddress,
+      contractAddress: bobConfig.handlerAddress,
     });
     expect(swaps).toHaveLength(1);
     expect(toHex0x(swaps[0]!.topics.recipient)).toBe(
@@ -313,15 +311,15 @@ function recordingBoundary(
   };
 }
 
-function forPersona(
-  config: AppConfig,
-  accountAddress: AppConfig["accountAddress"],
-): AppConfig {
+function forPersona<T extends GlobalConfig>(
+  config: T,
+  accountAddress: GlobalConfig["accountAddress"],
+): T {
   return { ...config, accountAddress };
 }
 
-function loadLocalConfig(): AppConfig {
-  return loadAppConfig({
+function loadLocalConfig(): GlobalConfig {
+  return loadGlobalConfig({
     VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
     VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
     VITE_GROUNDHOG_WALLET_ADDRESS: import.meta.env
@@ -331,16 +329,5 @@ function loadLocalConfig(): AppConfig {
       .VITE_KNOWN_TOKEN_ADDRESSES,
     VITE_SWAP_FACTORY_ADDRESS: import.meta.env.VITE_SWAP_FACTORY_ADDRESS,
     VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
-    VITE_POOL_CONTRACT_FUNDING: import.meta.env.VITE_POOL_CONTRACT_FUNDING,
-    VITE_SWAP_PAIR_ADDRESS: import.meta.env.VITE_SWAP_PAIR_ADDRESS,
-    VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS: import.meta.env
-      .VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS,
-    VITE_SWAP_HANDLER_ADDRESS: import.meta.env.VITE_SWAP_HANDLER_ADDRESS,
-    VITE_SWAP_DRIVER_ADDRESS: import.meta.env.VITE_SWAP_DRIVER_ADDRESS,
-    VITE_TOKEN_A_ADDRESS: import.meta.env.VITE_TOKEN_A_ADDRESS,
-    VITE_TOKEN_B_ADDRESS: import.meta.env.VITE_TOKEN_B_ADDRESS,
-    VITE_TOKEN_A_SYMBOL: import.meta.env.VITE_TOKEN_A_SYMBOL,
-    VITE_TOKEN_B_SYMBOL: import.meta.env.VITE_TOKEN_B_SYMBOL,
-    VITE_TOKEN_DECIMALS: import.meta.env.VITE_TOKEN_DECIMALS,
   });
 }

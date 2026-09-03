@@ -3,9 +3,16 @@ import type { Invocation } from "@groundhogchain/protocol";
 
 import type { AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
-import { buildProcessRequestsTarget } from "@/contracts/driver-target";
+import {
+  buildProcessRequestsTarget,
+  decodeRequestsProcessedSummary,
+} from "@/contracts/driver-target";
+import {
+  liquidityFailureMessage,
+  swapFailureMessage,
+} from "@/contracts/failure-message";
 import { RequestAccepted, RequestFailed } from "@/contracts/generated/swap-driver";
-import { BurnEvent, MintEvent } from "@/contracts/generated/swap-pair";
+import { BurnEvent, MintEvent } from "@/contracts/generated/swap-handler";
 import {
   buildAddLiquidityTarget,
   buildRemoveLiquidityTarget,
@@ -20,7 +27,7 @@ import {
   reservedCreationToken,
   saveCreationWorkflow,
 } from "@/transactions/creation-workflow";
-import { applyCreationReceipt } from "@/transactions/creation-executor";
+import { applyCreationReceipt } from "@/transactions/creation-observer";
 import {
   createCrankAttempt,
   isBlockingCrankAttempt,
@@ -45,6 +52,7 @@ import {
   hasExecutionExposure,
   loadAccountRequestRecords,
   loadRequestCollectionForUpdate,
+  needsQueueProcessing,
   saveRequestCollection,
 } from "@/transactions/request-collection";
 import {
@@ -171,7 +179,7 @@ export async function runLiquidityOperation(
         ...blockingCrank,
         status: "failed",
         transactionHash: observed.hash,
-        message: writeFailureMessage(observed),
+        message: crankFailureMessage(observed),
         updatedAt: Date.now(),
       });
       return operation;
@@ -214,7 +222,7 @@ export async function runLiquidityOperation(
       ...crank,
       status: "failed",
       transactionHash: crankResult.hash,
-      message: writeFailureMessage(crankResult),
+      message: crankFailureMessage(crankResult),
       updatedAt: Date.now(),
     });
     return operation;
@@ -276,9 +284,12 @@ async function reconcileCrankReceipt(
   dependencies: LiquidityExecutorDependencies,
   update: (operation: LiquidityOperation) => LiquidityOperation,
 ): Promise<LiquidityOperation> {
+  decodeRequestsProcessedSummary(receipt, config.driverAddress);
   const requests = loadRequestCollectionForUpdate(config);
-  const queuedRequests = requests.filter(({ status, criteria }) =>
-    status === "queued" && criteria.driverAddress === toHex0x(config.driverAddress)
+  const queuedRequests = requests.filter((request) =>
+    needsQueueProcessing(request)
+    && request.requestId !== null
+    && request.criteria.driverAddress === toHex0x(config.driverAddress)
   );
   if (queuedRequests.length > 0) {
     saveRequestCollection(
@@ -329,7 +340,7 @@ export function applyLiquidityReceipt(
   };
 
   for (const event of MintEvent.allFromReceipt(receipt, {
-    contractAddress: config.pairAddress,
+    contractAddress: config.handlerAddress,
   })) {
     if (event.fields.request_id === null) continue;
     const requestId = toHex0x(event.fields.request_id);
@@ -337,7 +348,8 @@ export function applyLiquidityReceipt(
     if (operation === undefined) continue;
     if (
       operation.kind !== "add"
-      || toHex0x(event.topics.sender) !== operation.handlerAddress
+      || toHex0x(event.topics.sender) !== operation.accountAddress
+      || toHex0x(event.topics.recipient) !== operation.recipient
       || event.fields.amount_minted <= 0n
     ) throw new Error("Queue receipt contains invalid terminal mint evidence");
     record(requestId, {
@@ -350,12 +362,12 @@ export function applyLiquidityReceipt(
         blockHeight: receipt.height.toString(),
         liquidityMinted: event.fields.amount_minted.toString(),
         amountsDeposited: null,
-        recipientVerified: false,
+        recipientVerified: true,
       },
     });
   }
   for (const event of BurnEvent.allFromReceipt(receipt, {
-    contractAddress: config.pairAddress,
+    contractAddress: config.handlerAddress,
   })) {
     if (event.fields.request_id === null) continue;
     const requestId = toHex0x(event.fields.request_id);
@@ -363,7 +375,7 @@ export function applyLiquidityReceipt(
     if (operation === undefined) continue;
     if (
       operation.kind !== "remove"
-      || toHex0x(event.topics.sender) !== operation.handlerAddress
+      || toHex0x(event.topics.sender) !== operation.accountAddress
       || toHex0x(event.topics.recipient) !== operation.recipient
       || event.fields.amounts_redeemed.some((amount, index) =>
         amount < BigInt(operation.intent.amountsMin[index]!)
@@ -577,7 +589,7 @@ function applyWriteResult(
   return update(updateStep(operation, name, {
     status: "failed",
     transactionHash: result.hash,
-    message: writeFailureMessage(result),
+    message: writeFailureMessage(operation, name, result),
   }));
 }
 
@@ -654,9 +666,21 @@ function updateStep(
 }
 
 function writeFailureMessage(
+  operation: LiquidityOperation,
+  name: LiquidityStepName,
   result: Exclude<WriteResult, { kind: "committedSuccess" | "indeterminate" }>,
 ): string {
   if (result.kind === "preSubmissionFailure") return result.message;
   if (result.kind === "invalid") return result.reason;
-  return "The transaction committed with a failed execution result";
+  return liquidityFailureMessage(operation, name, result.receipt)
+    ?? "The transaction committed with a failed execution result";
+}
+
+function crankFailureMessage(
+  result: Exclude<WriteResult, { kind: "committedSuccess" | "indeterminate" }>,
+): string {
+  if (result.kind === "preSubmissionFailure") return result.message;
+  if (result.kind === "invalid") return result.reason;
+  return swapFailureMessage("crank", result.receipt)
+    ?? "The queue-processing transaction committed without succeeding";
 }

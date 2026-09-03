@@ -77,6 +77,23 @@ Use the development-wallet control in either header to switch this tab among Ali
 
 The wallet portfolio includes all tokens provisioned by local setup, even before they belong to a pool. This makes the seeded gJPY balance available when creating and funding a new market.
 
+Each pool consists of a liquidity-token contract, a handler, and a driver. The
+handler is the canonical pool address: it owns pool state and emits successful
+swap and liquidity events. The driver queues requests and emits request
+failures. There is no separately deployed pair contract.
+
+Pool creation reads the factory's per-contract funding policy, approves three
+times the recommended amount of native HOG to the factory, and calls
+`create_pair` once. The factory creates and funds all three pool contracts
+atomically. Initial token allowances are then granted to the new handler before
+liquidity is submitted through the router. If another account creates the same
+pool first, the app requires the unused factory allowance to be removed before
+the user can continue with initial liquidity.
+
+Browser records from the previous four-contract protocol use retired storage
+namespaces. The app intentionally ignores them rather than migrating, merging,
+or deleting them; clear site data if those inert records are no longer useful.
+
 The primary flow is:
 
 ```text
@@ -136,7 +153,6 @@ npm --prefix apps/swap audit --audit-level=low
 Rust contract checks that use the SDK's native execution environment require authenticated Groundhog FFI artifacts. Provide either `HOGD_FFI_PASSWORD` for the artifact service or `HOGD_FFI_LIB_DIR` pointing to a compatible local `libtest_ffi` build.
 
 ```sh
-cargo test -p swap-pair
 cargo test -p swap-handler
 cargo test -p swap-driver
 cargo test -p swap-router

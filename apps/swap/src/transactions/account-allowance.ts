@@ -1,4 +1,4 @@
-import type { AppConfig } from "@/config";
+import type { GlobalConfig } from "@/config";
 import {
   cleanupAllowanceRequirementFor,
   requiredAllowanceFor,
@@ -10,7 +10,7 @@ import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import { loadAllowanceTerminalHeight } from "@/transactions/allowance-evidence";
 
 export function loadAccountAllowanceRecords(
-  config: AppConfig,
+  config: GlobalConfig,
 ): AccountAllowanceRecords {
   return {
     requests: loadAccountRequestRecords(config),
@@ -20,19 +20,19 @@ export function loadAccountAllowanceRecords(
 }
 
 export function loadCleanupAllowanceRequirement(
-  config: AppConfig,
+  config: GlobalConfig,
   tokenAddress: string,
-  handlerAddress: string,
+  spenderAddress: string,
 ): ReturnType<typeof cleanupAllowanceRequirementFor> {
   const requirement = cleanupAllowanceRequirementFor(
     loadAccountAllowanceRecords(config),
     tokenAddress,
-    handlerAddress,
+    spenderAddress,
   );
   const retainedHeight = loadAllowanceTerminalHeight(
     config,
     tokenAddress,
-    handlerAddress,
+    spenderAddress,
   );
   return {
     ...requirement,
@@ -43,13 +43,13 @@ export function loadCleanupAllowanceRequirement(
 }
 
 export function loadRequiredAllowance(
-  config: AppConfig,
+  config: GlobalConfig,
   tokenAddress: string,
-  handlerAddress: string,
+  spenderAddress: string,
 ): bigint {
   return requiredAllowanceFor(
     loadAccountAllowanceRecords(config),
     tokenAddress,
-    handlerAddress,
+    spenderAddress,
   );
 }

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
 import { RequestFailed } from "@/contracts/generated/swap-driver";
-import { BurnEvent, MintEvent } from "@/contracts/generated/swap-pair";
+import { BurnEvent, MintEvent } from "@/contracts/generated/swap-handler";
 import {
   createAddLiquidityOperation,
   createRemoveLiquidityOperation,
@@ -21,8 +21,6 @@ const config = {
   routerAddress: address(8),
   factoryAddress: address(7),
   nativeHogAddress: address(6),
-  poolContractFunding: 100n,
-  pairAddress: address(5),
   liquidityTokenAddress: address(4),
   handlerAddress: address(3),
   driverAddress: address(2),
@@ -105,8 +103,8 @@ function mintEvent(requestId: Uint8Array) {
   writer.writeUint32(1n);
   writer.writeFixedOpaque(requestId, 32);
   return {
-    contractAddress: config.pairAddress,
-    topics: [MintEvent.signature, config.handlerAddress],
+    contractAddress: config.handlerAddress,
+    topics: [MintEvent.signature, config.accountAddress, config.accountAddress],
     data: writer.finish(),
   };
 }
@@ -118,8 +116,8 @@ function burnEvent(requestId: Uint8Array, amounts: readonly [bigint, bigint]) {
   writer.writeUint32(1n);
   writer.writeFixedOpaque(requestId, 32);
   return {
-    contractAddress: config.pairAddress,
-    topics: [BurnEvent.signature, config.handlerAddress, config.accountAddress],
+    contractAddress: config.handlerAddress,
+    topics: [BurnEvent.signature, config.accountAddress, config.accountAddress],
     data: writer.finish(),
   };
 }

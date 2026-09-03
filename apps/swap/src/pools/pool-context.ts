@@ -50,7 +50,7 @@ export async function resolvePoolConfig(
     const registered = await factory.getPair(token0, token1);
     if (registered.value === null) throw new PoolNotFoundError();
     const addresses = await factory.poolAddresses(token0, token1);
-    if (!sameAddress(registered.value, addresses.value.pair)) {
+    if (!sameAddress(registered.value, addresses.value.handler)) {
       throw new PoolIdentityError();
     }
     const [metadata0, metadata1] = await Promise.all([
@@ -74,7 +74,6 @@ export async function resolvePoolConfig(
 
     return {
       ...config,
-      pairAddress: addresses.value.pair,
       liquidityTokenAddress: addresses.value.liquidityToken,
       handlerAddress: addresses.value.handler,
       driverAddress: addresses.value.driver,

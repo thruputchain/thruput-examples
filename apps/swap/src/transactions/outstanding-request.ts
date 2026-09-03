@@ -27,9 +27,9 @@ export interface OutstandingRequest {
     reserveOut: bigint;
   } | null;
   criteria: {
-    pairAddress: string;
     handlerAddress: string;
     driverAddress: string;
+    sender: string;
     recipient: string;
     tokenIn: string;
     tokenOut: string;
@@ -53,17 +53,15 @@ type StoredOutstandingRequest = {
     reserveIn: string;
     reserveOut: string;
   } | null;
-  criteria: Omit<OutstandingRequest["criteria"], "driverAddress"> & {
-    driverAddress?: string;
-  };
+  criteria: OutstandingRequest["criteria"];
 };
 
 export function outstandingRequestKey(config: AppConfig): string {
   return [
-    "groundhog-swap:outstanding:v1",
+    "groundhog-swap:outstanding:v2",
     config.networkIdHex,
     toHex0x(config.accountAddress),
-    toHex0x(config.pairAddress),
+    toHex0x(config.handlerAddress),
   ].join(":");
 }
 
@@ -91,7 +89,7 @@ export function loadAccountOutstandingRequests(
     ) {
       throw new Error("Stored account request state is invalid");
     }
-    requests.push(fromStoredRequest(value, value.criteria.pairAddress));
+    requests.push(fromStoredRequest(value, value.criteria.driverAddress ?? ""));
   }
   return requests;
 }
@@ -179,7 +177,7 @@ function accountOutstandingRequestPrefix(
   config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
 ): string {
   return [
-    "groundhog-swap:outstanding:v1",
+    "groundhog-swap:outstanding:v2",
     config.networkIdHex,
     toHex0x(config.accountAddress),
     "",
@@ -188,7 +186,7 @@ function accountOutstandingRequestPrefix(
 
 function fromStoredRequest(
   value: StoredOutstandingRequest,
-  fallbackDriverAddress: string,
+  _fallbackDriverAddress: string,
 ): OutstandingRequest {
   return {
     status: value.status === "queued" && value.requestId == null
@@ -213,10 +211,7 @@ function fromStoredRequest(
           reserveIn: BigInt(value.observationBaseline.reserveIn),
           reserveOut: BigInt(value.observationBaseline.reserveOut),
         },
-    criteria: {
-      ...value.criteria,
-      driverAddress: value.criteria.driverAddress ?? fallbackDriverAddress,
-    },
+    criteria: value.criteria,
   };
 }
 
@@ -302,34 +297,26 @@ function isObservationBaseline(value: unknown): boolean {
   ].every((key) => typeof record[key] === "string" && /^\d+$/.test(record[key]));
 }
 
-function isCriteria(value: unknown): value is Omit<
-  OutstandingRequest["criteria"],
-  "driverAddress"
-> & { driverAddress?: string } {
+function isCriteria(value: unknown): value is OutstandingRequest["criteria"] {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
   const record = value as Record<string, unknown>;
-  return ["pairAddress", "handlerAddress", "recipient", "tokenIn", "tokenOut"].every(
+  return ["handlerAddress", "driverAddress", "sender", "recipient", "tokenIn", "tokenOut"].every(
     (key) => typeof record[key] === "string" && /^0x[0-9a-f]{64}$/.test(record[key]),
-  ) && (record.driverAddress === undefined
-    || (typeof record.driverAddress === "string"
-      && /^0x[0-9a-f]{64}$/.test(record.driverAddress)));
+  );
 }
 
 function criteriaMatchesConfig(
-  criteria: Omit<OutstandingRequest["criteria"], "driverAddress"> & {
-    driverAddress?: string;
-  },
+  criteria: OutstandingRequest["criteria"],
   config: AppConfig,
 ): boolean {
   const tokenA = toHex0x(config.tokenAAddress);
   const tokenB = toHex0x(config.tokenBAddress);
   return (
-    criteria.pairAddress === toHex0x(config.pairAddress)
-    && criteria.handlerAddress === toHex0x(config.handlerAddress)
-    && (criteria.driverAddress === undefined
-      || criteria.driverAddress === toHex0x(config.driverAddress))
+    criteria.handlerAddress === toHex0x(config.handlerAddress)
+    && criteria.driverAddress === toHex0x(config.driverAddress)
+    && criteria.sender === toHex0x(config.accountAddress)
     && criteria.recipient === toHex0x(config.accountAddress)
     && ((criteria.tokenIn === tokenA && criteria.tokenOut === tokenB)
       || (criteria.tokenIn === tokenB && criteria.tokenOut === tokenA))

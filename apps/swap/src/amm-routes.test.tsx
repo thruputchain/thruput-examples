@@ -20,7 +20,6 @@ const config: GlobalConfig = {
   routerAddress: address(2),
   factoryAddress: address(3),
   nativeHogAddress: address(4),
-  poolContractFunding: 10_000_000n,
 };
 
 describe("AmmRoutes", () => {

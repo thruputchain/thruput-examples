@@ -408,7 +408,6 @@ function poolRuntimeKey(config: AppConfig): string {
       toHex0x(config.tokenAAddress),
       toHex0x(config.tokenBAddress),
     ),
-    toHex0x(config.pairAddress),
     toHex0x(config.handlerAddress),
     toHex0x(config.driverAddress),
   ].join(":");
@@ -531,8 +530,6 @@ function readBrowserConfiguration():
           import.meta.env.VITE_KNOWN_TOKEN_ADDRESSES,
         VITE_SWAP_FACTORY_ADDRESS: import.meta.env.VITE_SWAP_FACTORY_ADDRESS,
         VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
-        VITE_POOL_CONTRACT_FUNDING:
-          import.meta.env.VITE_POOL_CONTRACT_FUNDING,
       }),
     };
   } catch (error) {

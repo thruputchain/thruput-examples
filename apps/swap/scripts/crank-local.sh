@@ -25,7 +25,7 @@ read_generated_value() {
   return 1
 }
 
-driver_address="$(read_generated_value VITE_SWAP_DRIVER_ADDRESS)"
+driver_address="$(read_generated_value SWAP_DRIVER_ADDRESS)"
 process_requests="$(read_generated_value SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT)"
 
 # `process_requests` drains as deep as the calling transaction's gas limit
