@@ -58,7 +58,11 @@ pub enum LedgerError {
     InsufficientFunds { requested: u128 } = 1,
     /// A deposit or withdrawal of zero, which is always a caller mistake.
     ZeroAmount = 2,
-    /// The deposit would take the balance past `Balance::MAX`.
+    /// The deposit could not be recorded: the amount, or the deltas this
+    /// transaction has already accumulated, overflow the balance
+    /// representation. Overflow against the *committed* balance is a
+    /// commit-time check instead, since a lazy increase deliberately does
+    /// not load it.
     BalanceTooLarge = 3,
 }
 
