@@ -248,6 +248,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "cross-trait-throws"
+version = "0.1.0"
+dependencies = [
+ "cross-trait-throws",
+ "sdk",
+]
+
+[[package]]
 name = "crunchy"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
