@@ -40,7 +40,7 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::storage::{Map, Value};
+use sdk::storage::{Balance, Map, Value};
 use sdk::*;
 
 sdk::declare_mock_contract!();
@@ -51,26 +51,32 @@ sdk::declare_mock_contract!();
 #[contract_exception]
 pub enum LedgerError {
     /// The account holds less than the amount asked for.
-    InsufficientFunds { held: u64, requested: u64 } = 1,
+    ///
+    /// Carries what was asked for, not what was held: reporting the balance
+    /// would mean reading it, and the whole point of the storage type below
+    /// is that a withdrawal expresses a constraint rather than a read.
+    InsufficientFunds { requested: u128 } = 1,
     /// A deposit or withdrawal of zero, which is always a caller mistake.
     ZeroAmount = 2,
+    /// The deposit would take the balance past `Balance::MAX`.
+    BalanceTooLarge = 3,
 }
 
 /// A minimal balance ledger.
 #[contract(client = LedgerClient, throws = LedgerError)]
 pub trait Ledger {
     /// Credit the caller's account.
-    fn deposit(&mut self, amount: u64);
+    fn deposit(&mut self, amount: u128);
 
     /// Debit the caller's account.
     ///
     /// Throws [`LedgerError::InsufficientFunds`] when the balance is too
     /// small — and [`PauseError::EnforcedPause`], from the peer interface,
     /// when the ledger is paused.
-    fn withdraw(&mut self, amount: u64);
+    fn withdraw(&mut self, amount: u128);
 
     /// The caller's balance. Unknown accounts read as zero.
-    fn balance(&self) -> u64;
+    fn balance(&self) -> u128;
 }
 
 // ── The Pausable interface ───────────────────────────────────────────────
@@ -85,6 +91,8 @@ pub enum PauseError {
     ExpectedPause = 2,
     /// Only the operator set at initialization may pause or unpause.
     NotOperator = 3,
+    /// `initialize` was called on a ledger that already has an operator.
+    AlreadyInitialized = 4,
 }
 
 /// An operator-controlled halt switch.
@@ -98,12 +106,18 @@ pub trait Pausable {
 // ── The contract implementing both ───────────────────────────────────────
 
 /// One storage struct behind both interfaces.
+///
+/// Balances are [`Balance`] cells rather than `Value<u128>`. A balance is
+/// never *set* to an absolute figure — `Balance` deliberately exposes no
+/// `set` — because read-the-total-then-write-it-back serializes every holder
+/// against every other and loses concurrent updates. Adjusting by a delta
+/// merges instead. A missing cell reads as zero.
 #[sdk::storage]
 #[cfg_attr(feature = "dev", derive(Debug))]
 pub struct PausableLedger {
     operator: Value<ContractAddress>,
     paused: Value<bool>,
-    balances: Map<ContractAddress, Value<u64>>,
+    balances: Map<ContractAddress, Balance>,
 }
 
 impl PausableLedger {
@@ -111,12 +125,8 @@ impl PausableLedger {
         self.paused.try_get().none_if_missing().unwrap_or(false)
     }
 
-    fn _balance_of(&self, owner: &ContractAddress) -> u64 {
-        self.balances
-            .at(owner)
-            .try_get()
-            .none_if_missing()
-            .unwrap_or(0)
+    fn _balance_of(&self, owner: &ContractAddress) -> u128 {
+        self.balances.at(owner).get()
     }
 
     /// The line the two interfaces meet on: a `Ledger` operation refused for
@@ -134,8 +144,12 @@ impl PausableLedger {
 /// Setup, plus the guest-side catch this example exists for.
 #[contract(client = LedgerAdminClient)]
 impl PausableLedger {
-    /// Record who may pause this ledger.
+    /// Record who may pause this ledger. Callable once.
     pub fn initialize(&mut self, operator: &ContractAddress) {
+        ensure(
+            self.operator.try_get().none_if_missing().is_none(),
+            PauseError::AlreadyInitialized,
+        );
         self.operator.set(operator);
         self.paused.set(&false);
     }
@@ -147,7 +161,7 @@ impl PausableLedger {
     /// Arms 2 and 3 name errors `Ledger` declares; arm 4 names one it does
     /// not — `PauseError` belongs to [`Pausable`]. The macro treats them
     /// alike, because each arm dispatches on the selector its pattern pins.
-    pub fn withdraw_from(target: &ContractAddress, amount: u64) -> u32 {
+    pub fn withdraw_from(target: &ContractAddress, amount: u128) -> u32 {
         let ledger = LedgerClient::new(target);
 
         match ledger.try_withdraw(amount) {
@@ -169,34 +183,37 @@ impl PausableLedger {
 
 #[contract]
 impl Ledger for PausableLedger {
-    fn deposit(&mut self, amount: u64) {
+    fn deposit(&mut self, amount: u128) {
         self._require_running();
         ensure(amount > 0, LedgerError::ZeroAmount);
 
-        let owner = get_caller();
-        let held = self._balance_of(&owner);
-        self.balances.at_mut(&owner).set(&(held + amount));
+        // Lazy: record the delta without loading the committed balance, so
+        // concurrent deposits to the same account merge rather than
+        // conflicting. Nothing here needs to know the running total.
+        self.balances
+            .at_mut(&get_caller())
+            .try_lazy_increase(amount)
+            .unwrap_or_else(|_| throw(LedgerError::BalanceTooLarge));
     }
 
-    fn withdraw(&mut self, amount: u64) {
+    fn withdraw(&mut self, amount: u128) {
         // Refused for a `Pausable` reason, with `Pausable`'s error type.
         self._require_running();
         ensure(amount > 0, LedgerError::ZeroAmount);
 
-        let owner = get_caller();
-        let held = self._balance_of(&owner);
-        ensure(
-            held >= amount,
-            LedgerError::InsufficientFunds {
-                held,
-                requested: amount,
-            },
-        );
-
-        self.balances.at_mut(&owner).set(&(held - amount));
+        // Checked rather than lazy: a withdrawal must not overdraw, so this
+        // loads the committed balance and fails now if it is short, pinning
+        // a strict constraint against the snapshot. It still records a
+        // decrement rather than an absolute total, so it does not clobber
+        // concurrent activity the way writing back `held - amount` would;
+        // `lazy_decrease` would defer the same check to commit time.
+        self.balances
+            .at_mut(&get_caller())
+            .try_decrease(amount)
+            .unwrap_or_else(|_| throw(LedgerError::InsufficientFunds { requested: amount }));
     }
 
-    fn balance(&self) -> u64 {
+    fn balance(&self) -> u128 {
         self._balance_of(&get_caller())
     }
 }
@@ -206,13 +223,16 @@ impl Pausable for PausableLedger {
     fn pause(&mut self) {
         self._require_operator();
         ensure(!self._paused(), PauseError::EnforcedPause);
-        self.paused.set(&true);
+        // Read-then-write on a flag every ledger operation reads, so it takes
+        // the exclusive lock: two concurrent pauses must not both observe
+        // "running" and both flip it.
+        self.paused.set_exclusive(&true);
     }
 
     fn unpause(&mut self) {
         self._require_operator();
         ensure(self._paused(), PauseError::ExpectedPause);
-        self.paused.set(&false);
+        self.paused.set_exclusive(&false);
     }
 
     fn paused(&self) -> bool {

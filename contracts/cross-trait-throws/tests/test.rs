@@ -13,7 +13,7 @@ fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
 }
 
 /// Deploy one ledger, initialize it, and fund the caller's account.
-fn deployed_ledger(contract_hash: &SHA256Hash, funded: u64) -> ContractAddress {
+fn deployed_ledger(contract_hash: &SHA256Hash, funded: u128) -> ContractAddress {
     let addr = deploy_contract(&LEDGER_NONCE, contract_hash);
     LedgerAdminClient::new(&addr).initialize(&OPERATOR);
     if funded > 0 {
@@ -59,10 +59,7 @@ fn ledger_throws_its_own_declared_error() {
             let err = ledger.try_withdraw(25).unwrap_err();
             assert_eq!(
                 err.try_as(),
-                Some(LedgerError::InsufficientFunds {
-                    held: 10,
-                    requested: 25,
-                })
+                Some(LedgerError::InsufficientFunds { requested: 25 })
             );
         })
     })
@@ -123,7 +120,7 @@ fn match_exn_matches_both_interfaces_errors_as_peers() {
             let ledger = LedgerClient::new(&addr);
             let pausable = PausableClient::new(&addr);
 
-            let classify = |amount: u64| -> &'static str {
+            let classify = |amount: u128| -> &'static str {
                 match ledger.try_withdraw(amount) {
                     Ok(()) => "ok",
                     Err(CallError::Fault(_)) => "fault",
