@@ -5,9 +5,7 @@ use groundhog_erc20_if::{Amount, Difference, ERC20Client};
 use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use sdk::storage::Node;
 use sdk::*;
-use swap_factory::{
-    Addresses, POOL_FUNDING, SwapFactoryClient, SwapFactoryClientError, SwapFactoryError,
-};
+use swap_factory::{Addresses, POOL_FUNDING, SwapFactoryClient, SwapFactoryError};
 use swap_handler::SwapHandlerClient;
 use swap_if::SwapHashes;
 use swap_pair::Pair;
@@ -92,17 +90,9 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
 
     let (hashes, factory_hash) = register_contracts(&env);
 
-    // The factory pays for the pool's contracts out of the creator's HOG, so
-    // the native HOG token has to be reachable at its precompiled address.
-    env.setup_create_deployment(
-        &ADDRESS_PRECOMPILED_HOG_TOKEN,
-        &Contract::kNative {
-            native_contract_id:
-                groundhog_xdr::precompiles::HogexecPrecompiledNativeContracts::kNativeContractHogToken,
-        },
-    );
-    // The token keeps its allowance ledger in its own storage, and pays for it
-    // like any other contract.
+    // The native HOG token is a precompile: it is live at its address from
+    // genesis and cannot be redeployed. It still keeps its allowance ledger in
+    // its own storage, and pays for it like any other contract.
     env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);
 
     // Under the default cost model each contract pays for the storage it writes,
@@ -164,12 +154,10 @@ fn create_pair_refuses_funding_below_the_floor() {
         SwapFactoryClient::new(&s.factory).try_create_pair(&s.token0, &s.token1, 1)
     })
     .unwrap();
-    assert!(matches!(
-        result,
-        Err(SwapFactoryClientError::SwapFactoryError(
-            SwapFactoryError::InsufficientFunding
-        ))
-    ));
+    assert_eq!(
+        result.unwrap_err().try_as(),
+        Some(SwapFactoryError::InsufficientFunding)
+    );
     s.env.advance_block();
 
     // Nothing was created: the pair is still absent from the registry.
@@ -236,12 +224,10 @@ fn create_pair_brings_up_pool() {
         SwapFactoryClient::new(&s.factory).try_create_pair(&s.token0, &s.token1, FUNDING)
     })
     .unwrap();
-    assert!(matches!(
-        dup,
-        Err(SwapFactoryClientError::SwapFactoryError(
-            SwapFactoryError::PairExists
-        ))
-    ));
+    assert_eq!(
+        dup.unwrap_err().try_as(),
+        Some(SwapFactoryError::PairExists)
+    );
 }
 
 #[test]

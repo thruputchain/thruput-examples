@@ -20,6 +20,6 @@ pub use factory::{Factory, POOL_FUNDING};
 
 // Contract interface (re-exported for convenience)
 pub use swap_if::{
-    Address, Addresses, Pool, PoolCreated, SwapFactory, SwapFactoryClient, SwapFactoryClientError,
-    SwapFactoryError, SwapHashes,
+    Address, Addresses, Pool, PoolCreated, SwapFactory, SwapFactoryClient, SwapFactoryError,
+    SwapHashes,
 };

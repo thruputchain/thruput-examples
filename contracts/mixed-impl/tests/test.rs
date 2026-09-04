@@ -83,7 +83,8 @@ fn test_both_surfaces_same_contract() {
     result.assert_success();
 }
 
-/// `throws` declared on the inherent impl surfaces as `VaultClientError`.
+/// `throws` declared on the inherent impl is published in the interface's
+/// spec; the caller decodes the thrown error by selector.
 #[test]
 fn test_inherent_surface_throws() {
     let (env, contract_hash) = setup();
@@ -93,16 +94,14 @@ fn test_inherent_surface_throws() {
             let addr = deploy_contract(&CONTRACT_NONCE, &contract_hash);
             let vault = VaultClient::new(&addr);
 
-            match vault.try_set(1_000_001) {
-                Err(VaultClientError::VaultError(VaultError::ValueTooLarge)) => {}
-                other => panic!("Expected VaultError::ValueTooLarge, got: {:?}", other),
-            }
+            let err = vault.try_set(1_000_001).unwrap_err();
+            assert_eq!(err.try_as(), Some(VaultError::ValueTooLarge));
         })
     });
     result.assert_success();
 }
 
-/// `throws` declared on the trait definition surfaces as `ResettableClientError`.
+/// `throws` declared on the trait definition behaves the same way.
 #[test]
 fn test_trait_surface_throws() {
     let (env, contract_hash) = setup();
@@ -113,10 +112,8 @@ fn test_trait_surface_throws() {
             let resettable = ResettableClient::new(&addr);
 
             // Nothing has been set, so the vault is already at zero.
-            match resettable.try_reset() {
-                Err(ResettableClientError::ResettableError(ResettableError::AlreadyReset)) => {}
-                other => panic!("Expected ResettableError::AlreadyReset, got: {:?}", other),
-            }
+            let err = resettable.try_reset().unwrap_err();
+            assert_eq!(err.try_as(), Some(ResettableError::AlreadyReset));
         })
     });
     result.assert_success();

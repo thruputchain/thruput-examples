@@ -36,10 +36,8 @@ fn test_throw_error() {
             let client = ErrorHandlingCalleeClient::new(&addr);
 
             // throw_error throws CalleeError::Deliberate
-            match client.try_throw_error() {
-                Err(ErrorHandlingCalleeClientError::CalleeError(CalleeError::Deliberate)) => {}
-                other => panic!("Expected CalleeError::Deliberate, got: {:?}", other),
-            }
+            let err = client.try_throw_error().unwrap_err();
+            assert_eq!(err.try_as(), Some(CalleeError::Deliberate));
         })
     });
     result.assert_success();
@@ -56,7 +54,7 @@ fn test_fault() {
 
             // fault() panics, which becomes a Fault error
             match client.try_fault() {
-                Err(ErrorHandlingCalleeClientError::Fault(_)) => {}
+                Err(CallError::Fault(_)) => {}
                 other => panic!("Expected Fault, got: {:?}", other),
             }
         })

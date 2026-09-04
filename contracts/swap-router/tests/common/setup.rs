@@ -87,17 +87,9 @@ pub fn setup_contracts(
     router_hash: SHA256Hash,
 ) -> Result<Etx> {
 
-    // The factory pays for the pool's contracts out of the creator's HOG, so
-    // the native HOG token has to be reachable at its precompiled address --
-    // and, like any other contract, it pays for the allowance ledger it keeps
-    // in its own storage.
-    env.setup_create_deployment(
-        &ADDRESS_PRECOMPILED_HOG_TOKEN,
-        &Contract::kNative {
-            native_contract_id:
-                groundhog_xdr::precompiles::HogexecPrecompiledNativeContracts::kNativeContractHogToken,
-        },
-    );
+    // The native HOG token is a precompile: it is live at its address from
+    // genesis and cannot be redeployed. Like any other contract, it pays for
+    // the allowance ledger it keeps in its own storage.
     env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);
 
     // Under the default cost model each contract pays for the storage it
