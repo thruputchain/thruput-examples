@@ -1,8 +1,6 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use error_handling_callee::{
-    CalleeError, ErrorHandlingCalleeClient, ErrorHandlingCalleeClientError,
-};
+use error_handling_callee::{CalleeError, ErrorHandlingCalleeClient};
 use sdk::*;
 
 sdk::declare_mock_contract!();
@@ -29,21 +27,13 @@ impl ErrorHandlingCaller {
     /// CalleeError::Deliberate, and return true.
     pub fn call_and_catch_error(callee: &ContractAddress) -> bool {
         let client = ErrorHandlingCalleeClient::new(callee);
-        matches!(
-            client.try_throw_error(),
-            Err(ErrorHandlingCalleeClientError::CalleeError(
-                CalleeError::Deliberate
-            ))
-        )
+        client.try_throw_error().err().and_then(|e| e.try_as()) == Some(CalleeError::Deliberate)
     }
 
     /// Call the callee's fault method, catch the Fault, and return true.
     pub fn call_and_catch_fault(callee: &ContractAddress) -> bool {
         let client = ErrorHandlingCalleeClient::new(callee);
-        matches!(
-            client.try_fault(),
-            Err(ErrorHandlingCalleeClientError::Fault(_))
-        )
+        matches!(client.try_fault(), Err(CallError::Fault(_)))
     }
 
     /// Call the callee's spin method with a gas limit. If the callee runs out of gas,
@@ -52,7 +42,7 @@ impl ErrorHandlingCaller {
         let client = ErrorHandlingCalleeClient::new(callee);
         matches!(
             client.with_gas_limit(gas_limit).try_spin(iterations),
-            Err(ErrorHandlingCalleeClientError::Fault(_))
+            Err(CallError::Fault(_))
         )
     }
 

@@ -6,4 +6,3 @@ mod implementation;
 
 pub use implementation::Counter;
 pub use implementation::CounterClient;
-pub use implementation::CounterClientError;
