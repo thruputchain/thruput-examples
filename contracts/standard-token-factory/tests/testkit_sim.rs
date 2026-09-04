@@ -20,8 +20,8 @@ use sdk::sys::{SyscallErrorCode, SyscallNo};
 use standard_token::Config;
 use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
 
-const ERC20: (&str, &str) = ("ERC20", "0.1.19");
-const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.19");
+const ERC20: (&str, &str) = ("ERC20", "0.1.20");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.20");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
 const REQUIRED_FACTORY_FUNDING: u128 = 1_000_000;
 const REQUIRED_TOKEN_FUNDING: u128 = 350_770;

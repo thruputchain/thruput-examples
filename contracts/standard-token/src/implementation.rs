@@ -185,7 +185,7 @@ impl ERC20 for TokenContract {
     }
 }
 
-#[contract(version = "0.1.19")]
+#[contract(version = "0.1.20")]
 impl ERC20Metadata for TokenContract {
     fn initialize(
         &mut self,
