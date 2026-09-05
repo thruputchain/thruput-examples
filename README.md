@@ -27,8 +27,10 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`multi-impl`](contracts/multi-impl/) | One contract implementing multiple traits from a separate crate |
 | [`mixed-impl`](contracts/mixed-impl/) | One contract exposing both an inherent (`notrait`) `#[contract]` impl and a trait `#[contract]` impl |
 | [`cross-trait-throws`](contracts/cross-trait-throws/) | One contract implementing two traits with different `throws` types; a client on one catching the peer trait's error with `match_exn!` |
-| [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and an optional `metadata` feature |
+| [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and optional `metadata` and `permit` features |
 | [`game-of-life`](contracts/game-of-life/) | A grid simulation driven by on-chain state, with a [local frontend](apps/game-of-life/README.md) |
+| [`permit-wallet`](contracts/permit-wallet/) | Off-chain authorization: an owner's wallet implementing `SignedOp`, turning an ed25519 signature made off-chain into a `PermitGrant` auth token the `erc20` consumes; the owner never submits a transaction |
+| [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit from the wallet to the token in one frame, so anyone can submit it |
 | [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](contracts/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](docs/README-swap.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
 
@@ -102,6 +104,8 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`cross-trait-throws`](contracts/cross-trait-throws/) | ✅ | — | — |
 | [`erc20`](contracts/erc20/) | ✅ | ✅ | ✅ |
 | [`game-of-life`](contracts/game-of-life/) | — | — | — |
+| [`permit-wallet`](contracts/permit-wallet/) | ✅ | — | — |
+| [`permit-relayer`](contracts/permit-relayer/) | — | — | — |
 | [`standard-token`](contracts/standard-token/) | ✅ | — | — |
 | [`standard-token-factory`](contracts/standard-token-factory/) | ✅ | — | — |
 | [`standard-token-factory-if`](contracts/standard-token-factory-if/) | ✅ | — | — |
@@ -140,6 +144,13 @@ Beyond the tests in the table, there are two specially-handled kinds of test:
   drives the swap contracts on a live "devnode" via `groundhog-testkit`. It is
   `#[ignore]`d and needs a devnode binary; run it with
   [`scripts/swap-sim.sh`](scripts/swap-sim.sh).
+  [`permit-wallet/tests/testkit_permit.rs`](contracts/permit-wallet/tests/testkit_permit.rs)
+  does the same for the permit flow: the test signs a permit off-chain with
+  a key the chain never sees, relays it through `permit-relayer`, draws on
+  the allowance, and checks that a replay is refused. Run it with
+  [`scripts/permit-live.sh`](scripts/permit-live.sh). The native version of
+  the same flow, `permit-wallet/tests/permit.rs`, runs under plain
+  `cargo test` and also covers `transfer_from_signed` and key rotation.
 
 ### Running them
 

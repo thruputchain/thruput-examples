@@ -290,7 +290,23 @@ dependencies = [
  "cpufeatures 0.2.17",
  "curve25519-dalek-derive",
  "digest 0.10.7",
- "fiat-crypto",
+ "fiat-crypto 0.2.9",
+ "rustc_version",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.1",
+ "curve25519-dalek-derive",
+ "digest 0.11.3",
+ "fiat-crypto 0.3.0",
  "rustc_version",
  "subtle",
  "zeroize",
@@ -396,7 +412,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
  "pkcs8",
- "signature",
+ "signature 2.2.0",
+]
+
+[[package]]
+name = "ed25519"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29fcf32e6c73d1079f83ab4d782de2d81620346a5f38c6237a86a22f8368980a"
+dependencies = [
+ "signature 3.0.0",
 ]
 
 [[package]]
@@ -405,10 +430,23 @@ version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9"
 dependencies = [
- "curve25519-dalek",
- "ed25519",
+ "curve25519-dalek 4.1.3",
+ "ed25519 2.2.3",
  "serde",
  "sha2 0.10.9",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "ed25519-dalek"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de"
+dependencies = [
+ "curve25519-dalek 5.0.0",
+ "ed25519 3.0.0",
+ "sha2 0.11.0",
  "subtle",
  "zeroize",
 ]
@@ -426,6 +464,7 @@ dependencies = [
  "erc20",
  "groundhog-erc20-if",
  "groundhog-erc20-metadata-if",
+ "groundhog-erc20-permit-if",
  "groundhog-xdr 0.30.1",
  "integration-test",
  "sdk",
@@ -499,6 +538,12 @@ name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
+
+[[package]]
+name = "fiat-crypto"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
 
 [[package]]
 name = "fibonacci"
@@ -661,7 +706,7 @@ dependencies = [
  "fs2",
  "futures-util",
  "game-of-life-core",
- "groundhog-contract-util",
+ "groundhog-contract-util 0.30.0",
  "groundhog-json-rpc-client",
  "groundhog-json-rpc-types",
  "groundhog-xdr 0.30.1",
@@ -807,6 +852,18 @@ version = "0.29.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
 checksum = "ca04d04004589aba466192a3140d6ce0e439745d9a1c63de066ec0fc0de7da80"
 dependencies = [
+ "groundhog-xdr 0.30.1",
+ "heapless",
+ "xdr-common",
+ "xdrs",
+]
+
+[[package]]
+name = "groundhog-contract-spec"
+version = "0.30.0"
+source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
+checksum = "bb43f0fae9b5719c6dc304535037e6962b47804c54ea9f9c3d01c0a1ef334034"
+dependencies = [
  "groundhog-spec",
  "groundhog-xdr 0.30.1",
  "heapless",
@@ -822,6 +879,16 @@ checksum = "fbbf23facc887ada31667f00045124206c0f1f578df633414c06630519d167c0"
 dependencies = [
  "groundhog-xdr 0.30.1",
  "sha2 0.11.0",
+]
+
+[[package]]
+name = "groundhog-contract-util"
+version = "0.30.0"
+source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
+checksum = "00d09b94e72b40a8db57fb1f6939a0c5edbce0244d0cce100e50a2f9ada3c030"
+dependencies = [
+ "groundhog-xdr 0.30.1",
+ "sha2 0.11.0",
  "syn 3.0.5",
 ]
 
@@ -831,7 +898,19 @@ version = "0.29.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
 checksum = "c82767b0cacc0fbab08083e93bc0e99907cf2a3cd0c31337754f6ea538bc2e0b"
 dependencies = [
- "groundhog-contract-spec",
+ "groundhog-contract-spec 0.29.0",
+ "groundhog-xdr 0.30.1",
+ "sha2 0.11.0",
+ "xdrs",
+]
+
+[[package]]
+name = "groundhog-domain-separator"
+version = "0.30.0"
+source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
+checksum = "a28797291d10f6864e50c857e5ca625223e6ff77bc94a78592d7fb6ad4798e39"
+dependencies = [
+ "groundhog-contract-spec 0.30.0",
  "groundhog-xdr 0.30.1",
  "sha2 0.11.0",
  "xdrs",
@@ -839,9 +918,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-erc20-if"
-version = "0.1.21"
+version = "0.1.22"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "c74fe6c39582b15091f5694987349dc678f8cca847b585a137b05dc3d73f07c5"
+checksum = "e3f7db64bee3b9b939ceac11b05486abb18b3a155b860bbbd5377565cf712b8e"
 dependencies = [
  "groundhog-xdr 0.30.1",
  "sdk",
@@ -850,9 +929,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-erc20-metadata-if"
-version = "0.1.21"
+version = "0.1.22"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "311d9ac9a6f74e88a0ce0efdc5e71773d3c9c3a531ff9a81b16f14da2e6b6e09"
+checksum = "649bbdfa18d78fb541a4bbd0cc0b15ec94342fd3ff26a7b57d00e510ed28f229"
 dependencies = [
  "groundhog-xdr 0.30.1",
  "heapless",
@@ -861,10 +940,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "groundhog-event"
-version = "0.29.0"
+name = "groundhog-erc20-permit-if"
+version = "0.1.22"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "638012cdb50277931ab71f2760a2955344d20cffcd0cd5b0a996bab4f0e7b300"
+checksum = "a60dcc37a95dc4da14ce69b52ff1f102630ece963ebef98ef4a099a960d73c2e"
+dependencies = [
+ "groundhog-erc20-if",
+ "sdk",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "groundhog-event"
+version = "0.30.0"
+source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
+checksum = "0688c97621e656a2649c4087bb5d61e194c413582f117def833c36e79393de3f"
 dependencies = [
  "groundhog-xdr 0.30.1",
  "xdrs",
@@ -943,12 +1033,12 @@ dependencies = [
 
 [[package]]
 name = "groundhog-macros"
-version = "0.29.0"
+version = "0.30.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "10ea086c8835f62d71c883807cb17f99836904e8d354d245467b8541fc4206c9"
+checksum = "925bcb59b0c50119b23d757825ed409d47b29213561e2e963861ad5a8f4025cb"
 dependencies = [
  "darling",
- "groundhog-contract-util",
+ "groundhog-contract-util 0.30.0",
  "groundhog-xdr 0.30.1",
  "proc-macro2",
  "quote",
@@ -958,9 +1048,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-native-exec"
-version = "0.29.0"
+version = "0.30.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "6185032c657af8e8375a8a3b2603156f1413193345a04a64e2d39f98a921c2fe"
+checksum = "a3cb7968498e86eed137785b7de23ee2c71dc57cd2768f27b69b04c7ad4a9503"
 dependencies = [
  "groundhog-event",
  "groundhog-storage-cost",
@@ -1034,9 +1124,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-rv32-runtime"
-version = "0.29.0"
+version = "0.30.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "96dbc2b42e083f318d8cc8ef4d34cb7dd5b99e8177df6fb0c7da98596880b931"
+checksum = "f438592c5adbe8b466fec6c32410eb53a32c6e561c56e90141c4c20a58baccac"
 
 [[package]]
 name = "groundhog-serde_arrays"
@@ -1048,13 +1138,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "groundhog-signed-op"
+version = "0.1.22"
+source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
+checksum = "2fa129e4e1cac48c458c87cc035a9ccd799f2a1f70af8ef78f38c8fb37f4839c"
+dependencies = [
+ "groundhog-contract-spec 0.30.0",
+ "groundhog-domain-separator 0.30.0",
+ "groundhog-signed-op-if",
+ "sdk",
+]
+
+[[package]]
+name = "groundhog-signed-op-if"
+version = "0.1.22"
+source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
+checksum = "ab0a18fd17788e7ff9f553c28822e7fd35c5125c3ac4bac6673a3c0f8ce65f1c"
+dependencies = [
+ "sdk",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "groundhog-signing"
 version = "0.14.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
 checksum = "1bcfc6fc7da8b788ed7a987abdcb998d840bf87d49555f3d0e8b82b59a52ece2"
 dependencies = [
- "ed25519-dalek",
- "groundhog-domain-separator",
+ "ed25519-dalek 2.2.0",
+ "groundhog-domain-separator 0.29.0",
  "groundhog-xdr 0.30.1",
  "hex",
  "sha2 0.10.9",
@@ -1076,9 +1188,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-storage-cost"
-version = "0.29.0"
+version = "0.30.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "81270879b26a0688d1509ee7059af7d680fd973e8e3ae185c7652cf77335a892"
+checksum = "af811a131477b6f1c187cda87879180b17aedc10346e27235f39ae34426ae9da"
 dependencies = [
  "groundhog-xdr 0.30.1",
  "xdrs",
@@ -1086,9 +1198,9 @@ dependencies = [
 
 [[package]]
 name = "groundhog-sys"
-version = "0.29.0"
+version = "0.30.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "284d6127b5d0aa2f88e7ea31b41945cc8ba836911acfb6c1fa50e01034ddc783"
+checksum = "eba4a1d84db75bed3ae9ab2bcca7f055704f8455f0f5b7a702408cbf34350429"
 dependencies = [
  "fslock",
  "sha2 0.11.0",
@@ -1107,7 +1219,7 @@ version = "0.14.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
 checksum = "996e4ab9798d21508c7a91df88a25c02925689539b9dd2c79b904bcadcfefc2f"
 dependencies = [
- "groundhog-contract-util",
+ "groundhog-contract-util 0.29.0",
  "groundhog-json-rpc-client",
  "groundhog-json-rpc-types",
  "groundhog-node-supervisor",
@@ -1139,11 +1251,11 @@ dependencies = [
 
 [[package]]
 name = "groundhog-u256"
-version = "0.29.0"
+version = "0.30.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "6edd686246c4afb4583716d1671bbab5b711c4ff4e40c543b83dc333d083de4b"
+checksum = "828f1884601d76bcf3bfb290138dad78b92ce71e5edb82c90904a1e5da8560b6"
 dependencies = [
- "groundhog-contract-spec",
+ "groundhog-contract-spec 0.30.0",
  "xdrs",
 ]
 
@@ -1661,7 +1773,7 @@ dependencies = [
 name = "integration-test"
 version = "0.1.0"
 dependencies = [
- "groundhog-contract-util",
+ "groundhog-contract-util 0.30.0",
  "groundhog-json-rpc-client",
  "groundhog-json-rpc-types",
  "groundhog-signing",
@@ -2121,6 +2233,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
+name = "permit-relayer"
+version = "0.1.0"
+dependencies = [
+ "groundhog-erc20-permit-if",
+ "groundhog-signed-op-if",
+ "permit-relayer",
+ "sdk",
+]
+
+[[package]]
+name = "permit-wallet"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek 3.0.0",
+ "erc20",
+ "groundhog-domain-separator 0.30.0",
+ "groundhog-erc20-permit-if",
+ "groundhog-json-rpc-client",
+ "groundhog-signed-op",
+ "groundhog-signed-op-if",
+ "groundhog-testkit",
+ "hex",
+ "permit-relayer",
+ "permit-wallet",
+ "sdk",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
 name = "pin-project"
 version = "1.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2548,11 +2691,11 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "sdk"
-version = "0.29.0"
+version = "0.30.0"
 source = "sparse+https://groundhog.dev/crates/api/v1/crates/"
-checksum = "965d95976864d97ff6d6308d6a93ba1122f30e2b5f3cca04e9ac4f1c2a623ed2"
+checksum = "523fbce900e16320b337755ed93f7a85cab049fe191678e05ac4d8f0069e4397"
 dependencies = [
- "groundhog-contract-spec",
+ "groundhog-contract-spec 0.30.0",
  "groundhog-event",
  "groundhog-macros",
  "groundhog-native-exec",
@@ -2736,6 +2879,12 @@ checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "rand_core 0.6.4",
 ]
+
+[[package]]
+name = "signature"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28d567dcbaf0049cb8ac2608a76cd95ff9e4412e1899d389ee400918ca7537f5"
 
 [[package]]
 name = "slab"

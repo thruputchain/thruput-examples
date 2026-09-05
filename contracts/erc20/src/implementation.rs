@@ -1,6 +1,8 @@
 //! An implementation of ERC20
 
 use crate::interface::*;
+#[cfg(feature = "permit")]
+use sdk::signer::Signed;
 use sdk::storage::{Balance, Map, Value};
 use sdk::*;
 
@@ -234,5 +236,34 @@ impl ERC20Metadata for TokenContract {
 
     fn decimals(&self) -> Option<u32> {
         self.config.get().decimals
+    }
+}
+
+// Off-chain approvals. Both methods take a `PermitGrant` auth token and treat
+// its *minter* as the owner: `consume` reports that address from the runtime,
+// so it is the one fact about a permit the submitter cannot choose. The grant
+// was minted by the owner's wallet in this same frame (see `permit-wallet`),
+// after the wallet verified the owner's off-chain signature. Reaching this
+// contract at all already proves the grant was minted for it: the runtime
+// refuses to consume a token anywhere but at its named consumer.
+#[cfg(feature = "permit")]
+#[contract(version = "0.1.0")]
+impl ERC20Permit for TokenContract {
+    fn permit(&mut self, grant: Signed<PermitGrant>) {
+        let (grant, owner) = grant.consume();
+        self._adjust_allowance(&owner, &grant.spender, amount_to_diff(grant.amount));
+    }
+
+    fn transfer_from_signed(&mut self, grant: Signed<PermitGrant>, receiver: &ContractAddress) {
+        let (grant, owner) = grant.consume();
+        // The grant names who may spend it; the caller must be them. No
+        // allowance is written, so this is the whole authorization check.
+        if get_caller() != grant.spender {
+            throw(ERC20PermitError::NotSpender);
+        }
+        self._decrease_balance(&owner, grant.amount);
+        self._lazy_increase_balance(receiver, grant.amount);
+
+        log_transfer_event(&owner, receiver, grant.amount);
     }
 }

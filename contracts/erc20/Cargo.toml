@@ -12,14 +12,19 @@ categories.workspace = true
 edition.workspace = true
 
 [features]
-entrypoints = ["metadata"]
+entrypoints = ["metadata", "permit"]
 dev = [
     "sdk/dev",
     "groundhog-erc20-if/dev",
     "metadata",
     "groundhog-erc20-metadata-if/dev",
+    "permit",
+    "groundhog-erc20-permit-if/dev",
     ]
 metadata = ["dep:groundhog-erc20-metadata-if"]
+# Off-chain approvals: `ERC20Permit`, consuming the `PermitGrant` auth tokens a
+# `SignedOp` wallet mints (see `permit-wallet`).
+permit = ["dep:groundhog-erc20-permit-if"]
 
 [lib]
 crate-type = ["rlib"]
@@ -37,6 +42,7 @@ bench = false
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
 groundhog-erc20-metadata-if = { workspace = true, optional = true }
+groundhog-erc20-permit-if = { workspace = true, optional = true }
 
 [dev-dependencies]
 erc20 = { path = ".", features = ["dev"] }

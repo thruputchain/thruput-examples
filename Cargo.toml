@@ -23,11 +23,15 @@ categories = ["blockchain"]
 
 [workspace.dependencies]
 # from sdk_rs repo:
-sdk = { registry = "groundhog", version = "0.29.0" }
-groundhog-contract-util = { registry = "groundhog", version = "0.29.0" }
-groundhog-u256 = { registry = "groundhog", version = "0.29.0", default-features = false }
-groundhog-erc20-if = { registry = "groundhog", version = "0.1.21" }
-groundhog-erc20-metadata-if = { registry = "groundhog", version = "0.1.21" }
+sdk = { registry = "groundhog", version = "0.30.0" }
+groundhog-contract-util = { registry = "groundhog", version = "0.30.0" }
+groundhog-u256 = { registry = "groundhog", version = "0.30.0", default-features = false }
+groundhog-domain-separator = { registry = "groundhog", version = "0.30.0", default-features = false }
+groundhog-erc20-if = { registry = "groundhog", version = "0.1.22" }
+groundhog-erc20-metadata-if = { registry = "groundhog", version = "0.1.22" }
+groundhog-erc20-permit-if = { registry = "groundhog", version = "0.1.22" }
+groundhog-signed-op-if = { registry = "groundhog", version = "0.1.22" }
+groundhog-signed-op = { registry = "groundhog", version = "0.1.22" }
 
 # from groundhog-rpc repo:
 groundhog-json-rpc-client = { registry = "groundhog", version = "=0.14.0" }
@@ -49,6 +53,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 hex = "0.4"
+ed25519-dalek = "3"
 
 [profile.release]
 trim-paths = "all" # unstable
