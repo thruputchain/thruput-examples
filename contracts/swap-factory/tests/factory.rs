@@ -32,6 +32,7 @@ const FUNDING: Amount = POOL_FUNDING.recommended;
 // computed (and funded) before it is deployed.
 hash_ident! { static T0_NONCE: SHA256Hash; }
 hash_ident! { static T1_NONCE: SHA256Hash; }
+hash_ident! { static T2_NONCE: SHA256Hash; }
 hash_ident! { static FACTORY_NONCE: SHA256Hash; }
 
 // Under the default cost model a contract pays for the storage it writes.  Grant
@@ -48,6 +49,8 @@ struct Setup {
     factory: ContractAddress,
     token0: ContractAddress,
     token1: ContractAddress,
+    // The token the factory deploys, for tests that need one more of them.
+    token_hash: SHA256Hash,
 }
 
 // Register the pool's contracts, deploy two funded tokens, and deploy+init a
@@ -138,7 +141,59 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
         factory,
         token0,
         token1,
+        token_hash: hashes.token,
     }
+}
+
+// The registry's creation-ordered list is a `Vector`, whose length is written
+// under an exclusive lock, so the factory creates at most one pool per block:
+// of two `create_pair`s for *different* pairs in one block, the second's frame
+// runs to completion but its commit is refused -- it is returned to the
+// mempool, not failed -- and it lands in the next block.
+#[test]
+fn a_second_pool_in_one_block_is_deferred_not_failed() {
+    let s = setup();
+
+    // A third token, for a second pair.
+    fund_deploy_target(&s.env, &T2_NONCE, &s.token_hash);
+    let token_hash = s.token_hash;
+    let token2 = exec_tx(&s.env, &DEPLOYER, || {
+        let t2 = deploy_contract(&T2_NONCE, &token_hash);
+        ERC20Client::new(&t2).initialize(&DEPLOYER);
+        t2
+    })
+    .unwrap();
+    s.env.advance_block();
+
+    let (factory, token0, token1) = (s.factory, s.token0, s.token1);
+    let create = |a: ContractAddress, b: ContractAddress| {
+        exec_tx(&s.env, &DEPLOYER, move || {
+            SwapFactoryClient::new(&factory).create_pair(&a, &b, FUNDING)
+        })
+    };
+
+    create(token0, token1).expect("the first pool of the block");
+    let deferred = create(token0, token2).expect_err("the second is deferred");
+    deferred.assert_commit_failed_nondeterministically();
+    s.env.advance_block();
+
+    // Nothing of the deferred one reached the registry ...
+    exec_tx(&s.env, &DEPLOYER, || {
+        let factory = SwapFactoryClient::new(&factory);
+        assert_eq!(factory.all_pairs_length(), 1);
+        assert_eq!(factory.get_pair(&token0, &token2), None);
+    })
+    .unwrap();
+
+    // ... and, retried, it goes through.
+    let pool = create(token0, token2).expect("retried in the next block");
+    s.env.advance_block();
+    exec_tx(&s.env, &DEPLOYER, || {
+        let factory = SwapFactoryClient::new(&factory);
+        assert_eq!(factory.all_pairs_length(), 2);
+        assert_eq!(factory.get_pair(&token0, &token2), Some(pool.handler));
+    })
+    .unwrap();
 }
 
 // A `funding` below the factory's floor is refused outright, before anything

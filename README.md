@@ -43,6 +43,7 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples �
 | [`caller-counter`](sim-fixtures/caller-counter/) | Per-caller counter exercising read-after-write storage patterns |
 | [`calldata`](sim-fixtures/calldata/) | Calldata-heavy entry points |
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | NNInt-heavy writes with refund capping |
+| [`life-storage-admission`](sim-fixtures/life-storage-admission/) | The `game-of-life` tick's storage shape (20,004 chunk reads, 20,000 writes) without the Life computation, for admission testing on a live node |
 
 ## Prerequisites
 
@@ -59,7 +60,8 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples �
 
   (`cargo install` is global, so it does not see this repo's
   `.cargo/config.toml`; the environment variable supplies the registry index.)
-  Individual applications may require an exact CLI release. The token launchpad requires 0.10.4.
+  Individual applications may require a newer release than the contracts do;
+  each app's README states its own minimum.
 
 - Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`).
 - `jq`, used by [`scripts/build-guest.sh`](scripts/build-guest.sh).
@@ -118,6 +120,7 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`calldata`](sim-fixtures/calldata/) | ✅ | — | — |
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | ✅ | — | — |
 | [`caller-counter`](sim-fixtures/caller-counter/) | — | — | — |
+| [`life-storage-admission`](sim-fixtures/life-storage-admission/) | — | — | — |
 
 A `—` means the contract has no tests of that kind, or its behaviour is already
 covered by the tests of the contracts that depend on it.
@@ -165,7 +168,7 @@ The other kinds need guest artifacts, so build them first:
 
 ```sh
 ./scripts/build-guest.sh
-./scripts/swap-test-guest.sh     # guest tests for swap-driver and swap-router
+./scripts/swap-test-guest.sh     # guest tests for swap-driver, swap-router and swap-factory
 ./scripts/integration-tests.sh   # rpc tests
 ```
 

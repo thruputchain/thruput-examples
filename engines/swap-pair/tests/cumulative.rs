@@ -37,8 +37,27 @@ fn cumulative_price_accumulates() {
             etx.advance_block();
         }
 
-        // `sync()` re-records the (unchanged) reserves, advancing the cumulative
-        // prices over the elapsed interval.
+        // A `sync()` with nothing to record records nothing -- not even the
+        // passage of time.  The accumulator is a function of the reserves'
+        // history, and that history has not changed; a consumer wanting the
+        // value as of *now* extrapolates from the recorded reserves and
+        // timestamp, as UniswapV2's oracle library does.
+        etx.exec_as_pair(|pair| pair.sync())?;
+        etx.advance_block();
+        let (_, _, ts_idle, cum_idle) = etx.exec_as_pair(|pair| {
+            let (r0, r1, ts) = pair.get_reserves();
+            (r0, r1, ts, pair.get_cumulative_prices())
+        })?;
+        assert_eq!(ts_idle, ts0, "an idle sync leaves the record alone");
+        assert_eq!(cum_idle, cum0);
+
+        // The next update that does change the reserves -- here, a further
+        // donation of one unit, then a `sync()` that records it -- accounts
+        // for the whole interval at the reserves that held throughout it.
+        etx.exec_user_tx(BOB, move |_| {
+            ctx.token0().transfer(&ctx.pair_addr, 1);
+        })?;
+        etx.advance_block();
         etx.exec_as_pair(|pair| pair.sync())?;
         etx.advance_block();
 
@@ -48,9 +67,9 @@ fn cumulative_price_accumulates() {
         })?;
 
         let elapsed = ts1 - ts0;
-        assert!(elapsed > 0, "expected blocks to elapse between updates");
+        assert!(elapsed > 5, "expected blocks to elapse between updates");
 
-        // Reserves are unchanged across the window, so each cumulative price
+        // Reserves were unchanged across the window, so each cumulative price
         // advances by exactly the per-block price times the elapsed blocks:
         //   price0 = (r1 << 112) / r0,  price1 = (r0 << 112) / r1.
         let expected0 = (U256::from(r1) << 112) / U256::from(r0) * U256::from_u32(elapsed);

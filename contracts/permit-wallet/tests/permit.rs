@@ -306,3 +306,25 @@ fn rotating_the_owner_key_refuses_outstanding_permits() {
     assert_eq!(allowance(&env), 0);
     assert_eq!(balance_of(&env, wallet()), MINTED);
 }
+
+/// A rotation and a permit under the outgoing key can share a block: every
+/// transaction in it runs against the state the previous block left, so the
+/// permit is checked against the key the block began with, and both commit.
+/// Rotation takes effect from the next block, not from the transaction after
+/// it.
+#[test]
+fn a_rotation_takes_effect_from_the_next_block() {
+    let env = setup();
+    let (op, signature) = alice_permit(&env);
+
+    rotate_owner_as(&env, admin(), public_key(&MALLORY_SEED)).assert_success();
+    // Same block: no `advance_block` between the rotation and the relay.
+    relay(&env, op, signature).assert_success();
+    env.advance_block();
+    assert_eq!(allowance(&env), GRANTED, "honored under the outgoing key");
+
+    // From this block on, Alice's key is no longer the owner.
+    let expiry = current_height(&env) + HORIZON;
+    let (op, signature) = sign(&ALICE_SEED, &wallet(), 1, expiry, &standard_request());
+    assert_wallet_refuses!(&env, op, signature, SignedOpError::InvalidSignature);
+}

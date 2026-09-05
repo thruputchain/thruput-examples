@@ -291,9 +291,25 @@ impl Pair {
     }
 
     /// Record the pair's actual balances as its reserves. Emits `SyncEvent`.
+    ///
+    /// A sync that finds the reserves already equal to the balances writes
+    /// nothing and emits nothing.  The reserves are one storage value that
+    /// only one transaction per block can write, and the crank is the one
+    /// that must: an idle sync that rewrote them (if only to stamp the block)
+    /// would conflict with a crank in the same block, and since `sync` is open
+    /// to anyone that would let anyone take the block's drain away from the
+    /// crank for free.  Skipping the write loses nothing: the cumulative
+    /// prices accrue linearly in the time the reserves stay unchanged, so the
+    /// next real update accounts for the whole interval exactly as a chain of
+    /// idle syncs would have.
     pub fn sync(&mut self) {
         let balances = self.get_token_balances();
-        self.reserves.load_mut().update(balances);
+        let mut reserves = self.reserves.load_mut();
+        if reserves.balances() == balances {
+            // Read only: the guard drops without writing.
+            return;
+        }
+        reserves.update(balances);
     }
 }
 

@@ -24,6 +24,14 @@ pub struct PoolState {
 
     /// The cumulative prices, as UQ112x112 fixed-point values, for use as a
     /// time-weighted-average-price oracle.
+    ///
+    /// Recorded as of `block_timestamp`, and only when the reserves change:
+    /// a `sync` that finds nothing new records nothing (see `Pair::sync`).
+    /// The accumulator is a function of the reserves' history, so a consumer
+    /// wanting its value at a later block extrapolates -- each price times the
+    /// blocks since `block_timestamp`, added on -- exactly as UniswapV2's
+    /// oracle library does with `price0CumulativeLast` and
+    /// `blockTimestampLast`.
     pub cumulative_prices: [U256; 2],
 }
 
