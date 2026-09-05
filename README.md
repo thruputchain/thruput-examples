@@ -28,7 +28,8 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`mixed-impl`](contracts/mixed-impl/) | One contract exposing both an inherent (`notrait`) `#[contract]` impl and a trait `#[contract]` impl |
 | [`cross-trait-throws`](contracts/cross-trait-throws/) | One contract implementing two traits with different `throws` types; a client on one catching the peer trait's error with `match_exn!` |
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and an optional `metadata` feature |
-| [`standard-token*`](contracts/standard-token-factory/) | A fixed standard-token implementation and factory with a [local launchpad](apps/token-launchpad/README.md) |
+| [`game-of-life`](contracts/game-of-life/) | A grid simulation driven by on-chain state, with a [local frontend](apps/game-of-life/README.md) |
+| [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](contracts/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](docs/README-swap.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
 
 ### Simulation fixtures
@@ -100,6 +101,10 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`mixed-impl`](contracts/mixed-impl/) | ✅ | — | — |
 | [`cross-trait-throws`](contracts/cross-trait-throws/) | ✅ | — | — |
 | [`erc20`](contracts/erc20/) | ✅ | ✅ | ✅ |
+| [`game-of-life`](contracts/game-of-life/) | — | — | — |
+| [`standard-token`](contracts/standard-token/) | ✅ | — | — |
+| [`standard-token-factory`](contracts/standard-token-factory/) | ✅ | — | — |
+| [`standard-token-factory-if`](contracts/standard-token-factory-if/) | ✅ | — | — |
 | [`swap-handler`](contracts/swap-handler/) | — | — | — |
 | [`swap-driver`](contracts/swap-driver/) | ✅ | — | — |
 | [`swap-router`](contracts/swap-router/) | ✅ | — | — |
