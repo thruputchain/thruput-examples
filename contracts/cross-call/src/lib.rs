@@ -24,7 +24,8 @@ pub struct CrossCall;
 
 #[contract(throws = CrossCallError, emits(CrossCallCompleted))]
 impl CrossCall {
-    /// Call fibonacci and return the result. Panics on failure.
+    /// Call fibonacci and return the result. Any error the callee throws
+    /// is forwarded to our own caller.
     pub fn call_fib(fib_address: &ContractAddress, n: u64) -> u64 {
         let fib = FibonacciClient::new(fib_address);
         let result = fib.compute(n);
