@@ -23,6 +23,13 @@ pub struct Factory {
     // Registry: sorted token pair -> pair address, and the creation-ordered
     // list of those token pairs (each one a key into `pairs`, and the input
     // `pool_addresses` resolves back to the rest of the pool's contracts).
+    //
+    // The list is a `Vector`, whose length is written under an exclusive
+    // lock, so this factory creates at most one pool per block: a second
+    // `create_pair` in the same block is returned to the mempool and lands in
+    // the next.  Creation order is inherently serial -- a mergeable counter
+    // would hand two concurrent creations the same index -- and pools are
+    // created rarely, so the limit is accepted rather than designed around.
     pairs: Map<Addresses, Value<Address>>,
     all_pairs: Vector<Value<Addresses>>,
 }
