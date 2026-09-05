@@ -1,4 +1,7 @@
-import type { CreationWorkflow } from "@/transactions/creation-workflow";
+import {
+  hasCreationFundingExposure,
+  type CreationWorkflow,
+} from "@/transactions/creation-workflow";
 import type { LiquidityOperation } from "@/transactions/liquidity-operation";
 import {
   hasExecutionExposure,
@@ -19,20 +22,20 @@ export interface CleanupAllowanceRequirement {
 export function requiredAllowanceFor(
   records: AccountAllowanceRecords,
   tokenAddress: string,
-  handlerAddress: string,
+  spenderAddress: string,
 ): bigint {
   let required = 0n;
   for (const request of records.requests) {
     if (
       hasExecutionExposure(request)
       && request.criteria.tokenIn === tokenAddress
-      && request.criteria.handlerAddress === handlerAddress
+      && request.criteria.handlerAddress === spenderAddress
     ) required += request.intent.amountIn;
   }
   for (const operation of records.liquidityOperations) {
     if (
       (operation.status !== "active" && operation.status !== "queued")
-      || operation.handlerAddress !== handlerAddress
+      || operation.handlerAddress !== spenderAddress
     ) continue;
     if (operation.kind === "add") {
       if (operation.token0Address === tokenAddress) {
@@ -48,9 +51,8 @@ export function requiredAllowanceFor(
   for (const workflow of records.creationWorkflows) {
     if (
       (workflow.status !== "active"
-        && workflow.status !== "queued"
-        && !(workflow.status === "race" && workflow.requestId !== null))
-      || workflow.pool.handler !== handlerAddress
+        && workflow.status !== "queued")
+      || workflow.pool?.handler !== spenderAddress
     ) continue;
     if (workflow.token0.address === tokenAddress) {
       required += BigInt(workflow.token0.amount);
@@ -59,18 +61,25 @@ export function requiredAllowanceFor(
       required += BigInt(workflow.token1.amount);
     }
   }
+  for (const workflow of records.creationWorkflows) {
+    if (
+      workflow.nativeHogAddress === tokenAddress
+      && workflow.factoryAddress === spenderAddress
+      && hasCreationFundingExposure(workflow)
+    ) required += BigInt(workflow.totalFunding);
+  }
   return required;
 }
 
 export function cleanupAllowanceRequirementFor(
   records: AccountAllowanceRecords,
   tokenAddress: string,
-  handlerAddress: string,
+  spenderAddress: string,
 ): CleanupAllowanceRequirement {
   let requiredAllowance = requiredAllowanceFor(
     records,
     tokenAddress,
-    handlerAddress,
+    spenderAddress,
   );
   let minimumReadHeight = 0n;
   const includeTerminal = (block: string | null | undefined, amount: bigint) => {
@@ -86,7 +95,7 @@ export function cleanupAllowanceRequirementFor(
     if (
       request.execution !== null
       && request.criteria.tokenIn === tokenAddress
-      && request.criteria.handlerAddress === handlerAddress
+      && request.criteria.handlerAddress === spenderAddress
     ) {
       const height = request.execution.blockHeight;
       if (height > minimumReadHeight) minimumReadHeight = height;
@@ -95,7 +104,7 @@ export function cleanupAllowanceRequirementFor(
   for (const operation of records.liquidityOperations) {
     if (
       (operation.status !== "executed" && operation.status !== "failed")
-      || operation.handlerAddress !== handlerAddress
+      || operation.handlerAddress !== spenderAddress
     ) continue;
     if (operation.kind === "add") {
       if (operation.token0Address === tokenAddress) {
@@ -117,13 +126,25 @@ export function cleanupAllowanceRequirementFor(
   for (const workflow of records.creationWorkflows) {
     if (
       (workflow.status !== "executed" && workflow.status !== "failed")
-      || workflow.pool.handler !== handlerAddress
+      || workflow.pool?.handler !== spenderAddress
     ) continue;
     if (workflow.token0.address === tokenAddress) {
       includeTerminal(workflow.terminalBlock, BigInt(workflow.token0.amount));
     }
     if (workflow.token1.address === tokenAddress) {
       includeTerminal(workflow.terminalBlock, BigInt(workflow.token1.amount));
+    }
+  }
+  for (const workflow of records.creationWorkflows) {
+    if (
+      workflow.nativeHogAddress !== tokenAddress
+      || workflow.factoryAddress !== spenderAddress
+      || workflow.steps.approveFunding.status !== "committed"
+    ) continue;
+    const block = workflow.steps.createPool.receiptBlock
+      ?? workflow.steps.approveFunding.receiptBlock;
+    if (block !== null && BigInt(block) > minimumReadHeight) {
+      minimumReadHeight = BigInt(block);
     }
   }
   return { requiredAllowance, minimumReadHeight };

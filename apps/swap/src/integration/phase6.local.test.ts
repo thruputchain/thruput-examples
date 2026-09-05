@@ -8,13 +8,14 @@ import { createElement, type ComponentType } from "react";
 import { describe, expect, it } from "vitest";
 
 import { App } from "@/app";
-import { loadAppConfig, type AppConfig } from "@/config";
+import { loadGlobalConfig, type AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { buildProcessRequestsTarget } from "@/contracts/driver-target";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { allowanceDifference } from "@/domain/allowance";
 import { orientReserves, orderTokens } from "@/domain/tokens";
+import { resolvePoolConfig } from "@/pools/pool-context";
 import { deriveSwapQuote } from "@/swap/model";
 import { createSnapshotReader } from "@/swap/snapshot";
 import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
@@ -30,31 +31,26 @@ import {
 
 const runLocalIntegration = import.meta.env.MODE === "local-integration";
 
-function loadLocalConfig() {
-  return loadAppConfig({
+async function loadLocalConfig() {
+  const global = loadGlobalConfig({
     VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
     VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
     VITE_GROUNDHOG_WALLET_ADDRESS: import.meta.env.VITE_GROUNDHOG_WALLET_ADDRESS,
     VITE_NATIVE_HOG_ADDRESS: import.meta.env.VITE_NATIVE_HOG_ADDRESS,
     VITE_SWAP_FACTORY_ADDRESS: import.meta.env.VITE_SWAP_FACTORY_ADDRESS,
     VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
-    VITE_POOL_CONTRACT_FUNDING: import.meta.env.VITE_POOL_CONTRACT_FUNDING,
-    VITE_SWAP_PAIR_ADDRESS: import.meta.env.VITE_SWAP_PAIR_ADDRESS,
-    VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS:
-      import.meta.env.VITE_SWAP_LIQUIDITY_TOKEN_ADDRESS,
-    VITE_SWAP_HANDLER_ADDRESS: import.meta.env.VITE_SWAP_HANDLER_ADDRESS,
-    VITE_SWAP_DRIVER_ADDRESS: import.meta.env.VITE_SWAP_DRIVER_ADDRESS,
-    VITE_TOKEN_A_ADDRESS: import.meta.env.VITE_TOKEN_A_ADDRESS,
-    VITE_TOKEN_B_ADDRESS: import.meta.env.VITE_TOKEN_B_ADDRESS,
-    VITE_TOKEN_A_SYMBOL: import.meta.env.VITE_TOKEN_A_SYMBOL,
-    VITE_TOKEN_B_SYMBOL: import.meta.env.VITE_TOKEN_B_SYMBOL,
-    VITE_TOKEN_DECIMALS: import.meta.env.VITE_TOKEN_DECIMALS,
+    VITE_KNOWN_TOKEN_ADDRESSES: import.meta.env.VITE_KNOWN_TOKEN_ADDRESSES,
   });
+  const [tokenA, tokenB] = global.knownTokenAddresses ?? [];
+  if (tokenA === undefined || tokenB === undefined) {
+    throw new Error("Local integration requires at least two known tokens");
+  }
+  return resolvePoolConfig(global, tokenA, tokenB);
 }
 
 describe.skipIf(!runLocalIntegration)("local swap integration", () => {
   it("enqueues two requests before one crank and observes both executions", async () => {
-    const config = loadLocalConfig();
+    const config = await loadLocalConfig();
     const readSnapshot = createSnapshotReader(config);
     const writer = createBrowserLocalWriteBoundary(
       config,
@@ -172,7 +168,7 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
     );
 
     const criteria = {
-      pairAddress: toHex0x(config.pairAddress),
+      sender: toHex0x(config.accountAddress),
       handlerAddress: toHex0x(config.handlerAddress),
       driverAddress: toHex0x(config.driverAddress),
       recipient: toHex0x(config.accountAddress),
@@ -261,7 +257,7 @@ describe.skipIf(!runLocalIntegration)("local swap integration", () => {
   it("automatically enqueues a swap and commits one queue-processing transaction", async () => {
     window.localStorage.clear();
     const user = userEvent.setup();
-    const config = loadLocalConfig();
+    const config = await loadLocalConfig();
     render(createElement(
       App as ComponentType<{ config: AppConfig }>,
       { config },

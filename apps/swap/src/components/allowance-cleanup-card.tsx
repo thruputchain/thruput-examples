@@ -176,7 +176,7 @@ export function AllowanceCleanupCard({
                 disabled={isRunning}
                 onClick={() => run(
                   addressFromHex(cleanup.tokenAddress),
-                  addressFromHex(cleanup.handlerAddress),
+                  addressFromHex(cleanup.spenderAddress),
                 )}
               >
                 Check cleanup status

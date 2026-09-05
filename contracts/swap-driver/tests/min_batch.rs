@@ -28,10 +28,11 @@ fn a_starved_crank_is_refused_when_the_queue_is_deep() {
         }
         etx.advance_block();
 
-        match try_crank_with(&etx, ONE_REQUEST_GAS)? {
-            Err(SwapDriverClientError::SwapDriverError(SwapDriverError::BatchTooSmall)) => {}
-            other => panic!("expected BatchTooSmall, got {other:?}"),
-        }
+        let refused = try_crank_with(&etx, ONE_REQUEST_GAS)?;
+        assert_eq!(
+            refused.unwrap_err().try_as(),
+            Some(SwapDriverError::BatchTooSmall)
+        );
 
         // Nothing was taken: a crank that can afford the floor still finds the
         // whole backlog waiting.
@@ -82,10 +83,11 @@ fn a_starved_crank_is_refused_on_a_shallow_queue_too() {
         }
         etx.advance_block();
 
-        match try_crank_with(&etx, ONE_REQUEST_GAS)? {
-            Err(SwapDriverClientError::SwapDriverError(SwapDriverError::BatchTooSmall)) => {}
-            other => panic!("expected BatchTooSmall, got {other:?}"),
-        }
+        let refused = try_crank_with(&etx, ONE_REQUEST_GAS)?;
+        assert_eq!(
+            refused.unwrap_err().try_as(),
+            Some(SwapDriverError::BatchTooSmall)
+        );
 
         Ok(())
     })
@@ -178,10 +180,7 @@ fn enqueue(etx: &Etx) -> Result<RequestId, TransactResult> {
 
 // As above, but catching a refusal so its type can be inspected.
 #[allow(clippy::type_complexity)]
-fn try_crank_with(
-    etx: &Etx,
-    gas: u64,
-) -> Result<Result<(u32, u32), SwapDriverClientError>, TransactResult> {
+fn try_crank_with(etx: &Etx, gas: u64) -> Result<Result<(u32, u32), CallError>, TransactResult> {
     let ctx = etx.ctx;
     etx.exec_tx(&TEST_ADDR, || {
         ctx.driver().with_gas_limit(gas).try_process_requests()

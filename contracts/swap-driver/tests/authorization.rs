@@ -31,10 +31,12 @@ fn enqueueing_is_refused_from_anyone_but_the_router() {
                 ))
             })?;
 
-            match refused {
-                Err(SwapDriverClientError::SwapDriverError(SwapDriverError::Unauthorized)) => {}
-                other => panic!("{} should not enqueue: {other:?}", pretender.name),
-            }
+            assert_eq!(
+                refused.unwrap_err().try_as(),
+                Some(SwapDriverError::Unauthorized),
+                "{} should not enqueue",
+                pretender.name
+            );
         }
 
         Ok(())
@@ -60,10 +62,12 @@ fn handling_is_refused_from_anyone_but_the_driver() {
                 ))
             })?;
 
-            match refused {
-                Err(SwapHandlerClientError::SwapRequestError(SwapRequestError::Unauthorized)) => {}
-                other => panic!("{} should not be handled: {other:?}", pretender.name),
-            }
+            assert_eq!(
+                refused.unwrap_err().try_as(),
+                Some(SwapRequestError::Unauthorized),
+                "{} should not be handled",
+                pretender.name
+            );
         }
 
         Ok(())

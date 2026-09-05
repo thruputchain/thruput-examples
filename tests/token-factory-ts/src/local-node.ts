@@ -70,7 +70,7 @@ export interface LocalAccount {
 }
 
 export interface LocalNode {
-  client: ConnectedGroundhogClient;
+  client: ConnectedGroundhogClient<ReturnType<typeof localnet>>;
   accounts: LocalAccount[];
   manifest: RuntimeManifestJson;
   stop(): Promise<void>;
@@ -212,7 +212,9 @@ function assertManifest(manifest: RuntimeManifestJson): void {
   }
 }
 
-async function connect(rpcUrl: string): Promise<ConnectedGroundhogClient> {
+async function connect(
+  rpcUrl: string,
+): Promise<ConnectedGroundhogClient<ReturnType<typeof localnet>>> {
   return createGroundhogClient({
     cluster: localnet({ rpcUrl }),
     transport: new HttpTransport(rpcUrl, { timeoutMs: 10_000 }),

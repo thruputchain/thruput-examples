@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "sdk/debugging", "error-handling-callee/dev", "fibonacci/dev"]
+dev = ["sdk/dev", "error-handling-callee/dev", "fibonacci/dev"]
 
 [lib]
 crate-type = ["rlib"]

@@ -41,8 +41,6 @@ const config: AppConfig = {
   routerAddress: address(8),
   factoryAddress: address(10),
   nativeHogAddress: address(11),
-  poolContractFunding: 10_000_000n,
-  pairAddress: address(7),
   liquidityTokenAddress: address(12),
   handlerAddress: address(6),
   driverAddress: address(5),
@@ -117,9 +115,9 @@ async function enableManualProcessing(container?: HTMLElement): Promise<void> {
 
 const hash = `0x${"ab".repeat(32)}`;
 const criteria = {
-  pairAddress: `0x${"07".repeat(32)}`,
   handlerAddress: `0x${"06".repeat(32)}`,
   driverAddress: `0x${"05".repeat(32)}`,
+  sender: `0x${"09".repeat(32)}`,
   recipient: `0x${"09".repeat(32)}`,
   tokenIn: `0x${"01".repeat(32)}`,
   tokenOut: `0x${"02".repeat(32)}`,

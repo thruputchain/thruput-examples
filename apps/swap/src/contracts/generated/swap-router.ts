@@ -39,11 +39,22 @@ export const ERC20Error = {
 
 export type ERC20Error = (typeof ERC20Error)[keyof typeof ERC20Error];
 
+export const SwapDriverError = {
+  BatchTooSmall: 1n,
+  AlreadyInitialized: 2n,
+  InvalidConfiguration: 3n,
+  Unauthorized: 4n,
+} as const;
+
+export type SwapDriverError =
+  (typeof SwapDriverError)[keyof typeof SwapDriverError];
+
 export const SwapFactoryError = {
   AlreadyInitialized: 1n,
   IdenticalTokens: 2n,
   ZeroAddress: 3n,
   PairExists: 4n,
+  InsufficientFunding: 5n,
 } as const;
 
 export type SwapFactoryError =
@@ -75,6 +86,7 @@ export type SwapPairError =
   | { case: "LPTokenFailure"; value: readonly [ERC20Error] };
 
 export const SwapRequestError = {
+  Unauthorized: 100n,
   InsufficientAmountA: 1n,
   InsufficientAmountB: 2n,
   InsufficientOutputAmount: 3n,
@@ -83,6 +95,14 @@ export const SwapRequestError = {
 
 export type SwapRequestError =
   (typeof SwapRequestError)[keyof typeof SwapRequestError];
+
+export const SwapRouterError = {
+  AlreadyInitialized: 1n,
+  NoSuchPair: 2n,
+} as const;
+
+export type SwapRouterError =
+  (typeof SwapRouterError)[keyof typeof SwapRouterError];
 
 export interface SwapRouterAddLiquidityArgs {
   tokenA: ContractAddress;
@@ -155,6 +175,18 @@ export type SwapRouterDeclaredException =
       name: "ERC20Error";
       selector: 0xb19947acb2fa14ffn;
       value: ERC20Error;
+    }
+  | {
+      kind: "declared";
+      name: "SwapDriverError";
+      selector: 0xb7f3f28894243a52n;
+      value: SwapDriverError;
+    }
+  | {
+      kind: "declared";
+      name: "SwapRouterError";
+      selector: 0xb9654b95411d2dban;
+      value: SwapRouterError;
     };
 export type SwapRouterException =
   ContractException<SwapRouterDeclaredException>;
@@ -184,6 +216,14 @@ export const spec: ContractSpec = {
         {
           selector: 0xb19947acb2fa14ffn,
           ty: { v: ContractTypeKind.Named, named: s("ERC20Error") },
+        },
+        {
+          selector: 0xb7f3f28894243a52n,
+          ty: { v: ContractTypeKind.Named, named: s("SwapDriverError") },
+        },
+        {
+          selector: 0xb9654b95411d2dban,
+          ty: { v: ContractTypeKind.Named, named: s("SwapRouterError") },
         },
       ],
       methods: [
@@ -285,12 +325,25 @@ export const spec: ContractSpec = {
     {
       v: ContractTypeDefKind.TypeDefEnum,
       enum_def: {
+        name: s("SwapDriverError"),
+        variants: [
+          { name: s("BatchTooSmall"), value: 1n },
+          { name: s("AlreadyInitialized"), value: 2n },
+          { name: s("InvalidConfiguration"), value: 3n },
+          { name: s("Unauthorized"), value: 4n },
+        ],
+      },
+    },
+    {
+      v: ContractTypeDefKind.TypeDefEnum,
+      enum_def: {
         name: s("SwapFactoryError"),
         variants: [
           { name: s("AlreadyInitialized"), value: 1n },
           { name: s("IdenticalTokens"), value: 2n },
           { name: s("ZeroAddress"), value: 3n },
           { name: s("PairExists"), value: 4n },
+          { name: s("InsufficientFunding"), value: 5n },
         ],
       },
     },
@@ -387,10 +440,21 @@ export const spec: ContractSpec = {
       enum_def: {
         name: s("SwapRequestError"),
         variants: [
+          { name: s("Unauthorized"), value: 100n },
           { name: s("InsufficientAmountA"), value: 1n },
           { name: s("InsufficientAmountB"), value: 2n },
           { name: s("InsufficientOutputAmount"), value: 3n },
           { name: s("ExcessiveInputAmount"), value: 4n },
+        ],
+      },
+    },
+    {
+      v: ContractTypeDefKind.TypeDefEnum,
+      enum_def: {
+        name: s("SwapRouterError"),
+        variants: [
+          { name: s("AlreadyInitialized"), value: 1n },
+          { name: s("NoSuchPair"), value: 2n },
         ],
       },
     },
@@ -461,6 +525,16 @@ export const SwapRouter = {
         name: "ERC20Error",
         type: spec.interfaces[0]!.throws[4]!.ty,
       },
+      {
+        selector: 0xb7f3f28894243a52n,
+        name: "SwapDriverError",
+        type: spec.interfaces[0]!.throws[5]!.ty,
+      },
+      {
+        selector: 0xb9654b95411d2dban,
+        name: "SwapRouterError",
+        type: spec.interfaces[0]!.throws[6]!.ty,
+      },
     ],
     codecs,
   }),
@@ -503,6 +577,16 @@ export const SwapRouter = {
         selector: 0xb19947acb2fa14ffn,
         name: "ERC20Error",
         type: spec.interfaces[0]!.throws[4]!.ty,
+      },
+      {
+        selector: 0xb7f3f28894243a52n,
+        name: "SwapDriverError",
+        type: spec.interfaces[0]!.throws[5]!.ty,
+      },
+      {
+        selector: 0xb9654b95411d2dban,
+        name: "SwapRouterError",
+        type: spec.interfaces[0]!.throws[6]!.ty,
       },
     ],
     codecs,
@@ -567,6 +651,16 @@ export const SwapRouter = {
         name: "ERC20Error",
         type: spec.interfaces[0]!.throws[4]!.ty,
       },
+      {
+        selector: 0xb7f3f28894243a52n,
+        name: "SwapDriverError",
+        type: spec.interfaces[0]!.throws[5]!.ty,
+      },
+      {
+        selector: 0xb9654b95411d2dban,
+        name: "SwapRouterError",
+        type: spec.interfaces[0]!.throws[6]!.ty,
+      },
     ],
     codecs,
   }),
@@ -630,6 +724,16 @@ export const SwapRouter = {
         name: "ERC20Error",
         type: spec.interfaces[0]!.throws[4]!.ty,
       },
+      {
+        selector: 0xb7f3f28894243a52n,
+        name: "SwapDriverError",
+        type: spec.interfaces[0]!.throws[5]!.ty,
+      },
+      {
+        selector: 0xb9654b95411d2dban,
+        name: "SwapRouterError",
+        type: spec.interfaces[0]!.throws[6]!.ty,
+      },
     ],
     codecs,
   }),
@@ -692,6 +796,16 @@ export const SwapRouter = {
         selector: 0xb19947acb2fa14ffn,
         name: "ERC20Error",
         type: spec.interfaces[0]!.throws[4]!.ty,
+      },
+      {
+        selector: 0xb7f3f28894243a52n,
+        name: "SwapDriverError",
+        type: spec.interfaces[0]!.throws[5]!.ty,
+      },
+      {
+        selector: 0xb9654b95411d2dban,
+        name: "SwapRouterError",
+        type: spec.interfaces[0]!.throws[6]!.ty,
       },
     ],
     codecs,

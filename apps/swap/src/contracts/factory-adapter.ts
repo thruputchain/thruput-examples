@@ -4,10 +4,14 @@ import type { ContractAddress } from "@groundhogchain/protocol";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
 
 export interface PoolAddresses {
-  pair: ContractAddress;
   liquidityToken: ContractAddress;
   handler: ContractAddress;
   driver: ContractAddress;
+}
+
+export interface PoolFunding {
+  min: bigint;
+  recommended: bigint;
 }
 
 export interface SwapFactoryReadAdapter {
@@ -21,6 +25,7 @@ export interface SwapFactoryReadAdapter {
     tokenA: ContractAddress,
     tokenB: ContractAddress,
   ): Promise<ContractView<PoolAddresses>>;
+  poolFunding(): Promise<ContractView<PoolFunding>>;
   feeTo(): Promise<ContractView<ContractAddress | null>>;
 }
 
@@ -55,12 +60,14 @@ export function createSwapFactoryReadAdapter(params: {
       return {
         ...result,
         value: {
-          pair: result.value.pair,
           liquidityToken: result.value.liquidity_token,
           handler: result.value.handler,
           driver: result.value.driver,
         },
       };
+    },
+    poolFunding() {
+      return SwapFactory.poolFunding.view(context);
     },
     feeTo() {
       return SwapFactory.feeTo.view(context);

@@ -111,10 +111,8 @@ fn test_callee_error_wrapped_by_caller() {
 
             // call_fib_or_fail with n=999 should cause fib to throw,
             // which cross-call catches and re-throws as FibCallFailed
-            match client.try_call_fib_or_fail(&fib_addr, 999) {
-                Err(CrossCallClientError::CrossCallError(CrossCallError::FibCallFailed)) => {}
-                other => panic!("Expected CrossCallError::FibCallFailed, got: {:?}", other),
-            }
+            let err = client.try_call_fib_or_fail(&fib_addr, 999).unwrap_err();
+            assert_eq!(err.try_as(), Some(CrossCallError::FibCallFailed));
         })
     });
     result.assert_success();

@@ -251,7 +251,7 @@ async function loadPool(
   ]);
   if (
     registered.value === null ||
-    addressKey(registered.value) !== addressKey(addresses.value.pair)
+    addressKey(registered.value) !== addressKey(addresses.value.handler)
   ) {
     throw new Error("The factory returned inconsistent pool addresses");
   }

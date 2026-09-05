@@ -25,8 +25,6 @@ const config = {
   routerAddress: address(8),
   factoryAddress: address(7),
   nativeHogAddress: address(6),
-  poolContractFunding: 100n,
-  pairAddress: address(10),
   liquidityTokenAddress: address(11),
   handlerAddress: address(12),
   driverAddress: address(13),
@@ -45,7 +43,7 @@ describe("allowance cleanup", () => {
     const execute = vi.fn(async (_target, observer) => {
       expect(loadAllowanceCleanup(config)).toMatchObject({
         tokenAddress: hex(1),
-        handlerAddress: hex(12),
+        spenderAddress: hex(12),
         transactionHash: null,
         difference: "-100",
       });
@@ -159,7 +157,7 @@ function terminalRequest(): RequestRecord {
     visibleObservationMs: 0,
     observationBaseline: null,
     criteria: {
-      pairAddress: hex(10),
+      sender: hex(9),
       handlerAddress: hex(12),
       driverAddress: hex(13),
       recipient: hex(9),

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 import { createSwapFactoryReadAdapter } from "@/contracts/factory-adapter";
-import { createSwapPairReadAdapter } from "@/contracts/pair-adapter";
+import { createSwapHandlerReadAdapter } from "@/contracts/handler-adapter";
 import { createReadClient } from "@/groundhog/client";
 
 import { createSnapshotReader } from "./snapshot";
@@ -12,8 +12,8 @@ import { createSnapshotReader } from "./snapshot";
 vi.mock("@/contracts/erc20-adapter", () => ({
   createErc20ReadAdapter: vi.fn(),
 }));
-vi.mock("@/contracts/pair-adapter", () => ({
-  createSwapPairReadAdapter: vi.fn(),
+vi.mock("@/contracts/handler-adapter", () => ({
+  createSwapHandlerReadAdapter: vi.fn(),
 }));
 vi.mock("@/contracts/factory-adapter", () => ({
   createSwapFactoryReadAdapter: vi.fn(),
@@ -31,8 +31,6 @@ const config: AppConfig = {
   routerAddress: address(2),
   factoryAddress: address(8),
   nativeHogAddress: address(9),
-  poolContractFunding: 10_000_000n,
-  pairAddress: address(3),
   liquidityTokenAddress: address(10),
   handlerAddress: address(4),
   driverAddress: address(5),
@@ -59,20 +57,32 @@ describe("createSnapshotReader", () => {
       .mockReturnValueOnce(tokenA)
       .mockReturnValueOnce(tokenB)
       .mockReturnValueOnce(liquidityToken);
-    vi.mocked(createSwapPairReadAdapter).mockReturnValue({
-      reserves: vi.fn().mockResolvedValue({
-        value: { reserve0: 100n, reserve1: 200n, blockTimestamp: 5n },
-        height: 8n,
-        events: [],
-      }),
-      liquidity: vi.fn().mockResolvedValue({
-        value: 300n,
+    vi.mocked(createSwapHandlerReadAdapter).mockReturnValue({
+      poolState: vi.fn().mockResolvedValue({
+        value: {
+          reserve0: 100n,
+          reserve1: 200n,
+          blockTimestamp: 5n,
+          liquidity: 300n,
+          liquidityToken: config.liquidityTokenAddress,
+          cumulativePrices: [{ limbs: Array(8).fill(0n) }, { limbs: Array(8).fill(0n) }],
+        },
         height: 8n,
         events: [],
       }),
     });
     vi.mocked(createSwapFactoryReadAdapter).mockReturnValue({
       feeTo: vi.fn().mockResolvedValue({ value: null, height: 8n, events: [] }),
+      getPair: vi.fn().mockResolvedValue({ value: config.handlerAddress, height: 8n, events: [] }),
+      poolAddresses: vi.fn().mockResolvedValue({
+        value: {
+          liquidityToken: config.liquidityTokenAddress,
+          handler: config.handlerAddress,
+          driver: config.driverAddress,
+        },
+        height: 8n,
+        events: [],
+      }),
     } as never);
 
     await expect(createSnapshotReader(config)()).resolves.toMatchObject({
@@ -95,16 +105,32 @@ describe("createSnapshotReader", () => {
       .mockReturnValueOnce(tokenAdapter("A", "A", 1n, 0n, 1n))
       .mockReturnValueOnce(tokenAdapter("B", "B", 1n, 0n, 1n))
       .mockReturnValueOnce(tokenAdapter("LP", "LP", 0n, 0n, 1n));
-    vi.mocked(createSwapPairReadAdapter).mockReturnValue({
-      reserves: vi.fn().mockResolvedValue({
-        value: { reserve0: 1n, reserve1: 1n, blockTimestamp: 1n },
+    vi.mocked(createSwapHandlerReadAdapter).mockReturnValue({
+      poolState: vi.fn().mockResolvedValue({
+        value: {
+          reserve0: 1n,
+          reserve1: 1n,
+          blockTimestamp: 1n,
+          liquidity: 1n,
+          liquidityToken: config.liquidityTokenAddress,
+          cumulativePrices: [{ limbs: Array(8).fill(0n) }, { limbs: Array(8).fill(0n) }],
+        },
         height: 2n,
         events: [],
       }),
-      liquidity: vi.fn().mockResolvedValue({ value: 1n, height: 2n, events: [] }),
     });
     vi.mocked(createSwapFactoryReadAdapter).mockReturnValue({
       feeTo: vi.fn().mockResolvedValue({ value: null, height: 2n, events: [] }),
+      getPair: vi.fn().mockResolvedValue({ value: config.handlerAddress, height: 2n, events: [] }),
+      poolAddresses: vi.fn().mockResolvedValue({
+        value: {
+          liquidityToken: config.liquidityTokenAddress,
+          handler: config.handlerAddress,
+          driver: config.driverAddress,
+        },
+        height: 2n,
+        events: [],
+      }),
     } as never);
 
     await expect(createSnapshotReader(config)()).rejects.toThrow(

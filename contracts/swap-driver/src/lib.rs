@@ -11,7 +11,7 @@ mod driver;
 // `RequestFailed` and `RequestsProcessed` are the events this contract emits.
 pub use swap_if::{
     RequestAccepted, RequestFailed, RequestId, RequestsProcessed, SwapDriver, SwapDriverClient,
-    SwapDriverClientError, SwapDriverError,
+    SwapDriverError,
 };
 
 // Contract implementation

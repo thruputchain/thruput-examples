@@ -25,7 +25,6 @@ const config: GlobalConfig = {
   routerAddress: address(2),
   factoryAddress: address(3),
   nativeHogAddress: address(4),
-  poolContractFunding: 10_000_000n,
 };
 
 beforeEach(() => {
@@ -46,7 +45,6 @@ describe("resolvePoolConfig", () => {
     await expect(resolvePoolConfig(config, address(5), address(6), factory))
       .resolves.toMatchObject({
         factoryAddress: address(3),
-        pairAddress: address(7),
         liquidityTokenAddress: address(8),
         handlerAddress: address(9),
         driverAddress: address(10),
@@ -93,10 +91,9 @@ function factoryAdapter(options: { registered?: ReturnType<typeof address> | nul
     pairAt: vi.fn(),
     feeTo: vi.fn(),
     getPair: vi.fn().mockResolvedValue(
-      view(options.registered === undefined ? address(7) : options.registered),
+      view(options.registered === undefined ? address(9) : options.registered),
     ),
     poolAddresses: vi.fn().mockResolvedValue(view({
-      pair: address(7),
       liquidityToken: address(8),
       handler: address(9),
       driver: address(10),
