@@ -62,14 +62,17 @@ pub struct PermitWallet {
     replay: SignedOpReplayCache,
 }
 
-#[contract(client = PermitWalletClient, throws = WalletError)]
+#[contract(throws = WalletError)]
 impl PermitWallet {
     /// Set the key this wallet accepts and the address allowed to change it.
     /// Throws [`WalletError::AlreadyInitialized`] if called more than once.
     ///
-    /// Open to any caller. Call it in the transaction that deploys the
-    /// wallet, so no other transaction can reach the wallet uninitialized and
-    /// claim it.
+    /// Open to any caller, so it belongs in the same frame as the deployment:
+    /// a raw deploy transaction cannot also make a call, so on a public
+    /// network deploy through a contract that calls `initialize` before its
+    /// frame ends, the way `standard-token-factory` initializes the tokens it
+    /// deploys. A wallet left uninitialized across a block boundary takes the
+    /// first owner anyone offers it.
     pub fn initialize(&mut self, administrator: &ContractAddress, owner: &Ed25519PublicKey) {
         if self.owner.try_get().none_if_missing().is_some() {
             throw(WalletError::AlreadyInitialized);

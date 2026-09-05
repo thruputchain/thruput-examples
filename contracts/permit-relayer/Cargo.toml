@@ -13,7 +13,7 @@ edition.workspace = true
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "groundhog-signed-op-if/dev", "groundhog-erc20-permit-if/dev"]
+dev = ["sdk/dev"]
 
 [lib]
 crate-type = ["rlib"]

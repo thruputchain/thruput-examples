@@ -24,7 +24,7 @@ use sdk::*;
 /// The relayer contract.
 pub struct PermitRelayer;
 
-#[contract(client = PermitRelayerClient)]
+#[contract]
 impl PermitRelayer {
     /// Take `op` and `signature` to `wallet`, then pass the grant it mints to
     /// `token`'s `permit`, which records an allowance for the grant's spender.

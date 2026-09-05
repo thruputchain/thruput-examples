@@ -174,6 +174,13 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Pe
 
     token.call(ctx, "initialize", &me).await?;
     // The admin can rotate Alice's key; Alice's key authorizes permits.
+    //
+    // Deploying and initializing in separate transactions is fine on this
+    // private devnode, where nothing else can reach the wallet in between,
+    // but it is not the pattern for a public network: there, deploy through
+    // a contract frame that calls `initialize` before it ends (see the
+    // wallet's `initialize` docs), since a raw deploy transaction cannot
+    // also make a call.
     wallet
         .call(ctx, "initialize", &(me, alice_public_key()))
         .await?;
