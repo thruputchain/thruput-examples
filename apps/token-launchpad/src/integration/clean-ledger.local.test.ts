@@ -1,4 +1,10 @@
+// @vitest-environment node
 /// <reference types="node" />
+
+import { mkdtemp, rm } from "node:fs/promises";
+import type { Server } from "node:http";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import {
   createGroundhogClient,
@@ -22,6 +28,11 @@ import {
   type LaunchWorkflow,
 } from "@/launch/workflow";
 import { createLocalWriteBoundary } from "@/transactions/local-development-wallet";
+import { GroundhogRegistrySource } from "../../server/chain";
+import type { RegistryScope } from "../../server/domain";
+import { createRegistryHttpServer } from "../../server/http";
+import { RegistryIndexer } from "../../server/indexer";
+import { RegistryStore } from "../../server/store";
 
 const runCleanLedger =
   import.meta.env.MODE === "local-integration" &&
@@ -36,6 +47,7 @@ describe
   .skipIf(!runCleanLedger)
   .sequential("clean-ledger token launchpad acceptance", () => {
     it("launches and discovers distinct tokens for Alice and Bob", async () => {
+      installNodeWindow();
       window.localStorage.clear();
       const base = localConfig();
       const client = await createGroundhogClient({
@@ -55,6 +67,11 @@ describe
         decimals: 7,
         initialSupply: 1_000_000_000_000n,
       };
+      const bobToken: ParsedToken = {
+        ...token,
+        name: "Second Registry Token",
+        symbol: "BOB",
+      };
 
       const aliceConfig = { ...base, accountAddress: alice.accountAddress };
       const bobConfig = { ...base, accountAddress: bob.accountAddress };
@@ -70,7 +87,7 @@ describe
         config: bobConfig,
         privateKeyHex: bob.privateKeyHex,
         nonce: crypto.getRandomValues(new Uint8Array(32)),
-        token,
+        token: bobToken,
       });
 
       expect(aliceLaunch.createdAddressHex).not.toBe(
@@ -119,11 +136,11 @@ describe
         ),
       ).toMatchObject({
         addressHex: bobLaunch.createdAddressHex,
-        name: token.name,
-        symbol: token.symbol,
-        decimals: token.decimals,
-        initialSupply: token.initialSupply,
-        balance: token.initialSupply,
+        name: bobToken.name,
+        symbol: bobToken.symbol,
+        decimals: bobToken.decimals,
+        initialSupply: bobToken.initialSupply,
+        balance: bobToken.initialSupply,
         administratorHex: toHex0x(bob.accountAddress),
         holderHex: toHex0x(bob.accountAddress),
         readError: false,
@@ -134,6 +151,15 @@ describe
           bobLaunch.createdAddressHex,
         ]),
       );
+
+      await verifyPersistentRegistry({
+        client,
+        config: base,
+        aliceAddress: toHex0x(alice.accountAddress),
+        bobAddress: toHex0x(bob.accountAddress),
+        aliceToken: aliceLaunch.createdAddressHex,
+        bobToken: bobLaunch.createdAddressHex,
+      });
     }, 180_000);
   });
 
@@ -226,4 +252,151 @@ function required(value: unknown): string {
     throw new Error("Local launchpad setup is incomplete");
   }
   return value;
+}
+
+async function verifyPersistentRegistry(input: {
+  client: GroundhogClient;
+  config: AppConfig;
+  aliceAddress: string;
+  bobAddress: string;
+  aliceToken: string;
+  bobToken: string;
+}): Promise<void> {
+  const directory = await mkdtemp(
+    path.join(tmpdir(), "launchpad-registry-e2e-"),
+  );
+  const databasePath = path.join(directory, "registry.sqlite");
+  const scope: RegistryScope = {
+    networkId: input.config.networkIdHex,
+    factoryAddress: toHex0x(input.config.factoryAddress),
+    tokenCodeHash: toHex0x(input.config.expectedTokenHash),
+  };
+  let store: RegistryStore | null = null;
+  let server: Server | null = null;
+  try {
+    const source = new GroundhogRegistrySource(input.client, scope);
+    await source.verifyScope();
+    store = new RegistryStore(databasePath, scope);
+    const indexer = new RegistryIndexer(store, source, {
+      pageSize: 1,
+      syncIntervalMs: 60_000,
+    });
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await indexer.sync();
+      if (store.getStatus().tokenCount >= 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    expect(store.getStatus()).toMatchObject({
+      tokenCount: 2,
+      historyLimited: false,
+    });
+
+    server = createRegistryHttpServer(store, indexer);
+    const origin = await listen(server);
+    const global = await registryQuery(origin, "sort=oldest");
+    expect(global.total).toBe(2);
+    expect(global.tokens.map(({ tokenAddress }) => tokenAddress)).toEqual([
+      input.aliceToken,
+      input.bobToken,
+    ]);
+    const search = await registryQuery(origin, "q=bob");
+    expect(search.tokens.map(({ tokenAddress }) => tokenAddress)).toEqual([
+      input.bobToken,
+    ]);
+    const creator = await registryQuery(
+      origin,
+      `creator=${encodeURIComponent(input.aliceAddress)}`,
+    );
+    expect(creator.tokens.map(({ creatorAddress }) => creatorAddress)).toEqual([
+      input.aliceAddress,
+    ]);
+    const bobCreator = await registryQuery(
+      origin,
+      `creator=${encodeURIComponent(input.bobAddress)}`,
+    );
+    expect(
+      bobCreator.tokens.map(({ creatorAddress }) => creatorAddress),
+    ).toEqual([input.bobAddress]);
+    const firstPage = await registryQuery(origin, "sort=name&limit=1");
+    const secondPage = await registryQuery(
+      origin,
+      `sort=name&limit=1&offset=1&asOfBlock=${firstPage.asOfBlock}`,
+    );
+    expect(firstPage.hasMore).toBe(true);
+    expect(secondPage.hasMore).toBe(false);
+    expect(
+      new Set([
+        firstPage.tokens[0]?.tokenAddress,
+        secondPage.tokens[0]?.tokenAddress,
+      ]),
+    ).toEqual(new Set([input.aliceToken, input.bobToken]));
+
+    await indexer.stop();
+    await close(server);
+    server = null;
+    store.close();
+    store = null;
+
+    const reopened = new RegistryStore(databasePath, scope);
+    expect(reopened.getStatus().tokenCount).toBe(2);
+    expect(
+      reopened.queryTokens({ sort: "newest", limit: 20, offset: 0 }).tokens,
+    ).toHaveLength(2);
+    reopened.close();
+  } finally {
+    if (server !== null) await close(server);
+    store?.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+interface RegistryResponse {
+  tokens: Array<{ tokenAddress: string; creatorAddress: string }>;
+  total: number;
+  asOfBlock: string;
+  hasMore: boolean;
+}
+
+async function registryQuery(
+  origin: string,
+  query: string,
+): Promise<RegistryResponse> {
+  const response = await fetch(`${origin}/api/tokens?${query}`);
+  expect(response.status).toBe(200);
+  return (await response.json()) as RegistryResponse;
+}
+
+async function listen(server: Server): Promise<string> {
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("Registry acceptance server did not bind a TCP port");
+  }
+  return `http://127.0.0.1:${address.port}`;
+}
+
+async function close(server: Server): Promise<void> {
+  if (!server.listening) return;
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error === undefined ? resolve() : reject(error)));
+  });
+}
+
+function installNodeWindow(): void {
+  if (typeof window !== "undefined") return;
+  const values = new Map<string, string>();
+  const localStorage: Storage = {
+    get length() {
+      return values.size;
+    },
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => [...values.keys()][index] ?? null,
+    removeItem: (key) => values.delete(key),
+    setItem: (key, value) => values.set(key, value),
+  };
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { localStorage, setTimeout: globalThis.setTimeout },
+  });
 }

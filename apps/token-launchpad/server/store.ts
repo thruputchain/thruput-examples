@@ -174,7 +174,7 @@ export class RegistryStore {
       tokenCount: integerColumn(count, "count"),
       historyLimited: this.#state("history_limited") === "true",
       syncState,
-      syncing: syncState === "syncing",
+      syncing: syncState === "syncing" || syncState === "retrying",
       lastSuccessfulSyncAt: this.#state("last_successful_sync_at"),
       lastError: this.#state("last_error"),
     };
