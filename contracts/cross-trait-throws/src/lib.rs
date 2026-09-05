@@ -154,8 +154,8 @@ impl PausableLedger {
             self.operator.try_get().none_if_missing().is_none(),
             PauseError::AlreadyInitialized,
         );
-        self.operator.set(operator);
-        self.paused.set(&false);
+        self.operator.set_exclusive(operator);
+        self.paused.set_exclusive(&false);
     }
 
     /// Withdraw from *another* ledger through its [`LedgerClient`], and
