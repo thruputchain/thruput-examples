@@ -58,7 +58,7 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
   `.cargo/config.toml`; the environment variable supplies the registry index.)
   Individual applications may require an exact CLI release. The token launchpad requires 0.10.4.
 
-- Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`). Get a token at [groundhog.dev/crates](https://groundhog.dev/crates).
+- Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`).
 - `jq`, used by [`scripts/build-guest.sh`](scripts/build-guest.sh).
 - For RPC-based tests, `groundhog-cli` must be able to find a "devnode" binary, for example via `GROUNDHOG_DEVNODE_BINARY`.
 
