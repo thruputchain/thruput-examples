@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "build": "vite build",
@@ -12,6 +12,7 @@
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "preview": "vite preview",
     "setup:local": "bash scripts/setup-local.sh",
+    "start:registry": "tsx server/main.ts",
     "test": "vitest run",
     "test:e2e:local": "RUN_TOKEN_LAUNCHPAD_CLEAN_LEDGER_E2E=1 bash scripts/test-clean-ledger.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
