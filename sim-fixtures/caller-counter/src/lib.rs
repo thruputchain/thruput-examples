@@ -26,6 +26,10 @@ impl CallerCounter {
 
     /// Return the caller's current counter value, or zero if never bumped.
     pub fn get(&self) -> u64 {
-        self.counts.at(&get_caller()).try_get().unwrap_or(0) as u64
+        self.counts
+            .at(&get_caller())
+            .try_get()
+            .none_if_missing()
+            .unwrap_or(0) as u64
     }
 }

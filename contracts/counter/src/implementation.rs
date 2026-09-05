@@ -37,7 +37,8 @@ impl Counter {
     }
 
     pub fn get(&self) -> u64 {
-        self.value.try_get().unwrap_or(0) as u64
+        // A never-set counter reads as zero; any other failure still aborts.
+        self.value.try_get().none_if_missing().unwrap_or(0) as u64
     }
 
     pub fn ping(&self, tag: u64) {

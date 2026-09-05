@@ -37,10 +37,14 @@ impl NnintStress {
     }
 
     pub fn total(&self) -> u64 {
-        self.total.try_get().unwrap_or(0) as u64
+        self.total.try_get().none_if_missing().unwrap_or(0) as u64
     }
 
     pub fn caller_total(&self) -> u64 {
-        self.by_caller.at(&get_caller()).try_get().unwrap_or(0) as u64
+        self.by_caller
+            .at(&get_caller())
+            .try_get()
+            .none_if_missing()
+            .unwrap_or(0) as u64
     }
 }
