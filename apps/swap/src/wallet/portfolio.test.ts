@@ -25,7 +25,6 @@ const config: GlobalConfig = {
   factoryAddress: address(3),
   nativeHogAddress: address(4),
   knownTokenAddresses: [address(14)],
-  poolContractFunding: 10_000_000n,
 };
 
 beforeEach(() => {
@@ -42,13 +41,10 @@ describe("createWalletPortfolioReader", () => {
         .mockResolvedValueOnce(view([address(5), address(6)] as const))
         .mockResolvedValueOnce(view([address(5), address(8)] as const))
         .mockResolvedValueOnce(view(null)),
-      getPair: vi.fn((_token0, token1) =>
-        Promise.resolve(view(address(token1[0] === 6 ? 10 : 11))),
-      ),
+      getPair: vi.fn(() => Promise.resolve(view(address(12)))),
       poolAddresses: vi.fn((_token0, token1) =>
         Promise.resolve(
           view({
-            pair: address(token1[0] === 6 ? 10 : 11),
             liquidityToken: address(token1[0] === 6 ? 7 : 9),
             handler: address(12),
             driver: address(13),

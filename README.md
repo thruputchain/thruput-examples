@@ -12,7 +12,7 @@ and `erc20` crates here line by line.
 
 ## Examples
 
-A suggested reading order for newcomers is `fibonacci` → `cross-call` → `events`, then the error-handling pair.
+A suggested reading order for newcomers is `fibonacci` → `cross-call` → `events`, then the error-handling pair, then `cross-trait-throws` for catching an error across interface boundaries.
 
 | Crate | Demonstrates |
 |-------|--------------|
@@ -26,6 +26,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`multi-impl-traits`](contracts/multi-impl-traits/) | Defining contract interfaces as traits in a standalone crate |
 | [`multi-impl`](contracts/multi-impl/) | One contract implementing multiple traits from a separate crate |
 | [`mixed-impl`](contracts/mixed-impl/) | One contract exposing both an inherent (`notrait`) `#[contract]` impl and a trait `#[contract]` impl |
+| [`cross-trait-throws`](contracts/cross-trait-throws/) | One contract implementing two traits with different `throws` types; a client on one catching the peer trait's error with `match_exn!` |
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and an optional `metadata` feature |
 | [`standard-token*`](contracts/standard-token-factory/) | A fixed standard-token implementation and factory with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](docs/README-swap.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
@@ -45,9 +46,8 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples �
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI. CI runs the workspace against the version pinned in
-  [`.github/workflows/ci.yml`](.github/workflows/ci.yml); a newer release
-  normally works too. Install it with:
+- The `groundhog` CLI, **version 0.14.0 or newer** (it must match the SDK the
+  contracts build against):
 
   ```sh
   export CARGO_REGISTRIES_GROUNDHOG_INDEX="sparse+https://groundhog.dev/crates/api/v1/crates/"
@@ -98,6 +98,7 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`multi-impl-traits`](contracts/multi-impl-traits/) | — | — | — |
 | [`multi-impl`](contracts/multi-impl/) | ✅ | — | — |
 | [`mixed-impl`](contracts/mixed-impl/) | ✅ | — | — |
+| [`cross-trait-throws`](contracts/cross-trait-throws/) | ✅ | — | — |
 | [`erc20`](contracts/erc20/) | ✅ | ✅ | ✅ |
 | [`swap-handler`](contracts/swap-handler/) | — | — | — |
 | [`swap-driver`](contracts/swap-driver/) | ✅ | — | — |

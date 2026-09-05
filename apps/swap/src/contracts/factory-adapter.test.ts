@@ -8,6 +8,7 @@ const methods = vi.hoisted(() => ({
   pairAt: { view: vi.fn() },
   getPair: { view: vi.fn() },
   poolAddresses: { view: vi.fn() },
+  poolFunding: { view: vi.fn() },
   feeTo: { view: vi.fn() },
 }));
 
@@ -27,12 +28,12 @@ describe("createSwapFactoryReadAdapter", () => {
     methods.pairAt.view.mockResolvedValue(result([address(1), address(2)]));
     methods.getPair.view.mockResolvedValue(result(address(3)));
     methods.poolAddresses.view.mockResolvedValue(result({
-      pair: address(3),
       liquidity_token: address(4),
       handler: address(5),
       driver: address(6),
     }));
     methods.feeTo.view.mockResolvedValue(result(null));
+    methods.poolFunding.view.mockResolvedValue(result({ min: 10n, recommended: 20n }));
     const client = { view: vi.fn() };
     const adapter = createSwapFactoryReadAdapter({
       client,
@@ -49,13 +50,15 @@ describe("createSwapFactoryReadAdapter", () => {
     });
     await expect(adapter.poolAddresses(address(1), address(2))).resolves.toMatchObject({
       value: {
-        pair: address(3),
         liquidityToken: address(4),
         handler: address(5),
         driver: address(6),
       },
     });
     await expect(adapter.feeTo()).resolves.toMatchObject({ value: null });
+    await expect(adapter.poolFunding()).resolves.toMatchObject({
+      value: { min: 10n, recommended: 20n },
+    });
 
     expect(methods.pairAt.view).toHaveBeenCalledWith(
       expect.objectContaining({ args: { index: 0n } }),

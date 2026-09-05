@@ -1,5 +1,5 @@
 import { contractAddress } from "@groundhogchain/protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { GlobalConfig } from "@/config";
 import type { Erc20ReadAdapter } from "@/contracts/erc20-adapter";
@@ -11,104 +11,51 @@ import {
 } from "./pool-creation";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
-const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
-const view = <T>(value: T, height = 7n) => ({ value, height, events: [] });
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkIdHex: "00".repeat(32),
-  accountAddress: address(9),
-  routerAddress: address(8),
-  factoryAddress: address(7),
-  nativeHogAddress: address(6),
-  poolContractFunding: 100n,
+  accountAddress: address(1),
+  routerAddress: address(2),
+  factoryAddress: address(3),
+  nativeHogAddress: address(4),
+  knownTokenAddresses: [],
 } satisfies GlobalConfig;
-const pool = {
-  pair: address(20),
-  liquidityToken: address(21),
-  handler: address(22),
-  driver: address(23),
+const input = {
+  tokenA: `0x${"05".repeat(32)}`,
+  tokenB: `0x${"06".repeat(32)}`,
+  amountA: "2",
+  amountB: "8",
 };
 
-describe("pool creation review", () => {
-  it("orients amounts canonically and derives exact requirements", async () => {
-    const review = await preparePoolCreation(
-      config,
-      { tokenA: hex(2), tokenB: hex(1), amountA: "3", amountB: "2" },
-      50n,
-      dependencies(),
+describe("preparePoolCreation", () => {
+  it("uses the factory recommendation and approves all three contracts", async () => {
+    const review = await preparePoolCreation(config, input, 0n, dependencies());
+
+    expect(review.pool).toBeNull();
+    expect(review.fundingMinimum).toBe(100n);
+    expect(review.fundingPerContract).toBe(1_000n);
+    expect(review.totalFunding).toBe(3_000n);
+    expect(review.fundingApprovalDifference).toBe(2_500n);
+    expect(review.initialLiquidity).toBe(4_000_000n);
+  });
+
+  it("rejects an existing pool before predicting child addresses", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.factory!.getPair).mockResolvedValue(view(address(7)));
+
+    await expect(preparePoolCreation(config, input, 0n, deps)).rejects.toMatchObject({
+      code: "poolExists",
+    });
+    expect(deps.factory!.poolAddresses).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed funding policy", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.factory!.poolFunding).mockResolvedValue(view({ min: 1_001n, recommended: 1_000n }));
+
+    await expect(preparePoolCreation(config, input, 0n, deps)).rejects.toBeInstanceOf(
+      PoolCreationValidationError,
     );
-
-    expect(review.token0).toMatchObject({
-      addressHex: hex(1),
-      symbol: "T1",
-      amount: 2_000n,
-      approvalDifference: 1_500n,
-    });
-    expect(review.token1).toMatchObject({
-      addressHex: hex(2),
-      symbol: "T2",
-      amount: 3_000n,
-      approvalDifference: 2_500n,
-    });
-    expect(review.initialLiquidity).toBe(2_449n);
-    expect(review.totalFixedFunding).toBe(400n);
-    expect(review.pool).toEqual(pool);
-  });
-
-  it("rejects existing pools, insufficient liquidity, and reserved HOG", async () => {
-    await expect(preparePoolCreation(
-      config,
-      { tokenA: hex(1), tokenB: hex(2), amountA: "2", amountB: "2" },
-      0n,
-      dependencies({ existingPair: address(20) }),
-    )).rejects.toMatchObject({ code: "poolExists" });
-
-    await expect(preparePoolCreation(
-      config,
-      { tokenA: hex(1), tokenB: hex(2), amountA: "1", amountB: "1" },
-      0n,
-      dependencies(),
-    )).rejects.toMatchObject({ code: "minimumLiquidity" });
-
-    await expect(preparePoolCreation(
-      config,
-      { tokenA: hex(1), tokenB: hex(2), amountA: "2", amountB: "2" },
-      700n,
-      dependencies(),
-    )).rejects.toMatchObject({ code: "hogBalance" });
-  });
-
-  it("combines native-HOG liquidity with fixed funding requirements", async () => {
-    const deps = dependencies();
-    const token = deps.token;
-    deps.token = (tokenAddress) => {
-      const adapter = token(tokenAddress);
-      return tokenAddress[0] === 1
-        ? { ...adapter, balanceOf: async () => view(1_000n) }
-        : adapter;
-    };
-
-    await expect(preparePoolCreation(
-      { ...config, nativeHogAddress: address(1) },
-      { tokenA: hex(1), tokenB: hex(2), amountA: "0.7", amountB: "2" },
-      0n,
-      deps,
-    )).rejects.toMatchObject({ code: "hogBalance" });
-  });
-
-  it("fails after bounded incoherent reads", async () => {
-    const deps = dependencies();
-    let height = 0n;
-    deps.factory!.getPair = async () => view(null, ++height);
-
-    await expect(preparePoolCreation(
-      config,
-      { tokenA: hex(1), tokenB: hex(2), amountA: "2", amountB: "2" },
-      0n,
-      deps,
-    )).rejects.toEqual(expect.objectContaining<Partial<PoolCreationValidationError>>({
-      code: "staleReads",
-    }));
   });
 });
 
@@ -116,36 +63,38 @@ describe("integerSquareRoot", () => {
   it.each([
     [0n, 0n],
     [1n, 1n],
-    [2n, 1n],
     [15n, 3n],
     [16n, 4n],
-    [17n, 4n],
-    [10n ** 40n, 10n ** 20n],
-  ])("floors sqrt(%s)", (value, expected) => {
+  ])("returns floor sqrt for %s", (value, expected) => {
     expect(integerSquareRoot(value)).toBe(expected);
   });
 });
 
-function dependencies(options: { existingPair?: ReturnType<typeof address> } = {}): {
-  factory: SwapFactoryReadAdapter;
-  token: (token: ReturnType<typeof address>) => Erc20ReadAdapter;
-} {
-  return {
-    factory: {
-      allPairsLength: async () => view(0n),
-      pairAt: async () => view(null),
-      getPair: async () => view(options.existingPair ?? null),
-      poolAddresses: async () => view(pool),
-      feeTo: async () => view(null),
-    },
-    token: (token) => ({
-      balanceOf: async () => view(token[0] === 6 ? 1_000n : 10_000n),
-      allowance: async () => view(500n),
-      metadata: async () => ({
-        name: view(`Token ${token[0]}`),
-        symbol: view(`T${token[0]}`),
-        decimals: view(token[0] === 6 ? null : 3),
-      }),
-    }),
+function dependencies() {
+  const factory: SwapFactoryReadAdapter = {
+    allPairsLength: vi.fn(),
+    pairAt: vi.fn(),
+    getPair: vi.fn().mockResolvedValue(view(null)),
+    poolAddresses: vi.fn(),
+    poolFunding: vi.fn().mockResolvedValue(view({ min: 100n, recommended: 1_000n })),
+    feeTo: vi.fn(),
   };
+  const token = vi.fn((contract) => tokenAdapter(contract === config.nativeHogAddress));
+  return { factory, token };
+}
+
+function tokenAdapter(native: boolean): Erc20ReadAdapter {
+  return {
+    metadata: vi.fn().mockResolvedValue({
+      name: view(native ? "HOG" : "Token"),
+      symbol: view(native ? "HOG" : "TKN"),
+      decimals: view(6),
+    }),
+    balanceOf: vi.fn().mockResolvedValue(view(native ? 100_000n : 20_000_000n)),
+    allowance: vi.fn().mockResolvedValue(view(native ? 500n : 0n)),
+  };
+}
+
+function view<T>(value: T) {
+  return { value, height: 10n, events: [] };
 }

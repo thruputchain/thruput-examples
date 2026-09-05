@@ -54,7 +54,12 @@ export interface RemoveLiquidityRequest {
   recipient: ContractAddress;
 }
 
-export const SwapDriverError = { BatchTooSmall: 1n } as const;
+export const SwapDriverError = {
+  BatchTooSmall: 1n,
+  AlreadyInitialized: 2n,
+  InvalidConfiguration: 3n,
+  Unauthorized: 4n,
+} as const;
 
 export type SwapDriverError =
   (typeof SwapDriverError)[keyof typeof SwapDriverError];
@@ -112,6 +117,7 @@ export interface SwapRequest {
 }
 
 export const SwapRequestError = {
+  Unauthorized: 100n,
   InsufficientAmountA: 1n,
   InsufficientAmountB: 2n,
   InsufficientOutputAmount: 3n,
@@ -123,6 +129,7 @@ export type SwapRequestError =
 
 export interface SwapDriverInitializeArgs {
   handler: ContractAddress;
+  router: ContractAddress;
   maxQueueLen: bigint;
   minCrankBatch: bigint;
 }
@@ -202,6 +209,7 @@ export const spec: ContractSpec = {
           name: s("initialize"),
           args: [
             { name: s("handler"), ty: { v: ContractTypeKind.Address } },
+            { name: s("router"), ty: { v: ContractTypeKind.Address } },
             { name: s("max_queue_len"), ty: { v: ContractTypeKind.U32 } },
             { name: s("min_crank_batch"), ty: { v: ContractTypeKind.U32 } },
           ],
@@ -290,7 +298,12 @@ export const spec: ContractSpec = {
       v: ContractTypeDefKind.TypeDefEnum,
       enum_def: {
         name: s("SwapDriverError"),
-        variants: [{ name: s("BatchTooSmall"), value: 1n }],
+        variants: [
+          { name: s("BatchTooSmall"), value: 1n },
+          { name: s("AlreadyInitialized"), value: 2n },
+          { name: s("InvalidConfiguration"), value: 3n },
+          { name: s("Unauthorized"), value: 4n },
+        ],
       },
     },
     {
@@ -482,6 +495,7 @@ export const spec: ContractSpec = {
       enum_def: {
         name: s("SwapRequestError"),
         variants: [
+          { name: s("Unauthorized"), value: 100n },
           { name: s("InsufficientAmountA"), value: 1n },
           { name: s("InsufficientAmountB"), value: 2n },
           { name: s("InsufficientOutputAmount"), value: 3n },
@@ -559,14 +573,19 @@ export const SwapDriver = {
         type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
       },
       {
+        abiName: "router",
+        publicName: "router",
+        type: spec.interfaces[0]!.methods[0]!.args[1]!.ty,
+      },
+      {
         abiName: "max_queue_len",
         publicName: "maxQueueLen",
-        type: spec.interfaces[0]!.methods[0]!.args[1]!.ty,
+        type: spec.interfaces[0]!.methods[0]!.args[2]!.ty,
       },
       {
         abiName: "min_crank_batch",
         publicName: "minCrankBatch",
-        type: spec.interfaces[0]!.methods[0]!.args[2]!.ty,
+        type: spec.interfaces[0]!.methods[0]!.args[3]!.ty,
       },
     ],
     returnType: spec.interfaces[0]!.methods[0]!.return_type,

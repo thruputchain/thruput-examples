@@ -11,10 +11,10 @@ fn initializing_twice_is_refused() {
             ctx.router().try_initialize(&ctx.request_handler_addr)
         })?;
 
-        match refused {
-            Err(SwapRouterClientError::SwapRouterError(SwapRouterError::AlreadyInitialized)) => {}
-            other => panic!("expected AlreadyInitialized, got {other:?}"),
-        }
+        assert_eq!(
+            refused.unwrap_err().try_as(),
+            Some(SwapRouterError::AlreadyInitialized)
+        );
 
         Ok(())
     })

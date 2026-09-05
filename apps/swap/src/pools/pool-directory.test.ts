@@ -20,7 +20,6 @@ const config: GlobalConfig = {
   routerAddress: address(2),
   factoryAddress: address(3),
   nativeHogAddress: address(4),
-  poolContractFunding: 10_000_000n,
 };
 
 beforeEach(() => {
@@ -40,7 +39,7 @@ describe("readPoolDirectory", () => {
         .mockResolvedValueOnce({ value: null })
         .mockResolvedValueOnce({ value: [address(5), address(7)] }),
     } as never);
-    const first = { config: { pairAddress: address(8) }, snapshot: {} } as never;
+    const first = { config: { handlerAddress: address(8) }, snapshot: {} } as never;
     const loadPool = vi.fn()
       .mockResolvedValueOnce(first)
       .mockRejectedValueOnce(new Error("bad pool"));

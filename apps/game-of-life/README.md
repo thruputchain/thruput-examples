@@ -6,24 +6,29 @@ React application for exploring synchronized immutable generations of the 10,000
 
 - Node.js 22.12 or newer
 - Chromium at `/usr/bin/chromium`, or set `CHROMIUM_PATH`
-- A loopback Groundhog RPC endpoint and Phase 3 indexer
-- An initialized Game of Life contract and runtime manifest from the same node
-- For clean-ledger acceptance, `sqlite3`, a Groundhog CLI 0.10.1-compatible devnode, and its `built_contracts` directory
+- A fresh disposable `hog-devnode` 0.1.26 ledger and its runtime manifest
+- A Groundhog CLI compatible with that node
+- For clean-ledger acceptance, `sqlite3`, `flock`, `setsid`, and the devnode contract-artifact directory
 
 ## Local Development
 
-Start a complete disposable node, deploy and initialize the contract, verify the local personas, and run the indexer and frontend with one command:
+Start a fresh disposable local node separately, then export its CLI and runtime manifest:
 
 ```bash
 npm ci
-GROUNDHOG_CLI=/path/to/groundhog \
-GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
-GROUNDHOG_CONTRACT_ARTIFACTS_DIR=/path/to/built_contracts \
-GROUNDHOG_LOCAL_HOGD_PROTOCOL=hogp/<compatible-protocol> \
-npm run dev:local
+export GROUNDHOG_CLI=/path/to/groundhog
+export GROUNDHOG_RUNTIME_MANIFEST=/path/to/runtime-manifest.json
+
+# Set this only when the node does not use the standard local RPC port.
+export GROUNDHOG_RPC_URL=http://127.0.0.1:9545
+
+npm run setup:local
+npm run dev
 ```
 
-The command prints the randomized loopback app, indexer, and RPC URLs when the stack is ready. Keep it running while developing, then press `Ctrl-C` to stop every process and restore any pre-existing `.env.local`. Restoration occurs only if the generated file is unchanged; manual edits are preserved and may retain disposable credentials. The node ledger, deployment credentials, indexer database, and generated artifacts are disposable and remain outside the repository.
+`setup:local` builds, prefunds, deploys, and initializes Game of Life through manifest-derived local accounts. It verifies the seed-zero world and the Alice, Bob, and Carol caller lifecycle before writing `.env.local`. Setup is not idempotent: if it fails after mutating the ledger, inspect the reported transaction and start a new disposable node rather than rerunning it.
+
+`dev` builds and supervises the release indexer and Vite. It prints the app, indexer, and RPC URLs when both services are ready. Press `Ctrl-C` to stop those services; the separately started node remains running. Indexer state persists under the ignored `tmp/game-of-life-indexer` directory unless `GAME_OF_LIFE_ARTIFACT_ROOT` and `GAME_OF_LIFE_INDEXER_DB` override it.
 
 ## Transaction X-Ray
 
@@ -93,18 +98,17 @@ The indexer URL must be an origin root. Paths, queries, and fragments are reject
 
 The browser always uses same-origin `/groundhog-rpc` and `/groundhog-indexer` endpoints. Production builds and previews expose read methods only and never contain development credentials.
 
-Generate the loopback-only Alice, Bob, and Carol configuration after deployment and initialization:
+Provision the contract and generate the loopback-only Alice, Bob, and Carol configuration on a fresh disposable node:
 
 ```bash
 GROUNDHOG_CLI=/path/to/validated/groundhog \
 GROUNDHOG_RUNTIME_MANIFEST=/path/to/runtime-manifest.json \
 GROUNDHOG_RPC_URL=http://127.0.0.1:9545 \
-GROUNDHOG_CONTRACT_ADDRESS=0x... \
 GAME_OF_LIFE_INDEXER_URL=http://127.0.0.1:8787 \
 npm run setup:local
 ```
 
-Setup validates the pinned local DevWallet artifact and entrypoint, derives each disposable signer from the runtime manifest, verifies its public key and wallet root, funds each persona for a full crank, and writes the ignored `.env.local` with mode `0600`. It serializes environment writers with an advisory lock, then submits one request from each persona, verifies each emitted caller, processes the queue through Bob, and verifies an empty no-op. This caller check advances the disposable world by at least three generations; run it before starting the indexer. A failed check restores any prior `.env.local` or removes the generated file so writes cannot remain enabled with an unverified caller.
+Setup validates the `hog-devnode` 0.1.26 runtime, wire format, DevWallet hash and entrypoints, storage model, and manifest accounts. It prefunds and deploys the deterministic contract through the manifest-derived faucet and Alice wallets, then uses the proven Rust live harness to initialize and verify all 100 million cells. It funds each persona, writes the ignored `.env.local` with mode `0600`, submits one request from each persona, verifies each emitted caller, processes the queue through Bob, and verifies an empty no-op. This caller check advances the disposable world by at least three generations; run it before starting the indexer. A failed check restores any prior `.env.local` or removes the generated file so writes cannot remain enabled with an unverified caller.
 
 The generated transaction policies are the measured local profiles: request `100,000` outer/target gas with a 64-block expiry and 30-second observation window; crank `10,010,000,000` outer gas, `10,000,000,000` target gas, a two-block expiry, and a 300-second observation window.
 
@@ -115,7 +119,8 @@ Credential injection occurs only during `vite serve`. The development server rej
 ```bash
 npm ci
 GROUNDHOG_CLI=/path/to/validated/groundhog npm run generate:contracts
-npm run dev:local
+npm run setup:local
+npm run dev
 npm run check:contracts
 npm run typecheck
 npm test
@@ -140,7 +145,7 @@ GROUNDHOG_E2E_HOGD_PROTOCOL=hogp/<compatible-protocol> \
 npm run test:e2e:local
 ```
 
-The command starts an ephemeral three-account node, builds and deploys the contract, prefunds its deterministic address, initializes all 100 million cells, verifies Alice, Bob, and Carol, starts the indexer and app, advances one generation through Chromium, waits for verified publication and renderer ownership, reloads durable transaction state, restarts the indexer, and tears down every process. It restores any pre-existing `.env.local` and project Groundhog configuration. No ledger, private key, SQLite database, tile tree, or machine-specific address survives in tracked files.
+The command starts an ephemeral three-account node, invokes the normal `setup:local` path, starts the normal `dev` supervisor with isolated storage and random ports, advances one generation through Chromium, waits for verified publication and renderer ownership, reloads durable transaction state, restarts the indexer, and tears down every process it owns. It restores any pre-existing `.env.local`. No ledger, private key, SQLite database, tile tree, or machine-specific address survives in tracked files.
 
 Machine-readable results are written to ignored files in `benchmark-results/phase-7-*`. The live browser run records whether p95 interaction frames remain below 16.7 ms for its desktop viewport and 33.3 ms for its mobile viewport. Both run under Chromium with SwiftShader on the same host; they prove browser correctness and repeatable software profiling, not physical mobile GPU performance. The committed reference run missed the strict desktop budget before rounding and therefore does not complete the physical-device performance gate.
 

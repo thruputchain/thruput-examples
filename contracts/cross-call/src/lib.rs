@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use fibonacci::{FibError, FibonacciClient, FibonacciClientError};
+use fibonacci::{FibError, FibonacciClient};
 use sdk::*;
 
 sdk::declare_mock_contract!();
@@ -46,9 +46,6 @@ impl CrossCall {
     /// then catch the error and return true if it was the expected error.
     pub fn call_fib_and_catch_error(fib_address: &ContractAddress) -> bool {
         let fib = FibonacciClient::new(fib_address);
-        matches!(
-            fib.try_compute(999),
-            Err(FibonacciClientError::FibError(FibError::InputTooLarge))
-        )
+        fib.try_compute(999).err().and_then(|e| e.try_as()) == Some(FibError::InputTooLarge)
     }
 }

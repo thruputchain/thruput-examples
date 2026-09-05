@@ -29,7 +29,7 @@ const request: OutstandingRequest = {
     reserveOut: 2_000n,
   },
   criteria: {
-    pairAddress: hex(7),
+    sender: hex(9),
     handlerAddress: hex(6),
     driverAddress: hex(5),
     recipient: hex(9),

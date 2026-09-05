@@ -44,8 +44,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import type { AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
-import { buildProcessRequestsTarget } from "@/contracts/driver-target";
+import {
+  buildProcessRequestsTarget,
+  decodeRequestsProcessedSummary,
+} from "@/contracts/driver-target";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
+import { swapFailureMessage } from "@/contracts/failure-message";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { formatAmount } from "@/domain/amount";
 import { requiredAllowanceFor } from "@/domain/allowance-exposure";
@@ -75,13 +79,17 @@ import type {
   TokenSnapshot,
 } from "@/swap/snapshot";
 import { usePoolSnapshot } from "@/swap/use-pool-snapshot";
+import { applyCreationReceipt } from "@/transactions/creation-observer";
+import { applyLiquidityReceipt } from "@/transactions/liquidity-executor";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 import {
   hasBlockingLiquidityTransaction,
   hasLiquidityExecutionExposure,
   isAccountLiquidityOperationKey,
   loadAccountLiquidityOperations,
+  loadLiquidityOperations,
   reservedLiquidityTokenAmount,
+  saveLiquidityOperations,
   type LiquidityOperation,
 } from "@/transactions/liquidity-operation";
 import {
@@ -90,6 +98,7 @@ import {
   isAccountCreationWorkflowKey,
   loadAccountCreationWorkflows,
   reservedCreationToken,
+  saveCreationWorkflow,
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
 import {
@@ -106,7 +115,6 @@ import {
   crankAttemptKey,
   createCrankAttempt,
   isBlockingCrankAttempt,
-  legacyCrankAttemptKey,
   loadAccountCrankAttempts,
   loadCrankAttempt,
   saveCrankAttempt,
@@ -117,7 +125,6 @@ import {
   dismissTerminalRequest,
   hasLegacyOutstandingRequest,
   isAccountRequestCollectionKey,
-  legacyRequestCollectionKey,
   loadAccountRequestRecords,
   loadRequestCollection,
   loadRequestCollectionForUpdate,
@@ -356,7 +363,7 @@ function SwapWorkspace({
     >= MAX_PENDING_SWAP_REQUESTS;
   const crossPoolRequestBlocked = accountSafety.requests.some((request) =>
     isBlockingRequest(request)
-    && request.criteria.pairAddress !== toHex0x(config.pairAddress)
+    && request.criteria.handlerAddress !== toHex0x(config.handlerAddress)
   );
   const crossPoolCrankBlocked = accountSafety.crankAttempts.some((attempt) =>
     isBlockingCrankAttempt(attempt)
@@ -508,7 +515,6 @@ function SwapWorkspace({
         }
       } else if (
         event.key === null
-        || event.key === legacyRequestCollectionKey(config)
         || event.key === outstandingRequestKey(config)
       ) {
         void migrateRequestCollection(config).then(
@@ -542,7 +548,6 @@ function SwapWorkspace({
       if (
         event.key !== null
         && event.key !== key
-        && event.key !== legacyCrankAttemptKey(config)
       ) return;
       try {
         setCrankAttempt(loadCrankAttempt(config));
@@ -999,7 +1004,7 @@ function SwapWorkspace({
         const blocking = accountRequests.find(isBlockingRequest);
         if (blocking !== undefined) {
           setRequests(current);
-          if (blocking.criteria.pairAddress === toHex0x(config.pairAddress)) {
+          if (blocking.criteria.handlerAddress === toHex0x(config.handlerAddress)) {
             setOutstanding(blocking);
             setIsRecoveryRecord(true);
           }
@@ -1133,7 +1138,7 @@ function SwapWorkspace({
               if (approval.kind === "indeterminate") {
                 setIsRecoveryRecord(true);
               }
-              dispatchWriteFailure(dispatch, approval);
+              dispatchWriteFailure(dispatch, approval, "approval");
             }
             return;
           }
@@ -1343,7 +1348,7 @@ function SwapWorkspace({
           if (submission.kind === "indeterminate") {
             setIsRecoveryRecord(true);
           }
-          dispatchWriteFailure(dispatch, submission);
+          dispatchWriteFailure(dispatch, submission, "submission");
         }
       });
     } catch (error) {
@@ -1456,6 +1461,16 @@ function SwapWorkspace({
       if (scanned.length > 0) {
         let batch;
         try {
+          decodeRequestsProcessedSummary(result.receipt, config.driverAddress);
+          const liquidity = loadLiquidityOperations(config);
+          saveLiquidityOperations(
+            config,
+            applyLiquidityReceipt(config, liquidity, result.receipt),
+          );
+          for (const workflow of loadAccountCreationWorkflows(config)) {
+            const observed = applyCreationReceipt(workflow, result.receipt);
+            if (observed !== workflow) saveCreationWorkflow(config, observed);
+          }
           batch = observationsFromReceipt(config, scanned, result.receipt);
         } catch {
           // Polling remains authoritative if a committed receipt cannot be decoded.
@@ -2124,13 +2139,6 @@ function TransactionDetails({
               label="Handler address"
             />
           </dd>
-          <dt className="font-medium text-foreground">Pair</dt>
-          <dd className="text-right text-muted-foreground">
-            <BlockchainIdentifier
-              value={toHex0x(config.pairAddress)}
-              label="Pair address"
-            />
-          </dd>
         </dl>
       </CollapsibleContent>
     </Collapsible>
@@ -2369,9 +2377,9 @@ function requestCriteria(
   tokens: { input: TokenSnapshot; output: TokenSnapshot },
 ): RequestRecord["criteria"] {
   return {
-    pairAddress: toHex0x(config.pairAddress),
     handlerAddress: toHex0x(config.handlerAddress),
     driverAddress: toHex0x(config.driverAddress),
+    sender: toHex0x(config.accountAddress),
     recipient: toHex0x(config.accountAddress),
     tokenIn: toHex0x(tokens.input.address),
     tokenOut: toHex0x(tokens.output.address),
@@ -2579,6 +2587,7 @@ function requestFromQueuedReceipt(
 function dispatchWriteFailure(
   dispatch: React.Dispatch<Parameters<typeof workflowReducer>[1]>,
   result: Exclude<WriteResult, { kind: "committedSuccess" }>,
+  phase: "approval" | "submission",
 ): void {
   if (result.kind === "indeterminate") {
     dispatch({
@@ -2606,8 +2615,8 @@ function dispatchWriteFailure(
       type: "transactionFailed",
       certainty: "committed",
       transactionHash: result.hash,
-      message:
-        "The transaction committed without a successful execution result.",
+      message: swapFailureMessage(phase, result.receipt)
+        ?? "The transaction committed without a successful execution result.",
     });
   }
 }
@@ -2617,7 +2626,8 @@ function crankFailureMessage(
 ): string {
   if (result.kind === "preSubmissionFailure") return result.message;
   if (result.kind === "invalid") return result.reason;
-  return "The queue-processing transaction committed without a successful execution result.";
+  return swapFailureMessage("crank", result.receipt)
+    ?? "The queue-processing transaction committed without a successful execution result.";
 }
 
 async function observeAggregateAllowance(

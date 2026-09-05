@@ -6,7 +6,7 @@ import {
   type TokenMetadata,
 } from "@/contracts/erc20-adapter";
 import { createSwapFactoryReadAdapter } from "@/contracts/factory-adapter";
-import { createSwapPairReadAdapter } from "@/contracts/pair-adapter";
+import { createSwapHandlerReadAdapter } from "@/contracts/handler-adapter";
 import { createReadClient } from "@/groundhog/client";
 import { FALLBACK_LIQUIDITY_TOKEN_DECIMALS } from "@/pools/liquidity-token";
 
@@ -54,9 +54,9 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
     contract: config.liquidityTokenAddress,
     caller: config.accountAddress,
   });
-  const pair = createSwapPairReadAdapter({
+  const handler = createSwapHandlerReadAdapter({
     client,
-    contract: config.pairAddress,
+    contract: config.handlerAddress,
     caller: config.accountAddress,
   });
   const factory = createSwapFactoryReadAdapter({
@@ -68,7 +68,7 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
   return async () => {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const [
-        reserves,
+        poolState,
         metadataA,
         metadataB,
         liquidityMetadata,
@@ -76,12 +76,13 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         balanceB,
         allowanceA,
         allowanceB,
-        liquidityTotalSupply,
         liquidityBalance,
         liquidityAllowance,
         feeTo,
+        registeredHandler,
+        poolAddresses,
       ] = await Promise.all([
-        pair.reserves(),
+        handler.poolState(),
         tokenA.metadata(),
         tokenB.metadata(),
         liquidityToken.metadata(),
@@ -89,14 +90,15 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         tokenB.balanceOf(config.accountAddress),
         tokenA.allowance(config.accountAddress, config.handlerAddress),
         tokenB.allowance(config.accountAddress, config.handlerAddress),
-        pair.liquidity(),
         liquidityToken.balanceOf(config.accountAddress),
         liquidityToken.allowance(config.accountAddress, config.handlerAddress),
         factory.feeTo(),
+        factory.getPair(config.tokenAAddress, config.tokenBAddress),
+        factory.poolAddresses(config.tokenAAddress, config.tokenBAddress),
       ]);
 
       const readHeights = [
-        reserves.height,
+        poolState.height,
         metadataA.name.height,
         metadataA.symbol.height,
         metadataA.decimals.height,
@@ -110,13 +112,30 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
         balanceB.height,
         allowanceA.height,
         allowanceB.height,
-        liquidityTotalSupply.height,
         liquidityBalance.height,
         liquidityAllowance.height,
         feeTo.height,
+        registeredHandler.height,
+        poolAddresses.height,
       ];
       const readHeight = readHeights[0]!;
       if (readHeights.some((height) => height !== readHeight)) continue;
+      if (
+        registeredHandler.value === null
+        || !sameAddress(registeredHandler.value, config.handlerAddress)
+        || !sameAddress(poolAddresses.value.handler, config.handlerAddress)
+        || !sameAddress(poolAddresses.value.driver, config.driverAddress)
+        || !sameAddress(
+          poolAddresses.value.liquidityToken,
+          config.liquidityTokenAddress,
+        )
+        || !sameAddress(
+          poolState.value.liquidityToken,
+          config.liquidityTokenAddress,
+        )
+      ) {
+        throw new Error("The factory and handler returned inconsistent pool addresses");
+      }
       const liquidityTokenMetadata = metadataValues(liquidityMetadata);
 
       return {
@@ -136,10 +155,10 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
           balance: balanceB.value,
           allowance: allowanceB.value,
         }),
-        reserve0: reserves.value.reserve0,
-        reserve1: reserves.value.reserve1,
-        reserveTimestamp: reserves.value.blockTimestamp,
-        liquidityTotalSupply: liquidityTotalSupply.value,
+        reserve0: poolState.value.reserve0,
+        reserve1: poolState.value.reserve1,
+        reserveTimestamp: poolState.value.blockTimestamp,
+        liquidityTotalSupply: poolState.value.liquidity,
         liquidityBalance: liquidityBalance.value,
         liquidityAllowance: liquidityAllowance.value,
         liquidityTokenSymbol: liquidityTokenMetadata.symbol?.trim() || "LP",
@@ -152,6 +171,10 @@ export function createSnapshotReader(config: AppConfig): SnapshotReader {
     }
     throw new Error("Unable to read a consistent chain snapshot after three attempts");
   };
+}
+
+function sameAddress(left: ContractAddress, right: ContractAddress): boolean {
+  return left.every((byte, index) => byte === right[index]);
 }
 
 function metadataValues(metadata: {

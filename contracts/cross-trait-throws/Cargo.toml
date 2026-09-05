@@ -1,0 +1,28 @@
+[package]
+name = "cross-trait-throws"
+description = "Example contract implementing two traits with different throws types, caught across the pair with match_exn!"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[features]
+entrypoints = []
+dev = ["sdk/dev"]
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "cross_trait_throws"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+sdk = { workspace = true }
+
+[dev-dependencies]
+cross-trait-throws = { path = ".", features = ["dev"] }

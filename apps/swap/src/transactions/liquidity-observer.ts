@@ -8,7 +8,7 @@ import {
 
 import type { AppConfig } from "@/config";
 import { RequestFailed } from "@/contracts/generated/swap-driver";
-import { BurnEvent, MintEvent } from "@/contracts/generated/swap-pair";
+import { BurnEvent, MintEvent } from "@/contracts/generated/swap-handler";
 import { createReadClient } from "@/groundhog/client";
 import type { LiquidityOperation } from "@/transactions/liquidity-operation";
 
@@ -42,15 +42,10 @@ export function createLiquidityObserver(
         const page: EventPage = await client.getEvents({
           filters: [
             MintEvent.filter({
-              contractAddresses: [config.pairAddress],
-              topics: { sender: config.handlerAddress },
+              contractAddresses: [config.handlerAddress],
             }),
             BurnEvent.filter({
-              contractAddresses: [config.pairAddress],
-              topics: {
-                sender: config.handlerAddress,
-                recipient: config.accountAddress,
-              },
+              contractAddresses: [config.handlerAddress],
             }),
             RequestFailed.filter({ contractAddresses: [config.driverAddress] }),
           ],
@@ -119,7 +114,7 @@ function matchTerminal(
       updatedAt: Date.now(),
     };
   }
-  if (!bytesEqual(event.contractAddress, config.pairAddress)) return null;
+  if (!bytesEqual(event.contractAddress, config.handlerAddress)) return null;
 
   if (operation.kind === "add") {
     const minted = MintEvent.decode(event);
@@ -129,7 +124,8 @@ function matchTerminal(
       || toHex0x(minted.fields.request_id) !== operation.requestId
     ) return null;
     if (
-      !bytesEqual(minted.topics.sender, config.handlerAddress)
+      !bytesEqual(minted.topics.sender, config.accountAddress)
+      || !bytesEqual(minted.topics.recipient, config.accountAddress)
       || minted.fields.amount_minted <= 0n
     ) throw new Error("Event history contains invalid terminal mint evidence");
     return {
@@ -140,7 +136,7 @@ function matchTerminal(
         transactionHash: toHex0x(identified.txHash),
         blockHeight: identified.blockHeight.toString(),
         liquidityMinted: minted.fields.amount_minted.toString(),
-        recipientVerified: false,
+        recipientVerified: true,
         amountsDeposited: null,
       },
       updatedAt: Date.now(),
@@ -155,7 +151,7 @@ function matchTerminal(
     || toHex0x(burned.fields.request_id) !== operation.requestId
   ) return null;
   if (
-    !bytesEqual(burned.topics.sender, config.handlerAddress)
+    !bytesEqual(burned.topics.sender, config.accountAddress)
     || !bytesEqual(burned.topics.recipient, config.accountAddress)
     || burned.fields.amounts_redeemed[0] < minimums[0]!
     || burned.fields.amounts_redeemed[1] < minimums[1]!

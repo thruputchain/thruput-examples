@@ -20,8 +20,6 @@ const config = {
   routerAddress: address(8),
   factoryAddress: address(7),
   nativeHogAddress: address(6),
-  poolContractFunding: 100n,
-  pairAddress: address(10),
   liquidityTokenAddress: address(11),
   handlerAddress: address(12),
   driverAddress: address(13),
@@ -48,6 +46,11 @@ describe("requiredAllowanceFor", () => {
     const creation = createCreationWorkflow(config, creationReview());
     creation.status = "queued";
     creation.requestId = hex(30);
+    creation.pool = {
+      liquidityToken: hex(11),
+      handler: hex(12),
+      driver: hex(13),
+    };
 
     expect(requiredAllowanceFor({
       requests: [request, otherHandlerRequest],
@@ -64,12 +67,19 @@ describe("requiredAllowanceFor", () => {
   it("excludes terminal operations", () => {
     const request = swapRequest(hex(1), hex(12), 3n);
     request.status = "failed";
+    const creation = createCreationWorkflow(config, creationReview());
+    creation.steps.createPool.status = "skipped";
 
     expect(requiredAllowanceFor({
       requests: [request],
       liquidityOperations: [],
-      creationWorkflows: [],
+      creationWorkflows: [creation],
     }, hex(1), hex(12))).toBe(0n);
+    expect(requiredAllowanceFor({
+      requests: [],
+      liquidityOperations: [],
+      creationWorkflows: [creation],
+    }, hex(6), hex(7))).toBe(0n);
   });
 
   it("requires allowance reads after terminal evidence", () => {
@@ -135,7 +145,7 @@ function swapRequest(
     visibleObservationMs: 0,
     observationBaseline: null,
     criteria: {
-      pairAddress: hex(10),
+      sender: hex(9),
       handlerAddress,
       driverAddress: hex(13),
       recipient: hex(9),
@@ -165,15 +175,13 @@ function creationReview(): PoolCreationReview {
   return {
     token0: token(1, 11n),
     token1: token(2, 13n),
-    pool: {
-      liquidityToken: config.liquidityTokenAddress,
-      pair: config.pairAddress,
-      handler: config.handlerAddress,
-      driver: config.driverAddress,
-    },
+    pool: null,
     nativeHogBalance: 1_000n,
-    fixedFundingPerContract: 100n,
-    totalFixedFunding: 400n,
+    nativeHogAllowance: 0n,
+    fundingMinimum: 100n,
+    fundingPerContract: 100n,
+    totalFunding: 300n,
+    fundingApprovalDifference: 300n,
     initialLiquidity: 1n,
     readHeight: 1n,
   };

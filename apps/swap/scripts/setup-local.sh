@@ -30,5 +30,4 @@ cd "$repo_root"
 "$groundhog_cli" build -p swap-router
 "$groundhog_cli" build -p swap-handler
 "$groundhog_cli" build -p swap-driver
-"$groundhog_cli" build -p swap-pair
 "$app_dir/node_modules/.bin/tsx" "$app_dir/scripts/setup-local.ts"

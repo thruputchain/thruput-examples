@@ -9,13 +9,13 @@ publish = false
 [dependencies]
 futures-util = "0.3"
 game-of-life-core = { path = "../game-of-life-core" }
-groundhog-json-rpc-types = { registry = "groundhog", version = "=0.10.4" }
+groundhog-json-rpc-types = { workspace = true }
 hex = { workspace = true }
 integration-test = { path = "../integration-test" }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 xdrs = { workspace = true }
-groundhog-xdr = { registry = "groundhog", version = "0.24.0", features = ["xdrs"] }
+groundhog-xdr = { workspace = true }
 
 [[test]]
 name = "feasibility"

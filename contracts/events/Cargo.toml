@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "sdk/debugging"]
+dev = ["sdk/dev"]
 
 [lib]
 crate-type = ["rlib"]
