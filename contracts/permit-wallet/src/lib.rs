@@ -90,6 +90,11 @@ impl PermitWallet {
     /// It is not permanent, though — see [`execute_signed_op`] — so rotating
     /// *back* to a key re-admits whatever it signed and never submitted.
     ///
+    /// The write lands with the block: every transaction in a block runs
+    /// against the state the previous block left, so a permit under the
+    /// outgoing key that shares a block with the rotation is still honored,
+    /// and the new key is what the wallet checks from the next block on.
+    ///
     /// [`execute_signed_op`]: SignedOp::execute_signed_op
     pub fn rotate_owner(&mut self, new_owner: &Ed25519PublicKey) {
         if get_caller() != self.administrator.get() {
