@@ -1,11 +1,7 @@
 import type { ContractView, GroundhogClient } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
-import { CxsWriter } from "@groundhogchain/xdr";
 
-import {
-  SwapHandler,
-  type U256,
-} from "./generated/swap-handler";
+import { SwapHandler } from "./generated/swap-handler";
 
 export interface PoolState {
   reserve0: bigint;
@@ -13,7 +9,7 @@ export interface PoolState {
   blockTimestamp: bigint;
   liquidity: bigint;
   liquidityToken: ContractAddress;
-  cumulativePrices: readonly [U256, U256];
+  cumulativePrices: readonly [bigint, bigint];
 }
 
 export interface SwapHandlerReadAdapter {
@@ -25,25 +21,10 @@ export function createSwapHandlerReadAdapter(params: {
   contract: ContractAddress;
   caller: ContractAddress;
 }): SwapHandlerReadAdapter {
-  const compatibleClient: Pick<GroundhogClient, "view"> = {
-    async view(request) {
-      const response = await params.client.view(request);
-      if (response.output.result !== "return") return response;
-
-      return {
-        ...response,
-        output: {
-          ...response.output,
-          returnData: normalizePoolStateU256(response.output.returnData),
-        },
-      };
-    },
-  };
-
   return {
     async poolState() {
       const result = await SwapHandler.poolState.view({
-        client: compatibleClient,
+        client: params.client,
         contract: params.contract,
         caller: params.caller,
       });
@@ -61,25 +42,4 @@ export function createSwapHandlerReadAdapter(params: {
       };
     },
   };
-}
-
-function normalizePoolStateU256(data: Uint8Array): Uint8Array {
-  const cumulativePriceBytes = 64;
-  if (data.length < cumulativePriceBytes) {
-    throw new Error("Handler pool state is missing cumulative-price data");
-  }
-
-  // TODO: Remove this compatibility shim once the contract-spec protocol has
-  // native U256/I256 types that advertise the existing fixed 32-byte encoding.
-  const prefixLength = data.length - cumulativePriceBytes;
-  const limbs = new CxsWriter();
-  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  for (let offset = prefixLength; offset < data.length; offset += 4) {
-    limbs.writeUint32(BigInt(view.getUint32(offset, false)));
-  }
-  const encodedLimbs = limbs.finish();
-  const normalized = new Uint8Array(prefixLength + encodedLimbs.length);
-  normalized.set(data.subarray(0, prefixLength));
-  normalized.set(encodedLimbs, prefixLength);
-  return normalized;
 }

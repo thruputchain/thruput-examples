@@ -15,7 +15,6 @@ import {
   createContractCodecContext,
   defineContractMethod,
   type ContractException,
-  type FixedArray,
   type FixedBytes,
   defineContractEvent,
   type DecodedContractEvent,
@@ -55,7 +54,7 @@ export interface PoolState {
   block_timestamp: bigint;
   liquidity: bigint;
   liquidity_token: ContractAddress;
-  cumulative_prices: readonly [U256, U256];
+  cumulative_prices: readonly [bigint, bigint];
 }
 
 export interface RemoveLiquidityRequest {
@@ -127,10 +126,6 @@ export const SwapRequestError = {
 
 export type SwapRequestError =
   (typeof SwapRequestError)[keyof typeof SwapRequestError];
-
-export interface U256 {
-  limbs: FixedArray<bigint, 8>;
-}
 
 export interface SwapHandlerHandleRequestArgs {
   request: SwapRequest;
@@ -304,10 +299,7 @@ export const spec: ContractSpec = {
             name: s("cumulative_prices"),
             ty: {
               v: ContractTypeKind.Array,
-              array: {
-                element: { v: ContractTypeKind.Named, named: s("U256") },
-                len: 2n,
-              },
+              array: { element: { v: ContractTypeKind.U256 }, len: 2n },
             },
           },
         ],
@@ -525,21 +517,6 @@ export const spec: ContractSpec = {
           { name: s("InsufficientAmountB"), value: 2n },
           { name: s("InsufficientOutputAmount"), value: 3n },
           { name: s("ExcessiveInputAmount"), value: 4n },
-        ],
-      },
-    },
-    {
-      v: ContractTypeDefKind.TypeDefStruct,
-      struct_def: {
-        name: s("U256"),
-        fields: [
-          {
-            name: s("limbs"),
-            ty: {
-              v: ContractTypeKind.Array,
-              array: { element: { v: ContractTypeKind.U32 }, len: 8n },
-            },
-          },
         ],
       },
     },
