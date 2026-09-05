@@ -10,6 +10,9 @@ mod interface {
 
     #[cfg(feature = "metadata")]
     pub use groundhog_erc20_metadata_if::*;
+
+    #[cfg(feature = "permit")]
+    pub use groundhog_erc20_permit_if::*;
 }
 
 // A client stub that provides the interface via cross-contract calls
@@ -17,6 +20,9 @@ pub use interface::ERC20Client;
 
 #[cfg(feature = "metadata")]
 pub use interface::ERC20MetadataClient;
+
+#[cfg(feature = "permit")]
+pub use interface::{ERC20Permit, ERC20PermitClient, ERC20PermitError, PermitGrant, PermitRequest};
 
 // An implementation of the contract interface
 mod implementation;
