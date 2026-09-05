@@ -63,6 +63,15 @@ handled, however stale the quote has become that its slippage limits were
 chosen against. Eventually, being turned away is the better outcome, so the
 ceiling is set to tolerable backlog.
 
+What a request's sender *can* do is starve it. The handler spends the sender's
+standing allowance when the request is handled, so revoking that allowance (or
+moving the tokens away) makes the request fail then -- in isolation, since each
+request is handled under commit-locking: the crank, and every other request in
+its batch, go through as before, and the starved one is reported by a
+`RequestFailed` event. This holds even when the revocation lands in the same
+block as the crank, whichever of the two the block orders first; see
+`swap-driver/tests/same_block.rs`.
+
 ## Cranking the Queue
 
 Forwarding queued requests to the handler — "cranking the queue" — is an
@@ -185,6 +194,20 @@ called wrongly beats one that is checked correctly.
 - **`skim` and `sync`**, as in UniswapV2. They attribute nothing and can only
   move what the reserves do not already account for, so they remain available
   for recovering tokens sent to a pool by mistake.
+
+  Being open, they must also be harmless to the crank, which is a property of
+  the concurrency model rather than of permissions. The reserves are one
+  storage value, and two transactions that write it differently cannot share
+  a block. A `sync` or `skim` that finds nothing to do therefore writes
+  nothing at all -- not even to stamp the block -- so it cannot displace a
+  crank, and costs an attacker's spam nothing but its own gas. One that does
+  have something to record writes the reserves and takes its chances against
+  the crank like any other writer; whichever loses is returned to the mempool
+  and retried, and by then the crank's own update has usually recorded the
+  same balances, leaving the retry nothing to do. A consequence for oracle
+  consumers: the cumulative prices advance only when the reserves change, so
+  read them as of the pool's `block_timestamp` and extrapolate, as UniswapV2's
+  oracle library does.
 
 ### Initialization
 
