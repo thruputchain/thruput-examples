@@ -28,7 +28,7 @@ for p in erc20 counter; do
 done
 
 # Run tests for contracts implementing the `guest_test` feature
-for p in swap-driver swap-router; do
+for p in swap-driver swap-router swap-factory; do
     cargo test -p "$p" -F guest_test
 done
 
