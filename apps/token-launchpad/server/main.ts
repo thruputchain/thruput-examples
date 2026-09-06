@@ -1,13 +1,28 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { loadServerConfig } from "./config.ts";
 import { createGroundhogRegistrySource } from "./chain.ts";
 import { createRegistryHttpServer } from "./http.ts";
 import { RegistryIndexer } from "./indexer.ts";
+import {
+  PUBLIC_CONFIG_MANIFEST_FILENAME,
+  verifyPublicConfigManifest,
+} from "./public-config-manifest.ts";
 import { RegistryStore } from "./store.ts";
 
 const config = loadServerConfig(process.env);
+const staticDirectory = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../dist",
+);
+await verifyPublicConfigManifest(
+  path.join(staticDirectory, PUBLIC_CONFIG_MANIFEST_FILENAME),
+  process.env,
+);
+const indexStat = await stat(path.join(staticDirectory, "index.html"));
+if (!indexStat.isFile()) throw new Error("Production index.html is missing");
 const source = await createGroundhogRegistrySource(config);
 await mkdir(path.dirname(config.databasePath), { recursive: true });
 
@@ -16,7 +31,10 @@ const indexer = new RegistryIndexer(store, source, {
   pageSize: config.pageSize,
   syncIntervalMs: config.syncIntervalMs,
 });
-const server = createRegistryHttpServer(store, indexer);
+const server = createRegistryHttpServer(store, indexer, {
+  staticDirectory,
+  rpcUrl: config.rpcUrl,
+});
 
 try {
   await new Promise<void>((resolve, reject) => {
@@ -32,7 +50,7 @@ try {
 }
 indexer.start();
 console.log(
-  `Token registry listening on port ${config.port} for network ${config.scope.networkId.slice(0, 12)}...`,
+  `Token registry listening on port ${config.port}; network=${summary(config.scope.networkId)} factory=${summary(config.scope.factoryAddress)} tokenHash=${summary(config.scope.tokenCodeHash)}`,
 );
 
 let shuttingDown = false;
@@ -55,3 +73,7 @@ function handleShutdown(): void {
 
 process.once("SIGINT", handleShutdown);
 process.once("SIGTERM", handleShutdown);
+
+function summary(value: string): string {
+  return `${value.slice(0, 14)}...`;
+}

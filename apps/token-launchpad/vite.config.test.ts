@@ -8,6 +8,8 @@ import {
   developmentPersonasDefinition,
   isAllowedRequest,
   isSameOriginLocalRequest,
+  PRODUCTION_BROWSER_RPC_URL,
+  productionPublicConfigManifest,
   readBody,
   readUpstreamBody,
   validateDevelopmentServerHost,
@@ -60,6 +62,7 @@ describe("development credential boundary", () => {
 
 describe("local RPC proxy policy", () => {
   it.each([
+    "groundhog_networkInfo",
     "groundhog_chainTip",
     "groundhog_getEvents",
     "groundhog_view",
@@ -99,17 +102,64 @@ describe("local RPC proxy policy", () => {
     ).toBe(false);
   });
 
-  it("accepts only credential-free loopback HTTP targets", () => {
-    expect(() => validateRpcTarget("http://127.0.0.1:9545")).not.toThrow();
+  it("keeps serve and preview RPC targets on loopback HTTP", () => {
+    const serve = {
+      command: "serve" as const,
+      isPreview: false,
+      registryEnabled: true,
+    };
+    const preview = { ...serve, isPreview: true };
     expect(() =>
-      validateRpcTarget("http://operator:secret@127.0.0.1:9545"),
+      validateRpcTarget("http://127.0.0.1:9545", serve),
+    ).not.toThrow();
+    expect(() =>
+      validateRpcTarget("http://localhost:9545", preview),
+    ).not.toThrow();
+    expect(() =>
+      validateRpcTarget("http://operator:secret@127.0.0.1:9545", serve),
     ).toThrow(/credentials/);
-    expect(() => validateRpcTarget("http://rpc.example.com")).toThrow(
+    expect(() => validateRpcTarget("http://rpc.example.com", serve)).toThrow(
       /loopback HTTP/,
     );
-    expect(() => validateRpcTarget("https://localhost:9545")).toThrow(
+    expect(() => validateRpcTarget("https://localhost:9545", preview)).toThrow(
       /loopback HTTP/,
     );
+  });
+
+  it("allows remote HTTP or HTTPS only for registry-enabled production builds", () => {
+    const enabledBuild = {
+      command: "build" as const,
+      isPreview: false,
+      registryEnabled: true,
+    };
+    expect(() =>
+      validateRpcTarget("http://devnet.example.com/rpc", enabledBuild),
+    ).not.toThrow();
+    expect(() =>
+      validateRpcTarget("https://devnet.example.com/rpc", enabledBuild),
+    ).not.toThrow();
+    expect(() =>
+      validateRpcTarget("https://user:secret@devnet.example.com", enabledBuild),
+    ).toThrow(/credentials/);
+    expect(() =>
+      validateRpcTarget(
+        "https://devnet.example.com/rpc?token=secret",
+        enabledBuild,
+      ),
+    ).toThrow(/query string or fragment/);
+    expect(() =>
+      validateRpcTarget("https://devnet.example.com/rpc#secret", enabledBuild),
+    ).toThrow(/query string or fragment/);
+    expect(() =>
+      validateRpcTarget("ftp://devnet.example.com", enabledBuild),
+    ).toThrow(/loopback HTTP/);
+
+    expect(() =>
+      validateRpcTarget("http://devnet.example.com", {
+        ...enabledBuild,
+        registryEnabled: false,
+      }),
+    ).toThrow(/loopback HTTP/);
   });
 
   it("bounds request and upstream response bodies", async () => {
@@ -128,5 +178,41 @@ describe("local RPC proxy policy", () => {
     await expect(
       readUpstreamBody(new Response(new Uint8Array(1_000_001))),
     ).rejects.toThrow(/too large/);
+  });
+});
+
+describe("production public configuration plugin", () => {
+  const environment = {
+    VITE_GROUNDHOG_RPC_URL: "https://rpc.example.test",
+    VITE_GROUNDHOG_NETWORK_ID: "11".repeat(32),
+    VITE_GROUNDHOG_WALLET_ADDRESS: `0x${"22".repeat(32)}`,
+    VITE_GROUNDHOG_WALLET_ENTRYPOINT: `0x${"33".repeat(8)}`,
+    VITE_NATIVE_HOG_ADDRESS: `0x${"44".repeat(32)}`,
+    VITE_NATIVE_BALANCE_ITEM_COST: "1234",
+    VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"55".repeat(32)}`,
+    VITE_STANDARD_TOKEN_HASH: `0x${"66".repeat(32)}`,
+    VITE_TOKEN_REGISTRY_ENABLED: "true",
+  };
+
+  it("is created only from complete registry-enabled configuration", () => {
+    expect(productionPublicConfigManifest(environment).name).toBe(
+      "groundhog-production-public-config-manifest",
+    );
+    expect(() =>
+      productionPublicConfigManifest({
+        ...environment,
+        VITE_GROUNDHOG_WALLET_ENTRYPOINT: "",
+      }),
+    ).toThrow(/VITE_GROUNDHOG_WALLET_ENTRYPOINT is required/);
+    expect(() =>
+      productionPublicConfigManifest({
+        ...environment,
+        VITE_TOKEN_REGISTRY_ENABLED: "TRUE",
+      }),
+    ).toThrow(/must be exactly true/);
+  });
+
+  it("uses a benign URL that the registry-enabled browser client replaces with its origin", () => {
+    expect(PRODUCTION_BROWSER_RPC_URL).toBe("https://same-origin.invalid/");
   });
 });

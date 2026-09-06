@@ -43,6 +43,14 @@ describe("loadServerConfig", () => {
     expect(config.port).toBe(65_535);
   });
 
+  it("accepts credential-free remote HTTP for the documented devnet", () => {
+    const config = loadServerConfig({
+      ...environment,
+      VITE_GROUNDHOG_RPC_URL: "http://devnet.example.test/rpc",
+    });
+    expect(config.rpcUrl.href).toBe("http://devnet.example.test/rpc");
+  });
+
   it.each([
     ["PORT", "0"],
     ["PORT", "1.5"],
@@ -53,6 +61,8 @@ describe("loadServerConfig", () => {
     ["VITE_STANDARD_TOKEN_HASH", "zz".repeat(32)],
     ["VITE_GROUNDHOG_RPC_URL", "ftp://rpc.example.test"],
     ["VITE_GROUNDHOG_RPC_URL", "https://user:secret@rpc.example.test"],
+    ["VITE_GROUNDHOG_RPC_URL", "https://rpc.example.test?token=secret"],
+    ["VITE_GROUNDHOG_RPC_URL", "https://rpc.example.test#secret"],
   ])("rejects invalid %s", (key, value) => {
     expect(() => loadServerConfig({ ...environment, [key]: value })).toThrow(
       ServerConfigurationError,

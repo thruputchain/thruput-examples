@@ -6,8 +6,14 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
+import {
+  createPublicConfigManifest,
+  PUBLIC_CONFIG_MANIFEST_FILENAME,
+} from "./server/public-config-manifest.ts";
+
 const root = path.dirname(fileURLToPath(import.meta.url));
 const allowedRpcMethods = new Set([
+  "groundhog_networkInfo",
   "groundhog_chainTip",
   "groundhog_getEvents",
   "groundhog_getTransactionReceipt",
@@ -17,17 +23,26 @@ const allowedRpcMethods = new Set([
 ]);
 const maxRpcBodyBytes = 1_000_000;
 const maxRpcResponseBytes = 1_000_000;
+export const PRODUCTION_BROWSER_RPC_URL = "https://same-origin.invalid/";
 
 export default defineConfig(({ command, isPreview, mode }) => {
   const environment = loadEnv(mode, root, "");
   const rpcTarget =
     environment.VITE_GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545";
-  validateRpcTarget(rpcTarget);
+  validateRpcTarget(rpcTarget, {
+    command,
+    isPreview: isPreview ?? false,
+    registryEnabled: environment.VITE_TOKEN_REGISTRY_ENABLED === "true",
+  });
   const credentialsEnabled =
     command === "serve" &&
     !(isPreview ?? false) &&
     isLoopback(new URL(rpcTarget).hostname) &&
     environment.GROUNDHOG_DEV_PERSONAS !== undefined;
+  const registryProductionBuild =
+    command === "build" &&
+    mode === "production" &&
+    environment.VITE_TOKEN_REGISTRY_ENABLED === "true";
 
   return {
     envPrefix: [
@@ -48,12 +63,22 @@ export default defineConfig(({ command, isPreview, mode }) => {
         environment,
         rpcTarget,
       ),
+      ...(registryProductionBuild
+        ? {
+            "import.meta.env.VITE_GROUNDHOG_RPC_URL": JSON.stringify(
+              PRODUCTION_BROWSER_RPC_URL,
+            ),
+          }
+        : {}),
     },
     plugins: [
       react(),
       tailwindcss(),
       developmentCredentialHostGuard(credentialsEnabled),
       localRpcProxy(rpcTarget),
+      ...(registryProductionBuild
+        ? [productionPublicConfigManifest(environment)]
+        : []),
     ],
     ...(credentialsEnabled
       ? {
@@ -71,6 +96,22 @@ export default defineConfig(({ command, isPreview, mode }) => {
     },
   };
 });
+
+export function productionPublicConfigManifest(
+  environment: Record<string, string | undefined>,
+): Plugin {
+  const manifest = createPublicConfigManifest(environment);
+  return {
+    name: "groundhog-production-public-config-manifest",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: PUBLIC_CONFIG_MANIFEST_FILENAME,
+        source: `${JSON.stringify(manifest, null, 2)}\n`,
+      });
+    },
+  };
+}
 
 function developmentCredentialHostGuard(enabled: boolean): Plugin {
   return {
@@ -266,10 +307,35 @@ export function isSameOriginLocalRequest(
   }
 }
 
-export function validateRpcTarget(value: string): void {
-  const url = new URL(value);
+export function validateRpcTarget(
+  value: string,
+  context: {
+    command: "build" | "serve";
+    isPreview: boolean;
+    registryEnabled: boolean;
+  } = { command: "serve", isPreview: false, registryEnabled: false },
+): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("VITE_GROUNDHOG_RPC_URL must be a valid URL");
+  }
   if (url.username !== "" || url.password !== "") {
     throw new Error("VITE_GROUNDHOG_RPC_URL must not contain credentials");
+  }
+  if (url.search !== "" || url.hash !== "") {
+    throw new Error(
+      "VITE_GROUNDHOG_RPC_URL must not contain a query string or fragment",
+    );
+  }
+  const productionRegistryBuild =
+    context.command === "build" && context.registryEnabled;
+  if (
+    productionRegistryBuild &&
+    (url.protocol === "http:" || url.protocol === "https:")
+  ) {
+    return;
   }
   if (url.protocol !== "http:" || !isLoopback(url.hostname)) {
     throw new Error(

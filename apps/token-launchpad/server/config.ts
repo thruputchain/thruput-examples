@@ -107,10 +107,12 @@ function parseUrl(value: string): URL {
   if (
     (url.protocol !== "http:" && url.protocol !== "https:") ||
     url.username !== "" ||
-    url.password !== ""
+    url.password !== "" ||
+    url.search !== "" ||
+    url.hash !== ""
   ) {
     throw new ValidationError(
-      "VITE_GROUNDHOG_RPC_URL must be an HTTP URL without credentials",
+      "VITE_GROUNDHOG_RPC_URL must be an HTTP URL without credentials, a query string, or a fragment",
     );
   }
   return url;
