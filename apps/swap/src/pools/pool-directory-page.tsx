@@ -64,9 +64,11 @@ interface PoolDirectoryPageDependencies {
 export function PoolDirectoryPage({
   config,
   dependencies = {},
+  readOnly = false,
 }: {
   config: GlobalConfig;
   dependencies?: PoolDirectoryPageDependencies;
+  readOnly?: boolean;
 }) {
   return config.registryEnabled ? (
     <RegistryPoolDirectoryPage
@@ -75,11 +77,13 @@ export function PoolDirectoryPage({
       readStatus={dependencies.readStatus ?? getPoolRegistryStatus}
       requestSync={dependencies.requestSync ?? requestPoolRegistrySync}
       enrich={dependencies.enrich ?? enrichRegistryPools}
+      readOnly={readOnly}
     />
   ) : (
     <DirectPoolDirectoryPage
       config={config}
       read={dependencies.readDirect ?? readPoolDirectory}
+      readOnly={readOnly}
     />
   );
 }
@@ -87,9 +91,11 @@ export function PoolDirectoryPage({
 function DirectPoolDirectoryPage({
   config,
   read,
+  readOnly,
 }: {
   config: GlobalConfig;
   read: typeof readPoolDirectory;
+  readOnly: boolean;
 }) {
   const request = useRef(0);
   const [state, setState] = useState<
@@ -148,6 +154,7 @@ function DirectPoolDirectoryPage({
 
   return (
     <DirectoryLayout
+      readOnly={readOnly}
       action={
         state.kind === "ready" ? (
           <RefreshButton
@@ -170,7 +177,7 @@ function DirectPoolDirectoryPage({
       {state.kind === "ready" &&
       state.result.entries.length === 0 &&
       state.result.invalidEntryCount === 0 ? (
-        <EmptyDirectory />
+        <EmptyDirectory readOnly={readOnly} />
       ) : null}
       {state.kind === "ready" && state.result.entries.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">
@@ -184,6 +191,7 @@ function DirectPoolDirectoryPage({
               token1Address={toHex0x(entry.config.tokenBAddress)}
               live={entry}
               loading={false}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -202,12 +210,14 @@ function RegistryPoolDirectoryPage({
   readStatus,
   requestSync,
   enrich,
+  readOnly,
 }: {
   config: GlobalConfig;
   read: typeof getRegistryPools;
   readStatus: typeof getPoolRegistryStatus;
   requestSync: typeof requestPoolRegistrySync;
   enrich: typeof enrichRegistryPools;
+  readOnly: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -383,6 +393,7 @@ function RegistryPoolDirectoryPage({
 
   return (
     <DirectoryLayout
+      readOnly={readOnly}
       action={<RefreshButton refreshing={loading} onClick={refresh} />}
     >
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem]">
@@ -431,7 +442,7 @@ function RegistryPoolDirectoryPage({
         hasFilters ? (
           <NoMatches />
         ) : (
-          <EmptyDirectory />
+          <EmptyDirectory readOnly={readOnly} />
         )
       ) : null}
       {page !== null && page.total > 0 ? (
@@ -459,6 +470,7 @@ function RegistryPoolDirectoryPage({
                 token1Address={entry.record.token1Address}
                 live={entry.live}
                 loading={entry.loading}
+                readOnly={readOnly}
               />
             ))}
           </div>
@@ -541,15 +553,18 @@ function resetRegistrySnapshot(
 function DirectoryLayout({
   action,
   children,
+  readOnly = false,
 }: {
   action?: React.ReactNode;
   children: React.ReactNode;
+  readOnly?: boolean;
 }) {
   return (
     <AmmPage
       title="Pools"
       description="Factory-created markets available on this local Groundhog network."
       actions={action}
+      readOnly={readOnly}
     >
       {children}
     </AmmPage>
@@ -631,7 +646,7 @@ function PartialReads({
   );
 }
 
-function EmptyDirectory() {
+function EmptyDirectory({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <Empty className="border">
       <EmptyHeader>
@@ -643,14 +658,16 @@ function EmptyDirectory() {
           Create and seed the first token pair in this factory.
         </EmptyDescription>
       </EmptyHeader>
-      <EmptyContent>
-        <Button asChild>
-          <Link to="/pools/new">
-            <PlusIcon data-icon="inline-start" aria-hidden="true" />
-            Create pool
-          </Link>
-        </Button>
-      </EmptyContent>
+      {readOnly ? null : (
+        <EmptyContent>
+          <Button asChild>
+            <Link to="/pools/new">
+              <PlusIcon data-icon="inline-start" aria-hidden="true" />
+              Create pool
+            </Link>
+          </Button>
+        </EmptyContent>
+      )}
     </Empty>
   );
 }
@@ -676,11 +693,13 @@ function PoolCard({
   token1Address,
   live,
   loading,
+  readOnly = false,
 }: {
   token0Address: string;
   token1Address: string;
   live: PoolDirectoryEntry | null;
   loading: boolean;
+  readOnly?: boolean;
 }) {
   const path = poolPath(
     addressFromHex(token0Address),
@@ -750,12 +769,16 @@ function PoolCard({
         <Button asChild size="sm">
           <Link to={path}>View pool</Link>
         </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link to={`${path}/swap`}>Swap</Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link to={`${path}/liquidity`}>Liquidity</Link>
-        </Button>
+        {readOnly ? null : (
+          <>
+            <Button asChild size="sm" variant="outline">
+              <Link to={`${path}/swap`}>Swap</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link to={`${path}/liquidity`}>Liquidity</Link>
+            </Button>
+          </>
+        )}
       </CardFooter>
     </Card>
   );

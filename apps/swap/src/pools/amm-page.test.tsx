@@ -55,4 +55,17 @@ describe("AmmPage", () => {
       screen.queryByText("Local trusted-driver limitation"),
     ).not.toBeInTheDocument();
   });
+
+  it("hides creation and development wallet controls when read-only", () => {
+    render(
+      <MemoryRouter>
+        <AmmPage title="Pools" description="Pool directory" readOnly>
+          <div>Pool content</div>
+        </AmmPage>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("link", { name: "Create Pool" })).toBeNull();
+    expect(screen.queryByText(/Development wallet/)).toBeNull();
+  });
 });

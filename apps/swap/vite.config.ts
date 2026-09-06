@@ -6,8 +6,14 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
+import {
+  createPublicConfigManifest,
+  PUBLIC_CONFIG_MANIFEST_FILENAME,
+} from "./server/public-config-manifest.ts";
+
 const root = path.dirname(fileURLToPath(import.meta.url));
 const ALLOWED_RPC_METHODS = new Set([
+  "groundhog_networkInfo",
   "groundhog_chainTip",
   "groundhog_getEvents",
   "groundhog_getTransactionReceipt",
@@ -16,17 +22,28 @@ const ALLOWED_RPC_METHODS = new Set([
   "groundhog_view",
 ]);
 const MAX_RPC_BODY_BYTES = 1_000_000;
+const MAX_RPC_RESPONSE_BYTES = 1_000_000;
+export const PRODUCTION_BROWSER_RPC_URL = "https://same-origin.invalid/";
 
 export default defineConfig(({ command, isPreview, mode }) => {
   const environment = loadEnv(mode, root, "");
   const rpcTarget =
     environment.VITE_GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545";
-  validateRpcTarget(rpcTarget);
-  const developmentCredentialsEnabled = command === "serve"
-    && !(isPreview ?? false)
-    && isLoopback(new URL(rpcTarget).hostname)
-    && (environment.GROUNDHOG_DEV_PERSONAS !== undefined
-      || environment.GROUNDHOG_DEV_PRIVATE_KEY !== undefined);
+  validateRpcTarget(rpcTarget, {
+    command,
+    production: mode === "production",
+    registryEnabled: environment.VITE_POOL_REGISTRY_ENABLED === "true",
+  });
+  const developmentCredentialsEnabled =
+    command === "serve" &&
+    !(isPreview ?? false) &&
+    isLoopback(new URL(rpcTarget).hostname) &&
+    (environment.GROUNDHOG_DEV_PERSONAS !== undefined ||
+      environment.GROUNDHOG_DEV_PRIVATE_KEY !== undefined);
+  const registryProductionBuild =
+    command === "build" &&
+    mode === "production" &&
+    environment.VITE_POOL_REGISTRY_ENABLED === "true";
 
   return {
     envPrefix: [
@@ -38,6 +55,7 @@ export default defineConfig(({ command, isPreview, mode }) => {
       "VITE_KNOWN_TOKEN_ADDRESSES",
       "VITE_SWAP_FACTORY_ADDRESS",
       "VITE_SWAP_ROUTER_ADDRESS",
+      "VITE_POOL_REGISTRY_ENABLED",
     ],
     define: {
       "import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY":
@@ -47,27 +65,36 @@ export default defineConfig(({ command, isPreview, mode }) => {
           environment,
           rpcTarget,
         ),
-      "import.meta.env.GROUNDHOG_DEV_PERSONAS":
-        developmentPersonasDefinition(
-          command,
-          isPreview ?? false,
-          environment,
-          rpcTarget,
-        ),
+      "import.meta.env.GROUNDHOG_DEV_PERSONAS": developmentPersonasDefinition(
+        command,
+        isPreview ?? false,
+        environment,
+        rpcTarget,
+      ),
+      ...(registryProductionBuild
+        ? {
+            "import.meta.env.VITE_GROUNDHOG_RPC_URL": JSON.stringify(
+              PRODUCTION_BROWSER_RPC_URL,
+            ),
+          }
+        : {}),
     },
     plugins: [
       react(),
       tailwindcss(),
       developmentCredentialHostGuard(developmentCredentialsEnabled),
       localRpcProxy(rpcTarget),
+      ...(registryProductionBuild
+        ? [productionPublicConfigManifest(environment)]
+        : []),
     ],
     ...(developmentCredentialsEnabled
       ? {
-        server: {
-          cors: false,
-          headers: { "Content-Security-Policy": "frame-ancestors 'none'" },
-        },
-      }
+          server: {
+            cors: false,
+            headers: { "Content-Security-Policy": "frame-ancestors 'none'" },
+          },
+        }
       : {}),
     resolve: {
       alias: {
@@ -83,6 +110,22 @@ export default defineConfig(({ command, isPreview, mode }) => {
     },
   };
 });
+
+export function productionPublicConfigManifest(
+  environment: Record<string, string | undefined>,
+): Plugin {
+  const manifest = createPublicConfigManifest(environment);
+  return {
+    name: "groundhog-production-public-config-manifest",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: PUBLIC_CONFIG_MANIFEST_FILENAME,
+        source: `${JSON.stringify(manifest, null, 2)}\n`,
+      });
+    },
+  };
+}
 
 function developmentCredentialHostGuard(enabled: boolean): Plugin {
   return {
@@ -112,7 +155,11 @@ export function developmentPrivateKeyDefinition(
   environment: Record<string, string | undefined>,
   rpcTarget = "http://127.0.0.1:9545",
 ): string {
-  if (command !== "serve" || isPreview || !isLoopback(new URL(rpcTarget).hostname)) {
+  if (
+    command !== "serve" ||
+    isPreview ||
+    !isLoopback(new URL(rpcTarget).hostname)
+  ) {
     return "undefined";
   }
   return JSON.stringify(environment.GROUNDHOG_DEV_PRIVATE_KEY) ?? "undefined";
@@ -124,7 +171,11 @@ export function developmentPersonasDefinition(
   environment: Record<string, string | undefined>,
   rpcTarget = "http://127.0.0.1:9545",
 ): string {
-  if (command !== "serve" || isPreview || !isLoopback(new URL(rpcTarget).hostname)) {
+  if (
+    command !== "serve" ||
+    isPreview ||
+    !isLoopback(new URL(rpcTarget).hostname)
+  ) {
     return "undefined";
   }
   return JSON.stringify(environment.GROUNDHOG_DEV_PERSONAS) ?? "undefined";
@@ -141,12 +192,24 @@ function localRpcProxy(target: string): Plugin {
       return sendProxyError(response, 405, "POST is required");
     }
     if (!targetIsLoopback) {
-      return sendProxyError(response, 403, "Local RPC proxy target is not loopback");
+      return sendProxyError(
+        response,
+        403,
+        "Local RPC proxy target is not loopback",
+      );
     }
     if (!isSameOriginLocalRequest(request)) {
-      return sendProxyError(response, 403, "Local RPC proxy requires a same-origin loopback request");
+      return sendProxyError(
+        response,
+        403,
+        "Local RPC proxy requires a same-origin loopback request",
+      );
     }
-    if (!request.headers["content-type"]?.toLowerCase().startsWith("application/json")) {
+    if (
+      !request.headers["content-type"]
+        ?.toLowerCase()
+        .startsWith("application/json")
+    ) {
       return sendProxyError(response, 415, "application/json is required");
     }
 
@@ -154,7 +217,11 @@ function localRpcProxy(target: string): Plugin {
       const body = await readBody(request);
       const envelope: unknown = JSON.parse(body);
       if (!isAllowedRequest(envelope)) {
-        return sendProxyError(response, 403, "RPC method is not available through the local proxy");
+        return sendProxyError(
+          response,
+          403,
+          "RPC method is not available through the local proxy",
+        );
       }
 
       const upstream = await fetch(targetUrl, {
@@ -164,18 +231,19 @@ function localRpcProxy(target: string): Plugin {
         redirect: "error",
         signal: AbortSignal.timeout(10_000),
       });
+      if (!upstream.ok) {
+        await upstream.body?.cancel().catch(() => undefined);
+        return sendProxyError(response, 502, "Local RPC proxy failed");
+      }
+      const responseBody = await readUpstreamBody(upstream);
       response.statusCode = upstream.status;
       response.setHeader(
         "content-type",
         upstream.headers.get("content-type") ?? "application/json",
       );
-      response.end(await upstream.text());
-    } catch (error) {
-      sendProxyError(
-        response,
-        502,
-        error instanceof Error ? error.message : "Local RPC proxy failed",
-      );
+      response.end(responseBody);
+    } catch {
+      sendProxyError(response, 502, "Local RPC proxy failed");
     }
   };
 
@@ -188,6 +256,36 @@ function localRpcProxy(target: string): Plugin {
       server.middlewares.use("/groundhog-rpc", middleware);
     },
   };
+}
+
+export async function readUpstreamBody(
+  response: Response,
+): Promise<Uint8Array> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_RPC_RESPONSE_BYTES) {
+    throw new Error("RPC response body is too large");
+  }
+  if (response.body === null) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > MAX_RPC_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new Error("RPC response body is too large");
+    }
+    chunks.push(value);
+  }
+  const result = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return result;
 }
 
 async function readBody(request: IncomingMessage): Promise<string> {
@@ -250,15 +348,51 @@ export function isSameOriginLocalRequest(
   if (origin === undefined) return false;
   try {
     const originUrl = new URL(origin);
-    return originUrl.protocol === "http:" && originUrl.host === requestHost.host;
+    return (
+      originUrl.protocol === "http:" && originUrl.host === requestHost.host
+    );
   } catch {
     return false;
   }
 }
 
-export function validateRpcTarget(value: string): void {
-  const url = new URL(value);
+export function validateRpcTarget(
+  value: string,
+  context: {
+    command: "build" | "serve";
+    production: boolean;
+    registryEnabled: boolean;
+  } = {
+    command: "serve",
+    production: false,
+    registryEnabled: false,
+  },
+): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("VITE_GROUNDHOG_RPC_URL must be a valid URL");
+  }
   if (url.username !== "" || url.password !== "") {
     throw new Error("VITE_GROUNDHOG_RPC_URL must not contain credentials");
+  }
+  if (url.search !== "" || url.hash !== "") {
+    throw new Error(
+      "VITE_GROUNDHOG_RPC_URL must not contain a query string or fragment",
+    );
+  }
+  if (
+    context.command === "build" &&
+    context.production &&
+    context.registryEnabled &&
+    (url.protocol === "http:" || url.protocol === "https:")
+  ) {
+    return;
+  }
+  if (url.protocol !== "http:" || !isLoopback(url.hostname)) {
+    throw new Error(
+      "VITE_GROUNDHOG_RPC_URL must target a loopback HTTP server",
+    );
   }
 }

@@ -1,15 +1,15 @@
 # Groundhog AMM
 
-Groundhog AMM is a local-development frontend for discovering, creating, and using example Uniswap V2-style pools. It is not production software.
+Groundhog AMM discovers and reads example Uniswap V2-style pools. Local development supports disposable write workflows; the packaged registry deployment is read-only.
 
 The local development server injects three generated disposable wallet personas while serving the app; production builds do not contain them. Treat every key as public development data, use it only on a disposable development ledger, and never fund it on a public network.
 
 ## Supported Stack
 
-- Node.js 22.12 or newer
+- Node.js 22.13 or newer
 - npm
 - Groundhog CLI 0.14.0 or newer
-- Groundhog SDK 0.29.0
+- Groundhog SDK 0.30.0
 - Groundhog RPC and testkit 0.14.0
 - `@groundhogchain/client` 0.6.0
 - A compatible local node exposing RPC at `http://127.0.0.1:9545`
@@ -36,7 +36,7 @@ Transitive dependency deprecation warnings are non-blocking when installation su
 
 ## Start A Node
 
-The workspace uses Groundhog RPC and testkit 0.14.0 with Groundhog SDK 0.29.0, and requires Groundhog CLI 0.14.0 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
+The workspace pins Groundhog RPC and testkit 0.14.0 with Groundhog SDK 0.30.0, and the swap scripts enforce Groundhog CLI 0.14.0 or newer plus RPC wire format 3.0.0 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
 
 - RPC available at `http://127.0.0.1:9545`, unless overridden.
 - A runtime manifest from the running node.
@@ -138,6 +138,28 @@ GROUNDHOG_CLI=/absolute/path/to/groundhog bash scripts/crank-local.sh
 The script reads the generated driver address and entrypoint, uses the generated CLI profile, and invokes `process_requests()`. The app correlates each `SwapEvent` or `RequestFailed` event by request ID and updates requests independently. Crank guidance remains visible while any request still needs processing.
 
 If a queued request has no decodable request ID, automatic event correlation is unavailable. Use **Resolve manually** only after independently confirming that the relevant queue was drained, then complete the separate confirmation step. Tracked queued requests remain in the list until a matching terminal event arrives.
+
+## Registry Deployment
+
+The production package runs the built SPA, pool registry API, read-only RPC proxy, indexer, and SQLite owner in one Node process. Packaging does not deploy the service.
+
+Set every variable in `.env.example` in both the Railway build and runtime environments. The production build records normalized public configuration and only the SHA-256 digest of the upstream RPC URL; startup fails before opening SQLite or listening when any build/runtime value differs. `VITE_POOL_REGISTRY_ENABLED` must be `true`. The browser uses same-origin `/groundhog-rpc`, has no development wallet, hides write controls, and redirects pool creation, swap, and liquidity routes to read-only pages.
+
+For a local combined-process check with real non-secret deployment values already exported:
+
+```sh
+cd apps/swap
+npm run build:production
+POOL_REGISTRY_DB_PATH=./pools.sqlite PORT=3000 npm start
+```
+
+Configure Railway with `apps/swap` as the root directory and `/apps/swap/railway.json` as the config path. The checked-in config requires one replica and a volume mounted at `/data`; SQLite must never be shared by replicas. If a legacy service does not apply config-as-code fields, set the same replica, volume, health-check, draining, and restart values in the service dashboard. Set `POOL_REGISTRY_DB_PATH=/data/pools.sqlite`. The health check is `GET /healthz`; registry progress and faults are available at `GET /api/registry/status`. During deploys Railway allows 30 seconds for health checks and draining.
+
+When `RAILWAY_ENVIRONMENT_ID` is present, the server trusts Railway's [documented client remote-IP header](https://docs.railway.com/networking/public-networking/specs-and-limits#technical-specifications), `X-Real-IP`, for per-client RPC limits. It accepts exactly one valid IPv4 or IPv6 address and never trusts `X-Forwarded-For`. Outside Railway it ignores forwarding headers and limits by the socket peer address.
+
+The `@groundhogchain` packages require `GITHUB_PACKAGES_TOKEN` with `read:packages` during installation. `.npmrc` reads the token from the environment and does not contain a credential.
+
+Backups must preserve WAL consistency. Use SQLite's backup mechanism, or stop the service before copying the database, `-wal`, and `-shm` files together. A network or factory scope mismatch is intentionally fatal: restore matching configuration/database state or start with a fresh database; do not edit registry scope metadata.
 
 ## Tests
 

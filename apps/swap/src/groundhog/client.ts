@@ -7,7 +7,7 @@ import {
 import type { GlobalConfig } from "@/config";
 
 export function createReadClient(
-  config: Pick<GlobalConfig, "rpcUrl">,
+  config: Pick<GlobalConfig, "registryEnabled" | "rpcUrl">,
   signal?: AbortSignal,
 ): GroundhogClient {
   const browserOrigin =
@@ -17,21 +17,18 @@ export function createReadClient(
       : window.location.origin;
   return deferClient(
     createGroundhogClient({
-      transport: new HttpTransport(
-        resolveReadRpcUrl(config.rpcUrl, browserOrigin),
-        {
-          fetch: (input, init) => {
-            const combinedSignal = combineSignals(signal, init?.signal);
-            return globalThis.fetch(
-              input,
-              combinedSignal === undefined
-                ? init
-                : { ...init, signal: combinedSignal },
-            );
-          },
-          timeoutMs: 10_000,
+      transport: new HttpTransport(resolveReadRpcUrl(config, browserOrigin), {
+        fetch: (input, init) => {
+          const combinedSignal = combineSignals(signal, init?.signal);
+          return globalThis.fetch(
+            input,
+            combinedSignal === undefined
+              ? init
+              : { ...init, signal: combinedSignal },
+          );
         },
-      ),
+        timeoutMs: 10_000,
+      }),
     }),
   );
 }
@@ -63,20 +60,24 @@ function deferClient(clientPromise: Promise<GroundhogClient>): GroundhogClient {
 }
 
 export function resolveReadRpcUrl(
-  configuredUrl: URL,
+  config: Pick<GlobalConfig, "registryEnabled" | "rpcUrl">,
   browserOrigin?: string,
 ): string {
-  if (browserOrigin === undefined) return configuredUrl.href;
+  if (browserOrigin === undefined) return config.rpcUrl.href;
+
+  if (config.registryEnabled) {
+    return new URL("/groundhog-rpc", browserOrigin).href;
+  }
 
   const origin = new URL(browserOrigin);
   if (
-    origin.origin !== configuredUrl.origin &&
+    origin.origin !== config.rpcUrl.origin &&
     isLoopback(origin.hostname) &&
-    isLoopback(configuredUrl.hostname)
+    isLoopback(config.rpcUrl.hostname)
   ) {
     return new URL("/groundhog-rpc", origin).href;
   }
-  return configuredUrl.href;
+  return config.rpcUrl.href;
 }
 
 function isLoopback(hostname: string): boolean {

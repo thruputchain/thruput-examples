@@ -103,6 +103,20 @@ describe("PoolDirectoryPage", () => {
     expect(screen.getByRole("link", { name: "View pool" })).toBeVisible();
   });
 
+  it("hides directory write actions when read-only", async () => {
+    vi.mocked(readPoolDirectory).mockResolvedValue({
+      entries: [{ config: poolConfig, snapshot }],
+      invalidEntryCount: 0,
+    });
+    renderPage(globalConfig, {}, true);
+
+    expect(await screen.findByText("A / B")).toBeVisible();
+    expect(screen.getByRole("link", { name: "View pool" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Swap" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Liquidity" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Create pool/i })).toBeNull();
+  });
+
   it("keeps the previous directory visible when refresh fails", async () => {
     const user = userEvent.setup();
     vi.mocked(readPoolDirectory)
@@ -364,11 +378,16 @@ function renderPage(
   dependencies: React.ComponentProps<
     typeof PoolDirectoryPage
   >["dependencies"] = {},
+  readOnly = false,
 ) {
   render(
     <MemoryRouter>
       <TooltipProvider>
-        <PoolDirectoryPage config={config} dependencies={dependencies} />
+        <PoolDirectoryPage
+          config={config}
+          dependencies={dependencies}
+          readOnly={readOnly}
+        />
       </TooltipProvider>
     </MemoryRouter>,
   );

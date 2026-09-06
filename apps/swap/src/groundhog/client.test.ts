@@ -8,7 +8,7 @@ describe("resolveReadRpcUrl", () => {
   it("uses the same-origin local proxy for separate loopback ports", () => {
     expect(
       resolveReadRpcUrl(
-        new URL("http://127.0.0.1:9545"),
+        { rpcUrl: new URL("http://127.0.0.1:9545") },
         "http://127.0.0.1:5173",
       ),
     ).toBe("http://127.0.0.1:5173/groundhog-rpc");
@@ -17,16 +17,28 @@ describe("resolveReadRpcUrl", () => {
   it("does not rewrite same-origin or non-loopback endpoints", () => {
     expect(
       resolveReadRpcUrl(
-        new URL("http://127.0.0.1:9545"),
+        { rpcUrl: new URL("http://127.0.0.1:9545") },
         "http://127.0.0.1:9545",
       ),
     ).toBe("http://127.0.0.1:9545/");
     expect(
       resolveReadRpcUrl(
-        new URL("https://rpc.example.com"),
+        { rpcUrl: new URL("https://rpc.example.com") },
         "https://swap.example.com",
       ),
     ).toBe("https://rpc.example.com/");
+  });
+
+  it("always uses the same-origin proxy in registry-enabled browsers", () => {
+    expect(
+      resolveReadRpcUrl(
+        {
+          registryEnabled: true,
+          rpcUrl: new URL("https://same-origin.invalid/"),
+        },
+        "https://swap.example.com",
+      ),
+    ).toBe("https://swap.example.com/groundhog-rpc");
   });
 });
 

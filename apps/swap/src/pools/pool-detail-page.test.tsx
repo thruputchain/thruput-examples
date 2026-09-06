@@ -10,7 +10,7 @@ import { usePoolSnapshot } from "@/swap/use-pool-snapshot";
 import { PoolDetailPage } from "./pool-detail-page";
 
 vi.mock("@/swap/snapshot", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@/swap/snapshot")>(),
+  ...(await importOriginal<typeof import("@/swap/snapshot")>()),
   createSnapshotReader: vi.fn(),
 }));
 vi.mock("@/swap/use-pool-snapshot", () => ({ usePoolSnapshot: vi.fn() }));
@@ -101,13 +101,21 @@ describe("PoolDetailPage", () => {
     expect(screen.getByText("Empty pool")).toBeVisible();
     expect(screen.getByText(/no usable liquidity/)).toBeVisible();
   });
+
+  it("hides swap and liquidity controls when read-only", () => {
+    renderPage(true);
+
+    expect(screen.queryByRole("link", { name: "Swap" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Manage liquidity" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Create Pool/i })).toBeNull();
+  });
 });
 
-function renderPage() {
+function renderPage(readOnly = false) {
   render(
     <MemoryRouter>
       <TooltipProvider>
-        <PoolDetailPage config={config} />
+        <PoolDetailPage config={config} readOnly={readOnly} />
       </TooltipProvider>
     </MemoryRouter>,
   );
