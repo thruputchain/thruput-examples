@@ -526,6 +526,9 @@ async function handleRpcRequest(
       if (!isValidJsonRpcResponse(responseEnvelope, envelope.id)) {
         throw new Error("Invalid JSON-RPC response envelope");
       }
+      if ("error" in responseEnvelope) {
+        responseBody = sanitizedJsonRpcError(responseEnvelope);
+      }
     } catch {
       throw new HttpError(
         502,
@@ -550,6 +553,24 @@ interface ProductionRpcRequest extends Record<string, unknown> {
   method: string;
   params: unknown[];
 }
+
+interface JsonRpcResultResponse {
+  jsonrpc: "2.0";
+  id: JsonRpcId;
+  result: unknown;
+}
+
+interface JsonRpcErrorResponse {
+  jsonrpc: "2.0";
+  id: JsonRpcId;
+  error: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+}
+
+type JsonRpcResponse = JsonRpcResultResponse | JsonRpcErrorResponse;
 
 export function isAllowedProductionRpcRequest(
   value: unknown,
@@ -583,7 +604,7 @@ export function isAllowedProductionRpcRequest(
 export function isValidJsonRpcResponse(
   value: unknown,
   requestId: JsonRpcId,
-): boolean {
+): value is JsonRpcResponse {
   if (!isRecord(value) || value.jsonrpc !== "2.0" || value.id !== requestId) {
     return false;
   }
@@ -601,6 +622,25 @@ export function isValidJsonRpcResponse(
     Number.isInteger(error.code) &&
     typeof error.message === "string"
   );
+}
+
+function sanitizedJsonRpcError(response: JsonRpcErrorResponse): Uint8Array {
+  const body = Buffer.from(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: response.id,
+      error: {
+        code: Number.isSafeInteger(response.error.code)
+          ? response.error.code
+          : -32603,
+        message: "RPC request failed",
+      },
+    }),
+  );
+  if (body.byteLength > MAX_RPC_RESPONSE_BYTES) {
+    throw new Error("RPC response is too large after sanitization");
+  }
+  return body;
 }
 
 function acquireRpcSlot(context: ProductionContext): (() => void) | null {

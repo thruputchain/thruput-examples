@@ -577,6 +577,94 @@ describe("production HTTP server", () => {
     expect(response.status).toBe(502);
     expect(await response.text()).not.toContain(JSON.stringify(envelope));
   });
+
+  it("sanitizes valid upstream RPC errors without changing SDK semantics", async () => {
+    const canaries = {
+      url: "https://operator:credential@rpc.example.test/private",
+      credential: "Bearer rpc-secret-token",
+      body: '{"private":"upstream body"}',
+    };
+    upstream.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: "sdk-request-7",
+          error: {
+            code: -32602,
+            message: Object.values(canaries).join(" "),
+            data: canaries,
+          },
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const response = await fetch(
+      `${origin}/groundhog-rpc`,
+      rpcRequest({ ...chainTip(), id: "sdk-request-7" }),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(JSON.parse(body)).toEqual({
+      jsonrpc: "2.0",
+      id: "sdk-request-7",
+      error: { code: -32602, message: "RPC request failed" },
+    });
+    expect(response.headers.get("content-length")).toBe(
+      String(Buffer.byteLength(body)),
+    );
+    expect(Buffer.byteLength(body)).toBeLessThanOrEqual(1_048_576);
+    for (const canary of Object.values(canaries)) {
+      expect(body).not.toContain(canary);
+    }
+  });
+
+  it("enforces the RPC response bound after error sanitization", async () => {
+    const emptyIdRequest = JSON.stringify({ ...chainTip(), id: "" });
+    const id = "x".repeat(1_048_576 - Buffer.byteLength(emptyIdRequest));
+    upstream.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id,
+          error: { code: -1, message: "" },
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const response = await fetch(
+      `${origin}/groundhog-rpc`,
+      rpcRequest({ ...chainTip(), id }),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(502);
+    expect(Buffer.byteLength(body)).toBeLessThan(700);
+    expect(body).not.toContain(id.slice(0, 1_000));
+  });
+
+  it("passes valid RPC result envelopes through verbatim", async () => {
+    const upstreamBody =
+      ' { "jsonrpc": "2.0", "id": 1, "result": { "height": "7" } }\n';
+    upstream.mockResolvedValueOnce(
+      new Response(upstreamBody, {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const response = await fetch(
+      `${origin}/groundhog-rpc`,
+      rpcRequest(chainTip()),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(upstreamBody);
+    expect(response.headers.get("content-length")).toBe(
+      String(Buffer.byteLength(upstreamBody)),
+    );
+  });
 });
 
 describe("production RPC validation", () => {
