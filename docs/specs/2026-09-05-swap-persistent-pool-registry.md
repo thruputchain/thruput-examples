@@ -1,7 +1,7 @@
 # Persistent Pool Registry for the Swap App
 
-Status: Accepted for implementation  
-Date: 2026-09-05  
+Status: Accepted for implementation
+Date: 2026-09-05
 Owners: Swap app maintainers
 
 ## Summary
