@@ -7,6 +7,7 @@ const HASH = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
 export interface AppConfig {
   rpcUrl: URL;
+  registryEnabled: boolean;
   networkIdHex: string;
   accountAddress: ContractAddress;
   factoryAddress: ContractAddress;
@@ -56,6 +57,7 @@ export function loadConfig(environment: Environment): AppConfig {
   }
   return {
     rpcUrl,
+    registryEnabled: enabled(environment, "VITE_TOKEN_REGISTRY_ENABLED"),
     networkIdHex: network.replace(/^0x/, "").toLowerCase(),
     accountAddress: address(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
     factoryAddress: address(environment, "VITE_STANDARD_TOKEN_FACTORY_ADDRESS"),
@@ -63,6 +65,13 @@ export function loadConfig(environment: Environment): AppConfig {
     nativeBalanceItemCost,
     expectedTokenHash: fromHex0x(hash.startsWith("0x") ? hash : `0x${hash}`),
   };
+}
+
+function enabled(environment: Environment, key: string): boolean {
+  const value = environment[key];
+  if (value === undefined || value === false || value === "false") return false;
+  if (value === true || value === "true") return true;
+  throw new ConfigurationError(`${key} must be true or false`);
 }
 
 function required(environment: Environment, key: string): string {

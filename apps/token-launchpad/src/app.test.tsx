@@ -15,8 +15,20 @@ import {
   readCreatedTokens,
   type FactoryReview,
 } from "@/contracts/launchpad-client";
-import { createWorkflow, workflowStorageKey } from "@/launch/workflow";
+import {
+  createWorkflow,
+  saveWorkflow,
+  workflowStorageKey,
+} from "@/launch/workflow";
 import { configuration } from "@/launch/workflow.test";
+import { runWorkflow } from "@/launch/executor";
+import type {
+  RegistryStatus,
+  RegistryToken,
+  RegistryTokenPage,
+} from "@/registry/client";
+
+vi.mock("@/launch/executor", () => ({ runWorkflow: vi.fn() }));
 
 function reviewed(): FactoryReview {
   const config = configuration();
@@ -349,6 +361,66 @@ describe("launch review", () => {
       window.localStorage.clear();
     }
   });
+
+  it("requests a best-effort registry sync only after creation commits", async () => {
+    const user = userEvent.setup();
+    const config = { ...configuration(), registryEnabled: true };
+    const review = {
+      ...reviewed(),
+      creatorBalance: 1_000n,
+      fundingShortfall: 0n,
+    };
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      review,
+    );
+    const committed = {
+      ...workflow,
+      funding: { status: "committed" as const, hash: `0x${"06".repeat(32)}` },
+      creation: { status: "committed" as const, hash: `0x${"07".repeat(32)}` },
+      verification: {
+        status: "complete" as const,
+        message: null,
+        totalSupply: "12",
+        holderBalance: "12",
+      },
+      createdAddressHex: workflow.predictedAddressHex,
+      creationBlock: "9",
+    };
+    saveWorkflowForTest(config, workflow);
+    vi.mocked(runWorkflow).mockResolvedValueOnce(committed);
+    const requestSync = vi.fn().mockRejectedValue(new Error("offline"));
+    const originalLocks = Object.getOwnPropertyDescriptor(navigator, "locks");
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: {
+        request: async (_name: string, action: () => unknown) => action(),
+      },
+    });
+    try {
+      render(
+        <MemoryRouter>
+          <CreatePage
+            config={config}
+            client={{} as never}
+            writer={{} as never}
+            requestSync={requestSync}
+          />
+        </MemoryRouter>,
+      );
+      await user.click(screen.getByRole("button", { name: "Launch token" }));
+      expect(await screen.findByText("Token created")).toBeInTheDocument();
+      expect(requestSync).toHaveBeenCalledWith(config);
+      expect(screen.queryByText("offline")).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.clear();
+      if (originalLocks)
+        Object.defineProperty(navigator, "locks", originalLocks);
+      else Reflect.deleteProperty(navigator, "locks");
+    }
+  });
 });
 
 describe("My Tokens", () => {
@@ -523,7 +595,254 @@ describe("My Tokens", () => {
     expect(await screen.findByText("History unavailable")).toBeInTheDocument();
     expect(screen.getByText("gateway unavailable")).toBeInTheDocument();
   });
+
+  it("renders registry metadata before scoped balance enrichment", async () => {
+    const config = { ...configuration(), registryEnabled: true };
+    let resolveBalances!: (tokens: never[]) => void;
+    const enrichBalances = vi.fn(
+      () => new Promise<never[]>((resolve) => (resolveBalances = resolve)),
+    );
+    const registryRead = vi
+      .fn()
+      .mockResolvedValue(registryPage([registryToken()]));
+    render(
+      <MemoryRouter>
+        <TokensPage
+          config={config}
+          client={{} as never}
+          scope="mine"
+          registryRead={registryRead}
+          registryStatus={vi.fn().mockResolvedValue(registryStatus())}
+          enrichBalances={enrichBalances}
+        />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("NUT")).toBeInTheDocument();
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(registryRead).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({
+        creator: `0x${"02".repeat(32)}`,
+        limit: 20,
+        offset: 0,
+      }),
+      expect.any(AbortSignal),
+    );
+    resolveBalances([]);
+  });
+
+  it("debounces search and distinguishes no matches", async () => {
+    vi.useFakeTimers();
+    const config = { ...configuration(), registryEnabled: true };
+    const registryRead = vi.fn().mockResolvedValue(registryPage([]));
+    try {
+      render(
+        <MemoryRouter>
+          <TokensPage
+            config={config}
+            client={{} as never}
+            scope="all"
+            registryRead={registryRead}
+            registryStatus={vi.fn().mockResolvedValue(registryStatus())}
+            enrichBalances={vi.fn().mockResolvedValue([])}
+          />
+        </MemoryRouter>,
+      );
+      await act(async () => undefined);
+      expect(registryRead).toHaveBeenCalledTimes(1);
+      fireEvent.change(screen.getByLabelText("Search tokens"), {
+        target: { value: "Acorn" },
+      });
+      await act(async () => vi.advanceTimersByTime(299));
+      expect(registryRead).toHaveBeenCalledTimes(1);
+      await act(async () => vi.advanceTimersByTime(1));
+      await act(async () => undefined);
+      expect(registryRead).toHaveBeenLastCalledWith(
+        config,
+        expect.objectContaining({ q: "Acorn", offset: 0 }),
+        expect.any(AbortSignal),
+      );
+      expect(screen.getByText("No matching tokens")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reuses the snapshot for pagination and resets it when sorting", async () => {
+    const user = userEvent.setup();
+    const config = { ...configuration(), registryEnabled: true };
+    const registryRead = vi
+      .fn()
+      .mockResolvedValueOnce(
+        registryPage([registryToken()], { total: 21, hasMore: true }),
+      )
+      .mockResolvedValueOnce(
+        registryPage([registryToken()], {
+          total: 21,
+          offset: 20,
+          hasMore: false,
+        }),
+      )
+      .mockResolvedValueOnce(registryPage([]));
+    render(
+      <MemoryRouter>
+        <TokensPage
+          config={config}
+          client={{} as never}
+          scope="all"
+          registryRead={registryRead}
+          registryStatus={vi.fn().mockResolvedValue(registryStatus())}
+          enrichBalances={vi
+            .fn()
+            .mockImplementation(async (_client, _config, tokens) => tokens)}
+        />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Next" }));
+    await waitFor(() => expect(registryRead).toHaveBeenCalledTimes(2));
+    expect(registryRead.mock.calls[1]?.[1]).toMatchObject({
+      offset: 20,
+      asOfBlock: "12",
+    });
+    await user.selectOptions(screen.getByLabelText("Sort by"), "oldest");
+    await waitFor(() => expect(registryRead).toHaveBeenCalledTimes(3));
+    expect(registryRead.mock.calls[2]?.[1]).toEqual({
+      sort: "oldest",
+      limit: 20,
+      offset: 0,
+    });
+  });
+
+  it("aborts superseded requests and suppresses stale balance results", async () => {
+    const user = userEvent.setup();
+    const config = { ...configuration(), registryEnabled: true };
+    const firstToken = registryToken();
+    const secondToken = {
+      ...registryToken(),
+      tokenAddress: `0x${"08".repeat(32)}`,
+      name: "Beech",
+      symbol: "BCH",
+    };
+    let resolveFirstBalances!: (tokens: never[]) => void;
+    const enrichBalances = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<never[]>((resolve) => (resolveFirstBalances = resolve)),
+      )
+      .mockImplementationOnce(async (_client, _config, tokens) => tokens);
+    const registryRead = vi
+      .fn()
+      .mockResolvedValueOnce(registryPage([firstToken]))
+      .mockResolvedValueOnce(registryPage([secondToken]));
+    render(
+      <MemoryRouter>
+        <TokensPage
+          config={config}
+          client={{} as never}
+          scope="all"
+          registryRead={registryRead}
+          registryStatus={vi.fn().mockResolvedValue(registryStatus())}
+          enrichBalances={enrichBalances}
+        />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("NUT")).toBeInTheDocument();
+    const firstSignal = registryRead.mock.calls[0]?.[2] as AbortSignal;
+    await user.selectOptions(screen.getByLabelText("Sort by"), "name");
+    expect(await screen.findByText("BCH")).toBeInTheDocument();
+    expect(firstSignal.aborted).toBe(true);
+    resolveFirstBalances([]);
+    await act(async () => undefined);
+    expect(screen.getByText("BCH")).toBeInTheDocument();
+    expect(screen.queryByText("NUT")).not.toBeInTheDocument();
+  });
+
+  it("surfaces integrity and incomplete-history status", async () => {
+    const config = { ...configuration(), registryEnabled: true };
+    render(
+      <MemoryRouter>
+        <TokensPage
+          config={config}
+          client={{} as never}
+          scope="all"
+          registryRead={vi.fn().mockResolvedValue(registryPage([]))}
+          registryStatus={vi.fn().mockResolvedValue({
+            ...registryStatus(),
+            syncState: "integrityFault",
+            historyLimited: true,
+            lastError: "Conflicting immutable evidence",
+          })}
+          enrichBalances={vi.fn().mockResolvedValue([])}
+        />
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByText("Registry integrity fault"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Older launch history is unavailable"),
+    ).toBeInTheDocument();
+  });
 });
+
+function registryToken(): RegistryToken {
+  const config = configuration();
+  return {
+    networkId: config.networkIdHex,
+    factoryAddress: `0x${"03".repeat(32)}`,
+    tokenAddress: `0x${"04".repeat(32)}`,
+    creatorAddress: `0x${"02".repeat(32)}`,
+    administratorAddress: `0x${"05".repeat(32)}`,
+    initialHolderAddress: `0x${"06".repeat(32)}`,
+    initialSupply: "12000000",
+    name: "Acorn",
+    symbol: "NUT",
+    decimals: 7,
+    tokenCodeHash: `0x${"00".repeat(32)}`,
+    transactionHash: `0x${"07".repeat(32)}`,
+    eventSequence: 0,
+    blockHeight: "12",
+    indexedAt: "2026-09-05T00:00:00.000Z",
+  };
+}
+
+function registryPage(
+  tokens: RegistryToken[],
+  overrides: Partial<RegistryTokenPage> = {},
+): RegistryTokenPage {
+  return {
+    tokens,
+    total: tokens.length,
+    limit: 20,
+    offset: 0,
+    asOfBlock: "12",
+    hasMore: false,
+    historyLimited: false,
+    ...overrides,
+  };
+}
+
+function registryStatus(): RegistryStatus {
+  return {
+    networkId: configuration().networkIdHex,
+    factoryAddress: `0x${"03".repeat(32)}`,
+    indexedThroughBlock: "12",
+    tokenCount: 1,
+    historyLimited: false,
+    syncState: "idle",
+    syncing: false,
+    lastSuccessfulSyncAt: "2026-09-05T00:00:00.000Z",
+    lastError: null,
+  };
+}
+
+function saveWorkflowForTest(
+  config: ReturnType<typeof configuration>,
+  workflow: ReturnType<typeof createWorkflow>,
+): void {
+  saveWorkflow(window.localStorage, workflowStorageKey(config), workflow);
+}
 
 describe("launchpad navigation and hero", () => {
   it("orders the directory, wallet directory, and creation links", () => {

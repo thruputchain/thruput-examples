@@ -31,6 +31,7 @@ export interface CreatedToken {
   decimals: number | null;
   initialSupply: bigint;
   balance: bigint | null;
+  balanceLoading?: boolean;
   administratorHex: string;
   holderHex: string;
   block: bigint;

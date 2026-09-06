@@ -83,6 +83,18 @@ import {
 import { createBrowserWriteBoundary } from "@/transactions/local-development-wallet";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 import { createWalletPortfolioReader } from "@/wallet/portfolio";
+import {
+  getRegistryStatus,
+  getRegistryTokens,
+  requestRegistrySync,
+  type RegistrySort,
+  type RegistryStatus,
+  type RegistryTokenPage,
+} from "@/registry/client";
+import {
+  enrichTokenBalances,
+  registryTokenToCreatedToken,
+} from "@/registry/tokens";
 
 export function App() {
   let base: AppConfig;
@@ -145,10 +157,7 @@ export function PersonaApp({
     () => ({ ...base, accountAddress: active.accountAddress }),
     [active.accountAddress, base],
   );
-  const client = useMemo(
-    () => createReadClient(config.rpcUrl),
-    [config.rpcUrl],
-  );
+  const client = useMemo(() => createReadClient(config), [config]);
   const readPortfolio = useMemo(
     () => createWalletPortfolioReader(client, config),
     [client, config],
@@ -209,10 +218,7 @@ function LaunchpadRoutes({
   config: AppConfig;
   walletPrivateKey?: string;
 }) {
-  const client = useMemo(
-    () => createReadClient(config.rpcUrl),
-    [config.rpcUrl],
-  );
+  const client = useMemo(() => createReadClient(config), [config]);
   const writer = useMemo(
     () => createBrowserWriteBoundary(config, walletPrivateKey),
     [config, walletPrivateKey],
@@ -306,10 +312,12 @@ export function CreatePage({
   config,
   client,
   writer,
+  requestSync = requestRegistrySync,
 }: {
   config: AppConfig;
   client: ReturnType<typeof createReadClient>;
   writer: WriteBoundary;
+  requestSync?: typeof requestRegistrySync;
 }) {
   const storageKey = workflowStorageKey(config);
   const [initialWorkflow] = useState<{
@@ -417,6 +425,13 @@ export function CreatePage({
       });
       setReview(null);
       setWorkflow(next);
+      if (
+        config.registryEnabled &&
+        workflow.creation.status !== "committed" &&
+        next.creation.status === "committed"
+      ) {
+        void requestSync(config).catch(() => undefined);
+      }
     } catch (reason) {
       setError(userErrorMessage(reason, "The launch could not continue."));
     } finally {
@@ -1041,11 +1056,47 @@ export function TokensPage({
   client,
   scope,
   read = readCreatedTokens,
+  registryRead = getRegistryTokens,
+  registryStatus = getRegistryStatus,
+  enrichBalances = enrichTokenBalances,
 }: {
   config: AppConfig;
   client: ReturnType<typeof createReadClient>;
   scope: "all" | "mine";
   read?: typeof readCreatedTokens;
+  registryRead?: typeof getRegistryTokens;
+  registryStatus?: typeof getRegistryStatus;
+  enrichBalances?: typeof enrichTokenBalances;
+}) {
+  return config.registryEnabled ? (
+    <RegistryTokensPage
+      config={config}
+      client={client}
+      scope={scope}
+      read={registryRead}
+      readStatus={registryStatus}
+      enrichBalances={enrichBalances}
+    />
+  ) : (
+    <DirectTokensPage
+      config={config}
+      client={client}
+      scope={scope}
+      read={read}
+    />
+  );
+}
+
+function DirectTokensPage({
+  config,
+  client,
+  scope,
+  read,
+}: {
+  config: AppConfig;
+  client: ReturnType<typeof createReadClient>;
+  scope: "all" | "mine";
+  read: typeof readCreatedTokens;
 }) {
   const [state, setState] = useState<{
     loading: boolean;
@@ -1139,64 +1190,7 @@ export function TokensPage({
         </Empty>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {state.tokens.map((token) => (
-              <Card key={token.addressHex}>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <CardTitle>{token.symbol}</CardTitle>
-                      <CardDescription>
-                        {token.name} ·{" "}
-                        {token.decimals === null
-                          ? "Unsupported decimals"
-                          : `${token.decimals} decimals`}
-                      </CardDescription>
-                    </div>
-                    <Badge variant="secondary">
-                      Block {token.block.toString()}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Detail
-                    label="Initial supply"
-                    value={formatTokenAmount(
-                      token.initialSupply,
-                      token.decimals,
-                    )}
-                  />
-                  <Detail
-                    label="Your balance"
-                    value={
-                      token.balance === null
-                        ? "Unavailable"
-                        : formatTokenAmount(token.balance, token.decimals)
-                    }
-                  />
-                  <Detail
-                    label="Administrator"
-                    value={shortHash(token.administratorHex)}
-                  />
-                  <div className="flex items-center gap-2 rounded-lg bg-muted p-3 font-mono text-xs">
-                    <span className="min-w-0 flex-1 truncate">
-                      {token.addressHex}
-                    </span>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label="Copy token address"
-                      onClick={() =>
-                        void navigator.clipboard.writeText(token.addressHex)
-                      }
-                    >
-                      <CopyIcon />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <TokenCards tokens={state.tokens} />
           {state.tokens.some(({ readError }) => readError) ? (
             <Alert className="mt-4">
               <AlertCircleIcon />
@@ -1227,6 +1221,386 @@ export function TokensPage({
       )}
     </main>
   );
+}
+
+const REGISTRY_PAGE_SIZE = 20;
+const MAX_REGISTRY_OFFSET = 10_000;
+
+function RegistryTokensPage({
+  config,
+  client,
+  scope,
+  read,
+  readStatus,
+  enrichBalances,
+}: {
+  config: AppConfig;
+  client: ReturnType<typeof createReadClient>;
+  scope: "all" | "mine";
+  read: typeof getRegistryTokens;
+  readStatus: typeof getRegistryStatus;
+  enrichBalances: typeof enrichTokenBalances;
+}) {
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sort, setSort] = useState<RegistrySort>("newest");
+  const [offset, setOffset] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [page, setPage] = useState<RegistryTokenPage | null>(null);
+  const [tokens, setTokens] = useState<CreatedToken[]>([]);
+  const [status, setStatus] = useState<RegistryStatus | null>(null);
+  const [statusError, setStatusError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const asOfBlock = useRef<string | undefined>(undefined);
+  const activeRequest = useRef<AbortController | null>(null);
+  const requestId = useRef(0);
+
+  useEffect(() => {
+    if (search === debouncedSearch) return;
+    const timeout = window.setTimeout(() => {
+      setOffset(0);
+      asOfBlock.current = undefined;
+      setDebouncedSearch(search);
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [debouncedSearch, search]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    const currentRequestId = ++requestId.current;
+    setLoading(true);
+    setError(null);
+    const query = {
+      ...(debouncedSearch === "" ? {} : { q: debouncedSearch }),
+      ...(scope === "mine"
+        ? { creator: toAddressHex(config.accountAddress) }
+        : {}),
+      sort,
+      limit: REGISTRY_PAGE_SIZE,
+      offset,
+      ...(asOfBlock.current === undefined
+        ? {}
+        : { asOfBlock: asOfBlock.current }),
+    };
+    void read(config, query, controller.signal).then(
+      (result) => {
+        if (currentRequestId !== requestId.current) return;
+        const metadata = result.tokens.map(registryTokenToCreatedToken);
+        setPage(result);
+        setTokens(metadata);
+        asOfBlock.current ??= result.asOfBlock;
+        setLoading(false);
+        void enrichBalances(client, config, metadata, controller.signal).then(
+          (enriched) => {
+            if (currentRequestId === requestId.current) setTokens(enriched);
+          },
+          () => undefined,
+        );
+      },
+      (reason) => {
+        if (currentRequestId !== requestId.current) return;
+        setPage(null);
+        setTokens([]);
+        setLoading(false);
+        setError(userErrorMessage(reason, "The token registry is unavailable"));
+      },
+    );
+    void readStatus(config, controller.signal).then(
+      (result) => {
+        if (currentRequestId !== requestId.current) return;
+        setStatus(result);
+        setStatusError(false);
+      },
+      () => {
+        if (currentRequestId !== requestId.current) return;
+        setStatus(null);
+        setStatusError(true);
+      },
+    );
+    return () => {
+      controller.abort();
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        requestId.current += 1;
+      }
+    };
+  }, [
+    client,
+    config,
+    debouncedSearch,
+    enrichBalances,
+    offset,
+    read,
+    readStatus,
+    refreshKey,
+    scope,
+    sort,
+  ]);
+
+  const isGlobal = scope === "all";
+  const hasSearch = debouncedSearch.trim() !== "";
+  function cancelCurrentRequest() {
+    requestId.current += 1;
+    activeRequest.current?.abort();
+  }
+  function resetSnapshot() {
+    cancelCurrentRequest();
+    setOffset(0);
+    asOfBlock.current = undefined;
+  }
+  function refresh() {
+    resetSnapshot();
+    setRefreshKey((value) => value + 1);
+  }
+  function changePage(nextOffset: number) {
+    cancelCurrentRequest();
+    setOffset(nextOffset);
+  }
+  return (
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-6 sm:py-14">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            {isGlobal ? "Tokens" : "My Tokens"}
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            {isGlobal
+              ? "All tokens launched through this factory."
+              : "Factory launches created by this wallet."}
+          </p>
+        </div>
+        <Button variant="outline" onClick={refresh} disabled={loading}>
+          <RefreshCwIcon />
+          Refresh
+        </Button>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
+        <Field>
+          <FieldLabel htmlFor="token-search">Search tokens</FieldLabel>
+          <Input
+            id="token-search"
+            type="search"
+            value={search}
+            placeholder="Name, symbol, token, or creator"
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="token-sort">Sort by</FieldLabel>
+          <select
+            id="token-sort"
+            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            value={sort}
+            onChange={(event) => {
+              setSort(event.target.value as RegistrySort);
+              resetSnapshot();
+            }}
+          >
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="name">Name</option>
+            <option value="symbol">Symbol</option>
+          </select>
+        </Field>
+      </div>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertCircleIcon />
+          <AlertTitle>Registry unavailable</AlertTitle>
+          <AlertDescription className="flex flex-col items-start gap-3">
+            <span>{error}</span>
+            <Button variant="outline" onClick={refresh}>
+              Try again
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : loading && page === null ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[0, 1, 2, 3].map((item) => (
+            <Skeleton key={item} className="h-48 rounded-xl" />
+          ))}
+        </div>
+      ) : page?.total === 0 ? (
+        <Empty className="border bg-card">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <RocketIcon />
+            </EmptyMedia>
+            <EmptyTitle>
+              {hasSearch ? "No matching tokens" : "No tokens yet"}
+            </EmptyTitle>
+            <EmptyDescription>
+              {hasSearch
+                ? "Try a different name, symbol, token address, or creator address."
+                : isGlobal
+                  ? "No tokens have been launched through this factory."
+                  : "Launch your first standard token from this wallet."}
+            </EmptyDescription>
+          </EmptyHeader>
+          {!hasSearch ? (
+            <Button asChild>
+              <Link to="/create">Create token</Link>
+            </Button>
+          ) : null}
+        </Empty>
+      ) : page ? (
+        <>
+          <div
+            className="flex items-center justify-between gap-4 text-sm text-muted-foreground"
+            aria-live="polite"
+          >
+            <p>
+              Showing {page.offset + 1}-{page.offset + page.tokens.length} of{" "}
+              {page.total}
+            </p>
+            {loading ? <span>Updating...</span> : null}
+          </div>
+          <div role="status" aria-live="polite" className="sr-only">
+            {tokens.some(({ balanceLoading }) => balanceLoading)
+              ? "Loading current token balances"
+              : "Current token balances loaded"}
+          </div>
+          <TokenCards tokens={tokens} />
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              disabled={loading || offset === 0}
+              onClick={() =>
+                changePage(Math.max(0, offset - REGISTRY_PAGE_SIZE))
+              }
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={
+                loading ||
+                !page.hasMore ||
+                offset + REGISTRY_PAGE_SIZE > MAX_REGISTRY_OFFSET
+              }
+              onClick={() => changePage(offset + REGISTRY_PAGE_SIZE)}
+            >
+              Next
+            </Button>
+          </div>
+        </>
+      ) : null}
+      {status?.syncState === "integrityFault" ? (
+        <Alert variant="destructive">
+          <AlertCircleIcon />
+          <AlertTitle>Registry integrity fault</AlertTitle>
+          <AlertDescription>
+            {status.lastError ??
+              "Indexing stopped because registry evidence failed validation. An operator must resolve the fault."}
+          </AlertDescription>
+        </Alert>
+      ) : statusError ||
+        status?.syncState === "retrying" ||
+        status?.lastError ? (
+        <Alert>
+          <AlertCircleIcon />
+          <AlertTitle>Registry sync delayed</AlertTitle>
+          <AlertDescription>
+            {status?.lastError ??
+              "Current tokens are shown, but registry freshness could not be confirmed. Refresh to retry."}
+          </AlertDescription>
+        </Alert>
+      ) : status?.syncState === "syncing" ? (
+        <Alert>
+          <AlertTitle>Registry is syncing</AlertTitle>
+          <AlertDescription>
+            New launches may appear after indexing reaches the chain tip.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {page?.historyLimited || status?.historyLimited ? (
+        <Alert>
+          <AlertCircleIcon />
+          <AlertTitle>Older launch history is unavailable</AlertTitle>
+          <AlertDescription>
+            The registry started after some factory events had left retained
+            history, so these results are incomplete.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {tokens.some(({ readError }) => readError) ? (
+        <Alert>
+          <AlertCircleIcon />
+          <AlertTitle>Some current balances are unavailable</AlertTitle>
+          <AlertDescription>
+            Registry metadata is shown where live token balance views could not
+            be read.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+    </main>
+  );
+}
+
+function TokenCards({ tokens }: { tokens: readonly CreatedToken[] }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {tokens.map((token) => (
+        <Card key={token.addressHex}>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>{token.symbol}</CardTitle>
+                <CardDescription>
+                  {token.name} ·{" "}
+                  {token.decimals === null
+                    ? "Unsupported decimals"
+                    : `${token.decimals} decimals`}
+                </CardDescription>
+              </div>
+              <Badge variant="secondary">Block {token.block.toString()}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <Detail
+              label="Initial supply"
+              value={formatTokenAmount(token.initialSupply, token.decimals)}
+            />
+            <Detail
+              label="Your balance"
+              value={
+                token.balanceLoading
+                  ? "Loading..."
+                  : token.balance === null
+                    ? "Unavailable"
+                    : formatTokenAmount(token.balance, token.decimals)
+              }
+            />
+            <Detail
+              label="Administrator"
+              value={shortHash(token.administratorHex)}
+            />
+            <div className="flex items-center gap-2 rounded-lg bg-muted p-3 font-mono text-xs">
+              <span className="min-w-0 flex-1 truncate">
+                {token.addressHex}
+              </span>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Copy token address"
+                onClick={() =>
+                  void navigator.clipboard.writeText(token.addressHex)
+                }
+              >
+                <CopyIcon />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function toAddressHex(value: ArrayLike<number>): string {
+  return `0x${Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function Detail({ label, value }: { label: string; value: string }) {

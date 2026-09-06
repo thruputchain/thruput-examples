@@ -39,6 +39,7 @@ export default defineConfig(({ command, isPreview, mode }) => {
       "VITE_NATIVE_BALANCE_ITEM_COST",
       "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
       "VITE_STANDARD_TOKEN_HASH",
+      "VITE_TOKEN_REGISTRY_ENABLED",
     ],
     define: {
       "import.meta.env.GROUNDHOG_DEV_PERSONAS": developmentPersonasDefinition(
