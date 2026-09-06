@@ -48,7 +48,7 @@ beforeEach(() => {
 
 describe("createSnapshotReader", () => {
   it("accepts views that all come from the same height", async () => {
-    vi.mocked(createReadClient).mockReturnValue({} as never);
+    const client = { view: vi.fn() } as never;
 
     const tokenA = tokenAdapter("Token A", "A", 10n, 1n, 8n);
     const tokenB = tokenAdapter("Token B", "B", 20n, 2n, 8n);
@@ -85,7 +85,7 @@ describe("createSnapshotReader", () => {
       }),
     } as never);
 
-    await expect(createSnapshotReader(config)()).resolves.toMatchObject({
+    await expect(createSnapshotReader(config, client)()).resolves.toMatchObject({
       tokenA: { name: "Token A", balance: 10n, allowance: 1n },
       tokenB: { name: "Token B", balance: 20n, allowance: 2n },
       reserve0: 100n,
@@ -97,6 +97,7 @@ describe("createSnapshotReader", () => {
       feeTo: null,
       chainHeight: 8n,
     });
+    expect(createReadClient).not.toHaveBeenCalled();
   });
 
   it("fails after three attempts when view heights do not match", async () => {

@@ -120,11 +120,11 @@ Each immutable record contains:
 - `driverAddress`: canonical request driver address.
 - `pairCount`: canonical unsigned decimal string from the event.
 - `transactionHash`: canonical 32-byte lowercase hash with `0x`.
-- `eventSequence`: canonical unsigned decimal string.
-- `createdBlock`: canonical unsigned decimal string.
+- `eventSequence`: canonical u32 decimal string.
+- `createdBlock`: canonical positive decimal string.
 - `indexedAt`: server-generated ISO ingestion timestamp.
 
-Protocol integers are stored as canonical decimal text. The Groundhog SDK exposes an event sequence as a safe JavaScript integer at the RPC boundary; the source immediately converts it to decimal text. JavaScript numbers and SQLite signed integers must not persist or serialize block heights, sequence values, or pair counts. SQL numeric comparisons and ordering compare decimal string length first and lexical value second, including all block-snapshot predicates.
+Protocol integers are stored as canonical decimal text. The Groundhog SDK exposes the current Rust event sequence type as a u32 represented by a JavaScript number at the RPC boundary; the source validates that bound and immediately converts it to decimal text. JavaScript numbers and SQLite signed integers must not persist or serialize block heights, sequence values, or pair counts. SQL numeric comparisons and ordering compare decimal string length first and lexical value second, including all block-snapshot predicates.
 
 The registry must enforce uniqueness for:
 
@@ -359,7 +359,7 @@ Backups must capture the SQLite database consistently with WAL semantics. Operat
 - Canonical validation at the store boundary.
 - Identical duplicate idempotency.
 - Conflicts by pair, event identity, child address, and pair count.
-- Large decimal block and sequence values.
+- Large decimal block values and u32 event-sequence bounds.
 - Search, exact token filtering, every sort, and snapshot pagination.
 
 ### Chain Source

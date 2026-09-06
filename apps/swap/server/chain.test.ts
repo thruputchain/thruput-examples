@@ -132,7 +132,7 @@ describe("GroundhogRegistrySource", () => {
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
   });
 
-  it("requires positive pair counts and safe event sequence numbers", async () => {
+  it("requires positive pair counts and u32 event sequence numbers", async () => {
     const zeroCount = mockClient();
     zeroCount.getEvents.mockResolvedValue(eventPage());
     vi.spyOn(PoolCreated, "decode").mockReturnValue(decoded({ pairCount: 0n }));
@@ -154,14 +154,14 @@ describe("GroundhogRegistrySource", () => {
       ),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
 
-    const unsafeSequence = mockClient();
-    unsafeSequence.getEvents.mockResolvedValue(
+    const oversizedSequence = mockClient();
+    oversizedSequence.getEvents.mockResolvedValue(
       eventPage({
-        event: identifiedEvent({ sequenceNumber: Number.MAX_SAFE_INTEGER + 1 }),
+        event: identifiedEvent({ sequenceNumber: 0x1_0000_0000 }),
       }),
     );
     await expect(
-      new GroundhogRegistrySource(typedClient(unsafeSequence), scope).getPage(
+      new GroundhogRegistrySource(typedClient(oversizedSequence), scope).getPage(
         request(),
       ),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);

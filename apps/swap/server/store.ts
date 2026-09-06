@@ -26,6 +26,7 @@ const SCHEMA_VERSION = 1;
 const MAX_CURSOR_CHARACTERS = 4_096;
 const MAX_ERROR_BYTES = 500;
 const MAX_PAIR_COUNT = 0xffff_ffffn;
+const MAX_EVENT_SEQUENCE = 0xffff_ffffn;
 const ZERO_ADDRESS = `0x${"0".repeat(64)}`;
 const STATE_KEYS = new Set([
   "indexed_through_block",
@@ -805,6 +806,12 @@ function normalizePool(
     );
   }
   validatePairCount(pool.pairCount);
+  if (BigInt(pool.eventSequence) > MAX_EVENT_SEQUENCE) {
+    throw new ValidationError("event sequence must be between 0 and 4294967295");
+  }
+  if (pool.createdBlock === "0") {
+    throw new ValidationError("created block must be positive");
+  }
   if (!isIsoTimestamp(pool.indexedAt)) {
     throw new ValidationError("indexedAt must be an ISO timestamp");
   }

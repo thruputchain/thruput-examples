@@ -29,6 +29,22 @@ describe("loadGlobalConfig", () => {
     const config = loadGlobalConfig(environment());
 
     expect(config.factoryAddress).toBeDefined();
+    expect(config.registryEnabled).toBe(false);
+  });
+
+  it("parses the pool registry feature flag strictly", () => {
+    expect(loadGlobalConfig(environment({
+      VITE_POOL_REGISTRY_ENABLED: "true",
+    })).registryEnabled).toBe(true);
+    expect(loadGlobalConfig(environment({
+      VITE_POOL_REGISTRY_ENABLED: true,
+    })).registryEnabled).toBe(true);
+    expect(loadGlobalConfig(environment({
+      VITE_POOL_REGISTRY_ENABLED: "false",
+    })).registryEnabled).toBe(false);
+    expect(() => loadGlobalConfig(environment({
+      VITE_POOL_REGISTRY_ENABLED: "TRUE",
+    }))).toThrow("VITE_POOL_REGISTRY_ENABLED must be true or false");
   });
 
   it("rejects malformed network identities and RPC credentials", () => {

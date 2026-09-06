@@ -511,6 +511,8 @@ describe("RegistryStore ingestion", () => {
     { pairCount: "01" },
     { pairCount: "4294967296" },
     { eventSequence: "1.5" },
+    { eventSequence: "4294967296" },
+    { createdBlock: "0" },
     { createdBlock: "-1" },
     { transactionHash: "0x12" },
     { indexedAt: "yesterday" },
@@ -584,20 +586,20 @@ describe("RegistryStore status", () => {
 });
 
 describe("RegistryStore queries", () => {
-  it("uses decimal-text ordering for large blocks and event sequences", () => {
+  it("uses decimal-text ordering for large blocks", () => {
     const store = completedStore(
       [
         pool(1, {
           createdBlock: "9223372036854775808",
-          eventSequence: "100000000000000000000",
+          eventSequence: "3",
         }),
         pool(2, {
           createdBlock: "100000000000000000000",
-          eventSequence: "9007199254740993",
+          eventSequence: "2",
         }),
         pool(3, {
           createdBlock: "9007199254740993",
-          eventSequence: "9223372036854775808",
+          eventSequence: "1",
         }),
       ],
       "100000000000000000000",

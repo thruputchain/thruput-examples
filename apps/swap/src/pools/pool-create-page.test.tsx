@@ -20,17 +20,20 @@ import { PoolCreatePage } from "./pool-create-page";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
-const config = {
+const config: GlobalConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkIdHex: "00".repeat(32),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
   nativeHogAddress: address(6),
-} satisfies GlobalConfig;
+};
 
 describe("PoolCreatePage", () => {
-  beforeEach(() => window.localStorage.clear());
+  beforeEach(() => {
+    window.localStorage.clear();
+    config.registryEnabled = false;
+  });
 
   it("reviews the canonical creation intent before persisting and running", async () => {
     const user = userEvent.setup();
@@ -273,6 +276,36 @@ describe("PoolCreatePage", () => {
 
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
     expect(run.mock.calls[0]![1].id).not.toBe(failed.id);
+  });
+
+  it("requests best-effort registry sync when verified pool creation commits", async () => {
+    const user = userEvent.setup();
+    config.registryEnabled = true;
+    const requestRegistrySync = vi.fn().mockRejectedValue(new Error("offline"));
+    const run = vi.fn(async (
+      _config: GlobalConfig,
+      current: CreationWorkflow,
+      dependencies: { onUpdate?: (workflow: CreationWorkflow) => void },
+    ) => {
+      const next = {
+        ...current,
+        status: "race" as const,
+        steps: {
+          ...current.steps,
+          createPool: { ...current.steps.createPool, status: "committed" as const },
+        },
+      };
+      dependencies.onUpdate?.(next);
+      return next;
+    });
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run, requestRegistrySync });
+
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    await user.click(await screen.findByRole("button", { name: "Create pool" }));
+
+    await waitFor(() => expect(requestRegistrySync).toHaveBeenCalledWith(config));
+    expect(await screen.findByText("race")).toBeVisible();
+    expect(screen.queryByText("offline")).not.toBeInTheDocument();
   });
 });
 

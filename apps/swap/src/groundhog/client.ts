@@ -6,19 +6,45 @@ import {
 
 import type { GlobalConfig } from "@/config";
 
-export function createReadClient(config: Pick<GlobalConfig, "rpcUrl">): GroundhogClient {
+export function createReadClient(
+  config: Pick<GlobalConfig, "rpcUrl">,
+  signal?: AbortSignal,
+): GroundhogClient {
   const browserOrigin =
-    typeof window === "undefined" || import.meta.env.MODE === "local-integration"
+    typeof window === "undefined" ||
+    import.meta.env.MODE === "local-integration"
       ? undefined
       : window.location.origin;
   return deferClient(
     createGroundhogClient({
-      transport: new HttpTransport(resolveReadRpcUrl(config.rpcUrl, browserOrigin), {
-        fetch: (...args) => globalThis.fetch(...args),
-        timeoutMs: 10_000,
-      }),
+      transport: new HttpTransport(
+        resolveReadRpcUrl(config.rpcUrl, browserOrigin),
+        {
+          fetch: (input, init) => {
+            const combinedSignal = combineSignals(signal, init?.signal);
+            return globalThis.fetch(
+              input,
+              combinedSignal === undefined
+                ? init
+                : { ...init, signal: combinedSignal },
+            );
+          },
+          timeoutMs: 10_000,
+        },
+      ),
     }),
   );
+}
+
+function combineSignals(
+  lifecycleSignal: AbortSignal | undefined,
+  requestSignal: AbortSignal | null | undefined,
+): AbortSignal | undefined {
+  if (lifecycleSignal === undefined) return requestSignal ?? undefined;
+  if (requestSignal === undefined || requestSignal === null) {
+    return lifecycleSignal;
+  }
+  return AbortSignal.any([lifecycleSignal, requestSignal]);
 }
 
 function deferClient(clientPromise: Promise<GroundhogClient>): GroundhogClient {

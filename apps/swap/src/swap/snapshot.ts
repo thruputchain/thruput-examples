@@ -1,3 +1,4 @@
+import type { GroundhogClient } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 import type { AppConfig } from "@/config";
@@ -37,8 +38,11 @@ export interface PoolSnapshot {
 
 export type SnapshotReader = () => Promise<PoolSnapshot>;
 
-export function createSnapshotReader(config: AppConfig): SnapshotReader {
-  const client = createReadClient(config);
+export function createSnapshotReader(
+  config: AppConfig,
+  suppliedClient?: Pick<GroundhogClient, "view">,
+): SnapshotReader {
+  const client = suppliedClient ?? createReadClient(config);
   const tokenA = createErc20ReadAdapter({
     client,
     contract: config.tokenAAddress,

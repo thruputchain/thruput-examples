@@ -423,8 +423,8 @@ function decodeCursor(cursor: string): Uint8Array {
 }
 
 function sequenceDecimal(value: number): string {
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new Error("event sequence must be a nonnegative safe integer");
+  if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) {
+    throw new Error("event sequence must be a u32");
   }
   return String(value);
 }

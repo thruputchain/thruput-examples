@@ -1,9 +1,9 @@
 import { contractAddress } from "@groundhogchain/protocol";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AmmRoutes } from "@/app";
+import { AmmRoutes, readBrowserConfiguration } from "@/app";
 import { ProcessingModeProvider } from "@/components/processing-mode";
 import type { GlobalConfig } from "@/config";
 
@@ -45,5 +45,24 @@ describe("AmmRoutes", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Create pool" })).toBeVisible();
+  });
+});
+
+describe("browser configuration", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("forwards the pool registry feature flag", () => {
+    vi.stubEnv("VITE_GROUNDHOG_RPC_URL", "http://127.0.0.1:9545");
+    vi.stubEnv("VITE_GROUNDHOG_NETWORK_ID", "00".repeat(32));
+    vi.stubEnv("VITE_GROUNDHOG_WALLET_ADDRESS", `0x${"01".repeat(32)}`);
+    vi.stubEnv("VITE_NATIVE_HOG_ADDRESS", `0x${"02".repeat(32)}`);
+    vi.stubEnv("VITE_SWAP_FACTORY_ADDRESS", `0x${"03".repeat(32)}`);
+    vi.stubEnv("VITE_SWAP_ROUTER_ADDRESS", `0x${"04".repeat(32)}`);
+    vi.stubEnv("VITE_POOL_REGISTRY_ENABLED", "true");
+
+    expect(readBrowserConfiguration()).toMatchObject({
+      ok: true,
+      config: { registryEnabled: true },
+    });
   });
 });

@@ -98,7 +98,7 @@ describe("registry HTTP API", () => {
       total: 1,
       asOfBlock: "12",
       hasMore: false,
-      pools: [{ pairCount: "1", eventSequence: "9007199254740993" }],
+      pools: [{ pairCount: "1", eventSequence: "4294967295" }],
     });
   });
 
@@ -273,7 +273,7 @@ function pool(): RegistryPool {
     driverAddress: address(5),
     pairCount: "1",
     transactionHash: `0x${"ab".repeat(32)}`,
-    eventSequence: "9007199254740993",
+    eventSequence: "4294967295",
     createdBlock: "12",
     indexedAt: "2026-09-05T00:00:00.000Z",
   };

@@ -33,6 +33,7 @@ import { resolvePoolConfig } from "@/pools/pool-context";
 import { poolPath } from "@/pools/pool-route";
 import { createSnapshotReader } from "@/swap/snapshot";
 import { createReadClient } from "@/groundhog/client";
+import { requestPoolRegistrySync } from "@/registry/client";
 import {
   confirmCreationStepWasNotSigned,
   continueSupersededCreation,
@@ -88,6 +89,7 @@ interface PoolCreatePageDependencies {
   run?: typeof runCreationWorkflow;
   verifyResult?: (workflow: CreationWorkflow) => Promise<void>;
   readFactoryAllowance?: () => Promise<{ value: bigint; height: bigint }>;
+  requestRegistrySync?: typeof requestPoolRegistrySync;
 }
 
 export function PoolCreatePage({
@@ -117,6 +119,8 @@ export function PoolCreatePage({
   const [error, setError] = useState<string | null>(initialState.error);
   const prepare = dependencies.prepare ?? preparePoolCreation;
   const run = dependencies.run ?? runCreationWorkflow;
+  const requestRegistrySync = dependencies.requestRegistrySync
+    ?? requestPoolRegistrySync;
   const currentFactory = toHex0x(config.factoryAddress);
   const recoverable = accountWorkflows.filter((candidate) =>
     isRecoverableCreationWorkflow(candidate, currentFactory)
@@ -241,11 +245,30 @@ export function PoolCreatePage({
           current = continueSupersededCreation(config, current);
           applyWorkflow(current);
         }
-        return run(config, current, {
+        let previousCreatePoolStatus = current.steps.createPool.status;
+        let syncHintSent = false;
+        const hintRegistryAfterCreation = (next: CreationWorkflow) => {
+          if (
+            config.registryEnabled
+            && !syncHintSent
+            && previousCreatePoolStatus !== "committed"
+            && next.steps.createPool.status === "committed"
+          ) {
+            syncHintSent = true;
+            void requestRegistrySync(config).catch(() => undefined);
+          }
+          previousCreatePoolStatus = next.steps.createPool.status;
+        };
+        const result = await run(config, current, {
           writeBoundary: writer,
           automaticProcessing: processQueue || !manualProcessing,
-          onUpdate: applyWorkflow,
+          onUpdate: (next) => {
+            applyWorkflow(next);
+            hintRegistryAfterCreation(next);
+          },
         });
+        hintRegistryAfterCreation(result);
+        return result;
       });
       applyWorkflow(result);
       if (result.status === "executed") {
