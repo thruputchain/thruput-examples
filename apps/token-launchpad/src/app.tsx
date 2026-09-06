@@ -1407,6 +1407,7 @@ function RegistryTokensPage({
       } catch {
         if (!isCurrent() || controller.signal.aborted) return;
         setStatusError(true);
+        pollTimer = window.setTimeout(pollStatus, REGISTRY_STATUS_POLL_MS);
       }
     }
     async function hintSync(): Promise<void> {
@@ -1598,7 +1599,7 @@ function RegistryTokensPage({
           <AlertTitle>Registry sync delayed</AlertTitle>
           <AlertDescription>
             {status?.lastError ??
-              "Current tokens are shown, but registry freshness could not be confirmed. Refresh to retry."}
+              "Current tokens are shown, but registry freshness could not be confirmed. Retrying automatically."}
           </AlertDescription>
         </Alert>
       ) : status?.syncState === "syncing" ? (

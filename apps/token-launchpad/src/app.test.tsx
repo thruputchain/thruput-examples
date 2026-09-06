@@ -837,6 +837,56 @@ describe("My Tokens", () => {
     }
   });
 
+  it("retries a failed status poll and refreshes when sync completes", async () => {
+    vi.useFakeTimers();
+    const config = { ...configuration(), registryEnabled: true };
+    const registryRead = vi
+      .fn()
+      .mockResolvedValueOnce(registryPage([]))
+      .mockResolvedValueOnce(registryPage([registryToken()]));
+    const readStatus = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue(registryStatus());
+    const registrySync = vi.fn().mockResolvedValue({
+      ...registryStatus(),
+      syncState: "syncing",
+      syncing: true,
+    });
+    try {
+      render(
+        <MemoryRouter>
+          <TokensPage
+            config={config}
+            client={{} as never}
+            scope="all"
+            registryRead={registryRead}
+            registryStatus={readStatus}
+            registrySync={registrySync}
+            enrichBalances={vi
+              .fn()
+              .mockImplementation(async (_client, _config, tokens) => tokens)}
+          />
+        </MemoryRouter>,
+      );
+      await act(async () => undefined);
+
+      await act(async () => vi.advanceTimersByTimeAsync(1_000));
+      expect(readStatus).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Registry sync delayed")).toBeInTheDocument();
+
+      await act(async () => vi.advanceTimersByTimeAsync(1_000));
+      expect(readStatus).toHaveBeenCalledTimes(2);
+      expect(screen.getByText("NUT")).toBeInTheDocument();
+      expect(registryRead).toHaveBeenCalledTimes(2);
+
+      await act(async () => vi.advanceTimersByTimeAsync(5_000));
+      expect(readStatus).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("requests sync on Refresh but not directory controls", async () => {
     vi.useFakeTimers();
     const config = { ...configuration(), registryEnabled: true };
