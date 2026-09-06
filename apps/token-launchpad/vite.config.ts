@@ -197,6 +197,10 @@ function localRpcProxy(target: string): Plugin {
         redirect: "error",
         signal: AbortSignal.timeout(10_000),
       });
+      if (!upstream.ok) {
+        await upstream.body?.cancel().catch(() => undefined);
+        return sendProxyError(response, 502, "Local RPC proxy failed");
+      }
       const responseBody = await readUpstreamBody(upstream);
       response.statusCode = upstream.status;
       response.setHeader(

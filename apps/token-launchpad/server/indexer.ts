@@ -9,6 +9,7 @@ import {
   ImmutableRegistryConflictError,
   RegistryScopeMismatchError,
   RegistryStore,
+  RegistryStoreError,
 } from "./store.ts";
 import { ValidationError } from "./validation.ts";
 
@@ -234,9 +235,15 @@ function isIntegrityFault(error: unknown): boolean {
 }
 
 function publicError(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : "Registry synchronization failed";
+  if (
+    error instanceof RegistryIntegrityError ||
+    error instanceof RegistryCursorRejectedError ||
+    error instanceof ValidationError ||
+    error instanceof RegistryStoreError
+  ) {
+    return error.message;
+  }
+  return "Registry synchronization is temporarily unavailable";
 }
 
 function abortableSleep(

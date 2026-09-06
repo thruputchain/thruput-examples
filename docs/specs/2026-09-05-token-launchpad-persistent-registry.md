@@ -1,7 +1,7 @@
 # Token Launchpad Persistent Registry
 
-**Status:** Implementation plan  
-**Date:** 2026-09-05  
+**Status:** Implementation plan
+**Date:** 2026-09-05
 **Application:** `apps/token-launchpad`
 
 ## 1. Executive Summary

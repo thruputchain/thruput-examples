@@ -477,6 +477,29 @@ describe("production HTTP serving", () => {
     expect(body).not.toContain("secret");
   });
 
+  it.each([
+    new Response("private upstream text", {
+      status: 401,
+      headers: { "content-type": "text/plain" },
+    }),
+    new Response(JSON.stringify({ error: "private upstream JSON" }), {
+      status: 503,
+      headers: { "content-type": "application/json" },
+    }),
+  ])("discards non-success RPC responses", async (upstream) => {
+    upstreamFetch.mockResolvedValueOnce(upstream);
+    const response = await fetch(
+      `${origin}/groundhog-rpc`,
+      rpcRequest({ jsonrpc: "2.0", id: 1, method: "groundhog_view" }),
+    );
+    const body = await response.text();
+    expect(response.status).toBe(502);
+    expect(Buffer.byteLength(body)).toBeLessThan(500);
+    expect(body).not.toContain("private upstream");
+    expect(body).not.toContain("401");
+    expect(body).not.toContain("503");
+  });
+
   it("sets production-compatible security headers on static and API responses", async () => {
     for (const target of ["/", "/healthz", "/api/unknown"]) {
       const response = await fetch(`${origin}${target}`);

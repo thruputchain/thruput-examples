@@ -421,7 +421,12 @@ async function handleRpcRequest(
   } catch {
     throw new HttpError(502, "rpc_unavailable", "RPC upstream is unavailable");
   }
+  if (!upstream.ok) {
+    await upstream.body?.cancel().catch(() => undefined);
+    throw new HttpError(502, "rpc_unavailable", "RPC upstream is unavailable");
+  }
   if (!isJsonContentType(upstream.headers.get("content-type") ?? undefined)) {
+    await upstream.body?.cancel().catch(() => undefined);
     throw new HttpError(
       502,
       "invalid_rpc_response",

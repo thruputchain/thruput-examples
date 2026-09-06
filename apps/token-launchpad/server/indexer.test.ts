@@ -222,6 +222,22 @@ describe("RegistryIndexer", () => {
     store.close();
   });
 
+  it("does not persist arbitrary transport error details", async () => {
+    const store = new RegistryStore(":memory:", scope);
+    const secret = "https://rpc.example.test/events?token=private-secret";
+
+    await createIndexer(store, queuedSource([new Error(secret)]), {
+      maximumRetries: 0,
+    }).sync();
+
+    expect(store.getStatus().lastError).toBe(
+      "Registry synchronization is temporarily unavailable",
+    );
+    expect(JSON.stringify(store.getStatus())).not.toContain(secret);
+    expect(JSON.stringify(store.getStatus())).not.toContain("private-secret");
+    store.close();
+  });
+
   it("coalesces active requests into one trailing scan", async () => {
     const store = new RegistryStore(":memory:", scope);
     let resolvePage!: (page: RegistrySourcePage) => void;

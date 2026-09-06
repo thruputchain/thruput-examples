@@ -7,10 +7,16 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import { CreatePage, Header, ReviewCard, TokensPage } from "@/app";
+import {
+  CreatePage,
+  Header,
+  LaunchpadRoutes,
+  ReviewCard,
+  TokensPage,
+} from "@/app";
 import {
   readCreatedTokens,
   type FactoryReview,
@@ -784,6 +790,91 @@ describe("My Tokens", () => {
       screen.getByText("Older launch history is unavailable"),
     ).toBeInTheDocument();
   });
+
+  it("refreshes an initially empty snapshot when sync completes and stops polling", async () => {
+    vi.useFakeTimers();
+    const config = { ...configuration(), registryEnabled: true };
+    const registryRead = vi
+      .fn()
+      .mockResolvedValueOnce(registryPage([]))
+      .mockResolvedValueOnce(registryPage([registryToken()]));
+    const readStatus = vi.fn().mockResolvedValue(registryStatus());
+    const registrySync = vi.fn().mockResolvedValue({
+      ...registryStatus(),
+      syncState: "syncing",
+      syncing: true,
+    });
+    try {
+      render(
+        <MemoryRouter>
+          <TokensPage
+            config={config}
+            client={{} as never}
+            scope="all"
+            registryRead={registryRead}
+            registryStatus={readStatus}
+            registrySync={registrySync}
+            enrichBalances={vi
+              .fn()
+              .mockImplementation(async (_client, _config, tokens) => tokens)}
+          />
+        </MemoryRouter>,
+      );
+      await act(async () => undefined);
+      expect(screen.getByText("No tokens yet")).toBeInTheDocument();
+      expect(registrySync).toHaveBeenCalledTimes(1);
+
+      await act(async () => vi.advanceTimersByTimeAsync(1_000));
+      expect(screen.getByText("NUT")).toBeInTheDocument();
+      expect(registryRead).toHaveBeenCalledTimes(2);
+      expect(registryRead.mock.calls[1]?.[1]).not.toHaveProperty("asOfBlock");
+      expect(readStatus).toHaveBeenCalledTimes(1);
+
+      await act(async () => vi.advanceTimersByTimeAsync(5_000));
+      expect(readStatus).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("requests sync on Refresh but not directory controls", async () => {
+    vi.useFakeTimers();
+    const config = { ...configuration(), registryEnabled: true };
+    const registrySync = vi.fn().mockRejectedValue(new Error("offline"));
+    try {
+      render(
+        <MemoryRouter>
+          <TokensPage
+            config={config}
+            client={{} as never}
+            scope="all"
+            registryRead={vi.fn().mockResolvedValue(registryPage([]))}
+            registryStatus={vi.fn().mockResolvedValue(registryStatus())}
+            registrySync={registrySync}
+            enrichBalances={vi.fn().mockResolvedValue([])}
+          />
+        </MemoryRouter>,
+      );
+      await act(async () => undefined);
+      expect(registrySync).toHaveBeenCalledTimes(1);
+
+      fireEvent.change(screen.getByLabelText("Search tokens"), {
+        target: { value: "Acorn" },
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(300));
+      fireEvent.change(screen.getByLabelText("Sort by"), {
+        target: { value: "oldest" },
+      });
+      await act(async () => undefined);
+      expect(registrySync).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+      await act(async () => undefined);
+      expect(registrySync).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 function registryToken(): RegistryToken {
@@ -864,6 +955,60 @@ describe("launchpad navigation and hero", () => {
     ).toEqual(["Tokens", "My Tokens", "Create Token"]);
   });
 
+  it("hides creation navigation in read-only mode", () => {
+    render(
+      <MemoryRouter>
+        <Header readOnly />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.queryByRole("link", { name: "Create Token" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Groundhog Launchpad" }),
+    ).toHaveAttribute("href", "/tokens");
+  });
+
+  it.each(["/", "/create"])(
+    "redirects read-only route %s to the token directory",
+    async (initialEntry) => {
+      render(
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <LaunchpadRoutes config={configuration()} readOnly />
+          <RouteLocation />
+        </MemoryRouter>,
+      );
+      expect(await screen.findByTestId("route-location")).toHaveTextContent(
+        "/tokens",
+      );
+      expect(
+        screen.queryByRole("link", { name: /create token/i }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("omits the registry empty-state create action in read-only mode", async () => {
+    const config = { ...configuration(), registryEnabled: true };
+    render(
+      <MemoryRouter>
+        <TokensPage
+          config={config}
+          client={{} as never}
+          scope="all"
+          readOnly
+          registryRead={vi.fn().mockResolvedValue(registryPage([]))}
+          registryStatus={vi.fn().mockResolvedValue(registryStatus())}
+          registrySync={vi.fn().mockRejectedValue(new Error("offline"))}
+          enrichBalances={vi.fn().mockResolvedValue([])}
+        />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("No tokens yet")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /create token/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("uses the requested launchpad hero copy without a network badge", () => {
     window.localStorage.clear();
     render(
@@ -903,3 +1048,7 @@ describe("launchpad navigation and hero", () => {
     ).toBeInTheDocument();
   });
 });
+
+function RouteLocation() {
+  return <output data-testid="route-location">{useLocation().pathname}</output>;
+}

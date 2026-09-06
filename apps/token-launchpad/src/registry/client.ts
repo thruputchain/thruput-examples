@@ -208,6 +208,17 @@ function validateTokenPage(
   const tokens = record.tokens.map((token, index) =>
     validateToken(token, config, `tokens[${index}]`),
   );
+  if (
+    query.creator !== undefined &&
+    tokens.some((token) => token.creatorAddress !== query.creator)
+  ) {
+    invalid("creator filter");
+  }
+  if (
+    new Set(tokens.map((token) => token.tokenAddress)).size !== tokens.length
+  ) {
+    invalid("duplicate token address");
+  }
   const asOfBlock = decimal(record.asOfBlock, "asOfBlock");
   if (query.asOfBlock !== undefined && asOfBlock !== query.asOfBlock) {
     invalid("asOfBlock");

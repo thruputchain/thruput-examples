@@ -104,6 +104,8 @@ Health: /healthz
 
 `/healthz` checks that the process can query SQLite. It does not contact the chain, prove RPC availability, or replace monitoring and backups. `/api/registry/status` reports indexing progress and bounded sync errors.
 
+Railway allows 30 seconds for connection draining during shutdown so the process can stop indexing and close SQLite cleanly.
+
 The registry-enabled production browser bundle receives a benign placeholder instead of the upstream RPC URL and uses same-origin `/groundhog-rpc`. The production proxy permits only chain identity, tip, event, receipt, status, and view reads. It rejects `sendRawTransaction`; this deployment does not support production wallet writes or disposable development personas.
 
 SQLite runs in WAL mode. Backups must capture a consistent database state, including outstanding WAL data; use a volume snapshot while the service is stopped or perform an SQLite-aware backup/checkpoint procedure. Copying only the main `.sqlite` file while the process is writing can lose committed data.

@@ -131,7 +131,7 @@ export function App() {
         {personas ? (
           <PersonaApp base={base} personas={personas} />
         ) : (
-          <LaunchpadRoutes config={base} />
+          <LaunchpadRoutes config={base} readOnly={base.registryEnabled} />
         )}
       </BrowserRouter>
     </TooltipProvider>
@@ -205,18 +205,21 @@ export function PersonaApp({
           key={active.id}
           config={config}
           walletPrivateKey={active.privateKeyHex}
+          readOnly={false}
         />
       </div>
     </DevelopmentWalletContext>
   );
 }
 
-function LaunchpadRoutes({
+export function LaunchpadRoutes({
   config,
   walletPrivateKey,
+  readOnly = false,
 }: {
   config: AppConfig;
   walletPrivateKey?: string;
+  readOnly?: boolean;
 }) {
   const client = useMemo(() => createReadClient(config), [config]);
   const writer = useMemo(
@@ -225,19 +228,37 @@ function LaunchpadRoutes({
   );
   return (
     <>
-      <Header />
+      <Header readOnly={readOnly} />
       <Routes>
-        <Route path="/" element={<Navigate to="/create" replace />} />
+        <Route
+          path="/"
+          element={<Navigate to={readOnly ? "/tokens" : "/create"} replace />}
+        />
         <Route
           path="/create"
           element={
-            <CreatePage config={config} client={client} writer={writer} />
+            readOnly ? (
+              <Navigate to="/tokens" replace />
+            ) : (
+              <CreatePage
+                config={config}
+                client={client}
+                writer={writer}
+                writesSupported={walletPrivateKey !== undefined}
+              />
+            )
           }
         />
         <Route
           path="/tokens"
           element={
-            <TokensPage key="all" config={config} client={client} scope="all" />
+            <TokensPage
+              key="all"
+              config={config}
+              client={client}
+              scope="all"
+              readOnly={readOnly}
+            />
           }
         />
         <Route
@@ -248,21 +269,25 @@ function LaunchpadRoutes({
               config={config}
               client={client}
               scope="mine"
+              readOnly={readOnly}
             />
           }
         />
-        <Route path="*" element={<Navigate to="/create" replace />} />
+        <Route
+          path="*"
+          element={<Navigate to={readOnly ? "/tokens" : "/create"} replace />}
+        />
       </Routes>
     </>
   );
 }
 
-export function Header() {
+export function Header({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <header className="border-b bg-background/90 backdrop-blur">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-4 sm:px-6">
         <Link
-          to="/create"
+          to={readOnly ? "/tokens" : "/create"}
           className="mr-auto flex items-center gap-2 font-semibold"
         >
           <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground">
@@ -287,14 +312,16 @@ export function Header() {
           >
             My Tokens
           </NavLink>
-          <NavLink
-            className={({ isActive }) =>
-              `rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-secondary" : "text-muted-foreground hover:text-foreground"}`
-            }
-            to="/create"
-          >
-            Create Token
-          </NavLink>
+          {!readOnly ? (
+            <NavLink
+              className={({ isActive }) =>
+                `rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-secondary" : "text-muted-foreground hover:text-foreground"}`
+              }
+              to="/create"
+            >
+              Create Token
+            </NavLink>
+          ) : null}
         </nav>
         <DevelopmentWalletSwitcher />
       </div>
@@ -313,11 +340,13 @@ export function CreatePage({
   client,
   writer,
   requestSync = requestRegistrySync,
+  writesSupported = true,
 }: {
   config: AppConfig;
   client: ReturnType<typeof createReadClient>;
   writer: WriteBoundary;
   requestSync?: typeof requestRegistrySync;
+  writesSupported?: boolean;
 }) {
   const storageKey = workflowStorageKey(config);
   const [initialWorkflow] = useState<{
@@ -366,7 +395,6 @@ export function CreatePage({
   const [loading, setLoading] = useState(false);
   const [manualProcessing, setManualProcessing] = useState(false);
   const parsed = parseTokenDraft(draft);
-  const writesSupported = navigator.locks !== undefined;
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setSubmitted(true);
@@ -1058,7 +1086,9 @@ export function TokensPage({
   read = readCreatedTokens,
   registryRead = getRegistryTokens,
   registryStatus = getRegistryStatus,
+  registrySync = requestRegistrySync,
   enrichBalances = enrichTokenBalances,
+  readOnly = false,
 }: {
   config: AppConfig;
   client: ReturnType<typeof createReadClient>;
@@ -1066,7 +1096,9 @@ export function TokensPage({
   read?: typeof readCreatedTokens;
   registryRead?: typeof getRegistryTokens;
   registryStatus?: typeof getRegistryStatus;
+  registrySync?: typeof requestRegistrySync;
   enrichBalances?: typeof enrichTokenBalances;
+  readOnly?: boolean;
 }) {
   return config.registryEnabled ? (
     <RegistryTokensPage
@@ -1075,7 +1107,9 @@ export function TokensPage({
       scope={scope}
       read={registryRead}
       readStatus={registryStatus}
+      requestSync={registrySync}
       enrichBalances={enrichBalances}
+      readOnly={readOnly}
     />
   ) : (
     <DirectTokensPage
@@ -1083,6 +1117,7 @@ export function TokensPage({
       client={client}
       scope={scope}
       read={read}
+      readOnly={readOnly}
     />
   );
 }
@@ -1092,11 +1127,13 @@ function DirectTokensPage({
   client,
   scope,
   read,
+  readOnly,
 }: {
   config: AppConfig;
   client: ReturnType<typeof createReadClient>;
   scope: "all" | "mine";
   read: typeof readCreatedTokens;
+  readOnly: boolean;
 }) {
   const [state, setState] = useState<{
     loading: boolean;
@@ -1184,9 +1221,11 @@ function DirectTokensPage({
                 : "Launch your first standard token from this wallet."}
             </EmptyDescription>
           </EmptyHeader>
-          <Button asChild>
-            <Link to="/create">Create token</Link>
-          </Button>
+          {!readOnly ? (
+            <Button asChild>
+              <Link to="/create">Create token</Link>
+            </Button>
+          ) : null}
         </Empty>
       ) : (
         <>
@@ -1225,6 +1264,7 @@ function DirectTokensPage({
 
 const REGISTRY_PAGE_SIZE = 20;
 const MAX_REGISTRY_OFFSET = 10_000;
+const REGISTRY_STATUS_POLL_MS = 1_000;
 
 function RegistryTokensPage({
   config,
@@ -1232,20 +1272,25 @@ function RegistryTokensPage({
   scope,
   read,
   readStatus,
+  requestSync,
   enrichBalances,
+  readOnly,
 }: {
   config: AppConfig;
   client: ReturnType<typeof createReadClient>;
   scope: "all" | "mine";
   read: typeof getRegistryTokens;
   readStatus: typeof getRegistryStatus;
+  requestSync: typeof requestRegistrySync;
   enrichBalances: typeof enrichTokenBalances;
+  readOnly: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sort, setSort] = useState<RegistrySort>("newest");
   const [offset, setOffset] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [syncRequestKey, setSyncRequestKey] = useState(0);
   const [page, setPage] = useState<RegistryTokenPage | null>(null);
   const [tokens, setTokens] = useState<CreatedToken[]>([]);
   const [status, setStatus] = useState<RegistryStatus | null>(null);
@@ -1255,6 +1300,7 @@ function RegistryTokensPage({
   const asOfBlock = useRef<string | undefined>(undefined);
   const activeRequest = useRef<AbortController | null>(null);
   const requestId = useRef(0);
+  const syncRequestId = useRef(0);
 
   useEffect(() => {
     if (search === debouncedSearch) return;
@@ -1307,18 +1353,6 @@ function RegistryTokensPage({
         setError(userErrorMessage(reason, "The token registry is unavailable"));
       },
     );
-    void readStatus(config, controller.signal).then(
-      (result) => {
-        if (currentRequestId !== requestId.current) return;
-        setStatus(result);
-        setStatusError(false);
-      },
-      () => {
-        if (currentRequestId !== requestId.current) return;
-        setStatus(null);
-        setStatusError(true);
-      },
-    );
     return () => {
       controller.abort();
       if (activeRequest.current === controller) {
@@ -1339,6 +1373,65 @@ function RegistryTokensPage({
     sort,
   ]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    const currentSyncRequestId = ++syncRequestId.current;
+    let pollTimer: number | undefined;
+    let observedSyncing = false;
+
+    function isCurrent(): boolean {
+      return currentSyncRequestId === syncRequestId.current;
+    }
+    function refreshCompletedSync(): void {
+      asOfBlock.current = undefined;
+      setOffset(0);
+      setRefreshKey((value) => value + 1);
+    }
+    function consumeStatus(
+      result: RegistryStatus,
+      refreshIfIdle: boolean,
+    ): void {
+      if (!isCurrent()) return;
+      setStatus(result);
+      setStatusError(false);
+      if (result.syncing) {
+        observedSyncing = true;
+        pollTimer = window.setTimeout(pollStatus, REGISTRY_STATUS_POLL_MS);
+      } else if (observedSyncing || refreshIfIdle) {
+        refreshCompletedSync();
+      }
+    }
+    async function pollStatus(): Promise<void> {
+      try {
+        consumeStatus(await readStatus(config, controller.signal), false);
+      } catch {
+        if (!isCurrent() || controller.signal.aborted) return;
+        setStatusError(true);
+      }
+    }
+    async function hintSync(): Promise<void> {
+      try {
+        consumeStatus(await requestSync(config, controller.signal), true);
+      } catch {
+        if (!isCurrent() || controller.signal.aborted) return;
+        try {
+          consumeStatus(await readStatus(config, controller.signal), false);
+        } catch {
+          if (!isCurrent() || controller.signal.aborted) return;
+          setStatus(null);
+          setStatusError(true);
+        }
+      }
+    }
+
+    void hintSync();
+    return () => {
+      syncRequestId.current += 1;
+      controller.abort();
+      if (pollTimer !== undefined) window.clearTimeout(pollTimer);
+    };
+  }, [config, readStatus, requestSync, scope, syncRequestKey]);
+
   const isGlobal = scope === "all";
   const hasSearch = debouncedSearch.trim() !== "";
   function cancelCurrentRequest() {
@@ -1353,6 +1446,7 @@ function RegistryTokensPage({
   function refresh() {
     resetSnapshot();
     setRefreshKey((value) => value + 1);
+    setSyncRequestKey((value) => value + 1);
   }
   function changePage(nextOffset: number) {
     cancelCurrentRequest();
@@ -1439,7 +1533,7 @@ function RegistryTokensPage({
                   : "Launch your first standard token from this wallet."}
             </EmptyDescription>
           </EmptyHeader>
-          {!hasSearch ? (
+          {!hasSearch && !readOnly ? (
             <Button asChild>
               <Link to="/create">Create token</Link>
             </Button>

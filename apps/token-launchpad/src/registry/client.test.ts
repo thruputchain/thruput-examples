@@ -144,6 +144,49 @@ describe("registry client", () => {
       ),
     ).resolves.toMatchObject({ total: 0, offset: 20 });
   });
+
+  it("rejects creator-filter violations and duplicate token addresses", async () => {
+    const config = configuration();
+    const creator = toHex0x(config.accountAddress);
+    const page = {
+      tokens: [token(config)],
+      total: 1,
+      limit: 20,
+      offset: 0,
+      asOfBlock: "12",
+      hasMore: false,
+      historyLimited: false,
+    };
+    await expect(
+      getRegistryTokens(
+        config,
+        { creator, sort: "newest", limit: 20, offset: 0 },
+        undefined,
+        vi.fn().mockResolvedValue(
+          jsonResponse({
+            ...page,
+            tokens: [
+              { ...token(config), creatorAddress: `0x${"09".repeat(32)}` },
+            ],
+          }),
+        ),
+      ),
+    ).rejects.toThrow(/creator filter/);
+    await expect(
+      getRegistryTokens(
+        config,
+        { sort: "newest", limit: 20, offset: 0 },
+        undefined,
+        vi.fn().mockResolvedValue(
+          jsonResponse({
+            ...page,
+            tokens: [token(config), token(config)],
+            total: 2,
+          }),
+        ),
+      ),
+    ).rejects.toThrow(/duplicate token address/);
+  });
 });
 
 function token(config = configuration()) {
