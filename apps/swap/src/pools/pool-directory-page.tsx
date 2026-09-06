@@ -262,6 +262,8 @@ function RegistryPoolDirectoryPage({
     const currentRequestId = ++requestId.current;
     setLoading(true);
     setError(null);
+    setPage(null);
+    setEntries([]);
     const normalizedToken = debouncedToken.trim();
     void read(
       config,

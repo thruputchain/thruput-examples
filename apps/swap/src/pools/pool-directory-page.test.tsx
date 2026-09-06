@@ -9,7 +9,10 @@ import type { AppConfig, GlobalConfig } from "@/config";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { readPoolDirectory } from "@/pools/pool-directory";
 import type { RegistryPoolPage, RegistryStatus } from "@/registry/client";
-import { registryPoolsToEntries } from "@/registry/pools";
+import {
+  registryPoolsToEntries,
+  type enrichRegistryPools,
+} from "@/registry/pools";
 import type { PoolSnapshot } from "@/swap/snapshot";
 import { PoolDirectoryPage } from "./pool-directory-page";
 
@@ -225,6 +228,75 @@ describe("PoolDirectoryPage", () => {
     expect(readRegistry.mock.calls[4]?.[1]).not.toHaveProperty("asOfBlock");
     expect(requestSync).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["search", "token", "sort", "page", "refresh"])(
+    "clears displayed results while a replacement %s request is pending",
+    async (change) => {
+      const user = userEvent.setup();
+      let resolveReplacement!: (value: RegistryPoolPage) => void;
+      const readRegistry = vi
+        .fn()
+        .mockResolvedValueOnce({ ...page(), total: 21, hasMore: true })
+        .mockImplementationOnce(
+          () =>
+            new Promise<RegistryPoolPage>((resolve) => {
+              resolveReplacement = resolve;
+            }),
+        );
+      renderPage(
+        { ...globalConfig, registryEnabled: true },
+        {
+          readRegistry,
+          requestSync: vi.fn(() => new Promise<RegistryStatus>(() => {})),
+          enrich: vi.fn<typeof enrichRegistryPools>(async (_config, entries) =>
+            entries.map((entry) => ({
+              ...entry,
+              loading: false,
+              readError: true,
+            })),
+          ),
+        },
+      );
+      expect(
+        await screen.findByRole("link", { name: "View pool" }),
+      ).toBeVisible();
+      expect(
+        await screen.findByText("Some pools could not be loaded"),
+      ).toBeVisible();
+
+      if (change === "search") {
+        await user.type(screen.getByLabelText("Search addresses"), "20");
+      } else if (change === "token") {
+        await user.type(screen.getByLabelText("Contains token"), hex(20));
+      } else if (change === "sort") {
+        await user.selectOptions(screen.getByLabelText("Sort by"), "oldest");
+      } else {
+        await user.click(
+          screen.getByRole("button", {
+            name: change === "page" ? "Next" : "Refresh",
+          }),
+        );
+      }
+      await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(2));
+      expect(screen.queryByRole("link", { name: "View pool" })).toBeNull();
+      expect(screen.queryByText(/Showing /)).toBeNull();
+      expect(screen.queryByText("Some pools could not be loaded")).toBeNull();
+      expect(screen.queryByText("No pools yet")).toBeNull();
+      expect(screen.getByRole("button", { name: "Refreshing" })).toBeDisabled();
+
+      const replacement = page();
+      replacement.pools[0] = {
+        ...replacement.pools[0]!,
+        token0Address: hex(20),
+        token1Address: hex(21),
+      };
+      await act(async () => resolveReplacement(replacement));
+      expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute(
+        "href",
+        `/pools/${hex(20)}/${hex(21)}`,
+      );
+    },
+  );
 
   it("retries a transient status poll failure and refreshes from page one on completion", async () => {
     vi.useFakeTimers();
