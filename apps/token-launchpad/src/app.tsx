@@ -68,6 +68,7 @@ import { userErrorMessage } from "@/errors";
 import { createReadClient } from "@/groundhog/client";
 import { runWorkflow } from "@/launch/executor";
 import { formatUnits, parseTokenDraft, type TokenDraft } from "@/launch/form";
+import { createAmmPoolLink } from "@/launch/swap-link";
 import {
   canDiscardInvalidStoredWorkflow,
   createWorkflow,
@@ -704,6 +705,7 @@ export function ReviewCard({
   writesSupported: boolean;
 }) {
   const parsed = parseTokenDraft(draft).value;
+  const ammPoolLink = createAmmPoolLink(config.swapAppUrl, workflow);
   return (
     <Card className="h-fit lg:sticky lg:top-6">
       <CardHeader>
@@ -888,6 +890,11 @@ export function ReviewCard({
                 <Button className="min-h-12 w-full" variant="outline" asChild>
                   <Link to="/my-tokens">View my tokens</Link>
                 </Button>
+                {ammPoolLink ? (
+                  <Button className="min-h-12 w-full" variant="outline" asChild>
+                    <a href={ammPoolLink}>Create AMM Pool</a>
+                  </Button>
+                ) : null}
               </>
             ) : (
               <>
