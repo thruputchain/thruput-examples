@@ -77,6 +77,26 @@ and runs both production servers and full suites. No permanent browser dependenc
 is added to launchpad. See the
 [acceptance record](../../docs/specs/2026-09-06-cross-app-acceptance.md).
 
+## Explorer Links
+
+Set optional `VITE_EXPLORER_URL` to the explorer's root origin on the same
+network, such as `https://explorer.example.com` or `http://localhost:3001`.
+Absent or blank configuration disables links, but identifiers remain shortened
+with their full values available in tooltips on hover or keyboard focus.
+Remote origins require HTTPS. HTTP is allowed only for exact `localhost`,
+`127.0.0.1`, or `[::1]` hosts. Credentials, paths, queries, fragments, and
+malformed URLs are rejected; a root slash is normalized away.
+
+Addresses (wallets and contracts) open `/address/0x<64 hex digits>` and
+transactions open `/tx/0x<64 hex digits>` in a new tab. Nonces and implementation
+hashes remain unlinked. Copy buttons copy the original full value independently
+of navigation. The same-tab **Create AMM Pool** handoff is independent of this
+setting.
+
+Rebuild production assets after changing this value and supply the same origin
+at runtime. The exact public manifest includes `VITE_EXPLORER_URL` even when
+disabled (as an empty string); missing keys and build/runtime drift are rejected.
+
 ## Local registry
 
 Build the SPA, set the server variables shown in `.env.example`, and start the combined registry and web server:

@@ -22,6 +22,7 @@ import {
   type FactoryReview,
 } from "@/contracts/launchpad-client";
 import * as launchpadClient from "@/contracts/launchpad-client";
+import { registryTokenToCreatedToken } from "@/registry/tokens";
 import {
   createWorkflow,
   loadWorkflow,
@@ -58,6 +59,171 @@ function reviewed(): FactoryReview {
 }
 
 describe("launch review", () => {
+  it("links every typed review identifier and preserves full-value copy success and failure", async () => {
+    const user = userEvent.setup();
+    const config = {
+      ...configuration(),
+      explorerUrl: "https://explorer.test/",
+    };
+    const base = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      reviewed(),
+    );
+    const workflow = {
+      ...base,
+      funding: { status: "committed" as const, hash: `0x${"06".repeat(32)}` },
+      creation: { status: "committed" as const, hash: `0x${"07".repeat(32)}` },
+      createdAddressHex: `0x${"ab".repeat(32)}`,
+    };
+    const { container } = render(
+      <MemoryRouter>
+        <ReviewCard
+          config={config}
+          draft={{ name: "Acorn", symbol: "NUT", decimals: "7", supply: "12" }}
+          review={null}
+          workflow={workflow}
+          loading={false}
+          manualProcessing={false}
+          onAdvance={vi.fn()}
+          onReset={vi.fn()}
+          writesSupported
+        />
+      </MemoryRouter>,
+    );
+    const links = screen
+      .getAllByRole("link")
+      .filter((link) => link.hasAttribute("target"));
+    expect(links).toHaveLength(9);
+    for (const hash of [workflow.funding.hash, workflow.creation.hash]) {
+      expect(
+        links.filter(
+          (link) =>
+            link.getAttribute("href") === `https://explorer.test/tx/${hash}`,
+        ),
+      ).toHaveLength(2);
+    }
+    for (const address of [
+      workflow.predictedAddressHex,
+      workflow.reviewedNativeTokenHex,
+      workflow.createdAddressHex,
+    ]) {
+      expect(
+        links.some(
+          (link) =>
+            link.getAttribute("href") ===
+            `https://explorer.test/address/${address}`,
+        ),
+      ).toBe(true);
+    }
+    for (const label of ["Administrator", "Initial holder"]) {
+      expect(
+        screen.getByText(label).parentElement?.querySelector("a"),
+      ).toHaveAttribute(
+        "href",
+        `https://explorer.test/address/0x${"02".repeat(32)}`,
+      );
+    }
+    for (const label of ["Application nonce", "Implementation hash"]) {
+      expect(
+        screen.getByText(label).parentElement?.querySelector("a"),
+      ).toBeNull();
+    }
+    expect(
+      container.querySelector("button a, a button, button button, [title]"),
+    ).toBeNull();
+    const copy = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(new Error("denied"));
+    try {
+      await user.click(
+        screen.getByRole("button", {
+          name: `Copy Token contract: ${workflow.createdAddressHex}`,
+        }),
+      );
+      expect(copy).toHaveBeenLastCalledWith(workflow.createdAddressHex);
+      expect(screen.getByText("Copied")).toBeInTheDocument();
+      await user.click(
+        screen.getByRole("button", {
+          name: `Copy Token contract: ${workflow.createdAddressHex}`,
+        }),
+      );
+      expect(screen.getByText("Copy failed")).toBeInTheDocument();
+    } finally {
+      copy.mockRestore();
+    }
+  });
+
+  it.each([
+    [false, "all"],
+    [false, "mine"],
+    [true, "all"],
+    [true, "mine"],
+  ] as const)(
+    "links existing directory rows with registry=%s scope=%s",
+    async (registryEnabled, scope) => {
+      const user = userEvent.setup();
+      const token = registryToken();
+      const { container } = render(
+        <MemoryRouter>
+          <TokensPage
+            config={{
+              ...configuration(),
+              registryEnabled,
+              explorerUrl: "https://explorer.test",
+            }}
+            client={{} as never}
+            scope={scope}
+            read={async () => ({
+              tokens: [registryTokenToCreatedToken(token)],
+              truncated: false,
+              historyLimited: false,
+            })}
+            registryRead={async () => registryPage([token])}
+            registryStatus={async () => registryStatus()}
+            registrySync={async () => registryStatus()}
+            enrichBalances={async (_client, _config, tokens) => [...tokens]}
+          />
+        </MemoryRouter>,
+      );
+      await screen.findByText("NUT");
+      const links = screen.getAllByRole("link");
+      expect(links).toHaveLength(2);
+      expect(links.map((link) => link.getAttribute("href"))).toEqual([
+        `https://explorer.test/address/${token.administratorAddress}`,
+        `https://explorer.test/address/${token.tokenAddress}`,
+      ]);
+      expect(container.querySelector("button a, a button")).toBeNull();
+      const copy = vi
+        .spyOn(navigator.clipboard, "writeText")
+        .mockResolvedValueOnce()
+        .mockRejectedValueOnce(new Error("denied"));
+      try {
+        const navigate = vi.fn();
+        container.addEventListener("click", (event) => {
+          if ((event.target as Element).closest("a")) navigate();
+        });
+        await user.click(
+          screen.getByRole("button", { name: "Copy token address" }),
+        );
+        expect(copy).toHaveBeenNthCalledWith(1, token.tokenAddress);
+        expect(screen.getByText("Copied")).toHaveAttribute("role", "status");
+        await user.click(
+          screen.getByRole("button", { name: "Copy token address" }),
+        );
+        expect(copy).toHaveBeenNthCalledWith(2, token.tokenAddress);
+        expect(screen.getByText("Copy failed")).toHaveAttribute(
+          "role",
+          "status",
+        );
+        expect(navigate).not.toHaveBeenCalled();
+      } finally {
+        copy.mockRestore();
+      }
+    },
+  );
   it.each(["complete", "unmount", "replace client"])(
     "freezes a deferred review and rejects stale completion: %s",
     async (action) => {

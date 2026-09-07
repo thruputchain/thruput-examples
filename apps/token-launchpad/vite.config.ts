@@ -6,6 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { loadSwapAppUrl } from "./src/swap-config.ts";
+import { loadExplorerUrl } from "./src/explorer-config.ts";
 
 import {
   createPublicConfigManifest,
@@ -29,6 +30,7 @@ export const PRODUCTION_BROWSER_RPC_URL = "https://same-origin.invalid/";
 export default defineConfig(({ command, isPreview, mode }) => {
   const environment = loadEnv(mode, root, "");
   loadSwapAppUrl(environment.VITE_SWAP_APP_URL);
+  loadExplorerUrl(environment.VITE_EXPLORER_URL);
   const rpcTarget =
     environment.VITE_GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545";
   validateRpcTarget(rpcTarget, {
@@ -58,6 +60,7 @@ export default defineConfig(({ command, isPreview, mode }) => {
       "VITE_STANDARD_TOKEN_HASH",
       "VITE_TOKEN_REGISTRY_ENABLED",
       "VITE_SWAP_APP_URL",
+      "VITE_EXPLORER_URL",
     ],
     define: {
       "import.meta.env.GROUNDHOG_DEV_PERSONAS": developmentPersonasDefinition(

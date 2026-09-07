@@ -2,6 +2,7 @@ import { CheckIcon, ChevronDownIcon, UserRoundIcon } from "lucide-react";
 import { createContext, use, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import {
   Popover,
   PopoverContent,
@@ -70,23 +71,27 @@ export function DevelopmentWalletSwitcher() {
         <Separator />
         <div className="flex flex-col gap-1">
           {wallet.personas.map((persona) => (
-            <Button
-              key={persona.id}
-              variant="ghost"
-              className="h-auto justify-start px-3 py-2"
-              disabled={wallet.isSwitching}
-              onClick={() => void select(persona.id)}
-            >
-              <span className="min-w-0 flex-1 text-left">
-                <span className="block font-medium">{persona.label}</span>
-                <span className="block truncate font-mono text-xs text-muted-foreground">
-                  {short(persona.accountAddressHex)}
+            <div key={persona.id} className="flex flex-col gap-1">
+              <Button
+                variant="ghost"
+                className="h-auto justify-start px-3 py-2"
+                disabled={wallet.isSwitching}
+                onClick={() => void select(persona.id)}
+              >
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block font-medium">{persona.label}</span>
                 </span>
-              </span>
-              {persona.id === wallet.active.id ? (
-                <CheckIcon aria-label="Active wallet" />
-              ) : null}
-            </Button>
+                {persona.id === wallet.active.id ? (
+                  <CheckIcon aria-label="Active wallet" />
+                ) : null}
+              </Button>
+              <div className="px-3 pb-2 text-muted-foreground">
+                <BlockchainIdentifier
+                  kind="address"
+                  value={persona.accountAddressHex}
+                />
+              </div>
+            </div>
           ))}
         </div>
         <Separator />
@@ -98,8 +103,4 @@ export function DevelopmentWalletSwitcher() {
       </PopoverContent>
     </Popover>
   );
-}
-
-function short(value: string): string {
-  return `${value.slice(0, 10)}...${value.slice(-8)}`;
 }

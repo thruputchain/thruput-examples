@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { PersonaApp } from "@/app";
+import { ExplorerProvider } from "@/components/blockchain-identifier";
 import {
   DevelopmentWalletContext,
   DevelopmentWalletSwitcher,
@@ -39,27 +40,42 @@ describe("DevelopmentWalletSwitcher", () => {
   it("shows the active account and switches personas", async () => {
     const switchTo = vi.fn(async () => {});
     render(
-      <DevelopmentWalletContext
-        value={{
-          active: personas[0]!,
-          personas,
-          isSwitching: false,
-          switchError: null,
-          switchTo,
-          readPortfolio: async () => ({
-            hogBalance: 10n,
-            hogDecimals: 0,
-            tokens: [],
-            partial: false,
-          }),
-        }}
-      >
-        <DevelopmentWalletSwitcher />
-      </DevelopmentWalletContext>,
+      <ExplorerProvider explorerUrl="https://explorer.example.test">
+        <DevelopmentWalletContext
+          value={{
+            active: personas[0]!,
+            personas,
+            isSwitching: false,
+            switchError: null,
+            switchTo,
+            readPortfolio: async () => ({
+              hogBalance: 10n,
+              hogDecimals: 0,
+              tokens: [],
+              partial: false,
+            }),
+          }}
+        >
+          <DevelopmentWalletSwitcher />
+        </DevelopmentWalletContext>
+      </ExplorerProvider>,
     );
     await userEvent.click(screen.getByRole("button", { name: /Alice/ }));
     expect(await screen.findByText("Development wallet")).toBeInTheDocument();
     expect(screen.getByText("10")).toBeInTheDocument();
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(3);
+    expect(links[1]).toHaveAttribute(
+      "href",
+      `https://explorer.example.test/address/${personas[1]!.accountAddressHex}`,
+    );
+    expect(
+      document.querySelector("button a, a button, button button"),
+    ).toBeNull();
+    expect(switchTo).not.toHaveBeenCalled();
+    await userEvent.click(links[1]!);
+    expect(switchTo).not.toHaveBeenCalled();
+    expect(screen.getByText("Development wallet")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Bob/ }));
     expect(switchTo).toHaveBeenCalledWith("bob");
   });

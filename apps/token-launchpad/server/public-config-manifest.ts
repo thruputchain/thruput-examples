@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 
 import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../src/runtime.ts";
 import { loadSwapAppUrl } from "../src/swap-config.ts";
+import { loadExplorerUrl } from "../src/explorer-config.ts";
 import {
   canonicalAddress,
   canonicalDecimal,
@@ -22,6 +23,7 @@ export const PUBLIC_CONFIG_KEYS = [
   "VITE_STANDARD_TOKEN_HASH",
   "VITE_TOKEN_REGISTRY_ENABLED",
   "VITE_SWAP_APP_URL",
+  "VITE_EXPLORER_URL",
 ] as const;
 
 type PublicConfigKey = (typeof PUBLIC_CONFIG_KEYS)[number];
@@ -46,6 +48,7 @@ export function createPublicConfigManifest(
   validateRpcUrl(rpcUrl);
   const manifest = {
     VITE_SWAP_APP_URL: loadSwapAppUrl(environment.VITE_SWAP_APP_URL) ?? "",
+    VITE_EXPLORER_URL: loadExplorerUrl(environment.VITE_EXPLORER_URL) ?? "",
     VITE_GROUNDHOG_RPC_URL_SHA256: digestRpcUrl(rpcUrl),
     VITE_GROUNDHOG_NETWORK_ID: required(
       environment,
@@ -178,11 +181,18 @@ function validateManifestFields(manifest: PublicConfigManifest): void {
   for (const key of PUBLIC_CONFIG_KEYS) {
     if (
       typeof manifest[key] !== "string" ||
-      (manifest[key] === "" && key !== "VITE_SWAP_APP_URL")
+      (manifest[key] === "" &&
+        key !== "VITE_SWAP_APP_URL" &&
+        key !== "VITE_EXPLORER_URL")
     ) {
       throw new PublicConfigManifestError(`${key} must be a nonempty string`);
     }
   }
+  validate(
+    manifest.VITE_EXPLORER_URL ===
+      (loadExplorerUrl(manifest.VITE_EXPLORER_URL) ?? ""),
+    "VITE_EXPLORER_URL must be canonical",
+  );
   validate(
     manifest.VITE_SWAP_APP_URL ===
       (loadSwapAppUrl(manifest.VITE_SWAP_APP_URL) ?? ""),
