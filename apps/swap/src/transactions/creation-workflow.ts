@@ -1,4 +1,4 @@
-import { toHex0x } from "@groundhogchain/client";
+import { addressFromHex, toHex0x } from "@groundhogchain/client";
 
 import type { GlobalConfig } from "@/config";
 import type { PoolCreationReview } from "@/pools/pool-creation";
@@ -155,6 +155,18 @@ export function saveCreationWorkflow(
   return workflow;
 }
 
+export function sameCreationIntent(left: CreationWorkflow, right: CreationWorkflow): boolean {
+  return ([
+    "networkIdHex", "accountAddress", "factoryAddress", "routerAddress", "nativeHogAddress",
+    "fundingMinimum", "fundingPerContract", "totalFunding",
+  ] as const).every((key) => left[key] === right[key])
+    && (["token0", "token1"] as const).every((token) =>
+      (["address", "name", "symbol", "decimals", "amount"] as const).every((key) =>
+        left[token][key] === right[token][key]
+      )
+    );
+}
+
 export function loadCreationWorkflow(
   config: GlobalConfig,
   token0Address: string,
@@ -204,7 +216,11 @@ export function archiveCreationWorkflow(
   if (stored === undefined || !canArchiveCreationWorkflow(stored)) {
     throw new CreationWorkflowError();
   }
-  return saveCreationWorkflow(config, {
+  return saveCreationWorkflow({
+    ...config,
+    factoryAddress: addressFromHex(stored.factoryAddress),
+    routerAddress: addressFromHex(stored.routerAddress),
+  }, {
     ...stored,
     status: "archived",
     updatedAt: Date.now(),

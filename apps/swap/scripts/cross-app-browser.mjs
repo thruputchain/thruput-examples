@@ -181,10 +181,10 @@ export async function browserJourney({
     assert.equal(row?.symbol, symbol);
     assert.equal(row?.decimals, 6);
     await page
-      .getByRole("button", { name: "Search Token A", exact: true })
+      .getByRole("button", { name: "Search tokens for Token A", exact: true })
       .click();
     const input = page.getByRole("combobox", {
-      name: "Search Token A",
+      name: "Search tokens for Token A",
       exact: true,
     });
     const response = page.waitForResponse(
@@ -242,10 +242,10 @@ export async function browserJourney({
   );
   await outage();
   await page
-    .getByRole("button", { name: "Search Token B", exact: true })
+    .getByRole("button", { name: "Search tokens for Token B", exact: true })
     .click();
   await page
-    .getByRole("combobox", { name: "Search Token B", exact: true })
+    .getByRole("combobox", { name: "Search tokens for Token B", exact: true })
     .fill(counter);
   await page
     .getByText("Token discovery is unavailable. Try again or use an address.", {

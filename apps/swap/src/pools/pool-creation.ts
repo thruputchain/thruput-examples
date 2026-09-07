@@ -15,7 +15,7 @@ import {
 } from "@/contracts/factory-adapter";
 import { parseAmount } from "@/domain/amount";
 import { orderTokens } from "@/domain/tokens";
-import { createNetworkReadClient, verifyReadNetwork } from "@/groundhog/client";
+import { createNetworkReadClient, NetworkMismatchError, verifyReadNetwork } from "@/groundhog/client";
 
 const MINIMUM_LIQUIDITY = 1_000n;
 const MAX_COHERENCE_ATTEMPTS = 3;
@@ -83,6 +83,13 @@ export interface PoolCreationDependencies {
   existingPool?: PoolAddresses;
 }
 
+export class PoolCreationNetworkError extends Error {
+  constructor(cause: unknown) {
+    super("The RPC network could not be verified. Check the connection and retry.", { cause });
+    this.name = "PoolCreationNetworkError";
+  }
+}
+
 export async function preparePoolCreation(
   config: GlobalConfig,
   input: PoolCreationInput,
@@ -93,8 +100,14 @@ export async function preparePoolCreation(
   const ordered = orderTokens(inputTokenA, inputTokenB);
   const token0Input = ordered.inputIndex === 0 ? input.amountA : input.amountB;
   const token1Input = ordered.inputIndex === 0 ? input.amountB : input.amountA;
-  const client = dependencies.client ?? await createNetworkReadClient(config);
-  await verifyReadNetwork(client, config);
+  let client: NonNullable<PoolCreationDependencies["client"]>;
+  try {
+    client = dependencies.client ?? await createNetworkReadClient(config);
+    await verifyReadNetwork(client, config);
+  } catch (error) {
+    if (error instanceof NetworkMismatchError) throw error;
+    throw new PoolCreationNetworkError(error);
+  }
   const factory = dependencies.factory ?? createSwapFactoryReadAdapter({
     client,
     contract: config.factoryAddress,

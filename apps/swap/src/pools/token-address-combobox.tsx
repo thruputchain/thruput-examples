@@ -114,7 +114,7 @@ export function TokenAddressCombobox({
           <Button
             type="button"
             variant="outline"
-            aria-label={`Search ${label}`}
+            aria-label={`Search tokens for ${label}`}
           >
             Search tokens
           </Button>
@@ -124,9 +124,9 @@ export function TokenAddressCombobox({
           aria-label={`Choose ${label}`}
           className="w-96 max-w-[calc(100vw-2rem)] p-0"
         >
-          <Command shouldFilter={false} label={`Search ${label}`}>
+          <Command shouldFilter={false} label={`Search tokens for ${label}`}>
             <CommandInput
-              aria-label={`Search ${label}`}
+              aria-label={`Search tokens for ${label}`}
               placeholder="Name, symbol, or address"
               value={query}
               onValueChange={setQuery}

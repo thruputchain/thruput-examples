@@ -120,12 +120,12 @@ try {
     true,
   );
   const trigger = page.getByRole("button", {
-    name: "Search Token B",
+    name: "Search tokens for Token B",
     exact: true,
   });
   await trigger.tap();
   const search = page.getByRole("combobox", {
-    name: "Search Token B",
+    name: "Search tokens for Token B",
     exact: true,
   });
   await search.waitFor();
@@ -158,14 +158,14 @@ try {
   assert.equal(await addresses.nth(1).inputValue(), b);
   await page.waitForFunction(
     () =>
-      document.activeElement?.getAttribute("aria-label") === "Search Token B",
+      document.activeElement?.getAttribute("aria-label") === "Search tokens for Token B",
   );
   assert.equal(page.url(), url);
   await trigger.click();
   await search.press("Escape");
   await page.waitForFunction(
     () =>
-      document.activeElement?.getAttribute("aria-label") === "Search Token B",
+      document.activeElement?.getAttribute("aria-label") === "Search tokens for Token B",
   );
 
   unavailable = true;

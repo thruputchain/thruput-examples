@@ -66,6 +66,28 @@ describe("creation workflow", () => {
     const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
     expect(archiveCreationWorkflow(config, workflow).status).toBe("archived");
   });
+
+  it("archives obsolete deployments without loosening normal saves or account scope", () => {
+    const oldConfig = { ...config, factoryAddress: address(17), routerAddress: address(18) };
+    const workflow = saveCreationWorkflow(oldConfig, createCreationWorkflow(oldConfig, review()));
+    expect(() => saveCreationWorkflow(config, workflow)).toThrow();
+    expect(() => archiveCreationWorkflow({ ...config, accountAddress: address(19) }, workflow)).toThrow();
+    expect(() => archiveCreationWorkflow({ ...config, networkIdHex: "01".repeat(32) }, workflow)).toThrow();
+    const archived = archiveCreationWorkflow(config, workflow);
+    expect(loadCreationWorkflow(oldConfig, hex(1), hex(2))).toEqual(archived);
+    expect(archived).toMatchObject({ status: "archived", factoryAddress: hex(17), routerAddress: hex(18) });
+    expect(reservedCreationHog([archived])).toBe(0n);
+    expect(loadCreationWorkflow(config, hex(1), hex(2))).toBeNull();
+  });
+
+  it.each(["signing", "indeterminate"] as const)("preserves obsolete %s exposure", (status) => {
+    const oldConfig = { ...config, factoryAddress: address(17) };
+    const workflow = createCreationWorkflow(oldConfig, review());
+    workflow.steps.enqueue.status = status;
+    saveCreationWorkflow(oldConfig, workflow);
+    expect(() => archiveCreationWorkflow(config, workflow)).toThrow();
+    expect(loadCreationWorkflow(oldConfig, hex(1), hex(2))).toEqual(workflow);
+  });
 });
 
 function review(): PoolCreationReview {

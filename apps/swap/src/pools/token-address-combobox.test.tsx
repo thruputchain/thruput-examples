@@ -70,11 +70,11 @@ describe("token address combobox", () => {
   it("opens newest suggestions, navigates by keyboard, selects and returns focus", async () => {
     const user = userEvent.setup();
     render(<Control />);
-    const trigger = screen.getByRole("button", { name: "Search Token A" });
+    const trigger = screen.getByRole("button", { name: "Search tokens for Token A" });
     trigger.focus();
     await user.keyboard("{Enter}");
     expect(
-      screen.getByRole("combobox", { name: "Search Token A" }),
+      screen.getByRole("combobox", { name: "Search tokens for Token A" }),
     ).toHaveFocus();
     await screen.findAllByRole("option");
     expect(getDiscoveryTokens).toHaveBeenCalledWith(
@@ -99,7 +99,7 @@ describe("token address combobox", () => {
     });
     const user = userEvent.setup();
     render(<Control initial={a} other={b} />);
-    await user.click(screen.getByRole("button", { name: "Search Token A" }));
+    await user.click(screen.getByRole("button", { name: "Search tokens for Token A" }));
     fireEvent.change(screen.getByRole("combobox"), {
       target: { value: "creator not in labels" },
     });
@@ -120,7 +120,7 @@ describe("token address combobox", () => {
       vi.mocked(getDiscoveryTokens).mockRejectedValue(new Error("offline"));
       const user = userEvent.setup();
       render(<Control enabled={enabled} />);
-      await user.click(screen.getByRole("button", { name: "Search Token A" }));
+      await user.click(screen.getByRole("button", { name: "Search tokens for Token A" }));
       fireEvent.change(screen.getByRole("combobox"), { target: { value: a } });
       if (enabled)
         expect(
@@ -144,7 +144,7 @@ describe("token address combobox", () => {
       "aria-invalid",
       "true",
     );
-    await user.click(screen.getByRole("button", { name: "Search Token A" }));
+    await user.click(screen.getByRole("button", { name: "Search tokens for Token A" }));
     fireEvent.change(screen.getByRole("combobox"), {
       target: { value: `0x${"0".repeat(64)}` },
     });
@@ -168,7 +168,7 @@ describe("token address combobox", () => {
         }),
     );
     render(<Control />);
-    await user.click(screen.getByRole("button", { name: "Search Token A" }));
+    await user.click(screen.getByRole("button", { name: "Search tokens for Token A" }));
     await waitFor(() => expect(getDiscoveryTokens).toHaveBeenCalledTimes(1));
     const oldSignal = vi.mocked(getDiscoveryTokens).mock.calls[0]![2]!;
     vi.useFakeTimers();

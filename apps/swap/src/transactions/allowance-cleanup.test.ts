@@ -3,6 +3,12 @@ import { contractAddress } from "@groundhogchain/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
+import { createNetworkReadClient } from "@/groundhog/client";
+
+vi.mock("@/groundhog/client", async (original) => ({
+  ...await original<object>(),
+  createNetworkReadClient: vi.fn(),
+}));
 import { loadCleanupAllowanceRequirement } from "./account-allowance";
 import {
   dismissTerminalRequest,
@@ -37,7 +43,12 @@ const config = {
 } satisfies AppConfig;
 
 describe("allowance cleanup", () => {
-  beforeEach(() => window.localStorage.clear());
+  beforeEach(() => {
+    window.localStorage.clear();
+    vi.mocked(createNetworkReadClient).mockReset().mockResolvedValue({
+      getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }),
+    } as never);
+  });
 
   it("persists before signing and removes confirmed excess", async () => {
     const execute = vi.fn(async (_target, observer) => {
@@ -142,6 +153,63 @@ describe("allowance cleanup", () => {
 
     expect(loadCleanupAllowanceRequirement(config, hex(1), hex(12)))
       .toEqual({ requiredAllowance: 0n, minimumReadHeight: 12n });
+  });
+
+  it.each([false, true])("preserves cleanup evidence on network mismatch (recovery: %s)", async (recovery) => {
+    const record = {
+      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
+      tokenAddress: hex(6), spenderAddress: hex(7), status: "indeterminate",
+      transactionHash: hex(40), difference: "-300", updatedAt: 10,
+    };
+    if (recovery) window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify(record));
+    vi.mocked(createNetworkReadClient).mockResolvedValue({
+      getNetworkInfo: async () => ({ networkHash: new Uint8Array(32).fill(1) }),
+    } as never);
+    const execute = vi.fn();
+    const observe = vi.fn();
+    const readAllowance = vi.fn(async () => ({ value: 0n, height: 12n }));
+    await expect(runAllowanceCleanup(config, address(6), address(7), {
+      writeBoundary: { execute, observe }, readAllowance,
+    })).rejects.toThrow("different Groundhog network");
+    expect(execute).not.toHaveBeenCalled();
+    expect(observe).not.toHaveBeenCalled();
+    expect(readAllowance).not.toHaveBeenCalled();
+    expect(loadAllowanceCleanup(config)).toEqual(recovery ? record : null);
+  });
+
+  it("does not accept a zero allowance when the network changes during the read", async () => {
+    vi.mocked(createNetworkReadClient).mockResolvedValue({
+      getNetworkInfo: vi.fn()
+        .mockResolvedValueOnce({ networkHash: new Uint8Array(32) })
+        .mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) }),
+    } as never);
+    const execute = vi.fn();
+    await expect(runAllowanceCleanup(config, address(6), address(7), {
+      writeBoundary: { execute },
+      readAllowance: async () => ({ value: 0n, height: 12n }),
+    })).rejects.toThrow("different Groundhog network");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("preserves a signed cleanup hash if the network changes while observing it", async () => {
+    const record = {
+      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
+      tokenAddress: hex(6), spenderAddress: hex(7), status: "signing",
+      transactionHash: hex(40), difference: "-300", updatedAt: 10,
+    };
+    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify(record));
+    vi.mocked(createNetworkReadClient).mockResolvedValue({
+      getNetworkInfo: vi.fn()
+        .mockResolvedValueOnce({ networkHash: new Uint8Array(32) })
+        .mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) }),
+    } as never);
+    const execute = vi.fn();
+    const observe = vi.fn().mockResolvedValue({ kind: "committedSuccess", hash: hex(40), receipt: {} });
+    await expect(runAllowanceCleanup(config, address(6), address(7), {
+      writeBoundary: { execute, observe }, readAllowance: vi.fn(),
+    })).rejects.toThrow("different Groundhog network");
+    expect(loadAllowanceCleanup(config)).toEqual(record);
+    expect(execute).not.toHaveBeenCalled();
   });
 });
 

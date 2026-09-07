@@ -7,6 +7,7 @@ import type { Erc20ReadAdapter } from "@/contracts/erc20-adapter";
 import type { PoolAddresses, SwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
 import { PoolCreated } from "@/contracts/generated/swap-factory";
+import * as readClient from "@/groundhog/client";
 import type { PoolCreationDependencies, PoolCreationReview } from "@/pools/pool-creation";
 import {
   confirmCreationStepWasNotSigned,
@@ -139,6 +140,64 @@ describe("creation executor", () => {
     expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(reset);
   });
 
+  it.each(["amount", "funding"])("rejects a changed persisted %s intent before signing", async (intent) => {
+    const workflow = createCreationWorkflow(config, review());
+    const saved = structuredClone(workflow);
+    if (intent === "amount") saved.token0.amount = "9000";
+    else {
+      saved.fundingPerContract = "200";
+      saved.totalFunding = "600";
+    }
+    saveCreationWorkflow(config, saved);
+    const execute = vi.fn();
+    await expect(runCreationWorkflow(config, workflow, {
+      ...dependencies({ created: false, fundingAllowance: 0n }),
+      writeBoundary: { execute },
+    })).rejects.toThrow("saved creation intent changed");
+    expect(execute).not.toHaveBeenCalled();
+    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(saved);
+  });
+
+  it.each(["observation", "crank", "crankAfterScan", "funded"])("preserves %s recovery on a network mismatch", async (phase) => {
+    const workflow = createCreationWorkflow(config, review());
+    if (phase === "observation") {
+      workflow.steps.approveFunding.status = "indeterminate";
+      workflow.steps.approveFunding.transactionHash = hex(40);
+    } else if (phase === "funded") {
+      workflow.steps.approveFunding = {
+        ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "7",
+      };
+    } else {
+      workflow.pool = { liquidityToken: hex(21), handler: hex(22), driver: hex(23) };
+      workflow.status = "queued";
+      workflow.requestId = hex(60);
+      workflow.enqueueReceiptBlock = "7";
+      for (const name of ["approveFunding", "createPool", "approveToken0", "approveToken1", "enqueue"] as const) {
+        workflow.steps[name] = {
+          ...workflow.steps[name], status: "committed", transactionHash: hex(40), receiptBlock: "7",
+        };
+      }
+    }
+    saveCreationWorkflow(config, workflow);
+    const deps = dependencies({ created: phase === "crank", fundingAllowance: 300n });
+    vi.mocked(deps.client.getNetworkInfo).mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) } as never);
+    if (phase === "crankAfterScan") {
+      vi.mocked(deps.client.getNetworkInfo)
+        .mockResolvedValueOnce({ networkHash: new Uint8Array(32) } as never)
+        .mockResolvedValueOnce({ networkHash: new Uint8Array(32) } as never);
+    }
+    const execute = vi.fn();
+    const observe = vi.fn();
+    const observeQueued = vi.fn(async () => workflow);
+    await expect(runCreationWorkflow(config, workflow, {
+      ...deps, writeBoundary: { execute, observe }, observeQueued,
+    })).rejects.toThrow("different Groundhog network");
+    expect(execute).not.toHaveBeenCalled();
+    expect(observe).not.toHaveBeenCalled();
+    expect(observeQueued).toHaveBeenCalledTimes(phase === "crankAfterScan" ? 1 : 0);
+    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+  });
+
   it("blocks creation while any account crank is unresolved", async () => {
     saveCrankAttempt(poolConfig, {
       ...createCrankAttempt(poolConfig),
@@ -153,6 +212,74 @@ describe("creation executor", () => {
       writeBoundary: { execute },
     })).rejects.toThrow("queue-processing transaction");
     expect(execute).not.toHaveBeenCalled();
+  });
+
+  it.each(["mismatch", "fetch", "timeout", "abort", "malformed"])(
+    "preserves funded recovery after %s network verification failure and retries successfully",
+    async (failure) => {
+      const workflow = createCreationWorkflow(config, review(), 10);
+      workflow.steps.approveFunding = {
+        ...workflow.steps.approveFunding,
+        status: "committed",
+        transactionHash: hex(40),
+        receiptBlock: "7",
+      };
+      saveCreationWorkflow(config, workflow);
+      const state = { created: false, fundingAllowance: 300n };
+      const deps = dependencies(state);
+      vi.mocked(deps.client.getNetworkInfo).mockImplementationOnce(async () => {
+        if (failure === "fetch") throw new TypeError("fetch failed");
+        if (failure === "timeout") throw new DOMException("Network request timed out", "TimeoutError");
+        if (failure === "abort") throw new DOMException("The operation was aborted", "AbortError");
+        if (failure === "malformed") return {} as never;
+        return { networkHash: new Uint8Array(32).fill(1) } as never;
+      });
+      const execute = vi.fn(async () => {
+        if (!state.created) {
+          state.created = true;
+          return committed(12n, [poolCreatedEvent()]);
+        }
+        return committed(13n, [acceptedEvent(new Uint8Array(32).fill(60))]);
+      });
+      const onUpdate = vi.fn();
+      const options = { ...deps, writeBoundary: { execute }, onUpdate, automaticProcessing: false };
+
+      await expect(runCreationWorkflow(config, workflow, options)).rejects.toThrow();
+      expect(execute).not.toHaveBeenCalled();
+      expect(onUpdate).not.toHaveBeenCalled();
+      expect(deps.factory.poolFunding).not.toHaveBeenCalled();
+      expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+
+      const recovered = await runCreationWorkflow(config, workflow, options);
+      expect(recovered.status).toBe("queued");
+      expect(recovered.steps.approveFunding).toEqual(workflow.steps.approveFunding);
+      expect(recovered.steps.createPool.status).toBe("committed");
+      expect(execute).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([
+    new TypeError("fetch failed"),
+    new DOMException("Network request timed out", "TimeoutError"),
+    new DOMException("The operation was aborted", "AbortError"),
+  ])("preserves funded recovery when network client initialization rejects with %s", async (failure) => {
+    const workflow = createCreationWorkflow(config, review(), 10);
+    workflow.steps.approveFunding = {
+      ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "7",
+    };
+    saveCreationWorkflow(config, workflow);
+    const deps = dependencies({ created: false, fundingAllowance: 300n });
+    const connect = vi.spyOn(readClient, "createNetworkReadClient").mockRejectedValueOnce(failure);
+    const execute = vi.fn();
+    try {
+      await expect(runCreationWorkflow(config, workflow, {
+        factory: deps.factory, token: deps.token, writeBoundary: { execute },
+      })).rejects.toThrow();
+      expect(execute).not.toHaveBeenCalled();
+      expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+    } finally {
+      connect.mockRestore();
+    }
   });
 
   it("records a race without submitting when the pool already exists", async () => {
@@ -232,6 +359,23 @@ describe("creation executor", () => {
     expect(result.status).toBe("failed");
     expect(result.steps.approveFunding.status).toBe("committed");
     expect(result.steps.createPool.status).toBe("failed");
+  });
+
+  it("does not reclassify contract-read errors as network verification failures", async () => {
+    const workflow = createCreationWorkflow(config, review(), 10);
+    workflow.steps.approveFunding = {
+      ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "7",
+    };
+    saveCreationWorkflow(config, workflow);
+    const deps = dependencies({ created: false, fundingAllowance: 300n });
+    vi.mocked(deps.factory.poolFunding).mockRejectedValue(new TypeError("Invalid factory response"));
+    const execute = vi.fn();
+
+    const result = await runCreationWorkflow(config, workflow, { ...deps, writeBoundary: { execute } });
+    expect(result.status).toBe("failed");
+    expect(result.steps.createPool).toMatchObject({ status: "failed", message: "Invalid factory response" });
+    expect(result.steps.approveFunding).toEqual(workflow.steps.approveFunding);
+    expect(execute).not.toHaveBeenCalled();
   });
 });
 

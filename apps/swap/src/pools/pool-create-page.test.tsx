@@ -16,6 +16,7 @@ import {
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
 import { unavailableWriteBoundary } from "@/transactions/write-boundary";
+import { allowanceCleanupKey, loadAllowanceCleanup } from "@/transactions/allowance-cleanup";
 import { PoolCreatePage } from "./pool-create-page";
 import { createNetworkReadClient, NetworkMismatchError } from "@/groundhog/client";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
@@ -40,6 +41,72 @@ describe("PoolCreatePage", () => {
     config.registryEnabled = false;
     vi.mocked(createNetworkReadClient).mockReset().mockResolvedValue({ getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) } as never);
     vi.mocked(createErc20ReadAdapter).mockReset().mockReturnValue({ metadata: vi.fn().mockResolvedValue({ name: { value: "Live token" }, symbol: { value: "LIVE" }, decimals: { value: 6 } }) } as never);
+  });
+
+  it.each(["amount", "funding"])("loads a concurrent %s intent without executing it", async (intent) => {
+    const user = userEvent.setup();
+    const run = vi.fn();
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    await screen.findByRole("button", { name: "Create pool" });
+    const saved = createCreationWorkflow(config, review());
+    if (intent === "amount") saved.token0.amount = "9000";
+    else {
+      saved.fundingPerContract = "200";
+      saved.totalFunding = "600";
+    }
+    saveCreationWorkflow(config, saved);
+    await user.click(screen.getByRole("button", { name: "Create pool" }));
+    expect(await screen.findByText(/saved creation appeared in another tab/)).toBeVisible();
+    expect(run).not.toHaveBeenCalled();
+    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(saved);
+    expect(screen.getByRole("button", { name: "Continue creation" })).toBeEnabled();
+  });
+
+  it.each([false, true])("freezes queued execution and cancels on unmount: %s", async (unmount) => {
+    const user = userEvent.setup();
+    const run = vi.fn(async (_config, current) => current);
+    const page = renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    await screen.findByRole("button", { name: "Create pool" });
+    let release!: () => void;
+    const lock = vi.spyOn(navigator.locks, "request").mockImplementationOnce((_name, _options, action) =>
+      new Promise((resolve, reject) => {
+        release = () => Promise.resolve(action!({} as Lock)).then(resolve, reject);
+      }) as never,
+    );
+    await user.click(screen.getByRole("button", { name: "Create pool" }));
+    for (const input of [...screen.getAllByLabelText("Contract address"), ...screen.getAllByLabelText("Initial amount")]) {
+      expect(input).toBeDisabled();
+    }
+    expect(screen.getByRole("button", { name: "Search tokens for Token A" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Manual queue processing" })).toBeDisabled();
+    if (unmount) page.unmount();
+    await act(async () => release());
+    expect(run).toHaveBeenCalledTimes(unmount ? 0 : 1);
+    expect(loadCreationWorkflow(config, hex(1), hex(2)) === null).toBe(unmount);
+    lock.mockRestore();
+  });
+
+  it.each([null, hex(42)])("recovers account cleanup without clearing hash evidence: %s", async (transactionHash) => {
+    const user = userEvent.setup();
+    const record = {
+      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
+      tokenAddress: hex(6), spenderAddress: hex(7), status: "signing",
+      transactionHash, difference: "-300", updatedAt: 10,
+    };
+    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify(record));
+    renderPage({});
+    const confirm = screen.queryByRole("button", { name: "Confirm allowance cleanup was not signed" });
+    if (transactionHash === null) {
+      expect(confirm).toBeVisible();
+      await user.click(confirm!);
+      await waitFor(() => expect(loadAllowanceCleanup(config)).toBeNull());
+    } else {
+      expect(confirm).toBeNull();
+      expect(screen.getByText(/must be observed before continuing/)).toBeVisible();
+      expect(loadAllowanceCleanup(config)).toEqual(record);
+    }
   });
 
   it("reviews the canonical creation intent before persisting and running", async () => {
@@ -75,6 +142,70 @@ describe("PoolCreatePage", () => {
     );
     expect(loadCreationWorkflow(config, hex(1), hex(2))).not.toBeNull();
     expect(await screen.findByText("race")).toBeVisible();
+  });
+
+  it("does not let stale cleanup confirmation erase a hash added in another tab", async () => {
+    const user = userEvent.setup();
+    const record = {
+      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
+      tokenAddress: hex(6), spenderAddress: hex(7), status: "signing",
+      transactionHash: null, difference: "-300", updatedAt: 10,
+    };
+    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify(record));
+    renderPage({});
+    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify({ ...record, transactionHash: hex(42) }));
+    await user.click(screen.getByRole("button", { name: "Confirm allowance cleanup was not signed" }));
+    expect(await screen.findByText("The allowance cleanup has a transaction hash and must be observed")).toBeVisible();
+    expect(loadAllowanceCleanup(config)?.transactionHash).toBe(hex(42));
+    expect(screen.queryByRole("button", { name: "Confirm allowance cleanup was not signed" })).toBeNull();
+  });
+
+  it("preserves failed creation on cleanup network mismatch and permits verified retry", async () => {
+    const user = userEvent.setup();
+    const workflow = createCreationWorkflow(config, review());
+    workflow.status = "failed";
+    workflow.steps.approveFunding = {
+      ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "11",
+    };
+    workflow.steps.createPool.status = "failed";
+    saveCreationWorkflow(config, workflow);
+    const execute = vi.fn();
+    const readFactoryAllowance = vi.fn(async () => ({ value: 0n, height: 12n }));
+    renderPage({ writer: { execute }, readFactoryAllowance });
+    vi.mocked(createNetworkReadClient).mockRejectedValueOnce(new NetworkMismatchError());
+    await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
+    expect(await screen.findByText(/different Groundhog network/)).toBeVisible();
+    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+    expect(readFactoryAllowance).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
+    await waitFor(() => expect(loadCreationWorkflow(config, hex(1), hex(2))?.status).toBe("archived"));
+    expect(screen.getByRole("button", { name: "Start another pool" })).toBeVisible();
+  });
+
+  it("observes interrupted factory cleanup by hash without signing again", async () => {
+    const user = userEvent.setup();
+    const workflow = createCreationWorkflow(config, review());
+    workflow.status = "failed";
+    workflow.steps.approveFunding = {
+      ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "11",
+    };
+    workflow.steps.createPool.status = "failed";
+    saveCreationWorkflow(config, workflow);
+    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify({
+      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
+      tokenAddress: hex(6), spenderAddress: hex(7), status: "signing",
+      transactionHash: hex(42), difference: "-300", updatedAt: 10,
+    }));
+    const execute = vi.fn();
+    const observe = vi.fn().mockResolvedValue({ kind: "committedSuccess", hash: hex(42), receipt: {} });
+    renderPage({ writer: { execute, observe } });
+    await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
+    await waitFor(() => expect(loadCreationWorkflow(config, hex(1), hex(2))?.status).toBe("archived"));
+    expect(observe).toHaveBeenCalledWith(hex(42));
+    expect(execute).not.toHaveBeenCalled();
+    expect(loadAllowanceCleanup(config)).toBeNull();
+    expect(screen.queryByText("Pending allowance cleanup")).toBeNull();
   });
 
   it("requires explicit confirmation for a restored pre-hash signing step", async () => {
