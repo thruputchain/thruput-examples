@@ -94,7 +94,7 @@ Registry-enabled builds validate every listed `VITE_*` value and emit a public c
 
 `TOKEN_REGISTRY_SYNC_INTERVAL_MS` defaults to `5000` and must be at least `1000`. `TOKEN_REGISTRY_PAGE_SIZE` defaults to `200` and must not exceed `500`.
 
-Add `GITHUB_PACKAGES_TOKEN` as a Railway build secret with `read:packages` access. `.npmrc` substitutes that environment variable and contains no token. Use the commands declared in `railway.json`:
+Configure npm authentication in the build environment before dependency installation using the platform's secret-backed npm configuration and a GitHub token with `read:packages` access. Setting `GITHUB_PACKAGES_TOKEN` alone does not configure npm authentication. The project `.npmrc` contains only registry and install policies, so local installs use credentials from your user-level `~/.npmrc`. Use the commands declared in `railway.json`:
 
 ```text
 Build: npm run build:production

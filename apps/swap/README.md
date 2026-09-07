@@ -157,7 +157,7 @@ Configure Railway with `apps/swap` as the root directory and `/apps/swap/railway
 
 When `RAILWAY_ENVIRONMENT_ID` is present, the server trusts Railway's [documented client remote-IP header](https://docs.railway.com/networking/public-networking/specs-and-limits#technical-specifications), `X-Real-IP`, for per-client RPC limits. It accepts exactly one valid IPv4 or IPv6 address and never trusts `X-Forwarded-For`. Outside Railway it ignores forwarding headers and limits by the socket peer address.
 
-The `@groundhogchain` packages require `GITHUB_PACKAGES_TOKEN` with `read:packages` during installation. `.npmrc` reads the token from the environment and does not contain a credential.
+The `@groundhogchain` packages require a GitHub token with `read:packages` during installation. Configure npm authentication in the build environment before dependency installation using the platform's secret-backed npm configuration. Setting `GITHUB_PACKAGES_TOKEN` alone does not configure npm authentication. The project `.npmrc` contains only registry and install policies, so local installs use credentials from your user-level `~/.npmrc`.
 
 Backups must preserve WAL consistency. Use SQLite's backup mechanism, or stop the service before copying the database, `-wal`, and `-shm` files together. A network or factory scope mismatch is intentionally fatal: restore matching configuration/database state or start with a fresh database; do not edit registry scope metadata.
 
