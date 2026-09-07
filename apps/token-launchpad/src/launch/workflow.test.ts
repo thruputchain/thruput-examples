@@ -262,6 +262,7 @@ export class MemoryStorage implements Pick<Storage, "getItem" | "setItem"> {
 export function configuration(): AppConfig {
   return {
     rpcUrl: new URL("http://127.0.0.1:9545"),
+    registryEnabled: false,
     networkIdHex: "01".repeat(32),
     accountAddress: contractAddress(new Uint8Array(32).fill(2)),
     factoryAddress: contractAddress(new Uint8Array(32).fill(3)),

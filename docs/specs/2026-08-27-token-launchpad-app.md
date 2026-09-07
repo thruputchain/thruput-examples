@@ -22,7 +22,7 @@ This is example software for a local Groundhog node. It is not production wallet
 - Require the configured local factory to have no creation fee.
 - Persist enough workflow state to recover after refresh, tab closure, or an indeterminate submission.
 - Verify the returned address, `TokenCreated` event, metadata, total supply, and initial-holder balance.
-- Show all tokens created by the current factory and a creator-filtered view for the active wallet.
+- Show all discoverable tokens created by the current factory and a creator-filtered view for the active wallet.
 - Reuse the swap app's three-persona wallet switcher and visual language.
 
 ## 3. Non-Goals
@@ -34,7 +34,7 @@ This is example software for a local Groundhog node. It is not production wallet
 - Managing minting, burning, transfers, or allowances after launch.
 - Deploying or initializing a production factory.
 - Guaranteeing atomic HOG funding and token creation with the pinned DevWallet.
-- A global token registry beyond events emitted by the configured factory.
+- A registry spanning multiple networks or factories.
 
 ## 4. Users and Personas
 
@@ -126,16 +126,16 @@ After verification, show:
 
 Routes: `/tokens` and `/my-tokens`.
 
-The global `/tokens` directory queries `TokenCreated` events for the configured factory. `/my-tokens` applies the active-wallet creator topic. Both display newest first. Each item shows:
+The global `/tokens` directory queries `TokenCreated` events for the configured factory. `/my-tokens` applies the active-wallet creator topic. When the persistent registry specified in [Token Launchpad Persistent Registry](./2026-09-05-token-launchpad-persistent-registry.md) is enabled, these pages query its paginated chain-derived index instead of rescanning event history in each browser. Each item shows:
 
-- Symbol, name, and decimals from current token views.
+- Symbol, name, and decimals from current token views in direct-chain mode or the canonical creation event in registry mode.
 - Token address.
 - Initial supply from the event.
 - Current active-wallet balance.
 - Administrator.
 - Creation block height.
 
-Use shadcn `Empty`, `Skeleton`, `Alert`, `Badge`, and `Button` components for empty, loading, partial-failure, and refresh states. Fetch at most the latest 100 events. Request one extra record or inspect the page cursor to detect truncation, and label the result as incomplete when more history exists. Treat an event-retention gap as unavailable history rather than an empty list.
+Use shadcn `Empty`, `Skeleton`, `Alert`, `Badge`, and `Button` components for empty, loading, partial-failure, and refresh states. Direct-chain mode fetches at most the latest 100 events, requests one extra record or inspects the page cursor to detect truncation, and labels the result as incomplete when more history exists. Registry mode provides bounded pages, live active-wallet balance enrichment, and an incomplete-history warning when the indexer reports a retention gap.
 
 ### 5.6 Wallet popover
 
@@ -420,7 +420,7 @@ Deterministic workflow and component tests cover refresh after funding, uncertai
 - A valid form predicts an address and presents exact reviewed costs.
 - Automatic mode advances a recoverable funding, creation, and verification workflow in one user flow; manual mode advances one transaction at a time.
 - A successful creation displays and persists the created address and evidence.
-- Tokens discovers all current-factory events; My Tokens applies the active creator filter; both read current token state.
+- Tokens discovers all indexed current-factory events; My Tokens applies the active creator filter; both read current wallet balance state.
 - Invalid input, insufficient HOG, declared contract errors, committed failures, and uncertain transactions have distinct feedback.
 - No private key enters a production build or public React context.
 - Mobile, tablet, and desktop layouts are usable without overflow.

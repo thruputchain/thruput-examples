@@ -60,11 +60,14 @@ export function createBrowserWriteBoundary(
 }
 
 export function createLocalWriteBoundary(
-  config: Pick<AppConfig, "rpcUrl" | "networkIdHex" | "accountAddress">,
+  config: Pick<
+    AppConfig,
+    "rpcUrl" | "registryEnabled" | "networkIdHex" | "accountAddress"
+  >,
   wallet: { privateKeyHex: string; walletEntrypointHex: string },
   options: LocalWalletOptions = {},
 ): WriteBoundary {
-  const client = options.client ?? createReadClient(config.rpcUrl);
+  const client = options.client ?? createReadClient(config);
   const delay = options.delay ?? wait;
   const maxPolls = options.maxPolls ?? MAX_POLLS;
   const observe = (hash: string) => poll(client, hash, maxPolls, delay);

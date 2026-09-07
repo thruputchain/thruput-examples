@@ -5,8 +5,15 @@
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
     "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "scripts/**/*.ts"]
+  "include": [
+    "vite.config.ts",
+    "vite.config.test.ts",
+    "scripts/**/*.ts",
+    "server/**/*.ts"
+  ]
 }

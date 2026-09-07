@@ -16,8 +16,29 @@ const environment = {
 describe("loadConfig", () => {
   it("parses trusted launchpad settings", () => {
     const config = loadConfig(environment);
+    expect(config.registryEnabled).toBe(false);
     expect(config.nativeBalanceItemCost).toBe(1234n);
     expect(config.networkIdHex).toBe("22".repeat(32));
+  });
+
+  it("enables the persistent registry only for an explicit true value", () => {
+    expect(
+      loadConfig({ ...environment, VITE_TOKEN_REGISTRY_ENABLED: "true" })
+        .registryEnabled,
+    ).toBe(true);
+    expect(
+      loadConfig({ ...environment, VITE_TOKEN_REGISTRY_ENABLED: "false" })
+        .registryEnabled,
+    ).toBe(false);
+  });
+
+  it("rejects invalid registry flags", () => {
+    expect(() =>
+      loadConfig({ ...environment, VITE_TOKEN_REGISTRY_ENABLED: "TRUE" }),
+    ).toThrow(ConfigurationError);
+    expect(() =>
+      loadConfig({ ...environment, VITE_TOKEN_REGISTRY_ENABLED: "1" }),
+    ).toThrow(/VITE_TOKEN_REGISTRY_ENABLED/);
   });
 
   it("rejects credentials in the RPC URL", () => {

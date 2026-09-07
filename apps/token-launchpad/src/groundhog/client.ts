@@ -4,13 +4,15 @@ import {
   type GroundhogClient,
 } from "@groundhogchain/client";
 
-export function createReadClient(rpcUrl: URL): GroundhogClient {
-  const target =
-    typeof window !== "undefined" &&
-    isLoopback(window.location.hostname) &&
-    isLoopback(rpcUrl.hostname)
-      ? new URL("/groundhog-rpc", window.location.origin).href
-      : rpcUrl.href;
+import type { AppConfig } from "@/config";
+
+export function createReadClient(
+  config: Pick<AppConfig, "registryEnabled" | "rpcUrl">,
+): GroundhogClient {
+  const target = resolveReadRpcUrl(
+    config,
+    typeof window === "undefined" ? undefined : window.location.origin,
+  );
   const promise = createGroundhogClient({
     transport: new HttpTransport(target, {
       fetch: (...args) => globalThis.fetch(...args),
@@ -30,6 +32,20 @@ export function createReadClient(rpcUrl: URL): GroundhogClient {
         );
     },
   });
+}
+
+export function resolveReadRpcUrl(
+  config: Pick<AppConfig, "registryEnabled" | "rpcUrl">,
+  browserOrigin?: string,
+): string {
+  if (browserOrigin === undefined) return config.rpcUrl.href;
+  if (config.registryEnabled) {
+    return new URL("/groundhog-rpc", browserOrigin).href;
+  }
+  const browserUrl = new URL(browserOrigin);
+  return isLoopback(browserUrl.hostname) && isLoopback(config.rpcUrl.hostname)
+    ? new URL("/groundhog-rpc", browserOrigin).href
+    : config.rpcUrl.href;
 }
 
 function isLoopback(host: string): boolean {
