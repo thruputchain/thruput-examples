@@ -1,5 +1,5 @@
 import { CopyIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -13,6 +13,7 @@ export function CopyIdentifierButton({
   variant?: "outline" | "ghost";
 }) {
   const statusId = useId();
+  const latestAttempt = useRef(0);
   const [result, setResult] = useState<{
     value: string;
     message: string;
@@ -20,11 +21,16 @@ export function CopyIdentifierButton({
   if (result && result.value !== value) setResult(null);
 
   async function copy() {
+    const attempt = ++latestAttempt.current;
     try {
       await navigator.clipboard.writeText(value);
-      setResult({ value, message: "Copied" });
+      if (attempt === latestAttempt.current) {
+        setResult({ value, message: "Copied" });
+      }
     } catch {
-      setResult({ value, message: "Copy failed" });
+      if (attempt === latestAttempt.current) {
+        setResult({ value, message: "Copy failed" });
+      }
     }
   }
 

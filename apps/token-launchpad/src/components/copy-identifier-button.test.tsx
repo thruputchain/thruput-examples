@@ -4,6 +4,42 @@ import { expect, it, vi } from "vitest";
 import { CopyIdentifierButton } from "./copy-identifier-button";
 
 it.each([false, true])(
+  "ignores an older copy result after the latest attempt settles (failure=%s)",
+  async (failure) => {
+    const user = userEvent.setup();
+    let resolveFirst!: () => void;
+    let rejectFirst!: (error: Error) => void;
+    const copy = vi.spyOn(navigator.clipboard, "writeText").mockReturnValueOnce(
+      new Promise<void>((resolve, reject) => {
+        resolveFirst = resolve;
+        rejectFirst = reject;
+      }),
+    );
+    if (failure) copy.mockRejectedValueOnce(new Error("denied"));
+    else copy.mockResolvedValueOnce();
+    render(<CopyIdentifierButton value="same" label="Copy identifier" />);
+    try {
+      const button = screen.getByRole("button", { name: "Copy identifier" });
+      await user.click(button);
+      await user.click(button);
+      expect(button).toHaveAccessibleDescription(
+        failure ? "Copy failed" : "Copied",
+      );
+      await act(async () => {
+        if (failure) resolveFirst();
+        else rejectFirst(new Error("older failure"));
+      });
+      expect(button).toHaveAccessibleDescription(
+        failure ? "Copy failed" : "Copied",
+      );
+      expect(copy).toHaveBeenCalledTimes(2);
+    } finally {
+      copy.mockRestore();
+    }
+  },
+);
+
+it.each([false, true])(
   "resets accessible copy feedback when the value changes (failure=%s)",
   async (failure) => {
     const user = userEvent.setup();
