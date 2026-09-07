@@ -47,7 +47,7 @@ import {
   type RuntimeManifest,
 } from "../src/setup/local-environment";
 
-const GAS_LIMIT = gasAmount(100_000_000n);
+const GAS_LIMIT = gasAmount(10_000_000n);
 const PERSONAS = [
   { id: "alice", label: "Alice" },
   { id: "bob", label: "Bob" },
