@@ -30,6 +30,7 @@ export interface PortfolioLiquidityPosition {
   decimals: number;
   balance: bigint;
   poolSymbols: readonly [string, string];
+  poolTokens: readonly [ContractAddress, ContractAddress];
 }
 
 export interface WalletPortfolio {
@@ -184,6 +185,7 @@ export function createWalletPortfolioReader(
                 asset.decimals ?? FALLBACK_LIQUIDITY_TOKEN_DECIMALS,
               balance: asset.balance,
               poolSymbols: [token0, token1] as const,
+              poolTokens: asset.definition.poolTokens,
             },
           ];
         })
@@ -295,7 +297,7 @@ function displaySymbol(
   fallback: string | undefined,
   address: ContractAddress,
 ): string {
-  return symbol?.trim() || fallback || `${addressKey(address).slice(0, 8)}...`;
+  return symbol?.trim() || fallback || addressKey(address);
 }
 
 function requiredDecimals(

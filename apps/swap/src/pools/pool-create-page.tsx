@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
+import { TokenSymbol } from "@/components/token-symbol";
 import { useProcessingMode } from "@/components/processing-mode";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -514,8 +515,8 @@ function CreationPage({
               ? "Confirm only if the account's allowance cleanup transaction was never signed."
               : "The cleanup has a transaction hash and must be observed before continuing."}
           </AlertDescription>
-          <BlockchainIdentifier value={cleanup.tokenAddress} label="Cleanup token" />
-          <BlockchainIdentifier value={cleanup.spenderAddress} label="Cleanup spender" />
+          <BlockchainIdentifier kind="address" value={cleanup.tokenAddress} label="Cleanup token" />
+          <BlockchainIdentifier kind="address" value={cleanup.spenderAddress} label="Cleanup spender" />
           {cleanup.transactionHash === null ? (
             <Button disabled={isRunning} variant="destructive" onClick={confirmCleanupNotSigned}>
               Confirm allowance cleanup was not signed
@@ -532,15 +533,20 @@ function CreationPage({
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {recoverable.map((candidate) => (
-              <Button
-                key={candidate.id}
-                size="sm"
-                variant={candidate.id === workflow?.id ? "default" : "outline"}
-                disabled={isRunning}
-                onClick={() => setWorkflow(candidate)}
-              >
-                {candidate.token0.symbol} / {candidate.token1.symbol}
-              </Button>
+              <div key={candidate.id} className="flex flex-col gap-2">
+                <Button
+                  size="sm"
+                  variant={candidate.id === workflow?.id ? "default" : "outline"}
+                  disabled={isRunning}
+                  onClick={() => setWorkflow(candidate)}
+                >
+                  <TokenSymbol symbol={candidate.token0.symbol} address={candidate.token0.address} nonInteractive /> / <TokenSymbol symbol={candidate.token1.symbol} address={candidate.token1.address} nonInteractive />
+                </Button>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <BlockchainIdentifier kind="address" value={candidate.token0.address} label="Recovery token 0 address" />
+                  <BlockchainIdentifier kind="address" value={candidate.token1.address} label="Recovery token 1 address" />
+                </div>
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -723,8 +729,8 @@ function TokenFields({
           {preview.status === "pending" ? "Loading live token metadata..."
             : preview.status === "ready" ? (
               <>
-                <span>Live name: {preview.metadata.name?.trim() || address}</span>
-                <span>Live symbol: {preview.metadata.symbol?.trim() || `${address.slice(0, 8)}...`}</span>
+                <span>Live name: {preview.metadata.name?.trim() || <BlockchainIdentifier kind="address" value={address} label="Token address" />}</span>
+                <span>Live symbol: {preview.metadata.symbol?.trim() || <BlockchainIdentifier kind="address" value={address} label="Token address" />}</span>
                 <span>Decimals: {preview.metadata.decimals ?? "unavailable"}</span>
                 <span className="text-muted-foreground">
                   Informational only. Review rereads live state before creation.
@@ -777,20 +783,20 @@ function CreationReviewCard({
       <CardContent className="grid gap-6 lg:grid-cols-2">
         <dl className="grid gap-3 text-sm">
           <ReviewRow
-            label={review.token0.symbol}
+            label={<TokenSymbol symbol={review.token0.symbol} address={review.token0.addressHex} />}
             value={formatAmount(review.token0.amount, review.token0.decimals)}
           />
           <ReviewRow
-            label={review.token1.symbol}
+            label={<TokenSymbol symbol={review.token1.symbol} address={review.token1.addressHex} />}
             value={formatAmount(review.token1.amount, review.token1.decimals)}
           />
-          <ReviewRow label="Initial ratio" value={`${formatAmount(
+          <ReviewRow label="Initial ratio" value={<>{formatAmount(
             review.token0.amount,
             review.token0.decimals,
-          )} ${review.token0.symbol} : ${formatAmount(
+          )} <TokenSymbol symbol={review.token0.symbol} address={review.token0.addressHex} /> : {formatAmount(
             review.token1.amount,
             review.token1.decimals,
-          )} ${review.token1.symbol}`} />
+          )} <TokenSymbol symbol={review.token1.symbol} address={review.token1.addressHex} /></>} />
           <ReviewRow
             label="Estimated LP before lock"
             value={`${review.initialLiquidity} base units`}
@@ -819,7 +825,7 @@ function CreationReviewCard({
   );
 }
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
+function ReviewRow({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-foreground/10 pb-3">
       <dt className="text-muted-foreground">{label}</dt>
@@ -868,8 +874,8 @@ function CreationProgressCard({
           <div>
             <CardTitle asChild><h2>Creation progress</h2></CardTitle>
             <CardDescription>
-              {formatAmount(BigInt(workflow.token0.amount), workflow.token0.decimals)} {workflow.token0.symbol}
-              {" / "}{formatAmount(BigInt(workflow.token1.amount), workflow.token1.decimals)} {workflow.token1.symbol}.
+              {formatAmount(BigInt(workflow.token0.amount), workflow.token0.decimals)} <TokenSymbol symbol={workflow.token0.symbol} address={workflow.token0.address} />
+              {" / "}{formatAmount(BigInt(workflow.token1.amount), workflow.token1.decimals)} <TokenSymbol symbol={workflow.token1.symbol} address={workflow.token1.address} />.
               {" "}Factory funding: {workflow.totalFunding} HOG base units
               ({workflow.fundingPerContract} per contract; minimum {workflow.fundingMinimum}).
             </CardDescription>
@@ -878,6 +884,10 @@ function CreationProgressCard({
         </div>
       </CardHeader>
       <CardContent className="grid gap-6">
+        <div className="flex flex-wrap gap-3 text-sm">
+          <BlockchainIdentifier kind="address" value={workflow.token0.address} label="Token 0 address" />
+          <BlockchainIdentifier kind="address" value={workflow.token1.address} label="Token 1 address" />
+        </div>
         <CreationSteps
           label="Pool contract creation"
           names={creationStepOrder.slice(0, 2)}
@@ -939,6 +949,7 @@ function CreationSteps({
                 {step.transactionHash === null ? null : (
                   <div className="mt-1 text-xs">
                     <BlockchainIdentifier
+                      kind="transaction"
                       value={step.transactionHash}
                       label={`${stepLabels[name]} transaction hash`}
                     />

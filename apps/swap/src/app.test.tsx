@@ -198,6 +198,35 @@ function committedSuccess(
 }
 
 describe("read-only swap experience", () => {
+  it.each([
+    undefined,
+    "",
+    " \t\n",
+    "https://explorer.test?query=value",
+    "https://explorer.test#fragment",
+    "javascript:alert(1)",
+    "http://explorer.test",
+    "https://user:password@explorer.test",
+    "https://explorer.test/path",
+  ])("validates supplied explorer config and removes unsafe links: %s", async (explorerUrl) => {
+    const props = {
+      readSnapshot: async () => pool(),
+      requestObserver: { scan: async () => null },
+    };
+    const page = render(
+      <App {...props} config={{ ...config, explorerUrl: "https://Explorer.test/" }} />,
+      { wrapper: MemoryRouter },
+    );
+    await screen.findByLabelText("YOU PAY");
+    expect(screen.getByRole("link", { name: /Token A address:/ })).toHaveAttribute(
+      "href", `https://explorer.test/address/0x${"01".repeat(32)}`,
+    );
+
+    page.rerender(<App {...props} config={{ ...config, explorerUrl }} />);
+    expect(screen.queryByRole("link", { name: /Token A address:/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `Token A address: 0x${"01".repeat(32)}` })).toBeVisible();
+  });
+
   it("loads the local snapshot and derives an exact-input preview", async () => {
     const user = userEvent.setup();
     renderApp();

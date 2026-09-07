@@ -4,7 +4,7 @@ import {
   render,
   screen,
   waitFor,
-} from "@testing-library/react";
+} from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDiscoveryTokens } from "@/token-discovery/client";
 import type { DiscoveryResponse } from "@/token-discovery/wire";
 import { TokenAddressCombobox } from "./token-address-combobox";
+import { ExplorerProvider } from "@/components/explorer-context";
 
 vi.mock("@/token-discovery/client", () => ({ getDiscoveryTokens: vi.fn() }));
 const a = `0x${"01".repeat(32)}`;
@@ -67,6 +68,22 @@ afterEach(() => {
 });
 
 describe("token address combobox", () => {
+  it("offers explorer access outside options without changing selection", async () => {
+    const user = userEvent.setup();
+    render(<ExplorerProvider value="https://explorer.test"><Control initial={a} /></ExplorerProvider>);
+    expect(screen.getByRole("link")).toHaveAttribute("href", `https://explorer.test/address/${a}`);
+    await user.click(screen.getByRole("button", { name: "Search tokens for Token A" }));
+    const options = await screen.findAllByRole("option");
+    for (const option of options) expect(option.querySelector("a, button, [tabindex='0']")).toBeNull();
+    await user.keyboard("{ArrowDown}");
+    const link = screen.getByRole("link", { name: `Highlighted token address: ${b} (opens explorer in a new tab)` });
+    expect(link.closest("[role='listbox']")).toBeNull();
+    expect(link.closest("[cmdk-root]")).toBeNull();
+    expect(link).toHaveAttribute("href", `https://explorer.test/address/${b}`);
+    expect(screen.getByLabelText("Contract address")).toHaveValue(a);
+    await user.keyboard("{Enter}");
+    expect(screen.getByLabelText("Contract address")).toHaveValue(b);
+  });
   it("opens newest suggestions, navigates by keyboard, selects and returns focus", async () => {
     const user = userEvent.setup();
     render(<Control />);
@@ -105,7 +122,8 @@ describe("token address combobox", () => {
     });
     const options = await screen.findAllByRole("option");
     expect(options).toHaveLength(2);
-    expect(options[0]).toHaveTextContent(a);
+    expect(options[0]).toHaveTextContent("0x010101…0101");
+    expect(options[0]?.querySelector("a, button, [tabindex='0']")).toBeNull();
     expect(options[0]).toHaveTextContent("selected");
     expect(options[1]).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText(/newest 20/)).toBeVisible();

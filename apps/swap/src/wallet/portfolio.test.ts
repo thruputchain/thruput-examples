@@ -90,6 +90,20 @@ describe("createWalletPortfolioReader", () => {
         .mock.calls.filter(([params]) => params.contract[0] === 5),
     ).toHaveLength(1);
     expect(assets.get(4)!.metadata).not.toHaveBeenCalled();
+    assets.set(5, token(null, null, 6, 1_000_000_000n));
+    assets.set(6, token(null, null, 6, 0n));
+    vi.mocked(createSwapFactoryReadAdapter).mockReturnValue({
+      allPairsLength: vi.fn().mockResolvedValue(view(1n)),
+      pairAt: vi.fn().mockResolvedValue(view([address(5), address(6)] as const)),
+      getPair: vi.fn().mockResolvedValue(view(address(12))),
+      poolAddresses: vi.fn().mockResolvedValue(view({ liquidityToken: address(7), handler: address(12), driver: address(13) })),
+    } as never);
+    const fallback = await createWalletPortfolioReader(config)();
+    expect(fallback.tokens.find((token) => token.address[0] === 5)?.symbol).toBe(`0x${"05".repeat(32)}`);
+    expect(fallback.liquidityPositions[0]).toMatchObject({
+      poolSymbols: [`0x${"05".repeat(32)}`, `0x${"06".repeat(32)}`],
+      poolTokens: [address(5), address(6)],
+    });
   });
 
   it("rejects registries that exceed the local portfolio limit", async () => {

@@ -1,4 +1,5 @@
 import { addressFromHex, toHex0x } from "@groundhogchain/client";
+import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import type { ContractAddress } from "@groundhogchain/protocol";
 import { useEffect, useState } from "react";
 
@@ -129,6 +130,7 @@ export function AllowanceCleanupCard({
               <li className="flex flex-wrap items-center justify-between gap-3" key={asset.addressHex}>
                 <div>
                   <p className="font-medium">{asset.symbol}</p>
+                  <BlockchainIdentifier kind="address" value={asset.addressHex} label="Allowance token address" />
                   <p className="text-sm text-muted-foreground">
                     {formatTokenAmount(asset.allowance - asset.required, asset.decimals, 8)} unused
                   </p>

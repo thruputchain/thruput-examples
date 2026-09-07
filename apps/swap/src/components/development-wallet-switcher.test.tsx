@@ -1,10 +1,11 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { contractAddress } from "@groundhogchain/protocol";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PersonaConfiguredApp } from "@/app";
+import { ExplorerProvider } from "@/components/explorer-context";
 import {
   DevelopmentWalletContext,
   DevelopmentWalletSwitcher,
@@ -68,6 +69,7 @@ describe("DevelopmentWalletSwitcher", () => {
         decimals: 0,
         balance: 42n,
         poolSymbols: ["gUSD", "gEUR"] as const,
+        poolTokens: [address(4), address(6)] as const,
       }],
       invalidPoolCount: 0,
       unavailableAssetCount: 0,
@@ -75,6 +77,7 @@ describe("DevelopmentWalletSwitcher", () => {
     });
     const publicPersonas = personas.map(publicDevelopmentPersona);
     render(
+      <ExplorerProvider value="https://explorer.test">
       <DevelopmentWalletContext value={{
         active: publicPersonas[0]!,
         personas: publicPersonas,
@@ -84,15 +87,19 @@ describe("DevelopmentWalletSwitcher", () => {
         switchTo,
       }}>
         <DevelopmentWalletSwitcher />
-      </DevelopmentWalletContext>,
+      </DevelopmentWalletContext>
+      </ExplorerProvider>,
     );
 
     await user.click(screen.getByRole("button", { name: "Development wallet: Alice" }));
-    expect(screen.getByText(`0x${"01".repeat(3)}...${"01".repeat(3)}`)).toBeVisible();
+    const accountLink = screen.getByRole("link", { name: `Alice account address: 0x${"01".repeat(32)} (opens explorer in a new tab)` });
+    expect(accountLink).toHaveAttribute("href", `https://explorer.test/address/0x${"01".repeat(32)}`);
+    expect(accountLink.closest("button")).toBeNull();
+    expect(switchTo).not.toHaveBeenCalled();
     expect(await screen.findByText("12.5")).toBeVisible();
     expect(screen.getByText("gUSD / gEUR")).toBeVisible();
     expect(screen.getByText("42")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: /Bob/ }));
+    await user.click(screen.getByRole("button", { name: "Bob" }));
 
     expect(switchTo).toHaveBeenCalledWith("bob");
   });
@@ -123,7 +130,7 @@ describe("DevelopmentWalletSwitcher", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Development wallet: Alice" }));
-    await user.click(screen.getByRole("button", { name: /Bob/ }));
+    await user.click(screen.getByRole("button", { name: "Bob" }));
 
     expect(document.querySelector("[aria-busy='true']")).toHaveAttribute("inert");
     releaseLock?.();
@@ -159,7 +166,7 @@ describe("DevelopmentWalletSwitcher", () => {
 
     await user.click(screen.getByRole("button", { name: "Development wallet: Alice" }));
     expect(screen.getByRole("status")).toHaveTextContent("Loading portfolio");
-    await user.click(screen.getByRole("button", { name: /Bob/ }));
+    await user.click(screen.getByRole("button", { name: "Bob" }));
     await screen.findByRole("button", { name: "Development wallet: Bob" });
     await act(async () => resolveAlice?.(portfolio("ALICE", 1)));
     await user.click(screen.getByRole("button", { name: "Development wallet: Bob" }));

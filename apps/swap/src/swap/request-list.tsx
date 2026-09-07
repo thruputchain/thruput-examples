@@ -434,6 +434,7 @@ function RequestStatusDetail({
         <p className="text-xs sm:text-xs">
           {executionHash === null ? "Transaction" : "Enqueue transaction"}{" "}
           <BlockchainIdentifier
+            kind="transaction"
             value={request.transactionHash}
             label={
               executionHash === null
@@ -447,6 +448,7 @@ function RequestStatusDetail({
         <p className="text-xs sm:text-xs">
           Execution transaction{" "}
           <BlockchainIdentifier
+            kind="transaction"
             value={executionHash}
             label="Execution transaction hash"
           />

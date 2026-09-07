@@ -273,3 +273,17 @@ The app preserves each signed transaction in local storage when its receipt was 
 ### Queued, but execution was not observed
 
 Confirm that `crank-local.sh` completed against the current generated driver. Event absence is not proof of failure. After two visible minutes the request remains reserved and observation continues. Other swaps may still be submitted when their input token has enough unreserved balance. Only an untracked request can be resolved manually, and only after explicit queue-drained confirmation.
+## Explorer Links
+
+Set `VITE_EXPLORER_URL` to the explorer's root URL, for example
+`https://explorer.example.com` or `http://localhost:3000`. Omit it or leave it
+blank to keep identifiers as tooltip-only controls. Remote hosts require HTTPS;
+HTTP is allowed only for `localhost`, `127.0.0.1`, and `[::1]`. Credentials,
+paths, query strings, and fragments are rejected. A trailing slash is normalized.
+
+Contract and wallet links use `/address/<full-address>`; transaction links use
+`/tx/<full-hash>`. Links open a new tab. Request IDs, nonces, and code hashes
+are not transaction links. Editable address inputs keep their full values.
+The production public manifest includes this optional key as a blank string
+when disabled. The runtime value must match the normalized build value; rebuild
+when changing it.

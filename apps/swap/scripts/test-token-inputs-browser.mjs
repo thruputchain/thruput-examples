@@ -13,6 +13,7 @@ const scope = {
   tokenCodeHash: hex("08"),
 };
 Object.assign(process.env, {
+  VITE_EXPLORER_URL: "https://explorer.example.test",
   VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:1",
   VITE_GROUNDHOG_NETWORK_ID: scope.networkId,
   VITE_GROUNDHOG_WALLET_ADDRESS: hex("09"),
@@ -50,6 +51,7 @@ try {
     hasTouch: true,
   });
   const page = await context.newPage();
+  await context.route("https://explorer.example.test/**", (route) => route.fulfill({ body: "Explorer fixture" }));
   const errors = [];
   const searches = [];
   let unavailable = false;
@@ -98,6 +100,14 @@ try {
   });
   const url = `${origin}/pools/new?tokenA=${a}`;
   await page.goto(url);
+  const selectedLink = page.getByRole("link", { name: `Selected token address: ${a} (opens explorer in a new tab)` });
+  await selectedLink.waitFor();
+  assert.equal(await selectedLink.getAttribute("href"), `https://explorer.example.test/address/${a}`);
+  assert.equal(await selectedLink.getAttribute("rel"), "noopener noreferrer");
+  await selectedLink.focus();
+  await page.getByRole("tooltip").waitFor();
+  assert.equal(await page.getByRole("tooltip").textContent(), a);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "Full tooltip must fit the mobile viewport");
   const addresses = page.getByLabel("Contract address", { exact: true });
   await addresses.first().waitFor();
   assert.equal(await addresses.first().inputValue(), a);
@@ -134,6 +144,15 @@ try {
     true,
   );
   await page.getByRole("option").nth(1).waitFor();
+  assert.equal(await page.locator('[role="option"] a, [role="option"] button, button a').count(), 0);
+  const highlighted = page.getByRole("link", { name: `Highlighted token address: ${b} (opens explorer in a new tab)` });
+  await highlighted.waitFor();
+  await highlighted.focus();
+  const [explorerPage] = await Promise.all([context.waitForEvent("page"), highlighted.press("Enter")]);
+  await explorerPage.waitForURL(`https://explorer.example.test/address/${b}`);
+  assert.equal(await addresses.nth(1).inputValue(), "", "Opening explorer must not choose the highlighted token");
+  await explorerPage.close();
+  await search.focus();
   assert.equal(searches[0], "");
   assert.equal(
     await page.getByRole("option").first().getAttribute("aria-disabled"),

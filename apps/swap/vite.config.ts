@@ -7,6 +7,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { loadTokenDiscoveryServerConfig } from "./server/token-discovery-config.ts";
 import { createTokenDiscoveryHandler } from "./server/token-discovery.ts";
+import { parseExplorerUrl } from "./src/config.ts";
 
 import {
   createPublicConfigManifest,
@@ -29,6 +30,7 @@ export const PRODUCTION_BROWSER_RPC_URL = "https://same-origin.invalid/";
 
 export default defineConfig(({ command, isPreview, mode }) => {
   const environment = loadEnv(mode, root, "");
+  parseExplorerUrl(environment.VITE_EXPLORER_URL);
   const tokenDiscovery = loadTokenDiscoveryServerConfig(environment);
   const rpcTarget =
     environment.VITE_GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545";
@@ -50,6 +52,7 @@ export default defineConfig(({ command, isPreview, mode }) => {
 
   return {
     envPrefix: [
+      "VITE_EXPLORER_URL",
       "VITE_GROUNDHOG_RPC_URL",
       "VITE_GROUNDHOG_NETWORK_ID",
       "VITE_GROUNDHOG_WALLET_ENTRYPOINT",

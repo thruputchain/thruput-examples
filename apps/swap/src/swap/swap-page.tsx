@@ -215,6 +215,10 @@ export function SwapPage({
       <div className="sr-only" role="status" aria-live="polite">
         {status}
       </div>
+      <div className="flex flex-wrap gap-3 text-sm">
+        <BlockchainIdentifier kind="address" value={toHex0x(config.tokenAAddress)} label="Token A address" />
+        <BlockchainIdentifier kind="address" value={toHex0x(config.tokenBAddress)} label="Token B address" />
+      </div>
       <div
         aria-busy={state.isLoading || state.isRefreshing}
         className="flex flex-col gap-6"
@@ -2135,6 +2139,7 @@ function TransactionDetails({
           <dt className="font-medium text-foreground">Handler</dt>
           <dd className="text-right text-muted-foreground">
             <BlockchainIdentifier
+              kind="address"
               value={toHex0x(config.handlerAddress)}
               label="Handler address"
             />

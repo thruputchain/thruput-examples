@@ -713,7 +713,7 @@ function PoolCard({
         <CardTitle asChild>
           <h2>
             {live === null
-              ? `${shortAddress(token0Address)} / ${shortAddress(token1Address)}`
+              ? <><BlockchainIdentifier kind="address" value={token0Address} label="Token 0 address" /> / <BlockchainIdentifier kind="address" value={token1Address} label="Token 1 address" /></>
               : `${live.snapshot.tokenA.symbol} / ${live.snapshot.tokenB.symbol}`}
           </h2>
         </CardTitle>
@@ -729,16 +729,22 @@ function PoolCard({
         {live === null ? (
           <div className="grid gap-2 text-sm">
             <BlockchainIdentifier
+              kind="address"
               value={token0Address}
               label="Token 0 address"
             />
             <BlockchainIdentifier
+              kind="address"
               value={token1Address}
               label="Token 1 address"
             />
           </div>
         ) : (
           <>
+            <div className="mb-3 flex flex-wrap gap-2 text-xs">
+              <BlockchainIdentifier kind="address" value={token0Address} label="Token 0 address" />
+              <BlockchainIdentifier kind="address" value={token1Address} label="Token 1 address" />
+            </div>
             <dl className="grid grid-cols-2 gap-4">
               <Reserve
                 label={live.snapshot.tokenA.symbol}
@@ -760,6 +766,7 @@ function PoolCard({
             <div className="mt-4 border-t border-foreground/10 pt-4 text-sm">
               <span className="mr-2 text-muted-foreground">Pool</span>
               <BlockchainIdentifier
+                kind="address"
                 value={toHex0x(live.config.handlerAddress)}
                 label="Handler address"
               />
@@ -784,10 +791,6 @@ function PoolCard({
       </CardFooter>
     </Card>
   );
-}
-
-function shortAddress(value: string): string {
-  return `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
 function Reserve({ label, value }: { label: string; value: string }) {
