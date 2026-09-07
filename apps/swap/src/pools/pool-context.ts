@@ -1,4 +1,4 @@
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x, type GroundhogClient } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 import type { AppConfig, GlobalConfig } from "@/config";
@@ -28,8 +28,9 @@ export async function resolvePoolConfig(
   token0: ContractAddress,
   token1: ContractAddress,
   suppliedFactory?: SwapFactoryReadAdapter,
+  suppliedClient?: Pick<GroundhogClient, "view">,
 ): Promise<AppConfig> {
-  const client = createReadClient(config);
+  const client = suppliedClient ?? createReadClient(config);
   const factory = suppliedFactory ?? createSwapFactoryReadAdapter({
     client,
     contract: config.factoryAddress,

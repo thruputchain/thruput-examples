@@ -3,14 +3,18 @@ import type { ContractAddress } from "@groundhogchain/protocol";
 
 const NETWORK_ID_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
-export interface AppConfig {
+export interface GlobalConfig {
   rpcUrl: URL;
+  registryEnabled?: boolean;
   networkIdHex: string;
   accountAddress: ContractAddress;
   routerAddress: ContractAddress;
   factoryAddress: ContractAddress;
   nativeHogAddress: ContractAddress;
   knownTokenAddresses?: readonly ContractAddress[];
+}
+
+export interface AppConfig extends GlobalConfig {
   liquidityTokenAddress: ContractAddress;
   handlerAddress: ContractAddress;
   driverAddress: ContractAddress;
@@ -20,16 +24,6 @@ export interface AppConfig {
   tokenBSymbol: string;
   tokenADecimals: number;
   tokenBDecimals: number;
-}
-
-export interface GlobalConfig {
-  rpcUrl: URL;
-  networkIdHex: string;
-  accountAddress: ContractAddress;
-  routerAddress: ContractAddress;
-  factoryAddress: ContractAddress;
-  nativeHogAddress: ContractAddress;
-  knownTokenAddresses?: readonly ContractAddress[];
 }
 
 export type Environment = Record<string, string | boolean | undefined>;
@@ -51,6 +45,7 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
 
   return {
     rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),
+    registryEnabled: enabled(environment, "VITE_POOL_REGISTRY_ENABLED"),
     networkIdHex: networkIdHex.replace(/^0x/, "").toLowerCase(),
     accountAddress: address(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
     routerAddress: address(environment, "VITE_SWAP_ROUTER_ADDRESS"),
@@ -61,6 +56,13 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
       "VITE_KNOWN_TOKEN_ADDRESSES",
     ),
   };
+}
+
+function enabled(environment: Environment, key: string): boolean {
+  const value = environment[key];
+  if (value === undefined || value === false || value === "false") return false;
+  if (value === true || value === "true") return true;
+  throw new ConfigurationError(`${key} must be true or false`);
 }
 
 export function isLoopbackUrl(url: URL): boolean {

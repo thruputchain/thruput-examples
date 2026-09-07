@@ -8,28 +8,38 @@ export function AmmPage({
   description,
   actions,
   children,
+  readOnly = false,
 }: {
   title: string;
   description: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
+  readOnly?: boolean;
 }) {
   return (
     <div className="isolate min-h-svh bg-background text-foreground antialiased">
       <header className="border-b border-foreground/10">
         <div className="mx-auto flex min-h-16 max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-2 sm:flex-nowrap sm:gap-4 sm:px-6 sm:py-0">
-          <Link className="font-heading font-semibold tracking-tight" to="/pools">
+          <Link
+            className="font-heading font-semibold tracking-tight"
+            to="/pools"
+          >
             Groundhog AMM
           </Link>
-          <nav aria-label="Main navigation" className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+          <nav
+            aria-label="Main navigation"
+            className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto"
+          >
             <Button asChild size="sm" variant="ghost">
               <Link to="/pools">Pools</Link>
             </Button>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/pools/new">Create Pool</Link>
-            </Button>
+            {readOnly ? null : (
+              <Button asChild size="sm" variant="outline">
+                <Link to="/pools/new">Create Pool</Link>
+              </Button>
+            )}
             {actions}
-            <DevelopmentWalletSwitcher />
+            {readOnly ? null : <DevelopmentWalletSwitcher />}
           </nav>
         </div>
       </header>

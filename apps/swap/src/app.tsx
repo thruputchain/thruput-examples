@@ -13,11 +13,7 @@ import {
   useParams,
 } from "react-router-dom";
 
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   DevelopmentWalletContext,
   DevelopmentWalletSwitcher,
@@ -54,10 +50,7 @@ import { PoolCreatePage } from "@/pools/pool-create-page";
 import { PoolDirectoryPage } from "@/pools/pool-directory-page";
 import { LiquidityPage } from "@/pools/liquidity-page";
 import { parsePoolRoute } from "@/pools/pool-route";
-import {
-  createSnapshotReader,
-  type SnapshotReader,
-} from "@/swap/snapshot";
+import { createSnapshotReader, type SnapshotReader } from "@/swap/snapshot";
 import { SwapPage } from "@/swap/swap-page";
 import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
 import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
@@ -103,14 +96,16 @@ export function App({
   return (
     <AppProviders>
       {configuration.ok ? (
-        hasRouter
-          ? <BrowserConfiguredApp config={configuration.config} />
-          : (
-            <BrowserRouter>
-              <BrowserConfiguredApp config={configuration.config} />
-            </BrowserRouter>
-          )
-      ) : <ConfigurationErrorPage message={configuration.message} />}
+        hasRouter ? (
+          <BrowserConfiguredApp config={configuration.config} />
+        ) : (
+          <BrowserRouter>
+            <BrowserConfiguredApp config={configuration.config} />
+          </BrowserRouter>
+        )
+      ) : (
+        <ConfigurationErrorPage message={configuration.message} />
+      )}
     </AppProviders>
   );
 }
@@ -123,14 +118,26 @@ function AppProviders({ children }: { children: React.ReactNode }) {
   );
 }
 
-function BrowserConfiguredApp({ config: baseConfig }: { config: GlobalConfig }) {
+function BrowserConfiguredApp({
+  config: baseConfig,
+}: {
+  config: GlobalConfig;
+}) {
+  const readOnly = import.meta.env.PROD && baseConfig.registryEnabled === true;
+  if (readOnly) {
+    return <AmmRoutes config={baseConfig} readOnly />;
+  }
   let personas: ReturnType<typeof parseDevelopmentPersonas>;
   try {
     personas = parseDevelopmentPersonas(import.meta.env.GROUNDHOG_DEV_PERSONAS);
   } catch (error) {
     return (
       <ConfigurationErrorPage
-        message={error instanceof Error ? error.message : "Development wallets are invalid"}
+        message={
+          error instanceof Error
+            ? error.message
+            : "Development wallets are invalid"
+        }
       />
     );
   }
@@ -157,7 +164,7 @@ export function PersonaConfiguredApp({
     baseConfig.factoryAddress,
   );
   const [selectedId, setSelectedId] = useState(() =>
-    window.sessionStorage.getItem(preferenceKey)
+    window.sessionStorage.getItem(preferenceKey),
   );
   const [isSwitching, setIsSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
@@ -195,7 +202,9 @@ export function PersonaConfiguredApp({
         flushSync(() => setSelectedId(id));
       });
     } catch (error) {
-      setSwitchError(error instanceof Error ? error.message : "Wallet could not be switched");
+      setSwitchError(
+        error instanceof Error ? error.message : "Wallet could not be switched",
+      );
       throw error;
     } finally {
       setIsSwitching(false);
@@ -203,14 +212,16 @@ export function PersonaConfiguredApp({
   }
 
   return (
-    <DevelopmentWalletContext value={{
-      active: publicActive,
-      personas: publicPersonas,
-      isSwitching,
-      switchError,
-      readPortfolio,
-      switchTo,
-    }}>
+    <DevelopmentWalletContext
+      value={{
+        active: publicActive,
+        personas: publicPersonas,
+        isSwitching,
+        switchError,
+        readPortfolio,
+        switchTo,
+      }}
+    >
       <div aria-busy={isSwitching} inert={isSwitching}>
         <AmmRoutes
           key={`${config.networkIdHex}:${active.accountAddressHex}`}
@@ -225,55 +236,85 @@ export function PersonaConfiguredApp({
 export function AmmRoutes({
   config,
   walletPrivateKey,
+  readOnly = false,
 }: {
   config: GlobalConfig;
   walletPrivateKey?: string | undefined;
+  readOnly?: boolean;
 }) {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/pools" replace />} />
-      <Route path="/pools" element={<PoolDirectoryPage config={config} />} />
+      <Route
+        path="/pools"
+        element={<PoolDirectoryPage config={config} readOnly={readOnly} />}
+      />
       <Route
         path="/pools/new"
-        element={(
-          <PoolCreatePage
-            config={config}
-            walletPrivateKey={walletPrivateKey}
-          />
-        )}
+        element={
+          readOnly ? (
+            <Navigate to="/pools" replace />
+          ) : (
+            <PoolCreatePage
+              config={config}
+              walletPrivateKey={walletPrivateKey}
+            />
+          )
+        }
       />
       <Route
         path="/pools/:token0/:token1"
-        element={(
+        element={
           <PoolRoute
             config={config}
             view="detail"
             walletPrivateKey={walletPrivateKey}
+            readOnly={readOnly}
           />
-        )}
+        }
       />
       <Route
         path="/pools/:token0/:token1/swap"
-        element={(
-          <PoolRoute
-            config={config}
-            view="swap"
-            walletPrivateKey={walletPrivateKey}
-          />
-        )}
+        element={
+          readOnly ? (
+            <ReadOnlyPoolRedirect />
+          ) : (
+            <PoolRoute
+              config={config}
+              view="swap"
+              walletPrivateKey={walletPrivateKey}
+              readOnly={readOnly}
+            />
+          )
+        }
       />
       <Route
         path="/pools/:token0/:token1/liquidity"
-        element={(
-          <PoolRoute
-            config={config}
-            view="liquidity"
-            walletPrivateKey={walletPrivateKey}
-          />
-        )}
+        element={
+          readOnly ? (
+            <ReadOnlyPoolRedirect />
+          ) : (
+            <PoolRoute
+              config={config}
+              view="liquidity"
+              walletPrivateKey={walletPrivateKey}
+              readOnly={readOnly}
+            />
+          )
+        }
       />
-      <Route path="*" element={<NotFoundPage />} />
+      <Route path="*" element={<NotFoundPage readOnly={readOnly} />} />
     </Routes>
+  );
+}
+
+function ReadOnlyPoolRedirect() {
+  const params = useParams();
+  const parsed = parsePoolRoute(params.token0, params.token1);
+  return parsed.kind === "invalid" ? (
+    <Navigate to="/pools" replace />
+  ) : (
+    <Navigate to={`/pools/${parsed.token0Hex}/${parsed.token1Hex}`} replace />
   );
 }
 
@@ -281,10 +322,12 @@ function PoolRoute({
   config,
   view,
   walletPrivateKey,
+  readOnly = false,
 }: {
   config: GlobalConfig;
   view: "detail" | "swap" | "liquidity";
   walletPrivateKey?: string | undefined;
+  readOnly?: boolean;
 }) {
   const params = useParams();
   const location = useLocation();
@@ -313,9 +356,10 @@ function PoolRoute({
         }
         setState({
           kind: "error",
-          message: error instanceof PoolIdentityError
-            ? error.message
-            : "The pool could not be loaded",
+          message:
+            error instanceof PoolIdentityError
+              ? error.message
+              : "The pool could not be loaded",
         });
       },
     );
@@ -324,7 +368,7 @@ function PoolRoute({
     };
   }, [config, parsed.kind, params.token0, params.token1]);
 
-  if (parsed.kind === "invalid") return <NotFoundPage />;
+  if (parsed.kind === "invalid") return <NotFoundPage readOnly={readOnly} />;
   if (parsed.kind === "redirect") {
     const suffix = view === "detail" ? "" : `/${view}`;
     return (
@@ -339,6 +383,7 @@ function PoolRoute({
       <PlaceholderPage
         title="Loading pool"
         description="Reading the factory and token metadata."
+        readOnly={readOnly}
       />
     );
   }
@@ -347,12 +392,17 @@ function PoolRoute({
       <PlaceholderPage
         title="Pool not found"
         description="This canonical token pair has not been created."
+        readOnly={readOnly}
       />
     );
   }
   if (state.kind === "error") {
     return (
-      <PlaceholderPage title="Pool unavailable" description={state.message} />
+      <PlaceholderPage
+        title="Pool unavailable"
+        description={state.message}
+        readOnly={readOnly}
+      />
     );
   }
   const requestKey = poolRequestKey(config, parsed.token0Hex, parsed.token1Hex);
@@ -361,6 +411,7 @@ function PoolRoute({
       <PlaceholderPage
         title="Loading pool"
         description="Reading the factory and token metadata."
+        readOnly={readOnly}
       />
     );
   }
@@ -375,7 +426,11 @@ function PoolRoute({
   }
   if (view === "detail") {
     return (
-      <PoolDetailPage key={poolRuntimeKey(state.config)} config={state.config} />
+      <PoolDetailPage
+        key={poolRuntimeKey(state.config)}
+        config={state.config}
+        readOnly={readOnly}
+      />
     );
   }
   return (
@@ -416,9 +471,11 @@ function poolRuntimeKey(config: AppConfig): string {
 function PlaceholderPage({
   title,
   description,
+  readOnly = false,
 }: {
   title: string;
   description?: string;
+  readOnly?: boolean;
 }) {
   return (
     <main className="isolate min-h-svh bg-background px-4 py-12 text-foreground antialiased sm:px-6">
@@ -436,22 +493,25 @@ function PlaceholderPage({
             <Link className="underline underline-offset-4" to="/pools">
               Pools
             </Link>
-            <Link className="underline underline-offset-4" to="/pools/new">
-              Create pool
-            </Link>
+            {readOnly ? null : (
+              <Link className="underline underline-offset-4" to="/pools/new">
+                Create pool
+              </Link>
+            )}
           </div>
-          <DevelopmentWalletSwitcher />
+          {readOnly ? null : <DevelopmentWalletSwitcher />}
         </CardContent>
       </Card>
     </main>
   );
 }
 
-function NotFoundPage() {
+function NotFoundPage({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <PlaceholderPage
       title="Page not found"
       description="The requested AMM route is invalid."
+      readOnly={readOnly}
     />
   );
 }
@@ -473,7 +533,9 @@ function ConfiguredApp({
     () => readSnapshot ?? createSnapshotReader(config),
   );
   const [writer] = useState<WriteBoundary>(
-    () => writeBoundary ?? createBrowserLocalWriteBoundary(config, walletPrivateKey),
+    () =>
+      writeBoundary ??
+      createBrowserLocalWriteBoundary(config, walletPrivateKey),
   );
   const [observer] = useState<RequestObserver>(
     () => requestObserver ?? createRequestObserver(config),
@@ -512,22 +574,21 @@ function ConfigurationErrorPage({ message }: { message: string }) {
   );
 }
 
-function readBrowserConfiguration():
-  | { ok: true; config: GlobalConfig }
-  | { ok: false; message: string } {
+export function readBrowserConfiguration():
+  { ok: true; config: GlobalConfig } | { ok: false; message: string } {
   try {
     return {
       ok: true,
       config: loadGlobalConfig({
         VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
+        VITE_POOL_REGISTRY_ENABLED: import.meta.env.VITE_POOL_REGISTRY_ENABLED,
         VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
-        VITE_GROUNDHOG_WALLET_ADDRESS:
-          import.meta.env.VITE_GROUNDHOG_WALLET_ADDRESS,
-        VITE_GROUNDHOG_WALLET_ENTRYPOINT:
-          import.meta.env.VITE_GROUNDHOG_WALLET_ENTRYPOINT,
+        VITE_GROUNDHOG_WALLET_ADDRESS: import.meta.env
+          .VITE_GROUNDHOG_WALLET_ADDRESS,
+        VITE_GROUNDHOG_WALLET_ENTRYPOINT: import.meta.env
+          .VITE_GROUNDHOG_WALLET_ENTRYPOINT,
         VITE_NATIVE_HOG_ADDRESS: import.meta.env.VITE_NATIVE_HOG_ADDRESS,
-        VITE_KNOWN_TOKEN_ADDRESSES:
-          import.meta.env.VITE_KNOWN_TOKEN_ADDRESSES,
+        VITE_KNOWN_TOKEN_ADDRESSES: import.meta.env.VITE_KNOWN_TOKEN_ADDRESSES,
         VITE_SWAP_FACTORY_ADDRESS: import.meta.env.VITE_SWAP_FACTORY_ADDRESS,
         VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
       }),

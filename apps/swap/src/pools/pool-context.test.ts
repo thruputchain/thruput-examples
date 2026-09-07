@@ -41,8 +41,9 @@ beforeEach(() => {
 describe("resolvePoolConfig", () => {
   it("resolves a registered pool at one block height", async () => {
     const factory = factoryAdapter();
+    const client = { view: vi.fn() } as never;
 
-    await expect(resolvePoolConfig(config, address(5), address(6), factory))
+    await expect(resolvePoolConfig(config, address(5), address(6), factory, client))
       .resolves.toMatchObject({
         factoryAddress: address(3),
         liquidityTokenAddress: address(8),
@@ -53,6 +54,7 @@ describe("resolvePoolConfig", () => {
         tokenADecimals: 6,
         tokenBDecimals: 8,
       });
+    expect(createReadClient).not.toHaveBeenCalled();
   });
 
   it("distinguishes a missing pool from inconsistent factory data", async () => {
