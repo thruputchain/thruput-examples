@@ -1,6 +1,6 @@
 # Token Launchpad and AMM Swap Integration
 
-Status: Spec phase; implementation not started
+Status: Implemented and verified; see the [acceptance record](2026-09-06-cross-app-acceptance.md)
 Date: 2026-09-06
 Branch: `feat/integrate-amm-swap`
 Source baseline: `76ea6cc8be3d920bf573e82ae6d2a5402d5fd890` (branch HEAD equals local `main`; clean worktree before this specification)
@@ -11,7 +11,7 @@ Add searchable token address comboboxes to Swap's pool-creation form, optional o
 
 Keep the two apps independently deployable. Reuse the launchpad's existing token API through a fixed, same-origin Swap proxy. Do not replicate its SQLite database, import its application configuration, introduce a shared package, or replace the existing transaction workflow. Production stays read-only.
 
-This commit contains only this specification. Subsequent phases have separate commits. Do not begin application implementation as part of the spec phase.
+The specification and each implementation phase have separate commits.
 
 ## Source Findings
 
@@ -29,8 +29,6 @@ This commit contains only this specification. Subsequent phases have separate co
 | `apps/token-launchpad/src/launch/verification.ts` | Existing verification checks receipt/event evidence and live metadata, supply, and holder balance. Do not weaken or duplicate it. |
 | Both `server/http.ts`, `server/public-config-manifest.ts`, `vite.config.ts` | Production uses `connect-src 'self'`, read-only RPC allowlists, explicit browser env exposure, and build/runtime manifest checks. New integration settings must follow these boundaries. |
 | Both `package.json` and `scripts/test-clean-ledger.sh` | Apps have separate dependency trees and clean-ledger harnesses. Swap uses client/protocol 0.6.0/0.11.0; launchpad uses 0.4.0/0.8.0. Cross-app acceptance must exercise actual compatibility, not assume it. |
-
-Research used the current checkout directly. The prior session `ses_f865a0681ffekTLkMDvsVlckWg` was not needed or resumed.
 
 ## Optional Configuration
 
@@ -203,4 +201,4 @@ Document the actual run with tool versions, commands, nonsecret network identity
 
 The design deliberately preserves upstream creator-address search, uses status to reject wrong-scope empty indexes, and treats registry metadata only as discovery hints. It keeps token scope independent of AMM scope, gives saved workflows priority over URL state, and preserves read-only production even when a CTA targets it. The minimal implementation is a Swap-local proxy/client boundary, one reusable input component, a small preset/preview path, and a launch success link; no new database, contract, cross-app package, or cache is needed.
 
-Spec-phase verification is source inspection and document review only. Application suites and live acceptance cannot validate this feature until implementation exists. No application code, env file, package manifest, database, or runtime process was changed for this specification.
+The spec phase used source inspection and document review. Implementation, regression coverage, live cross-app acceptance, and final review corrections are recorded in subsequent commits and the acceptance record.

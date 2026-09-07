@@ -1,19 +1,18 @@
 # Cross-App Acceptance Record
 
 Spec: [2026-09-06 integration](2026-09-06-integrate-amm-swap-token-launchpad.md), phase 4.
-Execution: 2026-09-07 UTC. Result: **Live phase 4 acceptance passed**.
-Final review identified workflow issues to be fixed separately. This record
-documents the exercised live journey, not final integration sign-off or a claim
-that all blockers are resolved. Those review follow-ups remain pending.
-No application/browser/server logic or SDK versions were changed in phase 4;
-the only provisioning prerequisite is described below.
+Execution: 2026-09-07 UTC. Result: **Final cross-app acceptance passed**.
+The live journey and both suites were rerun after the final review corrections
+through `f9e4667`. Independent re-review found no remaining high/medium findings.
+The phase-4 harness did not change application logic or SDK versions; later
+workflow and network-safety corrections are listed below. The provisioning
+prerequisite is documented separately.
 
 ## Command And Tools
 
 From `apps/swap`, with both dependency trees installed:
 
 ```sh
-TMPDIR=/tmp/opencode \
 GROUNDHOG_CLI="$HOME/Work/groundhog-rpc/target/debug/groundhog" \
 GROUNDHOG_DEVNODE_BINARY="$HOME/.local/share/groundhog/hog-devnode/hog-devnode" \
 GROUNDHOG_E2E_HOGD_PROTOCOL=hogp/4166df9d6a5411d \
@@ -47,14 +46,14 @@ Final-run public evidence (ephemeral ledger has been removed):
 
 ```text
 network: 0000000000000000000000000000000000000000000000000000000000000000
-name: Cross App 1788753270841
+name: Cross App 1788754826912
 symbol: XAPP
-token: 0xbf18c91806ba07ea99e43f6216760848d1df5ce3e5ab453f8a9abc7d0d5bf429
-counter: 0x7d3816c3230a6283d98a18d67b2b4449d83c0bbc72362e1bba7725bf4a8e414d
+token: 0xa0ef11150dd805d6db541f71822e48fc8a27a27a2ee7f5e14358453ba8804648
+counter: 0xbb13e3a40c439f9252c49088f8d69a9472426167142ca34ace6db20fcb5ed01d
 creator: 0xa343ead3ff7bf8c93f9a9f37414c014730a03a8edddd142a7c0b39a45b598c2a
-handler: 0x86078ee1ebe3071aa28bc62cadc357e26135b71c0b799700aa0969039b956ea7
-driver: 0xf1181c993ac4a6ec65b3d58f85647f094ac6a48b9ff31fda054e03979ff9f7c9
-LP token: 0xd04e5d51a1dc1175df950bba22999c0bcfadf51c9866a6fb8992029682776ca6
+handler: 0x6fc453dea719441afaae28b930ad7b84baf4112fd6302b16026af8cdef715ed4
+driver: 0xeb15942db21a6eb2eba7dbfc6b366ac4aa439da4168fc6caa2342dba2ad97198
+LP token: 0x368fdbd0ad08ec31f39542d55772f23b2bb20c444b289d81bc7aa4baf46dbe29
 reserve0 / reserve1: 10000000 / 10000000
 Alice LP balance: 9999000
 ```
@@ -65,8 +64,10 @@ After live acceptance, the command ran all three required commands in each app:
 
 | App | `npm test` | `npm run typecheck` | `npm run build:production` |
 | --- | --- | --- | --- |
-| Swap | 68 files / 766 tests passed; 5 files / 6 tests skipped | PASS | PASS |
-| Launchpad | 26 files / 372 tests passed; 1 file / 1 test skipped | PASS | PASS |
+| Swap | 68 files / 797 tests passed; 5 files / 6 tests skipped | PASS | PASS |
+| Launchpad | 26 files / 400 tests passed; 1 file / 1 test skipped | PASS | PASS |
+
+Both dependency audits reported zero vulnerabilities.
 
 The existing `npm run test:browser:tokens` also passed Chromium 320px touch and
 desktop layout, keyboard focus return, duplicate choices, server filtering,
@@ -82,6 +83,19 @@ Chromium was browser-tested. SIGKILL cannot perform cleanup. Ignored contract
 artifacts and secret-free `dist` outputs remain and refer to a now-removed ledger;
 rebuild for the next deployment. No runtime manifest, private key, env backup,
 SQLite database, or raw log is included in this record.
+
+## Final Review Corrections
+
+- Preserve reviewed pool intent while waiting for account locks and require explicit recovery when another tab creates a saved workflow.
+- Preserve active funded creation across network mismatch, timeout, transport failure, or malformed identity responses; do not repeat funding after connectivity returns.
+- Verify network identity before cleanup, recovery observation, and new writes. Preserve uncertain transaction evidence on failed checks.
+- Allow safe archival under an obsolete workflow's persisted deployment identity and expose pre-hash factory-cleanup recovery.
+- Freeze launchpad inputs during review and display the saved workflow's authoritative token intent.
+- Check the token indexer's network before scans and immediately before page commits; reject runtime network drift, including empty pages.
+- Align combobox accessible names with their visible search labels.
+
+Each correction has regression coverage. Independent re-review verified the
+previous findings, and the complete live journey passed again afterward.
 
 ## Resolved Prerequisite
 
