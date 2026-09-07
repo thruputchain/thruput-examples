@@ -10,10 +10,8 @@ dev_wallet_sha256="4e3d10d51600ad3b7f686766dd9a87795b32010b0b7665d69f33ef7d8ddd6
 
 cli_version="$("$groundhog_cli" --version)"
 if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)($|[[:space:]].*) ]] ||
-   (( BASH_REMATCH[1] == 0 &&
-      (BASH_REMATCH[2] < 9 ||
-       (BASH_REMATCH[2] == 9 && BASH_REMATCH[3] < 6)) )); then
-  printf 'Groundhog CLI 0.9.6 or newer is required for typed descriptor bindings; found %s.\n' "$cli_version" >&2
+   (( BASH_REMATCH[1] == 0 && BASH_REMATCH[2] < 14 )); then
+  printf 'Groundhog CLI 0.14.0 or newer is required for native U256 bindings; found %s.\n' "$cli_version" >&2
   exit 1
 fi
 

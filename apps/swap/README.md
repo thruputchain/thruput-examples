@@ -8,10 +8,10 @@ The local development server injects three generated disposable wallet personas 
 
 - Node.js 22.12 or newer
 - npm
-- Groundhog CLI 0.9.6 or newer
-- Groundhog SDK 0.19.3
-- Groundhog RPC and testkit 0.9.2
-- `@groundhogchain/client` 0.3.0
+- Groundhog CLI 0.14.0 or newer
+- Groundhog SDK 0.29.0
+- Groundhog RPC and testkit 0.14.0
+- `@groundhogchain/client` 0.6.0
 - A compatible local node exposing RPC at `http://127.0.0.1:9545`
 
 The Rust builds require access to the configured Groundhog crate registry.
@@ -36,7 +36,7 @@ Transitive dependency deprecation warnings are non-blocking when installation su
 
 ## Start A Node
 
-The workspace uses Groundhog RPC and testkit 0.9.2 with Groundhog SDK 0.19.3, and requires Groundhog CLI 0.9.6 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
+The workspace uses Groundhog RPC and testkit 0.14.0 with Groundhog SDK 0.29.0, and requires Groundhog CLI 0.14.0 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
 
 - RPC available at `http://127.0.0.1:9545`, unless overridden.
 - A runtime manifest from the running node.
@@ -194,9 +194,9 @@ npm --prefix apps/swap run test:integration:local
 
 The node is not running or `GROUNDHOG_RPC_URL` points to the wrong endpoint. Setup does not start the node.
 
-### Groundhog CLI 0.9.6 or newer is required
+### Groundhog CLI 0.14.0 or newer is required
 
-Set `GROUNDHOG_CLI` to a Groundhog CLI 0.9.6 or newer executable. The executable found first on `PATH` may be older.
+Set `GROUNDHOG_CLI` to a Groundhog CLI 0.14.0 or newer executable. The executable found first on `PATH` may be older.
 
 ### Setup completed deployment but `.env.local` is stale
 

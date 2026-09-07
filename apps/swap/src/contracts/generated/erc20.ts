@@ -1,5 +1,5 @@
-// Generated from erc20.spec.xdr - ERC20 interface v0.1.9
-// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.9
+// Generated from erc20.spec.xdr - ERC20 interface v0.1.21
+// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.21
 // DO NOT EDIT. Re-run codegen to update.
 
 import type { ContractAddress } from "@groundhogchain/protocol";
@@ -138,7 +138,7 @@ export const spec: ContractSpec = {
   interfaces: [
     {
       name: s("ERC20"),
-      vers: s("0.1.9"),
+      vers: s("0.1.21"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -221,7 +221,7 @@ export const spec: ContractSpec = {
     },
     {
       name: s("ERC20Metadata"),
-      vers: s("0.1.9"),
+      vers: s("0.1.21"),
       throws: [],
       methods: [
         {
