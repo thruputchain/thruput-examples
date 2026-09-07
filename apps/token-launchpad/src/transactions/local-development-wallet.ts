@@ -29,7 +29,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 
 import type { AppConfig } from "@/config";
 import { userErrorMessage } from "@/errors";
-import { createReadClient } from "@/groundhog/client";
+import { assertExpectedNetwork, createReadClient } from "@/groundhog/client";
 import {
   outcomeFromReceipt,
   outcomeFromStatus,
@@ -70,7 +70,8 @@ export function createLocalWriteBoundary(
   const client = options.client ?? createReadClient(config);
   const delay = options.delay ?? wait;
   const maxPolls = options.maxPolls ?? MAX_POLLS;
-  const observe = (hash: string) => poll(client, hash, maxPolls, delay);
+  const observe = (hash: string) =>
+    poll(client, config.networkIdHex, hash, maxPolls, delay);
 
   let signer: PrivateKeySigner;
   let walletEntrypoint: ReturnType<typeof contractEntrypointID>;
@@ -96,6 +97,7 @@ export function createLocalWriteBoundary(
       let signed: SignedTransaction;
       let hash: string;
       try {
+        await assertExpectedNetwork(client, config.networkIdHex);
         const tip = await client.getChainTip();
         const transaction = createTransaction({
           invocation: wrapInvocation(
@@ -135,12 +137,12 @@ export function createLocalWriteBoundary(
         if (rpcHash !== hash)
           return { kind: "indeterminate", hash, reason: "other" };
       } catch {
-        const result = await poll(client, hash, maxPolls, delay);
+        const result = await observe(hash);
         return result.kind === "indeterminate" && result.reason === "timeout"
           ? { kind: "indeterminate", hash, reason: "disconnect" }
           : result;
       }
-      return poll(client, hash, maxPolls, delay);
+      return observe(hash);
     },
     observe,
   };
@@ -169,6 +171,7 @@ export function canonicalTransactionHash(
 
 async function poll(
   client: GroundhogClient,
+  expectedNetworkIdHex: string,
   hashHex: string,
   maxPolls: number,
   delay: (milliseconds: number) => Promise<void>,
@@ -186,6 +189,7 @@ async function poll(
     "timeout";
   for (let attempt = 0; attempt < maxPolls; attempt += 1) {
     try {
+      await assertExpectedNetwork(client, expectedNetworkIdHex);
       const receipt = await client.getTransactionReceipt(hash);
       if (receipt !== null) {
         if (!bytesEqual(receipt.txHash, hash)) {

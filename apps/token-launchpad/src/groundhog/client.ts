@@ -1,13 +1,14 @@
 import {
   createGroundhogClient,
   HttpTransport,
+  toHex0x,
   type GroundhogClient,
 } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
 
 export function createReadClient(
-  config: Pick<AppConfig, "registryEnabled" | "rpcUrl">,
+  config: Pick<AppConfig, "registryEnabled" | "rpcUrl" | "networkIdHex">,
 ): GroundhogClient {
   const target = resolveReadRpcUrl(
     config,
@@ -23,15 +24,28 @@ export function createReadClient(
     get(_target, property) {
       if (property === "then") return undefined;
       return (...args: unknown[]) =>
-        promise.then((client) =>
-          Reflect.apply(
+        promise.then(async (client) => {
+          await assertExpectedNetwork(client, config.networkIdHex);
+          return Reflect.apply(
             Reflect.get(client, property) as (...values: unknown[]) => unknown,
             client,
             args,
-          ),
-        );
+          );
+        });
     },
   });
+}
+
+export async function assertExpectedNetwork(
+  client: GroundhogClient,
+  expectedNetworkIdHex: string,
+): Promise<void> {
+  const network = await client.getNetworkInfo();
+  if (toHex0x(network.networkHash) !== `0x${expectedNetworkIdHex}`) {
+    throw new Error(
+      "The RPC network does not match the configured launchpad network.",
+    );
+  }
 }
 
 export function resolveReadRpcUrl(

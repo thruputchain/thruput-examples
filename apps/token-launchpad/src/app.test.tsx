@@ -21,8 +21,10 @@ import {
   readCreatedTokens,
   type FactoryReview,
 } from "@/contracts/launchpad-client";
+import * as launchpadClient from "@/contracts/launchpad-client";
 import {
   createWorkflow,
+  loadWorkflow,
   saveWorkflow,
   workflowStorageKey,
 } from "@/launch/workflow";
@@ -56,6 +58,86 @@ function reviewed(): FactoryReview {
 }
 
 describe("launch review", () => {
+  it.each(["complete", "unmount", "replace client"])(
+    "freezes a deferred review and rejects stale completion: %s",
+    async (action) => {
+      const config = configuration();
+      const originalLocks = Object.getOwnPropertyDescriptor(navigator, "locks");
+      Object.defineProperty(navigator, "locks", {
+        configurable: true,
+        value: {
+          request: async (_name: string, callback: () => unknown) => callback(),
+        },
+      });
+      let resolve!: (value: FactoryReview) => void;
+      const review = vi.spyOn(launchpadClient, "reviewFactory").mockReturnValue(
+        new Promise((done) => {
+          resolve = done;
+        }),
+      );
+      const writer = { execute: vi.fn(), observe: vi.fn() };
+      const client = {} as never;
+      const { unmount, rerender, container } = render(
+        <MemoryRouter>
+          <CreatePage config={config} client={client} writer={writer} />
+        </MemoryRouter>,
+      );
+      try {
+        fireEvent.change(screen.getByLabelText("Token name"), {
+          target: { value: "Acorn" },
+        });
+        fireEvent.change(screen.getByLabelText("Symbol"), {
+          target: { value: "NUT" },
+        });
+        fireEvent.submit(container.querySelector("form")!);
+        await waitFor(() => expect(review).toHaveBeenCalledOnce());
+        for (const label of [
+          "Token name",
+          "Symbol",
+          "Decimals",
+          "Initial supply",
+        ]) {
+          expect(screen.getByLabelText(label)).toBeDisabled();
+        }
+        fireEvent.change(screen.getByLabelText("Token name"), {
+          target: { value: "Changed" },
+        });
+        fireEvent.submit(container.querySelector("form")!);
+        expect(review).toHaveBeenCalledOnce();
+        if (action === "unmount") unmount();
+        if (action === "replace client")
+          rerender(
+            <MemoryRouter>
+              <CreatePage
+                config={config}
+                client={{} as never}
+                writer={writer}
+              />
+            </MemoryRouter>,
+          );
+        await act(async () => resolve(reviewed()));
+        const stored = loadWorkflow(localStorage, workflowStorageKey(config));
+        if (action === "complete") {
+          expect(stored?.token.name).toBe("Acorn");
+          expect(screen.getByText("Acorn · 7 decimals")).toBeInTheDocument();
+          expect(screen.getByLabelText("Token name")).toHaveValue("Acorn");
+        } else {
+          expect(stored).toBeNull();
+          expect(
+            screen.queryByRole("button", { name: "Launch token" }),
+          ).not.toBeInTheDocument();
+        }
+        expect(writer.execute).not.toHaveBeenCalled();
+      } finally {
+        unmount();
+        localStorage.clear();
+        review.mockRestore();
+        if (originalLocks)
+          Object.defineProperty(navigator, "locks", originalLocks);
+        else Reflect.deleteProperty(navigator, "locks");
+      }
+    },
+  );
   it("associates field guidance and validation errors with each input", () => {
     const { container } = render(
       <MemoryRouter>
@@ -103,7 +185,12 @@ describe("launch review", () => {
       <MemoryRouter>
         <ReviewCard
           config={config}
-          draft={{ name: "Acorn", symbol: "NUT", decimals: "7", supply: "12" }}
+          draft={{
+            name: "Changed",
+            symbol: "BAD",
+            decimals: "2",
+            supply: "999",
+          }}
           review={review}
           workflow={createWorkflow(
             config,
@@ -125,6 +212,10 @@ describe("launch review", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText("100 HOG units")).toBeInTheDocument();
+    expect(screen.getByText("Acorn · 7 decimals")).toBeInTheDocument();
+    expect(screen.getByText("NUT")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.queryByText("BAD")).not.toBeInTheDocument();
     expect(screen.getByText("110 HOG units")).toBeInTheDocument();
     expect(screen.getByText("Insufficient HOG")).toBeInTheDocument();
     expect(screen.getByText(/100 more HOG/)).toBeInTheDocument();

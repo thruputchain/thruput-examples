@@ -5,6 +5,7 @@ import {
   contractEntrypointID,
   ExecResult,
   gasAmount,
+  networkHash,
   sha256Hash,
 } from "@groundhogchain/protocol";
 import { describe, expect, it, vi } from "vitest";
@@ -27,9 +28,71 @@ const wallet = {
 };
 
 describe("local development write boundary", () => {
+  it.each(["mismatch", "broken"])(
+    "blocks signing and keeps observation uncertain on %s network info, then retries",
+    async (failure) => {
+      const getNetworkInfo = vi.fn<GroundhogClient["getNetworkInfo"]>(
+        async () => {
+          if (failure === "broken") throw new Error("Network info unavailable");
+          return {
+            networkHash: networkHash(sha256Hash(new Uint8Array(32).fill(99))),
+          };
+        },
+      );
+      const hash = `0x${"03".repeat(32)}`;
+      const client = {
+        getNetworkInfo,
+        getChainTip: vi.fn(),
+        sendTransaction: vi.fn(),
+        getTransactionReceipt: vi.fn().mockResolvedValue({
+          txHash: sha256Hash(fromHex0x(hash)),
+          height: 11n,
+          execResult: ExecResult.ExecResultOK,
+          events: [],
+          returnData: new Uint8Array(),
+          abortData: null,
+        }),
+        getTransactionStatus: vi.fn(),
+      };
+      const boundary = createLocalWriteBoundary(configuration(), wallet, {
+        client: client as unknown as GroundhogClient,
+        delay: async () => {},
+        maxPolls: 2,
+      });
+      const onSigned = vi.fn();
+      await expect(
+        boundary.execute(target, { onSigned }),
+      ).resolves.toMatchObject({ kind: "preSubmissionFailure", hash: null });
+      expect(onSigned).not.toHaveBeenCalled();
+      expect(client.getChainTip).not.toHaveBeenCalled();
+      expect(client.sendTransaction).not.toHaveBeenCalled();
+      await expect(boundary.observe(hash)).resolves.toEqual({
+        kind: "indeterminate",
+        hash,
+        reason: "disconnect",
+      });
+      expect(client.getTransactionReceipt).not.toHaveBeenCalled();
+      expect(client.getTransactionStatus).not.toHaveBeenCalled();
+      getNetworkInfo.mockResolvedValue({
+        networkHash: networkHash(
+          sha256Hash(fromHex0x(`0x${configuration().networkIdHex}`)),
+        ),
+      });
+      await expect(boundary.observe(hash)).resolves.toMatchObject({
+        kind: "committedSuccess",
+        hash,
+      });
+    },
+  );
+
   it("calls onSigned before submission and returns the committed receipt", async () => {
     const onSigned = vi.fn();
     const client = {
+      getNetworkInfo: vi
+        .fn()
+        .mockResolvedValue({
+          networkHash: fromHex0x(`0x${configuration().networkIdHex}`),
+        }),
       getChainTip: vi.fn().mockResolvedValue({
         height: 10n,
         blockHash: sha256Hash(new Uint8Array(32).fill(3)),
@@ -65,6 +128,11 @@ describe("local development write boundary", () => {
   it("observes saved evidence even when signer configuration is invalid", async () => {
     const hash = `0x${"03".repeat(32)}`;
     const client = {
+      getNetworkInfo: vi
+        .fn()
+        .mockResolvedValue({
+          networkHash: fromHex0x(`0x${configuration().networkIdHex}`),
+        }),
       getTransactionReceipt: vi.fn().mockResolvedValue({
         txHash: sha256Hash(fromHex0x(hash)),
         height: 11n,
@@ -90,6 +158,11 @@ describe("local development write boundary", () => {
   it("does not trust a receipt returned for another hash", async () => {
     const hash = `0x${"03".repeat(32)}`;
     const client = {
+      getNetworkInfo: vi
+        .fn()
+        .mockResolvedValue({
+          networkHash: fromHex0x(`0x${configuration().networkIdHex}`),
+        }),
       getTransactionReceipt: vi.fn().mockResolvedValue({
         txHash: sha256Hash(new Uint8Array(32).fill(4)),
         height: 11n,
