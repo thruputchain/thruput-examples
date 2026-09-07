@@ -1,8 +1,13 @@
 import {
   createGroundhogClient,
+  defineCluster,
+  hashFromHex,
   HttpTransport,
+  NetworkMismatchError as ClientNetworkMismatchError,
+  toHex0x,
   type GroundhogClient,
 } from "@groundhogchain/client";
+import { networkHash } from "@groundhogchain/protocol";
 
 import type { GlobalConfig } from "@/config";
 
@@ -10,27 +15,72 @@ export function createReadClient(
   config: Pick<GlobalConfig, "registryEnabled" | "rpcUrl">,
   signal?: AbortSignal,
 ): GroundhogClient {
+  return deferClient(
+    createGroundhogClient({ transport: readTransport(config, signal) }),
+  );
+}
+
+export async function createNetworkReadClient(
+  config: GlobalConfig,
+  signal?: AbortSignal,
+) {
+  try {
+    return await createGroundhogClient({
+      cluster: defineCluster({
+        name: "swap-read",
+        rpcUrl: config.rpcUrl.href,
+        networkHash: networkHash(hashFromHex(`0x${config.networkIdHex}`)),
+        capabilities: [] as const,
+      }),
+      transport: readTransport(config, signal),
+    });
+  } catch (error) {
+    if (error instanceof ClientNetworkMismatchError)
+      throw new NetworkMismatchError();
+    throw error;
+  }
+}
+
+function readTransport(
+  config: Pick<GlobalConfig, "registryEnabled" | "rpcUrl">,
+  signal?: AbortSignal,
+) {
   const browserOrigin =
     typeof window === "undefined" ||
     import.meta.env.MODE === "local-integration"
       ? undefined
       : window.location.origin;
-  return deferClient(
-    createGroundhogClient({
-      transport: new HttpTransport(resolveReadRpcUrl(config, browserOrigin), {
-        fetch: (input, init) => {
-          const combinedSignal = combineSignals(signal, init?.signal);
-          return globalThis.fetch(
-            input,
-            combinedSignal === undefined
-              ? init
-              : { ...init, signal: combinedSignal },
-          );
-        },
-        timeoutMs: 10_000,
-      }),
-    }),
-  );
+  return new HttpTransport(resolveReadRpcUrl(config, browserOrigin), {
+    fetch: (input, init) => {
+      const combinedSignal = combineSignals(signal, init?.signal);
+      return globalThis.fetch(
+        input,
+        combinedSignal === undefined
+          ? init
+          : { ...init, signal: combinedSignal },
+      );
+    },
+    timeoutMs: 10_000,
+  });
+}
+
+export class NetworkMismatchError extends Error {
+  constructor() {
+    super(
+      "The RPC endpoint belongs to a different Groundhog network. Check the connection and retry.",
+    );
+    this.name = "NetworkMismatchError";
+  }
+}
+
+export async function verifyReadNetwork(
+  client: Pick<GroundhogClient, "getNetworkInfo">,
+  config: Pick<GlobalConfig, "networkIdHex">,
+): Promise<void> {
+  const observed = await client.getNetworkInfo();
+  if (toHex0x(observed.networkHash).slice(2) !== config.networkIdHex) {
+    throw new NetworkMismatchError();
+  }
 }
 
 function combineSignals(

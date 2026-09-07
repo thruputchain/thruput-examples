@@ -7,7 +7,7 @@ import type { Erc20ReadAdapter } from "@/contracts/erc20-adapter";
 import type { PoolAddresses, SwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
 import { PoolCreated } from "@/contracts/generated/swap-factory";
-import type { PoolCreationReview } from "@/pools/pool-creation";
+import type { PoolCreationDependencies, PoolCreationReview } from "@/pools/pool-creation";
 import {
   confirmCreationStepWasNotSigned,
   continueSupersededCreation,
@@ -236,10 +236,12 @@ describe("creation executor", () => {
 });
 
 function dependencies(state: { created: boolean; fundingAllowance: bigint }): {
+  client: NonNullable<PoolCreationDependencies["client"]>;
   factory: SwapFactoryReadAdapter;
   token: (token: ReturnType<typeof address>) => Erc20ReadAdapter;
 } {
   return {
+    client: { view: vi.fn(), getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) },
     factory: {
       allPairsLength: async () => view(0n),
       pairAt: async () => view(null),

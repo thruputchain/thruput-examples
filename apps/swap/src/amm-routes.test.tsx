@@ -51,9 +51,9 @@ describe("AmmRoutes", () => {
     expect(screen.getByRole("heading", { name: "Create pool" })).toBeVisible();
   });
 
-  it("redirects pool creation to the directory when read-only", async () => {
+  it.each(["", `?tokenA=0x${"05".repeat(32)}&tokenB=0x${"06".repeat(32)}`])("redirects pool creation with presets %s to the directory when read-only", async (search) => {
     render(
-      <MemoryRouter initialEntries={["/pools/new"]}>
+      <MemoryRouter initialEntries={[`/pools/new${search}`]}>
         <ProcessingModeProvider>
           <AmmRoutes config={config} readOnly />
         </ProcessingModeProvider>

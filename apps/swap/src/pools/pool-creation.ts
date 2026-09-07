@@ -1,4 +1,4 @@
-import { addressFromHex, bytesEqual, toHex0x, type ContractView } from "@groundhogchain/client";
+import { addressFromHex, bytesEqual, toHex0x, type ContractView, type GroundhogClient } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 import type { GlobalConfig } from "@/config";
@@ -15,7 +15,7 @@ import {
 } from "@/contracts/factory-adapter";
 import { parseAmount } from "@/domain/amount";
 import { orderTokens } from "@/domain/tokens";
-import { createReadClient } from "@/groundhog/client";
+import { createNetworkReadClient, verifyReadNetwork } from "@/groundhog/client";
 
 const MINIMUM_LIQUIDITY = 1_000n;
 const MAX_COHERENCE_ATTEMPTS = 3;
@@ -76,6 +76,7 @@ export class PoolCreationValidationError extends Error {
 }
 
 export interface PoolCreationDependencies {
+  client?: Pick<GroundhogClient, "view" | "getNetworkInfo">;
   factory?: SwapFactoryReadAdapter;
   token?: (address: ContractAddress) => Erc20ReadAdapter;
   requiredNativeHog?: bigint;
@@ -92,7 +93,8 @@ export async function preparePoolCreation(
   const ordered = orderTokens(inputTokenA, inputTokenB);
   const token0Input = ordered.inputIndex === 0 ? input.amountA : input.amountB;
   const token1Input = ordered.inputIndex === 0 ? input.amountB : input.amountA;
-  const client = createReadClient(config);
+  const client = dependencies.client ?? await createNetworkReadClient(config);
+  await verifyReadNetwork(client, config);
   const factory = dependencies.factory ?? createSwapFactoryReadAdapter({
     client,
     contract: config.factoryAddress,

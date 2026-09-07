@@ -1,7 +1,7 @@
 import { AlertCircleIcon, CheckCircle2Icon, CircleIcon, LoaderCircleIcon } from "lucide-react";
 import { addressFromHex, toHex0x } from "@groundhogchain/client";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { useProcessingMode } from "@/components/processing-mode";
@@ -24,6 +24,9 @@ import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
 import { AmmPage } from "@/pools/amm-page";
+import { readCreationPresets, tokenAddress } from "@/pools/creation-presets";
+import { TokenAddressCombobox } from "@/pools/token-address-combobox";
+import { useTokenPreview } from "@/pools/token-preview";
 import {
   preparePoolCreation,
   type PoolCreationInput,
@@ -94,6 +97,22 @@ interface PoolCreatePageDependencies {
 
 export function PoolCreatePage({
   config,
+  ...props
+}: {
+  config: GlobalConfig;
+  dependencies?: PoolCreatePageDependencies;
+  walletPrivateKey?: string | undefined;
+}) {
+  const scope = JSON.stringify([
+    config.networkIdHex, config.rpcUrl.href, config.registryEnabled,
+    toHex0x(config.accountAddress), toHex0x(config.factoryAddress),
+    toHex0x(config.routerAddress), toHex0x(config.nativeHogAddress),
+  ]);
+  return <CreationPage key={scope} config={config} {...props} />;
+}
+
+function CreationPage({
+  config,
   dependencies = {},
   walletPrivateKey,
 }: {
@@ -102,11 +121,29 @@ export function PoolCreatePage({
   walletPrivateKey?: string | undefined;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [initialState] = useState(() => readCreationState(config));
+  const [presets] = useState(() => {
+    if (initialState.current === null && initialState.error === null) {
+      return readCreationPresets(location.search);
+    }
+    const params = new URLSearchParams(location.search);
+    const ignored = initialState.current !== null && (params.has("tokenA") || params.has("tokenB"));
+    return {
+      ...emptyInput,
+      warnings: ignored
+        ? ["A saved creation is being recovered. Link presets were not applied."]
+        : [],
+    };
+  });
   const [writer] = useState(
     () => dependencies.writer ?? createBrowserLocalWriteBoundary(config, walletPrivateKey),
   );
-  const [input, setInput] = useState(emptyInput);
+  const [input, setInput] = useState<PoolCreationInput>(() => ({
+    ...emptyInput, tokenA: presets.tokenA, tokenB: presets.tokenB,
+  }));
+  const revision = useRef(0);
+  useEffect(() => () => { revision.current += 1; }, []);
   const [review, setReview] = useState<PoolCreationReview | null>(null);
   const [accountWorkflows, setAccountWorkflows] = useState(initialState.workflows);
   const [workflow, setWorkflow] = useState<CreationWorkflow | null>(
@@ -117,6 +154,21 @@ export function PoolCreatePage({
   const { mode: processingMode, setMode: setProcessingMode } = useProcessingMode();
   const manualProcessing = processingMode === "manual";
   const [error, setError] = useState<string | null>(initialState.error);
+  const canPreview = workflow === null && initialState.error === null;
+  const previewA = useTokenPreview(config, canPreview ? input.tokenA : "");
+  const previewB = useTokenPreview(config,
+    canPreview && tokenAddress(input.tokenB) !== tokenAddress(input.tokenA)
+      ? input.tokenB : "",
+  );
+  const networkMismatch = [previewA, previewB].some(({ preview }) =>
+    preview?.status === "unavailable" && preview.networkMismatch
+  );
+  useEffect(() => {
+    if (networkMismatch) {
+      revision.current += 1;
+      setReview(null);
+    }
+  }, [networkMismatch]);
   const prepare = dependencies.prepare ?? preparePoolCreation;
   const run = dependencies.run ?? runCreationWorkflow;
   const requestRegistrySync = dependencies.requestRegistrySync
@@ -141,7 +193,8 @@ export function PoolCreatePage({
   };
 
   async function reviewPool() {
-    if (isReviewing || isRunning) return;
+    if (isReviewing || isRunning || initialState.error !== null || networkMismatch) return;
+    const generation = ++revision.current;
     setIsReviewing(true);
     setError(null);
     try {
@@ -161,17 +214,19 @@ export function PoolCreatePage({
             nativeHogHex,
           ),
       );
-      setReview(next);
+      if (generation === revision.current) setReview(next);
     } catch (cause) {
-      setReview(null);
-      setError(describeError(cause));
+      if (generation === revision.current) {
+        setReview(null);
+        setError(describeError(cause));
+      }
     } finally {
       setIsReviewing(false);
     }
   }
 
   async function startOrContinue(processQueue = false) {
-    if (isRunning) return;
+    if (isRunning || initialState.error !== null || (workflow === null && networkMismatch)) return;
     setIsRunning(true);
     setError(null);
     try {
@@ -370,6 +425,13 @@ export function PoolCreatePage({
       title="Create pool"
       description="Review factory-recommended funding and exact initial liquidity before signing."
     >
+      {presets.warnings.map((warning) => (
+        <Alert key={warning}>
+          <AlertCircleIcon aria-hidden="true" />
+          <AlertTitle>Link presets</AlertTitle>
+          <AlertDescription>{warning}</AlertDescription>
+        </Alert>
+      ))}
       {error === null ? null : (
         <Alert variant="destructive">
           <AlertCircleIcon aria-hidden="true" />
@@ -425,17 +487,27 @@ export function PoolCreatePage({
 
       {workflow === null ? (
         <CreationForm
+          config={config}
+          previewA={previewA}
+          previewB={previewB}
+          blocked={initialState.error !== null || networkMismatch || isRunning}
           input={input}
           isReviewing={isReviewing}
           onChange={(field, value) => {
-            setInput((current) => ({ ...current, [field]: value }));
+            revision.current += 1;
+            setInput((current) => ({
+              ...current,
+              [field]: value,
+              ...(field === "tokenA" ? { amountA: "" }
+                : field === "tokenB" ? { amountB: "" } : {}),
+            }));
             setReview(null);
           }}
           onReview={reviewPool}
         />
       ) : null}
 
-      {review !== null && workflow === null ? (
+      {review !== null && workflow === null && !networkMismatch ? (
         <CreationReviewCard
           review={review}
           isRunning={isRunning}
@@ -487,11 +559,19 @@ export function PoolCreatePage({
 }
 
 function CreationForm({
+  config,
+  previewA,
+  previewB,
+  blocked,
   input,
   isReviewing,
   onChange,
   onReview,
 }: {
+  config: GlobalConfig;
+  previewA: ReturnType<typeof useTokenPreview>;
+  previewB: ReturnType<typeof useTokenPreview>;
+  blocked: boolean;
   input: PoolCreationInput;
   isReviewing: boolean;
   onChange: (field: keyof PoolCreationInput, value: string) => void;
@@ -507,6 +587,9 @@ function CreationForm({
       </CardHeader>
       <CardContent className="grid gap-5 md:grid-cols-2">
         <TokenFields
+          config={config}
+          preview={previewA}
+          otherAddress={input.tokenB}
           label="Token A"
           address={input.tokenA}
           amount={input.amountA}
@@ -514,6 +597,9 @@ function CreationForm({
           onAmount={(value) => onChange("amountA", value)}
         />
         <TokenFields
+          config={config}
+          preview={previewB}
+          otherAddress={input.tokenA}
           label="Token B"
           address={input.tokenB}
           amount={input.amountB}
@@ -522,7 +608,13 @@ function CreationForm({
         />
       </CardContent>
       <CardFooter>
-        <Button disabled={isReviewing} onClick={onReview}>
+        <Button
+          disabled={isReviewing || blocked
+            || tokenAddress(input.tokenA) === null
+            || tokenAddress(input.tokenB) === null
+            || tokenAddress(input.tokenA) === tokenAddress(input.tokenB)}
+          onClick={onReview}
+        >
           {isReviewing ? "Reviewing pool…" : "Review pool"}
         </Button>
       </CardFooter>
@@ -531,12 +623,18 @@ function CreationForm({
 }
 
 function TokenFields({
+  config,
+  preview: { preview, retry },
+  otherAddress,
   label,
   address,
   amount,
   onAddress,
   onAmount,
 }: {
+  config: GlobalConfig;
+  preview: ReturnType<typeof useTokenPreview>;
+  otherAddress: string;
   label: string;
   address: string;
   amount: string;
@@ -544,18 +642,39 @@ function TokenFields({
   onAmount: (value: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-foreground/10 p-4">
+    <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-foreground/10 p-4">
       <h2 className="font-heading font-semibold">{label}</h2>
-      <Field>
-        <FieldLabel htmlFor={`${label}-address`}>Contract address</FieldLabel>
-        <Input
-          id={`${label}-address`}
-          autoComplete="off"
-          className="font-mono"
-          value={address}
-          onChange={(event) => onAddress(event.target.value)}
-        />
-      </Field>
+      <TokenAddressCombobox
+        label={label}
+        value={address}
+        otherAddress={otherAddress}
+        discovery={config.tokenDiscovery}
+        onChange={onAddress}
+      />
+      {preview === null ? null : (
+        <div role="status" aria-live="polite" className="flex min-w-0 flex-col gap-2 break-all text-sm">
+          {preview.status === "pending" ? "Loading live token metadata..."
+            : preview.status === "ready" ? (
+              <>
+                <span>Live name: {preview.metadata.name?.trim() || address}</span>
+                <span>Live symbol: {preview.metadata.symbol?.trim() || `${address.slice(0, 8)}...`}</span>
+                <span>Decimals: {preview.metadata.decimals ?? "unavailable"}</span>
+                <span className="text-muted-foreground">
+                  Informational only. Review rereads live state before creation.
+                </span>
+              </>
+            ) : (
+              <>
+                <span>{preview.networkMismatch
+                  ? "RPC network mismatch. Check the connection and retry."
+                  : "Live token metadata is unavailable. The address is still editable."}</span>
+                <Button type="button" size="sm" variant="outline" onClick={retry}>
+                  Retry {label} metadata
+                </Button>
+              </>
+            )}
+        </div>
+      )}
       <Field>
         <FieldLabel htmlFor={`${label}-amount`}>Initial amount</FieldLabel>
         <Input
