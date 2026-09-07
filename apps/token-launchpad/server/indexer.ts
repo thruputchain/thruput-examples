@@ -163,6 +163,7 @@ export class RegistryIndexer implements SyncController {
   }
 
   async #scan(signal: AbortSignal): Promise<void> {
+    await this.#source.verifyNetworkIdentity(signal);
     let scan = this.#store.getScan();
     let anchorBlock =
       scan?.anchorBlock ??
@@ -217,6 +218,8 @@ export class RegistryIndexer implements SyncController {
         }
         seenCursors.add(nextCursor);
       }
+      await this.#source.verifyNetworkIdentity(signal);
+      signal.throwIfAborted();
       this.#store.commitPage(tokens, nextCursor);
       if (nextCursor === null) return;
       cursor = nextCursor;

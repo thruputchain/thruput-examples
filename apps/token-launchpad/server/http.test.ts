@@ -94,6 +94,23 @@ describe("registry HTTP API", () => {
     });
   });
 
+  it("exposes the integrity fault through the existing discovery status contract", async () => {
+    store.updateStatus({
+      syncState: "integrityFault",
+      lastError: "The RPC endpoint belongs to a different Groundhog network",
+    });
+    const response = await fetch(`${origin}/api/registry/status`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      networkId: scope.networkId,
+      factoryAddress: scope.factoryAddress,
+      syncState: "integrityFault",
+      syncing: false,
+      indexedThroughBlock: "0",
+      tokenCount: 0,
+    });
+  });
+
   it("returns bounded token query defaults", async () => {
     const response = await fetch(`${origin}/api/tokens`);
     expect(response.status).toBe(200);
