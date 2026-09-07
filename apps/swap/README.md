@@ -139,6 +139,40 @@ The script reads the generated driver address and entrypoint, uses the generated
 
 If a queued request has no decodable request ID, automatic event correlation is unavailable. Use **Resolve manually** only after independently confirming that the relevant queue was drained, then complete the separate confirmation step. Tracked queued requests remain in the list until a matching terminal event arrives.
 
+## Launchpad Handoff
+
+Set `VITE_TOKEN_DISCOVERY_ENABLED=true`, the launchpad factory/hash, and the
+server-only `TOKEN_DISCOVERY_UPSTREAM_ORIGIN` to enable indexed suggestions.
+Search matches name, symbol, token address, or creator address. Results are
+hints, not an allowlist; manual addresses and URL presets use live RPC metadata
+even before indexing or during a registry outage. Recovery overrides presets.
+
+The complete launch-to-pool journey requires two loopback Vite apps with
+disposable wallets. Production remains read-only, including preset URLs.
+Follow the [operator recipe](../../docs/cross-app-operations.md) for separate
+writable and registry environments.
+
+Run the single-ledger browser acceptance from this directory:
+
+```sh
+GROUNDHOG_CLI="$HOME/Work/groundhog-rpc/target/debug/groundhog" \
+GROUNDHOG_DEVNODE_BINARY="$HOME/.local/share/groundhog/hog-devnode/hog-devnode" \
+GROUNDHOG_E2E_HOGD_PROTOCOL=hogp/4166df9d6a5411d \
+npm run test:e2e:cross-app
+```
+
+This reuses `playwright-core`; install Chromium or set `CHROMIUM_PATH`. Install
+both apps' dependencies first. Linux `flock`, compatible binaries, and Rust
+registry access are required. The harness provisions sequentially on one fresh
+node, tests both real production servers, then runs both full suites, typechecks,
+and production builds. It never writes `.env.local` or the generated CLI config,
+including symlinks; owned processes, keys, and databases are removed on exit.
+Ignored contract artifacts and production `dist` outputs remain. Do not run
+other setup/build commands concurrently. A second cross-app run fails its lock.
+
+See the [acceptance record](../../docs/specs/2026-09-06-cross-app-acceptance.md)
+for actual evidence and coverage limits.
+
 ## Registry Deployment
 
 The production package runs the built SPA, pool registry API, read-only RPC proxy, indexer, and SQLite owner in one Node process. Packaging does not deploy the service.

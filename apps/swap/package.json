@@ -19,6 +19,7 @@
     "test:components": "vitest run src/app.test.tsx",
     "test:browser:tokens": "node scripts/test-token-inputs-browser.mjs",
     "test:e2e:local": "RUN_CLEAN_LEDGER_E2E=1 bash scripts/test-clean-ledger.sh",
+    "test:e2e:cross-app": "flock -n . flock -n ../token-launchpad node scripts/test-cross-app.mjs",
     "test:integration:local": "vitest run --mode local-integration src/integration/*.local.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
