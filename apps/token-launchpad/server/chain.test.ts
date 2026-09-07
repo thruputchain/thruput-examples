@@ -7,7 +7,7 @@ import {
   hashFromHex,
   JsonRpcError,
 } from "@groundhogchain/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   GroundhogRegistrySource,
@@ -16,6 +16,8 @@ import {
   RegistryScopeVerificationError,
 } from "./chain.ts";
 import type { RegistryScope } from "./domain.ts";
+import { RegistryIndexer } from "./indexer.ts";
+import { RegistryStore } from "./store.ts";
 import {
   StandardTokenFactory,
   TokenCreated,
@@ -26,11 +28,146 @@ const scope: RegistryScope = {
   factoryAddress: `0x${"22".repeat(32)}`,
   tokenCodeHash: `0x${"33".repeat(32)}`,
 };
-const client = { view: vi.fn(), getEvents: vi.fn() };
+const client = { view: vi.fn(), getEvents: vi.fn(), getNetworkInfo: vi.fn() };
+
+beforeEach(() => {
+  client.getEvents.mockReset();
+  client.getNetworkInfo.mockReset().mockResolvedValue({
+    networkHash: hashFromHex(`0x${scope.networkId}`),
+  });
+});
 
 afterEach(() => vi.restoreAllMocks());
 
 describe("GroundhogRegistrySource", () => {
+  it.each(["before scan", "during page", "empty page", "no new blocks"])(
+    "halts without committing when the network changes: %s",
+    async (timing) => {
+      vi.spyOn(StandardTokenFactory.config, "view").mockResolvedValue({
+        value: factoryConfig(0x33),
+        height: 1n,
+        events: [],
+      });
+      vi.spyOn(TokenCreated, "decode").mockReturnValue({
+        name: "TokenCreated",
+        topics: { token: address(0x44), creator: address(0x55) },
+        fields: {
+          administrator: address(0x66),
+          initial_holder: address(0x77),
+          initial_supply: 123n,
+          name: "Token",
+          symbol: "TOK",
+          decimals: 7n,
+          token_code_hash: factoryConfig(0x33).token_code_hash,
+        },
+      });
+      const source = new GroundhogRegistrySource(client, scope);
+      await source.verifyNetworkIdentity(new AbortController().signal);
+      await source.verifyScope();
+      const switchNetwork = () =>
+        client.getNetworkInfo.mockResolvedValue({
+          networkHash: hashFromHex(`0x${"99".repeat(32)}`),
+        });
+      client.getEvents.mockImplementation(async () => {
+        switchNetwork();
+        return {
+          events:
+            timing === "empty page" || timing === "no new blocks"
+              ? []
+              : [identifiedEvent()],
+          cursor: new Uint8Array(),
+          latestBlock: timing === "no new blocks" ? 0n : 8n,
+          oldestBlock: 1n,
+        };
+      });
+      if (timing === "before scan") switchNetwork();
+      const store = new RegistryStore(":memory:", scope);
+      const commit = vi.spyOn(store, "commitPage");
+      const indexer = new RegistryIndexer(store, source, {
+        pageSize: 20,
+        syncIntervalMs: 60_000,
+      });
+      try {
+        await indexer.sync();
+        await indexer.sync();
+        expect(commit).not.toHaveBeenCalled();
+        expect(store.getScan()).toBeNull();
+        expect(store.getStatus()).toMatchObject({
+          syncState: "integrityFault",
+          indexedThroughBlock: "0",
+          tokenCount: 0,
+          lastSuccessfulSyncAt: null,
+          lastError:
+            "The RPC endpoint belongs to a different Groundhog network",
+        });
+        expect(client.getEvents).toHaveBeenCalledTimes(
+          timing === "before scan" ? 0 : 1,
+        );
+      } finally {
+        await indexer.stop();
+        store.close();
+      }
+    },
+  );
+
+  it.each(["before scan", "after retrieval"])(
+    "retries sanitized network RPC failures %s",
+    async (timing) => {
+      const secret = "https://rpc.example.test/?token=private-secret";
+      const failure = new Error(secret);
+      client.getEvents.mockImplementation(async () => {
+        if (timing === "after retrieval")
+          client.getNetworkInfo.mockRejectedValueOnce(failure);
+        return {
+          events: [],
+          cursor: new Uint8Array(),
+          latestBlock: 8n,
+          oldestBlock: 1n,
+        };
+      });
+      if (timing === "before scan")
+        client.getNetworkInfo.mockRejectedValueOnce(failure);
+      const store = new RegistryStore(":memory:", scope);
+      const sleep = vi.fn(async () => {
+        expect(store.getStatus()).toMatchObject({
+          syncState: "retrying",
+          indexedThroughBlock: "0",
+          tokenCount: 0,
+          lastError: "Registry synchronization is temporarily unavailable",
+        });
+        expect(store.getScan()).toBeNull();
+        client.getEvents.mockResolvedValue({
+          events: [],
+          cursor: new Uint8Array(),
+          latestBlock: 8n,
+          oldestBlock: 1n,
+        });
+      });
+      const indexer = new RegistryIndexer(
+        store,
+        new GroundhogRegistrySource(client, scope),
+        {
+          pageSize: 20,
+          syncIntervalMs: 60_000,
+          sleep,
+        },
+      );
+      try {
+        await indexer.sync();
+        expect(sleep).toHaveBeenCalledTimes(1);
+        expect(store.getStatus()).toMatchObject({
+          syncState: "idle",
+          indexedThroughBlock: "8",
+          lastError: null,
+        });
+        expect(JSON.stringify(store.getStatus())).not.toContain(secret);
+      } finally {
+        await indexer.stop();
+        store.close();
+      }
+    },
+  );
+
   it("verifies the configured factory token implementation", async () => {
     vi.spyOn(StandardTokenFactory.config, "view").mockResolvedValue({
       value: factoryConfig(0x33),

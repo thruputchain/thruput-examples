@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   RegistryCursorRejectedError,
   RegistryIntegrityError,
+  RegistryScopeVerificationError,
   type RegistrySource,
   type RegistrySourcePage,
 } from "./chain.ts";
@@ -33,6 +34,38 @@ afterEach(async () => {
 });
 
 describe("RegistryIndexer", () => {
+  it.each([true, false])(
+    "checks identity immediately before committing a continuation page (empty: %s)",
+    async (empty) => {
+      const store = new RegistryStore(":memory:", scope);
+      store.beginScan("1", "10");
+      store.commitPage([token(1, "4")], "durable");
+      const scan = store.getScan();
+      const commit = vi.spyOn(store, "commitPage");
+      const source = queuedSource([
+        page(empty ? [] : [token(2, "8")], null, "10"),
+      ]);
+      source.verifyNetworkIdentity = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new RegistryScopeVerificationError(
+            "The RPC endpoint belongs to a different Groundhog network",
+          ),
+        );
+      await createIndexer(store, source).sync();
+      expect(source.verifyNetworkIdentity).toHaveBeenCalledTimes(2);
+      expect(commit).not.toHaveBeenCalled();
+      expect(store.getScan()).toEqual(scan);
+      expect(store.getStatus()).toMatchObject({
+        syncState: "integrityFault",
+        indexedThroughBlock: "0",
+        tokenCount: 1,
+      });
+      store.close();
+    },
+  );
+
   it("ingests ascending pages through one fixed target", async () => {
     const store = new RegistryStore(":memory:", scope);
     const source = queuedSource([
@@ -326,6 +359,7 @@ function queuedSource(
   } = {
     responses,
     requests,
+    verifyNetworkIdentity: async () => undefined,
     async getPage(request): Promise<RegistrySourcePage> {
       requests.push({
         anchorBlock: request.anchorBlock,

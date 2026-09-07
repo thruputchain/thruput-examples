@@ -16,8 +16,9 @@ import { buildAddLiquidityTarget } from "@/contracts/router-target";
 import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
-import { createReadClient } from "@/groundhog/client";
+import { createReadClient, NetworkMismatchError, verifyReadNetwork } from "@/groundhog/client";
 import {
+  PoolCreationNetworkError,
   PoolCreationValidationError,
   preparePoolCreation,
   type PoolCreationDependencies,
@@ -38,6 +39,7 @@ import {
   reservedCreationHog,
   reservedCreationToken,
   saveCreationWorkflow,
+  sameCreationIntent,
   type CreationPool,
   type CreationStepName,
   type CreationWorkflow,
@@ -74,6 +76,7 @@ export interface CreationExecutorDependencies extends PoolCreationDependencies {
   automaticProcessing?: boolean;
   observeQueued?: (workflow: CreationWorkflow) => Promise<CreationWorkflow>;
   onUpdate?: (workflow: CreationWorkflow) => void;
+  assertCurrent?: () => void;
 }
 
 export class CreationRecoveryRequiredError extends Error {
@@ -88,9 +91,13 @@ export async function runCreationWorkflow(
   initial: CreationWorkflow,
   dependencies: CreationExecutorDependencies,
 ): Promise<CreationWorkflow> {
+  dependencies.assertCurrent?.();
   const persisted = loadCreationWorkflow(config, initial.token0.address, initial.token1.address);
   if (persisted === null || persisted.id !== initial.id) {
     throw new Error("The pool-creation workflow changed before the account lock was acquired");
+  }
+  if (!sameCreationIntent(persisted, initial)) {
+    throw new Error("The saved creation intent changed; review it before continuing");
   }
   let workflow = persisted;
   const update = (next: CreationWorkflow): CreationWorkflow => {
@@ -100,10 +107,12 @@ export async function runCreationWorkflow(
   };
 
   if (workflow.status === "queued") {
+    await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
     const observed = await (
       dependencies.observeQueued
       ?? createCreationObserver(config).scan
     )(workflow);
+    await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
     if (observed !== workflow) workflow = update(observed);
     if (workflow.status === "executed" || workflow.status === "failed") {
       return workflow;
@@ -123,7 +132,9 @@ export async function runCreationWorkflow(
       if (dependencies.writeBoundary.observe === undefined) {
         throw new Error("This wallet cannot recover the stored transaction");
       }
+      await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
       const observed = await dependencies.writeBoundary.observe(step.transactionHash);
+      await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
       workflow = applyWriteResult(workflow, name, observed, update);
       if (observed.kind !== "committedSuccess") {
         if (name === "createPool" && observed.kind !== "indeterminate") {
@@ -147,6 +158,7 @@ export async function runCreationWorkflow(
       try {
         review = await revalidateWorkflow(config, workflow, dependencies);
       } catch (error) {
+        if (error instanceof NetworkMismatchError || error instanceof PoolCreationNetworkError) throw error;
         if (error instanceof PoolCreationValidationError && error.code === "poolExists") {
           return markRace(config, workflow, name, dependencies, update);
         }
@@ -167,7 +179,9 @@ export async function runCreationWorkflow(
         throw error;
       }
     }
+    await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
     assertAccountCanSign(config, workflow, name);
+    dependencies.assertCurrent?.();
     const target = targetForStep(config, workflow, review, name);
     if (target === null) {
       workflow = update(updateStep(workflow, name, {
@@ -188,6 +202,7 @@ export async function runCreationWorkflow(
         workflow = update(updateStep(workflow, name, { transactionHash }));
       },
     });
+    await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
     workflow = applyWriteResult(workflow, name, result, update);
     if (result.kind !== "committedSuccess") {
       if (name === "createPool" && result.kind !== "indeterminate") {

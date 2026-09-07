@@ -27,6 +27,7 @@ const environment = {
   VITE_TOKEN_REGISTRY_ENABLED: "true",
 };
 const manifest = {
+  VITE_SWAP_APP_URL: "",
   VITE_GROUNDHOG_RPC_URL_SHA256: createHash("sha256")
     .update(rpcUrl)
     .digest("hex"),
@@ -133,5 +134,44 @@ describe("production public configuration manifest", () => {
     await expect(
       verifyPublicConfigManifest(manifestPath, environment),
     ).resolves.toEqual(manifest);
+  });
+
+  it("normalizes the optional Swap origin and rejects drift and the old schema", async () => {
+    const configured = createPublicConfigManifest({
+      ...environment,
+      VITE_SWAP_APP_URL: "https://SWAP.example.test:443/",
+    });
+    expect(configured.VITE_SWAP_APP_URL).toBe("https://swap.example.test");
+    expect(parsePublicConfigManifest(JSON.stringify(configured))).toEqual(
+      configured,
+    );
+    expect(
+      createPublicConfigManifest({ ...environment, VITE_SWAP_APP_URL: "  " })
+        .VITE_SWAP_APP_URL,
+    ).toBe("");
+    const { VITE_SWAP_APP_URL: _url, ...old } = manifest;
+    expect(() => parsePublicConfigManifest(JSON.stringify(old))).toThrow(
+      /unexpected fields/,
+    );
+    expect(() =>
+      parsePublicConfigManifest(
+        JSON.stringify({
+          ...configured,
+          VITE_SWAP_APP_URL: "https://swap.example.test/",
+        }),
+      ),
+    ).toThrow(/canonical/);
+    directory = await mkdtemp(path.join(os.tmpdir(), "launchpad-manifest-"));
+    const file = path.join(directory, "manifest.json");
+    await writeFile(file, JSON.stringify(configured));
+    await expect(
+      verifyPublicConfigManifest(file, {
+        ...environment,
+        VITE_SWAP_APP_URL: "https://swap.example.test/",
+      }),
+    ).resolves.toEqual(configured);
+    await expect(verifyPublicConfigManifest(file, environment)).rejects.toThrow(
+      /VITE_SWAP_APP_URL does not match/,
+    );
   });
 });

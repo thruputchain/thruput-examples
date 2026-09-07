@@ -41,6 +41,7 @@ export interface RegistrySourcePage {
 }
 
 export interface RegistrySource {
+  verifyNetworkIdentity(signal: AbortSignal): Promise<void>;
   getPage(request: RegistrySourceRequest): Promise<RegistrySourcePage>;
 }
 
@@ -86,13 +87,21 @@ export async function createGroundhogRegistrySource(
     config.scope,
     (query, signal) =>
       transport.withSignal(signal, () => client.getEvents(query)),
+    (signal) => transport.withSignal(signal, () => client.getNetworkInfo()),
   );
+  await source.verifyNetworkIdentity(new AbortController().signal);
   await source.verifyScope();
   return source;
 }
 
 export class GroundhogRegistrySource implements RegistrySource {
-  readonly #client: Pick<GroundhogClient, "getEvents" | "view">;
+  readonly #client: Pick<
+    GroundhogClient,
+    "getEvents" | "view" | "getNetworkInfo"
+  >;
+  readonly #getNetworkInfo: (
+    signal: AbortSignal,
+  ) => ReturnType<GroundhogClient["getNetworkInfo"]>;
   readonly #getEvents: (
     query: EventQuery,
     signal: AbortSignal,
@@ -102,16 +111,31 @@ export class GroundhogRegistrySource implements RegistrySource {
   readonly #expectedTokenHash;
 
   constructor(
-    client: Pick<GroundhogClient, "getEvents" | "view">,
+    client: Pick<GroundhogClient, "getEvents" | "view" | "getNetworkInfo">,
     scope: RegistryScope,
     getEvents = (query: EventQuery, signal: AbortSignal) =>
       abortable(client.getEvents(query), signal),
+    getNetworkInfo = (signal: AbortSignal) => {
+      if (signal.aborted) return Promise.reject(signal.reason);
+      return abortable(client.getNetworkInfo(), signal);
+    },
   ) {
     this.#client = client;
     this.#getEvents = getEvents;
+    this.#getNetworkInfo = getNetworkInfo;
     this.#scope = scope;
     this.#factoryAddress = addressFromHex(scope.factoryAddress);
     this.#expectedTokenHash = fixedBytes(fromHex0x(scope.tokenCodeHash), 32);
+  }
+
+  async verifyNetworkIdentity(signal: AbortSignal): Promise<void> {
+    const observed = await this.#getNetworkInfo(signal);
+    signal.throwIfAborted();
+    if (toHex0x(observed.networkHash).slice(2) !== this.#scope.networkId) {
+      throw new RegistryScopeVerificationError(
+        "The RPC endpoint belongs to a different Groundhog network",
+      );
+    }
   }
 
   async verifyScope(): Promise<void> {
@@ -137,6 +161,7 @@ export class GroundhogRegistrySource implements RegistrySource {
   }
 
   async getPage(request: RegistrySourceRequest): Promise<RegistrySourcePage> {
+    await this.verifyNetworkIdentity(request.signal);
     let page: EventPage;
     try {
       page = await this.#getEvents(
@@ -167,8 +192,12 @@ export class GroundhogRegistrySource implements RegistrySource {
     }
 
     const indexedAt = new Date().toISOString();
+    const tokens = page.events.map((event) =>
+      this.#decodeEvent(event, indexedAt),
+    );
+    await this.verifyNetworkIdentity(request.signal);
     return {
-      tokens: page.events.map((event) => this.#decodeEvent(event, indexedAt)),
+      tokens,
       nextCursor: encodeCursor(page.cursor),
       latestBlock: unsignedDecimal(page.latestBlock, "latest block"),
       oldestBlock: unsignedDecimal(page.oldestBlock, "oldest block"),
@@ -250,6 +279,7 @@ class SignalTransport implements Transport {
   }
 
   withSignal<T>(signal: AbortSignal, action: () => Promise<T>): Promise<T> {
+    if (signal.aborted) return Promise.reject(signal.reason);
     if (this.#signal !== null) {
       throw new RegistryIntegrityError("Concurrent registry RPC requests");
     }

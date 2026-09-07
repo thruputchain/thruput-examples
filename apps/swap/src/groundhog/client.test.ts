@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createReadClient, resolveReadRpcUrl } from "./client";
+import { contractAddress } from "@groundhogchain/protocol";
+import { createNetworkReadClient, createReadClient, NetworkMismatchError, resolveReadRpcUrl, verifyReadNetwork } from "./client";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -66,5 +67,40 @@ describe("createReadClient", () => {
 
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
     expect(transportSignal?.aborted).toBe(true);
+  });
+});
+
+describe("network-bound creation reads", () => {
+  const address = contractAddress(new Uint8Array(32).fill(1));
+  const config = {
+    rpcUrl: new URL("http://127.0.0.1:9545"), networkIdHex: "00".repeat(32),
+    accountAddress: address, factoryAddress: address, routerAddress: address, nativeHogAddress: address,
+  };
+
+  it("binds the SDK cluster and explicitly rereads network identity through the abort-aware transport", async () => {
+    const controller = new AbortController();
+    const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const request = JSON.parse(String(init?.body));
+      expect(request.method).toBe("groundhog_networkInfo");
+      return Response.json({ jsonrpc: "2.0", id: request.id, result: { networkHash: `0x${config.networkIdHex}` } });
+    });
+    const client = await createNetworkReadClient(config, controller.signal);
+    expect(client.cluster.networkHash).toEqual(new Uint8Array(32));
+    await verifyReadNetwork(client, config);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    controller.abort();
+    expect(fetcher.mock.calls.every(([, init]) => init?.signal?.aborted)).toBe(true);
+  });
+
+  it("sanitizes SDK network mismatch and rejects a changed network on the explicit check", async () => {
+    let observed = "01".repeat(32);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => Response.json({
+      jsonrpc: "2.0", id: JSON.parse(String(init?.body)).id, result: { networkHash: `0x${observed}` },
+    }));
+    await expect(createNetworkReadClient(config)).rejects.toBeInstanceOf(NetworkMismatchError);
+    observed = config.networkIdHex;
+    const client = await createNetworkReadClient(config);
+    observed = "02".repeat(32);
+    await expect(verifyReadNetwork(client, config)).rejects.toBeInstanceOf(NetworkMismatchError);
   });
 });

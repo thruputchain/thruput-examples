@@ -6,6 +6,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import type { FactoryReview } from "@/contracts/launchpad-client";
+import { createReadClient } from "@/groundhog/client";
 import { advanceWorkflow, runWorkflow } from "@/launch/executor";
 import {
   createWorkflow,
@@ -25,6 +26,73 @@ const locks = {
 } as unknown as LockManager;
 
 describe("advanceWorkflow", () => {
+  it.each(["mismatch", "malformed", "unavailable"])(
+    "does not execute or recover a workflow from %s network evidence",
+    async (failure) => {
+      const config = configuration();
+      const storage = new MemoryStorage();
+      const workflow = createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        factoryReview(config),
+      );
+      const writer = { execute: vi.fn(), observe: vi.fn() };
+      const methods: string[] = [];
+      const fetch = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (_url, init) => {
+          const request = JSON.parse(init!.body as string);
+          methods.push(request.method);
+          if (failure === "unavailable") throw new Error("offline");
+          return new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: request.id,
+              result: {
+                networkHash:
+                  failure === "mismatch" ? `0x${"99".repeat(32)}` : "broken",
+              },
+            }),
+          );
+        });
+      try {
+        const client = createReadClient(config);
+        for (const status of ["idle", "signing", "uncertain"] as const) {
+          const saved = {
+            ...workflow,
+            funding: {
+              status,
+              hash: status === "uncertain" ? `0x${"06".repeat(32)}` : null,
+            },
+          };
+          saveWorkflow(storage, workflowStorageKey(config), saved);
+          await expect(
+            advanceWorkflow({
+              config,
+              client,
+              writer,
+              storage,
+              locks,
+              workflowId: saved.id,
+              workflowRevision: saved.revision,
+              expectedIntent: workflowIntent(saved),
+              confirmUnsignedStep: "funding",
+            }),
+          ).rejects.toThrow();
+          expect(loadWorkflow(storage, workflowStorageKey(config))).toEqual(
+            saved,
+          );
+        }
+        expect(writer.execute).not.toHaveBeenCalled();
+        expect(writer.observe).not.toHaveBeenCalled();
+        expect(methods).toEqual(Array(3).fill("groundhog_networkInfo"));
+      } finally {
+        fetch.mockRestore();
+      }
+    },
+  );
+
   it.each([
     ["automatic", true, 2],
     ["manual", false, 1],

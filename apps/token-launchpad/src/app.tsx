@@ -68,6 +68,7 @@ import { userErrorMessage } from "@/errors";
 import { createReadClient } from "@/groundhog/client";
 import { runWorkflow } from "@/launch/executor";
 import { formatUnits, parseTokenDraft, type TokenDraft } from "@/launch/form";
+import { createAmmPoolLink } from "@/launch/swap-link";
 import {
   canDiscardInvalidStoredWorkflow,
   createWorkflow,
@@ -394,33 +395,52 @@ export function CreatePage({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [manualProcessing, setManualProcessing] = useState(false);
+  const reviewGeneration = useRef(0);
+  const reviewing = useRef(false);
+  useEffect(() => {
+    reviewing.current = false;
+    setLoading(false);
+    return () => {
+      reviewGeneration.current += 1;
+    };
+  }, [client, config]);
   const parsed = parseTokenDraft(draft);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (
+      reviewing.current ||
+      loading ||
+      workflow ||
+      storageError ||
+      !writesSupported
+    )
+      return;
     setSubmitted(true);
     setError(null);
     if (!parsed.value) return;
     const token = parsed.value;
+    const generation = ++reviewGeneration.current;
+    reviewing.current = true;
     setLoading(true);
     try {
-      const { nextReview, nextWorkflow } = await withWorkflowLock(
-        config,
-        async () => {
-          if (loadWorkflow(localStorage, storageKey) !== null) {
-            throw new Error(
-              "Another tab created a launch workflow. Reload before continuing.",
-            );
-          }
-          const nonce = crypto.getRandomValues(new Uint8Array(32));
-          const nextReview = await reviewFactory(client, config, nonce);
-          const nextWorkflow = createWorkflow(config, token, nonce, nextReview);
-          saveWorkflow(localStorage, storageKey, nextWorkflow);
-          return { nextReview, nextWorkflow };
-        },
-      );
-      setReview(nextReview);
-      setWorkflow(nextWorkflow);
+      const result = await withWorkflowLock(config, async () => {
+        if (loadWorkflow(localStorage, storageKey) !== null) {
+          throw new Error(
+            "Another tab created a launch workflow. Reload before continuing.",
+          );
+        }
+        const nonce = crypto.getRandomValues(new Uint8Array(32));
+        const nextReview = await reviewFactory(client, config, nonce);
+        if (generation !== reviewGeneration.current) return null;
+        const nextWorkflow = createWorkflow(config, token, nonce, nextReview);
+        saveWorkflow(localStorage, storageKey, nextWorkflow);
+        return { nextReview, nextWorkflow };
+      });
+      if (!result || generation !== reviewGeneration.current) return;
+      setReview(result.nextReview);
+      setWorkflow(result.nextWorkflow);
     } catch (reason) {
+      if (generation !== reviewGeneration.current) return;
       setError(
         userErrorMessage(
           reason,
@@ -428,7 +448,10 @@ export function CreatePage({
         ),
       );
     } finally {
-      setLoading(false);
+      if (generation === reviewGeneration.current) {
+        reviewing.current = false;
+        setLoading(false);
+      }
     }
   }
   async function advance() {
@@ -610,8 +633,9 @@ export function CreatePage({
                             : descriptionId
                         }
                         aria-invalid={hasError}
-                        disabled={workflow !== null}
+                        disabled={loading || workflow !== null}
                         onChange={(event) => {
+                          if (reviewing.current || workflow) return;
                           setReview(null);
                           setDraft({ ...draft, [key]: event.target.value });
                         }}
@@ -703,7 +727,19 @@ export function ReviewCard({
   onReset: () => void;
   writesSupported: boolean;
 }) {
+  if (workflow) {
+    draft = {
+      name: workflow.token.name,
+      symbol: workflow.token.symbol,
+      decimals: workflow.token.decimals.toString(),
+      supply: formatUnits(
+        BigInt(workflow.token.initialSupply),
+        workflow.token.decimals,
+      ),
+    };
+  }
   const parsed = parseTokenDraft(draft).value;
+  const ammPoolLink = createAmmPoolLink(config.swapAppUrl, workflow);
   return (
     <Card className="h-fit lg:sticky lg:top-6">
       <CardHeader>
@@ -888,6 +924,11 @@ export function ReviewCard({
                 <Button className="min-h-12 w-full" variant="outline" asChild>
                   <Link to="/my-tokens">View my tokens</Link>
                 </Button>
+                {ammPoolLink ? (
+                  <Button className="min-h-12 w-full" variant="outline" asChild>
+                    <a href={ammPoolLink}>Create AMM Pool</a>
+                  </Button>
+                ) : null}
               </>
             ) : (
               <>

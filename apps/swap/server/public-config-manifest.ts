@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 import { canonicalAddress, canonicalNetworkId } from "./validation.ts";
+import { loadDiscoveryConfig } from "../src/token-discovery/config.ts";
 
 export const PUBLIC_CONFIG_MANIFEST_FILENAME = "groundhog-public-config.json";
 
@@ -15,6 +16,9 @@ export const PUBLIC_CONFIG_KEYS = [
   "VITE_SWAP_FACTORY_ADDRESS",
   "VITE_SWAP_ROUTER_ADDRESS",
   "VITE_POOL_REGISTRY_ENABLED",
+  "VITE_TOKEN_DISCOVERY_ENABLED",
+  "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
+  "VITE_STANDARD_TOKEN_HASH",
 ] as const;
 
 type PublicConfigKey = (typeof PUBLIC_CONFIG_KEYS)[number];
@@ -36,7 +40,11 @@ export function createPublicConfigManifest(
 ): PublicConfigManifest {
   const rpcUrl = required(environment, "VITE_GROUNDHOG_RPC_URL");
   validateRpcUrl(rpcUrl);
+  const discovery = loadDiscoveryConfig(environment);
   const manifest = {
+    VITE_TOKEN_DISCOVERY_ENABLED: String(discovery.enabled),
+    VITE_STANDARD_TOKEN_FACTORY_ADDRESS: discovery.factoryAddress,
+    VITE_STANDARD_TOKEN_HASH: discovery.tokenCodeHash,
     VITE_GROUNDHOG_RPC_URL_SHA256: createHash("sha256")
       .update(new URL(rpcUrl).href)
       .digest("hex"),
@@ -130,10 +138,23 @@ export async function verifyPublicConfigManifest(
 
 function validateManifestFields(manifest: PublicConfigManifest): void {
   for (const key of PUBLIC_CONFIG_KEYS) {
-    if (typeof manifest[key] !== "string" || manifest[key] === "") {
+    if (
+      typeof manifest[key] !== "string" ||
+      (manifest[key] === "" &&
+        key !== "VITE_STANDARD_TOKEN_FACTORY_ADDRESS" &&
+        key !== "VITE_STANDARD_TOKEN_HASH")
+    ) {
       throw new PublicConfigManifestError(`${key} must be a nonempty string`);
     }
   }
+  const discovery = loadDiscoveryConfig(manifest);
+  validate(
+    manifest.VITE_TOKEN_DISCOVERY_ENABLED === String(discovery.enabled) &&
+      manifest.VITE_STANDARD_TOKEN_FACTORY_ADDRESS ===
+        discovery.factoryAddress &&
+      manifest.VITE_STANDARD_TOKEN_HASH === discovery.tokenCodeHash,
+    "Token discovery configuration must be canonical",
+  );
   validate(
     SHA256.test(manifest.VITE_GROUNDHOG_RPC_URL_SHA256),
     "VITE_GROUNDHOG_RPC_URL_SHA256 must be a SHA-256 digest",

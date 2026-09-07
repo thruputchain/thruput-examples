@@ -28,6 +28,13 @@ const input = {
 };
 
 describe("preparePoolCreation", () => {
+  it("rejects the wrong network before any authoritative contract reads", async () => {
+    const deps = dependencies();
+    deps.client.getNetworkInfo.mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) });
+    await expect(preparePoolCreation(config, input, 0n, deps)).rejects.toMatchObject({ name: "NetworkMismatchError" });
+    expect(deps.factory.getPair).not.toHaveBeenCalled();
+    expect(deps.token).not.toHaveBeenCalled();
+  });
   it("uses the factory recommendation and approves all three contracts", async () => {
     const review = await preparePoolCreation(config, input, 0n, dependencies());
 
@@ -71,6 +78,7 @@ describe("integerSquareRoot", () => {
 });
 
 function dependencies() {
+  const client = { view: vi.fn(), getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) };
   const factory: SwapFactoryReadAdapter = {
     allPairsLength: vi.fn(),
     pairAt: vi.fn(),
@@ -80,7 +88,7 @@ function dependencies() {
     feeTo: vi.fn(),
   };
   const token = vi.fn((contract) => tokenAdapter(contract === config.nativeHogAddress));
-  return { factory, token };
+  return { client, factory, token };
 }
 
 function tokenAdapter(native: boolean): Erc20ReadAdapter {

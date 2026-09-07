@@ -53,6 +53,30 @@ The command requires Linux with Bash, `flock`, and `setsid`, Groundhog CLI 0.10.
 
 This is a service-level acceptance journey: it exercises the same workflow, wallet boundary, RPC client, and discovery code as the app without driving a browser. Component tests cover configuration injection, routing, persona switching, recovery, and UI states.
 
+## AMM Handoff
+
+Set `VITE_SWAP_APP_URL` to the Swap root origin, for example
+`http://127.0.0.1:5174`. Both apps must use the same RPC network hash. The
+**Create AMM Pool** link appears only after committed creation and complete
+verification, and sends only the actual token address as `tokenA`.
+It does not wait for indexing, transfer a wallet, or submit an AMM transaction.
+Blank configuration hides the link. Use HTTPS outside exact loopback hosts;
+paths, credentials, queries, and fragments are rejected.
+
+The full writable journey requires loopback Vite with disposable accounts.
+Pointing the link at a production Swap deployment still redirects to its
+read-only directory. Swap discovery needs this app's built production registry
+service, not its writable Vite server. See the
+[operator recipe](../../docs/cross-app-operations.md).
+
+The shared-ledger acceptance command lives in Swap: `npm --prefix apps/swap run
+test:e2e:cross-app` from the repository root, with the CLI/devnode/protocol
+variables documented in the recipe. It uses both apps' actual SDK versions,
+clicks the verified browser CTA, creates and seeds a pool, checks chain evidence,
+and runs both production servers and full suites. No permanent browser dependency
+is added to launchpad. See the
+[acceptance record](../../docs/specs/2026-09-06-cross-app-acceptance.md).
+
 ## Local registry
 
 Build the SPA, set the server variables shown in `.env.example`, and start the combined registry and web server:

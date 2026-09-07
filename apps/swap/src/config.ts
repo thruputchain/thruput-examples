@@ -1,11 +1,17 @@
 import { addressFromHex, toHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
+import {
+  loadDiscoveryConfig,
+  type DiscoveryConfig,
+} from "./token-discovery/config.ts";
+
 const NETWORK_ID_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
 export interface GlobalConfig {
   rpcUrl: URL;
   registryEnabled?: boolean;
+  tokenDiscovery?: DiscoveryConfig;
   networkIdHex: string;
   accountAddress: ContractAddress;
   routerAddress: ContractAddress;
@@ -46,6 +52,7 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
   return {
     rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),
     registryEnabled: enabled(environment, "VITE_POOL_REGISTRY_ENABLED"),
+    tokenDiscovery: loadDiscoveryConfig(environment),
     networkIdHex: networkIdHex.replace(/^0x/, "").toLowerCase(),
     accountAddress: address(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
     routerAddress: address(environment, "VITE_SWAP_ROUTER_ADDRESS"),

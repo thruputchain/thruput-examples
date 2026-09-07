@@ -1,4 +1,5 @@
 import path from "node:path";
+import { loadTokenDiscoveryServerConfig } from "./token-discovery-config.ts";
 
 import type { RegistryScope } from "./domain.ts";
 import {
@@ -15,6 +16,7 @@ export interface ServerConfig {
   scope: RegistryScope;
   syncIntervalMs: number;
   pageSize: number;
+  tokenDiscovery: ReturnType<typeof loadTokenDiscoveryServerConfig>;
 }
 
 export type ServerEnvironment = Record<string, string | undefined>;
@@ -39,6 +41,7 @@ export function loadServerConfig(environment: ServerEnvironment): ServerConfig {
     }
 
     return {
+      tokenDiscovery: loadTokenDiscoveryServerConfig(environment),
       port: boundedInteger(required(environment, "PORT"), "PORT", 1, 65_535),
       databasePath,
       rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),

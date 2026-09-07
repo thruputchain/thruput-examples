@@ -17,8 +17,24 @@ describe("loadConfig", () => {
   it("parses trusted launchpad settings", () => {
     const config = loadConfig(environment);
     expect(config.registryEnabled).toBe(false);
+    expect(config.swapAppUrl).toBeNull();
     expect(config.nativeBalanceItemCost).toBe(1234n);
     expect(config.networkIdHex).toBe("22".repeat(32));
+  });
+
+  it("loads an optional Swap origin independently of the token registry", () => {
+    const config = loadConfig({
+      ...environment,
+      VITE_SWAP_APP_URL: "https://SWAP.example.test/",
+    });
+    expect(config.swapAppUrl).toBe("https://swap.example.test");
+    expect(config.registryEnabled).toBe(false);
+    expect(() =>
+      loadConfig({
+        ...environment,
+        VITE_SWAP_APP_URL: "https://swap.example.test/pools",
+      }),
+    ).toThrow(/VITE_SWAP_APP_URL/);
   });
 
   it("enables the persistent registry only for an explicit true value", () => {

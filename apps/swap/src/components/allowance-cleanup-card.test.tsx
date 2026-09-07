@@ -8,6 +8,13 @@ import type { AppConfig } from "@/config";
 import type { PoolSnapshot } from "@/swap/snapshot";
 import { AllowanceCleanupCard } from "./allowance-cleanup-card";
 
+vi.mock("@/groundhog/client", async (original) => ({
+  ...await original<object>(),
+  createNetworkReadClient: vi.fn(async () => ({
+    getNetworkInfo: async () => ({ networkHash: new Uint8Array(32) }),
+  })),
+}));
+
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
 const config = {

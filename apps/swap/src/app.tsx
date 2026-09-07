@@ -582,6 +582,11 @@ export function readBrowserConfiguration():
       config: loadGlobalConfig({
         VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
         VITE_POOL_REGISTRY_ENABLED: import.meta.env.VITE_POOL_REGISTRY_ENABLED,
+        VITE_TOKEN_DISCOVERY_ENABLED: import.meta.env
+          .VITE_TOKEN_DISCOVERY_ENABLED,
+        VITE_STANDARD_TOKEN_FACTORY_ADDRESS: import.meta.env
+          .VITE_STANDARD_TOKEN_FACTORY_ADDRESS,
+        VITE_STANDARD_TOKEN_HASH: import.meta.env.VITE_STANDARD_TOKEN_HASH,
         VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
         VITE_GROUNDHOG_WALLET_ADDRESS: import.meta.env
           .VITE_GROUNDHOG_WALLET_ADDRESS,

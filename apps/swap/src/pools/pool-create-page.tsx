@@ -1,7 +1,7 @@
 import { AlertCircleIcon, CheckCircle2Icon, CircleIcon, LoaderCircleIcon } from "lucide-react";
 import { addressFromHex, toHex0x } from "@groundhogchain/client";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { useProcessingMode } from "@/components/processing-mode";
@@ -24,6 +24,9 @@ import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
 import { AmmPage } from "@/pools/amm-page";
+import { readCreationPresets, tokenAddress } from "@/pools/creation-presets";
+import { TokenAddressCombobox } from "@/pools/token-address-combobox";
+import { useTokenPreview } from "@/pools/token-preview";
 import {
   preparePoolCreation,
   type PoolCreationInput,
@@ -51,6 +54,7 @@ import {
   reservedCreationHog,
   reservedCreationToken,
   saveCreationWorkflow,
+  sameCreationIntent,
   type CreationStepName,
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
@@ -58,6 +62,8 @@ import { createBrowserLocalWriteBoundary } from "@/transactions/local-developmen
 import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
 import {
   hasBlockingAllowanceCleanup,
+  confirmAllowanceCleanupWasNotSigned,
+  loadAllowanceCleanup,
   runAllowanceCleanup,
 } from "@/transactions/allowance-cleanup";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
@@ -94,6 +100,22 @@ interface PoolCreatePageDependencies {
 
 export function PoolCreatePage({
   config,
+  ...props
+}: {
+  config: GlobalConfig;
+  dependencies?: PoolCreatePageDependencies;
+  walletPrivateKey?: string | undefined;
+}) {
+  const scope = JSON.stringify([
+    config.networkIdHex, config.rpcUrl.href, config.registryEnabled,
+    toHex0x(config.accountAddress), toHex0x(config.factoryAddress),
+    toHex0x(config.routerAddress), toHex0x(config.nativeHogAddress),
+  ]);
+  return <CreationPage key={scope} config={config} {...props} />;
+}
+
+function CreationPage({
+  config,
   dependencies = {},
   walletPrivateKey,
 }: {
@@ -102,13 +124,32 @@ export function PoolCreatePage({
   walletPrivateKey?: string | undefined;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [initialState] = useState(() => readCreationState(config));
+  const [presets] = useState(() => {
+    if (initialState.current === null && initialState.error === null) {
+      return readCreationPresets(location.search);
+    }
+    const params = new URLSearchParams(location.search);
+    const ignored = initialState.current !== null && (params.has("tokenA") || params.has("tokenB"));
+    return {
+      ...emptyInput,
+      warnings: ignored
+        ? ["A saved creation is being recovered. Link presets were not applied."]
+        : [],
+    };
+  });
   const [writer] = useState(
     () => dependencies.writer ?? createBrowserLocalWriteBoundary(config, walletPrivateKey),
   );
-  const [input, setInput] = useState(emptyInput);
+  const [input, setInput] = useState<PoolCreationInput>(() => ({
+    ...emptyInput, tokenA: presets.tokenA, tokenB: presets.tokenB,
+  }));
+  const revision = useRef(0);
+  useEffect(() => () => { revision.current += 1; }, []);
   const [review, setReview] = useState<PoolCreationReview | null>(null);
   const [accountWorkflows, setAccountWorkflows] = useState(initialState.workflows);
+  const [cleanup, setCleanup] = useState(initialState.cleanup);
   const [workflow, setWorkflow] = useState<CreationWorkflow | null>(
     initialState.current,
   );
@@ -117,6 +158,21 @@ export function PoolCreatePage({
   const { mode: processingMode, setMode: setProcessingMode } = useProcessingMode();
   const manualProcessing = processingMode === "manual";
   const [error, setError] = useState<string | null>(initialState.error);
+  const canPreview = workflow === null && initialState.error === null;
+  const previewA = useTokenPreview(config, canPreview ? input.tokenA : "");
+  const previewB = useTokenPreview(config,
+    canPreview && tokenAddress(input.tokenB) !== tokenAddress(input.tokenA)
+      ? input.tokenB : "",
+  );
+  const networkMismatch = [previewA, previewB].some(({ preview }) =>
+    preview?.status === "unavailable" && preview.networkMismatch
+  );
+  useEffect(() => {
+    if (networkMismatch) {
+      revision.current += 1;
+      setReview(null);
+    }
+  }, [networkMismatch]);
   const prepare = dependencies.prepare ?? preparePoolCreation;
   const run = dependencies.run ?? runCreationWorkflow;
   const requestRegistrySync = dependencies.requestRegistrySync
@@ -141,7 +197,8 @@ export function PoolCreatePage({
   };
 
   async function reviewPool() {
-    if (isReviewing || isRunning) return;
+    if (isReviewing || isRunning || initialState.error !== null || networkMismatch) return;
+    const generation = ++revision.current;
     setIsReviewing(true);
     setError(null);
     try {
@@ -161,17 +218,31 @@ export function PoolCreatePage({
             nativeHogHex,
           ),
       );
-      setReview(next);
+      if (generation === revision.current) setReview(next);
     } catch (cause) {
-      setReview(null);
-      setError(describeError(cause));
+      if (generation === revision.current) {
+        setReview(null);
+        setError(describeError(cause));
+      }
     } finally {
       setIsReviewing(false);
     }
   }
 
   async function startOrContinue(processQueue = false) {
-    if (isRunning) return;
+    if (isRunning || initialState.error !== null || (workflow === null && networkMismatch)) return;
+    const generation = revision.current;
+    const assertCurrent = () => {
+      if (generation !== revision.current) {
+        throw new Error("The creation review changed before the account lock was acquired");
+      }
+      if (workflow !== null) {
+        const stored = loadCreationWorkflow(config, workflow.token0.address, workflow.token1.address);
+        if (stored === null || stored.id !== workflow.id || !sameCreationIntent(stored, workflow)) {
+          throw new Error("The saved creation intent changed; review it before continuing");
+        }
+      }
+    };
     setIsRunning(true);
     setError(null);
     try {
@@ -187,6 +258,7 @@ export function PoolCreatePage({
           config.factoryAddress,
           {
             writeBoundary: writer,
+            assertCurrent,
             readAllowance: dependencies.readFactoryAllowance
               ?? (() => readFactoryAllowance(config)),
           },
@@ -198,14 +270,17 @@ export function PoolCreatePage({
         }
         if (cleanup.kind === "failed") throw new Error(cleanup.message);
         if (workflow.status === "failed") {
-          const archived = await withOutstandingRequestLock(config, async () =>
-            archiveCreationWorkflow(config, workflow)
-          );
+          const archived = await withOutstandingRequestLock(config, async () => {
+            assertCurrent();
+            return archiveCreationWorkflow(config, workflow);
+          });
           applyWorkflow(archived);
+          setCleanup(loadAllowanceCleanup(config));
           return;
         }
       }
       const result = await withOutstandingRequestLock(config, async () => {
+        assertCurrent();
         if (hasBlockingAllowanceCleanup(config)) {
           throw new Error("Resolve the account's pending allowance cleanup first");
         }
@@ -217,7 +292,11 @@ export function PoolCreatePage({
             && candidate.token0.address === review.token0.addressHex
             && candidate.token1.address === review.token1.addressHex
           );
-          current = existing ?? saveCreationWorkflow(
+          if (existing !== undefined) {
+            applyWorkflow(existing);
+            throw new Error("A saved creation appeared in another tab. Review its amounts and funding before explicitly continuing.");
+          }
+          current = saveCreationWorkflow(
             config,
             createCreationWorkflow(config, review),
           );
@@ -261,6 +340,7 @@ export function PoolCreatePage({
         };
         const result = await run(config, current, {
           writeBoundary: writer,
+          assertCurrent,
           automaticProcessing: processQueue || !manualProcessing,
           onUpdate: (next) => {
             applyWorkflow(next);
@@ -271,6 +351,7 @@ export function PoolCreatePage({
         return result;
       });
       applyWorkflow(result);
+      setCleanup(loadAllowanceCleanup(config));
       if (result.status === "executed") {
         if (dependencies.verifyResult !== undefined) {
           await dependencies.verifyResult(result);
@@ -297,7 +378,23 @@ export function PoolCreatePage({
       setError(describeError(cause));
       const next = readCreationState(config);
       setAccountWorkflows(next.workflows);
-      setWorkflow(next.current);
+      setWorkflow((current) => next.workflows.find(({ id }) => id === current?.id) ?? next.current);
+      setCleanup(next.cleanup);
+    } finally {
+      setIsRunning(false);
+    }
+  }
+
+  async function confirmCleanupNotSigned() {
+    if (isRunning) return;
+    setIsRunning(true);
+    setError(null);
+    try {
+      await confirmAllowanceCleanupWasNotSigned(config);
+      setCleanup(loadAllowanceCleanup(config));
+    } catch (cause) {
+      setError(describeError(cause));
+      setCleanup(loadAllowanceCleanup(config));
     } finally {
       setIsRunning(false);
     }
@@ -370,6 +467,13 @@ export function PoolCreatePage({
       title="Create pool"
       description="Review factory-recommended funding and exact initial liquidity before signing."
     >
+      {presets.warnings.map((warning) => (
+        <Alert key={warning}>
+          <AlertCircleIcon aria-hidden="true" />
+          <AlertTitle>Link presets</AlertTitle>
+          <AlertDescription>{warning}</AlertDescription>
+        </Alert>
+      ))}
       {error === null ? null : (
         <Alert variant="destructive">
           <AlertCircleIcon aria-hidden="true" />
@@ -402,6 +506,24 @@ export function PoolCreatePage({
         </Alert>
       )}
 
+      {cleanup === null ? null : (
+        <Alert>
+          <AlertTitle>Pending allowance cleanup</AlertTitle>
+          <AlertDescription>
+            {cleanup.transactionHash === null
+              ? "Confirm only if the account's allowance cleanup transaction was never signed."
+              : "The cleanup has a transaction hash and must be observed before continuing."}
+          </AlertDescription>
+          <BlockchainIdentifier value={cleanup.tokenAddress} label="Cleanup token" />
+          <BlockchainIdentifier value={cleanup.spenderAddress} label="Cleanup spender" />
+          {cleanup.transactionHash === null ? (
+            <Button disabled={isRunning} variant="destructive" onClick={confirmCleanupNotSigned}>
+              Confirm allowance cleanup was not signed
+            </Button>
+          ) : null}
+        </Alert>
+      )}
+
       {recoverable.length <= 1 ? null : (
         <Card>
           <CardHeader>
@@ -414,6 +536,7 @@ export function PoolCreatePage({
                 key={candidate.id}
                 size="sm"
                 variant={candidate.id === workflow?.id ? "default" : "outline"}
+                disabled={isRunning}
                 onClick={() => setWorkflow(candidate)}
               >
                 {candidate.token0.symbol} / {candidate.token1.symbol}
@@ -425,17 +548,29 @@ export function PoolCreatePage({
 
       {workflow === null ? (
         <CreationForm
+          config={config}
+          previewA={previewA}
+          previewB={previewB}
+          blocked={initialState.error !== null || networkMismatch || isRunning}
           input={input}
           isReviewing={isReviewing}
+          isRunning={isRunning}
           onChange={(field, value) => {
-            setInput((current) => ({ ...current, [field]: value }));
+            if (isRunning) return;
+            revision.current += 1;
+            setInput((current) => ({
+              ...current,
+              [field]: value,
+              ...(field === "tokenA" ? { amountA: "" }
+                : field === "tokenB" ? { amountB: "" } : {}),
+            }));
             setReview(null);
           }}
           onReview={reviewPool}
         />
       ) : null}
 
-      {review !== null && workflow === null ? (
+      {review !== null && workflow === null && !networkMismatch ? (
         <CreationReviewCard
           review={review}
           isRunning={isRunning}
@@ -487,13 +622,23 @@ export function PoolCreatePage({
 }
 
 function CreationForm({
+  config,
+  previewA,
+  previewB,
+  blocked,
   input,
   isReviewing,
+  isRunning,
   onChange,
   onReview,
 }: {
+  config: GlobalConfig;
+  previewA: ReturnType<typeof useTokenPreview>;
+  previewB: ReturnType<typeof useTokenPreview>;
+  blocked: boolean;
   input: PoolCreationInput;
   isReviewing: boolean;
+  isRunning: boolean;
   onChange: (field: keyof PoolCreationInput, value: string) => void;
   onReview: () => void;
 }) {
@@ -505,24 +650,38 @@ function CreationForm({
           Enter existing ERC20 contracts and the exact amounts for the first deposit.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-5 md:grid-cols-2">
-        <TokenFields
-          label="Token A"
-          address={input.tokenA}
-          amount={input.amountA}
-          onAddress={(value) => onChange("tokenA", value)}
-          onAmount={(value) => onChange("amountA", value)}
-        />
-        <TokenFields
-          label="Token B"
-          address={input.tokenB}
-          amount={input.amountB}
-          onAddress={(value) => onChange("tokenB", value)}
-          onAmount={(value) => onChange("amountB", value)}
-        />
+      <CardContent>
+        <fieldset disabled={isRunning} className="grid gap-5 md:grid-cols-2">
+          <TokenFields
+            config={config}
+            preview={previewA}
+            otherAddress={input.tokenB}
+            label="Token A"
+            address={input.tokenA}
+            amount={input.amountA}
+            onAddress={(value) => onChange("tokenA", value)}
+            onAmount={(value) => onChange("amountA", value)}
+          />
+          <TokenFields
+            config={config}
+            preview={previewB}
+            otherAddress={input.tokenA}
+            label="Token B"
+            address={input.tokenB}
+            amount={input.amountB}
+            onAddress={(value) => onChange("tokenB", value)}
+            onAmount={(value) => onChange("amountB", value)}
+          />
+        </fieldset>
       </CardContent>
       <CardFooter>
-        <Button disabled={isReviewing} onClick={onReview}>
+        <Button
+          disabled={isReviewing || blocked
+            || tokenAddress(input.tokenA) === null
+            || tokenAddress(input.tokenB) === null
+            || tokenAddress(input.tokenA) === tokenAddress(input.tokenB)}
+          onClick={onReview}
+        >
           {isReviewing ? "Reviewing pool…" : "Review pool"}
         </Button>
       </CardFooter>
@@ -531,12 +690,18 @@ function CreationForm({
 }
 
 function TokenFields({
+  config,
+  preview: { preview, retry },
+  otherAddress,
   label,
   address,
   amount,
   onAddress,
   onAmount,
 }: {
+  config: GlobalConfig;
+  preview: ReturnType<typeof useTokenPreview>;
+  otherAddress: string;
   label: string;
   address: string;
   amount: string;
@@ -544,18 +709,39 @@ function TokenFields({
   onAmount: (value: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-foreground/10 p-4">
+    <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-foreground/10 p-4">
       <h2 className="font-heading font-semibold">{label}</h2>
-      <Field>
-        <FieldLabel htmlFor={`${label}-address`}>Contract address</FieldLabel>
-        <Input
-          id={`${label}-address`}
-          autoComplete="off"
-          className="font-mono"
-          value={address}
-          onChange={(event) => onAddress(event.target.value)}
-        />
-      </Field>
+      <TokenAddressCombobox
+        label={label}
+        value={address}
+        otherAddress={otherAddress}
+        discovery={config.tokenDiscovery}
+        onChange={onAddress}
+      />
+      {preview === null ? null : (
+        <div role="status" aria-live="polite" className="flex min-w-0 flex-col gap-2 break-all text-sm">
+          {preview.status === "pending" ? "Loading live token metadata..."
+            : preview.status === "ready" ? (
+              <>
+                <span>Live name: {preview.metadata.name?.trim() || address}</span>
+                <span>Live symbol: {preview.metadata.symbol?.trim() || `${address.slice(0, 8)}...`}</span>
+                <span>Decimals: {preview.metadata.decimals ?? "unavailable"}</span>
+                <span className="text-muted-foreground">
+                  Informational only. Review rereads live state before creation.
+                </span>
+              </>
+            ) : (
+              <>
+                <span>{preview.networkMismatch
+                  ? "RPC network mismatch. Check the connection and retry."
+                  : "Live token metadata is unavailable. The address is still editable."}</span>
+                <Button type="button" size="sm" variant="outline" onClick={retry}>
+                  Retry {label} metadata
+                </Button>
+              </>
+            )}
+        </div>
+      )}
       <Field>
         <FieldLabel htmlFor={`${label}-amount`}>Initial amount</FieldLabel>
         <Input
@@ -662,7 +848,7 @@ function CreationProgressCard({
   const needsFundingCleanup = workflow.status === "failed"
     && workflow.steps.approveFunding.status === "committed"
     && workflow.steps.createPool.status === "failed";
-  const terminal = ["executed", "failed"].includes(workflow.status)
+  const terminal = ["executed", "failed", "archived"].includes(workflow.status)
     || (workflow.status === "race" && !canContinueRace);
   const actionLabel = blocking
     ? "Check transaction and continue"
@@ -682,7 +868,10 @@ function CreationProgressCard({
           <div>
             <CardTitle asChild><h2>Creation progress</h2></CardTitle>
             <CardDescription>
-              {workflow.token0.symbol} / {workflow.token1.symbol}
+              {formatAmount(BigInt(workflow.token0.amount), workflow.token0.decimals)} {workflow.token0.symbol}
+              {" / "}{formatAmount(BigInt(workflow.token1.amount), workflow.token1.decimals)} {workflow.token1.symbol}.
+              {" "}Factory funding: {workflow.totalFunding} HOG base units
+              ({workflow.fundingPerContract} per contract; minimum {workflow.fundingMinimum}).
             </CardDescription>
           </div>
           <Badge variant="outline">{workflow.status}</Badge>
@@ -702,7 +891,7 @@ function CreationProgressCard({
       </CardContent>
       {terminal && !needsFundingCleanup ? (
         <CardFooter>
-          <Button variant="outline" onClick={onStartOver}>Start another pool</Button>
+          <Button disabled={isRunning} variant="outline" onClick={onStartOver}>Start another pool</Button>
         </CardFooter>
       ) : (
         <CardFooter className="gap-3">
@@ -780,6 +969,7 @@ function StepIcon({ status }: { status: CreationWorkflow["steps"][CreationStepNa
 function readCreationState(config: GlobalConfig): {
   workflows: CreationWorkflow[];
   current: CreationWorkflow | null;
+  cleanup: ReturnType<typeof loadAllowanceCleanup>;
   error: string | null;
 } {
   try {
@@ -790,11 +980,12 @@ function readCreationState(config: GlobalConfig): {
         toHex0x(config.factoryAddress),
       ))
       .sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
-    return { workflows, current, error: null };
+    return { workflows, current, cleanup: loadAllowanceCleanup(config), error: null };
   } catch {
     return {
       workflows: [],
       current: null,
+      cleanup: null,
       error:
         "Stored account creation workflows could not be loaded safely. Clear or repair local site data before signing.",
     };

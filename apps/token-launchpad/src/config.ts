@@ -2,12 +2,14 @@ import { addressFromHex, fromHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 import { PINNED_NATIVE_BALANCE_ITEM_COST } from "@/runtime";
+import { loadSwapAppUrl } from "./swap-config.ts";
 
 const HASH = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
 export interface AppConfig {
   rpcUrl: URL;
   registryEnabled: boolean;
+  swapAppUrl?: string | null;
   networkIdHex: string;
   accountAddress: ContractAddress;
   factoryAddress: ContractAddress;
@@ -58,6 +60,7 @@ export function loadConfig(environment: Environment): AppConfig {
   return {
     rpcUrl,
     registryEnabled: enabled(environment, "VITE_TOKEN_REGISTRY_ENABLED"),
+    swapAppUrl: loadSwapAppUrl(environment.VITE_SWAP_APP_URL),
     networkIdHex: network.replace(/^0x/, "").toLowerCase(),
     accountAddress: address(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
     factoryAddress: address(environment, "VITE_STANDARD_TOKEN_FACTORY_ADDRESS"),

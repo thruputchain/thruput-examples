@@ -4,6 +4,7 @@ import type { ContractAddress } from "@groundhogchain/protocol";
 import type { GlobalConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { allowanceDifference } from "@/domain/allowance";
+import { createNetworkReadClient, verifyReadNetwork } from "@/groundhog/client";
 import {
   loadCleanupAllowanceRequirement,
 } from "@/transactions/account-allowance";
@@ -58,6 +59,7 @@ export interface AllowanceCleanupDependencies {
     handler: ContractAddress,
   ) => Promise<{ value: bigint; height: bigint }>;
   now?: () => number;
+  assertCurrent?: () => void;
 }
 
 type AllowanceCleanupScope = Pick<GlobalConfig, "networkIdHex" | "accountAddress">;
@@ -108,6 +110,9 @@ export async function runAllowanceCleanup(
   dependencies: AllowanceCleanupDependencies,
 ): Promise<AllowanceCleanupResult> {
   return withOutstandingRequestLock(config, async () => {
+    dependencies.assertCurrent?.();
+    const client = await createNetworkReadClient(config);
+    await verifyReadNetwork(client, config);
     const tokenAddress = toHex0x(token);
     const spenderAddress = toHex0x(spender);
     const existing = loadAllowanceCleanup(config);
@@ -128,6 +133,7 @@ export async function runAllowanceCleanup(
       const observed = await dependencies.writeBoundary.observe(
         existing.transactionHash,
       );
+      await verifyReadNetwork(client, config);
       return applyWriteResult(config, existing, observed);
     }
 
@@ -138,6 +144,8 @@ export async function runAllowanceCleanup(
       spenderAddress,
     );
     const current = await dependencies.readAllowance(token, spender);
+    await verifyReadNetwork(client, config);
+    dependencies.assertCurrent?.();
     if (current.height < requirement.minimumReadHeight) {
       throw new Error("The allowance view is older than the terminal operation evidence");
     }
@@ -174,6 +182,7 @@ export async function runAllowanceCleanup(
         },
       },
     );
+    await verifyReadNetwork(client, config);
     return applyWriteResult(
       config,
       record,

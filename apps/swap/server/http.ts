@@ -6,7 +6,6 @@ import {
   type Server,
   type ServerResponse,
 } from "node:http";
-import { isIP } from "node:net";
 import path from "node:path";
 
 import {
@@ -17,12 +16,22 @@ import {
 } from "./domain.ts";
 import { PUBLIC_CONFIG_MANIFEST_FILENAME } from "./public-config-manifest.ts";
 import { RegistryStore } from "./store.ts";
+import { RpcRateLimiter, rpcClientIdentity } from "./rate-limit.ts";
+import { createTokenDiscoveryHandler } from "./token-discovery.ts";
+import type { loadTokenDiscoveryServerConfig } from "./token-discovery-config.ts";
 import {
   boundedInteger,
   canonicalAddress,
   canonicalDecimal,
   ValidationError,
 } from "./validation.ts";
+
+export {
+  RpcRateLimiter,
+  rpcClientIdentity,
+  DEFAULT_RPC_REQUESTS_PER_MINUTE,
+  DEFAULT_MAXIMUM_RATE_LIMIT_CLIENTS,
+} from "./rate-limit.ts";
 
 const MAX_REQUEST_TARGET_BYTES = 8 * 1_024;
 const MAX_REQUEST_BODY_BYTES = 1_024 * 1_024;
@@ -35,8 +44,6 @@ const MAX_EVENT_VALUES_PER_FILTER = 20;
 const MAX_EVENT_CURSOR_CHARACTERS = 4_096;
 const RPC_TIMEOUT_MS = 10_000;
 export const DEFAULT_MAXIMUM_RPC_CONCURRENCY = 128;
-export const DEFAULT_RPC_REQUESTS_PER_MINUTE = 2_000;
-export const DEFAULT_MAXIMUM_RATE_LIMIT_CLIENTS = 10_000;
 const ALLOWED_POOL_PARAMETERS = new Set([
   "q",
   "token",
@@ -77,6 +84,7 @@ export interface ProductionHttpOptions {
   rpcRequestsPerMinute?: number;
   maximumRateLimitClients?: number;
   trustedProxy?: boolean;
+  tokenDiscovery?: ReturnType<typeof loadTokenDiscoveryServerConfig>;
   now?: () => number;
 }
 
@@ -91,82 +99,6 @@ interface ProductionContext {
   trustedProxy: boolean;
 }
 
-interface RateLimitWindow {
-  windowStartedAt: number;
-  requests: number;
-}
-
-export class RpcRateLimiter {
-  readonly #maximum: number;
-  readonly #maximumClients: number;
-  readonly #now: () => number;
-  readonly #clients = new Map<string, RateLimitWindow>();
-  #overflow: RateLimitWindow | null = null;
-
-  constructor(
-    maximum = DEFAULT_RPC_REQUESTS_PER_MINUTE,
-    maximumClients = DEFAULT_MAXIMUM_RATE_LIMIT_CLIENTS,
-    now: () => number = Date.now,
-  ) {
-    if (!Number.isSafeInteger(maximum) || maximum < 1) {
-      throw new Error("RPC rate limit must be a positive safe integer");
-    }
-    if (!Number.isSafeInteger(maximumClients) || maximumClients < 1) {
-      throw new Error("RPC rate-limit client bound must be positive");
-    }
-    this.#maximum = maximum;
-    this.#maximumClients = maximumClients;
-    this.#now = now;
-  }
-
-  get trackedClientCount(): number {
-    return this.#clients.size;
-  }
-
-  allow(client: string): boolean {
-    const now = this.#now();
-    this.#prune(now);
-    let window = this.#clients.get(client);
-    if (window === undefined) {
-      if (this.#clients.size >= this.#maximumClients) {
-        this.#overflow = currentWindow(this.#overflow, now);
-        return consumeWindow(this.#overflow, this.#maximum);
-      }
-      window = { windowStartedAt: now, requests: 0 };
-      this.#clients.set(client, window);
-    }
-    return consumeWindow(window, this.#maximum);
-  }
-
-  #prune(now: number): void {
-    for (const [client, window] of this.#clients) {
-      if (now - window.windowStartedAt < 60_000) break;
-      this.#clients.delete(client);
-    }
-    if (
-      this.#overflow !== null &&
-      now - this.#overflow.windowStartedAt >= 60_000
-    ) {
-      this.#overflow = null;
-    }
-  }
-}
-
-function currentWindow(
-  window: RateLimitWindow | null,
-  now: number,
-): RateLimitWindow {
-  return window === null || now - window.windowStartedAt >= 60_000
-    ? { windowStartedAt: now, requests: 0 }
-    : window;
-}
-
-function consumeWindow(window: RateLimitWindow, maximum: number): boolean {
-  if (window.requests >= maximum) return false;
-  window.requests += 1;
-  return true;
-}
-
 export function createRegistryHttpServer(
   store: RegistryStore,
   syncController: SyncController,
@@ -174,9 +106,18 @@ export function createRegistryHttpServer(
 ): Server {
   const productionContext =
     production === undefined ? undefined : createProductionContext(production);
+  const discovery = createTokenDiscoveryHandler(
+    production?.tokenDiscovery ?? null,
+    {
+      fetch: production?.fetch,
+      trustedProxy: production?.trustedProxy,
+      now: production?.now,
+    },
+  );
   const server = createServer(async (request, response) => {
     setSecurityHeaders(response);
     try {
+      if (await discovery(request, response)) return;
       const url = requestUrl(request);
       const allowedMethod = methodForPath(url.pathname);
       if (allowedMethod !== null) {
@@ -671,18 +612,6 @@ function requestLifecycleSignal(
       request.socket.off("close", abort);
     },
   };
-}
-
-export function rpcClientIdentity(
-  request: Pick<IncomingMessage, "headers" | "socket">,
-  trustedProxy: boolean,
-): string {
-  if (!trustedProxy) return request.socket.remoteAddress ?? "unknown";
-  const value = request.headers["x-real-ip"];
-  if (typeof value !== "string" || isIP(value) === 0) {
-    throw new ValidationError("X-Real-IP must contain one valid IP address");
-  }
-  return value;
 }
 
 function validViewParams(params: unknown[]): boolean {

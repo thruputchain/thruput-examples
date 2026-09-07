@@ -1,8 +1,8 @@
 import { contractAddress } from "@groundhogchain/protocol";
 import type { TransactionReceipt } from "@groundhogchain/client";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { Link, MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,7 +16,13 @@ import {
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
 import { unavailableWriteBoundary } from "@/transactions/write-boundary";
+import { allowanceCleanupKey, loadAllowanceCleanup } from "@/transactions/allowance-cleanup";
 import { PoolCreatePage } from "./pool-create-page";
+import { createNetworkReadClient, NetworkMismatchError } from "@/groundhog/client";
+import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
+
+vi.mock("@/groundhog/client", async (original) => ({ ...await original<object>(), createNetworkReadClient: vi.fn() }));
+vi.mock("@/contracts/erc20-adapter", () => ({ createErc20ReadAdapter: vi.fn() }));
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
@@ -33,6 +39,74 @@ describe("PoolCreatePage", () => {
   beforeEach(() => {
     window.localStorage.clear();
     config.registryEnabled = false;
+    vi.mocked(createNetworkReadClient).mockReset().mockResolvedValue({ getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) } as never);
+    vi.mocked(createErc20ReadAdapter).mockReset().mockReturnValue({ metadata: vi.fn().mockResolvedValue({ name: { value: "Live token" }, symbol: { value: "LIVE" }, decimals: { value: 6 } }) } as never);
+  });
+
+  it.each(["amount", "funding"])("loads a concurrent %s intent without executing it", async (intent) => {
+    const user = userEvent.setup();
+    const run = vi.fn();
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    await screen.findByRole("button", { name: "Create pool" });
+    const saved = createCreationWorkflow(config, review());
+    if (intent === "amount") saved.token0.amount = "9000";
+    else {
+      saved.fundingPerContract = "200";
+      saved.totalFunding = "600";
+    }
+    saveCreationWorkflow(config, saved);
+    await user.click(screen.getByRole("button", { name: "Create pool" }));
+    expect(await screen.findByText(/saved creation appeared in another tab/)).toBeVisible();
+    expect(run).not.toHaveBeenCalled();
+    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(saved);
+    expect(screen.getByRole("button", { name: "Continue creation" })).toBeEnabled();
+  });
+
+  it.each([false, true])("freezes queued execution and cancels on unmount: %s", async (unmount) => {
+    const user = userEvent.setup();
+    const run = vi.fn(async (_config, current) => current);
+    const page = renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    await screen.findByRole("button", { name: "Create pool" });
+    let release!: () => void;
+    const lock = vi.spyOn(navigator.locks, "request").mockImplementationOnce((_name, _options, action) =>
+      new Promise((resolve, reject) => {
+        release = () => Promise.resolve(action!({} as Lock)).then(resolve, reject);
+      }) as never,
+    );
+    await user.click(screen.getByRole("button", { name: "Create pool" }));
+    for (const input of [...screen.getAllByLabelText("Contract address"), ...screen.getAllByLabelText("Initial amount")]) {
+      expect(input).toBeDisabled();
+    }
+    expect(screen.getByRole("button", { name: "Search tokens for Token A" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Manual queue processing" })).toBeDisabled();
+    if (unmount) page.unmount();
+    await act(async () => release());
+    expect(run).toHaveBeenCalledTimes(unmount ? 0 : 1);
+    expect(loadCreationWorkflow(config, hex(1), hex(2)) === null).toBe(unmount);
+    lock.mockRestore();
+  });
+
+  it.each([null, hex(42)])("recovers account cleanup without clearing hash evidence: %s", async (transactionHash) => {
+    const user = userEvent.setup();
+    const record = {
+      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
+      tokenAddress: hex(6), spenderAddress: hex(7), status: "signing",
+      transactionHash, difference: "-300", updatedAt: 10,
+    };
+    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify(record));
+    renderPage({});
+    const confirm = screen.queryByRole("button", { name: "Confirm allowance cleanup was not signed" });
+    if (transactionHash === null) {
+      expect(confirm).toBeVisible();
+      await user.click(confirm!);
+      await waitFor(() => expect(loadAllowanceCleanup(config)).toBeNull());
+    } else {
+      expect(confirm).toBeNull();
+      expect(screen.getByText(/must be observed before continuing/)).toBeVisible();
+      expect(loadAllowanceCleanup(config)).toEqual(record);
+    }
   });
 
   it("reviews the canonical creation intent before persisting and running", async () => {
@@ -68,6 +142,70 @@ describe("PoolCreatePage", () => {
     );
     expect(loadCreationWorkflow(config, hex(1), hex(2))).not.toBeNull();
     expect(await screen.findByText("race")).toBeVisible();
+  });
+
+  it("does not let stale cleanup confirmation erase a hash added in another tab", async () => {
+    const user = userEvent.setup();
+    const record = {
+      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
+      tokenAddress: hex(6), spenderAddress: hex(7), status: "signing",
+      transactionHash: null, difference: "-300", updatedAt: 10,
+    };
+    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify(record));
+    renderPage({});
+    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify({ ...record, transactionHash: hex(42) }));
+    await user.click(screen.getByRole("button", { name: "Confirm allowance cleanup was not signed" }));
+    expect(await screen.findByText("The allowance cleanup has a transaction hash and must be observed")).toBeVisible();
+    expect(loadAllowanceCleanup(config)?.transactionHash).toBe(hex(42));
+    expect(screen.queryByRole("button", { name: "Confirm allowance cleanup was not signed" })).toBeNull();
+  });
+
+  it("preserves failed creation on cleanup network mismatch and permits verified retry", async () => {
+    const user = userEvent.setup();
+    const workflow = createCreationWorkflow(config, review());
+    workflow.status = "failed";
+    workflow.steps.approveFunding = {
+      ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "11",
+    };
+    workflow.steps.createPool.status = "failed";
+    saveCreationWorkflow(config, workflow);
+    const execute = vi.fn();
+    const readFactoryAllowance = vi.fn(async () => ({ value: 0n, height: 12n }));
+    renderPage({ writer: { execute }, readFactoryAllowance });
+    vi.mocked(createNetworkReadClient).mockRejectedValueOnce(new NetworkMismatchError());
+    await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
+    expect(await screen.findByText(/different Groundhog network/)).toBeVisible();
+    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+    expect(readFactoryAllowance).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
+    await waitFor(() => expect(loadCreationWorkflow(config, hex(1), hex(2))?.status).toBe("archived"));
+    expect(screen.getByRole("button", { name: "Start another pool" })).toBeVisible();
+  });
+
+  it("observes interrupted factory cleanup by hash without signing again", async () => {
+    const user = userEvent.setup();
+    const workflow = createCreationWorkflow(config, review());
+    workflow.status = "failed";
+    workflow.steps.approveFunding = {
+      ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "11",
+    };
+    workflow.steps.createPool.status = "failed";
+    saveCreationWorkflow(config, workflow);
+    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify({
+      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
+      tokenAddress: hex(6), spenderAddress: hex(7), status: "signing",
+      transactionHash: hex(42), difference: "-300", updatedAt: 10,
+    }));
+    const execute = vi.fn();
+    const observe = vi.fn().mockResolvedValue({ kind: "committedSuccess", hash: hex(42), receipt: {} });
+    renderPage({ writer: { execute, observe } });
+    await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
+    await waitFor(() => expect(loadCreationWorkflow(config, hex(1), hex(2))?.status).toBe("archived"));
+    expect(observe).toHaveBeenCalledWith(hex(42));
+    expect(execute).not.toHaveBeenCalled();
+    expect(loadAllowanceCleanup(config)).toBeNull();
+    expect(screen.queryByText("Pending allowance cleanup")).toBeNull();
   });
 
   it("requires explicit confirmation for a restored pre-hash signing step", async () => {
@@ -231,7 +369,7 @@ describe("PoolCreatePage", () => {
       createCreationWorkflow(otherConfig, review(), 10),
     );
     const run = vi.fn(async (_config: GlobalConfig, current: CreationWorkflow) => current);
-    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run });
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
 
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     await user.click(await screen.findByRole("button", { name: "Create pool" }));
@@ -269,7 +407,7 @@ describe("PoolCreatePage", () => {
     };
     saveCreationWorkflow(config, failed);
     const run = vi.fn(async (_config: GlobalConfig, current: CreationWorkflow) => current);
-    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run });
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
 
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     await user.click(await screen.findByRole("button", { name: "Create pool" }));
@@ -298,7 +436,7 @@ describe("PoolCreatePage", () => {
       dependencies.onUpdate?.(next);
       return next;
     });
-    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run, requestRegistrySync });
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run, requestRegistrySync }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
 
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     await user.click(await screen.findByRole("button", { name: "Create pool" }));
@@ -307,23 +445,155 @@ describe("PoolCreatePage", () => {
     expect(await screen.findByText("race")).toBeVisible();
     expect(screen.queryByText("offline")).not.toBeInTheDocument();
   });
+
+  it("loads two link presets independently without amounts, auto review, or URL writes", async () => {
+    const prepare = vi.fn();
+    const run = vi.fn();
+    const push = vi.spyOn(window.history, "pushState");
+    const replace = vi.spyOn(window.history, "replaceState");
+    renderPage({ prepare, run }, `?tokenA=${hex(2)}&tokenB=${hex(1)}&amountA=9&autoSubmit=true`);
+    expect(screen.getAllByLabelText("Contract address").map((el) => (el as HTMLInputElement).value)).toEqual([hex(2), hex(1)]);
+    expect(screen.getAllByLabelText("Initial amount").every((el) => (el as HTMLInputElement).value === "")).toBe(true);
+    await waitFor(() => expect(screen.getAllByText("Live name: Live token")).toHaveLength(2));
+    expect(createNetworkReadClient).toHaveBeenCalledTimes(2);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+    push.mockRestore();
+    replace.mockRestore();
+  });
+
+  it("warns on invalid presets and reads only the independently valid slot", async () => {
+    renderPage({}, `?tokenA=bad&tokenB=${hex(2)}`);
+    expect(screen.getByText(/tokenA preset was ignored/)).toBeVisible();
+    expect(screen.getAllByLabelText("Contract address")[0]).toHaveValue("");
+    await waitFor(() => expect(createNetworkReadClient).toHaveBeenCalledTimes(1));
+  });
+
+  it("gives recovery priority and starts empty after reset, without replaying URL tokens", async () => {
+    const user = userEvent.setup();
+    const workflow = createCreationWorkflow(config, review(), 10);
+    workflow.status = "race";
+    saveCreationWorkflow(config, workflow);
+    renderPage({}, `?tokenA=${hex(4)}&tokenB=${hex(5)}`);
+    expect(screen.getByText(/saved creation is being recovered/)).toBeVisible();
+    expect(createNetworkReadClient).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Start another pool" }));
+    expect(screen.getAllByLabelText("Contract address").every((el) => (el as HTMLInputElement).value === "")).toBe(true);
+    expect(createNetworkReadClient).not.toHaveBeenCalled();
+  });
+
+  it("does not use presets or enable review when storage cannot be read safely", () => {
+    saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const get = vi.spyOn(window.localStorage, "getItem").mockImplementation(() => { throw new Error("denied"); });
+    renderPage({}, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    expect(screen.getByText(/could not be loaded safely/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review pool" })).toBeDisabled();
+    expect(createNetworkReadClient).not.toHaveBeenCalled();
+    get.mockRestore();
+  });
+
+  it("clears the edited token amount and rejects a late review for old input", async () => {
+    const user = userEvent.setup();
+    let resolve!: (value: PoolCreationReview) => void;
+    const prepare = vi.fn(() => new Promise<PoolCreationReview>((done) => { resolve = done; }));
+    renderPage({ prepare }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    fireEvent.change(screen.getAllByLabelText("Initial amount")[0]!, { target: { value: "2" } });
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    fireEvent.change(screen.getAllByLabelText("Contract address")[0]!, { target: { value: "0x" } });
+    expect(screen.getAllByLabelText("Initial amount")[0]).toHaveValue("");
+    await act(async () => resolve(review()));
+    expect(screen.queryByRole("button", { name: "Create pool" })).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText("Contract address")[0]).toHaveValue("0x");
+  });
+
+  it("does not reapply link presets when the query changes on the same mount", async () => {
+    const user = userEvent.setup();
+    renderPage({}, `?tokenA=${hex(1)}`);
+    await waitFor(() => expect(createNetworkReadClient).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getAllByLabelText("Contract address")[0]!, { target: { value: "0x" } });
+    await user.click(screen.getByRole("link", { name: "Change test query" }));
+    expect(screen.getByTestId("search")).toHaveTextContent(`?tokenB=${hex(4)}`);
+    expect(screen.getAllByLabelText("Contract address")[0]).toHaveValue("0x");
+    expect(screen.getAllByLabelText("Contract address")[1]).toHaveValue("");
+    expect(createNetworkReadClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("invalidates a completed review on amount edits and a pending review on late failure", async () => {
+    const user = userEvent.setup();
+    let reject!: (error: Error) => void;
+    const prepare = vi.fn().mockResolvedValueOnce(review()).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+    renderPage({ prepare }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    expect(await screen.findByRole("button", { name: "Create pool" })).toBeVisible();
+    fireEvent.change(screen.getAllByLabelText("Initial amount")[1]!, { target: { value: "5" } });
+    expect(screen.queryByRole("button", { name: "Create pool" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    fireEvent.change(screen.getAllByLabelText("Initial amount")[1]!, { target: { value: "6" } });
+    await act(async () => reject(new Error("Old review error")));
+    expect(screen.queryByText("Old review error")).not.toBeInTheDocument();
+  });
+
+  it("blocks mismatched-network review until retry and permits fresh review after transient preview failure", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createNetworkReadClient).mockRejectedValueOnce(new NetworkMismatchError()).mockRejectedValueOnce(new Error("offline"));
+    const prepare = vi.fn().mockResolvedValue(review());
+    renderPage({ prepare }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    await screen.findByText(/RPC network mismatch/);
+    expect(screen.getByRole("button", { name: "Review pool" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Retry Token A metadata" }));
+    await screen.findByText("Live name: Live token");
+    expect(screen.getByText(/Live token metadata is unavailable/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    expect(await screen.findByRole("button", { name: "Create pool" })).toBeVisible();
+    expect(prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it("cannot expose an old account's pending review after a configuration remount", async () => {
+    const user = userEvent.setup();
+    let resolve!: (value: PoolCreationReview) => void;
+    const prepare = vi.fn(() => new Promise<PoolCreationReview>((done) => { resolve = done; }));
+    const tree = (current: GlobalConfig) => (
+      <MemoryRouter initialEntries={[`/pools/new?tokenA=${hex(1)}&tokenB=${hex(2)}`]}>
+        <ProcessingModeProvider>
+          <PoolCreatePage config={current} dependencies={{ prepare, writer: unavailableWriteBoundary }} />
+        </ProcessingModeProvider>
+      </MemoryRouter>
+    );
+    const page = render(tree(config));
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    const oldSignals = vi.mocked(createNetworkReadClient).mock.calls.map(([, signal]) => signal);
+    page.rerender(tree({ ...config, accountAddress: address(10) }));
+    expect(oldSignals.every((signal) => signal?.aborted)).toBe(true);
+    await act(async () => resolve(review()));
+    expect(screen.queryByRole("button", { name: "Create pool" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review pool" })).toBeEnabled();
+  });
 });
 
 function renderPage(
   dependencies: React.ComponentProps<typeof PoolCreatePage>["dependencies"],
+  search = "",
 ) {
   return render(
-    <MemoryRouter initialEntries={["/pools/new"]}>
+    <MemoryRouter initialEntries={[`/pools/new${search}`]}>
       <TooltipProvider>
         <ProcessingModeProvider>
           <PoolCreatePage config={config} dependencies={{
             writer: unavailableWriteBoundary,
             ...dependencies,
           }} />
+          <Link to={`?tokenB=${hex(4)}`}>Change test query</Link>
+          <SearchLocation />
         </ProcessingModeProvider>
       </TooltipProvider>
     </MemoryRouter>,
   );
+}
+
+function SearchLocation() {
+  return <output data-testid="search">{useLocation().search}</output>;
 }
 
 function review(): PoolCreationReview {
