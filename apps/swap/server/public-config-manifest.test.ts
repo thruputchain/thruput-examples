@@ -54,6 +54,9 @@ describe("production public configuration manifest", () => {
       VITE_SWAP_FACTORY_ADDRESS: `0x${"77".repeat(32)}`,
       VITE_SWAP_ROUTER_ADDRESS: `0x${"88".repeat(32)}`,
       VITE_POOL_REGISTRY_ENABLED: "true",
+      VITE_TOKEN_DISCOVERY_ENABLED: "false",
+      VITE_STANDARD_TOKEN_FACTORY_ADDRESS: "",
+      VITE_STANDARD_TOKEN_HASH: "",
     });
     expect(JSON.stringify(manifest)).not.toContain(rpcUrl);
     expect(JSON.stringify(manifest)).not.toContain("do-not-emit");
@@ -131,5 +134,52 @@ describe("production public configuration manifest", () => {
       /VITE_GROUNDHOG_RPC_URL does not match/,
     );
     await expect(failure).rejects.not.toThrow(/distinctive-secret/);
+  });
+
+  it("round trips discovery scope, rejects drift and requires rebuilding old manifests", async () => {
+    const enabled = {
+      ...environment,
+      VITE_TOKEN_DISCOVERY_ENABLED: "true",
+      VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"AB".repeat(32)}`,
+      VITE_STANDARD_TOKEN_HASH: "CD".repeat(32),
+      TOKEN_DISCOVERY_UPSTREAM_ORIGIN: "https://private-registry.test",
+    };
+    const manifest = createPublicConfigManifest(enabled);
+    expect(manifest.VITE_STANDARD_TOKEN_HASH).toBe(`0x${"cd".repeat(32)}`);
+    expect(parsePublicConfigManifest(JSON.stringify(manifest))).toEqual(
+      manifest,
+    );
+    expect(JSON.stringify(manifest)).not.toContain("private-registry");
+    const { VITE_TOKEN_DISCOVERY_ENABLED: _flag, ...old } = manifest;
+    expect(() => parsePublicConfigManifest(JSON.stringify(old))).toThrow(
+      /unexpected fields/,
+    );
+    expect(() =>
+      parsePublicConfigManifest(
+        JSON.stringify({
+          ...manifest,
+          VITE_STANDARD_TOKEN_HASH: "CD".repeat(32),
+        }),
+      ),
+    ).toThrow(/canonical/);
+    directory = await mkdtemp(path.join(os.tmpdir(), "swap-manifest-"));
+    const file = path.join(directory, "manifest.json");
+    await writeFile(file, JSON.stringify(manifest));
+    await expect(
+      verifyPublicConfigManifest(file, {
+        ...enabled,
+        VITE_STANDARD_TOKEN_HASH: manifest.VITE_STANDARD_TOKEN_HASH,
+        TOKEN_DISCOVERY_UPSTREAM_ORIGIN: "https://other-private-registry.test",
+      }),
+    ).resolves.toEqual(manifest);
+    for (const change of [
+      { VITE_TOKEN_DISCOVERY_ENABLED: "false" },
+      { VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"12".repeat(32)}` },
+      { VITE_STANDARD_TOKEN_HASH: `0x${"34".repeat(32)}` },
+    ]) {
+      await expect(
+        verifyPublicConfigManifest(file, { ...enabled, ...change }),
+      ).rejects.toThrow(/does not match/);
+    }
   });
 });

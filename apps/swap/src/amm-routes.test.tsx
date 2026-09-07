@@ -94,7 +94,7 @@ function LocationPath() {
 describe("browser configuration", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("forwards the pool registry feature flag", () => {
+  it("forwards registry and discovery settings through browser bootstrap", () => {
     vi.stubEnv("VITE_GROUNDHOG_RPC_URL", "http://127.0.0.1:9545");
     vi.stubEnv("VITE_GROUNDHOG_NETWORK_ID", "00".repeat(32));
     vi.stubEnv("VITE_GROUNDHOG_WALLET_ADDRESS", `0x${"01".repeat(32)}`);
@@ -102,10 +102,25 @@ describe("browser configuration", () => {
     vi.stubEnv("VITE_SWAP_FACTORY_ADDRESS", `0x${"03".repeat(32)}`);
     vi.stubEnv("VITE_SWAP_ROUTER_ADDRESS", `0x${"04".repeat(32)}`);
     vi.stubEnv("VITE_POOL_REGISTRY_ENABLED", "true");
+    vi.stubEnv("VITE_TOKEN_DISCOVERY_ENABLED", "true");
+    vi.stubEnv("VITE_STANDARD_TOKEN_FACTORY_ADDRESS", `0x${"AB".repeat(32)}`);
+    vi.stubEnv("VITE_STANDARD_TOKEN_HASH", "CD".repeat(32));
 
     expect(readBrowserConfiguration()).toMatchObject({
       ok: true,
-      config: { registryEnabled: true },
+      config: {
+        registryEnabled: true,
+        tokenDiscovery: {
+          enabled: true,
+          scope: {
+            networkId: "00".repeat(32),
+            factoryAddress: `0x${"ab".repeat(32)}`,
+            tokenCodeHash: `0x${"cd".repeat(32)}`,
+          },
+        },
+      },
     });
+    vi.stubEnv("VITE_STANDARD_TOKEN_HASH", "invalid");
+    expect(readBrowserConfiguration().ok).toBe(false);
   });
 });

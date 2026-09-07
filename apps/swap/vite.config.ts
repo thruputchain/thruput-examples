@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
+import { loadTokenDiscoveryServerConfig } from "./server/token-discovery-config.ts";
+import { createTokenDiscoveryHandler } from "./server/token-discovery.ts";
 
 import {
   createPublicConfigManifest,
@@ -27,6 +29,7 @@ export const PRODUCTION_BROWSER_RPC_URL = "https://same-origin.invalid/";
 
 export default defineConfig(({ command, isPreview, mode }) => {
   const environment = loadEnv(mode, root, "");
+  const tokenDiscovery = loadTokenDiscoveryServerConfig(environment);
   const rpcTarget =
     environment.VITE_GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545";
   validateRpcTarget(rpcTarget, {
@@ -56,6 +59,9 @@ export default defineConfig(({ command, isPreview, mode }) => {
       "VITE_SWAP_FACTORY_ADDRESS",
       "VITE_SWAP_ROUTER_ADDRESS",
       "VITE_POOL_REGISTRY_ENABLED",
+      "VITE_TOKEN_DISCOVERY_ENABLED",
+      "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
+      "VITE_STANDARD_TOKEN_HASH",
     ],
     define: {
       "import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY":
@@ -84,6 +90,7 @@ export default defineConfig(({ command, isPreview, mode }) => {
       tailwindcss(),
       developmentCredentialHostGuard(developmentCredentialsEnabled),
       localRpcProxy(rpcTarget),
+      tokenDiscoveryProxy(tokenDiscovery),
       ...(registryProductionBuild
         ? [productionPublicConfigManifest(environment)]
         : []),
@@ -123,6 +130,30 @@ export function productionPublicConfigManifest(
         fileName: PUBLIC_CONFIG_MANIFEST_FILENAME,
         source: `${JSON.stringify(manifest, null, 2)}\n`,
       });
+    },
+  };
+}
+
+export function tokenDiscoveryProxy(
+  config: ReturnType<typeof loadTokenDiscoveryServerConfig>,
+): Plugin {
+  const handler = createTokenDiscoveryHandler(config);
+  const middleware = (
+    request: IncomingMessage,
+    response: ServerResponse,
+    next: () => void,
+  ) => {
+    void handler(request, response).then((handled) => {
+      if (!handled) next();
+    });
+  };
+  return {
+    name: "groundhog-token-discovery",
+    configureServer(server) {
+      server.middlewares.use(middleware);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(middleware);
     },
   };
 }

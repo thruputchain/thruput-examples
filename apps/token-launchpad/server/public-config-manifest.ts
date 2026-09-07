@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../src/runtime.ts";
+import { loadSwapAppUrl } from "../src/swap-config.ts";
 import {
   canonicalAddress,
   canonicalDecimal,
@@ -20,6 +21,7 @@ export const PUBLIC_CONFIG_KEYS = [
   "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
   "VITE_STANDARD_TOKEN_HASH",
   "VITE_TOKEN_REGISTRY_ENABLED",
+  "VITE_SWAP_APP_URL",
 ] as const;
 
 type PublicConfigKey = (typeof PUBLIC_CONFIG_KEYS)[number];
@@ -43,6 +45,7 @@ export function createPublicConfigManifest(
   const rpcUrl = required(environment, "VITE_GROUNDHOG_RPC_URL");
   validateRpcUrl(rpcUrl);
   const manifest = {
+    VITE_SWAP_APP_URL: loadSwapAppUrl(environment.VITE_SWAP_APP_URL) ?? "",
     VITE_GROUNDHOG_RPC_URL_SHA256: digestRpcUrl(rpcUrl),
     VITE_GROUNDHOG_NETWORK_ID: required(
       environment,
@@ -173,10 +176,18 @@ function validateRpcUrl(value: string): void {
 
 function validateManifestFields(manifest: PublicConfigManifest): void {
   for (const key of PUBLIC_CONFIG_KEYS) {
-    if (typeof manifest[key] !== "string" || manifest[key] === "") {
+    if (
+      typeof manifest[key] !== "string" ||
+      (manifest[key] === "" && key !== "VITE_SWAP_APP_URL")
+    ) {
       throw new PublicConfigManifestError(`${key} must be a nonempty string`);
     }
   }
+  validate(
+    manifest.VITE_SWAP_APP_URL ===
+      (loadSwapAppUrl(manifest.VITE_SWAP_APP_URL) ?? ""),
+    "VITE_SWAP_APP_URL must be canonical",
+  );
   validate(
     SHA256.test(manifest.VITE_GROUNDHOG_RPC_URL_SHA256),
     "VITE_GROUNDHOG_RPC_URL_SHA256 must be a SHA-256 digest",

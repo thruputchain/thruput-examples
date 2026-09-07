@@ -49,6 +49,7 @@ export async function start(): Promise<void> {
   const server = createRegistryHttpServer(store, indexer, {
     staticDirectory,
     rpcUrl: config.rpcUrl,
+    tokenDiscovery: config.tokenDiscovery,
     // Railway identifies the client remote IP through X-Real-IP.
     trustedProxy: process.env.RAILWAY_ENVIRONMENT_ID !== undefined,
   });
