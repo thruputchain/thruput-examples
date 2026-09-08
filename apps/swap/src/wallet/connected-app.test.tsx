@@ -135,6 +135,34 @@ async function connect(
 }
 
 describe("connected wallet runtime", () => {
+  it("hides Disconnect before approval and on an empty account session, then allows reconnect", async () => {
+    const wallet = provider();
+    let resolve!: (value: unknown) => void;
+    wallet.request.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    const { user } = renderApp();
+    expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+    await connect(user);
+    expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+    await act(async () =>
+      resolve({ networkHash: config.networkIdHex, accounts }),
+    );
+    expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
+    await act(async () =>
+      wallet.change({ networkHash: config.networkIdHex, accounts: [] }),
+    );
+    expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+    wallet.request.mockResolvedValueOnce({
+      networkHash: config.networkIdHex,
+      accounts,
+    });
+    await user.click(screen.getByRole("button", { name: "Connect wallet" }));
+    expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
+  });
   it("browses without a wallet, discovers either load order, and never presents the fallback caller as a wallet", async () => {
     const first = provider();
     const { user } = renderApp();
@@ -240,6 +268,7 @@ describe("connected wallet runtime", () => {
       const { user } = renderApp();
       await connect(user);
       expect(screen.getByRole("alert")).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
       expect(screen.getByLabelText("Writable")).toHaveTextContent("false");
     },
   );

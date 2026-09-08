@@ -17,7 +17,6 @@ const WalletContext = createContext<{
   providers: WalletProvider[];
   address: string | undefined;
   busy: boolean;
-  canDisconnect: boolean;
   error: string | null;
   connect(provider: WalletProvider): void;
   disconnect(): void;
@@ -162,7 +161,6 @@ export function ProviderApp({ base }: { base: AppConfig }) {
         providers,
         address: binding?.address,
         busy,
-        canDisconnect: selected !== null,
         error,
         connect(provider) {
           ++revision.current;
@@ -219,7 +217,7 @@ export function WalletControls() {
           )}
         </>
       )}
-      {wallet.canDisconnect ? (
+      {wallet.address ? (
         <Button variant="outline" onClick={wallet.disconnect}>
           Disconnect
         </Button>

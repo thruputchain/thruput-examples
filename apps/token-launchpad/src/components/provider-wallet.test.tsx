@@ -109,6 +109,7 @@ it("shows rejection, permits retry, and removes wallet workflows on wrong-networ
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "User rejected connection",
   );
+  expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
   expect(await screen.findByText("Wallet workflow")).toBeInTheDocument();
   await act(async () => {
@@ -118,6 +119,37 @@ it("shows rejection, permits retry, and removes wallet workflows on wrong-networ
   expect(screen.getByRole("alert")).toHaveTextContent(
     "configured launchpad network",
   );
+});
+it("hides Disconnect before approval and on an empty account session, then allows reconnect", async () => {
+  const user = userEvent.setup();
+  const provider = wallet();
+  let resolve!: (session: WalletSession) => void;
+  provider.request.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  render(<ProviderApp base={base} />);
+  expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+  await act(async () =>
+    resolve({ networkHash: base.networkIdHex, accounts: [account(1n)] }),
+  );
+  expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
+  await act(async () =>
+    provider.change({ networkHash: base.networkIdHex, accounts: [] }),
+  );
+  expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+  provider.request.mockResolvedValueOnce({
+    networkHash: base.networkIdHex,
+    accounts: [account(1n)],
+  });
+  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  expect(
+    await screen.findByRole("button", { name: "Disconnect" }),
+  ).toBeVisible();
 });
 it("does not revive an old connect result after a session change", async () => {
   const user = userEvent.setup();
