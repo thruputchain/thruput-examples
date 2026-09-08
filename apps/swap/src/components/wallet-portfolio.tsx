@@ -8,6 +8,7 @@ import {
 import { toHex0x } from "@groundhogchain/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { TokenSymbol } from "@/components/token-symbol";
 import {
   Alert,
   AlertAction,
@@ -211,9 +212,11 @@ function TokenRow({ token }: { token: PortfolioToken }) {
         <CoinsIcon aria-hidden="true" className="size-4" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="font-medium">{token.symbol}</span>
+        <span className="font-medium">
+          <TokenSymbol symbol={token.symbol} address={toHex0x(token.address)} />
+        </span>
         <span className="truncate text-xs text-muted-foreground">
-          {token.name}
+          <TokenSymbol symbol={token.name} address={toHex0x(token.address)} />
         </span>
       </span>
       <span className="max-w-28 truncate font-mono text-xs font-medium tabular-nums">
@@ -235,7 +238,9 @@ function LiquidityRow({ position }: { position: PortfolioLiquidityPosition }) {
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-medium">
-          {position.poolSymbols.join(" / ")}
+          <TokenSymbol symbol={position.poolSymbols[0]} address={toHex0x(position.poolTokens[0])} />
+          {" / "}
+          <TokenSymbol symbol={position.poolSymbols[1]} address={toHex0x(position.poolTokens[1])} />
         </span>
         <span className="text-xs text-muted-foreground">
           {position.symbol} token

@@ -166,7 +166,7 @@ describe("PoolDirectoryPage", () => {
     );
 
     expect(
-      await screen.findByText("0x050505...050505 / 0x060606...060606"),
+      await screen.findByRole("heading", { name: "0x050505…0505 / 0x060606…0606" }),
     ).toBeVisible();
     expect(
       await screen.findByText("Some pools could not be loaded"),
@@ -389,12 +389,12 @@ describe("PoolDirectoryPage", () => {
     await user.type(screen.getByLabelText("Search addresses"), "20");
     await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(2));
     expect(
-      await screen.findByText("0x141414...141414 / 0x151515...151515"),
+      await screen.findByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
     ).toBeVisible();
     resolveFirst?.(firstPage);
     await act(async () => {});
     expect(
-      screen.getByText("0x141414...141414 / 0x151515...151515"),
+      screen.getByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
     ).toBeVisible();
   });
 
@@ -430,17 +430,17 @@ describe("PoolDirectoryPage", () => {
       },
     );
     expect(
-      await screen.findByText("0x050505...050505 / 0x060606...060606"),
+      await screen.findByRole("heading", { name: "0x050505…0505 / 0x060606…0606" }),
     ).toBeVisible();
 
     await user.type(screen.getByLabelText("Search addresses"), "20");
     expect(
-      await screen.findByText("0x141414...141414 / 0x151515...151515"),
+      await screen.findByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
     ).toBeVisible();
     resolveFirst?.(registryPoolsToEntries(firstPage.pools));
     await act(async () => {});
     expect(
-      screen.getByText("0x141414...141414 / 0x151515...151515"),
+      screen.getByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
     ).toBeVisible();
   });
 });

@@ -1,4 +1,4 @@
-import { toHex0x, type GroundhogClient } from "@groundhogchain/client";
+import type { GroundhogClient } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 import type { AppConfig, GlobalConfig } from "@/config";
@@ -80,21 +80,13 @@ export async function resolvePoolConfig(
       driverAddress: addresses.value.driver,
       tokenAAddress: token0,
       tokenBAddress: token1,
-      tokenASymbol: tokenSymbol(metadata0.symbol.value, token0),
-      tokenBSymbol: tokenSymbol(metadata1.symbol.value, token1),
+      tokenASymbol: metadata0.symbol.value?.trim() || "Token A",
+      tokenBSymbol: metadata1.symbol.value?.trim() || "Token B",
       tokenADecimals: metadata0.decimals.value,
       tokenBDecimals: metadata1.decimals.value,
     };
   }
   throw new Error("Unable to resolve a consistent pool snapshot after three attempts");
-}
-
-function tokenSymbol(
-  symbol: string | null,
-  address: ContractAddress,
-): string {
-  const trimmed = symbol?.trim();
-  return trimmed || `${toHex0x(address).slice(0, 8)}…`;
 }
 
 function sameAddress(left: ContractAddress, right: ContractAddress): boolean {

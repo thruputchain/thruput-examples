@@ -14,6 +14,24 @@ const environment = {
 };
 
 describe("loadConfig", () => {
+  it("loads and validates the optional explorer origin", () => {
+    expect(
+      loadConfig({
+        ...environment,
+        VITE_EXPLORER_URL: "https://EXPLORER.example.test:443/",
+      }).explorerUrl,
+    ).toBe("https://explorer.example.test");
+    expect(
+      loadConfig({ ...environment, VITE_EXPLORER_URL: " " }).explorerUrl,
+    ).toBeNull();
+    expect(loadConfig(environment).explorerUrl).toBeNull();
+    expect(() =>
+      loadConfig({
+        ...environment,
+        VITE_EXPLORER_URL: "https://example.test/path",
+      }),
+    ).toThrow(/VITE_EXPLORER_URL/);
+  });
   it("parses trusted launchpad settings", () => {
     const config = loadConfig(environment);
     expect(config.registryEnabled).toBe(false);

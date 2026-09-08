@@ -6,7 +6,7 @@ Local-development application for creating standard tokens through the Groundhog
 
 - Node.js 22.13 or newer
 - npm
-- Groundhog CLI 0.10.4 or newer
+- Groundhog CLI 0.14.0 or newer
 - `hog-devnode` 0.1.25 or newer
 - A disposable local node with at least three `local_user` accounts
 
@@ -49,7 +49,7 @@ export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
 npm --prefix apps/token-launchpad run test:e2e:local
 ```
 
-The command requires Linux with Bash, `flock`, and `setsid`, Groundhog CLI 0.10.4 or newer, and `hog-devnode` 0.1.25 or newer. It must be run explicitly. The harness owns a disposable ledger, temporarily replaces and restores `.env.local`, and uses the repository's ignored build output.
+The command requires Linux with Bash, `flock`, and `setsid`, Groundhog CLI 0.14.0 or newer, and `hog-devnode` 0.1.25 or newer. It must be run explicitly. The harness owns a disposable ledger, temporarily replaces and restores `.env.local`, and uses the repository's ignored build output.
 
 This is a service-level acceptance journey: it exercises the same workflow, wallet boundary, RPC client, and discovery code as the app without driving a browser. Component tests cover configuration injection, routing, persona switching, recovery, and UI states.
 
@@ -76,6 +76,26 @@ clicks the verified browser CTA, creates and seeds a pool, checks chain evidence
 and runs both production servers and full suites. No permanent browser dependency
 is added to launchpad. See the
 [acceptance record](../../docs/specs/2026-09-06-cross-app-acceptance.md).
+
+## Explorer Links
+
+Set optional `VITE_EXPLORER_URL` to the explorer's root origin on the same
+network, such as `https://explorer.example.com` or `http://localhost:3001`.
+Absent or blank configuration disables links, but identifiers remain shortened
+with their full values available in tooltips on hover or keyboard focus.
+Remote origins require HTTPS. HTTP is allowed only for exact `localhost`,
+`127.0.0.1`, or `[::1]` hosts. Credentials, paths, queries, fragments, and
+malformed URLs are rejected; a root slash is normalized away.
+
+Addresses (wallets and contracts) open `/address/0x<64 hex digits>` and
+transactions open `/tx/0x<64 hex digits>` in a new tab. Nonces and implementation
+hashes remain unlinked. Copy buttons copy the original full value independently
+of navigation. The same-tab **Create AMM Pool** handoff is independent of this
+setting.
+
+Rebuild production assets after changing this value and supply the same origin
+at runtime. The exact public manifest includes `VITE_EXPLORER_URL` even when
+disabled (as an empty string); missing keys and build/runtime drift are rejected.
 
 ## Local registry
 

@@ -2,11 +2,10 @@ import {
   AlertCircleIcon,
   ArrowRightIcon,
   CheckCircle2Icon,
-  CopyIcon,
   RefreshCwIcon,
   RocketIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import {
   BrowserRouter,
@@ -17,6 +16,12 @@ import {
   Routes,
 } from "react-router-dom";
 
+import {
+  BlockchainIdentifier,
+  ExplorerProvider,
+  type IdentifierKind,
+} from "@/components/blockchain-identifier";
+import { CopyIdentifierButton } from "@/components/copy-identifier-button";
 import {
   DevelopmentWalletContext,
   DevelopmentWalletSwitcher,
@@ -228,7 +233,7 @@ export function LaunchpadRoutes({
     [config, walletPrivateKey],
   );
   return (
-    <>
+    <ExplorerProvider explorerUrl={config.explorerUrl}>
       <Header readOnly={readOnly} />
       <Routes>
         <Route
@@ -279,7 +284,7 @@ export function LaunchpadRoutes({
           element={<Navigate to={readOnly ? "/tokens" : "/create"} replace />}
         />
       </Routes>
-    </>
+    </ExplorerProvider>
   );
 }
 
@@ -741,239 +746,272 @@ export function ReviewCard({
   const parsed = parseTokenDraft(draft).value;
   const ammPoolLink = createAmmPoolLink(config.swapAppUrl, workflow);
   return (
-    <Card className="h-fit lg:sticky lg:top-6">
-      <CardHeader>
-        <div className="mb-3 grid size-14 place-items-center rounded-2xl bg-accent text-xl font-semibold text-accent-foreground">
-          {draft.symbol.trim().slice(0, 2).toUpperCase() || "?"}
-        </div>
-        <CardTitle>{draft.symbol.trim().toUpperCase() || "SYMBOL"}</CardTitle>
-        <CardDescription>
-          {draft.name.trim() || "Your token"} · {draft.decimals || "0"} decimals
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Detail
-          label="Initial supply"
-          value={
-            parsed ? formatUnits(parsed.initialSupply, parsed.decimals) : "-"
-          }
-        />
-        <Detail label="Administrator" value={short(config.accountAddress)} />
-        <Detail label="Initial holder" value={short(config.accountAddress)} />
-        {review?.predictedAddressHex || workflow?.predictedAddressHex ? (
-          <IdentifierDetail
-            label="Predicted address"
-            value={review?.predictedAddressHex ?? workflow!.predictedAddressHex}
-          />
-        ) : (
-          <Detail label="Predicted address" value="Available after review" />
-        )}
-        <Detail
-          label="Factory fee"
-          value={review || workflow ? "0 HOG" : "-"}
-        />
-        <Detail
-          label="Required reserve"
-          value={
-            review
-              ? `${review.config.required_token_funding} HOG units`
-              : workflow
-                ? `${workflow.requiredTokenFunding} HOG units`
-                : "-"
-          }
-        />
-        <Detail
-          label="Funding transfer"
-          value={
-            review
-              ? `${review.fundingAmount} HOG units`
-              : workflow
-                ? `${workflow.plannedFundingAmount} HOG units`
-                : "-"
-          }
-        />
-        {review?.fundingShortfall ? (
-          <Alert variant="destructive">
-            <AlertCircleIcon />
-            <AlertTitle>Insufficient HOG</AlertTitle>
-            <AlertDescription>
-              This wallet needs at least {review.fundingShortfall.toString()}{" "}
-              more HOG for token funding. Execution costs may require additional
-              HOG.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {workflow ? (
-          <>
-            <IdentifierDetail
-              label="Application nonce"
-              value={workflow.nonceHex}
-            />
-            <IdentifierDetail
-              label="Implementation hash"
-              value={workflow.reviewedTokenCodeHashHex}
-            />
-            <IdentifierDetail
-              label="Native token"
-              value={workflow.reviewedNativeTokenHex}
-            />
-          </>
-        ) : null}
-        {workflow?.funding.hash ? (
-          <IdentifierDetail
-            label="Funding transaction"
-            value={workflow.funding.hash}
-          />
-        ) : null}
-        {workflow?.creation.hash ? (
-          <IdentifierDetail
-            label="Creation transaction"
-            value={workflow.creation.hash}
-          />
-        ) : null}
-        {workflow?.creationBlock ? (
-          <Detail label="Creation block" value={workflow.creationBlock} />
-        ) : null}
-        {workflow?.verification.totalSupply ? (
+    <ExplorerProvider explorerUrl={config.explorerUrl}>
+      <Card className="h-fit lg:sticky lg:top-6">
+        <CardHeader>
+          <div className="mb-3 grid size-14 place-items-center rounded-2xl bg-accent text-xl font-semibold text-accent-foreground">
+            {draft.symbol.trim().slice(0, 2).toUpperCase() || "?"}
+          </div>
+          <CardTitle>{draft.symbol.trim().toUpperCase() || "SYMBOL"}</CardTitle>
+          <CardDescription>
+            {draft.name.trim() || "Your token"} · {draft.decimals || "0"}{" "}
+            decimals
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <Detail
-            label="Verified total supply"
-            value={formatUnits(
-              BigInt(workflow.verification.totalSupply),
-              workflow.token.decimals,
-            )}
+            label="Initial supply"
+            value={
+              parsed ? formatUnits(parsed.initialSupply, parsed.decimals) : "-"
+            }
           />
-        ) : null}
-        {workflow?.verification.holderBalance ? (
           <Detail
-            label="Verified holder balance"
-            value={formatUnits(
-              BigInt(workflow.verification.holderBalance),
-              workflow.token.decimals,
-            )}
+            label="Administrator"
+            value={
+              <BlockchainIdentifier
+                kind="address"
+                value={toAddressHex(config.accountAddress)}
+              />
+            }
           />
-        ) : null}
-        {workflow?.createdAddressHex ? (
-          <IdentifierDetail
-            label="Token contract"
-            value={workflow.createdAddressHex}
+          <Detail
+            label="Initial holder"
+            value={
+              <BlockchainIdentifier
+                kind="address"
+                value={toAddressHex(config.accountAddress)}
+              />
+            }
           />
-        ) : null}
-        {workflow ? (
-          <div className="space-y-3" aria-live="polite">
-            <ProgressStep label="Fund token address" step={workflow.funding} />
-            <ProgressStep
-              label="Create and initialize token"
-              step={workflow.creation}
-            />
-            <ProgressStatus
-              label="Verify committed token"
-              status={
-                workflow.creation.status !== "committed"
-                  ? "pending"
-                  : workflow.verification.status === "complete"
-                    ? "complete"
-                    : "incomplete"
+          {review?.predictedAddressHex || workflow?.predictedAddressHex ? (
+            <IdentifierDetail
+              label="Predicted address"
+              kind="address"
+              value={
+                review?.predictedAddressHex ?? workflow!.predictedAddressHex
               }
             />
-            {workflow.error ? (
-              <Alert variant="destructive">
-                <AlertCircleIcon />
-                <AlertTitle>Launch paused</AlertTitle>
-                <AlertDescription>{workflow.error}</AlertDescription>
-              </Alert>
-            ) : null}
-            {workflow.creation.status === "committed" ? (
-              <>
-                <Alert>
-                  <CheckCircle2Icon />
-                  <AlertTitle>Token created</AlertTitle>
-                  <AlertDescription>
-                    {workflow.verification.status === "complete"
-                      ? "Receipt, events, metadata, supply, and holder balance match this launch."
-                      : "The receipt and creation events match this launch."}
-                  </AlertDescription>
+          ) : (
+            <Detail label="Predicted address" value="Available after review" />
+          )}
+          <Detail
+            label="Factory fee"
+            value={review || workflow ? "0 HOG" : "-"}
+          />
+          <Detail
+            label="Required reserve"
+            value={
+              review
+                ? `${review.config.required_token_funding} HOG units`
+                : workflow
+                  ? `${workflow.requiredTokenFunding} HOG units`
+                  : "-"
+            }
+          />
+          <Detail
+            label="Funding transfer"
+            value={
+              review
+                ? `${review.fundingAmount} HOG units`
+                : workflow
+                  ? `${workflow.plannedFundingAmount} HOG units`
+                  : "-"
+            }
+          />
+          {review?.fundingShortfall ? (
+            <Alert variant="destructive">
+              <AlertCircleIcon />
+              <AlertTitle>Insufficient HOG</AlertTitle>
+              <AlertDescription>
+                This wallet needs at least {review.fundingShortfall.toString()}{" "}
+                more HOG for token funding. Execution costs may require
+                additional HOG.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {workflow ? (
+            <>
+              <IdentifierDetail
+                label="Application nonce"
+                value={workflow.nonceHex}
+              />
+              <IdentifierDetail
+                label="Implementation hash"
+                value={workflow.reviewedTokenCodeHashHex}
+              />
+              <IdentifierDetail
+                label="Native token"
+                kind="address"
+                value={workflow.reviewedNativeTokenHex}
+              />
+            </>
+          ) : null}
+          {workflow?.funding.hash ? (
+            <IdentifierDetail
+              label="Funding transaction"
+              kind="transaction"
+              value={workflow.funding.hash}
+            />
+          ) : null}
+          {workflow?.creation.hash ? (
+            <IdentifierDetail
+              label="Creation transaction"
+              kind="transaction"
+              value={workflow.creation.hash}
+            />
+          ) : null}
+          {workflow?.creationBlock ? (
+            <Detail label="Creation block" value={workflow.creationBlock} />
+          ) : null}
+          {workflow?.verification.totalSupply ? (
+            <Detail
+              label="Verified total supply"
+              value={formatUnits(
+                BigInt(workflow.verification.totalSupply),
+                workflow.token.decimals,
+              )}
+            />
+          ) : null}
+          {workflow?.verification.holderBalance ? (
+            <Detail
+              label="Verified holder balance"
+              value={formatUnits(
+                BigInt(workflow.verification.holderBalance),
+                workflow.token.decimals,
+              )}
+            />
+          ) : null}
+          {workflow?.createdAddressHex ? (
+            <IdentifierDetail
+              label="Token contract"
+              kind="address"
+              value={workflow.createdAddressHex}
+            />
+          ) : null}
+          {workflow ? (
+            <div className="space-y-3" aria-live="polite">
+              <ProgressStep
+                label="Fund token address"
+                step={workflow.funding}
+              />
+              <ProgressStep
+                label="Create and initialize token"
+                step={workflow.creation}
+              />
+              <ProgressStatus
+                label="Verify committed token"
+                status={
+                  workflow.creation.status !== "committed"
+                    ? "pending"
+                    : workflow.verification.status === "complete"
+                      ? "complete"
+                      : "incomplete"
+                }
+              />
+              {workflow.error ? (
+                <Alert variant="destructive">
+                  <AlertCircleIcon />
+                  <AlertTitle>Launch paused</AlertTitle>
+                  <AlertDescription>{workflow.error}</AlertDescription>
                 </Alert>
-                {workflow.verification.status === "incomplete" ? (
-                  <>
-                    <Alert>
-                      <AlertCircleIcon />
-                      <AlertTitle>Verification incomplete</AlertTitle>
-                      <AlertDescription>
-                        {workflow.verification.message}
-                      </AlertDescription>
-                    </Alert>
-                    <Button
-                      className="min-h-12 w-full"
-                      onClick={onAdvance}
-                      disabled={loading || !writesSupported}
-                      variant="outline"
-                    >
-                      {loading ? "Verifying token..." : "Retry verification"}
-                      <RefreshCwIcon />
-                    </Button>
-                  </>
-                ) : null}
-                <Button
-                  className="min-h-12 w-full"
-                  variant="outline"
-                  onClick={onReset}
-                  disabled={!writesSupported}
-                >
-                  Create another token
-                </Button>
-                <Button className="min-h-12 w-full" variant="outline" asChild>
-                  <Link to="/my-tokens">View my tokens</Link>
-                </Button>
-                {ammPoolLink ? (
-                  <Button className="min-h-12 w-full" variant="outline" asChild>
-                    <a href={ammPoolLink}>Create AMM Pool</a>
-                  </Button>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <Button
-                  className="min-h-12 w-full"
-                  onClick={onAdvance}
-                  disabled={loading || !writesSupported}
-                  variant={
-                    actionLabel(workflow, manualProcessing) ===
-                      "Create token" ||
-                    actionLabel(workflow, manualProcessing) === "Launch token"
-                      ? "default"
-                      : "outline"
-                  }
-                >
-                  {loading
-                    ? loadingActionLabel(workflow, manualProcessing)
-                    : actionLabel(workflow, manualProcessing)}
-                  <ArrowRightIcon />
-                </Button>
-                {canDiscardWorkflow(workflow) ? (
+              ) : null}
+              {workflow.creation.status === "committed" ? (
+                <>
+                  <Alert>
+                    <CheckCircle2Icon />
+                    <AlertTitle>Token created</AlertTitle>
+                    <AlertDescription>
+                      {workflow.verification.status === "complete"
+                        ? "Receipt, events, metadata, supply, and holder balance match this launch."
+                        : "The receipt and creation events match this launch."}
+                    </AlertDescription>
+                  </Alert>
+                  {workflow.verification.status === "incomplete" ? (
+                    <>
+                      <Alert>
+                        <AlertCircleIcon />
+                        <AlertTitle>Verification incomplete</AlertTitle>
+                        <AlertDescription>
+                          {workflow.verification.message}
+                        </AlertDescription>
+                      </Alert>
+                      <Button
+                        className="min-h-12 w-full"
+                        onClick={onAdvance}
+                        disabled={loading || !writesSupported}
+                        variant="outline"
+                      >
+                        {loading ? "Verifying token..." : "Retry verification"}
+                        <RefreshCwIcon />
+                      </Button>
+                    </>
+                  ) : null}
                   <Button
                     className="min-h-12 w-full"
                     variant="outline"
                     onClick={onReset}
-                    disabled={loading || !writesSupported}
+                    disabled={!writesSupported}
                   >
-                    Edit token details
+                    Create another token
                   </Button>
-                ) : null}
-              </>
-            )}
-          </div>
-        ) : review ? (
-          <Alert>
-            <CheckCircle2Icon />
-            <AlertTitle>Factory verified</AlertTitle>
-            <AlertDescription>
-              The address and zero-fee factory configuration are ready. Continue
-              to fund the predicted address.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-      </CardContent>
-    </Card>
+                  <Button className="min-h-12 w-full" variant="outline" asChild>
+                    <Link to="/my-tokens">View my tokens</Link>
+                  </Button>
+                  {ammPoolLink ? (
+                    <Button
+                      className="min-h-12 w-full"
+                      variant="outline"
+                      asChild
+                    >
+                      <a href={ammPoolLink}>Create AMM Pool</a>
+                    </Button>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <Button
+                    className="min-h-12 w-full"
+                    onClick={onAdvance}
+                    disabled={loading || !writesSupported}
+                    variant={
+                      actionLabel(workflow, manualProcessing) ===
+                        "Create token" ||
+                      actionLabel(workflow, manualProcessing) === "Launch token"
+                        ? "default"
+                        : "outline"
+                    }
+                  >
+                    {loading
+                      ? loadingActionLabel(workflow, manualProcessing)
+                      : actionLabel(workflow, manualProcessing)}
+                    <ArrowRightIcon />
+                  </Button>
+                  {canDiscardWorkflow(workflow) ? (
+                    <Button
+                      className="min-h-12 w-full"
+                      variant="outline"
+                      onClick={onReset}
+                      disabled={loading || !writesSupported}
+                    >
+                      Edit token details
+                    </Button>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : review ? (
+            <Alert>
+              <CheckCircle2Icon />
+              <AlertTitle>Factory verified</AlertTitle>
+              <AlertDescription>
+                The address and zero-fee factory configuration are ready.
+                Continue to fund the predicted address.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+        </CardContent>
+      </Card>
+    </ExplorerProvider>
   );
 }
 
@@ -997,7 +1035,7 @@ function ProgressStep({
       <ProgressStatus label={label} status={status} />
       {step.hash ? (
         <p className="px-3 font-mono text-xs text-muted-foreground">
-          {shortHash(step.hash)}
+          <BlockchainIdentifier kind="transaction" value={step.hash} />
         </p>
       ) : null}
     </div>
@@ -1015,41 +1053,22 @@ function ProgressStatus({ label, status }: { label: string; status: string }) {
   );
 }
 
-function IdentifierDetail({ label, value }: { label: string; value: string }) {
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
-    "idle",
-  );
-  useEffect(() => setCopyStatus("idle"), [value]);
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopyStatus("copied");
-    } catch {
-      setCopyStatus("failed");
-    }
-  }
+function IdentifierDetail({
+  label,
+  value,
+  kind = "identifier",
+}: {
+  label: string;
+  value: string;
+  kind?: IdentifierKind;
+}) {
   return (
     <div className="space-y-1">
-      <p className="flex justify-between gap-2 text-xs text-muted-foreground">
-        <span>{label}</span>
-        <span aria-live="polite">
-          {copyStatus === "copied"
-            ? "Copied"
-            : copyStatus === "failed"
-              ? "Copy failed"
-              : null}
-        </span>
-      </p>
-      <Button
-        className="min-h-12 w-full justify-between font-mono text-xs"
-        variant="outline"
-        title={value}
-        aria-label={`Copy ${label}: ${value}`}
-        onClick={() => void copy()}
-      >
-        {shortHash(value)}
-        <CopyIcon />
-      </Button>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="flex min-h-12 items-center justify-between gap-2 rounded-md border px-3">
+        <BlockchainIdentifier value={value} kind={kind} />
+        <CopyIdentifierButton value={value} label={`Copy ${label}: ${value}`} />
+      </div>
     </div>
   );
 }
@@ -1141,25 +1160,29 @@ export function TokensPage({
   enrichBalances?: typeof enrichTokenBalances;
   readOnly?: boolean;
 }) {
-  return config.registryEnabled ? (
-    <RegistryTokensPage
-      config={config}
-      client={client}
-      scope={scope}
-      read={registryRead}
-      readStatus={registryStatus}
-      requestSync={registrySync}
-      enrichBalances={enrichBalances}
-      readOnly={readOnly}
-    />
-  ) : (
-    <DirectTokensPage
-      config={config}
-      client={client}
-      scope={scope}
-      read={read}
-      readOnly={readOnly}
-    />
+  return (
+    <ExplorerProvider explorerUrl={config.explorerUrl}>
+      {config.registryEnabled ? (
+        <RegistryTokensPage
+          config={config}
+          client={client}
+          scope={scope}
+          read={registryRead}
+          readStatus={registryStatus}
+          requestSync={registrySync}
+          enrichBalances={enrichBalances}
+          readOnly={readOnly}
+        />
+      ) : (
+        <DirectTokensPage
+          config={config}
+          client={client}
+          scope={scope}
+          read={read}
+          readOnly={readOnly}
+        />
+      )}
+    </ExplorerProvider>
   );
 }
 
@@ -1711,22 +1734,22 @@ function TokenCards({ tokens }: { tokens: readonly CreatedToken[] }) {
             />
             <Detail
               label="Administrator"
-              value={shortHash(token.administratorHex)}
+              value={
+                <BlockchainIdentifier
+                  kind="address"
+                  value={token.administratorHex}
+                />
+              }
             />
             <div className="flex items-center gap-2 rounded-lg bg-muted p-3 font-mono text-xs">
-              <span className="min-w-0 flex-1 truncate">
-                {token.addressHex}
+              <span className="min-w-0 flex-1">
+                <BlockchainIdentifier kind="address" value={token.addressHex} />
               </span>
-              <Button
-                size="icon-sm"
+              <CopyIdentifierButton
                 variant="ghost"
-                aria-label="Copy token address"
-                onClick={() =>
-                  void navigator.clipboard.writeText(token.addressHex)
-                }
-              >
-                <CopyIcon />
-              </Button>
+                label="Copy token address"
+                value={token.addressHex}
+              />
             </div>
           </CardContent>
         </Card>
@@ -1739,7 +1762,7 @@ function toAddressHex(value: ArrayLike<number>): string {
   return `0x${Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b pb-3 text-sm last:border-0 last:pb-0">
       <span className="text-muted-foreground">{label}</span>
@@ -1749,17 +1772,6 @@ function Detail({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-function short(value: ArrayLike<number>): string {
-  const hex = Array.from(value, (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-  return `0x${hex.slice(0, 8)}...${hex.slice(-6)}`;
-}
-
-function shortHash(value: string): string {
-  return `${value.slice(0, 10)}...${value.slice(-8)}`;
-}
-
 function formatTokenAmount(value: bigint, decimals: number | null): string {
   return decimals === null
     ? `${value.toString()} base units`

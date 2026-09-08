@@ -184,6 +184,8 @@ export function PoolDetailPage({
             <CardContent>
               <dl className="grid gap-4 sm:grid-cols-2">
                 <Address label="Pool" value={config.handlerAddress} />
+                <Address label="Token A" value={config.tokenAAddress} />
+                <Address label="Token B" value={config.tokenBAddress} />
                 <Address
                   label="LP token"
                   value={config.liquidityTokenAddress}
@@ -232,6 +234,7 @@ function Address({
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="mt-1 min-w-0">
         <BlockchainIdentifier
+          kind="address"
           value={toHex0x(value)}
           label={`${label} address`}
         />

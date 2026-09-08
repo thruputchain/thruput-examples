@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import {
   Command,
   CommandGroup,
@@ -36,6 +37,7 @@ export function TokenAddressCombobox({
   const id = useId();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [highlighted, setHighlighted] = useState("");
   const [attempt, setAttempt] = useState(0);
   const key = JSON.stringify([open, query, attempt, discovery]);
   const [result, setResult] = useState<{
@@ -103,10 +105,18 @@ export function TokenAddressCombobox({
         {error ??
           "Enter any compatible token address, or search indexed suggestions."}
       </FieldDescription>
+      {selected ? (
+        <BlockchainIdentifier
+          kind="address"
+          value={selected}
+          label="Selected token address"
+        />
+      ) : null}
       <Popover
         open={open}
         onOpenChange={(next) => {
           setQuery("");
+          setHighlighted("");
           setOpen(next);
         }}
       >
@@ -124,7 +134,12 @@ export function TokenAddressCombobox({
           aria-label={`Choose ${label}`}
           className="w-96 max-w-[calc(100vw-2rem)] p-0"
         >
-          <Command shouldFilter={false} label={`Search tokens for ${label}`}>
+          <Command
+            shouldFilter={false}
+            value={highlighted}
+            onValueChange={setHighlighted}
+            label={`Search tokens for ${label}`}
+          >
             <CommandInput
               aria-label={`Search tokens for ${label}`}
               placeholder="Name, symbol, or address"
@@ -134,11 +149,6 @@ export function TokenAddressCombobox({
             <p className="px-3 py-2 text-xs text-muted-foreground">
               Search name, symbol, token address, or creator address.
             </p>
-            {selected ? (
-              <p className="break-all px-3 pb-2 text-xs">
-                Selected address: {selected}
-              </p>
-            ) : null}
             <div
               role="status"
               aria-live="polite"
@@ -169,13 +179,20 @@ export function TokenAddressCombobox({
               {manual ? (
                 <CommandGroup heading="Manual address">
                   <CommandItem
+                    aria-label={`Use address ${manual}${manual === other ? " (already selected for the other token)" : ""}`}
                     value={`manual:${manual}`}
                     disabled={manual === other}
                     onSelect={() => choose(manual)}
                     className="min-h-11"
                   >
                     <span className="min-w-0 break-all">
-                      Use address {manual}
+                      Use address{" "}
+                      <BlockchainIdentifier
+                        nonInteractive
+                        value={manual}
+                        kind="address"
+                        label="Manual address"
+                      />
                       {manual === other
                         ? " (already selected for the other token)"
                         : ""}
@@ -187,6 +204,7 @@ export function TokenAddressCombobox({
                 <CommandGroup heading="Indexed tokens">
                   {current.data.tokens.map((token) => (
                     <CommandItem
+                      aria-label={`${token.name || "Unnamed token"} / ${token.symbol || "No symbol"} ${token.tokenAddress}${selected === token.tokenAddress ? " (selected)" : ""}${other === token.tokenAddress ? " (already selected for the other token)" : ""}`}
                       key={token.tokenAddress}
                       value={token.tokenAddress}
                       data-checked={selected === token.tokenAddress}
@@ -194,17 +212,19 @@ export function TokenAddressCombobox({
                       onSelect={() => choose(token.tokenAddress)}
                       className="min-h-11"
                     >
-                      <span
-                        className="flex min-w-0 flex-col gap-1"
-                        title={token.tokenAddress}
-                      >
+                      <span className="flex min-w-0 flex-col gap-1">
                         <span className="break-words">
                           {token.name || "Unnamed token"} /{" "}
                           {token.symbol || "No symbol"}
                           {selected === token.tokenAddress ? " (selected)" : ""}
                         </span>
                         <span className="break-all font-mono text-xs">
-                          {token.tokenAddress}
+                          <BlockchainIdentifier
+                            nonInteractive
+                            kind="address"
+                            value={token.tokenAddress}
+                            label="Suggested token address"
+                          />
                         </span>
                         {other === token.tokenAddress ? (
                           <span>Already selected for the other token</span>
@@ -232,6 +252,16 @@ export function TokenAddressCombobox({
               </p>
             ) : null}
           </Command>
+          {selected ? (
+            <p className="px-3 pb-2 text-xs">
+              Selected address: <BlockchainIdentifier kind="address" value={selected} label="Selected address" />
+            </p>
+          ) : null}
+          {tokenAddress(highlighted.replace(/^manual:/, "")) ? (
+            <p className="px-3 pb-2 text-xs">
+              Highlighted address: <BlockchainIdentifier kind="address" value={highlighted.replace(/^manual:/, "")} label="Highlighted token address" />
+            </p>
+          ) : null}
         </PopoverContent>
       </Popover>
     </Field>

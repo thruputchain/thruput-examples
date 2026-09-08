@@ -19,6 +19,7 @@ import {
   DevelopmentWalletSwitcher,
 } from "@/components/development-wallet-switcher";
 import { ProcessingModeProvider } from "@/components/processing-mode";
+import { ExplorerProvider } from "@/components/explorer-context";
 import {
   Card,
   CardContent,
@@ -86,7 +87,7 @@ export function App({
       />
     );
     return (
-      <AppProviders>
+      <AppProviders explorerUrl={suppliedConfig.explorerUrl}>
         {hasRouter ? app : <BrowserRouter>{app}</BrowserRouter>}
       </AppProviders>
     );
@@ -94,7 +95,9 @@ export function App({
   const configuration = readBrowserConfiguration();
 
   return (
-    <AppProviders>
+    <AppProviders
+      explorerUrl={configuration.ok ? configuration.config.explorerUrl : undefined}
+    >
       {configuration.ok ? (
         hasRouter ? (
           <BrowserConfiguredApp config={configuration.config} />
@@ -110,10 +113,15 @@ export function App({
   );
 }
 
-function AppProviders({ children }: { children: React.ReactNode }) {
+function AppProviders({ children, explorerUrl }: {
+  children: React.ReactNode;
+  explorerUrl?: string | undefined;
+}) {
   return (
     <TooltipProvider>
-      <ProcessingModeProvider>{children}</ProcessingModeProvider>
+      <ExplorerProvider value={explorerUrl}>
+        <ProcessingModeProvider>{children}</ProcessingModeProvider>
+      </ExplorerProvider>
     </TooltipProvider>
   );
 }
@@ -580,6 +588,7 @@ export function readBrowserConfiguration():
     return {
       ok: true,
       config: loadGlobalConfig({
+        VITE_EXPLORER_URL: import.meta.env.VITE_EXPLORER_URL,
         VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
         VITE_POOL_REGISTRY_ENABLED: import.meta.env.VITE_POOL_REGISTRY_ENABLED,
         VITE_TOKEN_DISCOVERY_ENABLED: import.meta.env

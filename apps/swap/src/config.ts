@@ -9,6 +9,7 @@ import {
 const NETWORK_ID_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
 export interface GlobalConfig {
+  explorerUrl?: string | undefined;
   rpcUrl: URL;
   registryEnabled?: boolean;
   tokenDiscovery?: DiscoveryConfig;
@@ -50,6 +51,7 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
   }
 
   return {
+    explorerUrl: parseExplorerUrl(environment.VITE_EXPLORER_URL),
     rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),
     registryEnabled: enabled(environment, "VITE_POOL_REGISTRY_ENABLED"),
     tokenDiscovery: loadDiscoveryConfig(environment),
@@ -74,6 +76,42 @@ function enabled(environment: Environment, key: string): boolean {
 
 export function isLoopbackUrl(url: URL): boolean {
   return isLoopbackHostname(url.hostname);
+}
+
+export function parseExplorerUrl(
+  value: string | boolean | undefined,
+): string | undefined {
+  if (value === undefined || (typeof value === "string" && value.trim() === "")) {
+    return undefined;
+  }
+  const message =
+    "VITE_EXPLORER_URL must be a root HTTPS URL (HTTP is allowed only on exact loopback hosts), without credentials, a query, or a fragment";
+  if (typeof value !== "string") throw new ConfigurationError(message);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ConfigurationError(message);
+  }
+  // Check the input too: URL parsing otherwise erases dot paths and empty ?/#.
+  if (
+    !/^https?:\/\/[^/?#@\\\s]+\/?$/i.test(value) ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash ||
+    (url.protocol !== "https:" &&
+      !(
+        url.protocol === "http:" &&
+        /^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?\/?$/i.test(
+          value,
+        )
+      ))
+  ) {
+    throw new ConfigurationError(message);
+  }
+  return url.origin;
 }
 
 export function isLoopbackHostname(hostname: string): boolean {

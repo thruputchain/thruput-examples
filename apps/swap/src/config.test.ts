@@ -5,6 +5,7 @@ import {
   isLoopbackHostname,
   isLoopbackUrl,
   loadGlobalConfig,
+  parseExplorerUrl,
   type Environment,
 } from "./config";
 
@@ -25,6 +26,32 @@ function environment(overrides: Environment = {}): Environment {
 }
 
 describe("loadGlobalConfig", () => {
+  it.each([undefined, "", "   ", "\t\r\n"])("disables explorer links for %s", (value) => {
+    expect(loadGlobalConfig(environment({ VITE_EXPLORER_URL: value })).explorerUrl).toBeUndefined();
+  });
+
+  it.each([
+    ["https://Explorer.example:443/", "https://explorer.example"],
+    ["http://localhost:3000/", "http://localhost:3000"],
+    ["http://127.0.0.1:3000", "http://127.0.0.1:3000"],
+    ["http://[::1]:3000/", "http://[::1]:3000"],
+  ])("normalizes explorer root %s", (value, expected) => {
+    expect(loadGlobalConfig(environment({ VITE_EXPLORER_URL: value })).explorerUrl).toBe(expected);
+  });
+
+  it.each([
+    true, "not a url", "//explorer.test", "javascript:alert(1)",
+    "http://explorer.test", "http://localhost.evil.test", "http://127.1",
+    "http://2130706433", "http://127.0.0.2", "http://localhost.",
+    "https://user:secret@explorer.test", "https://@explorer.test",
+    "https://explorer.test/path", "https://explorer.test/..",
+    "https://explorer.test?", "https://explorer.test#",
+    "https://explorer.test/?secret=x", "https://explorer.test/#fragment",
+    "https://explorer.test\\path", "https://explorer.test/ ",
+  ])("rejects unsafe explorer root %s", (value) => {
+    expect(() => parseExplorerUrl(value)).toThrow(ConfigurationError);
+    expect(() => parseExplorerUrl(value)).toThrow(/VITE_EXPLORER_URL/);
+  });
   it("requires only factory-oriented runtime values", () => {
     const config = loadGlobalConfig(environment());
 

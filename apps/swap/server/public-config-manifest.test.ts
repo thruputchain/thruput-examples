@@ -43,6 +43,7 @@ describe("production public configuration manifest", () => {
       PRIVATE_SECRET: "do-not-emit",
     });
     expect(manifest).toEqual({
+      VITE_EXPLORER_URL: "",
       VITE_GROUNDHOG_RPC_URL_SHA256: createHash("sha256")
         .update(new URL(rpcUrl).href)
         .digest("hex"),
@@ -63,6 +64,8 @@ describe("production public configuration manifest", () => {
   });
 
   it.each([
+    ["VITE_EXPLORER_URL", "http://remote.example.test"],
+    ["VITE_EXPLORER_URL", "https://user:secret@explorer.test"],
     ["VITE_GROUNDHOG_RPC_URL", "https://user:secret@rpc.example.test"],
     ["VITE_GROUNDHOG_RPC_URL", "https://rpc.example.test/?key=secret"],
     ["VITE_GROUNDHOG_NETWORK_ID", "aa"],
@@ -110,6 +113,24 @@ describe("production public configuration manifest", () => {
     ).toThrow(/VITE_GROUNDHOG_WALLET_ADDRESS/);
   });
 
+  it("normalizes explorer config, enforces exact manifest fields, and rejects runtime drift", async () => {
+    const configured = { ...environment, VITE_EXPLORER_URL: "https://Explorer.test/" };
+    const manifest = createPublicConfigManifest(configured);
+    expect(manifest.VITE_EXPLORER_URL).toBe("https://explorer.test");
+    expect(parsePublicConfigManifest(JSON.stringify(manifest))).toEqual(manifest);
+    const { VITE_EXPLORER_URL: _missing, ...old } = manifest;
+    expect(() => parsePublicConfigManifest(JSON.stringify(old))).toThrow(/unexpected fields/);
+    for (const value of [null, false, " \t\n", "https://explorer.test/", "https://explorer.test/path"]) {
+      expect(() => parsePublicConfigManifest(JSON.stringify({ ...manifest, VITE_EXPLORER_URL: value }))).toThrow(/VITE_EXPLORER_URL/);
+    }
+    directory = await mkdtemp(path.join(os.tmpdir(), "swap-manifest-"));
+    const manifestPath = path.join(directory, "manifest.json");
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    await expect(verifyPublicConfigManifest(manifestPath, configured)).resolves.toEqual(manifest);
+    await expect(verifyPublicConfigManifest(manifestPath, environment)).rejects.toThrow(/VITE_EXPLORER_URL does not match/);
+    await expect(verifyPublicConfigManifest(manifestPath, { ...configured, VITE_EXPLORER_URL: "https://other.test" })).rejects.toThrow(/VITE_EXPLORER_URL does not match/);
+  });
+
   it("compares normalized runtime semantics without exposing mismatched values", async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), "swap-manifest-"));
     const manifestPath = path.join(directory, "manifest.json");
@@ -121,6 +142,7 @@ describe("production public configuration manifest", () => {
     await expect(
       verifyPublicConfigManifest(manifestPath, {
         ...environment,
+        VITE_EXPLORER_URL: " \t\n",
         VITE_GROUNDHOG_NETWORK_ID: "aa".repeat(32),
         VITE_KNOWN_TOKEN_ADDRESSES: `0x${"66".repeat(32)},0x${"55".repeat(32)}`,
       }),
@@ -134,6 +156,12 @@ describe("production public configuration manifest", () => {
       /VITE_GROUNDHOG_RPC_URL does not match/,
     );
     await expect(failure).rejects.not.toThrow(/distinctive-secret/);
+  });
+
+  it.each([undefined, "", " \t\r\n"])("normalizes disabled explorer config to an exact blank manifest value: %s", (value) => {
+    const manifest = createPublicConfigManifest({ ...environment, VITE_EXPLORER_URL: value });
+    expect(manifest.VITE_EXPLORER_URL).toBe("");
+    expect(parsePublicConfigManifest(JSON.stringify(manifest))).toEqual(manifest);
   });
 
   it("round trips discovery scope, rejects drift and requires rebuilding old manifests", async () => {

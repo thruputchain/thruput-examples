@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Test Groundhog CLI version checks
+        run: bash scripts/check-groundhog-version.test.sh
+
       - name: Set up Rust toolchain
         run: rustup toolchain install stable --profile minimal
 

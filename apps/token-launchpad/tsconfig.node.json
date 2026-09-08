@@ -13,6 +13,7 @@
   "include": [
     "vite.config.ts",
     "vite.config.test.ts",
+    "explorer-build.test.ts",
     "scripts/**/*.ts",
     "server/**/*.ts"
   ]

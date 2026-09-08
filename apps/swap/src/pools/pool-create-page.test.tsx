@@ -1,11 +1,12 @@
 import { contractAddress } from "@groundhogchain/protocol";
 import type { TransactionReceipt } from "@groundhogchain/client";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { Link, MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ExplorerProvider } from "@/components/explorer-context";
 import { ProcessingModeProvider } from "@/components/processing-mode";
 import type { GlobalConfig } from "@/config";
 import type { PoolCreationReview } from "@/pools/pool-creation";
@@ -61,6 +62,26 @@ describe("PoolCreatePage", () => {
     expect(run).not.toHaveBeenCalled();
     expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(saved);
     expect(screen.getByRole("button", { name: "Continue creation" })).toBeEnabled();
+  });
+
+  it("renders review and persisted progress fallback symbols with full explorer identity", async () => {
+    const user = userEvent.setup();
+    const missing = review();
+    missing.token0.symbol = `${hex(1).slice(0, 8)}...`;
+    missing.token1.symbol = hex(2);
+    const page = renderPage({ prepare: vi.fn().mockResolvedValue(missing) }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`, "https://explorer.test");
+    await user.click(screen.getByRole("button", { name: "Review pool" }));
+    await screen.findByRole("button", { name: "Create pool" });
+    expect(screen.getAllByRole("link", { name: `Token address: ${hex(1)} (opens explorer in a new tab)` })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: `Token address: ${hex(2)} (opens explorer in a new tab)` })).toHaveLength(2);
+    page.unmount();
+    const workflow = createCreationWorkflow(config, missing);
+    workflow.steps.approveFunding.transactionHash = hex(42);
+    workflow.steps.approveFunding.status = "indeterminate";
+    saveCreationWorkflow(config, workflow);
+    renderPage({}, "", "https://explorer.test");
+    expect(screen.getByRole("link", { name: `Token address: ${hex(1)} (opens explorer in a new tab)` })).toHaveAttribute("href", `https://explorer.test/address/${hex(1)}`);
+    expect(screen.getByRole("link", { name: /transaction hash:/ })).toHaveAttribute("href", `https://explorer.test/tx/${hex(42)}`);
   });
 
   it.each([false, true])("freezes queued execution and cancels on unmount: %s", async (unmount) => {
@@ -575,10 +596,12 @@ describe("PoolCreatePage", () => {
 function renderPage(
   dependencies: React.ComponentProps<typeof PoolCreatePage>["dependencies"],
   search = "",
+  explorerUrl?: string,
 ) {
   return render(
     <MemoryRouter initialEntries={[`/pools/new${search}`]}>
       <TooltipProvider>
+        <ExplorerProvider value={explorerUrl}>
         <ProcessingModeProvider>
           <PoolCreatePage config={config} dependencies={{
             writer: unavailableWriteBoundary,
@@ -587,6 +610,7 @@ function renderPage(
           <Link to={`?tokenB=${hex(4)}`}>Change test query</Link>
           <SearchLocation />
         </ProcessingModeProvider>
+        </ExplorerProvider>
       </TooltipProvider>
     </MemoryRouter>,
   );

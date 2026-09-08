@@ -3,10 +3,12 @@ import { readFile } from "node:fs/promises";
 
 import { canonicalAddress, canonicalNetworkId } from "./validation.ts";
 import { loadDiscoveryConfig } from "../src/token-discovery/config.ts";
+import { parseExplorerUrl } from "../src/config.ts";
 
 export const PUBLIC_CONFIG_MANIFEST_FILENAME = "groundhog-public-config.json";
 
 export const PUBLIC_CONFIG_KEYS = [
+  "VITE_EXPLORER_URL",
   "VITE_GROUNDHOG_RPC_URL_SHA256",
   "VITE_GROUNDHOG_NETWORK_ID",
   "VITE_GROUNDHOG_WALLET_ADDRESS",
@@ -42,6 +44,7 @@ export function createPublicConfigManifest(
   validateRpcUrl(rpcUrl);
   const discovery = loadDiscoveryConfig(environment);
   const manifest = {
+    VITE_EXPLORER_URL: normalizeExplorerUrl(environment.VITE_EXPLORER_URL),
     VITE_TOKEN_DISCOVERY_ENABLED: String(discovery.enabled),
     VITE_STANDARD_TOKEN_FACTORY_ADDRESS: discovery.factoryAddress,
     VITE_STANDARD_TOKEN_HASH: discovery.tokenCodeHash,
@@ -141,6 +144,7 @@ function validateManifestFields(manifest: PublicConfigManifest): void {
     if (
       typeof manifest[key] !== "string" ||
       (manifest[key] === "" &&
+        key !== "VITE_EXPLORER_URL" &&
         key !== "VITE_STANDARD_TOKEN_FACTORY_ADDRESS" &&
         key !== "VITE_STANDARD_TOKEN_HASH")
     ) {
@@ -148,6 +152,10 @@ function validateManifestFields(manifest: PublicConfigManifest): void {
     }
   }
   const discovery = loadDiscoveryConfig(manifest);
+  validate(
+    manifest.VITE_EXPLORER_URL === normalizeExplorerUrl(manifest.VITE_EXPLORER_URL),
+    "VITE_EXPLORER_URL must be canonical",
+  );
   validate(
     manifest.VITE_TOKEN_DISCOVERY_ENABLED === String(discovery.enabled) &&
       manifest.VITE_STANDARD_TOKEN_FACTORY_ADDRESS ===
@@ -196,6 +204,14 @@ function required(environment: PublicConfigEnvironment, key: string): string {
     throw new PublicConfigManifestError(`${key} is required`);
   }
   return value;
+}
+
+function normalizeExplorerUrl(value: string | undefined): string {
+  try {
+    return parseExplorerUrl(value) ?? "";
+  } catch (error) {
+    throw new PublicConfigManifestError((error as Error).message);
+  }
 }
 
 function normalizeNetwork(value: string): string {

@@ -14,11 +14,7 @@ export SWAP_APP_ENV="$app_dir/.env.local"
 export SWAP_CLI_CONFIG_HOME="$app_dir/.groundhog-config"
 
 cli_version="$("$groundhog_cli" --version)"
-if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)($|[[:space:]].*) ]] ||
-   (( BASH_REMATCH[1] == 0 && BASH_REMATCH[2] < 14 )); then
-  printf 'Groundhog CLI 0.14.0 or newer is required; found %s.\n' "$cli_version" >&2
-  exit 1
-fi
+bash "$repo_root/scripts/check-groundhog-version.sh" "$cli_version"
 
 rm -f "$SWAP_APP_ENV" "$SWAP_CLI_CONFIG_HOME/groundhog/config.toml"
 

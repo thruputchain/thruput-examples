@@ -39,6 +39,13 @@ beforeEach(() => {
 });
 
 describe("resolvePoolConfig", () => {
+  it("uses distinct generic labels without discarding addresses when metadata is blank", async () => {
+    vi.mocked(createErc20ReadAdapter).mockReset()
+      .mockReturnValueOnce(tokenAdapter("", 6))
+      .mockReturnValueOnce(tokenAdapter(" ", 8));
+    await expect(resolvePoolConfig(config, address(5), address(6), factoryAdapter()))
+      .resolves.toMatchObject({ tokenASymbol: "Token A", tokenBSymbol: "Token B", tokenAAddress: address(5), tokenBAddress: address(6) });
+  });
   it("resolves a registered pool at one block height", async () => {
     const factory = factoryAdapter();
     const client = { view: vi.fn() } as never;
