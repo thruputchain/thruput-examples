@@ -45,6 +45,25 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | NNInt-heavy writes with refund capping |
 | [`life-storage-admission`](sim-fixtures/life-storage-admission/) | The `game-of-life` tick's storage shape (20,004 chunk reads, 20,000 writes) without the Life computation, for admission testing on a live node |
 
+## Wallet Apps
+
+Use the [wallet local-development guide](docs/wallet-local-development.md) to
+install the sibling SDK, provision a disposable node, and run both apps with the
+[Groundhog Wallet extension](apps/wallet-extension/README.md). Setup creates
+infrastructure only; users create/import their own test wallet, request HOG,
+launch two tokens, and create the first pool through extension approvals.
+
+- [Token Launchpad](apps/token-launchpad/README.md): create standard tokens and browse launches.
+- [Swap](apps/swap/README.md): create pools, swap, and manage liquidity.
+- [Cross-app operations](docs/cross-app-operations.md): optional registry discovery, handoff URLs, and production packaging.
+- [Wallet acceptance](docs/wallet-acceptance.md): real-extension checks, recorded results, and coverage limits.
+
+Both apps support connected-wallet writes in development and production; their
+public RPC proxies remain read-only. The wallet is experimental and for test
+funds only. Its current SDK dependency is an unpublished local sibling checkout,
+not a package that needs publishing. The wallet guide's compatible CLI/runtime
+requirements take precedence over the general contract minimum below.
+
 ## Prerequisites
 
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is

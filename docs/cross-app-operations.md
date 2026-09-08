@@ -1,131 +1,126 @@
 # Launchpad To Swap Operations
 
-## Writable Local Journey
+Start with [wallet local development](wallet-local-development.md) for dependency
+installation, sequential infrastructure setup, extension loading, and the
+two-token journey. Both apps use external wallets, not setup-generated personas.
+Wallet permission is separate for each app origin.
 
-Use one disposable node and the same runtime manifest for both apps. Provision
-Swap, then launchpad, sequentially; both use Alice's wallet. Never fund these
-development keys on a public network. Run both apps' `npm ci` first.
+## Handoff
 
-From the repository root, with the node already running:
+Set launchpad's `VITE_SWAP_APP_URL=http://127.0.0.1:5174` for the local pair of
+apps. After committed token creation and complete verification, **Create AMM
+Pool** passes the actual token address as `tokenA`. It does not wait for indexing,
+transfer wallet permissions, or submit a transaction. Blank configuration hides
+the CTA.
 
-```sh
-export GROUNDHOG_CLI="$HOME/Work/groundhog-rpc/target/debug/groundhog"
-export GROUNDHOG_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
-export GROUNDHOG_RPC_URL=http://127.0.0.1:9545
-npm --prefix apps/swap run setup:local
-npm --prefix apps/token-launchpad run setup:local
+A two-token link is `/pools/new?tokenA=<address>&tokenB=<address>` on the Swap
+origin. Presets preserve A/B order and contain addresses only, never amounts or
+approval. Swap reads live metadata before review; editing does not rewrite the
+URL. Existing recovery takes precedence over presets.
+
+CTA and optional `VITE_EXPLORER_URL` values must be root origins: HTTPS outside
+exact loopback HTTP hosts, with no credentials, path, query, or fragment. Explorer
+links use `/address/<address>` and `/tx/<hash>`; blank disables them. These URLs
+do not authenticate a network. Operators must align app, wallet, and explorer
+networks and rebuild production assets after public setting changes.
+
+## Optional Local Discovery
+
+Neither registry is needed to launch tokens or create pools by address. Swap's
+indexed token suggestions require launchpad's **built production registry
+service**, not its Vite server on 5173. Keep the interactive apps on 5173/5174 and
+run the registry separately on 3001 when desired.
+
+Retain generated infrastructure values and configure Swap's `.env.local`:
+
+```dotenv
+VITE_POOL_REGISTRY_ENABLED=false
+VITE_TOKEN_DISCOVERY_ENABLED=true
+TOKEN_DISCOVERY_UPSTREAM_ORIGIN=http://127.0.0.1:3001
 ```
 
-These setup commands replace their generated local configuration. Back it up
-first if needed. Unlike these interactive setup commands, the acceptance harness
-uses temporary output paths and leaves existing files and symlinks untouched.
+Also copy `VITE_STANDARD_TOKEN_FACTORY_ADDRESS` and `VITE_STANDARD_TOKEN_HASH`
+from launchpad. Do not replace Swap's factory, router, or `VITE_POOL_TOKEN_HASH`.
+Restart Swap's Vite server after changing configuration.
 
-Add these settings to the generated local environments, retaining the generated
-network, wallets, contracts, and disposable personas:
-
-| Environment | Settings |
-| --- | --- |
-| Launchpad `.env.local` | `VITE_TOKEN_REGISTRY_ENABLED=false`; `VITE_SWAP_APP_URL=http://127.0.0.1:5174` |
-| Swap `.env.local` | `VITE_POOL_REGISTRY_ENABLED=false`; `VITE_TOKEN_DISCOVERY_ENABLED=true`; `TOKEN_DISCOVERY_UPSTREAM_ORIGIN=http://127.0.0.1:3001` |
-| Swap `.env.local` | Copy `VITE_STANDARD_TOKEN_FACTORY_ADDRESS` and `VITE_STANDARD_TOKEN_HASH` from launchpad. Do not replace Swap's own factory/router. |
-
-The registry source is **launchpad's real production service** (`server/main.ts`),
-which needs a production build with `VITE_TOKEN_REGISTRY_ENABLED=true`.
-Its Vite development server does not supply `/api/tokens`. Build and start that
-separate read-only service from `apps/token-launchpad`:
+From the repository root, build launchpad with registry mode enabled:
 
 ```sh
-VITE_TOKEN_REGISTRY_ENABLED=true GROUNDHOG_DEV_PERSONAS= GROUNDHOG_DEV_PRIVATE_KEY= \
-  node --env-file=.env.local node_modules/vite/bin/vite.js build --mode production
-VITE_TOKEN_REGISTRY_ENABLED=true GROUNDHOG_DEV_PERSONAS= GROUNDHOG_DEV_PRIVATE_KEY= \
-  PORT=3001 TOKEN_REGISTRY_DB_PATH=/tmp/launchpad-cross-app.sqlite \
+VITE_TOKEN_REGISTRY_ENABLED=true npm --prefix apps/token-launchpad run build:production
+```
+
+Then, from **`apps/token-launchpad`**, start its separate server:
+
+```sh
+VITE_TOKEN_REGISTRY_ENABLED=true PORT=3001 \
+  TOKEN_REGISTRY_DB_PATH=./token-registry.sqlite \
   node --env-file=.env.local --import tsx server/main.ts
 ```
 
-The explicit process environment overrides the local file. The server does not
-load `.env.local` itself, hence `--env-file`. Use a fresh database for each new
-ledger. Do not point two servers at one SQLite file. The acceptance harness also
-starts Swap's production pool registry with its own database; the writable Swap
-UI can read the chain without it when `VITE_POOL_REGISTRY_ENABLED=false`.
+The server does not load `.env.local` itself; `--env-file` supplies it, and explicit
+process values override it. Use identical public values for build and runtime.
+Keep `VITE_TOKEN_REGISTRY_ENABLED=false` for the interactive launchpad Vite app.
+Use a fresh database path for each new ledger/scope and only one writer per
+SQLite file. Do not reuse port 3001 for an explorer at the same time.
 
-Start each Vite app in another terminal from the repository root:
+## Production Packaging
 
-```sh
-npm --prefix apps/token-launchpad run dev -- --host 127.0.0.1 --port 5173 --strictPort
-npm --prefix apps/swap run dev -- --host 127.0.0.1 --port 5174 --strictPort
-```
+Enable `VITE_TOKEN_REGISTRY_ENABLED=true` for launchpad and
+`VITE_POOL_REGISTRY_ENABLED=true` for Swap. Follow each app's README and
+`.env.example` for its full configuration. Include the built sibling
+`groundhog-client-ts` at the same relative path in the build context; a standalone
+app directory cannot install the current `file:` dependency. No SDK publish or
+push is needed for this workstream.
 
-Launch from `http://127.0.0.1:5173/create`, wait for complete verification, then
-click **Create AMM Pool**. Swap loads live metadata before indexing. Select or
-enter a funded second token, enter both amounts, review, then create. Manual
-queue mode requires an explicit **Process liquidity queue** action. A queued
-request is not delivered liquidity; verify the resulting pool reserves and LP.
+Deploy matching public configuration and immutable artifacts together:
 
-A shared two-token URL is `/pools/new?tokenA=<address>&tokenB=<address>` on
-the Swap origin. Presets contain only addresses, preserve A/B order, and never
-populate amounts or bypass review. Editing the form does not rewrite the URL.
+- Launchpad requires `contract-artifacts/${VITE_STANDARD_TOKEN_HASH}.json`.
+- Swap requires `contract-artifacts/${VITE_POOL_TOKEN_HASH}.json`.
+- Filenames include the lowercase `0x`-prefixed hash. The exact JSON schema is
+  `{ "contractType": "rv32", "data": "0x...", "hash": "0x..." }`.
+- Production builds and startup validate artifact schema and computed hash.
+  Missing or corrupt assets fail closed. Neither stage runs setup or repairs
+  artifacts; do not substitute mutable `erc20.json` or `standard-token.json` files.
+- Public manifests require exact build/runtime agreement, including optional
+  public settings and a digest of the upstream RPC URL. Rebuild on configuration
+  or manifest-schema changes; do not edit the generated manifest to bypass checks.
 
-## Independent Production Deployment
+Provide no private keys, persona settings, or browser wallet identities to the
+build or server. Production pool creation and other connected UI writes remain
+available: the extension signs and submits to its own configured RPC. App
+`/groundhog-rpc` proxies remain read-only and reject transaction submission and
+airdrop methods, even when a wallet is connected. Disconnected browsing requires
+no wallet.
 
-Keep both production registry flags `true`, with public configuration identical
-at build and runtime. Do not supply `GROUNDHOG_DEV_PERSONAS` or
-`GROUNDHOG_DEV_PRIVATE_KEY`. Follow each app's README for its database, RPC,
-health checks, and deployment settings. Rebuild when any public integration
-setting changes or when upgrading the public manifest schema.
+For discovery, set server-only `TOKEN_DISCOVERY_UPSTREAM_ORIGIN` to the HTTPS
+**root origin** of the launchpad registry. Never use a path, API key,
+browser-supplied URL, or broad CORS rule. Keep this upstream out of `VITE_*`.
+The browser uses same-origin `GET /api/token-discovery?q=...`; status and token
+pages are fetched server-side. Discovery failure does not determine deployment
+health.
 
-Set Swap's server-only upstream to the HTTPS **root origin** of the launchpad
-registry service. Never use a path, API key, browser-supplied URL, or broad CORS
-rule. Keep the upstream out of `VITE_*` settings. Discovery uses only same-origin
-`GET /api/token-discovery?q=...`; status and token pages are fetched server-side.
-The launchpad CTA URL is public. Neither URL authenticates the remote network;
-operators must align network/factory/hash configuration.
+Use one replica and one persistent SQLite database per service. `/healthz` checks
+database access, not chain availability; `/api/registry/status` reports indexing
+progress. Backups must preserve WAL consistency. For network/factory/hash scope
+mismatches, restore matching configuration or attach a fresh database; never edit
+stored scope metadata. Retained chain history may not cover all earlier events.
 
-Production serves discovery but never mounts pool creation or relays transaction
-RPC methods. A CTA targeting production navigates to the read-only directory;
-it does not grant signing permission. Optional registry failure does not make
-deployment health depend on upstream availability.
+## Recovery And Acceptance
 
-## Failure Handling
+- Search covers name, symbol, token address, and creator address; only the newest
+  20 matches are offered. Refine broad queries.
+- No match or registry outage does not invalidate a token. Use manual addresses
+  and retry live metadata reads. Indexed metadata is not authoritative review.
+- Network mismatch blocks signing and live review. Correct infrastructure and
+  wallet configuration, not the token address. Registry scope mismatch rejects
+  suggestions but leaves independent manual live reads available.
+- A queued request is not delivered liquidity. Approve queue processing and
+  verify reserves and LP balances. Retain uncertain transaction hashes and observe
+  them; do not clear recovery records or resubmit as a new transaction.
 
-- Search matches name, symbol, token address, and creator address. Only the newest
-  20 matches are offered; refine broad queries. Limited history is not a full index.
-- No match or an upstream outage does not invalidate an address. Use manual entry
-  and live metadata retry. Indexed metadata never replaces authoritative review.
-- RPC network mismatch blocks live previews and new review. Correct the network,
-  not the token. Registry scope mismatch rejects suggestions but leaves manual
-  live reads independent.
-- Recovery takes precedence over URL presets. Resume the original workflow;
-  do not clear transaction evidence to force a different pair. Do not resubmit
-  an uncertain transaction as a new one.
-- A production manifest mismatch requires matching configuration and a rebuild,
-  not editing the manifest. Scope changes require a separate matching database.
-
-## Repeatable Acceptance
-
-From `apps/swap`:
-
-```sh
-GROUNDHOG_CLI="$HOME/Work/groundhog-rpc/target/debug/groundhog" \
-GROUNDHOG_DEVNODE_BINARY="$HOME/.local/share/groundhog/hog-devnode/hog-devnode" \
-GROUNDHOG_E2E_HOGD_PROTOCOL=hogp/4166df9d6a5411d \
-npm run test:e2e:cross-app
-```
-
-Requires Linux `flock`, Node >=22.13, both dependency trees, Chromium
-(`/usr/bin/chromium` or `CHROMIUM_PATH`), and contract-build registry access.
-The existing Swap `playwright-core` dependency is reused. One fresh node uses
-dynamic ports, three disposable funded accounts, isolated XDG/CLI state, and
-separate temporary databases. Provisioning is sequential. Indexing is delayed
-until after the verified browser handoff, then restarted to catch up.
-
-The harness asserts that both `.env.local` files (including symlink identity and
-target contents) and generated Swap CLI config remain unchanged. It removes
-owned process groups and temporary state on success, failure, SIGINT, and SIGTERM.
-SIGKILL cannot run cleanup. Ignored build outputs remain; do not run setup or
-build commands concurrently. Run `npm run test:browser:tokens` separately for
-the existing 320px touch/focus and controlled-race browser coverage.
-
-The final command runs both full test suites, typechecks, and production builds
-after live acceptance. A failed gate exits nonzero and reports the boundary;
-later gates are not silently counted as passed. See the dated
-[acceptance record](specs/2026-09-06-cross-app-acceptance.md).
+See [wallet acceptance](wallet-acceptance.md) for the current isolated
+real-extension runner, prerequisites, evidence, and limits. The old seeded-persona
+`test:e2e:local`, `test:integration:local`, and `test:e2e:cross-app` commands have
+been replaced by `test:e2e:wallet` in both apps. The older cross-app acceptance record predates
+provider wallets. Current wallet acceptance includes production-server smoke,
+but does not establish cross-app discovery or remote production deployment.
