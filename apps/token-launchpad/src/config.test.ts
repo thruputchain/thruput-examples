@@ -6,7 +6,6 @@ const address = `0x${"11".repeat(32)}`;
 const environment = {
   VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
   VITE_GROUNDHOG_NETWORK_ID: "22".repeat(32),
-  VITE_GROUNDHOG_WALLET_ADDRESS: address,
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: address,
   VITE_NATIVE_HOG_ADDRESS: address,
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
@@ -38,6 +37,13 @@ describe("loadConfig", () => {
     expect(config.swapAppUrl).toBeNull();
     expect(config.nativeBalanceItemCost).toBe(1234n);
     expect(config.networkIdHex).toBe("22".repeat(32));
+    expect(config.accountAddress).toEqual(new Uint8Array(32));
+    expect(
+      loadConfig({
+        ...environment,
+        VITE_GROUNDHOG_WALLET_ADDRESS: "not-a-wallet",
+      }).accountAddress,
+    ).toEqual(new Uint8Array(32));
   });
 
   it("loads an optional Swap origin independently of the token registry", () => {

@@ -65,7 +65,8 @@ export function loadConfig(environment: Environment): AppConfig {
     swapAppUrl: loadSwapAppUrl(environment.VITE_SWAP_APP_URL),
     explorerUrl: loadExplorerUrl(environment.VITE_EXPLORER_URL),
     networkIdHex: network.replace(/^0x/, "").toLowerCase(),
-    accountAddress: address(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
+    // Public views need a caller, not a connected wallet identity.
+    accountAddress: addressFromHex(`0x${"00".repeat(32)}`),
     factoryAddress: address(environment, "VITE_STANDARD_TOKEN_FACTORY_ADDRESS"),
     nativeHogAddress: address(environment, "VITE_NATIVE_HOG_ADDRESS"),
     nativeBalanceItemCost,

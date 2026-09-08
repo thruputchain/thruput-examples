@@ -25,6 +25,7 @@ const review: FactoryReview = {
   predictedAddress: contractAddress(new Uint8Array(32).fill(4)),
   predictedAddressHex: `0x${"04".repeat(32)}`,
   currentReserve: 0n,
+  reserveHeight: 0n,
   fundingAmount: 110n,
   creatorBalance: 1_000n,
   fundingShortfall: 0n,

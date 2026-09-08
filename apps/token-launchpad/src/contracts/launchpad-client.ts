@@ -20,6 +20,7 @@ export interface FactoryReview {
   predictedAddress: ContractAddress;
   predictedAddressHex: string;
   currentReserve: bigint;
+  reserveHeight: bigint;
   fundingAmount: bigint;
   creatorBalance: bigint;
   fundingShortfall: bigint;
@@ -127,6 +128,7 @@ export async function reviewFactory(
     predictedAddress,
     predictedAddressHex: toHex0x(predictedAddress),
     currentReserve,
+    reserveHeight: reserveResult.height,
     fundingAmount,
     creatorBalance,
     fundingShortfall:

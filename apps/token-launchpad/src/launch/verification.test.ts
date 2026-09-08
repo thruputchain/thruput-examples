@@ -27,6 +27,7 @@ function workflow() {
     predictedAddress: config.factoryAddress,
     predictedAddressHex: `0x${"03".repeat(32)}`,
     currentReserve: 0n,
+    reserveHeight: 0n,
     fundingAmount: 110n,
     creatorBalance: 1_000n,
     fundingShortfall: 0n,

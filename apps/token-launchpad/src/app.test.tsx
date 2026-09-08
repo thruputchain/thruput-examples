@@ -52,6 +52,7 @@ function reviewed(): FactoryReview {
     predictedAddress: config.factoryAddress,
     predictedAddressHex: `0x${"03".repeat(32)}`,
     currentReserve: 0n,
+    reserveHeight: 0n,
     fundingAmount: 110n,
     creatorBalance: 10n,
     fundingShortfall: 100n,
@@ -1306,7 +1307,7 @@ describe("launchpad navigation and hero", () => {
     ).toEqual(["Tokens", "My Tokens", "Create Token"]);
   });
 
-  it("hides creation navigation in read-only mode", () => {
+  it("keeps creation navigation available for disconnected users", () => {
     render(
       <MemoryRouter>
         <Header readOnly />
@@ -1314,14 +1315,14 @@ describe("launchpad navigation and hero", () => {
     );
     expect(
       screen.queryByRole("link", { name: "Create Token" }),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Thruput Token Launchpad homepage" }),
     ).toHaveAttribute("href", "/tokens");
   });
 
-  it.each(["/", "/create"])(
-    "redirects read-only route %s to the token directory",
+  it.each(["/", "/create", "/my-tokens"])(
+    "keeps disconnected route %s safe",
     async (initialEntry) => {
       render(
         <MemoryRouter initialEntries={[initialEntry]}>
@@ -1330,11 +1331,13 @@ describe("launchpad navigation and hero", () => {
         </MemoryRouter>,
       );
       expect(await screen.findByTestId("route-location")).toHaveTextContent(
-        "/tokens",
+        initialEntry === "/" ? "/tokens" : initialEntry,
       );
       expect(
         screen.queryByRole("link", { name: /create token/i }),
-      ).not.toBeInTheDocument();
+      ).toBeInTheDocument();
+      if (initialEntry !== "/")
+        expect(screen.getByText("Connect your wallet")).toBeInTheDocument();
     },
   );
 

@@ -1,6 +1,6 @@
 # Groundhog Token Launchpad
 
-Local-development application for creating standard tokens through the Groundhog standard-token factory.
+Application for creating standard tokens through the Groundhog standard-token factory using a browser wallet provider. Public token browsing does not require a wallet.
 
 ## Supported stack
 
@@ -8,7 +8,9 @@ Local-development application for creating standard tokens through the Groundhog
 - npm
 - Groundhog CLI 0.14.0 or newer
 - `hog-devnode` 0.1.25 or newer
-- A disposable local node with at least three `local_user` accounts
+- A disposable local node with the pinned storage-cost profile
+- A Groundhog browser wallet supporting provider protocol 1.0.0
+- A built sibling checkout of `groundhog-client-ts` (the app uses `file:../../../groundhog-client-ts`)
 
 ## Install
 
@@ -25,7 +27,7 @@ Run the remaining commands from the repository root.
 
 ## Local setup
 
-Start a disposable local Groundhog node whose runtime manifest includes the faucet and at least three local-user accounts. Then point the setup command at its runtime manifest:
+Start a disposable local Groundhog node with the pinned storage-cost profile. Bootstrap users and a bootstrap faucet are not required. Then point the setup command at its runtime manifest:
 
 ```bash
 export GROUNDHOG_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
@@ -34,24 +36,21 @@ npm --prefix apps/token-launchpad run setup:local
 npm --prefix apps/token-launchpad run dev
 ```
 
-`setup:local` builds and registers the standard-token artifact, deploys and initializes a zero-fee factory, verifies its immutable configuration, and writes `.env.local`. The generated file contains disposable local private keys, has mode `0600`, and is excluded from Git. The development server refuses to expose these credentials from a non-loopback host. Production builds and previews omit them.
+`setup:local` deploys and initializes a zero-fee factory, verifies its immutable configuration, and writes public infrastructure settings to `.env.local`. It does not deploy a standard-token instance. Setup exports immutable `public/contract-artifacts/<hash>.json`, where `<hash>` is the lowercase, 0x-prefixed `VITE_STANDARD_TOKEN_HASH`, containing `{contractType: 'rv32', data: '0x...', hash: '0x...'}`. Vite copies this asset into production output.
 
 The factory deployment and initialization use separate transactions because the pinned development wallet cannot batch a root deployment with a child call. This is safe only on a disposable isolated node. Production tooling must deploy and initialize the factory atomically.
 
-The checked `.env.example` documents the public configuration fields but is not a usable configuration. Setup also writes `GROUNDHOG_DEV_PERSONAS`, which contains the three disposable private keys.
+The checked `.env.example` documents the public configuration fields but is not a usable configuration. Wallet addresses, wallet entrypoints, and private keys are not browser configuration. Connect a discovered wallet and authorize its account on the configured network. Account or network changes invalidate the old signing adapter and remount the account-scoped workflow.
+
+Only factory `create_token` writes fetch the standard-token artifact, from `/contract-artifacts/<hash>.json` on the same origin with a timeout and an 8 MiB response limit. The app verifies both the declared hash and `hashContract` against `VITE_STANDARD_TOKEN_HASH` before signing, then attaches the contract to `prepareExecution`. Missing or mismatched artifacts block signing. Funding and public browsing never fetch this asset.
+
+Every production build validates the required public artifact's exact schema and computed hash before bundling. Server startup repeats the same read-only validation against the served `dist` artifact before contacting RPC or opening the database. Neither validation runs setup, deploys a contract, or writes an artifact. A missing artifact is a build/startup error, including registry-enabled deployments.
+
+The SDK wraps each inner call through DefaultWallet. The app awaits signed-hash persistence before asking the extension to submit the approved bytes. Persistence failures never broadcast. Submission errors preserve uncertainty and poll the canonical signed hash; recovery observes existing transactions without signing again. Successful receipts decode the single DefaultWallet child return for factory verification while preserving receipt hashes and events.
 
 ## Clean-ledger acceptance
 
-The acceptance command starts an ephemeral node, provisions the launchpad, creates and verifies one token each for Alice and Bob, checks creator-filtered and global discovery, then restores any existing `.env.local`:
-
-```bash
-export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
-npm --prefix apps/token-launchpad run test:e2e:local
-```
-
-The command requires Linux with Bash, `flock`, and `setsid`, Groundhog CLI 0.14.0 or newer, and `hog-devnode` 0.1.25 or newer. It must be run explicitly. The harness owns a disposable ledger, temporarily replaces and restores `.env.local`, and uses the repository's ignored build output.
-
-This is a service-level acceptance journey: it exercises the same workflow, wallet boundary, RPC client, and discovery code as the app without driving a browser. Component tests cover configuration injection, routing, persona switching, recovery, and UI states.
+Run `npm run test:e2e:wallet` from either app to build the extension and run the real cross-app harness, `scripts/test-wallet-extension.mjs` at the repository root. Live acceptance must verify the very first token deployment without pre-registered token code, the actual created address, TokenCreated and mint-event semantics, wallet changes, and creator-filtered discovery. Unit tests exercise the real SDK provider signing boundary and generated bindings; they do not establish live chain acceptance.
 
 ## AMM Handoff
 
@@ -63,19 +62,12 @@ It does not wait for indexing, transfer a wallet, or submit an AMM transaction.
 Blank configuration hides the link. Use HTTPS outside exact loopback hosts;
 paths, credentials, queries, and fragments are rejected.
 
-The full writable journey requires loopback Vite with disposable accounts.
-Pointing the link at a production Swap deployment still redirects to its
-read-only directory. Swap discovery needs this app's built production registry
-service, not its writable Vite server. See the
+Wallet access is authorized separately for each app origin. Swap discovery needs
+this app's built production registry service, not its Vite server. See the
 [operator recipe](../../docs/cross-app-operations.md).
 
-The shared-ledger acceptance command lives in Swap: `npm --prefix apps/swap run
-test:e2e:cross-app` from the repository root, with the CLI/devnode/protocol
-variables documented in the recipe. It uses both apps' actual SDK versions,
-clicks the verified browser CTA, creates and seeds a pool, checks chain evidence,
-and runs both production servers and full suites. No permanent browser dependency
-is added to launchpad. See the
-[acceptance record](../../docs/specs/2026-09-06-cross-app-acceptance.md).
+The [earlier acceptance record](../../docs/specs/2026-09-06-cross-app-acceptance.md)
+predates provider wallets and is not acceptance evidence for GH-251.
 
 ## Explorer Links
 
@@ -112,6 +104,8 @@ npm --prefix apps/token-launchpad run start
 
 Create one Railway service with `apps/token-launchpad` as its root directory. Railway's Config-as-code file path does not follow the root directory: set it explicitly to `/apps/token-launchpad/railway.json`, or configure the equivalent build, start, and health-check fields in the dashboard. Run exactly one replica: SQLite supports this deployment as one process and one writer, not horizontal scaling.
 
+The current local SDK dependency requires the built sibling `groundhog-client-ts` checkout in the build context at the same relative path. A launchpad-only deployment context will not install it. Include the generated standard-token public artifact before building; rebuilding does not run setup or generate it.
+
 Attach one persistent volume at `/data` and set:
 
 ```text
@@ -124,8 +118,6 @@ Set all of these variables for both the Railway build and runtime environments. 
 PORT=<provided by Railway>
 VITE_GROUNDHOG_RPC_URL=<credential-free http or https RPC URL without a query or fragment>
 VITE_GROUNDHOG_NETWORK_ID=<32-byte network hash>
-VITE_GROUNDHOG_WALLET_ADDRESS=<32-byte public account address>
-VITE_GROUNDHOG_WALLET_ENTRYPOINT=<wallet entrypoint>
 VITE_NATIVE_HOG_ADDRESS=<32-byte native HOG address>
 VITE_NATIVE_BALANCE_ITEM_COST=<pinned runtime item cost>
 VITE_STANDARD_TOKEN_FACTORY_ADDRESS=<32-byte factory address>
@@ -150,7 +142,7 @@ Health: /healthz
 
 Railway allows 30 seconds for connection draining during shutdown so the process can stop indexing and close SQLite cleanly.
 
-The registry-enabled production browser bundle receives a benign placeholder instead of the upstream RPC URL and uses same-origin `/groundhog-rpc`. The production proxy permits only chain identity, tip, event, receipt, status, and view reads. It rejects `sendRawTransaction`; this deployment does not support production wallet writes or disposable development personas.
+The registry-enabled production browser bundle receives a benign placeholder instead of the upstream RPC URL and uses same-origin `/groundhog-rpc`. Both local and production proxies permit only chain identity, tip, event, receipt, status, and view reads. They reject `sendRawTransaction`; the extension owns submission. Registry mode does not disable connected-wallet writes. The manifest strictly checks infrastructure drift but contains no wallet identity or entrypoint.
 
 SQLite runs in WAL mode. Backups must capture a consistent database state, including outstanding WAL data; use a volume snapshot while the service is stopped or perform an SQLite-aware backup/checkpoint procedure. Copying only the main `.sqlite` file while the process is writing can lose committed data.
 

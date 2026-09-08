@@ -1,9 +1,11 @@
 import {
   fixedBytes,
+  fromHex0x,
   type GroundhogClient,
   type TransactionReceipt,
 } from "@groundhogchain/client";
 import { describe, expect, it, vi } from "vitest";
+import { ExecResult } from "@groundhogchain/protocol";
 
 import type { FactoryReview } from "@/contracts/launchpad-client";
 import { createReadClient } from "@/groundhog/client";
@@ -26,6 +28,92 @@ const locks = {
 } as unknown as LockManager;
 
 describe("advanceWorkflow", () => {
+  it.each(["caught-up", "still-stale", "fresh-shortfall"])(
+    "handles %s reserve evidence after committed funding without re-funding",
+    async (state) => {
+      const config = configuration();
+      const storage = new MemoryStorage();
+      const hash = `0x${"06".repeat(32)}`;
+      const initial = createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        factoryReview(config),
+      );
+      const workflow = {
+        ...initial,
+        funding: { status: "committed" as const, hash },
+      };
+      saveWorkflow(storage, workflowStorageKey(config), workflow);
+      const review = vi
+        .fn()
+        .mockResolvedValue({
+          ...factoryReview(config),
+          reserveHeight: state === "fresh-shortfall" ? 10n : 9n,
+        });
+      if (state === "caught-up")
+        review
+          .mockResolvedValueOnce({
+            ...factoryReview(config),
+            reserveHeight: 9n,
+          })
+          .mockResolvedValue({
+            ...factoryReview(config),
+            reserveHeight: 10n,
+            currentReserve: 100n,
+            fundingAmount: 0n,
+          });
+      const client = {
+        getTransactionReceipt: vi
+          .fn()
+          .mockResolvedValue({
+            txHash: fromHex0x(hash),
+            height: 10n,
+            execResult: ExecResult.ExecResultOK,
+          }),
+      } as unknown as GroundhogClient;
+      const writer = {
+        execute: vi
+          .fn()
+          .mockResolvedValue({
+            kind: "preSubmissionFailure",
+            hash: null,
+            message: "Creation signing not approved",
+          }),
+        observe: vi.fn(),
+      };
+      const result = advanceWorkflow({
+        config,
+        client,
+        writer,
+        review,
+        storage,
+        locks,
+        workflowId: workflow.id,
+        workflowRevision: workflow.revision,
+        expectedIntent: workflowIntent(workflow),
+      });
+      if (state === "caught-up") {
+        expect((await result).funding).toEqual(workflow.funding);
+        expect(writer.execute).toHaveBeenCalledOnce();
+        expect(writer.execute.mock.calls[0]![0].invoked_address).toEqual(
+          config.factoryAddress,
+        );
+      } else {
+        await expect(result).rejects.toThrow(
+          state === "still-stale"
+            ? /snapshot has not reached/
+            : /required reserve is not available/,
+        );
+        expect(writer.execute).not.toHaveBeenCalled();
+        expect(
+          loadWorkflow(storage, workflowStorageKey(config))!.funding,
+        ).toEqual(workflow.funding);
+      }
+      expect(review).toHaveBeenCalledTimes(state === "fresh-shortfall" ? 1 : 2);
+      expect(writer.observe).not.toHaveBeenCalled();
+    },
+  );
   it.each(["mismatch", "malformed", "unavailable"])(
     "does not execute or recover a workflow from %s network evidence",
     async (failure) => {
@@ -834,6 +922,7 @@ function factoryReview(config = configuration()): FactoryReview {
     predictedAddress: config.factoryAddress,
     predictedAddressHex: `0x${"03".repeat(32)}`,
     currentReserve: 0n,
+    reserveHeight: 0n,
     fundingAmount: 110n,
     creatorBalance: 1_000n,
     fundingShortfall: 0n,

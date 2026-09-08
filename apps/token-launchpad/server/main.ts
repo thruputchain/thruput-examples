@@ -11,6 +11,7 @@ import {
   verifyPublicConfigManifest,
 } from "./public-config-manifest.ts";
 import { RegistryStore } from "./store.ts";
+import { validateStandardTokenArtifact } from "./contract-artifact.ts";
 
 const config = loadServerConfig(process.env);
 const staticDirectory = path.resolve(
@@ -20,6 +21,10 @@ const staticDirectory = path.resolve(
 await verifyPublicConfigManifest(
   path.join(staticDirectory, PUBLIC_CONFIG_MANIFEST_FILENAME),
   process.env,
+);
+await validateStandardTokenArtifact(
+  staticDirectory,
+  config.scope.tokenCodeHash,
 );
 const indexStat = await stat(path.join(staticDirectory, "index.html"));
 if (!indexStat.isFile()) throw new Error("Production index.html is missing");

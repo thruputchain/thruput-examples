@@ -15,8 +15,6 @@ export const PUBLIC_CONFIG_MANIFEST_FILENAME = "groundhog-public-config.json";
 export const PUBLIC_CONFIG_KEYS = [
   "VITE_GROUNDHOG_RPC_URL_SHA256",
   "VITE_GROUNDHOG_NETWORK_ID",
-  "VITE_GROUNDHOG_WALLET_ADDRESS",
-  "VITE_GROUNDHOG_WALLET_ENTRYPOINT",
   "VITE_NATIVE_HOG_ADDRESS",
   "VITE_NATIVE_BALANCE_ITEM_COST",
   "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
@@ -31,7 +29,6 @@ export type PublicConfigManifest = Record<PublicConfigKey, string>;
 export type PublicConfigEnvironment = Record<string, string | undefined>;
 
 const HASH = /^0x[0-9a-fA-F]{64}$/;
-const ENTRYPOINT = /^0x[0-9a-fA-F]{16}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 
 export class PublicConfigManifestError extends Error {
@@ -53,14 +50,6 @@ export function createPublicConfigManifest(
     VITE_GROUNDHOG_NETWORK_ID: required(
       environment,
       "VITE_GROUNDHOG_NETWORK_ID",
-    ),
-    VITE_GROUNDHOG_WALLET_ADDRESS: required(
-      environment,
-      "VITE_GROUNDHOG_WALLET_ADDRESS",
-    ),
-    VITE_GROUNDHOG_WALLET_ENTRYPOINT: required(
-      environment,
-      "VITE_GROUNDHOG_WALLET_ENTRYPOINT",
     ),
     VITE_NATIVE_HOG_ADDRESS: required(environment, "VITE_NATIVE_HOG_ADDRESS"),
     VITE_NATIVE_BALANCE_ITEM_COST: required(
@@ -209,16 +198,11 @@ function validateManifestFields(manifest: PublicConfigManifest): void {
     ),
   );
   for (const key of [
-    "VITE_GROUNDHOG_WALLET_ADDRESS",
     "VITE_NATIVE_HOG_ADDRESS",
     "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
   ] as const) {
     validateWithHelper(() => canonicalAddress(manifest[key], key));
   }
-  validate(
-    ENTRYPOINT.test(manifest.VITE_GROUNDHOG_WALLET_ENTRYPOINT),
-    "VITE_GROUNDHOG_WALLET_ENTRYPOINT must be an 8-byte 0x-prefixed hexadecimal value",
-  );
   validateWithHelper(() =>
     canonicalDecimal(
       manifest.VITE_NATIVE_BALANCE_ITEM_COST,

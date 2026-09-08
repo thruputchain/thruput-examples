@@ -6,7 +6,6 @@ import {
   RocketIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { flushSync } from "react-dom";
 import {
   BrowserRouter,
   Link,
@@ -23,10 +22,7 @@ import {
 } from "@/components/blockchain-identifier";
 import { AppHeader } from "@/components/app-header";
 import { CopyIdentifierButton } from "@/components/copy-identifier-button";
-import {
-  DevelopmentWalletContext,
-  DevelopmentWalletSwitcher,
-} from "@/components/development-wallet-switcher";
+import { ProviderApp, WalletControls } from "@/components/provider-wallet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,12 +60,6 @@ import {
   type CreatedToken,
   type FactoryReview,
 } from "@/contracts/launchpad-client";
-import {
-  parseDevelopmentPersonas,
-  preferenceKey,
-  publicPersona,
-  type DevelopmentPersonaId,
-} from "@/development-personas";
 import { userErrorMessage } from "@/errors";
 import { createReadClient } from "@/groundhog/client";
 import { runWorkflow } from "@/launch/executor";
@@ -87,9 +77,8 @@ import {
   WorkflowStorageError,
   type LaunchWorkflow,
 } from "@/launch/workflow";
-import { createBrowserWriteBoundary } from "@/transactions/local-development-wallet";
+import { unavailableWriteBoundary } from "@/transactions/write-boundary";
 import type { WriteBoundary } from "@/transactions/write-boundary";
-import { createWalletPortfolioReader } from "@/wallet/portfolio";
 import {
   getRegistryStatus,
   getRegistryTokens,
@@ -118,121 +107,25 @@ export function App() {
       />
     );
   }
-  let personas: ReturnType<typeof parseDevelopmentPersonas>;
-  try {
-    personas = parseDevelopmentPersonas(import.meta.env.GROUNDHOG_DEV_PERSONAS);
-  } catch (error) {
-    return (
-      <ErrorPage
-        message={
-          error instanceof Error
-            ? error.message
-            : "Development wallets are invalid"
-        }
-      />
-    );
-  }
   return (
     <TooltipProvider>
       <BrowserRouter>
-        {personas ? (
-          <PersonaApp base={base} personas={personas} />
-        ) : (
-          <LaunchpadRoutes config={base} readOnly={base.registryEnabled} />
-        )}
+        <ProviderApp base={base} />
       </BrowserRouter>
     </TooltipProvider>
   );
 }
 
-export function PersonaApp({
-  base,
-  personas,
-}: {
-  base: AppConfig;
-  personas: NonNullable<ReturnType<typeof parseDevelopmentPersonas>>;
-}) {
-  const key = preferenceKey(base.networkIdHex, base.factoryAddress);
-  const [id, setId] = useState(() => sessionStorage.getItem(key));
-  const [isSwitching, setIsSwitching] = useState(false);
-  const [switchError, setSwitchError] = useState<string | null>(null);
-  const active = personas.find((persona) => persona.id === id) ?? personas[0]!;
-  const publicPersonas = useMemo(() => personas.map(publicPersona), [personas]);
-  const publicActive = publicPersonas.find(({ id }) => id === active.id)!;
-  const previousActiveId = useRef(active.id);
-  const config = useMemo(
-    () => ({ ...base, accountAddress: active.accountAddress }),
-    [active.accountAddress, base],
-  );
-  const client = useMemo(() => createReadClient(config), [config]);
-  const readPortfolio = useMemo(
-    () => createWalletPortfolioReader(client, config),
-    [client, config],
-  );
-  useEffect(() => {
-    if (isSwitching || previousActiveId.current === active.id) return;
-    previousActiveId.current = active.id;
-    document
-      .querySelector<HTMLElement>("[data-development-wallet-trigger]")
-      ?.focus();
-  }, [active.id, isSwitching]);
-  async function switchTo(next: DevelopmentPersonaId) {
-    if (next === active.id || isSwitching) return;
-    setIsSwitching(true);
-    setSwitchError(null);
-    try {
-      await withWorkflowSessionLock(config, () =>
-        withWorkflowLock(config, async () => {
-          sessionStorage.setItem(key, next);
-          flushSync(() => setId(next));
-        }),
-      );
-    } catch (reason) {
-      setSwitchError(
-        userErrorMessage(reason, "Development wallet could not be switched"),
-      );
-      throw reason;
-    } finally {
-      setIsSwitching(false);
-    }
-  }
-  return (
-    <DevelopmentWalletContext
-      value={{
-        active: publicActive,
-        personas: publicPersonas,
-        isSwitching,
-        switchError,
-        readPortfolio,
-        switchTo,
-      }}
-    >
-      <div aria-busy={isSwitching} inert={isSwitching}>
-        <LaunchpadRoutes
-          key={active.id}
-          config={config}
-          walletPrivateKey={active.privateKeyHex}
-          readOnly={false}
-        />
-      </div>
-    </DevelopmentWalletContext>
-  );
-}
-
 export function LaunchpadRoutes({
   config,
-  walletPrivateKey,
-  readOnly = false,
+  writer = unavailableWriteBoundary,
+  readOnly = true,
 }: {
   config: AppConfig;
-  walletPrivateKey?: string;
+  writer?: WriteBoundary;
   readOnly?: boolean;
 }) {
   const client = useMemo(() => createReadClient(config), [config]);
-  const writer = useMemo(
-    () => createBrowserWriteBoundary(config, walletPrivateKey),
-    [config, walletPrivateKey],
-  );
   return (
     <ExplorerProvider explorerUrl={config.explorerUrl}>
       <Header readOnly={readOnly} />
@@ -245,13 +138,13 @@ export function LaunchpadRoutes({
           path="/create"
           element={
             readOnly ? (
-              <Navigate to="/tokens" replace />
+              <ConnectPrompt />
             ) : (
               <CreatePage
                 config={config}
                 client={client}
                 writer={writer}
-                writesSupported={walletPrivateKey !== undefined}
+                writesSupported={!readOnly}
               />
             )
           }
@@ -271,13 +164,17 @@ export function LaunchpadRoutes({
         <Route
           path="/my-tokens"
           element={
-            <TokensPage
-              key="mine"
-              config={config}
-              client={client}
-              scope="mine"
-              readOnly={readOnly}
-            />
+            readOnly ? (
+              <ConnectPrompt />
+            ) : (
+              <TokensPage
+                key="mine"
+                config={config}
+                client={client}
+                scope="mine"
+                readOnly={readOnly}
+              />
+            )
           }
         />
         <Route
@@ -302,15 +199,29 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
           <NavLink className="app-nav-link" to="/my-tokens">
             My Tokens
           </NavLink>
-          {!readOnly ? (
-            <NavLink className="app-nav-link" to="/create">
-              Create Token
-            </NavLink>
-          ) : null}
+          <NavLink className="app-nav-link" to="/create">
+            Create Token
+          </NavLink>
         </>
       }
-      actions={<DevelopmentWalletSwitcher />}
+      actions={<WalletControls />}
     />
+  );
+}
+
+function ConnectPrompt() {
+  return (
+    <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Connect your wallet</EmptyTitle>
+          <EmptyDescription>
+            Connect a wallet above to create tokens or view your tokens. Public
+            token browsing does not require a wallet.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    </main>
   );
 }
 
@@ -1269,8 +1180,8 @@ function DirectTokensPage({
         </Empty>
       ) : (
         <>
-          <TokenCards tokens={state.tokens} />
-          {state.tokens.some(({ readError }) => readError) ? (
+          <TokenCards tokens={state.tokens} connected={!readOnly} />
+          {!readOnly && state.tokens.some(({ readError }) => readError) ? (
             <Alert className="mt-4">
               <AlertCircleIcon />
               <AlertTitle>Some current balances are unavailable</AlertTitle>
@@ -1378,6 +1289,7 @@ function RegistryTokensPage({
         setTokens(metadata);
         asOfBlock.current ??= result.asOfBlock;
         setLoading(false);
+        if (readOnly) return;
         void enrichBalances(client, config, metadata, controller.signal).then(
           (enriched) => {
             if (currentRequestId === requestId.current) setTokens(enriched);
@@ -1409,6 +1321,7 @@ function RegistryTokensPage({
     read,
     readStatus,
     refreshKey,
+    readOnly,
     scope,
     sort,
   ]);
@@ -1593,11 +1506,13 @@ function RegistryTokensPage({
             {loading ? <span>Updating...</span> : null}
           </div>
           <div role="status" aria-live="polite" className="sr-only">
-            {tokens.some(({ balanceLoading }) => balanceLoading)
-              ? "Loading current token balances"
-              : "Current token balances loaded"}
+            {readOnly
+              ? "Public token metadata loaded"
+              : tokens.some(({ balanceLoading }) => balanceLoading)
+                ? "Loading current token balances"
+                : "Current token balances loaded"}
           </div>
-          <TokenCards tokens={tokens} />
+          <TokenCards tokens={tokens} connected={!readOnly} />
           <div className="flex items-center justify-end gap-2">
             <Button
               variant="outline"
@@ -1660,7 +1575,7 @@ function RegistryTokensPage({
           </AlertDescription>
         </Alert>
       ) : null}
-      {tokens.some(({ readError }) => readError) ? (
+      {!readOnly && tokens.some(({ readError }) => readError) ? (
         <Alert>
           <AlertCircleIcon />
           <AlertTitle>Some current balances are unavailable</AlertTitle>
@@ -1674,7 +1589,13 @@ function RegistryTokensPage({
   );
 }
 
-function TokenCards({ tokens }: { tokens: readonly CreatedToken[] }) {
+function TokenCards({
+  tokens,
+  connected,
+}: {
+  tokens: readonly CreatedToken[];
+  connected: boolean;
+}) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {tokens.map((token) => (
@@ -1699,13 +1620,15 @@ function TokenCards({ tokens }: { tokens: readonly CreatedToken[] }) {
               value={formatTokenAmount(token.initialSupply, token.decimals)}
             />
             <Detail
-              label="Your balance"
+              label={connected ? "Your balance" : "Wallet balance"}
               value={
-                token.balanceLoading
-                  ? "Loading..."
-                  : token.balance === null
-                    ? "Unavailable"
-                    : formatTokenAmount(token.balance, token.decimals)
+                !connected
+                  ? "Connect a wallet"
+                  : token.balanceLoading
+                    ? "Loading..."
+                    : token.balance === null
+                      ? "Unavailable"
+                      : formatTokenAmount(token.balance, token.decimals)
               }
             />
             <Detail
