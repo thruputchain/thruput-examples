@@ -94,22 +94,26 @@ export function PoolDetailPage({
                 8,
               )}
             />
-            <Metric
-              label={`Your ${state.snapshot.tokenA.symbol} balance`}
-              value={`${formatTokenAmount(
-                state.snapshot.tokenA.balance,
-                state.snapshot.tokenA.decimals,
-                8,
-              )} ${state.snapshot.tokenA.symbol}`}
-            />
-            <Metric
-              label={`Your ${state.snapshot.tokenB.symbol} balance`}
-              value={`${formatTokenAmount(
-                state.snapshot.tokenB.balance,
-                state.snapshot.tokenB.decimals,
-                8,
-              )} ${state.snapshot.tokenB.symbol}`}
-            />
+            {readOnly ? null : (
+              <>
+                <Metric
+                  label={`Your ${state.snapshot.tokenA.symbol} balance`}
+                  value={`${formatTokenAmount(
+                    state.snapshot.tokenA.balance,
+                    state.snapshot.tokenA.decimals,
+                    8,
+                  )} ${state.snapshot.tokenA.symbol}`}
+                />
+                <Metric
+                  label={`Your ${state.snapshot.tokenB.symbol} balance`}
+                  value={`${formatTokenAmount(
+                    state.snapshot.tokenB.balance,
+                    state.snapshot.tokenB.decimals,
+                    8,
+                  )} ${state.snapshot.tokenB.symbol}`}
+                />
+              </>
+            )}
             <Metric
               label="LP supply"
               value={`${formatTokenAmount(
@@ -118,13 +122,15 @@ export function PoolDetailPage({
                 8,
               )} ${state.snapshot.liquidityTokenSymbol}`}
             />
-            <Metric
-              label="Your LP share"
-              value={formatShare(
-                state.snapshot.liquidityBalance,
-                state.snapshot.liquidityTotalSupply,
-              )}
-            />
+            {readOnly ? null : (
+              <Metric
+                label="Your LP share"
+                value={formatShare(
+                  state.snapshot.liquidityBalance,
+                  state.snapshot.liquidityTotalSupply,
+                )}
+              />
+            )}
           </div>
 
           <Card>
@@ -149,15 +155,17 @@ export function PoolDetailPage({
                 <Badge variant="outline">
                   Protocol fees {state.snapshot.feeTo === null ? "off" : "on"}
                 </Badge>
-                <Badge variant="secondary">
-                  Your LP{" "}
-                  {formatTokenAmount(
-                    state.snapshot.liquidityBalance,
-                    state.snapshot.liquidityTokenDecimals,
-                    8,
-                  )}{" "}
-                  {state.snapshot.liquidityTokenSymbol}
-                </Badge>
+                {readOnly ? null : (
+                  <Badge variant="secondary">
+                    Your LP{" "}
+                    {formatTokenAmount(
+                      state.snapshot.liquidityBalance,
+                      state.snapshot.liquidityTokenDecimals,
+                      8,
+                    )}{" "}
+                    {state.snapshot.liquidityTokenSymbol}
+                  </Badge>
+                )}
               </div>
               {readOnly ? null : (
                 <div className="flex flex-col gap-2 sm:flex-row">

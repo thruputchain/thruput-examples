@@ -98,7 +98,7 @@ describe("browser configuration", () => {
     vi.stubEnv("VITE_EXPLORER_URL", "https://Explorer.test/");
     vi.stubEnv("VITE_GROUNDHOG_RPC_URL", "http://127.0.0.1:9545");
     vi.stubEnv("VITE_GROUNDHOG_NETWORK_ID", "00".repeat(32));
-    vi.stubEnv("VITE_GROUNDHOG_WALLET_ADDRESS", `0x${"01".repeat(32)}`);
+    vi.stubEnv("VITE_POOL_TOKEN_HASH", `0x${"01".repeat(32)}`);
     vi.stubEnv("VITE_NATIVE_HOG_ADDRESS", `0x${"02".repeat(32)}`);
     vi.stubEnv("VITE_SWAP_FACTORY_ADDRESS", `0x${"03".repeat(32)}`);
     vi.stubEnv("VITE_SWAP_ROUTER_ADDRESS", `0x${"04".repeat(32)}`);
@@ -112,6 +112,7 @@ describe("browser configuration", () => {
       config: {
         explorerUrl: "https://explorer.test",
         registryEnabled: true,
+        poolTokenHash: `0x${"01".repeat(32)}`,
         tokenDiscovery: {
           enabled: true,
           scope: {

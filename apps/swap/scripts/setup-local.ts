@@ -1,756 +1,307 @@
-import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { link, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   bytesEqual,
   createGroundhogClient,
-  createTransaction,
+  createPubkeyAccount,
+  createWalletClient,
+  fixedBytes,
   fromHex0x,
   hashContract,
   HttpTransport,
+  localnet,
   PrivateKeySigner,
-  signTransaction,
   toHex0x,
-  type GroundhogClient,
-  type TransactionReceipt,
 } from "@groundhogchain/client";
-import { fixedBytes } from "@groundhogchain/client/contract";
+import { deriveContractAddress } from "@groundhogchain/client/contract";
+import { DefaultWallet, ERC20 } from "@groundhogchain/client/contracts";
 import {
-  loadLocalDevAccount,
-  type LocalDevAccount,
-} from "@groundhogchain/client/local-dev";
-import {
-  AuthClaimType,
   ContractType,
   ExecResult,
-  HOG_ADDRESS,
-  bitMap,
-  blockHeight,
-  codec,
   gasAmount,
+  HOG_ADDRESS,
+  networkHash,
   sha256Hash,
-  weight,
   type Contract,
   type ContractAddress,
   type Invocation,
 } from "@groundhogchain/protocol";
-import { serialize } from "@groundhogchain/xdr";
-import { stringify } from "smol-toml";
 
-import { ERC20, ERC20Metadata } from "../src/contracts/generated/erc20";
-import { DevWallet } from "../src/contracts/generated/dev-wallet";
-import {
-  RequestAccepted,
-  RequestFailed,
-  RequestsProcessed,
-  SwapDriver,
-} from "../src/contracts/generated/swap-driver";
-import {
-  SwapFactory,
-  type Pool,
-} from "../src/contracts/generated/swap-factory";
-import { MintEvent } from "../src/contracts/generated/swap-handler";
+import { SwapFactory } from "../src/contracts/generated/swap-factory";
 import { SwapRouter } from "../src/contracts/generated/swap-router";
-import { createSwapHandlerReadAdapter } from "../src/contracts/handler-adapter";
 
 const GAS_LIMIT = gasAmount(10_000_000n);
-const EXPIRY_BLOCKS = 1_000n;
 const CONTRACT_FUNDING = 10_000_000n;
-const MINT_AMOUNT = 2_000_000_000n;
-const LIQUIDITY_AMOUNT = 1_000_000_000n;
-const TOKEN_DECIMALS = 6n;
-const U128_MAX = (1n << 128n) - 1n;
-const SUPPORTED_WIRE_FORMAT = /^(?:[3-9]|[1-9]\d+)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
-interface RuntimeManifest {
-  networkHash: string;
-  bootstrapAccountDerivation: { seed: string };
-  bootstrapAccounts: Array<{
-    index: number;
-    role: "faucet" | "local_user";
-    publicKey: string;
-    walletAddress: string;
-  }>;
-}
-
-interface Artifacts {
-  erc20: Contract;
-  factory: Contract;
-  router: Contract;
-  handler: Contract;
-  driver: Contract;
-}
-
-interface Deployment {
-  personas: Persona[];
-  tokenA: ContractAddress;
-  tokenB: ContractAddress;
-  tokenC: ContractAddress;
-  factory: ContractAddress;
-  router: ContractAddress;
-  pool: Pool;
-}
-
-interface Persona {
-  id: "alice" | "bob" | "carol";
-  label: "Alice" | "Bob" | "Carol";
-  account: LocalDevAccount;
-  browserPrivateKey: string;
-}
-
-const PERSONAS = [
-  { id: "alice", label: "Alice" },
-  { id: "bob", label: "Bob" },
-  { id: "carol", label: "Carol" },
-] as const;
-
-/**
- * Loads the active development accounts and compiled contracts, provisions the
- * complete swap environment, then writes the browser and CLI configuration that
- * point at the deployed addresses. No configuration is written until contract
- * provisioning and the initial liquidity check succeed.
- */
-async function main(): Promise<void> {
-  const manifestPath = resolve(process.env.GROUNDHOG_RUNTIME_MANIFEST!);
-  const artifactRoot = resolve(process.env.SWAP_ARTIFACT_ROOT!);
-  const appEnvironmentPath = resolve(process.env.SWAP_APP_ENV!);
-  const cliConfigPath = join(
-    resolve(process.env.SWAP_CLI_CONFIG_HOME!),
-    "groundhog/config.toml",
+export async function main(): Promise<void> {
+  const artifactRoot = resolve(requiredEnvironment("SWAP_ARTIFACT_ROOT"));
+  const environmentPath = resolve(requiredEnvironment("SWAP_APP_ENV"));
+  const artifactDirectory = join(
+    resolve(
+      process.env.SWAP_APP_PUBLIC_DIR ??
+        fileURLToPath(new URL("../public", import.meta.url)),
+    ),
+    "contract-artifacts",
   );
-  const rpcUrl = process.env.GROUNDHOG_RPC_URL!;
-  const manifest = JSON.parse(
-    await readFile(manifestPath, "utf8"),
-  ) as RuntimeManifest;
-
-  const [faucet, users, artifacts] = await Promise.all([
-    loadLocalDevAccount({ role: "faucet" }),
-    Promise.all(PERSONAS.map((_, roleOffset) =>
-      loadLocalDevAccount({ role: "local_user", roleOffset })
-    )),
-    loadArtifacts(artifactRoot),
-  ]);
-  if (
-    new Set(users.map(({ index }) => index)).size !== PERSONAS.length
-    || new Set(users.map(({ address }) => toHex0x(address))).size !== PERSONAS.length
-  ) throw new Error("Development wallets must have distinct accounts");
-  for (const account of [faucet, ...users]) {
-    const recorded = manifest.bootstrapAccounts.find(({ index }) => index === account.index);
-    if (
-      recorded === undefined
-      || recorded.role !== account.role
-      || recorded.walletAddress !== toHex0x(account.address)
-    ) throw new Error("Runtime manifest changed while loading development wallets");
-  }
-  const personas = PERSONAS.map((persona, index): Persona => {
-    const account = users[index]!;
-    const recorded = manifest.bootstrapAccounts.find(({ index }) =>
-      index === account.index
-    )!;
-    const privateKey = createHash("sha256")
-      .update(
-        `${manifest.bootstrapAccountDerivation.seed}:account-${account.index}`,
-      )
-      .digest();
-    const signer = new PrivateKeySigner(privateKey);
-    if (!bytesEqual(signer.publicKey.ed25519, fromHex0x(recorded.publicKey))) {
-      throw new Error(`${persona.label}'s development key does not match its account`);
-    }
-    return {
-      ...persona,
-      account,
-      browserPrivateKey: toHex0x(privateKey),
-    };
-  });
+  const rpcUrl = validateLocalRpcUrl(requiredEnvironment("GROUNDHOG_RPC_URL"));
+  const expectedNetwork = await readNetworkHash();
   const client = await createGroundhogClient({
-    transport: new HttpTransport(rpcUrl),
+    cluster: localnet({ rpcUrl, networkHash: expectedNetwork }),
+    transport: new HttpTransport(rpcUrl, { timeoutMs: 10_000 }),
   });
   const version = await client.getVersion();
-  if (!SUPPORTED_WIRE_FORMAT.test(version.wireFormat)) {
+  if (
+    !/^(?:[4-9]|[1-9]\d+)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(
+      version.wireFormat,
+    )
+  ) {
     throw new Error(
-      `Groundhog wire format >=3.0.0 is required; found ${version.wireFormat}`,
+      `Groundhog wire format >=4.0.0 is required; found ${version.wireFormat}`,
     );
   }
-  const requiredPersonaHog = CONTRACT_FUNDING * 4n;
-  const personaHogBalances = await Promise.all(personas.map(async (persona) => (
-    await ERC20.getBalanceOf.view({
-      client,
-      contract: HOG_ADDRESS,
-      caller: persona.account.address,
-      args: { addr: persona.account.address },
-    })
-  ).value));
-  for (const [index, balance] of personaHogBalances.entries()) {
-    if (balance < requiredPersonaHog) {
-      throw new Error(`${personas[index]!.label} requires at least ${requiredPersonaHog} native HOG`);
-    }
-  }
-
-  // Fail on invalid output paths before making any changes to the ledger.
-  await mkdir(dirname(cliConfigPath), { recursive: true });
-  await mkdir(dirname(appEnvironmentPath), { recursive: true });
-
-  const deployment = await configureSwap(
-    client,
-    faucet,
-    personas,
-    artifacts,
-  );
-  const alice = deployment.personas[0]!;
-
-  const cliContents = renderCliConfig(
-    manifest.networkHash,
-    rpcUrl,
-    manifestPath,
-    alice.account.keyName,
-  );
-  const environmentContents = renderEnvironment(
-    manifest.networkHash,
-    rpcUrl,
-    deployment,
-  );
-  const temporarySuffix = `${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
-  const temporaryCliPath = `${cliConfigPath}.${temporarySuffix}`;
-  const temporaryEnvironmentPath = `${appEnvironmentPath}.${temporarySuffix}`;
-
-  try {
-    await writeFile(temporaryCliPath, cliContents, { mode: 0o600 });
-    await writeFile(temporaryEnvironmentPath, environmentContents, {
-      mode: 0o600,
-    });
-
-    // The browser environment is the completion marker, so publish it last.
-    await rename(temporaryCliPath, cliConfigPath);
-    await rename(temporaryEnvironmentPath, appEnvironmentPath);
-  } catch (error) {
-    await Promise.all([
-      rm(temporaryCliPath, { force: true }),
-      rm(temporaryEnvironmentPath, { force: true }),
-      rm(cliConfigPath, { force: true }),
-      rm(appEnvironmentPath, { force: true }),
-    ]);
-    throw error;
-  }
-
-  console.log(`
-Local swap setup complete
-App environment: ${appEnvironmentPath}
-CLI configuration: ${cliConfigPath}
-Development wallets:
-${deployment.personas.map((persona) =>
-  `  ${persona.label} ${persona.account.keyName} (${toHex0x(persona.account.address)})`
-).join("\n")}
-Example tokens:
-  gUSD ${toHex0x(deployment.tokenA)}
-  gEUR ${toHex0x(deployment.tokenB)}
-  gJPY ${toHex0x(deployment.tokenC)}`);
-}
-
-/**
- * Deploys three test tokens and the contracts needed to swap between them, funds
- * each contract with native HOG, and seeds a balanced pool. The faucet performs
- * only HOG transfers; Alice deploys the contracts and receives the initial LP.
- */
-async function configureSwap(
-  client: GroundhogClient,
-  faucet: LocalDevAccount,
-  personas: Persona[],
-  artifacts: Artifacts,
-): Promise<Deployment> {
-  const alice = personas[0]!.account;
-  // 1. Register the handler and driver binaries. The returned instances
-  // are only registration seeds; the factory later deploys the instances used by
-  // this pool from these hashes.
-  const handlerHash = hashContract(artifacts.handler);
-  await submit(
-    client,
-    alice,
-    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
-      nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
-      contractHash: fixedBytes(handlerHash, 32),
-    }),
-    [artifacts.handler],
-  );
-
-  const driverHash = hashContract(artifacts.driver);
-  await submit(
-    client,
-    alice,
-    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
-      nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
-      contractHash: fixedBytes(driverHash, 32),
-    }),
-    [artifacts.driver],
-  );
-
-  // 2. Register the ERC-20 binary while deploying token A, then deploy token B
-  // from the registered hash without attaching the same binary again.
-  const tokenHash = hashContract(artifacts.erc20);
-  const tokenAReceipt = await submit(
-    client,
-    alice,
-    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
-      nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
-      contractHash: fixedBytes(tokenHash, 32),
-    }),
-    [artifacts.erc20],
-  );
-  const tokenA = DevWallet.deploy.decodeReceipt(tokenAReceipt).value;
-
-  const tokenBReceipt = await submit(
-    client,
-    alice,
-    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
-      nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
-      contractHash: fixedBytes(tokenHash, 32),
-    }),
-    [],
-  );
-  const tokenB = DevWallet.deploy.decodeReceipt(tokenBReceipt).value;
-
-  const tokenCReceipt = await submit(
-    client,
-    alice,
-    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
-      nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
-      contractHash: fixedBytes(tokenHash, 32),
-    }),
-    [],
-  );
-  const tokenC = DevWallet.deploy.decodeReceipt(tokenCReceipt).value;
-
-  // 3. Fund each token with native HOG, initialize its administrator and metadata,
-  // then mint the balances that the example will use for liquidity and swaps.
-  for (const token of [
-    { address: tokenA, name: "Groundhog USD", symbol: "gUSD" },
-    { address: tokenB, name: "Groundhog EUR", symbol: "gEUR" },
-    { address: tokenC, name: "Groundhog JPY", symbol: "gJPY" },
-  ]) {
-    const fundToken = DevWallet.doAction.invocation(faucet.address, GAS_LIMIT, {
-      invocationBytes: serialize(
-        ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
-          receiver: token.address,
-          amount: CONTRACT_FUNDING,
-        }),
-        codec.Invocation,
-      ),
-    });
-    await submit(client, faucet, fundToken, []);
-
-    const initializeToken = DevWallet.doAction.invocation(
-      alice.address,
-      GAS_LIMIT,
-      {
-        invocationBytes: serialize(
-          ERC20Metadata.initialize.invocation(token.address, GAS_LIMIT, {
-            administrator: alice.address,
-            name: token.name,
-            symbol: token.symbol,
-            decimals: TOKEN_DECIMALS,
-          }),
-          codec.Invocation,
-        ),
-      },
-    );
-    await submit(client, alice, initializeToken, []);
-
-    for (const persona of personas) {
-      const mintToken = DevWallet.doAction.invocation(
-        alice.address,
-        GAS_LIMIT,
-        {
-          invocationBytes: serialize(
-            ERC20.mint.invocation(token.address, GAS_LIMIT, {
-              receiver: persona.account.address,
-              amount: MINT_AMOUNT,
-            }),
-            codec.Invocation,
-          ),
+  const [erc20, factoryContract, routerContract, handler, driver] =
+    await Promise.all(
+      [
+        "erc20",
+        "swap_factory",
+        "swap_router",
+        "swap_handler",
+        "swap_driver",
+      ].map(async (name): Promise<Contract> => ({
+        contract_type: ContractType.kRv32,
+        rv32_contract: {
+          data: await readFile(join(artifactRoot, `${name}.rv32a`)),
         },
-      );
-      await submit(client, alice, mintToken, []);
-    }
-  }
+      })),
+    );
+  const tokenHash = hashContract(erc20!);
+  const artifactPath = join(artifactDirectory, `${toHex0x(tokenHash)}.json`);
+  if (erc20?.contract_type !== ContractType.kRv32)
+    throw new Error("Expected an RV32 token artifact");
+  const artifactContents = `${JSON.stringify({ contractType: "rv32", data: toHex0x(erc20.rv32_contract.data), hash: toHex0x(tokenHash) })}\n`;
+  const handlerHash = hashContract(handler!);
+  const driverHash = hashContract(driver!);
 
-  // 4. Deploy and fund the factory. It is initialized after the router is deployed.
-  const factoryHash = hashContract(artifacts.factory);
-  const factoryReceipt = await submit(
-    client,
-    alice,
-    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
-      nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
-      contractHash: fixedBytes(factoryHash, 32),
-    }),
-    [artifacts.factory],
-  );
-  const factory = DevWallet.deploy.decodeReceipt(factoryReceipt).value;
-
-  const fundFactory = DevWallet.doAction.invocation(faucet.address, GAS_LIMIT, {
-    invocationBytes: serialize(
-      ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
-        receiver: factory,
-        amount: CONTRACT_FUNDING * 10n,
-      }),
-      codec.Invocation,
-    ),
+  // This key exists only for this tool invocation. It is never written or logged.
+  const account = createPubkeyAccount({
+    signer: new PrivateKeySigner(randomBytes(32)),
   });
-  await submit(client, faucet, fundFactory, []);
-
-  // 5. Deploy and fund the router, initialize the factory with it, then connect
-  // the router back to the factory.
-  const routerHash = hashContract(artifacts.router);
-  const routerReceipt = await submit(
-    client,
-    alice,
-    DevWallet.deploy.invocation(alice.address, GAS_LIMIT, {
-      nonce: fixedBytes(sha256Hash(randomBytes(32)), 32),
-      contractHash: fixedBytes(routerHash, 32),
-    }),
-    [artifacts.router],
-  );
-  const router = DevWallet.deploy.decodeReceipt(routerReceipt).value;
-
-  const fundRouter = DevWallet.doAction.invocation(faucet.address, GAS_LIMIT, {
-    invocationBytes: serialize(
+  const wallet = createWalletClient({ client, account });
+  const requireSuccess = (result: ExecResult): void => {
+    if (result !== ExecResult.ExecResultOK) {
+      throw new Error(`Setup transaction failed with ${ExecResult[result]}`);
+    }
+  };
+  const deploy = async (contract: Contract): Promise<ContractAddress> => {
+    const nonce = sha256Hash(randomBytes(32));
+    const contractHash = hashContract(contract);
+    const predicted = deriveContractAddress(
+      account.address,
+      nonce,
+      contractHash,
+    );
+    await execute(
       ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
-        receiver: router,
+        receiver: predicted,
         amount: CONTRACT_FUNDING,
       }),
-      codec.Invocation,
-    ),
-  });
-  await submit(client, faucet, fundRouter, []);
-
-  const initializeFactory = DevWallet.doAction.invocation(
-    alice.address,
-    GAS_LIMIT,
-    {
-      invocationBytes: serialize(
-        SwapFactory.initialize.invocation(factory, GAS_LIMIT, {
-          hashes: {
-            token: fixedBytes(tokenHash, 32),
-            handler: fixedBytes(handlerHash, 32),
-            driver: fixedBytes(driverHash, 32),
-          },
-          feeTo: null,
-          router,
-        }),
-        codec.Invocation,
-      ),
-    },
-  );
-  await submit(client, alice, initializeFactory, []);
-
-  const initializeRouter = DevWallet.doAction.invocation(
-    alice.address,
-    GAS_LIMIT,
-    {
-      invocationBytes: serialize(
-        SwapRouter.initialize.invocation(router, GAS_LIMIT, { factory }),
-        codec.Invocation,
-      ),
-    },
-  );
-  await submit(client, alice, initializeRouter, []);
-
-  // 6. Fund native-token storage before creating its first allowance row, then
-  // approve the factory's recommended funding and create the pool atomically.
-  const nativeTokenAirdrop = await client.requestAirdrop({
-    recipient: HOG_ADDRESS,
-  });
-  if (
-    nativeTokenAirdrop.status.result !== "ok"
-    || nativeTokenAirdrop.rawAmount < CONTRACT_FUNDING
-  ) {
-    throw new Error("Native HOG airdrop did not provide the required storage reserve");
-  }
-  const funding = (
-    await SwapFactory.poolFunding.view({
-      client,
-      contract: factory,
-      caller: alice.address,
-    })
-  ).value;
-  if (
-    funding.min <= 0n
-    || funding.recommended < funding.min
-    || funding.recommended > U128_MAX / 3n
-  ) {
-    throw new Error("Factory returned an invalid pool funding policy");
-  }
-  const totalFunding = funding.recommended * 3n;
-  const approveFunding = DevWallet.doAction.invocation(alice.address, GAS_LIMIT, {
-    invocationBytes: serialize(
-      ERC20.adjustAllowance.invocation(HOG_ADDRESS, GAS_LIMIT, {
-        spender: factory,
-        diff: totalFunding,
-      }),
-      codec.Invocation,
-    ),
-  });
-  await submit(client, alice, approveFunding, []);
-  const createPool = DevWallet.doAction.invocation(alice.address, GAS_LIMIT, {
-    invocationBytes: serialize(
-      SwapFactory.createPair.invocation(factory, GAS_LIMIT, {
-        tokenA,
-        tokenB,
-        funding: funding.recommended,
-      }),
-      codec.Invocation,
-    ),
-  });
-  const poolReceipt = await submit(client, alice, createPool, []);
-  const pool = SwapFactory.createPair.decodeReceipt(poolReceipt).value;
-  const [registered, resolved] = await Promise.all([
-    SwapFactory.getPair.view({
-      client,
-      contract: factory,
-      caller: alice.address,
-      args: { tokenA, tokenB },
-    }),
-    SwapFactory.poolAddresses.view({
-      client,
-      contract: factory,
-      caller: alice.address,
-      args: { tokenA, tokenB },
-    }),
-  ]);
-  if (
-    registered.value === null
-    || registered.height !== resolved.height
-    || !bytesEqual(registered.value, resolved.value.handler)
-    || !bytesEqual(pool.liquidity_token, resolved.value.liquidity_token)
-    || !bytesEqual(pool.handler, resolved.value.handler)
-    || !bytesEqual(pool.driver, resolved.value.driver)
-  ) {
-    throw new Error("Created pool does not match the factory registry");
-  }
-
-  // 7. Authorize the handler to consume exactly the amount of each token that will
-  // be deposited as initial liquidity.
-  for (const token of [tokenA, tokenB]) {
-    const approveLiquidity = DevWallet.doAction.invocation(
-      alice.address,
-      GAS_LIMIT,
-      {
-        invocationBytes: serialize(
-          ERC20.adjustAllowance.invocation(token, GAS_LIMIT, {
-            spender: pool.handler,
-            diff: LIQUIDITY_AMOUNT,
-          }),
-          codec.Invocation,
-        ),
-      },
     );
-    await submit(client, alice, approveLiquidity, []);
-  }
-
-  // 8. Adding liquidity only queues a request. The separate driver call executes
-  // it and transfers the approved token amounts into the handler.
-  const addLiquidity = DevWallet.doAction.invocation(
-    alice.address,
-    GAS_LIMIT,
-    {
-      invocationBytes: serialize(
-        SwapRouter.addLiquidity.invocation(router, GAS_LIMIT, {
-          tokenA,
-          tokenB,
-          amountsDesired: [LIQUIDITY_AMOUNT, LIQUIDITY_AMOUNT],
-          amountsMin: [0n, 0n],
-          recipient: alice.address,
-        }),
-        codec.Invocation,
-      ),
-    },
-  );
-  const addReceipt = await submit(client, alice, addLiquidity, []);
-  const requestId = RequestAccepted.singleFromReceipt(addReceipt, {
-    contractAddress: pool.driver,
-  }).topics.request_id;
-
-  const processRequests = DevWallet.doAction.invocation(
-    alice.address,
-    GAS_LIMIT,
-    {
-      invocationBytes: serialize(
-        SwapDriver.processRequests.invocation(pool.driver, GAS_LIMIT),
-        codec.Invocation,
-      ),
-    },
-  );
-  const processReceipt = await submit(client, alice, processRequests, []);
-  const [processed, failedCount] = SwapDriver.processRequests.decodeReceipt(
-    processReceipt,
-  ).value;
-  const summary = RequestsProcessed.singleFromReceipt(processReceipt, {
-    contractAddress: pool.driver,
-  });
-  if (
-    summary.fields.processed !== processed
-    || summary.fields.failed !== failedCount
-    || processed < 1n
-    || failedCount !== 0n
-  ) {
-    throw new Error("Queue processing returned an invalid summary");
-  }
-  const failures = RequestFailed.allFromReceipt(processReceipt, {
-    contractAddress: pool.driver,
-  }).filter((event) => bytesEqual(event.topics.request_id, requestId));
-  const mints = MintEvent.allFromReceipt(processReceipt, {
-    contractAddress: pool.handler,
-  }).filter((event) =>
-    event.fields.request_id !== null
-    && bytesEqual(event.fields.request_id, requestId)
-    && bytesEqual(event.topics.sender, alice.address)
-    && bytesEqual(event.topics.recipient, alice.address)
-    && event.fields.amount_minted > 0n
-  );
-  if (failures.length !== 0 || mints.length !== 1) {
-    throw new Error("Initial liquidity did not emit one matching handler mint");
-  }
-
-  // 9. Confirm that queue processing produced the balanced pool expected by the
-  // frontend. Swap behavior itself is covered by the live integration test.
-  const poolState = (
-    await createSwapHandlerReadAdapter({
-      client,
-      contract: pool.handler,
-      caller: alice.address,
-    }).poolState()
-  ).value;
-  const { reserve0, reserve1 } = poolState;
-  if (reserve0 !== LIQUIDITY_AMOUNT || reserve1 !== LIQUIDITY_AMOUNT) {
-    throw new Error(
-      `Expected initial reserves of ${LIQUIDITY_AMOUNT}; got ${reserve0} and ${reserve1}`,
-    );
-  }
-  const liquidityBalances = await Promise.all(personas.map(async (persona) => (
-    await ERC20.getBalanceOf.view({
-      client,
-      contract: pool.liquidity_token,
-      caller: persona.account.address,
-      args: { addr: persona.account.address },
-    })
-  ).value));
-  if (liquidityBalances[0]! <= 0n || liquidityBalances.slice(1).some((balance) => balance !== 0n)) {
-    throw new Error("Expected only Alice to receive the initial LP position");
-  }
-
-  return {
-    personas,
-    tokenA,
-    tokenB,
-    tokenC,
-    factory,
-    router,
-    pool,
+    const hash = await wallet.sendInvocation({
+      invocation: DefaultWallet.deploy.invocation(account.address, GAS_LIMIT, {
+        nonce: fixedBytes(nonce, 32),
+        contractHash: fixedBytes(contractHash, 32),
+      }),
+      contractsToDeploy: [contract],
+    });
+    const receipt = await wallet.waitForTransactionReceipt(hash);
+    requireSuccess(receipt.execResult);
+    const deployed = DefaultWallet.deploy.decodeReceipt(receipt).value;
+    if (!bytesEqual(deployed, predicted))
+      throw new Error("Deployment address did not match its funded address");
+    return deployed;
   };
-}
+  const execute = async (invocation: Invocation): Promise<void> => {
+    const hash = await wallet.execute({ invocation, gasLimit: GAS_LIMIT });
+    requireSuccess((await wallet.waitForTransactionReceipt(hash)).execResult);
+  };
 
-async function submit(
-  client: GroundhogClient,
-  account: LocalDevAccount,
-  invocation: Invocation,
-  contractsToDeploy: Contract[],
-): Promise<TransactionReceipt> {
-  const tip = await client.getChainTip();
-  const transaction = createTransaction({
-    invocation,
-    uniquifier: {
-      block_expiry_height: blockHeight(tip.height + EXPIRY_BLOCKS),
-      nonce: randomBytes(8).readBigUInt64BE(),
-    },
-    contracts_to_deploy: contractsToDeploy,
-    auth_claim: {
-      claim_type: AuthClaimType.kSourceAddressAuthData,
-      source_address_claim: {
-        allowed_keys: bitMap(1n),
-        required_weight: weight(1n),
-      },
-    },
-  });
-  const signed = await signTransaction(
-    transaction,
-    [{ signer: account.signer, publicKeyId: 0n }],
-    account.networkHash,
-  );
-  const transactionHash = await client.sendTransaction(signed);
-  const receipt = await client.waitForTransactionReceipt(transactionHash);
-  if (receipt.execResult !== ExecResult.ExecResultOK) {
-    throw new Error(`Transaction failed with result ${receipt.execResult}`);
+  await mkdir(dirname(environmentPath), { recursive: true });
+  await mkdir(dirname(artifactPath), { recursive: true });
+  const temporary = `${environmentPath}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+  const temporaryArtifact = `${artifactPath}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    // Check output writability before any ledger writes; preserve the old file on failure.
+    await writeFile(temporary, "", { mode: 0o600, flag: "wx" });
+    await writeFile(temporaryArtifact, artifactContents, {
+      mode: 0o644,
+      flag: "wx",
+    });
+    const airdrop = await wallet.requestAirdrop();
+    if (
+      airdrop.status.result !== "ok" ||
+      (await wallet.getBalance()).rawBalance < CONTRACT_FUNDING * 6n
+    ) {
+      throw new Error(
+        "Infrastructure deployer airdrop did not provide the required HOG reserve",
+      );
+    }
+    // Native-token storage also needs a reserve for future user allowance rows.
+    await execute(
+      ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
+        receiver: HOG_ADDRESS,
+        amount: CONTRACT_FUNDING,
+      }),
+    );
+    // The node persists attached code only when deploy_contract consumes it.
+    // These uninitialized instances register infrastructure code, not a pool.
+    // ERC20 must instead be attached to the first user-created pair transaction:
+    // registering it here would require deploying a forbidden token instance.
+    await deploy(handler!);
+    await deploy(driver!);
+    const factory = await deploy(factoryContract!);
+    const router = await deploy(routerContract!);
+    await execute(
+      SwapFactory.initialize.invocation(factory, GAS_LIMIT, {
+        hashes: {
+          token: fixedBytes(tokenHash, 32),
+          handler: fixedBytes(handlerHash, 32),
+          driver: fixedBytes(driverHash, 32),
+        },
+        feeTo: null,
+        router,
+      }),
+    );
+    await execute(
+      SwapRouter.initialize.invocation(router, GAS_LIMIT, { factory }),
+    );
+    const options = { client, contract: factory, caller: account.address };
+    const count = (await SwapFactory.allPairsLength.view(options)).value;
+    const funding = (await SwapFactory.poolFunding.view(options)).value;
+    if (
+      count !== 0n ||
+      funding.min <= 0n ||
+      funding.recommended < funding.min ||
+      funding.recommended > ((1n << 128n) - 1n) / 3n
+    ) {
+      throw new Error(
+        "Factory must have no pools and a valid native funding policy",
+      );
+    }
+    await writeFile(
+      temporary,
+      renderEnvironment(toHex0x(expectedNetwork), rpcUrl, {
+        factory,
+        router,
+        tokenHash,
+      }),
+    );
+    // Publish complete code bytes before the environment completion marker.
+    await publishArtifact(temporaryArtifact, artifactPath);
+    await rename(temporary, environmentPath);
+    console.log(
+      `Local swap infrastructure ready\nApp environment: ${environmentPath}\nFactory: ${toHex0x(factory)}\nRouter: ${toHex0x(router)}`,
+    );
+    console.warn(
+      `No pools or tokens were created. First pair creation can attach the code asset at ${artifactPath}.`,
+    );
+  } finally {
+    await rm(temporary, { force: true });
+    await rm(temporaryArtifact, { force: true });
   }
-  return receipt;
 }
 
-async function loadArtifacts(root: string): Promise<Artifacts> {
-  const contract = async (name: string): Promise<Contract> => ({
-    contract_type: ContractType.kRv32,
-    rv32_contract: { data: await readFile(join(root, name)) },
-  });
-  const [erc20, factory, router, handler, driver] = await Promise.all([
-    contract("erc20.rv32a"),
-    contract("swap_factory.rv32a"),
-    contract("swap_router.rv32a"),
-    contract("swap_handler.rv32a"),
-    contract("swap_driver.rv32a"),
-  ]);
-  return { erc20, factory, router, handler, driver };
-}
-
-function renderEnvironment(
-  networkHash: string,
+export function renderEnvironment(
+  network: string,
   rpcUrl: string,
-  deployment: Deployment,
+  deployment: {
+    factory: ContractAddress;
+    router: ContractAddress;
+    tokenHash: Uint8Array;
+  },
 ): string {
   return [
     `VITE_GROUNDHOG_RPC_URL=${rpcUrl}`,
-    `VITE_GROUNDHOG_NETWORK_ID=${networkHash}`,
-    `GROUNDHOG_DEV_PRIVATE_KEY=${deployment.personas[0]!.browserPrivateKey}`,
-    `GROUNDHOG_DEV_PERSONAS=${JSON.stringify(deployment.personas.map((persona) => ({
-      id: persona.id,
-      label: persona.label,
-      accountAddress: toHex0x(persona.account.address),
-      privateKey: persona.browserPrivateKey,
-    })))}`,
-    `VITE_GROUNDHOG_WALLET_ADDRESS=${toHex0x(deployment.personas[0]!.account.address)}`,
-    `VITE_GROUNDHOG_WALLET_ENTRYPOINT=${toHex0x(DevWallet.doAction.entrypoint)}`,
+    `VITE_GROUNDHOG_NETWORK_ID=${network}`,
     `VITE_NATIVE_HOG_ADDRESS=${toHex0x(HOG_ADDRESS)}`,
-    `VITE_KNOWN_TOKEN_ADDRESSES=${[
-      deployment.tokenA,
-      deployment.tokenB,
-      deployment.tokenC,
-    ].map(toHex0x).join(",")}`,
+    "VITE_KNOWN_TOKEN_ADDRESSES=",
     `VITE_SWAP_FACTORY_ADDRESS=${toHex0x(deployment.factory)}`,
     `VITE_SWAP_ROUTER_ADDRESS=${toHex0x(deployment.router)}`,
-    `SWAP_POOL_ADDRESS=${toHex0x(deployment.pool.handler)}`,
-    `SWAP_LIQUIDITY_TOKEN_ADDRESS=${toHex0x(deployment.pool.liquidity_token)}`,
-    `SWAP_DRIVER_ADDRESS=${toHex0x(deployment.pool.driver)}`,
-    `SWAP_DRIVER_PROCESS_REQUESTS_ENTRYPOINT=${toHex0x(SwapDriver.processRequests.entrypoint)}`,
+    `VITE_POOL_TOKEN_HASH=${toHex0x(deployment.tokenHash)}`,
     "",
   ].join("\n");
 }
 
-function renderCliConfig(
-  networkHash: string,
-  rpcUrl: string,
-  manifestPath: string,
-  keyName: string,
-): string {
-  return `# generated_network_id = ${networkHash}\n${stringify({
-    default_key: keyName,
-    default_profile: "local",
-    profile: {
-      local: {
-        network: "local",
-        rpc_url: rpcUrl,
-        runtime_manifest: manifestPath,
-      },
-    },
-  })}`;
+export function validateLocalRpcUrl(value: string): string {
+  const url = new URL(value);
+  if (
+    url.protocol !== "http:" ||
+    url.username !== "" ||
+    url.password !== "" ||
+    value.includes("?") ||
+    value.includes("#") ||
+    !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+  ) {
+    throw new Error("Local setup requires a loopback HTTP RPC URL");
+  }
+  return url.href;
 }
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+export async function publishArtifact(
+  temporary: string,
+  destination: string,
+): Promise<void> {
+  try {
+    await link(temporary, destination);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    if (!bytesEqual(await readFile(temporary), await readFile(destination))) {
+      throw new Error("Existing hash-named artifact has different contents");
+    }
+  }
+}
+
+async function readNetworkHash() {
+  let expected =
+    process.env.GROUNDHOG_NETWORK_ID === undefined
+      ? undefined
+      : normalizeNetworkHash(process.env.GROUNDHOG_NETWORK_ID);
+  if (process.env.GROUNDHOG_RUNTIME_MANIFEST) {
+    const manifest = JSON.parse(
+      await readFile(resolve(process.env.GROUNDHOG_RUNTIME_MANIFEST), "utf8"),
+    ) as { networkHash: string };
+    if (typeof manifest.networkHash !== "string")
+      throw new Error("Runtime manifest is missing networkHash");
+    const recorded = normalizeNetworkHash(manifest.networkHash);
+    if (expected !== undefined && expected !== recorded) {
+      throw new Error("Runtime manifest and GROUNDHOG_NETWORK_ID disagree");
+    }
+    expected = recorded;
+  }
+  expected ??= `0x${"00".repeat(32)}`;
+  return networkHash(sha256Hash(fromHex0x(expected)));
+}
+
+function normalizeNetworkHash(value: string): string {
+  const match = /^(?:0x)?([0-9a-f]{64})$/i.exec(value);
+  if (!match) throw new Error("Invalid local network hash");
+  return `0x${match[1]!.toLowerCase()}`;
+}
+
+function requiredEnvironment(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

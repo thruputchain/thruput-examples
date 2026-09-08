@@ -108,6 +108,9 @@ describe("PoolDetailPage", () => {
     expect(screen.queryByRole("link", { name: "Swap" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Manage liquidity" })).toBeNull();
     expect(screen.queryByRole("link", { name: /Create Pool/i })).toBeNull();
+    expect(screen.queryByText(/Your .*balance/)).toBeNull();
+    expect(screen.queryByText(/Your LP/)).toBeNull();
+    expect(screen.getByText("LP supply")).toBeVisible();
   });
 });
 

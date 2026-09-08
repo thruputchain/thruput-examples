@@ -6,6 +6,7 @@ import {
   isLoopbackUrl,
   loadGlobalConfig,
   parseExplorerUrl,
+  READ_ONLY_CALLER,
   type Environment,
 } from "./config";
 
@@ -16,7 +17,7 @@ function environment(overrides: Environment = {}): Environment {
   return {
     VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
     VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
-    VITE_GROUNDHOG_WALLET_ADDRESS: ADDRESS,
+    VITE_POOL_TOKEN_HASH: ADDRESS,
     VITE_NATIVE_HOG_ADDRESS: ADDRESS,
     VITE_KNOWN_TOKEN_ADDRESSES: `${ADDRESS},${OTHER_ADDRESS},${ADDRESS}`,
     VITE_SWAP_FACTORY_ADDRESS: ADDRESS,
@@ -57,6 +58,10 @@ describe("loadGlobalConfig", () => {
 
     expect(config.factoryAddress).toBeDefined();
     expect(config.registryEnabled).toBe(false);
+    expect(config.accountAddress).toEqual(READ_ONLY_CALLER);
+    expect(config.poolTokenHash).toBe(ADDRESS);
+    expect(loadGlobalConfig(environment({ VITE_KNOWN_TOKEN_ADDRESSES: "" })).knownTokenAddresses).toEqual([]);
+    expect(loadGlobalConfig(environment({ VITE_GROUNDHOG_WALLET_ADDRESS: OTHER_ADDRESS })).accountAddress).toEqual(READ_ONLY_CALLER);
   });
 
   it("parses the pool registry feature flag strictly", () => {

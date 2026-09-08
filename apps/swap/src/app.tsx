@@ -1,7 +1,6 @@
 import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { useEffect, useState } from "react";
 import {
   BrowserRouter,
   Link,
@@ -15,10 +14,6 @@ import {
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AppHeader } from "@/components/app-header";
-import {
-  DevelopmentWalletContext,
-  DevelopmentWalletSwitcher,
-} from "@/components/development-wallet-switcher";
 import { ProcessingModeProvider } from "@/components/processing-mode";
 import { ExplorerProvider } from "@/components/explorer-context";
 import {
@@ -36,13 +31,6 @@ import {
   type GlobalConfig,
 } from "@/config";
 import {
-  parseDevelopmentPersonas,
-  personaPreferenceKey,
-  publicDevelopmentPersona,
-  selectedDevelopmentPersona,
-  type DevelopmentPersonaId,
-} from "@/development-personas";
-import {
   PoolIdentityError,
   PoolNotFoundError,
   resolvePoolConfig,
@@ -54,8 +42,6 @@ import { LiquidityPage } from "@/pools/liquidity-page";
 import { parsePoolRoute } from "@/pools/pool-route";
 import { createSnapshotReader, type SnapshotReader } from "@/swap/snapshot";
 import { SwapPage } from "@/swap/swap-page";
-import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
-import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
 import {
   createRequestObserver,
   type RequestObserver,
@@ -64,7 +50,8 @@ import {
   unavailableWriteBoundary,
   type WriteBoundary,
 } from "@/transactions/write-boundary";
-import { createWalletPortfolioReader } from "@/wallet/portfolio";
+import { ConnectedWalletApp } from "@/wallet/connected-app";
+import { useWalletWriteBoundary } from "@/wallet/write-context";
 
 export function App({
   config: suppliedConfig,
@@ -97,7 +84,9 @@ export function App({
 
   return (
     <AppProviders
-      explorerUrl={configuration.ok ? configuration.config.explorerUrl : undefined}
+      explorerUrl={
+        configuration.ok ? configuration.config.explorerUrl : undefined
+      }
     >
       {configuration.ok ? (
         hasRouter ? (
@@ -114,7 +103,10 @@ export function App({
   );
 }
 
-function AppProviders({ children, explorerUrl }: {
+function AppProviders({
+  children,
+  explorerUrl,
+}: {
   children: React.ReactNode;
   explorerUrl?: string | undefined;
 }) {
@@ -132,123 +124,20 @@ function BrowserConfiguredApp({
 }: {
   config: GlobalConfig;
 }) {
-  const readOnly = import.meta.env.PROD && baseConfig.registryEnabled === true;
-  if (readOnly) {
-    return <AmmRoutes config={baseConfig} readOnly />;
-  }
-  let personas: ReturnType<typeof parseDevelopmentPersonas>;
-  try {
-    personas = parseDevelopmentPersonas(import.meta.env.GROUNDHOG_DEV_PERSONAS);
-  } catch (error) {
-    return (
-      <ConfigurationErrorPage
-        message={
-          error instanceof Error
-            ? error.message
-            : "Development wallets are invalid"
-        }
-      />
-    );
-  }
-  if (personas === null) {
-    return (
-      <AmmRoutes
-        config={baseConfig}
-        walletPrivateKey={import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY}
-      />
-    );
-  }
-  return <PersonaConfiguredApp baseConfig={baseConfig} personas={personas} />;
-}
-
-export function PersonaConfiguredApp({
-  baseConfig,
-  personas,
-}: {
-  baseConfig: GlobalConfig;
-  personas: NonNullable<ReturnType<typeof parseDevelopmentPersonas>>;
-}) {
-  const preferenceKey = personaPreferenceKey(
-    baseConfig.networkIdHex,
-    baseConfig.factoryAddress,
-  );
-  const [selectedId, setSelectedId] = useState(() =>
-    window.sessionStorage.getItem(preferenceKey),
-  );
-  const [isSwitching, setIsSwitching] = useState(false);
-  const [switchError, setSwitchError] = useState<string | null>(null);
-  const active = selectedDevelopmentPersona(personas, selectedId);
-  const publicPersonas = useMemo(
-    () => personas.map(publicDevelopmentPersona),
-    [personas],
-  );
-  const publicActive = publicPersonas.find(({ id }) => id === active.id)!;
-  const previousActiveId = useRef(active.id);
-  const config = useMemo(
-    () => ({ ...baseConfig, accountAddress: active.accountAddress }),
-    [active.accountAddress, baseConfig],
-  );
-  const readPortfolio = useMemo(
-    () => createWalletPortfolioReader(config),
-    [config],
-  );
-
-  useEffect(() => {
-    if (isSwitching || previousActiveId.current === active.id) return;
-    previousActiveId.current = active.id;
-    document
-      .querySelector<HTMLElement>("[data-development-wallet-trigger]")
-      ?.focus();
-  }, [active.id, isSwitching]);
-
-  async function switchTo(id: DevelopmentPersonaId) {
-    if (id === active.id || isSwitching) return;
-    setIsSwitching(true);
-    setSwitchError(null);
-    try {
-      await withOutstandingRequestLock(config, async () => {
-        window.sessionStorage.setItem(preferenceKey, id);
-        flushSync(() => setSelectedId(id));
-      });
-    } catch (error) {
-      setSwitchError(
-        error instanceof Error ? error.message : "Wallet could not be switched",
-      );
-      throw error;
-    } finally {
-      setIsSwitching(false);
-    }
-  }
-
   return (
-    <DevelopmentWalletContext
-      value={{
-        active: publicActive,
-        personas: publicPersonas,
-        isSwitching,
-        switchError,
-        readPortfolio,
-        switchTo,
-      }}
-    >
-      <div aria-busy={isSwitching} inert={isSwitching}>
-        <AmmRoutes
-          key={`${config.networkIdHex}:${active.accountAddressHex}`}
-          config={config}
-          walletPrivateKey={active.privateKeyHex}
-        />
-      </div>
-    </DevelopmentWalletContext>
+    <ConnectedWalletApp config={baseConfig}>
+      {(config, connected, revision) => (
+        <AmmRoutes key={revision} config={config} readOnly={!connected} />
+      )}
+    </ConnectedWalletApp>
   );
 }
 
 export function AmmRoutes({
   config,
-  walletPrivateKey,
   readOnly = false,
 }: {
   config: GlobalConfig;
-  walletPrivateKey?: string | undefined;
   readOnly?: boolean;
 }) {
   return (
@@ -264,22 +153,14 @@ export function AmmRoutes({
           readOnly ? (
             <Navigate to="/pools" replace />
           ) : (
-            <PoolCreatePage
-              config={config}
-              walletPrivateKey={walletPrivateKey}
-            />
+            <PoolCreatePage config={config} />
           )
         }
       />
       <Route
         path="/pools/:token0/:token1"
         element={
-          <PoolRoute
-            config={config}
-            view="detail"
-            walletPrivateKey={walletPrivateKey}
-            readOnly={readOnly}
-          />
+          <PoolRoute config={config} view="detail" readOnly={readOnly} />
         }
       />
       <Route
@@ -288,12 +169,7 @@ export function AmmRoutes({
           readOnly ? (
             <ReadOnlyPoolRedirect />
           ) : (
-            <PoolRoute
-              config={config}
-              view="swap"
-              walletPrivateKey={walletPrivateKey}
-              readOnly={readOnly}
-            />
+            <PoolRoute config={config} view="swap" readOnly={readOnly} />
           )
         }
       />
@@ -303,12 +179,7 @@ export function AmmRoutes({
           readOnly ? (
             <ReadOnlyPoolRedirect />
           ) : (
-            <PoolRoute
-              config={config}
-              view="liquidity"
-              walletPrivateKey={walletPrivateKey}
-              readOnly={readOnly}
-            />
+            <PoolRoute config={config} view="liquidity" readOnly={readOnly} />
           )
         }
       />
@@ -330,12 +201,10 @@ function ReadOnlyPoolRedirect() {
 function PoolRoute({
   config,
   view,
-  walletPrivateKey,
   readOnly = false,
 }: {
   config: GlobalConfig;
   view: "detail" | "swap" | "liquidity";
-  walletPrivateKey?: string | undefined;
   readOnly?: boolean;
 }) {
   const params = useParams();
@@ -426,11 +295,7 @@ function PoolRoute({
   }
   if (view === "swap") {
     return (
-      <ConfiguredApp
-        key={poolRuntimeKey(state.config)}
-        config={state.config}
-        walletPrivateKey={walletPrivateKey}
-      />
+      <ConfiguredApp key={poolRuntimeKey(state.config)} config={state.config} />
     );
   }
   if (view === "detail") {
@@ -443,11 +308,7 @@ function PoolRoute({
     );
   }
   return (
-    <LiquidityPage
-      key={poolRuntimeKey(state.config)}
-      config={state.config}
-      walletPrivateKey={walletPrivateKey}
-    />
+    <LiquidityPage key={poolRuntimeKey(state.config)} config={state.config} />
   );
 }
 
@@ -510,7 +371,6 @@ function PlaceholderPage({
                 </Link>
               )}
             </div>
-            {readOnly ? null : <DevelopmentWalletSwitcher />}
           </CardContent>
         </Card>
       </main>
@@ -533,22 +393,17 @@ function ConfiguredApp({
   readSnapshot,
   requestObserver,
   writeBoundary,
-  walletPrivateKey,
 }: {
   config: AppConfig;
   readSnapshot?: SnapshotReader | undefined;
   requestObserver?: RequestObserver | undefined;
   writeBoundary?: WriteBoundary | undefined;
-  walletPrivateKey?: string | undefined;
 }) {
   const [reader] = useState<SnapshotReader>(
     () => readSnapshot ?? createSnapshotReader(config),
   );
-  const [writer] = useState<WriteBoundary>(
-    () =>
-      writeBoundary ??
-      createBrowserLocalWriteBoundary(config, walletPrivateKey),
-  );
+  const connectedWriter = useWalletWriteBoundary();
+  const writer = writeBoundary ?? connectedWriter;
   const [observer] = useState<RequestObserver>(
     () => requestObserver ?? createRequestObserver(config),
   );
@@ -604,10 +459,7 @@ export function readBrowserConfiguration():
           .VITE_STANDARD_TOKEN_FACTORY_ADDRESS,
         VITE_STANDARD_TOKEN_HASH: import.meta.env.VITE_STANDARD_TOKEN_HASH,
         VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
-        VITE_GROUNDHOG_WALLET_ADDRESS: import.meta.env
-          .VITE_GROUNDHOG_WALLET_ADDRESS,
-        VITE_GROUNDHOG_WALLET_ENTRYPOINT: import.meta.env
-          .VITE_GROUNDHOG_WALLET_ENTRYPOINT,
+        VITE_POOL_TOKEN_HASH: import.meta.env.VITE_POOL_TOKEN_HASH,
         VITE_NATIVE_HOG_ADDRESS: import.meta.env.VITE_NATIVE_HOG_ADDRESS,
         VITE_KNOWN_TOKEN_ADDRESSES: import.meta.env.VITE_KNOWN_TOKEN_ADDRESSES,
         VITE_SWAP_FACTORY_ADDRESS: import.meta.env.VITE_SWAP_FACTORY_ADDRESS,

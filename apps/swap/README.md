@@ -1,289 +1,197 @@
 # Groundhog AMM
 
-Groundhog AMM discovers and reads example Uniswap V2-style pools. Local development supports disposable write workflows; the packaged registry deployment is read-only.
-
-The local development server injects three generated disposable wallet personas while serving the app; production builds do not contain them. Treat every key as public development data, use it only on a disposable development ledger, and never fund it on a public network.
-
-## Supported Stack
-
-- Node.js 22.13 or newer
-- npm
-- Groundhog CLI 0.14.0 or newer
-- Groundhog SDK 0.30.0
-- Groundhog RPC and testkit 0.14.0
-- `@groundhogchain/client` 0.6.0
-- A compatible local node exposing RPC at `http://127.0.0.1:9545`
-
-The Rust builds require access to the configured Groundhog crate registry.
+Browse Uniswap V2-style pools without a wallet. Connect the Groundhog wallet
+extension to create pools, add/remove liquidity, swap, or process queues. This
+applies to both Vite development and the production registry deployment.
+The app never receives a private key and never submits transactions through its
+public RPC proxy. The extension signs and submits; the app observes receipts.
 
 ## Install
 
-From the repository root:
+Use Node.js 22.13 or newer and npm. Groundhog packages require GitHub Packages
+access (`read:packages`); configure npm authentication outside this repository.
 
-The `@groundhogchain` packages come from GitHub Packages. On a machine without existing package access, create a GitHub token with `read:packages`, then configure npm without committing the token:
-
-```sh
-export GITHUB_PACKAGES_TOKEN=your_token
-npm config set --location=user @groundhogchain:registry https://npm.pkg.github.com
-npm config set --location=user //npm.pkg.github.com/:_authToken "$GITHUB_PACKAGES_TOKEN"
-```
+GH-251 intentionally tests the unpublished wallet-provider SDK using
+`file:../../../groundhog-client-ts`. Check out the sibling repository at
+`/home/chambaz/Work/groundhog-client-ts` on `feat/wallet-provider` and build it
+before installing this app. A standalone deployment must include that sibling
+at the same relative path, or replace this dependency with a published release
+that exposes `/provider` and `/wallet` before building.
 
 ```sh
 npm --prefix apps/swap ci
 ```
 
-Transitive dependency deprecation warnings are non-blocking when installation succeeds.
+## Infrastructure Setup
 
-## Start A Node
-
-The workspace pins Groundhog RPC and testkit 0.14.0 with Groundhog SDK 0.30.0, and the swap scripts enforce Groundhog CLI 0.14.0 or newer plus RPC wire format 3.0.0 or newer. Build and start `hog-devnode` using the Groundhog RPC repository's instructions; this examples repository does not manage node installation or ledger data. Record the path to the running node's runtime manifest. Setup requires:
-
-- RPC available at `http://127.0.0.1:9545`, unless overridden.
-- A runtime manifest from the running node.
-- At least three `local_user` bootstrap accounts (`--dev-account-count 3`).
-
-Setup does not enforce a fresh ledger and is not idempotent. Starting with a fresh disposable node remains the simplest option, especially after a partial setup failure.
-
-## Configure The Environment
-
-Export the validated CLI and runtime-manifest paths, then run setup:
+Start a compatible Groundhog node separately. Setup requires the current CLI,
+RPC wire format 4 or newer, and access to the Rust contract registry. It creates
+infrastructure only: the native HOG reference, factory, router, handler/driver
+code, and LP token artifact. It does not create user wallets, user tokens, pools,
+or seeded liquidity. There is no Alice/Bob/Carol dropdown or browser key config.
 
 ```sh
 export GROUNDHOG_CLI=/absolute/path/to/groundhog
-export GROUNDHOG_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
 export GROUNDHOG_RPC_URL=http://127.0.0.1:9545
-
 npm --prefix apps/swap run setup:local
-```
-
-Setup derives Alice, Bob, and Carol from the runtime manifest, builds the contracts, deploys three tokens and one shared AMM, distributes tokens to all three wallets, seeds one gUSD/gEUR pool from Alice, checks Alice's initial LP position, and writes:
-
-- `apps/swap/.env.local`: browser configuration and the disposable persona keys.
-- `apps/swap/.groundhog-config/`: generated CLI profile used by the crank.
-
-Both paths are ignored by Git. Setup invalidates old generated files before building and writes both replacements with mode `0600` after provisioning succeeds.
-
-## Run The App
-
-```sh
 npm --prefix apps/swap run dev
 ```
 
-Use one browser origin consistently. Do not alternate between `localhost` and `127.0.0.1`; browser locks and local storage are origin-scoped.
+Setup writes `.env.local` with public infrastructure configuration and an empty
+`VITE_KNOWN_TOKEN_ADDRESSES`. It also writes
+`public/contract-artifacts/${hash}.json` with exactly `{contractType: "rv32", data, hash}`
+and sets `VITE_POOL_TOKEN_HASH` to its contract hash. The filename includes the
+hash's `0x` prefix. These immutable, generated artifacts
+are ignored by Git. Setup is not idempotent; use a fresh disposable ledger after
+a partial provisioning failure. Restart Vite after regenerating configuration.
 
-The development server must listen on a loopback host while disposable credentials are enabled. It disables cross-origin access and refuses non-loopback hosts. Do not use `vite --host 0.0.0.0` or expose this app to a local network.
+## Wallet Connection
 
-Use the development-wallet control in either header to switch this tab among Alice, Bob, and Carol. Pools and queues are shared, while balances, allowances, LP positions, transaction history, and recovery state belong to the selected account. Alice begins as the initial liquidity provider; Bob and Carol begin with tokens but no LP position. Selection is tab-local, so separate tabs may use different personas.
+Install/build `apps/wallet-extension`, configure it for the same network, and
+create/import an account there. Fund that account independently. Select its
+provider in Swap, click **Connect wallet**, and approve the origin in the
+extension. If multiple accounts are authorized, use the account selector.
+The connected address is displayed with an optional explorer link.
 
-The wallet portfolio includes all tokens provisioned by local setup, even before they belong to a pool. This makes the seeded gJPY balance available when creating and funding a new market.
+Only public provider identity crosses this boundary: address, Ed25519 public
+key, and derivation nonce. The configured network must match the session.
+Disconnect immediately disables writes locally, disposes the adapter, and asks
+the extension to revoke the session. Account/network/lock changes invalidate
+the old adapter and remount routes, discarding stale quotes and forms. Stored
+workflows remain scoped by network, factory/pool, and account.
 
-Each pool consists of a liquidity-token contract, a handler, and a driver. The
-handler is the canonical pool address: it owns pool state and emits successful
-swap and liquidity events. The driver queues requests and emits request
-failures. There is no separately deployed pair contract.
+Disconnected views use an explicit zero-address read-only caller because
+contract views require a caller. It is not a wallet and is never displayed as
+one. No `VITE_GROUNDHOG_WALLET_ADDRESS`, wallet entrypoint, or private key is
+required. Creation, swap, and liquidity routes are gated by connection, not by
+production mode. Keep one browser origin: `localhost` and `127.0.0.1` have
+different extension permissions, local storage, and locks.
 
-Pool creation reads the factory's per-contract funding policy, approves three
-times the recommended amount of native HOG to the factory, and calls
-`create_pair` once. The factory creates and funds all three pool contracts
-atomically. Initial token allowances are then granted to the new handler before
-liquidity is submitted through the router. If another account creates the same
-pool first, the app requires the unused factory allowance to be removed before
-the user can continue with initial liquidity.
+## Empty-Factory Creation
 
-Browser records from the previous four-contract protocol use retired storage
-namespaces. The app intentionally ignores them rather than migrating, merging,
-or deleting them; clear site data if those inert records are no longer useful.
+Create/fund two tokens independently, for example through the launchpad. Open
+**Create Pool**, supply their addresses and initial amounts, review, and approve
+each requested transaction in the extension.
 
-The primary flow is:
+The creation workflow reads the factory funding policy, approves three times
+the recommended native HOG funding, then invokes `create_pair`. The runtime
+only persists code when it is deployed, so the first `create_pair` must carry
+the LP ERC-20 contract. Swap lazily fetches only the fixed same-origin
+`/contract-artifacts/${VITE_POOL_TOKEN_HASH}.json` path for that exact factory method. It rejects
+redirects, limits the body to 8 MiB and the request to 10 seconds, validates the
+artifact, and checks `hashContract` against `VITE_POOL_TOKEN_HASH` before signing.
+Missing or mismatched artifacts fail before signing. Ordinary approvals, swaps,
+liquidity changes, and cranks never fetch or attach this artifact.
 
-```text
-Approve & swap
--> Approving swap, when needed
--> Submitting swap
--> Queued for execution
--> Submit another swap or crank the driver queue
--> Executed or Failed, independently for each request
-```
+Vite copies the hash-named asset from its resolved `publicDir` into production
+`dist`. Every production build validates the source and copied asset: it must
+exist, use the exact three-field schema, and recompute to `VITE_POOL_TOKEN_HASH`.
+Startup validates the served `dist` asset again before RPC access or database
+creation. Neither step provisions or repairs artifacts. Missing/corrupt files
+fail closed. Provision before building, and deploy matching immutable artifacts
+and configuration together. Do not point the browser at arbitrary artifact URLs.
 
-A successful router transaction only queues a request. It does not execute the swap. The form remains available after enqueueing, so one account can submit up to 10 pending swaps before a crank. The app permits only one approval or submission workflow at a time and serializes those workflows across tabs.
+The factory creates and funds the LP token, handler, and driver atomically.
+The handler owns reserves and emits successful liquidity/swap events; the
+driver queues requests and emits failures. Initial token allowances are granted
+to the handler before the router queues liquidity. If another account creates
+the pair first, the unused factory allowance must be removed before continuing.
 
-Each quote uses the latest observed reserves. The app does not project earlier queued swaps into later quotes, promise queue order, or treat expected queued output as spendable. The handler recalculates output against live reserves during execution and fails a request when slippage protection cannot satisfy its submitted minimum output.
+## Transactions And Recovery
 
-The app reserves each unresolved input amount against that token's displayed balance. Before submission, it ensures the handler allowance covers the new input plus all unresolved exposure for the same token. Opposite swap directions maintain separate reservations and allowance targets.
+Every write uses `createProviderWalletClient({client, provider, account,
+networkHash})`, then `prepareExecution` with a 10,000,000 gas limit and 1,000-block
+expiry. Signing returns approved bytes and their canonical hash. The app awaits
+the workflow's `onSigned(hash)` persistence callback before submitting those
+exact bytes through the extension. A failing callback never submits.
 
-The request list stores unresolved requests and up to 50 recent terminal results in origin-scoped local storage. Each row shows its submitted input, minimum output, lifecycle status, and actual output when execution is recorded. Terminal history can be dismissed without affecting unresolved requests.
+After submission begins, even an error may mean broadcast. The app observes the
+original hash and returns a receipt, invalid result, or indeterminate state. It
+never automatically re-signs. Receipt observation is signer-independent and
+continues for an in-flight boundary after disconnection. Reconnect the same
+account to recover its stored workflows in the UI. Do not clear uncertain
+records or retry them as new transactions without authoritative resolution.
 
-## Process The Queue
+A successful router receipt means **queued**, not executed. Use **Crank queue**
+to approve `process_requests()` through the extension. Processing is driver-wide
+and may require multiple transactions. A committed crank alone does not prove
+all requests finished; the app correlates handler/driver events by request ID.
+For an uncertain crank, check its original hash instead of signing another one.
 
-After the app shows **Queued for execution**, use **Crank queue** in the request
-list. This signs and submits `process_requests()` through the same development
-wallet boundary used for swaps.
+The app supports up to 10 pending swaps and reserves unresolved input balances
+and allowances. It serializes approval/submission workflows across tabs. Quotes
+use observed reserves, not projected queue order. The handler checks slippage
+against reserves at execution time. History retains unresolved requests and up
+to 50 terminal results in origin-scoped storage.
 
-Queue processing is driver-wide. It can process requests that are not present in
-the browser's local history, and one transaction may not drain a large or changing
-queue. The app reconciles matching receipt events and continues observing every
-unresolved local request. A committed crank does not by itself prove that all
-local requests reached a terminal state.
+## Discovery And Deployment
 
-If the crank outcome is uncertain, the app preserves its original transaction
-hash and blocks another crank. Use **Check crank status** rather than retrying.
+Optional indexed token suggestions use `VITE_TOKEN_DISCOVERY_ENABLED`, the
+launchpad factory/hash, and server-only `TOKEN_DISCOVERY_UPSTREAM_ORIGIN`.
+Suggestions are hints, not an allowlist. Manual addresses and URL presets use
+live metadata even during a registry outage. Saved recovery overrides presets.
 
-The shell command remains available as a fallback:
-
-```sh
-cd apps/swap
-GROUNDHOG_CLI=/absolute/path/to/groundhog bash scripts/crank-local.sh
-```
-
-The script reads the generated driver address and entrypoint, uses the generated CLI profile, and invokes `process_requests()`. The app correlates each `SwapEvent` or `RequestFailed` event by request ID and updates requests independently. Crank guidance remains visible while any request still needs processing.
-
-If a queued request has no decodable request ID, automatic event correlation is unavailable. Use **Resolve manually** only after independently confirming that the relevant queue was drained, then complete the separate confirmation step. Tracked queued requests remain in the list until a matching terminal event arrives.
-
-## Launchpad Handoff
-
-Set `VITE_TOKEN_DISCOVERY_ENABLED=true`, the launchpad factory/hash, and the
-server-only `TOKEN_DISCOVERY_UPSTREAM_ORIGIN` to enable indexed suggestions.
-Search matches name, symbol, token address, or creator address. Results are
-hints, not an allowlist; manual addresses and URL presets use live RPC metadata
-even before indexing or during a registry outage. Recovery overrides presets.
-
-The complete launch-to-pool journey requires two loopback Vite apps with
-disposable wallets. Production remains read-only, including preset URLs.
-Follow the [operator recipe](../../docs/cross-app-operations.md) for separate
-writable and registry environments.
-
-Run the single-ledger browser acceptance from this directory:
-
-```sh
-GROUNDHOG_CLI="$HOME/Work/groundhog-rpc/target/debug/groundhog" \
-GROUNDHOG_DEVNODE_BINARY="$HOME/.local/share/groundhog/hog-devnode/hog-devnode" \
-GROUNDHOG_E2E_HOGD_PROTOCOL=hogp/4166df9d6a5411d \
-npm run test:e2e:cross-app
-```
-
-This reuses `playwright-core`; install Chromium or set `CHROMIUM_PATH`. Install
-both apps' dependencies first. Linux `flock`, compatible binaries, and Rust
-registry access are required. The harness provisions sequentially on one fresh
-node, tests both real production servers, then runs both full suites, typechecks,
-and production builds. It never writes `.env.local` or the generated CLI config,
-including symlinks; owned processes, keys, and databases are removed on exit.
-Ignored contract artifacts and production `dist` outputs remain. Do not run
-other setup/build commands concurrently. A second cross-app run fails its lock.
-
-See the [acceptance record](../../docs/specs/2026-09-06-cross-app-acceptance.md)
-for actual evidence and coverage limits.
-
-## Registry Deployment
-
-The production package runs the built SPA, pool registry API, read-only RPC proxy, indexer, and SQLite owner in one Node process. Packaging does not deploy the service.
-
-Set every variable in `.env.example` in both the Railway build and runtime environments. The production build records normalized public configuration and only the SHA-256 digest of the upstream RPC URL; startup fails before opening SQLite or listening when any build/runtime value differs. `VITE_POOL_REGISTRY_ENABLED` must be `true`. The browser uses same-origin `/groundhog-rpc`, has no development wallet, hides write controls, and redirects pool creation, swap, and liquidity routes to read-only pages.
-
-For a local combined-process check with real non-secret deployment values already exported:
+The production Node process serves the SPA, pool registry, read-only RPC proxy,
+indexer, and SQLite database. Set `.env.example` values at build and runtime;
+`VITE_POOL_REGISTRY_ENABLED=true` enables this deployment. Startup verifies the
+public build manifest before opening SQLite or listening. The manifest includes
+`VITE_POOL_TOKEN_HASH` and allows an empty known-token list; it has no wallet
+fields. The upstream RPC URL appears only as a SHA-256 digest. Browser RPC is
+same-origin `/groundhog-rpc`, and write RPC methods remain forbidden even with a
+connected wallet. Submission uses the extension's configured RPC instead.
 
 ```sh
-cd apps/swap
-npm run build:production
-POOL_REGISTRY_DB_PATH=./pools.sqlite PORT=3000 npm start
+npm --prefix apps/swap run build:production
+npm --prefix apps/swap start
 ```
 
-Configure Railway with `apps/swap` as the root directory and `/apps/swap/railway.json` as the config path. The checked-in config requires one replica and a volume mounted at `/data`; SQLite must never be shared by replicas. If a legacy service does not apply config-as-code fields, set the same replica, volume, health-check, draining, and restart values in the service dashboard. Set `POOL_REGISTRY_DB_PATH=/data/pools.sqlite`. The health check is `GET /healthz`; registry progress and faults are available at `GET /api/registry/status`. During deploys Railway allows 30 seconds for health checks and draining.
+Use one replica and a volume at `/data` with `POOL_REGISTRY_DB_PATH=/data/pools.sqlite`.
+Never share SQLite between replicas. Health is `/healthz`; indexer status is
+`/api/registry/status`. Preserve WAL consistency when backing up the database.
+Network/factory scope mismatches are fatal; do not edit stored scope metadata.
 
-When `RAILWAY_ENVIRONMENT_ID` is present, the server trusts Railway's [documented client remote-IP header](https://docs.railway.com/networking/public-networking/specs-and-limits#technical-specifications), `X-Real-IP`, for per-client RPC limits. It accepts exactly one valid IPv4 or IPv6 address and never trusts `X-Forwarded-For`. Outside Railway it ignores forwarding headers and limits by the socket peer address.
+Set optional `VITE_EXPLORER_URL` to a root HTTPS origin, or exact loopback HTTP
+origin. Blank disables links. Credentials, paths, queries, and fragments are
+rejected. Links use `/address/<address>` or `/tx/<hash>` and open a new tab.
+Rebuild when changing any public setting, including this URL.
 
-The `@groundhogchain` packages require a GitHub token with `read:packages` during installation. Configure npm authentication in the build environment before dependency installation using the platform's secret-backed npm configuration. Setting `GITHUB_PACKAGES_TOKEN` alone does not configure npm authentication. The project `.npmrc` contains only registry and install policies, so local installs use credentials from your user-level `~/.npmrc`.
-
-Backups must preserve WAL consistency. Use SQLite's backup mechanism, or stop the service before copying the database, `-wal`, and `-shm` files together. A network or factory scope mismatch is intentionally fatal: restore matching configuration/database state or start with a fresh database; do not edit registry scope metadata.
-
-## Tests
-
-Node-free frontend checks:
+## Verification
 
 ```sh
-npm --prefix apps/swap run typecheck
 npm --prefix apps/swap test
-npm --prefix apps/swap run build
-npm --prefix apps/swap audit --audit-level=low
+npm --prefix apps/swap run typecheck
+npm --prefix apps/swap run build:production
+npm --prefix apps/swap run test:browser:tokens
 ```
 
-Rust contract checks that use the SDK's native execution environment require authenticated Groundhog FFI artifacts. Provide either `HOGD_FFI_PASSWORD` for the artifact service or `HOGD_FFI_LIB_DIR` pointing to a compatible local `libtest_ffi` build.
+Production builds deliberately fail when the configured hash-named artifact is
+absent. For an isolated build check without changing a running setup, run
+`npm --prefix apps/swap test -- server/pool-token-artifact.test.ts`. This builds
+the actual app with a temporary `publicDir`, a correctly hashed serialization
+fixture, and a temporary output directory. It checks the copied bytes and also
+tests rejected assets; it does not claim contract-execution coverage.
 
-```sh
-cargo test -p swap-handler
-cargo test -p swap-driver
-cargo test -p swap-router
-cargo test -p swap-factory
-```
+Unit/component suites cover provider discovery and connection, identity changes,
+disposal, disconnected observation, persistence-before-submit, ambiguous
+submission, artifact integrity/bounds, routes, and the existing AMM workflows.
+The Chromium token-input harness uses an explicitly non-signing public-identity
+provider fixture; it is UI coverage, not extension or ledger acceptance.
 
-Shell syntax checks:
+Run `npm run test:e2e:wallet` from either app to build the extension and run
+`scripts/test-wallet-extension.mjs` at the repository root.
+Rerun it after the immutable artifact naming change; a prior run against
+the legacy filenames does not validate this change. Cross-app acceptance must
+demonstrate all of these on a fresh
+ledger using the real extension, without pre-created user tokens or pools:
 
-```sh
-bash -n apps/swap/scripts/setup-local.sh
-bash -n apps/swap/scripts/crank-local.sh
-bash -n apps/swap/scripts/generate-contract-bindings.sh
-bash -n apps/swap/scripts/test-clean-ledger.sh
-```
+1. Provision infrastructure; assert empty factory and no wallet fields in env.
+2. Create/fund an extension account, connect both apps, and launch two tokens.
+3. Create the first pool with the LP artifact attached and verify initial liquidity.
+4. Add/remove liquidity, swap, crank, and check on-chain balances and events.
+5. Reject a signature, change accounts/network, lock/disconnect, and recover an
+   ambiguous submitted hash without a second signature or submission.
+6. Repeat connected writes against the production SPA while confirming that its
+   public RPC proxy rejects submission and that its LP artifact is served.
 
-The clean-ledger acceptance command starts an ephemeral node on a free loopback port, provisions the AMM, runs one ordered journey across Alice, Carol, and Bob, then stops the node. It restores any existing `.env.local` and generated CLI profile when it exits. Set the installed `hog-devnode` path before running it:
-
-```sh
-export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
-npm --prefix apps/swap run test:e2e:local
-```
-
-Use matching Groundhog CLI and `hog-devnode` releases. For a known wire-compatible local devnode build whose protocol token differs from the CLI, pass the token explicitly:
-
-```sh
-export GROUNDHOG_E2E_HOGD_PROTOCOL=hogp/your-token
-npm --prefix apps/swap run test:e2e:local
-```
-
-The prepared-ledger integration tests remain available for focused live checks. They mutate shared state and may run concurrently, so do not use this command as the clean-ledger acceptance harness:
-
-```sh
-npm --prefix apps/swap run test:integration:local
-```
-
-## Troubleshooting
-
-### Connection refused on port 9545
-
-The node is not running or `GROUNDHOG_RPC_URL` points to the wrong endpoint. Setup does not start the node.
-
-### Groundhog CLI 0.14.0 or newer is required
-
-Set `GROUNDHOG_CLI` to a Groundhog CLI 0.14.0 or newer executable. The executable found first on `PATH` may be older.
-
-### Setup completed deployment but `.env.local` is stale
-
-Setup invalidates old configuration before building and writes new configuration after provisioning succeeds. Fix the setup error and rerun setup. If the failure left partial state that prevents retrying, restart with a clean disposable ledger. Restart Vite afterward so it reloads `.env.local`.
-
-### Contract view faulted after restarting the node
-
-The browser is probably using addresses generated for a previous ledger. Rerun setup against the current node, then restart Vite.
-
-### Crank targets missing contracts
-
-The generated CLI profile or `.env.local` may belong to another ledger. Rerun setup rather than editing generated addresses manually.
-
-### Outcome uncertain after restarting Vite
-
-The app preserves each signed transaction in local storage when its receipt was not observed. Leave the request intact while the app checks its original hash. Do not retry an uncertain transaction unless the original is authoritatively invalid.
-
-### Queued, but execution was not observed
-
-Confirm that `crank-local.sh` completed against the current generated driver. Event absence is not proof of failure. After two visible minutes the request remains reserved and observation continues. Other swaps may still be submitted when their input token has enough unreserved balance. Only an untracked request can be resolved manually, and only after explicit queue-drained confirmation.
-## Explorer Links
-
-Set `VITE_EXPLORER_URL` to the explorer's root URL, for example
-`https://explorer.example.com` or `http://localhost:3000`. Omit it or leave it
-blank to keep identifiers as tooltip-only controls. Remote hosts require HTTPS;
-HTTP is allowed only for `localhost`, `127.0.0.1`, and `[::1]`. Credentials,
-paths, query strings, and fragments are rejected. A trailing slash is normalized.
-
-Contract and wallet links use `/address/<full-address>`; transaction links use
-`/tx/<full-hash>`. Links open a new tab. Request IDs, nonces, and code hashes
-are not transaction links. Editable address inputs keep their full values.
-The production public manifest includes this optional key as a blank string
-when disabled. The runtime value must match the normalized build value; rebuild
-when changing it.
+Until that real-extension journey is recorded, passing unit/browser fixtures
+must not be described as end-to-end acceptance.

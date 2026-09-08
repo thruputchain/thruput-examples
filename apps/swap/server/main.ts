@@ -12,6 +12,7 @@ import {
   verifyPublicConfigManifest,
 } from "./public-config-manifest.ts";
 import { RegistryStore } from "./store.ts";
+import { verifyPoolTokenArtifact } from "./pool-token-artifact.ts";
 
 interface ShutdownResources {
   indexer: { stop(): Promise<void> };
@@ -24,16 +25,18 @@ interface ShutdownSignalTarget {
   exitCode: string | number | null | undefined;
 }
 
-export async function start(): Promise<void> {
-  const config = loadServerConfig(process.env);
-  const staticDirectory = path.resolve(
+export async function start(
+  staticDirectory = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
     "../dist",
-  );
-  await verifyPublicConfigManifest(
+  ),
+): Promise<void> {
+  const config = loadServerConfig(process.env);
+  const manifest = await verifyPublicConfigManifest(
     path.join(staticDirectory, PUBLIC_CONFIG_MANIFEST_FILENAME),
     process.env,
   );
+  await verifyPoolTokenArtifact(staticDirectory, manifest.VITE_POOL_TOKEN_HASH);
   if (!(await stat(path.join(staticDirectory, "index.html"))).isFile()) {
     throw new Error("Production index.html is missing");
   }

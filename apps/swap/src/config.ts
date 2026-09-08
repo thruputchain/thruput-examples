@@ -8,12 +8,16 @@ import {
 
 const NETWORK_ID_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
+// Public views require a caller, not a connected wallet or signing identity.
+export const READ_ONLY_CALLER = addressFromHex(`0x${"00".repeat(32)}`);
+
 export interface GlobalConfig {
   explorerUrl?: string | undefined;
   rpcUrl: URL;
   registryEnabled?: boolean;
   tokenDiscovery?: DiscoveryConfig;
   networkIdHex: string;
+  poolTokenHash?: string;
   accountAddress: ContractAddress;
   routerAddress: ContractAddress;
   factoryAddress: ContractAddress;
@@ -56,7 +60,10 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
     registryEnabled: enabled(environment, "VITE_POOL_REGISTRY_ENABLED"),
     tokenDiscovery: loadDiscoveryConfig(environment),
     networkIdHex: networkIdHex.replace(/^0x/, "").toLowerCase(),
-    accountAddress: address(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
+    accountAddress: READ_ONLY_CALLER,
+    ...(environment.VITE_POOL_TOKEN_HASH === undefined ? {} : {
+      poolTokenHash: toHex0x(address(environment, "VITE_POOL_TOKEN_HASH")),
+    }),
     routerAddress: address(environment, "VITE_SWAP_ROUTER_ADDRESS"),
     factoryAddress: address(environment, "VITE_SWAP_FACTORY_ADDRESS"),
     nativeHogAddress: address(environment, "VITE_NATIVE_HOG_ADDRESS"),

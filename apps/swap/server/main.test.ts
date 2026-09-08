@@ -1,10 +1,13 @@
 // @vitest-environment node
 
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { hashContract, toHex0x } from "@groundhogchain/client";
+import { ContractType } from "@groundhogchain/protocol";
+import { createGroundhogRegistrySource } from "./chain.ts";
 
 import { ServerConfigurationError } from "./config.ts";
 import {
@@ -12,6 +15,7 @@ import {
   registerShutdownSignals,
   reportStartupFailure,
   startupFailureMessage,
+  start,
 } from "./main.ts";
 import {
   createPublicConfigManifest,
@@ -19,11 +23,12 @@ import {
   verifyPublicConfigManifest,
 } from "./public-config-manifest.ts";
 
+vi.mock("./chain.ts", () => ({ createGroundhogRegistrySource: vi.fn() }));
+
 const environment = {
   VITE_GROUNDHOG_RPC_URL: "https://rpc.example.test/groundhog",
   VITE_GROUNDHOG_NETWORK_ID: `0x${"11".repeat(32)}`,
-  VITE_GROUNDHOG_WALLET_ADDRESS: `0x${"22".repeat(32)}`,
-  VITE_GROUNDHOG_WALLET_ENTRYPOINT: `0x${"33".repeat(8)}`,
+  VITE_POOL_TOKEN_HASH: `0x${"22".repeat(32)}`,
   VITE_NATIVE_HOG_ADDRESS: `0x${"44".repeat(32)}`,
   VITE_KNOWN_TOKEN_ADDRESSES: `0x${"55".repeat(32)}`,
   VITE_SWAP_FACTORY_ADDRESS: `0x${"66".repeat(32)}`,
@@ -35,11 +40,79 @@ describe("production startup reporting", () => {
   let directory: string | undefined;
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.mocked(createGroundhogRegistrySource).mockReset();
     if (directory !== undefined) {
       await rm(directory, { recursive: true, force: true });
       directory = undefined;
     }
   });
+
+  it.each(["missing", "tampered", "extra fields", "valid"])(
+    "validates the served artifact before RPC or database startup: %s",
+    async (state) => {
+      directory = await mkdtemp(
+        path.join(os.tmpdir(), "swap-startup-artifact-"),
+      );
+      const hash = toHex0x(
+        hashContract({
+          contract_type: ContractType.kRv32,
+          rv32_contract: { data: new Uint8Array([1, 2, 3]) },
+        }),
+      );
+      const settings = {
+        ...environment,
+        VITE_POOL_TOKEN_HASH: hash,
+        PORT: "3000",
+        POOL_REGISTRY_DB_PATH: path.join(
+          directory,
+          "not-created",
+          "pools.sqlite",
+        ),
+        VITE_TOKEN_DISCOVERY_ENABLED: "false",
+        VITE_STANDARD_TOKEN_FACTORY_ADDRESS: "",
+        VITE_STANDARD_TOKEN_HASH: "",
+        TOKEN_DISCOVERY_UPSTREAM_ORIGIN: "",
+        VITE_EXPLORER_URL: "",
+      };
+      for (const [key, value] of Object.entries(settings))
+        vi.stubEnv(key, value);
+      await writeFile(
+        path.join(directory, "groundhog-public-config.json"),
+        JSON.stringify(createPublicConfigManifest(settings)),
+      );
+      await writeFile(
+        path.join(directory, "index.html"),
+        "<main>fixture</main>",
+      );
+      if (state !== "missing") {
+        await mkdir(path.join(directory, "contract-artifacts"));
+        await writeFile(
+          path.join(directory, "contract-artifacts", `${hash}.json`),
+          JSON.stringify({
+            contractType: "rv32",
+            data: state === "tampered" ? "0x04" : "0x010203",
+            hash,
+            ...(state === "extra fields" ? { extra: true } : {}),
+          }),
+        );
+      }
+      const stopBeforeNetwork = new Error(
+        "Validated assets; stop before network access",
+      );
+      vi.mocked(createGroundhogRegistrySource).mockRejectedValue(
+        stopBeforeNetwork,
+      );
+      if (state === "valid") {
+        await expect(start(directory)).rejects.toBe(stopBeforeNetwork);
+        expect(createGroundhogRegistrySource).toHaveBeenCalledOnce();
+      } else {
+        await expect(start(directory)).rejects.toThrow(/artifact/);
+        expect(createGroundhogRegistrySource).not.toHaveBeenCalled();
+      }
+      await expect(access(settings.POOL_REGISTRY_DB_PATH)).rejects.toThrow();
+    },
+  );
 
   it("reports only safe configuration error classes with exact messages", () => {
     expect(

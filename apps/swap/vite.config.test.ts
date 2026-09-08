@@ -1,93 +1,24 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import viteConfig from "./vite.config";
 
 import {
-  developmentPrivateKeyDefinition,
-  developmentPersonasDefinition,
   isAllowedRequest,
   isSameOriginLocalRequest,
-  validateDevelopmentServerHost,
   validateRpcTarget,
 } from "./vite.config";
 
-describe("development private key boundary", () => {
-  const canary = `0x${"a5".repeat(32)}`;
-
-  it("does not define the private key for builds", () => {
-    expect(
-      developmentPrivateKeyDefinition("build", false, {
-        GROUNDHOG_DEV_PRIVATE_KEY: canary,
-      }),
-    ).toBe("undefined");
-  });
-
-  it("defines the private key only while serving the development app", () => {
-    expect(
-      developmentPrivateKeyDefinition("serve", false, {
-        GROUNDHOG_DEV_PRIVATE_KEY: canary,
-      }),
-    ).toBe(JSON.stringify(canary));
-    expect(developmentPrivateKeyDefinition("serve", false, {})).toBe(
-      "undefined",
-    );
-  });
-
-  it("does not define the key for preview", () => {
-    const environment = { GROUNDHOG_DEV_PRIVATE_KEY: canary };
-
-    expect(developmentPrivateKeyDefinition("serve", true, environment)).toBe(
-      "undefined",
-    );
-    expect(developmentPrivateKeyDefinition("serve", false, environment)).toBe(
-      JSON.stringify(canary),
-    );
-  });
-
-  it("does not define development credentials for a non-loopback RPC", () => {
-    expect(
-      developmentPrivateKeyDefinition(
-        "serve",
-        false,
-        { GROUNDHOG_DEV_PRIVATE_KEY: canary },
-        "https://rpc.example.com",
-      ),
-    ).toBe("undefined");
-    expect(
-      developmentPersonasDefinition(
-        "serve",
-        false,
-        { GROUNDHOG_DEV_PERSONAS: "[]" },
-        "https://rpc.example.com",
-      ),
-    ).toBe("undefined");
-  });
-
-  it("defines personas only for local development serve", () => {
-    const personas = '[{"id":"alice"}]';
-    expect(
-      developmentPersonasDefinition("serve", false, {
-        GROUNDHOG_DEV_PERSONAS: personas,
-      }),
-    ).toBe(JSON.stringify(personas));
-    expect(
-      developmentPersonasDefinition("build", false, {
-        GROUNDHOG_DEV_PERSONAS: personas,
-      }),
-    ).toBe("undefined");
-  });
-
-  it("rejects exposing development credentials on a network host", () => {
-    expect(() => validateDevelopmentServerHost("0.0.0.0", true)).toThrow(
-      "loopback host",
-    );
-    expect(() => validateDevelopmentServerHost(true, true)).toThrow(
-      "loopback host",
-    );
-    expect(() =>
-      validateDevelopmentServerHost("127.0.0.1", true),
-    ).not.toThrow();
-    expect(() => validateDevelopmentServerHost("0.0.0.0", false)).not.toThrow();
+describe("browser environment boundary", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it.each(["serve", "build"] as const)("never injects wallet credentials for %s", async (command) => {
+    vi.stubEnv("GROUNDHOG_DEV_PRIVATE_KEY", "private-key-canary");
+    vi.stubEnv("GROUNDHOG_DEV_PERSONAS", "persona-canary");
+    if (typeof viteConfig !== "function") throw new Error("Expected a Vite config factory");
+    const config = await viteConfig({ command, mode: "test" });
+    expect(config.envPrefix).toContain("VITE_POOL_TOKEN_HASH");
+    expect(JSON.stringify(config.envPrefix)).not.toMatch(/WALLET|PRIVATE|PERSONAS/);
+    expect(JSON.stringify(config.define)).not.toMatch(/canary|PRIVATE|PERSONAS/);
   });
 });
 
@@ -97,7 +28,6 @@ describe("local RPC proxy policy", () => {
     "groundhog_chainTip",
     "groundhog_getEvents",
     "groundhog_view",
-    "groundhog_sendRawTransaction",
     "groundhog_getTransactionStatus",
     "groundhog_getTransactionReceipt",
   ])("allows %s", (method) => {
@@ -105,6 +35,7 @@ describe("local RPC proxy policy", () => {
   });
 
   it("rejects unrelated RPC methods and batches", () => {
+    expect(isAllowedRequest({ method: "groundhog_sendRawTransaction" })).toBe(false);
     expect(isAllowedRequest({ method: "groundhog_deleteAllData" })).toBe(false);
     expect(isAllowedRequest([{ method: "groundhog_view" }])).toBe(false);
   });

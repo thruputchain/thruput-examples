@@ -55,7 +55,7 @@ import {
   type LiquidityStepName,
 } from "@/transactions/liquidity-operation";
 import { createLiquidityObserver, type LiquidityObserver } from "@/transactions/liquidity-observer";
-import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
+import { useWalletWriteBoundary } from "@/wallet/write-context";
 import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
@@ -71,16 +71,13 @@ interface LiquidityPageDependencies {
 export function LiquidityPage({
   config,
   dependencies = {},
-  walletPrivateKey,
 }: {
   config: AppConfig;
   dependencies?: LiquidityPageDependencies;
-  walletPrivateKey?: string | undefined;
 }) {
   const [reader] = useState(() => dependencies.readSnapshot ?? createSnapshotReader(config));
-  const [writer] = useState(() =>
-    dependencies.writer ?? createBrowserLocalWriteBoundary(config, walletPrivateKey)
-  );
+  const connectedWriter = useWalletWriteBoundary();
+  const writer = dependencies.writer ?? connectedWriter;
   const [observer] = useState(() =>
     dependencies.observer ?? createLiquidityObserver(config)
   );

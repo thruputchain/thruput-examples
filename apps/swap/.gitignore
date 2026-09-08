@@ -3,6 +3,7 @@
 .groundhog-config/
 .vite/
 dist/
+public/contract-artifacts/
 node_modules/
 *.sqlite
 *.sqlite-shm
