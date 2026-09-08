@@ -9,11 +9,7 @@ dev_wallet_spec="$app_dir/specs/dev_wallet.spec.xdr"
 dev_wallet_sha256="4e3d10d51600ad3b7f686766dd9a87795b32010b0b7665d69f33ef7d8ddd6fec"
 
 cli_version="$("$groundhog_cli" --version)"
-if [[ ! "$cli_version" =~ ^groundhog\ ([0-9]+)\.([0-9]+)\.([0-9]+)($|[[:space:]].*) ]] ||
-   (( BASH_REMATCH[1] == 0 && BASH_REMATCH[2] < 14 )); then
-  printf 'Groundhog CLI 0.14.0 or newer is required for native U256 bindings; found %s.\n' "$cli_version" >&2
-  exit 1
-fi
+bash "$repo_root/scripts/check-groundhog-version.sh" "$cli_version"
 
 actual_dev_wallet_sha256="$(shasum -a 256 "$dev_wallet_spec" | cut -d ' ' -f 1)"
 if [[ "$actual_dev_wallet_sha256" != "$dev_wallet_sha256" ]]; then
