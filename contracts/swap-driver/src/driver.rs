@@ -7,7 +7,7 @@
 //! and is shared by any driver, whatever its request type.
 
 use crate::cfg::*;
-use batch_driver::Slots;
+use batch_driver::{Slots, UniqueState};
 use sdk::stats::gas_remaining;
 use sdk::storage::*;
 use sdk::*;
@@ -22,14 +22,8 @@ pub struct Driver {
     // Requests (can be enqueued concurrently)
     requests: RCQ<SwapRequest>,
 
-    // A monotonic sequence number, combined with the source-transaction hash to
-    // mint each request's id.  Requests enqueued in one transaction share a tx
-    // hash but get distinct sequence numbers, so their ids differ.
-    //
-    // An `NNInt`'s `inc` is a commutative, blind delta (like the `RCQ`, its
-    // increments from concurrent transactions merge without conflict), so this
-    // preserves the concurrent enqueue the queue is built for.
-    seq: NNInt,
+    // The source of each request's id; see `batch_driver::UniqueState`.
+    ids: Node<UniqueState>,
 
     // Room left in `requests`, counted down as requests arrive and back up as
     // they are drained.  This is what bounds the storage deposit the queue can
@@ -95,12 +89,7 @@ impl SwapDriver for Driver {
         // room rather than failing.
         self.slots.reserve();
 
-        // Mint an id from the enqueuing transaction's hash plus a sequence
-        // number: the tx hash lets the caller correlate the id with its
-        // submission, while the sequence keeps requests distinct when several
-        // are enqueued in one transaction (they share a tx hash but not a seq).
-        self.seq.inc(1);
-        let request_id = (get_source_transaction_hash(), self.seq.get()).hash();
+        let request_id = self.ids.next_id();
 
         self.requests.insert(&request.with_request_id(request_id));
 
