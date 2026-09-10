@@ -32,6 +32,10 @@ impl BatchRequest for Request {
     fn gas_limit(&self) -> u64 {
         REQUEST_GAS
     }
+
+    fn id(&self) -> SHA256Hash {
+        self.id.hash()
+    }
 }
 
 /////////////////////// A crank does work, or is deferred ///////////////////

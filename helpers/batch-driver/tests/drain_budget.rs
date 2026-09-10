@@ -29,6 +29,10 @@ impl BatchRequest for Request {
     fn gas_limit(&self) -> u64 {
         Self::GAS_LIMIT
     }
+
+    fn id(&self) -> SHA256Hash {
+        self.id.hash()
+    }
 }
 
 /// A request declaring more gas than any frame can hold, to exercise the
@@ -45,6 +49,10 @@ impl BatchRequest for Unaffordable {
 
     fn gas_limit(&self) -> u64 {
         Self::GAS_LIMIT
+    }
+
+    fn id(&self) -> SHA256Hash {
+        self.id.hash()
     }
 }
 

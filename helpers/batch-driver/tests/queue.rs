@@ -37,6 +37,10 @@ impl BatchRequest for Request {
     fn gas_limit(&self) -> u64 {
         Self::GAS_LIMIT
     }
+
+    fn id(&self) -> SHA256Hash {
+        self.id
+    }
 }
 
 /////////////////////// queue behavior //////////////////////////
@@ -159,7 +163,7 @@ fn crank(env: &TestEnvironmentHandle) -> (u32, u32) {
     let drained = env.transact(|tx| {
         tx.call(&ADDR).run(|| {
             queue::<Request>()
-                .crank(|_request: Request, _gas| Ok::<(), ()>(()))
+                .crank(|_request: Request, _gas| Ok::<(), CallError>(()))
                 .expect("affordable")
         })
     });

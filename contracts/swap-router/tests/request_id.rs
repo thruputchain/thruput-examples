@@ -126,6 +126,54 @@ fn failed_request_emits_request_failed_with_id() {
     assert_eq!(request_failed_ids(&r), vec![id]);
     // ...and the pair's would-be SwapEvent was rolled back by commit-locking.
     assert_eq!(count_events::<SwapEvent>(&r), 0);
+
+    // The event also says *why*, in the two pieces an off-chain observer needs:
+    // the selector names the exception's type, and the payload's leading bytes
+    // name the variant within it.  Both are decodable from the contract's spec
+    // alone -- which is what this asserts, by reconstructing the answer the
+    // way a client would.
+    let failure = request_failures(&r).pop().expect("a RequestFailed");
+    assert_eq!(failure.cause, Cause::Exception);
+    assert_eq!(
+        failure.selector,
+        SwapRequestError::SELECTOR,
+        "the handler's own error type"
+    );
+    assert_eq!(
+        RawException::new(failure.selector, &failure.payload).try_as(),
+        Some(SwapRequestError::InsufficientOutputAmount),
+        "the swap asked for more out than the fee allows"
+    );
+
+    // Nothing was truncated, so the reported length matches what arrived.
+    assert_eq!(failure.payload_len as usize, failure.payload.len());
+}
+
+// A `RequestFailed`'s payload, owned so it outlives the borrowed event.
+struct Failure {
+    cause: Cause,
+    selector: u64,
+    payload: Vec<u8>,
+    payload_len: u32,
+}
+
+// The failures reported by any RequestFailed events in a processed tx.
+fn request_failures(r: &TransactResult) -> Vec<Failure> {
+    let sig = RequestFailed::signature();
+    r.events()
+        .iter()
+        .filter(|e| EmittedEvent::from(*e).topic(0) == sig)
+        .map(|e| {
+            let typed = TypedEvent::<RequestFailed>::new(e);
+            let p = typed.payload();
+            Failure {
+                cause: p.cause,
+                selector: p.selector,
+                payload: p.payload.to_vec(),
+                payload_len: p.payload_len,
+            }
+        })
+        .collect()
 }
 
 #[test]

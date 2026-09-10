@@ -72,44 +72,19 @@ impl SwapDriver for Driver {
             SwapDriverError::Unauthorized,
         );
 
-        let request_id = self.queue.enqueue(|id| request.with_request_id(id));
-
-        log_event(&RequestAccepted::new(request_id));
-
-        request_id
+        self.queue.enqueue(|id| request.with_request_id(id))
     }
 
     fn process_requests(&mut self) -> (u32, u32) {
         let cfg = self.cfg.get();
 
-        let (n_processed, n_failed) = self
-            .queue
+        self.queue
             .crank(|request, gas_limit| {
-                // Read the id before the request is moved into handling; a
-                // failure rolls back the handler's frame, so the terminal event
-                // for a failed request must come from here, in the driver's own
-                // (committed) frame.
-                let request_id = request.request_id;
-                let result = cfg
-                    .handler()
+                cfg.handler()
                     .with_commit_locking()
                     .with_gas_limit(gas_limit)
-                    .try_handle_request(request);
-                if result.is_err() {
-                    log_event(&RequestFailed::new(request_id));
-                }
-                result
+                    .try_handle_request(request)
             })
-            .unwrap_or_else(|_| throw(SwapDriverError::BatchTooSmall));
-
-        // A batch that took nothing emits nothing, matching the queue's own
-        // silence: an unlucky crank stays free of anything to conflict with.
-        if n_processed > 0 {
-            // Report the batch, so an observer watching only events can track
-            // the queue's depth.
-            log_event(&RequestsProcessed::new(n_processed, n_failed));
-        }
-
-        (n_processed, n_failed)
+            .unwrap_or_else(|_| throw(SwapDriverError::BatchTooSmall))
     }
 }

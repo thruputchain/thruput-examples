@@ -6,8 +6,12 @@
 //!
 //! This crate captures the part of that pattern that is independent of *what*
 //! the requests are: admission control, the ids stamped on accepted requests,
-//! the minimum allowed batch size, and the drain-and-handle loop with its gas
-//! budgeting and failure accounting.  [`Queue`] holds all of it.
+//! the minimum allowed batch size, the drain-and-handle loop with its gas
+//! budgeting and failure accounting, and the three events that narrate all of
+//! it -- [`RequestAccepted`], [`RequestFailed`] and [`RequestsProcessed`].
+//! [`Queue`] holds all of it, and emits those events itself, so every driver
+//! built on it reports its queue the same way.  A driver wanting different
+//! events is better served forking this crate than parameterizing it.
 //!
 //! A contract's exported entrypoints are concrete (they decode fixed argument
 //! types), so the concrete request type has to be named by the crate that
@@ -29,8 +33,24 @@
 //! }
 //! ```
 //!
+//! An interface must still name the events in its `emits(...)` list, or they
+//! are emitted but absent from the contract's spec, and no generated binding
+//! decodes them:
+//!
+//! ```ignore
+//! #[contract(
+//!     client = MyDriverClient,
+//!     emits(
+//!         batch_driver::RequestAccepted,
+//!         batch_driver::RequestFailed,
+//!         batch_driver::RequestsProcessed
+//!     )
+//! )]
+//! ```
+//!
 //! [`process`] and [`Slots`] remain public beneath that, for a driver whose
-//! queue does not fit the whole shape.
+//! queue does not fit the whole shape -- but one using them directly emits
+//! nothing, and reports its own failures.
 //!
 //! ## Draining belongs in a transaction of its own
 //!
@@ -287,6 +307,14 @@ pub trait BatchRequest: WriteXDR + ReadXDROwned {
 
     /// The gas limit to apply when *this* request is handled.
     fn gas_limit(&self) -> u64;
+
+    /// The id this request was stamped with when it was accepted.
+    ///
+    /// [`Queue::enqueue`] mints the id and hands it to the request type to
+    /// carry; this reads it back.  [`Queue::crank`] needs it to name a failed
+    /// request in its [`RequestFailed`] event, and must read it *before*
+    /// handing the request to a handler that consumes it.
+    fn id(&self) -> SHA256Hash;
 }
 
 /// Drain the queue, handing each request to `handle` with the gas budget the
@@ -371,6 +399,141 @@ pub struct InvalidPolicy;
 #[derive(Debug)]
 pub struct Starved;
 
+/// How much of a failed request's exception payload [`RequestFailed`] carries.
+///
+/// The protocol caps a whole serialized event at 1024 bytes, topics included,
+/// and an abort payload at the same figure on its own -- so a verbatim copy
+/// cannot be guaranteed to fit, and an oversized event *throws*, which inside
+/// a crank would abort the batch and lose the requests that had already
+/// succeeded.  The payload is therefore truncated, and this is the ceiling
+/// [`RequestFailed::of`] truncates to.
+///
+/// Not set at that ceiling, though, and not for want of room: the payload is
+/// variable-length on the wire, so a short one costs its own few bytes however
+/// high this is set, and raising it is free for every failure that does not
+/// use it.  Two things argue against the brim anyway.
+///
+/// The first is that the margin is what protects the batch.  A maximal event
+/// currently serializes well inside the cap; a field added to
+/// [`RequestFailed`] eats that margin, and at the brim it would push every
+/// large-payload failure over -- aborting batches, and only once an exception
+/// large enough actually occurred.  `tests/event_budget.rs` pins both the fit
+/// and the margin so that lands in CI instead.
+///
+/// The second is that these are emitted per request, so a batch multiplies
+/// them: a queue that fails wholesale emits one for every entry it held.  The
+/// worst case is this figure times the queue's capacity, which is worth
+/// keeping modest for something read far more often than it is needed.
+///
+/// And the need is small.  An exception payload leads with its variant
+/// discriminant, so four bytes already name the variant of any fieldless
+/// error, which is nearly all of them; the largest in the swap suite is eight.
+/// [`RequestFailed::payload_len`] reports the untruncated length, so a reader
+/// can always tell when there was more.
+pub const EXCEPTION_PAYLOAD_MAX: usize = 256;
+
+/// How a request's handling failed, for [`RequestFailed`].
+///
+/// A [`CallError`] has ten variants, but only one of them carries an
+/// exception.  The rest still have to be told apart, because they mean
+/// different things to whoever has to fix them: a fault is the handler
+/// running out of the gas the request declared (or panicking); a rejection is
+/// a mis-wired driver; a malformed result is interface skew between the two.
+#[contract_type]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Cause {
+    /// The handler aborted with a selector-tagged error.  This is the only
+    /// cause for which [`RequestFailed`]'s `selector` and `payload` say
+    /// anything.
+    Exception = 1,
+
+    /// The handler's frame died without a result: it exhausted the gas the
+    /// request declared, panicked, or trapped.  Nothing crosses a faulted
+    /// call boundary, so there is nothing to report but the fact.
+    Fault = 2,
+
+    /// The call was refused before the handler ran at all -- no contract at
+    /// the address, a reentrant call, or the invocation depth bound.
+    Rejected = 3,
+
+    /// The call completed but its result would not decode, on one side or the
+    /// other.
+    Malformed = 4,
+}
+
+/// Emitted by [`Queue::enqueue`] when a request is accepted, carrying the id
+/// it was stamped with.
+#[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RequestAccepted<'a> {
+    #[topic]
+    pub request_id: &'a SHA256Hash,
+}
+
+/// Emitted by [`Queue::crank`] for each request whose handling failed.
+///
+/// The payload is the exception's own wire bytes, truncated to
+/// [`EXCEPTION_PAYLOAD_MAX`] and borrowed rather than copied.  With the `selector`
+/// it is enough to name the error: a contract's spec maps a selector to the
+/// exception type it belongs to, and that type's definition maps the leading
+/// payload bytes to a variant -- so an observer decodes one of these from the
+/// generated bindings alone, with nothing further to arrange.
+#[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RequestFailed<'a> {
+    #[topic]
+    pub request_id: &'a SHA256Hash,
+
+    /// Which kind of failure this was, and so whether the two fields below
+    /// mean anything.
+    pub cause: Cause,
+
+    /// The exception type's selector, or zero when `cause` is not
+    /// [`Cause::Exception`].
+    pub selector: u64,
+
+    /// The leading bytes of the exception's payload, at most
+    /// [`EXCEPTION_PAYLOAD_MAX`] of them.
+    pub payload: &'a [u8],
+
+    /// The payload's length before truncation, so a reader can tell that
+    /// there was more than `payload` holds.
+    pub payload_len: u32,
+}
+
+impl<'a> RequestFailed<'a> {
+    /// Describe `e` as a failure of the request `request_id`, borrowing the
+    /// exception's payload in place.
+    pub fn of(request_id: &'a SHA256Hash, e: &'a CallError) -> Self {
+        let (cause, selector, bytes): (Cause, u64, &'a [u8]) = match e {
+            CallError::Exception(exn) => (Cause::Exception, exn.selector(), exn.payload()),
+            CallError::Fault(_) => (Cause::Fault, 0, &[]),
+            e if e.is_rejected_before_call() => (Cause::Rejected, 0, &[]),
+            _ => (Cause::Malformed, 0, &[]),
+        };
+
+        Self {
+            request_id,
+            cause,
+            selector,
+            payload: &bytes[..bytes.len().min(EXCEPTION_PAYLOAD_MAX)],
+            payload_len: bytes.len() as u32,
+        }
+    }
+}
+
+/// Emitted by [`Queue::crank`] once for a batch that processed anything.
+///
+/// A crank that found the queue empty emits nothing: it writes no delta and
+/// has nothing to report, which is what keeps an unlucky crank free rather
+/// than a nuisance.
+#[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RequestsProcessed {
+    /// How many requests left the queue, failures included.
+    pub processed: u32,
+
+    /// How many of those failed, each with its own [`RequestFailed`].
+    pub failed: u32,
+}
+
 /// A driver's request queue: the entries, the room left in it, and the ids it
 /// stamps on what it accepts.
 ///
@@ -448,6 +611,8 @@ impl<R: BatchRequest> Queue<R> {
         let id = self.ids.next_id();
         self.requests.insert(&stamp(id));
 
+        log_event(&RequestAccepted { request_id: &id });
+
         id
     }
 
@@ -461,10 +626,9 @@ impl<R: BatchRequest> Queue<R> {
     /// The refusal happens before the queue is touched, so a refused crank
     /// neither drains nor leaves anything half-done, and costs its sender and
     /// nobody else.
-    pub fn crank<F, E>(&mut self, handle: F) -> Result<(u32, u32), Starved>
+    pub fn crank<F>(&mut self, mut handle: F) -> Result<(u32, u32), Starved>
     where
-        F: FnMut(R, u64) -> Result<(), E>,
-        E: core::fmt::Debug,
+        F: FnMut(R, u64) -> Result<(), CallError>,
     {
         let policy = self.policy.get();
 
@@ -481,14 +645,33 @@ impl<R: BatchRequest> Queue<R> {
             return Err(Starved);
         }
 
-        let (n_processed, n_failed) = process(&mut self.requests, handle);
+        let (n_processed, n_failed) = process(&mut self.requests, |request, gas_limit| {
+            // Read the id before the request is handed over: handling
+            // consumes it.  A failure rolls the handler's frame back, so
+            // the terminal event for a failed request has to come from
+            // here, in the driver's own (committed) frame.
+            let id = request.id();
+
+            let result = handle(request, gas_limit);
+            if let Err(e) = &result {
+                log_event(&RequestFailed::of(&id, e));
+            }
+
+            result
+        });
 
         // A batch that took nothing touches nothing: no delta, so nothing to
-        // conflict with.  Even returning zero room would write a (zero) delta.
+        // conflict with.  Even returning zero room would write a (zero) delta,
+        // and an event nobody could learn anything from.
         if n_processed > 0 {
             // Every entry the batch took is out of the queue -- including the
             // ones whose handling failed -- so its room comes back.
             self.slots.release(n_processed);
+
+            log_event(&RequestsProcessed {
+                processed: n_processed,
+                failed: n_failed,
+            });
         }
 
         Ok((n_processed, n_failed))

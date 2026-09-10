@@ -255,4 +255,8 @@ impl batch_driver::BatchRequest for SwapRequest {
             SwapOp::SwapExactIn(_) | SwapOp::SwapExactOut(_) => SWAP_GAS,
         }
     }
+
+    fn id(&self) -> RequestId {
+        self.request_id
+    }
 }

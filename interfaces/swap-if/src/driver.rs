@@ -1,8 +1,7 @@
 //! The request-batching driver interface.
 
 use crate::{
-    Address, ERC20Error, RequestAccepted, RequestFailed, RequestId, RequestsProcessed,
-    SwapLibraryError, SwapPairError, SwapRequest, SwapRequestError,
+    Address, ERC20Error, RequestId, SwapLibraryError, SwapPairError, SwapRequest, SwapRequestError,
 };
 use sdk::*;
 
@@ -39,7 +38,11 @@ pub enum SwapDriverError {
 #[contract(
     client = SwapDriverClient,
     throws(ERC20Error, SwapPairError, SwapRequestError, SwapLibraryError, SwapDriverError),
-    emits(RequestAccepted, RequestFailed, RequestsProcessed)
+    emits(
+        batch_driver::RequestAccepted,
+        batch_driver::RequestFailed,
+        batch_driver::RequestsProcessed
+    )
 )]
 pub trait SwapDriver {
     /// Must be called exactly once before any other methods.
@@ -85,9 +88,10 @@ pub trait SwapDriver {
     fn request(&mut self, request: SwapRequest) -> RequestId;
 
     /// Drain the queue, returning `(processed, failed)` counts.  Each failed
-    /// request emits a [`RequestFailed`] carrying its [`RequestId`], and a
-    /// batch that processed anything emits one [`RequestsProcessed`]
-    /// summarizing it.
+    /// request emits a [`RequestFailed`](batch_driver::RequestFailed) carrying
+    /// its [`RequestId`] and why it failed, and a batch that processed
+    /// anything emits one
+    /// [`RequestsProcessed`](batch_driver::RequestsProcessed) summarizing it.
     ///
     /// How much is drained is up to the caller: the batch runs until the queue
     /// empties or the calling frame runs out of gas, so the declared gas limit
