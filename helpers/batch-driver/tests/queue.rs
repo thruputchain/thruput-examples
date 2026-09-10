@@ -5,8 +5,9 @@
 //! `drain_budget` for the loop's gas budgeting, `queue_semantics` for the
 //! runtime rules underneath both.  What is tested here is what `Queue` adds by
 //! owning all of them: that an enqueue takes a slot and a drain gives it back,
-//! that every accepted entry gets an id of its own, and that a policy no crank
-//! could satisfy is refused at initialization.
+//! that every accepted entry gets an id of its own, that a failed request is
+//! still taken and still counted, and that a policy no crank could satisfy is
+//! refused at initialization.
 //!
 //! The other half of the policy -- refusing a crank that cannot fund what the
 //! queue owes -- is not reachable from here.  Starving a crank needs a frame
@@ -91,6 +92,48 @@ fn entries_from_one_transaction_get_distinct_ids() {
 
     let [a, b] = ids.assert_return_as::<[SHA256Hash; 2]>();
     assert_ne!(a, b);
+}
+
+/////////////////////// failure accounting /////////////////////////////////
+
+// A request whose handling fails is still consumed, and still counts toward
+// the batch: the drain reports it rather than stopping.  A batch that stopped
+// at its first failure would leave the rest of the queue hostage to one bad
+// request.
+#[test]
+fn a_failed_request_does_not_stop_the_batch() {
+    let env = TestEnvironment::no_cost();
+    initialize(&env, MIN_BATCH).assert_success();
+    env.advance_block();
+
+    for _ in 0..CAPACITY {
+        enqueue(&env).assert_success();
+    }
+    env.advance_block();
+
+    let drained = env.transact(|tx| {
+        tx.call(&ADDR).run(|| {
+            // The *first* request fails, so a drain that stopped at a failure
+            // would report one taken rather than two.
+            let mut seen = 0;
+            queue::<Request>()
+                .crank(|_request: Request, _gas| {
+                    seen += 1;
+                    if seen == 1 {
+                        Err(CallError::Invalid)
+                    } else {
+                        Ok(())
+                    }
+                })
+                .expect("affordable")
+        })
+    });
+    drained.assert_success();
+    assert_eq!(drained.assert_return_as::<(u32, u32)>(), (CAPACITY, 1));
+
+    // Both left the queue, the failed one included, so both slots came back.
+    env.advance_block();
+    assert_eq!(crank(&env), (0, 0));
 }
 
 /////////////////////// the policy //////////////////////////////////////////

@@ -1,4 +1,4 @@
-//! The queue semantics [`batch_driver::process`] rests on.
+//! The queue semantics [`batch_driver::Queue`]'s drain rests on.
 //!
 //! `process` drains an `RCQ` that concurrent transactions are inserting into,
 //! and a driver's cranking policy is built on top of what the runtime does
@@ -12,30 +12,18 @@
 //! under it in the same block, and it only no-ops when the queue was genuinely
 //! empty at the block snapshot.
 
-use batch_driver::BatchRequest;
 use sdk::storage::*;
 use sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([1u8; 32]);
 
-const REQUEST_GAS: u64 = 100_000;
-
+// The queue's entries.  These tests never drain through the helper, so this
+// needs no `BatchRequest` impl -- only the encoding that lets it sit in an
+// `RCQ`.
 #[derive(ReadXDR, WriteXDR, Clone, Copy, Debug, PartialEq, Eq)]
 #[xdrs(crate = "::sdk::__xdrs")]
 struct Request {
     id: u32,
-}
-
-impl BatchRequest for Request {
-    const GAS_LIMIT: u64 = REQUEST_GAS;
-
-    fn gas_limit(&self) -> u64 {
-        REQUEST_GAS
-    }
-
-    fn id(&self) -> SHA256Hash {
-        self.id.hash()
-    }
 }
 
 /////////////////////// A crank does work, or is deferred ///////////////////
@@ -170,36 +158,6 @@ fn a_crank_ordered_before_an_enqueue_leaves_it_queued() {
     assert_eq!(crank_returning(&env), (1, 0));
 }
 
-/////////////////////// Failure accounting //////////////////////////////////
-
-// A request whose handling fails is still consumed, and still counts toward
-// the batch: `process` reports it rather than stopping the drain.
-#[test]
-fn a_failed_request_does_not_stop_the_batch() {
-    let env = TestEnvironment::no_cost();
-
-    for id in 1..=3 {
-        enqueue(&env, id).assert_success();
-    }
-    env.advance_block();
-
-    let crank = env.transact(|tx| {
-        tx.call(&ADDR).run(|| {
-            let mut queue: RCQ<Request> = Keypath::default().into();
-            // The second request fails; the others succeed.
-            batch_driver::process(
-                &mut queue,
-                |request: Request, _gas| {
-                    if request.id == 2 { Err(()) } else { Ok(()) }
-                },
-            )
-        })
-    });
-
-    crank.assert_success();
-    assert_eq!(crank.assert_return_as::<(u32, u32)>(), (3, 1));
-}
-
 /////////////////////// helpers /////////////////////////////////////////////
 
 fn enqueue(env: &TestEnvironmentHandle, id: u32) -> TransactResult {
@@ -211,11 +169,22 @@ fn enqueue(env: &TestEnvironmentHandle, id: u32) -> TransactResult {
     })
 }
 
+// Drain the queue dry, and report how much was taken.
+//
+// Deliberately a local loop rather than `Queue::crank`: what these tests pin
+// is the runtime's behaviour when several transactions in one block touch a
+// queue, and routing through the helper would put its slot accounting and its
+// events into the deltas being compared.  The loop is unbounded because gas is
+// free here -- the helper's real budgeting is `drain_budget`'s subject.
 fn crank(env: &TestEnvironmentHandle) -> TransactResult {
     env.transact(|tx| {
         tx.call(&ADDR).run(|| {
             let mut queue: RCQ<Request> = Keypath::default().into();
-            batch_driver::process(&mut queue, |_request: Request, _gas| Ok::<(), ()>(()))
+            let mut processed = 0u32;
+            while queue.try_consume().none_if_missing().is_some() {
+                processed += 1;
+            }
+            (processed, 0u32)
         })
     })
 }

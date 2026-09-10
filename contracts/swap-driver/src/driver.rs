@@ -45,13 +45,16 @@ impl SwapDriver for Driver {
         if self.cfg.try_get().none_if_missing().is_some() {
             throw(SwapDriverError::AlreadyInitialized);
         }
+
+        // Initialize the request queue.
         self.queue
             .initialize(CrankPolicy {
                 capacity: max_queue_len,
                 min_batch: min_crank_batch,
             })
-            .unwrap_or_else(|_: batch_driver::InvalidPolicy|
-                throw(SwapDriverError::InvalidConfiguration));
+            .unwrap_or_else(|_: batch_driver::InvalidPolicy| {
+                throw(SwapDriverError::InvalidConfiguration)
+            });
 
         // Ensure only one `initialize` call can succeed per block.
         self.cfg.set_exclusive(&Cfg {
@@ -63,7 +66,7 @@ impl SwapDriver for Driver {
     fn request(&mut self, request: SwapRequest) -> RequestId {
         // A request names the account whose tokens it will spend, which this
         // contract cannot check; we depend on the router's record of who made
-        // the request.
+        // the request, and thus accept requests only from the router.
         ensure(
             get_caller() == self.cfg.get().router,
             SwapDriverError::Unauthorized,
@@ -82,7 +85,6 @@ impl SwapDriver for Driver {
                     .with_gas_limit(gas_limit)
                     .try_handle_request(request)
             })
-            .unwrap_or_else(|_: batch_driver::Starved|
-                throw(SwapDriverError::BatchTooSmall))
+            .unwrap_or_else(|_: batch_driver::Starved| throw(SwapDriverError::BatchTooSmall))
     }
 }

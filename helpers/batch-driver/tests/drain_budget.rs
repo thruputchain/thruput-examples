@@ -1,4 +1,4 @@
-//! The gas budgeting in [`batch_driver::process`].
+//! The gas budgeting in [`batch_driver::Queue::crank`]'s drain.
 //!
 //! The drain is bounded by what the calling frame can still afford, so the
 //! caller's own gas limit is what sizes the batch.  Two properties matter, and
@@ -10,11 +10,15 @@
 //!   a request is never taken out of the queue and then dropped for want of
 //!   gas to handle it.
 
-use batch_driver::{BatchRequest, EPILOGUE_GAS, gas_for_batch};
+use batch_driver::{BatchRequest, CrankPolicy, EPILOGUE_GAS, Queue, gas_for_batch};
 use sdk::storage::*;
 use sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([2u8; 32]);
+
+// Room for the longest batch below, and no crank floor: this is about what the
+// frame can afford, not what the queue demands of it.
+const CAPACITY: u32 = 32;
 
 /// An ordinary request, cheap enough that a default frame can drain many.
 #[derive(ReadXDR, WriteXDR, Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,6 +65,7 @@ impl BatchRequest for Unaffordable {
 #[test]
 fn a_frame_with_room_drains_past_the_old_fixed_batch() {
     let env = TestEnvironment::no_cost();
+    initialize(&env);
 
     for id in 0..25 {
         enqueue(&env, id).assert_success();
@@ -77,6 +82,7 @@ fn a_frame_with_room_drains_past_the_old_fixed_batch() {
 #[test]
 fn a_frame_without_room_consumes_nothing() {
     let env = TestEnvironment::no_cost();
+    initialize(&env);
 
     for id in 0..3 {
         enqueue(&env, id).assert_success();
@@ -93,6 +99,7 @@ fn a_frame_without_room_consumes_nothing() {
 #[test]
 fn requests_declined_for_want_of_gas_stay_queued() {
     let env = TestEnvironment::no_cost();
+    initialize(&env);
 
     for id in 0..3 {
         enqueue(&env, id).assert_success();
@@ -104,12 +111,13 @@ fn requests_declined_for_want_of_gas_stay_queued() {
 
     let seen = env.transact(|tx| {
         tx.call(&ADDR).run(|| {
-            let mut queue: RCQ<Request> = Keypath::default().into();
             let mut seen = Vec::new();
-            batch_driver::process(&mut queue, |request: Request, _gas| {
-                seen.push(request.id);
-                Ok::<(), ()>(())
-            });
+            queue::<Request>()
+                .crank(|request: Request, _gas| {
+                    seen.push(request.id);
+                    Ok(())
+                })
+                .expect("a zero floor owes nothing");
             seen
         })
     });
@@ -175,11 +183,34 @@ fn gas_for_batch_saturates() {
 
 /////////////////////// helpers /////////////////////////////////////////////
 
+// A queue rooted at the default keypath, so that a `Queue<Request>` and a
+// `Queue<Unaffordable>` name the same storage -- the two encode identically, so
+// each reads the other's entries, which is how a cheap batch is enqueued and
+// then cranked at an unaffordable budget.
+fn queue<R: BatchRequest>() -> Queue<R> {
+    Keypath::default().into()
+}
+
+// Set the ceiling, without a crank floor.
+fn initialize(env: &TestEnvironmentHandle) {
+    env.transact(|tx| {
+        tx.call(&ADDR).run(|| {
+            queue::<Request>()
+                .initialize(CrankPolicy {
+                    capacity: CAPACITY,
+                    min_batch: 0,
+                })
+                .expect("a zero floor is satisfiable");
+        })
+    })
+    .assert_success();
+    env.advance_block();
+}
+
 fn enqueue(env: &TestEnvironmentHandle, id: u32) -> TransactResult {
     env.transact(|tx| {
         tx.call(&ADDR).run(move || {
-            let mut queue: RCQ<Request> = Keypath::default().into();
-            queue.insert(&Request { id });
+            queue::<Request>().enqueue(|_| Request { id });
         })
     })
 }
@@ -187,8 +218,9 @@ fn enqueue(env: &TestEnvironmentHandle, id: u32) -> TransactResult {
 fn crank<R: BatchRequest + 'static>(env: &TestEnvironmentHandle) -> TransactResult {
     env.transact(|tx| {
         tx.call(&ADDR).run(|| {
-            let mut queue: RCQ<R> = Keypath::default().into();
-            batch_driver::process(&mut queue, |_request: R, _gas| Ok::<(), ()>(()))
+            queue::<R>()
+                .crank(|_request: R, _gas| Ok(()))
+                .expect("a zero floor owes nothing")
         })
     })
 }

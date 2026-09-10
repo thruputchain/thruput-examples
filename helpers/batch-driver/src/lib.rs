@@ -44,10 +44,6 @@
 //! )]
 //! ```
 //!
-//! [`process`] and [`Slots`] remain public beneath that, for a driver whose
-//! queue does not fit the whole shape -- but one using them directly emits
-//! nothing, and reports its own failures.
-//!
 //! ## Draining belongs in a transaction of its own
 //!
 //! It is tempting to let a request submission drain the queue on its way past,
@@ -101,13 +97,13 @@ use sdk::stats::gas_remaining;
 use sdk::storage::*;
 use sdk::*;
 
-/// This is the gas that [`process`] holds back so the frame can finish once
-/// the batch is over: the budget check that ends the loop, the probe that
-/// finds the queue empty, returning the counts -- **and whatever the driver
-/// itself does after `process` returns**, which for `swap-driver` is releasing
-/// the queue's room and emitting its batch summary.  That last part is the
-/// reason this is not a token figure: the reserve is all the gas those have,
-/// and a frame that runs out there faults, losing the whole batch it just did.
+/// This is the gas that [`Queue::crank`] holds back so the frame can finish
+/// once the batch is over: the budget check that ends the drain, the probe
+/// that finds the queue empty, releasing the room the batch freed, emitting
+/// the batch summary, and whatever the driver itself does after `crank`
+/// returns.  That last part is the reason this is not a token figure: the
+/// reserve is all the gas those have, and a frame that runs out there faults,
+/// losing the whole batch it just did.
 ///
 /// The loop checks for `R::GAS_LIMIT + EPILOGUE_GAS` before taking a request,
 /// and handling it can spend the whole `R::GAS_LIMIT` (the sub-call is capped
@@ -117,9 +113,9 @@ use sdk::*;
 /// shortfall is one iteration's, not the batch's.
 pub const EPILOGUE_GAS: u64 = 50_000;
 
-/// The gas limit a caller should declare to have [`process`] drain up to
-/// `batch_size` requests of type `R`, even if every one of them costs the full
-/// [`BatchRequest::GAS_LIMIT`].
+/// The gas limit a caller should declare in order to have [`Queue::crank`]
+/// drain up to `batch_size` requests of type `R`, even if every one of them
+/// costs the full [`BatchRequest::GAS_LIMIT`].
 ///
 /// Since the drain is bounded by the gas its frame has left, this is how a
 /// caller *chooses* a batch size -- there is no batch size fixed here on
@@ -132,28 +128,29 @@ pub const EPILOGUE_GAS: u64 = 50_000;
 /// often runs longer than `batch_size`.  This is a floor, not a cap.
 pub const fn gas_for_batch<R: BatchRequest>(batch_size: u32) -> u64 {
     // One request's worth beyond what the loop strictly needs, so that a
-    // caller declaring exactly this still clears [`budget_for_batch`] after
-    // the frame's own entry costs.
+    // caller declaring exactly this still clears `budget_for_batch` after the
+    // frame's own entry costs.
     budget_for_batch::<R>(batch_size).saturating_add(R::GAS_LIMIT)
 }
 
-/// The gas a frame must still hold for [`process`] to be able to take
-/// `batch_size` more requests of type `R` from here.
+/// The gas a frame must still hold to be able to take `batch_size` more
+/// requests of type `R` from here.
 ///
-/// This is the loop's precondition rather than advice to a caller: the check
+/// The drain loop's precondition rather than advice to a caller: the check
 /// before each request is for one request plus [`EPILOGUE_GAS`], so taking
 /// `batch_size` of them in a row needs `batch_size` requests' worth on top of
-/// that reserve.  A caller sizing a transaction wants
-/// [`gas_for_batch`] instead, which leaves room above this for the frame to
-/// get as far as its first check.
-///
-/// A driver can use this to refuse a crank too small to be worth the block's
-/// one drain -- see [`Slots::remaining_at_snapshot`].
-pub const fn budget_for_batch<R: BatchRequest>(batch_size: u32) -> u64 {
+/// that reserve.  [`Queue::crank`] measures a crank against this to decide
+/// whether it can fund what the queue owes; a caller sizing a transaction
+/// wants [`gas_for_batch`] instead, which leaves room above this for the frame
+/// to get as far as its first check.
+const fn budget_for_batch<R: BatchRequest>(batch_size: u32) -> u64 {
     EPILOGUE_GAS.saturating_add((batch_size as u64).saturating_mul(R::GAS_LIMIT))
 }
 
 /// Admission control for a driver's queue: the room still left in it.
+///
+/// (This is used interally by [`Queue`], but is available for other uses by
+/// contracts that need more control.)
 ///
 /// A queued entry costs storage, and that storage is a deposit locked out of
 /// the driver contract's own HOG balance, so whoever funds a driver wants a
@@ -261,29 +258,14 @@ impl Slots {
 /// transactions in one block therefore read the same counter value, and it is
 /// the transaction hash that keeps their ids apart.
 ///
-/// # Example
-///
-/// ```ignore
-/// #[storage]
-/// pub struct Driver {
-///     requests: RCQ<Request>,
-///     ids: Node<UniqueState>,
-/// }
-///
-/// fn request(&mut self, request: Request) -> SHA256Hash {
-///     let id = self.ids.next_id();
-///     self.requests.insert(&request.with_id(id));
-///     id
-/// }
-/// ```
 #[derive(Storage)]
-pub struct UniqueState {
+struct UniqueState {
     seq: NNInt,
 }
 
 impl UniqueState {
     /// Mint an id no other request has been given.
-    pub fn next_id(&mut self) -> SHA256Hash {
+    fn next_id(&mut self) -> SHA256Hash {
         self.seq.inc(1);
         (get_source_transaction_hash(), self.seq.get()).hash()
     }
@@ -291,9 +273,10 @@ impl UniqueState {
 
 /// A request that can be batched by a driver.
 ///
-/// This is all a request type must provide for [`process`] to drive it: a way
-/// to size each request's gas budget.  (The `WriteXDR`/`ReadXDROwned` bounds are
-/// what let it live in the driver's [`RCQ`] queue.)
+/// This is all a request type must provide for a [`Queue`] to hold and drain
+/// it: a way to size each request's gas budget, and the id it was stamped
+/// with.  (The `WriteXDR`/`ReadXDROwned` bounds are what let it live in the
+/// [`RCQ`] behind the queue.)
 ///
 pub trait BatchRequest: WriteXDR + ReadXDROwned {
     /// A static upper bound on the gas any single request may consume, used to
@@ -327,7 +310,7 @@ pub trait BatchRequest: WriteXDR + ReadXDROwned {
 /// batch by its own gas limit -- which, for a root transaction, is exactly the
 /// scheduling capacity it has chosen to spend.
 ///
-pub fn process<R, F, E>(queue: &mut RCQ<R>, mut handle: F) -> (u32, u32)
+fn process<R, F, E>(queue: &mut RCQ<R>, mut handle: F) -> (u32, u32)
 where
     R: BatchRequest,
     F: FnMut(R, u64) -> Result<(), E>,
@@ -536,7 +519,35 @@ pub struct RequestsProcessed {
 /// A driver supplies only what this cannot know: how to hand one request to
 /// its handler.
 ///
-/// # Example
+/// # Writing a driver
+///
+/// The request type carries the id the queue stamps on it, and declares what
+/// one costs:
+///
+/// ```ignore
+/// #[contract_type]
+/// pub struct Request {
+///     pub id: SHA256Hash,
+///     pub op: Op,
+/// }
+///
+/// impl BatchRequest for Request {
+///     const GAS_LIMIT: u64 = 300_000;
+///
+///     fn gas_limit(&self) -> u64 {
+///         match self.op { /* what this one deserves */ }
+///     }
+///
+///     fn id(&self) -> SHA256Hash {
+///         self.id
+///     }
+/// }
+/// ```
+///
+/// The contract holds one of these beside whatever else it needs, and its
+/// three entrypoints are the three methods below.  Each maps a helper error
+/// onto the contract's own, since a contract's callers see its exceptions and
+/// not this crate's:
 ///
 /// ```ignore
 /// #[storage]
@@ -545,22 +556,37 @@ pub struct RequestsProcessed {
 ///     queue: Node<Queue<Request>>,
 /// }
 ///
-/// fn initialize(&mut self, capacity: u32, min_batch: u32) {
-///     self.queue
-///         .initialize(CrankPolicy { capacity, min_batch })
-///         .unwrap_or_else(|_| throw(MyError::InvalidConfiguration));
-/// }
+/// #[contract]
+/// impl MyDriver for Driver {
+///     fn initialize(&mut self, handler: &Address, capacity: u32, min_batch: u32) {
+///         self.queue
+///             .initialize(CrankPolicy { capacity, min_batch })
+///             .unwrap_or_else(|_: InvalidPolicy| throw(MyError::InvalidConfiguration));
 ///
-/// fn request(&mut self, request: Request) -> SHA256Hash {
-///     self.queue.enqueue(|id| request.with_id(id))
-/// }
+///         self.cfg.set_exclusive(&Cfg { handler: *handler });
+///     }
 ///
-/// fn process_requests(&mut self) -> (u32, u32) {
-///     self.queue
-///         .crank(|request, gas_limit| { /* call the handler */ })
-///         .unwrap_or_else(|_| throw(MyError::BatchTooSmall))
+///     fn request(&mut self, op: Op) -> SHA256Hash {
+///         self.queue.enqueue(|id| Request { id, op })
+///     }
+///
+///     fn process_requests(&mut self) -> (u32, u32) {
+///         let cfg = self.cfg.get();
+///
+///         self.queue
+///             .crank(|request, gas_limit| {
+///                 cfg.handler()
+///                     .with_commit_locking()
+///                     .with_gas_limit(gas_limit)
+///                     .try_handle(request)
+///             })
+///             .unwrap_or_else(|_: Starved| throw(MyError::BatchTooSmall))
+///     }
 /// }
 /// ```
+///
+/// Commit-locking the handler call is what makes a failed request roll back
+/// alone instead of taking the batch with it; see [`crank`](Self::crank).
 #[derive(Storage)]
 pub struct Queue<R: BatchRequest> {
     // The entries, which concurrent transactions insert into.
@@ -581,7 +607,24 @@ pub struct Queue<R: BatchRequest> {
 impl<R: BatchRequest> Queue<R> {
     /// Set the queue's policy.  Call once, when the driver is initialized.
     ///
-    /// Fails if the floor exceeds the ceiling.
+    /// Until this is called the queue admits nothing: the ceiling starts at
+    /// zero, so a driver that skipped initialization refuses every request
+    /// rather than silently accepting any number of them.
+    ///
+    /// Fails if the floor exceeds the ceiling -- a crank could then be asked
+    /// for a batch the queue is never allowed to hold, which no crank could
+    /// satisfy.  A driver reports that as its own error:
+    ///
+    /// ```ignore
+    /// fn initialize(&mut self, capacity: u32, min_batch: u32) {
+    ///     self.queue
+    ///         .initialize(CrankPolicy { capacity, min_batch })
+    ///         .unwrap_or_else(|_: InvalidPolicy| throw(MyError::InvalidConfiguration));
+    /// }
+    /// ```
+    ///
+    /// Both figures are the driver's to choose, and they trade off against
+    /// each other: see [`CrankPolicy`].
     pub fn initialize(&mut self, policy: CrankPolicy) -> Result<(), InvalidPolicy> {
         if policy.min_batch > policy.capacity {
             return Err(InvalidPolicy);
@@ -596,11 +639,32 @@ impl<R: BatchRequest> Queue<R> {
     /// Accept one entry, returning the id stamped on it.
     ///
     /// `stamp` is handed that id and returns the entry to insert, so a request
-    /// type keeps its own way of carrying one.
+    /// type keeps its own way of carrying one -- the queue never dictates a
+    /// field name or position:
+    ///
+    /// ```ignore
+    /// fn request(&mut self, op: Op) -> SHA256Hash {
+    ///     self.queue.enqueue(|id| Request { id, op })
+    /// }
+    /// ```
+    ///
+    /// The id comes back to the caller *and* rides along on the entry, which
+    /// is what lets an off-chain caller match the request it submitted against
+    /// the event it eventually produces -- the [`RequestAccepted`] emitted
+    /// here, and later either the driver's own success event or the
+    /// [`RequestFailed`] that [`crank`](Self::crank) emits.  A request type
+    /// that discards the id in `stamp` still enqueues, but nothing downstream
+    /// can name it.
+    ///
+    /// A driver wanting to permission its queue does so *before* calling this:
+    /// an entry names whatever account its handler will act for, and neither
+    /// this nor the handler can check that claim.
     ///
     /// If the queue is full the slot claim overruns the ceiling and the whole
     /// transaction is excluded from its block and returned to the mempool --
-    /// the entry waits for room rather than failing.  See [`Slots::reserve`].
+    /// the entry waits for room rather than failing, so a caller that cannot
+    /// wait indefinitely bounds it with the transaction's expiry height.  See
+    /// [`Slots::reserve`].
     pub fn enqueue(&mut self, stamp: impl FnOnce(SHA256Hash) -> R) -> SHA256Hash {
         self.slots.reserve();
 
