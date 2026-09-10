@@ -83,7 +83,7 @@ npm --prefix apps/wallet-extension run build
 ```
 
 Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**,
-and select `apps/wallet-extension/dist`. Pin Groundhog Wallet. After rebuilding,
+and select `apps/wallet-extension/dist`. Pin Thruput Wallet. After rebuilding,
 reload the extension and refresh both app tabs.
 
 For the simplest journey, keep registries and discovery disabled. Add these

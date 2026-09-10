@@ -49,7 +49,7 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 
 Use the [wallet local-development guide](docs/wallet-local-development.md) to
 install the sibling SDK, provision a disposable node, and run both apps with the
-[Groundhog Wallet extension](apps/wallet-extension/README.md). Setup creates
+[Thruput Wallet extension](apps/wallet-extension/README.md). Setup creates
 infrastructure only; users create/import their own test wallet, request HOG,
 launch two tokens, and create the first pool through extension approvals.
 

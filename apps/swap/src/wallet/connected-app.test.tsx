@@ -144,14 +144,14 @@ describe("connected wallet runtime", () => {
     ).toBeNull();
     let wallet!: ReturnType<typeof provider>;
     act(() => {
-      wallet = provider("groundhog.wallet", "Groundhog Wallet");
+      wallet = provider("groundhog.wallet", "Thruput Wallet");
     });
     expect(screen.queryByText("No wallet found")).toBeNull();
     expect(
       screen.queryByRole("combobox", { name: "Wallet provider" }),
     ).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Connect Groundhog Wallet" }),
+      screen.getByRole("button", { name: "Connect Thruput Wallet" }),
     ).toBeEnabled();
     expect(wallet.request).not.toHaveBeenCalled();
     await act(async () =>
@@ -159,7 +159,7 @@ describe("connected wallet runtime", () => {
     );
     expect(screen.getByLabelText("Writable")).toHaveTextContent("false");
     await user.click(
-      screen.getByRole("button", { name: "Connect Groundhog Wallet" }),
+      screen.getByRole("button", { name: "Connect Thruput Wallet" }),
     );
     expect(wallet.request).toHaveBeenCalledExactlyOnceWith({
       method: "connect",
