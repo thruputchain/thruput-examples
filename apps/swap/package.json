@@ -24,7 +24,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
-    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
     "@groundhogchain/client": "0.6.0",
     "@groundhogchain/contract-spec": "0.11.0",
     "@groundhogchain/protocol": "0.11.0",

@@ -195,7 +195,7 @@ describe("PoolCreatePage", () => {
     renderPage({ writer: { execute }, readFactoryAllowance });
     vi.mocked(createNetworkReadClient).mockRejectedValueOnce(new NetworkMismatchError());
     await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
-    expect(await screen.findByText(/different Groundhog network/)).toBeVisible();
+    expect(await screen.findByText(/different Thruput network/)).toBeVisible();
     expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
     expect(readFactoryAllowance).not.toHaveBeenCalled();
     expect(execute).not.toHaveBeenCalled();

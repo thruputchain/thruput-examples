@@ -330,7 +330,7 @@ describe("read-only swap experience", () => {
     renderApp(read);
 
     await user.click(
-      within(screen.getByRole("navigation", { name: "Main navigation" }))
+      within(screen.getByRole("banner"))
         .getByRole("button", { name: "Refresh pool data" }),
     );
     expect((await screen.findAllByText(/block 9/)).length).toBeGreaterThan(0);

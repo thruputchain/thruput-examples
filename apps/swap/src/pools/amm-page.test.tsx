@@ -50,7 +50,11 @@ describe("AmmPage", () => {
       Array.from(navigation.querySelectorAll("a, button")).map(
         (item) => item.getAttribute("aria-label") ?? item.textContent?.trim(),
       ),
-    ).toEqual(["Pools", "Create Pool", "Refresh", "Development wallet: Alice"]);
+    ).toEqual(["Pools", "Create Pool"]);
+    expect(
+      Array.from(screen.getByRole("banner").querySelectorAll("button"))
+        .map((item) => item.getAttribute("aria-label") ?? item.textContent?.trim()),
+    ).toEqual(["Open navigation", "Refresh", "Development wallet: Alice"]);
     expect(
       screen.queryByText("Local trusted-driver limitation"),
     ).not.toBeInTheDocument();

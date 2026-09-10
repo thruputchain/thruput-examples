@@ -423,7 +423,7 @@ function RegistryPoolDirectoryPage({
           <FieldLabel htmlFor="pool-sort">Sort by</FieldLabel>
           <select
             id="pool-sort"
-            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className="h-9 w-full rounded-md border border-input bg-muted px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring sm:text-sm pointer-coarse:min-h-12"
             value={sort}
             onChange={(event) => {
               setSort(event.target.value as RegistrySort);
@@ -564,7 +564,7 @@ function DirectoryLayout({
   return (
     <AmmPage
       title="Pools"
-      description="Factory-created markets available on this local Groundhog network."
+      description="Explore token markets on Thruput."
       actions={action}
       readOnly={readOnly}
     >

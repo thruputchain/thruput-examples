@@ -14,6 +14,7 @@ import {
 } from "react-router-dom";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AppHeader } from "@/components/app-header";
 import {
   DevelopmentWalletContext,
   DevelopmentWalletSwitcher,
@@ -486,31 +487,34 @@ function PlaceholderPage({
   readOnly?: boolean;
 }) {
   return (
-    <main className="isolate min-h-svh bg-background px-4 py-12 text-foreground antialiased sm:px-6">
-      <Card className="mx-auto w-full max-w-xl">
-        <CardHeader>
-          <CardTitle asChild>
-            <h1>{title}</h1>
-          </CardTitle>
-          {description === undefined ? null : (
-            <CardDescription>{description}</CardDescription>
-          )}
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-3">
-            <Link className="underline underline-offset-4" to="/pools">
-              Pools
-            </Link>
-            {readOnly ? null : (
-              <Link className="underline underline-offset-4" to="/pools/new">
-                Create pool
-              </Link>
+    <>
+      <AppHeader product="Swap" homeHref="/pools" />
+      <main className="isolate min-h-[calc(100svh-5rem)] bg-background px-4 py-12 text-foreground antialiased sm:px-6">
+        <Card className="mx-auto w-full max-w-xl">
+          <CardHeader>
+            <CardTitle asChild>
+              <h1>{title}</h1>
+            </CardTitle>
+            {description === undefined ? null : (
+              <CardDescription>{description}</CardDescription>
             )}
-          </div>
-          {readOnly ? null : <DevelopmentWalletSwitcher />}
-        </CardContent>
-      </Card>
-    </main>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex gap-3">
+              <Link className="underline underline-offset-4" to="/pools">
+                Pools
+              </Link>
+              {readOnly ? null : (
+                <Link className="underline underline-offset-4" to="/pools/new">
+                  Create pool
+                </Link>
+              )}
+            </div>
+            {readOnly ? null : <DevelopmentWalletSwitcher />}
+          </CardContent>
+        </Card>
+      </main>
+    </>
   );
 }
 
@@ -560,25 +564,28 @@ function ConfiguredApp({
 
 function ConfigurationErrorPage({ message }: { message: string }) {
   return (
-    <main className="isolate flex min-h-svh items-center bg-background px-4 py-12 text-foreground antialiased sm:px-6">
-      <Card className="mx-auto w-full max-w-xl">
-        <CardHeader>
-          <CardTitle asChild>
-            <h1>Configuration required</h1>
-          </CardTitle>
-          <CardDescription>
-            Run the local setup command before starting the swap application.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertCircleIcon aria-hidden="true" />
-            <AlertTitle>Generated configuration is unavailable</AlertTitle>
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    </main>
+    <>
+      <AppHeader product="Swap" />
+      <main className="isolate flex min-h-[calc(100svh-5rem)] items-center bg-background px-4 py-12 text-foreground antialiased sm:px-6">
+        <Card className="mx-auto w-full max-w-xl">
+          <CardHeader>
+            <CardTitle asChild>
+              <h1>Configuration required</h1>
+            </CardTitle>
+            <CardDescription>
+              Run the local setup command before starting the swap application.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+              <AlertCircleIcon aria-hidden="true" />
+              <AlertTitle>Generated configuration is unavailable</AlertTitle>
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      </main>
+    </>
   );
 }
 

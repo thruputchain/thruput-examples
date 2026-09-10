@@ -191,7 +191,7 @@ describe("creation executor", () => {
     const observeQueued = vi.fn(async () => workflow);
     await expect(runCreationWorkflow(config, workflow, {
       ...deps, writeBoundary: { execute, observe }, observeQueued,
-    })).rejects.toThrow("different Groundhog network");
+    })).rejects.toThrow("different Thruput network");
     expect(execute).not.toHaveBeenCalled();
     expect(observe).not.toHaveBeenCalled();
     expect(observeQueued).toHaveBeenCalledTimes(phase === "crankAfterScan" ? 1 : 0);

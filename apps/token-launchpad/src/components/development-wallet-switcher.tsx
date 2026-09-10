@@ -47,12 +47,13 @@ export function DevelopmentWalletSwitcher() {
         <Button
           aria-label={`Development wallet: ${wallet.active.label}`}
           disabled={wallet.isSwitching}
+          size="sm"
           variant="secondary"
           data-development-wallet-trigger
         >
-          <UserRoundIcon />
+          <UserRoundIcon data-icon="inline-start" />
           {wallet.isSwitching ? "Switching..." : wallet.active.label}
-          <ChevronDownIcon />
+          <ChevronDownIcon data-icon="inline-end" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
