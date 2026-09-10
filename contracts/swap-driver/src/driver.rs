@@ -1,12 +1,8 @@
 //! A request-batching driver for `swap_handler`.
 //!
-//! This is a thin, concrete shell around the reusable [`batch_driver`] core.
-//! The queue itself -- admission, ids, the crank's floor, the drain loop and
-//! its gas budgeting -- is [`batch_driver::Queue`], and is shared by any
-//! driver whatever its request type.  What is swap's, and stays here, is the
-//! contract's own vocabulary: who may enqueue and who handles, the errors it
-//! throws, the events it emits, and how a [`SwapRequest`] reaches the handler
-//! contract.
+//! This contract embeds a generic [`batch_driver::Queue`] and then manages a
+//! few application-specific details: who may enqueue requests, and how to hand
+//! them off to the handler contract.
 
 use crate::cfg::*;
 use batch_driver::{CrankPolicy, Queue};

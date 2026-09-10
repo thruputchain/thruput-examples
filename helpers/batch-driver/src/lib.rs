@@ -10,14 +10,10 @@
 //! budgeting and failure accounting, and the three events that narrate all of
 //! it -- [`RequestAccepted`], [`RequestFailed`] and [`RequestsProcessed`].
 //! [`Queue`] holds all of it, and emits those events itself, so every driver
-//! built on it reports its queue the same way.  A driver wanting different
-//! events is better served forking this crate than parameterizing it.
+//! built on it reports its queue the same way.
 //!
-//! A contract's exported entrypoints are concrete (they decode fixed argument
-//! types), so the concrete request type has to be named by the crate that
-//! produces the contract.  A driver therefore holds a `Queue<R>` of its own
-//! request type, and supplies the one thing this crate cannot know -- how to
-//! hand a request to its handler:
+//! A driver holds a `Queue<R>` of the request type `R` that it defines, and
+//! "cranks" the queue by providing a request-handling closure:
 //!
 //! ```ignore
 //! pub fn process_requests(&mut self) -> (u32, u32) {
@@ -33,9 +29,9 @@
 //! }
 //! ```
 //!
-//! An interface must still name the events in its `emits(...)` list, or they
-//! are emitted but absent from the contract's spec, and no generated binding
-//! decodes them:
+//! In order for interfacing software to understand the events emitted by the
+//! batching library, they should be listed in the driver contract's
+//! `emits(...)` list:
 //!
 //! ```ignore
 //! #[contract(
