@@ -130,6 +130,13 @@ impl<R: BatchRequest> Queue<R> {
     /// zero, so a driver that skipped initialization refuses every request
     /// rather than silently accepting any number of them.
     ///
+    /// Called a second time in a later transaction it resets the ceiling and
+    /// forgets every request still queued against it, so a driver needs its
+    /// own already-initialized check; both drivers in this repo have one, on
+    /// their own configuration.  (Within one transaction, setting the ceiling
+    /// after enqueuing aborts rather than losing the slot -- see
+    /// [`Slots::set_capacity`](queue_slots::Slots::set_capacity).)
+    ///
     /// Fails if the floor exceeds the ceiling -- a crank could then be asked
     /// for a batch the queue is never allowed to hold, which no crank could
     /// satisfy.  A driver reports that as its own error:

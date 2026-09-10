@@ -84,6 +84,43 @@ fn an_unset_ceiling_admits_nothing() {
     reserve(&env).assert_commit_failed_nondeterministically();
 }
 
+// Setting the ceiling discards whatever the transaction recorded, so doing it
+// after taking a slot is refused rather than allowed to lose the slot.
+#[test]
+fn resetting_the_ceiling_after_taking_a_slot_is_refused() {
+    let env = TestEnvironment::no_cost();
+    set_capacity(&env);
+
+    let reset = with_slots(&env, |slots| {
+        slots.reserve();
+        slots.set_capacity(CAPACITY);
+    });
+    reset.frame().assert_abort();
+}
+
+// That check is within a transaction only.  A ceiling set again in a later
+// transaction forgets the slots still outstanding -- which is why a contract
+// that must be initialized once needs its own guard, and why this is pinned
+// here rather than left as a surprise.
+#[test]
+fn resetting_the_ceiling_in_a_later_transaction_forgets_outstanding_slots() {
+    let env = TestEnvironment::no_cost();
+    set_capacity(&env);
+
+    reserve(&env).assert_success();
+    reserve(&env).assert_success();
+    env.advance_block();
+
+    with_slots(&env, |slots| slots.set_capacity(CAPACITY)).assert_success();
+    env.advance_block();
+
+    // The collection is full, but the reset forgot both slots, so it admits
+    // another CAPACITY entries.
+    for _ in 0..CAPACITY {
+        reserve(&env).assert_success();
+    }
+}
+
 /////////////////////// helpers /////////////////////////////////////////////
 
 fn with_slots(
