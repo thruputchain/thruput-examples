@@ -331,7 +331,7 @@ async function productionSmoke(app, prefix, settings, context) {
   await page.goto(`${origin}/${prefix === "SWAP" ? "pools" : "tokens"}`);
   await page
     .getByRole("button", {
-      name: prefix === "SWAP" ? "Connect wallet" : "Connect Groundhog Wallet",
+      name: "Connect Groundhog Wallet",
       exact: true,
     })
     .waitFor();
@@ -354,25 +354,25 @@ async function productionSmoke(app, prefix, settings, context) {
   await stop(child);
 }
 async function connect(page) {
-  const launchpadButton = page.getByRole("button", {
+  const button = page.getByRole("button", {
     name: "Connect Groundhog Wallet",
     exact: true,
   });
-  const swapButton = page.getByRole("button", {
-    name: "Connect wallet",
-    exact: true,
-  });
-  await launchpadButton.or(swapButton).waitFor();
-  if (await swapButton.count()) {
+  await page.getByRole("button", { name: /^Connect / }).waitFor();
+  const picker = page.getByLabel("Wallet provider", { exact: true });
+  if (await picker.count()) {
+    await picker.selectOption({ label: "Groundhog Wallet" });
+  }
+  await button.click();
+  if (
     await page
-      .getByLabel("Wallet provider", { exact: true })
-      .selectOption({ label: "Groundhog Wallet" });
-    await swapButton.click();
+      .getByRole("region", { name: "Wallet connection", exact: true })
+      .count()
+  ) {
     await page.getByLabel("Wallet account", { exact: true }).waitFor();
   } else {
-    await launchpadButton.click();
     await until(
-      async () => !(await launchpadButton.count()),
+      async () => !(await button.count()),
       "wallet connection",
     );
   }
@@ -846,7 +846,7 @@ try {
   await page.getByRole("button", { name: "Disconnect", exact: true }).click();
   rejectNext = true;
   await page
-    .getByRole("button", { name: "Connect wallet", exact: true })
+    .getByRole("button", { name: "Connect Groundhog Wallet", exact: true })
     .click();
   await page.getByText("User rejected the request", { exact: true }).waitFor();
   assert.equal(

@@ -57,7 +57,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function provider(id = "test.wallet") {
+function provider(id = "test.wallet", name = id) {
   let session: WalletSession = { networkHash: config.networkIdHex, accounts };
   const listeners = new Set<(session: WalletSession) => void>();
   const request = vi.fn<WalletProvider["request"]>(async (request) => {
@@ -67,7 +67,7 @@ function provider(id = "test.wallet") {
     throw new Error("Test never approves signing");
   });
   const provider: WalletProvider = {
-    info: { id, name: id, version: "1.0.0" },
+    info: { id, name, version: "1.0.0" },
     request,
     on: (_event, listener) => {
       listeners.add(listener);
@@ -127,14 +127,48 @@ async function connect(
   user: ReturnType<typeof userEvent.setup>,
   id = "test.wallet",
 ) {
-  await user.selectOptions(
-    screen.getByRole("combobox", { name: "Wallet provider" }),
-    id,
-  );
-  await user.click(screen.getByRole("button", { name: "Connect wallet" }));
+  const picker = screen.queryByRole("combobox", { name: "Wallet provider" });
+  if (picker) await user.selectOptions(picker, id);
+  await user.click(screen.getByRole("button", { name: `Connect ${id}` }));
 }
 
 describe("connected wallet runtime", () => {
+  it("shows a disabled connect button without a wallet and selects a late first provider without requesting access", async () => {
+    const { user } = renderApp();
+    expect(
+      screen.getByRole("button", { name: "Connect wallet" }),
+    ).toBeDisabled();
+    expect(screen.getByText("No wallet found")).toBeVisible();
+    expect(
+      screen.queryByRole("combobox", { name: "Wallet provider" }),
+    ).toBeNull();
+    let wallet!: ReturnType<typeof provider>;
+    act(() => {
+      wallet = provider("groundhog.wallet", "Groundhog Wallet");
+    });
+    expect(screen.queryByText("No wallet found")).toBeNull();
+    expect(
+      screen.queryByRole("combobox", { name: "Wallet provider" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Connect Groundhog Wallet" }),
+    ).toBeEnabled();
+    expect(wallet.request).not.toHaveBeenCalled();
+    await act(async () =>
+      wallet.change({ networkHash: config.networkIdHex, accounts }),
+    );
+    expect(screen.getByLabelText("Writable")).toHaveTextContent("false");
+    await user.click(
+      screen.getByRole("button", { name: "Connect Groundhog Wallet" }),
+    );
+    expect(wallet.request).toHaveBeenCalledExactlyOnceWith({
+      method: "connect",
+    });
+    expect(
+      screen.getByRole("combobox", { name: "Wallet account" }),
+    ).toBeVisible();
+  });
+
   it("hides Disconnect before approval and on an empty account session, then allows reconnect", async () => {
     const wallet = provider();
     let resolve!: (value: unknown) => void;
@@ -160,7 +194,7 @@ describe("connected wallet runtime", () => {
       networkHash: config.networkIdHex,
       accounts,
     });
-    await user.click(screen.getByRole("button", { name: "Connect wallet" }));
+    await connect(user);
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
   });
   it("browses without a wallet, discovers either load order, and never presents the fallback caller as a wallet", async () => {
@@ -172,17 +206,36 @@ describe("connected wallet runtime", () => {
       toHex0x(READ_ONLY_CALLER),
     );
     expect(first.request).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("combobox", { name: "Wallet provider" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Connect test.wallet" }),
+    ).toBeEnabled();
     act(() => {
       provider("later.wallet");
     });
     expect(screen.getAllByRole("option", { name: "test.wallet" })).toHaveLength(
       1,
     );
+    expect(
+      screen.getByRole("combobox", { name: "Wallet provider" }),
+    ).toHaveValue("test.wallet");
+    expect(first.request).not.toHaveBeenCalled();
     await connect(user, "later.wallet");
     expect(screen.getByLabelText("Writable")).toHaveTextContent("true");
     expect(screen.getByLabelText("Runtime caller")).toHaveTextContent(
       accounts[0]!.address,
     );
+    await user.type(screen.getByLabelText("Route draft"), "keep quote");
+    act(() => {
+      provider("third.wallet");
+    });
+    expect(
+      screen.getByRole("combobox", { name: "Wallet provider" }),
+    ).toHaveValue("later.wallet");
+    expect(screen.getByLabelText("Writable")).toHaveTextContent("true");
+    expect(screen.getByLabelText("Route draft")).toHaveValue("keep quote");
   });
 
   it("enables registry production writes only after connection and disposes/remounts on account selection and disconnect", async () => {

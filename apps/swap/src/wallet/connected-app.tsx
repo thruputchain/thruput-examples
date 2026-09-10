@@ -99,13 +99,14 @@ export function ConnectedWalletApp({
 
   useEffect(
     () =>
-      discoverWalletProviders((entry) =>
+      discoverWalletProviders((entry) => {
         setProviders((previous) =>
           previous.some((item) => item.info.id === entry.info.id)
             ? previous
             : [...previous, entry],
-        ),
-      ),
+        );
+        setProvider((previous) => previous ?? entry);
+      }),
     [],
   );
   useEffect(() => {
@@ -208,36 +209,35 @@ export function ConnectedWalletApp({
         aria-label="Wallet connection"
         className="flex flex-wrap items-center justify-end gap-3 border-b bg-background px-4 py-3 text-foreground"
       >
-        <label className="flex items-center gap-2">
-          Wallet
-          <select
-            className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
-            aria-label="Wallet provider"
-            disabled={busy}
-            value={provider?.info.id ?? ""}
-            onChange={(event) => {
-              acceptingChanges.current = false;
-              selectedAddress.current = undefined;
-              invalidate();
-              setSession(null);
-              setError(null);
-              setProvider(
-                providers.find(
-                  (entry) => entry.info.id === event.target.value,
-                ) ?? null,
-              );
-            }}
-          >
-            <option value="">
-              {providers.length ? "Choose wallet" : "No wallet discovered"}
-            </option>
-            {providers.map((entry) => (
-              <option key={entry.info.id} value={entry.info.id}>
-                {entry.info.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {providers.length > 1 ? (
+          <label className="flex items-center gap-2">
+            Wallet
+            <select
+              className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
+              aria-label="Wallet provider"
+              disabled={busy}
+              value={provider?.info.id ?? ""}
+              onChange={(event) => {
+                acceptingChanges.current = false;
+                selectedAddress.current = undefined;
+                invalidate();
+                setSession(null);
+                setError(null);
+                setProvider(
+                  providers.find(
+                    (entry) => entry.info.id === event.target.value,
+                  ) ?? null,
+                );
+              }}
+            >
+              {providers.map((entry) => (
+                <option key={entry.info.id} value={entry.info.id}>
+                  {entry.info.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         {runtime.connected ? (
           <>
             <label className="flex items-center gap-2">
@@ -283,12 +283,17 @@ export function ConnectedWalletApp({
         ) : (
           <>
             <span>Read-only browsing</span>
+            {providers.length === 0 ? <span>No wallet found</span> : null}
             <Button
               size="sm"
               disabled={!provider || busy}
               onClick={() => void connect()}
             >
-              {busy ? "Connecting..." : "Connect wallet"}
+              {busy
+                ? "Connecting..."
+                : provider
+                  ? `Connect ${provider.info.name}`
+                  : "Connect wallet"}
             </Button>
           </>
         )}

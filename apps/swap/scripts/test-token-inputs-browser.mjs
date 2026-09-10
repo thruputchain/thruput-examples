@@ -117,8 +117,8 @@ try {
   });
   const url = `${origin}/pools/new?tokenA=${a}`;
   await page.goto(origin);
-  await page.getByRole("combobox", { name: "Wallet provider" }).selectOption("ui.fixture");
-  await page.getByRole("button", { name: "Connect wallet" }).click();
+  await page.getByRole("button", { name: "Connect UI fixture (cannot sign)", exact: true }).click();
+  assert.equal(await page.getByRole("combobox", { name: "Wallet provider" }).count(), 0);
   await page.getByRole("button", { name: "Disconnect" }).waitFor();
   checkingCreation = true;
   networkReads = 0;
