@@ -21,6 +21,7 @@ import {
   ExplorerProvider,
   type IdentifierKind,
 } from "@/components/blockchain-identifier";
+import { AppHeader } from "@/components/app-header";
 import { CopyIdentifierButton } from "@/components/copy-identifier-button";
 import {
   DevelopmentWalletContext,
@@ -290,48 +291,26 @@ export function LaunchpadRoutes({
 
 export function Header({ readOnly = false }: { readOnly?: boolean }) {
   return (
-    <header className="border-b bg-background/90 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-4 sm:px-6">
-        <Link
-          to={readOnly ? "/tokens" : "/create"}
-          className="mr-auto flex items-center gap-2 font-semibold"
-        >
-          <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground">
-            <RocketIcon className="size-4" />
-          </span>
-          Groundhog Launchpad
-        </Link>
-        <nav className="flex items-center gap-1" aria-label="Primary">
-          <NavLink
-            className={({ isActive }) =>
-              `rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-secondary" : "text-muted-foreground hover:text-foreground"}`
-            }
-            to="/tokens"
-          >
+    <AppHeader
+      product="Token Launchpad"
+      homeHref={readOnly ? "/tokens" : "/create"}
+      navigation={
+        <>
+          <NavLink className="app-nav-link" to="/tokens">
             Tokens
           </NavLink>
-          <NavLink
-            className={({ isActive }) =>
-              `rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-secondary" : "text-muted-foreground hover:text-foreground"}`
-            }
-            to="/my-tokens"
-          >
+          <NavLink className="app-nav-link" to="/my-tokens">
             My Tokens
           </NavLink>
           {!readOnly ? (
-            <NavLink
-              className={({ isActive }) =>
-                `rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-secondary" : "text-muted-foreground hover:text-foreground"}`
-              }
-              to="/create"
-            >
+            <NavLink className="app-nav-link" to="/create">
               Create Token
             </NavLink>
           ) : null}
-        </nav>
-        <DevelopmentWalletSwitcher />
-      </div>
-    </header>
+        </>
+      }
+      actions={<DevelopmentWalletSwitcher />}
+    />
   );
 }
 
@@ -553,11 +532,9 @@ export function CreatePage({
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="mb-8 max-w-2xl">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">
-          Token Launchpad
-        </h1>
-        <p className="mt-4 text-base text-muted-foreground sm:text-lg">
-          Launch erc20 tokens on groundhog at the click of a button
+        <h1 className="app-page-title">Token Launchpad</h1>
+        <p className="mt-2 text-base text-muted-foreground">
+          Create a token on Thruput. Review the details, then launch.
         </p>
       </div>
       {error || storageError ? (
@@ -595,7 +572,7 @@ export function CreatePage({
           </AlertDescription>
         </Alert>
       ) : null}
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
+      <div className="grid items-start gap-6 lg:grid-cols-[23fr_17fr]">
         <Card>
           <CardHeader>
             <CardTitle>Token details</CardTitle>
@@ -608,8 +585,8 @@ export function CreatePage({
               <FieldGroup>
                 {(
                   [
-                    ["symbol", "Symbol", "e.g. HOGX"],
-                    ["name", "Token name", "e.g. Groundhog Credits"],
+                    ["symbol", "Symbol", "e.g. CRED"],
+                    ["name", "Token name", "e.g. Community Credits"],
                     ["decimals", "Decimals", "7"],
                     ["supply", "Initial supply", "1000000"],
                   ] as const
@@ -667,10 +644,9 @@ export function CreatePage({
                     disabled={
                       loading || storageError !== null || !writesSupported
                     }
-                    variant="outline"
                   >
                     {loading ? "Reviewing factory..." : "Review launch"}
-                    <ArrowRightIcon />
+                    <ArrowRightIcon data-icon="inline-end" />
                   </Button>
                 ) : null}
               </FieldGroup>
@@ -749,7 +725,7 @@ export function ReviewCard({
     <ExplorerProvider explorerUrl={config.explorerUrl}>
       <Card className="h-fit lg:sticky lg:top-6">
         <CardHeader>
-          <div className="mb-3 grid size-14 place-items-center rounded-2xl bg-accent text-xl font-semibold text-accent-foreground">
+          <div className="mb-3 grid size-14 place-items-center rounded-lg border bg-muted font-mono text-xl font-medium">
             {draft.symbol.trim().slice(0, 2).toUpperCase() || "?"}
           </div>
           <CardTitle>{draft.symbol.trim().toUpperCase() || "SYMBOL"}</CardTitle>
@@ -1246,7 +1222,7 @@ function DirectTokensPage({
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="mb-8 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h1 className="app-page-title">
             {isGlobal ? "Tokens" : "My Tokens"}
           </h1>
           <p className="mt-2 text-muted-foreground">
@@ -1521,7 +1497,7 @@ function RegistryTokensPage({
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-6 sm:py-14">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h1 className="app-page-title">
             {isGlobal ? "Tokens" : "My Tokens"}
           </h1>
           <p className="mt-2 text-muted-foreground">
@@ -1550,7 +1526,7 @@ function RegistryTokensPage({
           <FieldLabel htmlFor="token-sort">Sort by</FieldLabel>
           <select
             id="token-sort"
-            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className="h-9 w-full rounded-md border border-input bg-muted px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring sm:text-sm pointer-coarse:min-h-12"
             value={sort}
             onChange={(event) => {
               setSort(event.target.value as RegistrySort);
@@ -1766,7 +1742,7 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b pb-3 text-sm last:border-0 last:pb-0">
       <span className="text-muted-foreground">{label}</span>
-      <span className="max-w-[65%] break-all text-right font-medium">
+      <span className="max-w-[65%] break-all text-right font-mono font-medium tabular-nums">
         {value}
       </span>
     </div>
@@ -1779,22 +1755,27 @@ function formatTokenAmount(value: bigint, decimals: number | null): string {
 }
 function ErrorPage({ message }: { message: string }) {
   return (
-    <main className="grid min-h-svh place-items-center p-4">
-      <Card className="w-full max-w-lg">
-        <CardHeader>
-          <CardTitle>Configuration required</CardTitle>
-          <CardDescription>
-            Run the local setup command before starting the launchpad.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertCircleIcon />
-            <AlertTitle>Generated configuration is unavailable</AlertTitle>
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    </main>
+    <>
+      <AppHeader product="Token Launchpad" />
+      <main className="grid min-h-[calc(100svh-5rem)] place-items-center p-4">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle>
+              <h1>Configuration required</h1>
+            </CardTitle>
+            <CardDescription>
+              Run the local setup command before starting the launchpad.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+              <AlertCircleIcon />
+              <AlertTitle>Generated configuration is unavailable</AlertTitle>
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      </main>
+    </>
   );
 }

@@ -1731,7 +1731,7 @@ function SwapWorkspace({
             </AlertDescription>
           </Alert>
         ) : null}
-        <Card className="shadow-xl shadow-foreground/5 ring-foreground/10 [--card-spacing:--spacing(5)] sm:[--card-spacing:--spacing(6)]">
+        <Card className="[--card-spacing:--spacing(5)] sm:[--card-spacing:--spacing(6)]">
           <CardHeader>
             <CardTitle asChild>
               <h2
@@ -1781,7 +1781,7 @@ function SwapWorkspace({
                 aria-label={`Switch direction to ${tokens.output.symbol} for ${tokens.input.symbol}`}
                 onClick={switchDirection}
                 disabled={controlsLocked}
-                className="relative mx-auto -my-5 rounded-full bg-card shadow-sm"
+                className="relative mx-auto -my-5"
               >
                 <ArrowDownUpIcon aria-hidden="true" />
                 <span
@@ -1927,7 +1927,7 @@ function TokenInputPanel({
   return (
     <Field
       data-invalid={error !== null}
-      className="gap-3 rounded-xl bg-muted/60 p-4 ring-1 ring-foreground/8 has-focus-within:ring-2 has-focus-within:ring-ring"
+      className="gap-3 rounded-lg border bg-muted p-4 has-focus-within:border-ring has-focus-within:ring-1 has-focus-within:ring-ring"
     >
       <div className="flex items-center justify-between gap-3">
         <FieldLabel
@@ -1940,7 +1940,7 @@ function TokenInputPanel({
           Balance {formatTokenAmount(token.balance, token.decimals, 6)}
         </p>
       </div>
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 flex-col items-start gap-3 min-[400px]:flex-row min-[400px]:items-center">
         <Input
           id={id}
           name="amountIn"
@@ -1992,18 +1992,18 @@ function TokenOutputPanel({
   value: string;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl bg-muted/60 p-4 ring-1 ring-foreground/8">
+    <div className="flex flex-col gap-3 rounded-lg border bg-muted p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-xs text-muted-foreground">YOU RECEIVE</p>
         <p className="font-mono text-xs text-muted-foreground tabular-nums">
           Balance {formatTokenAmount(token.balance, token.decimals, 6)}
         </p>
       </div>
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 flex-col items-start gap-3 min-[400px]:flex-row min-[400px]:items-center">
         <output
           aria-label="Estimated output"
           aria-live="polite"
-          className="min-w-0 flex-1 truncate text-3xl font-medium tracking-tight tabular-nums sm:text-4xl"
+          className="w-full min-w-0 flex-1 font-mono text-3xl font-medium tracking-tight break-all tabular-nums sm:text-4xl"
         >
           {value}
         </output>

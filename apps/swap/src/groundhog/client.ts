@@ -67,7 +67,7 @@ function readTransport(
 export class NetworkMismatchError extends Error {
   constructor() {
     super(
-      "The RPC endpoint belongs to a different Groundhog network. Check the connection and retry.",
+      "The RPC endpoint belongs to a different Thruput network. Check the connection and retry.",
     );
     this.name = "NetworkMismatchError";
   }

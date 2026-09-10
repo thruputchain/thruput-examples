@@ -170,7 +170,7 @@ describe("allowance cleanup", () => {
     const readAllowance = vi.fn(async () => ({ value: 0n, height: 12n }));
     await expect(runAllowanceCleanup(config, address(6), address(7), {
       writeBoundary: { execute, observe }, readAllowance,
-    })).rejects.toThrow("different Groundhog network");
+    })).rejects.toThrow("different Thruput network");
     expect(execute).not.toHaveBeenCalled();
     expect(observe).not.toHaveBeenCalled();
     expect(readAllowance).not.toHaveBeenCalled();
@@ -187,7 +187,7 @@ describe("allowance cleanup", () => {
     await expect(runAllowanceCleanup(config, address(6), address(7), {
       writeBoundary: { execute },
       readAllowance: async () => ({ value: 0n, height: 12n }),
-    })).rejects.toThrow("different Groundhog network");
+    })).rejects.toThrow("different Thruput network");
     expect(execute).not.toHaveBeenCalled();
   });
 
@@ -207,7 +207,7 @@ describe("allowance cleanup", () => {
     const observe = vi.fn().mockResolvedValue({ kind: "committedSuccess", hash: hex(40), receipt: {} });
     await expect(runAllowanceCleanup(config, address(6), address(7), {
       writeBoundary: { execute, observe }, readAllowance: vi.fn(),
-    })).rejects.toThrow("different Groundhog network");
+    })).rejects.toThrow("different Thruput network");
     expect(loadAllowanceCleanup(config)).toEqual(record);
     expect(execute).not.toHaveBeenCalled();
   });

@@ -1294,12 +1294,12 @@ describe("launchpad navigation and hero", () => {
       </MemoryRouter>,
     );
     expect(
-      screen.getByRole("navigation", { name: "Primary" }).querySelectorAll("a"),
+      screen.getByRole("navigation", { name: "Main navigation" }).querySelectorAll("a"),
     ).toHaveLength(3);
     expect(
       Array.from(
         screen
-          .getByRole("navigation", { name: "Primary" })
+          .getByRole("navigation", { name: "Main navigation" })
           .querySelectorAll("a"),
         (link) => link.textContent,
       ),
@@ -1316,7 +1316,7 @@ describe("launchpad navigation and hero", () => {
       screen.queryByRole("link", { name: "Create Token" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Groundhog Launchpad" }),
+      screen.getByRole("link", { name: "Thruput Token Launchpad homepage" }),
     ).toHaveAttribute("href", "/tokens");
   });
 
@@ -1376,7 +1376,7 @@ describe("launchpad navigation and hero", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Launch erc20 tokens on groundhog at the click of a button",
+        "Create a token on Thruput. Review the details, then launch.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Local network")).not.toBeInTheDocument();
