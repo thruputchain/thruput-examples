@@ -4,11 +4,11 @@
 use crate::BatchRequest;
 use crate::drain::{budget_for_batch, process};
 use crate::events::{RequestAccepted, RequestFailed, RequestsProcessed};
-use crate::slots::Slots;
-use crate::unique_state::UniqueState;
+use queue_slots::Slots;
 use sdk::stats::gas_remaining;
 use sdk::storage::*;
 use sdk::*;
+use unique_ids::UniqueIds;
 
 /// How deep a driver's queue may get, and how much of that depth a single
 /// crank must process.
@@ -116,7 +116,7 @@ pub struct Queue<R: BatchRequest> {
     slots: Node<Slots>,
 
     // The source of the id stamped on each accepted entry.
-    ids: Node<UniqueState>,
+    ids: Node<UniqueIds>,
 
     // Held as one value, so reading it for a crank costs one storage item
     // rather than one per field.

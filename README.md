@@ -116,6 +116,8 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`swap-router`](contracts/swap-router/) | ✅ | — | — |
 | [`swap-factory`](contracts/swap-factory/) | ✅ | — | — |
 | [`batch-driver`](helpers/batch-driver/) | ✅ | — | — |
+| [`queue-slots`](helpers/queue-slots/) | ✅ | — | — |
+| [`unique-ids`](helpers/unique-ids/) | ✅ | — | — |
 | [`swap-pair`](engines/swap-pair/) | ✅ | — | — |
 | [`calldata`](sim-fixtures/calldata/) | ✅ | — | — |
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | ✅ | — | — |
@@ -132,7 +134,10 @@ declarations alone, has none.
 [`swap-pair`](engines/swap-pair/) is the pair implementation the swap handler
 runs in its own invocation, rather than a contract of its own.
 [`batch-driver`](helpers/batch-driver/) is the reusable core of the
-request-batching driver pattern.
+request-batching driver pattern; it composes two smaller helpers that stand on
+their own, [`queue-slots`](helpers/queue-slots/) (a ceiling on how much a
+contract's collection may hold) and [`unique-ids`](helpers/unique-ids/) (ids
+distinct across everything a contract accepts).
 
 ### Special cases
 

@@ -25,13 +25,13 @@ bench = false
 [dependencies]
 sdk = { workspace = true }
 sha2 = { workspace = true }
-batch-driver = { path = "../../helpers/batch-driver" }
+queue-slots = { path = "../../helpers/queue-slots" }
 game-of-life-core = { path = "../../helpers/game-of-life-core" }
 
 [features]
 entrypoints = []
 default = ["dev"]
-dev = ["sdk/dev", "batch-driver/dev"]
+dev = ["sdk/dev", "queue-slots/dev"]
 
 [lints]
 clippy.result_large_err = "allow"

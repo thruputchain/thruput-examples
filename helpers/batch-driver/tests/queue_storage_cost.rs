@@ -1,7 +1,7 @@
 //! What a driver's queue costs to hold.
 //!
 //! A queued entry is a storage deposit locked out of the driver contract's own
-//! HOG balance, and that deposit is what [`Slots`](batch_driver::Slots) exists
+//! HOG balance, and that deposit is what [`Slots`](queue_slots::Slots) exists
 //! to bound.  How big a ceiling is affordable depends on the price, so this
 //! measures it: under the default cost model an entry is *flat and cheap*,
 //! whatever it contains, over a fixed cost for the queue itself.

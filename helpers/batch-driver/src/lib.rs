@@ -46,12 +46,12 @@
 //!
 //! ## The pieces on their own
 //!
-//! [`Queue`] composes two smaller things, and a driver shaped differently may
-//! want either without the rest:
+//! [`Queue`] composes two smaller things, each its own crate, and a driver
+//! shaped differently may want either without the rest:
 //!
-//! * [`Slots`] is a general-purpose resource-reservation tool.
-//! * [`UniqueState`] mints ids distinct across every request a contract
-//!   accepts, including several accepted in one transaction.
+//! * [`queue_slots::Slots`] is a general-purpose resource-reservation tool.
+//! * [`unique_ids::UniqueIds`] mints ids distinct across everything a
+//!   contract accepts, including several accepted in one transaction.
 //!
 //! (A driver assembling its queue from these would emit none of the events
 //! above, and would account for its own failures.)
@@ -108,11 +108,7 @@
 mod drain;
 mod events;
 mod queue;
-mod slots;
-mod unique_state;
 
 pub use drain::{BatchRequest, EPILOGUE_GAS, gas_for_batch};
 pub use events::{Cause, EXCEPTION_PAYLOAD_MAX, RequestAccepted, RequestFailed, RequestsProcessed};
 pub use queue::{CrankPolicy, InvalidPolicy, Queue, Starved};
-pub use slots::Slots;
-pub use unique_state::UniqueState;

@@ -1,14 +1,13 @@
-//! [`batch_driver::Slots`]: the ceiling on how much a driver's queue can be
-//! made to hold.
+//! [`Slots`]: the ceiling on how much a collection can be made to hold.
 //!
 //! The point of holding capacity as a countdown rather than a length is that
-//! concurrent enqueues never read it, so they never conflict with each other --
-//! only with the ceiling, and only in aggregate.  The point of taking a slot
-//! *lazily* is what becomes of an enqueue that arrives at a full queue: it is
-//! excluded from its block and returned to the mempool, rather than reverted
-//! and lost.
+//! concurrent additions never read it, so they never conflict with each other
+//! -- only with the ceiling, and only in aggregate.  The point of taking a
+//! slot *lazily* is what becomes of an addition that arrives at a full
+//! collection: it is excluded from its block and returned to the mempool,
+//! rather than reverted and lost.
 
-use batch_driver::Slots;
+use queue_slots::Slots;
 use sdk::storage::*;
 use sdk::*;
 
@@ -16,10 +15,10 @@ const ADDR: ContractAddress = ContractAddress::new([3u8; 32]);
 
 const CAPACITY: u32 = 2;
 
-// Enqueues within the ceiling all land, in the same block, without conflicting
+// Additions within the ceiling all land, in the same block, without conflicting
 // with each other.
 #[test]
-fn concurrent_enqueues_within_the_ceiling_all_land() {
+fn concurrent_adds_within_the_ceiling_all_land() {
     let env = TestEnvironment::no_cost();
     set_capacity(&env);
 
@@ -31,7 +30,7 @@ fn concurrent_enqueues_within_the_ceiling_all_land() {
 // failure, so it returns to the mempool for a later block rather than being
 // spent here.
 #[test]
-fn an_enqueue_overrunning_the_ceiling_is_deferred() {
+fn an_add_overrunning_the_ceiling_is_deferred() {
     let env = TestEnvironment::no_cost();
     set_capacity(&env);
 
@@ -43,11 +42,11 @@ fn an_enqueue_overrunning_the_ceiling_is_deferred() {
     overrun.assert_commit_failed_nondeterministically();
 }
 
-// A full queue defers the next enqueue in the same way, from the very first
+// A full collection defers the next add in the same way, from the very first
 // transaction of the block: the ceiling is a property of the committed state,
 // not of one block's traffic.
 #[test]
-fn a_full_queue_defers_the_next_enqueue() {
+fn a_full_collection_defers_the_next_add() {
     let env = TestEnvironment::no_cost();
     set_capacity(&env);
 
@@ -58,9 +57,9 @@ fn a_full_queue_defers_the_next_enqueue() {
     reserve(&env).assert_commit_failed_nondeterministically();
 }
 
-// Draining returns the slots, and the deferred enqueue then fits.
+// Releasing returns the slots, and the deferred add then fits.
 #[test]
-fn draining_makes_room_again() {
+fn releasing_makes_room_again() {
     let env = TestEnvironment::no_cost();
     set_capacity(&env);
 

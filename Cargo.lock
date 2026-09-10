@@ -72,7 +72,9 @@ name = "batch-driver"
 version = "0.1.0"
 dependencies = [
  "batch-driver",
+ "queue-slots",
  "sdk",
+ "unique-ids",
 ]
 
 [[package]]
@@ -684,8 +686,8 @@ dependencies = [
 name = "game-of-life"
 version = "0.1.0"
 dependencies = [
- "batch-driver",
  "game-of-life-core",
+ "queue-slots",
  "sdk",
  "sha2 0.11.0",
 ]
@@ -2342,6 +2344,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "queue-slots"
+version = "0.1.0"
+dependencies = [
+ "queue-slots",
+ "sdk",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3429,6 +3439,14 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "unique-ids"
+version = "0.1.0"
+dependencies = [
+ "sdk",
+ "unique-ids",
+]
 
 [[package]]
 name = "unsafe-libyaml"

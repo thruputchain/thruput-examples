@@ -1,8 +1,8 @@
 use crate::types::*;
-use batch_driver::Slots;
 use game_of_life_core::digest::WorldDigest;
 use game_of_life_core::kernel::compute_next_row;
 use game_of_life_core::prng::SplitMix64;
+use queue_slots::Slots;
 use sdk::storage::{Bytestring, Map, NNInt, Node, RCQ, Value};
 use sdk::*;
 
