@@ -1,8 +1,8 @@
 //! A request router for the example contracts `swap` and `swap_driver`
 //!
-//! The router translates high-level user operations into [`SwapRequest`]s and
-//! enqueues them with the driver.  It performs no price calculation itself:
-//! the optimizing math happens when requests are dequeued and performed.
+//! The router translates high-level user operations into [`SwapRequest`]s and enqueues them with
+//! the driver. It performs no price calculation itself: the optimizing math happens when requests
+//! are dequeued and performed.
 
 use crate::cfg::*;
 use sdk::storage::*;
@@ -17,9 +17,9 @@ pub struct Router {
 
 #[contract(exports = "swap_router_exports")]
 impl SwapRouter for Router {
-    // Initialize the router with the factory it resolves pairs through.  Every
-    // operation resolves its pair against that factory's registry, and is
-    // refused if the pair is not in it (see `Cfg::get_existing_pair`).
+    // Initialize the router with the factory it resolves pairs through. Every operation resolves
+    // its pair against that factory's registry, and is refused if the pair is not in it (see
+    // `Cfg::get_existing_pair`).
     fn initialize(&mut self, factory: &Address) {
         if self.cfg.try_get().none_if_missing().is_some() {
             throw(SwapRouterError::AlreadyInitialized);
@@ -30,9 +30,9 @@ impl SwapRouter for Router {
 
     // Request to provide liquidity, receiving LP tokens in return.
     //
-    // The optimal A/B ratio (within `amounts_min`) is computed when the request
-    // is executed.  Before calling, the user must give the request-handler the
-    // needed allowances of tokens A/B (typically `amounts_desired`).
+    // The optimal A/B ratio (within `amounts_min`) is computed when the request is executed. Before
+    // calling, the user must give the request-handler the needed allowances of tokens A/B
+    // (typically `amounts_desired`).
     fn add_liquidity(
         &self,
         token_a: &Address,
@@ -53,12 +53,11 @@ impl SwapRouter for Router {
         ))
     }
 
-    // Request to burn `liquidity` LP tokens, returning the underlying A/B
-    // tokens to `recipient` (but no less than `amounts_min` of each, checked at
-    // execution time).
+    // Request to burn `liquidity` LP tokens, returning the underlying A/B tokens to `recipient`
+    // (but no less than `amounts_min` of each, checked at execution time).
     //
-    // Before calling, the user must give the request-handler an allowance of at
-    // least `liquidity` LP tokens.
+    // Before calling, the user must give the request-handler an allowance of at least `liquidity`
+    // LP tokens.
     fn remove_liquidity(
         &self,
         token_a: &Address,
@@ -79,12 +78,11 @@ impl SwapRouter for Router {
         ))
     }
 
-    /// Request to swap an exact amount of the input token for as much of the
-    /// output token as possible (but no less than `amount_out_min`, checked at
-    /// execution time).
+    /// Request to swap an exact amount of the input token for as much of the output token as
+    /// possible (but no less than `amount_out_min`, checked at execution time).
     ///
-    /// Before calling, the user must give the request-handler an allowance of
-    /// at least `amount_in` of the input token.
+    /// Before calling, the user must give the request-handler an allowance of at least `amount_in`
+    /// of the input token.
     ///
     fn swap_exact_tokens_for_tokens(
         &self,
@@ -107,13 +105,11 @@ impl SwapRouter for Router {
         ))
     }
 
-    // Request to swap as little of the input token as possible (but no more
-    // than `amount_in_max`, checked at execution time) for an exact amount of
-    // the output token.
+    // Request to swap as little of the input token as possible (but no more than `amount_in_max`,
+    // checked at execution time) for an exact amount of the output token.
     //
-    // Before calling, the user must give the request-handler an allowance of at
-    // least `amount_in_max` of the input token.  (Only the amount actually
-    // needed is consumed.)
+    // Before calling, the user must give the request-handler an allowance of at least
+    // `amount_in_max` of the input token. (Only the amount actually needed is consumed.)
     fn swap_tokens_for_exact_tokens(
         &self,
         amount_out: Amount,

@@ -115,8 +115,6 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`swap-driver`](contracts/swap-driver/) | ✅ | — | — |
 | [`swap-router`](contracts/swap-router/) | ✅ | — | — |
 | [`swap-factory`](contracts/swap-factory/) | ✅ | — | — |
-| [`batch-driver`](helpers/batch-driver/) | ✅ | — | — |
-| [`swap-pair`](engines/swap-pair/) | ✅ | — | — |
 | [`calldata`](sim-fixtures/calldata/) | ✅ | — | — |
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | ✅ | — | — |
 | [`caller-counter`](sim-fixtures/caller-counter/) | — | — | — |
@@ -124,15 +122,6 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 
 A `—` means the contract has no tests of that kind, or its behaviour is already
 covered by the tests of the contracts that depend on it.
-
-The crates under [`helpers/`](helpers/), [`engines/`](engines/) and
-[`interfaces/`](interfaces/) are library code rather than contracts, so they
-have only native tests -- and [`swap-if`](interfaces/swap-if/), which is
-declarations alone, has none.
-[`swap-pair`](engines/swap-pair/) is the pair implementation the swap handler
-runs in its own invocation, rather than a contract of its own.
-[`batch-driver`](helpers/batch-driver/) is the reusable core of the
-request-batching driver pattern.
 
 ### Special cases
 
@@ -155,7 +144,20 @@ Beyond the tests in the table, there are two specially-handled kinds of test:
   the same flow, `permit-wallet/tests/permit.rs`, runs under plain
   `cargo test` and also covers `transfer_from_signed` and key rotation.
 
-### Running them
+### Non-contract crates
+
+The crates under [`helpers/`](helpers/), [`engines/`](engines/) and
+[`interfaces/`](interfaces/) are library code rather than contracts, so they
+have only native tests -- and [`swap-if`](interfaces/swap-if/), which is
+declarations alone, has none.
+[`swap-pair`](engines/swap-pair/) is the pair implementation the swap handler
+runs in its own invocation, rather than a contract of its own.
+[`batch-driver`](helpers/batch-driver/) is the reusable core of the
+request-batching driver pattern.  It builds on
+[`unique-ids`](helpers/unique-ids/), which mints ids distinct across
+everything a contract accepts and stands on its own.
+
+### Running tests
 
 `cargo test --all` runs every **native** test in the workspace and skips the rest (rv32 tests
 are `#[ignore]`d; guest tests need a feature flag; rpc tests are `test = false`):

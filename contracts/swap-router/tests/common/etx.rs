@@ -43,8 +43,8 @@ impl Etx {
         })
     }
 
-    /// Run `deposit` as `user` and then `op` as the pool, in one transaction,
-    /// so that the operation sees the deposit.
+    /// Run `deposit` as `user` and then `op` as the pool, in one transaction, so that the operation
+    /// sees the deposit.
     pub fn exec_depositing_as_pair<D, F, T>(
         &self,
         user: User,
@@ -139,8 +139,8 @@ impl Etx {
         })
     }
 
-    // What allowances has the user given to the request handler (which is what
-    // pulls their tokens when a request is executed)?
+    // What allowances has the user given to the request handler (which is what pulls their tokens
+    // when a request is executed)?
     pub fn user_pledges(&self, user: User) -> Result<Amounts> {
         let ctx = &self.ctx;
         exec_tx(&self.env, &TEST_ADDR, || {
@@ -218,8 +218,7 @@ impl Etx {
         })
     }
 
-    // Via the router, swap an exact amount of the token at `in_index` for
-    // the other token
+    // Via the router, swap an exact amount of the token at `in_index` for the other token
     pub fn user_swap_exact_in(
         &self,
         user: User,
@@ -243,8 +242,7 @@ impl Etx {
         })
     }
 
-    // Via the router, swap the token at `in_index` for an exact amount of
-    // the other token
+    // Via the router, swap the token at `in_index` for an exact amount of the other token
     pub fn user_swap_exact_out(
         &self,
         user: User,
@@ -268,8 +266,8 @@ impl Etx {
         })
     }
 
-    // Allow the request handler to pull the user's A/B tokens (it moves them to
-    // the pair when a request is executed).
+    // Allow the request handler to pull the user's A/B tokens (it moves them to the pair when a
+    // request is executed).
     pub fn user_allow_for_pair(&self, user: User, amounts_allowed: Amounts) -> Result<()> {
         let ctx = &self.ctx;
 
@@ -306,8 +304,8 @@ impl Etx {
         })
     }
 
-    // As `process_requests`, but also returning the whole transaction result,
-    // so a test can inspect the events the processed requests emitted.
+    // As `process_requests`, but also returning the whole transaction result, so a test can inspect
+    // the events the processed requests emitted.
     pub fn process_requests_capturing(&self) -> (TransactResult, (u32, u32)) {
         use std::sync::{Arc, Mutex};
 

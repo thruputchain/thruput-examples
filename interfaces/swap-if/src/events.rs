@@ -17,8 +17,8 @@ pub struct MintEvent<'a> {
     #[topic]
     pub recipient: &'a Address,
 
-    /// The identifier of the batch-request this mint fulfilled, if it
-    /// originated from one (see [`RequestId`]).
+    /// The identifier of the batch-request this mint fulfilled, if it originated from one (see
+    /// [`RequestId`]).
     pub request_id: Option<RequestId>,
 }
 
@@ -52,8 +52,8 @@ pub struct BurnEvent<'a> {
     #[topic]
     pub recipient: &'a Address,
 
-    /// The identifier of the batch-request this burn fulfilled, if it
-    /// originated from one (see [`RequestId`]).
+    /// The identifier of the batch-request this burn fulfilled, if it originated from one (see
+    /// [`RequestId`]).
     pub request_id: Option<RequestId>,
 }
 
@@ -90,8 +90,8 @@ pub struct SwapEvent<'a> {
     #[topic]
     pub recipient: &'a Address,
 
-    /// The identifier of the batch-request this burn fulfilled, if it
-    /// originated from one (see [`RequestId`]).
+    /// The identifier of the batch-request this burn fulfilled, if it originated from one (see
+    /// [`RequestId`]).
     pub request_id: Option<RequestId>,
 }
 
@@ -126,8 +126,7 @@ impl SyncEvent {
     }
 }
 
-/// Emitted by the factory when it creates a pair's contracts (cf. UniswapV2's
-/// `PairCreated`).
+/// Emitted by the factory when it creates a pair's contracts (cf. UniswapV2's `PairCreated`).
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PoolCreated<'a> {
     #[topic]
@@ -145,65 +144,4 @@ pub struct PoolCreated<'a> {
 
     /// The total number of pairs after this one was created.
     pub pair_count: u32,
-}
-
-/// Emitted by the driver when a request is submitted successfully
-#[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RequestAccepted {
-    #[topic]
-    pub request_id: RequestId,
-}
-
-impl RequestAccepted {
-    pub fn new(request_id: RequestId) -> Self {
-        Self { request_id }
-    }
-}
-
-/// Emitted by the driver when a batch of requests has been processed.
-///
-/// A summary of what one crank did, so an observer watching only events can
-/// reconcile the queue without following each request: the depth of the queue
-/// is the [`RequestAccepted`]s it has seen, less the `processed` reported here.
-///
-/// An observer of a particular swap-pair identifies the relevant events by
-/// their emitting contract: the driver for that swap-pair.
-///
-/// A crank that processed nothing -- one that found the queue empty at its
-/// block's snapshot -- emits no event at all.  This reports work done, and
-/// there is nothing an observer could learn from a batch that did none. (The
-/// caller itself has no need of the event either way: `process_requests`
-/// returns these same counts.)
-#[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RequestsProcessed {
-    /// How many requests left the queue, failures included.
-    pub processed: u32,
-
-    /// How many of those failed, each with its own [`RequestFailed`].
-    pub failed: u32,
-}
-
-impl RequestsProcessed {
-    pub fn new(processed: u32, failed: u32) -> Self {
-        Self { processed, failed }
-    }
-}
-
-/// Emitted by the driver when a queued request fails during processing.
-///
-/// A successful request instead surfaces as the pair's own `MintEvent` /
-/// `BurnEvent` / `SwapEvent` (which carry the same [`RequestId`]); a failed
-/// request's pair-side effects are rolled back by commit-locking, so its
-/// terminal event comes from the driver here instead.
-#[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RequestFailed {
-    /// The request that failed (see [`RequestId`]).
-    #[topic]
-    pub request_id: RequestId,
-}
-
-impl RequestFailed {
-    pub fn new(request_id: RequestId) -> Self {
-        Self { request_id }
-    }
 }

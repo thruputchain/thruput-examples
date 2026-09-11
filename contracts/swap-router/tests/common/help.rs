@@ -3,9 +3,9 @@
 use super::*;
 use swap_router::*;
 
-// The one event of type `E` emitted during `r`, panicking unless there is
-// exactly one.  Its `#[topic]` fields are `topic(1)`, `topic(2)`, ... in
-// declaration order; its payload is `TypedEvent::<E>::new(e.raw()).payload()`.
+// The one event of type `E` emitted during `r`, panicking unless there is exactly one. Its
+// `#[topic]` fields are `topic(1)`, `topic(2)`, ... in declaration order; its payload is
+// `TypedEvent::<E>::new(e.raw()).payload()`.
 #[track_caller]
 pub fn sole_event<E: Event>(r: &TransactResult) -> EmittedEvent<'_> {
     let sig = E::signature();

@@ -1,13 +1,12 @@
 //! What can share a block with a crank.
 //!
-//! Every transaction in a block executes against the state the previous block
-//! committed, and the block's writes are then merged: blind deltas (an `NNInt`
-//! increment, an `RCQ` insert) add up, while two transactions that set one
-//! `Value` differently cannot both be included -- the loser is returned to the
-//! mempool.  A pool's reserves are one such `Value`, and the crank is the
-//! transaction that has to be able to write them.  These tests pin down what
-//! else may land beside it, and what happens to a user's own transactions when
-//! they race the crank that handles their request.
+//! Every transaction in a block executes against the state the previous block committed, and the
+//! block's writes are then merged: blind deltas (an `NNInt` increment, an `RCQ` insert) add up,
+//! while two transactions that set one `Value` differently cannot both be included -- the loser is
+//! returned to the mempool. A pool's reserves are one such `Value`, and the crank is the
+//! transaction that has to be able to write them. These tests pin down what else may land beside
+//! it, and what happens to a user's own transactions when they race the crank that handles their
+//! request.
 
 mod common;
 use common::*;
@@ -17,9 +16,9 @@ const SWAP_IN_AMT: Amount = 2 * UNIT_AMT;
 
 /////////////////////// sync and skim ///////////////////////////////////////
 
-// A `sync` that finds nothing to record writes nothing, so it cannot conflict
-// with the crank -- in either order.  Without this, anyone could take the
-// block's one drain away from the crank for the price of an empty `sync`.
+// A `sync` that finds nothing to record writes nothing, so it cannot conflict with the crank -- in
+// either order. Without this, anyone could take the block's one drain away from the crank for the
+// price of an empty `sync`.
 #[test]
 fn an_idle_sync_shares_a_block_with_the_crank() {
     transact_assert_success(|| {
@@ -64,11 +63,10 @@ fn an_idle_skim_shares_a_block_with_the_crank() {
     })
 }
 
-// A `sync` that does have something to record -- here, a donation the
-// reserves have not caught up with -- writes the reserves, and so conflicts
-// with a crank in the same block.  One of the two is excluded; here the crank
-// landed first, so the sync is what returns to the mempool.  The donation is
-// still accounted for: the crank's own reserve update saw it.
+// A `sync` that does have something to record -- here, a donation the reserves have not caught up
+// with -- writes the reserves, and so conflicts with a crank in the same block. One of the two is
+// excluded; here the crank landed first, so the sync is what returns to the mempool. The donation
+// is still accounted for: the crank's own reserve update saw it.
 #[test]
 fn a_sync_with_something_to_record_conflicts_with_the_crank() {
     transact_assert_success(|| {
@@ -87,8 +85,8 @@ fn a_sync_with_something_to_record_conflicts_with_the_crank() {
 
         etx.advance_block();
 
-        // Nothing is left for a sync to record: the crank recorded the balances
-        // as it found them, donation included.
+        // Nothing is left for a sync to record: the crank recorded the balances as it found them,
+        // donation included.
         let sync = sync_tx(&etx);
         sync.assert_success();
         assert_eq!(storage_writes(&sync), 0);
@@ -99,11 +97,10 @@ fn a_sync_with_something_to_record_conflicts_with_the_crank() {
 
 /////////////////////// a user racing the crank /////////////////////////////
 
-// Alice's request is queued; in the block that drains it she moves her whole
-// balance away.  The handler's call is commit-locked, so the request fails on
-// its own -- Alice's transfer and the crank both land, and the pool is
-// untouched by the failed request.  Order within the block: the transfer
-// first.
+// Alice's request is queued; in the block that drains it she moves her whole balance away. The
+// handler's call is commit-locked, so the request fails on its own -- Alice's transfer and the
+// crank both land, and the pool is untouched by the failed request. Order within the block: the
+// transfer first.
 #[test]
 fn a_same_block_withdrawal_fails_only_its_own_request() {
     transact_assert_success(|| {
@@ -141,11 +138,10 @@ fn a_same_block_withdrawal_fails_only_its_own_request() {
     })
 }
 
-// The same race, with the crank landing first: the request is handled against
-// the balance the block began with, and it is Alice's transfer that no longer
-// fits -- her frame succeeds (it too read the block's snapshot), but the merged
-// debits overdraw the balance, so her transaction is excluded and returned to
-// the mempool.  Retried next block, it is refused outright.
+// The same race, with the crank landing first: the request is handled against the balance the block
+// began with, and it is Alice's transfer that no longer fits -- her frame succeeds (it too read the
+// block's snapshot), but the merged debits overdraw the balance, so her transaction is excluded and
+// returned to the mempool. Retried next block, it is refused outright.
 #[test]
 fn a_crank_that_lands_first_excludes_the_conflicting_withdrawal() {
     transact_assert_success(|| {
@@ -169,8 +165,7 @@ fn a_crank_that_lands_first_excludes_the_conflicting_withdrawal() {
 
         etx.advance_block();
 
-        // Now the balance the block begins with is short, and the same
-        // transfer fails at call time.
+        // Now the balance the block begins with is short, and the same transfer fails at call time.
         let refused = etx
             .exec_user_tx(ALICE, move |_| {
                 ctx.token0().transfer(BOB.addr, all);
@@ -185,10 +180,9 @@ fn a_crank_that_lands_first_excludes_the_conflicting_withdrawal() {
     })
 }
 
-// Admission is irrevocable, but a queued request can still be starved: the
-// handler spends the user's standing allowance, and revoking it makes the
-// request fail when handled.  Everyone else's requests in the batch are
-// unaffected.
+// Admission is irrevocable, but a queued request can still be starved: the handler spends the
+// user's standing allowance, and revoking it makes the request fail when handled. Everyone else's
+// requests in the batch are unaffected.
 #[test]
 fn revoking_the_allowance_starves_a_queued_request() {
     transact_assert_success(|| {
@@ -217,8 +211,8 @@ fn revoking_the_allowance_starves_a_queued_request() {
 
 /////////////////////// helpers /////////////////////////////////////////////
 
-// `user` allows the handler `SWAP_IN_AMT` of token0 and, as the router,
-// enqueues a swap of that much for token1.  Returns the request's id.
+// `user` allows the handler `SWAP_IN_AMT` of token0 and, as the router, enqueues a swap of that
+// much for token1. Returns the request's id.
 fn user_requests_a_swap(etx: &Etx, user: User) -> Result<RequestId> {
     let ctx = etx.ctx;
 
@@ -256,8 +250,8 @@ fn skim_tx(etx: &Etx) -> TransactResult {
     })
 }
 
-// Crank as TEST_ADDR, returning the whole transaction result alongside the
-// `(processed, failed)` counts so the batch's events can be inspected.
+// Crank as TEST_ADDR, returning the whole transaction result alongside the `(processed, failed)`
+// counts so the batch's events can be inspected.
 fn crank_capturing(etx: &Etx) -> (TransactResult, (u32, u32)) {
     use std::sync::{Arc, Mutex};
 

@@ -1,16 +1,15 @@
 //! The ceiling on the driver's queue.
 //!
-//! The queue's storage is a deposit locked out of the driver's own HOG
-//! balance, so the driver holds at most `max_queue_len` requests at a time.
-//! Reaching that ceiling makes further requests *wait* rather than fail: their
-//! transactions are excluded from the block and returned to the mempool, and
-//! they land once a `process_requests` has freed room.
+//! The queue's storage is a deposit locked out of the driver's own HOG balance, so the driver holds
+//! at most `max_queue_len` requests at a time. Reaching that ceiling makes further requests *wait*
+//! rather than fail: their transactions are excluded from the block and returned to the mempool,
+//! and they land once a `process_requests` has freed room.
 
 mod common;
 use common::*;
 
-// Filling the queue to the ceiling is ordinary business, even with every
-// request arriving in the same block.
+// Filling the queue to the ceiling is ordinary business, even with every request arriving in the
+// same block.
 #[test]
 fn requests_up_to_the_ceiling_are_accepted() {
     transact_assert_success(|| {
@@ -24,9 +23,9 @@ fn requests_up_to_the_ceiling_are_accepted() {
     })
 }
 
-// The request that would overrun the ceiling is deferred, not rejected: its
-// frame ran to completion, and only the commit was held back -- which is what
-// returns it to the mempool for a later block.
+// The request that would overrun the ceiling is deferred, not rejected: its frame ran to
+// completion, and only the commit was held back -- which is what returns it to the mempool for a
+// later block.
 #[test]
 fn a_request_past_the_ceiling_is_deferred() {
     transact_assert_success(|| {
@@ -44,9 +43,8 @@ fn a_request_past_the_ceiling_is_deferred() {
     })
 }
 
-// Draining returns the room, including the room of requests whose handling
-// failed -- they left the queue just the same.  (Nothing here is funded, so
-// every one of them fails.)
+// Draining returns the room, including the room of requests whose handling failed -- they left the
+// queue just the same. (Nothing here is funded, so every one of them fails.)
 #[test]
 fn draining_frees_room_for_the_deferred_request() {
     transact_assert_success(|| {
@@ -74,8 +72,8 @@ fn draining_frees_room_for_the_deferred_request() {
     })
 }
 
-// Enqueue a swap request as ALICE.  Nothing here is funded: these requests are
-// only ever meant to occupy the queue, and to fail if they are handled.
+// Enqueue a swap request as ALICE. Nothing here is funded: these requests are only ever meant to
+// occupy the queue, and to fail if they are handled.
 fn enqueue(etx: &Etx, nth: u32) -> Result<RequestId, TransactResult> {
     let ctx = &etx.ctx;
 

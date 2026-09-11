@@ -1,17 +1,16 @@
 //! The `RequestsProcessed` summary a crank emits.
 //!
-//! `process_requests` returns its counts to whoever called it, but an observer
-//! following only the event stream sees nothing of the return value.  The
-//! summary is for them: the queue's depth is the `RequestAccepted`s seen, less
-//! the `processed` these report.
+//! `process_requests` returns its counts to whoever called it, but an observer following only the
+//! event stream sees nothing of the return value. The summary is for them: the queue's depth is the
+//! `RequestAccepted`s seen, less the `processed` these report.
 
 mod common;
 use common::*;
 
 const SWAP_IN_AMT: Amount = 2 * UNIT_AMT;
 
-// A batch reports what it took out of the queue, failures included.  Nothing
-// here is funded, so every request fails -- and is still processed.
+// A batch reports what it took out of the queue, failures included. Nothing here is funded, so
+// every request fails -- and is still processed.
 #[test]
 fn a_batch_reports_failures_as_processed() {
     transact_assert_success(|| {
@@ -68,8 +67,8 @@ fn a_successful_batch_reports_no_failures() {
     })
 }
 
-// A crank that finds the queue empty reports nothing at all -- there is no
-// work to describe, and silence keeps such a crank as free as it already is.
+// A crank that finds the queue empty reports nothing at all -- there is no work to describe, and
+// silence keeps such a crank as free as it already is.
 #[test]
 fn an_empty_batch_reports_nothing() {
     transact_assert_success(|| {
@@ -80,9 +79,9 @@ fn an_empty_batch_reports_nothing() {
         assert_eq!(summaries_from(&r, &etx.ctx.driver_addr), vec![]);
         r.frame().assert_no_events();
 
-        // Nothing was taken, so nothing is written: not even the room that a
-        // batch of zero would give back.  This is what keeps a crank that
-        // loses, or finds nothing, from conflicting with anyone.
+        // Nothing was taken, so nothing is written: not even the room that a batch of zero would
+        // give back. This is what keeps a crank that loses, or finds nothing, from conflicting with
+        // anyone.
         assert_eq!(
             r.frame().trace().expect("traced").storage_writes.len(),
             0,
@@ -93,11 +92,10 @@ fn an_empty_batch_reports_nothing() {
     })
 }
 
-// The summary is attributed to the driver that emitted it.  With one driver
-// per pair, that address is what tells an observer which pair a batch belongs
-// to -- so the event carries no identifier of its own, and an observer
-// following several pairs filters by contract address (the RPC event filter
-// takes one) rather than by a topic.
+// The summary is attributed to the driver that emitted it. With one driver per pair, that address
+// is what tells an observer which pair a batch belongs to -- so the event carries no identifier of
+// its own, and an observer following several pairs filters by contract address (the RPC event
+// filter takes one) rather than by a topic.
 #[test]
 fn the_summary_identifies_its_driver_by_the_emitting_address() {
     transact_assert_success(|| {
@@ -125,8 +123,7 @@ fn the_summary_identifies_its_driver_by_the_emitting_address() {
 
 /////////////////////// helpers /////////////////////////////////////////////
 
-// The (processed, failed) pairs carried by the `RequestsProcessed` events that
-// `address` emitted.
+// The (processed, failed) pairs carried by the `RequestsProcessed` events that `address` emitted.
 fn summaries_from(r: &TransactResult, address: &Address) -> Vec<(u32, u32)> {
     r.frame()
         .filter_events::<RequestsProcessed>(address)
@@ -146,8 +143,8 @@ fn enqueue_unfunded(etx: &Etx) -> Result<RequestId, TransactResult> {
     })
 }
 
-// Run `process_requests` as TEST_ADDR, returning the whole tx result (so its
-// events can be inspected) alongside the `(processed, failed)` counts.
+// Run `process_requests` as TEST_ADDR, returning the whole tx result (so its events can be
+// inspected) alongside the `(processed, failed)` counts.
 fn process_capturing(etx: &Etx) -> (TransactResult, (u32, u32)) {
     use std::sync::{Arc, Mutex};
 

@@ -122,8 +122,7 @@ fn _concurrent_redeem(etx: &Etx) -> Result<()> {
     let alice_deltas = balances_strict_sub(alice_end_balances, alice_start_balances);
     let bob_deltas = balances_strict_sub(bob_end_balances, bob_start_balances);
 
-    // Alice and Bob should both have gained A/B tokens in exchange for the
-    // redemption.
+    // Alice and Bob should both have gained A/B tokens in exchange for the redemption.
     assert!(alice_deltas[0] > 0);
     assert!(alice_deltas[1] > 0);
     assert!(bob_deltas[0] > 0);

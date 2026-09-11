@@ -18,8 +18,8 @@ pub fn setup_etx() -> Result<Etx> {
 pub fn setup_etx_native() -> Result<Etx> {
     let env = sdk::TestEnvironment::new(None); // use default cost model
 
-    // Register the contracts the factory deploys, plus the factory and the
-    // single suite-wide router (both deployed directly).
+    // Register the contracts the factory deploys, plus the factory and the single suite-wide router
+    // (both deployed directly).
     let hashes = SwapHashes {
         token: *erc20::register_mock_contract(&env).as_hash(),
         handler: *swap_handler::register_mock_contract(&env).as_hash(),
@@ -56,29 +56,28 @@ pub fn setup_etx_guest() -> Result<Etx> {
     setup_contracts(&env, hashes, factory_hash, router_hash)
 }
 
-// Storage tokens granted to each contract under the default cost model, well
-// above what the swap flow spends.
+// Storage tokens granted to each contract under the default cost model, well above what the swap
+// flow spends.
 const CONTRACT_FUNDING: i64 = 1_000_000_000;
 
-// Deploy nonces, at module scope so a contract's deterministic address can be
-// computed (and funded) before it is actually deployed.
+// Deploy nonces, at module scope so a contract's deterministic address can be computed (and funded)
+// before it is actually deployed.
 hash_ident! { static TOKEN_0_NONCE: SHA256Hash; }
 hash_ident! { static TOKEN_1_NONCE: SHA256Hash; }
 hash_ident! { static FACTORY_NONCE: SHA256Hash; }
 hash_ident! { static ROUTER_NONCE: SHA256Hash; }
 
-// Under the default cost model, a contract must pay for the storage it writes.
-// Grant storage tokens to the (deterministic) address `TEST_ADDR` will deploy
-// `hash` to with `nonce`, so the freshly deployed contract is solvent.
+// Under the default cost model, a contract must pay for the storage it writes. Grant storage tokens
+// to the (deterministic) address `TEST_ADDR` will deploy `hash` to with `nonce`, so the freshly
+// deployed contract is solvent.
 fn fund_deploy_target(env: &TestEnvironmentHandle, nonce: &SHA256Hash, hash: &SHA256Hash) {
     let addr = exec_tx(env, &TEST_ADDR, || get_deploy_address(nonce, hash))
         .expect("compute deploy address");
     env.setup_grant_storage_tokens(&addr, CONTRACT_FUNDING);
 }
 
-// Build the whole pool through the factory: deploy the A/B tokens, then have
-// a freshly deployed factory create the pair, LP token, request handler,
-// driver, and router in a single transaction.
+// Build the whole pool through the factory: deploy the A/B tokens, then have a freshly deployed
+// factory create the pair, LP token, request handler, driver, and router in a single transaction.
 #[rustfmt::skip]
 pub fn setup_contracts(
     env: &TestEnvironmentHandle,
@@ -87,14 +86,14 @@ pub fn setup_contracts(
     router_hash: SHA256Hash,
 ) -> Result<Etx> {
 
-    // The native HOG token is a precompile: it is live at its address from
-    // genesis and cannot be redeployed. Like any other contract, it pays for
-    // the allowance ledger it keeps in its own storage.
+    // The native HOG token is a precompile: it is live at its address from genesis and cannot be
+    // redeployed. Like any other contract, it pays for the allowance ledger it keeps in its own
+    // storage.
     env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);
 
-    // Under the default cost model each contract pays for the storage it
-    // writes, so pre-fund everything before it is deployed: the test-user
-    // addresses, and each directly-deployed contract.
+    // Under the default cost model each contract pays for the storage it writes, so pre-fund
+    // everything before it is deployed: the test-user addresses, and each directly-deployed
+    // contract.
     env.setup_grant_storage_tokens(&TEST_ADDR, CONTRACT_FUNDING);
     for u in USERS {
         env.setup_grant_storage_tokens(u.addr, CONTRACT_FUNDING);
@@ -115,14 +114,13 @@ pub fn setup_contracts(
 
     /* ----- */ env.advance_block(); /* ----- */
 
-    // Canonical token ordering -- the factory sorts the pair internally, so we
-    // track the tokens in the same order for `token0()`/`token1()` to line up
-    // with the pair's reserve0/reserve1.
+    // Canonical token ordering -- the factory sorts the pair internally, so we track the tokens in
+    // the same order for `token0()`/`token1()` to line up with the pair's reserve0/reserve1.
     let token_addrs = sorted(deployed);
 
-    // Each driver the factory creates takes requests from the router alone, so
-    // the factory has to be told the router's address -- deterministic, and so
-    // knowable before the router is deployed just below.
+    // Each driver the factory creates takes requests from the router alone, so the factory has to
+    // be told the router's address -- deterministic, and so knowable before the router is deployed
+    // just below.
     let router_addr_predicted =
         exec_tx(env, &TEST_ADDR, move || get_deploy_address(&ROUTER_NONCE, &router_hash))?;
 
@@ -148,8 +146,8 @@ pub fn setup_contracts(
 
     /* ----- */ env.advance_block(); /* ----- */
 
-    // The factory funds this pair's contracts (LP token, handler, driver) as it
-    // deploys them, on the allowance it is granted here.
+    // The factory funds this pair's contracts (LP token, handler, driver) as it deploys them, on
+    // the allowance it is granted here.
     exec_tx(env, &TEST_ADDR, move || {
         ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
             .adjust_allowance(&factory_addr, 3 * POOL_FUNDING.recommended as i128);
@@ -198,8 +196,7 @@ pub fn setup_etx_primed() -> Result<Etx> {
     Ok(etx)
 }
 
-// The two token addresses in canonical (ascending) order, matching the
-// factory's own sort.
+// The two token addresses in canonical (ascending) order, matching the factory's own sort.
 fn sorted(tokens: Addresses) -> Addresses {
     if tokens[0] <= tokens[1] {
         tokens
@@ -208,8 +205,7 @@ fn sorted(tokens: Addresses) -> Addresses {
     }
 }
 
-// Deploy and init A/B token contracts, given the hash of a registered token
-// contract.
+// Deploy and init A/B token contracts, given the hash of a registered token contract.
 fn ab_tokens_deploy_init(token_hash: &SHA256Hash) -> Addresses {
     assert_eq!(&get_current_address(), &TEST_ADDR);
 

@@ -1,7 +1,7 @@
 //! Price-optimizing calculations, performed at request-handling time.
 //!
-//! In UniswapV2, these are run when a request is *made*; here they run when a
-//! request is *handled*, against the reserves live at that moment.
+//! In UniswapV2, these are run when a request is *made*; here they run when a request is *handled*,
+//! against the reserves live at that moment.
 
 use sdk::*;
 use swap_if::{Amount, Amounts, SwapLibraryError, U256};
@@ -22,8 +22,8 @@ pub fn quote(amount_x: Amount, reserves: Amounts) -> Amount {
     amount_y.try_into().unwrap()
 }
 
-/// Given an input amount of token X, return the maximum output amount of
-/// token Y (accounting for a .3% fee)
+/// Given an input amount of token X, return the maximum output amount of token Y (accounting for a
+/// .3% fee)
 ///
 pub fn get_amount_out(amount_in: Amount, reserves: Amounts) -> Amount {
     const X: usize = 0;
@@ -40,8 +40,8 @@ pub fn get_amount_out(amount_in: Amount, reserves: Amounts) -> Amount {
     amount_out.try_into().unwrap()
 }
 
-/// Given a desired output amount of token Y, return the required input
-/// amount of token X (accounting for a 0.3% fee)
+/// Given a desired output amount of token Y, return the required input amount of token X
+/// (accounting for a 0.3% fee)
 ///
 pub fn get_amount_in(amount_out: Amount, reserves: Amounts) -> Amount {
     const X: usize = 0;

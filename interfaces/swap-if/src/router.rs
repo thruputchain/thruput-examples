@@ -14,21 +14,20 @@ pub enum SwapRouterError {
 
     /// The factory has no pool for the requested token pair.
     ///
-    /// Unlike UniswapV2's router, this one never creates one: a pool's
-    /// contracts are funded as they are deployed, so creating one costs its
-    /// creator real HOG and is not something to do as a side effect of adding
-    /// liquidity.  Call [`SwapFactory::create_pair`](crate::SwapFactory::create_pair)
-    /// first.
+    /// Unlike UniswapV2's router, this one never creates one: a pool's contracts are funded as they
+    /// are deployed, so creating one costs its creator real HOG and is not something to do as a
+    /// side effect of adding liquidity. Call
+    /// [`SwapFactory::create_pair`](crate::SwapFactory::create_pair) first.
     NoSuchPair = 2,
 }
 
-/// Builds [`SwapRequest`](crate::SwapRequest)s from high-level user operations
-/// and enqueues them with the driver.  Performs no price calculation itself --
-/// the optimizing math happens when requests are dequeued and handled.
+/// Builds [`SwapRequest`](crate::SwapRequest)s from high-level user operations and enqueues them
+/// with the driver. Performs no price calculation itself -- the optimizing math happens when
+/// requests are dequeued and handled.
 ///
-/// Every operation resolves its pair through the factory and hands the request
-/// to that pair's driver, so `throws` covers both: the factory's errors from
-/// the lookup, and the driver's from the enqueue.
+/// Every operation resolves its pair through the factory and hands the request to that pair's
+/// driver, so `throws` covers both: the factory's errors from the lookup, and the driver's from the
+/// enqueue.
 #[contract(
     client = SwapRouterClient,
     throws(
