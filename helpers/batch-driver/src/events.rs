@@ -12,28 +12,12 @@ use sdk::*;
 /// succeeded.  The payload is therefore truncated, and this is the ceiling
 /// [`RequestFailed::of`] truncates to.
 ///
-/// Not set at that ceiling, though, and not for want of room: the payload is
-/// variable-length on the wire, so a short one costs its own few bytes however
-/// high this is set, and raising it is free for every failure that does not
-/// use it.  Two things argue against the brim anyway.
-///
-/// The first is that the margin is what protects the batch.  A maximal event
-/// currently serializes well inside the cap; a field added to
-/// [`RequestFailed`] eats that margin, and at the brim it would push every
-/// large-payload failure over -- aborting batches, and only once an exception
-/// large enough actually occurred.  `tests/event_budget.rs` pins both the fit
-/// and the margin so that lands in CI instead.
-///
-/// The second is that these are emitted per request, so a batch multiplies
-/// them: a queue that fails wholesale emits one for every entry it held.  The
-/// worst case is this figure times the queue's capacity, which is worth
-/// keeping modest for something read far more often than it is needed.
-///
-/// And the need is small.  An exception payload leads with its variant
-/// discriminant, so four bytes already name the variant of any fieldless
-/// error, which is nearly all of them; the largest in the swap suite is eight.
 /// [`RequestFailed::payload_len`] reports the untruncated length, so a reader
 /// can always tell when there was more.
+///
+/// (`tests/event_budget.rs` checks that the cap is large enough for
+/// `RequestFailed` and small enough to serialize.)
+///
 pub const EXCEPTION_PAYLOAD_MAX: usize = 256;
 
 /// How a request's handling failed, for [`RequestFailed`].
@@ -78,11 +62,7 @@ pub struct RequestAccepted<'a> {
 /// Emitted by [`Queue::crank`] for each request whose handling failed.
 ///
 /// The payload is the exception's own wire bytes, truncated to
-/// [`EXCEPTION_PAYLOAD_MAX`] and borrowed rather than copied.  With the `selector`
-/// it is enough to name the error: a contract's spec maps a selector to the
-/// exception type it belongs to, and that type's definition maps the leading
-/// payload bytes to a variant -- so an observer decodes one of these from the
-/// generated bindings alone, with nothing further to arrange.
+/// [`EXCEPTION_PAYLOAD_MAX`] and borrowed rather than copied.
 ///
 /// [`Queue::crank`]: crate::Queue::crank
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]

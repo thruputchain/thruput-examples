@@ -1,4 +1,10 @@
-//! [`Slots`]: the ceiling on how much a collection can be made to hold.
+//! The admission semantics a [`batch_driver::Queue`] rests on.
+//!
+//! A queue's ceiling is a [`CapacityConstraint`]: the room still left, taken
+//! as entries arrive and given back as they leave.  These rules are the
+//! SDK type's and the runtime's rather than this crate's, but `Queue` is only
+//! correct because of them -- and the one that matters most is not a property
+//! of the count but of how a transaction that overruns it is treated.
 //!
 //! The point of holding capacity as a countdown rather than a length is that
 //! concurrent additions never read it, so they never conflict with each other
@@ -7,13 +13,12 @@
 //! collection: it is excluded from its block and returned to the mempool,
 //! rather than reverted and lost.
 
-use queue_slots::Slots;
 use sdk::storage::*;
 use sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([3u8; 32]);
 
-const CAPACITY: u32 = 2;
+const CAPACITY: i128 = 2;
 
 // Additions within the ceiling all land, in the same block, without conflicting
 // with each other.
@@ -92,7 +97,7 @@ fn resetting_the_ceiling_after_taking_a_slot_is_refused() {
     set_capacity(&env);
 
     let reset = with_slots(&env, |slots| {
-        slots.reserve();
+        slots.consume_capacity(1);
         slots.set_capacity(CAPACITY);
     });
     reset.frame().assert_abort();
@@ -125,11 +130,11 @@ fn resetting_the_ceiling_in_a_later_transaction_forgets_outstanding_slots() {
 
 fn with_slots(
     env: &TestEnvironmentHandle,
-    f: impl FnOnce(&mut Slots) + std::panic::UnwindSafe,
+    f: impl FnOnce(&mut CapacityConstraint) + std::panic::UnwindSafe,
 ) -> TransactResult {
     env.transact(|tx| {
         tx.call(&ADDR).run(|| {
-            let mut slots: Node<Slots> = Keypath::default().into();
+            let mut slots: Node<CapacityConstraint> = Keypath::default().into();
             f(&mut slots);
         })
     })
@@ -141,9 +146,9 @@ fn set_capacity(env: &TestEnvironmentHandle) {
 }
 
 fn reserve(env: &TestEnvironmentHandle) -> TransactResult {
-    with_slots(env, |slots| slots.reserve())
+    with_slots(env, |slots| slots.consume_capacity(1))
 }
 
 fn release(env: &TestEnvironmentHandle, count: u32) -> TransactResult {
-    with_slots(env, move |slots| slots.release(count))
+    with_slots(env, move |slots| slots.consume_capacity(-i128::from(count)))
 }

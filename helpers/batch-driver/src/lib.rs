@@ -44,18 +44,6 @@
 //! )]
 //! ```
 //!
-//! ## The pieces on their own
-//!
-//! [`Queue`] composes two smaller things, each its own crate, and a driver
-//! shaped differently may want either without the rest:
-//!
-//! * [`queue_slots::Slots`] is a general-purpose resource-reservation tool.
-//! * [`unique_ids::UniqueIds`] mints ids distinct across everything a
-//!   contract accepts, including several accepted in one transaction.
-//!
-//! (A driver assembling its queue from these would emit none of the events
-//! above, and would account for its own failures.)
-//!
 //! ## Draining belongs in a transaction of its own
 //!
 //! It is tempting to let a request submission drain the queue on its way past,

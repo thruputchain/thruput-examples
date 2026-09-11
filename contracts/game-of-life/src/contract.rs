@@ -2,8 +2,7 @@ use crate::types::*;
 use game_of_life_core::digest::WorldDigest;
 use game_of_life_core::kernel::compute_next_row;
 use game_of_life_core::prng::SplitMix64;
-use queue_slots::Slots;
-use sdk::storage::{Bytestring, Map, NNInt, Node, RCQ, Value};
+use sdk::storage::{Bytestring, CapacityConstraint, Map, NNInt, RCQ, Value};
 use sdk::*;
 
 pub const WORLD_WIDTH: u32 = 10_000;
@@ -22,7 +21,7 @@ pub struct GameOfLife {
     bank_b: Map<u32, Bytestring>,
     requests: RCQ<TickRequest>,
     request_sequence: NNInt,
-    queue_slots: Node<Slots>,
+    queue_slots: CapacityConstraint,
 }
 
 #[contract(
@@ -67,7 +66,7 @@ impl GameOfLife {
             max_queue_len,
         };
         self.state.set_exclusive(&state);
-        self.queue_slots.set_capacity(max_queue_len);
+        self.queue_slots.set_capacity(i128::from(max_queue_len));
         log_event(&WorldInitialized {
             seed,
             max_queue_len,
@@ -79,7 +78,7 @@ impl GameOfLife {
 
     pub fn request_tick(&mut self) -> RequestId {
         self.require_state();
-        self.queue_slots.reserve();
+        self.queue_slots.consume_capacity(1);
         self.request_sequence.inc(1);
         let request_id = (get_source_transaction_hash(), self.request_sequence.get()).hash();
         let requested_by = get_caller();
@@ -137,7 +136,7 @@ impl GameOfLife {
             max_queue_len: state.max_queue_len,
         };
         self.state.set_exclusive(&next_state);
-        self.queue_slots.release(1);
+        self.queue_slots.consume_capacity(-1);
         log_event(&GenerationAdvanced {
             request_id: &request.request_id,
             generation: next_generation,

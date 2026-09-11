@@ -72,7 +72,6 @@ name = "batch-driver"
 version = "0.1.0"
 dependencies = [
  "batch-driver",
- "queue-slots",
  "sdk",
  "unique-ids",
 ]
@@ -687,7 +686,6 @@ name = "game-of-life"
 version = "0.1.0"
 dependencies = [
  "game-of-life-core",
- "queue-slots",
  "sdk",
  "sha2 0.11.0",
 ]
@@ -2341,14 +2339,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "queue-slots"
-version = "0.1.0"
-dependencies = [
- "queue-slots",
- "sdk",
 ]
 
 [[package]]

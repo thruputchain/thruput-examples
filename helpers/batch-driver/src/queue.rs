@@ -4,7 +4,6 @@
 use crate::BatchRequest;
 use crate::drain::{budget_for_batch, process};
 use crate::events::{RequestAccepted, RequestFailed, RequestsProcessed};
-use queue_slots::Slots;
 use sdk::stats::gas_remaining;
 use sdk::storage::*;
 use sdk::*;
@@ -35,9 +34,6 @@ pub struct Starved;
 /// A driver's request queue: the entries, the room left in it, and the ids it
 /// stamps on what it accepts.
 ///
-/// A driver supplies only what this cannot know: how to hand one request to
-/// its handler.
-///
 /// # Writing a driver
 ///
 /// The request type carries the id the queue stamps on it, and declares what
@@ -63,10 +59,8 @@ pub struct Starved;
 /// }
 /// ```
 ///
-/// The contract holds one of these beside whatever else it needs, and its
-/// three entrypoints are the three methods below.  Each maps a helper error
-/// onto the contract's own, since a contract's callers see its exceptions and
-/// not this crate's:
+/// The driver contract holds a queue besides whatever else it needs, and its
+/// three typical methods are below.
 ///
 /// ```ignore
 /// #[storage]
@@ -111,9 +105,13 @@ pub struct Queue<R: BatchRequest> {
     // The entries, which concurrent transactions insert into.
     requests: RCQ<R>,
 
-    // Room left in `requests`, counted down as entries arrive and back up as
-    // they are drained.
-    slots: Node<Slots>,
+    // The remaining capacity of the `requests` queue, whose maximum length is
+    // configured when calling `initialize`.
+    //
+    // A queued entry costs storage (and thus locked HOGs), so this is what
+    // stops a queue from being an unbounded claim on whoever funded the
+    // driver.
+    slots: CapacityConstraint,
 
     // The source of the id stamped on each accepted entry.
     ids: Node<UniqueIds>,
@@ -126,38 +124,25 @@ pub struct Queue<R: BatchRequest> {
 impl<R: BatchRequest> Queue<R> {
     /// Set the queue's policy.  Call once, when the driver is initialized.
     ///
-    /// Until this is called the queue admits nothing: the ceiling starts at
-    /// zero, so a driver that skipped initialization refuses every request
-    /// rather than silently accepting any number of them.
-    ///
-    /// Called a second time in a later transaction it resets the ceiling and
-    /// forgets every request still queued against it, so a driver needs its
-    /// own already-initialized check; both drivers in this repo have one, on
-    /// their own configuration.  (Within one transaction, setting the ceiling
-    /// after enqueuing aborts rather than losing the slot -- see
-    /// [`Slots::set_capacity`](queue_slots::Slots::set_capacity).)
-    ///
-    /// Fails if the floor exceeds the ceiling -- a crank could then be asked
-    /// for a batch the queue is never allowed to hold, which no crank could
-    /// satisfy.  A driver reports that as its own error:
+    /// Fails if the floor exceeds the ceiling.
     ///
     /// ```ignore
     /// fn initialize(&mut self, capacity: u32, min_batch: u32) {
+    ///     if self.cfg.try_get().none_if_missing().is_some() {
+    ///         throw(MyError::AlreadyInitialized);
+    ///     }
     ///     self.queue
     ///         .initialize(CrankPolicy { capacity, min_batch })
     ///         .unwrap_or_else(|_: InvalidPolicy| throw(MyError::InvalidConfiguration));
     /// }
     /// ```
-    ///
-    /// Both figures are the driver's to choose, and they trade off against
-    /// each other: see [`CrankPolicy`].
     pub fn initialize(&mut self, policy: CrankPolicy) -> Result<(), InvalidPolicy> {
         if policy.min_batch > policy.capacity {
             return Err(InvalidPolicy);
         }
 
         self.policy.set(&policy);
-        self.slots.set_capacity(policy.capacity);
+        self.slots.set_capacity(i128::from(policy.capacity));
 
         Ok(())
     }
@@ -165,8 +150,7 @@ impl<R: BatchRequest> Queue<R> {
     /// Accept one entry, returning the id stamped on it.
     ///
     /// `stamp` is handed that id and returns the entry to insert, so a request
-    /// type keeps its own way of carrying one -- the queue never dictates a
-    /// field name or position:
+    /// type keeps its own way of carrying one.
     ///
     /// ```ignore
     /// fn request(&mut self, op: Op) -> SHA256Hash {
@@ -189,10 +173,16 @@ impl<R: BatchRequest> Queue<R> {
     /// If the queue is full the slot claim overruns the ceiling and the whole
     /// transaction is excluded from its block and returned to the mempool --
     /// the entry waits for room rather than failing, so a caller that cannot
-    /// wait indefinitely bounds it with the transaction's expiry height.  See
-    /// [`Slots::reserve`].
+    /// wait indefinitely bounds it with the transaction's expiry height.
     pub fn enqueue(&mut self, stamp: impl FnOnce(SHA256Hash) -> R) -> SHA256Hash {
-        self.slots.reserve();
+        // Take this entry's room.  Deliberately *not* checked here: the floor
+        // is enforced when the transaction's deltas are reserved, and that
+        // difference is what becomes of an enqueue arriving at a full queue.
+        // This way it is excluded from its block and returned to the mempool,
+        // landing once a drain frees capacity; a call-time check would instead
+        // revert the frame, leaving the transaction in the block with no
+        // effect and no retry -- turning "you were early" into "you failed".
+        self.slots.consume_capacity(1);
 
         let id = self.ids.next_id();
         self.requests.insert(&stamp(id));
@@ -217,15 +207,10 @@ impl<R: BatchRequest> Queue<R> {
         F: FnMut(R, u64) -> Result<(), CallError>,
     {
         let policy = self.policy.get();
-
-        // Saturating only as a matter of consequence: the room left cannot
-        // exceed the ceiling while this type owns both sides of it, but an
-        // underflow here would abort every crank and strand the queue for
-        // good, where reading a backlog of zero merely lets a small crank
-        // through.
-        let queued = policy
-            .capacity
-            .saturating_sub(self.slots.remaining_at_snapshot());
+        let capacity = i128::from(policy.capacity);
+        // How deep the queue was at this block's snapshot. (The remaining
+        // capacity can read negative mid-transaction.)
+        let queued = (capacity - self.slots.get_remaining_capacity()).clamp(0, capacity) as u32;
         let owed = queued.min(policy.min_batch);
         if gas_remaining() < budget_for_batch::<R>(owed) {
             return Err(Starved);
@@ -233,13 +218,14 @@ impl<R: BatchRequest> Queue<R> {
 
         let (n_processed, n_failed) = process(&mut self.requests, |request, gas_limit| {
             // Read the id before the request is handed over: handling
-            // consumes it.  A failure rolls the handler's frame back, so
-            // the terminal event for a failed request has to come from
-            // here, in the driver's own (committed) frame.
+            // consumes it.
             let id = request.id();
 
             let result = handle(request, gas_limit);
             if let Err(e) = &result {
+                // A failure rolls the handler's frame back, so the terminal
+                // event for a failed request has to come from here, in the
+                // driver's own (committed) frame.
                 log_event(&RequestFailed::of(&id, e));
             }
 
@@ -247,12 +233,12 @@ impl<R: BatchRequest> Queue<R> {
         });
 
         // A batch that took nothing touches nothing: no delta, so nothing to
-        // conflict with.  Even returning zero room would write a (zero) delta,
-        // and an event nobody could learn anything from.
+        // conflict with.
         if n_processed > 0 {
-            // Every entry the batch took is out of the queue -- including the
-            // ones whose handling failed -- so its room comes back.
-            self.slots.release(n_processed);
+            // Every entry the batch took is out of the queue, including the
+            // ones whose handling failed.  (Negative consumption is a
+            // release.)
+            self.slots.consume_capacity(-i128::from(n_processed));
 
             log_event(&RequestsProcessed {
                 processed: n_processed,
