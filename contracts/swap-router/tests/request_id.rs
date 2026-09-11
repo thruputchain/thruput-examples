@@ -1,14 +1,13 @@
-//! Lifecycle tracking: the request-id returned by a `SwapRouter` operation must
-//! reappear on the event that operation eventually produces -- the pair's
-//! `MintEvent`/`SwapEvent` on success, or the driver's `RequestFailed` on
-//! failure -- so the off-chain application can correlate the two.
+//! Lifecycle tracking: the request-id returned by a `SwapRouter` operation must reappear on the
+//! event that operation eventually produces -- the pair's `MintEvent`/`SwapEvent` on success, or
+//! the driver's `RequestFailed` on failure -- so the off-chain application can correlate the two.
 
 mod common;
 use common::*;
 use swap_pair::events::{MintEvent, SwapEvent};
 
-// A swap demanding output >= input, impossible under the 0.3% fee: it enqueues
-// but fails when handled.
+// A swap demanding output >= input, impossible under the 0.3% fee: it enqueues but fails when
+// handled.
 const SWAP_IN_AMT: Amount = 2 * UNIT_AMT;
 
 // The `request_id`s carried by the MintEvents emitted during a processed tx.
@@ -33,8 +32,8 @@ fn request_accepted_ids(r: &TransactResult) -> Vec<RequestId> {
         .collect()
 }
 
-// The request-ids carried by any RequestFailed events (the id is topic 1, a
-// 32-byte value stored directly).
+// The request-ids carried by any RequestFailed events (the id is topic 1, a 32-byte value stored
+// directly).
 fn request_failed_ids(r: &TransactResult) -> Vec<RequestId> {
     let sig = RequestFailed::signature();
     r.events()
@@ -54,8 +53,8 @@ fn count_events<E: Event>(r: &TransactResult) -> usize {
         .count()
 }
 
-// Run `process_requests` as TEST_ADDR, returning the whole tx result (so its
-// emitted events can be inspected) alongside the `(processed, failed)` counts.
+// Run `process_requests` as TEST_ADDR, returning the whole tx result (so its emitted events can be
+// inspected) alongside the `(processed, failed)` counts.
 fn process_capturing(etx: &Etx) -> (TransactResult, (u32, u32)) {
     etx.process_requests_capturing()
 }
@@ -127,11 +126,10 @@ fn failed_request_emits_request_failed_with_id() {
     // ...and the pair's would-be SwapEvent was rolled back by commit-locking.
     assert_eq!(count_events::<SwapEvent>(&r), 0);
 
-    // The event also says *why*, in the two pieces an off-chain observer needs:
-    // the selector names the exception's type, and the payload's leading bytes
-    // name the variant within it.  Both are decodable from the contract's spec
-    // alone -- which is what this asserts, by reconstructing the answer the
-    // way a client would.
+    // The event also says *why*, in the two pieces an off-chain observer needs: the selector names
+    // the exception's type, and the payload's leading bytes name the variant within it. Both are
+    // decodable from the contract's spec alone -- which is what this asserts, by reconstructing the
+    // answer the way a client would.
     let failure = request_failures(&r).pop().expect("a RequestFailed");
     assert_eq!(failure.cause, Cause::Exception);
     assert_eq!(
@@ -184,9 +182,9 @@ fn same_tx_requests_get_distinct_ids() {
     etx.prime().expect("prime");
     etx.advance_block();
 
-    // Two requests enqueued in ONE transaction (one root frame).  Both demand
-    // output >= input, so both fail when handled -- but each must carry a
-    // distinct id despite sharing a source-transaction hash.
+    // Two requests enqueued in ONE transaction (one root frame). Both demand output >= input, so
+    // both fail when handled -- but each must carry a distinct id despite sharing a
+    // source-transaction hash.
     let (id1, id2) = etx
         .exec_user_tx(CAROL, |_| {
             let recipient = &get_current_address();

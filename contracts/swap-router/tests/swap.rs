@@ -17,9 +17,9 @@ test_transaction! {
 
         let amount_in = SWAP_IN_AMT;
 
-        // The output we expect, calculated independently of the router.
-        // (Since no other request executes first, the reserves at execution
-        // time match those now, so this prediction holds.)
+        // The output we expect, calculated independently of the router. (Since no other request
+        // executes first, the reserves at execution time match those now, so this prediction
+        // holds.)
         let [_, expected_out] = etx.calculate_swap([amount_in, 0])?;
 
         // Allow the handler to pull exactly the input amount
@@ -82,16 +82,15 @@ test_transaction! {
         assert!(amount_in > 0 && amount_in <= amount_in_max);
         assert_eq!(end_lp, start_lp);
 
-        // Only the amount actually needed was consumed; the surplus allowance
-        // remains ungranted.
+        // Only the amount actually needed was consumed; the surplus allowance remains ungranted.
         assert_eq!(etx.user_pledges(user)?, [0, amount_in_max - amount_in]);
 
         Ok(())
     }
 
-    // The slippage limits are enforced when the request is executed: a request
-    // that violates them is accepted, but fails during processing (leaving the
-    // user's funds untouched) rather than aborting the requesting transaction.
+    // The slippage limits are enforced when the request is executed: a request that violates them
+    // is accepted, but fails during processing (leaving the user's funds untouched) rather than
+    // aborting the requesting transaction.
     fn swap_limits_respected(etx: &Etx) -> Result<()> {
         let user = CAROL;
 
@@ -104,9 +103,8 @@ test_transaction! {
 
         /* ----- */ etx.advance_block(); /* ----- */
 
-        // With the 0.3% fee, the output can never reach the input amount (the
-        // AMM was primed with equal reserves of both tokens).  The request is
-        // enqueued successfully...
+        // With the 0.3% fee, the output can never reach the input amount (the AMM was primed with
+        // equal reserves of both tokens). The request is enqueued successfully...
         etx.user_swap_exact_in(user, 0, SWAP_IN_AMT, SWAP_IN_AMT)?;
 
         // ...but fails when handled.
@@ -121,8 +119,8 @@ test_transaction! {
 
         /* ----- */ etx.advance_block(); /* ----- */
 
-        // Conversely, demanding an exact output while capping the input below
-        // what it costs also fails at execution time.
+        // Conversely, demanding an exact output while capping the input below what it costs also
+        // fails at execution time.
         etx.user_swap_exact_out(user, 0, SWAP_IN_AMT, SWAP_IN_AMT)?;
         assert_eq!(etx.process_requests()?, (1, 1));
 
@@ -130,9 +128,8 @@ test_transaction! {
     }
 }
 
-// Carol pays the input, Bob receives the proceeds.  The two roles are distinct
-// in the swap requests (`trader`/`recipient`), and must stay distinct through
-// the handler and `swap` to the `SwapEvent`.
+// Carol pays the input, Bob receives the proceeds. The two roles are distinct in the swap requests
+// (`trader`/`recipient`), and must stay distinct through the handler and `swap` to the `SwapEvent`.
 #[test]
 fn swap_pays_proceeds_to_someone_other_than_the_trader() {
     let etx = setup_etx().expect("setup");
@@ -164,8 +161,8 @@ fn swap_pays_proceeds_to_someone_other_than_the_trader() {
     let (r, counts) = etx.process_requests_capturing();
     assert_eq!(counts, (1, 0), "one request processed, none failed");
 
-    // The SwapEvent names both roles: Carol paid the input (topic 1), Bob
-    // received the proceeds (topic 2).
+    // The SwapEvent names both roles: Carol paid the input (topic 1), Bob received the proceeds
+    // (topic 2).
     let swap = sole_event::<SwapEvent>(&r);
     assert_eq!(swap.topic(1).expect("sender topic"), CAROL.addr.as_ref());
     assert_eq!(swap.topic(2).expect("recipient topic"), BOB.addr.as_ref());

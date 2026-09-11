@@ -21,9 +21,8 @@ impl User {
 
 hash_ident! { pub static TEST_ADDR: ContractAddress; }
 hash_ident! { pub static FACTORY_ADDR: ContractAddress; }
-// The driver takes requests from the router alone.  There is no router
-// contract here -- these tests drive the driver directly -- so they name an
-// address and enqueue as it.
+// The driver takes requests from the router alone. There is no router contract here -- these tests
+// drive the driver directly -- so they name an address and enqueue as it.
 hash_ident! { pub static ROUTER_ADDR: ContractAddress; }
 hash_ident! { pub static PRIMER_ADDR: ContractAddress; }
 hash_ident! { pub static ALICE_ADDR: ContractAddress; }

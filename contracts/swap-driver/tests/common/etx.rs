@@ -27,8 +27,8 @@ impl Etx {
         exec_tx(&self.env, user.addr, || f(&user))
     }
 
-    /// Run `op` as the pool, in a frame at the handler's address -- which is
-    /// where the pair's state and tokens live.
+    /// Run `op` as the pool, in a frame at the handler's address -- which is where the pair's state
+    /// and tokens live.
     pub fn exec_as_pair<F, T>(&self, op: F) -> Result<T, TransactResult>
     where
         F: Fn(&mut Node<Pair>) -> T + std::panic::RefUnwindSafe,
@@ -40,9 +40,9 @@ impl Etx {
         })
     }
 
-    /// Run `deposit` as `user` and then `op` as the pool, in *one*
-    /// transaction, so that the operation sees the deposit.  (A second
-    /// transaction would read the balances its own block began with.)
+    /// Run `deposit` as `user` and then `op` as the pool, in *one* transaction, so that the
+    /// operation sees the deposit. (A second transaction would read the balances its own block
+    /// began with.)
     pub fn exec_depositing_as_pair<D, F, T>(
         &self,
         user: User,
@@ -88,8 +88,8 @@ impl Etx {
         }
     }
 
-    // Provide AB-token liquidity in exchange for LP tokens.  Deposit and mint
-    // share a transaction, so the mint sees the deposit.
+    // Provide AB-token liquidity in exchange for LP tokens. Deposit and mint share a transaction,
+    // so the mint sees the deposit.
     pub fn user_buy_unpriced(&self, user: User) -> Result<()> {
         let ctx = self.ctx;
         let minted = self.exec_depositing_as_pair(

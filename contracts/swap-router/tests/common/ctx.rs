@@ -24,8 +24,8 @@ impl Ctx {
     pub fn token1_meta(&self) -> ERC20MetadataClient {
         ERC20MetadataClient::new(&self.token_addrs[1])
     }
-    // The pool: the handler performs the pair's operations and holds its
-    // reserves, so it is what answers for them.
+    // The pool: the handler performs the pair's operations and holds its reserves, so it is what
+    // answers for them.
     pub fn pair(&self) -> SwapHandlerClient {
         SwapHandlerClient::new(&self.request_handler_addr)
     }
@@ -93,8 +93,8 @@ impl Ctx {
         let reserve_in = reserves[in_index];
         let reserve_out = reserves[out_index];
 
-        // amount_in_with_fee = amount_in * 997
-        // amount_out = amount_in_with_fee / ((reserve_in * 1000) + amount_in_with_fee)
+        // amount_in_with_fee = amount_in * 997 amount_out = amount_in_with_fee / ((reserve_in *
+        // 1000) + amount_in_with_fee)
 
         let amount_in_with_fee: U256 = Into::<U256>::into(amount_in) * 997;
         let numerator: U256 = amount_in_with_fee * Into::<U256>::into(reserve_out);
@@ -124,8 +124,8 @@ impl Ctx {
         self.user_print_balances(user);
     }
 
-    // As a user, provide AB-token liquidity in exchange for LP tokens.
-    // (Calculate the right A/B ratio.)
+    // As a user, provide AB-token liquidity in exchange for LP tokens. (Calculate the right A/B
+    // ratio.)
     pub fn user_buy(&self, user: &User) {
         assert_eq!(user.addr, &get_current_address());
 

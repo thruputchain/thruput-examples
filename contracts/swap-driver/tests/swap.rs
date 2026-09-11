@@ -12,7 +12,7 @@ struct Leg {
     amount_in: Amount,
 }
 
-/////////////////////// SERIAL /////////////////////////////
+/// //////////////////// SERIAL /////////////////////////////
 
 #[test]
 fn serial_swap_both() {
@@ -66,9 +66,9 @@ fn serial_swap(etx: &Etx) -> Result<()> {
     Ok(())
 }
 
-// Perform one swap directly against the pair, pricing it from the reserves live
-// at this moment -- exactly as the handler does at execution time.  (So a serial
-// run and a batched run, executed in the same order, agree.)
+// Perform one swap directly against the pair, pricing it from the reserves live at this moment --
+// exactly as the handler does at execution time. (So a serial run and a batched run, executed in
+// the same order, agree.)
 #[rustfmt::skip]
 fn serial_swap_leg(etx: &Etx, leg: Leg) -> Result<()> {
     let ctx = &etx.ctx;
@@ -105,7 +105,7 @@ fn serial_swap_leg(etx: &Etx, leg: Leg) -> Result<()> {
     Ok(())
 }
 
-/////////////////////// CONCURRENT /////////////////////////////
+/// //////////////////// CONCURRENT /////////////////////////////
 
 #[test]
 fn concurrent_swap_one() {
@@ -154,9 +154,8 @@ fn concurrent_swap(etx: &Etx) -> Result<()> {
     concurrent_swap_strategy(etx, strategy, 0)
 }
 
-// Can we continue handling swap requests after one fails?  Here Dave grants no
-// allowance, so the handler can't pull his funds and his request fails -- while
-// Carol's still goes through.
+// Can we continue handling swap requests after one fails? Here Dave grants no allowance, so the
+// handler can't pull his funds and his request fails -- while Carol's still goes through.
 #[test]
 fn concurrent_swap_transfer_failure() {
     transact_assert_success(|| {
@@ -201,8 +200,8 @@ fn concurrent_swap_strategy<const N: usize>(
         etx.user_print_balances(leg.user)?
     }
 
-    // Give the request handler access to the purchasing funds.  A leg we expect
-    // to fail grants no allowance, so the handler can't pull its funds.
+    // Give the request handler access to the purchasing funds. A leg we expect to fail grants no
+    // allowance, so the handler can't pull its funds.
     for (leg, should_succeed) in strategy {
         let allowed = if should_succeed { leg.amount_in } else { 0 };
         let mut amounts: Amounts = [0, 0];
@@ -227,11 +226,11 @@ fn concurrent_swap_strategy<const N: usize>(
         println!("{} has pledged {:.3?}", leg.user.name, etx.user_pledges(leg.user)?);
     }
 
-    // All users submit swap requests (accepting any output: min is 0).  The
-    // output amount is determined when each request is handled.
+    // All users submit swap requests (accepting any output: min is 0). The output amount is
+    // determined when each request is handled.
     for (leg, _) in strategy {
-        // Enqueued as the router: the driver takes requests from it alone,
-        // and the router is what records who asked.
+        // Enqueued as the router: the driver takes requests from it alone, and the router is what
+        // records who asked.
         etx.exec_tx(&ROUTER_ADDR, move || {
             ctx.driver().request(SwapRequest::swap_exact_in(
                 leg.user.addr,
@@ -284,7 +283,7 @@ fn concurrent_swap_strategy<const N: usize>(
     Ok(())
 }
 
-/////////////////////// COMPARE /////////////////////////////
+/// //////////////////// COMPARE /////////////////////////////
 
 // Do a pair of swaps both serially and concurrently, comparing the results.
 #[test]

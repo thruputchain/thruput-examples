@@ -1,18 +1,15 @@
 //! Testkit-driven simulation of the swap contracts.
 //!
-//! Unlike the native `test_transaction!` tests (which run against the SDK's
-//! in-process executor), this drives the real contracts on a live local
-//! `hog-devnode` using `groundhog-testkit`.
+//! Unlike the native `test_transaction!` tests (which run against the SDK's in-process executor),
+//! this drives the real contracts on a live local `hog-devnode` using `groundhog-testkit`.
 //!
-//! An `admin` agent deploys the factory and router, has the factory create the
-//! pool -- funding, deploying and initializing its three contracts in one
-//! transaction out of the admin's own HOG -- and then primes it with an
-//! `add_liquidity` through the router. The admin also acts as the
-//! request-queue operator. Two independent
-//! liquidity providers (`alice`, `bob`) each run as their own agent: they learn the
-//! contract addresses over the harness mailbox, approve the request handler,
-//! submit an `add_liquidity` request through the router, and — once the admin
-//! has driven the queue — confirm they were minted LP.
+//! An `admin` agent deploys the factory and router, has the factory create the pool -- funding,
+//! deploying and initializing its three contracts in one transaction out of the admin's own HOG --
+//! and then primes it with an `add_liquidity` through the router. The admin also acts as the
+//! request-queue operator. Two independent liquidity providers (`alice`, `bob`) each run as their
+//! own agent: they learn the contract addresses over the harness mailbox, approve the request
+//! handler, submit an `add_liquidity` request through the router, and — once the admin has driven
+//! the queue — confirm they were minted LP.
 //!
 //! It is `#[ignore]`d because it needs a devnode binary and built artifacts.
 //! `scripts/run-swap-sim.sh` wires up both. Roughly:
@@ -39,9 +36,8 @@ use swap_if::{Pool, SwapHashes};
 /// An alias to match the contracts' `Address` type.
 type Address = ContractAddress;
 
-// Interface identities (name, version) the contracts stamped at build time, as
-// recorded in each `*.spec.json`. `entrypoint_id` derives selectors from
-// these.
+// Interface identities (name, version) the contracts stamped at build time, as recorded in each
+// `*.spec.json`. `entrypoint_id` derives selectors from these.
 const ERC20: (&str, &str) = ("ERC20", "0.1.5");
 const HANDLER: (&str, &str) = ("SwapHandler", "0.1.0");
 const DRIVER: (&str, &str) = ("SwapDriver", "0.1.0");
@@ -54,16 +50,15 @@ const PROVIDERS: [&str; 2] = ["alice", "bob"];
 /// Amount the admin mints itself per token, then supplies to prime the pool.
 const SUPPLY: Amount = 1_000_000_000;
 
-/// Amount of each token the admin airdrops to a provider, which the provider
-/// then contributes as liquidity. Small relative to `SUPPLY` so the priced
-/// pool absorbs it at roughly the established 1:1 ratio.
+/// Amount of each token the admin airdrops to a provider, which the provider then contributes as
+/// liquidity. Small relative to `SUPPLY` so the priced pool absorbs it at roughly the established
+/// 1:1 ratio.
 const USER_LIQUIDITY: Amount = 1_000_000;
 
 /// Native (HOG) storage tokens the admin grants each contract it deploys.
 ///
-/// A contract must pay native tokens for the storage it creates. Funding each
-/// contract up front — far above the few hundred thousand tokens a typical
-/// write costs — keeps the swap flow solvent.
+/// A contract must pay native tokens for the storage it creates. Funding each contract up front —
+/// far above the few hundred thousand tokens a typical write costs — keeps the swap flow solvent.
 const CONTRACT_FUNDING: Amount = 1_000_000_000;
 
 /// The contract suite
@@ -83,8 +78,8 @@ fn erc20(address: Address) -> Contract {
 
 /// The devnode's native token contract.
 ///
-/// It lives at the genesis precompile address `0x00…01` and speaks the ERC20
-/// interface, vendored at `groundhog-erc20-if` 0.1.3.
+/// It lives at the genesis precompile address `0x00…01` and speaks the ERC20 interface, vendored at
+/// `groundhog-erc20-if` 0.1.3.
 fn native_token() -> Contract {
     let mut bytes = [0u8; 32];
     bytes[31] = 1;
@@ -101,8 +96,8 @@ async fn fund(ctx: &mut AgentContext, native: &Contract, target: Address) -> Res
 
 /// The contract addresses a provider needs, sent to it over the mailbox.
 #[derive(Debug, Clone, xdrs::WriteXDR, xdrs::ReadXDR)]
-// `xdrs` reaches us re-exported through the testkit, not as a direct crate, so
-// point the derives' generated code at that path.
+// `xdrs` reaches us re-exported through the testkit, not as a direct crate, so point the derives'
+// generated code at that path.
 #[xdr(crate = "groundhog_testkit::xdrs")]
 struct LPConfig {
     token0: Address,
@@ -132,15 +127,14 @@ impl LPConfig {
 async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Swap> {
     let me = ctx.address();
 
-    // Register the code the factory will deploy by hash.  (erc20 registers when
-    // we deploy the tokens below; the rest we register explicitly, since the
-    // factory -- not us -- deploys their instances.  The router is deployed
-    // directly below, so it needs no registration by hash.)
+    // Register the code the factory will deploy by hash. (erc20 registers when we deploy the tokens
+    // below; the rest we register explicitly, since the factory -- not us -- deploys their
+    // instances. The router is deployed directly below, so it needs no registration by hash.)
     ctx.register_artifact("swap_handler").await?;
     ctx.register_artifact("swap_driver").await?;
 
-    // The two A/B token contracts (owned by us).  Each is funded right after
-    // deploy so it can pay for the storage its state writes create.
+    // The two A/B token contracts (owned by us). Each is funded right after deploy so it can pay
+    // for the storage its state writes create.
     let token0 = erc20(ctx.deploy_artifact("erc20").await?.address);
     fund(ctx, native, token0.address()).await?;
     let token1 = erc20(ctx.deploy_artifact("erc20").await?.address);
@@ -152,10 +146,9 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     token0.call(ctx, "mint", &(me, SUPPLY)).await?;
     token1.call(ctx, "mint", &(me, SUPPLY)).await?;
 
-    // Deploy and fund the factory and the router.  Each driver the factory
-    // creates takes requests from the router alone, so the factory has to be
-    // told the router's address -- which means deploying the router first, and
-    // initializing it second.
+    // Deploy and fund the factory and the router. Each driver the factory creates takes requests
+    // from the router alone, so the factory has to be told the router's address -- which means
+    // deploying the router first, and initializing it second.
     let factory = Contract::new(
         ctx.deploy_artifact("swap_factory").await?.address,
         FACTORY.0,
@@ -180,9 +173,9 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
         .await?;
     router.call(ctx, "initialize", &factory.address()).await?;
 
-    // Create the pool.  The factory funds its three contracts as it deploys
-    // them, out of *our* HOG, so it needs an allowance covering all three --
-    // and that one transaction leaves them deployed, solvent and initialized.
+    // Create the pool. The factory funds its three contracts as it deploys them, out of *our* HOG,
+    // so it needs an allowance covering all three -- and that one transaction leaves them deployed,
+    // solvent and initialized.
     let (t0, t1) = (token0.address(), token1.address());
     native
         .call(
@@ -195,10 +188,9 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
         .call(ctx, "create_pair", &(t0, t1, POOL_FUNDING.recommended))
         .await?;
 
-    // `create_pair` returns the pool, but a call yields a receipt rather than a
-    // decoded value; the same addresses come back from `pool_addresses`, which
-    // is deterministic in the token pair and so answers for a pool that exists
-    // just as well as for one that does not.
+    // `create_pair` returns the pool, but a call yields a receipt rather than a decoded value; the
+    // same addresses come back from `pool_addresses`, which is deterministic in the token pair and
+    // so answers for a pool that exists just as well as for one that does not.
     let pool: Pool = factory.view(ctx, "pool_addresses", &(t0, t1), None).await?;
 
     Ok(Swap {
@@ -211,11 +203,11 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Sw
     })
 }
 
-/// As admin, prime the pool through the router, establishing the initial price
-/// the providers add against.
+/// As admin, prime the pool through the router, establishing the initial price the providers add
+/// against.
 ///
-/// The pool already exists: the router never creates one, so `deploy_and_init`
-/// had the factory create it.  This is the first liquidity in it.
+/// The pool already exists: the router never creates one, so `deploy_and_init` had the factory
+/// create it. This is the first liquidity in it.
 async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
     let me = ctx.address();
 
@@ -228,8 +220,8 @@ async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
         .call(ctx, "adjust_allowance", &(s.handler.address(), supply))
         .await?;
 
-    // Route an add-liquidity request.  The pair doesn't exist, so this creates
-    // it, then enqueues the request with its (newly created) driver.
+    // Route an add-liquidity request. The pair doesn't exist, so this creates it, then enqueues the
+    // request with its (newly created) driver.
     let desired: [Amount; 2] = [SUPPLY, SUPPLY];
     let min: [Amount; 2] = [0, 0];
     s.router
@@ -269,8 +261,8 @@ fn liquidity_provider(name: &str) -> Agent {
     Agent::new(name, |mut ctx| async move {
         let me = ctx.address();
 
-        // Announce ourselves so the admin can mint us A/B tokens and send the
-        // contract addresses we need.
+        // Announce ourselves so the admin can mint us A/B tokens and send the contract addresses we
+        // need.
         ctx.send("admin", &me)?;
 
         // Receive configuration from the admin.
@@ -293,8 +285,8 @@ fn liquidity_provider(name: &str) -> Agent {
             .call(&mut ctx, "adjust_allowance", &(cfg.handler, allowance))
             .await?;
 
-        // Submit an add-liquidity request (executed later, by the driver). LP
-        // is minted to us; we tolerate any ratio (amounts_min = [0, 0]).
+        // Submit an add-liquidity request (executed later, by the driver). LP is minted to us; we
+        // tolerate any ratio (amounts_min = [0, 0]).
         let desired: [Amount; 2] = [USER_LIQUIDITY, USER_LIQUIDITY];
         let min: [Amount; 2] = [0, 0];
         router
@@ -391,8 +383,8 @@ async fn swap_liquidity_multi_agent() {
     let artifact = |file: &str| PathBuf::from(&root).join(file);
 
     let mut config = LocalNetworkConfig::default();
-    // The admin funds every contract it deploys (see CONTRACT_FUNDING), so give
-    // its dev account plenty of native tokens to distribute.
+    // The admin funds every contract it deploys (see CONTRACT_FUNDING), so give its dev account
+    // plenty of native tokens to distribute.
     config.dev_account_tokens = 100_000_000_000;
     if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());

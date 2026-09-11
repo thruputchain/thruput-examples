@@ -1,11 +1,11 @@
 //! Shared interfaces for the swap contract suite.
 //!
-//! This interface-only crate defines every swap contract's trait, its
-//! generated client and error type, and the value types they exchange.
+//! This interface-only crate defines every swap contract's trait, its generated client and error
+//! type, and the value types they exchange.
 //!
-//! The deployable crates (`swap-handler`, `swap-driver`, `swap-router`,
-//! `swap-factory`) each implement their trait from here, so they can call one
-//! another without depending on each other's implementations.
+//! The deployable crates (`swap-handler`, `swap-driver`, `swap-router`, `swap-factory`) each
+//! implement their trait from here, so they can call one another without depending on each other's
+//! implementations.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
@@ -21,11 +21,10 @@ pub type Amount = u128;
 pub type Amounts = [Amount; 2];
 /// A request identifier.
 ///
-/// It is derived from the enqueuing transaction's hash and a per-transaction
-/// sequence number (see [`SwapDriver::request`](crate::SwapDriver::request)) --
-/// so it is unique even across several requests in one transaction -- and is
-/// echoed into the event the request eventually produces, letting the off-chain
-/// application track a request's lifecycle by polling for that event.
+/// It is derived from the enqueuing transaction's hash and a per-transaction sequence number (see
+/// [`SwapDriver::request`]) -- so it is unique even across several
+/// requests in one transaction -- and is echoed into the event the request eventually produces,
+/// letting the off-chain application track a request's lifecycle by polling for that event.
 pub type RequestId = sdk::SHA256Hash;
 
 extern crate alloc;

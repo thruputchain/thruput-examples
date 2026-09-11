@@ -8,8 +8,8 @@ use sdk::*;
 
 /// Everything a pool will tell you about itself, in one call.
 ///
-/// (Each exported method costs the contract a few hundred bytes of dispatch
-/// and codec, so grouping these saves on codesize.)
+/// (Each exported method costs the contract a few hundred bytes of dispatch and codec, so grouping
+/// these saves on codesize.)
 #[contract_type]
 pub struct PoolState {
     /// The last-recorded reserves, and when they were recorded.
@@ -25,30 +25,26 @@ pub struct PoolState {
     /// The cumulative prices, as UQ112x112 fixed-point values, for use as a
     /// time-weighted-average-price oracle.
     ///
-    /// Recorded as of `block_timestamp`, and only when the reserves change:
-    /// a `sync` that finds nothing new records nothing (see `Pair::sync`).
-    /// The accumulator is a function of the reserves' history, so a consumer
-    /// wanting its value at a later block extrapolates -- each price times the
-    /// blocks since `block_timestamp`, added on -- exactly as UniswapV2's
-    /// oracle library does with `price0CumulativeLast` and
-    /// `blockTimestampLast`.
+    /// Recorded as of `block_timestamp`, and only when the reserves change: a `sync` that finds
+    /// nothing new records nothing (see `Pair::sync`). The accumulator is a function of the
+    /// reserves' history, so a consumer wanting its value at a later block extrapolates -- each
+    /// price times the blocks since `block_timestamp`, added on -- exactly as UniswapV2's oracle
+    /// library does with `price0CumulativeLast` and `blockTimestampLast`.
     pub cumulative_prices: [U256; 2],
 }
 
 /// Errors raised while handling a swap request (slippage limits exceeded).
 #[contract_exception]
 pub enum SwapRequestError {
-    /// The request was handed to this contract by something other than the
-    /// pool's driver.
+    /// The request was handed to this contract by something other than the pool's driver.
     ///
-    /// A request names the account whose tokens it spends, and this contract
-    /// spends them on that account's standing allowance.  Anyone able to hand
-    /// it a request could therefore spend anyone's allowance, so requests are
-    /// taken only from the driver -- which takes them only from the router,
-    /// which records the account that actually asked.
+    /// A request names the account whose tokens it spends, and this contract spends them on that
+    /// account's standing allowance. Anyone able to hand it a request could therefore spend
+    /// anyone's allowance, so requests are taken only from the driver -- which takes them only from
+    /// the router, which records the account that actually asked.
     ///
-    /// (This lives here, rather than on a handler-specific error type, because
-    /// a distinct type costs several hundred bytes of encoding machinery.)
+    /// (This lives here, rather than on a handler-specific error type, because a distinct type
+    /// costs several hundred bytes of encoding machinery.)
     Unauthorized = 100,
 
     InsufficientAmountA = 1,
@@ -68,14 +64,13 @@ pub enum SwapLibraryError {
 
 /// The handler that performs high-level swap operations.
 ///
-/// The driver enqueues opaque [`SwapRequest`]s and later forwards each one
-/// here (commit-locked and gas-limited).  This contract reads the live
-/// reserves, performs the optimizing calculation, moves the user's tokens, and
-/// performs the underlying pair operations *itself* -- the pair is code it
+/// The driver enqueues opaque [`SwapRequest`]s and later forwards each one here (commit-locked and
+/// gas-limited). This contract reads the live reserves, performs the optimizing calculation, moves
+/// the user's tokens, and performs the underlying pair operations *itself* -- the pair is code it
 /// runs, not a contract it calls, so a batch of requests shares one invocation.
 ///
-/// It is therefore also the pool: it holds the pooled tokens, administers the
-/// LP token, and answers for the pair's state.
+/// It is therefore also the pool: it holds the pooled tokens, administers the LP token, and answers
+/// for the pair's state.
 #[contract(
     client = SwapHandlerClient,
     throws(SwapRequestError, SwapPairError, ERC20Error, SwapLibraryError),
@@ -84,16 +79,15 @@ pub enum SwapLibraryError {
 pub trait SwapHandler {
     /// Must be called exactly once before any other methods.
     ///
-    /// `factory` is consulted for the protocol `fee_to`; `token0`/`token1` are
-    /// the pool's underlying tokens; `lp_token` is a deployed but
-    /// *uninitialized* ERC20 contract, which this method adopts as the LP
-    /// token and initializes under its own control; `driver` is the only
+    /// `factory` is consulted for the protocol `fee_to`; `token0`/`token1` are the pool's
+    /// underlying tokens; `lp_token` is a deployed but *uninitialized* ERC20 contract, which this
+    /// method adopts as the LP token and initializes under its own control; `driver` is the only
     /// contract whose requests this one will handle.
     ///
-    /// There is no caller check here, and none is possible: before the first
-    /// call there is no principal to check against.  What protects it is that
-    /// a pool is deployed and initialized in a single transaction, so nothing
-    /// can act on these contracts in between -- and a second call is refused.
+    /// There is no caller check here, and none is possible: before the first call there is no
+    /// principal to check against. What protects it is that a pool is deployed and initialized in a
+    /// single transaction, so nothing can act on these contracts in between -- and a second call is
+    /// refused.
     fn initialize(
         &mut self,
         factory: &Address,
@@ -103,13 +97,11 @@ pub trait SwapHandler {
         driver: &Address,
     );
 
-    /// Handle a single swap request, performing the underlying `swap`
-    /// operations.
+    /// Handle a single swap request, performing the underlying `swap` operations.
     ///
-    /// Callable only by this pool's driver.  A request names the account whose
-    /// tokens it spends, and this contract spends them on that account's
-    /// standing allowance to it -- so whoever may call this may spend anyone's
-    /// allowance.  The driver, in turn, takes requests only from the router,
+    /// Callable only by this pool's driver. A request names the account whose tokens it spends, and
+    /// this contract spends them on that account's standing allowance to it -- so whoever may call
+    /// this may spend anyone's allowance. The driver, in turn, takes requests only from the router,
     /// which records the account that actually asked.
     fn handle_request(&mut self, request: SwapRequest);
 
@@ -118,9 +110,9 @@ pub trait SwapHandler {
 
     /// Send any balance in excess of the recorded reserves to `to`.
     ///
-    /// Open to anyone, as in UniswapV2: it attributes nothing and can only
-    /// move what the reserves do not account for, so it stays available as a
-    /// way to recover tokens sent to the pool by mistake.
+    /// Open to anyone, as in UniswapV2: it attributes nothing and can only move what the reserves
+    /// do not account for, so it stays available as a way to recover tokens sent to the pool by
+    /// mistake.
     fn skim(&mut self, to: &Address);
 
     /// Record the pool's actual balances as its reserves.

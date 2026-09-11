@@ -1,17 +1,15 @@
 //! Calibration for the per-request gas budgets in `swap-if`.
 //!
-//! Each `SwapRequest` declares what its handling may cost, and the driver caps
-//! the handler sub-call there.  The declaration is a safety limit, so it has to
-//! sit above the real cost with room -- a request that outruns its budget does
-//! not slow down, it *fails*.  But the margin is not free either: the loop
-//! budgets `REQUEST_GAS_MAX` per request before taking one, so an inflated
-//! figure makes every crank declare more gas than it needs, and pushes up the
-//! floor a crank must clear before it may drain at all.
+//! Each `SwapRequest` declares what its handling may cost, and the driver caps the handler sub-call
+//! there. The declaration is a safety limit, so it has to sit above the real cost with room -- a
+//! request that outruns its budget does not slow down, it *fails*. But the margin is not free
+//! either: the loop budgets `REQUEST_GAS_MAX` per request before taking one, so an inflated figure
+//! makes every crank declare more gas than it needs, and pushes up the floor a crank must clear
+//! before it may drain at all.
 //!
-//! Gas is only metered for real in the guest build, so this is `guest_test`
-//! only.  It measures each operation as the driver invokes it -- one
-//! `handle_request` call, made as the driver, since that is the only caller the
-//! handler admits -- and holds each declared budget above what it costs.
+//! Gas is only metered for real in the guest build, so this is `guest_test` only. It measures each
+//! operation as the driver invokes it -- one `handle_request` call, made as the driver, since that
+//! is the only caller the handler admits -- and holds each declared budget above what it costs.
 
 #![cfg(feature = "guest_test")]
 
@@ -23,12 +21,11 @@ use swap_if::{ADD_LIQUIDITY_GAS, REMOVE_LIQUIDITY_GAS, SWAP_GAS};
 
 // How much room each declared budget should keep over the measured cost.
 //
-// Generous on purpose.  These measurements cover one shape of each operation
-// against one pool state, and the costs vary with the path taken: notably, the
-// protocol-fee branch in the pair's `mint_fee` -- a square root and some U256
-// arithmetic on every liquidity event -- is unreachable here, because nothing
-// in these tests configures a `fee_to`.  The margin is what stands in for the
-// paths the measurement does not reach.
+// Generous on purpose. These measurements cover one shape of each operation against one pool state,
+// and the costs vary with the path taken: notably, the protocol-fee branch in the pair's `mint_fee`
+// -- a square root and some U256 arithmetic on every liquidity event -- is unreachable here,
+// because nothing in these tests configures a `fee_to`. The margin is what stands in for the paths
+// the measurement does not reach.
 const MARGIN: u64 = 2;
 
 #[test]
@@ -67,8 +64,8 @@ fn declared_request_budgets_cover_what_handling_costs() {
         );
     }
 
-    // The batch budget has to bound every one of them, since the drain loop
-    // checks against it without knowing which request comes next.
+    // The batch budget has to bound every one of them, since the drain loop checks against it
+    // without knowing which request comes next.
     let worst = measured
         .iter()
         .map(|(_, declared, _)| *declared)
@@ -80,7 +77,7 @@ fn declared_request_budgets_cover_what_handling_costs() {
     );
 }
 
-/////////////////////// measurement /////////////////////////////////////////
+/// //////////////////// measurement /////////////////////////////////////////
 
 fn handler_cost(r: &TransactResult, address: &Address) -> u64 {
     let trace = r.frame().trace().expect("traced");
@@ -95,8 +92,7 @@ fn handler_cost(r: &TransactResult, address: &Address) -> u64 {
     cost
 }
 
-// Hand one request straight to the handler, as the driver does, and report
-// what that frame spent.
+// Hand one request straight to the handler, as the driver does, and report what that frame spent.
 fn measure(etx: &Etx, request: SwapRequest) -> u64 {
     let ctx = etx.ctx;
     // As the driver, which is the only caller the handler admits.

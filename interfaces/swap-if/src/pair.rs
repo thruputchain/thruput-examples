@@ -1,9 +1,8 @@
 //! Errors from the fundamental swap-pair operations (cf. UniswapV2Pair).
 //!
-//! The operations themselves are not a contract: they live in the `swap-pair`
-//! crate and run inside the handler's invocation.  Their errors stay here
-//! because the handler's interface names them, and this crate cannot depend on
-//! the implementation.
+//! The operations themselves are not a contract: they live in the `swap-pair` crate and run inside
+//! the handler's invocation. Their errors stay here because the handler's interface names them, and
+//! this crate cannot depend on the implementation.
 
 use crate::ERC20Error;
 use core::fmt;

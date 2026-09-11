@@ -28,8 +28,8 @@ impl Ctx {
         SwapHandlerClient::new(&self.request_handler_addr)
     }
 
-    // The pool: the handler performs the pair's operations and holds its
-    // reserves, so it is what answers for them.
+    // The pool: the handler performs the pair's operations and holds its reserves, so it is what
+    // answers for them.
     pub fn pair(&self) -> SwapHandlerClient {
         SwapHandlerClient::new(&self.request_handler_addr)
     }
@@ -101,8 +101,8 @@ impl Ctx {
         let reserve_in = reserves[in_index];
         let reserve_out = reserves[out_index];
 
-        // amount_in_with_fee = amount_in * 997
-        // amount_out = amount_in_with_fee / ((reserve_in * 1000) + amount_in_with_fee)
+        // amount_in_with_fee = amount_in * 997 amount_out = amount_in_with_fee / ((reserve_in *
+        // 1000) + amount_in_with_fee)
 
         let amount_in_with_fee: U256 = Into::<U256>::into(amount_in) * 997;
         let numerator: U256 = amount_in_with_fee * Into::<U256>::into(reserve_out);
@@ -132,8 +132,8 @@ impl Ctx {
         self.user_print_balances(user);
     }
 
-    // As a user, provide AB-token liquidity in exchange for LP tokens.
-    // (Calculate the right A/B ratio.)
+    // As a user, provide AB-token liquidity in exchange for LP tokens. (Calculate the right A/B
+    // ratio.)
     pub fn user_buy(&self, user: &User) {
         assert_eq!(user.addr, &get_current_address());
 
@@ -153,8 +153,8 @@ impl Ctx {
         self.user_print_balances(user);
     }
 
-    // As a user: allow the handler to take the tokens a liquidity purchase
-    // will need, and report the amounts the request should name.
+    // As a user: allow the handler to take the tokens a liquidity purchase will need, and report
+    // the amounts the request should name.
     pub fn user_buy_prepare(&self, user: &User) -> Amounts {
         let amt0 = self.token0().get_balance();
         let amt1 = self.quote01(amt0);
@@ -162,8 +162,7 @@ impl Ctx {
         let bal1 = self.token1().get_balance();
         assert!(bal1 >= amt1);
 
-        // We want to sell all our A tokens and the equivalent amount of B
-        // tokens for LP tokens
+        // We want to sell all our A tokens and the equivalent amount of B tokens for LP tokens
         let amounts = [amt0, amt1];
 
         // Give the request handler access to my tokens

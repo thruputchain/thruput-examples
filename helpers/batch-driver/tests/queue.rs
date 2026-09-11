@@ -1,20 +1,16 @@
 //! [`batch_driver::Queue`]: the queue, its ceiling, its ids and its crank
 //! floor, held together.
 //!
-//! The individual pieces have their own tests -- `admission` for the ceiling,
-//! `drain_budget` for the loop's gas budgeting, `queue_semantics` for the
-//! runtime rules underneath both.  What is tested here is what `Queue` adds by
-//! owning all of them: that an enqueue takes a slot and a drain gives it back,
-//! that every accepted entry gets an id of its own, that a failed request is
-//! still taken and still counted, and that a policy no crank could satisfy is
-//! refused at initialization.
+//! The individual pieces have their own tests -- `admission` for the ceiling, `drain_budget` for
+//! the loop's gas budgeting, `queue_semantics` for the runtime rules underneath both. What is
+//! tested here is what `Queue` adds by owning all of them: that an enqueue takes a slot and a drain
+//! gives it back, that every accepted entry gets an id of its own, that a failed request is still
+//! taken and still counted, and that a policy no crank could satisfy is refused at initialization.
 //!
-//! The other half of the policy -- refusing a crank that cannot fund what the
-//! queue owes -- is not reachable from here.  Starving a crank needs a frame
-//! with a real gas limit, and these transactions run with `u64::MAX`, so no
-//! budget can exceed what the frame holds.  `swap-driver`'s `min_batch` tests
-//! cover it, calling `process_requests` through a client with a declared
-//! limit.
+//! The other half of the policy -- refusing a crank that cannot fund what the queue owes -- is not
+//! reachable from here. Starving a crank needs a frame with a real gas limit, and these
+//! transactions run with `u64::MAX`, so no budget can exceed what the frame holds. `swap-driver`'s
+//! `min_batch` tests cover it, calling `process_requests` through a client with a declared limit.
 
 use batch_driver::{BatchRequest, CrankPolicy, Queue};
 use sdk::storage::*;
@@ -44,10 +40,10 @@ impl BatchRequest for Request {
     }
 }
 
-/////////////////////// queue behavior //////////////////////////
+/// //////////////////// queue behavior //////////////////////////
 
-// An enqueue takes a slot and a drain gives it back, so the ceiling keeps
-// bounding the queue across batches without the driver arranging anything.
+// An enqueue takes a slot and a drain gives it back, so the ceiling keeps bounding the queue across
+// batches without the driver arranging anything.
 #[test]
 fn draining_frees_the_room_an_enqueue_took() {
     let env = TestEnvironment::no_cost();
@@ -57,8 +53,8 @@ fn draining_frees_the_room_an_enqueue_took() {
     enqueue(&env).assert_success();
     enqueue(&env).assert_success();
 
-    // Full: the next one is early rather than wrong, so it returns to the
-    // mempool for a later block.
+    // Full: the next one is early rather than wrong, so it returns to the mempool for a later
+    // block.
     let overrun = enqueue(&env);
     overrun.frame().assert_success();
     overrun.assert_commit_failed_nondeterministically();
@@ -71,8 +67,8 @@ fn draining_frees_the_room_an_enqueue_took() {
     enqueue(&env).assert_success();
 }
 
-// Every accepted entry gets an id of its own, including entries accepted in
-// one transaction -- which share a source-transaction hash.
+// Every accepted entry gets an id of its own, including entries accepted in one transaction --
+// which share a source-transaction hash.
 #[test]
 fn entries_from_one_transaction_get_distinct_ids() {
     let env = TestEnvironment::no_cost();
@@ -94,12 +90,11 @@ fn entries_from_one_transaction_get_distinct_ids() {
     assert_ne!(a, b);
 }
 
-/////////////////////// failure accounting /////////////////////////////////
+/// //////////////////// failure accounting /////////////////////////////////
 
-// A request whose handling fails is still consumed, and still counts toward
-// the batch: the drain reports it rather than stopping.  A batch that stopped
-// at its first failure would leave the rest of the queue hostage to one bad
-// request.
+// A request whose handling fails is still consumed, and still counts toward the batch: the drain
+// reports it rather than stopping. A batch that stopped at its first failure would leave the rest
+// of the queue hostage to one bad request.
 #[test]
 fn a_failed_request_does_not_stop_the_batch() {
     let env = TestEnvironment::no_cost();
@@ -113,8 +108,8 @@ fn a_failed_request_does_not_stop_the_batch() {
 
     let drained = env.transact(|tx| {
         tx.call(&ADDR).run(|| {
-            // The *first* request fails, so a drain that stopped at a failure
-            // would report one taken rather than two.
+            // The *first* request fails, so a drain that stopped at a failure would report one
+            // taken rather than two.
             let mut seen = 0;
             queue::<Request>()
                 .crank(|_request: Request, _gas| {
@@ -136,10 +131,10 @@ fn a_failed_request_does_not_stop_the_batch() {
     assert_eq!(crank(&env), (0, 0));
 }
 
-/////////////////////// the policy //////////////////////////////////////////
+/// //////////////////// the policy //////////////////////////////////////////
 
-// A floor above the ceiling asks for a batch the queue is never allowed to
-// hold, which no crank could satisfy, so it is refused outright.
+// A floor above the ceiling asks for a batch the queue is never allowed to hold, which no crank
+// could satisfy, so it is refused outright.
 #[test]
 fn a_floor_above_the_ceiling_is_refused() {
     let env = TestEnvironment::no_cost();
@@ -157,13 +152,12 @@ fn a_floor_above_the_ceiling_is_refused() {
     init.assert_success();
     assert!(!init.assert_return_as::<bool>());
 
-    // Nothing was set, so the queue admits nothing rather than admitting
-    // everything.
+    // Nothing was set, so the queue admits nothing rather than admitting everything.
     enqueue(&env).assert_commit_failed_nondeterministically();
 }
 
-// A floor exactly at the ceiling is satisfiable -- a full queue is a batch a
-// crank can be asked for -- so it is allowed.
+// A floor exactly at the ceiling is satisfiable -- a full queue is a batch a crank can be asked for
+// -- so it is allowed.
 #[test]
 fn a_floor_at_the_ceiling_is_allowed() {
     let env = TestEnvironment::no_cost();
@@ -174,7 +168,7 @@ fn a_floor_at_the_ceiling_is_allowed() {
     enqueue(&env).assert_success();
 }
 
-/////////////////////// helpers /////////////////////////////////////////////
+/// //////////////////// helpers /////////////////////////////////////////////
 
 fn queue<R: BatchRequest>() -> Queue<R> {
     Keypath::default().into()

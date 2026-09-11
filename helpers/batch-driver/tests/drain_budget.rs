@@ -1,14 +1,12 @@
 //! The gas budgeting in [`batch_driver::Queue::crank`]'s drain.
 //!
-//! The drain is bounded by what the calling frame can still afford, so the
-//! caller's own gas limit is what sizes the batch.  Two properties matter, and
-//! both are visible natively:
+//! The drain is bounded by what the calling frame can still afford, so the caller's own gas limit
+//! is what sizes the batch. Two properties matter, and both are visible natively:
 //!
-//! * a frame with room keeps going -- there is no batch size fixed inside the
-//!   helper for every caller to declare gas for; and
-//! * a frame without room for a whole request stops *before* consuming one, so
-//!   a request is never taken out of the queue and then dropped for want of
-//!   gas to handle it.
+//! * a frame with room keeps going -- there is no batch size fixed inside the helper for every
+//!   caller to declare gas for; and
+//! * a frame without room for a whole request stops *before* consuming one, so a request is never
+//!   taken out of the queue and then dropped for want of gas to handle it.
 
 use batch_driver::{BatchRequest, CrankPolicy, EPILOGUE_GAS, Queue, gas_for_batch};
 use sdk::storage::*;
@@ -16,8 +14,8 @@ use sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([2u8; 32]);
 
-// Room for the longest batch below, and no crank floor: this is about what the
-// frame can afford, not what the queue demands of it.
+// Room for the longest batch below, and no crank floor: this is about what the frame can afford,
+// not what the queue demands of it.
 const CAPACITY: u32 = 32;
 
 /// An ordinary request, cheap enough that a default frame can drain many.
@@ -39,9 +37,9 @@ impl BatchRequest for Request {
     }
 }
 
-/// A request declaring more gas than any frame can hold, to exercise the
-/// budget check without needing to shrink the frame around it.  Its encoding
-/// matches `Request`, so the two read each other's entries.
+/// A request declaring more gas than any frame can hold, to exercise the budget check without
+/// needing to shrink the frame around it. Its encoding matches `Request`, so the two read each
+/// other's entries.
 #[derive(ReadXDR, WriteXDR, Clone, Copy, Debug, PartialEq, Eq)]
 #[xdrs(crate = "::sdk::__xdrs")]
 struct Unaffordable {
@@ -60,8 +58,8 @@ impl BatchRequest for Unaffordable {
     }
 }
 
-// A frame with gas to spare drains the whole queue, however long.  Under the
-// previous fixed high-water mark this stopped at about ten.
+// A frame with gas to spare drains the whole queue, however long. Under the previous fixed
+// high-water mark this stopped at about ten.
 #[test]
 fn a_frame_with_room_drains_past_the_old_fixed_batch() {
     let env = TestEnvironment::no_cost();
@@ -77,8 +75,8 @@ fn a_frame_with_room_drains_past_the_old_fixed_batch() {
     assert_eq!(crank.assert_return_as::<(u32, u32)>(), (25, 0));
 }
 
-// A frame that cannot fund a whole request consumes nothing at all: the
-// budget is checked before the entry leaves the queue.
+// A frame that cannot fund a whole request consumes nothing at all: the budget is checked before
+// the entry leaves the queue.
 #[test]
 fn a_frame_without_room_consumes_nothing() {
     let env = TestEnvironment::no_cost();
@@ -94,8 +92,8 @@ fn a_frame_without_room_consumes_nothing() {
     assert_eq!(crank.assert_return_as::<(u32, u32)>(), (0, 0));
 }
 
-// ... and the requests it declined to take are still there, in order, for a
-// caller that can afford them.
+// ... and the requests it declined to take are still there, in order, for a caller that can afford
+// them.
 #[test]
 fn requests_declined_for_want_of_gas_stay_queued() {
     let env = TestEnvironment::no_cost();
@@ -125,9 +123,9 @@ fn requests_declined_for_want_of_gas_stay_queued() {
     assert_eq!(seen.assert_return_as::<Vec<u32>>(), vec![0, 1, 2]);
 }
 
-// The threshold is a request's declared worst case plus the epilogue reserve,
-// so a type whose `GAS_LIMIT` saturates that sum still yields a bounded
-// threshold rather than wrapping to a trivially satisfied one.
+// The threshold is a request's declared worst case plus the epilogue reserve, so a type whose
+// `GAS_LIMIT` saturates that sum still yields a bounded threshold rather than wrapping to a
+// trivially satisfied one.
 #[test]
 fn an_enormous_request_limit_does_not_wrap_the_threshold() {
     assert_eq!(
@@ -136,17 +134,16 @@ fn an_enormous_request_limit_does_not_wrap_the_threshold() {
     );
 }
 
-/////////////////////// sizing a batch //////////////////////////////////////
+/// //////////////////// sizing a batch //////////////////////////////////////
 
-// `gas_for_batch` is the inverse of the drain's budget check: a frame given
-// exactly that much drains the whole batch, even with every request costing
-// its full declared worst case.
+// `gas_for_batch` is the inverse of the drain's budget check: a frame given exactly that much
+// drains the whole batch, even with every request costing its full declared worst case.
 #[test]
 fn gas_for_batch_funds_the_whole_batch() {
     const BATCH: u32 = 4;
 
-    // The drain stops when the frame can no longer fund one more request, so
-    // walk the budget down a batch's worth and check it is still going.
+    // The drain stops when the frame can no longer fund one more request, so walk the budget down a
+    // batch's worth and check it is still going.
     let mut remaining = gas_for_batch::<Request>(BATCH);
     let threshold = Request::GAS_LIMIT + EPILOGUE_GAS;
 
@@ -162,8 +159,8 @@ fn gas_for_batch_funds_the_whole_batch() {
     assert!(remaining <= threshold);
 }
 
-// The reserve `gas_for_batch` adds is what makes that exact: a batch's worth
-// of requests alone leaves the drain one check short.
+// The reserve `gas_for_batch` adds is what makes that exact: a batch's worth of requests alone
+// leaves the drain one check short.
 #[test]
 fn a_batch_without_the_reserve_falls_one_short() {
     const BATCH: u32 = 4;
@@ -181,12 +178,11 @@ fn gas_for_batch_saturates() {
     });
 }
 
-/////////////////////// helpers /////////////////////////////////////////////
+/// //////////////////// helpers /////////////////////////////////////////////
 
-// A queue rooted at the default keypath, so that a `Queue<Request>` and a
-// `Queue<Unaffordable>` name the same storage -- the two encode identically, so
-// each reads the other's entries, which is how a cheap batch is enqueued and
-// then cranked at an unaffordable budget.
+// A queue rooted at the default keypath, so that a `Queue<Request>` and a `Queue<Unaffordable>`
+// name the same storage -- the two encode identically, so each reads the other's entries, which is
+// how a cheap batch is enqueued and then cranked at an unaffordable budget.
 fn queue<R: BatchRequest>() -> Queue<R> {
     Keypath::default().into()
 }

@@ -17,8 +17,8 @@ pub struct MintEvent<'a> {
     #[topic]
     pub recipient: &'a Address,
 
-    /// The identifier of the batch-request this mint fulfilled, if it
-    /// originated from one (see [`RequestId`]).
+    /// The identifier of the batch-request this mint fulfilled, if it originated from one (see
+    /// [`RequestId`]).
     pub request_id: Option<RequestId>,
 }
 
@@ -52,8 +52,8 @@ pub struct BurnEvent<'a> {
     #[topic]
     pub recipient: &'a Address,
 
-    /// The identifier of the batch-request this burn fulfilled, if it
-    /// originated from one (see [`RequestId`]).
+    /// The identifier of the batch-request this burn fulfilled, if it originated from one (see
+    /// [`RequestId`]).
     pub request_id: Option<RequestId>,
 }
 
@@ -90,8 +90,8 @@ pub struct SwapEvent<'a> {
     #[topic]
     pub recipient: &'a Address,
 
-    /// The identifier of the batch-request this burn fulfilled, if it
-    /// originated from one (see [`RequestId`]).
+    /// The identifier of the batch-request this burn fulfilled, if it originated from one (see
+    /// [`RequestId`]).
     pub request_id: Option<RequestId>,
 }
 
@@ -126,8 +126,7 @@ impl SyncEvent {
     }
 }
 
-/// Emitted by the factory when it creates a pair's contracts (cf. UniswapV2's
-/// `PairCreated`).
+/// Emitted by the factory when it creates a pair's contracts (cf. UniswapV2's `PairCreated`).
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PoolCreated<'a> {
     #[topic]
