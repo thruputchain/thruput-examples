@@ -1,0 +1,22 @@
+{
+  "name": "@groundhog-examples/scripts",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "create-token-pool": "tsx scripts/create-token-pool.ts",
+    "typecheck:scripts": "tsc -p scripts/tsconfig.json"
+  },
+  "dependencies": {
+    "@groundhogchain/client": "0.7.0",
+    "@groundhogchain/contract-spec": "0.11.0",
+    "@groundhogchain/protocol": "0.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.1",
+    "tsx": "4.22.4",
+    "typescript": "6.0.3"
+  }
+}
