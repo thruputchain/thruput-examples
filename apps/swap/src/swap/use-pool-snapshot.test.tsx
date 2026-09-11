@@ -13,6 +13,23 @@ afterEach(() => {
 });
 
 describe("usePoolSnapshot", () => {
+  it("ignores an older read after a post-action refresh completes", async () => {
+    let resolveFirst!: (value: PoolSnapshot) => void;
+    const first = new Promise<PoolSnapshot>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const latest = { chainHeight: 9n } as PoolSnapshot;
+    const read = vi.fn().mockReturnValueOnce(first).mockResolvedValueOnce(latest);
+    const { result } = renderHook(() => usePoolSnapshot(read));
+
+    await act(async () => result.current.refresh());
+    expect(result.current.snapshot).toBe(latest);
+    await act(async () => resolveFirst({ chainHeight: 8n } as PoolSnapshot));
+    expect(result.current.snapshot).toBe(latest);
+    expect(result.current.isRefreshing).toBe(false);
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
   it("refreshes visible pool data on the quote interval", async () => {
     vi.useFakeTimers();
     const read = vi.fn().mockResolvedValue({ chainHeight: 1n } as PoolSnapshot);

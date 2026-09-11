@@ -1,4 +1,4 @@
-import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
+import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -41,20 +41,6 @@ export function PoolDetailPage({
           : `${state.snapshot.tokenA.symbol} / ${state.snapshot.tokenB.symbol}`
       }
       description="Pool reserves, liquidity ownership, and contract identity."
-      actions={
-        state.isLoading ? undefined : (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={state.isRefreshing}
-            onClick={state.refresh}
-          >
-            <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
-            {state.isUserRefreshing ? "Refreshing" : "Refresh"}
-          </Button>
-        )
-      }
       readOnly={readOnly}
     >
       {state.error === null ? null : (

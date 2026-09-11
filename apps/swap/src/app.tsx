@@ -50,7 +50,7 @@ import {
   unavailableWriteBoundary,
   type WriteBoundary,
 } from "@/transactions/write-boundary";
-import { ConnectedWalletApp } from "@/wallet/connected-app";
+import { ConnectedWalletApp, WalletControls } from "@/wallet/connected-app";
 import { useWalletWriteBoundary } from "@/wallet/write-context";
 
 export function App({
@@ -349,7 +349,11 @@ function PlaceholderPage({
 }) {
   return (
     <>
-      <AppHeader product="Swap" homeHref="/pools" />
+      <AppHeader
+        product="Swap"
+        homeHref="/pools"
+        actions={<WalletControls />}
+      />
       <main className="isolate min-h-[calc(100svh-5rem)] bg-background px-4 py-12 text-foreground antialiased sm:px-6">
         <Card className="mx-auto w-full max-w-xl">
           <CardHeader>

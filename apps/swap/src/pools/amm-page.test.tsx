@@ -11,7 +11,7 @@ describe("AmmPage", () => {
           <AmmPage
             title="Pools"
             description="Pool directory"
-            actions={<button type="button">Refresh</button>}
+            actions={<button type="button">Example action</button>}
           >
             <div>Pool content</div>
           </AmmPage>
@@ -29,7 +29,7 @@ describe("AmmPage", () => {
     expect(
       Array.from(screen.getByRole("banner").querySelectorAll("button"))
         .map((item) => item.getAttribute("aria-label") ?? item.textContent?.trim()),
-    ).toEqual(["Open navigation", "Refresh"]);
+    ).toEqual(["Open navigation", "Example action"]);
     expect(
       screen.queryByText("Local trusted-driver limitation"),
     ).not.toBeInTheDocument();

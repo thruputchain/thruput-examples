@@ -21,7 +21,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { READ_ONLY_CALLER, type GlobalConfig } from "@/config";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { WriteBoundary } from "@/transactions/write-boundary";
-import { ConnectedWalletApp } from "./connected-app";
+import { AppHeader } from "@/components/app-header";
+import { ConnectedWalletApp, WalletControls } from "./connected-app";
 import { useWalletWriteBoundary } from "./write-context";
 
 vi.mock("@/groundhog/client", () => ({
@@ -101,6 +102,7 @@ function renderApp() {
     writers.push(writer);
     return (
       <>
+        <AppHeader product="Swap" actions={<WalletControls />} />
         <output aria-label="Runtime caller">
           {toHex0x(runtime.accountAddress)}
         </output>
@@ -200,7 +202,11 @@ describe("connected wallet runtime", () => {
   it("browses without a wallet, discovers either load order, and never presents the fallback caller as a wallet", async () => {
     const first = provider();
     const { user } = renderApp();
-    expect(screen.getByText("Read-only browsing")).toBeVisible();
+    expect(screen.queryByText("Read-only browsing")).toBeNull();
+    expect(screen.getAllByRole("banner")).toHaveLength(1);
+    expect(screen.getByRole("banner")).toContainElement(
+      screen.getByRole("region", { name: "Wallet connection" }),
+    );
     expect(screen.queryByLabelText(/Connected account/)).toBeNull();
     expect(screen.getByLabelText("Runtime caller")).toHaveTextContent(
       toHex0x(READ_ONLY_CALLER),
@@ -302,7 +308,9 @@ describe("connected wallet runtime", () => {
     await act(async () =>
       wallet.change({ networkHash: config.networkIdHex, accounts: [] }),
     );
-    expect(screen.getByText("Read-only browsing")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Connect test.wallet" }),
+    ).toBeEnabled();
   });
 
   it.each(["reject", "network", "malformed"])(

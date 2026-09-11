@@ -1,4 +1,4 @@
-import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
+import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
 import { useState } from "react";
 
@@ -262,12 +262,6 @@ export function LiquidityPage({
     <AmmPage
       title="Manage liquidity"
       description={`${config.tokenASymbol} / ${config.tokenBSymbol} deposits and redemptions.`}
-      actions={snapshot === null ? undefined : (
-        <Button size="sm" variant="outline" disabled={snapshotState.isRefreshing} onClick={snapshotState.refresh}>
-          <RefreshCwIcon aria-hidden="true" data-icon="inline-start" />
-          Refresh
-        </Button>
-      )}
     >
       <div className="flex flex-wrap gap-3 text-sm">
         <BlockchainIdentifier kind="address" value={toHex0x(config.tokenAAddress)} label="Token A address" />

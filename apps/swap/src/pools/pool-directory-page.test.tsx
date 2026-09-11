@@ -120,13 +120,10 @@ describe("PoolDirectoryPage", () => {
     expect(screen.queryByRole("link", { name: /Create pool/i })).toBeNull();
   });
 
-  it("keeps the previous directory visible when refresh fails", async () => {
+  it("recovers from repeated direct directory failures with Try again", async () => {
     const user = userEvent.setup();
     vi.mocked(readPoolDirectory)
-      .mockResolvedValueOnce({
-        entries: [{ config: poolConfig, snapshot }],
-        invalidEntryCount: 0,
-      })
+      .mockRejectedValueOnce(new Error("RPC unavailable"))
       .mockRejectedValueOnce(new Error("gateway disconnected"))
       .mockResolvedValueOnce({
         entries: [{ config: poolConfig, snapshot }],
@@ -134,19 +131,15 @@ describe("PoolDirectoryPage", () => {
       });
     renderPage();
 
+    expect(await screen.findByText("RPC unavailable")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("gateway disconnected")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("A / B")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Refresh" }));
-
-    expect(await screen.findByText("Pool data may be stale")).toBeVisible();
-    expect(screen.getByText(/gateway disconnected/)).toBeVisible();
-    expect(screen.getByText("A / B")).toBeVisible();
-
-    await user.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => {
-      expect(
-        screen.queryByText("Pool data may be stale"),
-      ).not.toBeInTheDocument();
-    });
+    expect(screen.queryByText("Pool registry unavailable")).toBeNull();
+    expect(readPoolDirectory).toHaveBeenCalledTimes(3);
   });
 
   it("uses registry discovery, renders immutable identities, and reports partial live failures", async () => {
@@ -229,11 +222,12 @@ describe("PoolDirectoryPage", () => {
     expect(requestSync).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["search", "token", "sort", "page", "refresh"])(
+  it.each(["search", "token", "sort", "page", "sync completion"])(
     "clears displayed results while a replacement %s request is pending",
     async (change) => {
       const user = userEvent.setup();
       let resolveReplacement!: (value: RegistryPoolPage) => void;
+      let completeSync!: (value: RegistryStatus) => void;
       const readRegistry = vi
         .fn()
         .mockResolvedValueOnce({ ...page(), total: 21, hasMore: true })
@@ -247,7 +241,9 @@ describe("PoolDirectoryPage", () => {
         { ...globalConfig, registryEnabled: true },
         {
           readRegistry,
-          requestSync: vi.fn(() => new Promise<RegistryStatus>(() => {})),
+          requestSync: vi.fn(() => new Promise<RegistryStatus>((resolve) => {
+            completeSync = resolve;
+          })),
           enrich: vi.fn<typeof enrichRegistryPools>(async (_config, entries) =>
             entries.map((entry) => ({
               ...entry,
@@ -270,19 +266,17 @@ describe("PoolDirectoryPage", () => {
         await user.type(screen.getByLabelText("Contains token"), hex(20));
       } else if (change === "sort") {
         await user.selectOptions(screen.getByLabelText("Sort by"), "oldest");
+      } else if (change === "page") {
+        await user.click(screen.getByRole("button", { name: "Next" }));
       } else {
-        await user.click(
-          screen.getByRole("button", {
-            name: change === "page" ? "Next" : "Refresh",
-          }),
-        );
+        await act(async () => completeSync(status()));
       }
       await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(2));
       expect(screen.queryByRole("link", { name: "View pool" })).toBeNull();
       expect(screen.queryByText(/Showing /)).toBeNull();
       expect(screen.queryByText("Some pools could not be loaded")).toBeNull();
       expect(screen.queryByText("No pools yet")).toBeNull();
-      expect(screen.getByRole("button", { name: "Refreshing" })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
 
       const replacement = page();
       replacement.pools[0] = {

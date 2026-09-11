@@ -195,22 +195,6 @@ export function SwapPage({
     <AmmPage
       title={`Swap ${config.tokenASymbol} / ${config.tokenBSymbol}`}
       description="Trade an exact input amount against this pool's current reserves."
-      actions={
-        <Button
-          size="sm"
-          variant="outline"
-          aria-label="Refresh pool data"
-          disabled={state.isRefreshing}
-          onClick={state.refresh}
-        >
-          {state.isRefreshing ? (
-            <Spinner data-icon="inline-start" aria-hidden="true" />
-          ) : (
-            <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
-          )}
-          Refresh
-        </Button>
-      }
     >
       <div className="sr-only" role="status" aria-live="polite">
         {status}

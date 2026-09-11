@@ -3,7 +3,6 @@ import {
   AlertCircleIcon,
   DropletsIcon,
   PlusIcon,
-  RefreshCwIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -103,27 +102,19 @@ function DirectPoolDirectoryPage({
     | {
         kind: "ready";
         result: PoolDirectoryResult;
-        refreshing: boolean;
-        refreshError: string | null;
       }
     | { kind: "error"; message: string }
   >({ kind: "loading" });
   const refresh = useCallback(
-    (background = false) => {
+    () => {
       const currentRequest = ++request.current;
-      setState((current) =>
-        background && current.kind === "ready"
-          ? { ...current, refreshing: true }
-          : { kind: "loading" },
-      );
+      setState({ kind: "loading" });
       void read(config).then(
         (result) => {
           if (request.current === currentRequest) {
             setState({
               kind: "ready",
               result,
-              refreshing: false,
-              refreshError: null,
             });
           }
         },
@@ -133,11 +124,7 @@ function DirectPoolDirectoryPage({
               error instanceof Error
                 ? error.message
                 : "The pool registry could not be loaded";
-            setState((current) =>
-              background && current.kind === "ready"
-                ? { ...current, refreshing: false, refreshError: message }
-                : { kind: "error", message },
-            );
+            setState({ kind: "error", message });
           }
         },
       );
@@ -153,23 +140,10 @@ function DirectPoolDirectoryPage({
   }, [refresh]);
 
   return (
-    <DirectoryLayout
-      readOnly={readOnly}
-      action={
-        state.kind === "ready" ? (
-          <RefreshButton
-            refreshing={state.refreshing}
-            onClick={() => refresh(true)}
-          />
-        ) : undefined
-      }
-    >
+    <DirectoryLayout readOnly={readOnly}>
       {state.kind === "loading" ? <DirectorySkeleton /> : null}
       {state.kind === "error" ? (
         <Unavailable message={state.message} retry={() => refresh()} />
-      ) : null}
-      {state.kind === "ready" && state.refreshError !== null ? (
-        <StaleDataAlert message={state.refreshError} />
       ) : null}
       {state.kind === "ready" && state.result.invalidEntryCount > 0 ? (
         <PartialReads count={state.result.invalidEntryCount} direct />
@@ -394,10 +368,7 @@ function RegistryPoolDirectoryPage({
   }
 
   return (
-    <DirectoryLayout
-      readOnly={readOnly}
-      action={<RefreshButton refreshing={loading} onClick={refresh} />}
-    >
+    <DirectoryLayout readOnly={readOnly}>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem]">
         <Field>
           <FieldLabel htmlFor="pool-search">Search addresses</FieldLabel>
@@ -553,11 +524,9 @@ function resetRegistrySnapshot(
 }
 
 function DirectoryLayout({
-  action,
   children,
   readOnly = false,
 }: {
-  action?: React.ReactNode;
   children: React.ReactNode;
   readOnly?: boolean;
 }) {
@@ -565,32 +534,10 @@ function DirectoryLayout({
     <AmmPage
       title="Pools"
       description="Explore token markets on Thruput."
-      actions={action}
       readOnly={readOnly}
     >
       {children}
     </AmmPage>
-  );
-}
-
-function RefreshButton({
-  refreshing,
-  onClick,
-}: {
-  refreshing: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      disabled={refreshing}
-      onClick={onClick}
-    >
-      <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
-      {refreshing ? "Refreshing" : "Refresh"}
-    </Button>
   );
 }
 
@@ -610,19 +557,6 @@ function Unavailable({
         <Button type="button" variant="outline" onClick={retry}>
           Try again
         </Button>
-      </AlertDescription>
-    </Alert>
-  );
-}
-
-function StaleDataAlert({ message }: { message: string }) {
-  return (
-    <Alert>
-      <AlertCircleIcon aria-hidden="true" />
-      <AlertTitle>Pool data may be stale</AlertTitle>
-      <AlertDescription>
-        The latest refresh failed, so the last successfully loaded directory
-        remains visible. {message}
       </AlertDescription>
     </Alert>
   );

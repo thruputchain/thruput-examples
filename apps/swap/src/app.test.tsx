@@ -317,29 +317,6 @@ describe("read-only swap experience", () => {
     expect(screen.getByRole("button", { name: /Pool has no liquidity/ })).toBeDisabled();
   });
 
-  it("ignores an older refresh that resolves after a newer request", async () => {
-    const user = userEvent.setup();
-    let resolveFirst: ((value: PoolSnapshot) => void) | undefined;
-    const first = new Promise<PoolSnapshot>((resolve) => {
-      resolveFirst = resolve;
-    });
-    const read = vi
-      .fn<SnapshotReader>()
-      .mockReturnValueOnce(first)
-      .mockResolvedValueOnce(pool({ chainHeight: 9n }));
-    renderApp(read);
-
-    await user.click(
-      within(screen.getByRole("banner"))
-        .getByRole("button", { name: "Refresh pool data" }),
-    );
-    expect((await screen.findAllByText(/block 9/)).length).toBeGreaterThan(0);
-    await act(async () => resolveFirst?.(pool({ chainHeight: 8n })));
-    await waitFor(() =>
-      expect(screen.getAllByText(/block 9/).length).toBeGreaterThan(0),
-    );
-  });
-
 });
 
 describe("local swap submission", () => {

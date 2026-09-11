@@ -9,14 +9,26 @@ import {
   createProviderWalletClient,
   type ProviderWalletClient,
 } from "@groundhogchain/client/wallet";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { READ_ONLY_CALLER, type GlobalConfig } from "@/config";
 import { createReadClient } from "@/groundhog/client";
 import { createProviderWriteBoundary } from "@/transactions/provider-wallet";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 import { WalletWriteContext } from "./write-context";
+
+const WalletControlsContext = createContext<{
+  providers: WalletProvider[];
+  provider: WalletProvider | null;
+  session: WalletSession | null;
+  address: string | null;
+  busy: boolean;
+  error: string | null;
+  connect: () => Promise<void>;
+  disconnect: () => Promise<void>;
+  selectProvider: (id: string) => void;
+  selectAccount: (address: string) => void;
+} | null>(null);
 
 export function ConnectedWalletApp({
   config,
@@ -205,101 +217,131 @@ export function ConnectedWalletApp({
 
   return (
     <WalletWriteContext value={runtime.writer}>
-      <section
-        aria-label="Wallet connection"
-        className="flex flex-wrap items-center justify-end gap-3 border-b bg-background px-4 py-3 text-foreground"
+      <WalletControlsContext
+        value={{
+          providers,
+          provider,
+          session,
+          address: runtime.connected
+            ? toHex0x(runtime.config.accountAddress)
+            : null,
+          busy,
+          error,
+          connect,
+          disconnect,
+          selectProvider: (id) => {
+            acceptingChanges.current = false;
+            selectedAddress.current = undefined;
+            invalidate();
+            setSession(null);
+            setError(null);
+            setProvider(
+              providers.find((entry) => entry.info.id === id) ?? null,
+            );
+          },
+          selectAccount: (address) => {
+            try {
+              if (provider && session) activate(session, provider, address);
+            } catch (failure) {
+              setError(
+                failure instanceof Error
+                  ? failure.message
+                  : "Account selection failed",
+              );
+            }
+          },
+        }}
       >
-        {providers.length > 1 ? (
+        {children(runtime.config, runtime.connected, runtime.revision)}
+      </WalletControlsContext>
+    </WalletWriteContext>
+  );
+}
+
+export function WalletControls() {
+  const wallet = useContext(WalletControlsContext);
+  if (!wallet) return null;
+  const {
+    providers,
+    provider,
+    session,
+    address,
+    busy,
+    error,
+    connect,
+    disconnect,
+    selectProvider,
+    selectAccount,
+  } = wallet;
+  return (
+    <section
+      aria-label="Wallet connection"
+      className="flex min-w-0 flex-wrap items-center gap-2"
+    >
+      {providers.length > 1 ? (
+        <label className="flex items-center gap-2">
+          Wallet
+          <select
+            className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
+            aria-label="Wallet provider"
+            disabled={busy}
+            value={provider?.info.id ?? ""}
+            onChange={(event) => selectProvider(event.target.value)}
+          >
+            {providers.map((entry) => (
+              <option key={entry.info.id} value={entry.info.id}>
+                {entry.info.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {address ? (
+        <>
           <label className="flex items-center gap-2">
-            Wallet
+            Account
             <select
               className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
-              aria-label="Wallet provider"
-              disabled={busy}
-              value={provider?.info.id ?? ""}
-              onChange={(event) => {
-                acceptingChanges.current = false;
-                selectedAddress.current = undefined;
-                invalidate();
-                setSession(null);
-                setError(null);
-                setProvider(
-                  providers.find(
-                    (entry) => entry.info.id === event.target.value,
-                  ) ?? null,
-                );
-              }}
+              aria-label="Wallet account"
+              value={address}
+              onChange={(event) => selectAccount(event.target.value)}
             >
-              {providers.map((entry) => (
-                <option key={entry.info.id} value={entry.info.id}>
-                  {entry.info.name}
+              {session?.accounts.map((account) => (
+                <option key={account.address} value={account.address}>
+                  {account.address.slice(0, 10)}...{account.address.slice(-8)}
                 </option>
               ))}
             </select>
           </label>
-        ) : null}
-        {runtime.connected ? (
-          <>
-            <label className="flex items-center gap-2">
-              Account
-              <select
-                className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
-                aria-label="Wallet account"
-                value={toHex0x(runtime.config.accountAddress)}
-                onChange={(event) => {
-                  try {
-                    if (provider && session)
-                      activate(session, provider, event.target.value);
-                  } catch (failure) {
-                    setError(
-                      failure instanceof Error
-                        ? failure.message
-                        : "Account selection failed",
-                    );
-                  }
-                }}
-              >
-                {session?.accounts.map((account) => (
-                  <option key={account.address} value={account.address}>
-                    {account.address.slice(0, 10)}...{account.address.slice(-8)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <BlockchainIdentifier
-              value={toHex0x(runtime.config.accountAddress)}
-              label="Connected account"
-              kind="address"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() => void disconnect()}
-            >
-              Disconnect
-            </Button>
-          </>
-        ) : (
-          <>
-            <span>Read-only browsing</span>
-            {providers.length === 0 ? <span>No wallet found</span> : null}
-            <Button
-              size="sm"
-              disabled={!provider || busy}
-              onClick={() => void connect()}
-            >
-              {busy
-                ? "Connecting..."
-                : provider
-                  ? `Connect ${provider.info.name}`
-                  : "Connect wallet"}
-            </Button>
-          </>
-        )}
-        {error ? <p role="alert">{error}</p> : null}
-      </section>
-      {children(runtime.config, runtime.connected, runtime.revision)}
-    </WalletWriteContext>
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() => void disconnect()}
+          >
+            Disconnect
+          </Button>
+        </>
+      ) : (
+        <>
+          {providers.length === 0 ? (
+            <span className="text-sm text-muted-foreground">
+              No wallet found
+            </span>
+          ) : null}
+          <Button disabled={!provider || busy} onClick={() => void connect()}>
+            {busy
+              ? "Connecting..."
+              : provider
+                ? `Connect ${provider.info.name}`
+                : "Connect wallet"}
+          </Button>
+        </>
+      )}
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </section>
   );
 }
