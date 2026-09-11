@@ -13,7 +13,6 @@ export const PUBLIC_CONFIG_KEYS = [
   "VITE_GROUNDHOG_NETWORK_ID",
   "VITE_POOL_TOKEN_HASH",
   "VITE_NATIVE_HOG_ADDRESS",
-  "VITE_KNOWN_TOKEN_ADDRESSES",
   "VITE_SWAP_FACTORY_ADDRESS",
   "VITE_SWAP_ROUTER_ADDRESS",
   "VITE_POOL_REGISTRY_ENABLED",
@@ -59,9 +58,6 @@ export function createPublicConfigManifest(
     VITE_NATIVE_HOG_ADDRESS: normalizeAddress(
       required(environment, "VITE_NATIVE_HOG_ADDRESS"),
       "VITE_NATIVE_HOG_ADDRESS",
-    ),
-    VITE_KNOWN_TOKEN_ADDRESSES: normalizeKnownTokens(
-      environment.VITE_KNOWN_TOKEN_ADDRESSES ?? "",
     ),
     VITE_SWAP_FACTORY_ADDRESS: normalizeAddress(
       required(environment, "VITE_SWAP_FACTORY_ADDRESS"),
@@ -140,7 +136,6 @@ function validateManifestFields(manifest: PublicConfigManifest): void {
       typeof manifest[key] !== "string" ||
       (manifest[key] === "" &&
         key !== "VITE_EXPLORER_URL" &&
-        key !== "VITE_KNOWN_TOKEN_ADDRESSES" &&
         key !== "VITE_STANDARD_TOKEN_FACTORY_ADDRESS" &&
         key !== "VITE_STANDARD_TOKEN_HASH")
     ) {
@@ -179,11 +174,6 @@ function validateManifestFields(manifest: PublicConfigManifest): void {
       `${key} must be canonical`,
     );
   }
-  validate(
-    manifest.VITE_KNOWN_TOKEN_ADDRESSES ===
-      normalizeKnownTokens(manifest.VITE_KNOWN_TOKEN_ADDRESSES),
-    "VITE_KNOWN_TOKEN_ADDRESSES must be a canonical address list",
-  );
   validate(
     manifest.VITE_POOL_REGISTRY_ENABLED === "true",
     "VITE_POOL_REGISTRY_ENABLED must be exactly true",
@@ -224,21 +214,6 @@ function normalizeAddress(value: string, key: string): string {
       `${key} must be a 32-byte 0x-prefixed address`,
     );
   }
-}
-
-function normalizeKnownTokens(value: string): string {
-  if (value === "") return "";
-  const tokens = value
-    .split(",")
-    .map((entry) =>
-      normalizeAddress(entry.trim(), "VITE_KNOWN_TOKEN_ADDRESSES"),
-    );
-  if (tokens.length === 0 || tokens.some((token) => token === "")) {
-    throw new PublicConfigManifestError(
-      "VITE_KNOWN_TOKEN_ADDRESSES must contain addresses",
-    );
-  }
-  return [...new Set(tokens)].join(",");
 }
 
 function validateRpcUrl(value: string): void {

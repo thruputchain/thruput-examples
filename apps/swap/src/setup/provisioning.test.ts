@@ -264,12 +264,10 @@ describe("infrastructure-only swap provisioning", () => {
       "VITE_GROUNDHOG_RPC_URL",
       "VITE_GROUNDHOG_NETWORK_ID",
       "VITE_NATIVE_HOG_ADDRESS",
-      "VITE_KNOWN_TOKEN_ADDRESSES",
       "VITE_SWAP_FACTORY_ADDRESS",
       "VITE_SWAP_ROUTER_ADDRESS",
       "VITE_POOL_TOKEN_HASH",
     ]);
-    expect(env).toContain("VITE_KNOWN_TOKEN_ADDRESSES=\n");
     expect(env).not.toMatch(
       /PRIVATE|PERSONA|WALLET|ENTRYPOINT|POOL_ADDRESS|LIQUIDITY|DRIVER|alice|bob|carol/i,
     );

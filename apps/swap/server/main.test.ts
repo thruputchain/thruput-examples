@@ -30,7 +30,6 @@ const environment = {
   VITE_GROUNDHOG_NETWORK_ID: `0x${"11".repeat(32)}`,
   VITE_POOL_TOKEN_HASH: `0x${"22".repeat(32)}`,
   VITE_NATIVE_HOG_ADDRESS: `0x${"44".repeat(32)}`,
-  VITE_KNOWN_TOKEN_ADDRESSES: `0x${"55".repeat(32)}`,
   VITE_SWAP_FACTORY_ADDRESS: `0x${"66".repeat(32)}`,
   VITE_SWAP_ROUTER_ADDRESS: `0x${"77".repeat(32)}`,
   VITE_POOL_REGISTRY_ENABLED: "true",

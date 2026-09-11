@@ -226,7 +226,6 @@ export function renderEnvironment(
     `VITE_GROUNDHOG_RPC_URL=${rpcUrl}`,
     `VITE_GROUNDHOG_NETWORK_ID=${network}`,
     `VITE_NATIVE_HOG_ADDRESS=${toHex0x(HOG_ADDRESS)}`,
-    "VITE_KNOWN_TOKEN_ADDRESSES=",
     `VITE_SWAP_FACTORY_ADDRESS=${toHex0x(deployment.factory)}`,
     `VITE_SWAP_ROUTER_ADDRESS=${toHex0x(deployment.router)}`,
     `VITE_POOL_TOKEN_HASH=${toHex0x(deployment.tokenHash)}`,

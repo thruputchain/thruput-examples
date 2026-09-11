@@ -144,7 +144,6 @@ describe("production artifact build guard", () => {
         VITE_NATIVE_HOG_ADDRESS: address,
         VITE_SWAP_FACTORY_ADDRESS: address,
         VITE_SWAP_ROUTER_ADDRESS: address,
-        VITE_KNOWN_TOKEN_ADDRESSES: "",
       };
       for (const [key, value] of Object.entries(environment))
         vi.stubEnv(key, value);
@@ -184,7 +183,6 @@ describe("production artifact build guard", () => {
           ),
         ).toMatchObject({
           VITE_POOL_TOKEN_HASH: hash,
-          VITE_KNOWN_TOKEN_ADDRESSES: "",
         });
     },
     30_000,

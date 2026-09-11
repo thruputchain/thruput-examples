@@ -19,7 +19,6 @@ function environment(overrides: Environment = {}): Environment {
     VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
     VITE_POOL_TOKEN_HASH: ADDRESS,
     VITE_NATIVE_HOG_ADDRESS: ADDRESS,
-    VITE_KNOWN_TOKEN_ADDRESSES: `${ADDRESS},${OTHER_ADDRESS},${ADDRESS}`,
     VITE_SWAP_FACTORY_ADDRESS: ADDRESS,
     VITE_SWAP_ROUTER_ADDRESS: ADDRESS,
     ...overrides,
@@ -60,7 +59,6 @@ describe("loadGlobalConfig", () => {
     expect(config.registryEnabled).toBe(false);
     expect(config.accountAddress).toEqual(READ_ONLY_CALLER);
     expect(config.poolTokenHash).toBe(ADDRESS);
-    expect(loadGlobalConfig(environment({ VITE_KNOWN_TOKEN_ADDRESSES: "" })).knownTokenAddresses).toEqual([]);
     expect(loadGlobalConfig(environment({ VITE_GROUNDHOG_WALLET_ADDRESS: OTHER_ADDRESS })).accountAddress).toEqual(READ_ONLY_CALLER);
   });
 
@@ -88,11 +86,6 @@ describe("loadGlobalConfig", () => {
     }))).toThrow("must not contain credentials");
   });
 
-  it("rejects malformed known-token addresses", () => {
-    expect(() => loadGlobalConfig(environment({
-      VITE_KNOWN_TOKEN_ADDRESSES: `${ADDRESS},not-an-address`,
-    }))).toThrow("VITE_KNOWN_TOKEN_ADDRESSES must contain only 32-byte");
-  });
 });
 
 describe("isLoopbackUrl", () => {

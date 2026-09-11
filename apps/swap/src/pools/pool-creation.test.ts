@@ -18,7 +18,6 @@ const config = {
   routerAddress: address(2),
   factoryAddress: address(3),
   nativeHogAddress: address(4),
-  knownTokenAddresses: [],
 } satisfies GlobalConfig;
 const input = {
   tokenA: `0x${"05".repeat(32)}`,
