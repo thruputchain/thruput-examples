@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       HOGD_FFI_PASSWORD: ${{ secrets.HOGD_FFI_PASSWORD }}
-      CARGO_REGISTRIES_GROUNDHOG_INDEX: sparse+https://thruput.network/crates/api/v1/crates/
+      CARGO_REGISTRIES_GROUNDHOG_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
       CARGO_REGISTRIES_GROUNDHOG_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
       CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
@@ -66,7 +66,7 @@ jobs:
     runs-on: namespace-profile-hogd-linux-2604
     env:
       HOGD_FFI_PASSWORD: ${{ secrets.HOGD_FFI_PASSWORD }}
-      CARGO_REGISTRIES_GROUNDHOG_INDEX: sparse+https://thruput.network/crates/api/v1/crates/
+      CARGO_REGISTRIES_GROUNDHOG_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
       CARGO_REGISTRIES_GROUNDHOG_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
       CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:

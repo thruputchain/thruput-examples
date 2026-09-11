@@ -54,7 +54,7 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
   contracts build against):
 
   ```sh
-  export CARGO_REGISTRIES_GROUNDHOG_INDEX="sparse+https://thruput.network/crates/api/v1/crates/"
+  export CARGO_REGISTRIES_GROUNDHOG_INDEX="sparse+https://crates.thruput.network/api/v1/crates/"
   cargo install --locked --registry groundhog groundhog-cli
   ```
 
