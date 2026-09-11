@@ -229,7 +229,7 @@ async function productionSmoke(app, prefix, settings, context) {
   // user env files or databases, and share installed dependencies read-only.
   for (const path of ["server", "src", "package.json", "tsconfig.json"])
     await cp(`${app}/${path}`, `${directory}/${path}`, { recursive: true });
-  await symlink(`${app}/node_modules`, `${directory}/node_modules`, "dir");
+  await symlink(`${root}/node_modules`, `${directory}/node_modules`, "dir");
   const buildArgs = [
     `${root}/scripts/wallet-acceptance/build-production.mjs`,
     app,
