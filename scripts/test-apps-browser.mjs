@@ -22,6 +22,7 @@ Object.assign(process.env, {
   VITE_SWAP_FACTORY_ADDRESS: hex("03"),
   VITE_SWAP_ROUTER_ADDRESS: hex("04"),
   VITE_NATIVE_HOG_ADDRESS: hex("05"),
+  VITE_NATIVE_BALANCE_ITEM_COST: "1234",
   VITE_POOL_REGISTRY_ENABLED: "false",
   VITE_TOKEN_DISCOVERY_ENABLED: "true",
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: scope.factoryAddress,
@@ -29,7 +30,8 @@ Object.assign(process.env, {
   TOKEN_DISCOVERY_UPSTREAM_ORIGIN: "http://127.0.0.1:1",
 });
 const server = await createServer({
-  root: fileURLToPath(new URL("..", import.meta.url)),
+  mode: "browser-test",
+  root: fileURLToPath(new URL("../apps/swap", import.meta.url)),
   server: { host: "127.0.0.1", port: 0 },
 });
 let browser;
@@ -47,22 +49,48 @@ try {
   // Only a public identity crosses into this UI fixture. It cannot sign or submit.
   const signer = new PrivateKeySigner(new Uint8Array(32).fill(9));
   const account = createPubkeyAccount({ signer });
-  await context.addInitScript((session) => {
-    const provider = {
-      info: { id: "ui.fixture", name: "UI fixture (cannot sign)", version: "1.0.0" },
-      async request(request) {
-        if (request.method === "connect" || request.method === "getSession") return session;
-        if (request.method === "disconnect") return undefined;
-        throw new Error("Signing and submission are forbidden in this UI fixture");
-      },
-      on() { return () => {}; },
-    };
-    const announce = () => window.dispatchEvent(new CustomEvent("groundhog:announceProvider", { detail: provider }));
-    window.addEventListener("groundhog:requestProvider", announce);
-    announce();
-  }, { networkHash: scope.networkId, accounts: [{ address: toHex0x(account.address), publicKey: toHex0x(signer.publicKey.ed25519), nonce: "0" }] });
+  await context.addInitScript(
+    (session) => {
+      const provider = {
+        info: {
+          id: "ui.fixture",
+          name: "UI fixture (cannot sign)",
+          version: "1.0.0",
+        },
+        async request(request) {
+          if (request.method === "connect" || request.method === "getSession")
+            return session;
+          if (request.method === "disconnect") return undefined;
+          throw new Error(
+            "Signing and submission are forbidden in this UI fixture",
+          );
+        },
+        on() {
+          return () => {};
+        },
+      };
+      const announce = () =>
+        window.dispatchEvent(
+          new CustomEvent("groundhog:announceProvider", { detail: provider }),
+        );
+      window.addEventListener("groundhog:requestProvider", announce);
+      announce();
+    },
+    {
+      networkHash: scope.networkId,
+      accounts: [
+        {
+          address: toHex0x(account.address),
+          publicKey: toHex0x(signer.publicKey.ed25519),
+          nonce: "0",
+        },
+      ],
+    },
+  );
   const page = await context.newPage();
-  await context.route("https://explorer.example.test/**", (route) => route.fulfill({ body: "Explorer fixture" }));
+  await context.route("https://explorer.example.test/**", (route) =>
+    route.fulfill({ body: "Explorer fixture" }),
+  );
   const errors = [];
   const searches = [];
   let unavailable = false;
@@ -72,7 +100,16 @@ try {
   await page.route("**/groundhog-rpc", async (route) => {
     const request = route.request().postDataJSON();
     if (!checkingCreation && request.method === "groundhog_view") {
-      await route.fulfill({ json: { jsonrpc: "2.0", id: request.id, error: { code: -32000, message: "Directory is outside this UI fixture" } } });
+      await route.fulfill({
+        json: {
+          jsonrpc: "2.0",
+          id: request.id,
+          error: {
+            code: -32000,
+            message: "Directory is outside this UI fixture",
+          },
+        },
+      });
       return;
     }
     assert.equal(
@@ -116,8 +153,16 @@ try {
   });
   const url = `${origin}/pools/new?tokenA=${a}`;
   await page.goto(origin);
-  await page.getByRole("button", { name: "Connect UI fixture (cannot sign)", exact: true }).click();
-  assert.equal(await page.getByRole("combobox", { name: "Wallet provider" }).count(), 0);
+  await page
+    .getByRole("button", {
+      name: "Connect UI fixture (cannot sign)",
+      exact: true,
+    })
+    .click();
+  assert.equal(
+    await page.getByRole("combobox", { name: "Wallet provider" }).count(),
+    0,
+  );
   await page.getByRole("button", { name: "Disconnect" }).waitFor();
   checkingCreation = true;
   networkReads = 0;
@@ -125,14 +170,25 @@ try {
     history.pushState({}, "", url);
     dispatchEvent(new PopStateEvent("popstate"));
   }, url);
-  const selectedLink = page.getByRole("link", { name: `Selected token address: ${a} (opens explorer in a new tab)` });
+  const selectedLink = page.getByRole("link", {
+    name: `Selected token address: ${a} (opens explorer in a new tab)`,
+  });
   await selectedLink.waitFor();
-  assert.equal(await selectedLink.getAttribute("href"), `https://explorer.example.test/address/${a}`);
+  assert.equal(
+    await selectedLink.getAttribute("href"),
+    `https://explorer.example.test/address/${a}`,
+  );
   assert.equal(await selectedLink.getAttribute("rel"), "noopener noreferrer");
   await selectedLink.focus();
   await page.getByRole("tooltip").waitFor();
   assert.equal(await page.getByRole("tooltip").textContent(), a);
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "Full tooltip must fit the mobile viewport");
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+    "Full tooltip must fit the mobile viewport",
+  );
   const addresses = page.getByLabel("Contract address", { exact: true });
   await addresses.first().waitFor();
   assert.equal(await addresses.first().inputValue(), a);
@@ -169,18 +225,36 @@ try {
     true,
   );
   await page.getByRole("dialog").getByRole("option").nth(1).waitFor();
-  assert.equal(await page.locator('[role="option"] a, [role="option"] button, button a').count(), 0);
-  const highlighted = page.getByRole("link", { name: `Highlighted token address: ${b} (opens explorer in a new tab)` });
+  assert.equal(
+    await page
+      .locator('[role="option"] a, [role="option"] button, button a')
+      .count(),
+    0,
+  );
+  const highlighted = page.getByRole("link", {
+    name: `Highlighted token address: ${b} (opens explorer in a new tab)`,
+  });
   await highlighted.waitFor();
   await highlighted.focus();
-  const [explorerPage] = await Promise.all([context.waitForEvent("page"), highlighted.press("Enter")]);
+  const [explorerPage] = await Promise.all([
+    context.waitForEvent("page"),
+    highlighted.press("Enter"),
+  ]);
   await explorerPage.waitForURL(`https://explorer.example.test/address/${b}`);
-  assert.equal(await addresses.nth(1).inputValue(), "", "Opening explorer must not choose the highlighted token");
+  assert.equal(
+    await addresses.nth(1).inputValue(),
+    "",
+    "Opening explorer must not choose the highlighted token",
+  );
   await explorerPage.close();
   await search.focus();
   assert.equal(searches[0], "");
   assert.equal(
-    await page.getByRole("dialog").getByRole("option").first().getAttribute("aria-disabled"),
+    await page
+      .getByRole("dialog")
+      .getByRole("option")
+      .first()
+      .getAttribute("aria-disabled"),
     "true",
   );
   await search.fill("creator-not-in-labels");
@@ -202,14 +276,16 @@ try {
   assert.equal(await addresses.nth(1).inputValue(), b);
   await page.waitForFunction(
     () =>
-      document.activeElement?.getAttribute("aria-label") === "Search tokens for Token B",
+      document.activeElement?.getAttribute("aria-label") ===
+      "Search tokens for Token B",
   );
   assert.equal(page.url(), url);
   await trigger.click();
   await search.press("Escape");
   await page.waitForFunction(
     () =>
-      document.activeElement?.getAttribute("aria-label") === "Search tokens for Token B",
+      document.activeElement?.getAttribute("aria-label") ===
+      "Search tokens for Token B",
   );
 
   unavailable = true;
@@ -233,8 +309,94 @@ try {
     true,
   );
   assert.deepEqual(errors, []);
+  const launchpad = await createServer({
+    mode: "browser-test",
+    root: fileURLToPath(new URL("../apps/token-launchpad", import.meta.url)),
+    server: { host: "127.0.0.1", port: 0 },
+  });
+  try {
+    await launchpad.listen();
+    const launchOrigin = `http://127.0.0.1:${launchpad.httpServer.address().port}`;
+    const launch = await context.newPage();
+    await launch.route("**/groundhog-rpc", (route) => {
+      const body = route.request().postDataJSON();
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: { networkHash: `0x${scope.networkId}` },
+        }),
+      });
+    });
+    await launch.route("**/api/tokens?*", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          tokens: [],
+          total: 0,
+          limit: 20,
+          offset: 0,
+          asOfBlock: "1",
+          hasMore: false,
+          historyLimited: false,
+        }),
+      }),
+    );
+    const registryStatus = {
+      networkId: scope.networkId,
+      factoryAddress: scope.factoryAddress,
+      indexedThroughBlock: "1",
+      tokenCount: 0,
+      historyLimited: false,
+      syncState: "idle",
+      syncing: false,
+      lastSuccessfulSyncAt: null,
+      lastError: null,
+    };
+    await launch.route("**/api/registry/*", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify(registryStatus),
+      }),
+    );
+    await launch.goto(`${launchOrigin}/tokens`);
+    await launch.getByText("No tokens yet", { exact: true }).waitFor();
+    await launch
+      .getByRole("button", {
+        name: "Connect UI fixture (cannot sign)",
+        exact: true,
+      })
+      .click();
+    await launch
+      .getByRole("button", { name: "Disconnect", exact: true })
+      .waitFor();
+    await launch.goto(`${launchOrigin}/create`);
+    await launch
+      .getByRole("button", {
+        name: "Connect UI fixture (cannot sign)",
+        exact: true,
+      })
+      .click();
+    await launch
+      .getByRole("button", { name: "Review launch", exact: true })
+      .waitFor();
+    for (const width of [320, 1280]) {
+      await launch.setViewportSize({ width, height: 900 });
+      assert.equal(await launch.getByRole("banner").count(), 1);
+      assert.equal(
+        await launch.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+        true,
+      );
+    }
+    await launch.close();
+  } finally {
+    await launchpad.close();
+  }
   console.log(
-    `PASS: Chromium ${browser.version()}; 320px touch and desktop layout, accessible keyboard search/focus return, duplicates, server filtering, manual outage fallback, preset/network guard, no URL writes or signing.`,
+    `PASS: Chromium ${browser.version()}; both apps, 320px/desktop layout, wallet controls, registry directory, token search, manual fallback and preset guards. No signing.`,
   );
 } finally {
   await browser?.close();

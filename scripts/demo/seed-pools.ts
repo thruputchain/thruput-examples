@@ -1,4 +1,4 @@
-import { seed } from "../../token-launchpad/scripts/seed-demo.ts";
+import { seed } from "./seed-demo.ts";
 
 seed("pools").catch(() => {
   console.error(

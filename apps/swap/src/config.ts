@@ -77,7 +77,7 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
   return {
     explorerUrl: parseExplorerUrl(environment.VITE_EXPLORER_URL),
     rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),
-    registryEnabled: enabled(environment, "VITE_POOL_REGISTRY_ENABLED"),
+    registryEnabled: true,
     tokenDiscovery: loadDiscoveryConfig(environment),
     networkIdHex: networkIdHex.replace(/^0x/, "").toLowerCase(),
     accountAddress: READ_ONLY_CALLER,
@@ -88,13 +88,6 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
     factoryAddress: address(environment, "VITE_SWAP_FACTORY_ADDRESS"),
     nativeHogAddress: address(environment, "VITE_NATIVE_HOG_ADDRESS"),
   };
-}
-
-function enabled(environment: Environment, key: string): boolean {
-  const value = environment[key];
-  if (value === undefined || value === false || value === "false") return false;
-  if (value === true || value === "true") return true;
-  throw new ConfigurationError(`${key} must be true or false`);
 }
 
 export function isLoopbackUrl(url: URL): boolean {

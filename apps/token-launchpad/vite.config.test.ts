@@ -158,12 +158,6 @@ describe("production public configuration plugin", () => {
         VITE_STANDARD_TOKEN_HASH: "",
       }),
     ).toThrow(/VITE_STANDARD_TOKEN_HASH is required/);
-    expect(() =>
-      productionPublicConfigManifest({
-        ...environment,
-        VITE_TOKEN_REGISTRY_ENABLED: "TRUE",
-      }),
-    ).toThrow(/must be exactly true/);
   });
 
   it("uses a benign URL that the registry-enabled browser client replaces with its origin", () => {

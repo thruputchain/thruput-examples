@@ -112,7 +112,6 @@ describe("production public configuration manifest", () => {
     ["VITE_NATIVE_BALANCE_ITEM_COST", "01234"],
     ["VITE_NATIVE_BALANCE_ITEM_COST", "1235"],
     ["VITE_STANDARD_TOKEN_HASH", "66".repeat(32)],
-    ["VITE_TOKEN_REGISTRY_ENABLED", "TRUE"],
   ])("rejects invalid %s", (key, value) => {
     let error: unknown;
     try {

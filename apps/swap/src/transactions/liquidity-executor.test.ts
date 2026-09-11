@@ -20,7 +20,7 @@ import {
   applyLiquidityReceipt,
   runLiquidityOperation,
 } from "./liquidity-executor";
-import type { WriteBoundary, WriteResult } from "./write-boundary";
+import type { WriteResult } from "./write-boundary";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;

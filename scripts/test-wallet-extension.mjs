@@ -261,12 +261,12 @@ async function productionSmoke(app, prefix, settings, context) {
       "Production environment must not include signing credentials",
     );
   await assert.rejects(
-    run(`${app}/node_modules/.bin/tsx`, entrypoint, directory, serverEnv, true),
+    run(`${root}/node_modules/.bin/tsx`, entrypoint, directory, serverEnv, true),
     /artifact|failed to start/i,
   );
   await writeFile(`${directory}/dist/${filename}`, artifact);
   const child = start(
-    `${app}/node_modules/.bin/tsx`,
+    `${root}/node_modules/.bin/tsx`,
     entrypoint,
     directory,
     serverEnv,
@@ -429,7 +429,7 @@ try {
     [swap, "SWAP"],
     [launchpad, "LAUNCHPAD"],
   ]) {
-    await run(`${app}/node_modules/.bin/tsx`, ["scripts/setup-local.ts"], app, {
+    await run(`${root}/node_modules/.bin/tsx`, ["scripts/setup-local.ts"], app, {
       [`${prefix}_ARTIFACT_ROOT`]:
         process.env.WALLET_ACCEPTANCE_ARTIFACT_ROOT ||
         `${root}/target/groundhog`,
@@ -454,7 +454,7 @@ try {
     "setup exports only immutable 0x-prefixed hash-named artifacts with validated full runtime costs",
   );
   await run(
-    `${swap}/node_modules/.bin/tsx`,
+    `${root}/node_modules/.bin/tsx`,
     [`${root}/scripts/wallet-acceptance/chain.mts`, "empty"],
     swap,
     s,
@@ -763,7 +763,7 @@ try {
   const snapshot = async (recipient) =>
     JSON.parse(
       await run(
-        `${swap}/node_modules/.bin/tsx`,
+        `${root}/node_modules/.bin/tsx`,
         [
           `${root}/scripts/wallet-acceptance/chain.mts`,
           `${work}/evidence/chain-input.json`,

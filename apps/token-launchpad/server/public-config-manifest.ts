@@ -61,10 +61,7 @@ export function createPublicConfigManifest(
       "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
     ),
     VITE_STANDARD_TOKEN_HASH: required(environment, "VITE_STANDARD_TOKEN_HASH"),
-    VITE_TOKEN_REGISTRY_ENABLED: required(
-      environment,
-      "VITE_TOKEN_REGISTRY_ENABLED",
-    ),
+    VITE_TOKEN_REGISTRY_ENABLED: "true",
   } satisfies PublicConfigManifest;
   validateManifestFields(manifest);
   return manifest;

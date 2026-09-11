@@ -9,26 +9,13 @@ import {
   createProviderWalletClient,
   type ProviderWalletClient,
 } from "@groundhogchain/client/wallet";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef, useState } from "react";
+import { WalletContext as WalletControlsContext } from "./use-wallet";
 import { publicConfigKey, READ_ONLY_CALLER, type GlobalConfig } from "@/config";
 import { createReadClient } from "@/groundhog/client";
 import { createProviderWriteBoundary } from "@/transactions/provider-wallet";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 import { WalletWriteContext } from "./write-context";
-
-const WalletControlsContext = createContext<{
-  providers: WalletProvider[];
-  provider: WalletProvider | null;
-  session: WalletSession | null;
-  address: string | null;
-  busy: boolean;
-  error: string | null;
-  connect: () => Promise<void>;
-  disconnect: () => Promise<void>;
-  selectProvider: (id: string) => void;
-  selectAccount: (address: string) => void;
-} | null>(null);
 
 interface ConnectedWalletAppProps {
   config: GlobalConfig;
@@ -39,7 +26,7 @@ interface ConnectedWalletAppProps {
   ) => React.ReactNode;
 }
 
-export function ConnectedWalletApp(props: ConnectedWalletAppProps) {
+export function WalletProvider(props: ConnectedWalletAppProps) {
   return <WalletRuntime key={publicConfigKey(props.config)} {...props} />;
 }
 
@@ -262,93 +249,5 @@ function WalletRuntime({
         {children(runtime.config, runtime.connected, runtime.revision)}
       </WalletControlsContext>
     </WalletWriteContext>
-  );
-}
-
-export function WalletControls() {
-  const wallet = useContext(WalletControlsContext);
-  if (!wallet) return null;
-  const {
-    providers,
-    provider,
-    session,
-    address,
-    busy,
-    error,
-    connect,
-    disconnect,
-    selectProvider,
-    selectAccount,
-  } = wallet;
-  return (
-    <section
-      aria-label="Wallet connection"
-      className="flex min-w-0 flex-wrap items-center gap-2"
-    >
-      {providers.length > 1 ? (
-        <label className="flex items-center gap-2">
-          Wallet
-          <select
-            className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
-            aria-label="Wallet provider"
-            disabled={busy}
-            value={provider?.info.id ?? ""}
-            onChange={(event) => selectProvider(event.target.value)}
-          >
-            {providers.map((entry) => (
-              <option key={entry.info.id} value={entry.info.id}>
-                {entry.info.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      {address ? (
-        <>
-          <label className="flex items-center gap-2">
-            Account
-            <select
-              className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
-              aria-label="Wallet account"
-              value={address}
-              onChange={(event) => selectAccount(event.target.value)}
-            >
-              {session?.accounts.map((account) => (
-                <option key={account.address} value={account.address}>
-                  {account.address.slice(0, 10)}...{account.address.slice(-8)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => void disconnect()}
-          >
-            Disconnect
-          </Button>
-        </>
-      ) : (
-        <>
-          {providers.length === 0 ? (
-            <span className="text-sm text-muted-foreground">
-              No wallet found
-            </span>
-          ) : null}
-          <Button disabled={!provider || busy} onClick={() => void connect()}>
-            {busy
-              ? "Connecting..."
-              : provider
-                ? `Connect ${provider.info.name}`
-                : "Connect wallet"}
-          </Button>
-        </>
-      )}
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-    </section>
   );
 }

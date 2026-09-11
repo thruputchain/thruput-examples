@@ -22,7 +22,8 @@ import { READ_ONLY_CALLER, type GlobalConfig } from "@/config";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 import { AppHeader } from "@/components/app-header";
-import { ConnectedWalletApp, WalletControls } from "./connected-app";
+import { WalletProvider as ConnectedWalletApp } from "./wallet-provider";
+import { WalletControls } from "./wallet-controls";
 import { useWalletWriteBoundary } from "./write-context";
 import { createReadClient } from "@/groundhog/client";
 
@@ -124,7 +125,12 @@ function renderApp() {
     </StrictMode>
   );
   const view = render(tree(config));
-  return { ...view, writers, user: userEvent.setup(), rerenderConfig: (next: GlobalConfig) => view.rerender(tree(next)) };
+  return {
+    ...view,
+    writers,
+    user: userEvent.setup(),
+    rerenderConfig: (next: GlobalConfig) => view.rerender(tree(next)),
+  };
 }
 
 async function connect(
@@ -144,7 +150,11 @@ describe("connected wallet runtime", () => {
     const oldWriter = writers.at(-1)!;
     const reads = vi.mocked(createReadClient).mock.calls.length;
     await user.type(screen.getByLabelText("Route draft"), "retain");
-    rerenderConfig({ ...config, rpcUrl: new URL(config.rpcUrl.href), accountAddress: addressFromHex(toHex0x(config.accountAddress)) });
+    rerenderConfig({
+      ...config,
+      rpcUrl: new URL(config.rpcUrl.href),
+      accountAddress: addressFromHex(toHex0x(config.accountAddress)),
+    });
     expect(screen.getByLabelText("Route draft")).toHaveValue("retain");
     expect(vi.mocked(createReadClient).mock.calls).toHaveLength(reads);
     expect(wallet.request).toHaveBeenCalledTimes(1);
@@ -155,7 +165,15 @@ describe("connected wallet runtime", () => {
       { ...config, routerAddress: addressFromHex(`0x${"09".repeat(32)}`) },
       { ...config, poolTokenHash: `0x${"09".repeat(32)}` },
       { ...config, explorerUrl: "https://explorer.test" },
-      { ...config, tokenDiscovery: { enabled: false, factoryAddress: "changed", tokenCodeHash: "", scope: null } },
+      {
+        ...config,
+        tokenDiscovery: {
+          enabled: false,
+          factoryAddress: "changed",
+          tokenCodeHash: "",
+          scope: null,
+        },
+      },
     ]) {
       rerenderConfig(next);
       expect(screen.getByLabelText("Writable")).toHaveTextContent("false");
@@ -163,7 +181,17 @@ describe("connected wallet runtime", () => {
       expect(wallet.request).toHaveBeenCalledTimes(1);
       expect(vi.mocked(createReadClient)).toHaveBeenLastCalledWith(next);
     }
-    await expect(oldWriter.execute({ invoked_address: config.routerAddress, entrypoint: contractEntrypointID(new Uint8Array(8)), gas_limit: gasAmount(1n), calldata: calldata(new Uint8Array()) })).resolves.toMatchObject({ kind: "preSubmissionFailure", message: expect.stringContaining("disposed") });
+    await expect(
+      oldWriter.execute({
+        invoked_address: config.routerAddress,
+        entrypoint: contractEntrypointID(new Uint8Array(8)),
+        gas_limit: gasAmount(1n),
+        calldata: calldata(new Uint8Array()),
+      }),
+    ).resolves.toMatchObject({
+      kind: "preSubmissionFailure",
+      message: expect.stringContaining("disposed"),
+    });
   });
   it("shows a disabled connect button without a wallet and selects a late first provider without requesting access", async () => {
     const { user } = renderApp();

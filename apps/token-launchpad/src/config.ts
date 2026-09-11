@@ -76,7 +76,7 @@ export function loadConfig(environment: Environment): AppConfig {
   }
   return {
     rpcUrl,
-    registryEnabled: enabled(environment, "VITE_TOKEN_REGISTRY_ENABLED"),
+    registryEnabled: true,
     swapAppUrl: loadSwapAppUrl(environment.VITE_SWAP_APP_URL),
     explorerUrl: loadExplorerUrl(environment.VITE_EXPLORER_URL),
     networkIdHex: network.replace(/^0x/, "").toLowerCase(),
@@ -87,13 +87,6 @@ export function loadConfig(environment: Environment): AppConfig {
     nativeBalanceItemCost,
     expectedTokenHash: fromHex0x(hash.startsWith("0x") ? hash : `0x${hash}`),
   };
-}
-
-function enabled(environment: Environment, key: string): boolean {
-  const value = environment[key];
-  if (value === undefined || value === false || value === "false") return false;
-  if (value === true || value === "true") return true;
-  throw new ConfigurationError(`${key} must be true or false`);
 }
 
 function required(environment: Environment, key: string): string {

@@ -7,7 +7,7 @@ import {
 import type { ContractAddress } from "@groundhogchain/protocol";
 import { serializeCxs, Uint32Codec, VarOpaqueCodec } from "@groundhogchain/xdr";
 import { SeedError } from "./seed-journal.ts";
-import { validateLocalRpcUrl } from "./setup-local.ts";
+import { validateLocalRpcUrl } from "../../apps/token-launchpad/scripts/setup-local.ts";
 
 export function seedTransport(url: string): HttpTransport {
   const fetch = globalThis.fetch.bind(globalThis);

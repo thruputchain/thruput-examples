@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ERC20, ERC20Metadata } from "@/contracts/generated/standard-token";
 import { createWorkflow } from "@/launch/workflow";
-import { configuration } from "@/launch/workflow.test";
+import { configuration } from "@/test/fixtures";
 import {
   assessTokenState,
   readAndAssessTokenState,

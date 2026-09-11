@@ -12,8 +12,8 @@ import {
   sha256Hash,
   type ContractAddress,
 } from "@groundhogchain/protocol";
-import { RequestFailed } from "../../swap/src/contracts/generated/swap-driver.ts";
-import { MintEvent } from "../../swap/src/contracts/generated/swap-handler.ts";
+import { RequestFailed } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
+import { MintEvent } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
 import { SeedError, type SeedJournal } from "./seed-journal.ts";
 
 interface Terminal {

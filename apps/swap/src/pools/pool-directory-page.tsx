@@ -4,7 +4,7 @@ import {
   DropletsIcon,
   PlusIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
@@ -32,9 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { GlobalConfig } from "@/config";
 import { AmmPage } from "@/pools/amm-page";
 import {
-  readPoolDirectory,
   type PoolDirectoryEntry,
-  type PoolDirectoryResult,
 } from "@/pools/pool-directory";
 import { poolPath } from "@/pools/pool-route";
 import {
@@ -53,7 +51,6 @@ import {
 import { formatTokenAmount } from "@/swap/model";
 
 interface PoolDirectoryPageDependencies {
-  readDirect?: typeof readPoolDirectory;
   readRegistry?: typeof getRegistryPools;
   readStatus?: typeof getPoolRegistryStatus;
   requestSync?: typeof requestPoolRegistrySync;
@@ -71,7 +68,7 @@ export function PoolDirectoryPage({
   dependencies?: PoolDirectoryPageDependencies;
   readOnly?: boolean;
 }) {
-  return config.registryEnabled ? (
+  return (
     <RegistryPoolDirectoryPage
       config={config}
       read={dependencies.readRegistry ?? getRegistryPools}
@@ -80,140 +77,6 @@ export function PoolDirectoryPage({
       enrich={dependencies.enrich ?? enrichRegistryPools}
       readOnly={readOnly}
     />
-  ) : (
-    <DirectPoolDirectoryPage
-      config={config}
-      read={dependencies.readDirect ?? readPoolDirectory}
-      readOnly={readOnly}
-    />
-  );
-}
-
-function DirectPoolDirectoryPage({
-  config,
-  read,
-  readOnly,
-}: {
-  config: GlobalConfig;
-  read: typeof readPoolDirectory;
-  readOnly: boolean;
-}) {
-  const request = useRef(0);
-  const inFlight = useRef(false);
-  const [state, setState] = useState<
-    | { kind: "loading" }
-    | {
-        kind: "ready";
-        result: PoolDirectoryResult;
-        refreshError: string | null;
-      }
-    | { kind: "error"; message: string }
-  >({ kind: "loading" });
-  const refresh = useCallback(
-    (background = false) => {
-      if (
-        background &&
-        (document.visibilityState !== "visible" || inFlight.current)
-      ) return;
-      const currentRequest = ++request.current;
-      inFlight.current = true;
-      setState((current) =>
-        background && current.kind === "ready" ? current : { kind: "loading" },
-      );
-      void read(config).then(
-        (result) => {
-          if (request.current === currentRequest) {
-            setState((current) => ({
-              kind: "ready",
-              result:
-                background && current.kind === "ready" && result.invalidEntryCount > 0
-                  ? {
-                      ...result,
-                      entries: [...new Map(
-                        [...current.result.entries, ...result.entries].map(
-                          (entry) => [toHex0x(entry.config.handlerAddress), entry],
-                        ),
-                      ).values()],
-                    }
-                  : result,
-              refreshError: background && result.invalidEntryCount > 0
-                ? "Some current pool data is unavailable."
-                : null,
-            }));
-          }
-        },
-        (error: unknown) => {
-          if (request.current === currentRequest) {
-            const message =
-              error instanceof Error
-                ? error.message
-                : "The pool registry could not be loaded";
-            setState((current) =>
-              background && current.kind === "ready"
-                ? { ...current, refreshError: message }
-                : { kind: "error", message },
-            );
-          }
-        },
-      ).finally(() => {
-        if (request.current === currentRequest) inFlight.current = false;
-      });
-    },
-    [config, read],
-  );
-
-  useEffect(() => {
-    refresh();
-    const refreshVisible = () => refresh(true);
-    const timer = window.setInterval(
-      refreshVisible,
-      DIRECTORY_REFRESH_INTERVAL_MS,
-    );
-    window.addEventListener("focus", refreshVisible);
-    document.addEventListener("visibilitychange", refreshVisible);
-    return () => {
-      request.current += 1;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", refreshVisible);
-      document.removeEventListener("visibilitychange", refreshVisible);
-    };
-  }, [refresh]);
-
-  return (
-    <DirectoryLayout readOnly={readOnly}>
-      {state.kind === "loading" ? <DirectorySkeleton /> : null}
-      {state.kind === "error" ? (
-        <Unavailable message={state.message} retry={() => refresh()} />
-      ) : null}
-      {state.kind === "ready" && state.refreshError !== null ? (
-        <StaleDataAlert message={state.refreshError} />
-      ) : null}
-      {state.kind === "ready" && state.result.invalidEntryCount > 0 ? (
-        <PartialReads count={state.result.invalidEntryCount} direct />
-      ) : null}
-      {state.kind === "ready" &&
-      state.result.entries.length === 0 &&
-      state.result.invalidEntryCount === 0 ? (
-        <EmptyDirectory readOnly={readOnly} />
-      ) : null}
-      {state.kind === "ready" && state.result.entries.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {state.result.entries.map((entry) => (
-            <PoolCard
-              key={poolPath(
-                entry.config.tokenAAddress,
-                entry.config.tokenBAddress,
-              )}
-              token0Address={toHex0x(entry.config.tokenAAddress)}
-              token1Address={toHex0x(entry.config.tokenBAddress)}
-              live={entry}
-              loading={false}
-              readOnly={readOnly}
-            />
-          ))}
-        </div>
-      ) : null}
-    </DirectoryLayout>
   );
 }
 

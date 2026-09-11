@@ -67,10 +67,7 @@ export function createPublicConfigManifest(
       required(environment, "VITE_SWAP_ROUTER_ADDRESS"),
       "VITE_SWAP_ROUTER_ADDRESS",
     ),
-    VITE_POOL_REGISTRY_ENABLED: required(
-      environment,
-      "VITE_POOL_REGISTRY_ENABLED",
-    ),
+    VITE_POOL_REGISTRY_ENABLED: "true",
   } satisfies PublicConfigManifest;
   validateManifestFields(manifest);
   return manifest;

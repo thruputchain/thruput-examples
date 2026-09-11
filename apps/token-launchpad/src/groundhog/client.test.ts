@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createReadClient, resolveReadRpcUrl } from "@/groundhog/client";
-import { configuration } from "@/launch/workflow.test";
+import { configuration } from "@/test/fixtures";
 
 describe("network-bound read client", () => {
   it.each([

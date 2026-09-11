@@ -14,7 +14,7 @@ import {
   type WalletProvider,
   type WalletSession,
 } from "@groundhogchain/client/provider";
-import { createPubkeyAccount } from "@groundhogchain/client/wallet";
+import { createPubkeyAccount, createProviderWalletClient } from "@groundhogchain/client/wallet";
 import {
   blockHeight,
   calldata,
@@ -32,10 +32,8 @@ import { CxsWriter } from "@groundhogchain/xdr";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "@/config";
 import { StandardTokenFactory } from "@/contracts/generated/standard-token-factory";
-import {
-  createProviderWriteBoundary,
-  createTransactionObserver,
-} from "./provider-wallet";
+import { createProviderWriteBoundary } from "./provider-wallet";
+import { createTransactionObserver } from "./transaction-observation";
 import { hashContract } from "@groundhogchain/client";
 
 const config = loadConfig({
@@ -127,8 +125,7 @@ function setup() {
   const boundary = createProviderWriteBoundary(
     config,
     client as unknown as GroundhogClient,
-    provider,
-    account,
+    createProviderWalletClient({ client: client as unknown as GroundhogClient, provider, account, networkHash: config.networkIdHex }),
   );
   return {
     boundary,
@@ -284,8 +281,7 @@ describe("provider write boundary with the real SDK", () => {
     const writer = createProviderWriteBoundary(
       { ...config, expectedTokenHash: hash },
       client as unknown as GroundhogClient,
-      provider,
-      account,
+      createProviderWalletClient({ client: client as unknown as GroundhogClient, provider, account, networkHash: config.networkIdHex }),
     );
     await writer.execute(target, { onSigned() {} });
     expect(fetch).not.toHaveBeenCalled();

@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { addressFromHex, PrivateKeySigner, toHex0x } from "@groundhogchain/client";
+import {
+  addressFromHex,
+  PrivateKeySigner,
+  toHex0x,
+} from "@groundhogchain/client";
 import {
   registerWalletProvider,
   type WalletProvider,
@@ -10,25 +14,33 @@ import {
 import { createPubkeyAccount } from "@groundhogchain/client/wallet";
 import { afterEach, expect, it, vi } from "vitest";
 import { loadConfig } from "@/config";
-import { ProviderApp, WalletControls } from "./provider-wallet";
+import { WalletProvider as AppWalletProvider } from "./wallet-provider";
+import { WalletControls } from "./wallet-controls";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createReadClient } from "@/groundhog/client";
 
 vi.mock("@/groundhog/client", () => ({ createReadClient: vi.fn(() => ({})) }));
-vi.mock("@/app", () => ({
-  LaunchpadRoutes: ({ readOnly }: { readOnly: boolean }) => {
-    const [revision, setRevision] = useState(0);
-    return (
-      <TooltipProvider>
-        <WalletControls />
-        <p>{readOnly ? "Public browsing" : "Wallet workflow"}</p>
-        <button onClick={() => setRevision(revision + 1)}>
-          Draft {revision}
-        </button>
-      </TooltipProvider>
-    );
-  },
-}));
+function Probe({ readOnly }: { readOnly: boolean }) {
+  const [revision, setRevision] = useState(0);
+  return (
+    <TooltipProvider>
+      <WalletControls />
+      <p>{readOnly ? "Public browsing" : "Wallet workflow"}</p>
+      <button onClick={() => setRevision(revision + 1)}>
+        Draft {revision}
+      </button>
+    </TooltipProvider>
+  );
+}
+function ProviderApp({ base: config }: { base: typeof base }) {
+  return (
+    <AppWalletProvider config={config}>
+      {(_config, connected, revision) => (
+        <Probe key={revision} readOnly={!connected} />
+      )}
+    </AppWalletProvider>
+  );
+}
 const base = loadConfig({
   VITE_GROUNDHOG_RPC_URL: "http://localhost:9545",
   VITE_GROUNDHOG_NETWORK_ID: "ab".repeat(32),
@@ -96,7 +108,9 @@ it("discovers before and after mount, connects with registry enabled, remounts o
     });
   });
   expect(screen.getByRole("button", { name: "Draft 0" })).toBeInTheDocument();
-  expect(screen.getByLabelText(account(2n).address)).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Wallet account" })).toHaveValue(
+    account(2n).address,
+  );
   await user.click(screen.getByRole("button", { name: "Disconnect" }));
   expect(screen.getByText("Public browsing")).toBeInTheDocument();
   expect(provider.request).toHaveBeenCalledWith({ method: "disconnect" });
@@ -108,7 +122,15 @@ it("retains equivalent config objects but requires explicit reconnection after a
   await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
   await user.click(screen.getByRole("button", { name: "Draft 0" }));
   const reads = vi.mocked(createReadClient).mock.calls.length;
-  view.rerender(<ProviderApp base={{ ...base, rpcUrl: new URL(base.rpcUrl.href), expectedTokenHash: new Uint8Array(base.expectedTokenHash) }} />);
+  view.rerender(
+    <ProviderApp
+      base={{
+        ...base,
+        rpcUrl: new URL(base.rpcUrl.href),
+        expectedTokenHash: new Uint8Array(base.expectedTokenHash),
+      }}
+    />,
+  );
   expect(screen.getByRole("button", { name: "Draft 1" })).toBeVisible();
   expect(vi.mocked(createReadClient).mock.calls).toHaveLength(reads);
   for (const next of [

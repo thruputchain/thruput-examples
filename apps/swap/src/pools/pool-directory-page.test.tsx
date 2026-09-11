@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig, GlobalConfig } from "@/config";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { readPoolDirectory } from "@/pools/pool-directory";
 import type { RegistryPoolPage, RegistryStatus } from "@/registry/client";
 import {
   registryPoolsToEntries,
@@ -16,7 +15,7 @@ import {
 import type { PoolSnapshot } from "@/swap/snapshot";
 import { DIRECTORY_REFRESH_INTERVAL_MS, PoolDirectoryPage } from "./pool-directory-page";
 
-vi.mock("@/pools/pool-directory", () => ({ readPoolDirectory: vi.fn() }));
+const defaultRead = vi.fn();
 
 const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
@@ -75,41 +74,6 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("PoolDirectoryPage", () => {
-  it.each(["focus", "interval"] as const)("discovers a newly created pool from an empty direct directory on %s", async (trigger) => {
-    vi.useFakeTimers();
-    const readDirect = vi.fn().mockResolvedValueOnce({ entries: [], invalidEntryCount: 0 }).mockResolvedValue({ entries: [{ config: poolConfig, snapshot }], invalidEntryCount: 0 });
-    renderPage(globalConfig, { readDirect });
-    await act(async () => {});
-    expect(screen.getByText("No pools yet")).toBeVisible();
-    await act(async () => {
-      if (trigger === "focus") window.dispatchEvent(new Event("focus"));
-      else await vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS);
-    });
-    expect(screen.getByText("A / B")).toBeVisible();
-    expect(readDirect).toHaveBeenCalledTimes(2);
-    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
-  });
-
-  it("pauses direct refreshes while hidden, avoids overlap, and retains data on background failure", async () => {
-    vi.useFakeTimers();
-    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
-    let reject!: (reason: Error) => void;
-    const readDirect = vi.fn().mockResolvedValueOnce({ entries: [{ config: poolConfig, snapshot }], invalidEntryCount: 0 }).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; })).mockResolvedValue({ entries: [], invalidEntryCount: 0 });
-    renderPage(globalConfig, { readDirect });
-    await act(async () => {});
-    visibility.mockReturnValue("hidden");
-    await act(async () => { document.dispatchEvent(new Event("visibilitychange")); window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS * 3); });
-    expect(readDirect).toHaveBeenCalledTimes(1);
-    visibility.mockReturnValue("visible");
-    await act(async () => { document.dispatchEvent(new Event("visibilitychange")); window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS * 2); });
-    expect(readDirect).toHaveBeenCalledTimes(2);
-    await act(async () => reject(new Error("offline")));
-    expect(screen.getByText("A / B")).toBeVisible();
-    expect(screen.getByText("Pool data may be stale")).toBeVisible();
-    await act(async () => vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS));
-    expect(screen.getByText("No pools yet")).toBeVisible();
-  });
-
   it.each(["focus", "interval"] as const)("refreshes an idle registry and discovers new pools on %s", async (trigger) => {
     vi.useFakeTimers();
     const empty = { ...page(), pools: [], total: 0 };
@@ -259,16 +223,13 @@ describe("PoolDirectoryPage", () => {
     expect(screen.getByText("Showing 21-21 of 21")).toBeVisible();
   });
 
-  it.each([false, true])("retains previous live reserves when a background pool read fails (registry=%s)", async (registryEnabled) => {
+  it("retains previous live reserves when a background pool read fails", async () => {
     const live = { config: poolConfig, snapshot };
-    const readDirect = vi.fn()
-      .mockResolvedValueOnce({ entries: [live], invalidEntryCount: 0 })
-      .mockResolvedValue({ entries: [], invalidEntryCount: 1 });
     const enrich = vi.fn<typeof enrichRegistryPools>()
       .mockImplementationOnce(async (_config, entries) => entries.map((entry) => ({ ...entry, live, loading: false })))
       .mockImplementation(async (_config, entries) => entries.map((entry) => ({ ...entry, loading: false, readError: true })));
-    renderPage({ ...globalConfig, registryEnabled }, {
-      readDirect, enrich,
+    renderPage(globalConfig, {
+      enrich,
       readRegistry: vi.fn().mockResolvedValue(page()),
       readStatus: vi.fn().mockResolvedValue(status()),
       requestSync: vi.fn().mockResolvedValue(status()),
@@ -302,10 +263,7 @@ describe("PoolDirectoryPage", () => {
     expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute("href", link);
   });
   it("shows an empty factory action", async () => {
-    vi.mocked(readPoolDirectory).mockResolvedValue({
-      entries: [],
-      invalidEntryCount: 0,
-    });
+    defaultRead.mockResolvedValue({ ...page(), pools: [], total: 0 });
     renderPage();
 
     expect(await screen.findByText("No pools yet")).toBeVisible();
@@ -315,10 +273,7 @@ describe("PoolDirectoryPage", () => {
   });
 
   it("shows discovered reserves and pool actions", async () => {
-    vi.mocked(readPoolDirectory).mockResolvedValue({
-      entries: [{ config: poolConfig, snapshot }],
-      invalidEntryCount: 0,
-    });
+    defaultRead.mockResolvedValue(page());
     renderPage();
 
     expect(await screen.findByText("A / B")).toBeVisible();
@@ -333,10 +288,7 @@ describe("PoolDirectoryPage", () => {
   });
 
   it("hides directory write actions when read-only", async () => {
-    vi.mocked(readPoolDirectory).mockResolvedValue({
-      entries: [{ config: poolConfig, snapshot }],
-      invalidEntryCount: 0,
-    });
+    defaultRead.mockResolvedValue(page());
     renderPage(globalConfig, {}, true);
 
     expect(await screen.findByText("A / B")).toBeVisible();
@@ -346,15 +298,12 @@ describe("PoolDirectoryPage", () => {
     expect(screen.queryByRole("link", { name: /Create pool/i })).toBeNull();
   });
 
-  it("recovers from repeated direct directory failures with Try again", async () => {
+  it("recovers from repeated registry failures with Try again", async () => {
     const user = userEvent.setup();
-    vi.mocked(readPoolDirectory)
+    defaultRead
       .mockRejectedValueOnce(new Error("RPC unavailable"))
       .mockRejectedValueOnce(new Error("gateway disconnected"))
-      .mockResolvedValueOnce({
-        entries: [{ config: poolConfig, snapshot }],
-        invalidEntryCount: 0,
-      });
+      .mockResolvedValueOnce(page());
     renderPage();
 
     expect(await screen.findByText("RPC unavailable")).toBeVisible();
@@ -365,7 +314,7 @@ describe("PoolDirectoryPage", () => {
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("A / B")).toBeVisible();
     expect(screen.queryByText("Pool registry unavailable")).toBeNull();
-    expect(readPoolDirectory).toHaveBeenCalledTimes(3);
+    expect(defaultRead).toHaveBeenCalledTimes(3);
   });
 
   it("uses registry discovery, renders immutable identities, and reports partial live failures", async () => {
@@ -394,7 +343,6 @@ describe("PoolDirectoryPage", () => {
       "href",
       `/pools/${hex(5)}/${hex(6)}`,
     );
-    expect(readPoolDirectory).not.toHaveBeenCalled();
     expect(requestSync).toHaveBeenCalledTimes(1);
   });
 
@@ -628,7 +576,7 @@ describe("PoolDirectoryPage", () => {
     const enrich = vi
       .fn()
       .mockImplementationOnce(
-        (_config, entries) =>
+        (_config, _entries) =>
           new Promise((resolve) => {
             resolveFirst = resolve;
           }),
@@ -673,7 +621,13 @@ function renderPage(
       <TooltipProvider>
         <PoolDirectoryPage
           config={config}
-          dependencies={dependencies}
+          dependencies={{
+            readRegistry: defaultRead,
+            readStatus: vi.fn().mockResolvedValue(status()),
+            requestSync: () => new Promise(() => {}),
+            enrich: async (_config, entries) => entries.map((entry) => ({ ...entry, live: { config: poolConfig, snapshot }, loading: false })),
+            ...dependencies,
+          }}
           readOnly={readOnly}
         />
       </TooltipProvider>

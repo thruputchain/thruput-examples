@@ -1,4 +1,4 @@
-// Runs only when explicitly invoked with `npm run test:seed:local`.
+// Runs only when explicitly invoked with `npm run test:seed`.
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -16,14 +16,14 @@ import {
 } from "@groundhogchain/client";
 import { networkHash, sha256Hash } from "@groundhogchain/protocol";
 import { ERC20 } from "@groundhogchain/client/contracts";
-import { SwapFactory } from "../../swap/src/contracts/generated/swap-factory.ts";
-import { SwapHandler } from "../../swap/src/contracts/generated/swap-handler.ts";
-import { createGroundhogRegistrySource } from "../server/chain.ts";
-import { RegistryStore } from "../server/store.ts";
-import { RegistryIndexer } from "../server/indexer.ts";
-import { createRegistryHttpServer } from "../server/http.ts";
+import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
+import { SwapHandler } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
+import { createGroundhogRegistrySource } from "../../apps/token-launchpad/server/chain.ts";
+import { RegistryStore } from "../../apps/token-launchpad/server/store.ts";
+import { RegistryIndexer } from "../../apps/token-launchpad/server/indexer.ts";
+import { createRegistryHttpServer } from "../../apps/token-launchpad/server/http.ts";
 
-const root = fileURLToPath(new URL("../../..", import.meta.url));
+const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp("/tmp/opencode/demo-seed-");
 const env: NodeJS.ProcessEnv = Object.fromEntries(
   Object.entries(process.env).filter(([key]) =>
@@ -74,8 +74,15 @@ async function run(
   expectedExit = 0,
 ) {
   const process = start(
-    join(root, `apps/${app}/node_modules/.bin/tsx`),
-    [join(root, `apps/${app}/scripts/${script}.ts`)],
+    join(root, "node_modules/.bin/tsx"),
+    [
+      join(
+        root,
+        script.startsWith("seed-")
+          ? `scripts/demo/${script}.ts`
+          : `apps/${app}/scripts/${script}.ts`,
+      ),
+    ],
     overrides,
   );
   await until(
@@ -199,7 +206,8 @@ try {
       .value;
   assert.equal(await count(), 0n);
   assert.equal(store.getStatus().tokenCount, 0);
-  stage = "reject a router initialized for another factory before any seed writes";
+  stage =
+    "reject a router initialized for another factory before any seed writes";
   const otherSetup = join(work, "OTHER-SWAP.env");
   await run("swap", "setup-local", { SWAP_APP_ENV: otherSetup });
   const other = parseEnv(await readFile(otherSetup, "utf8"));

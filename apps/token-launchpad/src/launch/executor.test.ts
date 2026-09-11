@@ -19,7 +19,7 @@ import {
   workflowSessionLockName,
   workflowStorageKey,
 } from "@/launch/workflow";
-import { configuration, MemoryStorage } from "@/launch/workflow.test";
+import { configuration, MemoryStorage } from "@/test/fixtures";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 
 const locks = {

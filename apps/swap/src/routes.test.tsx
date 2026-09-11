@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AmmRoutes, readBrowserConfiguration } from "@/app";
+import { AmmRoutes, readBrowserConfiguration } from "@/routes";
 import { ProcessingModeProvider } from "@/components/processing-mode";
 import type { GlobalConfig } from "@/config";
 

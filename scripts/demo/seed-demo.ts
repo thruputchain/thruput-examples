@@ -30,16 +30,19 @@ import {
   type ContractAddress,
   type Invocation,
 } from "@groundhogchain/protocol";
-import { StandardTokenFactory } from "../src/contracts/generated/standard-token-factory.ts";
-import { ERC20Metadata } from "../src/contracts/generated/standard-token.ts";
-import { SwapFactory } from "../../swap/src/contracts/generated/swap-factory.ts";
-import { SwapRouter } from "../../swap/src/contracts/generated/swap-router.ts";
+import { StandardTokenFactory } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
+import { ERC20Metadata } from "../../apps/token-launchpad/src/contracts/generated/standard-token.ts";
+import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
+import { SwapRouter } from "../../apps/swap/src/contracts/generated/swap-router.ts";
 import {
   SwapDriver,
   RequestAccepted,
-} from "../../swap/src/contracts/generated/swap-driver.ts";
-import { SwapHandler } from "../../swap/src/contracts/generated/swap-handler.ts";
-import type { RegistryStatus, TokenQueryResult } from "../server/domain.ts";
+} from "../../apps/swap/src/contracts/generated/swap-driver.ts";
+import { SwapHandler } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
+import type {
+  RegistryStatus,
+  TokenQueryResult,
+} from "../../apps/token-launchpad/server/domain.ts";
 import {
   executeStep,
   durableMkdir,
@@ -47,14 +50,14 @@ import {
   SeedError,
   type SeedJournal,
 } from "./seed-journal.ts";
-import { validateLocalRpcUrl } from "./setup-local.ts";
+import { validateLocalRpcUrl } from "../../apps/token-launchpad/scripts/setup-local.ts";
 import { seedTransport, verifySwapRelationship } from "./seed-preflight.ts";
 import {
   completeSeedLiquidity,
   type LiquidityProgress,
 } from "./seed-liquidity.ts";
 
-const ROOT = fileURLToPath(new URL("../../..", import.meta.url));
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const GAS = gasAmount(10_000_000n);
 const SUPPLY = 1_000_000n * 1_000_000n;
 const LIQUIDITY = 1_000n * 1_000_000n;
@@ -156,7 +159,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       );
     await verifyNetwork();
     const registryUrl = validateLocalRpcUrl(
-      process.env.LAUNCHPAD_REGISTRY_URL ?? "http://127.0.0.1:3001",
+      process.env.LAUNCHPAD_REGISTRY_URL ?? "http://127.0.0.1:5173",
     );
     const api = async <T>(path: string, method = "GET"): Promise<T> => {
       const response = await fetch(new URL(path, registryUrl), {
@@ -226,7 +229,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
     if (phase === "pools" && !manifest)
-      throw new Error("Run seed:tokens first");
+      throw new Error("Run npm run seed --workspace apps/token-launchpad first");
     let key: Buffer;
     try {
       key = await readFile(keyPath);
@@ -488,7 +491,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     context =
       "resolve exact seeded addresses through launchpad registry and validate live tokens";
     if (!(await indexedTokens()))
-      throw new Error("Seed tokens are not indexed; run seed:tokens");
+      throw new Error("Seed tokens are not indexed; run npm run seed --workspace apps/token-launchpad");
     for (let index = 0; index < state.tokens.length; index++)
       await verifyToken(index);
     const [tokenA, tokenB] = state.tokens.map((token) =>

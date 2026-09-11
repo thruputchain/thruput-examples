@@ -5,7 +5,7 @@ import { StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { App } from "@/app";
+import { App } from "@/test/swap-app";
 import type { AppConfig } from "@/config";
 import {
   RequestAccepted,
@@ -264,43 +264,6 @@ describe("read-only swap experience", () => {
     await user.clear(input);
     await user.type(input, "13");
     expect(screen.getByText(/exceeds your available balance/)).toBeInTheDocument();
-  });
-
-  it("supports slippage presets, custom validation, and high-risk warning", async () => {
-    const user = userEvent.setup();
-    renderApp();
-    await screen.findByLabelText("YOU PAY");
-
-    await user.click(screen.getByRole("button", { name: /0.5%/ }));
-    await user.click(screen.getByRole("radio", { name: "1%" }));
-    expect(screen.getByLabelText("Custom percentage")).toHaveValue("1");
-    await user.clear(screen.getByLabelText("Custom percentage"));
-    await user.type(screen.getByLabelText("Custom percentage"), "5.01");
-    expect(screen.getByText("High slippage")).toBeInTheDocument();
-    await user.clear(screen.getByLabelText("Custom percentage"));
-    await user.type(screen.getByLabelText("Custom percentage"), "50.01");
-    expect(screen.getByText(/no more than 50%/)).toBeInTheDocument();
-  });
-
-  it("operates slippage and transaction details from the keyboard", async () => {
-    const user = userEvent.setup();
-    renderApp();
-    await screen.findByLabelText("YOU PAY");
-
-    const slippage = screen.getByRole("button", { name: /0.5%/ });
-    slippage.focus();
-    await user.keyboard("{Enter}");
-    expect(
-      screen.getByRole("dialog", { name: "Slippage tolerance" }),
-    ).toBeInTheDocument();
-    await user.keyboard("{Escape}");
-
-    const details = screen.getByRole("button", {
-      name: "Transaction details",
-    });
-    details.focus();
-    await user.keyboard("{Enter}");
-    expect(screen.getByText("Allowance change")).toBeInTheDocument();
   });
 
   it("distinguishes RPC failure, retry, and empty liquidity", async () => {

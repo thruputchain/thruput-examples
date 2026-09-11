@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 
 import { AppHeader } from "@/components/app-header";
-import { WalletControls } from "@/wallet/connected-app";
+import { WalletControls } from "@/wallet/wallet-controls";
 
 export function AmmPage({
   title,

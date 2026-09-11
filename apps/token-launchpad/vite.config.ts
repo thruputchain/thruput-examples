@@ -8,6 +8,7 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import { loadSwapAppUrl } from "./src/swap-config.ts";
 import { loadExplorerUrl } from "./src/explorer-config.ts";
 import { validateStandardTokenArtifact } from "./server/contract-artifact.ts";
+import { developmentRegistry } from "./server/development.ts";
 
 import {
   createPublicConfigManifest,
@@ -36,12 +37,11 @@ export default defineConfig(({ command, isPreview, mode }) => {
   validateRpcTarget(rpcTarget, {
     command,
     isPreview: isPreview ?? false,
-    registryEnabled: environment.VITE_TOKEN_REGISTRY_ENABLED === "true",
+    registryEnabled: true,
   });
   const registryProductionBuild =
     command === "build" &&
-    mode === "production" &&
-    environment.VITE_TOKEN_REGISTRY_ENABLED === "true";
+    mode === "production";
 
   return {
     envPrefix: [
@@ -51,7 +51,6 @@ export default defineConfig(({ command, isPreview, mode }) => {
       "VITE_NATIVE_BALANCE_ITEM_COST",
       "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
       "VITE_STANDARD_TOKEN_HASH",
-      "VITE_TOKEN_REGISTRY_ENABLED",
       "VITE_SWAP_APP_URL",
       "VITE_EXPLORER_URL",
     ],
@@ -68,6 +67,7 @@ export default defineConfig(({ command, isPreview, mode }) => {
       react(),
       tailwindcss(),
       localRpcProxy(rpcTarget),
+      ...(command === "serve" && !isPreview && mode !== "test" && mode !== "browser-test" ? [developmentRegistry(environment)] : []),
       ...(command === "build" && mode === "production"
         ? [productionContractArtifact(environment.VITE_STANDARD_TOKEN_HASH)]
         : []),

@@ -19,4 +19,4 @@ bash "$repo_root/scripts/check-groundhog-version.sh" "$cli_version"
 cd "$repo_root"
 "$groundhog_cli" build -p standard-token -- --locked
 "$groundhog_cli" build -p standard-token-factory -- --locked
-"$app_dir/node_modules/.bin/tsx" "$app_dir/scripts/setup-local.ts"
+tsx "$app_dir/scripts/setup-local.ts"

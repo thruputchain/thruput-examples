@@ -73,7 +73,6 @@ describe("production public configuration manifest", () => {
     ["VITE_POOL_TOKEN_HASH", "22".repeat(32)],
     ["VITE_SWAP_FACTORY_ADDRESS", "0x12"],
     ["VITE_SWAP_ROUTER_ADDRESS", "0x12"],
-    ["VITE_POOL_REGISTRY_ENABLED", "TRUE"],
   ])("rejects malformed %s without leaking its value", (key, value) => {
     let error: unknown;
     try {

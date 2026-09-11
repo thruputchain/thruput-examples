@@ -9,6 +9,7 @@ import { loadTokenDiscoveryServerConfig } from "./server/token-discovery-config.
 import { createTokenDiscoveryHandler } from "./server/token-discovery.ts";
 import { parseExplorerUrl } from "./src/config.ts";
 import { verifyPoolTokenArtifact } from "./server/pool-token-artifact.ts";
+import { developmentRegistry } from "./server/development.ts";
 
 import {
   createPublicConfigManifest,
@@ -37,12 +38,11 @@ export default defineConfig(({ command, mode }) => {
   validateRpcTarget(rpcTarget, {
     command,
     production: mode === "production",
-    registryEnabled: environment.VITE_POOL_REGISTRY_ENABLED === "true",
+    registryEnabled: true,
   });
   const registryProductionBuild =
     command === "build" &&
-    mode === "production" &&
-    environment.VITE_POOL_REGISTRY_ENABLED === "true";
+    mode === "production";
 
   return {
     envPrefix: [
@@ -53,7 +53,6 @@ export default defineConfig(({ command, mode }) => {
       "VITE_NATIVE_HOG_ADDRESS",
       "VITE_SWAP_FACTORY_ADDRESS",
       "VITE_SWAP_ROUTER_ADDRESS",
-      "VITE_POOL_REGISTRY_ENABLED",
       "VITE_TOKEN_DISCOVERY_ENABLED",
       "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
       "VITE_STANDARD_TOKEN_HASH",
@@ -72,6 +71,7 @@ export default defineConfig(({ command, mode }) => {
       tailwindcss(),
       localRpcProxy(rpcTarget),
       tokenDiscoveryProxy(tokenDiscovery),
+      ...(command === "serve" && mode !== "test" && mode !== "browser-test" ? [developmentRegistry(environment)] : []),
       ...(command === "build" && mode === "production"
         ? [
             productionPoolTokenArtifact(
