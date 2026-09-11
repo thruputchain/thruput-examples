@@ -138,6 +138,14 @@ export async function checkWorkerRaces({ context, worker, ui, uiUrl, dapp }) {
       version.scriptURL === worker.url() && version.runningStatus === "running",
   );
   await cdp.send("ServiceWorker.stopWorker", { versionId: version.versionId });
+  // Corrupt only peripheral fields in this disposable profile while the worker
+  // is stopped. The envelope is carried through unchanged, never displayed.
+  await ui.evaluate(async () => {
+    const { wallet } = await chrome.storage.local.get("wallet");
+    await chrome.storage.local.set({
+      wallet: { ...wallet, pin: "invalid", recoveryBlocked: true },
+    });
+  });
   await ui.goto(uiUrl);
   await ui.getByRole("button", { name: "Unlock wallet" }).waitFor();
   await ui
@@ -146,6 +154,53 @@ export async function checkWorkerRaces({ context, worker, ui, uiUrl, dapp }) {
   await ui.getByRole("button", { name: "Unlock wallet" }).click();
   await ui.getByRole("heading", { name: "Your assets" }).waitFor();
   assert.equal(await accountCount(dapp), 0);
+  assert.equal(
+    await ui.getByLabel("Network", { exact: true }).inputValue(),
+    "",
+  );
+  await ui
+    .getByRole("status")
+    .filter({ hasText: "Transfer recovery data is damaged" })
+    .waitFor();
+  // Selecting the previously configured localnet must fire onChange. The real
+  // worker pins through the isolated local RPC proxy; no direct UI RPC call.
+  await ui.getByLabel("Network", { exact: true }).selectOption("localnet");
+  await poll(() =>
+    ui.evaluate(async () => {
+      const { wallet } = await chrome.storage.local.get("wallet");
+      return wallet.network === "localnet" && wallet.pin === "00".repeat(32);
+    }),
+  );
+  assert.equal(
+    await ui.getByLabel("Network", { exact: true }).inputValue(),
+    "localnet",
+  );
+  // Verify the README's script-free repair context can save an encrypted backup
+  // without displaying its contents. This profile contains only test accounts.
+  const repair = await context.newPage();
+  await repair.goto(new URL("favicon.svg", uiUrl).href);
+  const downloadEvent = repair.waitForEvent("download");
+  await repair.evaluate(async () => {
+    const backup = await chrome.storage.local.get(null);
+    const blob = new Blob([JSON.stringify(backup)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
+    link.href = url;
+    link.download = "thruput-encrypted-storage-backup.json";
+    document.documentElement.append(link);
+    link.click();
+    link.remove();
+  });
+  const download = await downloadEvent;
+  assert.equal(
+    download.suggestedFilename(),
+    "thruput-encrypted-storage-backup.json",
+  );
+  assert.equal(await download.failure(), null);
+  await download.delete();
+  await repair.close();
   await cdp.detach();
 }
 

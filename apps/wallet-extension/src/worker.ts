@@ -18,7 +18,6 @@ import {
   hex,
   unhex,
   type Vault,
-  type Envelope,
   type SecretAccount,
 } from "./vault";
 import {
@@ -43,7 +42,6 @@ import {
   transferTransaction,
   requireAirdropSuccess,
   type Network,
-  type Token,
 } from "./network";
 import {
   inspectTransaction,
@@ -54,23 +52,12 @@ import {
   replaceApproval,
   PENDING_TRANSFER_ADVISORY,
   assertTransferAvailable,
-  type OutgoingTransfer,
 } from "./lifecycle";
+import { isEnvelope, parseStored, type Stored } from "./storage";
 
 interface Grant {
   networkHash: string;
   accounts: string[];
-}
-interface Stored {
-  envelope?: Envelope;
-  network: Network;
-  pin: string;
-  // Migration only. Account permissions never restore from local storage.
-  grants?: Record<string, Grant>;
-  approvals: SignedApproval[];
-  tokens: Record<string, Token[]>;
-  airdrops: Record<string, string>;
-  outgoing: OutgoingTransfer[];
 }
 interface Pending {
   id: string;
@@ -105,6 +92,14 @@ const documents = new Map<string, chrome.runtime.MessageSender>();
 const snapshots = new Map<string, string>();
 const originEpochs = new Map<string, number>();
 const revoked = new Set<string>();
+// Only signatures returned by this worker can be submitted. Keep hashes, not
+// another copy of the signed bytes; durable approvals still enforce exact bytes.
+const eligible = new Map<string, string>();
+const approvalScope = (
+  a: Pick<SignedApproval, "origin" | "account" | "networkHash">,
+) => JSON.stringify([a.origin, a.account, a.networkHash]);
+const isEligible = (a: SignedApproval) =>
+  eligible.get(approvalScope(a)) === a.hash;
 let grants: Record<string, Grant> = {};
 const originEpoch = (origin: string) => originEpochs.get(origin) || 0;
 let storeQueue: Promise<void> = Promise.resolve();
@@ -114,6 +109,13 @@ function updateStore(change: (next: Stored) => void): Promise<void> {
     change(next);
     await chrome.storage.local.set({ wallet: next });
     stored = next;
+    for (const [scope, hash] of eligible)
+      if (
+        !next.approvals.some(
+          (a) => approvalScope(a) === scope && a.hash === hash,
+        )
+      )
+        eligible.delete(scope);
   });
   storeQueue = task.catch(() => {});
   return task;
@@ -124,32 +126,8 @@ const ready = (async () => {
     chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }),
   ]);
   const data = await chrome.storage.local.get("wallet");
-  if (data.wallet) stored = data.wallet as Stored;
-  await updateStore((next) => {
-    delete next.grants;
-    next.outgoing ||= [];
-    // Older builds stored wallet transfers as approvals. Preserve their hashes,
-    // but never restore submission authority from a previous worker session.
-    for (const approval of next.approvals) {
-      if (
-        approval.origin === chrome.runtime.getURL("/") &&
-        !next.outgoing.some(
-          (r) =>
-            r.hash === approval.hash && r.networkHash === approval.networkHash,
-        )
-      )
-        next.outgoing.push({
-          hash: approval.hash,
-          account: approval.account,
-          network:
-            approval.networkHash === "0".repeat(64) ? "localnet" : "devnet",
-          networkHash: approval.networkHash,
-          outcome: "unknown",
-          createdAt: 0,
-        });
-    }
-    next.approvals = [];
-  });
+  stored = parseStored(data.wallet, chrome.runtime.getURL("/"));
+  await updateStore(() => {});
   await Promise.all(
     (await chrome.tabs.query({})).map(async (tab) => {
       if (tab.id)
@@ -241,11 +219,14 @@ function rejectPending(item: Pending, message = "Request canceled") {
   if (item.windowId) void chrome.windows.remove(item.windowId).catch(() => {});
 }
 function revokeGrant(origin: string) {
+  for (const approval of stored.approvals)
+    if (approval.origin === origin) eligible.delete(approvalScope(approval));
   revoked.add(origin);
   delete grants[origin];
   originEpochs.set(origin, originEpoch(origin) + 1);
 }
 function invalidate() {
+  eligible.clear();
   epoch++;
   for (const item of pending.values()) rejectPending(item);
   publish();
@@ -297,6 +278,11 @@ async function disconnect(origin: string) {
   }
 }
 async function networkCheck(expected = stored.pin) {
+  if (!stored.pin)
+    fail(
+      4901,
+      "Stored network settings are damaged. Select the network again.",
+    );
   const network = stored.network;
   const hash = hex(
     (await (await clientFor(network)).getNetworkInfo()).networkHash,
@@ -397,6 +383,8 @@ async function approveRequest(
               secretFor(request.params.account),
             ).review
           : undefined;
+      if (request.method === "signTransaction")
+        eligible.delete(approvalScope({ origin, ...request.params }));
       let window: chrome.windows.Window | undefined;
       try {
         window = await chrome.windows.create({
@@ -455,8 +443,9 @@ async function provider(
     case "submitTransaction": {
       const p = request.params;
       assertGrant(origin, p.account, p.networkHash);
-      const approval = stored.approvals.find((a) =>
-        canSubmit(a, { origin, ...p }, unlocked(), true),
+      const approval = stored.approvals.find(
+        (a) =>
+          isEligible(a) && canSubmit(a, { origin, ...p }, unlocked(), true),
       );
       if (!approval)
         fail(4100, "These exact signed bytes were not approved for this site");
@@ -473,8 +462,8 @@ async function provider(
         if (startEpoch !== epoch || startOriginEpoch !== originEpoch(origin))
           fail(4100, "Wallet session changed");
         assertGrant(origin, p.account, p.networkHash);
-        const index = next.approvals.findIndex((a) =>
-          canSubmit(a, { origin, ...p }, true, true),
+        const index = next.approvals.findIndex(
+          (a) => isEligible(a) && canSubmit(a, { origin, ...p }, true, true),
         );
         if (index < 0)
           fail(4100, "Approval was already consumed or invalidated");
@@ -504,7 +493,7 @@ function trusted(sender: chrome.runtime.MessageSender) {
 }
 function uiState() {
   return {
-    exists: Boolean(stored.envelope),
+    exists: Object.hasOwn(stored, "envelope"),
     unlocked: unlocked(),
     network: stored.network,
     networkHash: stored.pin,
@@ -518,6 +507,7 @@ function uiState() {
       : [],
     sites: Object.keys(grants),
     outgoing: unlocked() ? stored.outgoing : [],
+    recoveryBlocked: stored.recoveryBlocked === true,
   };
 }
 async function saveSecrets(next: Vault) {
@@ -567,7 +557,8 @@ async function ui(
     case "create": {
       exact(m, ["kind", "op", "password", "mnemonic"]);
       if (start !== epoch) fail(4001, "Wallet creation canceled");
-      if (stored.envelope) fail(4100, "A vault already exists");
+      if (Object.hasOwn(stored, "envelope"))
+        fail(4100, "A vault already exists");
       const pass = text(m.password),
         next = newVault(
           m.mnemonic === undefined ? undefined : text(m.mnemonic, 512),
@@ -582,7 +573,13 @@ async function ui(
     case "unlock": {
       exact(m, ["kind", "op", "password"]);
       if (start !== epoch) fail(4001, "Unlock canceled");
-      if (!stored.envelope) fail(4100, "Create a wallet first");
+      if (!Object.hasOwn(stored, "envelope"))
+        fail(4100, "Create a wallet first");
+      if (!isEnvelope(stored.envelope))
+        fail(
+          4100,
+          "Stored vault is damaged or unsupported. Restore it from a backup.",
+        );
       const pass = text(m.password);
       const next = await decryptVault(stored.envelope, pass);
       if (start !== epoch) fail(4001, "Unlock canceled");
@@ -597,7 +594,12 @@ async function ui(
       exact(m, ["kind", "op", "password"]);
       requireUnlock();
       const start = epoch;
-      const next = await decryptVault(stored.envelope!, text(m.password));
+      if (!isEnvelope(stored.envelope))
+        fail(
+          4100,
+          "Stored vault is damaged or unsupported. Restore it from a backup.",
+        );
+      const next = await decryptVault(stored.envelope, text(m.password));
       if (epoch !== start || !unlocked()) fail(4100, "Wallet locked");
       return {
         mnemonic: next.mnemonic,
@@ -728,6 +730,11 @@ async function ui(
       return { hash: toHex0x(result.txHash) };
     }
     case "prepareTransfer": {
+      if (stored.recoveryBlocked)
+        fail(
+          4100,
+          "Transfer recovery data is damaged. Follow Manual storage recovery in the wallet README before sending again.",
+        );
       exact(m, ["kind", "op", "account", "token", "receiver", "amount"]);
       const secret = secretFor(address(m.account));
       assertTransferAvailable(stored.outgoing, address(m.account), stored.pin);
@@ -750,6 +757,11 @@ async function ui(
       };
     }
     case "sendTransfer": {
+      if (stored.recoveryBlocked)
+        fail(
+          4100,
+          "Transfer recovery data is damaged. Follow Manual storage recovery in the wallet README before sending again.",
+        );
       exact(m, ["kind", "op", "account", "transaction", "networkHash"]);
       const account = address(m.account),
         secret = secretFor(account),
@@ -995,18 +1007,32 @@ async function ui(
           networkHash: p.networkHash,
           ...(result as { signedTransaction: string; hash: string }),
         };
-        await updateStore((next) => {
-          if (
-            !pending.has(item.id) ||
-            item.epoch !== epoch ||
-            item.originEpoch !== originEpoch(item.origin)
-          )
-            fail(4001, "Approval expired");
+        try {
+          await updateStore((next) => {
+            if (
+              !pending.has(item.id) ||
+              item.epoch !== epoch ||
+              item.originEpoch !== originEpoch(item.origin)
+            )
+              fail(4001, "Approval expired");
+            assertGrant(item.origin, p.account, p.networkHash);
+            next.approvals = replaceApproval(next.approvals, approval);
+          });
+          await liveDocument(item);
           assertGrant(item.origin, p.account, p.networkHash);
-          next.approvals = replaceApproval(next.approvals, approval);
-        });
-        await liveDocument(item);
-        assertGrant(item.origin, p.account, p.networkHash);
+          eligible.set(approvalScope(approval), approval.hash);
+        } catch (error) {
+          // Cleanup can fail without granting authority or restoring the prior
+          // approval. A valid new attempt retired that scope during preflight.
+          eligible.delete(approvalScope(approval));
+          rejectPending(item, "Signing approval failed");
+          await updateStore((next) => {
+            next.approvals = next.approvals.filter(
+              (a) => approvalScope(a) !== approvalScope(approval),
+            );
+          }).catch(() => {});
+          throw error;
+        }
       } else fail(4200, "Unsupported approval");
       pending.delete(item.id);
       clearTimeout(item.timer);

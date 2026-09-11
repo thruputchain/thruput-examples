@@ -88,7 +88,8 @@ export function inspectTransaction(value: string, secret: SecretAccount) {
         toHex0x(serialize(c, codec.Contract)),
       ),
       calls: calls.map((call) => {
-        let transfer: { receiver: string; amount: string } | undefined;
+        // A selector match only identifies an ABI interpretation, not the target's behavior.
+        let decodedTransfer: { receiver: string; amount: string } | undefined;
         if (hex(call.entrypoint) === hex(ERC20.transfer.entrypoint)) {
           const decoded = decodeCalldata(
             ERC20Spec,
@@ -97,7 +98,7 @@ export function inspectTransaction(value: string, secret: SecretAccount) {
             call.calldata,
             tokenCodecs,
           );
-          transfer = {
+          decodedTransfer = {
             receiver: toHex0x(decoded.receiver as Uint8Array),
             amount: String(decoded.amount),
           };
@@ -107,7 +108,7 @@ export function inspectTransaction(value: string, secret: SecretAccount) {
           entrypoint: toHex0x(call.entrypoint),
           gas: call.gas_limit.toString(),
           calldata: toHex0x(call.calldata),
-          transfer,
+          decodedTransfer,
         };
       }),
     };

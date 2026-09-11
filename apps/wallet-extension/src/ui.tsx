@@ -26,6 +26,7 @@ interface State {
   accounts: (WalletAccount & { name: string; index?: number })[];
   sites: string[];
   outgoing: OutgoingTransfer[];
+  recoveryBlocked: boolean;
 }
 interface Approval {
   id: string;
@@ -152,8 +153,13 @@ function Review({ review }: { review: TransactionReview }) {
         <article className="call" key={i}>
           <h3>
             Call {i + 1}
-            {call.transfer ? " / Token transfer" : " / Contract call"}
+            {call.decodedTransfer
+              ? " / ERC20 transfer ABI (unverified)"
+              : " / Contract call"}
           </h3>
+          {call.decodedTransfer ? (
+            <p>Decoded fields do not verify target contract or effects.</p>
+          ) : null}
           <dl>
             <dt>Target</dt>
             <dd className="mono">{call.target}</dd>
@@ -161,12 +167,12 @@ function Review({ review }: { review: TransactionReview }) {
             <dd className="mono">{call.entrypoint}</dd>
             <dt>Gas limit</dt>
             <dd>{call.gas}</dd>
-            {call.transfer ? (
+            {call.decodedTransfer ? (
               <>
-                <dt>Recipient</dt>
-                <dd className="mono">{call.transfer.receiver}</dd>
-                <dt>Amount (raw token units)</dt>
-                <dd>{call.transfer.amount}</dd>
+                <dt>Decoded receiver</dt>
+                <dd className="mono">{call.decodedTransfer.receiver}</dd>
+                <dt>Decoded amount (raw integer)</dt>
+                <dd>{call.decodedTransfer.amount}</dd>
               </>
             ) : null}
           </dl>
@@ -583,7 +589,9 @@ function App() {
             <select
               id="network"
               name="network"
-              value={state.network}
+              value={
+                /^[0-9a-f]{64}$/.test(state.networkHash) ? state.network : ""
+              }
               disabled={busy}
               onChange={(e) => {
                 clearPrepared();
@@ -593,6 +601,9 @@ function App() {
                 });
               }}
             >
+              <option value="" disabled>
+                Select network
+              </option>
               <option value="localnet">Localnet</option>
               <option value="devnet">Devnet</option>
             </select>
@@ -655,6 +666,14 @@ function App() {
               </button>
             ))}
           </nav>
+          {state.recoveryBlocked && (
+            <p className="warning" role="status">
+              Transfer recovery data is damaged. Wallet sends are blocked.
+              Keep all known hashes and check their outcomes. Follow Manual
+              storage recovery in the wallet README before sending again.
+              A recovery phrase does not restore transfer history.
+            </p>
+          )}
           {state.outgoing.length ? (
             <section aria-label="Outgoing transfers">
               <h2>Outgoing transfers</h2>

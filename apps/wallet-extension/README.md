@@ -56,9 +56,64 @@ HOG is the native ERC20-compatible token at `0x000000000000000000000000000000000
 
 **Send** prepares an ERC20 transfer through `defaultWalletAdapter`, shows the exact transaction, and asks for **Sign and send**. A send failure can still mean broadcast: retain the displayed hash and inspect it through an RPC client or explorer. Do not create another transaction just because confirmation timed out. Gas limits are explicit fixed MVP limits, not estimated fees.
 
-Outgoing transfers have a small durable recovery record (hash, account, endpoint network, network identity, time, and outcome) saved before broadcast. These records remain visible after popup closure, lock/unlock, and worker restart. **Check status** only observes the existing hash; it never signs or submits. An unresolved transfer blocks further wallet sends from that account on that network until a terminal receipt or explicit risk acknowledgment. Up to 64 recovery records are retained; none are silently evicted.
+Outgoing transfers have a small durable recovery record (hash, account, endpoint network, network identity, time, and outcome) saved before broadcast. These records remain visible after popup closure, lock/unlock, and worker restart. **Check status** only observes the existing hash; it never signs or submits. An unresolved transfer blocks further wallet sends from that account on that network until a terminal receipt or explicit risk acknowledgment. New sends require fewer than 64 recovery records. Existing valid records are retained even above that limit; none are silently evicted. Acknowledge reviewed records to free capacity.
 
 A broadcast acknowledgment or `recentFailure` is not execution success. Unconfirmed transfers display a warning and retain the receipt-wait diagnostic, including `boundsExceeded`, across reopening. ERC20 contracts may need a HOG storage reserve to create balances for new holders. If that reserve needs funding, manually use **Send HOG** to the token contract address from a funded account; the wallet never tops up or resubmits automatically. Keep observing the original transfer with **Check status**.
+
+## Manual storage recovery
+
+If stored network settings are damaged, the Network control shows **Select network**. Unlock and select the intended network, including the one you used before. This checks its RPC identity and saves a new pin. The other endpoint does not need to be available.
+
+If transfer recovery data cannot be identified safely, the wallet retains a `recoveryBlocked` flag and shows a notice. Wallet sends remain blocked across restarts. Valid recovery hashes remain available for **Check status**. A record with a valid identity but a damaged outcome is treated as unknown. The recovery phrase restores derived keys, not transfer history or imported keys; restoring the phrase alone does not resolve the duplicate-transfer risk.
+
+Use the following repair only after one of these conditions is met:
+
+- You have accounted for every attempted transfer, including entries missing from damaged storage, and verified its terminal outcome on the original network. Checking only the hashes still visible in the wallet is insufficient if others may be missing.
+- The affected disposable test ledger has been deliberately reset or retired, and you have confirmed that old pending transactions cannot execute. Stop dapps and discard their pending submission jobs before using the reset ledger.
+
+If neither condition is met, keep sends blocked and recover the missing transaction history first. The wallet does not clear this flag automatically. Do not erase uncertain hashes or change their outcomes to bypass the block.
+
+### Preserve storage, stop the worker, and clear only the flag
+
+This is an advanced Chrome repair for this unpacked extension. Do not use `chrome.storage.local.clear()`, remove `wallet`, or replace its `envelope`. Keep the encrypted storage backup private; it includes account and transaction metadata and permits offline password guesses.
+
+1. Lock the wallet. Close all wallet windows, approval windows, and connected dapp tabs. In `chrome://extensions`, note the extension ID.
+2. Open `chrome-extension://EXTENSION_ID/favicon.svg` in a tab, replacing `EXTENSION_ID`. This bundled image is an extension-origin page without wallet scripts. Open that tab's DevTools Console. Run this code to download the current storage without printing its contents:
+
+   ```js
+   await (async () => {
+     const backup = await chrome.storage.local.get(null);
+     const blob = new Blob([JSON.stringify(backup)], { type: "application/json" });
+     const url = URL.createObjectURL(blob);
+     const link = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
+     link.href = url;
+     link.download = "thruput-encrypted-storage-backup.json";
+     document.documentElement.append(link);
+     link.click();
+     link.remove();
+     setTimeout(() => URL.revokeObjectURL(url), 60_000);
+   })();
+   ```
+
+3. Confirm that the backup file was saved. Keep a separate copy before repair. Do not paste it into logs, issue reports, or chat. In the same Console, run `await chrome.alarms.clear("lock")` to remove the old lock timer.
+4. Open `chrome://serviceworker-internals` in another tab. Find this extension's `worker.js` and click **Stop**. Close any worker inspection window and confirm that the worker is stopped. Keep the image tab open, but do not open the wallet or dapps until the edit is complete. If the worker restarts, stop it again before continuing.
+5. Only after satisfying the outcome/reset conditions above, run this code in the image tab's Console. It changes only `recoveryBlocked`; it preserves the envelope and every remaining recovery hash:
+
+   ```js
+   await (async () => {
+     const { wallet } = await chrome.storage.local.get("wallet");
+     if (!wallet || wallet.recoveryBlocked !== true || !Array.isArray(wallet.outgoing))
+       throw new Error("Unexpected storage. Stop and review the backup.");
+     const envelope = JSON.stringify(wallet.envelope);
+     const outgoing = JSON.stringify(wallet.outgoing);
+     await chrome.storage.local.set({ wallet: { ...wallet, recoveryBlocked: false } });
+     const saved = (await chrome.storage.local.get("wallet")).wallet;
+     if (JSON.stringify(saved.envelope) !== envelope || JSON.stringify(saved.outgoing) !== outgoing)
+       throw new Error("Storage changed during repair. Stop before using the wallet.");
+   })();
+   ```
+
+6. Close the image tab and DevTools. Reload the extension from `chrome://extensions`, then open and unlock the wallet. Confirm that its accounts and retained hashes are present. If the recovery notice returns, storage still contains malformed recovery data: keep sends blocked and review the preserved backup. Use **Check status** for retained hashes and acknowledge only records you have reviewed. Reconnect dapps explicitly when recovery is complete.
 
 ## Dapp Provider
 

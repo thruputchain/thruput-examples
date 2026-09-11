@@ -117,7 +117,7 @@ describe("transaction validation and signing", () => {
     const tx = await fixtureTransaction(),
       encoded = toHex0x(serializeTransaction(tx));
     expect(
-      inspectTransaction(encoded, secret).review.calls[0]!.transfer?.amount,
+      inspectTransaction(encoded, secret).review.calls[0]!.decodedTransfer?.amount,
     ).toBe("10");
     const result = await signApproved(tx, secret, "00".repeat(32));
     const signed = deserializeSignedTransaction(
@@ -146,6 +146,34 @@ describe("transaction validation and signing", () => {
         key,
       ),
     ).toBe(false);
+  });
+  it("treats a malicious arbitrary target's matching selector as decoded fields only", async () => {
+    const tx = await fixtureTransaction();
+    const invocation = ERC20.transfer.invocation(
+      contractAddress(new Uint8Array(32).fill(0xde)),
+      gasAmount(50000n),
+      { receiver: accountOf(secret).address, amount: 10n },
+    );
+    tx.invocation = defaultWalletAdapter.createRootInvocation(
+      accountOf(secret).address,
+      { gasLimit: gasAmount(100000n), invocation },
+    );
+    const { review } = inspectTransaction(
+      toHex0x(serializeTransaction(tx)),
+      secret,
+    );
+    expect(review.calls).toEqual([
+      {
+        target: toHex0x(invocation.invoked_address),
+        entrypoint: toHex0x(invocation.entrypoint),
+        gas: "50000",
+        calldata: toHex0x(invocation.calldata),
+        decodedTransfer: {
+          receiver: toHex0x(accountOf(secret).address),
+          amount: "10",
+        },
+      },
+    ]);
   });
   it("rejects root substitution, nonce/auth substitution, and trailing bytes", async () => {
     const tx = await fixtureTransaction();

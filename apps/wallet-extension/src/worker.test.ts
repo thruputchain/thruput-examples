@@ -282,6 +282,267 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("worker lifecycle and authorization", () => {
+  it.each([false, true])(
+    "denies old and unreturned signatures after navigation during persistence (cleanup failure: %s)",
+    async (cleanupFails) => {
+      await approve("connect");
+      const first = (
+        await approve(
+          "signTransaction",
+          toHex0x(serializeTransaction(await transaction())),
+        )
+      ).result as SignTransactionResult;
+      const other = {
+        ...page,
+        origin: "https://other.example",
+        url: "https://other.example/",
+        documentId: "other",
+        tab: { id: 11 },
+      } as chrome.runtime.MessageSender;
+      mock.frame.mockResolvedValue({ documentId: "other", url: other.url });
+      const connectingOther = request({ method: "connect" }, other);
+      await decideNext();
+      expect((await connectingOther).error).toBeUndefined();
+      const signingOther = request(
+        {
+          method: "signTransaction",
+          params: {
+            account,
+            networkHash: "00".repeat(32),
+            transaction: toHex0x(serializeTransaction(await transaction())),
+          },
+        },
+        other,
+      );
+      await decideNext();
+      const otherSigned = (await signingOther).result as SignTransactionResult;
+      mock.frame.mockResolvedValue({ documentId: "doc1", url: page.url });
+      const signing = request({
+        method: "signTransaction",
+        params: {
+          account,
+          networkHash: "00".repeat(32),
+          transaction: toHex0x(serializeTransaction(await transaction())),
+        },
+      });
+      await vi.waitFor(() => expect(windows).toHaveLength(1));
+      const url = windows.pop()!.url;
+      const id = new URL(url).searchParams.get("approval");
+      const gate = deferred();
+      let unreturned!: SignTransactionResult;
+      mock.write.mockClear().mockImplementationOnce((value) => {
+        unreturned = value.wallet.approvals.find(
+          (a: { origin: string }) => a.origin === page.origin,
+        );
+        return gate.promise;
+      });
+      const deciding = ui("decide", { id, approve: true }, {
+        ...extension,
+        url,
+        tab: { id: 20 },
+      } as chrome.runtime.MessageSender);
+      await vi.waitFor(() => expect(mock.write).toHaveBeenCalledTimes(1));
+      expect((await submit(first)).error?.code).toBe(4100);
+      expect((await submit(unreturned)).error?.code).toBe(4100);
+      // Exercise the final getFrame check even before the navigation event arrives.
+      mock.frame.mockResolvedValue({ documentId: "doc2", url: page.url });
+      if (cleanupFails)
+        mock.write.mockRejectedValueOnce(new Error("Cleanup failed"));
+      gate.release();
+      expect((await deciding).error?.code).toBe(4100);
+      expect((await signing).error?.code).toBe(4001);
+      expect((saved.wallet as { approvals: unknown[] }).approvals).toHaveLength(
+        cleanupFails ? 2 : 1,
+      );
+      mock.frame.mockResolvedValue({ documentId: "doc1", url: page.url });
+      await approve("connect");
+      expect((await submit(first)).error?.code).toBe(4100);
+      expect((await submit(unreturned)).error?.code).toBe(4100);
+      expect(mock.send).not.toHaveBeenCalled();
+      mock.frame.mockResolvedValue({ documentId: "other", url: other.url });
+      expect(
+        (
+          await request(
+            {
+              method: "submitTransaction",
+              params: {
+                account,
+                networkHash: "00".repeat(32),
+                signedTransaction: otherSigned.signedTransaction,
+              },
+            },
+            other,
+          )
+        ).result,
+      ).toEqual({ hash: otherSigned.hash });
+      mock.frame.mockResolvedValue({ documentId: "doc1", url: page.url });
+      const valid = (
+        await approve(
+          "signTransaction",
+          toHex0x(serializeTransaction(await transaction())),
+        )
+      ).result as SignTransactionResult;
+      expect((await submit(valid)).result).toEqual({ hash: valid.hash });
+    },
+  );
+  it.each([
+    undefined,
+    null,
+    {},
+    [null, 3, {}, { origin: "https://bad.example" }],
+  ])(
+    "unlocks a preserved encrypted vault with malformed collections (%j)",
+    async (approvals) => {
+      const envelope = (saved.wallet as { envelope: unknown }).envelope;
+      saved.wallet = {
+        envelope,
+        network: "localnet",
+        pin: "00".repeat(32),
+        approvals,
+        tokens: { ["00".repeat(32)]: [null, {}] },
+        airdrops: [],
+        outgoing: [null],
+      };
+      await boot();
+      expect((await ui("unlock", { password: pass })).error).toBeUndefined();
+      expect((saved.wallet as { envelope: unknown }).envelope).toEqual(
+        envelope,
+      );
+      expect((saved.wallet as { approvals: unknown[] }).approvals).toEqual([]);
+      expect((await request({ method: "getSession" })).result).toMatchObject({
+        accounts: [],
+      });
+      expect((await ui("sendTransfer", { account })).error?.message).toContain(
+        "recovery data is damaged",
+      );
+    },
+  );
+  it("retains 65 recovery hashes and requires acknowledgment to free creation capacity", async () => {
+    const records = Array.from({ length: 65 }, (_, i) => ({
+      hash: `0x${i.toString(16).padStart(64, "0")}`,
+      account,
+      network: "localnet",
+      networkHash: "00".repeat(32),
+      outcome: "confirmed",
+      createdAt: i,
+    }));
+    (saved.wallet as Record<string, unknown>).outgoing = records;
+    await boot();
+    await ui("unlock", { password: pass });
+    expect((await ui("state")).result).toMatchObject({
+      outgoing: records,
+      recoveryBlocked: false,
+    });
+    const transfer = {
+      account,
+      networkHash: "00".repeat(32),
+      transaction: toHex0x(serializeTransaction(await transaction())),
+    };
+    expect((await ui("sendTransfer", transfer)).error?.code).toBe(-32002);
+    expect(mock.send).not.toHaveBeenCalled();
+    for (const record of records.slice(0, 2)) {
+      expect(
+        (
+          await ui("ackTransfer", {
+            hash: record.hash,
+            networkHash: record.networkHash,
+            confirmRisk: true,
+          })
+        ).error,
+      ).toBeUndefined();
+    }
+    expect((await ui("sendTransfer", transfer)).error).toBeUndefined();
+    expect(mock.send).toHaveBeenCalledTimes(1);
+    expect((saved.wallet as { outgoing: unknown[] }).outgoing).toEqual([
+      ...records.slice(2),
+      expect.objectContaining({ account, outcome: "submitted" }),
+    ]);
+  });
+  it("preserves valid and scoped damaged recovery records alongside invalid entries", async () => {
+    const wallet = saved.wallet as Record<string, unknown>;
+    const record = {
+      hash: `0x${"12".repeat(32)}`,
+      account,
+      network: "localnet",
+      networkHash: "00".repeat(32),
+      outcome: "submitted",
+      createdAt: 123,
+    };
+    wallet.outgoing = [
+      record,
+      {
+        ...record,
+        hash: `0x${"13".repeat(32)}`,
+        outcome: "broken",
+        createdAt: "bad",
+      },
+    ];
+    wallet.approvals = [
+      null,
+      {
+        ...record,
+        hash: `0x${"14".repeat(32)}`,
+        origin: "chrome-extension://extension/",
+      },
+    ];
+    await boot();
+    await ui("unlock", { password: pass });
+    expect((saved.wallet as { outgoing: unknown[] }).outgoing).toEqual([
+      record,
+      {
+        ...record,
+        hash: `0x${"13".repeat(32)}`,
+        outcome: "unknown",
+        createdAt: 0,
+      },
+      {
+        ...record,
+        hash: `0x${"14".repeat(32)}`,
+        outcome: "unknown",
+        createdAt: 123,
+      },
+    ]);
+    expect(
+      (
+        await ui("sendTransfer", {
+          account,
+          networkHash: "00".repeat(32),
+          transaction: toHex0x(serializeTransaction(await transaction())),
+        })
+      ).error?.code,
+    ).toBe(-32002);
+  });
+  it.each([null, {}, "damaged"])(
+    "preserves an invalid envelope and prevents replacement (%j)",
+    async (envelope) => {
+      saved.wallet = { envelope };
+      await boot();
+      expect((await ui("state")).result).toMatchObject({
+        exists: true,
+        unlocked: false,
+      });
+      expect((await ui("unlock", { password: pass })).error?.message).toContain(
+        "damaged or unsupported",
+      );
+      expect((await ui("create", { password: pass })).error?.message).toBe(
+        "A vault already exists",
+      );
+      expect((saved.wallet as { envelope: unknown }).envelope).toEqual(
+        envelope,
+      );
+    },
+  );
+  it("requires explicit network selection for damaged pins without losing the vault", async () => {
+    const wallet = saved.wallet as Record<string, unknown>;
+    wallet.network = "devnet";
+    wallet.pin = "bad";
+    await boot();
+    expect((await ui("unlock", { password: pass })).error).toBeUndefined();
+    expect((await request({ method: "connect" })).error?.code).toBe(4901);
+    expect(mock.networkInfo).not.toHaveBeenCalled();
+    expect((await ui("network", { network: "devnet" })).error).toBeUndefined();
+    expect((await approve("connect")).error).toBeUndefined();
+  });
   it.each(["preflight", "approval"])(
     "expires %s at 115 seconds, clears its timer, and frees its origin slot",
     async (stage) => {

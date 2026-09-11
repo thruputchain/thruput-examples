@@ -62,11 +62,11 @@ export async function captureReviewStates(context, uiUrl, capture) {
               calldata: "0x00000000",
               deployments: [],
               calls: [{
-                target: `0x${"0".repeat(63)}1`,
+                target: `0x${"de".repeat(32)}`,
                 entrypoint: "0123456789abcdef",
                 gas: "500000",
                 calldata: "0x00000000",
-                transfer: {
+                decodedTransfer: {
                   receiver: `0x${"56".repeat(32)}`,
                   amount: "10000000",
                 },
@@ -85,9 +85,16 @@ export async function captureReviewStates(context, uiUrl, capture) {
       await page.getByRole("heading", {
         name: scenario === "signature" ? "Approve a signature?" : "Your assets",
       }).waitFor();
-      if (scenario === "signature")
+      if (scenario === "signature") {
         await page.getByText("Not simulated", { exact: true }).waitFor();
-      else if (scenario === "loading")
+        await page.getByRole("heading", {
+          name: "Call 1 / ERC20 transfer ABI (unverified)", exact: true,
+        }).waitFor();
+        await page.getByText("Decoded fields do not verify target contract or effects.", { exact: true }).waitFor();
+        await page.getByText("Decoded receiver", { exact: true }).waitFor();
+        await page.getByText("Decoded amount (raw integer)", { exact: true }).waitFor();
+        assert.equal(await page.getByText("Token transfer", { exact: true }).count(), 0);
+      } else if (scenario === "loading")
         await page.getByText("Reading balances...").waitFor();
       else await page.getByText("Unavailable", { exact: true }).waitFor();
       await page.emulateMedia({ reducedMotion: "reduce" });
