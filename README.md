@@ -1,6 +1,6 @@
 # groundhog-examples
 
-Example smart contracts for the [Groundhog SDK](https://github.com/groundhogchain/sdk_rs). Each
+Example smart contracts and applications for the [Groundhog SDK](https://github.com/groundhogchain/sdk_rs). Each
 crate in this Cargo workspace demonstrates a specific SDK feature, from a minimal stateless contract
 up to cross-contract calls, error handling, and event emission.
 
@@ -32,7 +32,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`permit-wallet`](contracts/permit-wallet/) | Off-chain authorization: an owner's wallet implementing `SignedOp`, turning an ed25519 signature made off-chain into a `PermitGrant` auth token the `erc20` consumes; the owner never submits a transaction |
 | [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit from the wallet to the token in one frame, so anyone can submit it |
 | [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](contracts/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
-| [`swap-*`](docs/README-swap.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
+| [`swap-*`](contracts/swap-router/README.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
 
 ### Simulation fixtures
 
@@ -45,34 +45,98 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples �
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | NNInt-heavy writes with refund capping |
 | [`life-storage-admission`](sim-fixtures/life-storage-admission/) | The `game-of-life` tick's storage shape (20,004 chunk reads, 20,000 writes) without the Life computation, for admission testing on a live node |
 
-## Wallet Apps
+## Applications
 
-Swap and Token Launchpad share one npm workspace and root lockfile. After
-building the sibling SDK, run `npm ci` here. Both apps expose the same commands:
-`dev`, `build`, `start`, `typecheck`, `test`, `setup:local`, `seed`, and
-`generate:contracts`. Use `--workspace apps/swap` or
-`--workspace apps/token-launchpad` to select the app.
+| App | Purpose |
+| --- | --- |
+| [Token Launchpad](apps/token-launchpad/README.md) | Create standard tokens and browse launches |
+| [Swap](apps/swap/README.md) | Create pools, swap tokens, and manage liquidity |
+| [Thruput Wallet](apps/wallet-extension/README.md) | Chrome wallet for localnet and devnet |
+| [Game of Life](apps/game-of-life/README.md) | Explore and advance the on-chain simulation |
 
-Each dev server includes its registry API and indexer. Wallet state lives under
-`src/wallet`, transactions under `src/transactions`, and feature pages beside
-their controllers. Shared demo tooling and browser checks live under `scripts`.
+Each app README contains its setup, configuration, and testing instructions.
+Swap and Launchpad share one npm workspace and root lockfile. The wallet and
+Game of Life have independent installs.
 
-Use the [wallet local-development guide](docs/wallet-local-development.md) to
-install the sibling SDK, provision a disposable node, and run both apps with the
-[Thruput Wallet extension](apps/wallet-extension/README.md). Setup creates
-infrastructure only; users create/import their own test wallet, request HOG,
-launch two tokens, and create the first pool through extension approvals.
+### Install Swap and Launchpad dependencies
 
-- [Token Launchpad](apps/token-launchpad/README.md): create standard tokens and browse launches.
-- [Swap](apps/swap/README.md): create pools, swap, and manage liquidity.
-- [Cross-app operations](docs/cross-app-operations.md): optional registry discovery, handoff URLs, and production packaging.
-- [Wallet acceptance](docs/wallet-acceptance.md): real-extension checks, recorded results, and coverage limits.
+Use Node.js **22.13 or newer** and npm. The wallet provider API currently comes
+from [client-ts PR #61](https://github.com/groundhogchain/client-ts/pull/61), with
+the SDK checkout beside this repository as `groundhog-client-ts`. For a new
+checkout, clone it there and select the provider revision:
 
-Both apps support connected-wallet writes in development and production; their
-public RPC proxies remain read-only. The wallet is experimental and for test
-funds only. Its current SDK dependency is an unpublished local sibling checkout,
-not a package that needs publishing. The wallet guide's compatible CLI/runtime
-requirements take precedence over the general contract minimum below.
+```sh
+git clone https://github.com/groundhogchain/client-ts.git ../groundhog-client-ts
+git -C ../groundhog-client-ts checkout b722ccfe5ab3fb539475bed91b5c7b087477032f
+npm --prefix ../groundhog-client-ts ci
+npm --prefix ../groundhog-client-ts run build
+npm ci
+```
+
+If the SDK checkout already exists, use its compatible provider revision and
+run the build/install commands. Both `/provider` and `/wallet` exports must be
+built. Groundhog npm packages require GitHub Packages read access in your user
+environment. The root `.npmrc` works around npm 10's linked-SDK peer resolver.
+
+Both apps expose `dev`, `build`, `start`, `typecheck`, `test`, `setup:local`,
+`seed`, and `generate:contracts`. Select an app with
+`npm run <command> --workspace apps/<app>`. Each dev server includes its registry
+API and indexer. Setup creates empty infrastructure; seeding adds example assets.
+
+For browser transactions, build and load [Thruput Wallet](apps/wallet-extension/README.md),
+create or import a test wallet, and request test HOG. App RPC proxies are read-only;
+the wallet signs and submits. These examples use test funds.
+
+### Application checks
+
+Run from the repository root:
+
+| Command | Coverage and requirements |
+| --- | --- |
+| `npm run typecheck` | Both apps and shared seeding TypeScript |
+| `npm test` | App and seed unit/integration tests, plus Linux process-cleanup regressions |
+| `npm run test:browser` | Chromium fixture checks for wallet controls, token selection, network guards, and page layout; no live node |
+| `npm run test:wallet` | Real extension approvals through token launch, pool creation, swap, liquidity, transfer, and production-server checks on a fresh node |
+| `npm run test:seed` | Fresh-node seeding, indexed tokens, balances, liquidity, and repeatability |
+
+Set `CHROMIUM_PATH` to your Chromium binary if needed. Browser fixtures default
+to `/usr/bin/chromium`; the live wallet test defaults to `/usr/lib/chromium/chromium`.
+Both live runners use Linux process groups and `/proc`. Install the wallet's
+dependencies separately before running it; the command builds its source into a
+temporary directory, so an existing extension `dist` is not required.
+
+Live checks need a compatible CLI/devnode pair and built contracts in
+`target/groundhog` (run `./scripts/build-guest.sh` first):
+
+```sh
+export GROUNDHOG_CLI=/absolute/path/to/groundhog
+export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
+npm run test:wallet
+npm run test:seed
+```
+
+The CLI and devnode must agree on the runtime-manifest schema, including
+`endpoints.schedulerGateway` when required by the CLI. A protocol override cannot
+repair a schema mismatch. `GROUNDHOG_E2E_HOGD_PROTOCOL` selects an explicitly
+compatible protocol build. `WALLET_ACCEPTANCE_ARTIFACT_ROOT` and
+`SEED_TEST_ARTIFACT_ROOT` override the respective artifact roots.
+
+Live tests create separate node state, app environments, databases, and browser
+profiles under the system temporary directory. They print their evidence paths.
+The wallet runner removes temporary runtime state after verified cleanup; the
+seed runner retains its isolated state for diagnosis. Neither replaces the
+developer's app environments. Add `-- --devnet` to `test:wallet` only to request
+the optional external identity/airdrop check; its result is reported separately.
+Set `SEED_TEST_DEFAULT_OWNER=1` to check tool-account ownership instead of the
+seed test's explicit recipient.
+
+CI currently checks the Rust contracts. Run the application checks above locally
+while the apps depend on the unpublished SDK checkout.
+
+Fixture tests do not prove live transaction execution. The live journey checks
+completed-state reloads; it does not cover full browser restart with an unresolved
+transaction or remote deployment. Wallet unit tests run independently through
+`npm --prefix apps/wallet-extension test`.
 
 ## Prerequisites
 
@@ -203,9 +267,20 @@ The other kinds need guest artifacts, so build them first:
 ./scripts/integration-tests.sh   # rpc tests
 ```
 
-[`scripts/check-all.sh`](scripts/check-all.sh) covers everything: it runs the
-native tests, builds the guest binaries, runs the guest tests and integration
-tests, and finishes with clippy and rustfmt.
+[`scripts/check-contracts.sh`](scripts/check-contracts.sh) runs native contract
+tests, builds the guest binaries, runs the guest tests and integration
+tests, and finishes with clippy and rustfmt. Live Swap and permit simulations
+remain separate commands listed above; application checks are listed under
+[Application checks](#application-checks).
+
+## Repository structure
+
+- `apps/`: applications, each with its own README and setup scripts.
+- `contracts/`, `engines/`, `helpers/`, `interfaces/`: contracts and supporting Rust code.
+- `scripts/`: contract build/check commands and shared `seed/` tooling.
+- `tests/browser/`, `tests/e2e/`: browser fixtures and cross-app live tests.
+- `tests/token-factory-ts/`: TypeScript contract tests.
+- `docs/specs/`, `docs/superpowers/`: design specifications and AI-assisted development records.
 
 ## License
 

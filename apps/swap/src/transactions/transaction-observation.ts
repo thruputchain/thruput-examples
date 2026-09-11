@@ -1,14 +1,16 @@
 import { fromHex0x, type GroundhogClient } from "@groundhogchain/client";
 import { sha256Hash } from "@groundhogchain/protocol";
+import { verifyReadNetwork } from "@/groundhog/client";
 import { outcomeFromReceipt, outcomeFromStatus } from "./outcome";
 import type { WriteResult } from "./write-boundary";
 
 export async function pollTransaction(
   client: Pick<
     GroundhogClient,
-    "getTransactionReceipt" | "getTransactionStatus"
+    "getNetworkInfo" | "getTransactionReceipt" | "getTransactionStatus"
   >,
   hash: string,
+  networkIdHex: string,
   maxPolls = 40,
   delay: (milliseconds: number) => Promise<void> = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms)),
@@ -26,6 +28,7 @@ export async function pollTransaction(
     "timeout";
   for (let poll = 0; poll < maxPolls; poll += 1) {
     try {
+      await verifyReadNetwork(client, { networkIdHex });
       const receipt = await client.getTransactionReceipt(bytes);
       if (receipt !== null) {
         if (

@@ -20,6 +20,9 @@ export class OwnedProcessGroups {
   #exited = 0;
 
   constructor({ graceMs = 2000, killTimeoutMs = 3000 } = {}) {
+    if (process.platform !== "linux") {
+      throw new Error("Live tests require Linux process groups and /proc");
+    }
     this.graceMs = graceMs;
     this.killTimeoutMs = killTimeoutMs;
   }

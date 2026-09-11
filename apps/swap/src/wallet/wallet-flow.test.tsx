@@ -27,8 +27,10 @@ import { WalletControls } from "./wallet-controls";
 import { useWalletWriteBoundary } from "./write-context";
 import { createReadClient } from "@/groundhog/client";
 
-vi.mock("@/groundhog/client", () => ({
+vi.mock("@/groundhog/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/groundhog/client")>()),
   createReadClient: vi.fn(() => ({
+    getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }),
     getChainTip: vi.fn().mockResolvedValue({ height: 1n }),
     getTransactionReceipt: vi.fn().mockResolvedValue(null),
     getTransactionStatus: vi.fn().mockResolvedValue({ status: "unknown" }),

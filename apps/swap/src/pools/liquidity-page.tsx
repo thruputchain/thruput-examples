@@ -859,7 +859,7 @@ function safeReadAccountReservations(
         liquidityReservation: 0n,
         liquidityAllowanceReservation: 0n,
       },
-      error: "Saved account transaction progress is invalid. Clear this site's local data before signing another transaction.",
+      error: "Saved account transaction progress is invalid. Preserve the saved data and resolve pending transactions on the original ledger before signing another transaction.",
     };
   }
 }
@@ -873,7 +873,7 @@ function safeLoadCrankAttempt(config: AppConfig): {
   } catch {
     return {
       attempt: null,
-      error: "Saved queue-processing progress is invalid. Clear this site's local data before signing another transaction.",
+      error: "Saved queue-processing progress is invalid. Preserve the saved data and resolve pending transactions on the original ledger before signing another transaction.",
     };
   }
 }
@@ -887,7 +887,7 @@ function readLiquidityState(config: AppConfig): {
   } catch {
     return {
       operations: [],
-      error: "Saved liquidity progress is invalid. Clear this site's local data before signing another liquidity transaction.",
+      error: "Saved liquidity progress is invalid. Preserve the saved data and resolve pending transactions on the original ledger before signing another liquidity transaction.",
     };
   }
 }

@@ -1,4 +1,4 @@
-import { seed } from "./seed-demo.ts";
+import { seed } from "../../../scripts/seed/seed.ts";
 
 seed("pools").catch(() => {
   console.error(

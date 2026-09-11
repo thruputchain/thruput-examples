@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { OwnedProcessGroups } from "./wallet-acceptance/process-groups.mjs";
+import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
+import { connect, handleApprovals } from "./helpers/browser.mjs";
 import { createHash, randomBytes } from "node:crypto";
 import {
   mkdtemp,
@@ -14,11 +15,11 @@ import {
 import { createServer as netServer } from "node:net";
 import { createServer, request as httpRequest } from "node:http";
 import { createRequire } from "node:module";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
-const root = fileURLToPath(new URL("..", import.meta.url));
+const root = fileURLToPath(new URL("../..", import.meta.url));
 const swap = `${root}/apps/swap`,
   launchpad = `${root}/apps/token-launchpad`;
 const extension = `${root}/apps/wallet-extension`;
@@ -29,7 +30,7 @@ try {
 } catch {
   ({ chromium } = createRequire(`${swap}/package.json`)("playwright-core"));
 }
-const work = await mkdtemp("/tmp/opencode/wallet-acceptance-");
+const work = await mkdtemp(`${tmpdir()}/groundhog-wallet-apps-`);
 await mkdir(`${work}/evidence`, { mode: 0o700 });
 const env = Object.fromEntries(
   Object.entries(process.env).filter(([key]) =>
@@ -157,8 +158,6 @@ async function appServer(app, settings, publicDir) {
     app,
     {
       ...settings,
-      VITE_POOL_REGISTRY_ENABLED: "false",
-      VITE_TOKEN_REGISTRY_ENABLED: "false",
       VITE_TOKEN_DISCOVERY_ENABLED: "false",
     },
     "wallet-acceptance",
@@ -166,7 +165,7 @@ async function appServer(app, settings, publicDir) {
   const child = start(
     process.execPath,
     [
-      `${root}/scripts/wallet-acceptance/vite.mjs`,
+      `${root}/tests/e2e/helpers/vite.mjs`,
       app,
       publicDir,
       `${publicDir}/../vite-cache`,
@@ -231,7 +230,7 @@ async function productionSmoke(app, prefix, settings, context) {
     await cp(`${app}/${path}`, `${directory}/${path}`, { recursive: true });
   await symlink(`${root}/node_modules`, `${directory}/node_modules`, "dir");
   const buildArgs = [
-    `${root}/scripts/wallet-acceptance/build-production.mjs`,
+    `${root}/tests/e2e/helpers/build-production.mjs`,
     app,
     publicDir,
     `${directory}/dist`,
@@ -261,7 +260,13 @@ async function productionSmoke(app, prefix, settings, context) {
       "Production environment must not include signing credentials",
     );
   await assert.rejects(
-    run(`${root}/node_modules/.bin/tsx`, entrypoint, directory, serverEnv, true),
+    run(
+      `${root}/node_modules/.bin/tsx`,
+      entrypoint,
+      directory,
+      serverEnv,
+      true,
+    ),
     /artifact|failed to start/i,
   );
   await writeFile(`${directory}/dist/${filename}`, artifact);
@@ -353,30 +358,6 @@ async function productionSmoke(app, prefix, settings, context) {
   browserOrigins.delete(origin);
   await stop(child);
 }
-async function connect(page) {
-  const button = page.getByRole("button", {
-    name: "Connect Thruput Wallet",
-    exact: true,
-  });
-  await page.getByRole("button", { name: /^Connect / }).waitFor();
-  const picker = page.getByLabel("Wallet provider", { exact: true });
-  if (await picker.count()) {
-    await picker.selectOption({ label: "Thruput Wallet" });
-  }
-  await button.click();
-  if (
-    await page
-      .getByRole("region", { name: "Wallet connection", exact: true })
-      .count()
-  ) {
-    await page.getByLabel("Wallet account", { exact: true }).waitFor();
-  } else {
-    await until(
-      async () => !(await button.count()),
-      "wallet connection",
-    );
-  }
-}
 try {
   console.log(`Evidence: ${work}/evidence`);
   evidence.tools = {
@@ -429,13 +410,18 @@ try {
     [swap, "SWAP"],
     [launchpad, "LAUNCHPAD"],
   ]) {
-    await run(`${root}/node_modules/.bin/tsx`, ["scripts/setup-local.ts"], app, {
-      [`${prefix}_ARTIFACT_ROOT`]:
-        process.env.WALLET_ACCEPTANCE_ARTIFACT_ROOT ||
-        `${root}/target/groundhog`,
-      [`${prefix}_APP_ENV`]: `${work}/${prefix}.env`,
-      [`${prefix}_APP_PUBLIC_DIR`]: `${work}/${prefix}/public`,
-    });
+    await run(
+      `${root}/node_modules/.bin/tsx`,
+      ["scripts/setup-local.ts"],
+      app,
+      {
+        [`${prefix}_ARTIFACT_ROOT`]:
+          process.env.WALLET_ACCEPTANCE_ARTIFACT_ROOT ||
+          `${root}/target/groundhog`,
+        [`${prefix}_APP_ENV`]: `${work}/${prefix}.env`,
+        [`${prefix}_APP_PUBLIC_DIR`]: `${work}/${prefix}/public`,
+      },
+    );
   }
   check("infrastructure setup without seeded tokens or pools");
   const s = parseEnv(await readFile(`${work}/SWAP.env`, "utf8"));
@@ -455,7 +441,7 @@ try {
   );
   await run(
     `${root}/node_modules/.bin/tsx`,
-    [`${root}/scripts/wallet-acceptance/chain.mts`, "empty"],
+    [`${root}/tests/e2e/helpers/chain.mts`, "empty"],
     swap,
     s,
   );
@@ -532,17 +518,17 @@ try {
   });
   proxy.on("connect", (_req, socket) => socket.destroy());
   await new Promise((r) => proxy.listen(0, "127.0.0.1", r));
-  await cp(`${extension}/dist`, `${work}/extension`, { recursive: true });
   if (process.argv.includes("--build-extension"))
     await run(
       process.execPath,
       [
-        `${root}/scripts/wallet-acceptance/build-extension.mjs`,
+        `${root}/tests/e2e/helpers/build-extension.mjs`,
         extension,
         `${work}/extension`,
       ],
       extension,
     );
+  else await cp(`${extension}/dist`, `${work}/extension`, { recursive: true });
   evidence.extension = {
     rebuiltFromSource: process.argv.includes("--build-extension"),
     workerSha256: await fingerprint(`${work}/extension/worker.js`),
@@ -566,58 +552,11 @@ try {
     (await context.waitForEvent("serviceworker"));
   // URL.origin is "null" for extension URLs in Node.
   const extensionUrl = `chrome-extension://${worker.url().split("/")[2]}`;
-  let rejectNext = false,
-    approvalError;
-  context.on("page", (page) => {
-    void (async () => {
-      await page
-        .waitForURL((url) => url.searchParams.has("approval"), {
-          timeout: 1000,
-        })
-        .catch(() => {});
-      if (
-        !page.url().startsWith(extensionUrl) ||
-        !page.url().includes("approval=")
-      )
-        return;
-      await page.locator(".origin").waitFor();
-      const origin = await page.locator(".origin").evaluate((element) =>
-        [...element.childNodes]
-          .filter((node) => node.nodeType === Node.TEXT_NODE)
-          .map((node) => node.textContent)
-          .join("")
-          .trim(),
-      );
-      assert.ok([lo, so].includes(origin), "Unexpected approval origin");
-      const reject = rejectNext;
-      rejectNext = false;
-      const signing = await page
-        .getByRole("heading", { name: "Approve a signature?" })
-        .count();
-      if (signing)
-        await page
-          .locator(".review")
-          .getByText(evidence.creator, { exact: true })
-          .waitFor();
-      evidence.approvals.push({
-        origin,
-        kind: signing ? "signature" : "connection",
-        rejected: reject,
-      });
-      await page
-        .getByRole("button", {
-          name: reject ? "Reject" : signing ? "Sign only" : "Connect",
-          exact: true,
-        })
-        .click()
-        .catch((error) => {
-          // The real popup closes itself during click dispatch. App/chain checks
-          // below still require the requested decision to take effect.
-          if (!page.isClosed()) throw error;
-        });
-    })().catch((e) => {
-      approvalError = e;
-    });
+  const approvals = handleApprovals(context, {
+    extensionUrl,
+    origins: [lo, so],
+    account: () => evidence.creator,
+    record: (approval) => evidence.approvals.push(approval),
   });
   const wallet = await context.newPage();
   await wallet.goto(`${extensionUrl}/index.html`);
@@ -677,7 +616,7 @@ try {
       .getByRole("button", { name: "Launch token", exact: true })
       .click();
     await until(async () => {
-      if (approvalError) throw approvalError;
+      approvals.check();
       const error = page.getByText(
         "The funding transaction committed, but the required reserve is not available.",
         { exact: true },
@@ -690,7 +629,7 @@ try {
         )
         .isVisible();
     }, "complete launch verification");
-    if (approvalError) throw approvalError;
+    approvals.check();
     const launches = await page.evaluate(() =>
       Object.values(localStorage).flatMap((v) => {
         try {
@@ -765,7 +704,7 @@ try {
       await run(
         `${root}/node_modules/.bin/tsx`,
         [
-          `${root}/scripts/wallet-acceptance/chain.mts`,
+          `${root}/tests/e2e/helpers/chain.mts`,
           `${work}/evidence/chain-input.json`,
           ...(recipient ? [recipient] : []),
         ],
@@ -788,7 +727,7 @@ try {
   const poolUrl = page.url();
   await page.getByRole("link", { name: "Swap", exact: true }).click();
   await page.getByLabel("YOU PAY", { exact: true }).fill("1");
-  rejectNext = true;
+  approvals.rejectNext();
   await page.getByRole("button", { name: /^(Approve & swap|Swap)$/ }).click();
   await page.getByText("User rejected the request", { exact: true }).waitFor();
   assert.deepEqual(await snapshot(), evidence.initialPool);
@@ -851,7 +790,7 @@ try {
   await page.screenshot({ path: `${work}/evidence/liquidity.png` });
   stage = "connection rejection and account change";
   await page.getByRole("button", { name: "Disconnect", exact: true }).click();
-  rejectNext = true;
+  approvals.rejectNext();
   await page
     .getByRole("button", { name: "Connect Thruput Wallet", exact: true })
     .click();
@@ -1049,15 +988,6 @@ try {
     context,
   );
   await productionSmoke(swap, "SWAP", s, context);
-  stage = "vault restore and key import unit coverage";
-  await run(
-    `${extension}/node_modules/.bin/vitest`,
-    ["run", "src/vault.test.ts", "src/worker.test.ts"],
-    extension,
-  );
-  check(
-    "vault derivation/restore, encryption and private-key import worker unit coverage",
-  );
   if (process.argv.includes("--devnet")) {
     stage = "devnet read-only preflight and throwaway airdrop";
     const started = Date.now();
@@ -1171,7 +1101,7 @@ try {
   } else {
     evidence.devnet = { status: "not-requested" };
   }
-  if (approvalError) throw approvalError;
+  approvals.check();
   evidence.status = evidence.blockers.length ? "failed" : "passed";
   if (evidence.blockers.length) process.exitCode = 1;
   console.log(

@@ -51,20 +51,29 @@ describe("AmmRoutes", () => {
     expect(screen.getByRole("heading", { name: "Create pool" })).toBeVisible();
   });
 
-  it.each(["", `?tokenA=0x${"05".repeat(32)}&tokenB=0x${"06".repeat(32)}`])("redirects pool creation with presets %s to the directory when read-only", async (search) => {
-    render(
-      <MemoryRouter initialEntries={[`/pools/new${search}`]}>
-        <ProcessingModeProvider>
-          <AmmRoutes config={config} readOnly />
-        </ProcessingModeProvider>
-      </MemoryRouter>,
-    );
+  it.each(["", `?tokenA=0x${"05".repeat(32)}&tokenB=0x${"06".repeat(32)}`])(
+    "retains pool creation and presets %s while waiting for a wallet connection",
+    async (search) => {
+      render(
+        <MemoryRouter initialEntries={[`/pools/new${search}`]}>
+          <ProcessingModeProvider>
+            <AmmRoutes config={config} readOnly />
+            <LocationPath />
+          </ProcessingModeProvider>
+        </MemoryRouter>,
+      );
 
-    expect(await screen.findByRole("heading", { name: "Pools" })).toBeVisible();
-    expect(
-      screen.queryByRole("heading", { name: "Create pool" }),
-    ).not.toBeInTheDocument();
-  });
+      expect(
+        await screen.findByRole("heading", { name: "Connect your wallet" }),
+      ).toBeVisible();
+      expect(screen.getByTestId("location-path")).toHaveTextContent(
+        `/pools/new${search}`,
+      );
+      expect(
+        screen.queryByRole("heading", { name: "Create pool" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it.each(["swap", "liquidity"])(
     "redirects the %s route to pool detail when read-only",
@@ -88,7 +97,13 @@ describe("AmmRoutes", () => {
 });
 
 function LocationPath() {
-  return <output data-testid="location-path">{useLocation().pathname}</output>;
+  const location = useLocation();
+  return (
+    <output data-testid="location-path">
+      {location.pathname}
+      {location.search}
+    </output>
+  );
 }
 
 describe("browser configuration", () => {
@@ -127,6 +142,9 @@ describe("browser configuration", () => {
     expect(readBrowserConfiguration().ok).toBe(false);
     vi.stubEnv("VITE_STANDARD_TOKEN_HASH", "CD".repeat(32));
     vi.stubEnv("VITE_EXPLORER_URL", "https://explorer.test/path");
-    expect(readBrowserConfiguration()).toMatchObject({ ok: false, message: expect.stringContaining("VITE_EXPLORER_URL") });
+    expect(readBrowserConfiguration()).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("VITE_EXPLORER_URL"),
+    });
   });
 });

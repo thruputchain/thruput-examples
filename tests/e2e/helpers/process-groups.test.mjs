@@ -5,9 +5,11 @@ import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { OwnedProcessGroups } from "./process-groups.mjs";
 
+const linuxOnly = { skip: process.platform !== "linux" };
+
 test(
   "cleans surviving TERM-resistant descendants after the launcher closes",
-  { timeout: 15000 },
+  { ...linuxOnly, timeout: 15000 },
   async (t) => {
     const groups = new OwnedProcessGroups({
       graceMs: 150,
@@ -78,7 +80,7 @@ test(
 
 test(
   "does not signal a detached group owned by another registry",
-  { timeout: 10000 },
+  { ...linuxOnly, timeout: 10000 },
   async (t) => {
     const groups = new OwnedProcessGroups();
     const unrelated = new OwnedProcessGroups();
@@ -97,7 +99,7 @@ test(
   },
 );
 
-test("does not register a failed spawn", async () => {
+test("does not register a failed spawn", linuxOnly, async () => {
   const groups = new OwnedProcessGroups();
   const child = groups.spawn("/nonexistent-wallet-acceptance-executable", [], {
     stdio: "ignore",

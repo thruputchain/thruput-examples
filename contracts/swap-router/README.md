@@ -3,7 +3,7 @@
 The `swap-*` contracts are an example port (not for production) from Ethereum to
 Groundhog of UniswapV2, adding a request-batching layer:
 
-- [`swap-if`](../interfaces/swap-if/): Interface-only crate.  It defines every swap contract's trait,
+- [`swap-if`](../../interfaces/swap-if/): Interface-only crate.  It defines every swap contract's trait,
   client, and error type, plus the shared value types (including the
   `SwapRequest` request types), so the contracts can call one another -- and be
   created by the factory -- without depending on each other's implementations.
@@ -14,7 +14,7 @@ Groundhog of UniswapV2, adding a request-batching layer:
   `swap-pair`.
 - `swap-driver`: A request-processing driver that batches requests and forwards
   each to its handler, all in the same block. Generic parts of this pattern are
-  provided by [`helpers/batch-driver`](../helpers/batch-driver/src/lib.rs),
+   provided by [`helpers/batch-driver`](../../helpers/batch-driver/src/lib.rs),
   whose module docs cover the pattern in general.
 - `swap-factory`: Creates new pairs and keeps a registry of them.
 - `swap-router`: High-level facilities similar to those in [UniswapV2Router02];
@@ -48,6 +48,11 @@ In a later transaction, an external call to `SwapDriver::process_requests()`
 forwards queued requests to the handler. A successful pair operation includes
 the request ID in its associated event; for a failed operation, the driver
 includes the id in a `RequestFailed` event.
+
+`RequestFailed` also reports the failure cause: exception, fault, rejected call,
+or malformed result. For exceptions it includes the selector and up to 256 bytes
+of payload; `payload_len` records the original length so truncation is explicit.
+These diagnostics do not change the request's terminal failed status.
 
 A driver's queue holds a bounded number of requests at once. A request arriving
 at a full queue is not rejected: its transaction is excluded from the block and
@@ -98,7 +103,7 @@ costs.
 That figure is set when the pool is created, alongside the queue's ceiling,
 because the two trade off against each other and against how a pair is used —
 see `MIN_CRANK_BATCH` in
-[`swap-factory`](../contracts/swap-factory/src/factory.rs) for how to choose it.
+[`swap-factory`](../swap-factory/src/factory.rs) for how to choose it.
 
 The cap matters as much as the floor, and so does tying the requirement to the
 backlog rather than switching it on at some depth. A cap keeps cranking within
@@ -128,7 +133,7 @@ pointless no-op.
 Combining a crank with a request submission would delay the request rather than
 hurry it: a crank cannot see requests its own block ordered after it, and a
 combined transaction that loses the race is excluded whole. See the
-[`batch-driver`](../helpers/batch-driver/src/lib.rs) module docs.
+[`batch-driver`](../../helpers/batch-driver/src/lib.rs) module docs.
 
 ### Why the driver does not hold out for a bigger batch
 
@@ -252,7 +257,7 @@ though not yet initialized — before `SwapFactory::initialize` is called.
 
 ## Frontend
 
-See [`apps/swap/README.md`](../apps/swap/README.md) for a web-based interface
+See [`apps/swap/README.md`](../../apps/swap/README.md) for a web-based interface
 to the swap application.
 
 [UniswapV2Pair]: https://github.com/Uniswap/v2-core/blob/master/contracts/UniswapV2Pair.sol

@@ -4,6 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
+    "allowJs": true,
     "strict": true,
     "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,
@@ -12,5 +13,10 @@
     "types": ["node"],
     "paths": { "@/*": ["../../apps/token-launchpad/src/*"] }
   },
-  "include": ["*.ts"]
+  "include": [
+    "*.ts",
+    "../../tests/e2e/seed.ts",
+    "../../apps/swap/scripts/seed.ts",
+    "../../apps/token-launchpad/scripts/seed.ts"
+  ]
 }

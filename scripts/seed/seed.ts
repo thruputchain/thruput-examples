@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { mkdir, open, readFile, rmdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +52,7 @@ import {
 } from "./seed-journal.ts";
 import { validateLocalRpcUrl } from "../../apps/token-launchpad/scripts/setup-local.ts";
 import { seedTransport, verifySwapRelationship } from "./seed-preflight.ts";
+import { bindPoolScope, seedDirectory, type PoolScope } from "./seed-scope.ts";
 import {
   completeSeedLiquidity,
   type LiquidityProgress,
@@ -70,6 +71,7 @@ const TOKENS = [
 interface Manifest extends SeedJournal {
   version: 1;
   scope: string;
+  poolScope?: PoolScope;
   signer: string;
   recipient: string;
   tokens: { address: string; nonce: string; name: string; symbol: string }[];
@@ -98,7 +100,7 @@ export function assertScope(actual: string, expected: string): void {
 
 export async function seed(phase: "tokens" | "pools"): Promise<void> {
   let context =
-    "read public setup environments (run both setup:local commands first)";
+    "read public setup environments (run this app's setup:local command first)";
   let lock: string | undefined;
   try {
     const common = ["VITE_GROUNDHOG_RPC_URL", "VITE_GROUNDHOG_NETWORK_ID"];
@@ -113,36 +115,36 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         "VITE_STANDARD_TOKEN_HASH",
       ],
     );
-    const swap = await readSeedEnvironment(
-      resolve(process.env.SWAP_APP_ENV ?? join(ROOT, "apps/swap/.env.local")),
-      [
-        ...common,
-        "VITE_SWAP_FACTORY_ADDRESS",
-        "VITE_SWAP_ROUTER_ADDRESS",
-        "VITE_POOL_TOKEN_HASH",
-      ],
-    );
+    const swap =
+      phase === "pools"
+        ? await readSeedEnvironment(
+            resolve(
+              process.env.SWAP_APP_ENV ?? join(ROOT, "apps/swap/.env.local"),
+            ),
+            [
+              ...common,
+              "VITE_SWAP_FACTORY_ADDRESS",
+              "VITE_SWAP_ROUTER_ADDRESS",
+              "VITE_POOL_TOKEN_HASH",
+            ],
+          )
+        : undefined;
     const hex = (value: string) => toHex0x(sha256Hash(fromHex0x(value)));
     const network = hex(launch.VITE_GROUNDHOG_NETWORK_ID!);
-    assertScope(hex(swap.VITE_GROUNDHOG_NETWORK_ID!), network);
+    if (swap) assertScope(hex(swap.VITE_GROUNDHOG_NETWORK_ID!), network);
     const rpcUrl = validateLocalRpcUrl(
       process.env.GROUNDHOG_RPC_URL ?? launch.VITE_GROUNDHOG_RPC_URL!,
     );
-    if (!process.env.GROUNDHOG_RPC_URL)
+    if (swap && !process.env.GROUNDHOG_RPC_URL)
       assertScope(validateLocalRpcUrl(swap.VITE_GROUNDHOG_RPC_URL!), rpcUrl);
     const factory = addressFromHex(launch.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!);
-    const swapFactory = addressFromHex(swap.VITE_SWAP_FACTORY_ADDRESS!);
-    const router = addressFromHex(swap.VITE_SWAP_ROUTER_ADDRESS!);
     const tokenHash = hex(launch.VITE_STANDARD_TOKEN_HASH!);
-    const poolHash = hex(swap.VITE_POOL_TOKEN_HASH!);
-    const scope = JSON.stringify({
+    const tokenScope = {
       network,
       factory: toHex0x(factory),
-      swapFactory: toHex0x(swapFactory),
-      router: toHex0x(router),
       tokenHash,
-      poolHash,
-    });
+    };
+    const scope = JSON.stringify(tokenScope);
     context =
       "verify live network and launchpad registry; start the registry for this setup before seeding";
     const client = await createGroundhogClient({
@@ -188,23 +190,36 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       config.required_token_funding <= 0n
     )
       throw new Error("Unsupported live launchpad factory configuration");
-    const funding = (
-      await SwapFactory.poolFunding.view({ client, contract: swapFactory })
-    ).value;
-    if (
-      funding.min <= 0n ||
-      funding.recommended < funding.min ||
-      funding.recommended > ((1n << 128n) - 1n) / 3n
-    )
-      throw new Error("Invalid pool funding policy");
-
-    context = "verify the live swap factory/router relationship before seeding";
-    await verifySwapRelationship(client, swapFactory, router);
+    const poolConfig = swap
+      ? {
+          swapFactory: addressFromHex(swap.VITE_SWAP_FACTORY_ADDRESS!),
+          router: addressFromHex(swap.VITE_SWAP_ROUTER_ADDRESS!),
+          poolHash: hex(swap.VITE_POOL_TOKEN_HASH!),
+          funding: (
+            await SwapFactory.poolFunding.view({
+              client,
+              contract: addressFromHex(swap.VITE_SWAP_FACTORY_ADDRESS!),
+            })
+          ).value,
+        }
+      : undefined;
+    if (poolConfig) {
+      const { funding, swapFactory, router } = poolConfig;
+      if (
+        funding.min <= 0n ||
+        funding.recommended < funding.min ||
+        funding.recommended > ((1n << 128n) - 1n) / 3n
+      )
+        throw new Error("Invalid pool funding policy");
+      context =
+        "verify the live swap factory/router relationship before seeding";
+      await verifySwapRelationship(client, swapFactory, router);
+    }
 
     context = "open network/factory-scoped seed state and tool-only signer";
-    const directory = join(
+    const directory = await seedDirectory(
       resolve(process.env.SEED_STATE_DIR ?? join(ROOT, ".local/seed")),
-      createHash("sha256").update(scope).digest("hex"),
+      tokenScope,
     );
     await durableMkdir(directory);
     const lockPath = join(directory, "lock");
@@ -229,7 +244,9 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
     if (phase === "pools" && !manifest)
-      throw new Error("Run npm run seed --workspace apps/token-launchpad first");
+      throw new Error(
+        "Run npm run seed --workspace apps/token-launchpad first",
+      );
     let key: Buffer;
     try {
       key = await readFile(keyPath);
@@ -257,7 +274,10 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       process.env.SEED_RECIPIENT ?? manifest?.recipient ?? signer,
     );
     if (manifest) {
-      assertScope(manifest.scope, scope);
+      const savedScope = JSON.parse(manifest.scope) as typeof tokenScope;
+      assertScope(savedScope.network, network);
+      assertScope(savedScope.factory, toHex0x(factory));
+      assertScope(savedScope.tokenHash, tokenHash);
       assertScope(manifest.signer, signer);
       assertScope(manifest.recipient, toHex0x(recipient));
       if (
@@ -294,6 +314,14 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       await saveJson(manifestPath, manifest);
     }
     const state = manifest;
+    if (poolConfig) {
+      bindPoolScope(state, {
+        swapFactory: toHex0x(poolConfig.swapFactory),
+        router: toHex0x(poolConfig.router),
+        poolHash: poolConfig.poolHash,
+      });
+      await saveJson(manifestPath, state);
+    }
     console.log(
       `Seed manifest: ${manifestPath}\nTool account: ${signer}\nRecipient: ${state.recipient}`,
     );
@@ -317,7 +345,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
           // Airdrop is a dev-node funding operation, not a contract creation.
           if (
             (await wallet.getBalance()).rawBalance <
-            RESERVE * 10n + funding.recommended * 3n
+            RESERVE * 10n + (poolConfig?.funding.recommended ?? 0n) * 3n
           )
             await wallet.requestAirdrop();
           return wallet.signTransaction(
@@ -488,10 +516,14 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       return;
     }
 
+    if (!poolConfig) throw new SeedError("Missing Swap setup for pool seeding");
+    const { swapFactory, router, poolHash, funding } = poolConfig;
     context =
       "resolve exact seeded addresses through launchpad registry and validate live tokens";
     if (!(await indexedTokens()))
-      throw new Error("Seed tokens are not indexed; run npm run seed --workspace apps/token-launchpad");
+      throw new Error(
+        "Seed tokens are not indexed; run npm run seed --workspace apps/token-launchpad",
+      );
     for (let index = 0; index < state.tokens.length; index++)
       await verifyToken(index);
     const [tokenA, tokenB] = state.tokens.map((token) =>

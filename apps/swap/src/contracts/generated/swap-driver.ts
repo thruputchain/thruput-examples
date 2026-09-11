@@ -38,6 +38,15 @@ export interface AddLiquidityRequest {
   recipient: ContractAddress;
 }
 
+export const Cause = {
+  Exception: 1n,
+  Fault: 2n,
+  Rejected: 3n,
+  Malformed: 4n,
+} as const;
+
+export type Cause = (typeof Cause)[keyof typeof Cause];
+
 export const ERC20Error = {
   AlreadyInitialized: 1n,
   MustBeContractOwner: 2n,
@@ -261,6 +270,18 @@ export const spec: ContractSpec = {
             },
           },
           { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
+        ],
+      },
+    },
+    {
+      v: ContractTypeDefKind.TypeDefEnum,
+      enum_def: {
+        name: s("Cause"),
+        variants: [
+          { name: s("Exception"), value: 1n },
+          { name: s("Fault"), value: 2n },
+          { name: s("Rejected"), value: 3n },
+          { name: s("Malformed"), value: 4n },
         ],
       },
     },
@@ -509,7 +530,7 @@ export const spec: ContractSpec = {
       name: s("RequestAccepted"),
       signature: topic(
         fromHex(
-          "adda27e0abdb0cc3b49c16a060fdc703aadcdeedf34701de90b60aeb525d37fc",
+          "923dee82bb3fafeed2fff1a9a9a07f2e4ff296bfebfe73c0ebc8405a9f09d818",
         ),
       ),
       topics: [
@@ -527,7 +548,7 @@ export const spec: ContractSpec = {
       name: s("RequestFailed"),
       signature: topic(
         fromHex(
-          "ef544a357e3cb94130fce15a57fb417430e08c359db240ed02e57902f374c21a",
+          "2658275650fee240216d7bbd388f183cedbbfe8182198d09857fb836f0e2a5fd",
         ),
       ),
       topics: [
@@ -539,13 +560,30 @@ export const spec: ContractSpec = {
           },
         },
       ],
-      fields: [],
+      fields: [
+        {
+          name: s("cause"),
+          ty: { v: ContractTypeKind.Named, named: s("Cause") },
+        },
+        { name: s("selector"), ty: { v: ContractTypeKind.U64 } },
+        {
+          name: s("payload"),
+          ty: {
+            v: ContractTypeKind.Vector,
+            vector: {
+              element: { v: ContractTypeKind.U8 },
+              max_len: 4294967295n,
+            },
+          },
+        },
+        { name: s("payload_len"), ty: { v: ContractTypeKind.U32 } },
+      ],
     },
     {
       name: s("RequestsProcessed"),
       signature: topic(
         fromHex(
-          "cd9dc529bbb3d9e1eeb78d1fb4307624c2007aa5d685ad114ddebf47f5e70a2a",
+          "af935ed73c377e2fdd245da79dd3585bd4b5a41897c99590b23d127ade6f324c",
         ),
       ),
       topics: [],
@@ -732,7 +770,7 @@ export const RequestAccepted = defineContractEvent<
 export interface RequestFailed extends DecodedContractEvent<
   "RequestFailed",
   { request_id: FixedBytes<32> },
-  {}
+  { cause: Cause; selector: bigint; payload: Uint8Array; payload_len: bigint }
 > {}
 
 export interface RequestFailedFilter {
@@ -754,7 +792,12 @@ export const RequestFailed = defineContractEvent<
       representation: "fixedBytes32",
     },
   ],
-  fields: [],
+  fields: [
+    { name: "cause", type: spec.events[1]!.fields[0]!.ty },
+    { name: "selector", type: spec.events[1]!.fields[1]!.ty },
+    { name: "payload", type: spec.events[1]!.fields[2]!.ty },
+    { name: "payload_len", type: spec.events[1]!.fields[3]!.ty },
+  ],
   codecs,
 });
 

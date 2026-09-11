@@ -11,7 +11,7 @@
     "dev": "vite --host 127.0.0.1 --port 5174 --strictPort",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "setup:local": "bash scripts/setup-local.sh",
-    "seed": "tsx ../../scripts/demo/seed-pools.ts",
+    "seed": "tsx scripts/seed.ts",
     "start": "node --env-file-if-exists=.env.local --import tsx server/main.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"

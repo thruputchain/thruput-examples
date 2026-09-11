@@ -10,11 +10,11 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "test": "npm run test --workspaces && vitest run scripts/demo --environment node",
-    "typecheck": "npm run typecheck --workspaces && tsc -p scripts/demo/tsconfig.json",
-    "test:wallet": "node scripts/test-wallet-extension.mjs --build-extension",
-    "test:browser": "node scripts/test-apps-browser.mjs",
-    "test:seed": "tsx scripts/demo/seed-demo.integration.ts"
+    "test": "npm run test --workspaces && vitest run scripts/seed --environment node && node --test tests/e2e/helpers/process-groups.test.mjs",
+    "typecheck": "npm run typecheck --workspaces && tsc -p scripts/seed/tsconfig.json",
+    "test:wallet": "node tests/e2e/wallet-apps.mjs --build-extension",
+    "test:browser": "node tests/browser/apps.mjs",
+    "test:seed": "tsx tests/e2e/seed.ts"
   },
   "dependencies": {
     "@groundhogchain/client": "file:../groundhog-client-ts",

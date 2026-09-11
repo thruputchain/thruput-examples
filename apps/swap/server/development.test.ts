@@ -5,6 +5,7 @@ import path from "node:path";
 import { createServer } from "vite";
 import { expect, it, vi } from "vitest";
 import { developmentRegistry } from "./development";
+import { RegistryStore } from "./store";
 
 vi.mock("./chain", () => ({
   createGroundhogRegistrySource: async () => ({
@@ -47,6 +48,32 @@ it("serves the real pool registry API from the development server", async () => 
     expect(sync.status).toBe(202);
   } finally {
     await server.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it("closes its store when Vite shuts down in middleware mode", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "swap-dev-close-"));
+  const close = vi.spyOn(RegistryStore.prototype, "close");
+  const server = await createServer({
+    root,
+    configFile: false,
+    logLevel: "silent",
+    server: { middlewareMode: true },
+    plugins: [
+      developmentRegistry({
+        VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:1",
+        VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
+        VITE_SWAP_FACTORY_ADDRESS: `0x${"01".repeat(32)}`,
+      }),
+    ],
+  });
+  try {
+    await server.close();
+    expect(close).toHaveBeenCalledTimes(1);
+  } finally {
+    await server.close();
+    close.mockRestore();
     await rm(root, { recursive: true, force: true });
   }
 });

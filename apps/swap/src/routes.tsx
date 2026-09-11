@@ -44,9 +44,7 @@ import {
   createRequestObserver,
   type RequestObserver,
 } from "@/transactions/request-observer";
-import {
-  type WriteBoundary,
-} from "@/transactions/write-boundary";
+import { type WriteBoundary } from "@/transactions/write-boundary";
 import { WalletProvider } from "@/wallet/wallet-provider";
 import { WalletControls } from "@/wallet/wallet-controls";
 import { useWalletWriteBoundary } from "@/wallet/write-context";
@@ -99,7 +97,11 @@ export function AmmRoutes({
         path="/pools/new"
         element={
           readOnly ? (
-            <Navigate to="/pools" replace />
+            <PlaceholderPage
+              title="Connect your wallet"
+              description="Connect a wallet above to create this pool. Your token selection will be kept."
+              readOnly
+            />
           ) : (
             <PoolCreatePage config={config} />
           )
@@ -397,7 +399,8 @@ export function ConfigurationErrorPage({ message }: { message: string }) {
 }
 
 export function readBrowserConfiguration():
-  { ok: true; config: GlobalConfig } | { ok: false; message: string } {
+  | { ok: true; config: GlobalConfig }
+  | { ok: false; message: string } {
   try {
     return {
       ok: true,

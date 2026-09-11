@@ -9,8 +9,8 @@ import { App } from "@/test/swap-app";
 import type { AppConfig } from "@/config";
 import {
   RequestAccepted,
-  RequestFailed,
 } from "@/contracts/generated/swap-driver";
+import { requestFailedEvent } from "@/test/request-failed";
 import type { PoolSnapshot, SnapshotReader } from "@/swap/snapshot";
 import type {
   RequestObservation,
@@ -690,14 +690,7 @@ describe("local swap submission", () => {
         if (write === 2) return secondCrank;
         const result = committedSuccess(14n);
         result.receipt.events = [
-          {
-            contractAddress: config.driverAddress,
-            topics: [
-              RequestFailed.signature,
-              new Uint8Array(32).fill(0xcd),
-            ],
-            data: new Uint8Array(),
-          },
+          requestFailedEvent(config.driverAddress, new Uint8Array(32).fill(0xcd)),
         ];
         return result;
       }),

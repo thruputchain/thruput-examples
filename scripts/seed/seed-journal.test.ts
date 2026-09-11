@@ -25,7 +25,7 @@ import {
   sha256Hash,
 } from "@groundhogchain/protocol";
 import { executeStep, saveJson, type SeedJournal } from "./seed-journal.ts";
-import { assertScope, readSeedEnvironment } from "./seed-demo.ts";
+import { assertScope, readSeedEnvironment } from "./seed.ts";
 
 async function fixture(nonce = 1n) {
   const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));

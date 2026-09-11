@@ -348,7 +348,7 @@ export function useSwap({
       () => {
         if (cancelled) return;
         setRequestStorageError(
-          "Stored request history could not be loaded safely. Clear this site's local data before submitting another swap.",
+          "Stored request history could not be loaded safely. Preserve the saved data and resolve pending transactions on the original ledger before submitting another swap.",
         );
         setCollectionReady(true);
       },
@@ -1860,7 +1860,7 @@ function readInitialRequestState(config: AppConfig): {
     return {
       requests: [],
       error:
-        "Stored request history could not be loaded safely. Clear this site's local data before submitting another swap.",
+        "Stored request history could not be loaded safely. Preserve the saved data and resolve pending transactions on the original ledger before submitting another swap.",
     };
   }
 }
@@ -1875,7 +1875,7 @@ function readInitialCrankState(config: AppConfig): {
     return {
       attempt: null,
       error:
-        "Stored queue-processing state could not be loaded safely. Clear this site's local data before cranking again.",
+        "Stored queue-processing state could not be loaded safely. Preserve the saved data and resolve pending transactions on the original ledger before processing the queue again.",
     };
   }
 }
@@ -1905,7 +1905,7 @@ function readAccountSafetyState(config: AppConfig): {
       liquidityOperations: [],
       allowanceCleanupBlocked: false,
       error:
-        "Stored account transaction state could not be loaded safely. Clear this site's local data before signing another transaction.",
+        "Stored account transaction state could not be loaded safely. Preserve the saved data and resolve pending transactions on the original ledger before signing another transaction.",
     };
   }
 }

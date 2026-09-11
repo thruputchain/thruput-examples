@@ -2,6 +2,7 @@ import { toHex0x, type GroundhogClient } from "@groundhogchain/client";
 import type { ProviderWalletClient } from "@groundhogchain/client/wallet";
 import { gasAmount } from "@groundhogchain/protocol";
 import type { GlobalConfig } from "@/config";
+import { verifyReadNetwork } from "@/groundhog/client";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
 import { fetchPoolTokenArtifact } from "./pool-token-artifact";
 import { pollTransaction } from "./transaction-observation";
@@ -18,7 +19,13 @@ export function createProviderWriteBoundary(
   } = {},
 ): WriteBoundary {
   const observe = (hash: string) =>
-    pollTransaction(client, hash, options.maxPolls, options.delay);
+    pollTransaction(
+      client,
+      hash,
+      config.networkIdHex,
+      options.maxPolls,
+      options.delay,
+    );
   return {
     observe,
     async execute(invocation, observer) {
@@ -30,6 +37,7 @@ export function createProviderWriteBoundary(
         };
       let signed;
       try {
+        await verifyReadNetwork(client, config);
         const isCreation =
           toHex0x(invocation.invoked_address) ===
             toHex0x(config.factoryAddress) &&

@@ -11,6 +11,7 @@ import { RegistryStore } from "./store.ts";
 export function developmentRegistry(
   environment: Record<string, string>,
 ): Plugin {
+  let stop: (() => Promise<void>) | undefined;
   return {
     name: "pool-registry",
     async configureServer(vite) {
@@ -32,6 +33,8 @@ export function developmentRegistry(
         pageSize: config.pageSize,
         syncIntervalMs: config.syncIntervalMs,
       });
+      let stopping: Promise<void> | undefined;
+      stop = () => (stopping ??= indexer.stop().finally(() => store.close()));
       const api = createRegistryHttpServer(store, indexer);
       vite.middlewares.use((request, response, next) => {
         if (request.url?.startsWith("/api/") || request.url === "/healthz")
@@ -39,14 +42,9 @@ export function developmentRegistry(
         else next();
       });
       indexer.start();
-      vite.httpServer?.once("close", () => {
-        void indexer
-          .stop()
-          .finally(() => store.close())
-          .catch(() =>
-            vite.config.logger.error("Pool registry shutdown failed"),
-          );
-      });
+    },
+    async closeBundle() {
+      await stop?.();
     },
   };
 }

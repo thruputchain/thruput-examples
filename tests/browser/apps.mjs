@@ -31,7 +31,7 @@ Object.assign(process.env, {
 });
 const server = await createServer({
   mode: "browser-test",
-  root: fileURLToPath(new URL("../apps/swap", import.meta.url)),
+  root: fileURLToPath(new URL("../../apps/swap", import.meta.url)),
   server: { host: "127.0.0.1", port: 0 },
 });
 let browser;
@@ -152,7 +152,17 @@ try {
     );
   });
   const url = `${origin}/pools/new?tokenA=${a}`;
-  await page.goto(origin);
+  await page.goto(url);
+  await page
+    .getByRole("heading", { name: "Connect your wallet", exact: true })
+    .waitFor();
+  assert.equal(
+    page.url(),
+    url,
+    "Launchpad handoff must survive a disconnected visit",
+  );
+  checkingCreation = true;
+  networkReads = 0;
   await page
     .getByRole("button", {
       name: "Connect UI fixture (cannot sign)",
@@ -164,12 +174,6 @@ try {
     0,
   );
   await page.getByRole("button", { name: "Disconnect" }).waitFor();
-  checkingCreation = true;
-  networkReads = 0;
-  await page.evaluate((url) => {
-    history.pushState({}, "", url);
-    dispatchEvent(new PopStateEvent("popstate"));
-  }, url);
   const selectedLink = page.getByRole("link", {
     name: `Selected token address: ${a} (opens explorer in a new tab)`,
   });
@@ -311,7 +315,7 @@ try {
   assert.deepEqual(errors, []);
   const launchpad = await createServer({
     mode: "browser-test",
-    root: fileURLToPath(new URL("../apps/token-launchpad", import.meta.url)),
+    root: fileURLToPath(new URL("../../apps/token-launchpad", import.meta.url)),
     server: { host: "127.0.0.1", port: 0 },
   });
   try {

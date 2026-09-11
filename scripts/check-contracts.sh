@@ -44,4 +44,4 @@ grep -q '\[patch' Cargo.toml && {
     exit 1
 }
 
-printf "\nCI OKAY!\n"
+printf "\nContract checks passed.\n"

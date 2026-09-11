@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory";
-import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20";
-import { createSwapHandlerReadAdapter } from "../../apps/swap/src/contracts/handler-adapter";
+import { SwapFactory } from "../../../apps/swap/src/contracts/generated/swap-factory";
+import { ERC20 } from "../../../apps/swap/src/contracts/generated/erc20";
+import { createSwapHandlerReadAdapter } from "../../../apps/swap/src/contracts/handler-adapter";
 
 const require = createRequire(
-  new URL("../../apps/swap/package.json", import.meta.url),
+  new URL("../../../apps/swap/package.json", import.meta.url),
 );
 const { addressFromHex, createGroundhogClient, HttpTransport, toHex0x } =
   await import(pathToFileURL(require.resolve("@groundhogchain/client")).href);

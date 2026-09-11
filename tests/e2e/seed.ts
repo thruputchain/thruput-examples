@@ -1,9 +1,9 @@
 // Runs only when explicitly invoked with `npm run test:seed`.
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
+import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, readdir, stat } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
@@ -24,7 +24,7 @@ import { RegistryIndexer } from "../../apps/token-launchpad/server/indexer.ts";
 import { createRegistryHttpServer } from "../../apps/token-launchpad/server/http.ts";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
-const work = await mkdtemp("/tmp/opencode/demo-seed-");
+const work = await mkdtemp(join(tmpdir(), "groundhog-seed-"));
 const env: NodeJS.ProcessEnv = Object.fromEntries(
   Object.entries(process.env).filter(([key]) =>
     ["PATH", "HOME", "LANG", "LD_LIBRARY_PATH"].includes(key),
@@ -39,16 +39,19 @@ Object.assign(env, {
     ? {}
     : { SEED_RECIPIENT: `0x${"42".repeat(32)}` }),
 });
-const children: ChildProcess[] = [];
+const processGroups = new OwnedProcessGroups();
+let interrupted = false;
 function start(command: string, args: string[], extra: NodeJS.ProcessEnv = {}) {
-  const child = spawn(command, args, {
+  assert.ok(!interrupted, "Seed test interrupted");
+  const child = processGroups.spawn(command, args, {
     cwd: root,
     env: { ...env, ...extra },
-    detached: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  children.push(child);
   let output = "";
+  child.on("error", (error: Error) => {
+    output += error.message;
+  });
   child.stdout!.on("data", (data: Buffer) => {
     output += data.toString();
   });
@@ -60,6 +63,7 @@ function start(command: string, args: string[], extra: NodeJS.ProcessEnv = {}) {
 async function until(check: () => boolean | Promise<boolean>) {
   const deadline = Date.now() + 120_000;
   while (!(await check())) {
+    assert.ok(!interrupted, "Seed test interrupted");
     assert.ok(
       Date.now() < deadline,
       "Timed out waiting for isolated test process",
@@ -79,7 +83,7 @@ async function run(
       join(
         root,
         script.startsWith("seed-")
-          ? `scripts/demo/${script}.ts`
+          ? `apps/${app}/scripts/seed.ts`
           : `apps/${app}/scripts/${script}.ts`,
       ),
     ],
@@ -114,6 +118,16 @@ let store: RegistryStore | undefined;
 let indexer: RegistryIndexer | undefined;
 let server: ReturnType<typeof createRegistryHttpServer> | undefined;
 let stage = "isolated node startup";
+function interrupt() {
+  interrupted = true;
+  process.exitCode = 1;
+  void processGroups.stopAll().catch(() => {
+    console.error("Seed test process cleanup failed; temporary state retained");
+  });
+}
+const watchdog = setTimeout(interrupt, 15 * 60_000);
+process.once("SIGINT", interrupt);
+process.once("SIGTERM", interrupt);
 try {
   const node = start(
     process.env.GROUNDHOG_CLI ?? join(homedir(), ".cargo/bin/groundhog"),
@@ -180,17 +194,25 @@ try {
     rpcUrl: new URL(env.GROUNDHOG_RPC_URL!),
     scope,
   });
-  store = new RegistryStore(join(work, "registry.sqlite"), scope);
-  indexer = new RegistryIndexer(store, source, {
-    pageSize: 200,
-    syncIntervalMs: 1_000,
-  });
-  server = createRegistryHttpServer(store, indexer);
-  await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address !== "string");
-  env.LAUNCHPAD_REGISTRY_URL = `http://127.0.0.1:${address.port}`;
-  indexer.start();
+  async function startRegistry() {
+    store = new RegistryStore(join(work, "registry.sqlite"), scope);
+    indexer = new RegistryIndexer(store, source, {
+      pageSize: 200,
+      syncIntervalMs: 1_000,
+    });
+    server = createRegistryHttpServer(store, indexer);
+    await new Promise<void>((resolve) =>
+      server!.listen(0, "127.0.0.1", resolve),
+    );
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    env.LAUNCHPAD_REGISTRY_URL = `http://127.0.0.1:${address.port}`;
+    indexer.start();
+    await indexer.sync();
+    assert.equal(store.getStatus().syncState, "idle");
+    assert.equal(store.getStatus().lastError, null);
+  }
+  await startRegistry();
   const client = await createGroundhogClient({
     cluster: localnet({
       rpcUrl: env.GROUNDHOG_RPC_URL!,
@@ -205,7 +227,7 @@ try {
     (await SwapFactory.allPairsLength.view({ client, contract: factory }))
       .value;
   assert.equal(await count(), 0n);
-  assert.equal(store.getStatus().tokenCount, 0);
+  assert.equal(store!.getStatus().tokenCount, 0);
   stage =
     "reject a router initialized for another factory before any seed writes";
   const otherSetup = join(work, "OTHER-SWAP.env");
@@ -215,14 +237,16 @@ try {
   const mismatchedRouter = {
     VITE_SWAP_ROUTER_ADDRESS: other.VITE_SWAP_ROUTER_ADDRESS!,
   };
-  await run("token-launchpad", "seed-tokens", mismatchedRouter, 1);
   await run("swap", "seed-pools", mismatchedRouter, 1);
   assert.equal((await client.getChainTip()).height, tipBeforeMismatch);
   await assert.rejects(readdir(env.SEED_STATE_DIR!), { code: "ENOENT" });
   assert.equal(await count(), 0n);
-  assert.equal(store.getStatus().tokenCount, 0);
+  assert.equal(store!.getStatus().tokenCount, 0);
   stage = "token and pool seed commands";
-  await run("token-launchpad", "seed-tokens");
+  // Token seeding must not read Swap configuration or require its contracts.
+  await run("token-launchpad", "seed-tokens", {
+    SWAP_APP_ENV: join(work, "absent-swap.env"),
+  });
   await run("swap", "seed-pools");
   const [scopeDirectory] = await readdir(env.SEED_STATE_DIR!);
   const manifestPath = join(
@@ -242,7 +266,7 @@ try {
       .mode & 0o777,
     0o600,
   );
-  assert.equal(store.getStatus().tokenCount, 2);
+  assert.equal(store!.getStatus().tokenCount, 2);
   assert.equal(await count(), 1n);
   for (const token of manifest.tokens) {
     assert.equal(
@@ -290,13 +314,15 @@ try {
   ])
     await run("token-launchpad", "seed-tokens", overrides, 1);
   assert.equal(await readFile(manifestPath, "utf8"), original);
-  await indexer.stop();
-  indexer.start();
+  await indexer!.stop();
+  await new Promise<void>((resolve) => server!.close(() => resolve()));
+  store!.close();
+  await startRegistry();
   await run("token-launchpad", "seed-tokens");
   await run("swap", "seed-pools");
   assert.equal(await readFile(manifestPath, "utf8"), original);
   assert.equal(await count(), 1n);
-  assert.equal(store.getStatus().tokenCount, 2);
+  assert.equal(store!.getStatus().tokenCount, 2);
   console.log(
     `PASS: canonical indexing, recipient balances/LP, exact reserves, rerun without new transactions. Evidence: ${work}`,
   );
@@ -306,14 +332,14 @@ try {
   );
   throw error;
 } finally {
+  clearTimeout(watchdog);
+  process.off("SIGINT", interrupt);
+  process.off("SIGTERM", interrupt);
   await indexer?.stop();
   if (server)
     await new Promise<void>((resolve) => server!.close(() => resolve()));
   store?.close();
-  for (const child of children) {
-    if (child.exitCode === null && child.signalCode === null && child.pid)
-      process.kill(-child.pid, "SIGTERM");
-  }
+  await processGroups.stopAll();
   assert.deepEqual(
     await Promise.all(protectedPaths.map(fingerprint)),
     before,

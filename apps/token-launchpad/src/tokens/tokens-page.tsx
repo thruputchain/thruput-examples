@@ -1,4 +1,5 @@
 import { AlertCircleIcon, RocketIcon } from "lucide-react";
+import { toHex0x } from "@groundhogchain/client";
 import { Link } from "react-router-dom";
 import { ExplorerProvider } from "@/components/blockchain-identifier";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -21,6 +22,16 @@ import {
 } from "./use-token-directory";
 
 export function TokensPage(props: DirectoryOptions) {
+  const key = [
+    props.config.networkIdHex,
+    toHex0x(props.config.factoryAddress),
+    toHex0x(props.config.accountAddress),
+    props.scope,
+  ].join(":");
+  return <TokenDirectory key={key} {...props} />;
+}
+
+function TokenDirectory(props: DirectoryOptions) {
   const state = useTokenDirectory(props);
   const { page, tokens, status, loading, error } = state;
   const hasSearch = state.search.trim() !== "";

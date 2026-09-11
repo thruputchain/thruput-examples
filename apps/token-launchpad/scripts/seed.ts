@@ -1,4 +1,4 @@
-import { seed } from "./seed-demo.ts";
+import { seed } from "../../../scripts/seed/seed.ts";
 
 seed("tokens").catch(() => {
   // RPC errors may contain signed payloads. The runner reports safe step context.

@@ -23,10 +23,8 @@ import {
   sha256Hash,
 } from "@groundhogchain/protocol";
 import { CxsWriter, Uint128Codec } from "@groundhogchain/xdr";
-import {
-  SwapDriver,
-  RequestFailed,
-} from "../../apps/swap/src/contracts/generated/swap-driver.ts";
+import { SwapDriver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
+import { requestFailedEvent } from "../../apps/swap/src/test/request-failed.ts";
 import { MintEvent } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
 import { executeStep, type SeedJournal } from "./seed-journal.ts";
 import {
@@ -66,20 +64,18 @@ function fixture(terminalAt = 2, failed = false) {
       data: writer.finish(),
     };
   };
-  const failure = (): EmittedEvent => ({
-    contractAddress: driver,
-    topics: [RequestFailed.signature, requestId],
-    data: new Uint8Array(),
-  });
+  const failure = (): EmittedEvent => requestFailedEvent(driver, requestId);
   const terminalEvent = failed ? failure : mint;
   let nonce = 0n;
   const client = {
-    getEvents: vi.fn(async (_query: EventQuery): Promise<EventPage> => ({
-      events: [],
-      cursor: new Uint8Array(),
-      latestBlock: 100n,
-      oldestBlock: 0n,
-    })),
+    getEvents: vi.fn(
+      async (_query: EventQuery): Promise<EventPage> => ({
+        events: [],
+        cursor: new Uint8Array(),
+        latestBlock: 100n,
+        oldestBlock: 0n,
+      }),
+    ),
     getTransactionReceipt: vi.fn(
       async (hash: Uint8Array) => receipts.get(toHex0x(hash)) ?? null,
     ),
@@ -101,8 +97,8 @@ function fixture(terminalAt = 2, failed = false) {
         return hash;
       },
     ),
-    waitForTransactionReceipt: vi.fn(async (hash: Uint8Array) =>
-      receipts.get(toHex0x(hash))!,
+    waitForTransactionReceipt: vi.fn(
+      async (hash: Uint8Array) => receipts.get(toHex0x(hash))!,
     ),
   };
   const save = vi.fn(async () => {});

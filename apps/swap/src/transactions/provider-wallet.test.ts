@@ -53,6 +53,9 @@ function fixture() {
     dispose: vi.fn(),
   } satisfies ProviderWalletClient;
   const client = {
+    getNetworkInfo: vi
+      .fn()
+      .mockResolvedValue({ networkHash: new Uint8Array(32) }),
     getTransactionReceipt: vi.fn().mockResolvedValue(receipt),
     getTransactionStatus: vi.fn().mockResolvedValue({ status: "pending" }),
     sendTransaction: vi.fn(),
@@ -72,6 +75,35 @@ function fixture() {
 }
 
 describe("provider write boundary", () => {
+  it("does not prepare a transaction against a different RPC network", async () => {
+    const { client, wallet, boundary } = fixture();
+    client.getNetworkInfo.mockResolvedValue({
+      networkHash: new Uint8Array(32).fill(1),
+    });
+    await expect(boundary.execute(target)).resolves.toMatchObject({
+      kind: "preSubmissionFailure",
+    });
+    expect(wallet.prepareExecution).not.toHaveBeenCalled();
+    expect(wallet.signTransaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps the original hash unresolved when the RPC network changes during recovery", async () => {
+    const { client, boundary } = fixture();
+    client.getNetworkInfo.mockResolvedValue({
+      networkHash: new Uint8Array(32).fill(1),
+    });
+    client.getTransactionReceipt.mockResolvedValue(null);
+    client.getTransactionStatus.mockResolvedValue({
+      status: "invalid",
+      reason: "expired",
+    });
+    await expect(boundary.observe!(hash)).resolves.toMatchObject({
+      kind: "indeterminate",
+      hash,
+    });
+    expect(client.getTransactionReceipt).not.toHaveBeenCalled();
+    expect(client.getTransactionStatus).not.toHaveBeenCalled();
+  });
   it("awaits durable hash persistence before submitting approved bytes, then observes via public RPC", async () => {
     const { wallet, client, boundary, loadArtifact } = fixture();
     let persisted!: () => void;
@@ -210,12 +242,18 @@ describe("provider write boundary", () => {
 
   it("observes the approved hash when the SDK rejects a submission hash mismatch", async () => {
     const { wallet, client, boundary } = fixture();
-    wallet.submitTransaction.mockRejectedValue(new Error("Provider submission hash mismatch; broadcast may have occurred"));
+    wallet.submitTransaction.mockRejectedValue(
+      new Error(
+        "Provider submission hash mismatch; broadcast may have occurred",
+      ),
+    );
     await expect(boundary.execute(target)).resolves.toMatchObject({
       kind: "committedSuccess",
       hash,
     });
-    expect(client.getTransactionReceipt).toHaveBeenCalledWith(hashFromHex(hash));
+    expect(client.getTransactionReceipt).toHaveBeenCalledWith(
+      hashFromHex(hash),
+    );
   });
 
   it("observes signed requests while disconnected, but refuses new writes", async () => {
