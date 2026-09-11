@@ -77,7 +77,7 @@ fn declared_request_budgets_cover_what_handling_costs() {
     );
 }
 
-/// //////////////////// measurement /////////////////////////////////////////
+/////////////////////// measurement /////////////////////////////////////////
 
 fn handler_cost(r: &TransactResult, address: &Address) -> u64 {
     let trace = r.frame().trace().expect("traced");

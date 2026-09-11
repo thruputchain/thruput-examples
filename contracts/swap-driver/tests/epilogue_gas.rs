@@ -99,7 +99,7 @@ fn report_declared_versus_real_request_cost() {
     );
 }
 
-/// //////////////////// measurement /////////////////////////////////////////
+/////////////////////// measurement /////////////////////////////////////////
 
 // Gas spent inside the frame `address` was invoked in, taken from the calling frame's Invoke
 // syscall.

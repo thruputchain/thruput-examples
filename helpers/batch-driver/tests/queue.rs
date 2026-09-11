@@ -40,7 +40,7 @@ impl BatchRequest for Request {
     }
 }
 
-/// //////////////////// queue behavior //////////////////////////
+/////////////////////// queue behavior //////////////////////////
 
 // An enqueue takes a slot and a drain gives it back, so the ceiling keeps bounding the queue across
 // batches without the driver arranging anything.
@@ -90,7 +90,7 @@ fn entries_from_one_transaction_get_distinct_ids() {
     assert_ne!(a, b);
 }
 
-/// //////////////////// failure accounting /////////////////////////////////
+/////////////////////// failure accounting /////////////////////////////////
 
 // A request whose handling fails is still consumed, and still counts toward the batch: the drain
 // reports it rather than stopping. A batch that stopped at its first failure would leave the rest
@@ -131,7 +131,7 @@ fn a_failed_request_does_not_stop_the_batch() {
     assert_eq!(crank(&env), (0, 0));
 }
 
-/// //////////////////// the policy //////////////////////////////////////////
+/////////////////////// the policy //////////////////////////////////////////
 
 // A floor above the ceiling asks for a batch the queue is never allowed to hold, which no crank
 // could satisfy, so it is refused outright.
@@ -168,7 +168,7 @@ fn a_floor_at_the_ceiling_is_allowed() {
     enqueue(&env).assert_success();
 }
 
-/// //////////////////// helpers /////////////////////////////////////////////
+/////////////////////// helpers /////////////////////////////////////////////
 
 fn queue<R: BatchRequest>() -> Queue<R> {
     Keypath::default().into()

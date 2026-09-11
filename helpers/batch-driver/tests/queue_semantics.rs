@@ -23,7 +23,7 @@ struct Request {
     id: u32,
 }
 
-/// //////////////////// A crank does work, or is deferred ///////////////////
+/////////////////////// A crank does work, or is deferred ///////////////////
 
 // Baseline: a crank drains what was queued in an earlier block.
 #[test]
@@ -82,7 +82,7 @@ fn a_losing_crank_sees_the_undrained_snapshot() {
     loser.assert_commit_failed_nondeterministically();
 }
 
-/// //////////////////// A no-op crank is free ///////////////////////////////
+/////////////////////// A no-op crank is free ///////////////////////////////
 
 // A crank against a queue that was empty at the block snapshot returns (0, 0) and writes *no
 // storage delta at all*. It has nothing to reserve, so it cannot conflict with anything, and it
@@ -124,7 +124,7 @@ fn a_no_op_crank_does_not_conflict_with_a_concurrent_enqueue() {
     assert_eq!(crank_returning(&env), (1, 0));
 }
 
-/// //////////////////// Same-block service is a bonus ///////////////////////
+/////////////////////// Same-block service is a bonus ///////////////////////
 
 // A crank the proposer orders *after* an enqueue picks that request up in the same block -- this is
 // what the queue's retro-causality buys.
@@ -153,7 +153,7 @@ fn a_crank_ordered_before_an_enqueue_leaves_it_queued() {
     assert_eq!(crank_returning(&env), (1, 0));
 }
 
-/// //////////////////// helpers /////////////////////////////////////////////
+/////////////////////// helpers /////////////////////////////////////////////
 
 fn enqueue(env: &TestEnvironmentHandle, id: u32) -> TransactResult {
     env.transact(|tx| {

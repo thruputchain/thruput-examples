@@ -121,7 +121,7 @@ fn the_summary_identifies_its_driver_by_the_emitting_address() {
     })
 }
 
-/// //////////////////// helpers /////////////////////////////////////////////
+/////////////////////// helpers /////////////////////////////////////////////
 
 // The (processed, failed) pairs carried by the `RequestsProcessed` events that `address` emitted.
 fn summaries_from(r: &TransactResult, address: &Address) -> Vec<(u32, u32)> {

@@ -12,7 +12,7 @@ struct Leg {
     amount_in: Amount,
 }
 
-/// //////////////////// SERIAL /////////////////////////////
+/////////////////////// SERIAL /////////////////////////////
 
 #[test]
 fn serial_swap_both() {
@@ -105,7 +105,7 @@ fn serial_swap_leg(etx: &Etx, leg: Leg) -> Result<()> {
     Ok(())
 }
 
-/// //////////////////// CONCURRENT /////////////////////////////
+/////////////////////// CONCURRENT /////////////////////////////
 
 #[test]
 fn concurrent_swap_one() {
@@ -283,7 +283,7 @@ fn concurrent_swap_strategy<const N: usize>(
     Ok(())
 }
 
-/// //////////////////// COMPARE /////////////////////////////
+/////////////////////// COMPARE /////////////////////////////
 
 // Do a pair of swaps both serially and concurrently, comparing the results.
 #[test]

@@ -134,7 +134,7 @@ fn an_enormous_request_limit_does_not_wrap_the_threshold() {
     );
 }
 
-/// //////////////////// sizing a batch //////////////////////////////////////
+/////////////////////// sizing a batch //////////////////////////////////////
 
 // `gas_for_batch` is the inverse of the drain's budget check: a frame given exactly that much
 // drains the whole batch, even with every request costing its full declared worst case.
@@ -178,7 +178,7 @@ fn gas_for_batch_saturates() {
     });
 }
 
-/// //////////////////// helpers /////////////////////////////////////////////
+/////////////////////// helpers /////////////////////////////////////////////
 
 // A queue rooted at the default keypath, so that a `Queue<Request>` and a `Queue<Unaffordable>`
 // name the same storage -- the two encode identically, so each reads the other's entries, which is

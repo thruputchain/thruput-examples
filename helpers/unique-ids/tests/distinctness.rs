@@ -53,7 +53,7 @@ fn concurrent_mints_do_not_conflict() {
     mint_result(&env, 1).assert_success();
 }
 
-/// //////////////////// helpers /////////////////////////////////////////////
+// helpers //
 
 fn ids() -> Node<UniqueIds> {
     Keypath::default().into()

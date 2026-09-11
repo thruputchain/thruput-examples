@@ -14,7 +14,7 @@ use common::*;
 // What Alice swaps in each test.
 const SWAP_IN_AMT: Amount = 2 * UNIT_AMT;
 
-/// //////////////////// sync and skim ///////////////////////////////////////
+/////////////////////// sync and skim ///////////////////////////////////////
 
 // A `sync` that finds nothing to record writes nothing, so it cannot conflict with the crank -- in
 // either order. Without this, anyone could take the block's one drain away from the crank for the
@@ -95,7 +95,7 @@ fn a_sync_with_something_to_record_conflicts_with_the_crank() {
     })
 }
 
-/// //////////////////// a user racing the crank /////////////////////////////
+/////////////////////// a user racing the crank /////////////////////////////
 
 // Alice's request is queued; in the block that drains it she moves her whole balance away. The
 // handler's call is commit-locked, so the request fails on its own -- Alice's transfer and the
@@ -209,7 +209,7 @@ fn revoking_the_allowance_starves_a_queued_request() {
     })
 }
 
-/// //////////////////// helpers /////////////////////////////////////////////
+/////////////////////// helpers /////////////////////////////////////////////
 
 // `user` allows the handler `SWAP_IN_AMT` of token0 and, as the router, enqueues a swap of that
 // much for token1. Returns the request's id.
