@@ -13,9 +13,11 @@
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "preview": "vite preview",
     "setup:local": "bash scripts/setup-local.sh",
+    "seed:tokens": "tsx scripts/seed-tokens.ts",
     "start": "tsx server/main.ts",
     "start:registry": "tsx server/main.ts",
     "test": "vitest run",
+    "test:seed:local": "tsx scripts/seed-demo.integration.ts",
     "test:e2e:wallet": "node ../../scripts/test-wallet-extension.mjs --build-extension",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },

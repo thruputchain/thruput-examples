@@ -50,6 +50,10 @@ The SDK wraps each inner call through DefaultWallet. The app awaits signed-hash 
 
 ## Clean-ledger acceptance
 
+For tool-driven demo data after infrastructure setup, run `seed:tokens`, then
+Swap's `seed:pools`. See [local demo seeding](../../docs/demo-seeding.md) for the
+four-command workflow, registry prerequisite, recipient ownership, and recovery.
+
 Run `npm run test:e2e:wallet` from either app to build the extension and run the real cross-app harness, `scripts/test-wallet-extension.mjs` at the repository root. Live acceptance must verify the very first token deployment without pre-registered token code, the actual created address, TokenCreated and mint-event semantics, wallet changes, and creator-filtered discovery. Unit tests exercise the real SDK provider signing boundary and generated bindings; they do not establish live chain acceptance.
 
 ## AMM Handoff

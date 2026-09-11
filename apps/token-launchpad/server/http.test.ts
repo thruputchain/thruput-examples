@@ -140,7 +140,26 @@ describe("registry HTTP API", () => {
     });
   });
 
+  it("resolves an exact token address without matching metadata or creator addresses", async () => {
+    store.beginScan("1", "12");
+    store.commitPage([token()], null);
+    const found = await fetch(
+      `${origin}/api/tokens?tokenAddress=${token().tokenAddress}`,
+    );
+    expect(await found.json()).toMatchObject({
+      total: 1,
+      tokens: [{ tokenAddress: token().tokenAddress }],
+    });
+    const absent = await fetch(
+      `${origin}/api/tokens?tokenAddress=${token().creatorAddress}`,
+    );
+    expect(await absent.json()).toMatchObject({ total: 0, tokens: [] });
+  });
+
   it.each([
+    "/api/tokens?tokenAddress=gUSD",
+    "/api/tokens?tokenAddress=0x12",
+    `/api/tokens?tokenAddress=${token().tokenAddress}&tokenAddress=${token().tokenAddress}`,
     "/api/tokens?unknown=1",
     "/api/tokens?limit=0",
     "/api/tokens?limit=1&limit=2",

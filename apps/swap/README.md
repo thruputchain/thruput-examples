@@ -47,6 +47,11 @@ a partial provisioning failure. Restart Vite after regenerating configuration.
 
 ## Wallet Connection
 
+For tool-driven demo data after both apps' infrastructure setup, run launchpad's
+`seed:tokens`, then `npm --prefix apps/swap run seed:pools` from the repository
+root. See [local demo seeding](../../docs/demo-seeding.md) for the registry
+prerequisite, optional extension-account recipient, and resumable state.
+
 Install/build `apps/wallet-extension`, configure it for the same network, and
 create/import an account there. Fund that account independently. Select its
 provider in Swap, click **Connect wallet**, and approve the origin in the

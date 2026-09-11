@@ -13,6 +13,7 @@
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "preview": "vite preview",
     "setup:local": "bash scripts/setup-local.sh",
+    "seed:pools": "tsx scripts/seed-pools.ts",
     "start": "tsx server/main.ts",
     "start:registry": "tsx server/main.ts",
     "test": "vitest run",
