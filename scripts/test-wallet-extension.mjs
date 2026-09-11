@@ -580,7 +580,14 @@ try {
         !page.url().includes("approval=")
       )
         return;
-      const origin = await page.locator(".origin").innerText();
+      await page.locator(".origin").waitFor();
+      const origin = await page.locator(".origin").evaluate((element) =>
+        [...element.childNodes]
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => node.textContent)
+          .join("")
+          .trim(),
+      );
       assert.ok([lo, so].includes(origin), "Unexpected approval origin");
       const reject = rejectNext;
       rejectNext = false;
@@ -895,7 +902,11 @@ try {
   stage = "wallet manual ERC20 add and transfer";
   try {
     await wallet.getByRole("button", { name: "Assets", exact: true }).click();
-    await wallet.getByText("Add a token", { exact: true }).click();
+    const addToken = wallet.locator("details").filter({
+      has: wallet.getByText("Add a token", { exact: true }),
+    });
+    if ((await addToken.getAttribute("open")) === null)
+      await addToken.locator("summary").click();
     await wallet
       .getByLabel("Token contract address", { exact: true })
       .fill(evidence.token);

@@ -81,6 +81,13 @@ It verifies that an exited launcher with closed output still has its TERM-resist
 
 ## Results And Limits
 
+The subsequent [full workstream review](wallet-workstream-review.md) records
+the latest fixes and verification. Its final local/production run passed all
+21 checks; evidence is `/tmp/opencode/wallet-acceptance-449BPp/evidence/`.
+Connection grants now last only for the extension worker's lifetime; after a
+worker restart, unlock and approve the site again. Vault and transaction
+recovery data remain persistent.
+
 After the process-group cleanup fix, the local harness passed with `--build-extension` at `2026-09-08T04:46:47Z`: 21 acceptance checks, zero blockers, and all 24 owned process groups verified exited with zero remaining. Devnet was not requested. All three standalone cleanup regression tests also passed. Evidence: `/tmp/opencode/wallet-acceptance-6rqneL/evidence/result.json`; only its evidence directory remained after cleanup.
 
 Before that cleanup fix, the expanded journey passed twice consecutively with `--build-extension --devnet`, after the immutable filenames, full runtime cost manifest, production validators, and launch reserve stale-read fixes. The later of those runs completed at `2026-09-08T04:18:12Z` in about 75 seconds with 22 checks and zero blockers. Evidence: `/tmp/opencode/wallet-acceptance-pqW72x/evidence/result.json` and `/tmp/opencode/wallet-acceptance-8eFlym/evidence/result.json`.
