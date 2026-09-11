@@ -47,6 +47,16 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 
 ## Wallet Apps
 
+Swap and Token Launchpad share one npm workspace and root lockfile. After
+building the sibling SDK, run `npm ci` here. Both apps expose the same commands:
+`dev`, `build`, `start`, `typecheck`, `test`, `setup:local`, `seed`, and
+`generate:contracts`. Use `--workspace apps/swap` or
+`--workspace apps/token-launchpad` to select the app.
+
+Each dev server includes its registry API and indexer. Wallet state lives under
+`src/wallet`, transactions under `src/transactions`, and feature pages beside
+their controllers. Shared demo tooling and browser checks live under `scripts`.
+
 Use the [wallet local-development guide](docs/wallet-local-development.md) to
 install the sibling SDK, provision a disposable node, and run both apps with the
 [Thruput Wallet extension](apps/wallet-extension/README.md). Setup creates

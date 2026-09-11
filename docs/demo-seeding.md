@@ -6,20 +6,20 @@ node. Both apps and the sibling TypeScript SDK must be installed and built.
 same meaning as in the setup instructions.
 
 ```sh
-npm --prefix apps/swap run setup:local
-npm --prefix apps/token-launchpad run setup:local
-# Start the launchpad registry for this setup (see below).
-npm --prefix apps/token-launchpad run seed:tokens
-npm --prefix apps/swap run seed:pools
+npm run setup:local --workspace apps/swap
+npm run setup:local --workspace apps/token-launchpad
+# Start both app dev servers in separate terminals (see below).
+npm run seed --workspace apps/token-launchpad
+npm run seed --workspace apps/swap
 ```
 
 Setup remains infrastructure-only. Seeding is a separate, repeatable operation:
 
-1. `seed:tokens` creates **gUSD** and **gEUR** through the real launchpad factory's
+1. Launchpad's `seed` creates **gUSD** and **gEUR** through the real factory's
    CREATE2 flow. Each has six decimals and an initial supply of 1,000,000.
 2. The command requests a registry sync and waits for canonical `TokenCreated`
    evidence in the launchpad datastore. It never inserts database rows itself.
-3. `seed:pools` resolves the recorded addresses through the launchpad HTTP API,
+3. Swap's `seed` resolves the recorded addresses through the launchpad HTTP API,
    checks their factory, creator, creation transaction, metadata, and supply,
    then validates the live tokens. It creates one pool, supplies **1,000 gUSD +
    1,000 gEUR**, processes the liquidity request, and verifies its mint event,
@@ -41,26 +41,22 @@ setup changes.
 
 ## Registry prerequisite
 
-The launchpad registry must be running before either seed command. A Vite dev
-server alone is insufficient. Seeding checks the HTTP service's network and
+The launchpad app must be running before either seed command. Its dev server
+includes the registry API and indexer. Seeding checks the service's network and
 factory before submitting transactions; an unavailable or mismatched registry
 stops the command.
 
-After both setup commands, run the following in a separate terminal **from
-`apps/token-launchpad`**:
+After both setup commands, run each command in a separate terminal from the
+repository root:
 
 ```sh
-export VITE_TOKEN_REGISTRY_ENABLED=true
-export PORT=3001
-export TOKEN_REGISTRY_DB_PATH=../../.local/token-registry.sqlite
-npm run build:production
-node --env-file=.env.local --import tsx server/main.ts
+npm run dev --workspace apps/token-launchpad
+npm run dev --workspace apps/swap
 ```
 
-Use a fresh database path when setup creates a new factory. The production
-server checks that its build, runtime configuration, and database scope agree.
-An existing matching registry can be reused. Set `LAUNCHPAD_REGISTRY_URL` for
-the seed commands if its origin differs from `http://127.0.0.1:3001`.
+Development uses a factory-scoped database automatically. An existing matching
+registry can be reused. Set `LAUNCHPAD_REGISTRY_URL` for the seed commands if
+its origin differs from `http://127.0.0.1:5173`.
 
 The exact-address endpoint is:
 
@@ -84,13 +80,13 @@ LP tokens, set its **public address** before the first token seed:
 
 ```sh
 export SEED_RECIPIENT=0x<your extension account address>
-npm --prefix apps/token-launchpad run seed:tokens
-npm --prefix apps/swap run seed:pools
+npm run seed --workspace apps/token-launchpad
+npm run seed --workspace apps/swap
 ```
 
 The seed signer initially holds all minted tokens so it can fund the pool.
 After liquidity succeeds, it transfers **999,000 of each token** to the
-recipient; LP tokens are minted directly to that recipient. Until `seed:pools`
+recipient; LP tokens are minted directly to that recipient. Until Swap's `seed`
 finishes, the remaining supply stays with the tool account. No extension key,
 browser persona, or wallet approval is needed. The recipient is recorded and
 cannot be changed on a rerun; subsequent commands can omit `SEED_RECIPIENT`.
@@ -152,7 +148,7 @@ Supported path overrides:
 | `LAUNCHPAD_APP_PUBLIC_DIR` | `apps/token-launchpad/public`     |
 | `SWAP_APP_PUBLIC_DIR`      | `apps/swap/public`                |
 | `GROUNDHOG_RPC_URL`        | Launchpad setup's public RPC URL  |
-| `LAUNCHPAD_REGISTRY_URL`   | `http://127.0.0.1:3001`           |
+| `LAUNCHPAD_REGISTRY_URL`   | `http://127.0.0.1:5173`           |
 
 RPC and registry URLs must use loopback HTTP. Both app configurations must name
 the same network. Both HTTP paths reject redirects, including RPC redirects
@@ -163,11 +159,10 @@ setup creates new infrastructure and therefore a different seed scope.
 ## Verification
 
 ```sh
-npm --prefix apps/token-launchpad test
-npm --prefix apps/token-launchpad run typecheck
-npm --prefix apps/swap run typecheck
+npm test
+npm run typecheck
 GROUNDHOG_CLI=/absolute/path/to/compatible/groundhog \
-  npm --prefix apps/token-launchpad run test:seed:local
+  npm run test:seed
 ```
 
 The live test starts its own node on an ephemeral port, provisions isolated

@@ -4,6 +4,20 @@ This harness runs a real unpacked Chrome extension against a fresh local Groundh
 
 ## Run
 
+The simplified apps use the root npm workspace: run `npm ci` once, then
+`npm run typecheck`, `npm test`, and `npm run test:browser`. Both development
+servers now include their registry APIs. `npm run test:wallet` invokes this
+live harness, and `npm run test:seed` runs the shared demo-seed acceptance.
+
+After the simplification, typechecks, 883 Swap tests, 381 Launchpad tests, 31
+seed-tool tests, real development API tests, controlled production builds, and
+both-app Chromium fixture checks pass. Fresh-ledger acceptance was attempted
+but stopped before provisioning: the available CLI expects
+`endpoints.schedulerGateway`, absent from the installed devnode's manifest.
+Use a compatible CLI/devnode pair before treating the earlier live results below
+as acceptance of this refactor. A protocol-token override does not fix that
+schema difference.
+
 From the repository root, use a compatible Groundhog CLI and devnode pair. The following combination was tested on this workstation:
 
 ```bash
