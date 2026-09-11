@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PrivateKeySigner, toHex0x } from "@groundhogchain/client";
+import { addressFromHex, PrivateKeySigner, toHex0x } from "@groundhogchain/client";
 import {
   registerWalletProvider,
   type WalletProvider,
@@ -12,8 +12,9 @@ import { afterEach, expect, it, vi } from "vitest";
 import { loadConfig } from "@/config";
 import { ProviderApp, WalletControls } from "./provider-wallet";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { createReadClient } from "@/groundhog/client";
 
-vi.mock("@/groundhog/client", () => ({ createReadClient: () => ({}) }));
+vi.mock("@/groundhog/client", () => ({ createReadClient: vi.fn(() => ({})) }));
 vi.mock("@/app", () => ({
   LaunchpadRoutes: ({ readOnly }: { readOnly: boolean }) => {
     const [revision, setRevision] = useState(0);
@@ -99,6 +100,30 @@ it("discovers before and after mount, connects with registry enabled, remounts o
   await user.click(screen.getByRole("button", { name: "Disconnect" }));
   expect(screen.getByText("Public browsing")).toBeInTheDocument();
   expect(provider.request).toHaveBeenCalledWith({ method: "disconnect" });
+});
+it("retains equivalent config objects but requires explicit reconnection after a public config change", async () => {
+  const user = userEvent.setup();
+  const provider = wallet();
+  const view = render(<ProviderApp base={base} />);
+  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  await user.click(screen.getByRole("button", { name: "Draft 0" }));
+  const reads = vi.mocked(createReadClient).mock.calls.length;
+  view.rerender(<ProviderApp base={{ ...base, rpcUrl: new URL(base.rpcUrl.href), expectedTokenHash: new Uint8Array(base.expectedTokenHash) }} />);
+  expect(screen.getByRole("button", { name: "Draft 1" })).toBeVisible();
+  expect(vi.mocked(createReadClient).mock.calls).toHaveLength(reads);
+  for (const next of [
+    { ...base, rpcUrl: new URL("http://localhost:9546") },
+    { ...base, networkIdHex: "ff".repeat(32) },
+    { ...base, factoryAddress: addressFromHex(`0x${"09".repeat(32)}`) },
+    { ...base, expectedTokenHash: new Uint8Array(32).fill(9) },
+    { ...base, explorerUrl: "https://explorer.test" },
+    { ...base, swapAppUrl: "https://swap.test" },
+  ]) {
+    view.rerender(<ProviderApp base={next} />);
+    expect(screen.getByText("Public browsing")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Draft 0" })).toBeVisible();
+    expect(provider.request).toHaveBeenCalledTimes(1);
+  }
 });
 it("shows rejection, permits retry, and removes wallet workflows on wrong-network events", async () => {
   const user = userEvent.setup();

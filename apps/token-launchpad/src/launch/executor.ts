@@ -285,10 +285,20 @@ export async function runWorkflow(
 ): Promise<LaunchWorkflow> {
   const { automatic, onUpdate, ...advanceInput } = input;
   const run = async () => {
+    const initial = loadWorkflow(
+      input.storage ?? window.localStorage,
+      workflowStorageKey(input.config),
+    );
+    // Automatic continuation belongs to a fresh launch, not a receipt check.
+    const startingLaunch =
+      initial?.funding.status === "idle" &&
+      initial.creation.status === "idle" &&
+      initial.error === null;
     let workflow = await advanceWorkflow(advanceInput);
     onUpdate?.(workflow);
     if (
       !automatic ||
+      !startingLaunch ||
       advanceInput.confirmUnsignedStep !== undefined ||
       workflow.error !== null ||
       workflow.funding.status !== "committed" ||

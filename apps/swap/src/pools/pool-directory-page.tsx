@@ -60,6 +60,8 @@ interface PoolDirectoryPageDependencies {
   enrich?: typeof enrichRegistryPools;
 }
 
+export const DIRECTORY_REFRESH_INTERVAL_MS = 15_000;
+
 export function PoolDirectoryPage({
   config,
   dependencies = {},
@@ -97,25 +99,47 @@ function DirectPoolDirectoryPage({
   readOnly: boolean;
 }) {
   const request = useRef(0);
+  const inFlight = useRef(false);
   const [state, setState] = useState<
     | { kind: "loading" }
     | {
         kind: "ready";
         result: PoolDirectoryResult;
+        refreshError: string | null;
       }
     | { kind: "error"; message: string }
   >({ kind: "loading" });
   const refresh = useCallback(
-    () => {
+    (background = false) => {
+      if (
+        background &&
+        (document.visibilityState !== "visible" || inFlight.current)
+      ) return;
       const currentRequest = ++request.current;
-      setState({ kind: "loading" });
+      inFlight.current = true;
+      setState((current) =>
+        background && current.kind === "ready" ? current : { kind: "loading" },
+      );
       void read(config).then(
         (result) => {
           if (request.current === currentRequest) {
-            setState({
+            setState((current) => ({
               kind: "ready",
-              result,
-            });
+              result:
+                background && current.kind === "ready" && result.invalidEntryCount > 0
+                  ? {
+                      ...result,
+                      entries: [...new Map(
+                        [...current.result.entries, ...result.entries].map(
+                          (entry) => [toHex0x(entry.config.handlerAddress), entry],
+                        ),
+                      ).values()],
+                    }
+                  : result,
+              refreshError: background && result.invalidEntryCount > 0
+                ? "Some current pool data is unavailable."
+                : null,
+            }));
           }
         },
         (error: unknown) => {
@@ -124,18 +148,34 @@ function DirectPoolDirectoryPage({
               error instanceof Error
                 ? error.message
                 : "The pool registry could not be loaded";
-            setState({ kind: "error", message });
+            setState((current) =>
+              background && current.kind === "ready"
+                ? { ...current, refreshError: message }
+                : { kind: "error", message },
+            );
           }
         },
-      );
+      ).finally(() => {
+        if (request.current === currentRequest) inFlight.current = false;
+      });
     },
     [config, read],
   );
 
   useEffect(() => {
     refresh();
+    const refreshVisible = () => refresh(true);
+    const timer = window.setInterval(
+      refreshVisible,
+      DIRECTORY_REFRESH_INTERVAL_MS,
+    );
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
     return () => {
       request.current += 1;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
     };
   }, [refresh]);
 
@@ -144,6 +184,9 @@ function DirectPoolDirectoryPage({
       {state.kind === "loading" ? <DirectorySkeleton /> : null}
       {state.kind === "error" ? (
         <Unavailable message={state.message} retry={() => refresh()} />
+      ) : null}
+      {state.kind === "ready" && state.refreshError !== null ? (
+        <StaleDataAlert message={state.refreshError} />
       ) : null}
       {state.kind === "ready" && state.result.invalidEntryCount > 0 ? (
         <PartialReads count={state.result.invalidEntryCount} direct />
@@ -211,6 +254,8 @@ function RegistryPoolDirectoryPage({
   const activeRequest = useRef<AbortController | null>(null);
   const requestId = useRef(0);
   const syncRequestId = useRef(0);
+  const inFlight = useRef(false);
+  const backgroundRefresh = useRef(false);
 
   useEffect(() => {
     if (search === debouncedSearch) return;
@@ -234,10 +279,17 @@ function RegistryPoolDirectoryPage({
     const controller = new AbortController();
     activeRequest.current = controller;
     const currentRequestId = ++requestId.current;
+    const background = backgroundRefresh.current;
+    backgroundRefresh.current = false;
+    // Discover new pools on page one; later pages stay on their pinned snapshot.
+    const snapshotBlock = background && offset === 0 ? undefined : asOfBlock.current;
+    inFlight.current = true;
     setLoading(true);
     setError(null);
-    setPage(null);
-    setEntries([]);
+    if (!background) {
+      setPage(null);
+      setEntries([]);
+    }
     const normalizedToken = debouncedToken.trim();
     void read(
       config,
@@ -247,30 +299,44 @@ function RegistryPoolDirectoryPage({
         sort,
         limit: PAGE_SIZE,
         offset,
-        ...(asOfBlock.current === undefined
+        ...(snapshotBlock === undefined
           ? {}
-          : { asOfBlock: asOfBlock.current }),
+          : { asOfBlock: snapshotBlock }),
       },
-      controller.signal,
+      AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]),
     ).then(
-      (result) => {
+      async (result) => {
         if (currentRequestId !== requestId.current) return;
         const initialEntries = registryPoolsToEntries(result.pools);
         setPage(result);
-        setEntries(initialEntries);
-        asOfBlock.current ??= result.asOfBlock;
+        setEntries((previous) => background
+          ? retainLiveData(initialEntries, previous)
+          : initialEntries);
+        asOfBlock.current = result.asOfBlock;
         setLoading(false);
-        void enrich(config, initialEntries, controller.signal).then(
+        await enrich(config, initialEntries, controller.signal).then(
           (enriched) => {
-            if (currentRequestId === requestId.current) setEntries(enriched);
+            if (currentRequestId === requestId.current) {
+              setEntries((current) => background
+                ? retainLiveData(enriched, current)
+                : enriched);
+            }
           },
-          () => undefined,
+          () => {
+            if (currentRequestId === requestId.current) {
+              setEntries((current) => current.map((entry) => ({
+                ...entry, loading: false, readError: true,
+              })));
+            }
+          },
         );
       },
       (reason: unknown) => {
         if (currentRequestId !== requestId.current) return;
-        setPage(null);
-        setEntries([]);
+        if (!background) {
+          setPage(null);
+          setEntries([]);
+        }
         setLoading(false);
         setError(
           reason instanceof Error
@@ -278,7 +344,9 @@ function RegistryPoolDirectoryPage({
             : "The pool registry is unavailable",
         );
       },
-    );
+    ).finally(() => {
+      if (currentRequestId === requestId.current) inFlight.current = false;
+    });
     return () => {
       controller.abort();
       if (activeRequest.current === controller) {
@@ -301,52 +369,82 @@ function RegistryPoolDirectoryPage({
     const controller = new AbortController();
     const currentSyncRequestId = ++syncRequestId.current;
     let pollTimer: number | undefined;
-    let observedSyncing = false;
+    let polling = false;
     const isCurrent = () => currentSyncRequestId === syncRequestId.current;
     const refreshCompletedSync = () => {
-      resetRegistrySnapshot(activeRequest, requestId, asOfBlock, setOffset);
+      if (inFlight.current || document.visibilityState !== "visible") return;
+      inFlight.current = true;
+      backgroundRefresh.current = true;
+      requestId.current += 1;
+      activeRequest.current?.abort();
       setRefreshKey((value) => value + 1);
     };
+    function schedule(delay: number) {
+      window.clearTimeout(pollTimer);
+      if (isCurrent() && document.visibilityState === "visible")
+        pollTimer = window.setTimeout(pollStatus, delay);
+    }
     const consumeStatus = (result: RegistryStatus, refreshIfIdle: boolean) => {
       if (!isCurrent()) return;
       setStatus(result);
       setStatusError(false);
       if (result.syncing) {
-        observedSyncing = true;
-        pollTimer = window.setTimeout(pollStatus, STATUS_POLL_MS);
-      } else if (observedSyncing || refreshIfIdle) {
-        refreshCompletedSync();
+        schedule(STATUS_POLL_MS);
+      } else {
+        if (refreshIfIdle) refreshCompletedSync();
+        schedule(DIRECTORY_REFRESH_INTERVAL_MS);
       }
     };
     async function pollStatus() {
+      if (polling || !isCurrent() || document.visibilityState !== "visible")
+        return;
+      polling = true;
+      window.clearTimeout(pollTimer);
       try {
-        consumeStatus(await readStatus(config, controller.signal), false);
+        consumeStatus(await readStatus(config, readSignal()), true);
       } catch {
         if (!isCurrent() || controller.signal.aborted) return;
         setStatusError(true);
-        pollTimer = window.setTimeout(pollStatus, STATUS_POLL_MS);
+        schedule(STATUS_POLL_MS);
+      } finally {
+        polling = false;
       }
     }
     async function hintSync() {
+      if (document.visibilityState !== "visible") return;
+      polling = true;
       try {
-        consumeStatus(await requestSync(config, controller.signal), true);
+        consumeStatus(await requestSync(config, readSignal()), true);
       } catch {
         if (!isCurrent() || controller.signal.aborted) return;
         try {
-          consumeStatus(await readStatus(config, controller.signal), false);
+          consumeStatus(await readStatus(config, readSignal()), false);
         } catch {
           if (!isCurrent() || controller.signal.aborted) return;
           setStatus(null);
           setStatusError(true);
-          pollTimer = window.setTimeout(pollStatus, STATUS_POLL_MS);
+          schedule(STATUS_POLL_MS);
         }
+      } finally {
+        polling = false;
       }
     }
+    function readSignal() {
+      return AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+    }
+    function refreshVisible() {
+      window.clearTimeout(pollTimer);
+      void pollStatus();
+    }
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
     void hintSync();
     return () => {
       syncRequestId.current += 1;
       controller.abort();
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
+      window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
     };
   }, [config, readStatus, requestSync, syncKey]);
 
@@ -409,7 +507,11 @@ function RegistryPoolDirectoryPage({
         </Field>
       </div>
 
-      {error !== null ? <Unavailable message={error} retry={refresh} /> : null}
+      {error !== null ? (
+        page === null
+          ? <Unavailable message={error} retry={refresh} />
+          : <StaleDataAlert message={error} />
+      ) : null}
       {loading && page === null ? <DirectorySkeleton /> : null}
       {page?.total === 0 ? (
         hasFilters ? (
@@ -511,6 +613,18 @@ function RegistryPoolDirectoryPage({
   );
 }
 
+function retainLiveData(
+  next: RegistryPoolEntry[],
+  previous: RegistryPoolEntry[],
+): RegistryPoolEntry[] {
+  return next.map((entry) => ({
+    ...entry,
+    live: entry.live ?? previous.find(
+      (old) => old.record.handlerAddress === entry.record.handlerAddress,
+    )?.live ?? null,
+  }));
+}
+
 function resetRegistrySnapshot(
   activeRequest: React.RefObject<AbortController | null>,
   requestId: React.RefObject<number>,
@@ -557,6 +671,18 @@ function Unavailable({
         <Button type="button" variant="outline" onClick={retry}>
           Try again
         </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+function StaleDataAlert({ message }: { message: string }) {
+  return (
+    <Alert>
+      <AlertCircleIcon aria-hidden="true" />
+      <AlertTitle>Pool data may be stale</AlertTitle>
+      <AlertDescription>
+        The last loaded pools remain visible. Retrying automatically. {message}
       </AlertDescription>
     </Alert>
   );

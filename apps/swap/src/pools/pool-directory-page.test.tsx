@@ -1,6 +1,6 @@
 import { toHex0x } from "@groundhogchain/client";
 import { contractAddress } from "@groundhogchain/protocol";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,7 +14,7 @@ import {
   type enrichRegistryPools,
 } from "@/registry/pools";
 import type { PoolSnapshot } from "@/swap/snapshot";
-import { PoolDirectoryPage } from "./pool-directory-page";
+import { DIRECTORY_REFRESH_INTERVAL_MS, PoolDirectoryPage } from "./pool-directory-page";
 
 vi.mock("@/pools/pool-directory", () => ({ readPoolDirectory: vi.fn() }));
 
@@ -72,9 +72,235 @@ const snapshot: PoolSnapshot = {
 };
 
 beforeEach(() => vi.clearAllMocks());
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("PoolDirectoryPage", () => {
+  it.each(["focus", "interval"] as const)("discovers a newly created pool from an empty direct directory on %s", async (trigger) => {
+    vi.useFakeTimers();
+    const readDirect = vi.fn().mockResolvedValueOnce({ entries: [], invalidEntryCount: 0 }).mockResolvedValue({ entries: [{ config: poolConfig, snapshot }], invalidEntryCount: 0 });
+    renderPage(globalConfig, { readDirect });
+    await act(async () => {});
+    expect(screen.getByText("No pools yet")).toBeVisible();
+    await act(async () => {
+      if (trigger === "focus") window.dispatchEvent(new Event("focus"));
+      else await vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS);
+    });
+    expect(screen.getByText("A / B")).toBeVisible();
+    expect(readDirect).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
+  });
+
+  it("pauses direct refreshes while hidden, avoids overlap, and retains data on background failure", async () => {
+    vi.useFakeTimers();
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    let reject!: (reason: Error) => void;
+    const readDirect = vi.fn().mockResolvedValueOnce({ entries: [{ config: poolConfig, snapshot }], invalidEntryCount: 0 }).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; })).mockResolvedValue({ entries: [], invalidEntryCount: 0 });
+    renderPage(globalConfig, { readDirect });
+    await act(async () => {});
+    visibility.mockReturnValue("hidden");
+    await act(async () => { document.dispatchEvent(new Event("visibilitychange")); window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS * 3); });
+    expect(readDirect).toHaveBeenCalledTimes(1);
+    visibility.mockReturnValue("visible");
+    await act(async () => { document.dispatchEvent(new Event("visibilitychange")); window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS * 2); });
+    expect(readDirect).toHaveBeenCalledTimes(2);
+    await act(async () => reject(new Error("offline")));
+    expect(screen.getByText("A / B")).toBeVisible();
+    expect(screen.getByText("Pool data may be stale")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS));
+    expect(screen.getByText("No pools yet")).toBeVisible();
+  });
+
+  it.each(["focus", "interval"] as const)("refreshes an idle registry and discovers new pools on %s", async (trigger) => {
+    vi.useFakeTimers();
+    const empty = { ...page(), pools: [], total: 0 };
+    const readRegistry = vi.fn().mockResolvedValue(empty);
+    const readStatus = vi.fn().mockResolvedValue(status());
+    renderPage({ ...globalConfig, registryEnabled: true }, { readRegistry, readStatus, requestSync: vi.fn().mockResolvedValue(status()), enrich: vi.fn(async (_config, entries) => entries) });
+    await act(async () => {});
+    expect(screen.getByText("No pools yet")).toBeVisible();
+    const before = readRegistry.mock.calls.length;
+    readRegistry.mockResolvedValue(page());
+    await act(async () => {
+      if (trigger === "focus") window.dispatchEvent(new Event("focus"));
+      else await vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS);
+    });
+    expect(readRegistry).toHaveBeenCalledTimes(before + 1);
+    expect(readStatus).toHaveBeenCalledOnce();
+    expect(screen.getByRole("link", { name: "View pool" })).toBeVisible();
+    expect(readRegistry.mock.calls.at(-1)?.[1]).not.toHaveProperty("asOfBlock");
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
+  });
+
+  it.each([
+    ["focus", false],
+    ["interval", false],
+    ["focus", true],
+    ["interval", true],
+  ] as const)(
+    "preserves page two and its pinned snapshot on idle %s refresh (failure=%s)",
+    async (trigger, failure) => {
+      vi.useFakeTimers();
+      let latestBlock = "12";
+      const readRegistry = vi.fn().mockImplementation(async (_config, query) => ({
+        ...page(),
+        offset: query.offset,
+        asOfBlock: query.asOfBlock ?? latestBlock,
+        total: 21,
+        hasMore: query.offset === 0,
+        pools: [{
+          ...page().pools[0]!,
+          token0Address: hex(query.offset + 5),
+          token1Address: hex(query.offset + 6),
+        }],
+      }));
+      const readStatus = vi.fn().mockResolvedValue(status());
+      const requestSync = vi.fn().mockResolvedValue(status());
+      const enrich = vi.fn(async (_config, entries) => entries);
+      renderPage({ ...globalConfig, registryEnabled: true }, {
+        readRegistry, readStatus, requestSync, enrich,
+      });
+      await act(async () => {});
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Next" })));
+      expect(screen.getByText("Showing 21-21 of 21")).toBeVisible();
+      const pageTwoLink = `/pools/${hex(25)}/${hex(26)}`;
+      expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute("href", pageTwoLink);
+
+      latestBlock = "99";
+      readStatus.mockResolvedValue(status({ indexedThroughBlock: latestBlock }));
+      const readsBefore = readRegistry.mock.calls.length;
+      const enrichmentsBefore = enrich.mock.calls.length;
+      let rejectRefresh!: (error: Error) => void;
+      if (failure) {
+        readRegistry.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+          rejectRefresh = reject;
+        }));
+      }
+      await act(async () => {
+        if (trigger === "focus") window.dispatchEvent(new Event("focus"));
+        else await vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS);
+      });
+      expect(readRegistry).toHaveBeenCalledTimes(readsBefore + 1);
+      expect(readRegistry.mock.calls.at(-1)?.[1]).toMatchObject({ offset: 20, asOfBlock: "12" });
+      if (failure) {
+        expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+        await act(async () => rejectRefresh(new Error("offline")));
+        expect(screen.getByText("Pool data may be stale")).toBeVisible();
+        expect(enrich).toHaveBeenCalledTimes(enrichmentsBefore);
+      } else {
+        expect(enrich).toHaveBeenCalledTimes(enrichmentsBefore + 1);
+      }
+      expect(screen.getByText("Showing 21-21 of 21")).toBeVisible();
+      expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute("href", pageTwoLink);
+      expect(screen.getByRole("button", { name: "Previous" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+      expect(requestSync).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
+
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Previous" })));
+      expect(readRegistry.mock.calls.at(-1)?.[1]).toMatchObject({ offset: 0, asOfBlock: "12" });
+      await act(async () => window.dispatchEvent(new Event("focus")));
+      expect(readRegistry.mock.calls.at(-1)?.[1]).toMatchObject({ offset: 0 });
+      expect(readRegistry.mock.calls.at(-1)?.[1]).not.toHaveProperty("asOfBlock");
+    },
+  );
+
+  it("pauses registry polling while hidden, prevents overlapping reads, and preserves a failed background page", async () => {
+    vi.useFakeTimers();
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const readRegistry = vi.fn().mockResolvedValue(page());
+    const readStatus = vi.fn().mockResolvedValue(status());
+    renderPage({ ...globalConfig, registryEnabled: true }, { readRegistry, readStatus, requestSync: vi.fn().mockResolvedValue(status()), enrich: vi.fn(async (_config, entries) => entries) });
+    await act(async () => {});
+    const before = readRegistry.mock.calls.length;
+    visibility.mockReturnValue("hidden");
+    await act(async () => { document.dispatchEvent(new Event("visibilitychange")); await vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS * 3); });
+    expect(readRegistry).toHaveBeenCalledTimes(before);
+    expect(readStatus).not.toHaveBeenCalled();
+    let reject!: (reason: Error) => void;
+    readRegistry.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+    visibility.mockReturnValue("visible");
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+    await act(async () => { window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS * 2); });
+    expect(readRegistry).toHaveBeenCalledTimes(before + 1);
+    await act(async () => reject(new Error("offline")));
+    expect(screen.getByRole("link", { name: "View pool" })).toBeVisible();
+    expect(screen.getByText("Pool data may be stale")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(DIRECTORY_REFRESH_INTERVAL_MS));
+    expect(readRegistry).toHaveBeenCalledTimes(before + 2);
+    expect(screen.queryByText("Pool data may be stale")).toBeNull();
+  });
+
+  it("keeps the displayed page-one snapshot pinned after a background replacement fails", async () => {
+    const user = userEvent.setup();
+    const readRegistry = vi.fn().mockImplementation(async (_config, query) => ({
+      ...page(),
+      offset: query.offset,
+      asOfBlock: query.asOfBlock ?? "12",
+      total: 21,
+      hasMore: query.offset === 0,
+    }));
+    renderPage({ ...globalConfig, registryEnabled: true }, {
+      readRegistry,
+      readStatus: vi.fn().mockResolvedValue(status({ indexedThroughBlock: "99" })),
+      requestSync: vi.fn().mockResolvedValue(status()),
+      enrich: vi.fn(async (_config, entries) => entries),
+    });
+    await act(async () => {});
+    readRegistry.mockRejectedValueOnce(new Error("offline"));
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(readRegistry.mock.calls.at(-1)?.[1]).not.toHaveProperty("asOfBlock");
+    expect(screen.getByText("Pool data may be stale")).toBeVisible();
+    expect(screen.getByText("Showing 1-1 of 21")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(readRegistry.mock.calls.at(-1)?.[1]).toMatchObject({ offset: 20, asOfBlock: "12" });
+    expect(screen.getByText("Showing 21-21 of 21")).toBeVisible();
+  });
+
+  it.each([false, true])("retains previous live reserves when a background pool read fails (registry=%s)", async (registryEnabled) => {
+    const live = { config: poolConfig, snapshot };
+    const readDirect = vi.fn()
+      .mockResolvedValueOnce({ entries: [live], invalidEntryCount: 0 })
+      .mockResolvedValue({ entries: [], invalidEntryCount: 1 });
+    const enrich = vi.fn<typeof enrichRegistryPools>()
+      .mockImplementationOnce(async (_config, entries) => entries.map((entry) => ({ ...entry, live, loading: false })))
+      .mockImplementation(async (_config, entries) => entries.map((entry) => ({ ...entry, loading: false, readError: true })));
+    renderPage({ ...globalConfig, registryEnabled }, {
+      readDirect, enrich,
+      readRegistry: vi.fn().mockResolvedValue(page()),
+      readStatus: vi.fn().mockResolvedValue(status()),
+      requestSync: vi.fn().mockResolvedValue(status()),
+    });
+    await act(async () => {});
+    expect(screen.getByText("A / B")).toBeVisible();
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(screen.getByText("A / B")).toBeVisible();
+    expect(screen.getByText("Some pools could not be loaded")).toBeVisible();
+  });
+
+  it("ignores a late background registry page after the user changes the query", async () => {
+    const user = userEvent.setup();
+    let resolveBackground!: (value: RegistryPoolPage) => void;
+    const replacement = page();
+    replacement.pools[0] = { ...replacement.pools[0]!, token0Address: hex(20), token1Address: hex(21) };
+    const readRegistry = vi.fn().mockResolvedValue(page());
+    renderPage({ ...globalConfig, registryEnabled: true }, {
+      readRegistry,
+      readStatus: vi.fn().mockResolvedValue(status()),
+      requestSync: vi.fn().mockResolvedValue(status()),
+      enrich: vi.fn(async (_config, entries) => entries),
+    });
+    await act(async () => {});
+    readRegistry.mockImplementationOnce(() => new Promise((resolve) => { resolveBackground = resolve; })).mockResolvedValue(replacement);
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    await user.type(screen.getByLabelText("Search addresses"), "20");
+    const link = `/pools/${hex(20)}/${hex(21)}`;
+    await waitFor(() => expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute("href", link));
+    await act(async () => resolveBackground(page()));
+    expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute("href", link);
+  });
   it("shows an empty factory action", async () => {
     vi.mocked(readPoolDirectory).mockResolvedValue({
       entries: [],
@@ -174,7 +400,7 @@ describe("PoolDirectoryPage", () => {
 
   it("debounces search, resets filters and sorting, and retains the first snapshot while paging", async () => {
     const user = userEvent.setup();
-    const requestSync = vi.fn(() => new Promise<RegistryStatus>(() => {}));
+    const requestSync = vi.fn().mockResolvedValue(status());
     const readRegistry = vi.fn().mockImplementation(async (_config, query) => ({
       ...page(),
       offset: query.offset,
@@ -187,6 +413,7 @@ describe("PoolDirectoryPage", () => {
       {
         readRegistry,
         requestSync,
+        readStatus: vi.fn().mockResolvedValue(status()),
         enrich: vi.fn(async (_config, entries) => entries),
       },
     );
@@ -222,12 +449,11 @@ describe("PoolDirectoryPage", () => {
     expect(requestSync).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["search", "token", "sort", "page", "sync completion"])(
+  it.each(["search", "token", "sort", "page"])(
     "clears displayed results while a replacement %s request is pending",
     async (change) => {
       const user = userEvent.setup();
       let resolveReplacement!: (value: RegistryPoolPage) => void;
-      let completeSync!: (value: RegistryStatus) => void;
       const readRegistry = vi
         .fn()
         .mockResolvedValueOnce({ ...page(), total: 21, hasMore: true })
@@ -241,9 +467,7 @@ describe("PoolDirectoryPage", () => {
         { ...globalConfig, registryEnabled: true },
         {
           readRegistry,
-          requestSync: vi.fn(() => new Promise<RegistryStatus>((resolve) => {
-            completeSync = resolve;
-          })),
+          requestSync: vi.fn(() => new Promise<RegistryStatus>(() => {})),
           enrich: vi.fn<typeof enrichRegistryPools>(async (_config, entries) =>
             entries.map((entry) => ({
               ...entry,
@@ -268,8 +492,6 @@ describe("PoolDirectoryPage", () => {
         await user.selectOptions(screen.getByLabelText("Sort by"), "oldest");
       } else if (change === "page") {
         await user.click(screen.getByRole("button", { name: "Next" }));
-      } else {
-        await act(async () => completeSync(status()));
       }
       await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(2));
       expect(screen.queryByRole("link", { name: "View pool" })).toBeNull();

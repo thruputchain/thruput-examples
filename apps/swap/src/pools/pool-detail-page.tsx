@@ -47,7 +47,16 @@ export function PoolDetailPage({
         <Alert variant="destructive">
           <AlertCircleIcon aria-hidden="true" />
           <AlertTitle>Pool refresh failed</AlertTitle>
-          <AlertDescription>{state.error}</AlertDescription>
+          <AlertDescription className="flex flex-col items-start gap-3">
+            <p>{state.error}</p>
+            <Button
+              variant="outline"
+              disabled={state.isLoading || state.isRefreshing}
+              onClick={state.refresh}
+            >
+              Try again
+            </Button>
+          </AlertDescription>
         </Alert>
       )}
       {state.snapshot === null && state.isLoading ? <DetailSkeleton /> : null}

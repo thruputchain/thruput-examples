@@ -84,6 +84,7 @@ function setup() {
         DefaultWallet.execute.entrypoint,
       );
       expect(tx.auth_claim).toEqual(localAccount.authClaim);
+      expect(tx.uniquifier.block_expiry_height).toBe(1_010n);
       const signed = await signTransaction(
         tx,
         localAccount.signers,
@@ -218,6 +219,29 @@ describe("provider write boundary with the real SDK", () => {
       ),
     ).toHaveLength(1);
     boundary.dispose();
+  });
+
+  it("recovers the approved hash when the SDK rejects a provider submission hash mismatch", async () => {
+    const { boundary, request, client } = setup();
+    const original = request.getMockImplementation()!;
+    request.mockImplementation(async (input) =>
+      input.method === "submitTransaction"
+        ? { hash: `0x${"ff".repeat(32)}` }
+        : original(input),
+    );
+    const onSigned = vi.fn();
+    try {
+      const result = await boundary.execute(target, { onSigned });
+      expect(result).toMatchObject({
+        kind: "committedSuccess",
+        hash: onSigned.mock.calls[0]![0],
+      });
+      expect(client.getTransactionReceipt).toHaveBeenCalledWith(
+        fromHex0x(onSigned.mock.calls[0]![0]),
+      );
+    } finally {
+      boundary.dispose();
+    }
   });
 
   it("invalidates a pending old adapter on account change but keeps polling independent", async () => {

@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import viteConfig from "./vite.config";
+import viteConfig, { productionContractArtifact } from "./vite.config";
 import { parsePublicConfigManifest } from "./server/public-config-manifest";
 import { hashContract, toHex0x } from "@groundhogchain/client";
 import { ContractType } from "@groundhogchain/protocol";
@@ -27,9 +27,11 @@ vi.mock("vite", async (importOriginal) => ({
   loadEnv: () => environment,
 }));
 let publicDir: string | undefined;
+let outputDir: string | undefined;
 afterEach(async () => {
   vi.unstubAllEnvs();
   if (publicDir) await rm(publicDir, { recursive: true, force: true });
+  if (outputDir) await rm(outputDir, { recursive: true, force: true });
 });
 
 it("builds production with explicit explorer exposure and a matching manifest, without secrets", async () => {
@@ -63,18 +65,19 @@ it("builds production with explicit explorer exposure and a matching manifest, w
     ),
     artifact,
   );
+  outputDir = await mkdtemp(path.join(tmpdir(), "launchpad-build-"));
   const result = await build({
     ...config,
     configFile: false,
     envDir: false,
     publicDir,
     logLevel: "silent",
-    build: { outDir: "dist/explorer-fixture", emptyOutDir: true },
+    build: { outDir: outputDir, emptyOutDir: true },
   });
   if (!("output" in result)) throw new Error("Expected one build output");
   expect(
     await readFile(
-      `dist/explorer-fixture/contract-artifacts/${environment.VITE_STANDARD_TOKEN_HASH}.json`,
+      path.join(outputDir, `contract-artifacts/${environment.VITE_STANDARD_TOKEN_HASH}.json`),
       "utf8",
     ),
   ).toBe(artifact);
@@ -138,3 +141,22 @@ it.each(["missing", "malformed", "mismatched"])(
     ).rejects.toThrow(/artifact/);
   },
 );
+
+it.each([{ publicDir: false }, { build: { copyPublicDir: false } }] as const)("rejects disabled production public copying %#", async (options) => {
+  publicDir = await mkdtemp(path.join(tmpdir(), "launchpad-no-copy-"));
+  await expect(build({ configFile: false, envDir: false, root: publicDir, plugins: [productionContractArtifact(environment.VITE_STANDARD_TOKEN_HASH)], logLevel: "silent", ...options })).rejects.toThrow(/publicDir|copyPublicDir/);
+});
+
+it("rejects an artifact corrupted in the build output", async () => {
+  const hash = toHex0x(hashContract({ contract_type: ContractType.kRv32, rv32_contract: { data: new Uint8Array([1, 2, 3]) } }));
+  publicDir = await mkdtemp(path.join(tmpdir(), "launchpad-output-check-"));
+  await mkdir(path.join(publicDir, "contract-artifacts"));
+  await writeFile(path.join(publicDir, "index.html"), "<main>fixture</main>");
+  const relative = `contract-artifacts/${hash}.json`;
+  await writeFile(path.join(publicDir, relative), JSON.stringify({ contractType: "rv32", data: "0x010203", hash }));
+  outputDir = await mkdtemp(path.join(tmpdir(), "launchpad-output-"));
+  await expect(build({ configFile: false, envDir: false, root: publicDir, publicDir, logLevel: "silent", build: { outDir: outputDir }, plugins: [
+    { name: "corrupt-output-fixture", async generateBundle() { await writeFile(path.join(outputDir!, relative), "{}"); } },
+    productionContractArtifact(hash),
+  ] })).rejects.toThrow(/artifact/);
+});

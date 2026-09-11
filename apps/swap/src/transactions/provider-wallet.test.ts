@@ -208,15 +208,14 @@ describe("provider write boundary", () => {
     });
   });
 
-  it("rejects a different submission hash without observing it", async () => {
+  it("observes the approved hash when the SDK rejects a submission hash mismatch", async () => {
     const { wallet, client, boundary } = fixture();
-    wallet.submitTransaction.mockResolvedValue({ hash: hex("ff") });
-    await expect(boundary.execute(target)).resolves.toEqual({
-      kind: "indeterminate",
+    wallet.submitTransaction.mockRejectedValue(new Error("Provider submission hash mismatch; broadcast may have occurred"));
+    await expect(boundary.execute(target)).resolves.toMatchObject({
+      kind: "committedSuccess",
       hash,
-      reason: "other",
     });
-    expect(client.getTransactionReceipt).not.toHaveBeenCalled();
+    expect(client.getTransactionReceipt).toHaveBeenCalledWith(hashFromHex(hash));
   });
 
   it("observes signed requests while disconnected, but refuses new writes", async () => {

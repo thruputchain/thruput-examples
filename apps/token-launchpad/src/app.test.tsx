@@ -60,6 +60,27 @@ function reviewed(): FactoryReview {
 }
 
 describe("launch review", () => {
+  it("checks recovered funding without automatic creation, then offers an explicit Create token action", async () => {
+    const config = configuration();
+    const workflow = { ...createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), reviewed()), funding: { status: "uncertain" as const, hash: `0x${"06".repeat(32)}` } };
+    const recovered = { ...workflow, revision: 1, funding: { ...workflow.funding, status: "committed" as const } };
+    saveWorkflow(localStorage, workflowStorageKey(config), workflow);
+    const run = vi.mocked(runWorkflow).mockResolvedValueOnce(recovered).mockResolvedValueOnce(recovered);
+    const start = run.mock.calls.length;
+    const user = userEvent.setup();
+    const view = render(<MemoryRouter><CreatePage config={config} client={{} as never} writer={{ execute: vi.fn(), observe: vi.fn() }} /></MemoryRouter>);
+    try {
+      await user.click(screen.getByRole("button", { name: "Check funding transaction" }));
+      expect(run.mock.calls[start]?.[0].automatic).toBe(false);
+      await user.click(screen.getByRole("button", { name: "Create token" }));
+      expect(run.mock.calls).toHaveLength(start + 2);
+      expect(run.mock.calls[start + 1]?.[0]).toMatchObject({ automatic: false, workflowRevision: 1 });
+    } finally {
+      view.unmount();
+      localStorage.clear();
+      run.mockReset();
+    }
+  });
   it("links every typed review identifier and preserves full-value copy success and failure", async () => {
     const user = userEvent.setup();
     const config = {

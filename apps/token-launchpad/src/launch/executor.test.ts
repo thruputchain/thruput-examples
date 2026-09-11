@@ -28,6 +28,25 @@ const locks = {
 } as unknown as LockManager;
 
 describe("advanceWorkflow", () => {
+  it.each(["pending", "uncertain"] as const)("only observes recovered %s funding even when automatic continuation was requested", async (status) => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const hash = `0x${"06".repeat(32)}`;
+    const workflow = { ...createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), factoryReview(config)), funding: { status, hash } };
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const writer = {
+      observe: vi.fn().mockResolvedValue({ kind: "committedSuccess", hash, receipt: {} }),
+      execute: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "creation rejected" }),
+    };
+    const input = { config, client: {} as GroundhogClient, writer, workflowId: workflow.id, workflowRevision: workflow.revision, expectedIntent: workflowIntent(workflow), storage, locks, automatic: true, review: async () => ({ ...factoryReview(config), currentReserve: 100n, fundingAmount: 0n }) };
+    const recovered = await runWorkflow(input);
+    expect(writer.observe).toHaveBeenCalledExactlyOnceWith(hash);
+    expect(writer.execute).not.toHaveBeenCalled();
+    expect(recovered.funding.status).toBe("committed");
+    expect(recovered.creation.status).toBe("idle");
+    await runWorkflow({ ...input, automatic: false, workflowRevision: recovered.revision });
+    expect(writer.execute).toHaveBeenCalledOnce();
+  });
   it.each(["caught-up", "still-stale", "fresh-shortfall"])(
     "handles %s reserve evidence after committed funding without re-funding",
     async (state) => {

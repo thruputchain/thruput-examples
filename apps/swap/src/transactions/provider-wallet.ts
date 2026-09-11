@@ -62,9 +62,7 @@ export function createProviderWriteBoundary(
         };
       }
       try {
-        const submitted = await wallet.submitTransaction(signed);
-        if (submitted.hash !== signed.hash)
-          return { kind: "indeterminate", hash: signed.hash, reason: "other" };
+        await wallet.submitTransaction(signed);
       } catch {
         const result = await observe(signed.hash);
         return result.kind === "indeterminate" && result.reason === "timeout"

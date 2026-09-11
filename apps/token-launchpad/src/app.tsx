@@ -358,7 +358,7 @@ export function CreatePage({
         config,
         client,
         writer,
-        automatic: !manualProcessing,
+        automatic: actionLabel(workflow, manualProcessing) === "Launch token",
         onUpdate: setWorkflow,
         workflowId: workflow.id,
         workflowRevision: workflow.revision,

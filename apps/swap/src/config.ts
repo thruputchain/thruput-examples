@@ -37,6 +37,28 @@ export interface AppConfig extends GlobalConfig {
   tokenBDecimals: number;
 }
 
+export function publicConfigKey(config: GlobalConfig): string {
+  const discovery = config.tokenDiscovery;
+  return JSON.stringify([
+    config.rpcUrl.href,
+    config.networkIdHex,
+    config.registryEnabled ?? false,
+    toHex0x(config.accountAddress),
+    toHex0x(config.factoryAddress),
+    toHex0x(config.routerAddress),
+    toHex0x(config.nativeHogAddress),
+    config.poolTokenHash ?? null,
+    config.explorerUrl ?? null,
+    (config.knownTokenAddresses ?? []).map(toHex0x),
+    discovery?.enabled ?? false,
+    discovery?.factoryAddress ?? "",
+    discovery?.tokenCodeHash ?? "",
+    discovery?.scope?.networkId ?? null,
+    discovery?.scope?.factoryAddress ?? null,
+    discovery?.scope?.tokenCodeHash ?? null,
+  ]);
+}
+
 export type Environment = Record<string, string | boolean | undefined>;
 
 export class ConfigurationError extends Error {

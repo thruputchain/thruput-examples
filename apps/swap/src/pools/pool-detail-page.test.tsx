@@ -1,5 +1,5 @@
 import { contractAddress } from "@groundhogchain/protocol";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -77,6 +77,14 @@ beforeEach(() => {
 });
 
 describe("PoolDetailPage", () => {
+  it("offers a retry after an initial snapshot failure without a refresh control", () => {
+    const refresh = vi.fn();
+    vi.mocked(usePoolSnapshot).mockReturnValue({ snapshot: null, error: "Temporary outage", isLoading: false, isRefreshing: false, isUserRefreshing: false, refresh });
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
+  });
   it("shows wallet token balances", () => {
     renderPage();
 

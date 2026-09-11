@@ -6,7 +6,7 @@ import {
   type WalletProvider,
 } from "@groundhogchain/client/provider";
 import { LaunchpadRoutes } from "@/app";
-import type { AppConfig } from "@/config";
+import { publicConfigKey, type AppConfig } from "@/config";
 import { Button } from "@/components/ui/button";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { createReadClient } from "@/groundhog/client";
@@ -23,6 +23,11 @@ const WalletContext = createContext<{
 } | null>(null);
 
 export function ProviderApp({ base }: { base: AppConfig }) {
+  return <ProviderRuntime key={publicConfigKey(base)} base={base} />;
+}
+
+function ProviderRuntime({ base: suppliedBase }: { base: AppConfig }) {
+  const [base] = useState(suppliedBase);
   const [providers, setProviders] = useState<WalletProvider[]>([]);
   const [selected, setSelected] = useState<WalletProvider | null>(null);
   const [connectionAttempt, setConnectionAttempt] = useState(0);

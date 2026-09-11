@@ -50,6 +50,7 @@ export function createProviderWriteBoundary(
         const transaction = await wallet.prepareExecution({
           invocation: target,
           gasLimit: gasAmount(10_000_000n),
+          expiryBlocks: 1_000n,
           ...(contractsToDeploy ? { contractsToDeploy } : {}),
         });
         signed = await wallet.signTransaction(transaction);

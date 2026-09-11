@@ -1,4 +1,4 @@
-import { addressFromHex, fromHex0x } from "@groundhogchain/client";
+import { addressFromHex, fromHex0x, toHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 import { PINNED_NATIVE_BALANCE_ITEM_COST } from "@/runtime";
@@ -18,6 +18,21 @@ export interface AppConfig {
   nativeHogAddress: ContractAddress;
   nativeBalanceItemCost: bigint;
   expectedTokenHash: Uint8Array;
+}
+
+export function publicConfigKey(config: AppConfig): string {
+  return JSON.stringify([
+    config.rpcUrl.href,
+    config.networkIdHex,
+    config.registryEnabled,
+    toHex0x(config.accountAddress),
+    toHex0x(config.factoryAddress),
+    toHex0x(config.nativeHogAddress),
+    toHex0x(config.expectedTokenHash),
+    config.nativeBalanceItemCost.toString(),
+    config.explorerUrl ?? null,
+    config.swapAppUrl ?? null,
+  ]);
 }
 
 export type Environment = Record<string, string | boolean | undefined>;

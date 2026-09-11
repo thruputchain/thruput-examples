@@ -24,13 +24,14 @@ import type { WriteBoundary } from "@/transactions/write-boundary";
 import { AppHeader } from "@/components/app-header";
 import { ConnectedWalletApp, WalletControls } from "./connected-app";
 import { useWalletWriteBoundary } from "./write-context";
+import { createReadClient } from "@/groundhog/client";
 
 vi.mock("@/groundhog/client", () => ({
-  createReadClient: () => ({
+  createReadClient: vi.fn(() => ({
     getChainTip: vi.fn().mockResolvedValue({ height: 1n }),
     getTransactionReceipt: vi.fn().mockResolvedValue(null),
     getTransactionStatus: vi.fn().mockResolvedValue({ status: "unknown" }),
-  }),
+  })),
 }));
 
 function account(byte: number) {
@@ -111,7 +112,7 @@ function renderApp() {
       </>
     );
   }
-  const view = render(
+  const tree = (config: GlobalConfig) => (
     <StrictMode>
       <TooltipProvider>
         <ConnectedWalletApp config={config}>
@@ -120,9 +121,10 @@ function renderApp() {
           )}
         </ConnectedWalletApp>
       </TooltipProvider>
-    </StrictMode>,
+    </StrictMode>
   );
-  return { ...view, writers, user: userEvent.setup() };
+  const view = render(tree(config));
+  return { ...view, writers, user: userEvent.setup(), rerenderConfig: (next: GlobalConfig) => view.rerender(tree(next)) };
 }
 
 async function connect(
@@ -135,6 +137,34 @@ async function connect(
 }
 
 describe("connected wallet runtime", () => {
+  it("keeps equivalent configs connected and remounts disconnected on public scope changes", async () => {
+    const wallet = provider();
+    const { user, writers, rerenderConfig } = renderApp();
+    await connect(user);
+    const oldWriter = writers.at(-1)!;
+    const reads = vi.mocked(createReadClient).mock.calls.length;
+    await user.type(screen.getByLabelText("Route draft"), "retain");
+    rerenderConfig({ ...config, rpcUrl: new URL(config.rpcUrl.href), accountAddress: addressFromHex(toHex0x(config.accountAddress)) });
+    expect(screen.getByLabelText("Route draft")).toHaveValue("retain");
+    expect(vi.mocked(createReadClient).mock.calls).toHaveLength(reads);
+    expect(wallet.request).toHaveBeenCalledTimes(1);
+    for (const next of [
+      { ...config, rpcUrl: new URL("http://localhost:9546") },
+      { ...config, networkIdHex: "ff".repeat(32) },
+      { ...config, factoryAddress: addressFromHex(`0x${"09".repeat(32)}`) },
+      { ...config, routerAddress: addressFromHex(`0x${"09".repeat(32)}`) },
+      { ...config, poolTokenHash: `0x${"09".repeat(32)}` },
+      { ...config, explorerUrl: "https://explorer.test" },
+      { ...config, tokenDiscovery: { enabled: false, factoryAddress: "changed", tokenCodeHash: "", scope: null } },
+    ]) {
+      rerenderConfig(next);
+      expect(screen.getByLabelText("Writable")).toHaveTextContent("false");
+      expect(screen.getByLabelText("Route draft")).toHaveValue("");
+      expect(wallet.request).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(createReadClient)).toHaveBeenLastCalledWith(next);
+    }
+    await expect(oldWriter.execute({ invoked_address: config.routerAddress, entrypoint: contractEntrypointID(new Uint8Array(8)), gas_limit: gasAmount(1n), calldata: calldata(new Uint8Array()) })).resolves.toMatchObject({ kind: "preSubmissionFailure", message: expect.stringContaining("disposed") });
+  });
   it("shows a disabled connect button without a wallet and selects a late first provider without requesting access", async () => {
     const { user } = renderApp();
     expect(

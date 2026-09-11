@@ -90,17 +90,23 @@ export default defineConfig(({ command, isPreview, mode }) => {
 
 export function productionContractArtifact(hash: string | undefined): Plugin {
   let publicDirectory: string;
+  let outputDirectory: string;
   return {
     name: "groundhog-production-contract-artifact",
     configResolved(config) {
+      if (!config.publicDir || !config.build.copyPublicDir) {
+        throw new Error(
+          "Production token artifact requires publicDir and copyPublicDir",
+        );
+      }
       publicDirectory = config.publicDir;
+      outputDirectory = path.resolve(config.root, config.build.outDir);
     },
     async buildStart() {
-      if (!publicDirectory)
-        throw new Error(
-          "A public directory containing the standard token artifact is required",
-        );
       await validateStandardTokenArtifact(publicDirectory, hash);
+    },
+    async writeBundle() {
+      await validateStandardTokenArtifact(outputDirectory, hash);
     },
   };
 }

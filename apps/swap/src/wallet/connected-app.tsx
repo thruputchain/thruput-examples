@@ -11,7 +11,7 @@ import {
 } from "@groundhogchain/client/wallet";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { READ_ONLY_CALLER, type GlobalConfig } from "@/config";
+import { publicConfigKey, READ_ONLY_CALLER, type GlobalConfig } from "@/config";
 import { createReadClient } from "@/groundhog/client";
 import { createProviderWriteBoundary } from "@/transactions/provider-wallet";
 import type { WriteBoundary } from "@/transactions/write-boundary";
@@ -30,17 +30,24 @@ const WalletControlsContext = createContext<{
   selectAccount: (address: string) => void;
 } | null>(null);
 
-export function ConnectedWalletApp({
-  config,
-  children,
-}: {
+interface ConnectedWalletAppProps {
   config: GlobalConfig;
   children: (
     config: GlobalConfig,
     connected: boolean,
     revision: number,
   ) => React.ReactNode;
-}) {
+}
+
+export function ConnectedWalletApp(props: ConnectedWalletAppProps) {
+  return <WalletRuntime key={publicConfigKey(props.config)} {...props} />;
+}
+
+function WalletRuntime({
+  config: suppliedConfig,
+  children,
+}: ConnectedWalletAppProps) {
+  const [config] = useState(suppliedConfig);
   const [providers, setProviders] = useState<WalletProvider[]>([]);
   const [provider, setProvider] = useState<WalletProvider | null>(null);
   const [client] = useState(() => createReadClient(config));
