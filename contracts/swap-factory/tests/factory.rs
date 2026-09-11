@@ -1,5 +1,5 @@
-//! Tests for the swap factory: one-transaction pool bring-up, the pair
-//! registry, and the protocol fee flowing to the factory's `fee_to`.
+//! Tests for the swap factory: one-transaction pool bring-up, the pair registry, and the protocol
+//! fee flowing to the factory's `fee_to`.
 
 use groundhog_erc20_if::{Amount, Difference, ERC20Client};
 use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
@@ -13,31 +13,30 @@ use swap_pair::u256::U256;
 
 hash_ident! { pub static DEPLOYER: ContractAddress; }
 hash_ident! { pub static FEE_ADDR: ContractAddress; }
-// The factory hands this on to every driver it creates, as the only address
-// whose requests they will take.  Nothing here enqueues, so a bare address
-// stands in for the router contract.
+// The factory hands this on to every driver it creates, as the only address whose requests they
+// will take. Nothing here enqueues, so a bare address stands in for the router contract.
 hash_ident! { pub static ROUTER_ADDR: ContractAddress; }
 
 // Enough for the fee test's prime + donation + second add.
 const SUPPLY: u128 = 3_000_000;
 
-// Storage tokens granted to each contract under the default cost model, well
-// above what these tests spend.
+// Storage tokens granted to each contract under the default cost model, well above what these tests
+// spend.
 const CONTRACT_FUNDING: i64 = 1_000_000_000;
 
 // What the tests hand `create_pair` for each of the pool's three contracts.
 const FUNDING: Amount = POOL_FUNDING.recommended;
 
-// Deploy nonces, at module scope so a contract's deterministic address can be
-// computed (and funded) before it is deployed.
+// Deploy nonces, at module scope so a contract's deterministic address can be computed (and funded)
+// before it is deployed.
 hash_ident! { static T0_NONCE: SHA256Hash; }
 hash_ident! { static T1_NONCE: SHA256Hash; }
 hash_ident! { static T2_NONCE: SHA256Hash; }
 hash_ident! { static FACTORY_NONCE: SHA256Hash; }
 
-// Under the default cost model a contract pays for the storage it writes.  Grant
-// storage tokens to the (deterministic) address `DEPLOYER` will deploy `hash` to
-// with `nonce`, so the freshly deployed contract is solvent.
+// Under the default cost model a contract pays for the storage it writes. Grant storage tokens to
+// the (deterministic) address `DEPLOYER` will deploy `hash` to with `nonce`, so the freshly
+// deployed contract is solvent.
 fn fund_deploy_target(env: &TestEnvironmentHandle, nonce: &SHA256Hash, hash: &SHA256Hash) {
     let addr = exec_tx(env, &DEPLOYER, || get_deploy_address(nonce, hash))
         .expect("compute deploy address");
@@ -53,15 +52,14 @@ struct Setup {
     token_hash: SHA256Hash,
 }
 
-// Register the pool's contracts, deploy two funded tokens, and deploy+init a
-// factory with `fee_to = Some(FEE_ADDR)`.
+// Register the pool's contracts, deploy two funded tokens, and deploy+init a factory with `fee_to =
+// Some(FEE_ADDR)`.
 fn setup() -> Setup {
     setup_with_fee(Some(FEE_ADDR))
 }
 
-// The pool's contracts, natively for ordinary tests and as built guest
-// binaries under `guest_test` -- where gas is metered for real, which is what
-// the protocol-fee calibration needs.
+// The pool's contracts, natively for ordinary tests and as built guest binaries under `guest_test`
+// -- where gas is metered for real, which is what the protocol-fee calibration needs.
 #[cfg(not(feature = "guest_test"))]
 fn register_contracts(env: &TestEnvironmentHandle) -> (SwapHashes, SHA256Hash) {
     (
@@ -93,13 +91,13 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
 
     let (hashes, factory_hash) = register_contracts(&env);
 
-    // The native HOG token is a precompile: it is live at its address from
-    // genesis and cannot be redeployed. It still keeps its allowance ledger in
-    // its own storage, and pays for it like any other contract.
+    // The native HOG token is a precompile: it is live at its address from genesis and cannot be
+    // redeployed. It still keeps its allowance ledger in its own storage, and pays for it like any
+    // other contract.
     env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);
 
-    // Under the default cost model each contract pays for the storage it writes,
-    // so pre-fund the deployer and the contracts it deploys directly.
+    // Under the default cost model each contract pays for the storage it writes, so pre-fund the
+    // deployer and the contracts it deploys directly.
     env.setup_grant_storage_tokens(&DEPLOYER, CONTRACT_FUNDING);
     fund_deploy_target(&env, &T0_NONCE, &hashes.token);
     fund_deploy_target(&env, &T1_NONCE, &hashes.token);
@@ -127,8 +125,8 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     .unwrap();
     env.advance_block();
 
-    // The factory funds the pool's three contracts as it deploys them, on the
-    // allowance the creator grants it.
+    // The factory funds the pool's three contracts as it deploys them, on the allowance the creator
+    // grants it.
     exec_tx(&env, &DEPLOYER, || {
         ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
             .adjust_allowance(&factory, CONTRACT_FUNDING as Difference);
@@ -145,11 +143,10 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     }
 }
 
-// The registry's creation-ordered list is a `Vector`, whose length is written
-// under an exclusive lock, so the factory creates at most one pool per block:
-// of two `create_pair`s for *different* pairs in one block, the second's frame
-// runs to completion but its commit is refused -- it is returned to the
-// mempool, not failed -- and it lands in the next block.
+// The registry's creation-ordered list is a `Vector`, whose length is written under an exclusive
+// lock, so the factory creates at most one pool per block: of two `create_pair`s for *different*
+// pairs in one block, the second's frame runs to completion but its commit is refused -- it is
+// returned to the mempool, not failed -- and it lands in the next block.
 #[test]
 fn a_second_pool_in_one_block_is_deferred_not_failed() {
     let s = setup();
@@ -196,11 +193,10 @@ fn a_second_pool_in_one_block_is_deferred_not_failed() {
     .unwrap();
 }
 
-// A `funding` below the factory's floor is refused outright, before anything
-// is deployed.  This is the only under-funding the factory can report: past
-// the floor a shortfall is only felt when the transaction's storage deposits
-// are reserved, which returns the transaction to the mempool rather than
-// aborting it -- see `SwapFactoryError::InsufficientFunding`.
+// A `funding` below the factory's floor is refused outright, before anything is deployed. This is
+// the only under-funding the factory can report: past the floor a shortfall is only felt when the
+// transaction's storage deposits are reserved, which returns the transaction to the mempool rather
+// than aborting it -- see `SwapFactoryError::InsufficientFunding`.
 #[test]
 fn create_pair_refuses_funding_below_the_floor() {
     let s = setup();
@@ -228,23 +224,23 @@ fn create_pair_refuses_funding_below_the_floor() {
 fn create_pair_brings_up_pool() {
     let s = setup();
 
-    // The addresses the factory predicts it will deploy to (used off-chain to
-    // pre-fund the contracts before they are initialized).
+    // The addresses the factory predicts it will deploy to (used off-chain to pre-fund the
+    // contracts before they are initialized).
     let predicted = exec_tx(&s.env, &DEPLOYER, || {
         SwapFactoryClient::new(&s.factory).pool_addresses(&s.token0, &s.token1)
     })
     .unwrap();
 
-    // The whole pool is deployed and wired in a single transaction.  If any
-    // sub-initialization had failed, `create_pair` would have thrown.
+    // The whole pool is deployed and wired in a single transaction. If any sub-initialization had
+    // failed, `create_pair` would have thrown.
     let pool = exec_tx(&s.env, &DEPLOYER, || {
         SwapFactoryClient::new(&s.factory).create_pair(&s.token0, &s.token1, FUNDING)
     })
     .unwrap();
     s.env.advance_block();
 
-    // The prediction matched what was actually deployed -- the invariant the
-    // testkit sim relies on to pre-fund the contracts.
+    // The prediction matched what was actually deployed -- the invariant the testkit sim relies on
+    // to pre-fund the contracts.
     assert_eq!(predicted, pool);
 
     exec_tx(&s.env, &DEPLOYER, || {
@@ -256,9 +252,9 @@ fn create_pair_brings_up_pool() {
         assert_eq!(factory.all_pairs_length(), 1);
         assert_eq!(factory.fee_to(), Some(FEE_ADDR));
 
-        // Enumeration: the creation-ordered list yields the pool's two tokens
-        // (canonically ordered), which `pool_addresses` resolves back to the
-        // pool that was just created.  One past the end is `None`.
+        // Enumeration: the creation-ordered list yields the pool's two tokens (canonically
+        // ordered), which `pool_addresses` resolves back to the pool that was just created. One
+        // past the end is `None`.
         let tokens = factory.pair_at(0).expect("pair 0 in bounds");
         assert_eq!(tokens, sorted([s.token0, s.token1]));
         assert_eq!(factory.pool_addresses(&tokens[0], &tokens[1]), pool);
@@ -273,8 +269,8 @@ fn create_pair_brings_up_pool() {
     })
     .unwrap();
 
-    // Creating the same pair again is rejected.  (Both arms of `create_pair`'s
-    // guard, in the one test, so the successful bring-up above is not repeated.)
+    // Creating the same pair again is rejected. (Both arms of `create_pair`'s guard, in the one
+    // test, so the successful bring-up above is not repeated.)
     let dup = exec_tx(&s.env, &DEPLOYER, || {
         SwapFactoryClient::new(&s.factory).try_create_pair(&s.token0, &s.token1, FUNDING)
     })
@@ -318,26 +314,25 @@ fn fee_accrues_to_factory_fee_to() {
     })
     .unwrap();
 
-    // Expected: totalSupply * (rootK - rootKLast) / (5 * rootK + rootKLast),
-    // computed independently from the on-chain reserves and supply.
+    // Expected: totalSupply * (rootK - rootKLast) / (5 * rootK + rootKLast), computed independently
+    // from the on-chain reserves and supply.
     let root_k = (U256::from(r0) * U256::from(r1)).integer_sqrt();
     let root_k_last = k_last.integer_sqrt();
     let expected =
         U256::from(supply) * (root_k - root_k_last) / (root_k * U256::from(5) + root_k_last);
 
-    // The fee reached the factory's `fee_to`, proving the pair consulted the
-    // factory dynamically.
+    // The fee reached the factory's `fee_to`, proving the pair consulted the factory dynamically.
     assert!(expected > U256::ZERO);
     assert_eq!(U256::from(fee), expected);
 }
 
-// The liquidity a pool is primed with, and the amount donated afterwards to
-// grow `k` the way accrued swap fees would.
+// The liquidity a pool is primed with, and the amount donated afterwards to grow `k` the way
+// accrued swap fees would.
 const PRIME: u128 = 1_000_000;
 
-// Create the pool, prime it with equal liquidity (which records `k_last` but
-// mints no fee, there being no prior k), then donate and `sync` so that the
-// next liquidity event finds a grown k.  Returns `(pair, lp, token0, token1)`.
+// Create the pool, prime it with equal liquidity (which records `k_last` but mints no fee, there
+// being no prior k), then donate and `sync` so that the next liquidity event finds a grown k.
+// Returns `(pair, lp, token0, token1)`.
 fn prime_and_grow(
     s: &Setup,
 ) -> (
@@ -346,9 +341,8 @@ fn prime_and_grow(
     ContractAddress,
     ContractAddress,
 ) {
-    // Copied out before the closures: capturing them through `s` would drag
-    // the whole `Setup` -- and its environment handle -- across `exec_tx`'s
-    // unwind boundary.
+    // Copied out before the closures: capturing them through `s` would drag the whole `Setup` --
+    // and its environment handle -- across `exec_tx`'s unwind boundary.
     let (factory, token0, token1) = (s.factory, s.token0, s.token1);
 
     let pool = exec_tx(&s.env, &DEPLOYER, || {
@@ -373,8 +367,8 @@ fn prime_and_grow(
     (pair, lp, t0, t1)
 }
 
-// The liquidity event that triggers the protocol fee, as its own transaction
-// so that its cost can be read off the trace.
+// The liquidity event that triggers the protocol fee, as its own transaction so that its cost can
+// be read off the trace.
 fn second_liquidity_event(
     env: &TestEnvironmentHandle,
     pair: ContractAddress,
@@ -386,29 +380,25 @@ fn second_liquidity_event(
 
 /////////////////////// protocol-fee gas ////////////////////////////////////
 
-// When a factory names a `fee_to`, every liquidity event after the first runs
-// the pair's `mint_fee`: an integer square root over `U256`, a widening
-// multiply and divide, and an LP mint.  None of that is reachable from
-// `swap-driver`'s tests, whose pairs have no factory to consult, so the
-// per-request budgets in `swap-if` are calibrated against the *cheap* branch
-// and carry margin for this one.  This measures how much margin it needs, by
-// running the same liquidity event with the fee enabled and disabled so that
-// the difference is the branch and nothing else.
+// When a factory names a `fee_to`, every liquidity event after the first runs the pair's
+// `mint_fee`: an integer square root over `U256`, a widening multiply and divide, and an LP mint.
+// None of that is reachable from `swap-driver`'s tests, whose pairs have no factory to consult, so
+// the per-request budgets in `swap-if` are calibrated against the *cheap* branch and carry margin
+// for this one. This measures how much margin it needs, by running the same liquidity event with
+// the fee enabled and disabled so that the difference is the branch and nothing else.
 //
 // Gas is only metered for real in the guest build, hence `guest_test`.
 #[cfg(feature = "guest_test")]
 #[test]
 fn the_protocol_fee_branch_fits_within_the_liquidity_budgets() {
-    // What `swap-driver`'s `request_gas` test measures for a liquidity
-    // request, whose `mint_fee` takes the cheap branch.  Kept in step with
-    // that test by hand: it measures the request, this measures the branch it
-    // cannot reach, and only their sum bounds the dearest path.
+    // What `swap-driver`'s `request_gas` test measures for a liquidity request, whose `mint_fee`
+    // takes the cheap branch. Kept in step with that test by hand: it measures the request, this
+    // measures the branch it cannot reach, and only their sum bounds the dearest path.
     const ADD_LIQUIDITY_MEASURED: u64 = 141_154;
     const REMOVE_LIQUIDITY_MEASURED: u64 = 199_633;
 
-    // The room the declared budget keeps over that sum.  The same figure
-    // `request_gas` holds the cheap path to, so that the margin means the same
-    // thing on both sides.
+    // The room the declared budget keeps over that sum. The same figure `request_gas` holds the
+    // cheap path to, so that the margin means the same thing on both sides.
     const MARGIN: u64 = 2;
 
     let with_fee = measure_fee_event(Some(FEE_ADDR));
@@ -469,10 +459,9 @@ fn measure_fee_event(fee_to: Option<ContractAddress>) -> u64 {
         .expect("an invoke of the pair")
 }
 
-// A liquidity event: the depositor moves its tokens into the pool, and then
-// the pool's own frame mints against them.  Both in one transaction, so the
-// mint sees the deposit -- a second transaction would read the balances its
-// own block began with.
+// A liquidity event: the depositor moves its tokens into the pool, and then the pool's own frame
+// mints against them. Both in one transaction, so the mint sees the deposit -- a second transaction
+// would read the balances its own block began with.
 fn deposit_and_mint(
     env: &TestEnvironmentHandle,
     pool: ContractAddress,

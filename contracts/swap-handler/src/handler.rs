@@ -14,9 +14,9 @@ const B: usize = 1;
 /// State for the request-handler contract
 #[storage]
 pub struct Handler {
-    // The only contract whose requests this one will handle.  A request names
-    // the account whose tokens it spends, so admitting anyone here would let
-    // anyone spend anyone's allowance to this contract.
+    // The only contract whose requests this one will handle. A request names the account whose
+    // tokens it spends, so admitting anyone here would let anyone spend anyone's allowance to this
+    // contract.
     driver: Value<Address>,
 
     // State for the swap-pool itself.
@@ -35,9 +35,8 @@ impl SwapHandler for Handler {
     ) {
         self.driver.set(driver);
 
-        // The pair holds the pool's configuration -- the tokens, the LP token,
-        // the factory -- and refuses a second initialization itself, so there
-        // is nothing for this contract to record.
+        // The pair holds the pool's configuration -- the tokens, the LP token, the factory -- and
+        // refuses a second initialization itself, so there is nothing for this contract to record.
         self.pair.initialize(factory, token0, token1, lp_token);
     }
 
@@ -98,8 +97,7 @@ impl Handler {
             }
         };
 
-        // Take the purchaser's tokens into the pool, then mint LP to the
-        // recipient.
+        // Take the purchaser's tokens into the pool, then mint LP to the recipient.
         self.transfer_amounts_from(&req.purchaser, amounts);
         let minted = self.pair.mint_lp(&req.recipient);
 
@@ -116,8 +114,8 @@ impl Handler {
         let (reserve_a, reserve_b, _) = self.pair.get_reserves();
         let total_supply = self.pair.get_liquidity();
 
-        // The amounts that burning `liquidity` LP tokens will return, mirroring
-        // `burn_lp`: amount_i = liquidity * reserve_i / total_supply.
+        // The amounts that burning `liquidity` LP tokens will return, mirroring `burn_lp`: amount_i
+        // = liquidity * reserve_i / total_supply.
         let amounts: Amounts = [
             ((U256::from(req.liquidity) * U256::from(reserve_a)) / U256::from(total_supply))
                 .try_into()
@@ -130,8 +128,7 @@ impl Handler {
         ensure(amounts[A] >= req.amounts_min[A], InsufficientAmountA);
         ensure(amounts[B] >= req.amounts_min[B], InsufficientAmountB);
 
-        // Take the redeemer's LP tokens into the pool, then burn them out to
-        // the recipient.
+        // Take the redeemer's LP tokens into the pool, then burn them out to the recipient.
         self.transfer_lp_from(&req.redeemer, req.liquidity);
         let redeemed = self.pair.burn_lp(&req.recipient);
 
@@ -207,9 +204,9 @@ impl Handler {
 
     // Transfer helpers
     //
-    // The user grants their allowance to this contract, which is also where
-    // the pool's tokens sit -- so a deposit is a transfer to here, and the
-    // pair's balance-delta accounting reads this contract's balances.
+    // The user grants their allowance to this contract, which is also where the pool's tokens sit
+    // -- so a deposit is a transfer to here, and the pair's balance-delta accounting reads this
+    // contract's balances.
 
     fn transfer_amounts_from(&self, owner: &Address, amounts: Amounts) {
         let to = get_current_address();
@@ -232,14 +229,13 @@ impl Handler {
 
 /// The pool's pair state, as this contract stores it.
 ///
-/// For tests that drive the pair directly, in a frame at the handler's own
-/// address.
+/// For tests that drive the pair directly, in a frame at the handler's own address.
 #[cfg(feature = "dev")]
 pub fn pair_state() -> Node<Pair> {
     use sdk::storage::{Keypath, StorageDomain};
 
-    // The same root the contract's own state is built from: a `#[storage]`
-    // struct is rooted at a domain derived from its name.
+    // The same root the contract's own state is built from: a `#[storage]` struct is rooted at a
+    // domain derived from its name.
     let handler: Handler = Keypath::root(<Handler as StorageDomain>::DOMAIN).into();
     handler.pair
 }

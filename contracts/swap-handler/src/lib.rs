@@ -1,8 +1,7 @@
 //! The contract that handles high-level swap requests.
 //!
-//! The request types and the [`SwapHandler`] interface live in `swap-if`; this
-//! crate provides the deployable handler contract and the price-optimizing
-//! library it uses.
+//! The request types and the [`SwapHandler`] interface live in `swap-if`; this crate provides the
+//! deployable handler contract and the price-optimizing library it uses.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
