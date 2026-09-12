@@ -2,28 +2,17 @@ import {
   addressFromHex,
   bytesEqual,
   createGroundhogClient,
-  createPubkeyAccount,
-  createWalletClient,
   defineCluster,
+  deserializeSignedTransaction,
   fromHex0x,
   hashSignedTransaction,
   HttpTransport,
-  PrivateKeySigner,
   toHex0x,
 } from "@groundhogchain/client";
-import {
-  blockHeight,
-  ExecResult,
-  gasAmount,
-  networkHash,
-  sha256Hash,
-} from "@groundhogchain/protocol";
+import { ExecResult, networkHash, sha256Hash } from "@groundhogchain/protocol";
 import type { AppConfig } from "../config";
 import { Counter } from "../contracts/generated/counter";
 import type { CounterConnection } from "../transactions/engine";
-
-const TRANSACTION_GAS = gasAmount(1_000_000n);
-const EXPIRY_BLOCKS = 1_000n;
 
 export async function createCounterConnection(
   config: AppConfig,
@@ -49,12 +38,8 @@ export async function createCounterConnection(
         }),
     }),
   });
-  const account = createPubkeyAccount({
-    signer: new PrivateKeySigner(fromHex0x(config.developmentPrivateKey)),
-  });
-  const wallet = createWalletClient({ client, account });
+  const signerAddress = addressFromHex(config.signerAddress);
   const contract = addressFromHex(config.counterAddress);
-  let tip: { height: bigint; readAt: number } | null = null;
   let balanceCheckedAt = 0;
 
   return {
@@ -63,33 +48,43 @@ export async function createCounterConnection(
       const network = await client.getNetworkInfo();
       if (!bytesEqual(network.networkHash, expected))
         throw new Error("Network changed. Check the app configuration.");
-      const [chainTip, counter] = await Promise.all([
-        client.getChainTip(),
-        Counter.get.view({ client, contract, caller: account.address }),
-      ]);
+      const counter = await Counter.get.view({
+        client,
+        contract,
+        caller: signerAddress,
+      });
       if (Date.now() - balanceCheckedAt >= 10_000) {
-        if ((await wallet.getBalance()).rawBalance <= 0n)
+        if ((await client.getBalance(signerAddress)).rawBalance <= 0n)
           throw new Error(
             "The development account needs test HOG. Fund it before continuing.",
           );
         balanceCheckedAt = Date.now();
       }
-      tip = { height: chainTip.height, readAt: Date.now() };
       return counter.value;
     },
     async prepare(direction) {
-      if (tip === null || Date.now() - tip.readAt > 5_000)
-        throw new Error(
-          "Chain tip is stale. Wait for the connection to recover.",
-        );
-      const transaction = await wallet.prepareExecution({
-        invocation: Counter[direction].invocation(contract, TRANSACTION_GAS, {
-          amount: 1n,
-        }),
-        gasLimit: TRANSACTION_GAS,
-        blockExpiryHeight: blockHeight(tip.height + EXPIRY_BLOCKS),
+      const response = await fetch(new URL("/api/prepare", rpcUrl), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction }),
+        signal: AbortSignal.any([
+          controller.signal,
+          AbortSignal.timeout(5_000),
+        ]),
       });
-      const signed = await wallet.signTransaction(transaction);
+      if (!response.ok)
+        throw new Error("Counter signing is unavailable. Try again shortly.");
+      const body: unknown = await response.json();
+      if (
+        !body ||
+        typeof body !== "object" ||
+        !("transaction" in body) ||
+        typeof body.transaction !== "string" ||
+        body.transaction.length > 8_192
+      ) {
+        throw new Error("The server returned an invalid counter transaction.");
+      }
+      const signed = deserializeSignedTransaction(fromHex0x(body.transaction));
       const hash = hashSignedTransaction(signed);
       return {
         hash: toHex0x(hash),

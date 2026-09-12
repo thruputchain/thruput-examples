@@ -4,7 +4,7 @@ import { parseConfig } from "./config";
 const valid = {
   networkId: "00".repeat(32),
   counterAddress: "11".repeat(32),
-  developmentPrivateKey: "22".repeat(32),
+  signerAddress: "22".repeat(32),
 };
 describe("configuration", () => {
   it("normalizes network, contract, and signer bytes", () => {
@@ -20,7 +20,7 @@ describe("configuration", () => {
         .counterAddress,
     ).toBe(`0x${"ab".repeat(32)}`);
   });
-  it.each(["networkId", "counterAddress", "developmentPrivateKey"])(
+  it.each(["networkId", "counterAddress", "signerAddress"])(
     "rejects malformed %s",
     (field) => {
       expect(() => parseConfig({ ...valid, [field]: "bad" })).toThrow();

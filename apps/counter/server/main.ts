@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadServerConfig, type ServerConfig } from "./config";
-import { handleApi, json } from "./http";
+import { createApiHandler, json } from "./http";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -19,11 +19,12 @@ export function createCounterServer(
   config: ServerConfig,
   directory = fileURLToPath(new URL("../dist", import.meta.url)),
 ) {
+  const handleApi = createApiHandler(config);
   return createServer((request, response) => {
     response.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
     response.setHeader("X-Content-Type-Options", "nosniff");
     void (async () => {
-      if (await handleApi(request, response, config)) return;
+      if (await handleApi(request, response)) return;
       if (request.method !== "GET" && request.method !== "HEAD") {
         json(response, 405, { error: "GET is required." });
         return;

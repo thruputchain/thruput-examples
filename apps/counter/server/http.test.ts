@@ -1,15 +1,78 @@
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  addressFromHex,
+  buildNamedCodecs,
+  createPubkeyAccount,
+  createTransaction,
+  decodeCalldata,
+  defaultWalletAdapter,
+  deserializeSignedTransaction,
+  fromHex0x,
+  hashSignedTransaction,
+  PrivateKeySigner,
+  serializeSignedTransaction,
+  signTransaction,
+  toHex0x,
+} from "@groundhogchain/client";
+import {
+  DefaultWallet,
+  DefaultWalletSpec,
+  ERC20,
+  type WalletCall,
+} from "@groundhogchain/client/contracts";
+import {
+  blockHeight,
+  ContractType,
+  gasAmount,
+  HOG_ADDRESS,
+  networkHash,
+  sha256Hash,
+  type Invocation,
+} from "@groundhogchain/protocol";
+import { Counter, spec } from "../src/contracts/generated/counter";
 import { loadServerConfig } from "./config";
-import { handleApi } from "./http";
+import { createApiHandler } from "./http";
 import { createCounterServer } from "./main";
 
-const config = loadServerConfig({
+const key = "22".repeat(32);
+const environment = {
   VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
   VITE_COUNTER_ADDRESS: "11".repeat(32),
-  COUNTER_DEVELOPMENT_PRIVATE_KEY: "22".repeat(32),
+  COUNTER_SIGNING_PRIVATE_KEY: key,
   VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
+};
+const config = loadServerConfig(environment);
+const account = createPubkeyAccount({
+  signer: new PrivateKeySigner(fromHex0x(`0x${key}`)),
 });
+const expectedNetwork = networkHash(
+  sha256Hash(fromHex0x(config.app.networkId)),
+);
+const contract = addressFromHex(config.app.counterAddress);
+const gas = gasAmount(1_000_000n);
+const wrap = (invocation: Invocation) =>
+  defaultWalletAdapter.createRootInvocation(account.address, {
+    invocation,
+    gasLimit: gas,
+  });
+const normal = () =>
+  createTransaction({
+    invocation: wrap(
+      Counter.increment.invocation(contract, gas, { amount: 1n }),
+    ),
+    auth_claim: account.authClaim,
+    uniquifier: { nonce: 1n, block_expiry_height: blockHeight(1_000n) },
+    contracts_to_deploy: [],
+  });
+async function sign(tx = normal()) {
+  return toHex0x(
+    serializeSignedTransaction(
+      await signTransaction(tx, account.signers, expectedNetwork),
+    ),
+  );
+}
+
 let server: Server;
 async function listen(instance: Server) {
   server = instance;
@@ -26,80 +89,269 @@ afterEach(async () => {
     });
 });
 
-describe("counter HTTP boundary", () => {
-  it("serves only the explicit public demo config, with no cache", async () => {
-    const origin = await listen(createCounterServer(config));
-    const response = await fetch(`${origin}/api/config`);
-    expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toEqual(config.app);
-    expect((await fetch(`${origin}/healthz`)).status).toBe(200);
+function rpcMock() {
+  return vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as {
+      method: string;
+      id: number;
+      params: string[];
+    };
+    const result =
+      body.method === "groundhog_networkInfo"
+        ? { networkHash: config.app.networkId }
+        : body.method === "groundhog_chainTip"
+          ? { height: 10, blockHash: `0x${"00".repeat(32)}` }
+          : body.method === "groundhog_sendRawTransaction"
+            ? toHex0x(
+                hashSignedTransaction(
+                  deserializeSignedTransaction(fromHex0x(body.params[0]!)),
+                ),
+              )
+            : null;
+    return Response.json({ jsonrpc: "2.0", id: body.id, result });
   });
-
-  it("forwards one signed transaction once and permits receipt reads", async () => {
-    const upstream = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async () =>
-        Response.json({ jsonrpc: "2.0", id: 1, result: "0x1234" }),
-      );
-    const origin = await listen(
-      createServer((req, res) => {
-        void handleApi(req, res, config, upstream);
-      }),
-    );
-    for (const method of [
-      "groundhog_sendRawTransaction",
-      "groundhog_getTransactionReceipt",
-    ]) {
-      const body = { jsonrpc: "2.0", id: 1, method, params: ["0x1234"] };
-      expect(
-        (
-          await fetch(`${origin}/groundhog-rpc`, {
-            method: "POST",
-            body: JSON.stringify(body),
-          })
-        ).status,
-      ).toBe(200);
-      expect(upstream).toHaveBeenLastCalledWith(
-        config.rpcUrl,
-        expect.objectContaining({
-          body: JSON.stringify(body),
-          redirect: "error",
-        }),
-      );
-    }
-    expect(upstream).toHaveBeenCalledTimes(2);
-  });
-
-  it("does not replay a submission after an upstream error", async () => {
-    const upstream = vi
-      .fn<typeof fetch>()
-      .mockRejectedValue(new Error("lost response"));
-    const origin = await listen(
-      createServer((req, res) => {
-        void handleApi(req, res, config, upstream);
-      }),
-    );
-    const response = await fetch(`${origin}/groundhog-rpc`, {
+}
+async function fixture(upstream = rpcMock()) {
+  const handler = createApiHandler(config, upstream);
+  const origin = await listen(
+    createServer((req, res) => {
+      void handler(req, res);
+    }),
+  );
+  const post = (path: string, body: unknown) =>
+    fetch(`${origin}${path}`, {
       method: "POST",
-      body: JSON.stringify({
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  return {
+    origin,
+    upstream,
+    post,
+    send: (params: unknown) =>
+      post("/groundhog-rpc", {
         jsonrpc: "2.0",
         id: 1,
         method: "groundhog_sendRawTransaction",
-        params: ["0x1234"],
+        params,
       }),
+  };
+}
+
+describe("counter signing boundary", () => {
+  it("publishes only public identity and refuses a previously exposed key configuration", async () => {
+    const origin = await listen(createCounterServer(config));
+    const response = await fetch(`${origin}/api/config`);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = await response.text();
+    expect(body).not.toContain(key);
+    expect(JSON.parse(body)).toEqual({
+      networkId: config.app.networkId,
+      counterAddress: config.app.counterAddress,
+      signerAddress: toHex0x(account.address),
+      explorerUrl: null,
     });
-    expect(response.status).toBe(502);
+    expect(() =>
+      loadServerConfig({
+        ...environment,
+        COUNTER_SIGNING_PRIVATE_KEY: undefined,
+        COUNTER_DEVELOPMENT_PRIVATE_KEY: key,
+      }),
+    ).toThrow("previously public");
+  });
+
+  it.each(["increment", "decrement"] as const)(
+    "signs only one %s by one and does not submit during preparation",
+    async (direction) => {
+      const { post, upstream, send } = await fixture();
+      const response = await post("/api/prepare", { direction });
+      expect(response.status).toBe(200);
+      const { transaction } = (await response.json()) as {
+        transaction: string;
+      };
+      const signed = deserializeSignedTransaction(fromHex0x(transaction));
+      expect(signed.signatures).toHaveLength(1);
+      expect(signed.tx.invocation.invoked_address).toEqual(account.address);
+      expect(signed.tx.invocation.entrypoint).toEqual(
+        DefaultWallet.execute.entrypoint,
+      );
+      expect(signed.tx.contracts_to_deploy).toEqual([]);
+      const { calls } = decodeCalldata(
+        DefaultWalletSpec,
+        "DefaultWallet",
+        "execute",
+        signed.tx.invocation.calldata,
+        buildNamedCodecs(DefaultWalletSpec.type_defs),
+      ) as { calls: WalletCall[] };
+      expect(calls).toHaveLength(1);
+      expect(calls[0]!.target).toEqual(contract);
+      expect(calls[0]!.entrypoint).toEqual(Counter[direction].entrypoint);
+      expect(
+        decodeCalldata(
+          spec,
+          "Counter",
+          direction,
+          calls[0]!.calldata,
+          buildNamedCodecs(spec.type_defs),
+        ),
+      ).toEqual({ amount: 1n });
+      expect(
+        upstream.mock.calls.some(([, init]) =>
+          String(init?.body).includes("groundhog_sendRawTransaction"),
+        ),
+      ).toBe(false);
+      expect((await send([transaction])).status).toBe(200);
+    },
+  );
+
+  it("rejects caller-selected targets, amounts, methods, and transaction data before signing", async () => {
+    const { post, upstream } = await fixture();
+    for (const body of [
+      null,
+      [],
+      {},
+      { direction: "initialize" },
+      { direction: "transfer" },
+      { direction: "increment", amount: 1 },
+      { direction: "decrement", amount: "1000000" },
+      { direction: "increment", target: "0x1234" },
+      { direction: "increment", transaction: "0x1234" },
+      { direction: "increment", nonce: 1 },
+    ])
+      expect((await post("/api/prepare", body)).status).toBe(400);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("refuses to sign for an unexpected network", async () => {
+    const upstream = rpcMock().mockImplementation(async (_input, init) =>
+      Response.json({
+        jsonrpc: "2.0",
+        id: JSON.parse(String(init?.body)).id,
+        result: { networkHash: `0x${"ff".repeat(32)}` },
+      }),
+    );
+    const { post } = await fixture(upstream);
+    const response = await post("/api/prepare", { direction: "increment" });
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain(key);
+  });
+
+  it("rejects transfers, other contracts, all other entrypoints, and arbitrary amounts even when signed by the funded key", async () => {
+    const { send, upstream } = await fixture();
+    const calls = [
+      ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+        receiver: contract,
+        amount: 10n,
+      }),
+      Counter.increment.invocation(
+        addressFromHex(`0x${"33".repeat(32)}`),
+        gas,
+        { amount: 1n },
+      ),
+      Counter.initialize.invocation(contract, gas, { initialValue: 1n }),
+      Counter.ping.invocation(contract, gas, { tag: 1n }),
+      Counter.error.invocation(contract, gas),
+      Counter.get.invocation(contract, gas),
+      ...[0n, 2n, (1n << 64n) - 1n].flatMap((amount) => [
+        Counter.increment.invocation(contract, gas, { amount }),
+        Counter.decrement.invocation(contract, gas, { amount }),
+      ]),
+    ];
+    for (const call of calls)
+      expect(
+        (await send([await sign({ ...normal(), invocation: wrap(call) })]))
+          .status,
+      ).toBe(403);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("rejects changed wrappers, multiple calls, attached code, and malformed transactions", async () => {
+    const { send, upstream } = await fixture();
+    const valid = normal();
+    const { calls } = decodeCalldata(
+      DefaultWalletSpec,
+      "DefaultWallet",
+      "execute",
+      valid.invocation.calldata,
+      buildNamedCodecs(DefaultWalletSpec.type_defs),
+    ) as { calls: WalletCall[] };
+    const variants = [
+      {
+        ...valid,
+        invocation: { ...valid.invocation, gas_limit: gasAmount(2_000_000n) },
+      },
+      {
+        ...valid,
+        invocation: { ...valid.invocation, invoked_address: contract },
+      },
+      {
+        ...valid,
+        invocation: DefaultWallet.execute.invocation(account.address, gas, {
+          calls: [...calls, ...calls],
+        }),
+      },
+      {
+        ...valid,
+        contracts_to_deploy: [
+          {
+            contract_type: ContractType.kRv32 as const,
+            rv32_contract: { data: new Uint8Array([1]) },
+          },
+        ],
+      },
+    ];
+    for (const tx of variants)
+      expect((await send([await sign(tx)])).status).toBe(403);
+    for (const params of [
+      [],
+      ["0x1234"],
+      [await sign(), await sign()],
+      ["0x" + "00".repeat(5_000)],
+    ])
+      expect((await send(params)).status).toBe(403);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("does not replay an allowed submission after an upstream error", async () => {
+    const upstream = rpcMock().mockRejectedValue(new Error("lost response"));
+    const { send } = await fixture(upstream);
+    expect((await send([await sign()])).status).toBe(502);
     expect(upstream).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects batches, malformed input, and non-app RPC methods", async () => {
-    const upstream = vi.fn<typeof fetch>();
-    const origin = await listen(
-      createServer((req, res) => {
-        void handleApi(req, res, config, upstream);
+  it("keeps signed hashes independent so a burst can be submitted concurrently", async () => {
+    const { post, send, upstream } = await fixture();
+    const responses = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        post("/api/prepare", { direction: "increment" }),
+      ),
+    );
+    const transactions = await Promise.all(
+      responses.map(async (response) => {
+        expect(response.status).toBe(200);
+        return ((await response.json()) as { transaction: string }).transaction;
       }),
     );
+    const hashes = transactions.map((tx) =>
+      toHex0x(
+        hashSignedTransaction(deserializeSignedTransaction(fromHex0x(tx))),
+      ),
+    );
+    expect(new Set(hashes).size).toBe(20);
+    expect(
+      upstream.mock.calls.filter(([, init]) =>
+        String(init?.body).includes("groundhog_chainTip"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      (await Promise.all(transactions.map((tx) => send([tx])))).every(
+        (response) => response.status === 200,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects batches and non-app RPC methods and keeps environment files out of the static server", async () => {
+    const origin = await listen(createCounterServer(config));
     for (const body of [
       "[]",
       "null",
@@ -115,18 +367,12 @@ describe("counter HTTP boundary", () => {
           .status,
       ).toBeGreaterThanOrEqual(400);
     }
-    expect(upstream).not.toHaveBeenCalled();
-  });
-
-  it("keeps environment files and traversal paths out of the static server", async () => {
-    const origin = await listen(createCounterServer(config));
     for (const path of [
       "/.env.local",
       "/%2e%2e/server/config.ts",
       "/server/main.ts",
       "/assets/../../package.json",
-    ]) {
+    ])
       expect((await fetch(`${origin}${path}`)).status).toBe(404);
-    }
   });
 });

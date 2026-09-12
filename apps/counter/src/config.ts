@@ -1,7 +1,7 @@
 export interface AppConfig {
   networkId: string;
   counterAddress: string;
-  developmentPrivateKey: string;
+  signerAddress: string;
   explorerUrl: string | null;
 }
 
@@ -43,10 +43,7 @@ export function parseConfig(value: unknown): AppConfig {
   return {
     networkId: hex32(config.networkId, "Network ID"),
     counterAddress: hex32(config.counterAddress, "Counter address"),
-    developmentPrivateKey: hex32(
-      config.developmentPrivateKey,
-      "Development key",
-    ),
+    signerAddress: hex32(config.signerAddress, "Signer address"),
     explorerUrl,
   };
 }

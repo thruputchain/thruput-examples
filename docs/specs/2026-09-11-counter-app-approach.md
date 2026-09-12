@@ -2,7 +2,7 @@
 
 ## Recommendation
 
-Build `apps/counter` as a small, single-page app. Use the existing Thruput theme, a locally signed development account, and one shared counter contract. Make each button press or captured keydown submit one transaction that changes the counter by one.
+Build `apps/counter` as a small, single-page app. Use the existing Thruput theme, a server-signed development account, and one shared counter contract. Make each button press or captured keydown submit one transaction that changes the counter by one.
 
 The main design choice is to separate input, submission, and confirmation. Users should be able to keep pressing keys while earlier transactions are still in flight.
 
@@ -46,7 +46,9 @@ This gives users a place to smash keys while preserving normal page controls.
 
 ## Signing and setup
 
-Use one generated, funded development account per app deployment, with its development key available to the browser as in the earlier apps. This is a deliberately public demo account with test HOG. There is no connect-wallet flow or per-transaction prompt.
+Use one generated, funded development account per app deployment. Keep the key on the server. A signing endpoint accepts only an increment or decrement direction and fixes the counter target and amount to one. There is no connect-wallet flow or per-transaction prompt.
+
+This replaces the original browser-key design after security review. Existing public keys must be replaced, not merely hidden. Setup migrates the old configuration to a fresh funded signer while preserving the counter address and value.
 
 Add `setup:local` to build the counter, generate its TypeScript bindings, provision the account, fund the contract's storage, deploy it, initialize it, and write the app configuration. Verify the resulting counter value before reporting readiness.
 
@@ -56,10 +58,10 @@ Use one shared counter per configured deployment. Everyone sees the same chain v
 
 ## Transaction pipeline
 
-Keep the transaction engine separate from React. I recommend a single Web Worker for signing, submission, and observation so bursts do not compete with rendering on the main thread.
+Keep the transaction engine separate from React. Use a single Web Worker for signing requests, submission, and observation so bursts do not compete with rendering on the main thread.
 
 1. **Accept input.** Record one operation and send it to the engine immediately.
-2. **Prepare and sign.** Build the generated counter invocation, wrap it with the SDK's default account adapter, assign a random nonce, and use an expiry derived from a recently observed chain tip. Keep the signed transaction hash before submission.
+2. **Prepare and sign.** Request a fixed ±1 invocation from the server. The server uses the SDK's default account adapter, assigns a random nonce, and sets an expiry from a recent chain tip. The browser receives the signed transaction and computes its hash before submission. Preparation itself does not submit.
 3. **Submit concurrently.** Use a bounded pool of active submission requests. Release a submission slot when its RPC request finishes, not when the transaction confirms.
 4. **Observe separately.** Use one scheduler with bounded receipt/status checks for outstanding hashes. Do not create an independent high-frequency polling loop for every key press.
 5. **Refresh the view.** Read `get()` on a shared cadence, initially around 250–500 ms during activity and less often while idle. Prevent older responses from replacing newer state.
@@ -84,7 +86,7 @@ The final counter alone is a poor activity signal because random increments and 
 - Add `apps/counter` to the npm workspaces, using the pinned dependencies and command conventions already in the repository. Use port 5175 for local development.
 - Keep a small structure: app UI, theme/components, generated counter bindings, configuration/client setup, transaction engine/worker, setup scripts, and a thin static server/RPC proxy for deployment.
 - Reuse the theme and only the UI primitives this screen needs. A router, registry, indexer, and database are unnecessary for this page.
-- Give the proxy the read methods needed for readiness, counter views, and transaction observation, plus signed-transaction submission. Keep funding in setup.
+- Give the proxy the read methods needed for readiness, counter views, and transaction observation, plus signed-transaction submission. Validate submitted payloads against the two fixed wallet-wrapped ±1 counter calls; reject other targets, entrypoints, amounts, wrappers, and attached code. Keep funding in setup.
 - Include a short README and deployment configuration consistent with the other apps.
 
 ## Verification before calling it complete
@@ -100,7 +102,7 @@ Measure the first burst with the proposed single signer and shared counter. The 
 ## Defaults to review
 
 - **One shared counter**, initialized to **1,000,000**.
-- **One public development signer** provisioned by setup.
+- **One private server-side development signer** provisioned by setup.
 - **Focus-to-smash**, with key repeat enabled and Escape to leave.
 - **One input = one ±1 transaction**, with concurrent submission.
 - **Chain-backed number and session-only metrics**.

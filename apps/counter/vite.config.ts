@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { fileURLToPath } from "node:url";
 import { loadServerConfig, type ServerConfig } from "./server/config";
-import { handleApi, json } from "./server/http";
+import { createApiHandler, json } from "./server/http";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 export default defineConfig(({ mode }) => {
@@ -19,8 +19,9 @@ export default defineConfig(({ mode }) => {
   const api: Plugin = {
     name: "counter-api",
     configureServer(server) {
+      const handleApi = createApiHandler(config);
       server.middlewares.use((request, response, next) => {
-        void handleApi(request, response, config)
+        void handleApi(request, response)
           .then((handled) => {
             if (!handled) next();
           })

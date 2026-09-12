@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { link, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -65,11 +65,27 @@ export async function setup(
   });
   // Reruns verify the existing deployment. initialize() is additive, not a reset.
   try {
-    const existing = loadServerConfig(parseEnv(await readFile(output, "utf8")));
+    const previous = await readFile(output, "utf8");
+    const stored = parseEnv(previous);
+    const replacePublicSigner =
+      !stored.COUNTER_SIGNING_PRIVATE_KEY &&
+      !!stored.COUNTER_DEVELOPMENT_PRIVATE_KEY;
+    if (replacePublicSigner)
+      stored.COUNTER_SIGNING_PRIVATE_KEY = toHex0x(randomBytes(32));
+    const existing = loadServerConfig(stored);
     if (existing.app.networkId !== networkId || existing.rpcUrl !== url.href) {
       throw new Error(
         "Existing configuration belongs to another node. Choose a new COUNTER_APP_ENV path.",
       );
+    }
+    if (replacePublicSigner) {
+      const account = createPubkeyAccount({
+        signer: new PrivateKeySigner(fromHex0x(existing.signingPrivateKey)),
+      });
+      const wallet = createWalletClient({ client, account });
+      const funding = await wallet.requestAirdrop();
+      if (funding.status.result !== "ok")
+        throw new Error("Replacement signer funding failed.");
     }
     const { createCounterConnection } = await import("../src/groundhog/client");
     const connection = await createCounterConnection(existing.app, url.href);
@@ -77,6 +93,29 @@ export async function setup(
       await connection.read();
     } finally {
       connection.dispose();
+    }
+    if (replacePublicSigner) {
+      delete stored.COUNTER_DEVELOPMENT_PRIVATE_KEY;
+      const temporary = `${output}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+      try {
+        await writeFile(
+          temporary,
+          Object.entries(stored)
+            .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+            .join("\n") + "\n",
+          { flag: "wx", mode: 0o600 },
+        );
+        if ((await readFile(output, "utf8")) !== previous)
+          throw new Error(
+            "Configuration changed during signer migration. Run setup again.",
+          );
+        await rename(temporary, output);
+      } finally {
+        await rm(temporary, { force: true });
+      }
+      console.log(
+        "Replaced the previously public signer. Restart the app server; the counter value is unchanged.",
+      );
     }
     console.log(`Existing counter verified. App environment: ${output}`);
     return;
@@ -159,7 +198,7 @@ export async function setup(
         `VITE_GROUNDHOG_RPC_URL=${url.href}`,
         `VITE_GROUNDHOG_NETWORK_ID=${networkId}`,
         `VITE_COUNTER_ADDRESS=${toHex0x(address)}`,
-        `COUNTER_DEVELOPMENT_PRIVATE_KEY=${toHex0x(signerBytes)}`,
+        `COUNTER_SIGNING_PRIVATE_KEY=${toHex0x(signerBytes)}`,
         "VITE_EXPLORER_URL=",
         "",
       ].join("\n"),

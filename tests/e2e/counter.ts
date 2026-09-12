@@ -1,6 +1,6 @@
 // Explicit live check: npm run test:counter (build apps/counter first).
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,7 +114,21 @@ try {
     "Setup rerun must preserve the signer and deployment",
   );
   const config = loadServerConfig(parseEnv(before));
-  const connection = await createCounterConnection(config.app, config.rpcUrl);
+  server = createCounterServer(config);
+  await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const origin = `http://127.0.0.1:${address.port}`;
+  const publicResponse = await fetch(`${origin}/api/config`);
+  const publicConfig = await publicResponse.text();
+  assert.ok(
+    !publicConfig.includes(config.signingPrivateKey),
+    "Public config must not include the signing key",
+  );
+  const connection = await createCounterConnection(
+    config.app,
+    `${origin}/groundhog-rpc`,
+  );
   engine = new TransactionEngine(connection);
   timer = setInterval(() => engine!.tick(), 25);
   await until(() => engine!.snapshot().ready, "engine readiness");
@@ -138,13 +152,36 @@ try {
   clearInterval(timer);
   engine.stop();
 
+  const legacyOutput = join(work, "legacy.env");
+  await writeFile(
+    legacyOutput,
+    before.replace(
+      "COUNTER_SIGNING_PRIVATE_KEY=",
+      "COUNTER_DEVELOPMENT_PRIVATE_KEY=",
+    ),
+    { mode: 0o600 },
+  );
+  await setup({ ...environment, COUNTER_APP_ENV: legacyOutput });
+  const migratedEnv = parseEnv(await readFile(legacyOutput, "utf8"));
+  const migrated = loadServerConfig(migratedEnv);
+  assert.equal(migratedEnv.COUNTER_DEVELOPMENT_PRIVATE_KEY, undefined);
+  assert.notEqual(migrated.signingPrivateKey, config.signingPrivateKey);
+  assert.equal(migrated.app.counterAddress, config.app.counterAddress);
+  const migratedConnection = await createCounterConnection(
+    migrated.app,
+    config.rpcUrl,
+  );
+  try {
+    assert.equal(await migratedConnection.read(), 1_000_040n);
+  } finally {
+    migratedConnection.dispose();
+  }
+  console.log(
+    "Legacy signer replaced and funded; shared counter value preserved.",
+  );
+
   const rpcUrl = config.rpcUrl;
   config.rpcUrl = "http://127.0.0.1:1";
-  server = createCounterServer(config);
-  await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address !== "string");
-  const origin = `http://127.0.0.1:${address.port}`;
   browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH ?? "/usr/bin/chromium",
     headless: true,
