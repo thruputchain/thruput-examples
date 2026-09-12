@@ -1,0 +1,9 @@
+[submodule "experiments/doom/vendor/PureDOOM"]
+	path = experiments/doom/vendor/PureDOOM
+	url = https://github.com/Daivuk/PureDOOM.git
+[submodule "experiments/doom/vendor/hogd"]
+	path = experiments/doom/vendor/hogd
+	url = https://github.com/groundhogchain/hogd.git
+[submodule "experiments/doom/vendor/groundhog-rpc"]
+	path = experiments/doom/vendor/groundhog-rpc
+	url = https://github.com/groundhogchain/groundhog-rpc.git

@@ -1,0 +1,24 @@
+{
+  "issue": "https://github.com/groundhogchain/hogd/issues/4037",
+  "hogdRevision": "5cd207403209190130f994e7804004222ba26b1f",
+  "rpcRevision": "f13196e4926489e291070297bc71e8546519b582",
+  "contract": "0xf552775dde7d1e93f2ee6fbeca610c54b12a63e947339222e5e71471255324cf",
+  "lastReceipt": {
+    "method": 2,
+    "txHash": "0x7cab3b7e36d375f47d2871bc7bd290e1d70c092ddf7f5cf6079456312c95a664",
+    "height": 169,
+    "status": {
+      "result": "ok"
+    },
+    "wallMs": 44.10986699804198,
+    "gasBudget": 50000000,
+    "auth": "pubkey"
+  },
+  "recoveredCanonicalHeight": 142,
+  "firstOutboxHeightBeyondTip": 143,
+  "sessionWriteTime": "2026-09-12T16:39:34.096Z",
+  "restartTime": "2026-09-12T16:39:34.343Z",
+  "error": "recovered event outbox does not reconcile with HogDB tip",
+  "repro": "python test_live.py --restart with documented binaries and a fresh --data-dir",
+  "note": "Intermittent: the later run recorded in live.json completed restart successfully. Root cause unconfirmed."
+}

@@ -1,6 +1,6 @@
 {
   "hogd_repository": "https://github.com/groundhogchain/hogd.git",
-  "hogd_revision": "2ced81d979b90f8f70847581d2db965145b22865",
+  "hogd_revision": "5cd207403209190130f994e7804004222ba26b1f",
   "hogd_files": {
     "hogd/hog_exec/runtime/rv32/arch_trace.h": "5e28d36d19f8bcf6e579416c6f5de7d8ff19c149",
     "hogd/hog_exec/runtime/rv32/encoding.h": "5f7ec77f7aa9dc2088275d07f0ad6a5cbb42423a",
@@ -15,5 +15,7 @@
     "hogd/hog_exec/runtime/rv32/threaded_program.h": "9230d6abf48d0a792ddbdfb6e081bd1cc223e2ff"
   },
   "puredoom_repository": "https://github.com/Daivuk/PureDOOM.git",
-  "puredoom_revision": "355cfbd16fac119718879239336ee2ea408886bd"
+  "puredoom_revision": "355cfbd16fac119718879239336ee2ea408886bd",
+  "groundhog_rpc_revision": "f13196e4926489e291070297bc71e8546519b582",
+  "groundhog_rpc_repository": "https://github.com/groundhogchain/groundhog-rpc.git"
 }

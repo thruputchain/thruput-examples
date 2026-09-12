@@ -5,139 +5,204 @@ contract**, including the original 320×200 software renderer. It boots E1M1,
 accepts keyboard input, advances one deterministic game tic per call, saves
 changed memory pages to contract storage, and publishes indexed-color frames.
 
-![A frame rendered by the RV32 contract](evidence/gameplay.png)
+![A frame rendered by the RV32 contract](evidence/live-gameplay.png)
 
-The contract runs successfully in hogd's **unchanged production
-`ThreadedMachine` interpreter**. The supplied runner provides an in-memory
-implementation of the handful of Groundhog syscalls the contract uses. It is
-not a deployed chain: database RPC, storage-token accounting, signing,
-scheduling, consensus, and live gateway integration remain to be exercised.
+The contract runs on a real local `hog-devnode`, behind `groundhog node`'s
+JSON-RPC service. The browser sends held keys to a local Python bridge; each
+tick is a signed transaction, and the bridge reads the resulting pixels from
+committed contract storage. The standalone VM harness is also retained.
 
-## Run it
+## Build the contract
 
-Linux, Python 3.10+, git access to `groundhogchain/hogd`, and OpenSSL's
-`libcrypto` development package are required. The harness uses Zig's bundled
-Clang and C++ library; no Rust SDK or libc is needed inside the guest.
-
-From this directory:
+Linux x86-64, Python 3.10+, git access to the private Groundhog repositories,
+and OpenSSL's `libcrypto` development package are required. From the repository
+root:
 
 ```sh
+git submodule update --init experiments/doom/vendor/PureDOOM experiments/doom/vendor/hogd experiments/doom/vendor/groundhog-rpc
+cd experiments/doom
 python3 -m venv .deps/venv
 . .deps/venv/bin/activate
 python -m pip install -r requirements.txt
 python build.py
-
-# Executes 1,050 gameplay tics and the persistence/failure regressions.
-build/runner build/doom.rv32a .deps/PureDOOM/doom1.wad build/evidence 1050
-python test_server.py --wad .deps/PureDOOM/doom1.wad
-
-# Play locally. Open http://127.0.0.1:8765 in your browser.
-python serve.py --wad .deps/PureDOOM/doom1.wad
 ```
 
-`build.py` checks out the revisions in [sources.json](sources.json). It also
-accepts `--hogd-dir /path/to/hogd`, `--puredoom-dir /path/to/PureDOOM`, and
-`--zig /path/to/zig`. Existing checkouts are never modified; the script verifies
-the pinned VM file hashes and rejects mismatches. Use a separate checkout if
-your main development checkout has moved on. PureDOOM supplies the shareware
-WAD used in these measurements; another user-provided `doom1.wad` can be passed
-to the runner/server. Engine source and WAD data are fetched separately and
-are not vendored here.
+All three external repositories are pinned git submodules. No recursive
+checkout is needed for the contract and standalone runner. `build.py` verifies
+the pinned PureDOOM revision and the eleven VM file hashes in
+[sources.json](sources.json). It also accepts `--hogd-dir`, `--puredoom-dir`,
+and `--zig` overrides. Zig 0.16.0 supplies the guest compiler and host C++
+runtime; the guest does not need the Rust SDK or libc. Engine source and the
+shareware `doom1.wad` remain in the PureDOOM submodule.
 
-The viewer targets 35 tics/second, supports pause and single stepping, and
-uses the arrow keys, Ctrl (fire), Space (use), Shift (run), and Esc (menu).
-The local server starts a new game when restarted. Its in-memory storage is
-a test service, not durable chain storage.
+## Run the real node and browser app
 
-## Limits to change for a fresh demo chain
+The required changes are [groundhog-rpc #348](https://github.com/groundhogchain/groundhog-rpc/pull/348)
+and [hogd #4035](https://github.com/groundhogchain/hogd/pull/4035). The submodules
+pin these changes. They add CLI configuration overrides and gas-budget options;
+no source patch to the stock network defaults is needed.
 
-These values refer to the pinned hogd/protocol sources, not an inferred live
-network configuration. The concrete local-checkout patch is
-[hogd-demo.patch](hogd-demo.patch), which changes four values in
-`hogd/genesis/genesis_configuration.cc::stock_network_config()`.
-
-| Setting | Current stock/default | Demo setting | Why |
-|---|---:|---:|---|
-| `max_rv32_code_bytes` | 65,536 | 1,048,576 | Built guest code: 610,520 bytes |
-| `max_rv32_memory_bytes` | 65,536 | 16,777,216 | Guest declares 16 MiB for stack, statics, zone/arena and scratch |
-| `max_contract_size_bytes` | 262,144 | 1,048,576 | Artifact: 797,232 bytes, including initialized data |
-| `max_bytestring_len` | 1,024 | 32,768 | WAD and snapshot pages use 32 KiB storage items |
-
-Apply the patch to a disposable hogd checkout, rebuild `hog-devnode`, and
-create **fresh genesis/state**. The bootstrap paths inspected here use
-`stock_network_config()`; this is a source patch, not an invented CLI flag.
-The current configuration is committed at genesis and this code has no
-post-genesis configuration-update path. The patch is supplied for review and
-has been checked against the pinned source; a full hogd build/live launch has
-not been run here.
+For this demo, Linux x86-64 executables and their runtime libraries are built
+by CI. Download the two artifacts using authenticated `gh`:
 
 ```sh
-# From an isolated hogd checkout at the pinned revision:
-git apply /path/to/groundhog-examples/experiments/doom/hogd-demo.patch
+mkdir -p .deps/node .deps/rpc
+gh run download 34704874736 -R groundhogchain/hogd -n doom-devnode-linux-x86_64 -D .deps/node
+# Matching CLI and native pubkey signer:
+gh run download 34705779929 -R groundhogchain/groundhog-rpc -n local-demo-cli-linux-x86_64 -D .deps/rpc
+(cd .deps/node && sha256sum -c doom-devnode-bundle.tar.gz.sha256 && tar --no-same-owner -xzf doom-devnode-bundle.tar.gz)
+(cd .deps/rpc && sha256sum -c local-demo-cli.tar.gz.sha256 && tar --no-same-owner -xzf local-demo-cli.tar.gz)
+
+python run_node.py \
+  --groundhog .deps/rpc/local-demo-cli/bin/groundhog \
+  --signer .deps/rpc/local-demo-cli/bin/pubkey-signer \
+  --hog-devnode .deps/node/doom-devnode-bundle/bin/hog-devnode \
+  --contracts .deps/node/doom-devnode-bundle/contracts
 ```
 
-All four proposed values fit the existing ceilings: 4 MiB code, 16 MiB memory,
-1,900,000 contract bytes, and 65,000 bytes per bytestring. The artifact fits
-the transaction envelope without raising its limit. The WAD is 4,196,020 bytes
-and is uploaded in 129 calls; it is not embedded in the deployment artifact.
-The initial snapshot writes about 4.59 MB, below the 16 MiB executor-to-DB
-message budget, before envelope overhead. No gas schedule/digest changes are
-needed to admit this contract.
+Open **http://127.0.0.1:8765** after the launcher prints “Play at”. The launcher
+starts an instant-block local node, deploys and funds Doom, uploads the WAD,
+initializes E1M1, funds the native signer for replay storage, and serves the app. It stores chain data, logs, and transaction
+receipts in `build/local-node`. Stop with Ctrl-C; the same command resumes the
+saved game when node recovery succeeds. One intermittent recovery failure is
+tracked in [hogd #4037](https://github.com/groundhogchain/hogd/issues/4037); the
+latest smoke run did recover and continue. For this internal demo, use another
+`--data-dir` if a restart fails. Changing genesis overrides
+on an existing node directory is rejected.
 
-Start with **200 million gas for initialization and 50 million per tick**.
-These are generous experimental budgets, not calibrated live-node minimums.
-The harness excludes DB RPC charges; at the pinned v4 price, 141 charged DB
-RPCs alone would add about 5.26 million gas. Actual cache behavior, extra
-storage operations, wallet overhead, and storage funding must be measured on
-the node. Fund the contract for WAD and snapshot storage as well as execution.
+Use the **RPC bundle's `groundhog`**, paired with the node bundle's `hog-devnode`
+and contracts. The older CLI also included in the node bundle uses a different
+protocol version. Each bundle has a file-hash manifest. CI artifacts expire
+after seven days; the checked-in workflows can rebuild them. To build from
+source, follow the pinned hogd build instructions (including its recursive
+submodules), then build the matching RPC checkout with private registry access:
 
-The original simulation rate is **35 Hz**, or **28.57 ms/tic**. The inspected
-CLI supports `groundhog node --block-driver interval --block-interval-ms 29`,
-or instant production driven by a client paced at 35 Hz. A 29 ms timer is only
-an approximate 34.48 Hz target; it does not guarantee that blocks finish that
-quickly. One session has sequential state dependencies; faster independent
-execution threads do not accelerate one game's tics. Lower render frequency
-or batching several tics per transaction are later options if live storage
-or consensus dominates. Neither batching nor skipped rendering is implemented
-in this first version.
+```sh
+(cd vendor/groundhog-rpc && cargo build --release --locked -p groundhog-cli && cargo build --release --locked -p groundhog-signing --example pubkey_signer)
+```
 
-The **return buffer is separately capped at 1,024 bytes** in
-`protocol/transaction.x`. This prototype keeps that cap: method 3 returns one
-of 64 chunks. A full frame is 64,000 indexed pixels + 768 palette bytes =
-64,768 bytes. A full-frame-return variant needs that protocol cap raised (and
-its generated types/clients rebuilt); changing the bytestring limit alone
-does not change it. The local viewer reads the two stored frame pages from
-its test host directly. A live viewer should batch storage reads at one
-committed tip or implement a larger frame-return path rather than instantiate
-64 separate 16 MiB VMs for each displayed frame.
+Pass those binaries and hogd's built contract directory to `run_node.py`.
+The signer example is a persistent JSON-lines process using Groundhog's Rust
+signing and CXS libraries. Calls enter the undeployed pubkey account's native
+`DefaultWallet.execute` and then invoke Doom. It uses the public deterministic
+dev-1 key for this disposable local demo. Deployment and initial funding still
+use the CLI's local dev wallet.
 
-## Measured result
+The native wallet uploads 129 WAD pages of up to 32 KiB. Omitting `--signer`
+uses the stock RV32 dev wallet and 2,049 fragments of up to 2 KiB, because that
+wallet has a small calldata buffer. Both paths have been exercised on the
+node. Upload modes cannot be mixed on an unfinished contract.
 
-[Raw measurements](evidence/metrics.csv), [summary](evidence/summary.json),
-[artifact sizes](evidence/artifact.json), and
-[provenance](evidence/provenance.json) are checked in. The sample is 1,050
-tics (30 seconds of game time) on one Linux x86-64 host. It moves forward,
-turns, then fires; it is not a worst-case level/scene benchmark.
+The viewer targets 35 ticks/s and supports pause, single stepping, arrow keys,
+Ctrl (fire), Space (use), Shift (run), and Esc (menu). It sends one input at a
+time; if a tick takes longer than 28.57 ms, gameplay slows down. Audio is omitted.
 
-| Measurement | Result |
+For a node already running, use `live.py --help` to supply its RPC URL,
+runtime manifest, CLI, signer, and optional existing funded contract address.
+
+## Configuration and bandwidth
+
+The launcher passes these four overrides to `groundhog node`:
+
+| Setting | Stock | Demo |
+|---|---:|---:|
+| `max_rv32_code_bytes` | 65,536 | `1M` |
+| `max_rv32_memory_bytes` | 65,536 | `16M` |
+| `max_contract_size_bytes` | 262,144 | `1M` |
+| `max_bytestring_len` | 1,024 | `32K` |
+
+Each is a repeated `--network-config NAME=VALUE` argument. These values fit
+existing compiled ceilings, which remain enforced. The current artifact is
+about 0.79 MB and declares 16 MiB of guest memory; the 4,196,020-byte WAD is
+uploaded separately. The initialization call gets 200M gas, and each tick
+gets 50M gas. These are tested budgets, not measured minimums; receipt gas
+consumption is not currently exposed. `groundhog call --gas-limit` now lets
+other callers set the budget too.
+
+The protocol return-data cap stays at 1,024 bytes. The live bridge reads the
+80-byte metadata and two stored frame pages, requiring all three reads to
+report the same committed block height. It retries if the chain advances
+between reads. This avoids invoking 64 frame-chunk calls.
+
+Browser traffic per displayed frame is **64,804 bytes**: 64,000 indexed pixels,
+768 palette bytes, and a 36-byte metrics header, before HTTP overhead. That is
+about **2.27 MB/s at 35 Hz**. The raw contract input is 36 bytes; the browser
+uses a small JSON envelope. The roughly 4.6 MB of state restored inside the
+node each tick never goes to the browser. The bridge currently receives
+hex-encoded frame storage through JSON-RPC, so node-to-bridge wire traffic is
+larger than the binary browser response.
+
+## Measurements and verification
+
+[evidence/live.json](evidence/live.json) records the deployed contract,
+artifact hashes, build revisions, successful receipts, and live measurements.
+A real-node smoke test exercises 35 gameplay ticks, changed rendered pixels,
+and stale/malformed HTTP input rejection. Add `--restart` to also probe recovery
+and continued play (including the intermittent failure above). Run it with the
+same binary arguments as the launcher:
+
+```sh
+python test_live.py --data-dir build/new-smoke-node \
+  --groundhog .deps/rpc/local-demo-cli/bin/groundhog \
+  --signer .deps/rpc/local-demo-cli/bin/pubkey-signer \
+  --hog-devnode .deps/node/doom-devnode-bundle/bin/hog-devnode \
+  --contracts .deps/node/doom-devnode-bundle/contracts
+```
+
+| Live measurement, 35 gameplay ticks | Result |
+|---|---:|
+| Native pubkey transaction time, median / min / max | 52.31 / 45.69 / 138.21 ms |
+| HTTP input to returned frame, median / min / max | 61.79 / 52.21 / 153.58 ms |
+| Dev-wallet transaction time, earlier 35-tick sample, median | 57.76 ms |
+
+The native path avoids launching a CLI process per tick, but execution and
+storage still dominate. Roughly 62 ms per complete client loop corresponds to
+about 16 ticks/s here, below Doom's original 35 Hz. Transaction time includes
+signing, chain-tip lookup, submission and receipt polling. HTTP time also
+includes preflight/committed frame reads, writing the session record and the
+binary response; it excludes browser drawing and display latency.
+
+The original standalone sample remains in [metrics.csv](evidence/metrics.csv),
+[summary.json](evidence/summary.json), [artifact.json](evidence/artifact.json),
+and [provenance.json](evidence/provenance.json). It used an earlier artifact
+and 1,050 tics on one Linux x86-64 host:
+
+| Standalone measurement | Result |
 |---|---:|
 | Initialization | 46.17 ms; 46.74M gas excluding DB RPC |
-| Tic wall time, median / p95 / maximum | 11.01 / 12.51 / 23.76 ms |
+| Tic time, median / p95 / maximum | 11.01 / 12.51 / 23.76 ms |
 | Tic gas, median / maximum, excluding DB RPC | 6.70M / 7.17M |
 | Storage bytes read per tic, median | 4,587,600 |
 | Storage bytes written per tic, median / maximum | 392,528 / 621,904 |
 | Storage gets / sets per tic, median | 141 / 13 |
 
-Wall time includes fresh VM construction, contract execution, OpenSSL hashing,
-local storage lookup/copy, and commit to the in-memory store. It excludes
-program translation, which is done once before calls, and excludes real
-database/network/consensus work. This provides headroom within the original
-28.57 ms tic budget, but **does not establish 35 FPS on a live chain**.
+The 11 ms measurement includes fresh VM construction, execution, hashing and
+in-memory storage work. It excludes database RPC, signing, block production,
+and consensus. **It is not the live node's input-to-frame latency.** Shorter
+block timers cannot remove execution/storage overhead. Native 35 Hz remains
+a performance target; batching tics or reducing render frequency are possible
+future changes, neither implemented here.
 
-At 35 Hz, the median workload alone implies approximately 161 MB/s of storage
-reads and 13.7 MB/s of writes per session before protocol overhead. That
-state traffic is the main thing to investigate next; merely shortening the
-block timer will not remove it.
+Standalone regression and browser-server checks are still available:
+
+```sh
+build/runner build/doom.rv32a vendor/PureDOOM/doom1.wad build/evidence 1050
+python test_server.py --wad vendor/PureDOOM/doom1.wad
+python serve.py --wad vendor/PureDOOM/doom1.wad
+```
+
+That runner uses unchanged production RV32 interpreter files with a local
+in-memory syscall host. It checks deterministic restore/replay, stale ticks,
+malformed calls, sealed assets, frame chunk reconstruction, and rollback after
+an out-of-gas failure following writes. `serve.py` starts a new in-memory game
+on restart; `run_node.py` uses persistent chain storage.
+
+Interactive browser validation was blocked by the development environment's
+loopback/browser policy. The requested escalation was rejected because
+sandbox approvals are disabled. The actual HTTP endpoints and committed
+frames were tested; keyboard interaction and visual layout still need a
+normal local browser. Existing Rust workspace CI does not run the experimental
+C harness or the live smoke test automatically.
 
 ## Contract design and ABI
 
@@ -150,8 +215,9 @@ linker currently fixes guest memory to 64 KiB and is not used here. This is an
 experimental custom C build/package path, not a `groundhog build` Cargo crate.
 
 Calldata is raw little-endian, not the SDK's default XDR method encoding.
-Method IDs below are numeric u64s; their eight-byte entrypoint IDs are the
-little-endian representation (e.g. step = `0200000000000000`).
+Method IDs below are the numeric u64s received by the RV32 dispatcher. Through
+the current dev wallet and `groundhog call`, use the eight-byte big-endian ID
+(e.g. step = `0x0000000000000002`). Calldata fields remain little-endian.
 
 | ID | Method | Calldata | Return |
 |---:|---|---|---|
@@ -160,14 +226,16 @@ little-endian representation (e.g. step = `0200000000000000`).
 | 2 | Step exactly one tic | `u32 expected_tick`, 32-byte bitmap of 256 held keys | 80-byte metadata |
 | 3 | Read frame chunk | `u32 expected_tick`, `u32 chunk_index` (0–63) | Up to 1,024 bytes |
 | 4 | Read status | Empty | 80-byte metadata |
+| 5 | Upload WAD fragment | `u32 byte_offset`, `u32 total_wad_bytes`, up to 2,048 bytes | `u32 uploaded_bytes`, `u32 total_wad_bytes` |
 
 Metadata: `u32 version`, `u32 tick`, `u32 snapshot_bytes`, `u32 wad_bytes`,
 then a 64-byte bitmap of present snapshot pages. The first frame is tic 1.
 The key bitmap uses PureDOOM's key IDs; bit `k % 8` in byte `k / 8` is key `k`.
 
-Each 32-byte storage key is the 16 ASCII bytes `groundhog-doom-v1`, followed
+Each 32-byte storage key is the 16 ASCII bytes `groundhog-doom-v`, followed
 by little-endian u32 domain, little-endian u32 index, then eight zero bytes.
-Domains: 0 metadata (index 0 game, index 1 upload), 1 WAD, 2 snapshot, 3 frame.
+Domains: 0 metadata (index 0 game, index 1 completed WAD pages, index 2 uploaded
+WAD bytes), 1 WAD, 2 snapshot, 3 frame.
 
 The WAD reader is a virtual read-only file backed by contract storage, with
 one page of per-call cache. Upload is append-only and sealed after successful
@@ -192,31 +260,6 @@ uses a bump allocator; Doom's zone allocator performs its own internal frees.
 Long sessions and repeated level changes may exhaust outer allocations and
 need a proper reclaiming allocator. Snapshot layout is tied to this exact
 artifact; it is not a portable save-game or contract-upgrade format.
-
-## What passed, and what remains
-
-The runner checks actual RV32 decoding/execution; independent fresh-VM
-restore/replay produces identical storage and gas. Different input changes
-the rendered frame. Stale ticks, a second initialization, WAD mutation after
-sealing, malformed inputs, and unknown methods are rejected. A call that
-runs out of gas **after page writes** leaves the committed store unchanged,
-then succeeds on retry. All 64 frame chunks reconstruct the stored frame.
-The HTTP test checks real movement and invalid/stale requests through the
-server. Python compilation and viewer JavaScript syntax checks also pass.
-
-The browser environment used during development denied the preview server's
-listening socket, so interactive browser input/layout validation is still
-outstanding. The HTTP loop itself was tested in the native execution
-environment. The private devnode release was unavailable to the local
-downloader, so deployment and a live storage/consensus run remain outstanding.
-The existing Rust workspace CI does not execute this experimental C harness;
-run the commands above when changing it.
-
-Next integration work is to apply the demo genesis configuration, deploy the
-artifact with a matching v4 runtime, submit the documented raw calldata using
-a signed client, and connect the viewer to committed frame storage. Then
-measure cold and warm node execution, storage-token requirements, and
-end-to-end input-to-frame latency before claiming live 35 FPS.
 
 ## Source/license provenance
 

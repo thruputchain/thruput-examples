@@ -54,7 +54,7 @@ static u32 sc(u32 n, u32 x1, u32 x2, u32 x3, u32 x4, u32 x5, u32 x6) {
 #define PTR(x) ((u32)(usize)(x))
 __attribute__((noreturn)) static void fail(const char *msg) {
     sc(4, PTR(msg), (u32)doom_strlen(msg), 0, 0, 0, 0);
-    sc(8, 0, 0, 0, 0, 0, 0); __builtin_trap();
+    sc(6, PTR(msg), (u32)doom_strlen(msg), 1, 0, 0, 0); __builtin_trap();
 }
 static void check(u32 code) { if (code) fail("Doom syscall failed"); }
 __attribute__((noreturn)) static void finish(const void *p, u32 n) {
@@ -215,16 +215,49 @@ static void publish_frame(void) {
 }
 
 /* IDs are explicitly chosen u64s, supported by Groundhog's raw entrypoint ABI.
- * 0 upload, 1 initialize E1M1, 2 step, 3 frame page, 4 status. */
+ * 0 upload page, 1 initialize E1M1, 2 step, 3 frame page, 4 status,
+ * 5 upload a small WAD fragment through the stock dev wallet. */
 void contract_main(u32 method, u32 method_hi) {
     if (method_hi) fail("unknown method");
     u32 len = calldata();
     struct Meta m;
     int initialized = meta(&m);
     wad_cached_page = ~0u;
+    if (method == 5) {
+        if (initialized || len < 9) fail("WAD is sealed or empty");
+        u32 offset = read_u32(io), total = read_u32(io + 4), n = 0;
+        u32 progress[2] = {0, 0};
+        u32 err = get(0, 2, progress, sizeof(progress), &n);
+        if (err != 8) { check(err); if (n != sizeof(progress)) fail("bad fragment metadata"); }
+        if (!total || total > MAX_WAD_BYTES || offset != progress[0] || offset >= total
+            || offset % GH_DOOM_UPLOAD_BYTES || (offset && total != progress[1])) fail("bad WAD fragment");
+        if (!offset) {
+            u32 old[2];
+            if (get(0, 1, old, sizeof(old), &n) != 8) fail("cannot mix upload methods");
+        }
+        u32 wanted = total - offset;
+        if (wanted > GH_DOOM_UPLOAD_BYTES) wanted = GH_DOOM_UPLOAD_BYTES;
+        if (len != 8 + wanted) fail("wrong WAD fragment size");
+        u32 in_page = offset % PAGE;
+        if (in_page) {
+            check(get(1, offset / PAGE, wad_cache, PAGE, &n));
+            if (n != in_page) fail("bad partial WAD page");
+        }
+        memcpy(wad_cache + in_page, io + 8, wanted);
+        set(1, offset / PAGE, wad_cache, in_page + wanted);
+        progress[0] = offset + wanted; progress[1] = total;
+        set(0, 2, progress, sizeof(progress));
+        if (progress[0] % PAGE == 0 || progress[0] == total) {
+            u32 uploaded[2] = {(progress[0] + PAGE - 1) / PAGE, total};
+            set(0, 1, uploaded, sizeof(uploaded));
+        }
+        finish(progress, sizeof(progress));
+    }
     if (method == 0) {
         /* Append-only assets. Supply index:u32, total_bytes:u32, page bytes. */
         if (initialized || len < 9) fail("WAD is sealed or empty");
+        u32 fragments[2], fragment_len = 0;
+        if (get(0, 2, fragments, sizeof(fragments), &fragment_len) != 8) fail("cannot mix upload methods");
         u32 index = read_u32(io), total = read_u32(io + 4), n = 0;
         u32 uploaded[2] = {0, 0};
         u32 err = get(0, 1, uploaded, sizeof(uploaded), &n);

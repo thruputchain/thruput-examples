@@ -1,0 +1,576 @@
+{
+  "measuredAt": "2026-09-12",
+  "mode": "real local hog-devnode, instant blocks, native pubkey wallet",
+  "contract": "0xbac1c42d38f4d802f8de6656d7aeccc87fc5559b6428b66c004b85a9385ba724",
+  "signerAddress": "0x0b849e46c4f956146c19f991cfe6db11169b9a18d382abd1ba1481284a8164d6",
+  "networkHash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "protocol": "hogp/63c9284d8d5727e",
+  "summary": {
+    "ticks": 35,
+    "contract": "0xbac1c42d38f4d802f8de6656d7aeccc87fc5559b6428b66c004b85a9385ba724",
+    "frameBytes": 64804,
+    "transactionMs": {
+      "median": 52.30568199476693,
+      "min": 45.69123899273109,
+      "max": 138.21112898585852
+    },
+    "httpInputToFrameMs": {
+      "median": 61.79141500615515,
+      "min": 52.20521199225914,
+      "max": 153.58247299445793
+    },
+    "checks": [
+      "committed gameplay",
+      "changed pixels",
+      "stale input rejection",
+      "malformed input rejection",
+      "persistent restart",
+      "continued play after restart"
+    ]
+  },
+  "httpTimingsMs": [
+    56.094372004736215,
+    58.83513399749063,
+    55.81448999873828,
+    52.85905000346247,
+    54.14468899834901,
+    56.20892900333274,
+    53.01367299398407,
+    61.79141500615515,
+    56.74537499726284,
+    53.79554399405606,
+    54.50210199342109,
+    62.40584400075022,
+    55.99637300474569,
+    52.20521199225914,
+    76.44290800089948,
+    141.15781500004232,
+    65.20273200294469,
+    98.00679200270679,
+    57.212237996282056,
+    64.87345100322273,
+    57.02574200404342,
+    53.84067200066056,
+    68.71312099974602,
+    109.82844300451688,
+    92.75696100667119,
+    101.3252190023195,
+    98.8616629911121,
+    74.24432098923717,
+    58.841899008257315,
+    76.23862999025732,
+    76.65284399990924,
+    60.07174399564974,
+    88.3535319881048,
+    91.72402300464455,
+    153.58247299445793
+  ],
+  "artifact": {
+    "artifact_bytes": 786684,
+    "code_bytes": 599972,
+    "initial_memory_bytes": 186584,
+    "initial_memory_start": 1048576,
+    "memory_bytes": 16777216,
+    "artifact_sha256": "4c91c14528e9cf1bc91cfe6bc22734ae73be12149f61f052650221368797ef2f",
+    "gas_version": 4,
+    "gas_digest": "9019deb606f5759b"
+  },
+  "wadSha256": "1d7d43be501e67d927e415e0b8f3e29c3bf33075e859721816f652a526cac771",
+  "buildProvenance": {
+    "hogd_repository": "https://github.com/groundhogchain/hogd.git",
+    "hogd_revision": "5cd207403209190130f994e7804004222ba26b1f",
+    "hogd_files": {
+      "hogd/hog_exec/runtime/rv32/arch_trace.h": "5e28d36d19f8bcf6e579416c6f5de7d8ff19c149",
+      "hogd/hog_exec/runtime/rv32/encoding.h": "5f7ec77f7aa9dc2088275d07f0ad6a5cbb42423a",
+      "hogd/hog_exec/runtime/rv32/host.h": "48725b7c1b6c98994e447e7a1d64a791de340dfb",
+      "hogd/hog_exec/runtime/rv32/isa_ops.h": "fb32dffece746d1006aad677005307ee4f2569a7",
+      "hogd/hog_exec/runtime/rv32/machine.cc": "9b9facf1f3b393c76dcdb72a58ab558ffe924fb7",
+      "hogd/hog_exec/runtime/rv32/machine.h": "ce1e3ac2fccafad077fb5458c7fc22bd66354be9",
+      "hogd/hog_exec/runtime/rv32/musttail.h": "a1b83b95b8ea0f970f9df0c4f2dee35419b2cbd1",
+      "hogd/hog_exec/runtime/rv32/program.cc": "5a5a61145b39be3de0dae51f2afc328c08a8af65",
+      "hogd/hog_exec/runtime/rv32/program.h": "7a62a3d6cd25299c60ba8c9267c09d9a27455a02",
+      "hogd/hog_exec/runtime/rv32/threaded_machine.h": "99f8054c32ed546f16d6e9045e44027c3d2b56b6",
+      "hogd/hog_exec/runtime/rv32/threaded_program.h": "9230d6abf48d0a792ddbdfb6e081bd1cc223e2ff"
+    },
+    "puredoom_repository": "https://github.com/Daivuk/PureDOOM.git",
+    "puredoom_revision": "355cfbd16fac119718879239336ee2ea408886bd",
+    "groundhog_rpc_revision": "f13196e4926489e291070297bc71e8546519b582",
+    "groundhog_rpc_repository": "https://github.com/groundhogchain/groundhog-rpc.git",
+    "zig_version": "0.16.0",
+    "puredoom_header_sha256": "ec16ce721436bf3fa4c338320afedd56a93c0b563a94ebf283718503c71ca780"
+  },
+  "binaries": {
+    "hogdSource": "5cd207403209190130f994e7804004222ba26b1f",
+    "rpcSource": "f13196e4926489e291070297bc71e8546519b582",
+    "rpcBuildCommit": "b2b9730c5f51e048b22274ed65564f9d8731edf6",
+    "nodeArtifactRun": 34704874736,
+    "nodeArtifactId": 10301174001,
+    "rpcArtifactRun": 34705779929,
+    "rpcArtifactId": 10301614068,
+    "nodeBinarySha256": "a641ef60dfcb5fbc00a35982a75aa36d5ee4c0162d586e5371890bb03afda33f",
+    "cliBinarySha256": "41a7fb2b6bbb25b906e54eeffc98c6c530c785355e91c3ba053a02b20cfebbf5",
+    "signerBinarySha256": "ccd8c4fb5662e96e0579d838830c096244a46f503e64d605112f6103d9755466"
+  },
+  "networkConfig": {
+    "max_rv32_code_bytes": 1048576,
+    "max_rv32_memory_bytes": 16777216,
+    "max_contract_size_bytes": 1048576,
+    "max_bytestring_len": 32768
+  },
+  "gasBudgets": {
+    "initialize": 200000000,
+    "step": 50000000
+  },
+  "uploads": {
+    "count": 129,
+    "first": {
+      "method": 0,
+      "txHash": "0x27f6aa8489fe16f7bee1b5f98bda9f780a7055b0227c2419cef2c2164eb39939",
+      "height": 5,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 33.25621099793352,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    "last": {
+      "method": 0,
+      "txHash": "0xf7933a378a99f250220187f6da31b58e9c4c20914b8c9eddfd903158e59523a7",
+      "height": 133,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 24.250639995443635,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    "allReceiptsOk": true
+  },
+  "initialization": {
+    "method": 1,
+    "txHash": "0xfd2eaf815edf00eef506929deac7a8c89e301a9575bb56328ca98385b7662f41",
+    "height": 134,
+    "status": {
+      "result": "ok"
+    },
+    "wallMs": 93.7445960007608,
+    "gasBudget": 200000000,
+    "auth": "pubkey"
+  },
+  "gameplayReceipts": [
+    {
+      "method": 2,
+      "txHash": "0xfd55f41c11fe202502006151eeb3477b21b0c4fd65bfd8ca79f638fee9c6475b",
+      "height": 135,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 49.02354099613149,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x084b56ba87bdba7958967bcb3c60f5e20462f3e4c14eda8e97510da25b8ece6e",
+      "height": 136,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 52.30568199476693,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xfca407b74267222214107081b7205bd29f989f74112403227ad0955729ee1679",
+      "height": 137,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 49.0645280078752,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x0ded2f50e70eb803690389d66c1b655275d48d39700ad3a3916491be3c86c896",
+      "height": 138,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 46.575993997976184,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x9290b3fcd156d103933e39ba1c6feb125b6cafc86aa545e8e774e9deb6a0fc0d",
+      "height": 139,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 47.05927200848237,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xaa502483fcd469ed6730d35ca27e90f92998f095d91414e531b8665a7dc617b2",
+      "height": 140,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 49.10494899377227,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x6d74ab6a5433233508b825b69bb69d3bf843a34855a8d3b31918613ae972c7cb",
+      "height": 141,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 46.21779499575496,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x2060dbb27866e44d3a66334f2617c9f1ff37971d504d64e7e7b630eefaa5332a",
+      "height": 142,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 55.40514399763197,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xdfa8c17a25d83f9ed1830f3540e425145ddcb0736734717acebb441930075115",
+      "height": 143,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 49.674745998345315,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x615d9b91e7374b95edb0f83522e83ff464725454dbee77f3f2994198bd6c47fb",
+      "height": 144,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 45.744995994027704,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x78d711a1bccbc9d9adc3387503aea6a88c15daa0db6353b4705ee51650b5bc6f",
+      "height": 145,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 48.510765001992695,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xb8ede0ad3b2529cc56ff6d18c651860c1a273a3a6080135ded8aac9a2412c506",
+      "height": 146,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 54.79572400508914,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x1cecc9c1c89cbed3e67ea947082b5e2c43caeabcee81f0b9321698535f7320eb",
+      "height": 147,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 49.29812999034766,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xd28aff418382e62bbaaaa1153869cc019faebd7714b2d72bfbd00ae5f7977302",
+      "height": 148,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 45.69123899273109,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x247476e03cb901b7a162982ba4610c001898c1e6cfe573905b0c7911071970f7",
+      "height": 149,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 69.38113599608187,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x6061ac9636a62d422af3bc6703ba8157d771f200551a9209fe82c7600585303e",
+      "height": 150,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 134.31170900003053,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xf6063a2fed41a62ad7a7913045e5e3f7655b826910e92ebe0e68e0ea94888bf3",
+      "height": 151,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 56.63038798957132,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xe00ea7b387324d9efa1b186f32013e328618634c44323e91257f9882aab91801",
+      "height": 152,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 90.38077600416727,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x34bc76c49685df03211c918beadc981263427ea3153549b2efc6b9c58d92fbe0",
+      "height": 153,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 50.30257000180427,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x360668a174d98594bc61042fb9c1504cc4870d3f81bdb7431cc57dd2440e5a17",
+      "height": 154,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 51.24385000090115,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x9973f0197a88b0ab909ddafe8c86ee4d004376f51dd23e7d25e63632bec1a06c",
+      "height": 155,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 49.076014998718165,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x691aa3570ee053336709c8d163548069777697fb06d76644522eb6c534a89875",
+      "height": 156,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 46.81682201044168,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x8d777e64f32ca711e9df88cc279513faa6f1efb08119ffd2a87697a63c25193b",
+      "height": 157,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 55.22310099331662,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x596d2297ec848c7a6e85c2a6c0e1a1cbc52a28d7ecd01f56efce80e959c14a8e",
+      "height": 158,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 98.61848199216183,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x8d95d62ef21add6bf7e63816b70c058f39a6d76d2261b6a9a24e5c8e2aac880c",
+      "height": 159,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 85.70320100989193,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x071a487ce3811d6d7a7fe345eb425d2d7ba6ef04faa60914a2e710235e8fb854",
+      "height": 160,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 93.58922700630501,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xb4186d2128f8999c332a62b8cd61f0a62a1229d294b92ebf7d54a80adcff2c45",
+      "height": 161,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 91.83512900199275,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x35d4ccdf5cea8c70b7ba4022af9cbbf31a4956abb98dddd32b2e04ed9c8eada8",
+      "height": 162,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 64.23821099451743,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xedbb53bf9f7d21792f9fdc2ff1dd4e9fb9b59814fbf25d2930edcbe400312caf",
+      "height": 163,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 49.725210992619395,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x9859f6378f28577b3695742e982455c9dbe9dd851c0b168559a7feab0bb211ba",
+      "height": 164,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 69.05975300469436,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xec13b45b9d47a7a3f7de4e7328158acbed72cd86801b4419def52ffda456ebba",
+      "height": 165,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 70.09107399790082,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xfd271d6357e281fec7a6b1299ac173606037d995b9b6f2f2d8d7d2353159f4cf",
+      "height": 166,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 51.264797992189415,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x4011d938ae17ce9f0f83ff82f281b72f51bcffa628d83d432d10c601da774fe6",
+      "height": 167,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 81.43103000475094,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0xa65416eaf48a32e96fe868d3bc9b90d67f9d7e5845d10123c69d8dfbbdcb581d",
+      "height": 168,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 84.82754399301484,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    },
+    {
+      "method": 2,
+      "txHash": "0x180f9cb77079260335e8232be89aa057ea9d42f51b5eabd5e7105730f91ef605",
+      "height": 169,
+      "status": {
+        "result": "ok"
+      },
+      "wallMs": 138.21112898585852,
+      "gasBudget": 50000000,
+      "auth": "pubkey"
+    }
+  ],
+  "afterRestartReceipt": {
+    "method": 2,
+    "txHash": "0xe81b8969c675c449a69f8ac127fa1657c95d0f1f4546a0d7a47e455de45f0251",
+    "height": 170,
+    "status": {
+      "result": "ok"
+    },
+    "wallMs": 57.24778599687852,
+    "gasBudget": 50000000,
+    "auth": "pubkey"
+  },
+  "devWalletBaseline": {
+    "ticks": 35,
+    "medianTransactionMs": 57.757205999223515,
+    "minTransactionMs": 53.75010000716429,
+    "maxTransactionMs": 77.4375110049732,
+    "uploadCount": 2049
+  },
+  "timingScope": {
+    "transaction": "signing, chain-tip read, RPC submit, receipt polling; excludes frame reads and session file write",
+    "http": "HTTP POST through bridge, preflight frame check, transaction, session write, committed frame reads, response body; excludes browser drawing and display",
+    "gas": "budgets only; actual receipt gas consumption unavailable"
+  },
+  "caveats": [
+    "35 ticks, one host and scene; not a throughput guarantee or multi-node consensus benchmark",
+    "Interactive browser controls/layout not verified because environment blocked loopback browser access and disabled permission escalation",
+    "One earlier restart recovered an older tip; see https://github.com/groundhogchain/hogd/issues/4037"
+  ]
+}

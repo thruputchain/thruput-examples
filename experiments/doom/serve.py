@@ -51,6 +51,8 @@ def main():
             def do_GET(self):
                 if self.path == '/':
                     self.send((ROOT / 'viewer.html').read_bytes(), 'text/html; charset=utf-8')
+                elif self.path == '/info':
+                    self.send(b'{"mode":"vm"}', 'application/json')
                 elif self.path == '/frame':
                     with lock:
                         self.send(current, 'application/octet-stream')

@@ -72,9 +72,9 @@ struct DemoHost : Host {
       std::cerr.write((const char *)text.data(), text.size()); return result();
     }
     case 6: {
-      require(a.a2 <= 1024 && a.a3 == 0 && a.a5 == 0, "return limit or unexpected revert/tokens");
+      require(a.a2 <= 1024 && a.a3 <= 1 && a.a5 == 0, "return limit or invalid revert/tokens");
       auto b = bytes(a.a1, a.a2); returned.assign(b.begin(), b.end());
-      did_return = true; host_gas += charge; return HostResult::halt(0, charge);
+      did_return = !a.a3; failed = a.a3; host_gas += charge; return HostResult::halt(a.a3, charge);
     }
     case 8: failed = true; host_gas += charge; return HostResult::halt(1, charge);
     case 14: {
@@ -201,10 +201,10 @@ int main(int argc, char **argv) try {
   std::string dir = argv[3]; std::filesystem::create_directories(dir);
   std::ofstream csv(dir + "/metrics.csv");
   csv << "phase,tick,gas_excluding_db_rpc,host_gas_excluding_db_rpc,reads,writes,read_bytes,written_bytes,wall_ms\n";
-  for (uint32_t off = 0; off < wad.size(); off += GH_DOOM_PAGE_BYTES) {
-    Bytes upload; append_u32(upload, off/GH_DOOM_PAGE_BYTES); append_u32(upload, wad.size());
-    upload.insert(upload.end(), wad.begin()+off, wad.begin()+std::min<size_t>(off+GH_DOOM_PAGE_BYTES, wad.size()));
-    auto result = demo.call(0, std::move(upload)); require(result.ok, "upload failed");
+  for (uint32_t off = 0; off < wad.size(); off += GH_DOOM_UPLOAD_BYTES) {
+    Bytes upload; append_u32(upload, off); append_u32(upload, wad.size());
+    upload.insert(upload.end(), wad.begin()+off, wad.begin()+std::min<size_t>(off+GH_DOOM_UPLOAD_BYTES, wad.size()));
+    auto result = demo.call(5, std::move(upload)); require(result.ok, "upload failed");
   }
   auto init = demo.call(1); require(init.ok, "initialization failed"); row(csv, "initialize", demo.tick(), init);
   if (argc > 4 && std::string(argv[4]) == "--serve") { serve(demo, init); return 0; }

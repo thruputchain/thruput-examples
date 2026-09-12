@@ -17,10 +17,11 @@ def run(args, **kwargs):
     subprocess.run([str(a) for a in args], check=True, **kwargs)
 
 
-def checkout(repo, revision, dest):
-    if not dest.exists():
-        run(['git', 'clone', '--filter=blob:none', '--no-checkout', repo, dest])
-        run(['git', '-C', dest, 'checkout', '--detach', revision])
+def submodule(name):
+    dest = ROOT / 'vendor' / name
+    if not (dest / '.git').exists():
+        raise RuntimeError('Initialize dependencies from the repository root: git submodule update '
+                           '--init experiments/doom/vendor/PureDOOM experiments/doom/vendor/hogd')
     return dest
 
 
@@ -32,10 +33,8 @@ def main():
     p.add_argument('--build-dir', type=Path, default=ROOT / 'build')
     args = p.parse_args()
     sources = json.loads((ROOT / 'sources.json').read_text())
-    deps = ROOT / '.deps'
-    deps.mkdir(exist_ok=True)
-    hogd = (args.hogd_dir or checkout(sources['hogd_repository'], sources['hogd_revision'], deps / 'hogd')).resolve()
-    doom = (args.puredoom_dir or checkout(sources['puredoom_repository'], sources['puredoom_revision'], deps / 'PureDOOM')).resolve()
+    hogd = (args.hogd_dir or submodule('hogd')).resolve()
+    doom = (args.puredoom_dir or submodule('PureDOOM')).resolve()
     for path, expected in sources['hogd_files'].items():
         blob = (hogd / path).read_bytes()
         actual = hashlib.sha1(f'blob {len(blob)}\0'.encode() + blob).hexdigest()

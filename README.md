@@ -143,8 +143,9 @@ transaction or remote deployment. Wallet unit tests run independently through
 
 [Doom in an RV32 contract](experiments/doom/README.md) boots original Doom E1M1,
 persists game state between calls, and renders 320×200 frames. It includes a
-playable local harness, measured resource requirements, and a demo-genesis patch.
-Live-chain deployment and consensus performance are still unverified.
+browser app backed by a real local node, a standalone VM harness, pinned git
+submodules, and CLI-configured demo limits. See its README for setup and measured
+transaction/input-to-frame timings; multi-node consensus performance is unmeasured.
 
 ## Prerequisites
 
