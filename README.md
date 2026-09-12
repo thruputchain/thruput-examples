@@ -28,7 +28,6 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`mixed-impl`](contracts/mixed-impl/) | One contract exposing both an inherent (`notrait`) `#[contract]` impl and a trait `#[contract]` impl |
 | [`cross-trait-throws`](contracts/cross-trait-throws/) | One contract implementing two traits with different `throws` types; a client on one catching the peer trait's error with `match_exn!` |
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and optional `metadata` and `permit` features |
-| [`game-of-life`](contracts/game-of-life/) | A grid simulation driven by on-chain state, with a [local frontend](apps/game-of-life/README.md) |
 | [`permit-wallet`](contracts/permit-wallet/) | Off-chain authorization: an owner's wallet implementing `SignedOp`, turning an ed25519 signature made off-chain into a `PermitGrant` auth token the `erc20` consumes; the owner never submits a transaction |
 | [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit from the wallet to the token in one frame, so anyone can submit it |
 | [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](contracts/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
@@ -43,7 +42,6 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples �
 | [`caller-counter`](sim-fixtures/caller-counter/) | Per-caller counter exercising read-after-write storage patterns |
 | [`calldata`](sim-fixtures/calldata/) | Calldata-heavy entry points |
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | NNInt-heavy writes with refund capping |
-| [`life-storage-admission`](sim-fixtures/life-storage-admission/) | The `game-of-life` tick's storage shape (20,004 chunk reads, 20,000 writes) without the Life computation, for admission testing on a live node |
 
 ## Applications
 
@@ -52,11 +50,13 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples �
 | [Token Launchpad](apps/token-launchpad/README.md) | Create standard tokens and browse launches |
 | [Swap](apps/swap/README.md) | Create pools, swap tokens, and manage liquidity |
 | [Thruput Wallet](apps/wallet-extension/README.md) | Chrome wallet for localnet and devnet |
-| [Game of Life](apps/game-of-life/README.md) | Explore and advance the on-chain simulation |
 
 Each app README contains its setup, configuration, and testing instructions.
-Swap and Launchpad share one npm workspace and root lockfile. The wallet and
-Game of Life have independent installs.
+Swap and Launchpad share one npm workspace and root lockfile. The wallet has an
+independent install.
+
+Game of Life (atomic and async worlds, frontend, indexer, and test fixtures) now
+lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflife).
 
 ### Install Swap and Launchpad dependencies
 
@@ -198,7 +198,6 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`mixed-impl`](contracts/mixed-impl/) | ✅ | — | — |
 | [`cross-trait-throws`](contracts/cross-trait-throws/) | ✅ | — | — |
 | [`erc20`](contracts/erc20/) | ✅ | ✅ | ✅ |
-| [`game-of-life`](contracts/game-of-life/) | — | — | — |
 | [`permit-wallet`](contracts/permit-wallet/) | ✅ | — | — |
 | [`permit-relayer`](contracts/permit-relayer/) | — | — | — |
 | [`standard-token`](contracts/standard-token/) | ✅ | — | — |
@@ -211,7 +210,6 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`calldata`](sim-fixtures/calldata/) | ✅ | — | — |
 | [`nnint-stress`](sim-fixtures/nnint-stress/) | ✅ | — | — |
 | [`caller-counter`](sim-fixtures/caller-counter/) | — | — | — |
-| [`life-storage-admission`](sim-fixtures/life-storage-admission/) | — | — | — |
 
 A `—` means the contract has no tests of that kind, or its behaviour is already
 covered by the tests of the contracts that depend on it.
