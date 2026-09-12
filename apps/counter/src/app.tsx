@@ -27,7 +27,7 @@ export function CounterPage({
       <AppHeader ready={snapshot.ready} />
       <main className="py-10 sm:py-14">
         <div className="mx-auto flex max-w-3xl flex-col gap-10 px-4 sm:px-6">
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col items-center gap-3 text-center">
             <h1 className="text-3xl tracking-tight sm:text-4xl">
               Every key counts
             </h1>
