@@ -162,6 +162,18 @@ signing, chain-tip lookup, submission and receipt polling. HTTP time also
 includes preflight/committed frame reads, writing the session record and the
 binary response; it excludes browser drawing and display latency.
 
+A follow-up [timing profile](evidence/timing-profile.json), using the same
+artifact and binaries, measured 47.84 ms/transaction: about 1.5 ms for tip lookup,
+signing and submission; 42 ms from block open to event close; and 4.7 ms from
+close to receipt observation. These are separate medians, not an exact sum.
+A status-only call to the same large contract still took 23.45 ms. The pinned
+node clears its prepared-contract cache between blocks, so the one-tic/block
+loop reloads and prepares Doom each time; the standalone harness prepares it
+once outside the tick timer. A separate warm preparation benchmark cost
+6.20 ms. This identifies avoidable preparation work but does not isolate every
+millisecond of the remaining executor/storage overhead. Receipt polling gaps
+overlap node execution and must not be counted as additional removable time.
+
 The original standalone sample remains in [metrics.csv](evidence/metrics.csv),
 [summary.json](evidence/summary.json), [artifact.json](evidence/artifact.json),
 and [provenance.json](evidence/provenance.json). It used an earlier artifact
