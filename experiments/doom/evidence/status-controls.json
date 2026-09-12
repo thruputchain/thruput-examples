@@ -1,0 +1,1570 @@
+{
+  "transactions": [
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 159,
+      "hash": "0xb3649a00bfea6bdb8b17632c205a7cbfb30f115f5f15529a835cdbcabae04f9d",
+      "wallStartNs": 1789232939475987446,
+      "wallEndNs": 1789232939503367054,
+      "totalMs": 26.25238199834712,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 6.239990234375
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 160,
+      "hash": "0x03cfc075a93f381dc2c24da8d69cfbfd7b0c933741cf92afb7f10895235334c7",
+      "wallStartNs": 1789232939503373303,
+      "wallEndNs": 1789232939520338769,
+      "totalMs": 16.651883997838013,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 4.025146484375
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 161,
+      "hash": "0x481a63eb20c335abaf0da37146347b7b9c5c1813a33574b62bff3222bc1f0c3f",
+      "wallStartNs": 1789232939520345629,
+      "wallEndNs": 1789232939543470734,
+      "totalMs": 22.666174001642503,
+      "blockOpenToCloseMs": 13,
+      "closeToReceiptMs": 7.011962890625
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 162,
+      "hash": "0xba7946bf89a59e16c70fb0c3dadc1fb40c7bfdce0b9aa95802f29922a602e18b",
+      "wallStartNs": 1789232939543527929,
+      "wallEndNs": 1789232939558045342,
+      "totalMs": 14.130682000541128,
+      "blockOpenToCloseMs": 8,
+      "closeToReceiptMs": 4.658447265625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 163,
+      "hash": "0x33c2fe41f926bd1fe4c4a68330d6cf8d6998ffba206557cdb6f38860f53b41c7",
+      "wallStartNs": 1789232939558052203,
+      "wallEndNs": 1789232939585333597,
+      "totalMs": 26.197113998932764,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 6.2490234375
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 164,
+      "hash": "0x9b4f091eaabfb207176107fa77480f0192cbe9e4d87141fb6838ce8687b511b4",
+      "wallStartNs": 1789232939585340018,
+      "wallEndNs": 1789232939608680982,
+      "totalMs": 22.9813030018704,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 10.321044921875
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 165,
+      "hash": "0xcebe05cd42a8f9c1f5b113d502eea6a95b9fdb345f8e8690072106f702e5e632",
+      "wallStartNs": 1789232939608686640,
+      "wallEndNs": 1789232939631171482,
+      "totalMs": 22.154865000629798,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 8.84130859375
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 166,
+      "hash": "0xba53f2d338580e81b3733dca862494ae7ea0814aa9444843b47c87df62851dfa",
+      "wallStartNs": 1789232939631176339,
+      "wallEndNs": 1789232939645301748,
+      "totalMs": 13.747099990723655,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 3.923583984375
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 167,
+      "hash": "0x9d659f757f070a64cdeae685aa14722d09120acf4145e590241ff94644ec8f69",
+      "wallStartNs": 1789232939645309189,
+      "wallEndNs": 1789232939671231871,
+      "totalMs": 24.77809999254532,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 5.087158203125
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 168,
+      "hash": "0x1ed6694d4072df0600cbd0560913cd50c7caafb26d4cd094f0b6a77e4e765aa8",
+      "wallStartNs": 1789232939671237429,
+      "wallEndNs": 1789232939700479402,
+      "totalMs": 28.92658900236711,
+      "blockOpenToCloseMs": 17,
+      "closeToReceiptMs": 8.163818359375
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 169,
+      "hash": "0x2c838c4473208ec5f77f5702211b887baf1572c9f7276d02bac85695a14e02ea",
+      "wallStartNs": 1789232939700484349,
+      "wallEndNs": 1789232939718472954,
+      "totalMs": 17.584896995685995,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 4.0693359375
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 170,
+      "hash": "0xb6feec2ba24fdda38477074fd51ca6e271db514011143c495229065e90e61d68",
+      "wallStartNs": 1789232939718478562,
+      "wallEndNs": 1789232939733137014,
+      "totalMs": 14.259661998949014,
+      "blockOpenToCloseMs": 7,
+      "closeToReceiptMs": 4.73828125
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 171,
+      "hash": "0xbe04d45902b0bda2f27eaf83c24b2da4367558da105a8ea766cc2cab83e6ad30",
+      "wallStartNs": 1789232939733144405,
+      "wallEndNs": 1789232939758851367,
+      "totalMs": 24.31154399528168,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 4.455810546875
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 172,
+      "hash": "0x31f1ab4e1de531a34a8bc99e39a5e64d4a3151a481496c4dd414124b6ca31e58",
+      "wallStartNs": 1789232939758859078,
+      "wallEndNs": 1789232939777035855,
+      "totalMs": 17.751588005921803,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 4.610595703125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 173,
+      "hash": "0x3d45c94568f52656616ca9380883c9470951787f44809853636dd06c4172bdd8",
+      "wallStartNs": 1789232939777041464,
+      "wallEndNs": 1789232939800980827,
+      "totalMs": 23.506101992097683,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 6.547607421875
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 174,
+      "hash": "0x355758d3eeb52a831c8cce852bf8d7dfef497460b5dd917e24dd092f96c6e0a1",
+      "wallStartNs": 1789232939800987627,
+      "wallEndNs": 1789232939818455923,
+      "totalMs": 17.102135010645725,
+      "blockOpenToCloseMs": 8,
+      "closeToReceiptMs": 4.089599609375
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 175,
+      "hash": "0x93bd39f2ed9dcee15b18287e155be598a5d426029d295aec558f149b10f10eb1",
+      "wallStartNs": 1789232939818461431,
+      "wallEndNs": 1789232939851970367,
+      "totalMs": 32.40127999742981,
+      "blockOpenToCloseMs": 21,
+      "closeToReceiptMs": 4.86279296875
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 176,
+      "hash": "0x6562ea83530592487015ebf920f8f75a9531897fad53d5a84d288c5ff885f812",
+      "wallStartNs": 1789232939851975375,
+      "wallEndNs": 1789232939873300366,
+      "totalMs": 20.951179991243407,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 4.926513671875
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 177,
+      "hash": "0x1205b0ba48fe98745b006e061dad90bea66212bcaa4a481873b5fcb1e4f0d69e",
+      "wallStartNs": 1789232939873303452,
+      "wallEndNs": 1789232939898943223,
+      "totalMs": 25.210424995748326,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 8.513916015625
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 178,
+      "hash": "0xa479eee9c4317c547409496bd13f7bec08a82191fe8b4b6bcc4d07ab5f96af74",
+      "wallStartNs": 1789232939898949352,
+      "wallEndNs": 1789232939915622287,
+      "totalMs": 16.32879799581133,
+      "blockOpenToCloseMs": 7,
+      "closeToReceiptMs": 4.2783203125
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 179,
+      "hash": "0x4617cd8aad83ba1e92ee02389b27a64ce253b09b9991890781c5f80e02ba8693",
+      "wallStartNs": 1789232939915628247,
+      "wallEndNs": 1789232939947548713,
+      "totalMs": 30.813220000709407,
+      "blockOpenToCloseMs": 21,
+      "closeToReceiptMs": 3.44140625
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 180,
+      "hash": "0xc58935ae40ba065fe0e04a7417664487b333519ef3fbb600fbb43eea13d37173",
+      "wallStartNs": 1789232939947554462,
+      "wallEndNs": 1789232939968577225,
+      "totalMs": 20.642290997784585,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 3.19677734375
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 181,
+      "hash": "0x90b9a0fb7fb725cc4bd1ca948205db930df99fc8bbff39335bfd5ca08f55ed7d",
+      "wallStartNs": 1789232939968583484,
+      "wallEndNs": 1789232939989382134,
+      "totalMs": 20.469746013986878,
+      "blockOpenToCloseMs": 10,
+      "closeToReceiptMs": 4.05322265625
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 182,
+      "hash": "0xc9bea0ecd9db30a474ad1e73836618910a947ec8c17fab55732d61c951f35d68",
+      "wallStartNs": 1789232939989387572,
+      "wallEndNs": 1789232940008959809,
+      "totalMs": 19.234056991990656,
+      "blockOpenToCloseMs": 7,
+      "closeToReceiptMs": 5.62158203125
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 183,
+      "hash": "0x226e35c55fbf5b66d4c3ee63ded1a91bd8a2d692b67071c26d025ee8eae12d4b",
+      "wallStartNs": 1789232940008965186,
+      "wallEndNs": 1789232940034952735,
+      "totalMs": 24.79892199335154,
+      "blockOpenToCloseMs": 17,
+      "closeToReceiptMs": 5.763916015625
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 184,
+      "hash": "0xed5b5c365f49abbbbe062ce704a203f1837b5e6964b1ee163244247dcaf49d74",
+      "wallStartNs": 1789232940034957733,
+      "wallEndNs": 1789232940059601490,
+      "totalMs": 24.293651003972627,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 7.25146484375
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 185,
+      "hash": "0x53da175bee114d1b5790faf6a219bd5495c6fff2e4bcfd87edd683653acb4849",
+      "wallStartNs": 1789232940059607070,
+      "wallEndNs": 1789232940076819427,
+      "totalMs": 16.845015008584596,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 4.451904296875
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 186,
+      "hash": "0xe66e9daabe239be613402b937d2cc62526ecce582aca126949f6548c5f3b6188",
+      "wallStartNs": 1789232940076824875,
+      "wallEndNs": 1789232940090935366,
+      "totalMs": 13.793494013953023,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 2.618408203125
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 187,
+      "hash": "0x22bfae379f2df66dca3f5f38a6969572c7594e8b85d53d2111109caf5a979fdf",
+      "wallStartNs": 1789232940090939943,
+      "wallEndNs": 1789232940120626250,
+      "totalMs": 28.58614199794829,
+      "blockOpenToCloseMs": 16,
+      "closeToReceiptMs": 5.526123046875
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 188,
+      "hash": "0xb916964ce7a396997d3e63ddb604f27043285ebe066d3b6158029f4e99dfaee6",
+      "wallStartNs": 1789232940120631147,
+      "wallEndNs": 1789232940142859768,
+      "totalMs": 21.873876990866847,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 6.5048828125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 189,
+      "hash": "0x2c0ee7df047880206173095b01572f3160e8df6ec37cdb547a829ab0f2e9aff2",
+      "wallStartNs": 1789232940142865326,
+      "wallEndNs": 1789232940167269508,
+      "totalMs": 24.072814005194232,
+      "blockOpenToCloseMs": 15,
+      "closeToReceiptMs": 5.938232421875
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 190,
+      "hash": "0xbcc169cf202d7ad3338c6e116f117c2e3a4ed3d211f791d05676b74784c822d0",
+      "wallStartNs": 1789232940167274066,
+      "wallEndNs": 1789232940181545790,
+      "totalMs": 13.940886012278497,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 3.21484375
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 191,
+      "hash": "0xdfe3a0faaecb6c3bf3d8b30d5a5f510efadad36f3ba06fcbd22037e05546763c",
+      "wallStartNs": 1789232940181551428,
+      "wallEndNs": 1789232940212016767,
+      "totalMs": 28.20434799650684,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 4.755615234375
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 192,
+      "hash": "0xc34bfbbcca4976af2b845813225f45c8d62546fcc3860efcb5059e00ce7601f1",
+      "wallStartNs": 1789232940212022266,
+      "wallEndNs": 1789232940276925898,
+      "totalMs": 62.33321598847397,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 47.35546875
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 193,
+      "hash": "0x16174b5282b6e1b74874ffe72766a449203ddfa25a1d8e73dce8ac378aa7b0b7",
+      "wallStartNs": 1789232940277038907,
+      "wallEndNs": 1789232940300660503,
+      "totalMs": 23.02627099561505,
+      "blockOpenToCloseMs": 14,
+      "closeToReceiptMs": 5.065185546875
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 194,
+      "hash": "0xa0a1aba610268e3813a114e9d9da6cf0487879d0d8ed60bf83752385012f5dfc",
+      "wallStartNs": 1789232940300666222,
+      "wallEndNs": 1789232940317058701,
+      "totalMs": 15.552755998214707,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 4.21875
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 195,
+      "hash": "0xd9f8f640d7fe0f8ca84eed5865812ac4f766946a6301d3b7c161d776b07ed1ac",
+      "wallStartNs": 1789232940317065090,
+      "wallEndNs": 1789232940349344793,
+      "totalMs": 29.71339799114503,
+      "blockOpenToCloseMs": 20,
+      "closeToReceiptMs": 4.778564453125
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 196,
+      "hash": "0xa5c91cf7f24966a9a192311b989da84ecdfdfd91f8d79a38544092a25b0d7b23",
+      "wallStartNs": 1789232940349352104,
+      "wallEndNs": 1789232940374997393,
+      "totalMs": 25.266540003940463,
+      "blockOpenToCloseMs": 16,
+      "closeToReceiptMs": 6.618896484375
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 197,
+      "hash": "0x55c16f0c8becbe54d5d8de43434bb2b528cc84266e93170e22e6f3094692bdb1",
+      "wallStartNs": 1789232940375002090,
+      "wallEndNs": 1789232940401727364,
+      "totalMs": 26.07721000094898,
+      "blockOpenToCloseMs": 10,
+      "closeToReceiptMs": 4.079345703125
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 198,
+      "hash": "0x3be34acc79f9951013585becea83364bce16070bd766eacc697a130d733c6879",
+      "wallStartNs": 1789232940401732461,
+      "wallEndNs": 1789232940418502372,
+      "totalMs": 16.376889994717203,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 4.109375
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 199,
+      "hash": "0xd11f31da47f1d1147a3163e08155df63b1e4565d1e07073e4cdb38d225ff9d6b",
+      "wallStartNs": 1789232940418507380,
+      "wallEndNs": 1789232940451878564,
+      "totalMs": 32.12303599866573,
+      "blockOpenToCloseMs": 24,
+      "closeToReceiptMs": 3.63037109375
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 200,
+      "hash": "0x2352f6e28edce362e2337ec8e556fec52b18154def6d5acb832685b43592eb88",
+      "wallStartNs": 1789232940451883411,
+      "wallEndNs": 1789232940479099894,
+      "totalMs": 26.79186400200706,
+      "blockOpenToCloseMs": 13,
+      "closeToReceiptMs": 7.67529296875
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 201,
+      "hash": "0x3309fd258364a4a9114a4e456a4879e73d32d29bda1250d7dafbc5b4d819bfd9",
+      "wallStartNs": 1789232940479105442,
+      "wallEndNs": 1789232940503965661,
+      "totalMs": 24.369139995542355,
+      "blockOpenToCloseMs": 15,
+      "closeToReceiptMs": 6.474609375
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 202,
+      "hash": "0xd78a2bc43cdd8783d836e3e15ad737900245d09f30bdcdcfb96f98ca33d69d3c",
+      "wallStartNs": 1789232940503970698,
+      "wallEndNs": 1789232940516537418,
+      "totalMs": 12.174450006568804,
+      "blockOpenToCloseMs": 7,
+      "closeToReceiptMs": 2.145263671875
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 203,
+      "hash": "0x08150ac7732d797e9d5105a9a4a1ccfd5e406be5b5177044d12325047c5f20c9",
+      "wallStartNs": 1789232940516542656,
+      "wallEndNs": 1789232940545944110,
+      "totalMs": 28.30337200430222,
+      "blockOpenToCloseMs": 16,
+      "closeToReceiptMs": 4.84619140625
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 204,
+      "hash": "0x0eafacf0ee6c0eadfbc193525cadc8269f50ba3b12aae42cb9d2dbef0ffcd163",
+      "wallStartNs": 1789232940545948836,
+      "wallEndNs": 1789232940575277790,
+      "totalMs": 28.955772999324836,
+      "blockOpenToCloseMs": 16,
+      "closeToReceiptMs": 7.90478515625
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 205,
+      "hash": "0x81086159665225ca0bc26795bb1b6495d88e3957ddd82170dba19132fdde9d79",
+      "wallStartNs": 1789232940575282598,
+      "wallEndNs": 1789232940604332117,
+      "totalMs": 28.598831995623186,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 7.881591796875
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 206,
+      "hash": "0x650ff9885f0126d645e6604e7f83d498d70e2d88645c16c95ea88c4bd3a811e3",
+      "wallStartNs": 1789232940604337105,
+      "wallEndNs": 1789232940622071967,
+      "totalMs": 17.16877099534031,
+      "blockOpenToCloseMs": 4,
+      "closeToReceiptMs": 7.505859375
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 207,
+      "hash": "0xcd9be08a6a532b7f0f3fce392496c349c9986f043281ef00ab5ceb6f821ed483",
+      "wallStartNs": 1789232940622079519,
+      "wallEndNs": 1789232940648568507,
+      "totalMs": 25.217365997377783,
+      "blockOpenToCloseMs": 19,
+      "closeToReceiptMs": 4.296875
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 208,
+      "hash": "0x577c49b330ae4e20ebc004ebf552a57412b9be5db4e6a50214f4276ec7277254",
+      "wallStartNs": 1789232940648574025,
+      "wallEndNs": 1789232940673211539,
+      "totalMs": 24.102047987980768,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 7.676025390625
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 209,
+      "hash": "0x7d7a6a6738180272f24aea727a5b2ba89e2aa2c528747a364d158ca1b00826dc",
+      "wallStartNs": 1789232940673216677,
+      "wallEndNs": 1789232940710171826,
+      "totalMs": 36.44082498794887,
+      "blockOpenToCloseMs": 26,
+      "closeToReceiptMs": 7.65771484375
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 210,
+      "hash": "0xd68b00e32fe0243a2ce8ab42efd86a643494baa3327cec9852ee7719408662e6",
+      "wallStartNs": 1789232940710177464,
+      "wallEndNs": 1789232940726382581,
+      "totalMs": 15.823602996533737,
+      "blockOpenToCloseMs": 7,
+      "closeToReceiptMs": 5.0009765625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 211,
+      "hash": "0x079e00e9a8a4b32b995025825e37ee3a1c56e617d0735b0f84b98cf1d1a82f04",
+      "wallStartNs": 1789232940726387979,
+      "wallEndNs": 1789232940759638030,
+      "totalMs": 31.270715000573546,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 6.65869140625
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 212,
+      "hash": "0xd23fa36d3efdd2fba2bcb65ce02db50d08b4529072ec2febfb6101007307eacf",
+      "wallStartNs": 1789232940759645802,
+      "wallEndNs": 1789232940781641262,
+      "totalMs": 21.63148400723003,
+      "blockOpenToCloseMs": 14,
+      "closeToReceiptMs": 6.27734375
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 213,
+      "hash": "0x3fe153ad116103029860fe03942468d415048aeca1fd72b5eafdc43bd5572ea3",
+      "wallStartNs": 1789232940781645990,
+      "wallEndNs": 1789232940804701013,
+      "totalMs": 22.506829001940787,
+      "blockOpenToCloseMs": 14,
+      "closeToReceiptMs": 5.15283203125
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 214,
+      "hash": "0xb70258797c8b5f355180696af674ed96add252cb18eef0cd6cb2cf6e30913e6c",
+      "wallStartNs": 1789232940804707133,
+      "wallEndNs": 1789232940816648331,
+      "totalMs": 11.46691499161534,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 4.173828125
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 215,
+      "hash": "0xe7c5814c7e1d05465ff2b893f77859854d9a2c10dae46a1b2177b44198b15f03",
+      "wallStartNs": 1789232940816657285,
+      "wallEndNs": 1789232940845405937,
+      "totalMs": 26.505349000217393,
+      "blockOpenToCloseMs": 19,
+      "closeToReceiptMs": 5.162841796875
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 216,
+      "hash": "0xdb9aa1d6abed920b2fb1b0483312fba7a9e34e566f2e951c7cee88d728d602d1",
+      "wallStartNs": 1789232940845411055,
+      "wallEndNs": 1789232940883297184,
+      "totalMs": 36.34585200052243,
+      "blockOpenToCloseMs": 29,
+      "closeToReceiptMs": 5.757080078125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 217,
+      "hash": "0x239a4a6f61d5b57ca5d6c79560578a5c7e68166cfa12843afb8a00b9e381793d",
+      "wallStartNs": 1789232940883303794,
+      "wallEndNs": 1789232940901689455,
+      "totalMs": 17.748694008332677,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 4.052490234375
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 218,
+      "hash": "0xdab1463c348d968072061e06918e6bdeb7ba949c476967190a32969a28578d98",
+      "wallStartNs": 1789232940901696165,
+      "wallEndNs": 1789232940916070898,
+      "totalMs": 13.293106007040478,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 4.989501953125
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 219,
+      "hash": "0xf6e2df0e07de4aeda9ab2ddf68ca256d364d263d2ca289a201ad8bb3ffa0365f",
+      "wallStartNs": 1789232940916077538,
+      "wallEndNs": 1789232940948594512,
+      "totalMs": 31.021044007502496,
+      "blockOpenToCloseMs": 23,
+      "closeToReceiptMs": 6.0986328125
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 220,
+      "hash": "0xd3716f081aac5cc6bfdc41920da22779324ab63820d269b01e5ebec118a5eb54",
+      "wallStartNs": 1789232940948599540,
+      "wallEndNs": 1789232940967600177,
+      "totalMs": 18.48142599919811,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 5.0810546875
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 221,
+      "hash": "0xb6fff86d045f91429c026b15867c5d875a520cf5d7b2d20751de148eadea7a5d",
+      "wallStartNs": 1789232940967604854,
+      "wallEndNs": 1789232941011468127,
+      "totalMs": 43.341708995285444,
+      "blockOpenToCloseMs": 37,
+      "closeToReceiptMs": 4.946533203125
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 222,
+      "hash": "0x8d42d278d32780da7215f768e9c8700e6e5a07766c96d94c216cb23fee198938",
+      "wallStartNs": 1789232941011488027,
+      "wallEndNs": 1789232941061269587,
+      "totalMs": 49.379615011275746,
+      "blockOpenToCloseMs": 44,
+      "closeToReceiptMs": 3.86767578125
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 223,
+      "hash": "0x0e3b21425ad391832be673d9e9e5d75b4dd13679f9d2b215a8964f98f620dbcf",
+      "wallStartNs": 1789232941061275536,
+      "wallEndNs": 1789232941139243116,
+      "totalMs": 76.68461099092383,
+      "blockOpenToCloseMs": 66,
+      "closeToReceiptMs": 5.960205078125
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 224,
+      "hash": "0x10a3b22194f36604d87682e59abd35ab36282a741781f3b80535c9ad1fcf60cc",
+      "wallStartNs": 1789232941139248374,
+      "wallEndNs": 1789232941175325412,
+      "totalMs": 35.674562997883186,
+      "blockOpenToCloseMs": 29,
+      "closeToReceiptMs": 4.9228515625
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 225,
+      "hash": "0x5ecaab334e84e281b03a5b9629933ecf8feeb67f608bce88ffae08d6994ae3c6",
+      "wallStartNs": 1789232941175330329,
+      "wallEndNs": 1789232941195133472,
+      "totalMs": 18.83762000943534,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 4.16796875
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 226,
+      "hash": "0x363401d0c645562b9495c8533d4039538fa1124eb90197dc02ea02bb4edc2598",
+      "wallStartNs": 1789232941195139802,
+      "wallEndNs": 1789232941212044610,
+      "totalMs": 16.36769100150559,
+      "blockOpenToCloseMs": 10,
+      "closeToReceiptMs": 4.507568359375
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 227,
+      "hash": "0xf06a1557fafc6ee6e22a4d7ff6d4646012990938e3d949d8dc61120d7e954a15",
+      "wallStartNs": 1789232941212051060,
+      "wallEndNs": 1789232941244031307,
+      "totalMs": 30.36424599122256,
+      "blockOpenToCloseMs": 24,
+      "closeToReceiptMs": 4.415283203125
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 228,
+      "hash": "0xbbd47f32b502b2d24c9353b0341f958db659d2fbab21e5b1754fb38865dc1538",
+      "wallStartNs": 1789232941244036524,
+      "wallEndNs": 1789232941277659391,
+      "totalMs": 33.045989999664016,
+      "blockOpenToCloseMs": 28,
+      "closeToReceiptMs": 4.08251953125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 229,
+      "hash": "0x2f86eb7b5d230e0857d3205c69f7b06dd3d8d19bb9c8f886ceb2ec9131407870",
+      "wallStartNs": 1789232941277665271,
+      "wallEndNs": 1789232941295390890,
+      "totalMs": 16.814739006804302,
+      "blockOpenToCloseMs": 10,
+      "closeToReceiptMs": 4.47998046875
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 230,
+      "hash": "0xd0c2c9c5bcd33b8f3f007a0a6ff26a57bcbf656b02c12fa8fbe271c897e04b60",
+      "wallStartNs": 1789232941295396758,
+      "wallEndNs": 1789232941307773161,
+      "totalMs": 11.712594990967773,
+      "blockOpenToCloseMs": 5,
+      "closeToReceiptMs": 5.109619140625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 231,
+      "hash": "0xed93cd99bad87aef67510c844a89ee29902eb50c632952a07bd565a27180ab4e",
+      "wallStartNs": 1789232941307780122,
+      "wallEndNs": 1789232941334109841,
+      "totalMs": 24.239716003648937,
+      "blockOpenToCloseMs": 19,
+      "closeToReceiptMs": 4.019775390625
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 232,
+      "hash": "0x695f22bee631154e6bc2c1475887922b288b426c704270393b15dc1c6ae1c6c8",
+      "wallStartNs": 1789232941334117062,
+      "wallEndNs": 1789232941353564881,
+      "totalMs": 19.0287180012092,
+      "blockOpenToCloseMs": 13,
+      "closeToReceiptMs": 4.14599609375
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 233,
+      "hash": "0xc26e03e7d26486274ab6814ae95d8629d121abd2f8ae0849dfa971a68103dd79",
+      "wallStartNs": 1789232941353570209,
+      "wallEndNs": 1789232941376434856,
+      "totalMs": 22.264605009695515,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 4.8349609375
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 234,
+      "hash": "0x28873b55ab6e677557825ece7bfd0af98ee3aeced119adee7b9b7c685fe0147d",
+      "wallStartNs": 1789232941376441136,
+      "wallEndNs": 1789232941388589116,
+      "totalMs": 11.652874993160367,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 4.093994140625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 235,
+      "hash": "0x5916fb6e870b6256b0d4d57f566cc75de1ba0cbf9950bda453bf83aed1f2f2fe",
+      "wallStartNs": 1789232941388594894,
+      "wallEndNs": 1789232941419954674,
+      "totalMs": 30.149579004500993,
+      "blockOpenToCloseMs": 20,
+      "closeToReceiptMs": 7.74462890625
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 236,
+      "hash": "0x0e19b67b1cfe1a57300a8fc30a292c47df1e683bdd7906e166fce37819813790",
+      "wallStartNs": 1789232941419960402,
+      "wallEndNs": 1789232941498968902,
+      "totalMs": 78.06251700094435,
+      "blockOpenToCloseMs": 71,
+      "closeToReceiptMs": 6.022705078125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 237,
+      "hash": "0xf362a634508c874303cb31d2614c4247397eeeb039f60dcd7d92060aec641877",
+      "wallStartNs": 1789232941498976013,
+      "wallEndNs": 1789232941522432180,
+      "totalMs": 22.575613009394147,
+      "blockOpenToCloseMs": 15,
+      "closeToReceiptMs": 5.5517578125
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 238,
+      "hash": "0xa5df2aa7b20817f1b6ab4bac912d78a7a16d423748b252906e8a19ebebabccd0",
+      "wallStartNs": 1789232941522439611,
+      "wallEndNs": 1789232941540265831,
+      "totalMs": 17.382673002430238,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 5.822265625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 239,
+      "hash": "0xf7c9c47ade38f70fa80c60e23b5a0da514466ccb9f8e8302f441a8e98fda7b55",
+      "wallStartNs": 1789232941540271239,
+      "wallEndNs": 1789232941568097579,
+      "totalMs": 25.451968002016656,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 4.72314453125
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 240,
+      "hash": "0x0b9590a04f1c0104d1e6a7162b1a1a74ab6e41d8cec7332345fe63f762af4761",
+      "wallStartNs": 1789232941568104529,
+      "wallEndNs": 1789232941626704411,
+      "totalMs": 57.84206099633593,
+      "blockOpenToCloseMs": 50,
+      "closeToReceiptMs": 5.946533203125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 241,
+      "hash": "0xd571ee7d2634a39413d6eaedf67940243c5bb83b0aad440d154867c05445ac37",
+      "wallStartNs": 1789232941626711281,
+      "wallEndNs": 1789232941684324464,
+      "totalMs": 56.996175000676885,
+      "blockOpenToCloseMs": 50,
+      "closeToReceiptMs": 5.707275390625
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 242,
+      "hash": "0xe64f1e796a6be80b59a531c6d150c7320f6319f58c250803e260ec332eea0300",
+      "wallStartNs": 1789232941684329392,
+      "wallEndNs": 1789232941696525248,
+      "totalMs": 11.391236999770626,
+      "blockOpenToCloseMs": 5,
+      "closeToReceiptMs": 4.720947265625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 243,
+      "hash": "0x4a59082802b05363b1780a1b8935e980770b2eb70373b4d522e6ea7ed97b91f5",
+      "wallStartNs": 1789232941696532860,
+      "wallEndNs": 1789232941722449047,
+      "totalMs": 24.194557990995236,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 4.727294921875
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 244,
+      "hash": "0x08f7554a662038b2349e12860d2847867438b4c151459476dfcdb3fc10bed148",
+      "wallStartNs": 1789232941722454124,
+      "wallEndNs": 1789232941772432555,
+      "totalMs": 49.39466300129425,
+      "blockOpenToCloseMs": 43,
+      "closeToReceiptMs": 4.848876953125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 245,
+      "hash": "0x9a6d02a4eb727dd7e4098d79dd73633cef8956afb3f9731207b1b1811ac8d518",
+      "wallStartNs": 1789232941772439094,
+      "wallEndNs": 1789232941789767846,
+      "totalMs": 16.751012997701764,
+      "blockOpenToCloseMs": 10,
+      "closeToReceiptMs": 5.18994140625
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 246,
+      "hash": "0x1ef9427fa8cabe9927fc2be69f425f343f8a58144e42b4bb234a129673b9de13",
+      "wallStartNs": 1789232941789774436,
+      "wallEndNs": 1789232941801916922,
+      "totalMs": 11.67869899654761,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 4.453125
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 247,
+      "hash": "0x195950ffad092c41661c199cd1b1e0f43ae069928fa1383976c1fe68a776c307",
+      "wallStartNs": 1789232941801922631,
+      "wallEndNs": 1789232941833614314,
+      "totalMs": 30.34685099555645,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 6.26953125
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 248,
+      "hash": "0xc29689d1ebd1625169a29048a8eb5590d3fa89ddc5fbdd719aae98ea7faf50c7",
+      "wallStartNs": 1789232941833619381,
+      "wallEndNs": 1789232941893164033,
+      "totalMs": 59.04977899626829,
+      "blockOpenToCloseMs": 52,
+      "closeToReceiptMs": 5.669189453125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 249,
+      "hash": "0xde0c948102986355a8fa813be2a07c784b3cb10ac67ca0c7210d0af8e8155a58",
+      "wallStartNs": 1789232941893168671,
+      "wallEndNs": 1789232941912541077,
+      "totalMs": 18.86165801261086,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 5.0302734375
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 250,
+      "hash": "0xfe425a17c0bf0690dac7d1dbc2bdadec784c49142dd115647c42bb1f7bcf954e",
+      "wallStartNs": 1789232941912545783,
+      "wallEndNs": 1789232941927396017,
+      "totalMs": 13.80041500669904,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 5.34619140625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 251,
+      "hash": "0x66587f5c5ec0a88dfbbf37dd5c015898abf504ccf77db122851cbcf127be6660",
+      "wallStartNs": 1789232941927401456,
+      "wallEndNs": 1789232941960262337,
+      "totalMs": 31.572994994348846,
+      "blockOpenToCloseMs": 24,
+      "closeToReceiptMs": 4.974365234375
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 252,
+      "hash": "0x7866a9ca187f8aba8b7c31b3ab65bacc69a8e18d0bc4ac8e004ba2cc4b3bb0a7",
+      "wallStartNs": 1789232941960268597,
+      "wallEndNs": 1789232942014416348,
+      "totalMs": 53.63963700074237,
+      "blockOpenToCloseMs": 46,
+      "closeToReceiptMs": 4.908203125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 253,
+      "hash": "0xe804cc911b9e4ec0756dede8f141dbb81ba6ffaca866f405530c21ba4952d822",
+      "wallStartNs": 1789232942014420634,
+      "wallEndNs": 1789232942082190101,
+      "totalMs": 65.33614298678003,
+      "blockOpenToCloseMs": 54,
+      "closeToReceiptMs": 4.7568359375
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 254,
+      "hash": "0x5c9d9d01e871daa802e3ecbcf97a529a17f37e7a00415e9f74c3545f6e7ff8bb",
+      "wallStartNs": 1789232942082196812,
+      "wallEndNs": 1789232942111466783,
+      "totalMs": 28.71847100323066,
+      "blockOpenToCloseMs": 20,
+      "closeToReceiptMs": 4.915283203125
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 255,
+      "hash": "0x701436489496f525439d32c205c708cb5b38654ce3f6dd000607e574676fe9c3",
+      "wallStartNs": 1789232942111473742,
+      "wallEndNs": 1789232942137111195,
+      "totalMs": 23.991708003450185,
+      "blockOpenToCloseMs": 19,
+      "closeToReceiptMs": 3.46533203125
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 256,
+      "hash": "0xece73fe425ef14ee4ba5ffdb5f511182d24c0aa86b6cd853ec1d1884d3ade710",
+      "wallStartNs": 1789232942137115963,
+      "wallEndNs": 1789232942156888220,
+      "totalMs": 19.24832898657769,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 6.3642578125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 257,
+      "hash": "0x15551b109a42440b18bff63e5133a3b303aed8a2039abdb353b0dd5eece87cd7",
+      "wallStartNs": 1789232942156893337,
+      "wallEndNs": 1789232942175077746,
+      "totalMs": 17.45560299605131,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 4.34912109375
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 258,
+      "hash": "0x9780021a3d9a2159e4ea3539e0a02143d169b2080f148c496e3b686f77fae8b4",
+      "wallStartNs": 1789232942175085017,
+      "wallEndNs": 1789232942188711210,
+      "totalMs": 13.124267992679961,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 5.209228515625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 259,
+      "hash": "0x0f1c805c0b2f4be9f85d7306f55fa299d6d22f4ee61b7aded45c4425c261bac5",
+      "wallStartNs": 1789232942188716908,
+      "wallEndNs": 1789232942217439476,
+      "totalMs": 27.340168002410792,
+      "blockOpenToCloseMs": 16,
+      "closeToReceiptMs": 8.056884765625
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 260,
+      "hash": "0x2ef635b42d92ee07d185e49340300dd73d10ee11092c983261257187909376a9",
+      "wallStartNs": 1789232942217445765,
+      "wallEndNs": 1789232942239559904,
+      "totalMs": 21.527407006942667,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 7.97314453125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 261,
+      "hash": "0x72c17a73edbad1bc41d2c23689a3aa7cbc846e8539fcf58128bbe823d1c3f424",
+      "wallStartNs": 1789232942239564891,
+      "wallEndNs": 1789232942264450127,
+      "totalMs": 23.165909995441325,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 8.730712890625
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 262,
+      "hash": "0xf3151b0e001a07c3b30469ff5a6dd4ea13b4ab1882c00fddf02be9ce7387e49a",
+      "wallStartNs": 1789232942264455035,
+      "wallEndNs": 1789232942277899495,
+      "totalMs": 12.965260000783019,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 5.420166015625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 263,
+      "hash": "0x3499353d36ee557a788a13eb7f36c91011c70d3a123b32ba26cdc18263530efa",
+      "wallStartNs": 1789232942277904803,
+      "wallEndNs": 1789232942305763230,
+      "totalMs": 26.634355992428027,
+      "blockOpenToCloseMs": 15,
+      "closeToReceiptMs": 6.5390625
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 264,
+      "hash": "0xca60fa4bccb968025fc27f68989e60263c852abe400f16a27b8a64748dab1738",
+      "wallStartNs": 1789232942305766956,
+      "wallEndNs": 1789232942325755814,
+      "totalMs": 19.29177899728529,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 4.05859375
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 265,
+      "hash": "0x017eab50ae8bbcc43e281b460d31b706d42aac3dbc5162ce6b1483408f9e89e8",
+      "wallStartNs": 1789232942325760551,
+      "wallEndNs": 1789232942350924291,
+      "totalMs": 24.632151005789638,
+      "blockOpenToCloseMs": 12,
+      "closeToReceiptMs": 7.392578125
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 266,
+      "hash": "0xf5684201ec71d713789b004de90865918c34fabffc6013c21994059c01db83c0",
+      "wallStartNs": 1789232942350929509,
+      "wallEndNs": 1789232942365027121,
+      "totalMs": 13.480214009177871,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 5.40966796875
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 267,
+      "hash": "0xcb961c64c7ce7e5049af0d47285cdd3147603d28ba3bedddb0ae91679f575026",
+      "wallStartNs": 1789232942365032870,
+      "wallEndNs": 1789232942395998060,
+      "totalMs": 29.695591001654975,
+      "blockOpenToCloseMs": 18,
+      "closeToReceiptMs": 7.728515625
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 268,
+      "hash": "0x636582bf251b99d86a2d59d19f37028c90f1d0379f07b43fa41ffb5385ccd7a7",
+      "wallStartNs": 1789232942396004460,
+      "wallEndNs": 1789232942416469498,
+      "totalMs": 19.965657003922388,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 5.969970703125
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 269,
+      "hash": "0x5b44e0e2f182b348355849475adeaa7e160f0c98c08626513fce9079615f5971",
+      "wallStartNs": 1789232942416473854,
+      "wallEndNs": 1789232942436679052,
+      "totalMs": 19.64550699631218,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 6.119384765625
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 270,
+      "hash": "0x81b092069b589b572c2effdb127c8e98ad2226ae721b0c68238cbbec6820bd99",
+      "wallStartNs": 1789232942436684551,
+      "wallEndNs": 1789232942455848808,
+      "totalMs": 18.64603800640907,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 8.33056640625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 271,
+      "hash": "0x208d1fc55076f8eb5af5108ddb0e86870b17588a2c522a988b7056e7590586f4",
+      "wallStartNs": 1789232942455854376,
+      "wallEndNs": 1789232942485456797,
+      "totalMs": 27.817857000627555,
+      "blockOpenToCloseMs": 17,
+      "closeToReceiptMs": 7.672119140625
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 272,
+      "hash": "0x2cf82b06a81b8d1d945c0fe6392e7e973ecf8382a9461e7bdedb03ce15745266",
+      "wallStartNs": 1789232942485461203,
+      "wallEndNs": 1789232942508021652,
+      "totalMs": 21.854267004528083,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 7.3154296875
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 273,
+      "hash": "0x33aa48c6a39b206742dacbe741d76a35809d61f6584fee2cbc2c412b8a39c95e",
+      "wallStartNs": 1789232942508027602,
+      "wallEndNs": 1789232942530299688,
+      "totalMs": 21.59896300872788,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 7.62646484375
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 274,
+      "hash": "0x25f8c161db3d80268f1897128669ac24d38a195067d730382bdaf17053260061",
+      "wallStartNs": 1789232942530305126,
+      "wallEndNs": 1789232942544822896,
+      "totalMs": 13.914912997279316,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 5.2197265625
+    },
+    {
+      "label": "doom",
+      "method": 4,
+      "height": 275,
+      "hash": "0x3d40d0f5c702dc5600d38454be859ea6bb4f65de66ab496e8f62972959f54584",
+      "wallStartNs": 1789232942544829436,
+      "wallEndNs": 1789232942572690918,
+      "totalMs": 26.638373004971072,
+      "blockOpenToCloseMs": 17,
+      "closeToReceiptMs": 5.4677734375
+    },
+    {
+      "label": "tiny_same_image",
+      "method": 4,
+      "height": 276,
+      "hash": "0x8245061f29c8658873ef176e8214f3a1eddda5c4e90320f8f6f62bc432bfabbf",
+      "wallStartNs": 1789232942572695896,
+      "wallEndNs": 1789232942590847926,
+      "totalMs": 17.415693000657484,
+      "blockOpenToCloseMs": 11,
+      "closeToReceiptMs": 3.111572265625
+    },
+    {
+      "label": "tiny_16m",
+      "method": 4,
+      "height": 277,
+      "hash": "0xc14540b8006091acb19dcfaea63c9bb6c4c89e2b3ad0092e4026b05f75c8f2f0",
+      "wallStartNs": 1789232942590907646,
+      "wallEndNs": 1789232942612443875,
+      "totalMs": 21.06974799244199,
+      "blockOpenToCloseMs": 10,
+      "closeToReceiptMs": 4.9775390625
+    },
+    {
+      "label": "tiny_2m",
+      "method": 4,
+      "height": 278,
+      "hash": "0x3b83766b96148fb50dadaca86bb363ec16b367b7a75f3b080014c6bf35e61fc6",
+      "wallStartNs": 1789232942612448412,
+      "wallEndNs": 1789232942626566590,
+      "totalMs": 13.591424998594448,
+      "blockOpenToCloseMs": 6,
+      "closeToReceiptMs": 3.039794921875
+    }
+  ],
+  "storageReads": [
+    {
+      "ms": 1.099474,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.651931,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.528224,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.531459,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.441134,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.418049,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.410547,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.460202,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.415094,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.463537,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.456226,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.400142,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.381534,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.415755,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.443537,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.381103,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.413872,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.386111,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.449066,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.47212,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.413652,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.452721,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.403336,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.406701,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.421254,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.407463,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.400733,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.383767,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.406482,
+      "height": 278,
+      "bytes": 80
+    },
+    {
+      "ms": 0.570248,
+      "height": 278,
+      "bytes": 80
+    }
+  ],
+  "summary": {
+    "doom": {
+      "samples": 30,
+      "totalMs": 28.011102498567197,
+      "blockOpenToCloseMs": 18.0,
+      "closeToReceiptMs": 5.125
+    },
+    "tiny_same_image": {
+      "samples": 30,
+      "totalMs": 23.541675494925585,
+      "blockOpenToCloseMs": 12.0,
+      "closeToReceiptMs": 5.958251953125
+    },
+    "tiny_16m": {
+      "samples": 30,
+      "totalMs": 22.541221005667467,
+      "blockOpenToCloseMs": 12.0,
+      "closeToReceiptMs": 5.17138671875
+    },
+    "tiny_2m": {
+      "samples": 30,
+      "totalMs": 13.927899504778907,
+      "blockOpenToCloseMs": 6.0,
+      "closeToReceiptMs": 4.689697265625
+    },
+    "directStorageRead": {
+      "samples": 30,
+      "totalMs": 0.416902,
+      "bytes": 80
+    }
+  },
+  "hogdRevision": "5cd207403209190130f994e7804004222ba26b1f",
+  "rpcRevision": "f13196e4926489e291070297bc71e8546519b582",
+  "methodology": [
+    "Fresh local node with instant block driver, pubkey authentication, same pinned Release binaries as timing-profile.json.",
+    "Three warmup status transactions per contract, then 30 rounds interleaving Doom, tiny_same_image, tiny_16m, tiny_2m. Each successful transaction produces one block.",
+    "All status entrypoints check empty calldata, read an 80-byte metadata item and return it. No Doom simulation, WAD access, snapshot restoration, or game-state writes. Native wallet replay/accounting still applies.",
+    "tiny_same_image replaces only the Doom artifact code with a 548-byte control program; initial data and 16 MiB guest size are unchanged. tiny_16m removes unused initial data. tiny_2m additionally lowers guest memory to 2 MiB; its code is identical.",
+    "30 direct groundhog_getStorageAt metadata reads after transaction workload and a 50 ms quiescence wait; these do not execute a contract or produce a block.",
+    "Transaction totalMs is LiveGame.call time through successful receipt observation, excluding session file save. Raw wallEndNs additionally includes that save; closeToReceiptMs instead uses wallStartNs + totalMs.",
+    "Block open/close spans use existing event-service logs at millisecond resolution, not isolated executor CPU time. Medians of separate spans do not add exactly.",
+    "This interleaved workload has different allocation/cache behavior and host variance from the earlier 23.45 ms Doom-only status run; do not subtract across separate runs.",
+    "Preparation/instantiation microbenchmarks use the separately compiled Zig -O3 harness, 36 repetitions with the first omitted from medians; they are not exact node phase timings.",
+    "A first setup attempt hit the previously observed transient DbGateway System error immediately after initialization. This completed run retries setup reads only; measured transactions and quiescent reads all succeeded without retries.",
+    "No node source changes or cross-block prepared-code caching changes were made."
+  ],
+  "standalonePreparation": {
+    "doom": {
+      "prepare_ms": 6.07067,
+      "instantiate_ms": 0.903638
+    },
+    "tiny_same_image": {
+      "prepare_ms": 2.44035,
+      "instantiate_ms": 0.794054
+    },
+    "tiny_16m": {
+      "prepare_ms": 2.4435,
+      "instantiate_ms": 1.26358
+    },
+    "tiny_2m": {
+      "prepare_ms": 0.294783,
+      "instantiate_ms": 0.043896
+    }
+  },
+  "artifacts": {
+    "doom": {
+      "sha256": "4c91c14528e9cf1bc91cfe6bc22734ae73be12149f61f052650221368797ef2f",
+      "memoryBytes": 16777216,
+      "codeBytes": 599972,
+      "initialBytes": 186584,
+      "initialStart": 1048576
+    },
+    "tiny_same_image": {
+      "sha256": "6c5ac3f9f8facc0088593b352e9d9ca47a1cc3cc1bc75a02232a86b5fbbe59f9",
+      "memoryBytes": 16777216,
+      "codeBytes": 548,
+      "initialBytes": 186584,
+      "initialStart": 1048576
+    },
+    "tiny_16m": {
+      "sha256": "516e1c2822274a519c5ded4f3eb49c88c3f5e9dcaf466ad449e594a239c324f3",
+      "memoryBytes": 16777216,
+      "codeBytes": 548,
+      "initialBytes": 0,
+      "initialStart": 0
+    },
+    "tiny_2m": {
+      "sha256": "3b8aa76c75baecef0c54a40a5cc002f09c3be3411fcf5de57e40ca4e15d7d3da",
+      "memoryBytes": 2097152,
+      "codeBytes": 548,
+      "initialBytes": 0,
+      "initialStart": 0
+    }
+  }
+}

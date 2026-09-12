@@ -174,6 +174,44 @@ once outside the tick timer. A separate warm preparation benchmark cost
 millisecond of the remaining executor/storage overhead. Receipt polling gaps
 overlap node execution and must not be counted as additional removable time.
 
+The 23.45 ms status measurement is a **signed method-4 transaction producing a
+block**, not a direct metadata RPC read. A second [control experiment](evidence/status-controls.json)
+interleaved 30 status transactions per variant after three warmups each:
+
+| Status operation | Median end-to-end time |
+|---|---:|
+| Doom contract, 599,972 bytes of code, 16 MiB guest memory | 28.01 ms |
+| Tiny control, 548 bytes of code, same initial data and 16 MiB memory | 23.54 ms |
+| Same tiny control, no initialized data, 16 MiB memory | 22.54 ms |
+| Same tiny control, no initialized data, 2 MiB memory | 13.93 ms |
+| Direct `groundhog_getStorageAt` read of Doom's 80-byte metadata | 0.42 ms |
+
+The controls check empty calldata, read one 80-byte metadata item and return
+it. Memory size alone changes the tiny control by about 8.6 ms in this run;
+replacing Doom's code while retaining its memory image changes it by about
+4.5 ms. These are workload comparisons, not exact CPU phase attribution.
+The interleaved run has different allocation/cache behavior and host variance
+from the earlier Doom-only status sample. The node builds a full zero-filled
+guest memory image during preparation and copies that image at invocation,
+even for status. The earlier 6.20 ms preparation benchmark includes image
+construction as well as code translation. The remaining roughly 14 ms for
+the 2 MiB control includes authentication, storage, scheduling, block commit
+and receipt observation; these phases are not individually instrumented yet.
+The direct reads were measured after a 50 ms quiescence wait. The browser
+already reads committed storage directly. No cross-block cache change was made.
+
+Reproduce the status controls with the matching bundles above and Zig 0.16.0
+(the output directory must not already exist):
+
+```sh
+python profiling/status.py \
+  --groundhog .deps/rpc/local-demo-cli/bin/groundhog \
+  --signer .deps/rpc/local-demo-cli/bin/pubkey-signer \
+  --hog-devnode .deps/node/doom-devnode-bundle/bin/hog-devnode \
+  --contract-artifacts-dir .deps/node/doom-devnode-bundle/contracts \
+  --zig /path/to/zig --work-dir build/status-profile
+```
+
 The original standalone sample remains in [metrics.csv](evidence/metrics.csv),
 [summary.json](evidence/summary.json), [artifact.json](evidence/artifact.json),
 and [provenance.json](evidence/provenance.json). It used an earlier artifact
