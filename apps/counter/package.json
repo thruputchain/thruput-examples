@@ -1,0 +1,44 @@
+{
+  "name": "@groundhog-examples/counter-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5175 --strictPort",
+    "build": "npm run typecheck && vite build",
+    "start": "node --env-file-if-exists=.env.local --import tsx server/main.ts",
+    "setup:local": "bash scripts/setup-local.sh",
+    "generate:contracts": "bash scripts/generate-contract-bindings.sh",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "@groundhogchain/client": "0.8.0",
+    "@groundhogchain/contract-spec": "0.11.0",
+    "@groundhogchain/protocol": "0.11.0",
+    "@groundhogchain/xdr": "0.11.0",
+    "lucide-react": "0.468.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "tsx": "4.22.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1.11",
+    "@testing-library/react": "16.3.0",
+    "@types/node": "25.9.1",
+    "@types/react": "19.1.9",
+    "@types/react-dom": "19.1.7",
+    "@vitejs/plugin-react": "5.0.0",
+    "jsdom": "26.1.0",
+    "prettier": "3.9.6",
+    "tailwindcss": "4.1.11",
+    "typescript": "6.0.3",
+    "vite": "7.3.6",
+    "vitest": "4.1.11"
+  }
+}

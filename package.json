@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "workspaces": [
+    "apps/counter",
     "apps/swap",
     "apps/token-launchpad"
   ],
@@ -14,6 +15,7 @@
     "typecheck": "npm run typecheck --workspaces && tsc -p scripts/seed/tsconfig.json",
     "test:wallet": "node tests/e2e/wallet-apps.mjs --build-extension",
     "test:browser": "node tests/browser/apps.mjs",
+    "test:counter": "tsx tests/e2e/counter.ts",
     "test:seed": "tsx tests/e2e/seed.ts"
   },
   "dependencies": {

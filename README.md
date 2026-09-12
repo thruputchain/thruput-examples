@@ -47,12 +47,13 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 
 | App | Purpose |
 | --- | --- |
+| [Counter](apps/counter/README.md) | Send concurrent counter transactions with buttons or keyboard input; uses a development signer |
 | [Token Launchpad](apps/token-launchpad/README.md) | Create standard tokens and browse launches |
 | [Swap](apps/swap/README.md) | Create pools, swap tokens, and manage liquidity |
 | [Thruput Wallet](apps/wallet-extension/README.md) | Chrome wallet for localnet and devnet |
 
 Each app README contains its setup, configuration, and testing instructions.
-Swap and Launchpad share one npm workspace and root lockfile. The wallet has an
+Counter, Swap, and Launchpad share one npm workspace and root lockfile. The wallet has an
 independent install.
 
 Game of Life (atomic and async worlds, frontend, indexer, and test fixtures) now
@@ -88,17 +89,22 @@ For browser transactions, build and load [Thruput Wallet](apps/wallet-extension/
 create or import a test wallet, and request test HOG. App RPC proxies are read-only;
 the wallet signs and submits. These examples use test funds.
 
+Counter uses the same dependency install, with a local development signer and
+its own submission-capable RPC proxy. See its [setup guide](apps/counter/README.md)
+for keyboard controls and the compatible CLI/devnode pairing.
+
 ### Application checks
 
 Run from the repository root:
 
 | Command | Coverage and requirements |
 | --- | --- |
-| `npm run typecheck` | Both apps and shared seeding TypeScript |
+| `npm run typecheck` | All workspace apps and shared seeding TypeScript |
 | `npm test` | App and seed unit/integration tests, plus Linux process-cleanup regressions |
 | `npm run test:browser` | Chromium fixture checks for wallet controls, token selection, network guards, and page layout; no live node |
 | `npm run test:wallet` | Real extension approvals through token launch, pool creation, swap, liquidity, transfer, and production-server checks on a fresh node |
 | `npm run test:seed` | Fresh-node seeding, indexed tokens, balances, liquidity, and repeatability |
+| `npm run test:counter` | Fresh-node counter setup, concurrent transactions, and real browser keyboard input; requires a built counter artifact and app |
 
 Set `CHROMIUM_PATH` to your Chromium binary if needed. Browser fixtures default
 to `/usr/bin/chromium`; the live wallet test defaults to `/usr/lib/chromium/chromium`.
