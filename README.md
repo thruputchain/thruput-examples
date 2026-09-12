@@ -147,7 +147,7 @@ transaction or remote deployment. Wallet unit tests run independently through
   contracts build against):
 
   ```sh
-  export CARGO_REGISTRIES_GROUNDHOG_INDEX="sparse+https://groundhog.dev/crates/api/v1/crates/"
+  export CARGO_REGISTRIES_GROUNDHOG_INDEX="sparse+https://crates.thruput.network/api/v1/crates/"
   cargo install --locked --registry groundhog groundhog-cli
   ```
 
