@@ -6,7 +6,7 @@ static double ms(Clock::time_point a, Clock::time_point b) {
   return std::chrono::duration<double,std::milli>(b-a).count();
 }
 int main(int argc,char **argv) {
-  require(argc == 2, "usage: lifecycle contract.rv32a");
+  require(argc == 2 || argc == 3, "usage: lifecycle contract.rv32a [snapshot-version]");
   auto artifact=read_file(argv[1]);auto bytes=std::span<const uint8_t>(artifact);
   auto code=load_u32_le(artifact,52), initial=load_u32_le(artifact,56);
   auto make=[&](){
@@ -14,7 +14,8 @@ int main(int argc,char **argv) {
       load_u32_le(artifact,60),load_u32_le(artifact,48),false);
     require(bool(p),"prepare failed");return std::move(*p);
   };
-  Store base; base[key(0,0)]=Bytes(80);base[key(0,0)][0]=1;
+  Store base; base[key(0,0)]=Bytes(80);
+  store_u32_le(base[key(0,0)], 0, argc == 3 ? std::stoul(argv[2]) : GH_DOOM_SNAPSHOT_VERSION);
   std::cout<<"mode,sample,prepare_ms,instantiate_ms,execute_ms,machine_destroy_ms,prepared_destroy_ms,total_ms\n";
   auto sample=[&](const char *mode,int i,auto &pre,Clock::time_point begin,Clock::time_point ready) {
     Clock::time_point instantiated,executed,destroyed;

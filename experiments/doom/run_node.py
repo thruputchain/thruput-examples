@@ -21,11 +21,16 @@ def main():
     parser.add_argument('--data-dir', type=Path, default=ROOT / 'build/local-node')
     parser.add_argument('--rpc-port', type=int, default=9545)
     parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--worker-threads', type=int, default=2,
+                        help='Local hogd worker count; two reduces migration in this serial demo')
     args = parser.parse_args()
+    if args.worker_threads < 1:
+        parser.error('--worker-threads must be positive')
     args.data_dir = args.data_dir.resolve()
     args.data_dir.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, XDG_CONFIG_HOME=str(args.data_dir / 'config'),
-               XDG_CACHE_HOME=str(args.data_dir / 'cache'))
+               XDG_CACHE_HOME=str(args.data_dir / 'cache'),
+               DEFAULT_THREADPOOL_SIZE=str(args.worker_threads))
     log = (args.data_dir / 'node.log').open('a')
     startup_path = args.data_dir / 'startup.json'
     output = startup_path.open('w')
@@ -38,7 +43,7 @@ def main():
         '--network-config', 'max_rv32_code_bytes=1M',
         '--network-config', 'max_rv32_memory_bytes=16M',
         '--network-config', 'max_contract_size_bytes=1M',
-        '--network-config', 'max_bytestring_len=32K'],
+        '--network-config', 'max_bytestring_len=64000'],
         env=env, stdout=output, stderr=log, start_new_session=True)
     app = None
     try:

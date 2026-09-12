@@ -89,7 +89,7 @@ struct DemoHost : Host {
       charge += 7 * ((value->size() + 511) / 512); return result();
     }
     case 15: {
-      require(a.a3 <= GH_DOOM_PAGE_BYTES && a.a4 == 0, "configured bytestring limit or flags");
+      require(a.a3 <= GH_DOOM_MAX_STORAGE_BYTES && a.a4 == 0, "configured bytestring limit or flags");
       Key k{}; auto raw = bytes(a.a1, 32); std::copy(raw.begin(), raw.end(), k.begin());
       auto data = bytes(a.a2, a.a3); writes[k] = Bytes(data.begin(), data.end());
       ++sets; written_bytes += data.size(); charge += 150 + 13 * ((data.size() + 511) / 512);
@@ -134,6 +134,21 @@ struct Demo {
     require(out.size() == 64768, "frame size"); return out;
   }
 };
+static void check_snapshot_hashes(const Demo &demo) {
+  const auto &metadata = demo.storage.at(key(0, 0));
+  require(load_u32_le(metadata, 0) == GH_DOOM_SNAPSHOT_VERSION, "snapshot version");
+  const auto pages = load_u32_le(metadata, 8) / GH_DOOM_SNAPSHOT_PAGE_BYTES;
+  const auto &hashes = demo.storage.at(key(0, 3));
+  require(hashes.size() == pages * 32, "snapshot hash table length");
+  const Bytes zero(GH_DOOM_SNAPSHOT_PAGE_BYTES, 0);
+  for (uint32_t i = 0; i < pages; ++i) {
+    const auto &data = metadata[16 + i / 8] & (1u << (i % 8))
+        ? demo.storage.at(key(2, i)) : zero;
+    Key expected{}; SHA256(data.data(), data.size(), expected.data());
+    require(std::equal(expected.begin(), expected.end(), hashes.begin() + i * 32),
+            "persisted snapshot hash does not match its page");
+  }
+}
 static Bytes step_input(uint32_t tick, int held = -1) {
   Bytes b; append_u32(b, tick); b.resize(36);
   if (held >= 0) b[4 + held / 8] |= 1 << (held % 8); return b;
@@ -207,6 +222,7 @@ int main(int argc, char **argv) try {
     auto result = demo.call(5, std::move(upload)); require(result.ok, "upload failed");
   }
   auto init = demo.call(1); require(init.ok, "initialization failed"); row(csv, "initialize", demo.tick(), init);
+  check_snapshot_hashes(demo);
   if (argc > 4 && std::string(argv[4]) == "--serve") { serve(demo, init); return 0; }
   ppm(dir + "/initial.ppm", demo.frame());
   std::cout << "Initialized tick " << demo.tick() << " in " << init.ms << " ms; gas " << init.gas << '\n';
@@ -246,6 +262,7 @@ int main(int argc, char **argv) try {
   }
   ppm(dir + "/final.ppm", demo.frame()); write_file(dir + "/frame.bin", demo.frame());
   require(demo.frame() != Bytes(64768), "empty framebuffer");
+  check_snapshot_hashes(demo);
   std::cout << "PASS: fresh-VM persistence, deterministic replay, stale-tick/reinitialize rejection, "
             << "out-of-gas rollback/retry, 64 frame chunks, gameplay through tick " << demo.tick() << '\n';
   return 0;

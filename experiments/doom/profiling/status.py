@@ -79,7 +79,7 @@ def main():
             '--data-dir', str(args.work_dir / 'chain'), '--dev-account-count', '1',
             '--dev-account-hog', '100000', '--ramdb-bytes', '512M', '--block-driver', 'instant']
         for override in ['max_rv32_code_bytes=1M', 'max_rv32_memory_bytes=16M',
-                         'max_contract_size_bytes=1M', 'max_bytestring_len=32K']:
+                         'max_contract_size_bytes=1M', 'max_bytestring_len=64000']:
             command += ['--network-config', override]
         node = subprocess.Popen(command, stdout=out, stderr=log, env=env, start_new_session=True)
         try:

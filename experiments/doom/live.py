@@ -2,12 +2,13 @@
 """Deploy Doom to a local Groundhog node and serve its committed frames."""
 import argparse
 import hashlib
+import http.client
 import json
 import struct
 import subprocess
 import threading
 import time
-import urllib.request
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -26,6 +27,7 @@ class LiveGame:
         self.signer_address = None
         self.signer_funded = False
         self.network_hash = None
+        self.rpc_connection = None
         if args.signer:
             if not args.runtime_manifest:
                 raise ValueError('--signer requires --runtime-manifest')
@@ -66,25 +68,71 @@ class LiveGame:
             raise RuntimeError(json.dumps(output) + '\n' + result.stderr[-4000:])
         return output['data']
 
+    def rpc_request(self, payload):
+        # LiveGame is serialized by the HTTP handler lock. Reuse one connection
+        # for tip/submission/receipt/frame requests instead of reconnecting each.
+        endpoint = urllib.parse.urlsplit(self.args.rpc_url)
+        if endpoint.scheme not in ('http', 'https') or not endpoint.hostname:
+            raise ValueError('RPC URL must use HTTP or HTTPS')
+        if self.rpc_connection is None:
+            connection = (http.client.HTTPSConnection if endpoint.scheme == 'https'
+                          else http.client.HTTPConnection)
+            self.rpc_connection = connection(endpoint.hostname, endpoint.port, timeout=60)
+        path = endpoint.path or '/'
+        if endpoint.query:
+            path += '?' + endpoint.query
+        try:
+            self.rpc_connection.request('POST', path, json.dumps(payload).encode(),
+                                        {'Content-Type': 'application/json'})
+            response = self.rpc_connection.getresponse()
+            body = response.read()
+            if response.status != 200:
+                raise RuntimeError(f'RPC HTTP status {response.status}: {body[:512]!r}')
+            return json.loads(body)
+        except (OSError, http.client.HTTPException, ValueError, RuntimeError) as exc:
+            self.rpc_connection.close()
+            self.rpc_connection = None
+            # Never automatically retry a submission whose outcome is unknown.
+            raise RuntimeError(f'RPC request failed: {exc}') from exc
+
     def rpc(self, method, params):
-        request = urllib.request.Request(self.args.rpc_url,
-            json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'groundhog_' + method,
-                        'params': params}).encode(), {'Content-Type': 'application/json'})
-        with urllib.request.urlopen(request, timeout=60) as response:
-            result = json.load(response)
+        result = self.rpc_request({'jsonrpc': '2.0', 'id': 1,
+            'method': 'groundhog_' + method, 'params': params})
         if 'error' in result:
             raise RuntimeError(json.dumps(result['error']))
         return result['result']
 
-    def storage(self, domain, index):
+    def storage_params(self, domain, index):
         key = b'groundhog-doom-v' + struct.pack('<II', domain, index) + bytes(8)
-        result = self.rpc('getStorageAt', [self.address, '0x' + key.hex()])
+        return [self.address, '0x' + key.hex()]
+
+    @staticmethod
+    def decode_storage(result):
         item = result['item']
         if item is None:
             return result['blockHeight'], None
         if item['kind'] != 'bytestring':
             raise RuntimeError('Doom storage item has an unexpected type')
         return result['blockHeight'], bytes.fromhex(item['bytes'].removeprefix('0x'))
+
+    def storage(self, domain, index):
+        return self.decode_storage(self.rpc('getStorageAt', self.storage_params(domain, index)))
+
+    def storage_batch(self, keys):
+        replies = self.rpc_request([{'jsonrpc': '2.0', 'id': i,
+            'method': 'groundhog_getStorageAt', 'params': self.storage_params(*key)}
+            for i, key in enumerate(keys)])
+        if not isinstance(replies, list) or len(replies) != len(keys):
+            raise RuntimeError('Invalid storage batch response')
+        by_id = {reply.get('id'): reply for reply in replies}
+        if set(by_id) != set(range(len(keys))):
+            raise RuntimeError('Invalid storage batch response IDs')
+        result = []
+        for i in range(len(keys)):
+            if 'error' in by_id[i]:
+                raise RuntimeError(json.dumps(by_id[i]['error']))
+            result.append(self.decode_storage(by_id[i]['result']))
+        return result
 
     def call(self, method, calldata=b'', gas=50_000_000):
         started = time.perf_counter()
@@ -197,9 +245,7 @@ class LiveGame:
         failure = RuntimeError('No consistent committed frame was available')
         while time.monotonic() < deadline:
             try:
-                height, meta = self.storage(0, 0)
-                h0, first = self.storage(3, 0)
-                h1, second = self.storage(3, 1)
+                (height, meta), (h0, first), (h1, second) = self.storage_batch([(0, 0), (3, 0), (3, 1)])
                 if height == h0 == h1:
                     if meta is None or len(meta) != 80 or first is None or second is None:
                         raise RuntimeError('Game is not initialized')
@@ -215,6 +261,20 @@ class LiveGame:
                 failure = exc
             time.sleep(0.005)
         raise failure
+
+    def current_tick(self):
+        # Preflight needs metadata only, not the two 32 KiB framebuffer pages.
+        deadline = time.monotonic() + 1
+        while True:
+            try:
+                _, meta = self.storage(0, 0)
+                if meta is None or len(meta) != 80:
+                    raise RuntimeError('Game is not initialized')
+                return struct.unpack_from('<I', meta, 4)[0]
+            except RuntimeError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(.005)
 
     def step(self, tick, keys):
         self.call(2, struct.pack('<I', tick) + keys)
@@ -277,7 +337,7 @@ def serve(game, port):
                 if len(keys) != 32:
                     raise ValueError('invalid key bitmap')
                 with lock:
-                    current = struct.unpack_from('<I', game.frame())[0]
+                    current = game.current_tick()
                     if current != tick:
                         self.send(b'stale tick; reload frame', 'text/plain', 409)
                         return
@@ -315,6 +375,8 @@ def main():
         game.initialize()
         serve(game, args.port)
     finally:
+        if game.rpc_connection:
+            game.rpc_connection.close()
         if game.signer:
             game.signer.stdin.close()
             try:

@@ -70,6 +70,12 @@ latest smoke run did recover and continue. For this internal demo, use another
 `--data-dir` if a restart fails. Changing genesis overrides
 on an existing node directory is rejected.
 
+Use a **fresh `--data-dir`** when moving from earlier versions of this demo:
+the optimized artifact uses snapshot version 2 and 64,000-byte storage entries.
+The launcher defaults to two hogd workers for this serial game loop; override
+with `--worker-threads N`. This sets the existing `DEFAULT_THREADPOOL_SIZE`
+environment parameter, and does not change prepared-code cache behavior.
+
 Use the **RPC bundle's `groundhog`**, paired with the node bundle's `hog-devnode`
 and contracts. The older CLI also included in the node bundle uses a different
 protocol version. Each bundle has a file-hash manifest. CI artifacts expire
@@ -109,11 +115,11 @@ The launcher passes these four overrides to `groundhog node`:
 | `max_rv32_code_bytes` | 65,536 | `1M` |
 | `max_rv32_memory_bytes` | 65,536 | `16M` |
 | `max_contract_size_bytes` | 262,144 | `1M` |
-| `max_bytestring_len` | 1,024 | `32K` |
+| `max_bytestring_len` | 1,024 | `64000` |
 
 Each is a repeated `--network-config NAME=VALUE` argument. These values fit
 existing compiled ceilings, which remain enforced. The current artifact is
-about 0.80 MB and declares 10 MiB of guest memory; the 4,196,020-byte WAD is
+about 0.80 MB and declares 6 MiB of guest memory; the 4,196,020-byte WAD is
 uploaded separately. The initialization call gets 200M gas, and each tick
 gets 50M gas. These are tested budgets, not measured minimums; receipt gas
 consumption is not currently exposed. `groundhog call --gas-limit` now lets
@@ -121,18 +127,64 @@ other callers set the budget too.
 
 The protocol return-data cap stays at 1,024 bytes. The live bridge reads the
 80-byte metadata and two stored frame pages, requiring all three reads to
-report the same committed block height. It retries if the chain advances
+report the same committed block height. These reads use one JSON-RPC batch
+over a reused HTTP connection. It retries if the chain advances
 between reads. This avoids invoking 64 frame-chunk calls.
 
 Browser traffic per displayed frame is **64,804 bytes**: 64,000 indexed pixels,
 768 palette bytes, and a 36-byte metrics header, before HTTP overhead. That is
 about **2.27 MB/s at 35 Hz**. The raw contract input is 36 bytes; the browser
-uses a small JSON envelope. The roughly 4.6 MB of state restored inside the
+uses a small JSON envelope. The roughly 4.0 MB of storage read inside the
 node each tick never goes to the browser. The bridge currently receives
 hex-encoded frame storage through JSON-RPC, so node-to-bridge wire traffic is
 larger than the binary browser response.
 
 ## Measurements and verification
+
+The latest [optimization evidence](evidence/speed-up.json) compares 105 live
+game ticks per version on the same host and the same unmodified node/CLI
+binaries. Each version runs separately, with its own fresh node and no
+concurrent benchmark. The input sequence is identical; initial and final
+committed frames match byte for byte.
+
+| Full input-to-frame loop | Previous 10 MiB demo | Optimized demo |
+|---|---:|---:|
+| Mean latency | 58.35 ms | 38.16 ms |
+| Aggregate rate | 17.14 FPS | 26.21 FPS |
+| Median latency | 53.70 ms | 34.79 ms |
+| Median transaction latency | 46.03 ms | 29.01 ms |
+
+The earlier short run was about 19 FPS. These fresh measurements include
+stalls, and do not include browser drawing/display latency. The optimized
+demo remains below the original 35 Hz target. Each tic still uses one signed
+transaction and one committed block; no simulation is moved off chain.
+
+The improvements are a 3 MiB Doom zone inside a 4 MiB outer arena (6 MiB total
+guest memory), 64,000-byte snapshot entries, persisted page hashes, two local
+workers, metadata-only input preflight, batched frame reads and HTTP connection
+reuse. The 3 MiB zone passed 1,050 tics with 152 captured frames identical to
+the original; a 2 MiB zone failed during gameplay and is not used. The smaller
+arena is tested for this E1M1 demo, not every level or extended session.
+
+The final standalone run dropped from roughly 10.65 to 5.66 ms/tic. Median
+storage gets dropped from 141 to 65, and bytes read from 4,587,600 to 4,034,288.
+Larger pages trade fewer round trips for coarser writes: median bytes written
+rose from 392,528 to 579,056. A stored hash table avoids hashing restored
+pages again; the contract atomically updates it with the pages, and the
+harness independently verifies the hashes against stored page bytes.
+
+Temporary node probes identified about 10 ms in storage reads and 5 ms in
+hashing, versus 3 ms in the VM instruction loop, in the intermediate 3 MiB-zone
+configuration. Those probes are on a separate profiling branch; the gameplay
+comparison above uses the original node binary. No cross-block prepared-code
+cache change is included.
+
+The final probes reduced reads to about 6.0 ms and hashing to 2.6 ms. Program
+preparation still costs about 5.8 ms per block. The raw phase samples are in
+the same evidence file. Run `python test_live_reads.py` for the small batch
+ordering and frame-consistency checks without starting a node.
+
+The following measurements are historical and retain their original artifacts:
 
 [evidence/live.json](evidence/live.json) records the deployed contract,
 artifact hashes, build revisions, successful receipts, and live measurements.
@@ -218,9 +270,9 @@ few microseconds with the harness's in-memory storage. The node timings
 cannot be attributed to memory setup alone: block/executor/storage overhead
 and differing allocation/thread behavior still need internal instrumentation.
 
-The linked data layout ends at `0x9ac018` (9.672 MiB), including the entire
-bounded 8 MiB arena and scratch buffers. The default declaration is now
-10 MiB, leaving 344,040 bytes beyond the layout. This retains all memory
+That earlier linked data layout ended at `0x9ac018` (9.672 MiB), including the
+entire bounded 8 MiB arena and scratch buffers. Its declaration was reduced to
+10 MiB, leaving 344,040 bytes beyond the layout. This retained all memory
 addresses, heap capacity and engine behavior; a same-build 10/16 MiB comparison
 changes only the artifact header's memory-size field. PureDOOM's default
 RV32 zone allocator requests 6 MiB inside that arena, so substantially smaller
@@ -236,7 +288,8 @@ spans for preparation, instantiation, method execution and destruction. Build
 it like `runner.cpp`, with the pinned hogd include directory and `program.cc`,
 then run `build/lifecycle build/doom.rv32a`. It runs 51 samples per mode;
 discard sample 0 when computing warm medians. The current artifact uses
-10 MiB, while the table above preserves the controlled historical comparison.
+6 MiB, while the table above preserves the controlled historical comparison.
+Pass a final argument of `1` when profiling an old snapshot-version-1 artifact.
 
 Reproduce the status controls with the matching bundles above and Zig 0.16.0
 (the output directory must not already exist):
@@ -316,14 +369,17 @@ the current dev wallet and `groundhog call`, use the eight-byte big-endian ID
 | 4 | Read status | Empty | 80-byte metadata |
 | 5 | Upload WAD fragment | `u32 byte_offset`, `u32 total_wad_bytes`, up to 2,048 bytes | `u32 uploaded_bytes`, `u32 total_wad_bytes` |
 
-Metadata: `u32 version`, `u32 tick`, `u32 snapshot_bytes`, `u32 wad_bytes`,
+Metadata: `u32 version` (currently 2), `u32 tick`, `u32 snapshot_bytes`, `u32 wad_bytes`,
 then a 64-byte bitmap of present snapshot pages. The first frame is tic 1.
 The key bitmap uses PureDOOM's key IDs; bit `k % 8` in byte `k / 8` is key `k`.
 
 Each 32-byte storage key is the 16 ASCII bytes `groundhog-doom-v`, followed
 by little-endian u32 domain, little-endian u32 index, then eight zero bytes.
 Domains: 0 metadata (index 0 game, index 1 completed WAD pages, index 2 uploaded
-WAD bytes), 1 WAD, 2 snapshot, 3 frame.
+WAD bytes, index 3 concatenated 32-byte snapshot-page SHA-256 hashes), 1 WAD,
+2 snapshot, 3 frame. Snapshot entries hold 64,000 bytes; WAD and frame pages
+remain 32,768 bytes. The hash table covers exactly `snapshot_bytes / 64000`
+pages, including SHA-256 of a zero page for pages absent from the bitmap.
 
 The WAD reader is a virtual read-only file backed by contract storage, with
 one page of per-call cache. Upload is append-only and sealed after successful
@@ -335,15 +391,16 @@ spin until wall-clock time passes.
 The snapshot covers writable globals and the used allocator arena, excluding
 the active stack, immutable code/rodata, and per-call scratch. All engine
 pointers are RV32 offsets and restore to the same guest addresses. SHA-256
-identifies changed pages; all-zero pages are omitted and represented in the
+identifies changed pages. The previous hashes are loaded from contract-owned
+storage, avoiding rehashing restored pages. All-zero pages are omitted and represented in the
 metadata bitmap. Heap/BSS zero-fill comes from a fresh VM. A metadata tick
 check rejects stale concurrent/retried inputs. The chain transaction boundary
-must commit/roll back all page and metadata writes atomically.
+must commit/roll back all page, hash-table and metadata writes atomically.
 
 This is one shared demo session per contract address. It intentionally has no
 player ownership/authorization layer. It accepts input from callers and
 allows initial WAD setup on the fresh address. It must not be presented as an
-authenticated multiplayer contract. The outer 8 MiB arena is bounded but
+authenticated multiplayer contract. The outer 4 MiB arena is bounded but
 uses a bump allocator; Doom's zone allocator performs its own internal frees.
 Long sessions and repeated level changes may exhaust outer allocations and
 need a proper reclaiming allocator. Snapshot layout is tied to this exact

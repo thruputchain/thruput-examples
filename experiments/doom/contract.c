@@ -23,7 +23,8 @@ static int equal(const void *a, const void *b, usize n) {
 
 #include "abi.h"
 #define PAGE GH_DOOM_PAGE_BYTES
-#define HEAP_BYTES (8u * 1024u * 1024u)
+#define SNAPSHOT_PAGE GH_DOOM_SNAPSHOT_PAGE_BYTES
+#define HEAP_BYTES (4u * 1024u * 1024u)
 #define MAX_PAGES 512u
 #define MAX_WAD_BYTES (8u * 1024u * 1024u)
 #define FRAME_BYTES (320u * 200u + 768u)
@@ -36,7 +37,7 @@ extern u8 __state_start[], __state_limit[], __initial_end[];
 
 /* These are per-invocation scratch, outside the persisted engine region. */
 static u8 old_hashes[MAX_PAGES][32] __attribute__((section(".scratch")));
-static u8 io[PAGE + 16] __attribute__((section(".scratch")));
+static u8 io[GH_DOOM_MAX_STORAGE_BYTES + 16] __attribute__((section(".scratch")));
 static u8 wad_cache[PAGE] __attribute__((section(".scratch")));
 static u32 wad_cached_page __attribute__((section(".scratch")));
 static u32 wad_length __attribute__((section(".scratch")));
@@ -165,41 +166,47 @@ static int meta(struct Meta *m) {
     u32 n = 0, err = get(0, 0, m, sizeof(*m), &n);
     if (err == 8) { memset(m, 0, sizeof(*m)); return 0; }
     check(err);
-    if (n != sizeof(*m) || m->version != 1) fail("bad snapshot version");
+    if (n != sizeof(*m) || m->version != GH_DOOM_SNAPSHOT_VERSION) fail("bad snapshot version");
     return 1;
 }
 static void restore(const struct Meta *m) {
     if (!m->state_bytes || m->state_bytes > (u32)(__state_limit - __state_start)
-        || m->state_bytes % PAGE || m->state_bytes / PAGE > MAX_PAGES) fail("bad snapshot size");
-    for (u32 off = 0; off < m->state_bytes; off += PAGE) {
+        || m->state_bytes % SNAPSHOT_PAGE || m->state_bytes / SNAPSHOT_PAGE > MAX_PAGES) fail("bad snapshot size");
+    /* Hashes and pages are committed atomically by this contract. Reuse those
+     * hashes instead of hashing every restored page a second time each tick. */
+    u32 hashes_len = 0;
+    check(get(0, 3, old_hashes, sizeof(old_hashes), &hashes_len));
+    if (hashes_len != m->state_bytes / SNAPSHOT_PAGE * 32) fail("bad snapshot hashes");
+    for (u32 off = 0; off < m->state_bytes; off += SNAPSHOT_PAGE) {
         u32 n = 0;
-        u32 page = off / PAGE;
+        u32 page = off / SNAPSHOT_PAGE;
         if (m->present[page / 8] & (1u << (page % 8))) {
-            check(get(2, page, __state_start + off, PAGE, &n));
-            if (n != PAGE) fail("truncated snapshot page");
-            digest(__state_start + off, PAGE, old_hashes[page]);
+            check(get(2, page, __state_start + off, SNAPSHOT_PAGE, &n));
+            if (n != SNAPSHOT_PAGE) fail("truncated snapshot page");
         } else if (__state_start + off < __initial_end) {
             /* BSS/heap already zero in a fresh VM; clear only initial data. */
-            memset(__state_start + off, 0, PAGE);
+            memset(__state_start + off, 0, SNAPSHOT_PAGE);
         }
     }
     if (virtual_tick != m->tick) fail("snapshot tick mismatch");
 }
 static void persist(struct Meta *m) {
-    u32 bytes = ((u32)(arena + heap_used - __state_start) + PAGE - 1) & ~(PAGE - 1);
-    if (bytes / PAGE > MAX_PAGES) fail("snapshot too large");
-    u8 zero_hash[32]; memset(io, 0, PAGE); digest(io, PAGE, zero_hash);
-    for (u32 off = 0; off < bytes; off += PAGE) {
-        u32 page = off / PAGE, mask = 1u << (page % 8);
-        u8 hash[32]; digest(__state_start + off, PAGE, hash);
+    u32 bytes = ((u32)(arena + heap_used - __state_start) + SNAPSHOT_PAGE - 1) / SNAPSHOT_PAGE * SNAPSHOT_PAGE;
+    if (bytes / SNAPSHOT_PAGE > MAX_PAGES || bytes > (u32)(__state_limit - __state_start)) fail("snapshot too large");
+    u8 zero_hash[32]; memset(io, 0, SNAPSHOT_PAGE); digest(io, SNAPSHOT_PAGE, zero_hash);
+    for (u32 off = 0; off < bytes; off += SNAPSHOT_PAGE) {
+        u32 page = off / SNAPSHOT_PAGE, mask = 1u << (page % 8);
+        u8 hash[32]; digest(__state_start + off, SNAPSHOT_PAGE, hash);
         if (equal(hash, zero_hash, 32)) {
             m->present[page / 8] &= (u8)~mask;
         } else {
             if (!(m->present[page / 8] & mask) || !equal(hash, old_hashes[page], 32))
-                set(2, page, __state_start + off, PAGE);
+                set(2, page, __state_start + off, SNAPSHOT_PAGE);
             m->present[page / 8] |= mask;
         }
+        memcpy(old_hashes[page], hash, sizeof(hash));
     }
+    set(0, 3, old_hashes, bytes / SNAPSHOT_PAGE * 32);
     m->state_bytes = bytes;
 }
 static void publish_frame(void) {
@@ -288,12 +295,16 @@ void contract_main(u32 method, u32 method_hi) {
         doom_set_file_io(open_doom, close_doom, read_doom, write_doom, seek_doom, tell_doom, eof_doom);
         doom_set_gettime(time_doom); doom_set_getenv(env_doom); doom_set_exit(exit_doom);
         static char *args[] = {"doom", "-warp", "1", "1", "-skill", "2", "-nosound", "-nomusic"};
+        /* A 3 MiB zone passes E1M1 replay and frame-equivalence checks.
+         * The port's default 6 MiB makes snapshot hashing and restoration
+         * needlessly expensive for this bounded internal demo. */
+        mb_used = 3;
         doom_init(8, args, DOOM_FLAG_HIDE_SOUND_OPTIONS | DOOM_FLAG_HIDE_MUSIC_OPTIONS);
         /* One exact game tic. No wall-clock loop or cosmetic screen-wipe wait. */
         wipegamestate = GS_LEVEL;
         D_DoomLoop();
         virtual_tick = 1;
-        m.version = 1; m.tick = virtual_tick; m.wad_bytes = wad_length;
+        m.version = GH_DOOM_SNAPSHOT_VERSION; m.tick = virtual_tick; m.wad_bytes = wad_length;
         persist(&m); publish_frame(); set(0, 0, &m, sizeof(m));
         finish(&m, sizeof(m));
     }
