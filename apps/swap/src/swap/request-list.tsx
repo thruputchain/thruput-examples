@@ -416,7 +416,9 @@ function RequestStatusDetail({
   request: RequestRecord;
   showHashes: boolean;
 }) {
-  const detail = requestStatusDetail(request.status);
+  const detail = request.execution?.kind === "failed"
+    ? request.execution.failureMessage ?? requestStatusDetail(request.status)
+    : requestStatusDetail(request.status);
   const executionHash =
     request.execution?.transactionHash === request.transactionHash
       ? null

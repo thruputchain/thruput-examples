@@ -32,6 +32,7 @@ export type RequestExecution =
     }
   | {
       kind: "failed";
+      failureMessage?: string;
       transactionHash: string;
       blockHeight: bigint;
     };
@@ -84,6 +85,7 @@ interface StoredRequest {
       }
     | {
         kind: "failed";
+        failureMessage?: string;
         transactionHash: string;
         blockHeight: string;
       }
@@ -342,6 +344,9 @@ function toStoredExecution(
   if (execution.kind === "failed") {
     return {
       kind: "failed",
+      ...(execution.failureMessage === undefined
+        ? {}
+        : { failureMessage: execution.failureMessage }),
       transactionHash: execution.transactionHash,
       blockHeight: execution.blockHeight.toString(),
     };
@@ -398,6 +403,9 @@ function fromStoredRequest(request: StoredRequest): RequestRecord {
           }
         : {
             kind: "failed",
+            ...(request.execution.failureMessage === undefined
+              ? {}
+              : { failureMessage: request.execution.failureMessage }),
             transactionHash: request.execution.transactionHash,
             blockHeight: BigInt(request.execution.blockHeight),
           },
@@ -510,9 +518,10 @@ function isExecution(value: unknown): value is StoredRequest["execution"] {
   }
   if (!isUnsignedInteger(value.blockHeight)) return false;
   if (value.kind === "failed") {
-    return Object.keys(value).every((key) =>
-      ["kind", "transactionHash", "blockHeight"].includes(key)
-    );
+    return (value.failureMessage === undefined || typeof value.failureMessage === "string")
+      && Object.keys(value).every((key) =>
+        ["kind", "transactionHash", "blockHeight", "failureMessage"].includes(key)
+      );
   }
   return value.kind === "executed"
     && isUnsignedInteger(value.amountIn)

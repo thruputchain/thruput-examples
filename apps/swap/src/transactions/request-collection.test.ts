@@ -10,6 +10,7 @@ import {
   mutateRequestCollection,
   requestCollectionKey,
   saveRequestCollection,
+  type RequestRecord,
 } from "./request-collection";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
@@ -42,6 +43,30 @@ describe("request collection", () => {
     expect(requestCollectionKey(config)).toContain("groundhog-swap:requests:v4");
     expect(loadRequestCollection(config)).toEqual([record]);
   });
+
+  it.each([undefined, "Slippage limit exceeded."])(
+    "loads failed history with reason %s",
+    (failureMessage) => {
+      const record: RequestRecord = {
+        ...createRequestRecord(request(), { localId: "failed", now: 1 }),
+        status: "failed",
+        execution: {
+          kind: "failed",
+          transactionHash: hex(22),
+          blockHeight: 13n,
+          ...(failureMessage === undefined ? {} : { failureMessage }),
+        },
+      };
+      saveRequestCollection(config, [record]);
+      expect(loadRequestCollection(config)).toEqual([record]);
+      expect(loadAccountRequestRecords(config)).toEqual([record]);
+
+      const stored = JSON.parse(localStorage.getItem(requestCollectionKey(config))!);
+      stored.requests[0].execution.failureMessage = { invalid: true };
+      localStorage.setItem(requestCollectionKey(config), JSON.stringify(stored));
+      expect(() => loadRequestCollection(config)).toThrow("Stored swap request history is invalid");
+    },
+  );
 
   it("loads current records across pools for account exposure", () => {
     const other = {

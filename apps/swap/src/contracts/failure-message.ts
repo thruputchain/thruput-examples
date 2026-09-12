@@ -1,7 +1,13 @@
 import type { TransactionReceipt } from "@groundhogchain/client";
+import { CxsWriter, Uint64Codec } from "@groundhogchain/xdr";
 
 import { ERC20 } from "@/contracts/generated/erc20";
-import { SwapDriver } from "@/contracts/generated/swap-driver";
+import {
+  Cause,
+  SwapDriver,
+  type RequestFailed,
+} from "@/contracts/generated/swap-driver";
+import { SwapHandler, SwapRequestError } from "@/contracts/generated/swap-handler";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
 import { SwapRouter } from "@/contracts/generated/swap-router";
 import type { CreationStepName } from "@/transactions/creation-workflow";
@@ -50,6 +56,43 @@ export function swapFailureMessage(
     return decode(() => SwapRouter.swapExactTokensForTokens.decodeReceiptOutcome(receipt));
   }
   return decode(() => SwapDriver.processRequests.decodeReceiptOutcome(receipt));
+}
+
+export function requestFailureMessage(
+  fields: RequestFailed["fields"],
+): string | null {
+  switch (fields.cause) {
+    case Cause.Fault:
+      return "Request execution failed (gas limit or contract error).";
+    case Cause.Rejected:
+      return "The handler call was rejected.";
+    case Cause.Malformed:
+      return "The contract request or response could not be decoded.";
+    case Cause.Exception:
+      if (fields.payload_len !== BigInt(fields.payload.length)) return null;
+      try {
+        // The generated decoder expects the selector followed by the raw payload.
+        const writer = new CxsWriter();
+        Uint64Codec.encode(writer, fields.selector);
+        const selector = writer.finish();
+        const data = new Uint8Array(selector.length + fields.payload.length);
+        data.set(selector);
+        data.set(fields.payload, selector.length);
+        const exception = SwapHandler.handleRequest.decodeException(data);
+        if (exception.kind !== "declared") return null;
+        if (
+          exception.name === "SwapRequestError"
+          && exception.value === SwapRequestError.InsufficientOutputAmount
+        ) {
+          return "Slippage limit exceeded: output was below your minimum received amount.";
+        }
+        return declaredMessage(exception.name, exception.value);
+      } catch {
+        return null;
+      }
+    default:
+      return null;
+  }
 }
 
 function decode(read: () => unknown): string | null {
