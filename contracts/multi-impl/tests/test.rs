@@ -1,5 +1,5 @@
 use multi_impl::*;
-use multi_impl_traits::*;
+use multi_impl_if::*;
 use sdk::*;
 
 static CONTRACT_NONCE: SHA256Hash = sdk::sha256_static!("MULTI_IMPL");

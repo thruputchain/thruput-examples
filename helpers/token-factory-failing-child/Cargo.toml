@@ -22,7 +22,7 @@ test = false
 [dependencies]
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
-standard-token-factory-if = { path = "../../contracts/standard-token-factory-if" }
+standard-token-factory-if = { path = "../../interfaces/standard-token-factory-if" }
 
 [dev-dependencies]
 token-factory-failing-child = { path = ".", features = ["dev"] }

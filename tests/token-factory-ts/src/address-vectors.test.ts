@@ -50,7 +50,7 @@ describe("standard token factory address vectors", () => {
     const vectors = JSON.parse(
       await readFile(
         new URL(
-          "../../../contracts/standard-token-factory-if/tests/fixtures/address-vectors.json",
+          "../../../interfaces/standard-token-factory-if/tests/fixtures/address-vectors.json",
           import.meta.url,
         ),
         "utf8",
