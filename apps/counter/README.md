@@ -88,6 +88,7 @@ Run `npm run <command> --workspace apps/counter`:
 | `build` | Typecheck and production build |
 | `start` | Serve the production build, configuration, and RPC proxy |
 | `setup:local` | Build and provision a local demo |
+| `setup:devnet` | Deploy the built counter to a pinned Devnet network and save Railway variables |
 | `generate:contracts` | Build the counter and regenerate its bindings |
 | `typecheck` | Browser, server, and setup TypeScript checks |
 | `test` | Transaction scheduling, keyboard controls, configuration, and HTTP tests |
@@ -95,8 +96,9 @@ Run `npm run <command> --workspace apps/counter`:
 ## Deployment
 
 Set the values in [`.env.example`](.env.example), then run `build` and `start`.
-`PORT` defaults to 3000. The Railway configuration uses the root npm workspace;
-select `apps/counter/railway.json` as its config path. No database is needed.
+`PORT` defaults to 3000. Railway builds from the root npm workspace.
+The existing `railway.json` is for legacy
+Railway services. No database is needed.
 
 The server returns public runtime configuration at `/api/config`: network ID,
 counter address, signer address, and optional explorer URL. The

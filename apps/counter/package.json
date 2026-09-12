@@ -11,6 +11,7 @@
     "build": "npm run typecheck && vite build",
     "start": "node --env-file-if-exists=.env.local --import tsx server/main.ts",
     "setup:local": "bash scripts/setup-local.sh",
+    "setup:devnet": "tsx scripts/setup-devnet.ts",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run"

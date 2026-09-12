@@ -1,0 +1,4 @@
+# Rust is managed by rustup through rust-toolchain.toml.
+# Railpack only needs Node for the web application services.
+[settings]
+idiomatic_version_file_enable_tools = ["node"]
