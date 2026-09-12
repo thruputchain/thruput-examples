@@ -57,6 +57,49 @@ Setup overrides:
 - `COUNTER_APP_ENV`: output path, default `apps/counter/.env.local`.
 - `COUNTER_ARTIFACT`: compiled artifact path, default `target/groundhog/counter.rv32a`.
 
+## Devnet
+
+Recorded deployment on the hosted network:
+
+| Field | Value |
+| --- | --- |
+| RPC | `https://rpc.thruput.network` |
+| Network ID | `0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642` |
+| Counter address | `0xbc42026c29190b21cc6991770a0e70b9e035671d53d185beb224ff51c8c61ed6` |
+| Signer address (public) | `0x08fff37518ff08ad362bc9a2f25ab91ca52849d3d1fa1c767ff043e1d6127038` |
+| Deploy transaction | `0xc4944d41c526bd45fda9e1da78ce5f986fece41c22a92254a24f0eb092cb38fd` |
+| Initial value | `1,000,000` |
+
+Both setup commands build the counter and regenerate bindings before running
+their TypeScript setup script. To resume the recorded Devnet setup:
+
+```sh
+export GROUNDHOG_CLI=/absolute/path/to/groundhog
+export GROUNDHOG_RPC_URL=https://rpc.thruput.network
+export GROUNDHOG_NETWORK_ID=0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642
+npm run setup:devnet --workspace apps/counter
+```
+
+The saved journal lets this command reuse the signer and completed transactions.
+It does not initialize the existing counter again. Devnet can be reset; verify
+the live network identity before reusing these addresses after a reset.
+
+## Local setup state
+
+`apps/counter/.local/` is ignored by Git and holds operator-side setup state:
+
+- `devnet/<network-id>/deployment.json`: the private signer, deployment nonce,
+  funding state, and signed transaction journal used for safe reruns.
+- `devnet/<network-id>/railway.env`: the app's hosting variables, including the
+  private server signing key.
+- `devnet/<network-id>/public.json`: public addresses and transaction hashes.
+- `env-backups/`: saved local environment files from earlier setups.
+
+Keep a secure backup of the Devnet directory. Removing it loses the local signer
+and recovery journal, even though the contract still exists on the network. The
+hosted app uses its environment variables and RPC; it does not read `.local/`
+or need a volume for this directory.
+
 ## Behavior
 
 - One configured counter is shared by all visitors. The large number comes from
@@ -88,7 +131,7 @@ Run `npm run <command> --workspace apps/counter`:
 | `build` | Typecheck and production build |
 | `start` | Serve the production build, configuration, and RPC proxy |
 | `setup:local` | Build and provision a local demo |
-| `setup:devnet` | Deploy the built counter to a pinned Devnet network and save Railway variables |
+| `setup:devnet` | Build and provision a counter on a pinned Devnet network |
 | `generate:contracts` | Build the counter and regenerate its bindings |
 | `typecheck` | Browser, server, and setup TypeScript checks |
 | `test` | Transaction scheduling, keyboard controls, configuration, and HTTP tests |

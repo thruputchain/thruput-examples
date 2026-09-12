@@ -11,29 +11,5 @@
     "**/.env.local",
     "**/node_modules",
     "**/dist"
-  ],
-  "steps": {
-    "install": {
-      "inputs": [
-        "...",
-        {
-          "local": true,
-          "include": [
-            "package.json",
-            "package-lock.json",
-            ".npmrc",
-            "apps/*/package.json",
-            "scripts/railway.npmrc"
-          ]
-        }
-      ],
-      "commands": [
-        {
-          "cmd": "NPM_CONFIG_USERCONFIG=$PWD/scripts/railway.npmrc npm ci --include=dev",
-          "customName": "Install npm workspaces"
-        }
-      ],
-      "secrets": ["GITHUB_PACKAGES_TOKEN"]
-    }
-  }
+  ]
 }
