@@ -1958,12 +1958,12 @@ name = "multi-impl"
 version = "0.1.0"
 dependencies = [
  "multi-impl",
- "multi-impl-traits",
+ "multi-impl-if",
  "sdk",
 ]
 
 [[package]]
-name = "multi-impl-traits"
+name = "multi-impl-if"
 version = "0.1.0"
 dependencies = [
  "sdk",

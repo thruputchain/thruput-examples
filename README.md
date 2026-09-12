@@ -23,14 +23,14 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`error-handling-callee`](contracts/error-handling-callee/) | Producing error conditions (declared throws, undeclared errors, panics/faults) for callers to handle |
 | [`error-handling-caller`](contracts/error-handling-caller/) | Catching, wrapping, and forwarding errors from a callee contract |
 | [`multi-throws`](contracts/multi-throws/) | Declaring multiple error types with `throws(A, B)` |
-| [`multi-impl-traits`](contracts/multi-impl-traits/) | Defining contract interfaces as traits in a standalone crate |
+| [`multi-impl-if`](interfaces/multi-impl-if/) | Defining contract interfaces as traits in a standalone crate |
 | [`multi-impl`](contracts/multi-impl/) | One contract implementing multiple traits from a separate crate |
 | [`mixed-impl`](contracts/mixed-impl/) | One contract exposing both an inherent (`notrait`) `#[contract]` impl and a trait `#[contract]` impl |
 | [`cross-trait-throws`](contracts/cross-trait-throws/) | One contract implementing two traits with different `throws` types; a client on one catching the peer trait's error with `match_exn!` |
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and optional `metadata` and `permit` features |
 | [`permit-wallet`](contracts/permit-wallet/) | Off-chain authorization: an owner's wallet implementing `SignedOp`, turning an ed25519 signature made off-chain into a `PermitGrant` auth token the `erc20` consumes; the owner never submits a transaction |
 | [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit from the wallet to the token in one frame, so anyone can submit it |
-| [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](contracts/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
+| [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](contracts/swap-router/README.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
 
 ### Simulation fixtures
@@ -193,7 +193,7 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`error-handling-callee`](contracts/error-handling-callee/) | ✅ | — | — |
 | [`error-handling-caller`](contracts/error-handling-caller/) | ✅ | — | — |
 | [`multi-throws`](contracts/multi-throws/) | ✅ | — | — |
-| [`multi-impl-traits`](contracts/multi-impl-traits/) | — | — | — |
+| [`multi-impl-if`](interfaces/multi-impl-if/) | — | — | — |
 | [`multi-impl`](contracts/multi-impl/) | ✅ | — | — |
 | [`mixed-impl`](contracts/mixed-impl/) | ✅ | — | — |
 | [`cross-trait-throws`](contracts/cross-trait-throws/) | ✅ | — | — |
@@ -202,7 +202,7 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`permit-relayer`](contracts/permit-relayer/) | — | — | — |
 | [`standard-token`](contracts/standard-token/) | ✅ | — | — |
 | [`standard-token-factory`](contracts/standard-token-factory/) | ✅ | — | — |
-| [`standard-token-factory-if`](contracts/standard-token-factory-if/) | ✅ | — | — |
+| [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | ✅ | — | — |
 | [`swap-handler`](contracts/swap-handler/) | — | — | — |
 | [`swap-driver`](contracts/swap-driver/) | ✅ | — | — |
 | [`swap-router`](contracts/swap-router/) | ✅ | — | — |

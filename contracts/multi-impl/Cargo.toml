@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "multi-impl-traits/dev"]
+dev = ["sdk/dev", "multi-impl-if/dev"]
 
 [lib]
 crate-type = ["rlib"]
@@ -24,7 +24,7 @@ bench = false
 [dependencies]
 sdk = { workspace = true }
 
-multi-impl-traits = { path = "../multi-impl-traits" }
+multi-impl-if = { path = "../../interfaces/multi-impl-if" }
 
 [dev-dependencies]
 multi-impl = { path = ".", features = ["dev"] }

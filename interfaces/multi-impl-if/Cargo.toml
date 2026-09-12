@@ -1,5 +1,5 @@
 [package]
-name = "multi-impl-traits"
+name = "multi-impl-if"
 description = "Example trait definitions for multi-trait contract implementation"
 version = "0.1.0"
 edition.workspace = true
@@ -16,4 +16,3 @@ test = false
 
 [dependencies]
 sdk = { workspace = true }
-
