@@ -1,0 +1,10 @@
+{
+  "artifact_bytes": 797232,
+  "code_bytes": 610520,
+  "initial_memory_bytes": 186584,
+  "initial_memory_start": 1048576,
+  "memory_bytes": 16777216,
+  "artifact_sha256": "cc51db3fe834393b37149fc9e0316ddb150f562c0463646a5a29aa11eb60db37",
+  "gas_version": 4,
+  "gas_digest": "9019deb606f5759b"
+}

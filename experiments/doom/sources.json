@@ -1,0 +1,19 @@
+{
+  "hogd_repository": "https://github.com/groundhogchain/hogd.git",
+  "hogd_revision": "2ced81d979b90f8f70847581d2db965145b22865",
+  "hogd_files": {
+    "hogd/hog_exec/runtime/rv32/arch_trace.h": "5e28d36d19f8bcf6e579416c6f5de7d8ff19c149",
+    "hogd/hog_exec/runtime/rv32/encoding.h": "5f7ec77f7aa9dc2088275d07f0ad6a5cbb42423a",
+    "hogd/hog_exec/runtime/rv32/host.h": "48725b7c1b6c98994e447e7a1d64a791de340dfb",
+    "hogd/hog_exec/runtime/rv32/isa_ops.h": "fb32dffece746d1006aad677005307ee4f2569a7",
+    "hogd/hog_exec/runtime/rv32/machine.cc": "9b9facf1f3b393c76dcdb72a58ab558ffe924fb7",
+    "hogd/hog_exec/runtime/rv32/machine.h": "ce1e3ac2fccafad077fb5458c7fc22bd66354be9",
+    "hogd/hog_exec/runtime/rv32/musttail.h": "a1b83b95b8ea0f970f9df0c4f2dee35419b2cbd1",
+    "hogd/hog_exec/runtime/rv32/program.cc": "5a5a61145b39be3de0dae51f2afc328c08a8af65",
+    "hogd/hog_exec/runtime/rv32/program.h": "7a62a3d6cd25299c60ba8c9267c09d9a27455a02",
+    "hogd/hog_exec/runtime/rv32/threaded_machine.h": "99f8054c32ed546f16d6e9045e44027c3d2b56b6",
+    "hogd/hog_exec/runtime/rv32/threaded_program.h": "9230d6abf48d0a792ddbdfb6e081bd1cc223e2ff"
+  },
+  "puredoom_repository": "https://github.com/Daivuk/PureDOOM.git",
+  "puredoom_revision": "355cfbd16fac119718879239336ee2ea408886bd"
+}

@@ -1,0 +1,25 @@
+--- a/hogd/genesis/genesis_configuration.cc
++++ b/hogd/genesis/genesis_configuration.cc
+@@ -149,8 +149,8 @@
+                                  ConfigParamID::kConfigParamMaxBytestringLen,
+                                  static_cast<uint32_t>(
+-                                     kDefaultMaxBytestringLen));
++                                     32 * 1024));
+   NetworkConfigParams::set_param(
+       config, ConfigParamID::kConfigParamMaxContractSizeBytes,
+-      static_cast<uint32_t>(kDefaultMaxContractSizeBytes));
++      static_cast<uint32_t>(1024 * 1024));
+   NetworkConfigParams::set_param(config,
+                                  ConfigParamID::kConfigParamMaxSavepointDepth,
+@@ -165,9 +165,9 @@
+                                  ConfigParamID::kConfigParamMaxRv32CodeBytes,
+                                  static_cast<uint32_t>(
+-                                     kDefaultMaxRv32CodeBytes));
++                                     1024 * 1024));
+   NetworkConfigParams::set_param(config,
+                                  ConfigParamID::kConfigParamMaxRv32MemoryBytes,
+                                  static_cast<uint32_t>(
+-                                     kDefaultMaxRv32MemoryBytes));
++                                     16 * 1024 * 1024));
+   return config;
+ }

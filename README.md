@@ -138,6 +138,14 @@ completed-state reloads; it does not cover full browser restart with an unresolv
 transaction or remote deployment. Wallet unit tests run independently through
 `npm --prefix apps/wallet-extension test`.
 
+
+### Experimental Doom contract
+
+[Doom in an RV32 contract](experiments/doom/README.md) boots original Doom E1M1,
+persists game state between calls, and renders 320×200 frames. It includes a
+playable local harness, measured resource requirements, and a demo-genesis patch.
+Live-chain deployment and consensus performance are still unverified.
+
 ## Prerequisites
 
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is

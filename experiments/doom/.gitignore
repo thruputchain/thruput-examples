@@ -1,0 +1,11 @@
+/.deps/
+/build/
+/out*/
+/*.elf
+/*.rv32a
+/*.map
+/*.log
+/doom.json
+/runner
+/interactive/
+__pycache__/

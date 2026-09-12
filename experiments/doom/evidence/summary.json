@@ -1,0 +1,52 @@
+{
+  "ticks": 1050,
+  "initialized": {
+    "phase": "initialize",
+    "tick": "1",
+    "gas_excluding_db_rpc": "46737907",
+    "host_gas_excluding_db_rpc": "2965643",
+    "reads": "290",
+    "writes": "141",
+    "read_bytes": "9406140",
+    "written_bytes": "4586832",
+    "wall_ms": "46.1684"
+  },
+  "host": "Linux-6.18.35-x86_64-with-glibc2.39",
+  "metrics": {
+    "wall_ms": {
+      "median": 11.01375,
+      "p95": 12.5128,
+      "max": 23.7574
+    },
+    "gas_excluding_db_rpc": {
+      "median": 6704872.0,
+      "p95": 7092629.0,
+      "max": 7167373.0
+    },
+    "host_gas_excluding_db_rpc": {
+      "median": 4318589.0,
+      "p95": 4324781.0,
+      "max": 4328141.0
+    },
+    "reads": {
+      "median": 141.0,
+      "p95": 141.0,
+      "max": 143.0
+    },
+    "writes": {
+      "median": 13.0,
+      "p95": 17.0,
+      "max": 20.0
+    },
+    "read_bytes": {
+      "median": 4587600.0,
+      "p95": 4587600.0,
+      "max": 4653136.0
+    },
+    "written_bytes": {
+      "median": 392528.0,
+      "p95": 523600.0,
+      "max": 621904.0
+    }
+  }
+}
