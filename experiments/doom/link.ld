@@ -2,9 +2,10 @@
 ENTRY(_start)
 MEMORY {
   CODE (rx) : ORIGIN = 0, LENGTH = 4M
-  DATA (rw) : ORIGIN = 0, LENGTH = 16M
+  DATA (rw) : ORIGIN = 0, LENGTH = 10M
 }
-__memory_size = 16M;
+/* The full layout, including the bounded 8 MiB arena, ends below 10 MiB. */
+__memory_size = 10M;
 __stack_top = 1M;
 __global_pointer$ = __stack_top + 0x800;
 SECTIONS {

@@ -36,7 +36,8 @@ def build_controls(args):
     assert original[:8] == b'GHRV32A1' and struct.unpack_from('<I', original, 8)[0] == 5
     initial = original[128 + struct.unpack_from('<I', original, 52)[0]:]
     initial_start = struct.unpack_from('<I', original, 60)[0]
-    variants = [('tiny_same_image', 16 * 1024**2, initial, initial_start),
+    declared_memory = struct.unpack_from('<I', original, 48)[0]
+    variants = [('tiny_same_image', declared_memory, initial, initial_start),
                 ('tiny_16m', 16 * 1024**2, b'', 0),
                 ('tiny_2m', 2 * 1024**2, b'', 0)]
     paths = {'doom': args.artifact}

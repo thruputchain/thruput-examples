@@ -113,7 +113,7 @@ The launcher passes these four overrides to `groundhog node`:
 
 Each is a repeated `--network-config NAME=VALUE` argument. These values fit
 existing compiled ceilings, which remain enforced. The current artifact is
-about 0.79 MB and declares 16 MiB of guest memory; the 4,196,020-byte WAD is
+about 0.80 MB and declares 10 MiB of guest memory; the 4,196,020-byte WAD is
 uploaded separately. The initialization call gets 200M gas, and each tick
 gets 50M gas. These are tested budgets, not measured minimums; receipt gas
 consumption is not currently exposed. `groundhog call --gas-limit` now lets
@@ -174,9 +174,10 @@ once outside the tick timer. A separate warm preparation benchmark cost
 millisecond of the remaining executor/storage overhead. Receipt polling gaps
 overlap node execution and must not be counted as additional removable time.
 
-The 23.45 ms status measurement is a **signed method-4 transaction producing a
+The historical 23.45 ms status measurement is a **signed method-4 transaction producing a
 block**, not a direct metadata RPC read. A second [control experiment](evidence/status-controls.json)
-interleaved 30 status transactions per variant after three warmups each:
+interleaved 30 status transactions per variant after three warmups each, using
+the earlier artifact that declared 16 MiB:
 
 | Status operation | Median end-to-end time |
 |---|---:|
@@ -187,7 +188,8 @@ interleaved 30 status transactions per variant after three warmups each:
 | Direct `groundhog_getStorageAt` read of Doom's 80-byte metadata | 0.42 ms |
 
 The controls check empty calldata, read one 80-byte metadata item and return
-it. Memory size alone changes the tiny control by about 8.6 ms in this run;
+it. Changing the memory-size parameter changes the tiny control's end-to-end
+transaction latency by about 8.6 ms in this run;
 replacing Doom's code while retaining its memory image changes it by about
 4.5 ms. These are workload comparisons, not exact CPU phase attribution.
 The interleaved run has different allocation/cache behavior and host variance
@@ -199,6 +201,42 @@ the 2 MiB control includes authentication, storage, scheduling, block commit
 and receipt observation; these phases are not individually instrumented yet.
 The direct reads were measured after a 50 ms quiescence wait. The browser
 already reads committed storage directly. No cross-block cache change was made.
+
+That comparison does **not** measure a 22 ms memory initialization. A focused
+[lifecycle measurement](evidence/memory-reconciliation.json), using the same
+historical artifact in one standalone harness, measured:
+
+| Status lifecycle, 50 warm samples | 16 MiB | 10 MiB |
+|---|---:|---:|
+| Cached preparation: fresh VM construction and image copy | 0.892 ms | 0.343 ms |
+| Rebuild preparation, construct VM, execute status and destroy objects | 7.543 ms | 5.914 ms |
+
+The cached harness's gameplay timer already includes fresh VM construction
+and the image copy. It excludes building the prepared image, about 6.21 ms
+in the fresh 16 MiB case. Executing the status method itself takes only a
+few microseconds with the harness's in-memory storage. The node timings
+cannot be attributed to memory setup alone: block/executor/storage overhead
+and differing allocation/thread behavior still need internal instrumentation.
+
+The linked data layout ends at `0x9ac018` (9.672 MiB), including the entire
+bounded 8 MiB arena and scratch buffers. The default declaration is now
+10 MiB, leaving 344,040 bytes beyond the layout. This retains all memory
+addresses, heap capacity and engine behavior; a same-build 10/16 MiB comparison
+changes only the artifact header's memory-size field. PureDOOM's default
+RV32 zone allocator requests 6 MiB inside that arena, so substantially smaller
+memories require changing the heap/zone configuration and layout. The node's
+`max_rv32_memory_bytes=16M` remains an admission ceiling; it does not force
+the smaller artifact to allocate 16 MiB. Use a fresh demo data directory when
+deploying the rebuilt artifact. The 10 MiB build passed 1,050 gameplay ticks
+and the existing persistence/rollback checks, plus 35 ticks through the real
+node and HTTP app. Historical timing evidence retains its original hashes.
+
+`profiling/lifecycle.cpp` includes the same harness and emits separate CSV
+spans for preparation, instantiation, method execution and destruction. Build
+it like `runner.cpp`, with the pinned hogd include directory and `program.cc`,
+then run `build/lifecycle build/doom.rv32a`. It runs 51 samples per mode;
+discard sample 0 when computing warm medians. The current artifact uses
+10 MiB, while the table above preserves the controlled historical comparison.
 
 Reproduce the status controls with the matching bundles above and Zig 0.16.0
 (the output directory must not already exist):
