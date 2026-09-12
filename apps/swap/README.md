@@ -137,7 +137,8 @@ takes priority, and connection, live validation, and review are still required.
 Production needs `PORT` and `POOL_REGISTRY_DB_PATH` on a persistent volume.
 The Railway configuration runs from the repository root and selects this npm
 workspace explicitly; set its config-file path to `apps/swap/railway.json`.
-Deploy the full npm workspace plus the built sibling SDK. App RPC proxies stay
+Deploy the full npm workspace with GitHub Packages read authentication available
+at install time. The SDK is installed from the registry. App RPC proxies stay
 read-only; the extension submits to its own network endpoint. `/healthz` checks
 database readiness and `/api/registry/status` reports indexing progress.
 Use one writer per database, WAL-aware backups, and a new database for another

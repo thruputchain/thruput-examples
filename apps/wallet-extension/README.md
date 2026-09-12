@@ -4,18 +4,10 @@ An experimental Chrome Manifest V3 wallet for Groundhog localnet and devnet. Use
 
 ## Build and Load
 
-Requires Node 22.12+ and the provider API from [client-ts PR #61](https://github.com/groundhogchain/client-ts/pull/61). That API is not yet published; the package version alone does not establish availability. This extension uses `file:../../../groundhog-client-ts`, with the SDK checkout beside this examples repository.
-
-For a fresh checkout, run from the examples repository root:
-
-```sh
-git clone https://github.com/groundhogchain/client-ts.git ../groundhog-client-ts
-git -C ../groundhog-client-ts checkout b722ccfe5ab3fb539475bed91b5c7b087477032f
-npm --prefix ../groundhog-client-ts ci
-npm --prefix ../groundhog-client-ts run build
-```
-
-If that sibling checkout already exists, preserve any work there and use the provider PR revision or a compatible successor. Both `/provider` and `/wallet` exports must be built. Groundhog packages require GitHub Packages read access configured in your user environment. No package publishing is needed.
+Requires Node 22.12+ and GitHub Packages read access. This extension installs
+`@groundhogchain/client@0.8.0`, which includes the `/provider` and `/wallet` exports.
+Follow the [registry authentication instructions](../../README.md#install-swap-and-launchpad-dependencies)
+before installing dependencies.
 
 This application builds and tests independently of Swap and Token Launchpad. Their wallet integration is a separate change; installing the extension does not add connection controls to the existing apps on `main`.
 
@@ -29,7 +21,8 @@ npm run build
 npm audit
 ```
 
-The local `.npmrc` avoids an npm 10 optional-peer resolution crash. Groundhog protocol packages may require your existing GitHub Packages registry authentication; do not commit credentials.
+The local `.npmrc` selects GitHub Packages for `@groundhogchain/*`. Supply registry
+authentication through your user environment; do not commit credentials.
 
 Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this application's `dist` directory. Pin **Thruput Wallet** in the Chrome toolbar. After rebuilding, reload the extension and refresh dapp tabs. Stable entrypoints are `dist/manifest.json`, `worker.js`, `content.js`, `inpage.js`, and `index.html`.
 

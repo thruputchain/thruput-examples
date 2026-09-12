@@ -60,23 +60,24 @@ Game of Life have independent installs.
 
 ### Install Swap and Launchpad dependencies
 
-Use Node.js **22.13 or newer** and npm. The wallet provider API currently comes
-from [client-ts PR #61](https://github.com/groundhogchain/client-ts/pull/61), with
-the SDK checkout beside this repository as `groundhog-client-ts`. For a new
-checkout, clone it there and select the provider revision:
+Use Node.js **22.13 or newer** and npm. The apps install the published
+`@groundhogchain/client@0.8.0` package, including its wallet provider API, from
+GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
+with `read:packages` and access to the Groundhog packages in your npm user config:
+
+```ini
+//npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
+```
+
+Set `GITHUB_PACKAGES_TOKEN` in your environment, then install from the repository root:
 
 ```sh
-git clone https://github.com/groundhogchain/client-ts.git ../groundhog-client-ts
-git -C ../groundhog-client-ts checkout b722ccfe5ab3fb539475bed91b5c7b087477032f
-npm --prefix ../groundhog-client-ts ci
-npm --prefix ../groundhog-client-ts run build
 npm ci
 ```
 
-If the SDK checkout already exists, use its compatible provider revision and
-run the build/install commands. Both `/provider` and `/wallet` exports must be
-built. Groundhog npm packages require GitHub Packages read access in your user
-environment. The root `.npmrc` works around npm 10's linked-SDK peer resolver.
+Railway needs the same package-read authentication during dependency installation.
+Provide the PAT through the build environment and npm auth configuration; never
+commit its value. The deployment context needs only this repository.
 
 Both apps expose `dev`, `build`, `start`, `typecheck`, `test`, `setup:local`,
 `seed`, and `generate:contracts`. Select an app with
@@ -130,8 +131,7 @@ the optional external identity/airdrop check; its result is reported separately.
 Set `SEED_TEST_DEFAULT_OWNER=1` to check tool-account ownership instead of the
 seed test's explicit recipient.
 
-CI currently checks the Rust contracts. Run the application checks above locally
-while the apps depend on the unpublished SDK checkout.
+CI currently checks the Rust contracts. Run the application checks above locally.
 
 Fixture tests do not prove live transaction execution. The live journey checks
 completed-state reloads; it does not cover full browser restart with an unresolved
