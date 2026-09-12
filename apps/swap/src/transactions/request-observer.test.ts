@@ -15,6 +15,8 @@ import { SwapEvent } from "@/contracts/generated/swap-handler";
 import type { OutstandingRequest } from "@/transactions/outstanding-request";
 import {
   createRequestRecord,
+  loadRequestCollection,
+  saveRequestCollection,
   type RequestRecord,
 } from "@/transactions/request-collection";
 import {
@@ -151,6 +153,37 @@ describe("request observer", () => {
       });
     },
   );
+
+  it("preserves slippage reasons from polling and receipts through saved history", async () => {
+    const queued = record(request, "slippage");
+    const event = requestFailedEvent(config.driverAddress, new Uint8Array(32).fill(0xcc), {
+      cause: Cause.Exception,
+      selector: 0x947bdd51feea1ccen,
+      payload: Uint8Array.of(3),
+      payload_len: 1n,
+    });
+    const getEvents = vi.fn().mockResolvedValue(
+      page([identified(event, 10n)], new Uint8Array(), 10n),
+    );
+    const polled = await createRequestObserver(config, rpcClient(getEvents)).scanAll!([queued]);
+    const receipt = observationsFromReceipt(config, [queued], {
+      txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
+      height: 10n,
+      execResult: ExecResult.ExecResultOK,
+      events: [event],
+      returnData: new Uint8Array(),
+      abortData: null,
+    });
+    expect(polled.observations).toEqual(receipt.observations);
+    expect(receipt.observations[0]).toMatchObject({
+      kind: "executionFailed",
+      failureMessage: "Slippage limit exceeded: output was below your minimum received amount.",
+    });
+    const applied = applyObservationBatch([queued], [queued], receipt);
+    saveRequestCollection(config, applied);
+    expect(loadRequestCollection(config)).toEqual(applied);
+    localStorage.clear();
+  });
 
   it("rejects a failure event without the required diagnostic fields", async () => {
     const event = {

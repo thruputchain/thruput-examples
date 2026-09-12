@@ -1170,6 +1170,7 @@ describe("local swap submission", () => {
     };
     const failure: RequestObservation = {
       kind: "executionFailed",
+      failureMessage: "Slippage limit exceeded: output was below your minimum received amount.",
       requestId: `0x${"cd".repeat(32)}`,
       transactionHash: hash,
       blockHeight: 13n,
@@ -1207,6 +1208,11 @@ describe("local swap submission", () => {
       ]);
     });
     expect(scan).not.toHaveBeenCalled();
+    expect(screen.getByText("Slippage limit exceeded: output was below your minimum received amount."))
+      .toBeInTheDocument();
+    expect(loadRequestCollection(config)[0]?.execution).toMatchObject({
+      failureMessage: "Slippage limit exceeded: output was below your minimum received amount.",
+    });
   });
 
   it("uses unreserved balances for validation and Max", async () => {

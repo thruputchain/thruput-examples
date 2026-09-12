@@ -12,6 +12,7 @@ import {
 } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
+import { requestFailureMessage } from "@/contracts/failure-message";
 import { RequestFailed } from "@/contracts/generated/swap-driver";
 import {
   SwapEvent as GeneratedSwapEvent,
@@ -33,6 +34,7 @@ export type RequestObservation =
     }
   | {
       kind: "executionFailed";
+      failureMessage?: string;
       requestId: string;
       transactionHash: string;
       blockHeight: bigint;
@@ -219,6 +221,9 @@ export function applyObservationBatch(
           batch.observedThroughBlock ?? request.observedThroughBlock,
         execution: {
           kind: "failed",
+          ...(observation.failureMessage === undefined
+            ? {}
+            : { failureMessage: observation.failureMessage }),
           transactionHash: observation.transactionHash,
           blockHeight: observation.blockHeight,
         },
@@ -312,7 +317,7 @@ export function observationsFromReceipt(
       matchFailedEvent(
         request,
         requestIdFromHex(requestId),
-        failed.topics.request_id,
+        failed,
         receipt.txHash,
         receipt.height,
       ),
@@ -356,7 +361,7 @@ function matchTerminalEvent(
       : matchFailedEvent(
           request,
           requestId,
-          failed.topics.request_id,
+          failed,
           identified.txHash,
           identified.blockHeight,
         );
@@ -378,15 +383,20 @@ function matchTerminalEvent(
 function matchFailedEvent(
   request: ObservableRequest,
   requestId: Uint8Array,
-  failedId: Uint8Array,
+  failed: RequestFailed,
   txHash: Uint8Array,
   blockHeight: bigint,
 ): RequestObservation | null {
-  if (blockHeight < request.receiptBlock! || !bytesEqual(failedId, requestId)) {
+  if (
+    blockHeight < request.receiptBlock!
+    || !bytesEqual(failed.topics.request_id, requestId)
+  ) {
     return null;
   }
+  const failureMessage = requestFailureMessage(failed.fields);
   return {
     kind: "executionFailed",
+    ...(failureMessage === null ? {} : { failureMessage }),
     requestId: request.requestId!,
     transactionHash: toHex0x(txHash),
     blockHeight,
