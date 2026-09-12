@@ -18,16 +18,19 @@ const rpcUrl = "https://rpc.example.test/groundhog";
 const environment = {
   VITE_GROUNDHOG_RPC_URL: rpcUrl,
   VITE_GROUNDHOG_NETWORK_ID: `0x${"AA".repeat(32)}`,
-  VITE_GROUNDHOG_WALLET_ADDRESS: `0x${"22".repeat(32)}`,
-  VITE_GROUNDHOG_WALLET_ENTRYPOINT: `0x${"AB".repeat(8)}`,
+  VITE_POOL_TOKEN_HASH: `0x${"AB".repeat(32)}`,
   VITE_NATIVE_HOG_ADDRESS: `0x${"44".repeat(32)}`,
-  VITE_KNOWN_TOKEN_ADDRESSES: `0x${"66".repeat(32)},0x${"55".repeat(32)},0x${"66".repeat(32)}`,
   VITE_SWAP_FACTORY_ADDRESS: `0x${"77".repeat(32)}`,
   VITE_SWAP_ROUTER_ADDRESS: `0x${"88".repeat(32)}`,
   VITE_POOL_REGISTRY_ENABLED: "true",
 };
 
 describe("production public configuration manifest", () => {
+  it("supports an empty factory without wallet environment", () => {
+    const manifest = createPublicConfigManifest(environment);
+    expect(parsePublicConfigManifest(JSON.stringify(manifest))).toEqual(manifest);
+    expect(Object.keys(manifest).some((key) => key.includes("WALLET"))).toBe(false);
+  });
   let directory: string | undefined;
 
   afterEach(async () => {
@@ -48,10 +51,8 @@ describe("production public configuration manifest", () => {
         .update(new URL(rpcUrl).href)
         .digest("hex"),
       VITE_GROUNDHOG_NETWORK_ID: "aa".repeat(32),
-      VITE_GROUNDHOG_WALLET_ADDRESS: `0x${"22".repeat(32)}`,
-      VITE_GROUNDHOG_WALLET_ENTRYPOINT: `0x${"ab".repeat(8)}`,
+      VITE_POOL_TOKEN_HASH: `0x${"ab".repeat(32)}`,
       VITE_NATIVE_HOG_ADDRESS: `0x${"44".repeat(32)}`,
-      VITE_KNOWN_TOKEN_ADDRESSES: `0x${"66".repeat(32)},0x${"55".repeat(32)}`,
       VITE_SWAP_FACTORY_ADDRESS: `0x${"77".repeat(32)}`,
       VITE_SWAP_ROUTER_ADDRESS: `0x${"88".repeat(32)}`,
       VITE_POOL_REGISTRY_ENABLED: "true",
@@ -69,12 +70,9 @@ describe("production public configuration manifest", () => {
     ["VITE_GROUNDHOG_RPC_URL", "https://user:secret@rpc.example.test"],
     ["VITE_GROUNDHOG_RPC_URL", "https://rpc.example.test/?key=secret"],
     ["VITE_GROUNDHOG_NETWORK_ID", "aa"],
-    ["VITE_GROUNDHOG_WALLET_ADDRESS", "22".repeat(32)],
-    ["VITE_GROUNDHOG_WALLET_ENTRYPOINT", "0x12"],
-    ["VITE_KNOWN_TOKEN_ADDRESSES", "not-an-address"],
+    ["VITE_POOL_TOKEN_HASH", "22".repeat(32)],
     ["VITE_SWAP_FACTORY_ADDRESS", "0x12"],
     ["VITE_SWAP_ROUTER_ADDRESS", "0x12"],
-    ["VITE_POOL_REGISTRY_ENABLED", "TRUE"],
   ])("rejects malformed %s without leaking its value", (key, value) => {
     let error: unknown;
     try {
@@ -106,11 +104,11 @@ describe("production public configuration manifest", () => {
       parsePublicConfigManifest(
         JSON.stringify({
           ...manifest,
-          VITE_GROUNDHOG_WALLET_ADDRESS:
-            manifest.VITE_GROUNDHOG_WALLET_ADDRESS.toUpperCase(),
+          VITE_POOL_TOKEN_HASH:
+            manifest.VITE_POOL_TOKEN_HASH.toUpperCase(),
         }),
       ),
-    ).toThrow(/VITE_GROUNDHOG_WALLET_ADDRESS/);
+    ).toThrow(/VITE_POOL_TOKEN_HASH/);
   });
 
   it("normalizes explorer config, enforces exact manifest fields, and rejects runtime drift", async () => {
@@ -144,7 +142,6 @@ describe("production public configuration manifest", () => {
         ...environment,
         VITE_EXPLORER_URL: " \t\n",
         VITE_GROUNDHOG_NETWORK_ID: "aa".repeat(32),
-        VITE_KNOWN_TOKEN_ADDRESSES: `0x${"66".repeat(32)},0x${"55".repeat(32)}`,
       }),
     ).resolves.toBeDefined();
     const secret = "https://distinctive-secret.example.test";

@@ -3,9 +3,8 @@ import {
   AlertCircleIcon,
   DropletsIcon,
   PlusIcon,
-  RefreshCwIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
@@ -33,9 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { GlobalConfig } from "@/config";
 import { AmmPage } from "@/pools/amm-page";
 import {
-  readPoolDirectory,
   type PoolDirectoryEntry,
-  type PoolDirectoryResult,
 } from "@/pools/pool-directory";
 import { poolPath } from "@/pools/pool-route";
 import {
@@ -54,12 +51,13 @@ import {
 import { formatTokenAmount } from "@/swap/model";
 
 interface PoolDirectoryPageDependencies {
-  readDirect?: typeof readPoolDirectory;
   readRegistry?: typeof getRegistryPools;
   readStatus?: typeof getPoolRegistryStatus;
   requestSync?: typeof requestPoolRegistrySync;
   enrich?: typeof enrichRegistryPools;
 }
+
+export const DIRECTORY_REFRESH_INTERVAL_MS = 15_000;
 
 export function PoolDirectoryPage({
   config,
@@ -70,7 +68,7 @@ export function PoolDirectoryPage({
   dependencies?: PoolDirectoryPageDependencies;
   readOnly?: boolean;
 }) {
-  return config.registryEnabled ? (
+  return (
     <RegistryPoolDirectoryPage
       config={config}
       read={dependencies.readRegistry ?? getRegistryPools}
@@ -79,124 +77,6 @@ export function PoolDirectoryPage({
       enrich={dependencies.enrich ?? enrichRegistryPools}
       readOnly={readOnly}
     />
-  ) : (
-    <DirectPoolDirectoryPage
-      config={config}
-      read={dependencies.readDirect ?? readPoolDirectory}
-      readOnly={readOnly}
-    />
-  );
-}
-
-function DirectPoolDirectoryPage({
-  config,
-  read,
-  readOnly,
-}: {
-  config: GlobalConfig;
-  read: typeof readPoolDirectory;
-  readOnly: boolean;
-}) {
-  const request = useRef(0);
-  const [state, setState] = useState<
-    | { kind: "loading" }
-    | {
-        kind: "ready";
-        result: PoolDirectoryResult;
-        refreshing: boolean;
-        refreshError: string | null;
-      }
-    | { kind: "error"; message: string }
-  >({ kind: "loading" });
-  const refresh = useCallback(
-    (background = false) => {
-      const currentRequest = ++request.current;
-      setState((current) =>
-        background && current.kind === "ready"
-          ? { ...current, refreshing: true }
-          : { kind: "loading" },
-      );
-      void read(config).then(
-        (result) => {
-          if (request.current === currentRequest) {
-            setState({
-              kind: "ready",
-              result,
-              refreshing: false,
-              refreshError: null,
-            });
-          }
-        },
-        (error: unknown) => {
-          if (request.current === currentRequest) {
-            const message =
-              error instanceof Error
-                ? error.message
-                : "The pool registry could not be loaded";
-            setState((current) =>
-              background && current.kind === "ready"
-                ? { ...current, refreshing: false, refreshError: message }
-                : { kind: "error", message },
-            );
-          }
-        },
-      );
-    },
-    [config, read],
-  );
-
-  useEffect(() => {
-    refresh();
-    return () => {
-      request.current += 1;
-    };
-  }, [refresh]);
-
-  return (
-    <DirectoryLayout
-      readOnly={readOnly}
-      action={
-        state.kind === "ready" ? (
-          <RefreshButton
-            refreshing={state.refreshing}
-            onClick={() => refresh(true)}
-          />
-        ) : undefined
-      }
-    >
-      {state.kind === "loading" ? <DirectorySkeleton /> : null}
-      {state.kind === "error" ? (
-        <Unavailable message={state.message} retry={() => refresh()} />
-      ) : null}
-      {state.kind === "ready" && state.refreshError !== null ? (
-        <StaleDataAlert message={state.refreshError} />
-      ) : null}
-      {state.kind === "ready" && state.result.invalidEntryCount > 0 ? (
-        <PartialReads count={state.result.invalidEntryCount} direct />
-      ) : null}
-      {state.kind === "ready" &&
-      state.result.entries.length === 0 &&
-      state.result.invalidEntryCount === 0 ? (
-        <EmptyDirectory readOnly={readOnly} />
-      ) : null}
-      {state.kind === "ready" && state.result.entries.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {state.result.entries.map((entry) => (
-            <PoolCard
-              key={poolPath(
-                entry.config.tokenAAddress,
-                entry.config.tokenBAddress,
-              )}
-              token0Address={toHex0x(entry.config.tokenAAddress)}
-              token1Address={toHex0x(entry.config.tokenBAddress)}
-              live={entry}
-              loading={false}
-              readOnly={readOnly}
-            />
-          ))}
-        </div>
-      ) : null}
-    </DirectoryLayout>
   );
 }
 
@@ -237,6 +117,8 @@ function RegistryPoolDirectoryPage({
   const activeRequest = useRef<AbortController | null>(null);
   const requestId = useRef(0);
   const syncRequestId = useRef(0);
+  const inFlight = useRef(false);
+  const backgroundRefresh = useRef(false);
 
   useEffect(() => {
     if (search === debouncedSearch) return;
@@ -260,10 +142,17 @@ function RegistryPoolDirectoryPage({
     const controller = new AbortController();
     activeRequest.current = controller;
     const currentRequestId = ++requestId.current;
+    const background = backgroundRefresh.current;
+    backgroundRefresh.current = false;
+    // Discover new pools on page one; later pages stay on their pinned snapshot.
+    const snapshotBlock = background && offset === 0 ? undefined : asOfBlock.current;
+    inFlight.current = true;
     setLoading(true);
     setError(null);
-    setPage(null);
-    setEntries([]);
+    if (!background) {
+      setPage(null);
+      setEntries([]);
+    }
     const normalizedToken = debouncedToken.trim();
     void read(
       config,
@@ -273,30 +162,44 @@ function RegistryPoolDirectoryPage({
         sort,
         limit: PAGE_SIZE,
         offset,
-        ...(asOfBlock.current === undefined
+        ...(snapshotBlock === undefined
           ? {}
-          : { asOfBlock: asOfBlock.current }),
+          : { asOfBlock: snapshotBlock }),
       },
-      controller.signal,
+      AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]),
     ).then(
-      (result) => {
+      async (result) => {
         if (currentRequestId !== requestId.current) return;
         const initialEntries = registryPoolsToEntries(result.pools);
         setPage(result);
-        setEntries(initialEntries);
-        asOfBlock.current ??= result.asOfBlock;
+        setEntries((previous) => background
+          ? retainLiveData(initialEntries, previous)
+          : initialEntries);
+        asOfBlock.current = result.asOfBlock;
         setLoading(false);
-        void enrich(config, initialEntries, controller.signal).then(
+        await enrich(config, initialEntries, controller.signal).then(
           (enriched) => {
-            if (currentRequestId === requestId.current) setEntries(enriched);
+            if (currentRequestId === requestId.current) {
+              setEntries((current) => background
+                ? retainLiveData(enriched, current)
+                : enriched);
+            }
           },
-          () => undefined,
+          () => {
+            if (currentRequestId === requestId.current) {
+              setEntries((current) => current.map((entry) => ({
+                ...entry, loading: false, readError: true,
+              })));
+            }
+          },
         );
       },
       (reason: unknown) => {
         if (currentRequestId !== requestId.current) return;
-        setPage(null);
-        setEntries([]);
+        if (!background) {
+          setPage(null);
+          setEntries([]);
+        }
         setLoading(false);
         setError(
           reason instanceof Error
@@ -304,7 +207,9 @@ function RegistryPoolDirectoryPage({
             : "The pool registry is unavailable",
         );
       },
-    );
+    ).finally(() => {
+      if (currentRequestId === requestId.current) inFlight.current = false;
+    });
     return () => {
       controller.abort();
       if (activeRequest.current === controller) {
@@ -327,52 +232,82 @@ function RegistryPoolDirectoryPage({
     const controller = new AbortController();
     const currentSyncRequestId = ++syncRequestId.current;
     let pollTimer: number | undefined;
-    let observedSyncing = false;
+    let polling = false;
     const isCurrent = () => currentSyncRequestId === syncRequestId.current;
     const refreshCompletedSync = () => {
-      resetRegistrySnapshot(activeRequest, requestId, asOfBlock, setOffset);
+      if (inFlight.current || document.visibilityState !== "visible") return;
+      inFlight.current = true;
+      backgroundRefresh.current = true;
+      requestId.current += 1;
+      activeRequest.current?.abort();
       setRefreshKey((value) => value + 1);
     };
+    function schedule(delay: number) {
+      window.clearTimeout(pollTimer);
+      if (isCurrent() && document.visibilityState === "visible")
+        pollTimer = window.setTimeout(pollStatus, delay);
+    }
     const consumeStatus = (result: RegistryStatus, refreshIfIdle: boolean) => {
       if (!isCurrent()) return;
       setStatus(result);
       setStatusError(false);
       if (result.syncing) {
-        observedSyncing = true;
-        pollTimer = window.setTimeout(pollStatus, STATUS_POLL_MS);
-      } else if (observedSyncing || refreshIfIdle) {
-        refreshCompletedSync();
+        schedule(STATUS_POLL_MS);
+      } else {
+        if (refreshIfIdle) refreshCompletedSync();
+        schedule(DIRECTORY_REFRESH_INTERVAL_MS);
       }
     };
     async function pollStatus() {
+      if (polling || !isCurrent() || document.visibilityState !== "visible")
+        return;
+      polling = true;
+      window.clearTimeout(pollTimer);
       try {
-        consumeStatus(await readStatus(config, controller.signal), false);
+        consumeStatus(await readStatus(config, readSignal()), true);
       } catch {
         if (!isCurrent() || controller.signal.aborted) return;
         setStatusError(true);
-        pollTimer = window.setTimeout(pollStatus, STATUS_POLL_MS);
+        schedule(STATUS_POLL_MS);
+      } finally {
+        polling = false;
       }
     }
     async function hintSync() {
+      if (document.visibilityState !== "visible") return;
+      polling = true;
       try {
-        consumeStatus(await requestSync(config, controller.signal), true);
+        consumeStatus(await requestSync(config, readSignal()), true);
       } catch {
         if (!isCurrent() || controller.signal.aborted) return;
         try {
-          consumeStatus(await readStatus(config, controller.signal), false);
+          consumeStatus(await readStatus(config, readSignal()), false);
         } catch {
           if (!isCurrent() || controller.signal.aborted) return;
           setStatus(null);
           setStatusError(true);
-          pollTimer = window.setTimeout(pollStatus, STATUS_POLL_MS);
+          schedule(STATUS_POLL_MS);
         }
+      } finally {
+        polling = false;
       }
     }
+    function readSignal() {
+      return AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+    }
+    function refreshVisible() {
+      window.clearTimeout(pollTimer);
+      void pollStatus();
+    }
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
     void hintSync();
     return () => {
       syncRequestId.current += 1;
       controller.abort();
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
+      window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
     };
   }, [config, readStatus, requestSync, syncKey]);
 
@@ -394,10 +329,7 @@ function RegistryPoolDirectoryPage({
   }
 
   return (
-    <DirectoryLayout
-      readOnly={readOnly}
-      action={<RefreshButton refreshing={loading} onClick={refresh} />}
-    >
+    <DirectoryLayout readOnly={readOnly}>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem]">
         <Field>
           <FieldLabel htmlFor="pool-search">Search addresses</FieldLabel>
@@ -438,7 +370,11 @@ function RegistryPoolDirectoryPage({
         </Field>
       </div>
 
-      {error !== null ? <Unavailable message={error} retry={refresh} /> : null}
+      {error !== null ? (
+        page === null
+          ? <Unavailable message={error} retry={refresh} />
+          : <StaleDataAlert message={error} />
+      ) : null}
       {loading && page === null ? <DirectorySkeleton /> : null}
       {page?.total === 0 ? (
         hasFilters ? (
@@ -540,6 +476,18 @@ function RegistryPoolDirectoryPage({
   );
 }
 
+function retainLiveData(
+  next: RegistryPoolEntry[],
+  previous: RegistryPoolEntry[],
+): RegistryPoolEntry[] {
+  return next.map((entry) => ({
+    ...entry,
+    live: entry.live ?? previous.find(
+      (old) => old.record.handlerAddress === entry.record.handlerAddress,
+    )?.live ?? null,
+  }));
+}
+
 function resetRegistrySnapshot(
   activeRequest: React.RefObject<AbortController | null>,
   requestId: React.RefObject<number>,
@@ -553,11 +501,9 @@ function resetRegistrySnapshot(
 }
 
 function DirectoryLayout({
-  action,
   children,
   readOnly = false,
 }: {
-  action?: React.ReactNode;
   children: React.ReactNode;
   readOnly?: boolean;
 }) {
@@ -565,32 +511,10 @@ function DirectoryLayout({
     <AmmPage
       title="Pools"
       description="Explore token markets on Thruput."
-      actions={action}
       readOnly={readOnly}
     >
       {children}
     </AmmPage>
-  );
-}
-
-function RefreshButton({
-  refreshing,
-  onClick,
-}: {
-  refreshing: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      disabled={refreshing}
-      onClick={onClick}
-    >
-      <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
-      {refreshing ? "Refreshing" : "Refresh"}
-    </Button>
   );
 }
 
@@ -621,8 +545,7 @@ function StaleDataAlert({ message }: { message: string }) {
       <AlertCircleIcon aria-hidden="true" />
       <AlertTitle>Pool data may be stale</AlertTitle>
       <AlertDescription>
-        The latest refresh failed, so the last successfully loaded directory
-        remains visible. {message}
+        The last loaded pools remain visible. Retrying automatically. {message}
       </AlertDescription>
     </Alert>
   );

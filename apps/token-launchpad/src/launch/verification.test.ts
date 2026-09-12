@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ERC20, ERC20Metadata } from "@/contracts/generated/standard-token";
 import { createWorkflow } from "@/launch/workflow";
-import { configuration } from "@/launch/workflow.test";
+import { configuration } from "@/test/fixtures";
 import {
   assessTokenState,
   readAndAssessTokenState,
@@ -27,6 +27,7 @@ function workflow() {
     predictedAddress: config.factoryAddress,
     predictedAddressHex: `0x${"03".repeat(32)}`,
     currentReserve: 0n,
+    reserveHeight: 0n,
     fundingAmount: 110n,
     creatorBalance: 1_000n,
     fundingShortfall: 0n,

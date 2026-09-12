@@ -1,7 +1,7 @@
 import { toHex0x } from "@groundhogchain/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { configuration } from "@/launch/workflow.test";
+import { configuration } from "@/test/fixtures";
 import {
   getRegistryStatus,
   getRegistryTokens,

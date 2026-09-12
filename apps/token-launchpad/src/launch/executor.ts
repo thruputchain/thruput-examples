@@ -5,7 +5,7 @@ import {
   fromHex0x,
   type GroundhogClient,
 } from "@groundhogchain/client";
-import { gasAmount } from "@groundhogchain/protocol";
+import { ExecResult, gasAmount, sha256Hash } from "@groundhogchain/protocol";
 
 import type { AppConfig } from "@/config";
 import { userErrorMessage } from "@/errors";
@@ -64,12 +64,46 @@ export async function advanceWorkflow(input: {
       }
       assertWorkflowScope(workflow, input.config);
       const nonce = fixedBytes(fromHex0x(workflow.nonceHex), 32);
-      const review = await (input.review ?? reviewFactory)(
+      let review = await (input.review ?? reviewFactory)(
         input.client,
         input.config,
         nonce,
         { balanceItemKnown: workflow.funding.status === "committed" },
       );
+      if (
+        workflow.funding.status === "committed" &&
+        workflow.funding.hash !== null &&
+        (workflow.creation.status === "idle" ||
+          workflow.creation.status === "failed") &&
+        review.fundingAmount > 0n
+      ) {
+        const hash = sha256Hash(fromHex0x(workflow.funding.hash));
+        const receipt = await input.client.getTransactionReceipt(hash);
+        if (
+          !receipt ||
+          !bytesEqual(receipt.txHash, hash) ||
+          receipt.execResult !== ExecResult.ExecResultOK
+        ) {
+          throw new Error(
+            "Funding evidence is unavailable. Check again before creating the token.",
+          );
+        }
+        // Receipt indexing can lead the state snapshot used by views. Retry only
+        // a proven stale read, never a fresh shortfall or the funding transaction.
+        if (review.reserveHeight < receipt.height) {
+          review = await (input.review ?? reviewFactory)(
+            input.client,
+            input.config,
+            nonce,
+            { balanceItemKnown: true },
+          );
+          if (review.reserveHeight < receipt.height) {
+            throw new Error(
+              "Funding committed, but the reserve snapshot has not reached its block yet. Check again.",
+            );
+          }
+        }
+      }
       const reviewedFeeRecipient = workflow.reviewedFeeRecipientHex
         ? addressFromHex(workflow.reviewedFeeRecipientHex)
         : null;
@@ -251,10 +285,20 @@ export async function runWorkflow(
 ): Promise<LaunchWorkflow> {
   const { automatic, onUpdate, ...advanceInput } = input;
   const run = async () => {
+    const initial = loadWorkflow(
+      input.storage ?? window.localStorage,
+      workflowStorageKey(input.config),
+    );
+    // Automatic continuation belongs to a fresh launch, not a receipt check.
+    const startingLaunch =
+      initial?.funding.status === "idle" &&
+      initial.creation.status === "idle" &&
+      initial.error === null;
     let workflow = await advanceWorkflow(advanceInput);
     onUpdate?.(workflow);
     if (
       !automatic ||
+      !startingLaunch ||
       advanceInput.confirmUnsignedStep !== undefined ||
       workflow.error !== null ||
       workflow.funding.status !== "committed" ||

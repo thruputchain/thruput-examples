@@ -59,7 +59,7 @@ import {
   type CreationStepName,
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
-import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
+import { useWalletWriteBoundary } from "@/wallet/write-context";
 import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
 import {
   hasBlockingAllowanceCleanup,
@@ -105,7 +105,6 @@ export function PoolCreatePage({
 }: {
   config: GlobalConfig;
   dependencies?: PoolCreatePageDependencies;
-  walletPrivateKey?: string | undefined;
 }) {
   const scope = JSON.stringify([
     config.networkIdHex, config.rpcUrl.href, config.registryEnabled,
@@ -118,11 +117,9 @@ export function PoolCreatePage({
 function CreationPage({
   config,
   dependencies = {},
-  walletPrivateKey,
 }: {
   config: GlobalConfig;
   dependencies?: PoolCreatePageDependencies;
-  walletPrivateKey?: string | undefined;
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -140,9 +137,8 @@ function CreationPage({
         : [],
     };
   });
-  const [writer] = useState(
-    () => dependencies.writer ?? createBrowserLocalWriteBoundary(config, walletPrivateKey),
-  );
+  const connectedWriter = useWalletWriteBoundary();
+  const writer = dependencies.writer ?? connectedWriter;
   const [input, setInput] = useState<PoolCreationInput>(() => ({
     ...emptyInput, tokenA: presets.tokenA, tokenB: presets.tokenB,
   }));

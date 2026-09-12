@@ -8,6 +8,8 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import { loadTokenDiscoveryServerConfig } from "./server/token-discovery-config.ts";
 import { createTokenDiscoveryHandler } from "./server/token-discovery.ts";
 import { parseExplorerUrl } from "./src/config.ts";
+import { verifyPoolTokenArtifact } from "./server/pool-token-artifact.ts";
+import { developmentRegistry } from "./server/development.ts";
 
 import {
   createPublicConfigManifest,
@@ -21,14 +23,13 @@ const ALLOWED_RPC_METHODS = new Set([
   "groundhog_getEvents",
   "groundhog_getTransactionReceipt",
   "groundhog_getTransactionStatus",
-  "groundhog_sendRawTransaction",
   "groundhog_view",
 ]);
 const MAX_RPC_BODY_BYTES = 1_000_000;
 const MAX_RPC_RESPONSE_BYTES = 1_000_000;
 export const PRODUCTION_BROWSER_RPC_URL = "https://same-origin.invalid/";
 
-export default defineConfig(({ command, isPreview, mode }) => {
+export default defineConfig(({ command, mode }) => {
   const environment = loadEnv(mode, root, "");
   parseExplorerUrl(environment.VITE_EXPLORER_URL);
   const tokenDiscovery = loadTokenDiscoveryServerConfig(environment);
@@ -37,49 +38,26 @@ export default defineConfig(({ command, isPreview, mode }) => {
   validateRpcTarget(rpcTarget, {
     command,
     production: mode === "production",
-    registryEnabled: environment.VITE_POOL_REGISTRY_ENABLED === "true",
+    registryEnabled: true,
   });
-  const developmentCredentialsEnabled =
-    command === "serve" &&
-    !(isPreview ?? false) &&
-    isLoopback(new URL(rpcTarget).hostname) &&
-    (environment.GROUNDHOG_DEV_PERSONAS !== undefined ||
-      environment.GROUNDHOG_DEV_PRIVATE_KEY !== undefined);
   const registryProductionBuild =
     command === "build" &&
-    mode === "production" &&
-    environment.VITE_POOL_REGISTRY_ENABLED === "true";
+    mode === "production";
 
   return {
     envPrefix: [
       "VITE_EXPLORER_URL",
       "VITE_GROUNDHOG_RPC_URL",
       "VITE_GROUNDHOG_NETWORK_ID",
-      "VITE_GROUNDHOG_WALLET_ENTRYPOINT",
-      "VITE_GROUNDHOG_WALLET_ADDRESS",
+      "VITE_POOL_TOKEN_HASH",
       "VITE_NATIVE_HOG_ADDRESS",
-      "VITE_KNOWN_TOKEN_ADDRESSES",
       "VITE_SWAP_FACTORY_ADDRESS",
       "VITE_SWAP_ROUTER_ADDRESS",
-      "VITE_POOL_REGISTRY_ENABLED",
       "VITE_TOKEN_DISCOVERY_ENABLED",
       "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
       "VITE_STANDARD_TOKEN_HASH",
     ],
     define: {
-      "import.meta.env.GROUNDHOG_DEV_PRIVATE_KEY":
-        developmentPrivateKeyDefinition(
-          command,
-          isPreview ?? false,
-          environment,
-          rpcTarget,
-        ),
-      "import.meta.env.GROUNDHOG_DEV_PERSONAS": developmentPersonasDefinition(
-        command,
-        isPreview ?? false,
-        environment,
-        rpcTarget,
-      ),
       ...(registryProductionBuild
         ? {
             "import.meta.env.VITE_GROUNDHOG_RPC_URL": JSON.stringify(
@@ -91,21 +69,24 @@ export default defineConfig(({ command, isPreview, mode }) => {
     plugins: [
       react(),
       tailwindcss(),
-      developmentCredentialHostGuard(developmentCredentialsEnabled),
       localRpcProxy(rpcTarget),
       tokenDiscoveryProxy(tokenDiscovery),
+      ...(command === "serve" && mode !== "test" && mode !== "browser-test" ? [developmentRegistry(environment)] : []),
+      ...(command === "build" && mode === "production"
+        ? [
+            productionPoolTokenArtifact(
+              environment.VITE_POOL_TOKEN_HASH?.toLowerCase(),
+            ),
+          ]
+        : []),
       ...(registryProductionBuild
         ? [productionPublicConfigManifest(environment)]
         : []),
     ],
-    ...(developmentCredentialsEnabled
-      ? {
-          server: {
-            cors: false,
-            headers: { "Content-Security-Policy": "frame-ancestors 'none'" },
-          },
-        }
-      : {}),
+    server: {
+      cors: false,
+      headers: { "Content-Security-Policy": "frame-ancestors 'none'" },
+    },
     resolve: {
       alias: {
         "@": path.resolve(root, "src"),
@@ -137,6 +118,31 @@ export function productionPublicConfigManifest(
   };
 }
 
+export function productionPoolTokenArtifact(
+  expectedHash: string | undefined,
+): Plugin {
+  let publicDirectory: string;
+  let outputDirectory: string;
+  return {
+    name: "groundhog-production-pool-token-artifact",
+    configResolved(config) {
+      if (!config.publicDir || !config.build.copyPublicDir) {
+        throw new Error(
+          "Production pool token artifact requires publicDir and copyPublicDir",
+        );
+      }
+      publicDirectory = config.publicDir;
+      outputDirectory = path.resolve(config.root, config.build.outDir);
+    },
+    async buildStart() {
+      await verifyPoolTokenArtifact(publicDirectory, expectedHash);
+    },
+    async writeBundle() {
+      await verifyPoolTokenArtifact(outputDirectory, expectedHash);
+    },
+  };
+}
+
 export function tokenDiscoveryProxy(
   config: ReturnType<typeof loadTokenDiscoveryServerConfig>,
 ): Plugin {
@@ -159,60 +165,6 @@ export function tokenDiscoveryProxy(
       server.middlewares.use(middleware);
     },
   };
-}
-
-function developmentCredentialHostGuard(enabled: boolean): Plugin {
-  return {
-    name: "groundhog-development-credential-host-guard",
-    configureServer(server) {
-      validateDevelopmentServerHost(server.config.server.host, enabled);
-    },
-  };
-}
-
-export function validateDevelopmentServerHost(
-  host: string | boolean | undefined,
-  credentialsEnabled: boolean,
-): void {
-  if (!credentialsEnabled) return;
-  const hostname = typeof host === "string" ? host : "localhost";
-  if (host === true || !isLoopback(hostname)) {
-    throw new Error(
-      "Disposable development wallets may only be served from a loopback host",
-    );
-  }
-}
-
-export function developmentPrivateKeyDefinition(
-  command: "build" | "serve",
-  isPreview: boolean,
-  environment: Record<string, string | undefined>,
-  rpcTarget = "http://127.0.0.1:9545",
-): string {
-  if (
-    command !== "serve" ||
-    isPreview ||
-    !isLoopback(new URL(rpcTarget).hostname)
-  ) {
-    return "undefined";
-  }
-  return JSON.stringify(environment.GROUNDHOG_DEV_PRIVATE_KEY) ?? "undefined";
-}
-
-export function developmentPersonasDefinition(
-  command: "build" | "serve",
-  isPreview: boolean,
-  environment: Record<string, string | undefined>,
-  rpcTarget = "http://127.0.0.1:9545",
-): string {
-  if (
-    command !== "serve" ||
-    isPreview ||
-    !isLoopback(new URL(rpcTarget).hostname)
-  ) {
-    return "undefined";
-  }
-  return JSON.stringify(environment.GROUNDHOG_DEV_PERSONAS) ?? "undefined";
 }
 
 function localRpcProxy(target: string): Plugin {

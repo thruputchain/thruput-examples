@@ -289,11 +289,23 @@ describe("production HTTP server", () => {
     }
   });
 
+  it("serves the LP contract artifact as same-origin JSON without an RPC call", async () => {
+    const artifact = { contractType: "rv32", data: "0x010203", hash: address(9) };
+    await mkdir(path.join(directory, "contract-artifacts"));
+    await writeFile(path.join(directory, "contract-artifacts", `${artifact.hash}.json`), JSON.stringify(artifact));
+    const response = await fetch(`${origin}/contract-artifacts/${artifact.hash}.json`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    expect(await response.json()).toEqual(artifact);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
   it("never falls back API, RPC, or missing asset paths", async () => {
     for (const target of [
       "/api/unknown",
       "/groundhog-rpc/extra",
       "/assets/missing.js",
+      `/contract-artifacts/${address(9)}.json`,
       "/missing.css",
     ]) {
       const response = await fetch(`${origin}${target}`);

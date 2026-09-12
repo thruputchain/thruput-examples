@@ -54,6 +54,7 @@ const MIME_TYPES: Record<string, string> = {
   ".woff2": "font/woff2",
 };
 const ALLOWED_TOKEN_PARAMETERS = new Set([
+  "tokenAddress",
   "q",
   "creator",
   "sort",
@@ -229,6 +230,14 @@ export function parseTokenQuery(url: URL): TokenQuery {
   }
 
   return {
+    ...(url.searchParams.has("tokenAddress")
+      ? {
+          tokenAddress: canonicalAddress(
+            url.searchParams.get("tokenAddress")!,
+            "tokenAddress",
+          ),
+        }
+      : {}),
     ...(q === undefined || q === "" ? {} : { q }),
     ...(creatorValue === null
       ? {}

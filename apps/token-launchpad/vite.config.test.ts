@@ -5,60 +5,14 @@ import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 
 import {
-  developmentPersonasDefinition,
   isAllowedRequest,
   isSameOriginLocalRequest,
   PRODUCTION_BROWSER_RPC_URL,
   productionPublicConfigManifest,
   readBody,
   readUpstreamBody,
-  validateDevelopmentServerHost,
   validateRpcTarget,
 } from "./vite.config";
-
-describe("development credential boundary", () => {
-  const personas = `[{"id":"alice","privateKey":"0x${"a5".repeat(32)}"}]`;
-
-  it("injects personas only for loopback development serve", () => {
-    expect(
-      developmentPersonasDefinition(
-        "serve",
-        false,
-        { GROUNDHOG_DEV_PERSONAS: personas },
-        "http://127.0.0.1:9545",
-      ),
-    ).toBe(JSON.stringify(personas));
-    expect(
-      developmentPersonasDefinition(
-        "build",
-        false,
-        { GROUNDHOG_DEV_PERSONAS: personas },
-        "http://127.0.0.1:9545",
-      ),
-    ).toBe("undefined");
-    expect(
-      developmentPersonasDefinition(
-        "serve",
-        true,
-        { GROUNDHOG_DEV_PERSONAS: personas },
-        "http://127.0.0.1:9545",
-      ),
-    ).toBe("undefined");
-  });
-
-  it("rejects exposing credentials from a network host", () => {
-    expect(() => validateDevelopmentServerHost("0.0.0.0", true)).toThrow(
-      /loopback host/,
-    );
-    expect(() => validateDevelopmentServerHost(true, true)).toThrow(
-      /loopback host/,
-    );
-    expect(() =>
-      validateDevelopmentServerHost("127.0.0.1", true),
-    ).not.toThrow();
-    expect(() => validateDevelopmentServerHost("::1", true)).not.toThrow();
-  });
-});
 
 describe("local RPC proxy policy", () => {
   it.each([
@@ -66,7 +20,6 @@ describe("local RPC proxy policy", () => {
     "groundhog_chainTip",
     "groundhog_getEvents",
     "groundhog_view",
-    "groundhog_sendRawTransaction",
     "groundhog_getTransactionStatus",
     "groundhog_getTransactionReceipt",
   ])("allows %s", (method) => {
@@ -74,6 +27,9 @@ describe("local RPC proxy policy", () => {
   });
 
   it("rejects unrelated methods and batches", () => {
+    expect(isAllowedRequest({ method: "groundhog_sendRawTransaction" })).toBe(
+      false,
+    );
     expect(isAllowedRequest({ method: "groundhog_deleteAllData" })).toBe(false);
     expect(isAllowedRequest([{ method: "groundhog_view" }])).toBe(false);
   });
@@ -185,8 +141,6 @@ describe("production public configuration plugin", () => {
   const environment = {
     VITE_GROUNDHOG_RPC_URL: "https://rpc.example.test",
     VITE_GROUNDHOG_NETWORK_ID: "11".repeat(32),
-    VITE_GROUNDHOG_WALLET_ADDRESS: `0x${"22".repeat(32)}`,
-    VITE_GROUNDHOG_WALLET_ENTRYPOINT: `0x${"33".repeat(8)}`,
     VITE_NATIVE_HOG_ADDRESS: `0x${"44".repeat(32)}`,
     VITE_NATIVE_BALANCE_ITEM_COST: "1234",
     VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"55".repeat(32)}`,
@@ -201,15 +155,9 @@ describe("production public configuration plugin", () => {
     expect(() =>
       productionPublicConfigManifest({
         ...environment,
-        VITE_GROUNDHOG_WALLET_ENTRYPOINT: "",
+        VITE_STANDARD_TOKEN_HASH: "",
       }),
-    ).toThrow(/VITE_GROUNDHOG_WALLET_ENTRYPOINT is required/);
-    expect(() =>
-      productionPublicConfigManifest({
-        ...environment,
-        VITE_TOKEN_REGISTRY_ENABLED: "TRUE",
-      }),
-    ).toThrow(/must be exactly true/);
+    ).toThrow(/VITE_STANDARD_TOKEN_HASH is required/);
   });
 
   it("uses a benign URL that the registry-enabled browser client replaces with its origin", () => {

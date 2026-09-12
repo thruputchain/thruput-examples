@@ -1,4 +1,4 @@
-import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
+import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -41,27 +41,22 @@ export function PoolDetailPage({
           : `${state.snapshot.tokenA.symbol} / ${state.snapshot.tokenB.symbol}`
       }
       description="Pool reserves, liquidity ownership, and contract identity."
-      actions={
-        state.isLoading ? undefined : (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={state.isRefreshing}
-            onClick={state.refresh}
-          >
-            <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
-            {state.isUserRefreshing ? "Refreshing" : "Refresh"}
-          </Button>
-        )
-      }
       readOnly={readOnly}
     >
       {state.error === null ? null : (
         <Alert variant="destructive">
           <AlertCircleIcon aria-hidden="true" />
           <AlertTitle>Pool refresh failed</AlertTitle>
-          <AlertDescription>{state.error}</AlertDescription>
+          <AlertDescription className="flex flex-col items-start gap-3">
+            <p>{state.error}</p>
+            <Button
+              variant="outline"
+              disabled={state.isLoading || state.isRefreshing}
+              onClick={state.refresh}
+            >
+              Try again
+            </Button>
+          </AlertDescription>
         </Alert>
       )}
       {state.snapshot === null && state.isLoading ? <DetailSkeleton /> : null}
@@ -94,22 +89,26 @@ export function PoolDetailPage({
                 8,
               )}
             />
-            <Metric
-              label={`Your ${state.snapshot.tokenA.symbol} balance`}
-              value={`${formatTokenAmount(
-                state.snapshot.tokenA.balance,
-                state.snapshot.tokenA.decimals,
-                8,
-              )} ${state.snapshot.tokenA.symbol}`}
-            />
-            <Metric
-              label={`Your ${state.snapshot.tokenB.symbol} balance`}
-              value={`${formatTokenAmount(
-                state.snapshot.tokenB.balance,
-                state.snapshot.tokenB.decimals,
-                8,
-              )} ${state.snapshot.tokenB.symbol}`}
-            />
+            {readOnly ? null : (
+              <>
+                <Metric
+                  label={`Your ${state.snapshot.tokenA.symbol} balance`}
+                  value={`${formatTokenAmount(
+                    state.snapshot.tokenA.balance,
+                    state.snapshot.tokenA.decimals,
+                    8,
+                  )} ${state.snapshot.tokenA.symbol}`}
+                />
+                <Metric
+                  label={`Your ${state.snapshot.tokenB.symbol} balance`}
+                  value={`${formatTokenAmount(
+                    state.snapshot.tokenB.balance,
+                    state.snapshot.tokenB.decimals,
+                    8,
+                  )} ${state.snapshot.tokenB.symbol}`}
+                />
+              </>
+            )}
             <Metric
               label="LP supply"
               value={`${formatTokenAmount(
@@ -118,13 +117,15 @@ export function PoolDetailPage({
                 8,
               )} ${state.snapshot.liquidityTokenSymbol}`}
             />
-            <Metric
-              label="Your LP share"
-              value={formatShare(
-                state.snapshot.liquidityBalance,
-                state.snapshot.liquidityTotalSupply,
-              )}
-            />
+            {readOnly ? null : (
+              <Metric
+                label="Your LP share"
+                value={formatShare(
+                  state.snapshot.liquidityBalance,
+                  state.snapshot.liquidityTotalSupply,
+                )}
+              />
+            )}
           </div>
 
           <Card>
@@ -149,15 +150,17 @@ export function PoolDetailPage({
                 <Badge variant="outline">
                   Protocol fees {state.snapshot.feeTo === null ? "off" : "on"}
                 </Badge>
-                <Badge variant="secondary">
-                  Your LP{" "}
-                  {formatTokenAmount(
-                    state.snapshot.liquidityBalance,
-                    state.snapshot.liquidityTokenDecimals,
-                    8,
-                  )}{" "}
-                  {state.snapshot.liquidityTokenSymbol}
-                </Badge>
+                {readOnly ? null : (
+                  <Badge variant="secondary">
+                    Your LP{" "}
+                    {formatTokenAmount(
+                      state.snapshot.liquidityBalance,
+                      state.snapshot.liquidityTokenDecimals,
+                      8,
+                    )}{" "}
+                    {state.snapshot.liquidityTokenSymbol}
+                  </Badge>
+                )}
               </div>
               {readOnly ? null : (
                 <div className="flex flex-col gap-2 sm:flex-row">

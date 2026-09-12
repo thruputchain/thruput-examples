@@ -4,7 +4,7 @@ import { CxsWriter } from "@groundhogchain/xdr";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
-import { RequestFailed } from "@/contracts/generated/swap-driver";
+import { requestFailedEvent } from "@/test/request-failed";
 import { BurnEvent, MintEvent } from "@/contracts/generated/swap-handler";
 import {
   createAddLiquidityOperation,
@@ -12,8 +12,10 @@ import {
 } from "@/transactions/liquidity-operation";
 import { createLiquidityObserver } from "./liquidity-observer";
 
-const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
-const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const address = (byte: number) =>
+  contractAddress(new Uint8Array(32).fill(byte));
+const hex = (byte: number) =>
+  `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkIdHex: "00".repeat(32),
@@ -51,7 +53,10 @@ describe("liquidity observer", () => {
       oldestBlock: 1n,
     });
 
-    const result = await createLiquidityObserver(config, rpcClient(getEvents)).scan(operation);
+    const result = await createLiquidityObserver(
+      config,
+      rpcClient(getEvents),
+    ).scan(operation);
 
     expect(result).toMatchObject({
       status: "executed",
@@ -63,31 +68,41 @@ describe("liquidity observer", () => {
         liquidityMinted: "10",
       },
     });
-    expect(getEvents).toHaveBeenCalledWith(expect.objectContaining({
-      anchor: { height: 8n },
-      order: "ascending",
-    }));
+    expect(getEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        anchor: { height: 8n },
+        order: "ascending",
+      }),
+    );
   });
 
   it("matches request failure and rejects under-minimum burn evidence", async () => {
     const failedOperation = queuedRemove();
-    const failedClient = rpcClient(vi.fn().mockResolvedValue({
-      events: [identified(failedEvent(new Uint8Array(32).fill(30)), 10n)],
-      cursor: new Uint8Array(),
-      latestBlock: 10n,
-      oldestBlock: 1n,
-    }));
-    await expect(createLiquidityObserver(config, failedClient).scan(failedOperation))
-      .resolves.toMatchObject({ status: "failed", terminalBlock: "10" });
+    const failedClient = rpcClient(
+      vi.fn().mockResolvedValue({
+        events: [identified(failedEvent(new Uint8Array(32).fill(30)), 10n)],
+        cursor: new Uint8Array(),
+        latestBlock: 10n,
+        oldestBlock: 1n,
+      }),
+    );
+    await expect(
+      createLiquidityObserver(config, failedClient).scan(failedOperation),
+    ).resolves.toMatchObject({ status: "failed", terminalBlock: "10" });
 
-    const invalidClient = rpcClient(vi.fn().mockResolvedValue({
-      events: [identified(burnEvent(new Uint8Array(32).fill(30), [1n, 2n]), 10n)],
-      cursor: new Uint8Array(),
-      latestBlock: 10n,
-      oldestBlock: 1n,
-    }));
-    await expect(createLiquidityObserver(config, invalidClient).scan(queuedRemove()))
-      .rejects.toThrow("invalid terminal burn evidence");
+    const invalidClient = rpcClient(
+      vi.fn().mockResolvedValue({
+        events: [
+          identified(burnEvent(new Uint8Array(32).fill(30), [1n, 2n]), 10n),
+        ],
+        cursor: new Uint8Array(),
+        latestBlock: 10n,
+        oldestBlock: 1n,
+      }),
+    );
+    await expect(
+      createLiquidityObserver(config, invalidClient).scan(queuedRemove()),
+    ).rejects.toThrow("invalid terminal burn evidence");
   });
 });
 
@@ -123,15 +138,14 @@ function burnEvent(requestId: Uint8Array, amounts: readonly [bigint, bigint]) {
 }
 
 function failedEvent(requestId: Uint8Array) {
-  return {
-    contractAddress: config.driverAddress,
-    topics: [RequestFailed.signature, requestId],
-    data: new Uint8Array(),
-  };
+  return requestFailedEvent(config.driverAddress, requestId);
 }
 
 function identified(
-  event: ReturnType<typeof mintEvent> | ReturnType<typeof burnEvent> | ReturnType<typeof failedEvent>,
+  event:
+    | ReturnType<typeof mintEvent>
+    | ReturnType<typeof burnEvent>
+    | ReturnType<typeof failedEvent>,
   blockHeight: bigint,
 ) {
   return {

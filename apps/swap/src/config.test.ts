@@ -6,6 +6,7 @@ import {
   isLoopbackUrl,
   loadGlobalConfig,
   parseExplorerUrl,
+  READ_ONLY_CALLER,
   type Environment,
 } from "./config";
 
@@ -16,9 +17,8 @@ function environment(overrides: Environment = {}): Environment {
   return {
     VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
     VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
-    VITE_GROUNDHOG_WALLET_ADDRESS: ADDRESS,
+    VITE_POOL_TOKEN_HASH: ADDRESS,
     VITE_NATIVE_HOG_ADDRESS: ADDRESS,
-    VITE_KNOWN_TOKEN_ADDRESSES: `${ADDRESS},${OTHER_ADDRESS},${ADDRESS}`,
     VITE_SWAP_FACTORY_ADDRESS: ADDRESS,
     VITE_SWAP_ROUTER_ADDRESS: ADDRESS,
     ...overrides,
@@ -56,22 +56,10 @@ describe("loadGlobalConfig", () => {
     const config = loadGlobalConfig(environment());
 
     expect(config.factoryAddress).toBeDefined();
-    expect(config.registryEnabled).toBe(false);
-  });
-
-  it("parses the pool registry feature flag strictly", () => {
-    expect(loadGlobalConfig(environment({
-      VITE_POOL_REGISTRY_ENABLED: "true",
-    })).registryEnabled).toBe(true);
-    expect(loadGlobalConfig(environment({
-      VITE_POOL_REGISTRY_ENABLED: true,
-    })).registryEnabled).toBe(true);
-    expect(loadGlobalConfig(environment({
-      VITE_POOL_REGISTRY_ENABLED: "false",
-    })).registryEnabled).toBe(false);
-    expect(() => loadGlobalConfig(environment({
-      VITE_POOL_REGISTRY_ENABLED: "TRUE",
-    }))).toThrow("VITE_POOL_REGISTRY_ENABLED must be true or false");
+    expect(config.registryEnabled).toBe(true);
+    expect(config.accountAddress).toEqual(READ_ONLY_CALLER);
+    expect(config.poolTokenHash).toBe(ADDRESS);
+    expect(loadGlobalConfig(environment({ VITE_GROUNDHOG_WALLET_ADDRESS: OTHER_ADDRESS })).accountAddress).toEqual(READ_ONLY_CALLER);
   });
 
   it("rejects malformed network identities and RPC credentials", () => {
@@ -83,11 +71,6 @@ describe("loadGlobalConfig", () => {
     }))).toThrow("must not contain credentials");
   });
 
-  it("rejects malformed known-token addresses", () => {
-    expect(() => loadGlobalConfig(environment({
-      VITE_KNOWN_TOKEN_ADDRESSES: `${ADDRESS},not-an-address`,
-    }))).toThrow("VITE_KNOWN_TOKEN_ADDRESSES must contain only 32-byte");
-  });
 });
 
 describe("isLoopbackUrl", () => {

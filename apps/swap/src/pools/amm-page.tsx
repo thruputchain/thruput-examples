@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 
 import { AppHeader } from "@/components/app-header";
-import { DevelopmentWalletSwitcher } from "@/components/development-wallet-switcher";
+import { WalletControls } from "@/wallet/wallet-controls";
 
 export function AmmPage({
   title,
@@ -36,7 +36,7 @@ export function AmmPage({
         actions={
           <>
             {actions}
-            {readOnly ? null : <DevelopmentWalletSwitcher />}
+            <WalletControls />
           </>
         }
       />

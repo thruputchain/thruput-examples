@@ -1,4 +1,4 @@
-import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
+import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
 import { useState } from "react";
 
@@ -55,7 +55,7 @@ import {
   type LiquidityStepName,
 } from "@/transactions/liquidity-operation";
 import { createLiquidityObserver, type LiquidityObserver } from "@/transactions/liquidity-observer";
-import { createBrowserLocalWriteBoundary } from "@/transactions/local-development-wallet";
+import { useWalletWriteBoundary } from "@/wallet/write-context";
 import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
@@ -71,16 +71,13 @@ interface LiquidityPageDependencies {
 export function LiquidityPage({
   config,
   dependencies = {},
-  walletPrivateKey,
 }: {
   config: AppConfig;
   dependencies?: LiquidityPageDependencies;
-  walletPrivateKey?: string | undefined;
 }) {
   const [reader] = useState(() => dependencies.readSnapshot ?? createSnapshotReader(config));
-  const [writer] = useState(() =>
-    dependencies.writer ?? createBrowserLocalWriteBoundary(config, walletPrivateKey)
-  );
+  const connectedWriter = useWalletWriteBoundary();
+  const writer = dependencies.writer ?? connectedWriter;
   const [observer] = useState(() =>
     dependencies.observer ?? createLiquidityObserver(config)
   );
@@ -265,12 +262,6 @@ export function LiquidityPage({
     <AmmPage
       title="Manage liquidity"
       description={`${config.tokenASymbol} / ${config.tokenBSymbol} deposits and redemptions.`}
-      actions={snapshot === null ? undefined : (
-        <Button size="sm" variant="outline" disabled={snapshotState.isRefreshing} onClick={snapshotState.refresh}>
-          <RefreshCwIcon aria-hidden="true" data-icon="inline-start" />
-          Refresh
-        </Button>
-      )}
     >
       <div className="flex flex-wrap gap-3 text-sm">
         <BlockchainIdentifier kind="address" value={toHex0x(config.tokenAAddress)} label="Token A address" />
@@ -868,7 +859,7 @@ function safeReadAccountReservations(
         liquidityReservation: 0n,
         liquidityAllowanceReservation: 0n,
       },
-      error: "Saved account transaction progress is invalid. Clear this site's local data before signing another transaction.",
+      error: "Saved account transaction progress is invalid. Preserve the saved data and resolve pending transactions on the original ledger before signing another transaction.",
     };
   }
 }
@@ -882,7 +873,7 @@ function safeLoadCrankAttempt(config: AppConfig): {
   } catch {
     return {
       attempt: null,
-      error: "Saved queue-processing progress is invalid. Clear this site's local data before signing another transaction.",
+      error: "Saved queue-processing progress is invalid. Preserve the saved data and resolve pending transactions on the original ledger before signing another transaction.",
     };
   }
 }
@@ -896,7 +887,7 @@ function readLiquidityState(config: AppConfig): {
   } catch {
     return {
       operations: [],
-      error: "Saved liquidity progress is invalid. Clear this site's local data before signing another liquidity transaction.",
+      error: "Saved liquidity progress is invalid. Preserve the saved data and resolve pending transactions on the original ledger before signing another liquidity transaction.",
     };
   }
 }

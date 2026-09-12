@@ -109,4 +109,4 @@ Intermediate browser-runner failures were incorrect selectors for the existing
 queue switch, successful detail-page navigation, and existing-pair error text;
 the harness was corrected without changing those application behaviors.
 
-Operator instructions: [cross-app recipe](../cross-app-operations.md).
+Operator instructions: [Swap setup and integration](../../apps/swap/README.md).

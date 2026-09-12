@@ -1,5 +1,6 @@
-// Generated from erc20.spec.xdr - ERC20 interface v0.1.21
-// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.21
+// Generated from erc20.spec.xdr - ERC20 interface v0.1.22
+// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.22
+// Generated from erc20.spec.xdr - ERC20Permit interface v0.1.22
 // DO NOT EDIT. Re-run codegen to update.
 
 import type { ContractAddress } from "@groundhogchain/protocol";
@@ -15,6 +16,7 @@ import {
   createContractCodecContext,
   defineContractMethod,
   type ContractException,
+  type SignedToken,
   defineContractEvent,
   type DecodedContractEvent,
   type ContractEventFilterValue,
@@ -41,6 +43,10 @@ const entrypoints = {
     name: contractEntrypointID(fromHex("51ad51ee8a5d9dd8")),
     symbol: contractEntrypointID(fromHex("3ddac721aa5abdea")),
   },
+  ERC20Permit: {
+    permit: contractEntrypointID(fromHex("f5a087533ddf7125")),
+    transferFromSigned: contractEntrypointID(fromHex("87c3df36183d4aec")),
+  },
 } as const;
 
 export const ERC20Error = {
@@ -51,6 +57,16 @@ export const ERC20Error = {
 } as const;
 
 export type ERC20Error = (typeof ERC20Error)[keyof typeof ERC20Error];
+
+export const ERC20PermitError = { NotSpender: 1n } as const;
+
+export type ERC20PermitError =
+  (typeof ERC20PermitError)[keyof typeof ERC20PermitError];
+
+export interface PermitGrant {
+  spender: ContractAddress;
+  amount: bigint;
+}
 
 export interface ERC20AdjustAllowanceArgs {
   spender: ContractAddress;
@@ -134,11 +150,38 @@ export type ERC20MetadataDeclaredException = never;
 export type ERC20MetadataException =
   ContractException<ERC20MetadataDeclaredException>;
 
+export interface ERC20PermitPermitArgs {
+  grant: SignedToken<PermitGrant>;
+}
+export type ERC20PermitPermitResult = void;
+
+export interface ERC20PermitTransferFromSignedArgs {
+  grant: SignedToken<PermitGrant>;
+  receiver: ContractAddress;
+}
+export type ERC20PermitTransferFromSignedResult = void;
+
+export type ERC20PermitDeclaredException =
+  | {
+      kind: "declared";
+      name: "ERC20Error";
+      selector: 0xb19947acb2fa14ffn;
+      value: ERC20Error;
+    }
+  | {
+      kind: "declared";
+      name: "ERC20PermitError";
+      selector: 0xe8abb072f5171148n;
+      value: ERC20PermitError;
+    };
+export type ERC20PermitException =
+  ContractException<ERC20PermitDeclaredException>;
+
 export const spec: ContractSpec = {
   interfaces: [
     {
       name: s("ERC20"),
-      vers: s("0.1.21"),
+      vers: s("0.1.22"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -221,7 +264,7 @@ export const spec: ContractSpec = {
     },
     {
       name: s("ERC20Metadata"),
-      vers: s("0.1.21"),
+      vers: s("0.1.22"),
       throws: [],
       methods: [
         {
@@ -278,6 +321,59 @@ export const spec: ContractSpec = {
         },
       ],
     },
+    {
+      name: s("ERC20Permit"),
+      vers: s("0.1.22"),
+      throws: [
+        {
+          selector: 0xb19947acb2fa14ffn,
+          ty: { v: ContractTypeKind.Named, named: s("ERC20Error") },
+        },
+        {
+          selector: 0xe8abb072f5171148n,
+          ty: { v: ContractTypeKind.Named, named: s("ERC20PermitError") },
+        },
+      ],
+      methods: [
+        {
+          name: s("permit"),
+          args: [
+            {
+              name: s("grant"),
+              ty: {
+                v: ContractTypeKind.SignedToken,
+                signed_token_preimage: {
+                  preimage_type: {
+                    v: ContractTypeKind.Named,
+                    named: s("PermitGrant"),
+                  },
+                },
+              },
+            },
+          ],
+          return_type: { v: ContractTypeKind.Void },
+        },
+        {
+          name: s("transfer_from_signed"),
+          args: [
+            {
+              name: s("grant"),
+              ty: {
+                v: ContractTypeKind.SignedToken,
+                signed_token_preimage: {
+                  preimage_type: {
+                    v: ContractTypeKind.Named,
+                    named: s("PermitGrant"),
+                  },
+                },
+              },
+            },
+            { name: s("receiver"), ty: { v: ContractTypeKind.Address } },
+          ],
+          return_type: { v: ContractTypeKind.Void },
+        },
+      ],
+    },
   ],
   type_defs: [
     {
@@ -289,6 +385,23 @@ export const spec: ContractSpec = {
           { name: s("MustBeContractOwner"), value: 2n },
           { name: s("TooLarge"), value: 3n },
           { name: s("Internal"), value: 100n },
+        ],
+      },
+    },
+    {
+      v: ContractTypeDefKind.TypeDefEnum,
+      enum_def: {
+        name: s("ERC20PermitError"),
+        variants: [{ name: s("NotSpender"), value: 1n }],
+      },
+    },
+    {
+      v: ContractTypeDefKind.TypeDefStruct,
+      struct_def: {
+        name: s("PermitGrant"),
+        fields: [
+          { name: s("spender"), ty: { v: ContractTypeKind.Address } },
+          { name: s("amount"), ty: { v: ContractTypeKind.U128 } },
         ],
       },
     },
@@ -645,6 +758,70 @@ export const ERC20Metadata = {
     args: [],
     returnType: spec.interfaces[1]!.methods[3]!.return_type,
     throws: [],
+    codecs,
+  }),
+} as const;
+
+export const ERC20Permit = {
+  permit: defineContractMethod<
+    ERC20PermitPermitArgs,
+    ERC20PermitPermitResult,
+    ERC20PermitDeclaredException
+  >({
+    entrypoint: entrypoints.ERC20Permit.permit,
+    args: [
+      {
+        abiName: "grant",
+        publicName: "grant",
+        type: spec.interfaces[2]!.methods[0]!.args[0]!.ty,
+      },
+    ],
+    returnType: spec.interfaces[2]!.methods[0]!.return_type,
+    throws: [
+      {
+        selector: 0xb19947acb2fa14ffn,
+        name: "ERC20Error",
+        type: spec.interfaces[2]!.throws[0]!.ty,
+      },
+      {
+        selector: 0xe8abb072f5171148n,
+        name: "ERC20PermitError",
+        type: spec.interfaces[2]!.throws[1]!.ty,
+      },
+    ],
+    codecs,
+  }),
+  transferFromSigned: defineContractMethod<
+    ERC20PermitTransferFromSignedArgs,
+    ERC20PermitTransferFromSignedResult,
+    ERC20PermitDeclaredException
+  >({
+    entrypoint: entrypoints.ERC20Permit.transferFromSigned,
+    args: [
+      {
+        abiName: "grant",
+        publicName: "grant",
+        type: spec.interfaces[2]!.methods[1]!.args[0]!.ty,
+      },
+      {
+        abiName: "receiver",
+        publicName: "receiver",
+        type: spec.interfaces[2]!.methods[1]!.args[1]!.ty,
+      },
+    ],
+    returnType: spec.interfaces[2]!.methods[1]!.return_type,
+    throws: [
+      {
+        selector: 0xb19947acb2fa14ffn,
+        name: "ERC20Error",
+        type: spec.interfaces[2]!.throws[0]!.ty,
+      },
+      {
+        selector: 0xe8abb072f5171148n,
+        name: "ERC20PermitError",
+        type: spec.interfaces[2]!.throws[1]!.ty,
+      },
+    ],
     codecs,
   }),
 } as const;

@@ -1,159 +1,170 @@
-# Groundhog Token Launchpad
+# Thruput Token Launchpad
 
-Local-development application for creating standard tokens through the Groundhog standard-token factory.
+Create standard tokens through an external wallet and browse factory launches.
+The directory uses the token registry; balances and creation verification use
+live chain reads. The app never receives wallet private keys.
 
-## Supported stack
+## Requirements
 
-- Node.js 22.13 or newer
-- npm
-- Groundhog CLI 0.14.0 or newer
-- `hog-devnode` 0.1.25 or newer
-- A disposable local node with at least three `local_user` accounts
-
-## Install
-
-The `@groundhogchain` packages come from GitHub Packages. On a machine without existing package access, create a GitHub token with `read:packages`, then configure npm without committing the token:
-
-```bash
-export GITHUB_PACKAGES_TOKEN=your_token
-npm config set --location=user @groundhogchain:registry https://npm.pkg.github.com
-npm config set --location=user //npm.pkg.github.com/:_authToken "$GITHUB_PACKAGES_TOKEN"
-npm --prefix apps/token-launchpad ci
-```
-
-Run the remaining commands from the repository root.
+- Node.js 22.13 or newer and the [shared SDK/npm install](../../README.md#install-swap-and-launchpad-dependencies).
+- A compatible Groundhog CLI/devnode pair and the node's full runtime manifest.
+- [Thruput Wallet](../wallet-extension/README.md) for browser transactions.
 
 ## Local setup
 
-Start a disposable local Groundhog node whose runtime manifest includes the faucet and at least three local-user accounts. Then point the setup command at its runtime manifest:
+Run from the repository root. Start a disposable node in a separate terminal:
 
-```bash
+```sh
+export GROUNDHOG_CLI=/absolute/path/to/groundhog
+"$GROUNDHOG_CLI" node --port 9545 --dev-account-count 0 --json
+```
+
+Keep that process running. Use the runtime-manifest path printed by the node in
+the setup terminal:
+
+```sh
+export GROUNDHOG_CLI=/absolute/path/to/groundhog
 export GROUNDHOG_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
-export GROUNDHOG_CLI="$(command -v groundhog)"
-npm --prefix apps/token-launchpad run setup:local
-npm --prefix apps/token-launchpad run dev
+npm run setup:local --workspace apps/token-launchpad
+npm run dev --workspace apps/token-launchpad
 ```
 
-`setup:local` builds and registers the standard-token artifact, deploys and initializes a zero-fee factory, verifies its immutable configuration, and writes `.env.local`. The generated file contains disposable local private keys, has mode `0600`, and is excluded from Git. The development server refuses to expose these credentials from a non-loopback host. Production builds and previews omit them.
+Launchpad opens at `http://127.0.0.1:5173`. Its dev server runs the registry API
+and indexer, using a factory-scoped SQLite file under `apps/token-launchpad/.local/`.
+No extra registry process or registry-mode flag is needed. `TOKEN_REGISTRY_DB_PATH`
+can override the file. Use only one writer per database.
 
-The factory deployment and initialization use separate transactions because the pinned development wallet cannot batch a root deployment with a child call. This is safe only on a disposable isolated node. Production tooling must deploy and initialize the factory atomically.
+Setup uses the manifest's storage costs and deploys an empty token factory. It
+writes `.env.local` and the matching public contract artifact. Set
+`GROUNDHOG_RPC_URL` if the node uses another loopback HTTP endpoint. The extension
+uses localnet at `http://127.0.0.1:9545`.
 
-The checked `.env.example` documents the public configuration fields but is not a usable configuration. Setup also writes `GROUNDHOG_DEV_PERSONAS`, which contains the three disposable private keys.
+Load the wallet extension, create or import a test wallet, select Localnet, and
+request test HOG. Connect to Launchpad to create a token. Setup and seeding use
+tooling accounts; they do not import keys into the browser.
 
-## Clean-ledger acceptance
+## Seeding
 
-The acceptance command starts an ephemeral node, provisions the launchpad, creates and verifies one token each for Alice and Bob, checks creator-filtered and global discovery, then restores any existing `.env.local`:
+With Launchpad's dev server running, create two indexed example tokens:
 
-```bash
-export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
-npm --prefix apps/token-launchpad run test:e2e:local
+```sh
+# Optional: set this before the first seed to assign your wallet as administrator.
+export SEED_RECIPIENT=0x<your-wallet-public-address>
+npm run seed --workspace apps/token-launchpad
 ```
 
-The command requires Linux with Bash, `flock`, and `setsid`, Groundhog CLI 0.14.0 or newer, and `hog-devnode` 0.1.25 or newer. It must be run explicitly. The harness owns a disposable ledger, temporarily replaces and restores `.env.local`, and uses the repository's ignored build output.
+The command creates **gUSD** and **gEUR**, each with six decimals and 1,000,000
+units, through the real token factory. It waits for the registry to index their
+creation events. Swap setup is not required for this step.
 
-This is a service-level acceptance journey: it exercises the same workflow, wallet boundary, RPC client, and discovery code as the app without driving a browser. Component tests cover configuration injection, routing, persona switching, recovery, and UI states.
+Without `SEED_RECIPIENT`, a generated tool account administers and owns the tokens.
+With it, your wallet becomes administrator, but the tool account initially holds
+the supply so it can provide liquidity. To receive spendable tokens and LP tokens,
+finish [Swap seeding](../swap/README.md#seeding). That step supplies 1,000 of each
+token to the pool and transfers the remaining 999,000 of each to your wallet.
+The recipient is saved on the first run and cannot change on a rerun.
 
-## AMM Handoff
+### State and recovery
 
-Set `VITE_SWAP_APP_URL` to the Swap root origin, for example
-`http://127.0.0.1:5174`. Both apps must use the same RPC network hash. The
-**Create AMM Pool** link appears only after committed creation and complete
-verification, and sends only the actual token address as `tokenA`.
-It does not wait for indexing, transfer a wallet, or submit an AMM transaction.
-Blank configuration hides the link. Use HTTPS outside exact loopback hosts;
-paths, credentials, queries, and fragments are rejected.
+State lives in ignored `.local/seed/<scope-digest>/` at the repository root:
+`manifest.json` records addresses and signed transaction evidence; `signer.key`
+is the tool account's plaintext private seed, created with mode `0600`; `lock/`
+prevents concurrent runs. Keep the signer and manifest together and outside app
+configuration. New state is scoped by network, token factory, and token code.
+Existing journals from the earlier combined token/pool seeder are reused. Multiple
+matching journals require manual resolution instead of creating another run.
 
-The full writable journey requires loopback Vite with disposable accounts.
-Pointing the link at a production Swap deployment still redirects to its
-read-only directory. Swap discovery needs this app's built production registry
-service, not its writable Vite server. See the
-[operator recipe](../../docs/cross-app-operations.md).
+Rerun the same command to resume. Completed transactions are read back; an
+unexpired unknown transaction can be resubmitted with identical bytes. Expired
+unknown transactions stop the run for investigation. After an authoritative
+failure, fix its cause and set `SEED_RETRY_FAILED=1` to allow a replacement while
+retaining the original evidence. A timeout alone does not permit replacement.
 
-The shared-ledger acceptance command lives in Swap: `npm --prefix apps/swap run
-test:e2e:cross-app` from the repository root, with the CLI/devnode/protocol
-variables documented in the recipe. It uses both apps' actual SDK versions,
-clicks the verified browser CTA, creates and seeds a pool, checks chain evidence,
-and runs both production servers and full suites. No permanent browser dependency
-is added to launchpad. See the
-[acceptance record](../../docs/specs/2026-09-06-cross-app-acceptance.md).
+After a hard termination, remove only an empty `lock/` after confirming no seed
+process is running. Preserve the journal. Rerunning setup deploys new infrastructure;
+deleting seed state can create additional tokens on the same ledger.
 
-## Explorer Links
+| Override | Default |
+| --- | --- |
+| `SEED_STATE_DIR` | Repository `.local/seed` |
+| `LAUNCHPAD_APP_ENV` | `apps/token-launchpad/.env.local` |
+| `LAUNCHPAD_APP_PUBLIC_DIR` | `apps/token-launchpad/public` |
+| `LAUNCHPAD_REGISTRY_URL` | `http://127.0.0.1:5173` |
+| `GROUNDHOG_RPC_URL` | RPC URL from Launchpad setup |
 
-Set optional `VITE_EXPLORER_URL` to the explorer's root origin on the same
-network, such as `https://explorer.example.com` or `http://localhost:3001`.
-Absent or blank configuration disables links, but identifiers remain shortened
-with their full values available in tooltips on hover or keyboard focus.
-Remote origins require HTTPS. HTTP is allowed only for exact `localhost`,
-`127.0.0.1`, or `[::1]` hosts. Credentials, paths, queries, fragments, and
-malformed URLs are rejected; a root slash is normalized away.
+RPC and registry endpoints must use loopback HTTP and reject redirects. Seeding
+validates the live network and registry scope before submitting transactions.
 
-Addresses (wallets and contracts) open `/address/0x<64 hex digits>` and
-transactions open `/tx/0x<64 hex digits>` in a new tab. Nonces and implementation
-hashes remain unlinked. Copy buttons copy the original full value independently
-of navigation. The same-tab **Create AMM Pool** handoff is independent of this
-setting.
+## Commands
 
-Rebuild production assets after changing this value and supply the same origin
-at runtime. The exact public manifest includes `VITE_EXPLORER_URL` even when
-disabled (as an empty string); missing keys and build/runtime drift are rejected.
+Run with `npm run <command> --workspace apps/token-launchpad`:
 
-## Local registry
+| Command | Purpose |
+| --- | --- |
+| `dev` | UI, read-only RPC proxy, registry API and indexer with Vite |
+| `build` | Typecheck and production build |
+| `start` | Serve the production build and registry; loads `.env.local` if present |
+| `setup:local` | Build contracts and provision an empty token factory |
+| `seed` | Create and index the two demo tokens |
+| `generate:contracts` | Regenerate pinned contract bindings |
+| `typecheck` | Browser and server TypeScript checks |
+| `test` | Functional unit and integration tests |
 
-Build the SPA, set the server variables shown in `.env.example`, and start the combined registry and web server:
+## Code map
 
-```bash
-npm --prefix apps/token-launchpad run build:production
-npm --prefix apps/token-launchpad run start
+- `src/app.tsx` and `src/routes.tsx`: configuration, providers and routes.
+- `src/wallet/`: connection state and wallet controls.
+- `src/launch/`: form validation, launch controller, review UI, execution and recovery.
+- `src/tokens/`: registry directory controller and token cards.
+- `src/transactions/`: prepare/sign/persist/submit and receipt observation.
+- `src/contracts/generated/`: generated ABI bindings; do not edit by hand.
+- `src/registry/`: registry API client and live-chain enrichment.
+- `src/components/`: shared app UI and checked-in Radix primitives.
+- `server/`: API, chain indexer, SQLite store and production startup.
+- `scripts/`: application provisioning, seed entrypoint, and code generation.
+- `../../scripts/seed/`: shared seeding and transaction recovery.
+
+## Configuration and production
+
+Setup publishes `.env.local` and immutable `public/contract-artifacts/<hash>.json`.
+`VITE_STANDARD_TOKEN_HASH` identifies the implementation attached to token
+creation. Builds and startup validate its hash. Rebuild after changing public
+configuration; build and server manifests must agree.
+
+Set `VITE_SWAP_APP_URL=http://127.0.0.1:5174` to offer Create AMM Pool after a
+verified launch. Only the actual token address is passed; Swap still requires
+connection and review. Optional explorer links use `VITE_EXPLORER_URL`.
+Both links must use a root HTTPS origin or a supported loopback HTTP origin.
+Restart development servers after changing `.env.local`. See [`.env.example`](.env.example)
+for the full settings list.
+
+Production needs `PORT` and `TOKEN_REGISTRY_DB_PATH` on a persistent volume.
+The Railway configuration runs from the repository root and selects this npm
+workspace explicitly; set its config-file path to `apps/token-launchpad/railway.json`.
+Deploy the full npm workspace with GitHub Packages read authentication available
+at install time. The SDK is installed from the registry. App RPC proxies stay
+read-only; the extension submits to its own network endpoint. `/healthz` checks
+database readiness and `/api/registry/status` reports indexing progress.
+Use one writer per database, WAL-aware backups, and a new database for another
+network/factory scope. Do not edit the stored scope. Build and start with:
+
+```sh
+npm run build --workspace apps/token-launchpad
+npm run start --workspace apps/token-launchpad
 ```
 
-`TOKEN_REGISTRY_DB_PATH` may point to a local ignored SQLite file. The configured RPC must expose the network and factory named by the same `VITE_*` values. The server rejects a database created for another network, factory, or standard-token hash.
+Funding and creation are separate transactions. Recovery observes saved hashes,
+and checking funding does not automatically request a new creation signature.
+Keep uncertain transaction evidence until resolved on the original ledger.
 
-## Railway production
+## Tests
 
-Create one Railway service with `apps/token-launchpad` as its root directory. Railway's Config-as-code file path does not follow the root directory: set it explicitly to `/apps/token-launchpad/railway.json`, or configure the equivalent build, start, and health-check fields in the dashboard. Run exactly one replica: SQLite supports this deployment as one process and one writer, not horizontal scaling.
-
-Attach one persistent volume at `/data` and set:
-
-```text
-TOKEN_REGISTRY_DB_PATH=/data/token-registry.sqlite
+```sh
+npm run typecheck --workspace apps/token-launchpad
+npm run test --workspace apps/token-launchpad
 ```
 
-Set all of these variables for both the Railway build and runtime environments. Their values must be identical in both scopes:
-
-```text
-PORT=<provided by Railway>
-VITE_GROUNDHOG_RPC_URL=<credential-free http or https RPC URL without a query or fragment>
-VITE_GROUNDHOG_NETWORK_ID=<32-byte network hash>
-VITE_GROUNDHOG_WALLET_ADDRESS=<32-byte public account address>
-VITE_GROUNDHOG_WALLET_ENTRYPOINT=<wallet entrypoint>
-VITE_NATIVE_HOG_ADDRESS=<32-byte native HOG address>
-VITE_NATIVE_BALANCE_ITEM_COST=<pinned runtime item cost>
-VITE_STANDARD_TOKEN_FACTORY_ADDRESS=<32-byte factory address>
-VITE_STANDARD_TOKEN_HASH=<32-byte standard-token code hash>
-VITE_TOKEN_REGISTRY_ENABLED=true
-TOKEN_REGISTRY_DB_PATH=/data/token-registry.sqlite
-```
-
-Registry-enabled builds validate every listed `VITE_*` value and emit a public configuration manifest containing the public chain values plus only a one-way SHA-256 digest of the exact RPC URL. Server startup recomputes that digest and requires exact build/runtime equality for every setting before opening the registry database or listening; errors name the mismatched variable without logging its value. RPC URLs must use HTTP or HTTPS and must not contain credentials, a query string, or a fragment.
-
-`TOKEN_REGISTRY_SYNC_INTERVAL_MS` defaults to `5000` and must be at least `1000`. `TOKEN_REGISTRY_PAGE_SIZE` defaults to `200` and must not exceed `500`.
-
-Configure npm authentication in the build environment before dependency installation using the platform's secret-backed npm configuration and a GitHub token with `read:packages` access. Setting `GITHUB_PACKAGES_TOKEN` alone does not configure npm authentication. The project `.npmrc` contains only registry and install policies, so local installs use credentials from your user-level `~/.npmrc`. Use the commands declared in `railway.json`:
-
-```text
-Build: npm run build:production
-Start: npm run start
-Health: /healthz
-```
-
-`/healthz` checks that the process can query SQLite. It does not contact the chain, prove RPC availability, or replace monitoring and backups. `/api/registry/status` reports indexing progress and bounded sync errors.
-
-Railway allows 30 seconds for connection draining during shutdown so the process can stop indexing and close SQLite cleanly.
-
-The registry-enabled production browser bundle receives a benign placeholder instead of the upstream RPC URL and uses same-origin `/groundhog-rpc`. The production proxy permits only chain identity, tip, event, receipt, status, and view reads. It rejects `sendRawTransaction`; this deployment does not support production wallet writes or disposable development personas.
-
-SQLite runs in WAL mode. Backups must capture a consistent database state, including outstanding WAL data; use a volume snapshot while the service is stopped or perform an SQLite-aware backup/checkpoint procedure. Copying only the main `.sqlite` file while the process is writing can lose committed data.
-
-If startup reports a scope mismatch, do not reuse or edit the database. Restore the matching build/runtime network, factory, and token hash, or attach a fresh database path for the new scope. A fresh database starts indexing at retained chain history, which may be incomplete if older events have expired.
-
-These instructions configure packaging only. They do not deploy the service.
+Root `npm test` also runs shared seed and process-cleanup regressions.
+`npm run test:browser` checks fixture-based browser interactions. Live
+`npm run test:wallet` and `npm run test:seed` use a fresh node. Their prerequisites,
+platform requirements, and coverage are in [Application checks](../../README.md#application-checks).

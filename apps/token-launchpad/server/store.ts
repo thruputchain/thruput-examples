@@ -245,6 +245,10 @@ export class RegistryStore {
       conditions.push("creator_address = ?");
       parameters.push(canonicalAddress(query.creator, "creator"));
     }
+    if (query.tokenAddress !== undefined) {
+      conditions.push("token_address = ?");
+      parameters.push(canonicalAddress(query.tokenAddress, "tokenAddress"));
+    }
     const search = query.q?.trim();
     if (search !== undefined && search !== "") {
       const pattern = `%${escapeLike(normalizedSearch(search))}%`;

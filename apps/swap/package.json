@@ -7,30 +7,22 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "build": "vite build",
-    "build:production": "npm run typecheck && vite build --mode production",
-    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "dev": "vite --host 127.0.0.1 --port 5174 --strictPort",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
-    "preview": "vite preview",
     "setup:local": "bash scripts/setup-local.sh",
-    "start": "tsx server/main.ts",
-    "start:registry": "tsx server/main.ts",
+    "seed": "tsx scripts/seed.ts",
+    "start": "node --env-file-if-exists=.env.local --import tsx server/main.ts",
     "test": "vitest run",
-    "test:components": "vitest run src/app.test.tsx",
-    "test:browser:tokens": "node scripts/test-token-inputs-browser.mjs",
-    "test:e2e:local": "RUN_CLEAN_LEDGER_E2E=1 bash scripts/test-clean-ledger.sh",
-    "test:e2e:cross-app": "flock -n . flock -n ../token-launchpad node scripts/test-cross-app.mjs",
-    "test:integration:local": "vitest run --mode local-integration src/integration/*.local.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",
     "@fontsource/ibm-plex-sans": "5.3.0",
-    "@groundhogchain/client": "0.6.0",
+    "@groundhogchain/client": "0.8.0",
     "@groundhogchain/contract-spec": "0.11.0",
     "@groundhogchain/protocol": "0.11.0",
     "@groundhogchain/xdr": "0.11.0",
-    "@noble/hashes": "2.2.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
@@ -39,13 +31,12 @@
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "react-router-dom": "7.18.3",
-    "shadcn": "4.16.1",
-    "smol-toml": "1.8.0",
     "tailwind-merge": "3.3.1",
     "tsx": "4.22.4",
     "tw-animate-css": "1.4.0"
   },
   "devDependencies": {
+    "@testing-library/dom": "10.4.1",
     "@tailwindcss/vite": "4.1.11",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.0",
@@ -55,11 +46,10 @@
     "@types/react-dom": "19.1.7",
     "@vitejs/plugin-react": "5.0.0",
     "jsdom": "26.1.0",
-    "playwright-core": "1.63.0",
     "prettier": "3.9.6",
     "tailwindcss": "4.1.11",
     "typescript": "6.0.3",
     "vite": "7.3.6",
-    "vitest": "4.1.8"
+    "vitest": "4.1.11"
   }
 }

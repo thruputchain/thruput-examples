@@ -9,10 +9,9 @@ import type { ContractAddress } from "@groundhogchain/protocol";
 import type { AppConfig } from "@/config";
 import {
   StandardTokenFactory,
-  TokenCreated,
   type FactoryConfig,
 } from "@/contracts/generated/standard-token-factory";
-import { ERC20, ERC20Metadata } from "@/contracts/generated/standard-token";
+import { ERC20 } from "@/contracts/generated/standard-token";
 import { MAX_SIGNED_AMOUNT } from "@/runtime";
 
 export interface FactoryReview {
@@ -20,6 +19,7 @@ export interface FactoryReview {
   predictedAddress: ContractAddress;
   predictedAddressHex: string;
   currentReserve: bigint;
+  reserveHeight: bigint;
   fundingAmount: bigint;
   creatorBalance: bigint;
   fundingShortfall: bigint;
@@ -127,110 +127,10 @@ export async function reviewFactory(
     predictedAddress,
     predictedAddressHex: toHex0x(predictedAddress),
     currentReserve,
+    reserveHeight: reserveResult.height,
     fundingAmount,
     creatorBalance,
     fundingShortfall:
       fundingAmount > creatorBalance ? fundingAmount - creatorBalance : 0n,
-  };
-}
-
-export async function readCreatedTokens(
-  client: GroundhogClient,
-  config: AppConfig,
-  options: { creator?: ContractAddress | null } = {},
-): Promise<{
-  tokens: CreatedToken[];
-  truncated: boolean;
-  historyLimited: boolean;
-}> {
-  const creator =
-    options.creator === undefined ? config.accountAddress : options.creator;
-  const page = await client.getEvents({
-    filters: [
-      TokenCreated.filter({
-        contractAddresses: [config.factoryAddress],
-        ...(creator === null ? {} : { topics: { creator } }),
-      }),
-    ],
-    order: "descending",
-    anchor: "end",
-    limit: 101,
-  });
-  const events = page.events.slice(0, 100);
-  const tokens: CreatedToken[] = [];
-  for (let offset = 0; offset < events.length; offset += 10) {
-    tokens.push(
-      ...(await Promise.all(
-        events.slice(offset, offset + 10).map(async (item) => {
-          const event = TokenCreated.decode(item.event);
-          if (event === null)
-            throw new Error(
-              "Factory history contained an invalid TokenCreated event",
-            );
-          let name = event.fields.name ?? "Unnamed token";
-          let symbol = event.fields.symbol ?? "TOKEN";
-          let decimals = safeDisplayDecimals(event.fields.decimals);
-          let balance: bigint | null = null;
-          let readError = false;
-          try {
-            const [
-              currentName,
-              currentSymbol,
-              currentDecimals,
-              currentBalance,
-            ] = await Promise.all([
-              ERC20Metadata.name.view({
-                client,
-                contract: event.topics.token,
-                caller: config.accountAddress,
-              }),
-              ERC20Metadata.symbol.view({
-                client,
-                contract: event.topics.token,
-                caller: config.accountAddress,
-              }),
-              ERC20Metadata.decimals.view({
-                client,
-                contract: event.topics.token,
-                caller: config.accountAddress,
-              }),
-              ERC20.getBalanceOf.view({
-                client,
-                contract: event.topics.token,
-                caller: config.accountAddress,
-                args: { addr: config.accountAddress },
-              }),
-            ]);
-            name = currentName.value ?? name;
-            symbol = currentSymbol.value ?? symbol;
-            if (currentDecimals.value !== null) {
-              decimals = safeDisplayDecimals(currentDecimals.value);
-              if (decimals === null) readError = true;
-            }
-            balance = currentBalance.value;
-          } catch {
-            readError = true;
-          }
-          return {
-            addressHex: toHex0x(event.topics.token),
-            name,
-            symbol,
-            decimals,
-            initialSupply: event.fields.initial_supply,
-            balance,
-            administratorHex: toHex0x(event.fields.administrator),
-            holderHex: toHex0x(event.fields.initial_holder),
-            block: item.blockHeight,
-            transactionHash: toHex0x(item.txHash),
-            readError,
-          };
-        }),
-      )),
-    );
-  }
-  return {
-    tokens,
-    truncated: page.events.length > 100 || page.cursor.length > 0,
-    historyLimited: page.oldestBlock > 1n,
   };
 }

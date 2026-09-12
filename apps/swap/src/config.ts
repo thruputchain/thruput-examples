@@ -8,17 +8,20 @@ import {
 
 const NETWORK_ID_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
+// Public views require a caller, not a connected wallet or signing identity.
+export const READ_ONLY_CALLER = addressFromHex(`0x${"00".repeat(32)}`);
+
 export interface GlobalConfig {
   explorerUrl?: string | undefined;
   rpcUrl: URL;
   registryEnabled?: boolean;
   tokenDiscovery?: DiscoveryConfig;
   networkIdHex: string;
+  poolTokenHash?: string;
   accountAddress: ContractAddress;
   routerAddress: ContractAddress;
   factoryAddress: ContractAddress;
   nativeHogAddress: ContractAddress;
-  knownTokenAddresses?: readonly ContractAddress[];
 }
 
 export interface AppConfig extends GlobalConfig {
@@ -31,6 +34,27 @@ export interface AppConfig extends GlobalConfig {
   tokenBSymbol: string;
   tokenADecimals: number;
   tokenBDecimals: number;
+}
+
+export function publicConfigKey(config: GlobalConfig): string {
+  const discovery = config.tokenDiscovery;
+  return JSON.stringify([
+    config.rpcUrl.href,
+    config.networkIdHex,
+    config.registryEnabled ?? false,
+    toHex0x(config.accountAddress),
+    toHex0x(config.factoryAddress),
+    toHex0x(config.routerAddress),
+    toHex0x(config.nativeHogAddress),
+    config.poolTokenHash ?? null,
+    config.explorerUrl ?? null,
+    discovery?.enabled ?? false,
+    discovery?.factoryAddress ?? "",
+    discovery?.tokenCodeHash ?? "",
+    discovery?.scope?.networkId ?? null,
+    discovery?.scope?.factoryAddress ?? null,
+    discovery?.scope?.tokenCodeHash ?? null,
+  ]);
 }
 
 export type Environment = Record<string, string | boolean | undefined>;
@@ -53,25 +77,17 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
   return {
     explorerUrl: parseExplorerUrl(environment.VITE_EXPLORER_URL),
     rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),
-    registryEnabled: enabled(environment, "VITE_POOL_REGISTRY_ENABLED"),
+    registryEnabled: true,
     tokenDiscovery: loadDiscoveryConfig(environment),
     networkIdHex: networkIdHex.replace(/^0x/, "").toLowerCase(),
-    accountAddress: address(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
+    accountAddress: READ_ONLY_CALLER,
+    ...(environment.VITE_POOL_TOKEN_HASH === undefined ? {} : {
+      poolTokenHash: toHex0x(address(environment, "VITE_POOL_TOKEN_HASH")),
+    }),
     routerAddress: address(environment, "VITE_SWAP_ROUTER_ADDRESS"),
     factoryAddress: address(environment, "VITE_SWAP_FACTORY_ADDRESS"),
     nativeHogAddress: address(environment, "VITE_NATIVE_HOG_ADDRESS"),
-    knownTokenAddresses: optionalAddresses(
-      environment,
-      "VITE_KNOWN_TOKEN_ADDRESSES",
-    ),
   };
-}
-
-function enabled(environment: Environment, key: string): boolean {
-  const value = environment[key];
-  if (value === undefined || value === false || value === "false") return false;
-  if (value === true || value === "true") return true;
-  throw new ConfigurationError(`${key} must be true or false`);
 }
 
 export function isLoopbackUrl(url: URL): boolean {
@@ -137,27 +153,6 @@ function address(environment: Environment, key: string): ContractAddress {
   } catch {
     throw new ConfigurationError(`${key} must be a 32-byte 0x-prefixed address`);
   }
-}
-
-function optionalAddresses(
-  environment: Environment,
-  key: string,
-): ContractAddress[] {
-  const value = environment[key];
-  if (value === undefined || value === "") return [];
-  if (typeof value !== "string") {
-    throw new ConfigurationError(`${key} must be a comma-separated address list`);
-  }
-  const addresses = value.split(",").map((entry) => {
-    try {
-      return addressFromHex(entry.trim());
-    } catch {
-      throw new ConfigurationError(
-        `${key} must contain only 32-byte 0x-prefixed addresses`,
-      );
-    }
-  });
-  return [...new Map(addresses.map((item) => [toHex0x(item), item])).values()];
 }
 
 function parseRpcUrl(value: string): URL {

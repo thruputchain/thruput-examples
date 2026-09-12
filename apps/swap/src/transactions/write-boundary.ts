@@ -15,7 +15,7 @@ export type WriteResult =
 export interface WriteBoundary {
   execute(
     target: Invocation,
-    observer?: { onSigned: (hash: string) => void },
+    observer?: { onSigned: (hash: string) => void | Promise<void> },
   ): Promise<WriteResult>;
   observe?(hash: string): Promise<WriteResult>;
 }
@@ -24,6 +24,6 @@ export const unavailableWriteBoundary: WriteBoundary = {
   execute: async () => ({
     kind: "preSubmissionFailure",
     hash: null,
-    message: "State-changing actions require a configured development wallet",
+    message: "Connect a wallet to make changes",
   }),
 };

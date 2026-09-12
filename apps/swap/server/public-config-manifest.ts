@@ -11,10 +11,8 @@ export const PUBLIC_CONFIG_KEYS = [
   "VITE_EXPLORER_URL",
   "VITE_GROUNDHOG_RPC_URL_SHA256",
   "VITE_GROUNDHOG_NETWORK_ID",
-  "VITE_GROUNDHOG_WALLET_ADDRESS",
-  "VITE_GROUNDHOG_WALLET_ENTRYPOINT",
+  "VITE_POOL_TOKEN_HASH",
   "VITE_NATIVE_HOG_ADDRESS",
-  "VITE_KNOWN_TOKEN_ADDRESSES",
   "VITE_SWAP_FACTORY_ADDRESS",
   "VITE_SWAP_ROUTER_ADDRESS",
   "VITE_POOL_REGISTRY_ENABLED",
@@ -27,7 +25,6 @@ type PublicConfigKey = (typeof PUBLIC_CONFIG_KEYS)[number];
 export type PublicConfigManifest = Record<PublicConfigKey, string>;
 export type PublicConfigEnvironment = Record<string, string | undefined>;
 
-const ENTRYPOINT = /^0x[0-9a-f]{16}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 
 export class PublicConfigManifestError extends Error {
@@ -54,19 +51,13 @@ export function createPublicConfigManifest(
     VITE_GROUNDHOG_NETWORK_ID: normalizeNetwork(
       required(environment, "VITE_GROUNDHOG_NETWORK_ID"),
     ),
-    VITE_GROUNDHOG_WALLET_ADDRESS: normalizeAddress(
-      required(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
-      "VITE_GROUNDHOG_WALLET_ADDRESS",
-    ),
-    VITE_GROUNDHOG_WALLET_ENTRYPOINT: normalizeEntrypoint(
-      required(environment, "VITE_GROUNDHOG_WALLET_ENTRYPOINT"),
+    VITE_POOL_TOKEN_HASH: normalizeAddress(
+      required(environment, "VITE_POOL_TOKEN_HASH"),
+      "VITE_POOL_TOKEN_HASH",
     ),
     VITE_NATIVE_HOG_ADDRESS: normalizeAddress(
       required(environment, "VITE_NATIVE_HOG_ADDRESS"),
       "VITE_NATIVE_HOG_ADDRESS",
-    ),
-    VITE_KNOWN_TOKEN_ADDRESSES: normalizeKnownTokens(
-      required(environment, "VITE_KNOWN_TOKEN_ADDRESSES"),
     ),
     VITE_SWAP_FACTORY_ADDRESS: normalizeAddress(
       required(environment, "VITE_SWAP_FACTORY_ADDRESS"),
@@ -76,10 +67,7 @@ export function createPublicConfigManifest(
       required(environment, "VITE_SWAP_ROUTER_ADDRESS"),
       "VITE_SWAP_ROUTER_ADDRESS",
     ),
-    VITE_POOL_REGISTRY_ENABLED: required(
-      environment,
-      "VITE_POOL_REGISTRY_ENABLED",
-    ),
+    VITE_POOL_REGISTRY_ENABLED: "true",
   } satisfies PublicConfigManifest;
   validateManifestFields(manifest);
   return manifest;
@@ -173,7 +161,7 @@ function validateManifestFields(manifest: PublicConfigManifest): void {
     "VITE_GROUNDHOG_NETWORK_ID must be canonical",
   );
   for (const key of [
-    "VITE_GROUNDHOG_WALLET_ADDRESS",
+    "VITE_POOL_TOKEN_HASH",
     "VITE_NATIVE_HOG_ADDRESS",
     "VITE_SWAP_FACTORY_ADDRESS",
     "VITE_SWAP_ROUTER_ADDRESS",
@@ -183,15 +171,6 @@ function validateManifestFields(manifest: PublicConfigManifest): void {
       `${key} must be canonical`,
     );
   }
-  validate(
-    ENTRYPOINT.test(manifest.VITE_GROUNDHOG_WALLET_ENTRYPOINT),
-    "VITE_GROUNDHOG_WALLET_ENTRYPOINT must be a canonical 8-byte hexadecimal value",
-  );
-  validate(
-    manifest.VITE_KNOWN_TOKEN_ADDRESSES ===
-      normalizeKnownTokens(manifest.VITE_KNOWN_TOKEN_ADDRESSES),
-    "VITE_KNOWN_TOKEN_ADDRESSES must be a canonical address list",
-  );
   validate(
     manifest.VITE_POOL_REGISTRY_ENABLED === "true",
     "VITE_POOL_REGISTRY_ENABLED must be exactly true",
@@ -232,30 +211,6 @@ function normalizeAddress(value: string, key: string): string {
       `${key} must be a 32-byte 0x-prefixed address`,
     );
   }
-}
-
-function normalizeEntrypoint(value: string): string {
-  const normalized = value.toLowerCase();
-  if (!ENTRYPOINT.test(normalized)) {
-    throw new PublicConfigManifestError(
-      "VITE_GROUNDHOG_WALLET_ENTRYPOINT must be an 8-byte 0x-prefixed hexadecimal value",
-    );
-  }
-  return normalized;
-}
-
-function normalizeKnownTokens(value: string): string {
-  const tokens = value
-    .split(",")
-    .map((entry) =>
-      normalizeAddress(entry.trim(), "VITE_KNOWN_TOKEN_ADDRESSES"),
-    );
-  if (tokens.length === 0 || tokens.some((token) => token === "")) {
-    throw new PublicConfigManifestError(
-      "VITE_KNOWN_TOKEN_ADDRESSES must contain addresses",
-    );
-  }
-  return [...new Set(tokens)].join(",");
 }
 
 function validateRpcUrl(value: string): void {

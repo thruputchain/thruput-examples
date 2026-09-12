@@ -1,0 +1,33 @@
+import type { EmittedEvent } from "@groundhogchain/client";
+import type { ContractAddress } from "@groundhogchain/protocol";
+import {
+  CxsWriter,
+  Int32Codec,
+  Uint32Codec,
+  Uint64Codec,
+  VarOpaqueCodec,
+} from "@groundhogchain/xdr";
+import { Cause, RequestFailed } from "../contracts/generated/swap-driver";
+
+/** Wire fixture for the batch-driver failure event, including its diagnostic payload. */
+export function requestFailedEvent(
+  contractAddress: ContractAddress,
+  requestId: Uint8Array,
+  fields: RequestFailed["fields"] = {
+    cause: Cause.Exception,
+    selector: 1n,
+    payload: Uint8Array.of(1),
+    payload_len: 1n,
+  },
+): EmittedEvent {
+  const writer = new CxsWriter();
+  Int32Codec.encode(writer, fields.cause);
+  Uint64Codec.encode(writer, fields.selector);
+  VarOpaqueCodec(256).encode(writer, fields.payload);
+  Uint32Codec.encode(writer, fields.payload_len);
+  return {
+    contractAddress,
+    topics: [RequestFailed.signature, requestId],
+    data: writer.finish(),
+  };
+}

@@ -18,8 +18,6 @@ const rpcUrl = "https://rpc.example.test/groundhog";
 const environment = {
   VITE_GROUNDHOG_RPC_URL: rpcUrl,
   VITE_GROUNDHOG_NETWORK_ID: "11".repeat(32),
-  VITE_GROUNDHOG_WALLET_ADDRESS: `0x${"22".repeat(32)}`,
-  VITE_GROUNDHOG_WALLET_ENTRYPOINT: `0x${"33".repeat(8)}`,
   VITE_NATIVE_HOG_ADDRESS: `0x${"44".repeat(32)}`,
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"55".repeat(32)}`,
@@ -33,9 +31,6 @@ const manifest = {
     .update(rpcUrl)
     .digest("hex"),
   VITE_GROUNDHOG_NETWORK_ID: environment.VITE_GROUNDHOG_NETWORK_ID,
-  VITE_GROUNDHOG_WALLET_ADDRESS: environment.VITE_GROUNDHOG_WALLET_ADDRESS,
-  VITE_GROUNDHOG_WALLET_ENTRYPOINT:
-    environment.VITE_GROUNDHOG_WALLET_ENTRYPOINT,
   VITE_NATIVE_HOG_ADDRESS: environment.VITE_NATIVE_HOG_ADDRESS,
   VITE_NATIVE_BALANCE_ITEM_COST: environment.VITE_NATIVE_BALANCE_ITEM_COST,
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS:
@@ -112,14 +107,11 @@ describe("production public configuration manifest", () => {
     ["VITE_GROUNDHOG_RPC_URL", "https://rpc.example.test/?token=secret"],
     ["VITE_GROUNDHOG_RPC_URL", "https://rpc.example.test/#secret"],
     ["VITE_GROUNDHOG_NETWORK_ID", "11".repeat(31)],
-    ["VITE_GROUNDHOG_WALLET_ADDRESS", "22".repeat(32)],
     ["VITE_NATIVE_HOG_ADDRESS", `0x${"gg".repeat(32)}`],
     ["VITE_STANDARD_TOKEN_FACTORY_ADDRESS", `0x${"55".repeat(31)}`],
-    ["VITE_GROUNDHOG_WALLET_ENTRYPOINT", `0x${"33".repeat(7)}`],
     ["VITE_NATIVE_BALANCE_ITEM_COST", "01234"],
     ["VITE_NATIVE_BALANCE_ITEM_COST", "1235"],
     ["VITE_STANDARD_TOKEN_HASH", "66".repeat(32)],
-    ["VITE_TOKEN_REGISTRY_ENABLED", "TRUE"],
   ])("rejects invalid %s", (key, value) => {
     let error: unknown;
     try {
@@ -175,6 +167,41 @@ describe("production public configuration manifest", () => {
     await expect(
       verifyPublicConfigManifest(manifestPath, environment),
     ).resolves.toEqual(manifest);
+  });
+
+  it("checks every infrastructure field while ignoring obsolete wallet environment values", async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), "launchpad-manifest-"));
+    const file = path.join(directory, "manifest.json");
+    await writeFile(file, JSON.stringify(manifest));
+    await expect(
+      verifyPublicConfigManifest(file, {
+        ...environment,
+        VITE_GROUNDHOG_WALLET_ADDRESS: "not browser configuration",
+        VITE_GROUNDHOG_WALLET_ENTRYPOINT: "not browser configuration",
+      }),
+    ).resolves.toEqual(manifest);
+    for (const key of [
+      "VITE_GROUNDHOG_NETWORK_ID",
+      "VITE_NATIVE_HOG_ADDRESS",
+      "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
+      "VITE_STANDARD_TOKEN_HASH",
+    ] as const) {
+      const value =
+        key === "VITE_GROUNDHOG_NETWORK_ID"
+          ? "aa".repeat(32)
+          : `0x${"aa".repeat(32)}`;
+      await expect(
+        verifyPublicConfigManifest(file, { ...environment, [key]: value }),
+      ).rejects.toThrow(`${key} does not match`);
+    }
+    expect(() =>
+      parsePublicConfigManifest(
+        JSON.stringify({
+          ...manifest,
+          VITE_GROUNDHOG_WALLET_ADDRESS: "old schema",
+        }),
+      ),
+    ).toThrow(/unexpected fields/);
   });
 
   it("normalizes the optional Swap origin and rejects drift and the old schema", async () => {

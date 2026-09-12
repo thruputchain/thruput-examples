@@ -48,6 +48,7 @@ export interface RegistryStatus {
 }
 
 export interface TokenQuery {
+  tokenAddress?: string;
   q?: string;
   creator?: string;
   sort: RegistrySort;

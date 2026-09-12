@@ -1,4 +1,4 @@
-import { addressFromHex, fromHex0x } from "@groundhogchain/client";
+import { addressFromHex, fromHex0x, toHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 import { PINNED_NATIVE_BALANCE_ITEM_COST } from "@/runtime";
@@ -18,6 +18,21 @@ export interface AppConfig {
   nativeHogAddress: ContractAddress;
   nativeBalanceItemCost: bigint;
   expectedTokenHash: Uint8Array;
+}
+
+export function publicConfigKey(config: AppConfig): string {
+  return JSON.stringify([
+    config.rpcUrl.href,
+    config.networkIdHex,
+    config.registryEnabled,
+    toHex0x(config.accountAddress),
+    toHex0x(config.factoryAddress),
+    toHex0x(config.nativeHogAddress),
+    toHex0x(config.expectedTokenHash),
+    config.nativeBalanceItemCost.toString(),
+    config.explorerUrl ?? null,
+    config.swapAppUrl ?? null,
+  ]);
 }
 
 export type Environment = Record<string, string | boolean | undefined>;
@@ -61,23 +76,17 @@ export function loadConfig(environment: Environment): AppConfig {
   }
   return {
     rpcUrl,
-    registryEnabled: enabled(environment, "VITE_TOKEN_REGISTRY_ENABLED"),
+    registryEnabled: true,
     swapAppUrl: loadSwapAppUrl(environment.VITE_SWAP_APP_URL),
     explorerUrl: loadExplorerUrl(environment.VITE_EXPLORER_URL),
     networkIdHex: network.replace(/^0x/, "").toLowerCase(),
-    accountAddress: address(environment, "VITE_GROUNDHOG_WALLET_ADDRESS"),
+    // Public views need a caller, not a connected wallet identity.
+    accountAddress: addressFromHex(`0x${"00".repeat(32)}`),
     factoryAddress: address(environment, "VITE_STANDARD_TOKEN_FACTORY_ADDRESS"),
     nativeHogAddress: address(environment, "VITE_NATIVE_HOG_ADDRESS"),
     nativeBalanceItemCost,
     expectedTokenHash: fromHex0x(hash.startsWith("0x") ? hash : `0x${hash}`),
   };
-}
-
-function enabled(environment: Environment, key: string): boolean {
-  const value = environment[key];
-  if (value === undefined || value === false || value === "false") return false;
-  if (value === true || value === "true") return true;
-  throw new ConfigurationError(`${key} must be true or false`);
 }
 
 function required(environment: Environment, key: string): string {

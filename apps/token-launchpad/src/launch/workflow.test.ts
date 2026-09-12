@@ -2,7 +2,7 @@ import { fixedBytes } from "@groundhogchain/client";
 import { contractAddress } from "@groundhogchain/protocol";
 import { describe, expect, it } from "vitest";
 
-import type { AppConfig } from "@/config";
+import { configuration, MemoryStorage } from "@/test/fixtures";
 import type { FactoryReview } from "@/contracts/launchpad-client";
 import {
   canDiscardInvalidStoredWorkflow,
@@ -25,6 +25,7 @@ const review: FactoryReview = {
   predictedAddress: contractAddress(new Uint8Array(32).fill(4)),
   predictedAddressHex: `0x${"04".repeat(32)}`,
   currentReserve: 0n,
+  reserveHeight: 0n,
   fundingAmount: 110n,
   creatorBalance: 1_000n,
   fundingShortfall: 0n,
@@ -248,26 +249,3 @@ describe("launch workflow persistence", () => {
     expect(loaded.plannedReserve).toBe(loaded.reviewedReserve);
   });
 });
-
-export class MemoryStorage implements Pick<Storage, "getItem" | "setItem"> {
-  value: string | null = null;
-  getItem(): string | null {
-    return this.value;
-  }
-  setItem(_key: string, value: string): void {
-    this.value = value;
-  }
-}
-
-export function configuration(): AppConfig {
-  return {
-    rpcUrl: new URL("http://127.0.0.1:9545"),
-    registryEnabled: false,
-    networkIdHex: "01".repeat(32),
-    accountAddress: contractAddress(new Uint8Array(32).fill(2)),
-    factoryAddress: contractAddress(new Uint8Array(32).fill(3)),
-    nativeHogAddress: contractAddress(new Uint8Array(32)),
-    nativeBalanceItemCost: 10n,
-    expectedTokenHash: new Uint8Array(32),
-  };
-}

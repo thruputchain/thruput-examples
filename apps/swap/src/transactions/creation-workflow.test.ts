@@ -23,7 +23,6 @@ const config = {
   routerAddress: address(8),
   factoryAddress: address(7),
   nativeHogAddress: address(6),
-  knownTokenAddresses: [],
 } satisfies GlobalConfig;
 
 describe("creation workflow", () => {

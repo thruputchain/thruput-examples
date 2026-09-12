@@ -7,7 +7,7 @@ import {
   calculateFundingAmount,
   safeDisplayDecimals,
 } from "@/contracts/launchpad-client";
-import { configuration } from "@/launch/workflow.test";
+import { configuration } from "@/test/fixtures";
 import { MAX_SIGNED_AMOUNT } from "@/runtime";
 
 describe("factory review", () => {

@@ -11,7 +11,7 @@
     "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
-    "@groundhogchain/client": "file:../../../groundhog-client-ts",
+    "@groundhogchain/client": "0.8.0",
     "@groundhogchain/protocol": "0.11.0",
     "@scure/bip39": "^2.0.1",
     "@noble/hashes": "^2.2.0",

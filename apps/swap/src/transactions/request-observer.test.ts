@@ -9,7 +9,8 @@ import type { GroundhogClient } from "@groundhogchain/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
-import { RequestFailed } from "@/contracts/generated/swap-driver";
+import { Cause, RequestFailed } from "@/contracts/generated/swap-driver";
+import { requestFailedEvent } from "@/test/request-failed";
 import { SwapEvent } from "@/contracts/generated/swap-handler";
 import type { OutstandingRequest } from "@/transactions/outstanding-request";
 import {
@@ -22,8 +23,10 @@ import {
   observationsFromReceipt,
 } from "./request-observer";
 
-const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
-const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const address = (byte: number) =>
+  contractAddress(new Uint8Array(32).fill(byte));
+const hex = (byte: number) =>
+  `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
 const config: AppConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkIdHex: "00".repeat(32),
@@ -72,7 +75,11 @@ describe("request observer", () => {
       .fn()
       .mockResolvedValueOnce(page([], new Uint8Array([1]), 9n))
       .mockResolvedValueOnce(
-        page([identified(swapEvent(new Uint8Array(32).fill(0xcc)), 10n)], new Uint8Array(), 10n),
+        page(
+          [identified(swapEvent(new Uint8Array(32).fill(0xcc)), 10n)],
+          new Uint8Array(),
+          10n,
+        ),
       );
 
     await expect(
@@ -97,46 +104,66 @@ describe("request observer", () => {
   });
 
   it("ignores identical amounts with another request ID", async () => {
-    const getEvents = vi.fn().mockResolvedValue(
-      page(
-        [identified(swapEvent(new Uint8Array(32).fill(0xee)), 10n)],
-        new Uint8Array(),
-        10n,
-      ),
-    );
+    const getEvents = vi
+      .fn()
+      .mockResolvedValue(
+        page(
+          [identified(swapEvent(new Uint8Array(32).fill(0xee)), 10n)],
+          new Uint8Array(),
+          10n,
+        ),
+      );
 
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(request),
     ).resolves.toBeNull();
   });
 
-  it("matches a terminal RequestFailed event", async () => {
-    const getEvents = vi.fn().mockResolvedValue(
-      page(
-        [
-          identified(
-            {
-              contractAddress: config.driverAddress,
-              topics: [
-                RequestFailed.signature,
-                new Uint8Array(32).fill(0xcc),
-              ],
-              data: new Uint8Array(),
-            },
-            11n,
-          ),
-        ],
-        new Uint8Array(),
-        11n,
-      ),
-    );
+  it.each(Object.values(Cause))(
+    "matches a terminal RequestFailed with cause %s",
+    async (cause) => {
+      const fields = {
+        cause,
+        selector: cause === Cause.Exception ? 0xb19947acb2fa14ffn : 0n,
+        payload:
+          cause === Cause.Exception
+            ? new Uint8Array(256).fill(255)
+            : new Uint8Array(),
+        payload_len: cause === Cause.Exception ? 512n : 0n,
+      };
+      const event = requestFailedEvent(
+        config.driverAddress,
+        new Uint8Array(32).fill(0xcc),
+        fields,
+      );
+      expect(RequestFailed.decode(event)?.fields).toEqual(fields);
+      const getEvents = vi
+        .fn()
+        .mockResolvedValue(
+          page([identified(event, 11n)], new Uint8Array(), 11n),
+        );
 
+      await expect(
+        createRequestObserver(config, rpcClient(getEvents)).scan(request),
+      ).resolves.toMatchObject({
+        kind: "executionFailed",
+        blockHeight: 11n,
+      });
+    },
+  );
+
+  it("rejects a failure event without the required diagnostic fields", async () => {
+    const event = {
+      ...failedEvent(new Uint8Array(32).fill(0xcc)),
+      data: new Uint8Array(),
+    };
+    const getEvents = vi
+      .fn()
+      .mockResolvedValue(page([identified(event, 11n)], new Uint8Array(), 11n));
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(request),
-    ).resolves.toMatchObject({
-      kind: "executionFailed",
-      blockHeight: 11n,
-    });
+    ).rejects.toThrow("Failed to decode RequestFailed");
+    expect(request.status).toBe("queued");
   });
 
   it.each([
@@ -158,13 +185,15 @@ describe("request observer", () => {
       },
     ],
   ])("rejects a swap with the wrong %s", async (_name, options, candidate) => {
-    const getEvents = vi.fn().mockResolvedValue(
-      page(
-        [identified(swapEvent(new Uint8Array(32).fill(0xcc), options), 10n)],
-        new Uint8Array(),
-        10n,
-      ),
-    );
+    const getEvents = vi
+      .fn()
+      .mockResolvedValue(
+        page(
+          [identified(swapEvent(new Uint8Array(32).fill(0xcc), options), 10n)],
+          new Uint8Array(),
+          10n,
+        ),
+      );
 
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(candidate),
@@ -172,13 +201,15 @@ describe("request observer", () => {
   });
 
   it("accepts a matching event at the enqueue receipt block", async () => {
-    const getEvents = vi.fn().mockResolvedValue(
-      page(
-        [identified(swapEvent(new Uint8Array(32).fill(0xcc)), 8n)],
-        new Uint8Array(),
-        8n,
-      ),
-    );
+    const getEvents = vi
+      .fn()
+      .mockResolvedValue(
+        page(
+          [identified(swapEvent(new Uint8Array(32).fill(0xcc)), 8n)],
+          new Uint8Array(),
+          8n,
+        ),
+      );
 
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(request),
@@ -193,13 +224,15 @@ describe("request observer", () => {
   });
 
   it("rejects an event before the enqueue receipt block", async () => {
-    const getEvents = vi.fn().mockResolvedValue(
-      page(
-        [identified(swapEvent(new Uint8Array(32).fill(0xcc)), 7n)],
-        new Uint8Array(),
-        8n,
-      ),
-    );
+    const getEvents = vi
+      .fn()
+      .mockResolvedValue(
+        page(
+          [identified(swapEvent(new Uint8Array(32).fill(0xcc)), 7n)],
+          new Uint8Array(),
+          8n,
+        ),
+      );
 
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(request),
@@ -207,9 +240,9 @@ describe("request observer", () => {
   });
 
   it("rejects repeated cursors instead of looping forever", async () => {
-    const getEvents = vi.fn().mockResolvedValue(
-      page([], new Uint8Array([1]), 9n),
-    );
+    const getEvents = vi
+      .fn()
+      .mockResolvedValue(page([], new Uint8Array([1]), 9n));
 
     await expect(
       createRequestObserver(config, rpcClient(getEvents)).scan(request),
@@ -238,16 +271,18 @@ describe("request observer", () => {
       },
       "second",
     );
-    const getEvents = vi.fn().mockResolvedValue(
-      page(
-        [
-          identified(swapEvent(new Uint8Array(32).fill(0xcc)), 10n, 1),
-          identified(failedEvent(new Uint8Array(32).fill(0xee)), 10n, 2),
-        ],
-        new Uint8Array(),
-        12n,
-      ),
-    );
+    const getEvents = vi
+      .fn()
+      .mockResolvedValue(
+        page(
+          [
+            identified(swapEvent(new Uint8Array(32).fill(0xcc)), 10n, 1),
+            identified(failedEvent(new Uint8Array(32).fill(0xee)), 10n, 2),
+          ],
+          new Uint8Array(),
+          12n,
+        ),
+      );
     const observer = createRequestObserver(config, rpcClient(getEvents));
 
     await expect(observer.scanAll!([first, second])).resolves.toEqual({
@@ -273,7 +308,9 @@ describe("request observer", () => {
     expect(getEvents.mock.calls[0]?.[0]).toMatchObject({
       anchor: { height: 8n },
     });
-    expect(getEvents.mock.calls[0]?.[0].filters[1].topics.topic1).toBeUndefined();
+    expect(
+      getEvents.mock.calls[0]?.[0].filters[1].topics.topic1,
+    ).toBeUndefined();
   });
 
   it("resumes from the earliest persisted observation watermark", async () => {
@@ -282,7 +319,9 @@ describe("request observer", () => {
       ...record({ ...request, requestId: hex(0xee) }, "second"),
       observedThroughBlock: 10n,
     };
-    const getEvents = vi.fn().mockResolvedValue(page([], new Uint8Array(), 12n));
+    const getEvents = vi
+      .fn()
+      .mockResolvedValue(page([], new Uint8Array(), 12n));
 
     await createRequestObserver(config, rpcClient(getEvents)).scanAll!([
       first,
@@ -308,10 +347,7 @@ describe("request observer", () => {
 
   it("applies a batch only to scanned records and is idempotent", () => {
     const first = record(request, "first");
-    const second = record(
-      { ...request, requestId: hex(0xee) },
-      "second",
-    );
+    const second = record({ ...request, requestId: hex(0xee) }, "second");
     const insertedDuringScan = record(
       { ...request, requestId: hex(0xff) },
       "new",
@@ -355,10 +391,7 @@ describe("request observer", () => {
 
   it("strictly correlates every terminal event in one crank receipt", () => {
     const first = { ...record(request, "first"), observedThroughBlock: 9n };
-    const second = record(
-      { ...request, requestId: hex(0xee) },
-      "second",
-    );
+    const second = record({ ...request, requestId: hex(0xee) }, "second");
     const receipt = {
       txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
       height: 10n,
@@ -372,7 +405,12 @@ describe("request observer", () => {
     };
 
     const batch = observationsFromReceipt(config, [first, second], receipt);
-    const applied = applyObservationBatch([first, second], [first, second], batch, 20);
+    const applied = applyObservationBatch(
+      [first, second],
+      [first, second],
+      batch,
+      20,
+    );
 
     expect(batch.observations.map(({ kind }) => kind)).toEqual([
       "executionObserved",
@@ -430,11 +468,7 @@ function swapEvent(
 }
 
 function failedEvent(requestId: Uint8Array) {
-  return {
-    contractAddress: config.driverAddress,
-    topics: [RequestFailed.signature, requestId],
-    data: new Uint8Array(),
-  };
+  return requestFailedEvent(config.driverAddress, requestId);
 }
 
 function identified(

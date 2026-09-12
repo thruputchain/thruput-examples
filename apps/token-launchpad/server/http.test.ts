@@ -140,7 +140,26 @@ describe("registry HTTP API", () => {
     });
   });
 
+  it("resolves an exact token address without matching metadata or creator addresses", async () => {
+    store.beginScan("1", "12");
+    store.commitPage([token()], null);
+    const found = await fetch(
+      `${origin}/api/tokens?tokenAddress=${token().tokenAddress}`,
+    );
+    expect(await found.json()).toMatchObject({
+      total: 1,
+      tokens: [{ tokenAddress: token().tokenAddress }],
+    });
+    const absent = await fetch(
+      `${origin}/api/tokens?tokenAddress=${token().creatorAddress}`,
+    );
+    expect(await absent.json()).toMatchObject({ total: 0, tokens: [] });
+  });
+
   it.each([
+    "/api/tokens?tokenAddress=gUSD",
+    "/api/tokens?tokenAddress=0x12",
+    `/api/tokens?tokenAddress=${token().tokenAddress}&tokenAddress=${token().tokenAddress}`,
     "/api/tokens?unknown=1",
     "/api/tokens?limit=0",
     "/api/tokens?limit=1&limit=2",
@@ -271,6 +290,27 @@ describe("production HTTP serving", () => {
       expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8");
       expect(await page.text()).toContain("launchpad");
     }
+  });
+
+  it("serves the generated contract artifact as same-origin JSON", async () => {
+    await mkdir(path.join(directory, "contract-artifacts"));
+    const artifact = {
+      contractType: "rv32",
+      data: "0x010203",
+      hash: `0x${"06".repeat(32)}`,
+    };
+    await writeFile(
+      path.join(directory, `contract-artifacts/${artifact.hash}.json`),
+      JSON.stringify(artifact),
+    );
+    const response = await fetch(
+      `${origin}/contract-artifacts/${artifact.hash}.json`,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "application/json; charset=utf-8",
+    );
+    expect(await response.json()).toEqual(artifact);
   });
 
   it("implements HEAD without a response body", async () => {
