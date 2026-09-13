@@ -34,7 +34,6 @@ import { Counter, spec } from "../src/contracts/generated/counter";
 import { loadServerConfig } from "./config";
 import { createApiHandler } from "./http";
 import { createCounterServer } from "./main";
-import { createCounterTransactions } from "./transactions";
 
 const key = "22".repeat(32);
 const environment = {
@@ -83,6 +82,7 @@ async function listen(instance: Server) {
   return `http://127.0.0.1:${address.port}`;
 }
 afterEach(async () => {
+  vi.restoreAllMocks();
   if (server)
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
@@ -128,10 +128,14 @@ async function fixture(upstream = rpcMock()) {
       void handler(req, res);
     }),
   );
-  const post = (path: string, body: unknown) =>
+  const post = (
+    path: string,
+    body: unknown,
+    headers: Record<string, string> = {},
+  ) =>
     fetch(`${origin}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
     });
   return {
@@ -178,20 +182,60 @@ describe("counter signing boundary", () => {
     expect(upstream).not.toHaveBeenCalled();
   });
 
-  it("coalesces concurrent top-ups into one airdrop request", async () => {
-    const upstream = rpcMock();
-    const service = createCounterTransactions(config, upstream);
-    const results = await Promise.all([service.topup(), service.topup()]);
-    expect(results.every((result) => result.rawAmount === "100000000")).toBe(
-      true,
-    );
+  it("throttles concurrent and sequential top-ups across callers without extending the cooldown", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    const { post, upstream } = await fixture();
+    const responses = await Promise.all([
+      post("/api/topup", {}, { "x-forwarded-for": "192.0.2.1" }),
+      post("/api/topup", {}, { "x-forwarded-for": "192.0.2.2" }),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([
+      200, 429,
+    ]);
+    const throttled = responses.find((response) => response.status === 429)!;
+    expect(throttled.headers.get("retry-after")).toBe("600");
+    expect((await throttled.json()).retryAfterSeconds).toBe(600);
     const calls = upstream.mock.calls
       .map(([, init]) => JSON.parse(String(init?.body)))
       .filter((body) => body.method === "groundhog_requestAirdrop");
     expect(calls).toHaveLength(1);
+    const beforeRetry = upstream.mock.calls.length;
+    clock.mockReturnValue(1_300_000);
+    const early = await post(
+      "/api/topup",
+      {},
+      { "x-forwarded-for": "192.0.2.3" },
+    );
+    expect(early.status).toBe(429);
+    expect(early.headers.get("retry-after")).toBe("300");
+    expect(upstream).toHaveBeenCalledTimes(beforeRetry);
+    clock.mockReturnValue(1_600_000);
+    expect((await post("/api/topup", {})).status).toBe(200);
+  });
+
+  it("rejects cross-origin browser top-ups without using the allowed attempt", async () => {
+    const { origin, post, upstream } = await fixture();
+    for (const headers of [
+      { origin: "https://attacker.example" },
+      { origin: "null" },
+      { "sec-fetch-site": "cross-site" },
+      { "sec-fetch-site": "same-site" },
+    ])
+      expect((await post("/api/topup", {}, headers)).status).toBe(403);
+    expect(upstream).not.toHaveBeenCalled();
+    expect(
+      (
+        await post(
+          "/api/topup",
+          {},
+          { origin, "sec-fetch-site": "same-origin" },
+        )
+      ).status,
+    ).toBe(200);
   });
 
   it("reports faucet rejection and allows a later top-up attempt", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
     const rpc = rpcMock();
     let rejected = true;
     const upstream = vi
@@ -212,6 +256,10 @@ describe("counter signing boundary", () => {
     expect(failed.status).toBe(503);
     expect((await failed.json()).error).toContain("cooldown");
     rejected = false;
+    const requestsBeforeRetry = upstream.mock.calls.length;
+    expect((await post("/api/topup", {})).status).toBe(429);
+    expect(upstream).toHaveBeenCalledTimes(requestsBeforeRetry);
+    clock.mockReturnValue(1_600_000);
     expect((await post("/api/topup", {})).status).toBe(200);
   });
 

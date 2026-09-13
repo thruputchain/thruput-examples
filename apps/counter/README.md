@@ -92,7 +92,8 @@ file while using that deployment; run setup again when you want a fresh demo.
 ## Behavior
 
 - **Top up Signer** in the header shows the live signer balance and requests a test-HOG airdrop for the configured
-  signer. The faucet chooses the amount and applies its cooldown or quota. The
+  signer. The server allows one attempt every 10 minutes, including failed
+  attempts. The faucet also applies its own cooldown or quota. The
   loading, success, and error states appear as Sonner toasts. The button shows
   up to three decimal places; hover for the exact balance. Airdrops do not count
   toward the counter's session statistics.
@@ -152,7 +153,11 @@ before submission, so a lost send response can still be checked by hash.
 
 `POST /api/topup` accepts only `{}` and calls the client SDK's `requestAirdrop`
 over RPC for the configured signer. It never accepts a caller-selected recipient
-or amount. Concurrent top-up requests share one pending SDK request.
+or amount. A process-wide cooldown rejects further requests with HTTP 429 and
+`Retry-After` before RPC work begins, even if the previous attempt failed.
+Cross-origin browser requests are rejected. The cooldown is in memory and
+resets on restart; use one replica for this demo. The faucet remains responsible
+for network-wide limits.
 
 `/groundhog-rpc` forwards counter reads, account balance, receipt/status checks,
 and signed-transaction submissions to the configured upstream. Before forwarding

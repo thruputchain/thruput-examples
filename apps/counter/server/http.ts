@@ -3,6 +3,7 @@ import type { ServerConfig } from "./config";
 import {
   CounterPolicyError,
   CounterTopupError,
+  CounterTopupRateLimitError,
   createCounterTransactions,
   parseOperation,
 } from "./transactions";
@@ -17,6 +18,24 @@ const METHODS = new Set([
   "groundhog_sendRawTransaction",
 ]);
 const MAX_BYTES = 1_000_000;
+
+function allowsBrowserTopup(request: IncomingMessage): boolean {
+  const site = request.headers["sec-fetch-site"];
+  if (site !== undefined && site !== "same-origin" && site !== "none")
+    return false;
+  const origin = request.headers.origin;
+  if (origin === undefined) return true;
+  try {
+    const url = new URL(origin);
+    return (
+      ["http:", "https:"].includes(url.protocol) &&
+      origin === url.origin &&
+      url.host === request.headers.host?.toLowerCase()
+    );
+  } catch {
+    return false;
+  }
+}
 
 export function json(
   response: ServerResponse,
@@ -74,6 +93,10 @@ export function createApiHandler(
       json(response, 405, { error: "POST is required." });
       return true;
     }
+    if (path === "/api/topup" && !allowsBrowserTopup(request)) {
+      json(response, 403, { error: "Request signer top-ups from this app." });
+      return true;
+    }
     let body: unknown;
     try {
       let size = 0;
@@ -108,6 +131,14 @@ export function createApiHandler(
       try {
         json(response, 200, await transactions!.topup());
       } catch (error) {
+        if (error instanceof CounterTopupRateLimitError) {
+          response.setHeader("Retry-After", String(error.retryAfterSeconds));
+          json(response, 429, {
+            error: error.message,
+            retryAfterSeconds: error.retryAfterSeconds,
+          });
+          return true;
+        }
         json(response, 503, {
           error:
             error instanceof CounterTopupError

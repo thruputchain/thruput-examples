@@ -26,9 +26,17 @@ import type { Direction } from "../src/transactions/engine";
 import type { ServerConfig } from "./config";
 
 const GAS = gasAmount(1_000_000n);
+const TOPUP_INTERVAL_MS = 10 * 60_000;
 
 export class CounterPolicyError extends Error {}
 export class CounterTopupError extends Error {}
+export class CounterTopupRateLimitError extends CounterTopupError {
+  constructor(readonly retryAfterSeconds: number) {
+    super(
+      "Signer top-ups are limited to one attempt every 10 minutes. Try again later.",
+    );
+  }
+}
 
 export function parseOperation(body: unknown): Direction {
   if (
@@ -94,7 +102,7 @@ export function createCounterTransactions(
   let tipPromise: Promise<bigint> | undefined;
   let tipExpiresAt = 0;
   let preparing = 0;
-  let topupPromise: Promise<{ hash: string; rawAmount: string }> | undefined;
+  let nextTopupAt = 0;
 
   async function requestTopup() {
     const client = await wallet();
@@ -137,10 +145,14 @@ export function createCounterTransactions(
 
   return {
     topup() {
-      // Concurrent clicks share one SDK airdrop attempt and its polling nonce.
-      return (topupPromise ??= requestTopup().finally(() => {
-        topupPromise = undefined;
-      }));
+      const now = Date.now();
+      const retryAfterSeconds = Math.ceil((nextTopupAt - now) / 1_000);
+      if (retryAfterSeconds > 0)
+        throw new CounterTopupRateLimitError(retryAfterSeconds);
+      // Reserve the window before any asynchronous work, including failed attempts.
+      // One timestamp covers every caller; changing IPs cannot bypass it.
+      nextTopupAt = now + TOPUP_INTERVAL_MS;
+      return requestTopup();
     },
     async prepare(direction: Direction): Promise<{ transaction: string }> {
       if (preparing >= 64) throw new Error("Signing capacity reached.");
