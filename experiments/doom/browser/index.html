@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doom · Groundhog</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101310;color:#e5e8dc;font:16px system-ui,sans-serif}
+main{max-width:1080px;margin:auto;padding:32px 24px}header{display:flex;justify-content:space-between;align-items:center;gap:20px}
+h1{font-size:30px;letter-spacing:-1px;margin:0}small{color:#acb5a4}.badge{font:12px ui-monospace,monospace;color:#c8e78e;border:1px solid #4f603a;padding:7px 10px;border-radius:4px}
+canvas{display:block;width:100%;aspect-ratio:4/3;image-rendering:pixelated;background:#000;margin:24px 0;border:1px solid #40473b;object-fit:fill}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center}button{background:#d0eb93;color:#13180c;font:600 15px system-ui;border:0;border-radius:5px;padding:11px 22px;cursor:pointer}button:disabled{opacity:.5}kbd{padding:2px 6px;border:1px solid #525c48;border-radius:4px;font:13px ui-monospace,monospace}p{line-height:1.6;color:#acb5a4}#stats{font:13px ui-monospace,monospace;color:#c8e78e;min-height:2em}#error{color:#ffc18a}
+</style>
+<main>
+<header><div><small>GROUNDHOG EXPERIMENTS</small><h1>Does it run Doom?</h1></div><span class="badge">ON-CHAIN DOOM</span></header>
+<canvas width="320" height="200" aria-label="Doom game screen"></canvas>
+<div class="controls"><button id="play" disabled>Play</button><button id="step" disabled>One tick</button><span id="stats">Loading the first frame…</span></div>
+<p><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>Ctrl</kbd> fire · <kbd>Space</kbd> use · <kbd>Shift</kbd> run · <kbd>Esc</kbd> menu</p>
+<p id="about">Original Doom, Episode 1. Your browser signs each tick and sends it directly to the local Groundhog node. Frames come from committed contract storage. Target: 35 ticks per second; audio is omitted.</p>
+<p id="error" role="alert"></p>
+</main>
+<script type="module" src="/app.js"></script>
+<footer style="max-width:1080px;margin:auto;padding:0 24px 32px;color:#839177;font-size:12px">This local demo uses a public development key. FPS capacity measures complete tick loops including canvas drawing, before pacing to 35 Hz.</footer>
+</html>

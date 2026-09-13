@@ -1,0 +1,43 @@
+name: Doom browser
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/doom/browser/**'
+      - '.github/workflows/doom-browser.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/doom/browser/**'
+      - '.github/workflows/doom-browser.yml'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: experiments/doom/browser
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          registry-url: https://npm.pkg.github.com
+          scope: '@groundhogchain'
+      - run: npm install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: doom-browser
+          path: |
+            experiments/doom/browser/dist/
+            experiments/doom/browser/package-lock.json
+          retention-days: 7

@@ -8,9 +8,10 @@ changed memory pages to contract storage, and publishes indexed-color frames.
 ![A frame rendered by the RV32 contract](evidence/live-gameplay.png)
 
 The contract runs on a real local `hog-devnode`, behind `groundhog node`'s
-JSON-RPC service. The browser sends held keys to a local Python bridge; each
-tick is a signed transaction, and the bridge reads the resulting pixels from
-committed contract storage. The standalone VM harness is also retained.
+JSON-RPC service. The TypeScript browser app signs native pubkey transactions
+and talks directly to the node over WebSocket RPC. It reads committed frame
+pages and draws them on a canvas. The local server only serves static files.
+The Python standalone VM harness and older bridge remain for historical tests.
 
 ## Build the contract
 
@@ -37,74 +38,88 @@ shareware `doom1.wad` remain in the PureDOOM submodule.
 
 ## Run the real node and browser app
 
-The required changes are [groundhog-rpc #348](https://github.com/groundhogchain/groundhog-rpc/pull/348)
-and [hogd #4035](https://github.com/groundhogchain/hogd/pull/4035). The submodules
-pin these changes. They add CLI configuration overrides and gas-budget options;
-no source patch to the stock network defaults is needed.
+Use **Groundhog CLI 0.16.1 or newer**. Version 0.16.1 includes the network
+configuration overrides, call gas option and canonical pubkey address fix.
+The RPC submodule pins the merged 0.16.1 source for source builds; the browser
+uses `@groundhogchain/client@0.8.0` and protocol packages at `0.11.0`.
 
-For this demo, Linux x86-64 executables and their runtime libraries are built
-by CI. Download the two artifacts using authenticated `gh`:
+Install the CLI with your existing Groundhog Cargo registry credentials:
 
 ```sh
-mkdir -p .deps/node .deps/rpc
+cargo install --locked --registry groundhog groundhog-cli --version 0.16.1
+groundhog --version
+```
+
+Alternatively, use the [0.16.1 release](https://github.com/groundhogchain/groundhog-rpc/releases/tag/v0.16.1)
+or build the pinned source:
+
+```sh
+(cd vendor/groundhog-rpc && cargo build --release --locked -p groundhog-cli)
+export GROUNDHOG_CLI="$PWD/vendor/groundhog-rpc/target/release/groundhog"
+```
+
+The browser app requires **Node.js 24+** and package-read access to
+`@groundhogchain/*` on GitHub Packages, as with the other TypeScript examples.
+From `experiments/doom`, build and start it:
+
+```sh
+cd browser
+npm ci
+npm run build
+npm start
+```
+
+The launcher uses `groundhog` from PATH (or `GROUNDHOG_CLI`) and checks its
+version before starting the node. Pass `--groundhog /path/to/groundhog` to
+choose an explicit executable. Without backend arguments, the CLI discovers
+or installs its normal local-node runtime. To use the pinned Linux x86-64
+node bundle used in the original measurements, download it first:
+
+```sh
+# From experiments/doom:
+mkdir -p .deps/node
 gh run download 34704874736 -R groundhogchain/hogd -n doom-devnode-linux-x86_64 -D .deps/node
-# Matching CLI and native pubkey signer:
-gh run download 34705779929 -R groundhogchain/groundhog-rpc -n local-demo-cli-linux-x86_64 -D .deps/rpc
 (cd .deps/node && sha256sum -c doom-devnode-bundle.tar.gz.sha256 && tar --no-same-owner -xzf doom-devnode-bundle.tar.gz)
-(cd .deps/rpc && sha256sum -c local-demo-cli.tar.gz.sha256 && tar --no-same-owner -xzf local-demo-cli.tar.gz)
-
-python run_node.py \
-  --groundhog .deps/rpc/local-demo-cli/bin/groundhog \
-  --signer .deps/rpc/local-demo-cli/bin/pubkey-signer \
-  --hog-devnode .deps/node/doom-devnode-bundle/bin/hog-devnode \
-  --contracts .deps/node/doom-devnode-bundle/contracts
+cd browser
+npm start -- \
+  --hog-devnode ../.deps/node/doom-devnode-bundle/bin/hog-devnode \
+  --contracts ../.deps/node/doom-devnode-bundle/contracts
 ```
 
-Open **http://127.0.0.1:8765** after the launcher prints “Play at”. The launcher
-starts an instant-block local node, deploys and funds Doom, uploads the WAD,
-initializes E1M1, funds the native signer for replay storage, and serves the app. It stores chain data, logs, and transaction
-receipts in `build/local-node`. Stop with Ctrl-C; the same command resumes the
-saved game when node recovery succeeds. One intermittent recovery failure is
-tracked in [hogd #4037](https://github.com/groundhogchain/hogd/issues/4037); the
-latest smoke run did recover and continue. For this internal demo, use another
-`--data-dir` if a restart fails. Changing genesis overrides
-on an existing node directory is rejected.
+Only the node and contracts are used from that bundle. No old RPC CLI artifact
+or Rust signer executable is needed. The node CI artifact expires after seven
+days; you can also build the pinned hogd checkout with its normal recursive
+submodules and pass the resulting node and contract paths.
 
-Use a **fresh `--data-dir`** when moving from earlier versions of this demo:
-the optimized artifact uses snapshot version 2 and 64,000-byte storage entries.
-The launcher defaults to two hogd workers for this serial game loop; override
-with `--worker-threads N`. This sets the existing `DEFAULT_THREADPOOL_SIZE`
-environment parameter, and does not change prepared-code cache behavior.
+Open **http://127.0.0.1:8765** after “Play at”. The launcher starts an
+instant-block node, deploys Doom, funds the contract and the native pubkey
+account, and serves static assets. The browser uploads the 129 WAD pages,
+initializes E1M1, signs every subsequent tick with the TypeScript client,
+and reads metadata plus the two framebuffer pages in one RPC batch.
+The local server does not forward gameplay traffic or hold a signing process.
 
-Use the **RPC bundle's `groundhog`**, paired with the node bundle's `hog-devnode`
-and contracts. The older CLI also included in the node bundle uses a different
-protocol version. Each bundle has a file-hash manifest. CI artifacts expire
-after seven days; the checked-in workflows can rebuild them. To build from
-source, follow the pinned hogd build instructions (including its recursive
-submodules), then build the matching RPC checkout with private registry access:
+The demo uses the public deterministic dev-1 key. It is one shared disposable
+local game, with one active browser tab per origin. Browser Web Locks prevent
+accidentally running two loops from that origin; the contract's expected-tick
+check rejects stale calls from other clients. Pending transaction hashes are
+saved before submission. Reloading checks their receipts before sending more
+calls; connection loss never automatically resubmits a transaction.
 
-```sh
-(cd vendor/groundhog-rpc && cargo build --release --locked -p groundhog-cli && cargo build --release --locked -p groundhog-signing --example pubkey_signer)
-```
+The launcher stores chain data and deployment/funding markers in
+`build/browser-node`. Funding resumes independently of deployment after an
+interruption. Stop with Ctrl-C. Use a fresh `--data-dir` when upgrading an
+older demo or changing genesis settings; snapshot format is version 2 with
+64,000-byte storage entries. Intermittent node recovery remains tracked in
+[hogd #4037](https://github.com/groundhogchain/hogd/issues/4037).
 
-Pass those binaries and hogd's built contract directory to `run_node.py`.
-The signer example is a persistent JSON-lines process using Groundhog's Rust
-signing and CXS libraries. Calls enter the undeployed pubkey account's native
-`DefaultWallet.execute` and then invoke Doom. It uses the public deterministic
-dev-1 key for this disposable local demo. Deployment and initial funding still
-use the CLI's local dev wallet.
-
-The native wallet uploads 129 WAD pages of up to 32 KiB. Omitting `--signer`
-uses the stock RV32 dev wallet and 2,049 fragments of up to 2 KiB, because that
-wallet has a small calldata buffer. Both paths have been exercised on the
-node. Upload modes cannot be mixed on an unfinished contract.
-
+Two hogd workers are the default; override with `--worker-threads N`.
+This sets `DEFAULT_THREADPOOL_SIZE`, with no prepared-code cache change.
 The viewer targets 35 ticks/s and supports pause, single stepping, arrow keys,
-Ctrl (fire), Space (use), Shift (run), and Esc (menu). It sends one input at a
-time; if a tick takes longer than 28.57 ms, gameplay slows down. Audio is omitted.
+Ctrl (fire), Space (use), Shift (run), and Esc (menu). Audio is omitted.
 
-For a node already running, use `live.py --help` to supply its RPC URL,
-runtime manifest, CLI, signer, and optional existing funded contract address.
+The pinned node bundle and contract build have been tested on Linux x86-64.
+CLI 0.16.1 also provides an Apple Silicon build, but this Doom contract build
+and full app setup have not yet been validated natively on macOS.
 
 ## Configuration and bandwidth
 
@@ -128,20 +143,20 @@ other callers set the budget too.
 The protocol return-data cap stays at 1,024 bytes. The live bridge reads the
 80-byte metadata and two stored frame pages, requiring all three reads to
 report the same committed block height. These reads use one JSON-RPC batch
-over a reused HTTP connection. It retries if the chain advances
+over one persistent WebSocket connection. It retries if the chain advances
 between reads. This avoids invoking 64 frame-chunk calls.
 
-Browser traffic per displayed frame is **64,804 bytes**: 64,000 indexed pixels,
-768 palette bytes, and a 36-byte metrics header, before HTTP overhead. That is
-about **2.27 MB/s at 35 Hz**. The raw contract input is 36 bytes; the browser
-uses a small JSON envelope. The roughly 4.0 MB of storage read inside the
-node each tick never goes to the browser. The bridge currently receives
-hex-encoded frame storage through JSON-RPC, so node-to-bridge wire traffic is
-larger than the binary browser response.
+The frame payload is 64,768 bytes: 64,000 indexed pixels and a 768-byte
+palette. The browser now receives the RPC's hex-encoded storage responses
+directly: about **130 KB per frame** including metadata and JSON, or roughly
+**4.5 MB/s at 35 Hz**, plus transaction and receipt traffic. Previously the
+Python bridge repackaged this as a 64,804-byte binary HTTP response. The
+roughly 4.0 MB read internally by contract execution still never goes to the
+browser. Each tick's Doom input remains 36 bytes before its transaction envelope.
 
 ## Measurements and verification
 
-The latest [optimization evidence](evidence/speed-up.json) compares 105 live
+The historical Python-bridge [optimization evidence](evidence/speed-up.json) compares 105 live
 game ticks per version on the same host and the same unmodified node/CLI
 binaries. Each version runs separately, with its own fresh node and no
 concurrent benchmark. The input sequence is identical; initial and final
@@ -191,7 +206,8 @@ artifact hashes, build revisions, successful receipts, and live measurements.
 A real-node smoke test exercises 35 gameplay ticks, changed rendered pixels,
 and stale/malformed HTTP input rejection. Add `--restart` to also probe recovery
 and continued play (including the intermittent failure above). Run it with the
-same binary arguments as the launcher:
+original binaries and bridge arguments recorded in the
+[historical setup](https://github.com/groundhogchain/groundhog-examples/blob/044496b5268770ca2fffa6ddfd2f2b48416faeee/experiments/doom/README.md). This is a legacy bridge test:
 
 ```sh
 python test_live.py --data-dir build/new-smoke-node \

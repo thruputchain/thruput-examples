@@ -16,6 +16,7 @@
   },
   "puredoom_repository": "https://github.com/Daivuk/PureDOOM.git",
   "puredoom_revision": "355cfbd16fac119718879239336ee2ea408886bd",
-  "groundhog_rpc_revision": "f13196e4926489e291070297bc71e8546519b582",
-  "groundhog_rpc_repository": "https://github.com/groundhogchain/groundhog-rpc.git"
+  "groundhog_rpc_revision": "6dba972ea1b5df4401cbec3a50731a39c04704c7",
+  "groundhog_rpc_repository": "https://github.com/groundhogchain/groundhog-rpc.git",
+  "groundhog_cli_version": "0.16.1"
 }
