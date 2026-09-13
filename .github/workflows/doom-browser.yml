@@ -28,12 +28,12 @@ jobs:
           node-version: 24
           registry-url: https://npm.pkg.github.com
           scope: '@groundhogchain'
-      - run: npm install
+      - run: npm ci
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run typecheck
-      - run: npm test
       - run: npm run build
+      - run: npm test
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: doom-browser

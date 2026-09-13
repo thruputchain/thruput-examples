@@ -1,0 +1,1856 @@
+{
+  "config": {
+    "rpcUrl": "http://127.0.0.1:9545",
+    "contract": "0xe6a35c961d59f2cb033513b6dcb7e22669244d4d901f5dc822df03bb85fda1e6",
+    "networkHash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "artifactSha256": "c42952f8afc7934a4459c94c97f776060b32a00a6d147e8d319e733ee58ff16a",
+    "wadSha256": "1d7d43be501e67d927e415e0b8f3e29c3bf33075e859721816f652a526cac771"
+  },
+  "summary": {
+    "ticks": 35,
+    "meanMs": 36.56250697142858,
+    "fps": 27.350422135479942,
+    "medianMs": 34.91312999999991,
+    "transactionMedianMs": 30.433590000000095,
+    "scope": "Node.js runs the same TypeScript signing and WebSocket client as the browser; canvas/display excluded",
+    "checks": [
+      "WAD upload and initialization",
+      "committed gameplay",
+      "changed pixels",
+      "stale input rejection",
+      "unchanged state after rejection"
+    ]
+  },
+  "loops": [
+    43.09466799999973,
+    41.42560800000001,
+    33.799441000000115,
+    33.94539200000008,
+    34.37778299999991,
+    33.15178500000002,
+    32.673585,
+    35.094522999999754,
+    46.944330000000264,
+    42.02365400000008,
+    50.23500899999999,
+    42.57433399999991,
+    36.05820500000027,
+    45.054687000000285,
+    39.69279199999983,
+    48.143936000000394,
+    36.14140099999986,
+    39.822127000000364,
+    36.160579999999754,
+    35.424551000000065,
+    34.18609500000002,
+    32.908809000000474,
+    31.172021999999743,
+    31.160585000000538,
+    33.74635099999978,
+    32.37283099999968,
+    31.13781100000051,
+    33.513089999999465,
+    33.004423999999744,
+    35.88154899999972,
+    34.91312999999991,
+    33.8082600000007,
+    35.5125479999997,
+    30.4304089999996,
+    30.101439000000028
+  ],
+  "frames": [
+    {
+      "attempts": 2,
+      "ms": 11.935195000000022
+    },
+    {
+      "attempts": 2,
+      "ms": 10.969620000000305
+    },
+    {
+      "attempts": 2,
+      "ms": 4.041949999999815
+    },
+    {
+      "attempts": 2,
+      "ms": 4.108912000000146
+    },
+    {
+      "attempts": 2,
+      "ms": 3.897993999999926
+    },
+    {
+      "attempts": 1,
+      "ms": 1.7008730000002288
+    },
+    {
+      "attempts": 2,
+      "ms": 3.7567619999999806
+    },
+    {
+      "attempts": 2,
+      "ms": 4.637628000000404
+    },
+    {
+      "attempts": 2,
+      "ms": 12.940560000000005
+    },
+    {
+      "attempts": 2,
+      "ms": 10.040388999999777
+    },
+    {
+      "attempts": 2,
+      "ms": 17.72071300000016
+    },
+    {
+      "attempts": 2,
+      "ms": 9.727588000000196
+    },
+    {
+      "attempts": 2,
+      "ms": 4.668604999999843
+    },
+    {
+      "attempts": 2,
+      "ms": 13.276786999999786
+    },
+    {
+      "attempts": 2,
+      "ms": 4.909327999999732
+    },
+    {
+      "attempts": 2,
+      "ms": 15.698425999999927
+    },
+    {
+      "attempts": 1,
+      "ms": 1.8878050000002986
+    },
+    {
+      "attempts": 2,
+      "ms": 5.519346000000041
+    },
+    {
+      "attempts": 2,
+      "ms": 4.609776000000238
+    },
+    {
+      "attempts": 2,
+      "ms": 5.1446270000005825
+    },
+    {
+      "attempts": 2,
+      "ms": 4.2992990000002465
+    },
+    {
+      "attempts": 2,
+      "ms": 5.416642000000138
+    },
+    {
+      "attempts": 1,
+      "ms": 1.6413240000001679
+    },
+    {
+      "attempts": 1,
+      "ms": 1.539068999999472
+    },
+    {
+      "attempts": 2,
+      "ms": 4.062211999999818
+    },
+    {
+      "attempts": 2,
+      "ms": 5.451363999999558
+    },
+    {
+      "attempts": 1,
+      "ms": 1.5943930000003093
+    },
+    {
+      "attempts": 2,
+      "ms": 4.314761999999973
+    },
+    {
+      "attempts": 2,
+      "ms": 3.8045329999995374
+    },
+    {
+      "attempts": 1,
+      "ms": 1.481832999999824
+    },
+    {
+      "attempts": 2,
+      "ms": 4.117835000000014
+    },
+    {
+      "attempts": 1,
+      "ms": 2.0904559999999037
+    },
+    {
+      "attempts": 2,
+      "ms": 5.001376000000164
+    },
+    {
+      "attempts": 1,
+      "ms": 1.4380069999997431
+    },
+    {
+      "attempts": 1,
+      "ms": 1.4425729999993564
+    }
+  ],
+  "transactions": [
+    {
+      "method": 0,
+      "txHash": "0x6622fe24d87839eea77215035cd62c0e668164a1373eeb717cc06c4d1e4dd99e",
+      "height": "5",
+      "transactionMs": 32.551203999999984,
+      "prepareMs": 1.656919000000002,
+      "signMs": 5.304227999999995,
+      "submitMs": 6.751239999999996,
+      "receiptMs": 18.83881699999999
+    },
+    {
+      "method": 0,
+      "txHash": "0xa3d3a9e0feea75c2eea463b18645c45e76f9b2682990e14d6444fbc8f56c8027",
+      "height": "6",
+      "transactionMs": 22.85245900000001,
+      "prepareMs": 2.3433230000000265,
+      "signMs": 1.4367269999999905,
+      "submitMs": 2.874083999999982,
+      "receiptMs": 16.19832500000001
+    },
+    {
+      "method": 0,
+      "txHash": "0xa4f4c5b5462c86f707a18b32713141ca9ef809010cd7b6d13be65ec714240bf7",
+      "height": "7",
+      "transactionMs": 23.204199999999986,
+      "prepareMs": 1.5255610000000104,
+      "signMs": 1.6636279999999886,
+      "submitMs": 3.252874999999989,
+      "receiptMs": 16.762135999999998
+    },
+    {
+      "method": 0,
+      "txHash": "0x73dfd1ffc1661fc4929ae4dc4065a5b9e8b065d07e492401b7a118c64a6953ea",
+      "height": "8",
+      "transactionMs": 22.126269000000008,
+      "prepareMs": 0.9152100000000019,
+      "signMs": 1.489596000000006,
+      "submitMs": 2.363578999999987,
+      "receiptMs": 17.357884000000013
+    },
+    {
+      "method": 0,
+      "txHash": "0x5a39be6d6fe8d46198b62c2d641ba91c7f6604ad90630567644deb65842bb601",
+      "height": "9",
+      "transactionMs": 23.694639000000024,
+      "prepareMs": 0.8262560000000008,
+      "signMs": 2.566360000000003,
+      "submitMs": 3.8648780000000045,
+      "receiptMs": 16.437145000000015
+    },
+    {
+      "method": 0,
+      "txHash": "0xbfbaa935472805c67684478db304655619484cba363121dccbb26d700e58bd36",
+      "height": "10",
+      "transactionMs": 25.238357000000008,
+      "prepareMs": 0.9749100000000226,
+      "signMs": 1.3144419999999855,
+      "submitMs": 2.3422219999999925,
+      "receiptMs": 20.606783000000007
+    },
+    {
+      "method": 0,
+      "txHash": "0x1d31134f11e0b58c6192975417a241f4d283f9f387a5f1e6d1bd24150bc9e2de",
+      "height": "11",
+      "transactionMs": 23.185181,
+      "prepareMs": 0.5705199999999877,
+      "signMs": 1.5258010000000013,
+      "submitMs": 4.163547999999992,
+      "receiptMs": 16.92531200000002
+    },
+    {
+      "method": 0,
+      "txHash": "0x5f32f9a6e0c1371e987201768d16d247c18ba0cfe08bffeb07683dc2d9347ef1",
+      "height": "12",
+      "transactionMs": 22.336359999999956,
+      "prepareMs": 2.315480999999977,
+      "signMs": 1.4405120000000124,
+      "submitMs": 1.9714429999999652,
+      "receiptMs": 16.608924000000002
+    },
+    {
+      "method": 0,
+      "txHash": "0xe177fffeed5b3858a7c558fd4159323c0732586cc3aca0889087146d7f3a5da9",
+      "height": "13",
+      "transactionMs": 23.541308000000015,
+      "prepareMs": 2.1439430000000357,
+      "signMs": 1.3463199999999915,
+      "submitMs": 3.3867270000000076,
+      "receiptMs": 16.66431799999998
+    },
+    {
+      "method": 0,
+      "txHash": "0xe72d43bbe5164b1bbf1dd07903e5b2f060ad771c099a2e10411344f66918442b",
+      "height": "14",
+      "transactionMs": 19.778584000000023,
+      "prepareMs": 1.1407600000000002,
+      "signMs": 1.3938820000000192,
+      "submitMs": 2.0521650000000022,
+      "receiptMs": 15.191777000000002
+    },
+    {
+      "method": 0,
+      "txHash": "0x88be2c32ffd6bb2be13dc23d843147560a7cdfa9e49d986e9e1516ac832e676a",
+      "height": "15",
+      "transactionMs": 26.601832,
+      "prepareMs": 2.320709000000022,
+      "signMs": 1.3079819999999813,
+      "submitMs": 4.064138000000014,
+      "receiptMs": 18.909002999999984
+    },
+    {
+      "method": 0,
+      "txHash": "0x376fc9d69f17f5ced0c0532ab0754af8ae96ce6589928e6a692cf0066ae65eac",
+      "height": "16",
+      "transactionMs": 25.387320999999986,
+      "prepareMs": 0.6999849999999697,
+      "signMs": 1.2898650000000202,
+      "submitMs": 2.238305999999966,
+      "receiptMs": 21.15916500000003
+    },
+    {
+      "method": 0,
+      "txHash": "0x357b3e0e602f57cf8a1b30f2faab3650d842b243f209141cd7b0e1f0c6a1e547",
+      "height": "17",
+      "transactionMs": 22.303401000000008,
+      "prepareMs": 0.423829000000012,
+      "signMs": 1.3756240000000162,
+      "submitMs": 2.211123999999984,
+      "receiptMs": 18.292823999999996
+    },
+    {
+      "method": 0,
+      "txHash": "0x95a4378a692fba7191019ecfdc22a3a643b8f3bb2495cc7f4b39e18aa45dfae6",
+      "height": "18",
+      "transactionMs": 20.020899000000043,
+      "prepareMs": 0.6568900000000326,
+      "signMs": 1.4474129999999832,
+      "submitMs": 3.6304339999999797,
+      "receiptMs": 14.286162000000047
+    },
+    {
+      "method": 0,
+      "txHash": "0xbe6395cc9b4699e4f03f8e341816c76d7c709b2dce6d6c1a9d083e174f28f163",
+      "height": "19",
+      "transactionMs": 24.258303999999953,
+      "prepareMs": 3.2509430000000066,
+      "signMs": 1.4309469999999465,
+      "submitMs": 3.046655000000044,
+      "receiptMs": 16.529758999999956
+    },
+    {
+      "method": 0,
+      "txHash": "0x88b99da6447f37d9bc5df9296e70130ba06f839b52361bfa3d5c1a7a89a7c78f",
+      "height": "20",
+      "transactionMs": 20.03505100000001,
+      "prepareMs": 0.9723260000000096,
+      "signMs": 1.3084529999999859,
+      "submitMs": 2.6689650000000142,
+      "receiptMs": 15.085307
+    },
+    {
+      "method": 0,
+      "txHash": "0xfeaaadf1035250ff38ba58150cdf086faeeb33c18bc2adc19b23816a3bdb6baf",
+      "height": "21",
+      "transactionMs": 23.047773000000007,
+      "prepareMs": 2.3591369999999756,
+      "signMs": 1.257536000000016,
+      "submitMs": 2.0043529999999805,
+      "receiptMs": 17.426747000000034
+    },
+    {
+      "method": 0,
+      "txHash": "0xacd1be7e9fafb60199683da73624d770faca2f60099408d5461e78bbd9d3b97d",
+      "height": "22",
+      "transactionMs": 21.06925000000001,
+      "prepareMs": 0.5906500000000392,
+      "signMs": 1.2817430000000058,
+      "submitMs": 2.3841149999999516,
+      "receiptMs": 16.812742000000014
+    },
+    {
+      "method": 0,
+      "txHash": "0x864c6961a69ffff9e3f18aad877f9182e4e22149684afb96061318bd546061a0",
+      "height": "23",
+      "transactionMs": 26.527641000000017,
+      "prepareMs": 1.162082000000055,
+      "signMs": 1.4539429999999811,
+      "submitMs": 2.4750320000000556,
+      "receiptMs": 21.436583999999925
+    },
+    {
+      "method": 0,
+      "txHash": "0x9c64da62b5a5ed2dc33a5594a7a84737de54997272ae5887954bf4a410bdd437",
+      "height": "24",
+      "transactionMs": 30.102551000000062,
+      "prepareMs": 0.8338070000000926,
+      "signMs": 1.6308289999999488,
+      "submitMs": 8.517432999999983,
+      "receiptMs": 19.120482000000038
+    },
+    {
+      "method": 0,
+      "txHash": "0xdf4e9425fe8ef948b632ca73fc90b26cde15f3d83b85807c89fd8f1b94d2c022",
+      "height": "25",
+      "transactionMs": 23.86534599999993,
+      "prepareMs": 1.6544450000000097,
+      "signMs": 1.3204909999999472,
+      "submitMs": 2.167809000000034,
+      "receiptMs": 18.72260099999994
+    },
+    {
+      "method": 0,
+      "txHash": "0xd833df31c60c483876d2f3e04cbdbe30960f837b8fd6ef0086dc28e7e26689f9",
+      "height": "26",
+      "transactionMs": 29.50497000000007,
+      "prepareMs": 9.155365000000074,
+      "signMs": 1.2696149999999307,
+      "submitMs": 2.03736200000003,
+      "receiptMs": 17.042628000000036
+    },
+    {
+      "method": 0,
+      "txHash": "0x35c3b8950c5e25daa654f9df5fc82422e2699d515dd12807e6b6d55c1e3c94c3",
+      "height": "27",
+      "transactionMs": 28.798175000000015,
+      "prepareMs": 9.668329999999969,
+      "signMs": 1.3611819999999852,
+      "submitMs": 2.2556710000000066,
+      "receiptMs": 15.512992000000054
+    },
+    {
+      "method": 0,
+      "txHash": "0xa3f90b3a2038ae5ba24b4684d9b7087e9c261a8cdf5f9efe68e44f3684e13461",
+      "height": "28",
+      "transactionMs": 21.25209600000005,
+      "prepareMs": 1.845011999999997,
+      "signMs": 1.3148720000000367,
+      "submitMs": 2.0445629999999255,
+      "receiptMs": 16.047649000000092
+    },
+    {
+      "method": 0,
+      "txHash": "0x8af009124cc2409e3727a569d987e0f276e5acfa39ecb174987bc921942d191a",
+      "height": "29",
+      "transactionMs": 22.087931000000026,
+      "prepareMs": 1.1824129999999968,
+      "signMs": 1.6062220000000025,
+      "submitMs": 2.4087319999999863,
+      "receiptMs": 16.89056400000004
+    },
+    {
+      "method": 0,
+      "txHash": "0x3d77d6f293a61c9d050bd03878572d54da83f0f1d8149817de41f67bd05fe3cb",
+      "height": "30",
+      "transactionMs": 26.557740999999965,
+      "prepareMs": 2.2238889999999856,
+      "signMs": 1.879022999999961,
+      "submitMs": 2.086622000000034,
+      "receiptMs": 20.368206999999984
+    },
+    {
+      "method": 0,
+      "txHash": "0xd0d3512bd561de50603e3aadd5a86ab9022c56b38e61cccd778b6177aab12939",
+      "height": "31",
+      "transactionMs": 32.633171999999945,
+      "prepareMs": 9.545092999999952,
+      "signMs": 1.3949230000000625,
+      "submitMs": 2.910193999999933,
+      "receiptMs": 18.782961999999998
+    },
+    {
+      "method": 0,
+      "txHash": "0x3fd3d9a6957bf292068b9ff0ed98feb5decd1532ad8e35f1e36ac22233959863",
+      "height": "32",
+      "transactionMs": 24.237601999999924,
+      "prepareMs": 2.728753999999981,
+      "signMs": 1.3143019999999979,
+      "submitMs": 1.9998160000000098,
+      "receiptMs": 18.194729999999936
+    },
+    {
+      "method": 0,
+      "txHash": "0xc1d8bdb3b5c57467f7952e552fdc76ae3827fd35d401cf109f3b5ad8b408a33a",
+      "height": "33",
+      "transactionMs": 22.868674000000055,
+      "prepareMs": 2.2230319999999892,
+      "signMs": 1.3396099999999933,
+      "submitMs": 2.2356419999999844,
+      "receiptMs": 17.07039000000009
+    },
+    {
+      "method": 0,
+      "txHash": "0x1b6ac57d390f7dba6bbd34f7a4212a63353c2d257a9d0fa248a02f0a0473c205",
+      "height": "34",
+      "transactionMs": 20.559431000000018,
+      "prepareMs": 0.6901110000000017,
+      "signMs": 1.2994189999999435,
+      "submitMs": 2.1998170000000528,
+      "receiptMs": 16.37008400000002
+    },
+    {
+      "method": 0,
+      "txHash": "0x25a0302fc4615e966ea64747b179534fe9e7f502bef09b646bb9f9e5ed20ad94",
+      "height": "35",
+      "transactionMs": 33.918139,
+      "prepareMs": 3.1739559999999756,
+      "signMs": 1.3742630000000418,
+      "submitMs": 3.0458869999999933,
+      "receiptMs": 26.324032999999986
+    },
+    {
+      "method": 0,
+      "txHash": "0x593873eada69819cd60bf4a30eccea2e9fa475b8b56bb93dc28de8a87de713f5",
+      "height": "36",
+      "transactionMs": 22.922935000000052,
+      "prepareMs": 2.3278400000000374,
+      "signMs": 1.430146000000036,
+      "submitMs": 2.3435739999999896,
+      "receiptMs": 16.82137499999999
+    },
+    {
+      "method": 0,
+      "txHash": "0x10cde4c45df6a89958a54286dd669a3d8ff92ce3a311caf2799cd56ccbb73eed",
+      "height": "37",
+      "transactionMs": 25.682456000000002,
+      "prepareMs": 1.8194029999999657,
+      "signMs": 1.279239000000075,
+      "submitMs": 2.1448239999999714,
+      "receiptMs": 20.43898999999999
+    },
+    {
+      "method": 0,
+      "txHash": "0xee22100c9618576b90052b3564652f9746d65992e8c28909b191c3d467910a44",
+      "height": "38",
+      "transactionMs": 20.61930099999995,
+      "prepareMs": 0.6311119999999164,
+      "signMs": 1.3531200000001036,
+      "submitMs": 2.0384189999999762,
+      "receiptMs": 16.596649999999954
+    },
+    {
+      "method": 0,
+      "txHash": "0x433b067782fd86aca173f2fc7686cc26c7c615b1667632fb025b27b3a4425796",
+      "height": "39",
+      "transactionMs": 20.15248299999996,
+      "prepareMs": 1.415234000000055,
+      "signMs": 1.2242259999999305,
+      "submitMs": 2.107819000000063,
+      "receiptMs": 15.405203999999912
+    },
+    {
+      "method": 0,
+      "txHash": "0x395d59a7523e390c316bca80e452bfc4e9a39f223a6561a7aa05eed4151057a8",
+      "height": "40",
+      "transactionMs": 23.44511799999998,
+      "prepareMs": 3.2988040000000183,
+      "signMs": 1.267631999999935,
+      "submitMs": 2.161179000000061,
+      "receiptMs": 16.717502999999965
+    },
+    {
+      "method": 0,
+      "txHash": "0xdcc9ccadaf678228afe3ebaddcb30b587aa999db1f223daf0e97b142b971ebef",
+      "height": "41",
+      "transactionMs": 20.353476,
+      "prepareMs": 0.49113099999999577,
+      "signMs": 1.2884629999999788,
+      "submitMs": 2.3085360000000037,
+      "receiptMs": 16.265346000000022
+    },
+    {
+      "method": 0,
+      "txHash": "0x4a7da6b5126de225ff4c60e826dca663a1c47f4a1eb29247bd8cd88aa8e142da",
+      "height": "42",
+      "transactionMs": 21.542850000000044,
+      "prepareMs": 1.9193099999999959,
+      "signMs": 1.2370349999999917,
+      "submitMs": 2.0035309999999527,
+      "receiptMs": 16.382974000000104
+    },
+    {
+      "method": 0,
+      "txHash": "0x74f93fef97e6fc23870a395942b92b3874ab4fd3c6255b094337c9d3bbda8335",
+      "height": "43",
+      "transactionMs": 20.439740999999913,
+      "prepareMs": 1.9077869999998711,
+      "signMs": 1.2664800000000014,
+      "submitMs": 1.9387930000000324,
+      "receiptMs": 15.326681000000008
+    },
+    {
+      "method": 0,
+      "txHash": "0xeb6f1bda5d62f8aa55b15f8c307e7d7ebf31572af8261ded6f7d244f78b6caf5",
+      "height": "44",
+      "transactionMs": 22.762774000000036,
+      "prepareMs": 3.5793579999999565,
+      "signMs": 1.4093649999999798,
+      "submitMs": 2.12829899999997,
+      "receiptMs": 15.64575200000013
+    },
+    {
+      "method": 0,
+      "txHash": "0xe1e44f57d79b735e0608ffa1bb8bb5713acfbfb2c0dac739f5e73fc9995a16e6",
+      "height": "45",
+      "transactionMs": 21.561251999999968,
+      "prepareMs": 1.5943339999998898,
+      "signMs": 1.2834450000000288,
+      "submitMs": 2.056972000000087,
+      "receiptMs": 16.626500999999962
+    },
+    {
+      "method": 0,
+      "txHash": "0xd4a007ea36e70a2dc9bc34116c7220aa4339c3a62300197fb1430392d2135584",
+      "height": "46",
+      "transactionMs": 25.06633799999986,
+      "prepareMs": 2.2570140000000265,
+      "signMs": 1.2632139999998344,
+      "submitMs": 1.9281680000001415,
+      "receiptMs": 19.617941999999857
+    },
+    {
+      "method": 0,
+      "txHash": "0x9b3565f8c5572ea913e83d6916880dc555c2a69181687733d3818020e9632836",
+      "height": "47",
+      "transactionMs": 20.296384999999873,
+      "prepareMs": 1.381542999999965,
+      "signMs": 1.2405810000000201,
+      "submitMs": 2.3059069999999338,
+      "receiptMs": 15.368353999999954
+    },
+    {
+      "method": 0,
+      "txHash": "0x9252f74e0c48397f8c235450996eac5104707e045a090df6c19044802bf104a8",
+      "height": "48",
+      "transactionMs": 21.637202000000116,
+      "prepareMs": 1.9210769999999684,
+      "signMs": 1.442164000000048,
+      "submitMs": 2.0635319999998956,
+      "receiptMs": 16.210429000000204
+    },
+    {
+      "method": 0,
+      "txHash": "0x07c611cd64847b31deca174687a51c7a653e6e5810db9d15c275a5c8a5d352aa",
+      "height": "49",
+      "transactionMs": 21.19716799999992,
+      "prepareMs": 2.103452000000061,
+      "signMs": 1.2435449999998127,
+      "submitMs": 1.928188000000091,
+      "receiptMs": 15.921982999999955
+    },
+    {
+      "method": 0,
+      "txHash": "0x80023a711bf40a1836dc765194753fd54fa2911e2600d5fbd028799f055f3954",
+      "height": "50",
+      "transactionMs": 21.027046000000155,
+      "prepareMs": 2.026646000000028,
+      "signMs": 1.2600200000001678,
+      "submitMs": 1.9283369999998285,
+      "receiptMs": 15.81204300000013
+    },
+    {
+      "method": 0,
+      "txHash": "0x11c75c2da61a2808262206725058ed668b5245253527cd41ab4612edf8bbfdcb",
+      "height": "51",
+      "transactionMs": 24.203665999999885,
+      "prepareMs": 4.3342049999998835,
+      "signMs": 1.5883350000001428,
+      "submitMs": 2.062289999999848,
+      "receiptMs": 16.21883600000001
+    },
+    {
+      "method": 0,
+      "txHash": "0x969e3281f9dcd0812fb4764682de6c45b82b8e3065fff04cfdfab935d11f2e20",
+      "height": "52",
+      "transactionMs": 23.769887000000153,
+      "prepareMs": 2.6351830000000973,
+      "signMs": 1.3426150000000234,
+      "submitMs": 2.074527999999873,
+      "receiptMs": 17.71756100000016
+    },
+    {
+      "method": 0,
+      "txHash": "0x79f3d17535d8388ecd56d7cb1bc69a73847f06fecf0664ed13ea51f7d0f5dda3",
+      "height": "53",
+      "transactionMs": 25.688994999999977,
+      "prepareMs": 2.263492999999926,
+      "signMs": 1.3712070000001404,
+      "submitMs": 2.20130899999981,
+      "receiptMs": 19.8529860000001
+    },
+    {
+      "method": 0,
+      "txHash": "0xc475421dd3f104c18d3843b31ce61ba6a1cba653c7b806dd80e5150ab3334fc4",
+      "height": "54",
+      "transactionMs": 30.13366700000006,
+      "prepareMs": 10.253180000000157,
+      "signMs": 1.263332999999875,
+      "submitMs": 2.4721360000000914,
+      "receiptMs": 16.145017999999936
+    },
+    {
+      "method": 0,
+      "txHash": "0x77c9d20f45a8bc3a97f43fb85774a5b85ba7de9f0019f905f00f6bdbf44e0900",
+      "height": "55",
+      "transactionMs": 22.550426000000016,
+      "prepareMs": 1.871259999999893,
+      "signMs": 1.262672000000066,
+      "submitMs": 2.1157490000000507,
+      "receiptMs": 17.300745000000006
+    },
+    {
+      "method": 0,
+      "txHash": "0xfdcf8bd44ac6e201a09fc345f2e28785b9dcba271a15e0abae2ec86e0f7155d1",
+      "height": "56",
+      "transactionMs": 26.342018999999937,
+      "prepareMs": 6.472112999999808,
+      "signMs": 1.998010000000022,
+      "submitMs": 2.060515000000123,
+      "receiptMs": 15.811380999999983
+    },
+    {
+      "method": 0,
+      "txHash": "0x9a5ea2b320d6f1eaecd7450eadabb5349118290a23d55a496ae143f7a31dba09",
+      "height": "57",
+      "transactionMs": 20.907024000000092,
+      "prepareMs": 1.382293000000118,
+      "signMs": 1.252226999999948,
+      "submitMs": 1.9246200000000044,
+      "receiptMs": 16.347884000000022
+    },
+    {
+      "method": 0,
+      "txHash": "0xcb6f8d13d506e78b753d416f0b06b487c026c42329e246638d82a9a43839eea4",
+      "height": "58",
+      "transactionMs": 21.77924299999995,
+      "prepareMs": 1.5282830000001013,
+      "signMs": 1.2325470000000678,
+      "submitMs": 2.2038709999999355,
+      "receiptMs": 16.814541999999847
+    },
+    {
+      "method": 0,
+      "txHash": "0x02f8bfedef96979a2470714e39512342e52d819b2454e80b912aa959263e5fbc",
+      "height": "59",
+      "transactionMs": 29.524069000000054,
+      "prepareMs": 2.498835999999983,
+      "signMs": 1.3278210000000854,
+      "submitMs": 2.021735999999919,
+      "receiptMs": 23.675676000000067
+    },
+    {
+      "method": 0,
+      "txHash": "0x03fda13e1d6e0f17fd4671d785d3be3d3afd6861b7b240bd85e143b1588e1fcb",
+      "height": "60",
+      "transactionMs": 21.70506699999987,
+      "prepareMs": 2.10579400000006,
+      "signMs": 1.3488619999998264,
+      "submitMs": 1.9276550000001862,
+      "receiptMs": 16.3227559999998
+    },
+    {
+      "method": 0,
+      "txHash": "0x063a145e2483469bd0be549a217b680255d8910f3f02541ddb2eac0380c19d25",
+      "height": "61",
+      "transactionMs": 22.379011999999875,
+      "prepareMs": 2.8413809999999557,
+      "signMs": 1.3129790000000412,
+      "submitMs": 2.1912620000000516,
+      "receiptMs": 16.033389999999827
+    },
+    {
+      "method": 0,
+      "txHash": "0x9bfb0cebdb9cb0158640c8a25eff657bdbd22562e999c504806d8a4bdfafd6cc",
+      "height": "62",
+      "transactionMs": 17.63758800000005,
+      "prepareMs": 0.9839330000002064,
+      "signMs": 1.1990159999998014,
+      "submitMs": 2.128979000000072,
+      "receiptMs": 13.32565999999997
+    },
+    {
+      "method": 0,
+      "txHash": "0x4558a541c16437ff458a6aed7d2035431953ddb51a3a0f6cfac5febdefad2324",
+      "height": "63",
+      "transactionMs": 21.66292300000009,
+      "prepareMs": 2.491745000000037,
+      "signMs": 1.1831419999998616,
+      "submitMs": 2.076529000000164,
+      "receiptMs": 15.911507000000029
+    },
+    {
+      "method": 0,
+      "txHash": "0x155e619a9bfb065ac32dc0d29ebf4323baba248b8ec6098b6ac65104dec9135c",
+      "height": "64",
+      "transactionMs": 20.81256200000007,
+      "prepareMs": 0.4356360000001587,
+      "signMs": 1.5469409999998334,
+      "submitMs": 2.0623180000000048,
+      "receiptMs": 16.767667000000074
+    },
+    {
+      "method": 0,
+      "txHash": "0x16b6c7a2f70d3ee01eedd60b7030331e7acb3e0fb400bbf62a2193ecd3305aa9",
+      "height": "65",
+      "transactionMs": 32.11354200000005,
+      "prepareMs": 11.46829200000002,
+      "signMs": 1.2217209999998886,
+      "submitMs": 2.1569100000001526,
+      "receiptMs": 17.26661899999999
+    },
+    {
+      "method": 0,
+      "txHash": "0xbe8bf827eaf1654c726ee40902547e1ca87daf7a5b06e496568272053a774a37",
+      "height": "66",
+      "transactionMs": 26.29183899999998,
+      "prepareMs": 8.915875000000142,
+      "signMs": 1.2496429999998782,
+      "submitMs": 2.220156000000088,
+      "receiptMs": 13.906164999999874
+    },
+    {
+      "method": 0,
+      "txHash": "0xee5046094fb3b94e05654f942751044c36203fd43ddc01c0f59e691b3e37356a",
+      "height": "67",
+      "transactionMs": 28.435758999999962,
+      "prepareMs": 8.855174000000034,
+      "signMs": 1.2015810000000329,
+      "submitMs": 2.05137099999979,
+      "receiptMs": 16.327633000000105
+    },
+    {
+      "method": 0,
+      "txHash": "0x293b8adce4fce39aacf7361db42a1cb1a89423c3dbad49909cca3cb1e02d9337",
+      "height": "68",
+      "transactionMs": 20.84201699999994,
+      "prepareMs": 0.7639909999998054,
+      "signMs": 1.290585000000192,
+      "submitMs": 1.9680159999998068,
+      "receiptMs": 16.819425000000138
+    },
+    {
+      "method": 0,
+      "txHash": "0xc0e5aaac3b27f0c15fd8c7dca845089ea19b34da0ba768d6b93cfe6819811ea5",
+      "height": "69",
+      "transactionMs": 28.959649000000127,
+      "prepareMs": 9.60638599999993,
+      "signMs": 1.2806190000001152,
+      "submitMs": 2.129458999999997,
+      "receiptMs": 15.943185000000085
+    },
+    {
+      "method": 0,
+      "txHash": "0x942f5ed5d14439e42fc28bf4c2235a71f02de390fc7237d869480c31b28fdeb4",
+      "height": "70",
+      "transactionMs": 39.120791000000054,
+      "prepareMs": 14.469343999999865,
+      "signMs": 1.2792570000001433,
+      "submitMs": 3.1011939999998503,
+      "receiptMs": 20.270996000000196
+    },
+    {
+      "method": 0,
+      "txHash": "0x6d84edb9ed8e13e5715d411a83aa4cbe2abaa7f799cd399ba76fab8b52e4a583",
+      "height": "71",
+      "transactionMs": 29.047982000000047,
+      "prepareMs": 7.009291999999959,
+      "signMs": 1.28087000000005,
+      "submitMs": 2.0794740000001184,
+      "receiptMs": 18.67834599999992
+    },
+    {
+      "method": 0,
+      "txHash": "0xa555991fe609c8539ce2d909df5963a11b567aa591243fa47a56970ce9c692f2",
+      "height": "72",
+      "transactionMs": 32.918754000000035,
+      "prepareMs": 10.618530999999848,
+      "signMs": 1.2648659999999836,
+      "submitMs": 5.769704000000047,
+      "receiptMs": 15.265653000000157
+    },
+    {
+      "method": 0,
+      "txHash": "0x1b9f2186e6f6f542c965ec9c0d660117080e203acbbfb64c123f8f32570ebbd9",
+      "height": "73",
+      "transactionMs": 29.294583000000102,
+      "prepareMs": 8.249541000000136,
+      "signMs": 1.9860129999999572,
+      "submitMs": 2.628981000000067,
+      "receiptMs": 16.430047999999942
+    },
+    {
+      "method": 0,
+      "txHash": "0xe07ee329d5cdd9feaa3d946587b47ecc169d8e5b7b3fe634237fa2b413f58c04",
+      "height": "74",
+      "transactionMs": 28.837625000000116,
+      "prepareMs": 9.56519400000002,
+      "signMs": 1.3920270000000983,
+      "submitMs": 2.2257239999999,
+      "receiptMs": 15.654680000000099
+    },
+    {
+      "method": 0,
+      "txHash": "0x0031d51db80aea7b48b38fea681f05a6f0eab723fee5f01fd25fa6fc7ad21601",
+      "height": "75",
+      "transactionMs": 27.036440999999968,
+      "prepareMs": 7.183374999999842,
+      "signMs": 1.6753650000000562,
+      "submitMs": 1.9984710000001087,
+      "receiptMs": 16.17922999999996
+    },
+    {
+      "method": 0,
+      "txHash": "0x54d49feb65317ab0305e409799abd5397c917ce3cf1b2aa6df73860543624886",
+      "height": "76",
+      "transactionMs": 29.015212999999903,
+      "prepareMs": 7.630618999999797,
+      "signMs": 1.2820420000000468,
+      "submitMs": 2.2748670000000857,
+      "receiptMs": 17.827684999999974
+    },
+    {
+      "method": 0,
+      "txHash": "0xd04b5d9a770d411b434809702e1a9c040877777dca5233beff3aa8aeeff62bdc",
+      "height": "77",
+      "transactionMs": 33.21114499999999,
+      "prepareMs": 13.278058999999985,
+      "signMs": 1.3290219999998953,
+      "submitMs": 2.1032090000001062,
+      "receiptMs": 16.500855
+    },
+    {
+      "method": 0,
+      "txHash": "0xc2016523e025df460db56b142c010a25dd3f541b1801bef76fd561cab7e232df",
+      "height": "78",
+      "transactionMs": 31.345984000000044,
+      "prepareMs": 11.425276000000167,
+      "signMs": 1.5066309999999703,
+      "submitMs": 2.167124999999942,
+      "receiptMs": 16.246951999999965
+    },
+    {
+      "method": 0,
+      "txHash": "0x782a5daee2fa5ad494c15f3ce4735c2fce038eba042e57f8fb4ccf605b993cbe",
+      "height": "79",
+      "transactionMs": 21.013535000000047,
+      "prepareMs": 1.5547229999999672,
+      "signMs": 1.4928390000000036,
+      "submitMs": 2.053184000000101,
+      "receiptMs": 15.912788999999975
+    },
+    {
+      "method": 0,
+      "txHash": "0x6c78c911ced7bfe978c95e4fc3236898fd59812e406771dda97f547188d2001e",
+      "height": "80",
+      "transactionMs": 29.691867000000002,
+      "prepareMs": 8.65987999999993,
+      "signMs": 1.2630229999999756,
+      "submitMs": 1.9958480000000236,
+      "receiptMs": 17.773116000000073
+    },
+    {
+      "method": 0,
+      "txHash": "0x5ad3c2f3ce74dd1926a032a3673674c98f57fc2f518c5888f181019364f49da2",
+      "height": "81",
+      "transactionMs": 34.52702799999997,
+      "prepareMs": 13.86283000000003,
+      "signMs": 1.3533990000000813,
+      "submitMs": 1.9998129999999037,
+      "receiptMs": 17.310985999999957
+    },
+    {
+      "method": 0,
+      "txHash": "0x60e623547c1c7f49cb761e49d156e7e68e5ab7358b4091b74b6d8c3806eec051",
+      "height": "82",
+      "transactionMs": 18.81249300000013,
+      "prepareMs": 0.7802650000000995,
+      "signMs": 1.2718170000000555,
+      "submitMs": 1.8789209999999912,
+      "receiptMs": 14.881489999999985
+    },
+    {
+      "method": 0,
+      "txHash": "0xb4326e7025d689bea1ce78a78862ba0b84f6b43871f9229c0b1f5606627ad2c8",
+      "height": "83",
+      "transactionMs": 36.39604399999962,
+      "prepareMs": 17.71651699999984,
+      "signMs": 1.3123070000001462,
+      "submitMs": 2.013734999999997,
+      "receiptMs": 15.353484999999637
+    },
+    {
+      "method": 0,
+      "txHash": "0xee29a4b1f7b3139d33eb56606655ff9b4ecadbe97bdbb1176f02f5319da8619e",
+      "height": "84",
+      "transactionMs": 35.74823800000013,
+      "prepareMs": 16.219530000000304,
+      "signMs": 1.2110349999998107,
+      "submitMs": 2.3129659999999603,
+      "receiptMs": 16.004707000000053
+    },
+    {
+      "method": 0,
+      "txHash": "0xb65f414ae2f03f08208bc479a2397cd0ee8c31ca995c16fe15bc556fff059116",
+      "height": "85",
+      "transactionMs": 36.53888999999981,
+      "prepareMs": 16.772054000000026,
+      "signMs": 1.2924169999996593,
+      "submitMs": 2.2365899999999783,
+      "receiptMs": 16.237829000000147
+    },
+    {
+      "method": 0,
+      "txHash": "0x15cbd4840b8d803f3c0621761edefd4ee94e30178a031bc3614c90576a0ec4da",
+      "height": "86",
+      "transactionMs": 19.78206,
+      "prepareMs": 1.0461969999996654,
+      "signMs": 1.2392370000002302,
+      "submitMs": 2.1041110000001026,
+      "receiptMs": 15.392515000000003
+    },
+    {
+      "method": 0,
+      "txHash": "0x72ce0f1ee29125324a2bee2437d480a96ca4b0c0e2ef3b2b2d0decdba6c6f1ba",
+      "height": "87",
+      "transactionMs": 35.663310999999794,
+      "prepareMs": 15.922202999999627,
+      "signMs": 1.2356720000002497,
+      "submitMs": 2.0538649999998597,
+      "receiptMs": 16.451571000000058
+    },
+    {
+      "method": 0,
+      "txHash": "0x1f9353c9603f8b9b9eefcfe5ff2eef057a7159c7deafaddf55812e624b74bcc6",
+      "height": "88",
+      "transactionMs": 27.484957000000122,
+      "prepareMs": 7.812753000000157,
+      "signMs": 1.2833940000000439,
+      "submitMs": 2.2120740000000296,
+      "receiptMs": 16.17673599999989
+    },
+    {
+      "method": 0,
+      "txHash": "0x6e1591a7255bc42081eaf8be3bf5812b38d59194ee2c4f1a1ae934244b0bb2aa",
+      "height": "89",
+      "transactionMs": 23.765281999999843,
+      "prepareMs": 4.000878999999713,
+      "signMs": 1.4479420000002392,
+      "submitMs": 2.2059340000000702,
+      "receiptMs": 16.11052699999982
+    },
+    {
+      "method": 0,
+      "txHash": "0x8d91e8edb4882c6f10a84da0e868552474bf65a6ac6e1c4f47f02090298a8968",
+      "height": "90",
+      "transactionMs": 22.93406899999991,
+      "prepareMs": 2.5698419999998805,
+      "signMs": 2.3105520000003708,
+      "submitMs": 2.1404749999996966,
+      "receiptMs": 15.91319999999996
+    },
+    {
+      "method": 0,
+      "txHash": "0x0fb256aa5010b1d111b3e1ac00698ce8e3318090dfad409d7295ab9f4217e97c",
+      "height": "91",
+      "transactionMs": 22.407185000000027,
+      "prepareMs": 2.6177050000001145,
+      "signMs": 1.3382369999999355,
+      "submitMs": 2.122588000000178,
+      "receiptMs": 16.3286549999998
+    },
+    {
+      "method": 0,
+      "txHash": "0x7bbaf5b15ffb1e623d44e8339cfd6f8e32df864377155652bd8004ada64ceab2",
+      "height": "92",
+      "transactionMs": 20.3608220000001,
+      "prepareMs": 1.0222810000000209,
+      "signMs": 1.252216999999746,
+      "submitMs": 1.9917610000002242,
+      "receiptMs": 16.094563000000107
+    },
+    {
+      "method": 0,
+      "txHash": "0x6a1e30fbebcb3841e20c118abce3dfe082cb715e0cd3f39c50383f3f9b60c286",
+      "height": "93",
+      "transactionMs": 24.769594999999754,
+      "prepareMs": 2.76705899999979,
+      "signMs": 1.2584870000000592,
+      "submitMs": 2.2785130000002027,
+      "receiptMs": 18.4655359999997
+    },
+    {
+      "method": 0,
+      "txHash": "0xb01e4f22d40c1102510eb289f6a8cff9f38670f5beadca431221926939f60f25",
+      "height": "94",
+      "transactionMs": 19.656379000000015,
+      "prepareMs": 0.6959780000001956,
+      "signMs": 1.2707550000000083,
+      "submitMs": 2.0304699999996956,
+      "receiptMs": 15.659176000000116
+    },
+    {
+      "method": 0,
+      "txHash": "0xa8f0ad83a09ece09dd4011a4f933df6e5fc720cb578182c6c6c3fc1a280a9c69",
+      "height": "95",
+      "transactionMs": 22.570220999999947,
+      "prepareMs": 1.6010230000001684,
+      "signMs": 1.3133089999996628,
+      "submitMs": 2.49788400000034,
+      "receiptMs": 17.158004999999775
+    },
+    {
+      "method": 0,
+      "txHash": "0xcb8236a998c5552c9ab8ef00ec3eea9490c1daa815f4b457bf794503df4cc1d0",
+      "height": "96",
+      "transactionMs": 20.397625999999946,
+      "prepareMs": 0.8974419999999554,
+      "signMs": 1.196292000000085,
+      "submitMs": 2.061537000000044,
+      "receiptMs": 16.24235499999986
+    },
+    {
+      "method": 0,
+      "txHash": "0xa2ebf3ccf4a89aee996f996101e38345f03eee38b264eec534e54d5d0255b64c",
+      "height": "97",
+      "transactionMs": 23.487939000000097,
+      "prepareMs": 1.7837130000002617,
+      "signMs": 1.3618419999997968,
+      "submitMs": 1.9973199999999451,
+      "receiptMs": 18.345064000000093
+    },
+    {
+      "method": 0,
+      "txHash": "0x7e82c88ca924bde8fd42932903feef5507316a68b1cc3c964070eeed04a9145b",
+      "height": "98",
+      "transactionMs": 19.206166000000394,
+      "prepareMs": 0.3903780000000552,
+      "signMs": 1.2146299999999428,
+      "submitMs": 2.074206000000231,
+      "receiptMs": 15.526952000000165
+    },
+    {
+      "method": 0,
+      "txHash": "0x776bad5a0400217b5866427a87aac42be1ef8c7339948cee51b52e891f870360",
+      "height": "99",
+      "transactionMs": 20.77982299999985,
+      "prepareMs": 1.649485999999797,
+      "signMs": 1.2114160000000993,
+      "submitMs": 2.0468940000000657,
+      "receiptMs": 15.872026999999889
+    },
+    {
+      "method": 0,
+      "txHash": "0x3205ea14084a7c81b9054b94a3c6005474699169a47a840ee836207b79b3abf6",
+      "height": "100",
+      "transactionMs": 19.749681000000237,
+      "prepareMs": 0.9784450000001925,
+      "signMs": 1.2746409999999742,
+      "submitMs": 2.134030000000166,
+      "receiptMs": 15.362564999999904
+    },
+    {
+      "method": 0,
+      "txHash": "0x8e00a75c5c157fdd5d507c3c60ec9346a0f4b478b355a66b32c4eb224eba5595",
+      "height": "101",
+      "transactionMs": 34.09806600000002,
+      "prepareMs": 11.842174000000341,
+      "signMs": 1.226698999999826,
+      "submitMs": 2.2520230000000083,
+      "receiptMs": 18.777169999999842
+    },
+    {
+      "method": 0,
+      "txHash": "0x458e80be2c46c294108c540020f97bf83d77cb32a47ebc58690a8bd2ad279bc6",
+      "height": "102",
+      "transactionMs": 34.80834300000015,
+      "prepareMs": 16.33536600000025,
+      "signMs": 1.287449999999808,
+      "submitMs": 1.9757869999998547,
+      "receiptMs": 15.209740000000238
+    },
+    {
+      "method": 0,
+      "txHash": "0x53fc4e5c301040aba4ab5da7b0ca5c85de199dee0493058bb6bb0427129de883",
+      "height": "103",
+      "transactionMs": 20.74174499999981,
+      "prepareMs": 1.8491359999998167,
+      "signMs": 1.285237000000052,
+      "submitMs": 1.9873250000000553,
+      "receiptMs": 15.620046999999886
+    },
+    {
+      "method": 0,
+      "txHash": "0x6f9156864de644a411c7ff5b34b1e9bbb3b01b656ad79e8d418ab9dafcbc9f18",
+      "height": "104",
+      "transactionMs": 29.290997999999945,
+      "prepareMs": 10.017023999999765,
+      "signMs": 1.189632999999958,
+      "submitMs": 2.308328000000074,
+      "receiptMs": 15.776013000000148
+    },
+    {
+      "method": 0,
+      "txHash": "0xad75fc3da977ba87c342bfde238dd4d5af8900b9f2f144f05e8996c0c982c980",
+      "height": "105",
+      "transactionMs": 35.96746299999995,
+      "prepareMs": 16.840476000000308,
+      "signMs": 1.1910749999997279,
+      "submitMs": 2.154015999999956,
+      "receiptMs": 15.78189599999996
+    },
+    {
+      "method": 0,
+      "txHash": "0x4d67c9f0b3eb40e26c6a6802886c81cb89cf2b66dc0b9ff35225fda48df09af5",
+      "height": "106",
+      "transactionMs": 20.36407599999984,
+      "prepareMs": 1.6216640000002371,
+      "signMs": 1.172175999999581,
+      "submitMs": 2.1238610000000335,
+      "receiptMs": 15.446374999999989
+    },
+    {
+      "method": 0,
+      "txHash": "0x160cce843461cc5fbf7caaf9368ff7a867a6a6b13e5265783a5a77f709dc6402",
+      "height": "107",
+      "transactionMs": 27.683476000000155,
+      "prepareMs": 8.714771999999812,
+      "signMs": 1.1938990000003287,
+      "submitMs": 1.9279050000000097,
+      "receiptMs": 15.846900000000005
+    },
+    {
+      "method": 0,
+      "txHash": "0x87adf3bc84a5afbcdcfbe14a28f099a0f3d1b44062e449ae6130acd086d1b221",
+      "height": "108",
+      "transactionMs": 20.082856999999876,
+      "prepareMs": 1.8443590000001677,
+      "signMs": 1.2073889999996936,
+      "submitMs": 2.0099440000003597,
+      "receiptMs": 15.021164999999655
+    },
+    {
+      "method": 0,
+      "txHash": "0xecb66c451d1841cd9357ed43c7061fc7e04bfccfa6b72af629f38b84b92d53d5",
+      "height": "109",
+      "transactionMs": 35.87564500000008,
+      "prepareMs": 16.839375000000018,
+      "signMs": 1.3032939999998234,
+      "submitMs": 2.1093330000003334,
+      "receiptMs": 15.623642999999902
+    },
+    {
+      "method": 0,
+      "txHash": "0xa0ee4bf9becab409d4d1c81ed26ecd230b519e5a7003698b51c999c4c9acacc9",
+      "height": "110",
+      "transactionMs": 28.43008000000009,
+      "prepareMs": 9.22290699999985,
+      "signMs": 1.5629150000004302,
+      "submitMs": 2.028606999999738,
+      "receiptMs": 15.61565100000007
+    },
+    {
+      "method": 0,
+      "txHash": "0x4cb84fd3f72ec69c33c53aee90af87545dec791e2cd52998d2983d36232d44dc",
+      "height": "111",
+      "transactionMs": 32.29122899999993,
+      "prepareMs": 11.083150999999816,
+      "signMs": 1.175260999999864,
+      "submitMs": 1.9089270000004035,
+      "receiptMs": 18.123889999999847
+    },
+    {
+      "method": 0,
+      "txHash": "0x7d103722000b3f26ccf64f00b9f1d3d7bfd816f7d5578d2f958d55fe659bfe1c",
+      "height": "112",
+      "transactionMs": 29.52882600000021,
+      "prepareMs": 9.358091000000059,
+      "signMs": 1.2879609999999957,
+      "submitMs": 1.9837489999999889,
+      "receiptMs": 16.899025000000165
+    },
+    {
+      "method": 0,
+      "txHash": "0xc175e646658be4c16a4f674be9839d0eac9a5c550b2b02ccb99b92134bc87795",
+      "height": "113",
+      "transactionMs": 27.99174099999982,
+      "prepareMs": 7.754635999999664,
+      "signMs": 1.398377000000437,
+      "submitMs": 2.2921339999998054,
+      "receiptMs": 16.546593999999914
+    },
+    {
+      "method": 0,
+      "txHash": "0x6e588b43943685a037642de8dd28f25f50bbf7ebbf70bc92cd16146498c5404f",
+      "height": "114",
+      "transactionMs": 24.59759499999973,
+      "prepareMs": 2.498975999999857,
+      "signMs": 1.2495319999998173,
+      "submitMs": 2.468249999999898,
+      "receiptMs": 18.380837000000156
+    },
+    {
+      "method": 0,
+      "txHash": "0x4b7bff5ffe231e92ef39d303ac4b67065e5c958ad18636cc5e7cd3713d41ee70",
+      "height": "115",
+      "transactionMs": 20.300058999999692,
+      "prepareMs": 1.2323969999997644,
+      "signMs": 1.1722060000001875,
+      "submitMs": 1.9775999999997111,
+      "receiptMs": 15.917856000000029
+    },
+    {
+      "method": 0,
+      "txHash": "0x605a0ae897f19c3a956de2c62883a96d09864047cf4ccc7fd8c21d134cc3310f",
+      "height": "116",
+      "transactionMs": 35.60431100000005,
+      "prepareMs": 16.291509000000133,
+      "signMs": 1.2655869999998686,
+      "submitMs": 2.0528040000003784,
+      "receiptMs": 15.994410999999673
+    },
+    {
+      "method": 0,
+      "txHash": "0xc43a807a29d7ae21dd0e64a1836393832a49174732609ec11cc2466e4800e5fe",
+      "height": "117",
+      "transactionMs": 20.797759999999926,
+      "prepareMs": 1.8521709999999985,
+      "signMs": 1.19611199999963,
+      "submitMs": 1.9887970000004316,
+      "receiptMs": 15.760679999999866
+    },
+    {
+      "method": 0,
+      "txHash": "0xe032dc5462ed71352b497eedf230da1c7ae7fe76dc291d14f6a3c161e0c9e89b",
+      "height": "118",
+      "transactionMs": 31.34394199999997,
+      "prepareMs": 8.577972000000045,
+      "signMs": 1.225847000000158,
+      "submitMs": 2.060414000000037,
+      "receiptMs": 19.47970899999973
+    },
+    {
+      "method": 0,
+      "txHash": "0x37ed2ce6a4003d216bfd4b1acdf9bd1fd81a4c11be48e5dacf36535da0746b06",
+      "height": "119",
+      "transactionMs": 33.770302999999785,
+      "prepareMs": 13.603028999999879,
+      "signMs": 1.1984659999998257,
+      "submitMs": 2.073574000000008,
+      "receiptMs": 16.895234000000073
+    },
+    {
+      "method": 0,
+      "txHash": "0xe56aed9c355bbf3d4a471b024dd2750d9d45fbf6a08be8b295f6ecba0056b42e",
+      "height": "120",
+      "transactionMs": 20.02719900000011,
+      "prepareMs": 0.4862029999999322,
+      "signMs": 1.2844550000004347,
+      "submitMs": 1.933933999999681,
+      "receiptMs": 16.322607000000062
+    },
+    {
+      "method": 0,
+      "txHash": "0xa3b9f128b46e87193fb4a948b19d3f6c3e81d9df7623d3a0aa8887067fff01e1",
+      "height": "121",
+      "transactionMs": 35.41668299999992,
+      "prepareMs": 15.753548000000137,
+      "signMs": 1.1876699999997982,
+      "submitMs": 1.9930229999999938,
+      "receiptMs": 16.482441999999992
+    },
+    {
+      "method": 0,
+      "txHash": "0x036c7305d5ff7877ec825810593bb421fef851cde3a0b707cd6de2f7385def78",
+      "height": "122",
+      "transactionMs": 21.635601999999835,
+      "prepareMs": 1.4104349999997794,
+      "signMs": 1.2023220000000947,
+      "submitMs": 2.101717000000008,
+      "receiptMs": 16.921127999999953
+    },
+    {
+      "method": 0,
+      "txHash": "0xc10957cb506ece43e595d9720b36eb50d4eded9f97d117c772dfd834eb704500",
+      "height": "123",
+      "transactionMs": 34.01178200000004,
+      "prepareMs": 15.113844999999856,
+      "signMs": 1.183093000000099,
+      "submitMs": 1.9615960000000996,
+      "receiptMs": 15.753247999999985
+    },
+    {
+      "method": 0,
+      "txHash": "0xadc453ea4f71f769e5e6feb99ba91f6f745ee0372f075e1f8e7bf3f254142cb6",
+      "height": "124",
+      "transactionMs": 21.472491999999875,
+      "prepareMs": 2.3278329999998277,
+      "signMs": 1.2080100000002858,
+      "submitMs": 2.0416470000000118,
+      "receiptMs": 15.89500199999975
+    },
+    {
+      "method": 0,
+      "txHash": "0x7d52b4c8297c09ef2816f4b2e9cd2ececcaba713b088b4d5e0715e177071548e",
+      "height": "125",
+      "transactionMs": 27.270293000000038,
+      "prepareMs": 8.094277000000147,
+      "signMs": 1.2495530000001054,
+      "submitMs": 1.9730429999999615,
+      "receiptMs": 15.953419999999824
+    },
+    {
+      "method": 0,
+      "txHash": "0x86355505eefef5267b8dd31765dd2917ceee93378c773ad104faf49b4e56d6d5",
+      "height": "126",
+      "transactionMs": 33.731934000000365,
+      "prepareMs": 15.678515000000061,
+      "signMs": 1.2739799999999377,
+      "submitMs": 2.032122000000072,
+      "receiptMs": 14.747317000000294
+    },
+    {
+      "method": 0,
+      "txHash": "0xbf7a8dcb705c86b53206026e61ed849fa1728aa53541c33df4a5dd0ef45476a2",
+      "height": "127",
+      "transactionMs": 22.503975999999966,
+      "prepareMs": 2.129965000000084,
+      "signMs": 1.3015220000002046,
+      "submitMs": 2.1301089999997203,
+      "receiptMs": 16.942379999999957
+    },
+    {
+      "method": 0,
+      "txHash": "0x9d4e4e783d3920abc41b040a5c3dde77007a066402295b3db805c2f83f2601d9",
+      "height": "128",
+      "transactionMs": 31.717353999999887,
+      "prepareMs": 9.428257999999914,
+      "signMs": 1.3016609999999673,
+      "submitMs": 1.9693969999998444,
+      "receiptMs": 19.01803800000016
+    },
+    {
+      "method": 0,
+      "txHash": "0x5296823514e07ba1a3652af1cbd81cf05fc9e0d7777be18272cba7cd3da6c808",
+      "height": "129",
+      "transactionMs": 27.48718000000008,
+      "prepareMs": 8.345875999999862,
+      "signMs": 1.2059170000002268,
+      "submitMs": 2.13622899999973,
+      "receiptMs": 15.799158000000261
+    },
+    {
+      "method": 0,
+      "txHash": "0x22920309e6fe55cb467b59994b199082f94f476124dfc1cf229709a03e282620",
+      "height": "130",
+      "transactionMs": 27.13040200000023,
+      "prepareMs": 7.874496000000363,
+      "signMs": 1.2748109999997723,
+      "submitMs": 2.054355000000214,
+      "receiptMs": 15.926739999999882
+    },
+    {
+      "method": 0,
+      "txHash": "0x02ef6a6911f274602dc80a68919f365b5c402ed70bb27812d55d8bf689439e99",
+      "height": "131",
+      "transactionMs": 21.14033100000006,
+      "prepareMs": 2.189644000000044,
+      "signMs": 1.249362999999903,
+      "submitMs": 2.052607999999964,
+      "receiptMs": 15.64871600000015
+    },
+    {
+      "method": 0,
+      "txHash": "0x9f5bb03b1450a3ce8b885a985c60b8f5a1aba68cc0ba2db74e6d653a30134b0b",
+      "height": "132",
+      "transactionMs": 31.973529999999755,
+      "prepareMs": 12.926108999999997,
+      "signMs": 1.4666090000000622,
+      "submitMs": 2.1746069999999236,
+      "receiptMs": 15.406204999999773
+    },
+    {
+      "method": 0,
+      "txHash": "0x962571e5861959838672203fdd9c6692f5134be2caa77512109de289e8a009ed",
+      "height": "133",
+      "transactionMs": 25.83933700000034,
+      "prepareMs": 8.157803000000058,
+      "signMs": 0.5105490000000827,
+      "submitMs": 0.6219569999998384,
+      "receiptMs": 16.549028000000362
+    },
+    {
+      "method": 1,
+      "txHash": "0x617184288af7601249cbf131c92d74937a82664a088f869c153cb9c301ca2a2e",
+      "height": "134",
+      "transactionMs": 85.16541400000006,
+      "prepareMs": 9.17051900000024,
+      "signMs": 0.5590830000001006,
+      "submitMs": 0.49941199999966557,
+      "receiptMs": 74.93640000000005
+    },
+    {
+      "method": 2,
+      "txHash": "0xc58fda906b0c6ce292ed01b3e72d0ad948793ce8753963cfa072908d050bbe67",
+      "height": "135",
+      "transactionMs": 31.094656000000214,
+      "prepareMs": 0.43496600000025865,
+      "signMs": 0.5902390000001105,
+      "submitMs": 0.5758879999998499,
+      "receiptMs": 29.493562999999995
+    },
+    {
+      "method": 2,
+      "txHash": "0x91f838941f89741751ab069850016b91b31bc59a9bf36aafa1c7b2f3d426ddd9",
+      "height": "136",
+      "transactionMs": 30.42683399999987,
+      "prepareMs": 1.6929410000002463,
+      "signMs": 0.5958279999999831,
+      "submitMs": 0.6087720000000445,
+      "receiptMs": 27.529292999999598
+    },
+    {
+      "method": 2,
+      "txHash": "0x3b626c58ce9400aefa7a0ce40022efe6508d6693d23f168e54701c3d9e5ee6e5",
+      "height": "137",
+      "transactionMs": 29.73337500000025,
+      "prepareMs": 0.4480149999999412,
+      "signMs": 0.46380900000031033,
+      "submitMs": 0.5447909999998046,
+      "receiptMs": 28.276760000000195
+    },
+    {
+      "method": 2,
+      "txHash": "0x6472a5a6ff82a1281ffef466eb8438fc568956162240d2e59e66089c84da1f7a",
+      "height": "138",
+      "transactionMs": 29.786665000000085,
+      "prepareMs": 0.4081850000002305,
+      "signMs": 0.4586309999999685,
+      "submitMs": 0.5334739999998419,
+      "receiptMs": 28.386375000000044
+    },
+    {
+      "method": 2,
+      "txHash": "0xf901d40c2639370ee25a0ddcf46fab5aaf3d748b80f4be7ec48024873cb28fab",
+      "height": "139",
+      "transactionMs": 30.389854000000014,
+      "prepareMs": 0.4578400000000329,
+      "signMs": 0.4557469999999739,
+      "submitMs": 0.5926529999997001,
+      "receiptMs": 28.883614000000307
+    },
+    {
+      "method": 2,
+      "txHash": "0x6f5f2fbdb162c671d9b87b3633ab2148d1da26d0f51393f09a8631e7a7dc261a",
+      "height": "140",
+      "transactionMs": 31.426936999999725,
+      "prepareMs": 0.41962299999977404,
+      "signMs": 0.4552760000001399,
+      "submitMs": 0.5773300000000745,
+      "receiptMs": 29.974707999999737
+    },
+    {
+      "method": 2,
+      "txHash": "0x7fa5acdf3e688c70b76244036454bd2e9a931571e12f9390cf1b8bc937816d10",
+      "height": "141",
+      "transactionMs": 28.890313999999762,
+      "prepareMs": 0.4121909999998934,
+      "signMs": 0.6222979999997733,
+      "submitMs": 0.6457230000000891,
+      "receiptMs": 27.210102000000006
+    },
+    {
+      "method": 2,
+      "txHash": "0xf78fd1d13992ffd08a4aa9160aa72239d50c453f433ea97ddfdc6cbe3ef1c53d",
+      "height": "142",
+      "transactionMs": 30.433590000000095,
+      "prepareMs": 0.4364380000001802,
+      "signMs": 0.4471130000001722,
+      "submitMs": 0.5397739999998521,
+      "receiptMs": 29.01026499999989
+    },
+    {
+      "method": 2,
+      "txHash": "0x221c18f344554b162d43181aa32f2c067723a5d9d3e9062c813ef6c1b1a1fe4e",
+      "height": "143",
+      "transactionMs": 33.97277299999996,
+      "prepareMs": 0.41820000000006985,
+      "signMs": 0.45671900000024834,
+      "submitMs": 0.6337249999996857,
+      "receiptMs": 32.46412899999996
+    },
+    {
+      "method": 2,
+      "txHash": "0x6edec256f7b5a114ec91525a3bf5dd963d7a9b7c80ebb4f7934bca73324c8b7e",
+      "height": "144",
+      "transactionMs": 31.93627400000014,
+      "prepareMs": 0.5172090000000935,
+      "signMs": 0.729689999999664,
+      "submitMs": 0.7518730000001597,
+      "receiptMs": 29.937502000000222
+    },
+    {
+      "method": 2,
+      "txHash": "0x84ed14f47d13c226a8f7e2f5db2ffcaed29412074ee6318fa487fe4ae035f189",
+      "height": "145",
+      "transactionMs": 32.48304800000005,
+      "prepareMs": 0.411239999999907,
+      "signMs": 0.452502000000095,
+      "submitMs": 0.8356990000002043,
+      "receiptMs": 30.783606999999847
+    },
+    {
+      "method": 2,
+      "txHash": "0x56fbc00b2d9b70ef0597509a0a407a9103a9ad8634b57435345b48ffc49a2bb1",
+      "height": "146",
+      "transactionMs": 32.815990000000056,
+      "prepareMs": 0.37492500000007567,
+      "signMs": 0.5368590000002769,
+      "submitMs": 0.7352080000000569,
+      "receiptMs": 31.168997999999647
+    },
+    {
+      "method": 2,
+      "txHash": "0xcf62d05dc7f7699495ce0a0842a81eebf90b52b246e878d6c7a34f77b22d1dce",
+      "height": "147",
+      "transactionMs": 31.36095699999987,
+      "prepareMs": 0.47613799999999173,
+      "signMs": 0.4606839999996737,
+      "submitMs": 0.5503490000000966,
+      "receiptMs": 29.87378600000011
+    },
+    {
+      "method": 2,
+      "txHash": "0x110815a35b0c9d047304b031f194222e3806d71ab84e3b6e14e268e549b34abe",
+      "height": "148",
+      "transactionMs": 31.748705999999856,
+      "prepareMs": 0.376046999999744,
+      "signMs": 0.4578000000001339,
+      "submitMs": 0.5658619999999246,
+      "receiptMs": 30.348997000000054
+    },
+    {
+      "method": 2,
+      "txHash": "0x020ae257c9356a826b2e9584d4b6a8060ddeb26cbfdaae564a5bd4d851d297be",
+      "height": "149",
+      "transactionMs": 34.75556200000028,
+      "prepareMs": 0.37300199999981487,
+      "signMs": 1.2638240000001133,
+      "submitMs": 0.7667559999999867,
+      "receiptMs": 32.35198000000037
+    },
+    {
+      "method": 2,
+      "txHash": "0xc3cf3926df31687bd37e54251d01ebdb9e327f8fffd92ec78f911a8c8a516ba7",
+      "height": "150",
+      "transactionMs": 32.4119299999993,
+      "prepareMs": 0.4001029999999446,
+      "signMs": 0.44406900000012683,
+      "submitMs": 0.7507319999995161,
+      "receiptMs": 30.817025999999714
+    },
+    {
+      "method": 2,
+      "txHash": "0x1a334b6a82ab31f4678e298ee4a0276c717113d98e1ca7e8ed45139fd718ce6f",
+      "height": "151",
+      "transactionMs": 34.21946500000013,
+      "prepareMs": 0.5311310000006415,
+      "signMs": 0.75713099999939,
+      "submitMs": 0.7250620000004346,
+      "receiptMs": 32.20614099999966
+    },
+    {
+      "method": 2,
+      "txHash": "0x66da30faf4dfc9023abdd17f6458a85287262512f4a89cce028c83592bfe1d6f",
+      "height": "152",
+      "transactionMs": 34.24883899999986,
+      "prepareMs": 0.5870249999998123,
+      "signMs": 0.7661440000001676,
+      "submitMs": 0.6541159999997035,
+      "receiptMs": 32.24155400000018
+    },
+    {
+      "method": 2,
+      "txHash": "0x45c167fecccd94eac9de6750b187db054e6ca27efed8dc00bccb25f2bb5bd2e6",
+      "height": "153",
+      "transactionMs": 31.521308999999746,
+      "prepareMs": 0.43714900000031776,
+      "signMs": 0.46019299999989016,
+      "submitMs": 0.5194329999994807,
+      "receiptMs": 30.104534000000058
+    },
+    {
+      "method": 2,
+      "txHash": "0x2c42c87ba6a717239e94a3bbf2dbe3a5ca678f258f967ee5a984a1bb747a4518",
+      "height": "154",
+      "transactionMs": 30.250699000000168,
+      "prepareMs": 0.3468730000004143,
+      "signMs": 0.4439089999996213,
+      "submitMs": 0.5429679999997461,
+      "receiptMs": 28.916949000000386
+    },
+    {
+      "method": 2,
+      "txHash": "0x0c1151fa7467365b8ae2c052acf3c0316772a1802199feedb067fb2969e334d7",
+      "height": "155",
+      "transactionMs": 29.85800300000028,
+      "prepareMs": 0.38821500000085507,
+      "signMs": 0.4992529999999533,
+      "submitMs": 0.6109299999998257,
+      "receiptMs": 28.359604999999647
+    },
+    {
+      "method": 2,
+      "txHash": "0x2bf1bb6275b94a79a0f1bea192ebfc56affafb460735291882cf56b67f3e9ae5",
+      "height": "156",
+      "transactionMs": 27.460299000000305,
+      "prepareMs": 0.4663330000003043,
+      "signMs": 0.47552600000017264,
+      "submitMs": 0.5267340000000331,
+      "receiptMs": 25.991705999999795
+    },
+    {
+      "method": 2,
+      "txHash": "0x9e0d777c21feabdb61ed6939a69d914801f576f19560dcabd230e815b9649474",
+      "height": "157",
+      "transactionMs": 29.501585999999406,
+      "prepareMs": 0.43195099999957165,
+      "signMs": 0.4483060000002297,
+      "submitMs": 0.5612959999998566,
+      "receiptMs": 28.06003299999975
+    },
+    {
+      "method": 2,
+      "txHash": "0xc062f78f289f0b5851baa270173510ad6b26db0f976a57bc095ecef9050c1649",
+      "height": "158",
+      "transactionMs": 29.591301000000385,
+      "prepareMs": 0.4121110000005501,
+      "signMs": 0.44975799999974697,
+      "submitMs": 0.4758769999998549,
+      "receiptMs": 28.253555000000233
+    },
+    {
+      "method": 2,
+      "txHash": "0x2376b53f75f575cfcbe1f19e703dba02f0363d518cd5c7ce3ab24313e379e6a3",
+      "height": "159",
+      "transactionMs": 29.65251199999966,
+      "prepareMs": 0.42968699999983073,
+      "signMs": 0.44302799999968556,
+      "submitMs": 0.5670440000003509,
+      "receiptMs": 28.212752999999793
+    },
+    {
+      "method": 2,
+      "txHash": "0xefd92cdb2e9309c699dbcd8d20f8ceee1c645e77ed96a1f50afcadeb11fe2a6e",
+      "height": "160",
+      "transactionMs": 26.893786000000546,
+      "prepareMs": 0.4321810000001278,
+      "signMs": 0.4505990000006932,
+      "submitMs": 0.5374099999999089,
+      "receiptMs": 25.473595999999816
+    },
+    {
+      "method": 2,
+      "txHash": "0x1d32e5ffb29f201c1cd7bb1c02a884ae34f8a717104bdf8b7e856b7e010917d8",
+      "height": "161",
+      "transactionMs": 29.514986000000135,
+      "prepareMs": 0.3524010000000999,
+      "signMs": 0.4498780000003535,
+      "submitMs": 0.5662430000002132,
+      "receiptMs": 28.14646399999947
+    },
+    {
+      "method": 2,
+      "txHash": "0x54a4c572f2dcb0cb4d59ca259de0ae9d56e8a54fe411b234f701520fceb1620b",
+      "height": "162",
+      "transactionMs": 29.169835000000603,
+      "prepareMs": 0.41553600000042934,
+      "signMs": 0.49462599999969825,
+      "submitMs": 0.5584710000002815,
+      "receiptMs": 27.701202000000194
+    },
+    {
+      "method": 2,
+      "txHash": "0x377f51a3b4925d3205c2ef4c8a0685dae0882fae60adc74aa81306d8552617d4",
+      "height": "163",
+      "transactionMs": 29.15557499999977,
+      "prepareMs": 0.36096399999951245,
+      "signMs": 0.4447700000000623,
+      "submitMs": 0.5380009999998947,
+      "receiptMs": 27.811840000000302
+    },
+    {
+      "method": 2,
+      "txHash": "0xf5a4ce6e6051695900ceb249486ac2e7e2195f8cec739a79a8fd44a2bc835c4b",
+      "height": "164",
+      "transactionMs": 34.37324600000011,
+      "prepareMs": 0.3780499999993481,
+      "signMs": 0.4462820000007923,
+      "submitMs": 0.6678659999997762,
+      "receiptMs": 32.88104800000019
+    },
+    {
+      "method": 2,
+      "txHash": "0xba7ec5bf727f274c7ecfb4ce0c12a02a27555696368dfb1ed6bc35b9d99e26ee",
+      "height": "165",
+      "transactionMs": 30.76755300000059,
+      "prepareMs": 0.3904190000002927,
+      "signMs": 0.45189099999970495,
+      "submitMs": 0.6541649999999208,
+      "receiptMs": 29.27107800000067
+    },
+    {
+      "method": 2,
+      "txHash": "0xf3df93990622ea3cc06d2050fbc328a3267637a065b8a61f1192e70bbce6fdc9",
+      "height": "166",
+      "transactionMs": 31.688891000000694,
+      "prepareMs": 0.42043400000056863,
+      "signMs": 0.4509090000001379,
+      "submitMs": 0.5689869999996517,
+      "receiptMs": 30.248561000000336
+    },
+    {
+      "method": 2,
+      "txHash": "0x113ba661cc5e34e03d83d9e5766a2f611f45a7c7acc080b7d9f1d72767f3669b",
+      "height": "167",
+      "transactionMs": 30.459222999999838,
+      "prepareMs": 0.3566979999995965,
+      "signMs": 0.5349050000004354,
+      "submitMs": 0.5332739999994374,
+      "receiptMs": 29.03434600000037
+    },
+    {
+      "method": 2,
+      "txHash": "0x75bef308ecccf049c80205e5ca5a88d9d0c36d60a85dab6906f156e50086456f",
+      "height": "168",
+      "transactionMs": 28.964069999999992,
+      "prepareMs": 0.33813999999983935,
+      "signMs": 0.4523610000005647,
+      "submitMs": 0.45289299999967625,
+      "receiptMs": 27.720675999999912
+    },
+    {
+      "method": 2,
+      "txHash": "0xc50b39e8fb8432c4126a1e2324823b32fd084314bd94a0237a53a611febab5a4",
+      "height": "169",
+      "transactionMs": 28.63128400000005,
+      "prepareMs": 0.33816899999965244,
+      "signMs": 0.5156270000006771,
+      "submitMs": 0.4512799999993149,
+      "receiptMs": 27.326208000000406
+    }
+  ],
+  "validation": "Fresh locally generated pubkey account: 129 page uploads, initialization, 35 ticks and stale-input rejection. Launcher lifecycle/funding recovery checked separately with a CLI fixture. No private key is included."
+}

@@ -2,7 +2,7 @@ import { spawn, execFile } from 'node:child_process';
 import { promisify, parseArgs } from 'node:util';
 import { mkdir, readFile, writeFile, rename, open, access } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { demoAccount } from '../dist/game.mjs';
@@ -103,20 +103,21 @@ try {
   if (state && (state.networkHash !== manifest.networkHash || state.artifactSha256 !== artifactSha256 || state.wadSha256 !== wadSha256)) {
     throw new Error('Saved demo uses a different network, artifact or WAD; choose a fresh --data-dir');
   }
-  async function save() { await writeFile(statePath+'.tmp', JSON.stringify(state,null,2)+'\n'); await rename(statePath+'.tmp', statePath); }
+  async function save() { await writeFile(statePath+'.tmp', JSON.stringify(state,null,2)+'\n', {mode:0o600}); await rename(statePath+'.tmp', statePath); }
   if (!state) {
     const deployed = await command('deploy', '--artifact', artifact, '--force');
     state = {contract: deployed.address, networkHash: manifest.networkHash, artifactSha256, wadSha256,
-      contractFunded: false, signerFunded: false};
+      contractFunded: false, signerFunded: false, privateKey: '0x'+randomBytes(32).toString('hex')};
     await save();
   }
+  if (!state.privateKey) { state.privateKey = '0x'+randomBytes(32).toString('hex'); state.signerFunded = false; await save(); }
   // Funding is recorded independently of deployment so interrupted setup resumes.
   if (!state.contractFunded) { await command('transfer', state.contract, '10000', '--force'); state.contractFunded = true; await save(); }
   if (!state.signerFunded) {
-    await command('transfer', '0x'+Buffer.from(demoAccount().address).toString('hex'), '100', '--force');
+    await command('transfer', '0x'+Buffer.from(demoAccount(state.privateKey).address).toString('hex'), '100', '--force');
     state.signerFunded = true; await save();
   }
-  const config = {rpcUrl: startup.rpc_url, contract: state.contract, networkHash: manifest.networkHash, artifactSha256, wadSha256};
+  const config = {privateKey: state.privateKey, rpcUrl: startup.rpc_url, contract: state.contract, networkHash: manifest.networkHash, artifactSha256, wadSha256};
   const staticFiles = new Map([['/', [join(app,'index.html'),'text/html; charset=utf-8']],
     ['/app.js', [join(app,'app.js'),'text/javascript; charset=utf-8']], ['/doom1.wad',[wad,'application/octet-stream']]]);
   server = createServer(async (request, response) => {

@@ -98,8 +98,11 @@ initializes E1M1, signs every subsequent tick with the TypeScript client,
 and reads metadata plus the two framebuffer pages in one RPC batch.
 The local server does not forward gameplay traffic or hold a signing process.
 
-The demo uses the public deterministic dev-1 key. It is one shared disposable
-local game, with one active browser tab per origin. Browser Web Locks prevent
+The launcher creates a random signing key for this disposable node, saves it
+in `browser-session.json` with owner-only permissions, and serves it to the
+local browser in `config.json`. No key is committed to the repository or
+included in benchmark evidence. Treat that configuration as local demo data.
+It is one shared disposable local game, with one active browser tab per origin. Browser Web Locks prevent
 accidentally running two loops from that origin; the contract's expected-tick
 check rejects stale calls from other clients. Pending transaction hashes are
 saved before submission. Reloading checks their receipts before sending more
@@ -149,12 +152,61 @@ between reads. This avoids invoking 64 frame-chunk calls.
 The frame payload is 64,768 bytes: 64,000 indexed pixels and a 768-byte
 palette. The browser now receives the RPC's hex-encoded storage responses
 directly: about **130 KB per frame** including metadata and JSON, or roughly
-**4.5 MB/s at 35 Hz**, plus transaction and receipt traffic. Previously the
+**4.5 MB/s at 35 Hz**, plus transaction and receipt traffic. Read retries
+can add more traffic. Previously the
 Python bridge repackaged this as a 64,804-byte binary HTTP response. The
 roughly 4.0 MB read internally by contract execution still never goes to the
 browser. Each tick's Doom input remains 36 bytes before its transaction envelope.
 
 ## Measurements and verification
+
+The [direct-client comparison](evidence/browser-direct.json) runs 105 ticks per
+version on fresh local nodes, using the same node/CLI binaries, artifact and
+input sequence. Initial and final pixels match byte for byte.
+
+| Client loop | Python HTTP bridge | Direct TypeScript/WebSocket |
+|---|---:|---:|
+| Mean latency | 41.27 ms | 35.11 ms |
+| Aggregate rate | 24.23 FPS | 28.48 FPS |
+| Median latency | 39.62 ms | 34.12 ms |
+
+This is about 18% higher throughput. Node.js executes the actual TypeScript
+client; browser localStorage, canvas drawing and display are excluded. The
+comparison uses the older tested CLI/node bundles in both runs because the
+0.16.1 release was being repaired at measurement time. It validates the new
+client against a real node, not a completed 0.16.1 release installation.
+The final locally generated-key path also passed 129 uploads, initialization,
+35 ticks and stale-input rejection ([validation](evidence/browser-random-key.json)).
+The transaction median for the direct-client comparison is 29.92 ms. Receipt availability
+can precede readable committed framebuffer storage; the client retries reads
+at 1 ms and requires one consistent height and the expected minimum tick.
+
+Browser typechecking, build and transport tests run in the `Doom browser` CI
+workflow. Its Actions token needs package-read access to the Groundhog npm
+packages. Run these checks locally from `browser`:
+
+```sh
+npm run typecheck
+npm run build
+npm test
+```
+
+For a repeatable client-loop benchmark against an already deployed and funded
+node, use the same configuration served by the launcher (the browser must be
+paused or closed):
+
+```sh
+umask 077
+curl -fsS http://127.0.0.1:8765/config.json -o ../build/browser-config.json
+node scripts/benchmark.mjs ../build/browser-config.json \
+  ../vendor/PureDOOM/doom1.wad ../build/browser-benchmark.json 105
+```
+
+The benchmark covers WAD upload/resume, initialization, committed gameplay,
+changed frames, and stale-input rejection. It records every successful
+transaction and loop sample. Browser keyboard/layout interaction has not been
+verified in this workspace, where loopback browser access was blocked.
+
 
 The historical Python-bridge [optimization evidence](evidence/speed-up.json) compares 105 live
 game ticks per version on the same host and the same unmodified node/CLI

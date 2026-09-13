@@ -10,6 +10,7 @@ export interface DemoConfig {
   rpcUrl: string;
   contract: string;
   networkHash: string;
+  privateKey: string;
   artifactSha256: string;
   wadSha256: string;
 }
@@ -18,15 +19,14 @@ export interface TransactionSample {
   method: number; txHash: string; height: string; transactionMs: number;
   prepareMs: number; signMs: number; submitMs: number; receiptMs: number;
 }
-export interface Frame { tick: number; height: bigint; pixels: Uint8Array }
+export interface Frame { tick: number; height: bigint; pixels: Uint8Array; readAttempts: number; readMs: number }
 type StorageRead = {blockHeight: string | number; item: null | {kind: string; bytes?: string}};
 const PAGE = 32768;
 export const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
-/** Public deterministic dev-1 key, used only on this disposable local node. */
-export function demoAccount(): PubkeyAccount {
-  return createPubkeyAccount({signer: new PrivateKeySigner(fromHex0x(
-    '0xc3da17e061d562773d10e87e67b6fd65b281fac2ec5b15cc20f97e8d0b58e5c3'))});
+/** The launcher generates this key locally for one disposable node. */
+export function demoAccount(privateKey: string): PubkeyAccount {
+  return createPubkeyAccount({signer: new PrivateKeySigner(fromHex0x(privateKey))});
 }
 
 export function storageKey(domain: number, index: number): Uint8Array {
@@ -80,7 +80,7 @@ export class DoomGame {
       const expected = networkHash(sha256Hash(fromHex0x('0x' + config.networkHash.replace(/^0x/, ''))));
       const actual = await client.getNetworkInfo();
       if (!equal(actual.networkHash, expected)) throw new Error('Node network identity differs from the demo configuration');
-      const wallet = createWalletClient({client, account: demoAccount(), networkHash: expected});
+      const wallet = createWalletClient({client, account: demoAccount(config.privateKey), networkHash: expected});
       return new DoomGame(config, transport, wallet, savePending);
     } catch (error) { transport.close(); throw error; }
   }
@@ -180,20 +180,23 @@ export class DoomGame {
   }
 
   async frame(minimumTick = 0): Promise<Frame> {
-    const deadline = performance.now() + 2000;
+    const readStart = performance.now();
+    const deadline = readStart + 2000;
+    let readAttempts = 0;
     let failure: unknown = new Error('No consistent committed frame available');
     do {
       try {
+        readAttempts++;
         const [meta, first, second] = await this.storageBatch([[0, 0], [3, 0], [3, 1]]);
         if (meta.height === first.height && meta.height === second.height) {
           if (!meta.bytes || meta.bytes.length !== 80 || uint32(meta.bytes) !== 2 || !first.bytes || !second.bytes) throw new Error('Doom is not initialized');
           const pixels = join(first.bytes, second.bytes);
           if (pixels.length !== 64768) throw new Error('Invalid committed frame size');
           const tick = uint32(meta.bytes, 4);
-          if (tick >= minimumTick) return {tick, height: meta.height, pixels};
+          if (tick >= minimumTick) return {tick, height: meta.height, pixels, readAttempts, readMs: performance.now() - readStart};
         }
       } catch (error) { failure = error; }
-      await delay(5);
+      await delay(1);
     } while (performance.now() < deadline);
     throw failure;
   }

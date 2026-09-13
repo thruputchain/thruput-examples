@@ -11,13 +11,14 @@ try {
   await game.initialize(new Uint8Array(await readFile(wadPath)), console.log);
   const initial = await game.frame();
   let frame = initial;
-  const loops = [];
+  const loops = [], frames = [];
   for (let i = 0; i < Number(count); i++) {
     const keys = new Uint8Array(32), key = i < 20 ? 0xad : 0xae;
     keys[key >> 3] |= 1 << (key & 7);
     const start = performance.now();
     frame = await game.step(frame.tick, keys);
     loops.push(performance.now() - start);
+    frames.push({attempts: frame.readAttempts, ms: frame.readMs});
     if (frame.tick !== initial.tick + i + 1) throw new Error('Unexpected committed tick');
   }
   if (Buffer.from(frame.pixels).equals(Buffer.from(initial.pixels))) throw new Error('Gameplay pixels did not change');
@@ -33,7 +34,8 @@ try {
     transactionMedianMs: median(samples.map(sample=>sample.transactionMs)),
     scope: 'Node.js runs the same TypeScript signing and WebSocket client as the browser; canvas/display excluded',
     checks: ['WAD upload and initialization','committed gameplay','changed pixels','stale input rejection','unchanged state after rejection']};
-  await writeFile(outputPath, JSON.stringify({config, summary, loops, transactions: game.samples},null,2)+'\n');
+  const {privateKey: _privateKey, ...publicConfig} = config;
+  await writeFile(outputPath, JSON.stringify({config: publicConfig, summary, loops, frames, transactions: game.samples},null,2)+'\n');
   await writeFile(outputPath+'.initial.bin',initial.pixels);
   await writeFile(outputPath+'.final.bin',frame.pixels);
   console.log(JSON.stringify(summary,null,2));
