@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ServerConfig } from "./config";
 import {
   CounterPolicyError,
+  CounterTopupError,
   createCounterTransactions,
   parseOperation,
 } from "./transactions";
@@ -44,9 +45,13 @@ export function createApiHandler(
   ): Promise<boolean> => {
     const path = request.url?.split("?")[0];
     if (
-      !["/api/config", "/api/prepare", "/groundhog-rpc", "/healthz"].includes(
-        path ?? "",
-      )
+      ![
+        "/api/config",
+        "/api/prepare",
+        "/api/topup",
+        "/groundhog-rpc",
+        "/healthz",
+      ].includes(path ?? "")
     )
       return false;
     if (config instanceof Error) {
@@ -85,6 +90,31 @@ export function createApiHandler(
       body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     } catch {
       json(response, 400, { error: "Expected a JSON request." });
+      return true;
+    }
+    if (path === "/api/topup") {
+      if (
+        !body ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        Object.keys(body).length !== 0
+      ) {
+        json(response, 400, {
+          error:
+            "Top-up accepts an empty object and funds only the configured signer.",
+        });
+        return true;
+      }
+      try {
+        json(response, 200, await transactions!.topup());
+      } catch (error) {
+        json(response, 503, {
+          error:
+            error instanceof CounterTopupError
+              ? error.message
+              : "Could not confirm the signer top-up. The faucet may be on cooldown; try again later.",
+        });
+      }
       return true;
     }
     if (path === "/api/prepare") {

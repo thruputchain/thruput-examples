@@ -20,7 +20,10 @@ async function fixture() {
   let nonce = 0;
   const submit = vi.fn(async () => {});
   const connection = {
-    read: vi.fn(async () => 1_000_000n),
+    read: vi.fn(async () => ({
+      value: 1_000_000n,
+      signerBalance: 100_000_000n,
+    })),
     prepare: vi.fn(async () => ({ hash: `hash-${++nonce}`, submit })),
     observe: vi.fn(async (): Promise<Observation> => ({ state: "pending" })),
     dispose: vi.fn(),
@@ -39,6 +42,30 @@ async function fixture() {
 }
 
 describe("transaction engine", () => {
+  it("publishes the live signer balance and pauses writes at zero", async () => {
+    const { engine, connection, advance } = await fixture();
+    expect(engine.snapshot().signerBalance).toBe(100_000_000n);
+    connection.read.mockResolvedValue({ value: 1_000_000n, signerBalance: 0n });
+    advance(2_000);
+    engine.tick();
+    await flush();
+    expect(engine.snapshot()).toMatchObject({
+      ready: false,
+      signerBalance: 0n,
+    });
+    expect(engine.enqueue("increment")).toBe(false);
+    connection.read.mockResolvedValue({
+      value: 1_000_000n,
+      signerBalance: 200_000_000n,
+    });
+    advance(2_000);
+    engine.tick();
+    await flush();
+    expect(engine.snapshot()).toMatchObject({
+      ready: true,
+      signerBalance: 200_000_000n,
+    });
+  });
   it("submits a burst without waiting for any receipt", async () => {
     const { engine, connection } = await fixture();
     for (let index = 0; index < 100; index++)
@@ -160,6 +187,7 @@ describe("transaction engine", () => {
     await flush();
     expect(engine.snapshot()).toMatchObject({
       ready: false,
+      signerBalance: null,
       failed: 4,
       submitted: 16,
     });
@@ -178,7 +206,7 @@ describe("transaction engine", () => {
 
   it("allows only one view read at a time and marks an old value as stale", async () => {
     const { engine, connection, advance } = await fixture();
-    const read = deferred<bigint>();
+    const read = deferred<Awaited<ReturnType<CounterConnection["read"]>>>();
     connection.read.mockImplementation(() => read.promise);
     advance(3_000);
     engine.tick();
@@ -189,7 +217,7 @@ describe("transaction engine", () => {
       ready: false,
     });
     expect(connection.read).toHaveBeenCalledTimes(2);
-    read.resolve(1_000_025n);
+    read.resolve({ value: 1_000_025n, signerBalance: 100_000_000n });
     await flush();
     expect(engine.snapshot()).toMatchObject({ value: 1_000_025n, ready: true });
   });

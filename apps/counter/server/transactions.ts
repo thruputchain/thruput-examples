@@ -28,6 +28,7 @@ import type { ServerConfig } from "./config";
 const GAS = gasAmount(1_000_000n);
 
 export class CounterPolicyError extends Error {}
+export class CounterTopupError extends Error {}
 
 export function parseOperation(body: unknown): Direction {
   if (
@@ -75,7 +76,7 @@ export function createCounterTransactions(
         name: "counter-signer",
         rpcUrl: config.rpcUrl,
         networkHash: expected,
-        capabilities: [] as const,
+        capabilities: ["airdrop"] as const,
       }),
       transport: new HttpTransport(config.rpcUrl, {
         timeoutMs: 5_000,
@@ -93,6 +94,32 @@ export function createCounterTransactions(
   let tipPromise: Promise<bigint> | undefined;
   let tipExpiresAt = 0;
   let preparing = 0;
+  let topupPromise: Promise<{ hash: string; rawAmount: string }> | undefined;
+
+  async function requestTopup() {
+    const client = await wallet();
+    if (!bytesEqual((await client.getNetworkInfo()).networkHash, expected)) {
+      throw new CounterTopupError(
+        "Network changed. Check the app configuration.",
+      );
+    }
+    const result = await client.requestAirdrop({
+      recipient: account.address,
+      timeoutMs: 60_000,
+    });
+    if (
+      result.status.result !== "ok" ||
+      !bytesEqual(result.recipient, account.address)
+    ) {
+      throw new CounterTopupError(
+        "The signer airdrop did not execute successfully.",
+      );
+    }
+    return {
+      hash: toHex0x(result.txHash),
+      rawAmount: result.rawAmount.toString(),
+    };
+  }
 
   async function expiryHeight() {
     if (tipPromise && Date.now() < tipExpiresAt) return tipPromise;
@@ -109,6 +136,12 @@ export function createCounterTransactions(
   }
 
   return {
+    topup() {
+      // Concurrent clicks share one SDK airdrop attempt and its polling nonce.
+      return (topupPromise ??= requestTopup().finally(() => {
+        topupPromise = undefined;
+      }));
+    },
     async prepare(direction: Direction): Promise<{ transaction: string }> {
       if (preparing >= 64) throw new Error("Signing capacity reached.");
       preparing++;

@@ -91,6 +91,11 @@ file while using that deployment; run setup again when you want a fresh demo.
 
 ## Behavior
 
+- **Top up Signer** in the header shows the live signer balance and requests a test-HOG airdrop for the configured
+  signer. The faucet chooses the amount and applies its cooldown or quota. The
+  loading, success, and error states appear as Sonner toasts. The button shows
+  up to three decimal places; hover for the exact balance. Airdrops do not count
+  toward the counter's session statistics.
 - One configured counter is shared by all visitors. The large number comes from
   chain reads. Input feedback does not claim that a transaction has committed.
 - Session statistics count this browser's work only. Confirmed tx/s is successful
@@ -145,12 +150,16 @@ one, wallet wrapper, gas limits, network, and expiry. It returns the signed
 transaction without submitting it. The browser computes the transaction hash
 before submission, so a lost send response can still be checked by hash.
 
+`POST /api/topup` accepts only `{}` and calls the client SDK's `requestAirdrop`
+over RPC for the configured signer. It never accepts a caller-selected recipient
+or amount. Concurrent top-up requests share one pending SDK request.
+
 `/groundhog-rpc` forwards counter reads, account balance, receipt/status checks,
 and signed-transaction submissions to the configured upstream. Before forwarding
 a submission, it checks the wallet root, authorization claim, counter target,
 entrypoint, amount, and gas limits against the two allowed calls. Multiple calls
-and attached contract code are rejected. It does not retry submissions or expose
-airdrops. `/healthz` checks server configuration readiness;
+and attached contract code are rejected. The raw proxy does not retry submissions
+or forward arbitrary airdrop requests. `/healthz` checks server configuration readiness;
 the browser separately checks the network, counter, and development balance.
 
 ## Live and browser checks

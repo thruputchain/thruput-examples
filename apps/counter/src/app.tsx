@@ -24,7 +24,11 @@ export function CounterPage({
   const value = snapshot.value?.toLocaleString("en-US") ?? "—";
   return (
     <>
-      <AppHeader ready={snapshot.ready} />
+      <AppHeader
+        ready={snapshot.ready}
+        canTopup={config !== null}
+        signerBalance={snapshot.signerBalance}
+      />
       <main className="py-10 sm:py-14">
         <div className="mx-auto flex max-w-3xl flex-col gap-10 px-4 sm:px-6">
           <div className="flex flex-col items-center gap-3 text-center">

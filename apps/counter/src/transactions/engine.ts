@@ -14,6 +14,7 @@ export interface Snapshot {
   ready: boolean;
   message: string;
   value: bigint | null;
+  signerBalance: bigint | null;
   updatedAt: number | null;
   submitted: number;
   confirmed: number;
@@ -29,6 +30,7 @@ export const initialSnapshot: Snapshot = {
   ready: false,
   message: "Connecting to Groundhog…",
   value: null,
+  signerBalance: null,
   updatedAt: null,
   submitted: 0,
   confirmed: 0,
@@ -48,7 +50,7 @@ export type Observation =
   | { state: "pending" }
   | { state: "confirmed" | "failed"; message: string | null };
 export interface CounterConnection {
-  read(): Promise<bigint>;
+  read(): Promise<{ value: bigint; signerBalance: bigint }>;
   prepare(direction: Direction): Promise<PreparedTransaction>;
   observe(hash: string): Promise<Observation>;
   dispose(): void;
@@ -109,6 +111,7 @@ export class TransactionEngine {
     const now = this.now();
     if (this.state.updatedAt !== null && now - this.state.updatedAt > 5_000) {
       this.state.ready = false;
+      this.state.signerBalance = null;
       this.state.message = "Connection delayed. New transactions are paused.";
     }
     if (!this.reading && now >= this.nextRead) void this.refresh();
@@ -162,26 +165,28 @@ export class TransactionEngine {
   private async refresh(): Promise<void> {
     this.reading = true;
     try {
-      const value = await this.connection.read();
+      const { value, signerBalance } = await this.connection.read();
       if (this.stopped) return;
       this.state.value = value;
+      this.state.signerBalance = signerBalance;
       this.state.updatedAt = this.now();
-      this.state.ready = true;
-      this.state.message = "Ready";
+      this.state.ready = signerBalance > 0n;
+      this.state.message = this.state.ready
+        ? "Ready"
+        : "The signer needs test HOG. Use Top up Signer to continue.";
     } catch (error) {
       if (this.stopped) return;
       this.state.ready = false;
+      this.state.signerBalance = null;
       this.state.message = errorMessage(error);
-      // Unsent inputs must not unexpectedly fire when an outage ends.
-      for (const transaction of this.outstanding.values()) {
-        if (transaction.state === "queued")
-          this.finish(
-            transaction,
-            "failed",
-            "Not sent: connection unavailable.",
-          );
-      }
     } finally {
+      // Unsent inputs must not unexpectedly fire when an outage ends.
+      if (!this.state.ready && !this.stopped) {
+        for (const transaction of this.outstanding.values()) {
+          if (transaction.state === "queued")
+            this.finish(transaction, "failed", "Not sent: signer unavailable.");
+        }
+      }
       this.reading = false;
       this.nextRead =
         this.now() +

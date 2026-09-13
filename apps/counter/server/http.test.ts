@@ -34,6 +34,7 @@ import { Counter, spec } from "../src/contracts/generated/counter";
 import { loadServerConfig } from "./config";
 import { createApiHandler } from "./http";
 import { createCounterServer } from "./main";
+import { createCounterTransactions } from "./transactions";
 
 const key = "22".repeat(32);
 const environment = {
@@ -107,7 +108,16 @@ function rpcMock() {
                   deserializeSignedTransaction(fromHex0x(body.params[0]!)),
                 ),
               )
-            : null;
+            : body.method === "groundhog_requestAirdrop"
+              ? {
+                  attemptStatus: "succeeded",
+                  recipient: config.app.signerAddress,
+                  rawAmount: "100000000",
+                  txHash: `0x${"44".repeat(32)}`,
+                  height: 10,
+                  status: { result: "ok" },
+                }
+              : null;
     return Response.json({ jsonrpc: "2.0", id: body.id, result });
   });
 }
@@ -139,6 +149,126 @@ async function fixture(upstream = rpcMock()) {
 }
 
 describe("counter signing boundary", () => {
+  it("tops up only the configured signer through the SDK RPC method", async () => {
+    const { post, upstream } = await fixture();
+    const response = await post("/api/topup", {});
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      hash: `0x${"44".repeat(32)}`,
+      rawAmount: "100000000",
+    });
+    const calls = upstream.mock.calls
+      .map(([, init]) => JSON.parse(String(init?.body)))
+      .filter((body) => body.method === "groundhog_requestAirdrop");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].params[0].recipient).toBe(config.app.signerAddress);
+    expect(calls[0].params[0].clientNonce).toMatch(/^0x[0-9a-f]{32}$/);
+    expect(Object.keys(calls[0].params[0]).sort()).toEqual([
+      "clientNonce",
+      "recipient",
+    ]);
+  });
+
+  it("rejects caller-selected recipients and amounts before requesting an airdrop", async () => {
+    const { post, upstream } = await fixture();
+    for (const body of [
+      null,
+      [],
+      { recipient: `0x${"33".repeat(32)}` },
+      { amount: "1000" },
+      { direction: "increment" },
+    ]) {
+      expect((await post("/api/topup", body)).status).toBe(400);
+    }
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("shares concurrent top-ups and lets the SDK poll with the same nonce", async () => {
+    const rpc = rpcMock();
+    let polls = 0;
+    const upstream = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (input, init) => {
+        const body = JSON.parse(String(init?.body));
+        if (body.method === "groundhog_requestAirdrop" && polls++ === 0) {
+          return Response.json({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              attemptStatus: "pending",
+              recipient: config.app.signerAddress,
+              rawAmount: "100000000",
+              retryAfterSeconds: 0,
+            },
+          });
+        }
+        return rpc(input, init);
+      });
+    const service = createCounterTransactions(config, upstream);
+    const first = service.topup();
+    expect(service.topup()).toBe(first);
+    await expect(first).resolves.toMatchObject({ rawAmount: "100000000" });
+    const calls = upstream.mock.calls
+      .map(([, init]) => JSON.parse(String(init?.body)))
+      .filter((body) => body.method === "groundhog_requestAirdrop");
+    expect(calls).toHaveLength(2);
+    expect(calls[0].params[0].clientNonce).toBe(calls[1].params[0].clientNonce);
+  });
+
+  it("reports faucet rejection and allows a later top-up attempt", async () => {
+    const rpc = rpcMock();
+    let rejected = true;
+    const upstream = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (input, init) => {
+        const body = JSON.parse(String(init?.body));
+        if (rejected && body.method === "groundhog_requestAirdrop") {
+          return Response.json({
+            jsonrpc: "2.0",
+            id: body.id,
+            error: { code: -32602, message: "Faucet request rejected" },
+          });
+        }
+        return rpc(input, init);
+      });
+    const { post } = await fixture(upstream);
+    const failed = await post("/api/topup", {});
+    expect(failed.status).toBe(503);
+    expect((await failed.json()).error).toContain("cooldown");
+    rejected = false;
+    expect((await post("/api/topup", {})).status).toBe(200);
+  });
+
+  it("does not report a reverted airdrop as a successful top-up", async () => {
+    const rpc = rpcMock();
+    const upstream = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (input, init) => {
+        const body = JSON.parse(String(init?.body));
+        if (body.method === "groundhog_requestAirdrop") {
+          return Response.json({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              attemptStatus: "succeeded",
+              recipient: config.app.signerAddress,
+              rawAmount: "100000000",
+              txHash: `0x${"44".repeat(32)}`,
+              height: 10,
+              status: { result: "reverted" },
+            },
+          });
+        }
+        return rpc(input, init);
+      });
+    const { post } = await fixture(upstream);
+    const response = await post("/api/topup", {});
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toContain(
+      "did not execute successfully",
+    );
+  });
+
   it("publishes only public identity and refuses a previously exposed key configuration", async () => {
     const origin = await listen(createCounterServer(config));
     const response = await fetch(`${origin}/api/config`);
@@ -222,7 +352,7 @@ describe("counter signing boundary", () => {
     expect(upstream).not.toHaveBeenCalled();
   });
 
-  it("refuses to sign for an unexpected network", async () => {
+  it("refuses to sign or top up on an unexpected network", async () => {
     const upstream = rpcMock().mockImplementation(async (_input, init) =>
       Response.json({
         jsonrpc: "2.0",
@@ -234,6 +364,13 @@ describe("counter signing boundary", () => {
     const response = await post("/api/prepare", { direction: "increment" });
     expect(response.status).toBe(503);
     expect(await response.text()).not.toContain(key);
+    expect((await post("/api/topup", {})).status).toBe(503);
+    expect(
+      upstream.mock.calls.every(
+        ([, init]) =>
+          JSON.parse(String(init?.body)).method === "groundhog_networkInfo",
+      ),
+    ).toBe(true);
   });
 
   it("rejects transfers, other contracts, all other entrypoints, and arbitrary amounts even when signed by the funded key", async () => {

@@ -40,7 +40,6 @@ export async function createCounterConnection(
   });
   const signerAddress = addressFromHex(config.signerAddress);
   const contract = addressFromHex(config.counterAddress);
-  let balanceCheckedAt = 0;
 
   return {
     async read() {
@@ -48,19 +47,11 @@ export async function createCounterConnection(
       const network = await client.getNetworkInfo();
       if (!bytesEqual(network.networkHash, expected))
         throw new Error("Network changed. Check the app configuration.");
-      const counter = await Counter.get.view({
-        client,
-        contract,
-        caller: signerAddress,
-      });
-      if (Date.now() - balanceCheckedAt >= 10_000) {
-        if ((await client.getBalance(signerAddress)).rawBalance <= 0n)
-          throw new Error(
-            "The development account needs test HOG. Fund it before continuing.",
-          );
-        balanceCheckedAt = Date.now();
-      }
-      return counter.value;
+      const [counter, balance] = await Promise.all([
+        Counter.get.view({ client, contract, caller: signerAddress }),
+        client.getBalance(signerAddress),
+      ]);
+      return { value: counter.value, signerBalance: balance.rawBalance };
     },
     async prepare(direction) {
       const response = await fetch(new URL("/api/prepare", rpcUrl), {

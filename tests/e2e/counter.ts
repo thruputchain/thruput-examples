@@ -195,6 +195,54 @@ try {
     "button keyboard activation",
   );
   const pad = page.getByRole("group", { name: "Keyboard transaction area" });
+  await until(
+    async () =>
+      (await page.getByTestId("counter-value").textContent()) === "1,000,040",
+    "counter before top-up",
+  );
+  const topup = page.getByRole("button", { name: /^Top up Signer/ });
+  const header = page.locator("header");
+  const headerHeight = (await header.boundingBox())!.height;
+  const balanceBefore = await topup.getAttribute("title");
+  let releaseTopup!: () => void;
+  const topupGate = new Promise<void>((resolve) => {
+    releaseTopup = resolve;
+  });
+  await page.route("**/api/topup", async (route) => {
+    await topupGate;
+    await route.continue();
+  });
+  await topup.click();
+  await page.locator('[data-sonner-toast][data-type="loading"]').waitFor();
+  assert.equal(
+    (await header.boundingBox())!.height,
+    headerHeight,
+    "Loading toast must not resize the header",
+  );
+  releaseTopup();
+  await until(
+    () => page.getByText(/^Signer received .* HOG\.$/).isVisible(),
+    "signer airdrop confirmation",
+  );
+  await page.unroute("**/api/topup");
+  await until(async () => {
+    const title = await topup.getAttribute("title");
+    return !!title?.startsWith("Signer balance:") && title !== balanceBefore;
+  }, "updated signer balance in the button");
+  assert.equal(
+    (await header.boundingBox())!.height,
+    headerHeight,
+    "Success toast must not resize the header",
+  );
+  assert.equal(
+    await page.getByTestId("counter-value").textContent(),
+    "1,000,040",
+  );
+  assert.equal(
+    await page.locator('[data-metric="Submitted"]').textContent(),
+    "2",
+    "Airdrops must not count as counter transactions",
+  );
   await pad.click();
   for (let index = 0; index < 30; index++)
     await page.keyboard.press(index % 2 === 0 ? "a" : "b");
@@ -226,6 +274,26 @@ try {
     fullPage: true,
   });
   await page.setViewportSize({ width: 320, height: 800 });
+  const mobileHeaderHeight = (await header.boundingBox())!.height;
+  await page.route("**/api/topup", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Faucet cooldown. Try again later." }),
+    }),
+  );
+  await topup.click();
+  await page
+    .locator('[data-sonner-toast][data-type="error"]')
+    .getByText("Faucet cooldown. Try again later.")
+    .waitFor();
+  assert.equal(
+    (await header.boundingBox())!.height,
+    mobileHeaderHeight,
+    "Error toast must not resize the mobile header",
+  );
+  assert.ok(!(await header.textContent())?.includes("Faucet cooldown"));
+  await page.unroute("**/api/topup");
   assert.ok(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -238,7 +306,7 @@ try {
   });
   assert.deepEqual(errors, []);
   console.log(
-    `Browser: 42/42 confirmed; key repeat, Escape, startup retry, and outage recovery verified. No page errors or mobile overflow. Screenshots: ${work}`,
+    `Browser: 42/42 counter transactions confirmed; signer top-up, key repeat, Escape, startup retry, and outage recovery verified. No page errors or mobile overflow. Screenshots: ${work}`,
   );
 
   const appEnvironment = parseEnv(before);
