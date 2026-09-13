@@ -65,7 +65,7 @@ def main():
     run([zig, 'build-lib', compiler_rt, '-target', 'riscv32-freestanding', '-mcpu=generic_rv32+m',
          '-O', 'ReleaseFast', f'-femit-bin={build / "librv32rt.a"}'])
     flags = ['-target', 'riscv32-freestanding', '-mcpu=generic_rv32+m', '-O2', '-std=gnu11',
-             '-fwrapv', '-fno-strict-aliasing', '-fno-builtin', '-fno-stack-protector',
+             '-fsigned-char', '-fwrapv', '-fno-strict-aliasing', '-fno-builtin', '-fno-stack-protector',
              '-ffunction-sections', '-fdata-sections', '-fno-pic', '-mno-relax', '-nostdlib', '-w']
     run([zig, 'cc', *flags, '-I' + str(doom), '-Wl,-T,' + str(ROOT / 'link.ld'), '-Wl,--gc-sections',
          ROOT / 'start.S', ROOT / 'contract.c', build / 'librv32rt.a', '-o', build / 'doom.elf'])

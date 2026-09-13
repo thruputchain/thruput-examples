@@ -26,6 +26,7 @@ python3 -m venv .deps/venv
 . .deps/venv/bin/activate
 python -m pip install -r requirements.txt
 python build.py
+python test_port.py
 ```
 
 All three external repositories are pinned git submodules. No recursive

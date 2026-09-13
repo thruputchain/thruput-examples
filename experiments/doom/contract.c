@@ -21,6 +21,9 @@ static int equal(const void *a, const void *b, usize n) {
 #define DOOM_IMPLEMENTATION
 #include "PureDOOM.h"
 
+/* Doom's ticcmd_t uses plain char for signed forward/sideways movement. */
+_Static_assert((char)-1 < 0, "Doom requires -fsigned-char");
+
 #include "abi.h"
 #define PAGE GH_DOOM_PAGE_BYTES
 #define SNAPSHOT_PAGE GH_DOOM_SNAPSHOT_PAGE_BYTES
@@ -221,6 +224,19 @@ static void publish_frame(void) {
     }
 }
 
+static void advance_doom(void) {
+    wipegamestate = gamestate;
+    D_DoomLoop();
+    /* G_Ticker can change gamestate inside D_DoomLoop. D_Display then
+     * captures the new frame in screens[3] and restores the old frame to
+     * screens[0] to begin a wipe. Finish that transition immediately so the
+     * next incremental HUD redraw starts from the new level's status bar. */
+    if (is_wiping_screen) {
+        memcpy(screens[0], screens[3], 320u * 200u);
+        is_wiping_screen = false;
+    }
+}
+
 /* IDs are explicitly chosen u64s, supported by Groundhog's raw entrypoint ABI.
  * 0 upload page, 1 initialize E1M1, 2 step, 3 frame page, 4 status,
  * 5 upload a small WAD fragment through the stock dev wallet. */
@@ -301,8 +317,7 @@ void contract_main(u32 method, u32 method_hi) {
         mb_used = 3;
         doom_init(8, args, DOOM_FLAG_HIDE_SOUND_OPTIONS | DOOM_FLAG_HIDE_MUSIC_OPTIONS);
         /* One exact game tic. No wall-clock loop or cosmetic screen-wipe wait. */
-        wipegamestate = GS_LEVEL;
-        D_DoomLoop();
+        advance_doom();
         virtual_tick = 1;
         m.version = GH_DOOM_SNAPSHOT_VERSION; m.tick = virtual_tick; m.wad_bytes = wad_length;
         persist(&m); publish_frame(); set(0, 0, &m, sizeof(m));
@@ -320,8 +335,7 @@ void contract_main(u32 method, u32 method_hi) {
                 held_keys[k] = held;
             }
         }
-        wipegamestate = gamestate;
-        D_DoomLoop(); virtual_tick++;
+        advance_doom(); virtual_tick++;
         m.tick = virtual_tick; persist(&m);
         publish_frame(); set(0, 0, &m, sizeof(m)); finish(&m, sizeof(m));
     }

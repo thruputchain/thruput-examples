@@ -223,6 +223,56 @@ int main(int argc, char **argv) try {
   }
   auto init = demo.call(1); require(init.ok, "initialization failed"); row(csv, "initialize", demo.tick(), init);
   check_snapshot_hashes(demo);
+  if (argc == 9 && std::string(argv[4]) == "--level-transition") {
+    // ELF symbol addresses supplied by test_port.py. Change only the local
+    // test-double snapshot to trigger the engine's normal level-exit path.
+    const uint32_t state_start = std::stoul(argv[5]);
+    auto offset = [&](const char *address) { return std::stoul(address) - state_start; };
+    auto read_word = [&](uint32_t off) {
+      return load_u32_le(demo.storage.at(key(2, off / GH_DOOM_SNAPSHOT_PAGE_BYTES)),
+                         off % GH_DOOM_SNAPSHOT_PAGE_BYTES);
+    };
+    const uint32_t action_offset = offset(argv[6]), map_offset = offset(argv[7]);
+    // In the pinned RV32 layout, player_t starts with mo; mobj_t starts
+    // with a 12-byte thinker_t followed by fixed-point x and y.
+    auto position = [&]() {
+      const auto mo = read_word(offset(argv[8])) - state_start;
+      return std::array<int64_t, 2>{int32_t(read_word(mo + 12)), int32_t(read_word(mo + 16))};
+    };
+    const auto checkpoint = demo.storage;
+    const auto origin = position();
+    require(demo.call(2, step_input(demo.tick(), 0xad)).ok, "forward step failed");
+    const auto forward = position();
+    demo.storage = checkpoint;
+    require(demo.call(2, step_input(demo.tick(), 0xaf)).ok, "backward step failed");
+    const auto backward = position();
+    const auto fx = forward[0] - origin[0], fy = forward[1] - origin[1];
+    const auto bx = backward[0] - origin[0], by = backward[1] - origin[1];
+    require(fx * bx + fy * by < 0, "down arrow did not move opposite to up arrow");
+    const auto forward_distance = fx * fx + fy * fy, backward_distance = bx * bx + by * by;
+    require(backward_distance < forward_distance * 2 && forward_distance < backward_distance * 2,
+            "backward movement speed differs from forward movement");
+    demo.storage = checkpoint;
+    const auto initial_frame = demo.frame();
+    auto &page = demo.storage.at(key(2, action_offset / GH_DOOM_SNAPSHOT_PAGE_BYTES));
+    store_u32_le(page, action_offset % GH_DOOM_SNAPSHOT_PAGE_BYTES, 6); // ga_completed
+    auto &hashes = demo.storage.at(key(0, 3));
+    SHA256(page.data(), page.size(), hashes.data() + action_offset / GH_DOOM_SNAPSHOT_PAGE_BYTES * 32);
+    for (int i = 0; i < 600 && read_word(map_offset) == 1; ++i) {
+      // Press/release fire to advance the intermission screens.
+      require(demo.call(2, step_input(demo.tick(), i % 2 ? 0x9d : -1)).ok,
+              "level transition tick failed");
+    }
+    require(read_word(map_offset) == 2, "did not reach E1M2");
+    const auto frame = demo.frame();
+    // Top three status-bar rows contain the fixed bar background, no widgets.
+    require(std::equal(initial_frame.begin() + 168 * 320, initial_frame.begin() + 171 * 320,
+                       frame.begin() + 168 * 320), "E1M2 HUD retained intermission pixels");
+    ppm(dir + "/level-two.ppm", frame);
+    check_snapshot_hashes(demo);
+    std::cout << "PASS: forward/backward direction and speed, E1M1 exit, intermission, E1M2 status-bar background\n";
+    return 0;
+  }
   if (argc > 4 && std::string(argv[4]) == "--serve") { serve(demo, init); return 0; }
   ppm(dir + "/initial.ppm", demo.frame());
   std::cout << "Initialized tick " << demo.tick() << " in " << init.ms << " ms; gas " << init.gas << '\n';
