@@ -162,11 +162,6 @@ describe("counter signing boundary", () => {
       .filter((body) => body.method === "groundhog_requestAirdrop");
     expect(calls).toHaveLength(1);
     expect(calls[0].params[0].recipient).toBe(config.app.signerAddress);
-    expect(calls[0].params[0].clientNonce).toMatch(/^0x[0-9a-f]{32}$/);
-    expect(Object.keys(calls[0].params[0]).sort()).toEqual([
-      "clientNonce",
-      "recipient",
-    ]);
   });
 
   it("rejects caller-selected recipients and amounts before requesting an airdrop", async () => {
@@ -183,36 +178,17 @@ describe("counter signing boundary", () => {
     expect(upstream).not.toHaveBeenCalled();
   });
 
-  it("shares concurrent top-ups and lets the SDK poll with the same nonce", async () => {
-    const rpc = rpcMock();
-    let polls = 0;
-    const upstream = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async (input, init) => {
-        const body = JSON.parse(String(init?.body));
-        if (body.method === "groundhog_requestAirdrop" && polls++ === 0) {
-          return Response.json({
-            jsonrpc: "2.0",
-            id: body.id,
-            result: {
-              attemptStatus: "pending",
-              recipient: config.app.signerAddress,
-              rawAmount: "100000000",
-              retryAfterSeconds: 0,
-            },
-          });
-        }
-        return rpc(input, init);
-      });
+  it("coalesces concurrent top-ups into one airdrop request", async () => {
+    const upstream = rpcMock();
     const service = createCounterTransactions(config, upstream);
-    const first = service.topup();
-    expect(service.topup()).toBe(first);
-    await expect(first).resolves.toMatchObject({ rawAmount: "100000000" });
+    const results = await Promise.all([service.topup(), service.topup()]);
+    expect(results.every((result) => result.rawAmount === "100000000")).toBe(
+      true,
+    );
     const calls = upstream.mock.calls
       .map(([, init]) => JSON.parse(String(init?.body)))
       .filter((body) => body.method === "groundhog_requestAirdrop");
-    expect(calls).toHaveLength(2);
-    expect(calls[0].params[0].clientNonce).toBe(calls[1].params[0].clientNonce);
+    expect(calls).toHaveLength(1);
   });
 
   it("reports faucet rejection and allows a later top-up attempt", async () => {

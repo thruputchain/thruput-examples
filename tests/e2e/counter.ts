@@ -251,6 +251,13 @@ try {
   await page.keyboard.up("c");
   await page.keyboard.press("Escape");
   await page.keyboard.press("z");
+  await pad.click();
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  assert.equal(
+    await pad.evaluate((element) => element === document.activeElement),
+    false,
+  );
+  await page.keyboard.press("x");
   await until(
     async () =>
       (await page.locator('[data-metric="Confirmed"]').textContent()) === "42",

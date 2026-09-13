@@ -57,20 +57,6 @@ describe("counter controls", () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it("ends capture on Escape and window blur", () => {
-    render(<CounterPage config={null} snapshot={ready} send={vi.fn()} />);
-    const pad = screen.getByRole("group", {
-      name: "Keyboard transaction area",
-    });
-    fireEvent.click(pad);
-    expect(pad.getAttribute("data-active")).toBe("true");
-    fireEvent.keyDown(pad, { key: "Escape" });
-    expect(pad.getAttribute("data-active")).toBe("false");
-    fireEvent.click(pad);
-    fireEvent(window, new Event("blur"));
-    expect(pad.getAttribute("data-active")).toBe("false");
-  });
-
   it.each([
     { ...ready, ready: false },
     { ...ready, atCapacity: true },

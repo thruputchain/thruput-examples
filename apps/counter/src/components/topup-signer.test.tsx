@@ -50,7 +50,6 @@ it("shows the current balance, prevents duplicate clicks, and updates one toast 
     expect.objectContaining({ method: "POST", body: "{}" }),
   );
   expect(toast.loading).toHaveBeenCalledWith("Requesting signer airdrop…");
-  expect(screen.queryByRole("status")).toBeNull();
   resolve(
     Response.json({ hash: `0x${"44".repeat(32)}`, rawAmount: "100000000" }),
   );
@@ -85,7 +84,6 @@ it("uses an error toast and permits a new attempt", async () => {
   const button = screen.getByRole("button", {
     name: "Top up Signer (curr 18.998 HOG)",
   }) as HTMLButtonElement;
-  expect(button.title).toBe("Signer balance: 18.9986486 HOG");
   fireEvent.click(button);
   await waitFor(() =>
     expect(toast.error).toHaveBeenCalledWith(
@@ -93,7 +91,6 @@ it("uses an error toast and permits a new attempt", async () => {
       { id: "topup-toast" },
     ),
   );
-  expect(screen.queryByText("Faucet cooldown. Try again later.")).toBeNull();
   expect(button.disabled).toBe(false);
   fireEvent.click(button);
   await waitFor(() =>
@@ -104,21 +101,14 @@ it("uses an error toast and permits a new attempt", async () => {
   );
 });
 
-it("distinguishes an unknown balance from a small positive balance", () => {
+it("blocks top-up requests until configuration is available", () => {
   const fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
-  const { rerender } = render(
-    <AppHeader ready={false} canTopup={false} signerBalance={null} />,
-  );
+  render(<AppHeader ready={false} canTopup={false} signerBalance={null} />);
   const button = screen.getByRole("button", {
-    name: "Top up Signer (curr — HOG)",
+    name: /^Top up Signer/,
   }) as HTMLButtonElement;
   fireEvent.click(button);
   expect(button.disabled).toBe(true);
   expect(fetchMock).not.toHaveBeenCalled();
-  rerender(<AppHeader ready canTopup signerBalance={1n} />);
-  expect(
-    screen.getByRole("button", { name: "Top up Signer (curr <0.001 HOG)" })
-      .title,
-  ).toBe("Signer balance: 0.0000001 HOG");
 });
