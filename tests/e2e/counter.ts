@@ -1,6 +1,6 @@
 // Explicit live check: npm run test:counter (build apps/counter first).
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -106,14 +106,22 @@ try {
     COUNTER_APP_ENV: join(work, ".env.local"),
   };
   await setup(environment);
-  const before = await readFile(environment.COUNTER_APP_ENV, "utf8");
-  await setup(environment);
-  assert.equal(
-    await readFile(environment.COUNTER_APP_ENV, "utf8"),
-    before,
-    "Setup rerun must preserve the signer and deployment",
+  const previousSetup = loadServerConfig(
+    parseEnv(await readFile(environment.COUNTER_APP_ENV, "utf8")),
   );
+  await setup(environment);
+  const before = await readFile(environment.COUNTER_APP_ENV, "utf8");
   const config = loadServerConfig(parseEnv(before));
+  assert.notEqual(
+    config.app.counterAddress,
+    previousSetup.app.counterAddress,
+    "Setup must create a fresh counter",
+  );
+  assert.notEqual(
+    config.app.signerAddress,
+    previousSetup.app.signerAddress,
+    "Setup must create a fresh signer",
+  );
   server = createCounterServer(config);
   await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -151,34 +159,6 @@ try {
   console.log("Live burst: 120/120 confirmed; final value 1,000,040.");
   clearInterval(timer);
   engine.stop();
-
-  const legacyOutput = join(work, "legacy.env");
-  await writeFile(
-    legacyOutput,
-    before.replace(
-      "COUNTER_SIGNING_PRIVATE_KEY=",
-      "COUNTER_DEVELOPMENT_PRIVATE_KEY=",
-    ),
-    { mode: 0o600 },
-  );
-  await setup({ ...environment, COUNTER_APP_ENV: legacyOutput });
-  const migratedEnv = parseEnv(await readFile(legacyOutput, "utf8"));
-  const migrated = loadServerConfig(migratedEnv);
-  assert.equal(migratedEnv.COUNTER_DEVELOPMENT_PRIVATE_KEY, undefined);
-  assert.notEqual(migrated.signingPrivateKey, config.signingPrivateKey);
-  assert.equal(migrated.app.counterAddress, config.app.counterAddress);
-  const migratedConnection = await createCounterConnection(
-    migrated.app,
-    config.rpcUrl,
-  );
-  try {
-    assert.equal(await migratedConnection.read(), 1_000_040n);
-  } finally {
-    migratedConnection.dispose();
-  }
-  console.log(
-    "Legacy signer replaced and funded; shared counter value preserved.",
-  );
 
   const rpcUrl = config.rpcUrl;
   config.rpcUrl = "http://127.0.0.1:1";

@@ -35,18 +35,28 @@ import { SwapRouter } from "../src/contracts/generated/swap-router";
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 const CONTRACT_FUNDING = 10_000_000n;
+const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
 export async function main(): Promise<void> {
-  const artifactRoot = resolve(requiredEnvironment("SWAP_ARTIFACT_ROOT"));
-  const environmentPath = resolve(requiredEnvironment("SWAP_APP_ENV"));
+  const artifactRoot = resolve(
+    repositoryRoot,
+    process.env.SWAP_ARTIFACT_ROOT || "target/groundhog",
+  );
+  const environmentPath = resolve(
+    repositoryRoot,
+    process.env.SWAP_APP_ENV || "apps/swap/.env.local",
+  );
   const artifactDirectory = join(
     resolve(
-      process.env.SWAP_APP_PUBLIC_DIR ??
+      repositoryRoot,
+      process.env.SWAP_APP_PUBLIC_DIR ||
         fileURLToPath(new URL("../public", import.meta.url)),
     ),
     "contract-artifacts",
   );
-  const rpcUrl = validateLocalRpcUrl(requiredEnvironment("GROUNDHOG_RPC_URL"));
+  const rpcUrl = validateLocalRpcUrl(
+    process.env.GROUNDHOG_RPC_URL || "http://127.0.0.1:9545",
+  );
   const expectedNetwork = await readNetworkHash();
   const client = await createGroundhogClient({
     cluster: localnet({ rpcUrl, networkHash: expectedNetwork }),
@@ -269,7 +279,10 @@ async function readNetworkHash() {
       : normalizeNetworkHash(process.env.GROUNDHOG_NETWORK_ID);
   if (process.env.GROUNDHOG_RUNTIME_MANIFEST) {
     const manifest = JSON.parse(
-      await readFile(resolve(process.env.GROUNDHOG_RUNTIME_MANIFEST), "utf8"),
+      await readFile(
+        resolve(repositoryRoot, process.env.GROUNDHOG_RUNTIME_MANIFEST),
+        "utf8",
+      ),
     ) as { networkHash: string };
     if (typeof manifest.networkHash !== "string")
       throw new Error("Runtime manifest is missing networkHash");
@@ -287,12 +300,6 @@ function normalizeNetworkHash(value: string): string {
   const match = /^(?:0x)?([0-9a-f]{64})$/i.exec(value);
   if (!match) throw new Error("Invalid local network hash");
   return `0x${match[1]!.toLowerCase()}`;
-}
-
-function requiredEnvironment(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required`);
-  return value;
 }
 
 if (

@@ -9,6 +9,7 @@
     "tmp",
     "**/.local",
     "**/.env.local",
+    "**/.env.devnet",
     "**/node_modules",
     "**/dist"
   ]

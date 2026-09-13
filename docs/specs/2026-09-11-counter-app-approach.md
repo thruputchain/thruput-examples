@@ -48,7 +48,7 @@ This gives users a place to smash keys while preserving normal page controls.
 
 Use one generated, funded development account per app deployment. Keep the key on the server. A signing endpoint accepts only an increment or decrement direction and fixes the counter target and amount to one. There is no connect-wallet flow or per-transaction prompt.
 
-This replaces the original browser-key design after security review. Existing public keys must be replaced, not merely hidden. Setup migrates the old configuration to a fresh funded signer while preserving the counter address and value.
+This replaces the original browser-key design after security review. Existing public keys must be replaced, not merely hidden. Each setup run creates a fresh counter and funded signer, then writes a private environment file. The disposable demo does not need a deployment journal or recovery workflow.
 
 Add `setup:local` to build the counter, generate its TypeScript bindings, provision the account, fund the contract's storage, deploy it, initialize it, and write the app configuration. Verify the resulting counter value before reporting readiness.
 

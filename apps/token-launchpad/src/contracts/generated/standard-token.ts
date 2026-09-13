@@ -1,5 +1,5 @@
-// Generated from standard_token.spec.xdr - ERC20 interface v0.1.9
-// Generated from standard_token.spec.xdr - ERC20Metadata interface v0.1.9
+// Generated from standard_token.spec.xdr - ERC20 interface v0.1.22
+// Generated from standard_token.spec.xdr - ERC20Metadata interface v0.1.22
 // Generated from standard_token.spec.xdr - StandardTokenInitializer interface v0.1.0
 // DO NOT EDIT. Re-run codegen to update.
 
@@ -161,7 +161,7 @@ export const spec: ContractSpec = {
   interfaces: [
     {
       name: s("ERC20"),
-      vers: s("0.1.9"),
+      vers: s("0.1.22"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -244,7 +244,7 @@ export const spec: ContractSpec = {
     },
     {
       name: s("ERC20Metadata"),
-      vers: s("0.1.9"),
+      vers: s("0.1.22"),
       throws: [],
       methods: [
         {

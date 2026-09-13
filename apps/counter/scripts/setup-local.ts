@@ -1,47 +1,13 @@
-import { randomBytes } from "node:crypto";
-import { link, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import {
-  bytesEqual,
-  createGroundhogClient,
-  createPubkeyAccount,
-  createWalletClient,
-  deriveContractAddress,
-  fixedBytes,
-  fromHex0x,
-  hashContract,
-  HttpTransport,
-  localnet,
-  PrivateKeySigner,
-  toHex0x,
-} from "@groundhogchain/client";
-import { DefaultWallet, ERC20 } from "@groundhogchain/client/contracts";
-import {
-  ContractType,
-  ExecResult,
-  gasAmount,
-  HOG_ADDRESS,
-  networkHash,
-  sha256Hash,
-  type Invocation,
-} from "@groundhogchain/protocol";
-import { hex32, parseHttpUrl } from "../src/config";
-import { Counter } from "../src/contracts/generated/counter";
-import { loadServerConfig } from "../server/config";
-import { parseEnv } from "node:util";
-
-const INITIAL_VALUE = 1_000_000n;
-const GAS = gasAmount(10_000_000n);
+import { errorMessage, hex32, parseHttpUrl } from "../src/config";
+import { provisionCounter } from "./provision";
 
 export async function setup(
   env: Record<string, string | undefined> = process.env,
 ): Promise<void> {
-  const output = resolve(
-    env.COUNTER_APP_ENV ??
-      fileURLToPath(new URL("../.env.local", import.meta.url)),
-  );
-  const url = parseHttpUrl(env.GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545");
+  const url = parseHttpUrl(env.GROUNDHOG_RPC_URL || "http://127.0.0.1:9545");
   if (
     url.protocol !== "http:" ||
     !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)
@@ -53,164 +19,24 @@ export async function setup(
       "Set GROUNDHOG_RUNTIME_MANIFEST to the node's runtime manifest.",
     );
   const manifest: { networkHash?: unknown } = JSON.parse(
-    await readFile(env.GROUNDHOG_RUNTIME_MANIFEST, "utf8"),
-  );
-  const networkId = hex32(manifest.networkHash, "Runtime network hash");
-  const client = await createGroundhogClient({
-    cluster: localnet({
-      rpcUrl: url.href,
-      networkHash: networkHash(sha256Hash(fromHex0x(networkId))),
-    }),
-    transport: new HttpTransport(url.href, { timeoutMs: 10_000 }),
-  });
-  // Reruns verify the existing deployment. initialize() is additive, not a reset.
-  try {
-    const previous = await readFile(output, "utf8");
-    const stored = parseEnv(previous);
-    const replacePublicSigner =
-      !stored.COUNTER_SIGNING_PRIVATE_KEY &&
-      !!stored.COUNTER_DEVELOPMENT_PRIVATE_KEY;
-    if (replacePublicSigner)
-      stored.COUNTER_SIGNING_PRIVATE_KEY = toHex0x(randomBytes(32));
-    const existing = loadServerConfig(stored);
-    if (existing.app.networkId !== networkId || existing.rpcUrl !== url.href) {
-      throw new Error(
-        "Existing configuration belongs to another node. Choose a new COUNTER_APP_ENV path.",
-      );
-    }
-    if (replacePublicSigner) {
-      const account = createPubkeyAccount({
-        signer: new PrivateKeySigner(fromHex0x(existing.signingPrivateKey)),
-      });
-      const wallet = createWalletClient({ client, account });
-      const funding = await wallet.requestAirdrop();
-      if (funding.status.result !== "ok")
-        throw new Error("Replacement signer funding failed.");
-    }
-    const { createCounterConnection } = await import("../src/groundhog/client");
-    const connection = await createCounterConnection(existing.app, url.href);
-    try {
-      await connection.read();
-    } finally {
-      connection.dispose();
-    }
-    if (replacePublicSigner) {
-      delete stored.COUNTER_DEVELOPMENT_PRIVATE_KEY;
-      const temporary = `${output}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
-      try {
-        await writeFile(
-          temporary,
-          Object.entries(stored)
-            .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-            .join("\n") + "\n",
-          { flag: "wx", mode: 0o600 },
-        );
-        if ((await readFile(output, "utf8")) !== previous)
-          throw new Error(
-            "Configuration changed during signer migration. Run setup again.",
-          );
-        await rename(temporary, output);
-      } finally {
-        await rm(temporary, { force: true });
-      }
-      console.log(
-        "Replaced the previously public signer. Restart the app server; the counter value is unchanged.",
-      );
-    }
-    console.log(`Existing counter verified. App environment: ${output}`);
-    return;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-
-  const data = await readFile(
-    env.COUNTER_ARTIFACT ??
-      fileURLToPath(
-        new URL("../../../target/groundhog/counter.rv32a", import.meta.url),
+    await readFile(
+      resolve(
+        fileURLToPath(new URL("../../../", import.meta.url)),
+        env.GROUNDHOG_RUNTIME_MANIFEST,
       ),
+      "utf8",
+    ),
   );
-  const contract = {
-    contract_type: ContractType.kRv32 as const,
-    rv32_contract: { data },
-  };
-  const signerBytes = randomBytes(32);
-  const account = createPubkeyAccount({
-    signer: new PrivateKeySigner(signerBytes),
+  await provisionCounter({
+    network: "local",
+    rpcUrl: url.href,
+    networkId: hex32(manifest.networkHash, "Runtime network hash"),
+    output:
+      env.COUNTER_APP_ENV ||
+      fileURLToPath(new URL("../.env.local", import.meta.url)),
+    artifact: env.COUNTER_ARTIFACT,
+    explorerUrl: env.VITE_EXPLORER_URL,
   });
-  const wallet = createWalletClient({ client, account });
-  const nonce = sha256Hash(randomBytes(32));
-  const codeHash = hashContract(contract);
-  const address = deriveContractAddress(account.address, nonce, codeHash);
-  const execute = async (invocation: Invocation) => {
-    const hash = await wallet.execute({ invocation, gasLimit: GAS });
-    const receipt = await wallet.waitForTransactionReceipt(hash);
-    if (receipt.execResult !== ExecResult.ExecResultOK)
-      throw new Error(
-        `Setup transaction failed: ${ExecResult[receipt.execResult]}`,
-      );
-  };
-  await mkdir(dirname(output), { recursive: true });
-  const temporary = `${output}.${process.pid}.tmp`;
-  try {
-    await writeFile(temporary, "", { flag: "wx", mode: 0o600 });
-    const airdrop = await wallet.requestAirdrop();
-    if (airdrop.status.result !== "ok")
-      throw new Error("Development account funding failed.");
-    await execute(
-      ERC20.transfer.invocation(HOG_ADDRESS, GAS, {
-        receiver: address,
-        amount: 10_000_000n,
-      }),
-    );
-    const hash = await wallet.sendInvocation({
-      invocation: DefaultWallet.deploy.invocation(account.address, GAS, {
-        nonce: fixedBytes(nonce, 32),
-        contractHash: fixedBytes(codeHash, 32),
-      }),
-      contractsToDeploy: [contract],
-    });
-    const receipt = await wallet.waitForTransactionReceipt(hash);
-    if (
-      receipt.execResult !== ExecResult.ExecResultOK ||
-      !bytesEqual(DefaultWallet.deploy.decodeReceipt(receipt).value, address)
-    ) {
-      throw new Error("Counter deployment failed.");
-    }
-    await execute(
-      Counter.initialize.invocation(address, GAS, {
-        initialValue: INITIAL_VALUE,
-      }),
-    );
-    if (
-      (
-        await Counter.get.view({
-          client,
-          contract: address,
-          caller: account.address,
-        })
-      ).value !== INITIAL_VALUE
-    ) {
-      throw new Error("Counter initialization could not be verified.");
-    }
-    await writeFile(
-      temporary,
-      [
-        `VITE_GROUNDHOG_RPC_URL=${url.href}`,
-        `VITE_GROUNDHOG_NETWORK_ID=${networkId}`,
-        `VITE_COUNTER_ADDRESS=${toHex0x(address)}`,
-        `COUNTER_SIGNING_PRIVATE_KEY=${toHex0x(signerBytes)}`,
-        "VITE_EXPLORER_URL=",
-        "",
-      ].join("\n"),
-    );
-    // Publish only a complete setup; never overwrite another invocation's config.
-    await link(temporary, output);
-    console.log(
-      `Counter ready at ${toHex0x(address)}\nDevelopment account: ${toHex0x(account.address)}\nApp environment: ${output}`,
-    );
-  } finally {
-    await rm(temporary, { force: true });
-  }
 }
 
 if (
@@ -218,7 +44,7 @@ if (
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
   setup().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : "Setup failed.");
+    console.error(errorMessage(error));
     process.exitCode = 1;
   });
 }

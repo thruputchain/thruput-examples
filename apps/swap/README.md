@@ -34,6 +34,9 @@ indexer, using a factory-scoped SQLite file under `apps/swap/.local/`. No extra
 registry process or registry-mode flag is needed. `POOL_REGISTRY_DB_PATH` can
 override the file. Use only one writer per database.
 
+`setup:local` builds contracts, regenerates bindings, and runs the TypeScript
+setup script. Path overrides are resolved from the repository root.
+
 Setup deploys infrastructure only. Connect Thruput Wallet, request test HOG,
 create tokens in Launchpad, and create a pool. Setup writes `.env.local` and the
 matching public contract artifact. Set `GROUNDHOG_RPC_URL` for another loopback

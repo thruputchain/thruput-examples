@@ -37,21 +37,14 @@ npm run dev --workspace apps/counter
 
 Open **http://127.0.0.1:5175**. Setup generates bindings, funds a new development
 account and the counter's storage, deploys the contract, initializes it to
-**1,000,000**, and writes `.env.local`. Rerunning setup verifies the existing
-deployment without adding to its value. On a new node, select a fresh
-`COUNTER_APP_ENV` path or move the old environment file before setup.
-
-### Upgrade a previously public signer
-
-If `.env.local` contains `COUNTER_DEVELOPMENT_PRIVATE_KEY`, stop the app server
-and rerun `setup:local` against the same node. Setup generates and funds a fresh
-server-only signer, writes `COUNTER_SIGNING_PRIVATE_KEY`, and removes the old
-key entry. It preserves the counter address, value, and other configuration.
-Then restart the app server and reload the page. Do not copy the old exposed key
-into the new variable. The server refuses the old configuration until it is
-migrated.
+**1,000,000**, and writes `.env.local`. Every setup run creates a fresh counter
+and signer. This also handles a fresh node or an old public-key configuration.
+Restart the app server after setup. If setup fails, the previous environment
+file is kept.
 
 Setup overrides:
+
+Relative paths are resolved from the repository root.
 
 - `GROUNDHOG_RPC_URL`: loopback HTTP endpoint, default `http://127.0.0.1:9545`.
 - `COUNTER_APP_ENV`: output path, default `apps/counter/.env.local`.
@@ -71,7 +64,7 @@ Recorded deployment on the hosted network:
 | Initial value | `1,000,000` |
 
 Both setup commands build the counter and regenerate bindings before running
-their TypeScript setup script. To resume the recorded Devnet setup:
+their TypeScript setup script. To create a fresh Devnet demo:
 
 ```sh
 export GROUNDHOG_CLI=/absolute/path/to/groundhog
@@ -80,25 +73,21 @@ export GROUNDHOG_NETWORK_ID=0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea5
 npm run setup:devnet --workspace apps/counter
 ```
 
-The saved journal lets this command reuse the signer and completed transactions.
-It does not initialize the existing counter again. Devnet can be reset; verify
-the live network identity before reusing these addresses after a reset.
+Setup writes the new address and signer to `.env.devnet`. Each run creates a
+new deployment; it does not resume or modify the recorded counter above. To
+host that existing counter, use the `.env.devnet` already saved for it.
+Devnet can be reset; verify the live network identity before reusing an address.
 
-## Local setup state
+## Environment files
 
-`apps/counter/.local/` is ignored by Git and holds operator-side setup state:
+Counter needs only `.env.local` for the local node and `.env.devnet` for hosted
+Devnet. Both are ignored by Git and contain the private server signer. Copy the
+Devnet values into the hosting service's variables when deploying the app.
+`COUNTER_APP_ENV` can override the output path for either setup command.
 
-- `devnet/<network-id>/deployment.json`: the private signer, deployment nonce,
-  funding state, and signed transaction journal used for safe reruns.
-- `devnet/<network-id>/railway.env`: the app's hosting variables, including the
-  private server signing key.
-- `devnet/<network-id>/public.json`: public addresses and transaction hashes.
-- `env-backups/`: saved local environment files from earlier setups.
-
-Keep a secure backup of the Devnet directory. Removing it loses the local signer
-and recovery journal, even though the contract still exists on the network. The
-hosted app uses its environment variables and RPC; it does not read `.local/`
-or need a volume for this directory.
+There is no `.local/` directory, deployment journal, or recovery workflow for
+Counter. Its public deployment addresses are recorded above. Keep the environment
+file while using that deployment; run setup again when you want a fresh demo.
 
 ## Behavior
 
@@ -176,7 +165,7 @@ npm run test:counter
 ```
 
 This Linux test owns an isolated node and uses temporary app configuration. It
-checks setup reruns, migration of the exposed signer, a 120-transaction mixed
+checks fresh deployments on setup reruns, a 120-transaction mixed
 burst through the signing API with an exact final value,
 and 42 real browser transactions through the production server and Web Worker.
 It checks held keys, Escape, button keyboard activation, reconnect behavior, and
@@ -191,4 +180,4 @@ Set `CHROMIUM_PATH` if Chromium is not at `/usr/bin/chromium`.
 - `src/groundhog/client.ts`: signing requests, submission, reads, and receipt observation.
 - `src/contracts/generated/`: generated ABI; do not edit by hand.
 - `server/`: private signing, submission policy, runtime configuration, RPC forwarding, and production static server.
-- `scripts/`: contract generation and local provisioning.
+- `scripts/`: contract generation, network-specific setup entrypoints, and shared Counter provisioning.

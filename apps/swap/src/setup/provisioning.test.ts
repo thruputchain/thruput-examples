@@ -8,7 +8,8 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createGroundhogClient,
@@ -163,6 +164,25 @@ afterEach(async () => {
 });
 
 describe("infrastructure-only swap provisioning", () => {
+  it("supplies the RPC default and resolves relative overrides from the repository root", async () => {
+    const repositoryRoot = fileURLToPath(
+      new URL("../../../../", import.meta.url),
+    );
+    vi.stubEnv("GROUNDHOG_RPC_URL", undefined);
+    vi.stubEnv("SWAP_ARTIFACT_ROOT", relative(repositoryRoot, root));
+    vi.stubEnv("SWAP_APP_ENV", relative(repositoryRoot, output));
+    vi.stubEnv(
+      "SWAP_APP_PUBLIC_DIR",
+      relative(repositoryRoot, join(root, "public")),
+    );
+    await main();
+    expect(await readFile(output, "utf8")).toContain(
+      "VITE_GROUNDHOG_RPC_URL=http://127.0.0.1:9545/\n",
+    );
+    expect(JSON.parse(await readFile(assetPath, "utf8")).hash).toBe(
+      toHex0x(hashContract(contract("erc20"))),
+    );
+  });
   it("publishes concurrent different hashes without overwriting existing assets", async () => {
     const publications = await Promise.all(
       ["first code", "second code"].map(async (code, index) => {
