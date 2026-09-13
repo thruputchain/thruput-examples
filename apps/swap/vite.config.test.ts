@@ -11,18 +11,49 @@ import {
 
 describe("browser environment boundary", () => {
   afterEach(() => vi.unstubAllEnvs());
-  it.each(["serve", "build"] as const)("never injects wallet credentials for %s", async (command) => {
-    vi.stubEnv("GROUNDHOG_DEV_PRIVATE_KEY", "private-key-canary");
-    vi.stubEnv("GROUNDHOG_DEV_PERSONAS", "persona-canary");
-    if (typeof viteConfig !== "function") throw new Error("Expected a Vite config factory");
-    const config = await viteConfig({ command, mode: "test" });
-    expect(config.envPrefix).toContain("VITE_POOL_TOKEN_HASH");
-    expect(JSON.stringify(config.envPrefix)).not.toMatch(/WALLET|PRIVATE|PERSONAS/);
-    expect(JSON.stringify(config.define)).not.toMatch(/canary|PRIVATE|PERSONAS/);
-  });
+  it.each(["serve", "build"] as const)(
+    "never injects wallet credentials for %s",
+    async (command) => {
+      vi.stubEnv("GROUNDHOG_DEV_PRIVATE_KEY", "private-key-canary");
+      vi.stubEnv("GROUNDHOG_DEV_PERSONAS", "persona-canary");
+      if (typeof viteConfig !== "function")
+        throw new Error("Expected a Vite config factory");
+      const config = await viteConfig({ command, mode: "test" });
+      expect(config.envPrefix).toContain("VITE_POOL_TOKEN_HASH");
+      expect(JSON.stringify(config.envPrefix)).not.toMatch(
+        /WALLET|PRIVATE|PERSONAS/,
+      );
+      expect(JSON.stringify(config.define)).not.toMatch(
+        /canary|PRIVATE|PERSONAS/,
+      );
+    },
+  );
 });
 
 describe("local RPC proxy policy", () => {
+  it("allows HTTPS reads for an explicitly enabled Devnet server", () => {
+    const context = {
+      command: "serve" as const,
+      production: false,
+      registryEnabled: true,
+      allowRemote: true,
+    };
+    expect(() =>
+      validateRpcTarget("https://rpc.example.com", context),
+    ).not.toThrow();
+    expect(() =>
+      validateRpcTarget("http://rpc.example.com", context),
+    ).toThrow();
+    expect(() =>
+      validateRpcTarget("https://user:secret@rpc.example.com", context),
+    ).toThrow();
+    expect(() =>
+      validateRpcTarget("https://rpc.example.com", {
+        ...context,
+        allowRemote: false,
+      }),
+    ).toThrow();
+  });
   it.each([
     "groundhog_networkInfo",
     "groundhog_chainTip",
@@ -35,7 +66,9 @@ describe("local RPC proxy policy", () => {
   });
 
   it("rejects unrelated RPC methods and batches", () => {
-    expect(isAllowedRequest({ method: "groundhog_sendRawTransaction" })).toBe(false);
+    expect(isAllowedRequest({ method: "groundhog_sendRawTransaction" })).toBe(
+      false,
+    );
     expect(isAllowedRequest({ method: "groundhog_deleteAllData" })).toBe(false);
     expect(isAllowedRequest([{ method: "groundhog_view" }])).toBe(false);
   });

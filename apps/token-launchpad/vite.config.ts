@@ -34,14 +34,14 @@ export default defineConfig(({ command, isPreview, mode }) => {
   loadExplorerUrl(environment.VITE_EXPLORER_URL);
   const rpcTarget =
     environment.VITE_GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545";
+  const devnet = command === "serve" && !isPreview && mode === "devnet";
   validateRpcTarget(rpcTarget, {
     command,
     isPreview: isPreview ?? false,
     registryEnabled: true,
+    allowRemote: devnet,
   });
-  const registryProductionBuild =
-    command === "build" &&
-    mode === "production";
+  const registryProductionBuild = command === "build" && mode === "production";
 
   return {
     envPrefix: [
@@ -66,8 +66,13 @@ export default defineConfig(({ command, isPreview, mode }) => {
     plugins: [
       react(),
       tailwindcss(),
-      localRpcProxy(rpcTarget),
-      ...(command === "serve" && !isPreview && mode !== "test" && mode !== "browser-test" ? [developmentRegistry(environment)] : []),
+      localRpcProxy(rpcTarget, devnet),
+      ...(command === "serve" &&
+      !isPreview &&
+      mode !== "test" &&
+      mode !== "browser-test"
+        ? [developmentRegistry(environment)]
+        : []),
       ...(command === "build" && mode === "production"
         ? [productionContractArtifact(environment.VITE_STANDARD_TOKEN_HASH)]
         : []),
@@ -127,7 +132,7 @@ export function productionPublicConfigManifest(
   };
 }
 
-function localRpcProxy(target: string): Plugin {
+function localRpcProxy(target: string, allowRemote = false): Plugin {
   const targetUrl = new URL(target);
   const targetIsLoopback = isLoopback(targetUrl.hostname);
   const middleware = async (
@@ -136,11 +141,11 @@ function localRpcProxy(target: string): Plugin {
   ) => {
     if (request.method !== "POST")
       return sendProxyError(response, 405, "POST is required");
-    if (!targetIsLoopback)
+    if (!targetIsLoopback && !(allowRemote && targetUrl.protocol === "https:"))
       return sendProxyError(
         response,
         403,
-        "Local RPC proxy target is not loopback",
+        "RPC proxy requires loopback HTTP or an explicitly enabled Devnet HTTPS target",
       );
     if (!isSameOriginLocalRequest(request)) {
       return sendProxyError(
@@ -293,6 +298,7 @@ export function validateRpcTarget(
     command: "build" | "serve";
     isPreview: boolean;
     registryEnabled: boolean;
+    allowRemote?: boolean;
   } = { command: "serve", isPreview: false, registryEnabled: false },
 ): void {
   let url: URL;
@@ -317,6 +323,13 @@ export function validateRpcTarget(
   ) {
     return;
   }
+  if (
+    context.command === "serve" &&
+    !context.isPreview &&
+    context.allowRemote &&
+    url.protocol === "https:"
+  )
+    return;
   if (url.protocol !== "http:" || !isLoopback(url.hostname)) {
     throw new Error(
       "VITE_GROUNDHOG_RPC_URL must target a loopback HTTP server",

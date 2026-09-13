@@ -13,6 +13,7 @@ import { basename, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createGroundhogClient,
   createWalletClient,
   fixedBytes,
   fromHex0x,
@@ -28,12 +29,9 @@ import {
   HOG_ADDRESS,
 } from "@groundhogchain/protocol";
 import { StandardTokenFactory } from "../contracts/generated/standard-token-factory";
-import {
-  main,
-  publishArtifact,
-  validateLocalRpcUrl,
-  validateTokenFunding,
-} from "../../scripts/setup-local";
+import { main, validateLocalRpcUrl } from "../../scripts/setup-local";
+import { publishArtifact, validateTokenFunding } from "../../scripts/provision";
+import { setupDevnet } from "../../scripts/setup-devnet";
 
 const mocks = vi.hoisted(() => ({
   getVersion: vi.fn(),
@@ -177,6 +175,72 @@ afterEach(async () => {
 });
 
 describe("infrastructure-only launchpad provisioning", () => {
+  it("provisions Devnet without a local manifest and verifies native balance bookkeeping", async () => {
+    vi.stubEnv("GROUNDHOG_RPC_URL", undefined);
+    vi.stubEnv("GROUNDHOG_NETWORK_ID", `0x${"11".repeat(32)}`);
+    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", "/unused-local-manifest.json");
+    mocks.getBalance
+      .mockResolvedValueOnce({ rawBalance: 1_000_000_000n })
+      .mockResolvedValueOnce({ rawBalance: 10_000_000n - 1_234n });
+    vi.mocked(StandardTokenFactory.config.view).mockResolvedValueOnce({
+      value: { ...config, required_token_funding: 10_000_000n },
+    } as never);
+    await setupDevnet();
+    expect(createGroundhogClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cluster: expect.objectContaining({
+          name: "devnet",
+          rpcUrl: "https://rpc.thruput.network/",
+          networkHash: new Uint8Array(32).fill(17),
+        }),
+      }),
+    );
+    expect(mocks.getBalance).toHaveBeenLastCalledWith(factory);
+    const env = await readFile(output, "utf8");
+    expect(env).toContain(
+      "VITE_GROUNDHOG_RPC_URL=https://rpc.thruput.network/\n",
+    );
+    expect(env).toContain(
+      "VITE_EXPLORER_URL=https://explorer.thruput.network\n",
+    );
+    expect(env).toContain("VITE_SWAP_APP_URL=\n");
+    expect(env).not.toMatch(/PRIVATE|WALLET|SIGNER/);
+  });
+
+  it("refuses Devnet deployment when native balance bookkeeping does not match the app", async () => {
+    mocks.getBalance
+      .mockResolvedValueOnce({ rawBalance: 1_000_000_000n })
+      .mockResolvedValueOnce({ rawBalance: 10_000_000n });
+    await expect(
+      setupDevnet({
+        ...process.env,
+        GROUNDHOG_RPC_URL: "https://rpc.example.com",
+      }),
+    ).rejects.toThrow(/balance bookkeeping cost/);
+    expect(mocks.sendInvocation).not.toHaveBeenCalled();
+    expect(await readFile(output, "utf8")).toBe("previous environment\n");
+  });
+
+  it("rejects invalid Devnet targets and missing network pins before RPC", async () => {
+    for (const rpcUrl of [
+      "http://rpc.example.com",
+      "https://user:secret@rpc.example.com",
+      "https://rpc.example.com?token=secret",
+      "https://rpc.example.com#fragment",
+    ]) {
+      await expect(
+        setupDevnet({ ...process.env, GROUNDHOG_RPC_URL: rpcUrl }),
+      ).rejects.toThrow(/HTTPS RPC URL/);
+    }
+    await expect(
+      setupDevnet({
+        ...process.env,
+        GROUNDHOG_RPC_URL: "https://rpc.example.com",
+        GROUNDHOG_NETWORK_ID: undefined,
+      }),
+    ).rejects.toThrow(/GROUNDHOG_NETWORK_ID/);
+    expect(createGroundhogClient).not.toHaveBeenCalled();
+  });
   it("supplies the RPC default and resolves relative overrides from the repository root", async () => {
     const repositoryRoot = fileURLToPath(
       new URL("../../../../", import.meta.url),
