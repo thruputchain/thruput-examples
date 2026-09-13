@@ -11,7 +11,8 @@ The contract runs on a real local `hog-devnode`, behind `groundhog node`'s
 JSON-RPC service. The TypeScript browser app signs native pubkey transactions
 and talks directly to the node over WebSocket RPC. It reads committed frame
 pages and draws them on a canvas. The local server only serves static files.
-The Python standalone VM harness and older bridge remain for historical tests.
+The standalone C++ VM harness provides offline contract regression tests.
+Python is used only to build/package the contract and drive port regression tests.
 
 ## Build the contract
 
@@ -144,7 +145,7 @@ gets 50M gas. These are tested budgets, not measured minimums; receipt gas
 consumption is not currently exposed. `groundhog call --gas-limit` now lets
 other callers set the budget too.
 
-The protocol return-data cap stays at 1,024 bytes. The live bridge reads the
+The protocol return-data cap stays at 1,024 bytes. The TypeScript client reads the
 80-byte metadata and two stored frame pages, requiring all three reads to
 report the same committed block height. These reads use one JSON-RPC batch
 over one persistent WebSocket connection. It retries if the chain advances
@@ -249,26 +250,17 @@ cache change is included.
 
 The final probes reduced reads to about 6.0 ms and hashing to 2.6 ms. Program
 preparation still costs about 5.8 ms per block. The raw phase samples are in
-the same evidence file. Run `python test_live_reads.py` for the small batch
-ordering and frame-consistency checks without starting a node.
+the same evidence file. Run `npm test` from `browser` for the current
+transport and launcher checks without starting a node.
 
 The following measurements are historical and retain their original artifacts:
 
 [evidence/live.json](evidence/live.json) records the deployed contract,
 artifact hashes, build revisions, successful receipts, and live measurements.
-A real-node smoke test exercises 35 gameplay ticks, changed rendered pixels,
-and stale/malformed HTTP input rejection. Add `--restart` to also probe recovery
-and continued play (including the intermittent failure above). Run it with the
-original binaries and bridge arguments recorded in the
-[historical setup](https://github.com/groundhogchain/groundhog-examples/blob/044496b5268770ca2fffa6ddfd2f2b48416faeee/experiments/doom/README.md). This is a legacy bridge test:
-
-```sh
-python test_live.py --data-dir build/new-smoke-node \
-  --groundhog .deps/rpc/local-demo-cli/bin/groundhog \
-  --signer .deps/rpc/local-demo-cli/bin/pubkey-signer \
-  --hog-devnode .deps/node/doom-devnode-bundle/bin/hog-devnode \
-  --contracts .deps/node/doom-devnode-bundle/contracts
-```
+The legacy bridge implementation and its smoke tests have been removed.
+Their original sources and run instructions remain in the
+[historical setup](https://github.com/groundhogchain/groundhog-examples/blob/044496b5268770ca2fffa6ddfd2f2b48416faeee/experiments/doom/README.md).
+Use the direct-client benchmark above for current real-node validation.
 
 | Live measurement, 35 gameplay ticks | Result |
 |---|---:|
@@ -360,18 +352,6 @@ discard sample 0 when computing warm medians. The current artifact uses
 6 MiB, while the table above preserves the controlled historical comparison.
 Pass a final argument of `1` when profiling an old snapshot-version-1 artifact.
 
-Reproduce the status controls with the matching bundles above and Zig 0.16.0
-(the output directory must not already exist):
-
-```sh
-python profiling/status.py \
-  --groundhog .deps/rpc/local-demo-cli/bin/groundhog \
-  --signer .deps/rpc/local-demo-cli/bin/pubkey-signer \
-  --hog-devnode .deps/node/doom-devnode-bundle/bin/hog-devnode \
-  --contract-artifacts-dir .deps/node/doom-devnode-bundle/contracts \
-  --zig /path/to/zig --work-dir build/status-profile
-```
-
 The original standalone sample remains in [metrics.csv](evidence/metrics.csv),
 [summary.json](evidence/summary.json), [artifact.json](evidence/artifact.json),
 and [provenance.json](evidence/provenance.json). It used an earlier artifact
@@ -393,26 +373,19 @@ block timers cannot remove execution/storage overhead. Native 35 Hz remains
 a performance target; batching tics or reducing render frequency are possible
 future changes, neither implemented here.
 
-Standalone regression and browser-server checks are still available:
+Standalone regression checks are available:
 
 ```sh
 build/runner build/doom.rv32a vendor/PureDOOM/doom1.wad build/evidence 1050
-python test_server.py --wad vendor/PureDOOM/doom1.wad
-python serve.py --wad vendor/PureDOOM/doom1.wad
+python test_port.py
 ```
 
-That runner uses unchanged production RV32 interpreter files with a local
+The runner uses unchanged production RV32 interpreter files with a local
 in-memory syscall host. It checks deterministic restore/replay, stale ticks,
 malformed calls, sealed assets, frame chunk reconstruction, and rollback after
-an out-of-gas failure following writes. `serve.py` starts a new in-memory game
-on restart; `run_node.py` uses persistent chain storage.
-
-Interactive browser validation was blocked by the development environment's
-loopback/browser policy. The requested escalation was rejected because
-sandbox approvals are disabled. The actual HTTP endpoints and committed
-frames were tested; keyboard interaction and visual layout still need a
-normal local browser. Existing Rust workspace CI does not run the experimental
-C harness or the live smoke test automatically.
+an out-of-gas failure following writes. The port regression additionally checks
+forward/backward movement and the status bar after an E1M1-to-E1M2 transition.
+Use the TypeScript browser app above for interactive play on a real node.
 
 ## Contract design and ABI
 

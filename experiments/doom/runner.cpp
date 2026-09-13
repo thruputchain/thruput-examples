@@ -166,32 +166,6 @@ static void ppm(const std::string &path, const Bytes &frame) {
   write_file(path, rgb);
 }
 
-static void send_frame(const Demo &demo, const Result &r) {
-  static constexpr char hex[] = "0123456789abcdef";
-  std::cout << "FRAME " << demo.tick() << ' ' << r.gas << ' ' << r.read_bytes << ' '
-            << r.written_bytes << ' ' << r.ms << ' ';
-  for (uint8_t b : demo.frame()) std::cout << hex[b >> 4] << hex[b & 15];
-  std::cout << '\n' << std::flush;
-}
-static int nibble(char c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-  throw std::runtime_error("bad input hex");
-}
-static void serve(Demo &demo, const Result &init) {
-  send_frame(demo, init);
-  std::string line;
-  while (std::getline(std::cin, line)) {
-    try {
-      std::istringstream in(line); std::string op, bitmap, trailing; uint32_t tick;
-      require(bool(in >> op >> tick >> bitmap) && !(in >> trailing) && op == "STEP" && bitmap.size() == 64, "bad command");
-      Bytes input; append_u32(input, tick);
-      for (size_t i = 0; i < bitmap.size(); i += 2) input.push_back(nibble(bitmap[i])*16 + nibble(bitmap[i+1]));
-      auto result = demo.call(2, std::move(input)); require(result.ok, "contract rejected step");
-      send_frame(demo, result);
-    } catch (const std::exception &e) { std::cout << "ERROR " << e.what() << '\n' << std::flush; }
-  }
-}
 
 int main(int argc, char **argv) try {
   require(argc >= 4, "usage: runner doom.rv32a doom1.wad output-dir [ticks]");
@@ -273,7 +247,6 @@ int main(int argc, char **argv) try {
     std::cout << "PASS: forward/backward direction and speed, E1M1 exit, intermission, E1M2 status-bar background\n";
     return 0;
   }
-  if (argc > 4 && std::string(argv[4]) == "--serve") { serve(demo, init); return 0; }
   ppm(dir + "/initial.ppm", demo.frame());
   std::cout << "Initialized tick " << demo.tick() << " in " << init.ms << " ms; gas " << init.gas << '\n';
   auto checkpoint = demo.storage;
