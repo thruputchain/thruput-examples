@@ -34,6 +34,9 @@ and indexer, using a factory-scoped SQLite file under `apps/token-launchpad/.loc
 No extra registry process or registry-mode flag is needed. `TOKEN_REGISTRY_DB_PATH`
 can override the file. Use only one writer per database.
 
+`setup:local` builds contracts, regenerates bindings, and runs the TypeScript
+setup script. Path overrides are resolved from the repository root.
+
 Setup uses the manifest's storage costs and deploys an empty token factory. It
 writes `.env.local` and the matching public contract artifact. Set
 `GROUNDHOG_RPC_URL` if the node uses another loopback HTTP endpoint. The extension

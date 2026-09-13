@@ -39,18 +39,28 @@ import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../src/runtime";
 const GAS_LIMIT = gasAmount(10_000_000n);
 const CONTRACT_FUNDING = 10_000_000n;
 const REQUIRED_TOKEN_FUNDING = 350_770n;
+const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
 export async function main(): Promise<void> {
-  const artifactRoot = resolve(requiredEnvironment("LAUNCHPAD_ARTIFACT_ROOT"));
-  const environmentPath = resolve(requiredEnvironment("LAUNCHPAD_APP_ENV"));
+  const artifactRoot = resolve(
+    repositoryRoot,
+    process.env.LAUNCHPAD_ARTIFACT_ROOT || "target/groundhog",
+  );
+  const environmentPath = resolve(
+    repositoryRoot,
+    process.env.LAUNCHPAD_APP_ENV || "apps/token-launchpad/.env.local",
+  );
   const artifactDirectory = join(
     resolve(
-      process.env.LAUNCHPAD_APP_PUBLIC_DIR ??
+      repositoryRoot,
+      process.env.LAUNCHPAD_APP_PUBLIC_DIR ||
         fileURLToPath(new URL("../public", import.meta.url)),
     ),
     "contract-artifacts",
   );
-  const rpcUrl = validateLocalRpcUrl(requiredEnvironment("GROUNDHOG_RPC_URL"));
+  const rpcUrl = validateLocalRpcUrl(
+    process.env.GROUNDHOG_RPC_URL || "http://127.0.0.1:9545",
+  );
   const { expectedNetwork, costs } = await readRuntime();
   const client = await createGroundhogClient({
     cluster: localnet({ rpcUrl, networkHash: expectedNetwork }),
@@ -241,7 +251,10 @@ async function readRuntime() {
       : normalizeNetworkHash(process.env.GROUNDHOG_NETWORK_ID);
   const manifest = JSON.parse(
     await readFile(
-      resolve(requiredEnvironment("GROUNDHOG_RUNTIME_MANIFEST")),
+      resolve(
+        repositoryRoot,
+        requiredEnvironment("GROUNDHOG_RUNTIME_MANIFEST"),
+      ),
       "utf8",
     ),
   ) as {
