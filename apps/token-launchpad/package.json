@@ -11,6 +11,7 @@
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "setup:local": "npm run generate:contracts && tsx scripts/setup-local.ts",
+    "setup:devnet": "npm run generate:contracts && tsx scripts/setup-devnet.ts",
     "seed": "tsx scripts/seed.ts",
     "start": "node --env-file-if-exists=.env.local --import tsx server/main.ts",
     "test": "vitest run",

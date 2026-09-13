@@ -42,6 +42,59 @@ create tokens in Launchpad, and create a pool. Setup writes `.env.local` and the
 matching public contract artifact. Set `GROUNDHOG_RPC_URL` for another loopback
 HTTP endpoint; the extension uses localnet at `http://127.0.0.1:9545`.
 
+## Devnet setup
+
+```sh
+export GROUNDHOG_CLI=/absolute/path/to/groundhog
+export GROUNDHOG_RPC_URL=https://rpc.thruput.network
+export GROUNDHOG_NETWORK_ID=0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642
+npm run setup:devnet --workspace apps/swap
+```
+
+Each run builds the contracts and bindings, funds a fresh tool-only deployer,
+deploys and initializes empty Swap infrastructure, and writes `.env.devnet` plus
+the public LP-token code asset. The deployer key is never saved or published.
+There is no setup journal. Failed setup leaves the previous environment intact.
+
+The hosted RPC chooses the airdrop amount; this deployment received **100 HOG**.
+Devnet requires HTTPS and an explicit network hash. A local runtime manifest is
+not used. Verify the live hash after a Devnet reset before running setup again.
+
+### Recorded Devnet deployment
+
+Verified against RPC **0.17.0**, wire format **5.2.0**, release **0.1.27**:
+
+| Field | Value |
+| --- | --- |
+| RPC | `https://rpc.thruput.network` |
+| Network ID | `0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642` |
+| Factory | `0x03a80df7a6227df1f8f23e57d30399e2a82b99e23cb6494985dc12d2193f939c` |
+| Router | `0xaf63190d7e576bfe923c66a5437fb446cdc231363327b1f51b3411c25e03380f` |
+| Handler code-registration instance | `0x773a3ecf71a7bc2a69a904d06b771230b9eb919d287c4f23a1dd975981b8c59a` |
+| Driver code-registration instance | `0xe27dfb1c8d5f40f13cc45b297a20bb3bd949bb2a042053a8b1ebb5167be442d6` |
+| LP token code hash | `0x152d5e4635c5322cb1fbc75e7584cd6565d8e4802c04e9c4e9b75b4e7fb90776` |
+| Factory deployment transaction | `0x0647ee0e3a9b1a17513d210d0be0506445846a0946fc69381a6594439560e155` |
+| Router deployment transaction | `0x14f9e8c7fd3522261f5811649c8927611d7c627c9c881a72aa73bb7d22eb5082` |
+
+The factory was verified empty, with protocol fees disabled and a valid pool
+funding policy. The registration instances make handler/driver code available;
+each user-created pool gets its own initialized handler and driver.
+
+Use the saved `.env.devnet` to host this deployment. Running setup again creates
+different addresses. To run the app locally against Devnet:
+
+```sh
+npm run dev --workspace apps/swap -- --mode devnet
+```
+
+The local development proxy permits read-only HTTPS RPC calls in this mode.
+Connect a wallet configured for Devnet to submit transactions. Token discovery
+starts disabled; configure the deployed Launchpad registry URL before enabling it.
+
+`SWAP_APP_ENV`, `SWAP_ARTIFACT_ROOT`, and `SWAP_APP_PUBLIC_DIR` override the
+environment output, compiled artifact directory, and public asset directory.
+Relative paths resolve from the repository root.
+
 ## Seeding
 
 First [set up and seed Launchpad](../token-launchpad/README.md#seeding) on the
@@ -87,6 +140,7 @@ Run with `npm run <command> --workspace apps/swap`:
 | `build` | Typecheck and production build |
 | `start` | Serve the production build and registry; loads `.env.local` if present |
 | `setup:local` | Build contracts and provision empty application infrastructure |
+| `setup:devnet` | Build and provision fresh infrastructure on a pinned Devnet network |
 | `seed` | Create the demo pool from the seeded Launchpad tokens |
 | `generate:contracts` | Regenerate pinned contract bindings |
 | `typecheck` | Browser and server TypeScript checks |
@@ -115,10 +169,14 @@ old deployment; the new bindings are not a decoder for its older event format.
 
 ## Configuration and production
 
-Setup publishes `.env.local` and immutable `public/contract-artifacts/<hash>.json`.
+Setup publishes `.env.local` or `.env.devnet` and immutable `public/contract-artifacts/<hash>.json`.
 `VITE_POOL_TOKEN_HASH` identifies the LP token implementation attached to pool
 creation. Builds and startup validate its hash. Rebuild after changing public
 configuration; build and server manifests must agree.
+
+The LP-token code asset for the recorded Devnet deployment is checked in so a
+clean checkout can build and create pools. If a future setup produces
+a different code hash, include its matching public asset with the deployment.
 
 See [`.env.example`](.env.example) for RPC, factory/router, explorer and discovery
 settings. To search Launchpad's indexed tokens, add these after setup, copying

@@ -15,6 +15,35 @@ import {
 } from "./vite.config";
 
 describe("local RPC proxy policy", () => {
+  it("allows HTTPS reads for an explicitly enabled Devnet server", () => {
+    const context = {
+      command: "serve" as const,
+      isPreview: false,
+      registryEnabled: true,
+      allowRemote: true,
+    };
+    expect(() =>
+      validateRpcTarget("https://rpc.example.com", context),
+    ).not.toThrow();
+    expect(() =>
+      validateRpcTarget("http://rpc.example.com", context),
+    ).toThrow();
+    expect(() =>
+      validateRpcTarget("https://user:secret@rpc.example.com", context),
+    ).toThrow();
+    expect(() =>
+      validateRpcTarget("https://rpc.example.com", {
+        ...context,
+        isPreview: true,
+      }),
+    ).toThrow();
+    expect(() =>
+      validateRpcTarget("https://rpc.example.com", {
+        ...context,
+        allowRemote: false,
+      }),
+    ).toThrow();
+  });
   it.each([
     "groundhog_networkInfo",
     "groundhog_chainTip",

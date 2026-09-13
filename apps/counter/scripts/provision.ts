@@ -101,6 +101,7 @@ export async function provisionCounter(options: {
     const funding = await wallet.requestAirdrop();
     if (funding.status.result !== "ok")
       throw new Error("Counter signer funding failed.");
+    console.log(`Airdrop confirmed: ${funding.rawAmount} raw HOG (7 decimals)`);
     await execute(
       "Fund counter",
       ERC20.transfer.invocation(HOG_ADDRESS, GAS, {

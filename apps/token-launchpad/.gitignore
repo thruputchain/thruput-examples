@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env.local
+.env.devnet
 .groundhog-config/
 *.sqlite
 *.sqlite-shm

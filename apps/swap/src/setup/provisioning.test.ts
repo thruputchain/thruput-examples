@@ -29,11 +29,9 @@ import {
 } from "@groundhogchain/protocol";
 import { SwapFactory } from "../contracts/generated/swap-factory";
 import { SwapRouter } from "../contracts/generated/swap-router";
-import {
-  main,
-  publishArtifact,
-  validateLocalRpcUrl,
-} from "../../scripts/setup-local";
+import { main, validateLocalRpcUrl } from "../../scripts/setup-local";
+import { publishArtifact } from "../../scripts/provision";
+import { setupDevnet } from "../../scripts/setup-devnet";
 
 const mocks = vi.hoisted(() => ({
   getVersion: vi.fn(),
@@ -153,6 +151,9 @@ beforeEach(async () => {
   vi.spyOn(SwapFactory.poolFunding, "view").mockResolvedValue({
     value: { min: 1n, recommended: 2n },
   } as never);
+  vi.spyOn(SwapFactory.feeTo, "view").mockResolvedValue({
+    value: null,
+  } as never);
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -164,6 +165,53 @@ afterEach(async () => {
 });
 
 describe("infrastructure-only swap provisioning", () => {
+  it("provisions Devnet with an explicit network pin and no local manifest or exported signer", async () => {
+    vi.stubEnv("GROUNDHOG_RPC_URL", undefined);
+    vi.stubEnv("GROUNDHOG_NETWORK_ID", `0x${"11".repeat(32)}`);
+    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", "/unused-local-manifest.json");
+    await setupDevnet();
+    expect(createGroundhogClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cluster: expect.objectContaining({
+          name: "devnet",
+          rpcUrl: "https://rpc.thruput.network/",
+          networkHash: new Uint8Array(32).fill(17),
+        }),
+      }),
+    );
+    const env = await readFile(output, "utf8");
+    expect(env).toContain(
+      "VITE_GROUNDHOG_RPC_URL=https://rpc.thruput.network/\n",
+    );
+    expect(env).toContain(`VITE_GROUNDHOG_NETWORK_ID=0x${"11".repeat(32)}\n`);
+    expect(env).toContain("VITE_TOKEN_DISCOVERY_ENABLED=false\n");
+    expect(env).toContain(
+      "VITE_EXPLORER_URL=https://explorer.thruput.network\n",
+    );
+    expect(env).not.toMatch(/PRIVATE|WALLET|SIGNER/);
+    expect(mocks.sendInvocation).toHaveBeenCalledTimes(4);
+  });
+
+  it("rejects invalid Devnet targets and missing network pins before RPC", async () => {
+    for (const rpcUrl of [
+      "http://rpc.example.com",
+      "https://user:secret@rpc.example.com",
+      "https://rpc.example.com?token=secret",
+      "https://rpc.example.com#fragment",
+    ]) {
+      await expect(
+        setupDevnet({ ...process.env, GROUNDHOG_RPC_URL: rpcUrl }),
+      ).rejects.toThrow(/HTTPS RPC URL/);
+    }
+    await expect(
+      setupDevnet({
+        ...process.env,
+        GROUNDHOG_RPC_URL: "https://rpc.example.com",
+        GROUNDHOG_NETWORK_ID: undefined,
+      }),
+    ).rejects.toThrow(/GROUNDHOG_NETWORK_ID/);
+    expect(createGroundhogClient).not.toHaveBeenCalled();
+  });
   it("supplies the RPC default and resolves relative overrides from the repository root", async () => {
     const repositoryRoot = fileURLToPath(
       new URL("../../../../", import.meta.url),
@@ -321,6 +369,7 @@ describe("infrastructure-only swap provisioning", () => {
     "receipt",
     "address",
     "verification",
+    "fee recipient",
     "asset publication",
   ])("preserves existing output when %s fails", async (phase) => {
     if (phase === "airdrop")
@@ -341,6 +390,10 @@ describe("infrastructure-only swap provisioning", () => {
       } as never);
     if (phase === "asset publication")
       mocks.link.mockRejectedValueOnce(new Error("Cannot publish asset"));
+    if (phase === "fee recipient")
+      vi.mocked(SwapFactory.feeTo.view).mockResolvedValueOnce({
+        value: address(99),
+      } as never);
     await expect(main()).rejects.toThrow();
     expect(await readFile(output, "utf8")).toBe("previous environment\n");
     expect(await readFile(oldAssetPath, "utf8")).toBe("previous artifact\n");
@@ -351,7 +404,6 @@ describe("infrastructure-only swap provisioning", () => {
       (await readdir(root)).filter((name) => name.endsWith(".tmp")),
     ).toEqual([]);
   });
-
   it("publishes complete code before the environment and preserves old env if its rename fails", async () => {
     const { rename } =
       await vi.importActual<typeof import("node:fs/promises")>(

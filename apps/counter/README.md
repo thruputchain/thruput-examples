@@ -11,11 +11,9 @@ Use Node.js 22.13 or newer and run `npm ci` from the repository root with the
 [npm registry authentication](../../README.md#install-swap-and-launchpad-dependencies)
 configured.
 
-Use the matching releases **groundhog-rpc `v0.16.0-rc.1`** (commit `7c2588a`)
-and **hog-devnode `v0.1.27-rc.4`**. This pair is verified for contract builds,
-setup, concurrent transactions, and browser submission. Check out the exact RPC
-release tag when building the CLI: later commits on `main` can report the same
-version while requiring a newer devnode runtime manifest.
+Local setup has been checked with **Groundhog CLI 0.17.0** and
+**hog-devnode 0.1.27-rc.7**. Use compatible CLI/devnode builds: a newer CLI can
+require a runtime manifest that an older devnode does not provide.
 
 Start the compatible node in a separate terminal:
 
@@ -58,10 +56,13 @@ Recorded deployment on the hosted network:
 | --- | --- |
 | RPC | `https://rpc.thruput.network` |
 | Network ID | `0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642` |
-| Counter address | `0xbc42026c29190b21cc6991770a0e70b9e035671d53d185beb224ff51c8c61ed6` |
-| Signer address (public) | `0x08fff37518ff08ad362bc9a2f25ab91ca52849d3d1fa1c767ff043e1d6127038` |
-| Deploy transaction | `0xc4944d41c526bd45fda9e1da78ce5f986fece41c22a92254a24f0eb092cb38fd` |
+| Counter address | `0xecfe5af64cf488e1c3636d9176b33dc080798f057ede3111136b5c2ade564613` |
+| Signer address (public) | `0x002cc817a4e5534f6ba45b3fbdd63b1f290e7dfeae41cf208705dfee9d8e114c` |
+| Deploy transaction | `0x4ba297636f811953463a420db1bd775567edb01fdefd764d0790a0015837eb4d` |
 | Initial value | `1,000,000` |
+
+This deployment was verified against RPC **0.17.0**, wire format **5.2.0**,
+release **0.1.27**. Its signer received a confirmed **100 HOG** airdrop.
 
 Both setup commands build the counter and regenerate bindings before running
 their TypeScript setup script. To create a fresh Devnet demo:

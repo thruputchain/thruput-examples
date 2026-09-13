@@ -94,7 +94,8 @@ its own submission-capable RPC proxy. See its [setup guide](apps/counter/README.
 for keyboard controls and the compatible CLI/devnode pairing.
 
 All three apps use the same `setup:local` flow: `generate:contracts`, then
-`tsx scripts/setup-local.ts`. Counter also provides `setup:devnet`.
+`tsx scripts/setup-local.ts`. All three also provide `setup:devnet`, which writes
+`.env.devnet` for a fresh deployment on a pinned network.
 
 ### Application checks
 
