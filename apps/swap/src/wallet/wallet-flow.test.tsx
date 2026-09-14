@@ -24,6 +24,7 @@ import type { WriteBoundary } from "@/transactions/write-boundary";
 import { AppHeader } from "@/components/app-header";
 import { WalletProvider as ConnectedWalletApp } from "./wallet-provider";
 import { WalletControls } from "./wallet-controls";
+import { WalletInstallBanner } from "./wallet-install-banner";
 import { useWalletWriteBoundary } from "./write-context";
 import { createReadClient } from "@/groundhog/client";
 
@@ -106,6 +107,7 @@ function renderApp() {
     writers.push(writer);
     return (
       <>
+        <WalletInstallBanner />
         <AppHeader product="Swap" actions={<WalletControls />} />
         <output aria-label="Runtime caller">
           {toHex0x(runtime.accountAddress)}
@@ -200,7 +202,9 @@ describe("connected wallet runtime", () => {
     expect(
       screen.getByRole("button", { name: "Connect wallet" }),
     ).toBeDisabled();
-    expect(screen.getByText("No wallet found")).toBeVisible();
+    expect(
+      screen.getByText("Install or enable a Thruput Wallet to use this app"),
+    ).toBeVisible();
     expect(
       screen.queryByRole("combobox", { name: "Wallet provider" }),
     ).toBeNull();
@@ -208,7 +212,9 @@ describe("connected wallet runtime", () => {
     act(() => {
       wallet = provider("groundhog.wallet", "Thruput Wallet");
     });
-    expect(screen.queryByText("No wallet found")).toBeNull();
+    expect(
+      screen.queryByText("Install or enable a Thruput Wallet to use this app"),
+    ).toBeNull();
     expect(
       screen.queryByRole("combobox", { name: "Wallet provider" }),
     ).toBeNull();
@@ -229,6 +235,20 @@ describe("connected wallet runtime", () => {
     expect(
       screen.getByRole("button", { name: "Disconnect" }),
     ).toBeVisible();
+  });
+
+  it("silently returns to disconnected when the connection popup closes and allows retry", async () => {
+    const wallet = provider();
+    wallet.request.mockRejectedValueOnce(
+      Object.assign(new Error("Page closed"), { code: 4001 }),
+    );
+    const { user } = renderApp();
+    await connect(user);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByLabelText("Writable")).toHaveTextContent("false");
+    expect(screen.getByRole("button", { name: /^Connect / })).toBeEnabled();
+    await connect(user);
+    expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
   });
 
   it("hides Disconnect before approval and on an empty account session, then allows reconnect", async () => {

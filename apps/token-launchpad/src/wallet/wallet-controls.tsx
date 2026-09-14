@@ -42,11 +42,6 @@ export function WalletControls() {
         </Button>
       ) : (
         <>
-          {!wallet.providers.length ? (
-            <span className="text-sm text-muted-foreground">
-              No wallet found
-            </span>
-          ) : null}
           <Button
             disabled={!wallet.provider || wallet.busy}
             onClick={() => void wallet.connect()}

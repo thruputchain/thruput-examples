@@ -183,6 +183,12 @@ function WalletRuntime({
     } catch (failure) {
       if (attempt === generation.current) {
         setBusy(false);
+        if (
+          failure instanceof Error &&
+          "code" in failure &&
+          failure.code === 4001 &&
+          failure.message === "Page closed"
+        ) return;
         setError(
           failure instanceof Error
             ? failure.message

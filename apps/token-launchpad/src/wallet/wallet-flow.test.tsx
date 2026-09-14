@@ -16,6 +16,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { loadConfig } from "@/config";
 import { WalletProvider as AppWalletProvider } from "./wallet-provider";
 import { WalletControls } from "./wallet-controls";
+import { WalletInstallBanner } from "./wallet-install-banner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createReadClient } from "@/groundhog/client";
 
@@ -24,6 +25,7 @@ function Probe({ readOnly }: { readOnly: boolean }) {
   const [revision, setRevision] = useState(0);
   return (
     <TooltipProvider>
+      <WalletInstallBanner />
       <WalletControls />
       <p>{readOnly ? "Public browsing" : "Wallet workflow"}</p>
       <button onClick={() => setRevision(revision + 1)}>
@@ -94,9 +96,15 @@ it("discovers before and after mount, connects with registry enabled, remounts o
   render(<ProviderApp base={base} />);
   expect(screen.getByText("Public browsing")).toBeInTheDocument();
   let provider!: ReturnType<typeof wallet>;
+  expect(
+    screen.getByText("Install or enable a Thruput Wallet to use this app"),
+  ).toBeVisible();
   act(() => {
     provider = wallet();
   });
+  expect(
+    screen.queryByText("Install or enable a Thruput Wallet to use this app"),
+  ).toBeNull();
   await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
   expect(await screen.findByText("Wallet workflow")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Draft 0" }));
@@ -168,6 +176,21 @@ it("shows rejection, permits retry, and removes wallet workflows on wrong-networ
     "configured launchpad network",
   );
 });
+it("silently returns to disconnected when the connection popup closes and allows retry", async () => {
+  const provider = wallet();
+  provider.request.mockRejectedValueOnce(
+    Object.assign(new Error("Page closed"), { code: 4001 }),
+  );
+  const user = userEvent.setup();
+  render(<ProviderApp base={base} />);
+  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByText("Public browsing")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Connect Test Wallet" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
+});
+
 it("hides Disconnect before approval and on an empty account session, then allows reconnect", async () => {
   const user = userEvent.setup();
   const provider = wallet();

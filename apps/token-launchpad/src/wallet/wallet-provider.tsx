@@ -158,6 +158,12 @@ function WalletRuntime({
     } catch (error) {
       if (started === revision.current) {
         setBusy(false);
+        if (
+          error instanceof Error &&
+          "code" in error &&
+          error.code === 4001 &&
+          error.message === "Page closed"
+        ) return;
         setError(userErrorMessage(error, "Wallet connection failed"));
       }
     }

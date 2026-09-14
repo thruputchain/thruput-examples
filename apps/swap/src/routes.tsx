@@ -47,6 +47,7 @@ import {
 import { type WriteBoundary } from "@/transactions/write-boundary";
 import { WalletProvider } from "@/wallet/wallet-provider";
 import { WalletControls } from "@/wallet/wallet-controls";
+import { WalletInstallBanner } from "@/wallet/wallet-install-banner";
 import { useWalletWriteBoundary } from "@/wallet/write-context";
 
 export function AppProviders({
@@ -73,7 +74,10 @@ export function BrowserConfiguredApp({
   return (
     <WalletProvider config={baseConfig}>
       {(config, connected, revision) => (
-        <AmmRoutes key={revision} config={config} readOnly={!connected} />
+        <>
+          <WalletInstallBanner />
+          <AmmRoutes key={revision} config={config} readOnly={!connected} />
+        </>
       )}
     </WalletProvider>
   );

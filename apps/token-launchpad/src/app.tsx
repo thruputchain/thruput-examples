@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { loadConfig, type AppConfig } from "@/config";
 import { WalletProvider } from "@/wallet/wallet-provider";
+import { WalletInstallBanner } from "@/wallet/wallet-install-banner";
 import { LaunchpadRoutes } from "./routes";
 
 export function App() {
@@ -32,11 +33,14 @@ export function App() {
       <BrowserRouter>
         <WalletProvider config={config}>
           {(config, connected, revision) => (
-            <LaunchpadRoutes
-              key={revision}
-              config={config}
-              readOnly={!connected}
-            />
+            <>
+              <WalletInstallBanner />
+              <LaunchpadRoutes
+                key={revision}
+                config={config}
+                readOnly={!connected}
+              />
+            </>
           )}
         </WalletProvider>
       </BrowserRouter>
