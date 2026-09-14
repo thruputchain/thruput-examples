@@ -190,8 +190,10 @@ pub struct SwapExactOutRequest {
     pub recipient: Address,
 }
 
-// What handling each kind of request may cost. Calibrated against the guest (real-fuel) build by
-// `swap-driver`'s `request_gas` test, which holds each of these several times the measured cost.
+// What handling each kind of request may cost. The 2M limits also cover hosted Devnet 0.17.0,
+// where the previous 400K liquidity and 250K swap limits produced handler faults.
+// The guest calibration test reports much lower costs; reconcile that difference before tuning
+// these limits down. A higher maximum also raises the minimum gas needed by the drain loop.
 //
 // These are safety limits: the driver caps the handler sub-call at the figure its request declares,
 // and a request that outruns its budget fails rather than slowing down. The margin is not free,
@@ -207,13 +209,13 @@ pub struct SwapExactOutRequest {
 // the cheap path plus that branch.
 
 /// What handling an [`AddLiquidityRequest`] may cost.
-pub const ADD_LIQUIDITY_GAS: u64 = 400_000;
+pub const ADD_LIQUIDITY_GAS: u64 = 2_000_000;
 
 /// What handling a [`RemoveLiquidityRequest`] may cost.
-pub const REMOVE_LIQUIDITY_GAS: u64 = 500_000;
+pub const REMOVE_LIQUIDITY_GAS: u64 = 2_000_000;
 
 /// What handling a [`SwapExactInRequest`] or [`SwapExactOutRequest`] may cost.
-pub const SWAP_GAS: u64 = 250_000;
+pub const SWAP_GAS: u64 = 2_000_000;
 
 // Every per-operation budget, in one place so that `REQUEST_GAS_MAX` is the largest of them by
 // construction. A new operation belongs here as well as in `gas_limit` below -- which the match
