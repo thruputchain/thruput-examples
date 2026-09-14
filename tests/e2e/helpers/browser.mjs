@@ -15,7 +15,7 @@ export async function connect(page) {
       .getByRole("region", { name: "Wallet connection", exact: true })
       .count()
   ) {
-    await page.getByLabel("Wallet account", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Disconnect", exact: true }).waitFor();
   } else {
     await button.waitFor({ state: "detached", timeout: 120000 });
   }
@@ -28,6 +28,7 @@ export function handleApprovals(
   { extensionUrl, origins, account, record },
 ) {
   let rejectNext = false;
+  let nextAccount;
   let failure;
   context.on("page", (page) => {
     void (async () => {
@@ -55,6 +56,13 @@ export function handleApprovals(
       const signing = await page
         .getByRole("heading", { name: "Approve a signature?" })
         .count();
+      if (!signing && nextAccount) {
+        const selected = nextAccount;
+        nextAccount = undefined;
+        for (const checkbox of await page.getByRole("checkbox").all())
+          await checkbox.uncheck();
+        await page.getByRole("checkbox", { name: new RegExp(selected) }).check();
+      }
       if (signing)
         await page
           .locator(".review")
@@ -82,6 +90,9 @@ export function handleApprovals(
   return {
     rejectNext() {
       rejectNext = true;
+    },
+    selectAccountNext(address) {
+      nextAccount = address;
     },
     check() {
       if (failure) throw failure;

@@ -227,7 +227,7 @@ describe("connected wallet runtime", () => {
       method: "connect",
     });
     expect(
-      screen.getByRole("combobox", { name: "Wallet account" }),
+      screen.getByRole("button", { name: "Disconnect" }),
     ).toBeVisible();
   });
 
@@ -298,8 +298,8 @@ describe("connected wallet runtime", () => {
       provider("third.wallet");
     });
     expect(
-      screen.getByRole("combobox", { name: "Wallet provider" }),
-    ).toHaveValue("later.wallet");
+      screen.queryByRole("combobox", { name: "Wallet provider" }),
+    ).toBeNull();
     expect(screen.getByLabelText("Writable")).toHaveTextContent("true");
     expect(screen.getByLabelText("Route draft")).toHaveValue("keep quote");
   });
@@ -311,9 +311,8 @@ describe("connected wallet runtime", () => {
     await connect(user);
     const oldWriter = writers.at(-1)!;
     await user.type(screen.getByLabelText("Route draft"), "stale quote");
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Wallet account" }),
-      accounts[1]!.address,
+    await act(async () =>
+      wallet.change({ networkHash: config.networkIdHex, accounts: [accounts[1]!] }),
     );
     expect(screen.getByLabelText("Runtime caller")).toHaveTextContent(
       accounts[1]!.address,
@@ -348,9 +347,8 @@ describe("connected wallet runtime", () => {
     const wallet = provider();
     const { user } = renderApp();
     await connect(user);
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Wallet account" }),
-      accounts[1]!.address,
+    await act(async () =>
+      wallet.change({ networkHash: config.networkIdHex, accounts: [accounts[1]!] }),
     );
     await user.type(screen.getByLabelText("Route draft"), "discard");
     await act(async () =>

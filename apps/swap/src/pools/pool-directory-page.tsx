@@ -2,6 +2,7 @@ import { addressFromHex, toHex0x } from "@groundhogchain/client";
 import {
   AlertCircleIcon,
   DropletsIcon,
+  LoaderCircleIcon,
   PlusIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -454,12 +455,16 @@ function RegistryPoolDirectoryPage({
           </AlertDescription>
         </Alert>
       ) : status?.syncState === "syncing" ? (
-        <Alert>
-          <AlertTitle>Registry is syncing</AlertTitle>
-          <AlertDescription>
-            New pools may appear after indexing reaches the chain tip.
-          </AlertDescription>
-        </Alert>
+        <p
+          role="status"
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+        >
+          <LoaderCircleIcon
+            aria-hidden="true"
+            className="size-4 motion-safe:animate-spin"
+          />
+          Syncing tokens...
+        </p>
       ) : null}
       {page?.historyLimited || status?.historyLimited ? (
         <Alert>

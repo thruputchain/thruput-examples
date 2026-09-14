@@ -515,7 +515,7 @@ describe("PoolDirectoryPage", () => {
 
     await act(async () => vi.advanceTimersByTimeAsync(1_000));
     expect(readStatus).toHaveBeenCalledTimes(2);
-    expect(screen.getByText("Registry is syncing")).toBeVisible();
+    expect(screen.getByText("Syncing tokens...")).toBeVisible();
     await act(async () => vi.advanceTimersByTimeAsync(1_000));
     expect(readStatus).toHaveBeenCalledTimes(3);
     expect(readRegistry).toHaveBeenCalledTimes(2);

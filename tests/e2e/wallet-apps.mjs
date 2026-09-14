@@ -796,7 +796,7 @@ try {
     .click();
   await page.getByText("User rejected the request", { exact: true }).waitFor();
   assert.equal(
-    await page.getByLabel("Wallet account", { exact: true }).count(),
+    await page.getByRole("button", { name: "Disconnect", exact: true }).count(),
     0,
   );
   check("real extension connection rejection leaves app read-only");
@@ -808,16 +808,17 @@ try {
     async () => (await wallet.locator("#account option").count()) === 2,
     "second derived account",
   );
-  await connect(page);
-  const accountSelect = page.getByLabel("Wallet account", { exact: true });
-  const accounts = await accountSelect
-    .locator("option")
+  const accounts = await wallet
+    .locator("#account option")
     .evaluateAll((nodes) => nodes.map((n) => n.value));
   assert.equal(accounts.length, 2);
   const other = accounts.find((address) => address !== evidence.creator);
-  await accountSelect.selectOption(other);
+  approvals.selectAccountNext(other);
+  await connect(page);
   await page.getByText("0.00%", { exact: true }).waitFor();
-  await accountSelect.selectOption(evidence.creator);
+  await page.getByRole("button", { name: "Disconnect", exact: true }).click();
+  approvals.selectAccountNext(evidence.creator);
+  await connect(page);
   await page.getByText("Your LP share", { exact: true }).waitFor();
   assert.deepEqual(await snapshot(), evidence.afterRemove);
   check(

@@ -1,3 +1,4 @@
+import { LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "./use-wallet";
 
@@ -11,7 +12,7 @@ export function WalletControls() {
       aria-label="Wallet connection"
       className="flex min-w-0 flex-wrap items-center gap-2"
     >
-      {wallet.providers.length > 1 ? (
+      {!wallet.address && wallet.providers.length > 1 ? (
         <label className="flex items-center gap-2">
           Wallet
           <select
@@ -30,31 +31,15 @@ export function WalletControls() {
         </label>
       ) : null}
       {wallet.address ? (
-        <>
-          <label className="flex items-center gap-2">
-            Account
-            <select
-              className={selectClass}
-              aria-label="Wallet account"
-              disabled={wallet.busy}
-              value={wallet.address}
-              onChange={(event) => wallet.selectAccount(event.target.value)}
-            >
-              {wallet.session?.accounts.map((account) => (
-                <option key={account.address} value={account.address}>
-                  {account.address.slice(0, 10)}...{account.address.slice(-8)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button
-            variant="outline"
-            disabled={wallet.busy}
-            onClick={() => void wallet.disconnect()}
-          >
-            Disconnect
-          </Button>
-        </>
+        <Button
+          aria-label="Disconnect"
+          title={`Disconnect ${wallet.address}`}
+          disabled={wallet.busy}
+          onClick={() => void wallet.disconnect()}
+        >
+          {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+          <LogOutIcon aria-hidden="true" data-icon="inline-end" />
+        </Button>
       ) : (
         <>
           {!wallet.providers.length ? (

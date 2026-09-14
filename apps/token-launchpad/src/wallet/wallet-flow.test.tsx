@@ -108,8 +108,9 @@ it("discovers before and after mount, connects with registry enabled, remounts o
     });
   });
   expect(screen.getByRole("button", { name: "Draft 0" })).toBeInTheDocument();
-  expect(screen.getByRole("combobox", { name: "Wallet account" })).toHaveValue(
-    account(2n).address,
+  expect(screen.queryByRole("combobox", { name: "Wallet account" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Disconnect" })).toHaveTextContent(
+    `${account(2n).address.slice(0, 6)}...${account(2n).address.slice(-4)}`,
   );
   await user.click(screen.getByRole("button", { name: "Disconnect" }));
   expect(screen.getByText("Public browsing")).toBeInTheDocument();

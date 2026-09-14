@@ -1,4 +1,4 @@
-import { AlertCircleIcon, RocketIcon } from "lucide-react";
+import { AlertCircleIcon, LoaderCircleIcon, RocketIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
 import { Link } from "react-router-dom";
 import { ExplorerProvider } from "@/components/blockchain-identifier";
@@ -175,12 +175,16 @@ function TokenDirectory(props: DirectoryOptions) {
             </AlertDescription>
           </Alert>
         ) : status?.syncing ? (
-          <Alert>
-            <AlertTitle>Registry is syncing</AlertTitle>
-            <AlertDescription>
-              New launches may appear after indexing reaches the chain tip.
-            </AlertDescription>
-          </Alert>
+          <p
+            role="status"
+            className="flex items-center gap-2 text-sm text-muted-foreground"
+          >
+            <LoaderCircleIcon
+              aria-hidden="true"
+              className="size-4 motion-safe:animate-spin"
+            />
+            Syncing tokens...
+          </p>
         ) : null}
         {page?.historyLimited || status?.historyLimited ? (
           <Alert>
