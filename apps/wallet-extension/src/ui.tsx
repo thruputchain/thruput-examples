@@ -17,6 +17,13 @@ import {
 } from "./lifecycle";
 import "./ui.css";
 
+// Chrome sizes toolbar popups from their content, so their layout must not
+// depend on that same viewport width. Tabs and approval windows stay responsive.
+document.documentElement.classList.toggle(
+  "wallet-popup",
+  chrome.extension.getViews({ type: "popup" }).includes(window),
+);
+
 interface State {
   exists: boolean;
   unlocked: boolean;

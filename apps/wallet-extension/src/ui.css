@@ -509,6 +509,21 @@ legend {
     padding: 32px;
   }
 }
+html.wallet-popup {
+  width: 400px;
+  min-width: 400px;
+  max-width: 400px;
+  overflow-y: scroll;
+}
+.wallet-popup body {
+  width: 400px;
+  min-width: 400px;
+  max-width: 400px;
+  margin: 0;
+}
+.wallet-popup main {
+  padding: 20px;
+}
 @media (pointer: coarse) {
   button {
     min-height: 48px;

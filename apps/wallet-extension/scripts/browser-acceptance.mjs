@@ -11,6 +11,7 @@ import {
   hashFromHex,
 } from "@groundhogchain/client";
 import { ExecResult } from "@groundhogchain/protocol";
+import { checkPopupStability } from "./popup-stability.mjs";
 
 // This test spends only newly airdropped localnet HOG, sending one base unit
 // back to the fresh test account. It does not access an existing browser profile.
@@ -22,7 +23,7 @@ if (screenshotDir && !connectOnly)
 if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
 async function capture(page, name) {
   if (!screenshotDir) return;
-  const viewport = page.viewportSize();
+  const viewport = page.viewportSize() ?? await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
   for (const width of [400, 800]) {
     await page.setViewportSize({ width, height: 680 });
     await page.evaluate(() => document.fonts.ready);
@@ -164,6 +165,7 @@ try {
   context = await chromium.launchPersistentContext(profile, {
     executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
     headless: true,
+    viewport: null,
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
@@ -270,6 +272,7 @@ try {
     await ui.reload();
     await ui.locator(".balance").filter({ hasText: "123.456789" }).waitFor();
     await capture(ui, "portfolio");
+    await checkPopupStability(ui);
     for (const width of [320, 400]) {
       await ui.setViewportSize({ width, height: 680 });
       const layout = await ui.evaluate(() => {
@@ -469,6 +472,7 @@ try {
         funds: "none",
         provider: "Thruput Wallet (dev.groundhog.wallet)",
         account: "derived account success, RPC failure, and dropdown persistence verified",
+        popup: "real toolbar popup has fixed 400px content, stable accounts, and bounded polling",
         copy: "selectable address, separate copy action, success and failure verified",
         races: "preflight cancellation, failed grant cleanup, restart, scoped portfolio and preparation verified",
         ordering: "change before connect/disconnect resolution; immediate SDK preparation succeeds",
