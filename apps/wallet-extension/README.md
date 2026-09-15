@@ -9,7 +9,7 @@ Requires Node 22.12+ and GitHub Packages read access. This extension installs
 Follow the [registry authentication instructions](../../README.md#install-swap-and-launchpad-dependencies)
 before installing dependencies.
 
-This application builds and tests independently of Swap and Token Launchpad. Their wallet integration is a separate change; installing the extension does not add connection controls to the existing apps on `main`.
+This application builds and tests independently of Swap and Token Launchpad. Both apps support its wallet provider.
 
 From `apps/wallet-extension`:
 
@@ -30,6 +30,25 @@ The UI uses the Thruput app theme and locally bundled IBM Plex Sans and Mono. Ch
 
 Create a wallet or restore a BIP39 recovery phrase. Use a password of at least 12 characters. In Settings, reveal and securely record the recovery backup after re-entering the password. Imported private keys are listed separately and cannot be recovered from the mnemonic. Do not use a valuable production mnemonic. Site connections last only for the current background-worker session: lock/unlock in that session retains them, but a worker restart requires fresh connection approval.
 
+## Package and publish
+
+Run `npm run package` from this directory to build the extension and create `artifacts/thruput-wallet.zip` and `artifacts/SHA256SUMS`. The ZIP contains a `thruput-wallet/` folder ready for Chrome's **Load unpacked**. Both `dist/` and `artifacts/` are ignored by Git.
+
+The [Publish wallet download workflow](../../.github/workflows/publish-wallet.yml) builds, checks, and publishes from `main` when wallet files change, or through a manual run on `main`. No download server or hosting service is needed.
+
+One-time infrastructure setup:
+
+- Add repository secret `AWS_WALLET_ARTIFACT_ROLE_ARN`. The role must trust GitHub OIDC for `repo:groundhogchain/groundhog-examples:ref:refs/heads/main` with audience `sts.amazonaws.com`.
+- Allow that role to write only `wallet/*` in bucket `groundhog-public-release-artifacts-017820684264` (region `us-west-2`). The bucket must allow anonymous reads of that prefix, as it does for public CLI downloads. No object ACLs or AWS access keys are used.
+- Grant this repository's Actions token read access to the private SDK packages, or provide a read-packages token as repository secret `NPM_TOKEN`.
+
+The workflow stores each commit's files under `wallet/<commit>/` and updates these stable links after the build passes:
+
+- [Wallet ZIP](https://groundhog-public-release-artifacts-017820684264.s3.us-west-2.amazonaws.com/wallet/latest/thruput-wallet.zip)
+- [Checksum](https://groundhog-public-release-artifacts-017820684264.s3.us-west-2.amazonaws.com/wallet/latest/SHA256SUMS)
+
+The links become available after the first successful publish. The workflow downloads the public files and verifies their checksum before reporting success.
+
 ## Networks and Tokens
 
 Only two RPC endpoints are supported:
@@ -37,11 +56,11 @@ Only two RPC endpoints are supported:
 | Network  | Endpoint                     | Identity                                      |
 | -------- | ---------------------------- | --------------------------------------------- |
 | Localnet | `http://127.0.0.1:9545`      | Pinned to 32 zero bytes                       |
-| Devnet   | `http://44.236.180.135:8545` | Learned when explicitly selected, then pinned |
+| Devnet   | `https://rpc.thruput.network` | Learned when explicitly selected, then pinned |
 
 The worker owns all RPC traffic; no app proxy is needed. Chrome host match patterns cannot restrict ports, so extension CSP separately restricts connections to these exact endpoint ports. Network selection requires a reachable endpoint. Every signing and submission flow checks its live network identity. Selecting a network clears site grants and cancels approvals; reconnect from the dapp afterward. Reselect a network after a deliberate devnet reset.
 
-Devnet is a public experimental chain with an HTTP endpoint. Traffic is not confidential or authenticated against a network attacker, and first-use identity is not independently authenticated. An unavailable or older gateway may not implement `groundhog_networkInfo` or `groundhog_requestAirdrop`; the wallet reports the failure rather than bypassing identity checks.
+Devnet is an experimental chain with an HTTPS endpoint. The wallet learns and pins its network identity when selected. An unavailable or incompatible gateway can prevent connection or airdrop requests; the wallet reports the failure rather than bypassing identity checks.
 
 HOG is the native ERC20-compatible token at `0x0000000000000000000000000000000000000000000000000000000000000001`, with seven decimals. Add other token contracts manually under Assets. Symbols and decimals come from untrusted contract metadata. Token balances use generated ERC20 view decoding. Amounts use integer arithmetic, never floating-point conversion.
 
