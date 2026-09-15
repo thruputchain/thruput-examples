@@ -12,7 +12,7 @@ import { gasAmount } from "@groundhogchain/protocol";
 import { accountOf, type SecretAccount } from "./vault";
 export const NETWORKS = {
   localnet: "http://127.0.0.1:9545",
-  devnet: "http://44.236.180.135:8545",
+  devnet: "https://rpc.thruput.network",
 } as const;
 export type Network = keyof typeof NETWORKS;
 export const HOG = `0x${"0".repeat(63)}1`;
