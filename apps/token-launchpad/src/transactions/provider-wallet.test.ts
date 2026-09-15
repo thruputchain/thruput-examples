@@ -14,7 +14,10 @@ import {
   type WalletProvider,
   type WalletSession,
 } from "@groundhogchain/client/provider";
-import { createPubkeyAccount, createProviderWalletClient } from "@groundhogchain/client/wallet";
+import {
+  createPubkeyAccount,
+  createProviderWalletClient,
+} from "@groundhogchain/client/wallet";
 import {
   blockHeight,
   calldata,
@@ -66,7 +69,7 @@ returnWriter.writeUint32(1n);
 returnWriter.writeVarOpaque(childReturn, 0xffff_ffff);
 const wrappedReturn = returnWriter.finish();
 
-function setup() {
+function setup(onConnectionLost?: () => void) {
   let session: WalletSession = {
     networkHash: config.networkIdHex,
     accounts: [account],
@@ -125,7 +128,13 @@ function setup() {
   const boundary = createProviderWriteBoundary(
     config,
     client as unknown as GroundhogClient,
-    createProviderWalletClient({ client: client as unknown as GroundhogClient, provider, account, networkHash: config.networkIdHex }),
+    createProviderWalletClient({
+      client: client as unknown as GroundhogClient,
+      provider,
+      account,
+      networkHash: config.networkIdHex,
+    }),
+    onConnectionLost,
   );
   return {
     boundary,
@@ -142,6 +151,57 @@ function setup() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("provider write boundary with the real SDK", () => {
+  it("keeps the adapter usable after approval timeout and signs a fresh transaction on retry", async () => {
+    const onConnectionLost = vi.fn();
+    const { boundary, request, client } = setup(onConnectionLost);
+    const original = request.getMockImplementation()!;
+    let timeOut = true;
+    request.mockImplementation(async (input) => {
+      if (input.method === "signTransaction" && timeOut) {
+        timeOut = false;
+        throw Object.assign(new Error("Approval timed out"), { code: 4001 });
+      }
+      return original(input);
+    });
+    const onSigned = vi.fn();
+    expect(await boundary.execute(target, { onSigned })).toMatchObject({
+      kind: "preSubmissionFailure",
+      hash: null,
+      message: expect.stringContaining("Try again"),
+    });
+    expect(onSigned).not.toHaveBeenCalled();
+    expect(onConnectionLost).not.toHaveBeenCalled();
+    expect(
+      request.mock.calls.some(
+        ([input]) => input.method === "submitTransaction",
+      ),
+    ).toBe(false);
+    expect((await boundary.execute(target, { onSigned })).kind).toBe(
+      "committedSuccess",
+    );
+    expect(client.getChainTip).toHaveBeenCalledTimes(2);
+    expect(onSigned).toHaveBeenCalledOnce();
+    boundary.dispose();
+  });
+
+  it.each([4100, 4900, 4901])(
+    "reports invalidated signing clients on provider error %s",
+    async (code) => {
+      const onConnectionLost = vi.fn();
+      const { boundary, request } = setup(onConnectionLost);
+      request.mockRejectedValueOnce(
+        Object.assign(new Error("Wallet unavailable"), { code }),
+      );
+      expect(
+        await boundary.execute(target, { onSigned: vi.fn() }),
+      ).toMatchObject({
+        kind: "preSubmissionFailure",
+      });
+      expect(onConnectionLost).toHaveBeenCalledOnce();
+      boundary.dispose();
+    },
+  );
+
   it("awaits persistence, submits only through the provider, and unwraps child returns without changing evidence", async () => {
     const { boundary, request, client } = setup();
     let persist!: () => void;
@@ -281,7 +341,12 @@ describe("provider write boundary with the real SDK", () => {
     const writer = createProviderWriteBoundary(
       { ...config, expectedTokenHash: hash },
       client as unknown as GroundhogClient,
-      createProviderWalletClient({ client: client as unknown as GroundhogClient, provider, account, networkHash: config.networkIdHex }),
+      createProviderWalletClient({
+        client: client as unknown as GroundhogClient,
+        provider,
+        account,
+        networkHash: config.networkIdHex,
+      }),
     );
     await writer.execute(target, { onSigned() {} });
     expect(fetch).not.toHaveBeenCalled();

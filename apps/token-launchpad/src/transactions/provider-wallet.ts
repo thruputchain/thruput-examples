@@ -8,11 +8,13 @@ import { userErrorMessage } from "@/errors";
 import { assertExpectedNetwork } from "@/groundhog/client";
 import { createTransactionObserver } from "./transaction-observation";
 import type { WriteBoundary } from "./write-boundary";
+import { walletFailure } from "./wallet-error";
 
 export function createProviderWriteBoundary(
   config: AppConfig,
   client: GroundhogClient,
   wallet?: ProviderWalletClient,
+  onConnectionLost?: () => void,
 ): WriteBoundary & { dispose(): void } {
   const observe = createTransactionObserver(config, client);
   return {
@@ -47,18 +49,24 @@ export function createProviderWriteBoundary(
         // Storage must succeed before broadcasting these exact approved bytes.
         await observer.onSigned(signed.hash);
       } catch (error) {
+        const failure = walletFailure(error);
+        if (failure.reason === "connectionLost") onConnectionLost?.();
         return {
           kind: "preSubmissionFailure",
           hash: null,
-          message: userErrorMessage(
-            error,
-            "The wallet transaction could not be prepared",
-          ),
+          message:
+            failure.message ??
+            userErrorMessage(
+              error,
+              "The wallet transaction could not be prepared",
+            ),
         };
       }
       try {
         await wallet.submitTransaction(signed);
-      } catch {
+      } catch (error) {
+        if (walletFailure(error).reason === "connectionLost")
+          onConnectionLost?.();
         const result = await observe(signed.hash);
         return result.kind === "indeterminate" && result.reason === "timeout"
           ? { ...result, reason: "disconnect" }

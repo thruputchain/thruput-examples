@@ -74,12 +74,16 @@ function Field({
   type = "text",
   required = true,
   placeholder,
+  autoComplete = type === "password" ? "current-password" : "off",
+  minLength,
 }: {
   label: string;
   name: string;
   type?: string;
   required?: boolean;
   placeholder?: string;
+  autoComplete?: string;
+  minLength?: number;
 }) {
   return (
     <label>
@@ -89,7 +93,8 @@ function Field({
         type={type}
         required={required}
         placeholder={placeholder}
-        autoComplete={type === "password" ? "current-password" : "off"}
+        autoComplete={autoComplete}
+        minLength={minLength}
         spellCheck={false}
       />
     </label>
@@ -100,11 +105,13 @@ function Button({
   onClick,
   primary = false,
   disabled = false,
+  title,
 }: {
   children: ReactNode;
   onClick?: () => void;
   primary?: boolean;
   disabled?: boolean;
+  title?: string;
 }) {
   return (
     <button
@@ -112,6 +119,7 @@ function Button({
       className={primary ? "primary" : ""}
       onClick={onClick}
       disabled={disabled}
+      title={title}
     >
       {children}
     </button>
@@ -388,65 +396,128 @@ function App() {
         <p role="status">Opening your wallet...</p>
       ) : !state.exists ? (
         <section className="welcome">
-          <span className="eyebrow">Thruput Wallet</span>
-          <h1>Your wallet, ready to build.</h1>
-          <p>
-            Create a wallet for Groundhog localnet and devnet. Your recovery
-            phrase and keys stay encrypted on this device.
-          </p>
-          <div className="tabs">
-            <Button onClick={() => setMode("create")}>Create wallet</Button>
-            <Button onClick={() => setMode("restore")}>Restore wallet</Button>
+          <h1>Set up your wallet</h1>
+          <div className="setup-tabs" role="tablist" aria-label="Wallet setup">
+            {(
+              [
+                ["create", "New wallet"],
+                ["restore", "Restore wallet"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                id={`setup-${value}`}
+                aria-selected={mode === value}
+                aria-controls="wallet-setup-panel"
+                tabIndex={mode === value ? 0 : -1}
+                disabled={busy}
+                onClick={() => {
+                  setMode(value);
+                  setError("");
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    !["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                      event.key,
+                    )
+                  )
+                    return;
+                  event.preventDefault();
+                  const next =
+                    event.key === "Home"
+                      ? "create"
+                      : event.key === "End"
+                        ? "restore"
+                        : mode === "create"
+                          ? "restore"
+                          : "create";
+                  setMode(next);
+                  setError("");
+                  document.getElementById(`setup-${next}`)?.focus();
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <form
-            onSubmit={(e) =>
-              form(e, async (values) => {
-                if (values.get("password") !== values.get("confirm"))
-                  throw new Error("Passwords do not match");
-                await rpc("create", {
-                  password: values.get("password"),
-                  ...(mode === "restore"
-                    ? { mnemonic: values.get("mnemonic") }
-                    : {}),
-                });
-                await refresh();
-                setPage("settings");
-                setNotice(
-                  "Wallet ready. Back up your recovery phrase below before adding funds.",
-                );
-              })
-            }
+          <div
+            id="wallet-setup-panel"
+            role="tabpanel"
+            aria-labelledby={`setup-${mode}`}
           >
-            {mode === "restore" ? (
-              <label>
-                Recovery phrase
-                <textarea
-                  name="mnemonic"
-                  required
-                  rows={4}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </label>
-            ) : null}
-            <Field
-              label="Password (at least 12 characters)"
-              name="password"
-              type="password"
-            />
-            <Field label="Confirm password" name="confirm" type="password" />
-            <p className="hint">
-              Testnet derivation: m/44'/1'/index', Ed25519 SLIP-0010, address
-              nonce 0. No BIP39 passphrase.
+            <h2>
+              {mode === "create" ? "Create a wallet" : "Restore a wallet"}
+            </h2>
+            <p>
+              {mode === "create"
+                ? "Choose a password with at least 12 characters and enter it twice. This password encrypts your wallet on this device. Use it to unlock your wallet later."
+                : "Enter your recovery phrase, then choose a password for this device. You do not need the password from your previous device."}
             </p>
-            <button type="submit" className="primary" disabled={busy}>
-              {busy
-                ? "Encrypting..."
-                : mode === "create"
-                  ? "Create encrypted wallet"
-                  : "Restore encrypted wallet"}
-            </button>
-          </form>
+            <form
+              key={mode}
+              onSubmit={(e) =>
+                form(e, async (values) => {
+                  if (values.get("password") !== values.get("confirm"))
+                    throw new Error("Passwords do not match");
+                  await rpc("create", {
+                    password: values.get("password"),
+                    ...(mode === "restore"
+                      ? { mnemonic: values.get("mnemonic") }
+                      : {}),
+                  });
+                  await refresh();
+                  setPage("settings");
+                  setNotice(
+                    "Wallet ready. Back up your recovery phrase below before adding funds.",
+                  );
+                })
+              }
+            >
+              {mode === "restore" ? (
+                <label>
+                  Recovery phrase
+                  <textarea
+                    name="mnemonic"
+                    required
+                    rows={4}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </label>
+              ) : null}
+              <Field
+                label="Password (at least 12 characters)"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+              />
+              <Field
+                label="Confirm password"
+                name="confirm"
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+              />
+              <button type="submit" className="primary" disabled={busy}>
+                {busy
+                  ? "Encrypting..."
+                  : mode === "create"
+                    ? "Create wallet"
+                    : "Restore wallet"}
+              </button>
+              <details>
+                <summary>Technical details</summary>
+                <p className="hint">
+                  For Groundhog localnet and devnet. Testnet derivation:
+                  m/44'/1'/index', Ed25519 SLIP-0010, address nonce 0.
+                  No BIP39 passphrase.
+                </p>
+              </details>
+            </form>
+          </div>
         </section>
       ) : !state.unlocked ? (
         <section className="welcome">
@@ -607,20 +678,23 @@ function App() {
               <option value="localnet">Localnet</option>
               <option value="devnet">Devnet</option>
             </select>
-            <Button
-              disabled={busy}
-              onClick={() => {
-                clearPrepared();
-                void run(async () => {
-                  await rpc("network", { network: state.network });
-                  await refresh();
-                  setNotice("Network reconnected. Reconnect your apps.");
-                });
-              }}
-            >
-              Reconnect
-            </Button>
-            <Button onClick={lock}>Lock</Button>
+            <div className="toolbar-actions">
+              <Button
+                disabled={busy}
+                title="Reconnect the network. You will need to reconnect your apps afterward."
+                onClick={() => {
+                  clearPrepared();
+                  void run(async () => {
+                    await rpc("network", { network: state.network });
+                    await refresh();
+                    setNotice("Network reconnected. Reconnect your apps.");
+                  });
+                }}
+              >
+                Reconnect
+              </Button>
+              <Button onClick={lock}>Lock</Button>
+            </div>
           </div>
           <label className="sr-only" htmlFor="account">
             Account

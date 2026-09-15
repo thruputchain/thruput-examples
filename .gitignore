@@ -4,6 +4,7 @@ debug
 target
 tmp/
 .local/
+.env.*.local
 node_modules/
 .claude/
 

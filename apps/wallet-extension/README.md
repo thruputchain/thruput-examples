@@ -50,16 +50,17 @@ Downloads become available after the first successful publish. The publication g
 
 ## Networks and Tokens
 
-Only two RPC endpoints are supported:
+New wallets default to Devnet, pinned to its published network identity. Existing
+wallets keep their saved network selection. Only two RPC endpoints are supported:
 
 | Network  | Endpoint                     | Identity                                      |
 | -------- | ---------------------------- | --------------------------------------------- |
 | Localnet | `http://127.0.0.1:9545`      | Pinned to 32 zero bytes                       |
-| Devnet   | `https://rpc.thruput.network` | Learned when explicitly selected, then pinned |
+| Devnet   | `https://rpc.thruput.network` | Pinned on first use; refreshed when explicitly selected |
 
 The worker owns all RPC traffic; no app proxy is needed. Chrome host match patterns cannot restrict ports, so extension CSP separately restricts connections to these exact endpoint ports. Network selection requires a reachable endpoint. Every signing and submission flow checks its live network identity. Selecting a network clears site grants and cancels approvals; reconnect from the dapp afterward. Reselect a network after a deliberate devnet reset.
 
-Devnet is an experimental chain with an HTTPS endpoint. The wallet learns and pins its network identity when selected. An unavailable or incompatible gateway can prevent connection or airdrop requests; the wallet reports the failure rather than bypassing identity checks.
+Devnet is an experimental chain with an HTTPS endpoint. New wallets use the published network hash; explicitly selecting Devnet reads and pins its current identity. An unavailable or incompatible gateway can prevent connection or airdrop requests; the wallet reports the failure rather than bypassing identity checks.
 
 HOG is the native ERC20-compatible token at `0x0000000000000000000000000000000000000000000000000000000000000001`, with seven decimals. Add other token contracts manually under Assets. Symbols and decimals come from untrusted contract metadata. Token balances use generated ERC20 view decoding. Amounts use integer arithmetic, never floating-point conversion.
 

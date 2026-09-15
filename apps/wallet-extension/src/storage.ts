@@ -1,4 +1,5 @@
 import type { Network, Token } from "./network";
+import { DEVNET_NETWORK_HASH } from "./network";
 import type { SignedApproval } from "./policy";
 import type { OutgoingTransfer } from "./lifecycle";
 import { ITERATIONS, type Envelope } from "./vault";
@@ -40,8 +41,8 @@ export function isEnvelope(value: unknown): value is Envelope {
 
 export function parseStored(value: unknown, extensionOrigin: string): Stored {
   const raw = object(value);
-  const network = raw.network === "devnet" ? "devnet" : "localnet";
   const fresh = value === undefined;
+  const network = fresh || raw.network === "devnet" ? "devnet" : "localnet";
   const validPin =
     (raw.network === "localnet" || raw.network === "devnet") &&
     hash(raw.pin) &&
@@ -50,7 +51,7 @@ export function parseStored(value: unknown, extensionOrigin: string): Stored {
     ...(Object.hasOwn(raw, "envelope") ? { envelope: raw.envelope } : {}),
     network,
     // An empty pin requires explicit network selection; never silently repin.
-    pin: fresh ? zero : validPin ? (raw.pin as string) : "",
+    pin: fresh ? DEVNET_NETWORK_HASH : validPin ? (raw.pin as string) : "",
     approvals: [],
     tokens: {},
     airdrops: {},

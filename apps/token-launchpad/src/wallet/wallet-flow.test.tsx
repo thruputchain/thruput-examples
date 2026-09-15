@@ -5,6 +5,7 @@ import {
   addressFromHex,
   PrivateKeySigner,
   toHex0x,
+  fromHex0x,
 } from "@groundhogchain/client";
 import {
   registerWalletProvider,
@@ -14,13 +15,20 @@ import {
 import { createPubkeyAccount } from "@groundhogchain/client/wallet";
 import { afterEach, expect, it, vi } from "vitest";
 import { loadConfig } from "@/config";
+import { workflowStorageKey } from "@/launch/workflow";
 import { WalletProvider as AppWalletProvider } from "./wallet-provider";
 import { WalletControls } from "./wallet-controls";
 import { WalletInstallBanner } from "./wallet-install-banner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createReadClient } from "@/groundhog/client";
+import { useWalletWriteBoundary } from "./write-context";
+import { ERC20 } from "@groundhogchain/client/contracts";
+import { gasAmount } from "@groundhogchain/protocol";
 
-vi.mock("@/groundhog/client", () => ({ createReadClient: vi.fn(() => ({})) }));
+vi.mock("@/groundhog/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/groundhog/client")>()),
+  createReadClient: vi.fn(() => ({})),
+}));
 function Probe({ readOnly }: { readOnly: boolean }) {
   const [revision, setRevision] = useState(0);
   return (
@@ -34,11 +42,29 @@ function Probe({ readOnly }: { readOnly: boolean }) {
     </TooltipProvider>
   );
 }
+function WriteProbe() {
+  const writer = useWalletWriteBoundary();
+  return (
+    <button
+      onClick={() =>
+        void writer.execute(
+          ERC20.transfer.invocation(base.nativeHogAddress, gasAmount(1000n), {
+            receiver: base.nativeHogAddress,
+            amount: 1n,
+          }),
+          { onSigned: () => {} },
+        )
+      }
+    >
+      Send test transaction
+    </button>
+  );
+}
 function ProviderApp({ base: config }: { base: typeof base }) {
   return (
     <AppWalletProvider config={config}>
-      {(_config, connected, revision) => (
-        <Probe key={revision} readOnly={!connected} />
+      {(config, connected) => (
+        <Probe key={workflowStorageKey(config)} readOnly={!connected} />
       )}
     </AppWalletProvider>
   );
@@ -186,7 +212,9 @@ it("silently returns to disconnected when the connection popup closes and allows
   await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.getByText("Public browsing")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Connect Test Wallet" })).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "Connect Test Wallet" }),
+  ).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
   expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
 });
@@ -209,10 +237,12 @@ it("hides Disconnect before approval and on an empty account session, then allow
     resolve({ networkHash: base.networkIdHex, accounts: [account(1n)] }),
   );
   expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Draft 0" }));
   await act(async () =>
     provider.change({ networkHash: base.networkIdHex, accounts: [] }),
   );
   expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Draft 1" })).toBeVisible();
   provider.request.mockResolvedValueOnce({
     networkHash: base.networkIdHex,
     accounts: [account(1n)],
@@ -221,6 +251,7 @@ it("hides Disconnect before approval and on an empty account session, then allow
   expect(
     await screen.findByRole("button", { name: "Disconnect" }),
   ).toBeVisible();
+  expect(screen.getByRole("button", { name: "Draft 1" })).toBeVisible();
 });
 it("does not revive an old connect result after a session change", async () => {
   const user = userEvent.setup();
@@ -244,4 +275,55 @@ it("does not revive an old connect result after a session change", async () => {
     ).toBeEnabled(),
   );
   expect(screen.getByText("Public browsing")).toBeInTheDocument();
+});
+
+it("clears a stale connection after SDK authorization failure and binds a fresh client on reconnect", async () => {
+  const provider = wallet();
+  vi.mocked(createReadClient).mockReturnValueOnce({
+    getNetworkInfo: vi
+      .fn()
+      .mockResolvedValue({ networkHash: fromHex0x(`0x${base.networkIdHex}`) }),
+    getChainTip: vi.fn().mockResolvedValue({ height: 10n }),
+  } as never);
+  const user = userEvent.setup();
+  render(
+    <AppWalletProvider config={base}>
+      {(_config, connected) => (
+        <>
+          <Probe readOnly={!connected} />
+          <WriteProbe />
+        </>
+      )}
+    </AppWalletProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  provider.request.mockRejectedValueOnce(
+    Object.assign(new Error("Wallet account is not authorized"), {
+      code: 4100,
+    }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Send test transaction" }),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull(),
+  );
+  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  const original = provider.request.getMockImplementation()!;
+  provider.request.mockImplementation(async (request) => {
+    if (request.method === "signTransaction")
+      throw Object.assign(new Error("Approval timed out"), { code: 4001 });
+    return original(request);
+  });
+  await user.click(
+    screen.getByRole("button", { name: "Send test transaction" }),
+  );
+  await waitFor(() =>
+    expect(
+      provider.request.mock.calls.some(
+        ([request]) => request.method === "signTransaction",
+      ),
+    ).toBe(true),
+  );
+  expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
 });
