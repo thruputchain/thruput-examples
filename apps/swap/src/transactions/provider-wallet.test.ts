@@ -15,6 +15,7 @@ import type { ProviderWalletClient } from "@groundhogchain/client/wallet";
 import { describe, expect, it, vi } from "vitest";
 import type { GlobalConfig } from "@/config";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
+import { buildProcessRequestsTarget } from "@/contracts/driver-target";
 import { createProviderWriteBoundary } from "./provider-wallet";
 
 const hex = (byte: string) => `0x${byte.repeat(32)}`;
@@ -75,6 +76,22 @@ function fixture() {
 }
 
 describe("provider write boundary", () => {
+  it("funds the crank frame and enclosing wallet transaction for an eight-request batch", async () => {
+    const { wallet, boundary } = fixture();
+    const invocation = buildProcessRequestsTarget(addressFromHex(hex("06")));
+    const batchBudget = 50_000n + 8n * 2_000_000n + 2_000_000n;
+    expect(invocation.gas_limit).toBeGreaterThan(batchBudget);
+    await expect(boundary.execute(invocation)).resolves.toMatchObject({
+      kind: "committedSuccess",
+    });
+    expect(wallet.prepareExecution).toHaveBeenCalledWith({
+      invocation,
+      gasLimit: 25_000_000n,
+      expiryBlocks: 1_000n,
+    });
+    expect(25_000_000n - invocation.gas_limit).toBe(5_000_000n);
+  });
+
   it("does not prepare a transaction against a different RPC network", async () => {
     const { client, wallet, boundary } = fixture();
     client.getNetworkInfo.mockResolvedValue({

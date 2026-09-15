@@ -190,8 +190,9 @@ pub struct SwapExactOutRequest {
     pub recipient: Address,
 }
 
-// What handling each kind of request may cost. Calibrated against the guest (real-fuel) build by
-// `swap-driver`'s `request_gas` test, which holds each of these several times the measured cost.
+// What handling each kind of request may cost. Live-node execution needs more gas than the
+// guest calibration fixture measures; keep room for the full token and liquidity call paths.
+// Recheck both `request_gas` and the live wallet acceptance test before reducing these limits.
 //
 // These are safety limits: the driver caps the handler sub-call at the figure its request declares,
 // and a request that outruns its budget fails rather than slowing down. The margin is not free,
@@ -199,21 +200,21 @@ pub struct SwapExactOutRequest {
 // these makes every crank declare more gas than it needs and raises the floor a crank must clear
 // before it may drain at all.
 //
-// Liquidity events carry more headroom than a bare swap: they cross-call the factory for the
-// protocol `fee_to`, and when one is configured, every such event also takes a square root and some
+// Liquidity events also cross-call the factory for the protocol `fee_to`. When one is configured,
+// every such event takes a square root and some
 // U256 arithmetic in the pair's `mint_fee`. `swap-driver`'s tests cannot reach that branch -- their
 // pairs have no factory to consult -- so it is measured separately, by `swap-factory`'s
 // `the_protocol_fee_branch_fits_within_the_liquidity_budgets`, and these two budgets have to cover
 // the cheap path plus that branch.
 
 /// What handling an [`AddLiquidityRequest`] may cost.
-pub const ADD_LIQUIDITY_GAS: u64 = 400_000;
+pub const ADD_LIQUIDITY_GAS: u64 = 2_000_000;
 
 /// What handling a [`RemoveLiquidityRequest`] may cost.
-pub const REMOVE_LIQUIDITY_GAS: u64 = 500_000;
+pub const REMOVE_LIQUIDITY_GAS: u64 = 2_000_000;
 
 /// What handling a [`SwapExactInRequest`] or [`SwapExactOutRequest`] may cost.
-pub const SWAP_GAS: u64 = 250_000;
+pub const SWAP_GAS: u64 = 2_000_000;
 
 // Every per-operation budget, in one place so that `REQUEST_GAS_MAX` is the largest of them by
 // construction. A new operation belongs here as well as in `gas_limit` below -- which the match

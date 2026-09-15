@@ -47,7 +47,7 @@ HTTP endpoint; the extension uses localnet at `http://127.0.0.1:9545`.
 ```sh
 export GROUNDHOG_CLI=/absolute/path/to/groundhog
 export GROUNDHOG_RPC_URL=https://rpc.thruput.network
-export GROUNDHOG_NETWORK_ID=0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642
+export GROUNDHOG_NETWORK_ID=0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f
 npm run setup:devnet --workspace apps/swap
 ```
 
@@ -56,29 +56,33 @@ deploys and initializes empty Swap infrastructure, and writes `.env.devnet` plus
 the public LP-token code asset. The deployer key is never saved or published.
 There is no setup journal. Failed setup leaves the previous environment intact.
 
-The hosted RPC chooses the airdrop amount; this deployment received **100 HOG**.
+The hosted RPC chooses the airdrop amount; this deployment received **1,000 HOG**.
 Devnet requires HTTPS and an explicit network hash. A local runtime manifest is
 not used. Verify the live hash after a Devnet reset before running setup again.
 
 ### Recorded Devnet deployment
 
-Verified against RPC **0.17.0**, wire format **5.2.0**, release **0.1.27**:
+Verified on **2026-09-15 UTC** against RPC **0.17.2**, wire format **5.2.0**:
 
 | Field | Value |
 | --- | --- |
 | RPC | `https://rpc.thruput.network` |
-| Network ID | `0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642` |
-| Factory | `0x03a80df7a6227df1f8f23e57d30399e2a82b99e23cb6494985dc12d2193f939c` |
-| Router | `0xaf63190d7e576bfe923c66a5437fb446cdc231363327b1f51b3411c25e03380f` |
-| Handler code-registration instance | `0x773a3ecf71a7bc2a69a904d06b771230b9eb919d287c4f23a1dd975981b8c59a` |
-| Driver code-registration instance | `0xe27dfb1c8d5f40f13cc45b297a20bb3bd949bb2a042053a8b1ebb5167be442d6` |
+| Network ID | `0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f` |
+| Factory | `0xd09b6848ad37e0afd7841f2d19f8315a28a27791015342d1fe381c7efe3f78a6` |
+| Router | `0x4762d730a050aedb33a1bf56ccc90ec2873634ccf28343f1c7d3bf64c3ce0248` |
+| Handler code-registration instance | `0x6c0004bf77bb314f44a6349b77566177dbb42afbf47482cac5eae441d0d38e2b` |
+| Driver code-registration instance | `0xa5515d88fd8849e05dcf09181b52e7830ff5ac26240d90b353c1f62f5c4af135` |
+| Driver code hash | `0x0ac0a63e84939d14eeb9b9b38838f22296322f69d94798add9460e36840783ce` |
 | LP token code hash | `0x152d5e4635c5322cb1fbc75e7584cd6565d8e4802c04e9c4e9b75b4e7fb90776` |
-| Factory deployment transaction | `0x0647ee0e3a9b1a17513d210d0be0506445846a0946fc69381a6594439560e155` |
-| Router deployment transaction | `0x14f9e8c7fd3522261f5811649c8927611d7c627c9c881a72aa73bb7d22eb5082` |
+| Factory deployment transaction | `0x9c8253c497364394b65b8f4c2eea22ccd8b1d241a628694f0400949e9486eeb2` |
+| Router deployment transaction | `0xa6fc044c92ebe064a1b3c28552436b17258ea2d5ba88c9df07e710af061d159d` |
 
 The factory was verified empty, with protocol fees disabled and a valid pool
 funding policy. The registration instances make handler/driver code available;
 each user-created pool gets its own initialized handler and driver.
+
+This deployment uses the 2,000,000-gas handler request limits proposed in
+[PR #95](https://github.com/groundhogchain/groundhog-examples/pull/95).
 
 Use the saved `.env.devnet` to host this deployment. Running setup again creates
 different addresses. To run the app locally against Devnet:

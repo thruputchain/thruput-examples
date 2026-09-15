@@ -51,7 +51,7 @@ tooling accounts; they do not import keys into the browser.
 ```sh
 export GROUNDHOG_CLI=/absolute/path/to/groundhog
 export GROUNDHOG_RPC_URL=https://rpc.thruput.network
-export GROUNDHOG_NETWORK_ID=0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642
+export GROUNDHOG_NETWORK_ID=0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f
 npm run setup:devnet --workspace apps/token-launchpad
 ```
 
@@ -66,19 +66,19 @@ before deploying the factory. Local setup retains its manifest-validated budget.
 
 ### Recorded Devnet deployment
 
-Verified against RPC **0.17.0**, wire format **5.2.0**, release **0.1.27**:
+Verified on **2026-09-15 UTC** against RPC **0.17.2**, wire format **5.2.0**:
 
 | Field | Value |
 | --- | --- |
 | RPC | `https://rpc.thruput.network` |
-| Network ID | `0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642` |
-| Token factory | `0x547235886897dbc7596667ee6e6c3e21b0a2e54cecafce42fb3224d3d4ba559f` |
+| Network ID | `0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f` |
+| Token factory | `0x9609d0a7e64f8daeb1e57d6617d0c8f21166f649729740258011e9c353207aec` |
 | Token code hash | `0x2ce1fb17d0eaae09ed8ded2514f660a221d233ce60924bdcebb95a704124d7ea` |
-| Factory deployment transaction | `0x088d5ebaf989f33b61805ae04be03ab796e6ea3cfc288650b5eff5585b918574` |
+| Factory deployment transaction | `0x5183a6aa172a7b7b7e4fb7fd8519166b87d26f2773560fd6d6660336cc18ebfa` |
 | Required token funding | `10,000,000` raw units (1 HOG) |
 | Creation fee | `0` |
 
-The tool account received a confirmed **100 HOG** airdrop. Factory configuration
+The tool account received a confirmed **1,000 HOG** airdrop. Factory configuration
 and the native balance charge were verified. No tokens were created during setup.
 The public token code is attached when a user creates the first token.
 

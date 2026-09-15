@@ -20,7 +20,7 @@ describe("buildProcessRequestsTarget", () => {
     const target = buildProcessRequestsTarget(driver);
 
     expect(target.invoked_address).toEqual(driver);
-    expect(target.gas_limit).toBe(10_000_000n);
+    expect(target.gas_limit).toBe(20_000_000n);
     expect(target.calldata).toEqual(new Uint8Array());
   });
 });

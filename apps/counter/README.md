@@ -55,14 +55,14 @@ Recorded deployment on the hosted network:
 | Field | Value |
 | --- | --- |
 | RPC | `https://rpc.thruput.network` |
-| Network ID | `0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642` |
-| Counter address | `0xecfe5af64cf488e1c3636d9176b33dc080798f057ede3111136b5c2ade564613` |
-| Signer address (public) | `0x002cc817a4e5534f6ba45b3fbdd63b1f290e7dfeae41cf208705dfee9d8e114c` |
-| Deploy transaction | `0x4ba297636f811953463a420db1bd775567edb01fdefd764d0790a0015837eb4d` |
+| Network ID | `0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f` |
+| Counter address | `0xd66fd30fd2df8338844b70d2ea065c4b540ea24740971312a4de6e7835a30f4f` |
+| Signer address (public) | `0xc1bcb638f98f7db590c57057b96f5b9333e34fb5d8060514c7d7bc6172e3897a` |
+| Deploy transaction | `0x0e42ae4087d6db7ff3961de854738c67d28d70b8cbfb28ab811b4da7d939e334` |
 | Initial value | `1,000,000` |
 
-This deployment was verified against RPC **0.17.0**, wire format **5.2.0**,
-release **0.1.27**. Its signer received a confirmed **100 HOG** airdrop.
+This deployment was verified on **2026-09-15 UTC** against RPC **0.17.2**, wire
+format **5.2.0**. Its signer received a confirmed **1,000 HOG** airdrop.
 
 Both setup commands build the counter and regenerate bindings before running
 their TypeScript setup script. To create a fresh Devnet demo:
@@ -70,7 +70,7 @@ their TypeScript setup script. To create a fresh Devnet demo:
 ```sh
 export GROUNDHOG_CLI=/absolute/path/to/groundhog
 export GROUNDHOG_RPC_URL=https://rpc.thruput.network
-export GROUNDHOG_NETWORK_ID=0xabccfe796b3065d9f9985be6db9e2d01880f29d990447d9ea596a97009e73642
+export GROUNDHOG_NETWORK_ID=0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f
 npm run setup:devnet --workspace apps/counter
 ```
 
