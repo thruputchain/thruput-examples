@@ -607,6 +607,19 @@ function App() {
               <option value="localnet">Localnet</option>
               <option value="devnet">Devnet</option>
             </select>
+            <Button
+              disabled={busy}
+              onClick={() => {
+                clearPrepared();
+                void run(async () => {
+                  await rpc("network", { network: state.network });
+                  await refresh();
+                  setNotice("Network reconnected. Reconnect your apps.");
+                });
+              }}
+            >
+              Reconnect
+            </Button>
             <Button onClick={lock}>Lock</Button>
           </div>
           <label className="sr-only" htmlFor="account">

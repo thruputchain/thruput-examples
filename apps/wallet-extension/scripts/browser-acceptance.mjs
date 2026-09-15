@@ -261,6 +261,12 @@ try {
     await ui.reload();
     await ui.locator(".balance").filter({ hasText: "123.456789" }).waitFor();
     await capture(ui, "portfolio");
+    const checksBeforeReconnect = identityChecks;
+    await ui.getByRole("button", { name: "Reconnect", exact: true }).click();
+    await ui.getByText("Network reconnected. Reconnect your apps.", { exact: true }).waitFor();
+    assert(identityChecks > checksBeforeReconnect, "Reconnect must recheck the selected network");
+    assert.equal(await ui.getByLabel("Network", { exact: true }).inputValue(), "localnet");
+    await capture(ui, "network-reconnected");
     await ui.getByRole("button", { name: "Send", exact: true }).click();
     await capture(ui, "send");
   }
