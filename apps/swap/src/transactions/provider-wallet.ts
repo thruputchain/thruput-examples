@@ -4,6 +4,7 @@ import { gasAmount } from "@groundhogchain/protocol";
 import type { GlobalConfig } from "@/config";
 import { verifyReadNetwork } from "@/groundhog/client";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
+import { SwapDriver } from "@/contracts/generated/swap-driver";
 import { fetchPoolTokenArtifact } from "./pool-token-artifact";
 import { pollTransaction } from "./transaction-observation";
 import type { WriteBoundary } from "./write-boundary";
@@ -50,9 +51,13 @@ export function createProviderWriteBoundary(
               ),
             ]
           : undefined;
+        const isCrank =
+          toHex0x(invocation.entrypoint) ===
+          toHex0x(SwapDriver.processRequests.entrypoint);
         const transaction = await wallet.prepareExecution({
           invocation,
-          gasLimit: gasAmount(10_000_000n),
+          // Cover the 20M driver frame plus wallet and transaction overhead.
+          gasLimit: gasAmount(isCrank ? 25_000_000n : 10_000_000n),
           expiryBlocks: 1_000n,
           ...(contractsToDeploy ? { contractsToDeploy } : {}),
         });
