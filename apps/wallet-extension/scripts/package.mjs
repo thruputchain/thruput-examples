@@ -19,7 +19,8 @@ async function collect(directory, prefix) {
     const name = `${prefix}/${entry.name}`;
     if (entry.isDirectory()) await collect(filename, name);
     else if (entry.isFile()) {
-      files[name] = [await readFile(filename), { mtime: new Date("2026-01-01T00:00:00Z") }];
+      // ZIP stores local calendar fields, not a UTC timestamp.
+      files[name] = [await readFile(filename), { mtime: new Date(2026, 0, 1) }];
     } else throw new Error(`Unsupported wallet build entry: ${entry.name}`);
   }
 }

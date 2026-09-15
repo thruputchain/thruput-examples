@@ -12,8 +12,9 @@ import {
   symlink,
   readdir,
 } from "node:fs/promises";
-import { createServer as netServer } from "node:net";
+import { createServer as netServer, connect as netConnect } from "node:net";
 import { createServer, request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -71,7 +72,7 @@ const fingerprint = async (path) =>
       throw e;
     });
 const before = await Promise.all(protectedPaths.map(fingerprint));
-const devnetRpc = "http://44.236.180.135:8545";
+const devnetRpc = "https://rpc.thruput.network";
 let devnetAllowed = false;
 const browserOrigins = new Set();
 function redact(text) {
@@ -477,7 +478,7 @@ try {
       res.writeHead(403).end();
       return;
     }
-    const upstream = httpRequest(
+    const upstream = (url.protocol === "https:" ? httpsRequest : httpRequest)(
       url,
       {
         method: req.method,
@@ -516,7 +517,24 @@ try {
     upstream.on("timeout", () => upstream.destroy());
     req.pipe(upstream);
   });
-  proxy.on("connect", (_req, socket) => socket.destroy());
+  proxy.on("connect", (req, socket, head) => {
+    const hostname = new URL(devnetRpc).hostname;
+    if (!devnetAllowed || req.url !== `${hostname}:443`) {
+      socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
+      return;
+    }
+    const upstream = netConnect(443, hostname, () => {
+      socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+      if (head.length) upstream.write(head);
+      upstream.pipe(socket);
+      socket.pipe(upstream);
+    });
+    upstream.setTimeout(15000, () => upstream.destroy());
+    upstream.on("error", () => socket.destroy());
+    upstream.on("close", () => socket.destroy());
+    socket.on("error", () => upstream.destroy());
+    socket.on("close", () => upstream.destroy());
+  });
   await new Promise((r) => proxy.listen(0, "127.0.0.1", r));
   if (process.argv.includes("--build-extension"))
     await run(
