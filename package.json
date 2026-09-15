@@ -5,14 +5,15 @@
   "workspaces": [
     "apps/counter",
     "apps/swap",
-    "apps/token-launchpad"
+    "apps/token-launchpad",
+    "apps/wallet-download"
   ],
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
-    "test": "npm run test --workspaces && vitest run scripts/seed --environment node && node --test tests/e2e/helpers/process-groups.test.mjs",
-    "typecheck": "npm run typecheck --workspaces && tsc -p scripts/seed/tsconfig.json",
+    "test": "npm run test --workspaces --if-present && vitest run scripts/seed --environment node && node --test tests/e2e/helpers/process-groups.test.mjs",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p scripts/seed/tsconfig.json",
     "test:wallet": "node tests/e2e/wallet-apps.mjs --build-extension",
     "test:browser": "node tests/browser/apps.mjs",
     "test:counter": "tsx tests/e2e/counter.ts",
