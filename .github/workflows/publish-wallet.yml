@@ -54,35 +54,49 @@ jobs:
           cd artifacts
           sha256sum -c SHA256SUMS
           unzip -t thruput-wallet.zip
+      - name: Check browser installation and connection
+        run: |
+          npx --no-install playwright-core install --with-deps chromium
+          export CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')"
+          npm run test:browser -- --connect-only
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           role-to-assume: ${{ secrets.AWS_WALLET_ARTIFACT_ROLE_ARN }}
           aws-region: us-west-2
-      - name: Publish build and update the download link
+      - name: Publish content-addressed files and verify public downloads
         run: |
           set -euo pipefail
+          read -r sha256 _ < artifacts/SHA256SUMS
+          export DOWNLOAD_SHA256="$sha256"
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const version = JSON.parse(readFileSync('dist/manifest.json', 'utf8')).version;
+          const prefix = `${process.env.BASE_URL}/wallet/${process.env.DOWNLOAD_SHA256}`;
+          writeFileSync('artifacts/latest.json', JSON.stringify({
+            version, commit: process.env.GITHUB_SHA, sha256: process.env.DOWNLOAD_SHA256,
+            url: `${prefix}/thruput-wallet.zip`, checksumUrl: `${prefix}/SHA256SUMS`,
+          }, null, 2) + '\n');
+          JS
           for file in thruput-wallet.zip SHA256SUMS; do
             type=application/zip
             if [[ "$file" == SHA256SUMS ]]; then type=text/plain; fi
-            aws s3 cp "artifacts/$file" "s3://$BUCKET/wallet/$GITHUB_SHA/$file" \
+            aws s3 cp "artifacts/$file" "s3://$BUCKET/wallet/$sha256/$file" \
               --content-type "$type" --cache-control 'public,max-age=31536000,immutable' \
               --metadata "source-commit=$GITHUB_SHA" --only-show-errors
           done
-          for file in thruput-wallet.zip SHA256SUMS; do
-            type=application/zip
-            if [[ "$file" == SHA256SUMS ]]; then type=text/plain; fi
-            aws s3 cp "artifacts/$file" "s3://$BUCKET/wallet/latest/$file" \
-              --content-type "$type" --cache-control 'no-cache' \
-              --metadata "source-commit=$GITHUB_SHA" --only-show-errors
-          done
-      - name: Verify public download
-        run: |
-          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/wallet-download"
           cd "$RUNNER_TEMP/wallet-download"
-          curl --fail --silent --show-error --retry 3 -O "$BASE_URL/wallet/latest/thruput-wallet.zip"
-          curl --fail --silent --show-error --retry 3 -O "$BASE_URL/wallet/latest/SHA256SUMS"
+          curl --fail --silent --show-error --retry 3 -O "$BASE_URL/wallet/$sha256/thruput-wallet.zip"
+          curl --fail --silent --show-error --retry 3 -O "$BASE_URL/wallet/$sha256/SHA256SUMS"
           sha256sum -c SHA256SUMS
           cmp SHA256SUMS "$GITHUB_WORKSPACE/apps/wallet-extension/artifacts/SHA256SUMS"
-          echo "Wallet download: $BASE_URL/wallet/latest/thruput-wallet.zip" >> "$GITHUB_STEP_SUMMARY"
+      - name: Promote one release pointer
+        run: |
+          set -euo pipefail
+          aws s3 cp artifacts/latest.json "s3://$BUCKET/wallet/latest.json" \
+            --content-type application/json --cache-control 'no-store' --only-show-errors
+          curl --fail --silent --show-error --retry 3 \
+            "$BASE_URL/wallet/latest.json" -o "$RUNNER_TEMP/wallet-latest.json"
+          cmp artifacts/latest.json "$RUNNER_TEMP/wallet-latest.json"
+          echo "Wallet release: $BASE_URL/wallet/latest.json" >> "$GITHUB_STEP_SUMMARY"

@@ -42,12 +42,11 @@ One-time infrastructure setup:
 - Allow that role to write only `wallet/*` in bucket `groundhog-public-release-artifacts-017820684264` (region `us-west-2`). The bucket must allow anonymous reads of that prefix, as it does for public CLI downloads. No object ACLs or AWS access keys are used.
 - Grant this repository's Actions token read access to the private SDK packages, or provide a read-packages token as repository secret `NPM_TOKEN`.
 
-The workflow stores each commit's files under `wallet/<commit>/` and updates these stable links after the build passes:
+The workflow stores the ZIP and checksum together under `wallet/<zip-sha256>/`. It verifies both public downloads before replacing the single [latest release pointer](https://groundhog-public-release-artifacts-017820684264.s3.us-west-2.amazonaws.com/wallet/latest.json).
 
-- [Wallet ZIP](https://groundhog-public-release-artifacts-017820684264.s3.us-west-2.amazonaws.com/wallet/latest/thruput-wallet.zip)
-- [Checksum](https://groundhog-public-release-artifacts-017820684264.s3.us-west-2.amazonaws.com/wallet/latest/SHA256SUMS)
+Read `latest.json` once to get a matching `url`, `checksumUrl`, and `sha256`. Both URLs use the same immutable content path, so a later publish cannot mix versions. Participant guides should link to that release's ZIP and checksum directly. Publication no longer writes a mutable `wallet/latest/` file pair.
 
-The links become available after the first successful publish. The workflow downloads the public files and verifies their checksum before reporting success.
+Downloads become available after the first successful publish. The publication gate includes the node-free `npm run test:browser -- --connect-only` check, which loads the built extension and exercises connection and approval in an isolated browser profile.
 
 ## Networks and Tokens
 
