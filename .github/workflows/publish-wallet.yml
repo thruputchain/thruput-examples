@@ -1,0 +1,102 @@
+name: Publish wallet download
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - apps/wallet-extension/**
+      - .github/workflows/publish-wallet.yml
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: publish-wallet
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'groundhogchain/groundhog-examples' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: apps/wallet-extension
+    env:
+      BUCKET: groundhog-public-release-artifacts-017820684264
+      BASE_URL: https://groundhog-public-release-artifacts-017820684264.s3.us-west-2.amazonaws.com
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          registry-url: https://npm.pkg.github.com
+          scope: '@groundhogchain'
+          cache: npm
+          cache-dependency-path: apps/wallet-extension/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || github.token }}
+      - name: Check and package the extension
+        run: |
+          npm run typecheck
+          npm test
+          npm run package
+          cd artifacts
+          sha256sum -c SHA256SUMS
+          unzip -t thruput-wallet.zip
+      - name: Check browser installation and connection
+        run: |
+          npx --no-install playwright-core install --with-deps chromium
+          export CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')"
+          npm run test:browser -- --connect-only
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_WALLET_ARTIFACT_ROLE_ARN }}
+          aws-region: us-west-2
+      - name: Publish content-addressed files and verify public downloads
+        run: |
+          set -euo pipefail
+          read -r sha256 _ < artifacts/SHA256SUMS
+          export DOWNLOAD_SHA256="$sha256"
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const version = JSON.parse(readFileSync('dist/manifest.json', 'utf8')).version;
+          const prefix = `${process.env.BASE_URL}/wallet/${process.env.DOWNLOAD_SHA256}`;
+          writeFileSync('artifacts/latest.json', JSON.stringify({
+            version, commit: process.env.GITHUB_SHA, sha256: process.env.DOWNLOAD_SHA256,
+            url: `${prefix}/thruput-wallet.zip`, checksumUrl: `${prefix}/SHA256SUMS`,
+          }, null, 2) + '\n');
+          JS
+          for file in thruput-wallet.zip SHA256SUMS; do
+            type=application/zip
+            if [[ "$file" == SHA256SUMS ]]; then type=text/plain; fi
+            aws s3 cp "artifacts/$file" "s3://$BUCKET/wallet/$sha256/$file" \
+              --content-type "$type" --cache-control 'public,max-age=31536000,immutable' \
+              --metadata "source-commit=$GITHUB_SHA" --only-show-errors
+          done
+          mkdir -p "$RUNNER_TEMP/wallet-download"
+          cd "$RUNNER_TEMP/wallet-download"
+          curl --fail --silent --show-error --retry 3 -O "$BASE_URL/wallet/$sha256/thruput-wallet.zip"
+          curl --fail --silent --show-error --retry 3 -O "$BASE_URL/wallet/$sha256/SHA256SUMS"
+          sha256sum -c SHA256SUMS
+          cmp SHA256SUMS "$GITHUB_WORKSPACE/apps/wallet-extension/artifacts/SHA256SUMS"
+      - name: Promote one release pointer
+        run: |
+          set -euo pipefail
+          aws s3 cp artifacts/latest.json "s3://$BUCKET/wallet/latest.json" \
+            --content-type application/json --cache-control 'no-store' --only-show-errors
+          curl --fail --silent --show-error --retry 3 \
+            "$BASE_URL/wallet/latest.json" -o "$RUNNER_TEMP/wallet-latest.json"
+          cmp artifacts/latest.json "$RUNNER_TEMP/wallet-latest.json"
+          echo "Wallet release: $BASE_URL/wallet/latest.json" >> "$GITHUB_STEP_SUMMARY"
