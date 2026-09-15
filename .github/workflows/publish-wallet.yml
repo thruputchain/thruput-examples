@@ -57,7 +57,8 @@ jobs:
       - name: Check browser installation and connection
         run: |
           npx --no-install playwright-core install --with-deps chromium
-          export CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')"
+          CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')"
+          export CHROMIUM_PATH
           npm run test:browser -- --connect-only
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
@@ -68,6 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           read -r sha256 _ < artifacts/SHA256SUMS
+          [[ "$sha256" =~ ^[0-9a-f]{64}$ ]]
           export DOWNLOAD_SHA256="$sha256"
           node --input-type=module <<'JS'
           import { readFileSync, writeFileSync } from 'node:fs';
@@ -81,9 +83,18 @@ jobs:
           for file in thruput-wallet.zip SHA256SUMS; do
             type=application/zip
             if [[ "$file" == SHA256SUMS ]]; then type=text/plain; fi
-            aws s3 cp "artifacts/$file" "s3://$BUCKET/wallet/$sha256/$file" \
+            if ! aws s3api put-object --bucket "$BUCKET" --key "wallet/$sha256/$file" \
+              --body "artifacts/$file" --if-none-match '*' \
               --content-type "$type" --cache-control 'public,max-age=31536000,immutable' \
-              --metadata "source-commit=$GITHUB_SHA" --only-show-errors
+              --metadata "source-commit=$GITHUB_SHA" > /dev/null 2> "$RUNNER_TEMP/wallet-upload-error"; then
+              # A rerun may find this content-addressed object already published.
+              # Accept only that case; the anonymous downloads below must still
+              # match this build before latest.json can be promoted.
+              if ! grep -q '(PreconditionFailed)' "$RUNNER_TEMP/wallet-upload-error"; then
+                cat "$RUNNER_TEMP/wallet-upload-error" >&2
+                exit 1
+              fi
+            fi
           done
           mkdir -p "$RUNNER_TEMP/wallet-download"
           cd "$RUNNER_TEMP/wallet-download"
