@@ -12,8 +12,9 @@ import {
   SwapDriver,
 } from "@/contracts/generated/swap-driver";
 
-// Temporary budget for the deployed 2M/request cap and eight-request minimum:
-// gas_for_batch(8) is 18.05M. Keep headroom until live calibration is complete.
+// Eight requests at the 2M/request cap require 19.5M with the current
+// 1.5M epilogue reserve (18.05M on the older deployed contracts).
+// Keep 20M: 0.5M above the current gas_for_batch(8) budget.
 const TARGET_GAS = gasAmount(20_000_000n);
 
 export function buildProcessRequestsTarget(driver: ContractAddress): Invocation {

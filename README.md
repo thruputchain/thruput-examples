@@ -116,14 +116,21 @@ Both live runners use Linux process groups and `/proc`. Install the wallet's
 dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
-Live checks need a compatible CLI/devnode pair and built contracts in
-`target/groundhog` (run `./scripts/build-guest.sh` first):
+Live checks need a compatible CLI/devnode pair, built contracts, and matching
+generated bindings. Use a separate checkout if you need to preserve the bindings
+for the recorded Devnet deployment. From the repository root:
 
 ```sh
 export GROUNDHOG_CLI=/absolute/path/to/groundhog
 export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
+npm run generate:contracts --workspace apps/counter
+npm run generate:contracts --workspace apps/token-launchpad
+npm run generate:contracts --workspace apps/swap
+npm run build --workspace apps/counter
+npm --prefix apps/wallet-extension ci
 npm run test:wallet
 npm run test:seed
+npm run test:counter
 ```
 
 The CLI and devnode must agree on the runtime-manifest schema, including

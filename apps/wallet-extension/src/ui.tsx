@@ -1162,8 +1162,8 @@ function App() {
                 <p className="mono">{state.networkHash}</p>
                 <p>
                   Automatic lock: 10 minutes after unlock. A background worker
-                  restart also locks the wallet. Devnet uses an unencrypted HTTP
-                  endpoint and trust-on-first-use identity.
+                  restart also locks the wallet. Devnet uses HTTPS and a pinned
+                  network identity.
                 </p>
                 <p className="hint">
                   Thruput Wallet 0.1.0 / Experimental software. Use test funds
