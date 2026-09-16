@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "network": "0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f",
+  "rpcUrl": "https://rpc.thruput.network/",
+  "account": "0xa17adb866ac9b8bfb3a8b36518201b6e70b893c54b7a1c517f3d15ea3e23de85",
+  "swapUrl": "https://swap-production-66df.up.railway.app/pools",
+  "explorerUrl": "https://explorer.thruput.network",
+  "tokens": [
+    {
+      "name": "Acorn",
+      "symbol": "ACORN",
+      "address": "0x4c52d75a03562f05e7808750a431cfe4c8a732d604ada1092d4bdeadca7e145f",
+      "decimals": 6
+    },
+    {
+      "name": "Clover",
+      "symbol": "CLOVER",
+      "address": "0x2eec3c3ee399675f4e566ddfa8dd2671e5129aedac5baa25b2dd752c75b0c81e",
+      "decimals": 6
+    },
+    {
+      "name": "Maple",
+      "symbol": "MAPLE",
+      "address": "0x5eb96a49e27ac874c4d3e4b6fcd7c0e1245977aaaf72320b48fae07c467e64e9",
+      "decimals": 6
+    },
+    {
+      "name": "Pebble",
+      "symbol": "PEBBLE",
+      "address": "0xc278a0328e7974b2952072020cdc166d85a770ef8699b3d078de3e51350204a3",
+      "decimals": 6
+    },
+    {
+      "name": "Sprout",
+      "symbol": "SPROUT",
+      "address": "0x947f53b67df75de58df3fef3ad14fc20f36e172f90f0cb473511a0db01fa811d",
+      "decimals": 6
+    }
+  ]
+}

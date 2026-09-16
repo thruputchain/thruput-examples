@@ -5,7 +5,8 @@
   "workspaces": [
     "apps/counter",
     "apps/swap",
-    "apps/token-launchpad"
+    "apps/token-launchpad",
+    "apps/token-faucet"
   ],
   "engines": {
     "node": ">=22.13.0"
