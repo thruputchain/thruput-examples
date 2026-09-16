@@ -22,9 +22,6 @@ jobs:
       - name: Test Groundhog CLI version checks
         run: bash scripts/check-groundhog-version.test.sh
 
-      - name: Test CLI/devnode pairing checks
-        run: bash scripts/check-devnode-pairing.test.sh
-
       - name: Set up Rust toolchain
         run: rustup show
 

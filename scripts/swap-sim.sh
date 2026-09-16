@@ -1,15 +1,9 @@
 #!/bin/bash
 
-# Requires the groundhog CLI in PATH, and a hog-devnode from the same client
-# release for it to drive.  One beside the CLI is used by default; set
-# GROUNDHOG_DEVNODE_BINARY to choose another.  See `resolve-devnode.sh`.
+# Requires `groundhog` (the cli) in PATH and an environment var:
+#   GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode
 
 set -euo pipefail
-
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-devnode="$("$script_dir/resolve-devnode.sh")"
-export GROUNDHOG_DEVNODE_BINARY="$devnode"
 
 # Build guest binaries for use below
 build() {
@@ -26,8 +20,7 @@ if [ ! -v NO_BUILD ]; then
 fi
 
 # export RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info"
-artifact_root="$(realpath target/groundhog)"
-export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$artifact_root"
+export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$(realpath target/groundhog)"
 
 cargo test -p swap-router \
     --test testkit_sim \

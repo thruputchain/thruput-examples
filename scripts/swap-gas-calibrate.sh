@@ -14,14 +14,6 @@
 
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$script_dir/.." && pwd)"
-
-devnode="$("$script_dir/resolve-devnode.sh")"
-export GROUNDHOG_DEVNODE_BINARY="$devnode"
-
-cd "$repo_root"
-
 if [ ! -v NO_BUILD ]; then
     groundhog build -p erc20 -- -F metadata
     groundhog build -p swap-handler
