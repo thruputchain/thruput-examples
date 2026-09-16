@@ -5,7 +5,6 @@ import {
   CheckCircle2Icon,
   RefreshCwIcon,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 import type { AppConfig } from "@/config";
 import type { FactoryReview } from "@/contracts/launchpad-client";
 import {
@@ -30,6 +29,7 @@ import {
   loadingActionLabel,
 } from "./presentation";
 import { createAmmPoolLink } from "./swap-link";
+import { LaunchSuccessActions } from "./launch-success-actions";
 import type { LaunchWorkflow } from "./workflow";
 import { CONNECTION_LOST_MESSAGE } from "@/transactions/wallet-error";
 
@@ -285,30 +285,11 @@ export function ReviewCard({
                         </Button>
                       </>
                     ) : null}
-                    <Button
-                      className="min-h-12 w-full"
-                      variant="outline"
-                      onClick={onReset}
+                    <LaunchSuccessActions
+                      onReset={onReset}
                       disabled={loading || !writesSupported || !connected}
-                    >
-                      Create another token
-                    </Button>
-                    <Button
-                      className="min-h-12 w-full"
-                      variant="outline"
-                      asChild
-                    >
-                      <Link to="/my-tokens">View my tokens</Link>
-                    </Button>
-                    {ammPoolLink ? (
-                      <Button
-                        className="min-h-12 w-full"
-                        variant="outline"
-                        asChild
-                      >
-                        <a href={ammPoolLink}>Create AMM Pool</a>
-                      </Button>
-                    ) : null}
+                      ammPoolLink={ammPoolLink}
+                    />
                   </>
                 ) : (
                   <>
