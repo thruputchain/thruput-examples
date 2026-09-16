@@ -20,7 +20,8 @@ describe("buildProcessRequestsTarget", () => {
     const target = buildProcessRequestsTarget(driver);
 
     expect(target.invoked_address).toEqual(driver);
-    expect(target.gas_limit).toBe(20_000_000n);
+    // gas_for_batch(MIN_CRANK_BATCH); see driver-target.ts.
+    expect(target.gas_limit).toBe(13_700_000n);
     expect(target.calldata).toEqual(new Uint8Array());
   });
 });

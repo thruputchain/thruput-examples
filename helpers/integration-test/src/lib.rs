@@ -220,6 +220,25 @@ impl Harness {
         }
     }
 
+    /// Point this harness at a different contract.
+    ///
+    /// `from_env` binds to the contract `groundhog test --integration` deployed,
+    /// which is the only one most tests want.  A system contract -- the native
+    /// token, say -- lives at a fixed address that no test deploys, so reaching
+    /// it means naming it, along with the interface and version its entrypoint
+    /// IDs derive from.
+    pub fn retarget(
+        mut self,
+        contract: ContractAddress,
+        interface: &'static str,
+        version: &'static str,
+    ) -> Self {
+        self.contract = contract;
+        self.interface = interface;
+        self.version = version;
+        self
+    }
+
     fn client(&self) -> Result<&HttpClient, SubmissionError> {
         self.client
             .as_ref()

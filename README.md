@@ -175,7 +175,12 @@ transaction or remote deployment. Wallet unit tests run independently through
 
 - Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`).
 - `jq`, used by [`scripts/build-guest.sh`](scripts/build-guest.sh).
-- For RPC-based tests, `groundhog-cli` must be able to find a "devnode" binary, for example via `GROUNDHOG_DEVNODE_BINARY`.
+- For RPC-based tests, `groundhog-cli` must be able to find a "devnode" binary
+  from the *same client release*.
+  [`scripts/integration-tests.sh`](scripts/integration-tests.sh) takes the
+  `hog-devnode` sitting beside the CLI on `PATH`, which is the matching one
+  when both come from a client bundle, and checks the two releases agree before
+  starting anything. `GROUNDHOG_DEVNODE_BINARY` overrides the choice.
 
 ## Building
 

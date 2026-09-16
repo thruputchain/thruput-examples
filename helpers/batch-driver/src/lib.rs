@@ -92,4 +92,6 @@ mod queue;
 
 pub use drain::{BatchRequest, EPILOGUE_GAS, gas_for_batch};
 pub use events::{Cause, EXCEPTION_PAYLOAD_MAX, RequestAccepted, RequestFailed, RequestsProcessed};
+#[cfg(feature = "calibration")]
+pub use queue::GasReport;
 pub use queue::{CrankPolicy, InvalidPolicy, Queue, Starved};

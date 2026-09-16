@@ -42,12 +42,10 @@ entrypoints = ["sdk/alloc"]
 erc20_metadata = ["erc20?/metadata", "dep:groundhog-erc20-metadata-if"]
 dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-if/dev", "swap-pair/dev", "swap-handler/dev", "batch-driver/dev"]
 guest_test = []
+calibration = ["batch-driver/calibration"]
 
 [dev-dependencies]
 swap-driver = { path = ".", features = ["dev"] }
-# Reading per-syscall gas out of a frame trace, for the guest-only
-# EPILOGUE_GAS calibration.
-groundhog-trace = { workspace = true }
 
 [lints]
 clippy.result_large_err = "allow"

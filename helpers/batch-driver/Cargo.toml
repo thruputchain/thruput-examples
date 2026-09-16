@@ -21,8 +21,8 @@ unique-ids = { path = "../unique-ids" }
 [features]
 # Enables failure logging (and std) in native tests.
 dev = ["sdk/dev", "unique-ids/dev"]
+calibration = []
 
-# Turns the `dev` feature on for the tests in `tests/`.
 [dev-dependencies]
 batch-driver = { path = ".", features = ["dev"] }
 
