@@ -1,8 +1,8 @@
 //! The high-level swap-request handler interface.
 
 use crate::{
-    Address, Amount, Amounts, BurnEvent, ERC20Error, MintEvent, SwapEvent, SwapPairError,
-    SwapRequest, SyncEvent, U256,
+    Address, Amount, Amounts, ERC20Error, LiquidityBurnEvent, LiquidityMintEvent, SwapEvent,
+    SwapPairError, SwapRequest, SyncEvent, U256,
 };
 use sdk::*;
 
@@ -74,7 +74,7 @@ pub enum SwapLibraryError {
 #[contract(
     client = SwapHandlerClient,
     throws(SwapRequestError, SwapPairError, ERC20Error, SwapLibraryError),
-    emits(MintEvent, BurnEvent, SwapEvent, SyncEvent)
+    emits(LiquidityMintEvent, LiquidityBurnEvent, SwapEvent, SyncEvent)
 )]
 pub trait SwapHandler {
     /// Must be called exactly once before any other methods.

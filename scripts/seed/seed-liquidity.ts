@@ -13,7 +13,7 @@ import {
   type ContractAddress,
 } from "@groundhogchain/protocol";
 import { RequestFailed } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
-import { MintEvent } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
+import { LiquidityMintEvent as MintEvent } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
 import { SeedError, type SeedJournal } from "./seed-journal.ts";
 
 interface Terminal {

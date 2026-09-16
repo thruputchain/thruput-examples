@@ -17,8 +17,11 @@ use sdk::*;
 /// iteration's own consume and decode -- and the check runs afresh before each request, so the
 /// shortfall is one iteration's, not the batch's.
 ///
+/// The SDK 0.34.3 guest calibration measures about 385,000 gas of fixed driver
+/// work. Keep more than the 3x margin checked by swap-driver's epilogue test.
+///
 /// [`Queue::crank`]: crate::Queue::crank
-pub const EPILOGUE_GAS: u64 = 50_000;
+pub const EPILOGUE_GAS: u64 = 1_500_000;
 
 /// The gas limit a caller should declare in order to have [`Queue::crank`] drain up to `batch_size`
 /// requests of type `R`, even if every one of them costs the full [`BatchRequest::GAS_LIMIT`].

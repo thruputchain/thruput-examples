@@ -8,7 +8,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
-import { BurnEvent, MintEvent } from "@/contracts/generated/swap-handler";
+import {
+  LiquidityBurnEvent as BurnEvent,
+  LiquidityMintEvent as MintEvent,
+} from "@/contracts/generated/swap-handler";
 import type { PoolSnapshot } from "@/swap/snapshot";
 import { createCrankAttempt, saveCrankAttempt } from "./crank-attempt";
 import {

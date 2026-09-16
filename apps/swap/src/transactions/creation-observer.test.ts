@@ -8,7 +8,7 @@ import { CxsWriter } from "@groundhogchain/xdr";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GlobalConfig } from "@/config";
-import { MintEvent } from "@/contracts/generated/swap-handler";
+import { LiquidityMintEvent as MintEvent } from "@/contracts/generated/swap-handler";
 import type { PoolCreationReview } from "@/pools/pool-creation";
 import { createCreationWorkflow } from "@/transactions/creation-workflow";
 import {

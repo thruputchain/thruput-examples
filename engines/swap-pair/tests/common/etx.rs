@@ -179,14 +179,14 @@ fn event_handler(e: &sdk::types::event::TxEmittedEvent) {
 
             println!("EEE Transfer {}", amount);
         }
-        MintEvent::SIGNATURE => {
-            let e: TypedEvent<MintEvent> = TypedEvent::new(e.raw());
+        LiquidityMintEvent::SIGNATURE => {
+            let e: TypedEvent<LiquidityMintEvent> = TypedEvent::new(e.raw());
             let amount = e.payload().amount_minted;
 
             println!("EEE Mint ({} LP)", amount);
         }
-        BurnEvent::SIGNATURE => {
-            let e: TypedEvent<BurnEvent> = TypedEvent::new(e.raw());
+        LiquidityBurnEvent::SIGNATURE => {
+            let e: TypedEvent<LiquidityBurnEvent> = TypedEvent::new(e.raw());
             let [r0, r1] = e.payload().amounts_redeemed;
 
             println!("EEE Burn (redeemed: {r0}/{r1})");

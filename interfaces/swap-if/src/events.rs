@@ -5,7 +5,7 @@ use sdk::*;
 
 /// Emitted by the pair when liquidity is added (`mint_lp`).
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct MintEvent<'a> {
+pub struct LiquidityMintEvent<'a> {
     /// The source of the deposit
     #[topic]
     pub sender: &'a Address,
@@ -22,7 +22,7 @@ pub struct MintEvent<'a> {
     pub request_id: Option<RequestId>,
 }
 
-impl<'a> MintEvent<'a> {
+impl<'a> LiquidityMintEvent<'a> {
     pub fn new(
         sender: &'a Address,
         amount_minted: Amount,
@@ -40,7 +40,7 @@ impl<'a> MintEvent<'a> {
 
 /// Emitted by the pair when liquidity is removed (`burn_lp`).
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct BurnEvent<'a> {
+pub struct LiquidityBurnEvent<'a> {
     /// The source of the burned LP tokens
     #[topic]
     pub sender: &'a Address,
@@ -57,7 +57,7 @@ pub struct BurnEvent<'a> {
     pub request_id: Option<RequestId>,
 }
 
-impl<'a> BurnEvent<'a> {
+impl<'a> LiquidityBurnEvent<'a> {
     pub fn new(
         sender: &'a Address,
         amounts_redeemed: Amounts,

@@ -25,7 +25,7 @@ import {
 import { CxsWriter, Uint128Codec } from "@groundhogchain/xdr";
 import { SwapDriver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { requestFailedEvent } from "../../apps/swap/src/test/request-failed.ts";
-import { MintEvent } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
+import { LiquidityMintEvent as MintEvent } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
 import { executeStep, type SeedJournal } from "./seed-journal.ts";
 import {
   completeSeedLiquidity,

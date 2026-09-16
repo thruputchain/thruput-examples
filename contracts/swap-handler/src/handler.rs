@@ -101,7 +101,7 @@ impl Handler {
         self.transfer_amounts_from(&req.purchaser, amounts);
         let minted = self.pair.mint_lp(&req.recipient);
 
-        log_event(&MintEvent::new(
+        log_event(&LiquidityMintEvent::new(
             &req.purchaser,
             minted,
             &req.recipient,
@@ -132,7 +132,7 @@ impl Handler {
         self.transfer_lp_from(&req.redeemer, req.liquidity);
         let redeemed = self.pair.burn_lp(&req.recipient);
 
-        log_event(&BurnEvent::new(
+        log_event(&LiquidityBurnEvent::new(
             &req.redeemer,
             redeemed,
             &req.recipient,

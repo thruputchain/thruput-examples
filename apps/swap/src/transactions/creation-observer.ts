@@ -10,7 +10,7 @@ import {
 
 import type { GlobalConfig } from "@/config";
 import { RequestFailed } from "@/contracts/generated/swap-driver";
-import { MintEvent } from "@/contracts/generated/swap-handler";
+import { LiquidityMintEvent as MintEvent } from "@/contracts/generated/swap-handler";
 import { createReadClient } from "@/groundhog/client";
 import type { CreationWorkflow } from "@/transactions/creation-workflow";
 
