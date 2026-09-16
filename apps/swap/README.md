@@ -171,6 +171,12 @@ The bindings use the current batch-driver event signatures and structured
 on a fresh disposable node. Preserve unresolved transaction records from the
 old deployment; the new bindings are not a decoder for its older event format.
 
+SDK 0.34.3 includes dedicated ERC20 mint/burn events, so the AMM source uses the distinct
+names `LiquidityMintEvent` and `LiquidityBurnEvent`. The checked-in handler
+bindings expose compatibility aliases with the existing deployment's event IDs.
+Setup generates the new event IDs for newly built contracts. Keep each deployment
+paired with its bindings; the CI dependency update does not redeploy Devnet.
+
 ## Configuration and production
 
 Setup publishes `.env.local` or `.env.devnet` and immutable `public/contract-artifacts/<hash>.json`.

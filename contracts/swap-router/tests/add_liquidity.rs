@@ -1,6 +1,6 @@
 mod common;
 use common::*;
-use swap_pair::events::MintEvent;
+use swap_pair::events::LiquidityMintEvent;
 
 test_transaction! {
     fn alice_add_liquidity(etx: &Etx) -> Result<()> {
@@ -38,7 +38,7 @@ test_transaction! {
 
 // Alice funds the deposit, Bob is credited the LP tokens. The two roles are distinct in
 // `AddLiquidityRequest` (`purchaser`/`recipient`), and must stay distinct through the handler and
-// `mint_lp` all the way to the `MintEvent`.
+// `mint_lp` all the way to the `LiquidityMintEvent`.
 #[test]
 fn add_liquidity_credits_a_recipient_other_than_the_purchaser() {
     let etx = setup_etx().expect("setup");
@@ -73,13 +73,13 @@ fn add_liquidity_credits_a_recipient_other_than_the_purchaser() {
     let (r, counts) = etx.process_requests_capturing();
     assert_eq!(counts, (1, 0), "one request processed, none failed");
 
-    // The MintEvent names both roles: Alice's deposit funded it (topic 1), Bob was credited (topic
+    // The liquidity mint names both roles: Alice's deposit funded it (topic 1), Bob was credited (topic
     // 2).
-    let mint = sole_event::<MintEvent>(&r);
+    let mint = sole_event::<LiquidityMintEvent>(&r);
     assert_eq!(mint.topic(1).expect("sender topic"), ALICE.addr.as_ref());
     assert_eq!(mint.topic(2).expect("recipient topic"), BOB.addr.as_ref());
 
-    let minted = TypedEvent::<MintEvent>::new(mint.raw())
+    let minted = TypedEvent::<LiquidityMintEvent>::new(mint.raw())
         .payload()
         .amount_minted;
     assert!(minted > 0);

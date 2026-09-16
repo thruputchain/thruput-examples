@@ -29,6 +29,7 @@ export function handleApprovals(
 ) {
   let rejectNext = false;
   let nextAccount;
+  let signaturesBeforeTimeout;
   let failure;
   context.on("page", (page) => {
     void (async () => {
@@ -73,6 +74,13 @@ export function handleApprovals(
         kind: signing ? "signature" : "connection",
         rejected: reject,
       });
+      if (signing && signaturesBeforeTimeout !== undefined) {
+        if (signaturesBeforeTimeout === 0) {
+          signaturesBeforeTimeout = undefined;
+          return; // Let the real extension approval deadline expire.
+        }
+        signaturesBeforeTimeout--;
+      }
       await page
         .getByRole("button", {
           name: reject ? "Reject" : signing ? "Sign only" : "Connect",
@@ -88,6 +96,9 @@ export function handleApprovals(
     });
   });
   return {
+    timeoutSignatureAfter(count = 0) {
+      signaturesBeforeTimeout = count;
+    },
     rejectNext() {
       rejectNext = true;
     },

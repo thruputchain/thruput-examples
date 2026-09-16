@@ -20,10 +20,12 @@ export function LaunchpadRoutes({
   config,
   writer: suppliedWriter,
   readOnly = true,
+  hasWalletAccount = false,
 }: {
   config: AppConfig;
   writer?: WriteBoundary | undefined;
   readOnly?: boolean;
+  hasWalletAccount?: boolean;
 }) {
   const client = useMemo(() => createReadClient(config), [config]);
   const connectedWriter = useWalletWriteBoundary();
@@ -36,10 +38,15 @@ export function LaunchpadRoutes({
         <Route
           path="/create"
           element={
-            readOnly ? (
+            readOnly && !hasWalletAccount ? (
               <ConnectPrompt />
             ) : (
-              <CreatePage config={config} client={client} writer={writer} />
+              <CreatePage
+                config={config}
+                client={client}
+                writer={writer}
+                connected={!readOnly}
+              />
             )
           }
         />

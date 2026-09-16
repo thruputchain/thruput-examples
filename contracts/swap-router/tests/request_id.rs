@@ -1,10 +1,10 @@
 //! Lifecycle tracking: the request-id returned by a `SwapRouter` operation must reappear on the
-//! event that operation eventually produces -- the pair's `MintEvent`/`SwapEvent` on success, or
+//! event that operation eventually produces -- the pair's `LiquidityMintEvent`/`SwapEvent` on success, or
 //! the driver's `RequestFailed` on failure -- so the off-chain application can correlate the two.
 
 mod common;
 use common::*;
-use swap_pair::events::{MintEvent, SwapEvent};
+use swap_pair::events::{LiquidityMintEvent, SwapEvent};
 
 // A swap demanding output >= input, impossible under the 0.3% fee: it enqueues but fails when
 // handled.
@@ -12,11 +12,15 @@ const SWAP_IN_AMT: Amount = 2 * UNIT_AMT;
 
 // The `request_id`s carried by the MintEvents emitted during a processed tx.
 fn mint_request_ids(r: &TransactResult) -> Vec<Option<RequestId>> {
-    let sig = MintEvent::signature();
+    let sig = LiquidityMintEvent::signature();
     r.events()
         .iter()
         .filter(|e| EmittedEvent::from(*e).topic(0) == sig)
-        .map(|e| TypedEvent::<MintEvent>::new(e).payload().request_id)
+        .map(|e| {
+            TypedEvent::<LiquidityMintEvent>::new(e)
+                .payload()
+                .request_id
+        })
         .collect()
 }
 
@@ -88,7 +92,7 @@ fn add_liquidity_id_reaches_mint_event() {
     // The submission tx generated `RequestAccepted` for the returned id
     assert_eq!(request_accepted_ids(&r), vec![id]);
 
-    // Processing the queued request produces exactly one MintEvent, carrying id.
+    // Processing the queued request produces exactly one liquidity mint, carrying id.
     let (r, counts) = process_capturing(&etx);
     assert_eq!(counts, (1, 0), "one request processed, none failed");
     assert_eq!(mint_request_ids(&r), vec![Some(id)]);

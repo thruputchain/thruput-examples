@@ -76,14 +76,7 @@ interface Pending {
   reject: (error: unknown) => void;
   timer: ReturnType<typeof setTimeout>;
 }
-let stored: Stored = {
-  network: "localnet",
-  pin: "0".repeat(64),
-  approvals: [],
-  tokens: {},
-  airdrops: {},
-  outgoing: [],
-};
+let stored: Stored = parseStored(undefined, chrome.runtime.getURL("/"));
 let vault: Vault | undefined, password: string | undefined;
 let expires = 0,
   epoch = 0;

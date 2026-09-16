@@ -13,13 +13,8 @@ jobs:
         runner: [namespace-profile-hogd-linux-2604, namespace-profile-hogd-arm64-macos]
     runs-on: ${{ matrix.runner }}
     env:
-      HOGD_FFI_PASSWORD: ${{ secrets.HOGD_FFI_PASSWORD }}
       CARGO_REGISTRIES_GROUNDHOG_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
       CARGO_REGISTRIES_GROUNDHOG_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
-      # Published crates and pinned submodules retain the legacy registry identity.
-      CARGO_REGISTRIES_GROUNDHOG_LEGACY_INDEX: sparse+https://groundhog.dev/crates/api/v1/crates/
-      CARGO_REGISTRIES_GROUNDHOG_LEGACY_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
-      CARGO_REGISTRIES_GROUNDHOG_LEGACY_CREDENTIAL_PROVIDER: cargo:token
       CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
       - uses: actions/checkout@v6
@@ -28,7 +23,7 @@ jobs:
         run: bash scripts/check-groundhog-version.test.sh
 
       - name: Set up Rust toolchain
-        run: rustup toolchain install stable --profile minimal
+        run: rustup show
 
       - name: Build native tests
         env:
@@ -36,7 +31,7 @@ jobs:
         run: cargo test --all --locked --no-run
 
       - name: Run native tests
-        run: cargo test --all
+        run: cargo test --all --locked
 
       - name: Cache groundhog-cli
         id: cache-groundhog
@@ -46,10 +41,10 @@ jobs:
             ~/.cargo/bin/groundhog
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
-          key: groundhog-cli-${{ runner.os }}-v2
+          key: groundhog-cli-${{ runner.os }}-${{ runner.arch }}-0.17.4
 
       - name: Install groundhog-cli
-        run: cargo install --registry groundhog --version 0.14.0 --locked groundhog-cli
+        run: cargo install --registry groundhog --version 0.17.4 --locked groundhog-cli
 
       - name: Build guest contracts
         run: ./scripts/build-guest.sh
@@ -63,28 +58,23 @@ jobs:
       - name: Run `guest_test` tests
         run: |
           for p in swap-driver swap-router swap-factory; do
-              cargo test -p "$p" -F guest_test
+              cargo test -p "$p" -F guest_test --locked
           done
 
   quality-checks:
     runs-on: namespace-profile-hogd-linux-2604
     env:
-      HOGD_FFI_PASSWORD: ${{ secrets.HOGD_FFI_PASSWORD }}
       CARGO_REGISTRIES_GROUNDHOG_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
       CARGO_REGISTRIES_GROUNDHOG_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
-      # Published crates and pinned submodules retain the legacy registry identity.
-      CARGO_REGISTRIES_GROUNDHOG_LEGACY_INDEX: sparse+https://groundhog.dev/crates/api/v1/crates/
-      CARGO_REGISTRIES_GROUNDHOG_LEGACY_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
-      CARGO_REGISTRIES_GROUNDHOG_LEGACY_CREDENTIAL_PROVIDER: cargo:token
       CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
       - uses: actions/checkout@v6
 
       - name: Set up Rust toolchain
-        run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt
+        run: rustup show
 
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets --no-deps -- -D warnings
+        run: cargo clippy --workspace --all-targets --no-deps --locked -- -D warnings
 
       - name: Run rustfmt
         run: cargo fmt --check

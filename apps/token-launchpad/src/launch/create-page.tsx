@@ -21,10 +21,13 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ReviewCard } from "./review-card";
 import { useLaunch, type LaunchOptions } from "./use-launch";
+import { useWallet } from "@/wallet/use-wallet";
 
 export function CreatePage(props: LaunchOptions) {
   const launch = useLaunch(props);
   const writesSupported = props.writesSupported ?? true;
+  const connected = props.connected ?? true;
+  const wallet = useWallet();
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="mb-8 max-w-2xl">
@@ -33,6 +36,24 @@ export function CreatePage(props: LaunchOptions) {
           Create a token on Thruput. Review the details, then launch.
         </p>
       </div>
+      {!connected ? (
+        <Alert className="mb-6">
+          <AlertCircleIcon />
+          <AlertTitle>Reconnect to continue</AlertTitle>
+          <AlertDescription>
+            <p>
+              Your token details and launch progress are saved. Reconnect the
+              same wallet to continue.
+            </p>
+            <Button
+              onClick={() => wallet?.connect()}
+              disabled={!wallet?.provider || wallet.busy}
+            >
+              {wallet?.busy ? "Connecting..." : "Reconnect wallet"}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {launch.error || launch.storageError ? (
         <Alert variant="destructive" className="mb-6">
           <AlertCircleIcon />
@@ -139,7 +160,8 @@ export function CreatePage(props: LaunchOptions) {
                     disabled={
                       launch.loading ||
                       launch.storageError !== null ||
-                      !writesSupported
+                      !writesSupported ||
+                      !connected
                     }
                   >
                     {launch.loading ? "Reviewing factory..." : "Review launch"}
@@ -159,7 +181,9 @@ export function CreatePage(props: LaunchOptions) {
           manualProcessing={launch.manualProcessing}
           onAdvance={launch.advance}
           onReset={launch.reset}
+          onStartOver={launch.startOver}
           writesSupported={writesSupported}
+          connected={connected}
         />
       </div>
       <Field

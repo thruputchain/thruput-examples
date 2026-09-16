@@ -171,9 +171,9 @@ export async function checkWorkerRaces({ context, worker, ui, uiUrl, dapp }) {
       return wallet.network === "localnet" && wallet.pin === "00".repeat(32);
     }),
   );
-  assert.equal(
-    await ui.getByLabel("Network", { exact: true }).inputValue(),
-    "localnet",
+  // Persisting the pin precedes the asynchronous UI state refresh.
+  await poll(async () =>
+    (await ui.getByLabel("Network", { exact: true }).inputValue()) === "localnet",
   );
   // Verify the README's script-free repair context can save an encrypted backup
   // without displaying its contents. This profile contains only test accounts.

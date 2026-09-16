@@ -31,6 +31,7 @@ import {
 } from "./presentation";
 import { createAmmPoolLink } from "./swap-link";
 import type { LaunchWorkflow } from "./workflow";
+import { CONNECTION_LOST_MESSAGE } from "@/transactions/wallet-error";
 
 export function ReviewCard({
   config,
@@ -41,7 +42,9 @@ export function ReviewCard({
   manualProcessing,
   onAdvance,
   onReset,
+  onStartOver,
   writesSupported,
+  connected = true,
 }: {
   config: AppConfig;
   draft: TokenDraft;
@@ -51,7 +54,9 @@ export function ReviewCard({
   manualProcessing: boolean;
   onAdvance: () => void;
   onReset: () => void;
+  onStartOver?: () => void;
   writesSupported: boolean;
+  connected?: boolean;
 }) {
   if (workflow)
     draft = {
@@ -72,8 +77,8 @@ export function ReviewCard({
     <ExplorerProvider explorerUrl={config.explorerUrl}>
       <Card className="h-fit lg:sticky lg:top-6">
         <CardHeader>
-          <div className="mb-3 grid size-14 place-items-center rounded-lg border bg-muted font-mono text-xl font-medium">
-            {draft.symbol.trim().slice(0, 2).toUpperCase() || "?"}
+          <div className="mb-3 grid min-h-14 w-fit min-w-14 max-w-full place-items-center rounded-lg border bg-muted px-3 py-2 font-mono text-xl font-medium break-all">
+            {draft.symbol.trim().toUpperCase() || "?"}
           </div>
           <CardTitle>{draft.symbol.trim().toUpperCase() || "SYMBOL"}</CardTitle>
           <CardDescription>
@@ -226,11 +231,25 @@ export function ReviewCard({
                         : "incomplete"
                   }
                 />
-                {workflow.error ? (
-                  <Alert variant="destructive">
+                {workflow.error && !loading && connected ? (
+                  <Alert
+                    variant={
+                      workflow.error === CONNECTION_LOST_MESSAGE
+                        ? "default"
+                        : "destructive"
+                    }
+                  >
                     <AlertCircleIcon />
-                    <AlertTitle>Launch paused</AlertTitle>
-                    <AlertDescription>{workflow.error}</AlertDescription>
+                    <AlertTitle>
+                      {workflow.error === CONNECTION_LOST_MESSAGE
+                        ? "Wallet reconnected"
+                        : "Launch needs attention"}
+                    </AlertTitle>
+                    <AlertDescription>
+                      {workflow.error === CONNECTION_LOST_MESSAGE
+                        ? "Your launch is ready to continue. Retry the incomplete step below."
+                        : workflow.error}
+                    </AlertDescription>
                   </Alert>
                 ) : null}
                 {workflow.creation.status === "committed" ? (
@@ -256,7 +275,7 @@ export function ReviewCard({
                         <Button
                           className="min-h-12 w-full"
                           onClick={onAdvance}
-                          disabled={loading || !writesSupported}
+                          disabled={loading || !writesSupported || !connected}
                           variant="outline"
                         >
                           {loading
@@ -270,7 +289,7 @@ export function ReviewCard({
                       className="min-h-12 w-full"
                       variant="outline"
                       onClick={onReset}
-                      disabled={loading || !writesSupported}
+                      disabled={loading || !writesSupported || !connected}
                     >
                       Create another token
                     </Button>
@@ -296,27 +315,47 @@ export function ReviewCard({
                     <Button
                       className="min-h-12 w-full"
                       onClick={onAdvance}
-                      disabled={loading || !writesSupported}
+                      disabled={loading || !writesSupported || !connected}
                       variant={
                         label === "Create token" || label === "Launch token"
                           ? "default"
                           : "outline"
                       }
                     >
-                      {loading
-                        ? loadingActionLabel(workflow, manualProcessing)
-                        : label}
+                      {!connected
+                        ? "Reconnect to continue"
+                        : loading
+                          ? loadingActionLabel(workflow, manualProcessing)
+                          : label}
                       <ArrowRightIcon />
                     </Button>
+                    <p className="text-sm text-muted-foreground">
+                      {loading
+                        ? "Check your wallet for an approval request. If it times out, you can retry here."
+                        : workflow.funding.status === "committed"
+                          ? "Funding is complete. Continue at this token address; you do not need to fund it again."
+                          : "Launching may need two wallet approvals: one to fund the token address and one to create the token."}
+                    </p>
                     {canDiscardWorkflow(workflow) ? (
-                      <Button
-                        className="min-h-12 w-full"
-                        variant="outline"
-                        onClick={onReset}
-                        disabled={loading || !writesSupported}
-                      >
-                        Edit token details
-                      </Button>
+                      <div className="flex flex-col gap-3">
+                        <Button
+                          className="min-h-12 w-full"
+                          variant="outline"
+                          onClick={onReset}
+                          disabled={loading || !writesSupported}
+                        >
+                          Edit token details
+                        </Button>
+                        {onStartOver ? (
+                          <Button
+                            variant="ghost"
+                            onClick={onStartOver}
+                            disabled={loading || !writesSupported}
+                          >
+                            Start over
+                          </Button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </>
                 )}

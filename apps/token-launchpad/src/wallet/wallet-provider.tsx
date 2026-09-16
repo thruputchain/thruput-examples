@@ -19,7 +19,7 @@ interface WalletProviderProps {
   children: (
     config: AppConfig,
     connected: boolean,
-    revision: number,
+    hasWalletAccount: boolean,
   ) => ReactNode;
 }
 
@@ -43,7 +43,6 @@ function WalletRuntime({
     config: AppConfig;
     writer: ReturnType<typeof createProviderWriteBoundary>;
     address: string;
-    revision: number;
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +52,7 @@ function WalletRuntime({
   const revision = useRef(0);
   const accepting = useRef(false);
   const selectedAddress = useRef<string | undefined>(undefined);
+  const lastConfig = useRef(base);
 
   function invalidate() {
     revision.current++;
@@ -73,21 +73,30 @@ function WalletRuntime({
     const account =
       next.accounts.find((a) => a.address === address) ?? next.accounts[0];
     if (!account) return;
-    const config = { ...base, accountAddress: addressFromHex(account.address) };
+    const config =
+      selectedAddress.current === account.address
+        ? lastConfig.current
+        : { ...base, accountAddress: addressFromHex(account.address) };
     const wallet = createProviderWalletClient({
       client,
       provider: source,
       account,
       networkHash: next.networkHash,
     });
-    const writer = createProviderWriteBoundary(config, client, wallet);
+    const writer = createProviderWriteBoundary(config, client, wallet, () => {
+      // An old request must not disconnect a newer wallet binding.
+      if (active.current !== writer) return;
+      invalidate();
+      setSession(null);
+      setBusy(false);
+    });
+    lastConfig.current = config;
     selectedAddress.current = account.address;
     active.current = writer;
     setBinding({
       config,
       writer,
       address: account.address,
-      revision: revision.current,
     });
   }
   useEffect(
@@ -163,7 +172,8 @@ function WalletRuntime({
           "code" in error &&
           error.code === 4001 &&
           error.message === "Page closed"
-        ) return;
+        )
+          return;
         setError(userErrorMessage(error, "Wallet connection failed"));
       }
     }
@@ -215,7 +225,11 @@ function WalletRuntime({
           },
         }}
       >
-        {children(binding?.config ?? base, !!binding, binding?.revision ?? 0)}
+        {children(
+          binding?.config ?? lastConfig.current,
+          !!binding,
+          lastConfig.current !== base,
+        )}
       </WalletContext>
     </WalletWriteContext>
   );

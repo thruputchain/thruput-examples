@@ -6,6 +6,7 @@ import { loadConfig, type AppConfig } from "@/config";
 import { WalletProvider } from "@/wallet/wallet-provider";
 import { WalletInstallBanner } from "@/wallet/wallet-install-banner";
 import { LaunchpadRoutes } from "./routes";
+import { workflowStorageKey } from "./launch/workflow";
 
 export function App() {
   let config: AppConfig;
@@ -32,13 +33,14 @@ export function App() {
     <TooltipProvider>
       <BrowserRouter>
         <WalletProvider config={config}>
-          {(config, connected, revision) => (
+          {(config, connected, hasWalletAccount) => (
             <>
               <WalletInstallBanner />
               <LaunchpadRoutes
-                key={revision}
+                key={workflowStorageKey(config)}
                 config={config}
                 readOnly={!connected}
+                hasWalletAccount={hasWalletAccount}
               />
             </>
           )}

@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
 import { requestFailedEvent } from "@/test/request-failed";
-import { BurnEvent, MintEvent } from "@/contracts/generated/swap-handler";
+import {
+  LiquidityBurnEvent as BurnEvent,
+  LiquidityMintEvent as MintEvent,
+} from "@/contracts/generated/swap-handler";
 import {
   createAddLiquidityOperation,
   createRemoveLiquidityOperation,

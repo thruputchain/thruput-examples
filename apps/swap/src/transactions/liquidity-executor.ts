@@ -12,7 +12,10 @@ import {
   swapFailureMessage,
 } from "@/contracts/failure-message";
 import { RequestAccepted, RequestFailed } from "@/contracts/generated/swap-driver";
-import { BurnEvent, MintEvent } from "@/contracts/generated/swap-handler";
+import {
+  LiquidityBurnEvent as BurnEvent,
+  LiquidityMintEvent as MintEvent,
+} from "@/contracts/generated/swap-handler";
 import {
   buildAddLiquidityTarget,
   buildRemoveLiquidityTarget,

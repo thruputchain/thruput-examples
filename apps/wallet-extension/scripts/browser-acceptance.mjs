@@ -11,6 +11,7 @@ import {
   hashFromHex,
 } from "@groundhogchain/client";
 import { ExecResult } from "@groundhogchain/protocol";
+import { checkPopupStability } from "./popup-stability.mjs";
 
 // This test spends only newly airdropped localnet HOG, sending one base unit
 // back to the fresh test account. It does not access an existing browser profile.
@@ -22,7 +23,7 @@ if (screenshotDir && !connectOnly)
 if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
 async function capture(page, name) {
   if (!screenshotDir) return;
-  const viewport = page.viewportSize();
+  const viewport = page.viewportSize() ?? await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
   for (const width of [400, 800]) {
     await page.setViewportSize({ width, height: 680 });
     await page.evaluate(() => document.fonts.ready);
@@ -164,6 +165,7 @@ try {
   context = await chromium.launchPersistentContext(profile, {
     executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
     headless: true,
+    viewport: null,
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
@@ -182,7 +184,7 @@ try {
   await ui.setViewportSize({ width: 400, height: 680 });
   const uiUrl = `chrome-extension://${id}/index.html`;
   await ui.goto(uiUrl);
-  await ui.getByRole("button", { name: "Create encrypted wallet" }).waitFor();
+  await ui.getByRole("button", { name: "Create wallet", exact: true }).waitFor();
   assert.equal(await ui.title(), "Thruput Wallet");
   await ui.getByRole("link", { name: "Thruput Wallet home" }).waitFor();
   await ui.evaluate(() => document.fonts.ready);
@@ -243,16 +245,25 @@ try {
     );
   }
   await capture(ui, "onboarding");
-  await ui.getByRole("button", { name: "Restore wallet", exact: true }).click();
+  assert.equal(await ui.getByRole("tab", { name: "New wallet" }).getAttribute("aria-selected"), "true");
+  await ui.getByRole("tab", { name: "New wallet" }).focus();
+  await ui.keyboard.press("ArrowRight");
+  assert.equal(await ui.getByRole("tab", { name: "Restore wallet" }).getAttribute("aria-selected"), "true");
+  await ui.getByRole("heading", { name: "Restore a wallet", exact: true }).waitFor();
   await ui.getByLabel("Recovery phrase").waitFor();
   await capture(ui, "restore");
-  await ui.getByRole("button", { name: "Create wallet", exact: true }).click();
+  await ui.getByRole("tab", { name: "New wallet", exact: true }).click();
+  await ui.getByRole("heading", { name: "Create a wallet", exact: true }).waitFor();
+  assert.equal(await ui.getByLabel("Confirm password").getAttribute("autocomplete"), "new-password");
   await ui
     .getByLabel("Password (at least 12 characters)")
     .fill("browser acceptance password");
   await ui.getByLabel("Confirm password").fill("browser acceptance password");
-  await ui.getByRole("button", { name: "Create encrypted wallet" }).click();
+  await ui.getByRole("button", { name: "Create wallet", exact: true }).click();
   await ui.getByRole("heading", { name: "Wallet settings" }).waitFor();
+  assert.equal(await ui.getByLabel("Network", { exact: true }).inputValue(), "devnet");
+  await ui.getByLabel("Network", { exact: true }).selectOption("localnet");
+  await ui.waitForFunction(() => !document.querySelector("#network").disabled);
   if (connectOnly) {
     await capture(ui, "settings-notice");
     await ui.getByRole("button", { name: "Assets", exact: true }).click();
@@ -261,6 +272,23 @@ try {
     await ui.reload();
     await ui.locator(".balance").filter({ hasText: "123.456789" }).waitFor();
     await capture(ui, "portfolio");
+    await checkPopupStability(ui);
+    for (const width of [320, 400]) {
+      await ui.setViewportSize({ width, height: 680 });
+      const layout = await ui.evaluate(() => {
+        const toolbar = document.querySelector(".toolbar").getBoundingClientRect();
+        const select = document.querySelector("#network").getBoundingClientRect();
+        const actions = document.querySelector(".toolbar-actions").getBoundingClientRect();
+        const buttons = document.querySelectorAll(".toolbar-actions button");
+        const buttonGap = buttons[1].getBoundingClientRect().left - buttons[0].getBoundingClientRect().right;
+        return { gap: actions.left - select.right, buttonGap, right: actions.right - toolbar.right, overflow: document.documentElement.scrollWidth > innerWidth };
+      });
+      assert.equal(layout.gap, 20);
+      assert.equal(layout.buttonGap, 20);
+      assert.equal(layout.right, 0);
+      assert.equal(layout.overflow, false);
+    }
+    await ui.setViewportSize({ width: 400, height: 680 });
     const checksBeforeReconnect = identityChecks;
     await ui.getByRole("button", { name: "Reconnect", exact: true }).click();
     await ui.getByText("Network reconnected. Reconnect your apps.", { exact: true }).waitFor();
@@ -444,6 +472,7 @@ try {
         funds: "none",
         provider: "Thruput Wallet (dev.groundhog.wallet)",
         account: "derived account success, RPC failure, and dropdown persistence verified",
+        popup: "real toolbar popup has fixed 400px content, stable accounts, and bounded polling",
         copy: "selectable address, separate copy action, success and failure verified",
         races: "preflight cancellation, failed grant cleanup, restart, scoped portfolio and preparation verified",
         ordering: "change before connect/disconnect resolution; immediate SDK preparation succeeds",

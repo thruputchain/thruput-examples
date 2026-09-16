@@ -15,6 +15,8 @@ export const NETWORKS = {
   devnet: "https://rpc.thruput.network",
 } as const;
 export type Network = keyof typeof NETWORKS;
+export const DEVNET_NETWORK_HASH =
+  "abb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f";
 export const HOG = `0x${"0".repeat(63)}1`;
 export interface Token {
   address: string;

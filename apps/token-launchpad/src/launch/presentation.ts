@@ -21,14 +21,22 @@ export function actionLabel(workflow: LaunchWorkflow, manual: boolean): string {
   if (workflow.funding.status !== "committed") {
     if (workflow.funding.status === "signing")
       return "Confirm no funding was signed";
-    if (workflow.funding.status === "failed") return "Retry funding";
+    if (
+      workflow.funding.status === "failed" ||
+      (workflow.funding.status === "idle" && workflow.error)
+    )
+      return "Retry funding";
     return workflow.funding.hash
       ? "Check funding transaction"
       : "Fund token address";
   }
   if (workflow.creation.status === "signing")
     return "Confirm no creation was signed";
-  if (workflow.creation.status === "failed") return "Retry creation";
+  if (
+    workflow.creation.status === "failed" ||
+    (workflow.creation.status === "idle" && workflow.error)
+  )
+    return "Retry creation";
   return workflow.creation.hash ? "Check creation transaction" : "Create token";
 }
 
@@ -40,7 +48,7 @@ export function loadingActionLabel(
     workflow.funding.status === "signing" ||
     workflow.creation.status === "signing"
   )
-    return "Confirming recovery...";
+    return "Waiting for wallet approval...";
   if (
     [workflow.funding.status, workflow.creation.status].some(
       (status) => status === "pending" || status === "uncertain",

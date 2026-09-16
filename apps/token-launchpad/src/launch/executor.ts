@@ -45,6 +45,7 @@ export async function advanceWorkflow(input: {
   storage?: Pick<Storage, "getItem" | "setItem">;
   locks?: LockManager;
   review?: typeof reviewFactory;
+  onUpdate?: (workflow: LaunchWorkflow) => void;
 }): Promise<LaunchWorkflow> {
   const storage = input.storage ?? window.localStorage;
   return withWorkflowLock(
@@ -191,6 +192,7 @@ export async function advanceWorkflow(input: {
               },
             ),
             confirmUnsigned: input.confirmUnsignedStep === "funding",
+            onUpdate: input.onUpdate,
           });
         }
       }
@@ -271,6 +273,7 @@ export async function advanceWorkflow(input: {
           };
         },
         confirmUnsigned: input.confirmUnsignedStep === "creation",
+        onUpdate: input.onUpdate,
       });
     },
     input.locks,
@@ -280,10 +283,10 @@ export async function advanceWorkflow(input: {
 export async function runWorkflow(
   input: Parameters<typeof advanceWorkflow>[0] & {
     automatic: boolean;
-    onUpdate?: (workflow: LaunchWorkflow) => void;
   },
 ): Promise<LaunchWorkflow> {
-  const { automatic, onUpdate, ...advanceInput } = input;
+  const { automatic, ...advanceInput } = input;
+  const { onUpdate } = input;
   const run = async () => {
     const initial = loadWorkflow(
       input.storage ?? window.localStorage,
@@ -326,6 +329,7 @@ async function continueStep(input: {
   writer: WriteBoundary;
   invocation: Parameters<WriteBoundary["execute"]>[0];
   confirmUnsigned: boolean;
+  onUpdate?: ((workflow: LaunchWorkflow) => void) | undefined;
   onCommitted?: (
     result: Extract<WriteResult, { kind: "committedSuccess" }>,
     workflow: LaunchWorkflow,
@@ -362,6 +366,7 @@ async function continueStep(input: {
       null,
     );
     saveWorkflow(input.storage, input.key, workflow);
+    input.onUpdate?.(workflow);
     result = await input.writer.execute(input.invocation, {
       onSigned(hash) {
         workflow = updateStep(
@@ -371,6 +376,7 @@ async function continueStep(input: {
           null,
         );
         saveWorkflow(input.storage, input.key, workflow);
+        input.onUpdate?.(workflow);
       },
     });
   }

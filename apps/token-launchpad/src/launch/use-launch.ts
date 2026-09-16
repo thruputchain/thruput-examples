@@ -36,6 +36,7 @@ export interface LaunchOptions {
   writer: WriteBoundary;
   requestSync?: typeof requestRegistrySync;
   writesSupported?: boolean;
+  connected?: boolean;
 }
 
 export function useLaunch({
@@ -44,6 +45,7 @@ export function useLaunch({
   writer,
   requestSync = requestRegistrySync,
   writesSupported = true,
+  connected = true,
 }: LaunchOptions) {
   const storageKey = workflowStorageKey(config);
   const [initial] = useState(() => {
@@ -101,7 +103,14 @@ export function useLaunch({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (working.current || workflow || storageError || !writesSupported) return;
+    if (
+      working.current ||
+      workflow ||
+      storageError ||
+      !writesSupported ||
+      !connected
+    )
+      return;
     setSubmitted(true);
     setError(null);
     if (!parsed.value) return;
@@ -143,7 +152,7 @@ export function useLaunch({
   }
 
   async function advance() {
-    if (!workflow || working.current) return;
+    if (!workflow || working.current || !connected || !writesSupported) return;
     working.current = true;
     setLoading(true);
     setError(null);
@@ -185,7 +194,7 @@ export function useLaunch({
     }
   }
 
-  async function reset() {
+  async function reset(clearDraft = false) {
     if (working.current) return;
     if (workflow && !canDiscardWorkflow(workflow)) {
       setError("A workflow with transaction evidence cannot be discarded.");
@@ -223,7 +232,8 @@ export function useLaunch({
       });
       setWorkflow(null);
       setReview(null);
-      setDraft(initialDraft);
+      if (clearDraft || workflow?.creation.status === "committed")
+        setDraft(initialDraft);
       setSubmitted(false);
       setError(null);
       setStorageError(null);
@@ -254,7 +264,8 @@ export function useLaunch({
     setManualProcessing,
     submit,
     advance,
-    reset,
+    reset: () => reset(),
+    startOver: () => reset(true),
     edit(key: keyof TokenDraft, value: string) {
       if (working.current || workflow) return;
       setReview(null);

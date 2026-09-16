@@ -263,7 +263,11 @@ describe("advanceWorkflow", () => {
         onUpdate,
       });
       expect(writer.execute).toHaveBeenCalledTimes(expectedExecutions);
-      expect(onUpdate).toHaveBeenCalledTimes(expectedExecutions);
+      expect(onUpdate.mock.calls.map(([next]) => [next.funding.status, next.creation.status])).toEqual(
+        automatic
+          ? [["signing", "idle"], ["committed", "idle"], ["committed", "signing"], ["committed", "idle"]]
+          : [["signing", "idle"], ["committed", "idle"]],
+      );
       expect(result.funding.status).toBe("committed");
       expect(result.creation.status).toBe("idle");
       expect(result.error).toBe(automatic ? "creation unavailable" : null);

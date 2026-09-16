@@ -1,6 +1,6 @@
 mod common;
 use common::*;
-use swap_pair::events::BurnEvent;
+use swap_pair::events::LiquidityBurnEvent;
 
 test_transaction! {
     fn alice_remove_liquidity(etx: &Etx) -> Result<()> {
@@ -48,7 +48,7 @@ test_transaction! {
 
 // Alice burns her LP, Bob receives the underlying A/B tokens. The two roles are distinct in
 // `RemoveLiquidityRequest` (`redeemer`/`recipient`), and must stay distinct through the handler and
-// `burn_lp` to the `BurnEvent`.
+// `burn_lp` to the `LiquidityBurnEvent`.
 #[test]
 fn remove_liquidity_pays_out_to_someone_other_than_the_redeemer() {
     let etx = setup_etx().expect("setup");
@@ -90,13 +90,13 @@ fn remove_liquidity_pays_out_to_someone_other_than_the_redeemer() {
     let (r, counts) = etx.process_requests_capturing();
     assert_eq!(counts, (1, 0), "one request processed, none failed");
 
-    // The BurnEvent names both roles: Alice's LP was burned (topic 1), Bob was paid the underlying
+    // The liquidity burn names both roles: Alice's LP was burned (topic 1), Bob was paid the underlying
     // (topic 2).
-    let burn = sole_event::<BurnEvent>(&r);
+    let burn = sole_event::<LiquidityBurnEvent>(&r);
     assert_eq!(burn.topic(1).expect("sender topic"), ALICE.addr.as_ref());
     assert_eq!(burn.topic(2).expect("recipient topic"), BOB.addr.as_ref());
 
-    let redeemed = TypedEvent::<BurnEvent>::new(burn.raw())
+    let redeemed = TypedEvent::<LiquidityBurnEvent>::new(burn.raw())
         .payload()
         .amounts_redeemed;
     assert!(redeemed[0] > 0 && redeemed[1] > 0);

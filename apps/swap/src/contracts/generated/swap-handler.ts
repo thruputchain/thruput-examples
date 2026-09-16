@@ -985,6 +985,10 @@ export const SyncEvent = defineContractEvent<
 
 export type SwapHandlerEvent = BurnEvent | MintEvent | SwapEvent | SyncEvent;
 
+// Compatibility names for the existing deployment. Keep its event signatures;
+// bindings generated from the upgraded contracts export these names directly.
+export { BurnEvent as LiquidityBurnEvent, MintEvent as LiquidityMintEvent };
+
 export function decodeEvent(event: {
   topics: Uint8Array[];
   data: Uint8Array;

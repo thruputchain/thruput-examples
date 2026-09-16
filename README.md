@@ -153,7 +153,7 @@ transaction or remote deployment. Wallet unit tests run independently through
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI, **version 0.14.0 or newer** (it must match the SDK the
+- The `groundhog` CLI, **version 0.17.4 or newer** (it must match the SDK the
   contracts build against):
 
   ```sh

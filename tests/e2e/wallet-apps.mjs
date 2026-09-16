@@ -583,8 +583,10 @@ try {
     .fill(secrets[0]);
   await wallet.getByLabel("Confirm password", { exact: true }).fill(secrets[0]);
   await wallet
-    .getByRole("button", { name: "Create encrypted wallet", exact: true })
+    .getByRole("button", { name: "Create wallet", exact: true })
     .click();
+  await wallet.getByLabel("Network", { exact: true }).selectOption("localnet");
+  await wallet.waitForFunction(() => !document.querySelector("#network").disabled);
   await wallet.getByText("Recovery backup", { exact: true }).click();
   await wallet
     .getByLabel("Re-enter password", { exact: true })
@@ -630,9 +632,35 @@ try {
     await page
       .getByRole("button", { name: "Review launch", exact: true })
       .click();
+    if (process.argv.includes("--approval-timeout"))
+      approvals.timeoutSignatureAfter(i); // Funding on the first token, creation on the second.
     await page
       .getByRole("button", { name: "Launch token", exact: true })
       .click();
+    if (process.argv.includes("--approval-timeout")) {
+      await page.getByText(/Wallet approval timed out/).waitFor({ timeout: 135000 });
+      approvals.check();
+      assert.equal(await page.getByRole("button", { name: "Disconnect", exact: true }).count(), 1);
+      const saved = () => page.evaluate(() => Object.entries(localStorage)
+        .filter(([key]) => key.startsWith("groundhog-token-launchpad:workflow:"))
+        .map(([, value]) => JSON.parse(value))[0]);
+      const beforeRetry = await saved();
+      if (i === 0) {
+        await page.getByRole("button", { name: "Edit token details", exact: true }).click();
+        assert.equal(await page.getByLabel("Symbol", { exact: true }).inputValue(), symbol);
+        await page.getByRole("button", { name: "Review launch", exact: true }).click();
+        await page.getByRole("button", { name: "Launch token", exact: true }).click();
+      } else {
+        assert.equal(beforeRetry.funding.status, "committed");
+        await page.getByRole("button", { name: "Disconnect", exact: true }).click();
+        await page.getByRole("button", { name: "Reconnect wallet", exact: true }).waitFor();
+        assert.equal(await page.getByLabel("Symbol", { exact: true }).inputValue(), symbol);
+        await connect(page);
+        await page.getByRole("button", { name: "Retry creation", exact: true }).click();
+        assert.equal((await saved()).funding.hash, beforeRetry.funding.hash);
+      }
+      check(`approval timeout at ${i ? "creation" : "funding"}: details retained and recovery action available`);
+    }
     await until(async () => {
       approvals.check();
       const error = page.getByText(

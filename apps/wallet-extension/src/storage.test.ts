@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseStored } from "./storage";
 import { MAX_OUTGOING } from "./lifecycle";
+import { DEVNET_NETWORK_HASH } from "./network";
 
 const pin = "00".repeat(32);
 const account = `0x${"11".repeat(32)}`;
@@ -15,6 +16,16 @@ const record = {
 };
 
 describe("persisted wallet normalization", () => {
+  it("defaults fresh wallets to Devnet and preserves a saved Localnet selection", () => {
+    expect(parseStored(undefined, origin)).toMatchObject({
+      network: "devnet",
+      pin: DEVNET_NETWORK_HASH,
+    });
+    expect(parseStored({ network: "localnet", pin }, origin)).toMatchObject({
+      network: "localnet",
+      pin,
+    });
+  });
   it.each([undefined, null, [], 42, "invalid"])(
     "handles arbitrary roots (%j)",
     (value) => {
