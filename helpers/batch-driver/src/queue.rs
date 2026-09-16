@@ -197,6 +197,9 @@ impl<R: BatchRequest> Queue<R> {
     where
         F: FnMut(R, u64) -> Result<(), CallError>,
     {
+        #[cfg(feature = "calibration")]
+        let entry_gas = gas_remaining();
+
         let policy = self.policy.get();
         let capacity = i128::from(policy.capacity);
         // How deep the queue was at this block's snapshot. (The remaining capacity can read
@@ -207,11 +210,21 @@ impl<R: BatchRequest> Queue<R> {
             return Err(Starved);
         }
 
+        #[cfg(feature = "calibration")]
+        let mut spent = HandlerGas::default();
+
         let (n_processed, n_failed) = process(&mut self.requests, |request, gas_limit| {
             // Read the id before the request is handed over: handling consumes it.
             let id = request.id();
 
+            #[cfg(feature = "calibration")]
+            let before = gas_remaining();
+
             let result = handle(request, gas_limit);
+
+            #[cfg(feature = "calibration")]
+            spent.record(before.saturating_sub(gas_remaining()));
+
             if let Err(e) = &result {
                 // A failure rolls the handler's frame back, so the terminal event for a failed
                 // request has to come from here, in the driver's own (committed) frame.
@@ -221,7 +234,9 @@ impl<R: BatchRequest> Queue<R> {
             result
         });
 
-        // A batch that took nothing touches nothing: no delta, so nothing to conflict with.
+        #[cfg(feature = "calibration")]
+        let after_process = gas_remaining();
+
         if n_processed > 0 {
             // Every entry the batch took is out of the queue, including the ones whose handling
             // failed. (Negative consumption is a release.)
@@ -233,6 +248,60 @@ impl<R: BatchRequest> Queue<R> {
             });
         }
 
+        #[cfg(feature = "calibration")]
+        {
+            let here = gas_remaining();
+            log_event(&GasReport {
+                processed: n_processed,
+                dearest_request: spent.dearest,
+                tail: after_process.saturating_sub(here),
+                beyond_handlers: entry_gas.saturating_sub(here).saturating_sub(spent.total),
+            });
+        }
+
         Ok((n_processed, n_failed))
     }
+}
+
+/// Running totals of what the handler calls cost.
+#[cfg(feature = "calibration")]
+#[derive(Default)]
+struct HandlerGas {
+    dearest: u64,
+    total: u64,
+}
+
+#[cfg(feature = "calibration")]
+impl HandlerGas {
+    fn record(&mut self, spent: u64) {
+        self.total = self.total.saturating_add(spent);
+        if spent > self.dearest {
+            self.dearest = spent;
+        }
+    }
+}
+
+/// What one crank spent, measured on the node that ran it.
+///
+/// Emitted only under the `calibration` feature.  The two gas constants each
+/// have a field here to be set from:
+///
+/// * [`BatchRequest::GAS_LIMIT`] must bound `dearest_request`, since it is the
+///   cap the drain puts on a single handler call.
+/// * [`EPILOGUE_GAS`] must cover `beyond_handlers`, which is everything the
+///   crank spent that was not a handler call -- entering, checking the budget,
+///   consuming and decoding each entry, releasing capacity, and the summary
+///   event.  That over-counts the reserve's real job by the entries before the
+///   last one, which is the safe direction. `tail` is the part after the final
+///   handler call alone, for a tighter reading.
+///
+/// [`BatchRequest::GAS_LIMIT`]: crate::BatchRequest::GAS_LIMIT
+/// [`EPILOGUE_GAS`]: crate::EPILOGUE_GAS
+#[cfg(feature = "calibration")]
+#[derive(Event, Clone, Debug, PartialEq, Eq)]
+pub struct GasReport {
+    pub processed: u32,
+    pub dearest_request: u64,
+    pub tail: u64,
+    pub beyond_handlers: u64,
 }

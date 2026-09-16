@@ -79,17 +79,20 @@ describe("provider write boundary", () => {
   it("funds the crank frame and enclosing wallet transaction for an eight-request batch", async () => {
     const { wallet, boundary } = fixture();
     const invocation = buildProcessRequestsTarget(addressFromHex(hex("06")));
-    const batchBudget = 50_000n + 8n * 2_000_000n + 2_000_000n;
-    expect(invocation.gas_limit).toBeGreaterThan(batchBudget);
+    // `budget_for_batch(8)`: EPILOGUE_GAS + 8 * REQUEST_GAS_MAX. A crank that
+    // declares less than this is refused outright when eight or more requests
+    // are waiting, so the frame has to clear it.
+    const batchFloor = 200_000n + 8n * 1_500_000n;
+    expect(invocation.gas_limit).toBeGreaterThan(batchFloor);
     await expect(boundary.execute(invocation)).resolves.toMatchObject({
       kind: "committedSuccess",
     });
     expect(wallet.prepareExecution).toHaveBeenCalledWith({
       invocation,
-      gasLimit: 25_000_000n,
+      gasLimit: 18_700_000n,
       expiryBlocks: 1_000n,
     });
-    expect(25_000_000n - invocation.gas_limit).toBe(5_000_000n);
+    expect(18_700_000n - invocation.gas_limit).toBe(5_000_000n);
   });
 
   it("does not prepare a transaction against a different RPC network", async () => {

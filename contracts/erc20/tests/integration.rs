@@ -5,10 +5,17 @@
 //! lives in the `integration-test` crate. This file only describes the
 //! contract-specific calls and the lifecycle they exercise.
 //!
+//! It also demonstrates a requirement that is easy to meet and hard to
+//! diagnose: a new allowance on the *native* HOG token needs that contract to
+//! hold a storage reserve. See
+//! [`native_hog_allowance_needs_a_storage_reserve`].
+//!
 //! Run it with `groundhog test --integration`.
 
+use std::time::Duration;
+
 use groundhog_xdr::types::ContractAddress;
-use integration_test::{Harness, decode_return, encode};
+use integration_test::{Harness, InvocationOptions, SubmissionOutcome, decode_return, encode};
 
 const INTERFACE: &str = "ERC20";
 const VERSION: &str = "0.1.4";
@@ -87,5 +94,110 @@ impl Erc20 {
 
     async fn balance_of(&self, owner: &ContractAddress) -> u128 {
         decode_return(&self.0.invoke("get_balance_of", encode(owner)).await)
+    }
+}
+
+const NATIVE_INTERFACE: (&str, &str) = ("ERC20", "0.1.3");
+const NATIVE_STORAGE_RESERVE: u128 = 10_000_000;
+
+fn native_hog() -> ContractAddress {
+    let mut bytes = [0u8; 32];
+    bytes[31] = 1;
+    ContractAddress::from(bytes)
+}
+
+fn options() -> InvocationOptions {
+    InvocationOptions {
+        receipt_timeout: Duration::from_secs(15),
+        ..InvocationOptions::default()
+    }
+}
+
+/// A new allowance on the native HOG token needs the native contract to hold a
+/// storage reserve of its own.
+///
+/// An allowance is a new storage item, and a contract pays for its own storage
+/// out of its own HOG.  The native token is no exception -- but on a fresh node
+/// it starts with nothing, so the first allowance anyone tries to create is
+/// rejected when its delta batch is reserved (`BoundsExceeded`, on the native
+/// contract itself) and returned to the mempool to be retried forever.  There is
+/// no error to see, only a receipt that never comes, so a caller experiences it
+/// as a hang rather than a failure.
+///
+/// The remedy is to transfer HOG *to the native token's own address* first.
+#[tokio::test]
+async fn native_hog_allowance_needs_a_storage_reserve() {
+    let (interface, version) = NATIVE_INTERFACE;
+    let hog = Harness::from_env(interface, version).retarget(native_hog(), interface, version);
+
+    // The control.  Moving HOG writes balances that already exist and commits,
+    // so the account, signing, entrypoint IDs and node are all in order.
+    let spender = hog.dev_wallet(1);
+    let transfer = hog
+        .submit("transfer", encode(&(spender, 1u128)), options())
+        .await
+        .expect("submitting transfer");
+    assert!(
+        matches!(transfer, SubmissionOutcome::Committed(_)),
+        "a native HOG transfer should commit, but got {}",
+        describe(&transfer)
+    );
+
+    // Unreserved, the same account cannot be granted an allowance.
+    let before = hog
+        .submit("adjust_allowance", encode(&(spender, 1i128)), options())
+        .await
+        .expect("submitting adjust_allowance");
+    assert!(
+        matches!(
+            before,
+            SubmissionOutcome::Pending { .. } | SubmissionOutcome::Expired { .. }
+        ),
+        "without a reserve, a new allowance should never commit, but got {}",
+        describe(&before)
+    );
+
+    // Give the native token the reserve its own storage needs.
+    let reserve = hog
+        .submit(
+            "transfer",
+            encode(&(native_hog(), NATIVE_STORAGE_RESERVE)),
+            options(),
+        )
+        .await
+        .expect("submitting the reserve transfer");
+    assert!(
+        matches!(reserve, SubmissionOutcome::Committed(_)),
+        "funding the native token should commit, but got {}",
+        describe(&reserve)
+    );
+
+    // Now the same operation works.  A different spender, so this is certainly a
+    // *new* allowance row: the attempt above is still in the mempool and may
+    // commit at any point, which would leave the first spender's row already
+    // made.
+    let fresh_spender = hog.dev_wallet(2);
+    let after = hog
+        .submit(
+            "adjust_allowance",
+            encode(&(fresh_spender, 1i128)),
+            options(),
+        )
+        .await
+        .expect("submitting adjust_allowance after funding");
+    assert!(
+        matches!(after, SubmissionOutcome::Committed(_)),
+        "with a reserve, a new allowance should commit, but got {}",
+        describe(&after)
+    );
+}
+
+fn describe(outcome: &SubmissionOutcome) -> String {
+    match outcome {
+        SubmissionOutcome::Committed(_) => "committed".to_owned(),
+        SubmissionOutcome::Failed(receipt) => format!("committed but failed: {:?}", receipt.status),
+        SubmissionOutcome::Pending { .. } => "still pending when the timeout elapsed".to_owned(),
+        SubmissionOutcome::Expired { .. } => "expired before committing".to_owned(),
+        SubmissionOutcome::Invalid { reason, .. } => format!("rejected by the scheduler: {reason}"),
     }
 }

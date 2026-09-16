@@ -27,6 +27,7 @@ sdk = { registry = "groundhog", version = "=0.34.3" }
 groundhog-contract-util = { registry = "groundhog", version = "=0.34.3" }
 groundhog-u256 = { registry = "groundhog", version = "=0.34.3", default-features = false }
 groundhog-domain-separator = { registry = "groundhog", version = "=0.34.3", default-features = false }
+groundhog-event = { registry = "groundhog", version = "=0.34.3" }
 groundhog-erc20-if = { registry = "groundhog", version = "=0.1.30" }
 groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.30" }
 groundhog-erc20-permit-if = { registry = "groundhog", version = "=0.1.30" }

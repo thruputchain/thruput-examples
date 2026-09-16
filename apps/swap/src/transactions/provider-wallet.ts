@@ -5,9 +5,14 @@ import type { GlobalConfig } from "@/config";
 import { verifyReadNetwork } from "@/groundhog/client";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
 import { SwapDriver } from "@/contracts/generated/swap-driver";
+import { CRANK_FRAME_GAS } from "@/contracts/driver-target";
 import { fetchPoolTokenArtifact } from "./pool-token-artifact";
 import { pollTransaction } from "./transaction-observation";
 import type { WriteBoundary } from "./write-boundary";
+
+// What the transaction needs beyond the driver frame itself: the wallet
+// account's own work and the transaction envelope around the invocation.
+const WALLET_OVERHEAD_GAS = 5_000_000n;
 
 export function createProviderWriteBoundary(
   config: GlobalConfig,
@@ -56,8 +61,12 @@ export function createProviderWriteBoundary(
           toHex0x(SwapDriver.processRequests.entrypoint);
         const transaction = await wallet.prepareExecution({
           invocation,
-          // Cover the 20M driver frame plus wallet and transaction overhead.
-          gasLimit: gasAmount(isCrank ? 25_000_000n : 10_000_000n),
+          // Cover the driver frame plus wallet and transaction overhead. The
+          // frame figure tracks the calibrated crank budget, so it does not have
+          // to be restated here whenever that is recalibrated.
+          gasLimit: gasAmount(
+            isCrank ? CRANK_FRAME_GAS + WALLET_OVERHEAD_GAS : 10_000_000n,
+          ),
           expiryBlocks: 1_000n,
           ...(contractsToDeploy ? { contractsToDeploy } : {}),
         });

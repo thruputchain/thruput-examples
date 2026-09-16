@@ -680,7 +680,7 @@ describe("local swap submission", () => {
       execute: vi.fn(async (target, observer) => {
         write += 1;
         expect(target.invoked_address).toEqual(config.driverAddress);
-        expect(target.gas_limit).toBe(20_000_000n);
+        expect(target.gas_limit).toBe(13_700_000n);
         expect(loadCrankAttempt(config)).toMatchObject({
           status: "signing",
           transactionHash: null,

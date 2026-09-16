@@ -43,9 +43,6 @@ groundhog-erc20-if = { workspace = true }
 # Registering the native HOG token at its precompiled address, which the
 # factory spends the pool's funding from.
 groundhog-xdr = { workspace = true }
-# Reading per-syscall gas out of a frame trace, for the guest-only
-# protocol-fee calibration.
-groundhog-trace = { workspace = true }
 
 [lints]
 clippy.result_large_err = "allow"

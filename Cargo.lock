@@ -2766,7 +2766,6 @@ dependencies = [
  "erc20",
  "groundhog-erc20-if",
  "groundhog-erc20-metadata-if",
- "groundhog-trace",
  "heapless",
  "sdk",
  "swap-driver",
@@ -2783,7 +2782,6 @@ version = "0.1.0"
 dependencies = [
  "erc20",
  "groundhog-erc20-if",
- "groundhog-trace",
  "groundhog-xdr",
  "sdk",
  "swap-driver",
@@ -2831,9 +2829,12 @@ dependencies = [
 name = "swap-router"
 version = "0.1.0"
 dependencies = [
+ "batch-driver",
  "erc20",
  "groundhog-erc20-if",
  "groundhog-erc20-metadata-if",
+ "groundhog-event",
+ "groundhog-json-rpc-types",
  "groundhog-testkit",
  "groundhog-xdr",
  "sdk",
@@ -2846,6 +2847,7 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "uint",
+ "xdrs",
 ]
 
 [[package]]
