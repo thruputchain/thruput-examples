@@ -77,9 +77,6 @@ export function ReviewCard({
     <ExplorerProvider explorerUrl={config.explorerUrl}>
       <Card className="h-fit lg:sticky lg:top-6">
         <CardHeader>
-          <div className="mb-3 grid min-h-14 w-fit min-w-14 max-w-full place-items-center rounded-lg border bg-muted px-3 py-2 font-mono text-xl font-medium break-all">
-            {draft.symbol.trim().toUpperCase() || "?"}
-          </div>
           <CardTitle>{draft.symbol.trim().toUpperCase() || "SYMBOL"}</CardTitle>
           <CardDescription>
             {draft.name.trim() || "Your token"} · {draft.decimals || "0"}{" "}
