@@ -42,6 +42,7 @@ if (window === window.top && ["http:", "https:"].includes(location.protocol)) {
     else request.resolve(data.result);
   });
   const provider: WalletProvider = Object.freeze({
+    supportedMethods: Object.freeze(["getCapabilities"] as const),
     info: Object.freeze({
       id: "dev.groundhog.wallet",
       name: "Thruput Wallet",

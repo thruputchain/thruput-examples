@@ -52,6 +52,7 @@ const processGroups = new OwnedProcessGroups(),
   logs = new Map(),
   secrets = [randomBytes(24).toString("hex")];
 const evidence = {
+  batching: process.env.WALLET_ACCEPTANCE_LEGACY !== "1",
   startedAt: new Date().toISOString(),
   checks: [],
   approvals: [],
@@ -564,6 +565,19 @@ try {
     proxy: { server: `http://127.0.0.1:${proxy.address().port}` },
   });
   context.setDefaultTimeout(45000);
+  if (!evidence.batching) {
+    // Exercise an old provider surface while retaining the real extension's
+    // approval, signing, and submission paths.
+    await context.addInitScript(() => {
+      window.addEventListener("groundhog:announceProvider", (event) => {
+        const provider = event.detail;
+        if (!provider?.supportedMethods) return;
+        event.stopImmediatePropagation();
+        const { supportedMethods, ...legacy } = provider;
+        window.dispatchEvent(new CustomEvent("groundhog:announceProvider", { detail: legacy }));
+      }, true);
+    });
+  }
   evidence.tools.chromium = context.browser().version();
   const worker =
     context.serviceWorkers()[0] ||
@@ -576,6 +590,7 @@ try {
     account: () => evidence.creator,
     record: (approval) => evidence.approvals.push(approval),
   });
+  const signedCount = () => evidence.approvals.filter((approval) => approval.kind === "signature" && !approval.rejected).length;
   const wallet = await context.newPage();
   await wallet.goto(`${extensionUrl}/index.html`);
   await wallet
@@ -614,6 +629,7 @@ try {
   check("fresh encrypted wallet, backup display and local test HOG airdrop");
   const page = await context.newPage();
   for (let i = 0; i < 2; i++) {
+    const signedBefore = evidence.approvals.filter((approval) => approval.kind === "signature").length;
     stage = `launch token ${i + 1}`;
     await page.goto(`${lo}/create`);
     await connect(page);
@@ -695,8 +711,11 @@ try {
       `token ${i + 1} complete receipt/event/metadata/supply/holder verification`,
     );
     await page.screenshot({ path: `${work}/evidence/token-${i + 1}.png` });
+    assert.equal(evidence.approvals.filter((approval) => approval.kind === "signature").length - signedBefore,
+      evidence.batching ? 1 : 2, "Token creation approval count");
   }
   stage = "empty factory and pool creation";
+  const poolSignedBefore = evidence.approvals.filter((approval) => approval.kind === "signature").length;
   evidence.token = evidence.tokens[0].address;
   evidence.counter = evidence.tokens[1].address;
   await page.goto(`${so}/pools/new`);
@@ -718,12 +737,15 @@ try {
   );
   await page.getByRole("button", { name: "Review pool", exact: true }).click();
   await page.getByRole("button", { name: "Create pool", exact: true }).click();
-  await page.waitForURL(
-    (url) =>
-      url.pathname.startsWith("/pools/") && url.pathname !== "/pools/new",
-    { timeout: 180000 },
-  );
+  await until(async () => {
+    const failure = page.getByText(/^Batch committed; verification pending:/).first();
+    if (await failure.count()) throw new Error(await failure.innerText());
+    const url = new URL(page.url());
+    return url.pathname.startsWith("/pools/") && url.pathname !== "/pools/new";
+  }, "pool creation", 180000);
   await page.getByText("Your LP share", { exact: true }).waitFor();
+  assert.equal(evidence.approvals.filter((approval) => approval.kind === "signature").length - poolSignedBefore,
+    evidence.batching ? 2 : 6, "Pool creation approval count");
   const workflow = await page.evaluate(() =>
     Object.values(localStorage)
       .map((v) => {
@@ -780,12 +802,14 @@ try {
   check(
     "rejected swap signature leaves reserves, LP and holder balances unchanged",
   );
+  const swapSignedBefore = signedCount();
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await page
     .getByText("Executed", { exact: true })
     .first()
     .waitFor({ timeout: 120000 });
   evidence.afterSwap = await snapshot();
+  assert.equal(signedCount() - swapSignedBefore, evidence.batching ? 2 : 3, "Swap approval count");
   assert.notEqual(evidence.afterSwap.reserve0, evidence.initialPool.reserve0);
   assert.notEqual(evidence.afterSwap.reserve1, evidence.initialPool.reserve1);
   assert.equal(evidence.afterSwap.lp, evidence.initialPool.lp);
@@ -794,6 +818,7 @@ try {
   );
   await page.screenshot({ path: `${work}/evidence/swap.png` });
   stage = "add liquidity";
+  const addSignedBefore = signedCount();
   await page.goto(`${poolUrl}/liquidity`);
   await connect(page);
   await page
@@ -807,6 +832,7 @@ try {
     .getByText(/Recipient delivery verified/)
     .waitFor({ timeout: 120000 });
   evidence.afterAdd = await snapshot();
+  assert.equal(signedCount() - addSignedBefore, evidence.batching ? 2 : 4, "Deposit approval count");
   assert.ok(BigInt(evidence.afterAdd.lp) > BigInt(evidence.afterSwap.lp));
   assert.ok(
     BigInt(evidence.afterAdd.reserve0) > BigInt(evidence.afterSwap.reserve0),
@@ -816,6 +842,7 @@ try {
   );
   check("popup-approved add liquidity increases both reserves and LP");
   stage = "remove liquidity";
+  const removeSignedBefore = signedCount();
   await page.getByRole("button", { name: "Remove", exact: true }).click();
   await page.getByRole("button", { name: "25%", exact: true }).click();
   await page
@@ -825,6 +852,7 @@ try {
     .getByText("Removed liquidity", { exact: true })
     .waitFor({ timeout: 120000 });
   evidence.afterRemove = await snapshot();
+  assert.equal(signedCount() - removeSignedBefore, evidence.batching ? 2 : 3, "Removal approval count");
   assert.ok(BigInt(evidence.afterRemove.lp) < BigInt(evidence.afterAdd.lp));
   assert.ok(
     BigInt(evidence.afterRemove.reserve0) < BigInt(evidence.afterAdd.reserve0),

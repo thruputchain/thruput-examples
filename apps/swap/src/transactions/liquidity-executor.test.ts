@@ -23,7 +23,7 @@ import {
   applyLiquidityReceipt,
   runLiquidityOperation,
 } from "./liquidity-executor";
-import type { WriteResult } from "./write-boundary";
+import type { WriteBoundary, WriteResult } from "./write-boundary";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
@@ -47,6 +47,44 @@ const config = {
 
 describe("liquidity executor", () => {
   beforeEach(() => window.localStorage.clear());
+
+  it.each(["add", "remove"] as const)("recovers the original %s batch without re-approving", async (kind) => {
+    const operation = kind === "add" ? createAddLiquidityOperation(config, {
+      amountsDesired: [10n, 20n], amountsMin: [9n, 18n], estimatedLiquidity: 10n,
+      liquidityBalanceBefore: 5n, reservesBefore: [100n, 200n],
+    }) : createRemoveLiquidityOperation(config, { liquidity: 1n, amountsMin: [1n, 1n] });
+    saveLiquidityOperations(config, [operation]);
+    const read = snapshot();
+    read.tokenA.allowance = 0n;
+    read.tokenB.allowance = 0n;
+    read.liquidityAllowance = 0n;
+    const result = committed(10n, [acceptedEvent(new Uint8Array(32).fill(31))]);
+    const returns = new CxsWriter();
+    const count = kind === "add" ? 3 : 2;
+    returns.writeUint32(BigInt(count));
+    for (let i = 0; i < count; i++) returns.writeVarOpaque(new Uint8Array(), 0xffff_ffff);
+    result.receipt.returnData = returns.finish();
+    const writer: WriteBoundary = {
+      supportsBatch: vi.fn().mockResolvedValue(true), execute: vi.fn(),
+      executeBatch: vi.fn<NonNullable<WriteBoundary["executeBatch"]>>(async (calls, observer) => {
+        expect(calls).toHaveLength(count);
+        await observer?.onSigned(result.hash);
+        return { kind: "indeterminate", hash: result.hash, reason: "timeout" };
+      }),
+      observe: vi.fn().mockResolvedValue(result),
+    };
+    const options = { writeBoundary: writer, readSnapshot: async () => read, automaticProcessing: false };
+    const pending = await runLiquidityOperation(config, operation, options);
+    expect(pending.steps.enqueue.status).toBe("indeterminate");
+    const recovered = await runLiquidityOperation(config, pending, options);
+    expect(recovered.status).toBe("queued");
+    expect(recovered.requestId).toBe(hex(31));
+    for (const name of recovered.batchSteps!)
+      expect(recovered.steps[name]).toMatchObject({ status: "committed", transactionHash: result.hash });
+    expect(writer.executeBatch).toHaveBeenCalledOnce();
+    expect(writer.observe).toHaveBeenCalledExactlyOnceWith(result.hash);
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
 
   it("enqueues, cranks once, and verifies an unambiguous mint", async () => {
     const operation = createAddLiquidityOperation(config, {
@@ -284,7 +322,7 @@ function snapshot(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
     liquidityTokenSymbol: "LP",
     liquidityTokenDecimals: 6,
     feeTo: null,
-    chainHeight: 7n,
+    chainHeight: 100n,
     readAt: 1,
     ...overrides,
   };

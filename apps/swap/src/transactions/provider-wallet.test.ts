@@ -46,6 +46,8 @@ const receipt = {
 
 function fixture() {
   const wallet = {
+    getCapabilities: vi.fn().mockResolvedValue({ account: hex("01"), networkHash: config.networkIdHex, atomicBatch: { maxCalls: 16 } }),
+    prepareBatchExecution: vi.fn().mockResolvedValue({} as Transaction),
     prepareExecution: vi.fn().mockResolvedValue({} as Transaction),
     signTransaction: vi
       .fn()

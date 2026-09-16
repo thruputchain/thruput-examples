@@ -875,6 +875,9 @@ function CreationProgressCard({
               {" "}Factory funding: {workflow.totalFunding} HOG base units
               ({workflow.fundingPerContract} per contract; minimum {workflow.fundingMinimum}).
             </CardDescription>
+            {workflow.executionMode === "batch" ? (
+              <CardDescription>Pool creation, approvals, and liquidity submission share one transaction. Queue processing is separate.</CardDescription>
+            ) : null}
           </div>
           <Badge variant="outline">{workflow.status}</Badge>
         </div>
@@ -884,6 +887,15 @@ function CreationProgressCard({
           <BlockchainIdentifier kind="address" value={workflow.token0.address} label="Token 0 address" />
           <BlockchainIdentifier kind="address" value={workflow.token1.address} label="Token 1 address" />
         </div>
+        {workflow.executionMode === "batch" ? (
+          <div className="grid gap-1 text-sm">
+            <span className="font-medium">Creation batch</span>
+            {workflow.steps.createPool.transactionHash ? (
+              <BlockchainIdentifier kind="transaction" value={workflow.steps.createPool.transactionHash} label="Creation batch transaction hash" />
+            ) : null}
+            {workflow.steps.createPool.message ? <p className="text-muted-foreground">{workflow.steps.createPool.message}</p> : null}
+          </div>
+        ) : null}
         <CreationSteps
           label="Pool contract creation"
           names={creationStepOrder.slice(0, 2)}
@@ -939,10 +951,10 @@ function CreationSteps({
                   <span className="font-medium">{stepLabels[name]}</span>
                   <span className="text-xs text-muted-foreground">{step.status}</span>
                 </div>
-                {step.message === null ? null : (
+                {step.message === null || (workflow.executionMode === "batch" && name !== "crank") ? null : (
                   <p className="mt-1 text-sm text-muted-foreground">{step.message}</p>
                 )}
-                {step.transactionHash === null ? null : (
+                {step.transactionHash === null || (workflow.executionMode === "batch" && name !== "crank") ? null : (
                   <div className="mt-1 text-xs">
                     <BlockchainIdentifier
                       kind="transaction"

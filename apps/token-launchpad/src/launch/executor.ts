@@ -6,6 +6,7 @@ import {
   type GroundhogClient,
 } from "@groundhogchain/client";
 import { ExecResult, gasAmount, sha256Hash } from "@groundhogchain/protocol";
+import { DefaultWallet } from "@groundhogchain/client/contracts";
 
 import type { AppConfig } from "@/config";
 import { userErrorMessage } from "@/errors";
@@ -42,6 +43,7 @@ export async function advanceWorkflow(input: {
   workflowRevision: number;
   expectedIntent: string;
   confirmUnsignedStep?: "funding" | "creation";
+  allowBatch?: boolean;
   storage?: Pick<Storage, "getItem" | "setItem">;
   locks?: LockManager;
   review?: typeof reviewFactory;
@@ -162,6 +164,57 @@ export async function advanceWorkflow(input: {
           `Insufficient HOG: This wallet needs at least ${review.fundingShortfall} more HOG for token funding. Execution costs may require additional HOG.`,
         );
       }
+      if (workflow.executionMode === "auto" && workflow.creation.status !== "committed") {
+        const batch = input.allowBatch && input.writer.executeBatch &&
+          workflow.funding.status === "idle" && workflow.creation.status === "idle" &&
+          await input.writer.supportsBatch?.(review.fundingAmount > 0n ? 2 : 1);
+        workflow = { ...workflow, executionMode: batch ? "batch" : "single" };
+        saveWorkflow(storage, key, workflow);
+      }
+      const creation = StandardTokenFactory.createToken.invocation(
+        input.config.factoryAddress, GAS_LIMIT, {
+          nonce, administrator: input.config.accountAddress,
+          name: workflow.token.name, symbol: workflow.token.symbol,
+          decimals: BigInt(workflow.token.decimals),
+          initialHolder: input.config.accountAddress,
+          initialSupply: BigInt(workflow.token.initialSupply),
+        },
+      );
+      const onCommitted = async (
+        result: Extract<WriteResult, { kind: "committedSuccess" }>,
+        current: LaunchWorkflow,
+      ): Promise<LaunchWorkflow> => {
+        let created;
+        if (current.executionMode === "batch") {
+          const returns = DefaultWallet.execute.decodeReceipt(result.receipt).value;
+          const count = BigInt(current.plannedFundingAmount) > 0n ? 2 : 1;
+          if (returns.length !== count) throw new Error("Unexpected launch batch results");
+          created = StandardTokenFactory.createToken.decodeReturn(returns[count - 1]!);
+        } else created = StandardTokenFactory.createToken.decodeReceipt(result.receipt).value;
+        const event = TokenCreated.singleFromReceipt(result.receipt, { contractAddress: input.config.factoryAddress });
+        const mintEvents = TransferEvent.allFromReceipt(result.receipt, { contractAddress: created });
+        validateCreationEvidence({ created, predicted: addressFromHex(current.predictedAddressHex),
+          creator: input.config.accountAddress, expectedTokenHash: input.config.expectedTokenHash,
+          workflow: current, createdEvent: event, mintEvents });
+        return { ...current, createdAddressHex: current.predictedAddressHex,
+          creationBlock: result.receipt.height.toString(),
+          verification: await readAndAssessTokenState({ client: input.client, token: created,
+            caller: input.config.accountAddress, workflow: current }),
+        };
+      };
+      if (workflow.executionMode === "batch" && workflow.creation.status !== "committed") {
+        const amount = BigInt(workflow.plannedFundingAmount);
+        const invocations = amount > 0n ? [
+          ERC20.transfer.invocation(input.config.nativeHogAddress, GAS_LIMIT, {
+            receiver: review.predictedAddress, amount,
+          }), creation,
+        ] : [creation];
+        return continueStep({ workflow, stepName: "creation", storage, key, writer: input.writer,
+          invocation: creation, invocations, onCommitted,
+          confirmUnsigned: input.confirmUnsignedStep !== undefined,
+          onUpdate: input.onUpdate,
+        });
+      }
       if (workflow.funding.status !== "committed") {
         const mustResolveEvidence =
           workflow.funding.status === "signing" ||
@@ -228,50 +281,8 @@ export async function advanceWorkflow(input: {
         storage,
         key,
         writer: input.writer,
-        invocation: StandardTokenFactory.createToken.invocation(
-          input.config.factoryAddress,
-          GAS_LIMIT,
-          {
-            nonce,
-            administrator: input.config.accountAddress,
-            name: workflow.token.name,
-            symbol: workflow.token.symbol,
-            decimals: BigInt(workflow.token.decimals),
-            initialHolder: input.config.accountAddress,
-            initialSupply: BigInt(workflow.token.initialSupply),
-          },
-        ),
-        async onCommitted(result, current) {
-          const created = StandardTokenFactory.createToken.decodeReceipt(
-            result.receipt,
-          ).value;
-          const event = TokenCreated.singleFromReceipt(result.receipt, {
-            contractAddress: input.config.factoryAddress,
-          });
-          const mintEvents = TransferEvent.allFromReceipt(result.receipt, {
-            contractAddress: created,
-          });
-          validateCreationEvidence({
-            created,
-            predicted: addressFromHex(current.predictedAddressHex),
-            creator: input.config.accountAddress,
-            expectedTokenHash: input.config.expectedTokenHash,
-            workflow: current,
-            createdEvent: event,
-            mintEvents,
-          });
-          return {
-            ...current,
-            createdAddressHex: current.predictedAddressHex,
-            creationBlock: result.receipt.height.toString(),
-            verification: await readAndAssessTokenState({
-              client: input.client,
-              token: created,
-              caller: input.config.accountAddress,
-              workflow: current,
-            }),
-          };
-        },
+        invocation: creation,
+        onCommitted,
         confirmUnsigned: input.confirmUnsignedStep === "creation",
         onUpdate: input.onUpdate,
       });
@@ -285,7 +296,8 @@ export async function runWorkflow(
     automatic: boolean;
   },
 ): Promise<LaunchWorkflow> {
-  const { automatic, ...advanceInput } = input;
+  const { automatic, ...rest } = input;
+  const advanceInput = { ...rest, allowBatch: automatic };
   const { onUpdate } = input;
   const run = async () => {
     const initial = loadWorkflow(
@@ -328,6 +340,7 @@ async function continueStep(input: {
   key: string;
   writer: WriteBoundary;
   invocation: Parameters<WriteBoundary["execute"]>[0];
+  invocations?: readonly Parameters<WriteBoundary["execute"]>[0][];
   confirmUnsigned: boolean;
   onUpdate?: ((workflow: LaunchWorkflow) => void) | undefined;
   onCommitted?: (
@@ -357,7 +370,9 @@ async function continueStep(input: {
     step.hash !== null &&
     (step.status === "pending" || step.status === "uncertain")
   ) {
-    result = await input.writer.observe(step.hash);
+    if (input.invocations && !input.writer.observeBatch)
+      throw new Error("This wallet cannot recover the saved batch");
+    result = await (input.invocations ? input.writer.observeBatch! : input.writer.observe)(step.hash);
   } else {
     workflow = updateStep(
       workflow,
@@ -367,8 +382,8 @@ async function continueStep(input: {
     );
     saveWorkflow(input.storage, input.key, workflow);
     input.onUpdate?.(workflow);
-    result = await input.writer.execute(input.invocation, {
-      onSigned(hash) {
+    const observer = {
+      onSigned(hash: string) {
         workflow = updateStep(
           workflow,
           input.stepName,
@@ -378,7 +393,12 @@ async function continueStep(input: {
         saveWorkflow(input.storage, input.key, workflow);
         input.onUpdate?.(workflow);
       },
-    });
+    };
+    result = input.invocations
+      ? await (input.writer.executeBatch
+        ? input.writer.executeBatch(input.invocations, observer)
+        : Promise.resolve({ kind: "preSubmissionFailure" as const, hash: null, message: "Reconnect a wallet that supports this saved batch" }))
+      : await input.writer.execute(input.invocation, observer);
   }
   switch (result.kind) {
     case "preSubmissionFailure":
@@ -408,7 +428,9 @@ async function continueStep(input: {
         workflow,
         input.stepName,
         { status: "failed", hash: result.hash },
-        input.stepName === "funding"
+        workflow.executionMode === "batch"
+          ? "Launch batch failed. Funding and creation were rolled back."
+          : input.stepName === "funding"
           ? "Funding failed. No token was created."
           : "Creation failed. Funding remains at the predicted address.",
       );
@@ -445,6 +467,7 @@ function updateStep(
     ...workflow,
     revision: workflow.revision + 1,
     [name]: step,
+    ...(workflow.executionMode === "batch" ? { funding: step, creation: step } : {}),
     error,
   };
 }

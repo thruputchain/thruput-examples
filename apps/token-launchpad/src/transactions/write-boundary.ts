@@ -13,6 +13,12 @@ export type WriteResult =
     };
 
 export interface WriteBoundary {
+  supportsBatch?(count: number): Promise<boolean>;
+  observeBatch?(hash: string): Promise<WriteResult>;
+  executeBatch?(
+    targets: readonly Invocation[],
+    observer: { onSigned: (hash: string) => void | Promise<void> },
+  ): Promise<WriteResult>;
   execute(
     target: Invocation,
     observer: { onSigned: (hash: string) => void | Promise<void> },

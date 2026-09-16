@@ -4,7 +4,7 @@ import type { GlobalConfig } from "@/config";
 import type { PoolCreationReview } from "@/pools/pool-creation";
 import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
 
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
 
 export const creationStepOrder = [
@@ -40,6 +40,9 @@ export interface CreationPool {
 }
 
 export interface CreationWorkflow {
+  executionMode?: "auto" | "single" | "batch";
+  batchSteps?: Exclude<CreationStepName, "crank">[];
+  batchPool?: CreationPool;
   version: typeof STORAGE_VERSION;
   id: string;
   networkIdHex: string;
@@ -118,6 +121,7 @@ export function createCreationWorkflow(
   ) as Record<CreationStepName, CreationStep>;
   return {
     version: STORAGE_VERSION,
+    executionMode: "auto",
     id: crypto.randomUUID(),
     networkIdHex: config.networkIdHex,
     accountAddress: toHex0x(config.accountAddress),
@@ -177,7 +181,7 @@ export function loadCreationWorkflow(
   const stored = window.localStorage.getItem(key);
   if (stored === null) return null;
   try {
-    const parsed: unknown = JSON.parse(stored);
+    const parsed: unknown = migrateWorkflow(JSON.parse(stored));
     if (!isCreationWorkflow(parsed, config) || workflowStorageKey(parsed) !== key) {
       throw new Error("invalid workflow");
     }
@@ -196,7 +200,7 @@ export function loadAccountCreationWorkflows(config: GlobalConfig): CreationWork
     const stored = window.localStorage.getItem(key!);
     if (stored === null) continue;
     try {
-      const parsed: unknown = JSON.parse(stored);
+      const parsed: unknown = migrateWorkflow(JSON.parse(stored));
       if (!isCreationWorkflow(parsed, config, "account") || workflowStorageKey(parsed) !== key) {
         throw new Error("invalid workflow");
       }
@@ -301,6 +305,7 @@ function isCreationWorkflow(
   if (!isRecord(value) || value.version !== STORAGE_VERSION || !isRecord(value.steps)) return false;
   if (
     typeof value.id !== "string"
+    || (value.executionMode !== undefined && !["auto", "single", "batch"].includes(String(value.executionMode)))
     || value.id.length === 0
     || value.networkIdHex !== config.networkIdHex
     || value.accountAddress !== toHex0x(config.accountAddress)
@@ -328,6 +333,17 @@ function isCreationWorkflow(
     || !validTime(value.updatedAt)
     || value.updatedAt < value.createdAt
   ) return false;
+  if (value.executionMode === "batch") {
+    if (!isPool(value.batchPool) || !Array.isArray(value.batchSteps) ||
+      value.batchSteps.length < 2 || new Set(value.batchSteps).size !== value.batchSteps.length ||
+      !value.batchSteps.includes("createPool") || !value.batchSteps.includes("enqueue") ||
+      value.batchSteps.some((name) => !creationStepOrder.slice(0, -1).includes(name))) return false;
+    const names = value.batchSteps as Exclude<CreationStepName, "crank">[];
+    if (names.some((name, index) => index > 0 && creationStepOrder.indexOf(name) <= creationStepOrder.indexOf(names[index - 1]!))) return false;
+    if (value.status !== "race" && names.some((name) =>
+      value.steps[name].transactionHash !== value.steps.enqueue.transactionHash ||
+      value.steps[name].status !== value.steps.enqueue.status)) return false;
+  }
   if (value.steps.createPool.status === "committed" && value.pool === null) return false;
   if (value.pool === null && ["queued", "executed"].includes(String(value.status))) return false;
   if (value.requestId !== null && value.steps.enqueue.status !== "committed") return false;
@@ -337,6 +353,12 @@ function isCreationWorkflow(
     if (BigInt(value.terminalBlock) < BigInt(value.enqueueReceiptBlock)) return false;
   }
   return true;
+}
+
+function migrateWorkflow(value: unknown): unknown {
+  return isRecord(value) && value.version === 2
+    ? { ...value, version: STORAGE_VERSION, executionMode: "single" }
+    : value;
 }
 
 function isPool(value: unknown): value is CreationPool {

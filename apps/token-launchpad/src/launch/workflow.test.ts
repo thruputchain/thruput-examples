@@ -32,6 +32,13 @@ const review: FactoryReview = {
 };
 
 describe("launch workflow persistence", () => {
+  it("migrates version-two progress as single-call execution without losing its hash", () => {
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), review);
+    const funding = { status: "pending", hash: `0x${"06".repeat(32)}` };
+    storage.value = JSON.stringify({ ...workflow, version: 2, executionMode: undefined, funding });
+    expect(loadWorkflow(storage, "workflow")).toMatchObject({ version: 3, executionMode: "single", funding });
+  });
   it("round-trips a reviewed workflow without bigint JSON values", () => {
     const storage = new MemoryStorage();
     const workflow = createWorkflow(

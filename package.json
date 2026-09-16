@@ -16,7 +16,8 @@
     "test:wallet": "node tests/e2e/wallet-apps.mjs --build-extension",
     "test:browser": "node tests/browser/apps.mjs",
     "test:counter": "tsx tests/e2e/counter.ts",
-    "test:seed": "tsx tests/e2e/seed.ts"
+    "test:seed": "tsx tests/e2e/seed.ts",
+    "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },
   "dependencies": {
     "@groundhogchain/client": "0.8.0",

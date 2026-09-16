@@ -38,6 +38,16 @@ const config = {
 describe("liquidity operation storage", () => {
   beforeEach(() => window.localStorage.clear());
 
+  it("migrates version-two collections without regrouping pending transactions", () => {
+    const operation = createRemoveLiquidityOperation(config, { liquidity: 4n, amountsMin: [3n, 6n] });
+    operation.steps.approveLiquidity = { ...operation.steps.approveLiquidity, status: "indeterminate", transactionHash: hex(40) };
+    window.localStorage.setItem(liquidityOperationKey(config), JSON.stringify({ version: 2,
+      operations: [{ ...operation, version: 2, executionMode: undefined }] }));
+    const expected = { ...operation, version: 3, executionMode: "single" };
+    expect(loadLiquidityOperations(config)).toEqual([expected]);
+    expect(loadAccountLiquidityOperations(config)).toEqual([expected]);
+  });
+
   it("round trips add and remove intents", () => {
     const add = createAddLiquidityOperation(config, {
       amountsDesired: [10n, 20n],

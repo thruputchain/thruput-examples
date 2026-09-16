@@ -28,6 +28,79 @@ const locks = {
 } as unknown as LockManager;
 
 describe("advanceWorkflow", () => {
+  it("persists one batch hash for both steps and recovers it without individual submissions", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), factoryReview(config));
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const hash = `0x${"06".repeat(32)}`;
+    const writer: WriteBoundary = {
+      supportsBatch: vi.fn().mockResolvedValue(true),
+      execute: vi.fn(), observe: vi.fn(),
+      executeBatch: vi.fn<NonNullable<WriteBoundary["executeBatch"]>>(async (calls, observer) => {
+        expect(calls).toHaveLength(2);
+        await observer.onSigned(hash);
+        const saved = loadWorkflow(storage, workflowStorageKey(config))!;
+        expect(saved.funding).toEqual({ status: "pending", hash });
+        expect(saved.creation).toEqual(saved.funding);
+        return { kind: "indeterminate", hash, reason: "timeout" };
+      }),
+      observeBatch: vi.fn().mockResolvedValue({ kind: "invalid", hash, reason: "expired" }),
+    };
+    const input = { config, client: {} as GroundhogClient, writer, storage, locks, automatic: true,
+      workflowId: workflow.id, workflowRevision: workflow.revision, expectedIntent: workflowIntent(workflow),
+      review: async () => factoryReview(config) };
+    const pending = await runWorkflow(input);
+    expect(pending.executionMode).toBe("batch");
+    expect(pending.creation.status).toBe("uncertain");
+    const recovered = await runWorkflow({ ...input, workflowRevision: pending.revision });
+    expect(recovered.funding.status).toBe("failed");
+    expect(recovered.creation).toEqual(recovered.funding);
+    expect(writer.observeBatch).toHaveBeenCalledExactlyOnceWith(hash);
+    expect(writer.executeBatch).toHaveBeenCalledTimes(1);
+    expect(writer.execute).not.toHaveBeenCalled();
+    expect(writer.observe).not.toHaveBeenCalled();
+  });
+
+  it("keeps a rejected batch together and allows an explicit batch retry", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), factoryReview(config));
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    const writer = { supportsBatch: vi.fn().mockResolvedValue(true), execute: vi.fn(), observe: vi.fn(),
+      executeBatch: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "User rejected the request" }) };
+    const input = { config, client: {} as GroundhogClient, writer, storage, locks, automatic: true,
+      workflowId: workflow.id, workflowRevision: workflow.revision, expectedIntent: workflowIntent(workflow),
+      review: async () => factoryReview(config) };
+    const rejected = await runWorkflow(input);
+    expect(rejected.funding.status).toBe("idle");
+    expect(rejected.creation.status).toBe("idle");
+    expect(writer.execute).not.toHaveBeenCalled();
+    await runWorkflow({ ...input, workflowRevision: rejected.revision });
+    expect(writer.executeBatch).toHaveBeenCalledTimes(2);
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
+
+  it("does not batch saved legacy workflows or bypass a capability error", async () => {
+    const config = configuration();
+    const storage = new MemoryStorage();
+    const workflow = createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), factoryReview(config));
+    const writer = { supportsBatch: vi.fn().mockRejectedValue(new Error("Capability unavailable")), executeBatch: vi.fn(),
+      execute: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }), observe: vi.fn() };
+    const input = { config, client: {} as GroundhogClient, writer, storage, locks, automatic: true,
+      workflowId: workflow.id, workflowRevision: workflow.revision, expectedIntent: workflowIntent(workflow),
+      review: async () => factoryReview(config) };
+    saveWorkflow(storage, workflowStorageKey(config), workflow);
+    await expect(runWorkflow(input)).rejects.toThrow("Capability unavailable");
+    expect(writer.execute).not.toHaveBeenCalled();
+    const { executionMode, ...legacy } = workflow;
+    storage.setItem(workflowStorageKey(config), JSON.stringify(legacy));
+    const result = await runWorkflow(input);
+    expect(result.executionMode).toBe("single");
+    expect(writer.execute).toHaveBeenCalledOnce();
+    expect(writer.executeBatch).not.toHaveBeenCalled();
+    expect(writer.supportsBatch).toHaveBeenCalledOnce();
+  });
   it.each(["pending", "uncertain"] as const)("only observes recovered %s funding even when automatic continuation was requested", async (status) => {
     const config = configuration();
     const storage = new MemoryStorage();

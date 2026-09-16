@@ -678,12 +678,23 @@ function OperationCard({
             <CardTitle asChild>
               <h2>{operation.kind === "add" ? "Add" : "Remove"} liquidity progress</h2>
             </CardTitle>
-            <CardDescription>Request-safe approval, enqueue, and processing stages.</CardDescription>
+            <CardDescription>{operation.executionMode === "batch"
+              ? "Approvals and liquidity submission share one transaction. Queue processing is separate."
+              : "Request-safe approval, enqueue, and processing stages."}</CardDescription>
           </div>
           <Badge variant="outline">{operation.status}</Badge>
         </div>
       </CardHeader>
       <CardContent>
+        {operation.executionMode === "batch" ? (
+          <div className="mb-4 grid gap-1 text-sm">
+            <span className="font-medium">Liquidity batch</span>
+            {operation.steps.enqueue.transactionHash ? (
+              <BlockchainIdentifier kind="transaction" value={operation.steps.enqueue.transactionHash} label="Liquidity batch transaction hash" />
+            ) : null}
+            {operation.steps.enqueue.message ? <p className="text-muted-foreground">{operation.steps.enqueue.message}</p> : null}
+          </div>
+        ) : null}
         <ol aria-label="Liquidity stages" className="grid gap-2 text-sm">
           {(operation.kind === "add"
             ? ["approveToken0", "approveToken1", "enqueue"] as const

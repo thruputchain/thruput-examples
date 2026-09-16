@@ -6,7 +6,7 @@ import { userErrorMessage } from "@/errors";
 import type { ParsedToken } from "@/launch/form";
 import { MAX_SIGNED_AMOUNT } from "@/runtime";
 
-export const WORKFLOW_VERSION = 2 as const;
+export const WORKFLOW_VERSION = 3 as const;
 const LEGACY_WORKFLOW_VERSION = 1;
 const HASH = /^0x[0-9a-f]{64}$/;
 
@@ -19,6 +19,7 @@ export interface WorkflowStep {
 }
 
 export interface LaunchWorkflow {
+  executionMode: "auto" | "single" | "batch";
   version: typeof WORKFLOW_VERSION;
   id: string;
   revision: number;
@@ -95,6 +96,7 @@ export function createWorkflow(
 ): LaunchWorkflow {
   return {
     version: WORKFLOW_VERSION,
+    executionMode: "auto",
     id: crypto.randomUUID(),
     revision: 0,
     networkIdHex: config.networkIdHex,
@@ -250,7 +252,7 @@ export function workflowIntent(workflow: LaunchWorkflow): string {
 }
 
 function parseWorkflow(value: unknown): LaunchWorkflow {
-  if (!isRecord(value) || value.version !== WORKFLOW_VERSION) {
+  if (!isRecord(value) || (value.version !== WORKFLOW_VERSION && value.version !== 2)) {
     throw new WorkflowStorageError(
       "The saved launch workflow version is unsupported",
     );
@@ -285,6 +287,7 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
       value.plannedFundingAmount ?? value.reviewedFundingAmount,
     ),
     plannedReserve: unsigned(value.plannedReserve ?? value.reviewedReserve),
+    executionMode: value.version === 2 || value.executionMode === undefined ? "single" : executionMode(value.executionMode),
     funding: step(value.funding),
     creation: step(value.creation),
     verification: verification(value.verification),
@@ -318,6 +321,9 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
   const hasCreationEvidence =
     workflow.createdAddressHex !== null && workflow.creationBlock !== null;
   if (
+    (workflow.executionMode === "batch" &&
+      (workflow.funding.status !== workflow.creation.status ||
+        workflow.funding.hash !== workflow.creation.hash)) ||
     (workflow.creation.status === "committed") !== hasCreationEvidence ||
     (workflow.creation.status === "committed" &&
       workflow.funding.status !== "committed") ||
@@ -331,6 +337,12 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
     throw new WorkflowStorageError();
   }
   return workflow;
+}
+
+function executionMode(value: unknown): LaunchWorkflow["executionMode"] {
+  if (value !== "auto" && value !== "single" && value !== "batch")
+    throw new WorkflowStorageError();
+  return value;
 }
 
 function step(value: unknown): WorkflowStep {

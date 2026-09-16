@@ -425,6 +425,13 @@ async function provider(
   switch (request.method) {
     case "getSession":
       return session(origin);
+    case "getCapabilities":
+      assertGrant(origin, request.params.account, request.params.networkHash);
+      return {
+        account: request.params.account,
+        networkHash: request.params.networkHash,
+        atomicBatch: { maxCalls: 16 },
+      };
     case "disconnect":
       await disconnect(origin);
       return null;

@@ -170,7 +170,7 @@ export function ReviewCard({
                 kind="address"
                 value={workflow.reviewedNativeTokenHex}
               />
-              {workflow.funding.hash ? (
+              {workflow.funding.hash && workflow.executionMode !== "batch" ? (
                 <IdentifierDetail
                   label="Funding transaction"
                   kind="transaction"
@@ -179,7 +179,7 @@ export function ReviewCard({
               ) : null}
               {workflow.creation.hash ? (
                 <IdentifierDetail
-                  label="Creation transaction"
+                  label={workflow.executionMode === "batch" ? "Launch transaction" : "Creation transaction"}
                   kind="transaction"
                   value={workflow.creation.hash}
                 />
@@ -213,14 +213,14 @@ export function ReviewCard({
                 />
               ) : null}
               <div className="space-y-3" aria-live="polite">
-                <ProgressStep
-                  label="Fund token address"
-                  step={workflow.funding}
-                />
-                <ProgressStep
-                  label="Create and initialize token"
-                  step={workflow.creation}
-                />
+                {workflow.executionMode === "batch" ? (
+                  <ProgressStep label="Launch token in one transaction" step={workflow.creation} />
+                ) : (
+                  <>
+                    <ProgressStep label="Fund token address" step={workflow.funding} />
+                    <ProgressStep label="Create and initialize token" step={workflow.creation} />
+                  </>
+                )}
                 <ProgressStatus
                   label="Verify committed token"
                   status={
@@ -334,7 +334,9 @@ export function ReviewCard({
                         ? "Check your wallet for an approval request. If it times out, you can retry here."
                         : workflow.funding.status === "committed"
                           ? "Funding is complete. Continue at this token address; you do not need to fund it again."
-                          : "Launching may need two wallet approvals: one to fund the token address and one to create the token."}
+                          : workflow.executionMode === "batch"
+                            ? "Funding and creation share one wallet approval and one transaction."
+                            : "Compatible wallets combine funding and creation into one approval. Other wallets approve each step separately."}
                     </p>
                     {canDiscardWorkflow(workflow) ? (
                       <div className="flex flex-col gap-3">

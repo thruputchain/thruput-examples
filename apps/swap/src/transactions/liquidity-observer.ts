@@ -11,7 +11,7 @@ import { RequestFailed } from "@/contracts/generated/swap-driver";
 import {
   LiquidityBurnEvent as BurnEvent,
   LiquidityMintEvent as MintEvent,
-} from "@/contracts/generated/swap-handler";
+} from "@/contracts/liquidity-events";
 import { createReadClient } from "@/groundhog/client";
 import type { LiquidityOperation } from "@/transactions/liquidity-operation";
 

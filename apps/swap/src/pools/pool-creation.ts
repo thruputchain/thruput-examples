@@ -37,6 +37,7 @@ export interface PoolCreationReview {
   token0: PoolCreationToken;
   token1: PoolCreationToken;
   pool: PoolAddresses | null;
+  predictedPool?: PoolAddresses;
   nativeHogBalance: bigint;
   nativeHogAllowance: bigint;
   fundingMinimum: bigint;
@@ -81,6 +82,7 @@ export interface PoolCreationDependencies {
   token?: (address: ContractAddress) => Erc20ReadAdapter;
   requiredNativeHog?: bigint;
   existingPool?: PoolAddresses;
+  predictPool?: boolean;
 }
 
 export class PoolCreationNetworkError extends Error {
@@ -131,7 +133,10 @@ export async function preparePoolCreation(
       token1.metadata(),
     ]);
     const pool = await resolvePool(factory, ordered.token0, ordered.token1, registered, dependencies.existingPool);
-    const handler = pool?.handler;
+    const predicted = dependencies.predictPool && pool === null
+      ? await factory.poolAddresses(ordered.token0, ordered.token1)
+      : undefined;
+    const handler = pool?.handler ?? predicted?.value.handler;
     const [balance0, balance1, allowance0, allowance1, hogBalance, hogAllowance] =
       await Promise.all([
         token0.balanceOf(config.accountAddress),
@@ -157,6 +162,7 @@ export async function preparePoolCreation(
       hogBalance,
       hogAllowance,
     );
+    if (predicted) heights.push(predicted.height);
     if (heights.some((height) => height !== heights[0])) continue;
 
     validateFunding(funding.value);
@@ -196,6 +202,7 @@ export async function preparePoolCreation(
       token0: creationToken(details0, balance0.value, allowance0.value, amount0),
       token1: creationToken(details1, balance1.value, allowance1.value, amount1),
       pool,
+      ...(predicted ? { predictedPool: predicted.value } : {}),
       nativeHogBalance: hogBalance.value,
       nativeHogAllowance: hogAllowance.value,
       fundingMinimum: funding.value.min,

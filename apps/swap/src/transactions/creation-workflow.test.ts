@@ -28,6 +28,16 @@ const config = {
 describe("creation workflow", () => {
   beforeEach(() => window.localStorage.clear());
 
+  it("migrates a version-two workflow as single-call execution", () => {
+    const workflow = createCreationWorkflow(config, review(), 10);
+    workflow.steps.createPool = { ...workflow.steps.createPool, status: "indeterminate", transactionHash: hex(40) };
+    saveCreationWorkflow(config, workflow);
+    window.localStorage.setItem(window.localStorage.key(0)!, JSON.stringify({ ...workflow, version: 2, executionMode: undefined }));
+    const expected = { ...workflow, version: 3, executionMode: "single" };
+    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(expected);
+    expect(loadAccountCreationWorkflows(config)).toEqual([expected]);
+  });
+
   it("starts the atomic factory workflow in the v2 namespace", () => {
     const workflow = createCreationWorkflow(config, review(), 10);
     saveCreationWorkflow(config, workflow);
