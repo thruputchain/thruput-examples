@@ -1,6 +1,6 @@
-// Generated from erc20.spec.xdr - ERC20 interface v0.1.30
-// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.30
-// Generated from erc20.spec.xdr - ERC20Permit interface v0.1.30
+// Generated from erc20.spec.xdr - ERC20 interface v0.1.22
+// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.22
+// Generated from erc20.spec.xdr - ERC20Permit interface v0.1.22
 // DO NOT EDIT. Re-run codegen to update.
 
 import type { ContractAddress } from "@groundhogchain/protocol";
@@ -181,7 +181,7 @@ export const spec: ContractSpec = {
   interfaces: [
     {
       name: s("ERC20"),
-      vers: s("0.1.30"),
+      vers: s("0.1.22"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -264,7 +264,7 @@ export const spec: ContractSpec = {
     },
     {
       name: s("ERC20Metadata"),
-      vers: s("0.1.30"),
+      vers: s("0.1.22"),
       throws: [],
       methods: [
         {
@@ -323,7 +323,7 @@ export const spec: ContractSpec = {
     },
     {
       name: s("ERC20Permit"),
-      vers: s("0.1.30"),
+      vers: s("0.1.22"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -419,26 +419,6 @@ export const spec: ContractSpec = {
         { name: s("spender"), ty: { v: ContractTypeKind.Address } },
       ],
       fields: [{ name: s("difference"), ty: { v: ContractTypeKind.I128 } }],
-    },
-    {
-      name: s("BurnEvent"),
-      signature: topic(
-        fromHex(
-          "513f00645e2752c8b6273adbbd6b0dae498cf7c4028751e05c7d8900fb4182c5",
-        ),
-      ),
-      topics: [{ name: s("from"), ty: { v: ContractTypeKind.Address } }],
-      fields: [{ name: s("amount"), ty: { v: ContractTypeKind.I128 } }],
-    },
-    {
-      name: s("MintEvent"),
-      signature: topic(
-        fromHex(
-          "10c4493b678f7f00f19a3bbf4fa153186a2d1f4cf328a495718af7679fa54ea4",
-        ),
-      ),
-      topics: [{ name: s("to"), ty: { v: ContractTypeKind.Address } }],
-      fields: [{ name: s("amount"), ty: { v: ContractTypeKind.I128 } }],
     },
     {
       name: s("TransferEvent"),
@@ -881,64 +861,6 @@ export const ApprovalEvent = defineContractEvent<
   codecs,
 });
 
-export interface BurnEvent extends DecodedContractEvent<
-  "BurnEvent",
-  { from: ContractAddress },
-  { amount: bigint }
-> {}
-
-export interface BurnEventFilter {
-  from?: ContractEventFilterValue<ContractAddress>;
-}
-
-export const BurnEvent = defineContractEvent<
-  "BurnEvent",
-  BurnEvent["topics"],
-  BurnEvent["fields"],
-  BurnEventFilter
->({
-  name: "BurnEvent",
-  signature: spec.events[1]!.signature,
-  topics: [
-    {
-      name: "from",
-      type: spec.events[1]!.topics[0]!.ty,
-      representation: "address",
-    },
-  ],
-  fields: [{ name: "amount", type: spec.events[1]!.fields[0]!.ty }],
-  codecs,
-});
-
-export interface MintEvent extends DecodedContractEvent<
-  "MintEvent",
-  { to: ContractAddress },
-  { amount: bigint }
-> {}
-
-export interface MintEventFilter {
-  to?: ContractEventFilterValue<ContractAddress>;
-}
-
-export const MintEvent = defineContractEvent<
-  "MintEvent",
-  MintEvent["topics"],
-  MintEvent["fields"],
-  MintEventFilter
->({
-  name: "MintEvent",
-  signature: spec.events[2]!.signature,
-  topics: [
-    {
-      name: "to",
-      type: spec.events[2]!.topics[0]!.ty,
-      representation: "address",
-    },
-  ],
-  fields: [{ name: "amount", type: spec.events[2]!.fields[0]!.ty }],
-  codecs,
-});
-
 export interface TransferEvent extends DecodedContractEvent<
   "TransferEvent",
   { from: ContractAddress; to: ContractAddress },
@@ -957,33 +879,28 @@ export const TransferEvent = defineContractEvent<
   TransferEventFilter
 >({
   name: "TransferEvent",
-  signature: spec.events[3]!.signature,
+  signature: spec.events[1]!.signature,
   topics: [
     {
       name: "from",
-      type: spec.events[3]!.topics[0]!.ty,
+      type: spec.events[1]!.topics[0]!.ty,
       representation: "address",
     },
     {
       name: "to",
-      type: spec.events[3]!.topics[1]!.ty,
+      type: spec.events[1]!.topics[1]!.ty,
       representation: "address",
     },
   ],
-  fields: [{ name: "amount", type: spec.events[3]!.fields[0]!.ty }],
+  fields: [{ name: "amount", type: spec.events[1]!.fields[0]!.ty }],
   codecs,
 });
 
-export type ERC20Event = ApprovalEvent | BurnEvent | MintEvent | TransferEvent;
+export type ERC20Event = ApprovalEvent | TransferEvent;
 
 export function decodeEvent(event: {
   topics: Uint8Array[];
   data: Uint8Array;
 }): ERC20Event | null {
-  return (
-    ApprovalEvent.decode(event) ??
-    BurnEvent.decode(event) ??
-    MintEvent.decode(event) ??
-    TransferEvent.decode(event)
-  );
+  return ApprovalEvent.decode(event) ?? TransferEvent.decode(event);
 }
