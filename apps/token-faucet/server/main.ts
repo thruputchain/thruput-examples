@@ -33,6 +33,7 @@ try {
   const chain = await connectChain(
     manifest,
     resolve(process.env.FAUCET_KEY_FILE ?? ".local/devnet/signer.key"),
+    process.env.FAUCET_SIGNING_PRIVATE_KEY,
   );
   const claims = new ClaimService(directory, manifest.tokens, chain);
   const server = faucetServer(manifest, claims, resolve("dist"));

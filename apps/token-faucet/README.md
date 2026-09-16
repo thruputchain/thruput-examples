@@ -38,13 +38,19 @@ airdrop action.
 
 ## Deploy the faucet on Railway
 
-Use the repository root as the build context and
-`apps/token-faucet/railway.json` as the service configuration. It builds and starts
-the faucet workspace. Attach a persistent volume at `/data` and set:
+Use the repository root as the build context. Configure the service with:
+
+- Build: `npm run build --workspace apps/token-faucet`
+- Start: `npm run start --workspace apps/token-faucet`
+- Health check: `/api/config`
+- Replicas: `1`
+
+These settings are also recorded in `apps/token-faucet/railway.json` for services
+that use config-as-code. Attach a persistent volume at `/data` and set:
 
 ```ini
 FAUCET_MANIFEST=deployments/devnet.json
-FAUCET_KEY_FILE=/data/signer.key
+FAUCET_SIGNING_PRIVATE_KEY=<existing faucet key as 64 hexadecimal characters>
 FAUCET_STATE_DIR=/data/claims
 FAUCET_SWAP_URL=https://swap-production-66df.up.railway.app/pools
 ```
@@ -53,10 +59,23 @@ Railway supplies `PORT`; the local default is `3002`. The health check is
 `/api/config`. Use the same npm package-read authentication as the other apps
 to install the private Groundhog packages.
 
-Securely copy the existing **raw 32-byte** signer from
-`apps/token-faucet/.local/devnet/signer.key` to `/data/signer.key` and set its file
-mode to `0600`. The key must match the account in the manifest, which owns the
-faucet supply. It is a server file, not a `VITE_*` variable. Do not commit it.
+Set `FAUCET_SIGNING_PRIVATE_KEY` as a server-only secret, following Counter's
+`COUNTER_SIGNING_PRIVATE_KEY` pattern. Use the existing faucet key, not Counter's
+key or a new random key: it must match the account that holds the token supply.
+Convert the existing raw key to hex locally, then copy the result into Railway:
+
+```sh
+node -e "process.stdout.write(require('node:fs').readFileSync('apps/token-faucet/.local/devnet/signer.key').toString('hex'))"
+```
+
+Do not commit or share this value. It must not use a `VITE_*` variable name.
+No key upload or `chmod` start command is needed with the environment secret.
+The volume is still required for persistent claim records.
+
+Local development can keep using `FAUCET_KEY_FILE` instead. When the environment
+secret is set, it takes precedence over the file. If it is absent, the file must
+contain the raw 32-byte key with mode `0600`. An invalid environment secret fails
+startup rather than silently falling back to the file.
 
 The checked-in manifest already contains the devnet RPC URL, network hash, and
 five token addresses. No swap factory, router, or pool database variables are
@@ -111,6 +130,7 @@ Paths are relative to `apps/token-faucet` when using workspace commands.
 | Setting | Default |
 | --- | --- |
 | `FAUCET_MANIFEST` | `deployments/devnet.json` |
+| `FAUCET_SIGNING_PRIVATE_KEY` | Unset; uses the key file |
 | `FAUCET_KEY_FILE` | `.local/devnet/signer.key` |
 | `FAUCET_STATE_DIR` | `.local/claims` |
 | `FAUCET_SWAP_URL` | The manifest's `swapUrl` |
