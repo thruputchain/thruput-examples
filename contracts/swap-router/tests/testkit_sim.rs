@@ -481,6 +481,11 @@ fn calibrator(fee_enabled: bool) -> Agent {
         swap_a_little(&mut ctx, &s, me).await?;
         measured.push(("swap_exact_in", crank_and_report(&mut ctx, &s).await?));
 
+        // The other swap: an exact-out solves for the input rather than being
+        // handed it, so it is the one that decides `SWAP_GAS` if either does.
+        swap_a_little_exact_out(&mut ctx, &s, me).await?;
+        measured.push(("swap_exact_out", crank_and_report(&mut ctx, &s).await?));
+
         // A liquidity deposit, against a grown `k`.
         let add: Amount = SUPPLY / 1_000;
         let add_i = i128::try_from(add).unwrap();
@@ -565,6 +570,36 @@ async fn swap_a_little(ctx: &mut AgentContext, s: &Swap, me: Address) -> Result<
             ctx,
             "swap_exact_tokens_for_tokens",
             &(amount_in, 0u128, s.token0.address(), s.token1.address(), me),
+        )
+        .await?;
+    Ok(())
+}
+
+/// A small exact-out swap, naming the output and capping the input.
+#[cfg(feature = "calibration")]
+async fn swap_a_little_exact_out(ctx: &mut AgentContext, s: &Swap, me: Address) -> Result<()> {
+    let amount_out: Amount = SUPPLY / 1_000;
+    // The handler pulls whatever the curve says the output costs, which it
+    // learns only at execution; the allowance has to cover the cap we set.
+    let amount_in_max: Amount = SUPPLY / 100;
+    s.token0
+        .call(
+            ctx,
+            "adjust_allowance",
+            &(s.handler.address(), i128::try_from(amount_in_max).unwrap()),
+        )
+        .await?;
+    s.router
+        .call(
+            ctx,
+            "swap_tokens_for_exact_tokens",
+            &(
+                amount_out,
+                amount_in_max,
+                s.token0.address(),
+                s.token1.address(),
+                me,
+            ),
         )
         .await?;
     Ok(())
