@@ -50,11 +50,10 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 | [Counter](apps/counter/README.md) | Send concurrent counter transactions with buttons or keyboard input; uses a development signer |
 | [Token Launchpad](apps/token-launchpad/README.md) | Create standard tokens and browse launches |
 | [Swap](apps/swap/README.md) | Create pools, swap tokens, and manage liquidity |
-| [Token faucet](apps/token-faucet/README.md) | Claim five devnet tokens, then open Swap to trade or create pools |
 | [Thruput Wallet](apps/wallet-extension/README.md) | Chrome wallet for localnet and devnet |
 
 Each app README contains its setup, configuration, and testing instructions.
-Counter, Swap, Launchpad, and Token faucet share one npm workspace and root lockfile. The wallet has an
+Counter, Swap, and Launchpad share one npm workspace and root lockfile. The wallet has an
 independent install.
 
 Game of Life (atomic and async worlds, frontend, indexer, and test fixtures) now
