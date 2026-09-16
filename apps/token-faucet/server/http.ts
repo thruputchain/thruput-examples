@@ -8,6 +8,7 @@ import {
 import { extname, resolve, sep } from "node:path";
 import { canonicalAddress, type FaucetManifest } from "../src/domain.ts";
 import type { ClaimService } from "./claims.ts";
+import { describeClaimError } from "./claim-diagnostics.ts";
 
 function json(response: ServerResponse, status: number, body: unknown) {
   response.writeHead(status, {
@@ -82,10 +83,34 @@ export function faucetServer(
         }
         try {
           json(response, 200, await claims.claim(token, address));
-        } catch {
+        } catch (error) {
+          const diagnostic = describeClaimError(error);
+          let transactionHash: string | undefined;
+          let statusError: ReturnType<typeof describeClaimError> | undefined;
+          try {
+            const status = await claims.status(token, address);
+            if (
+              status.transactionHash &&
+              /^0x[a-fA-F0-9]{64}$/.test(status.transactionHash)
+            ) {
+              transactionHash = status.transactionHash;
+            }
+          } catch (error) {
+            statusError = describeClaimError(error);
+          }
+          console.error("Faucet claim failed", {
+            token,
+            recipient: address,
+            transactionHash,
+            error: diagnostic,
+            statusError,
+          });
           json(response, 503, {
             error:
-              "Transfer not yet confirmed. Retry to check the same claim; you will not receive a duplicate transfer.",
+              diagnostic.operatorActionRequired ||
+              statusError?.operatorActionRequired
+                ? "This claim needs investigation by the faucet operator. Contact them with your wallet address and token."
+                : "Transfer not yet confirmed. Retry to check the same claim; if it remains unresolved, contact the faucet operator.",
           });
         }
       } else if (url.pathname.startsWith("/api/")) {

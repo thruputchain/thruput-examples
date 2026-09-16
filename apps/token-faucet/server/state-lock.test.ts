@@ -22,14 +22,17 @@ async function directory() {
   return path;
 }
 
-it("refuses a second server and permits restart after release", async () => {
-  const path = await directory();
-  const release = acquireStateLock(path);
-  releases.push(release);
-  expect(() => acquireStateLock(path)).toThrow("Another faucet server");
-  release();
-  releases.push(acquireStateLock(path));
-});
+it.each(["faucet server", "faucet setup process"])(
+  "refuses a second %s and permits restart after release",
+  async (owner) => {
+    const path = await directory();
+    const release = acquireStateLock(path, owner);
+    releases.push(release);
+    expect(() => acquireStateLock(path, owner)).toThrow(`Another ${owner}`);
+    release();
+    releases.push(acquireStateLock(path, owner));
+  },
+);
 
 it("ignores an obsolete directory lock", async () => {
   const path = await directory();

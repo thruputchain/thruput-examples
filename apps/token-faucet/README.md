@@ -136,6 +136,13 @@ empty `lock` directory is no longer used by the new server.
 The limit is per address, not per person. Developers can create another address
 to claim again.
 
+Failed claims produce a structured `Faucet claim failed` server log with the
+token, recipient, and recorded transaction hash when available. Journal errors
+include their locally authored reason; RPC and HTTP errors include their numeric
+code or status. External error messages, response bodies, causes, and signed
+transaction bytes are omitted. Corrupt or unresolved journal failures direct
+the user to the operator instead of suggesting that retries alone will fix them.
+
 ## Create or resume the five tokens
 
 For a new network or token deployment, provide a deployed standard-token factory
@@ -151,6 +158,10 @@ Setup creates only the five tokens and funds their storage. It records nonces
 and signed transactions in `.local/devnet/deployment.json`. Rerunning resumes
 those transactions. Earlier journals with pool records can still be used; the
 script only resumes their token steps.
+
+Setup uses the same crash-released SQLite lock as the server, in its deployment
+directory. A stopped setup process does not leave a stale lock. Stop any older
+setup process before upgrading; its empty `lock` directory is no longer used.
 
 Optional settings:
 

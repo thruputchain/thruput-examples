@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, open, readFile, rmdir, stat } from "node:fs/promises";
+import { open, readFile, stat } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
@@ -36,6 +36,7 @@ import {
   type FaucetToken,
 } from "../src/domain.ts";
 import { connectChain } from "../server/chain.ts";
+import { acquireStateLock } from "../server/state-lock.ts";
 
 const ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const APP = fileURLToPath(new URL("..", import.meta.url));
@@ -69,12 +70,7 @@ async function setup() {
     process.env.FAUCET_DEPLOY_DIR ?? join(APP, ".local/devnet"),
   );
   await durableMkdir(directory);
-  const lock = join(directory, "lock");
-  await mkdir(lock).catch(() => {
-    throw new Error(
-      "Deployment is locked. Resume only after the previous setup process stops.",
-    );
-  });
+  const releaseLock = acquireStateLock(directory, "faucet setup process");
   try {
     const source = parseEnv(
       await readFile(
@@ -302,7 +298,7 @@ async function setup() {
       `Five faucet tokens are ready.\nManifest: ${join(directory, "public.json")}\nFaucet account: ${manifest.account}`,
     );
   } finally {
-    await rmdir(lock);
+    releaseLock();
   }
 }
 
