@@ -99,9 +99,12 @@ export async function runLiquidityOperation(
     const fresh = operation.executionMode === "auto" && steps.every((name) =>
       operation.steps[name].status === "pending" && operation.steps[name].transactionHash === null);
     if (operation.executionMode === "batch" || (fresh && dependencies.writeBoundary.executeBatch &&
-      await dependencies.writeBoundary.supportsBatch?.(steps.length))) {
-      operation = await runLiquidityBatch(config, operation, steps, dependencies, update);
-      if (operation.status !== "queued") return operation;
+      dependencies.writeBoundary.supportsBatch)) {
+      const batched = await runLiquidityBatch(config, operation, steps, dependencies, update);
+      if (batched !== null) {
+        operation = batched;
+        if (operation.status !== "queued") return operation;
+      }
     }
   }
 
@@ -266,7 +269,7 @@ async function runLiquidityBatch(
   order: readonly LiquidityStepName[],
   dependencies: LiquidityExecutorDependencies,
   update: (operation: LiquidityOperation) => LiquidityOperation,
-): Promise<LiquidityOperation> {
+): Promise<LiquidityOperation | null> {
   let operation = initial;
   const writer = dependencies.writeBoundary;
   const step = operation.steps.enqueue;
@@ -298,6 +301,8 @@ async function runLiquidityBatch(
     }
     if (!writer.executeBatch)
       throw new Error("Reconnect a wallet that supports this saved batch");
+    if (operation.executionMode !== "batch" && !(await writer.supportsBatch?.(calls.length)))
+      return null;
     operation = update(
       updateLiquidityBatch(
         { ...operation, executionMode: "batch", batchSteps: names },

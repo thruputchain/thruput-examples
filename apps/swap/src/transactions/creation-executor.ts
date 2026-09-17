@@ -125,10 +125,14 @@ export async function runCreationWorkflow(
     const fresh = workflow.executionMode === "auto" && creationStepOrder.every((name) =>
       workflow.steps[name].status === "pending" && workflow.steps[name].transactionHash === null);
     if (workflow.executionMode === "batch" || (fresh && dependencies.writeBoundary.executeBatch &&
-      await dependencies.writeBoundary.supportsBatch?.(5))) {
-      workflow = await runCreationBatch(config, workflow, dependencies, update);
-      if (workflow.status !== "queued") return workflow;
-    } else if (fresh) {
+      dependencies.writeBoundary.supportsBatch)) {
+      const batched = await runCreationBatch(config, workflow, dependencies, update);
+      if (batched !== null) {
+        workflow = batched;
+        if (workflow.status !== "queued") return workflow;
+      }
+    }
+    if (fresh && workflow.executionMode === "auto") {
       await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
       workflow = update({ ...workflow, executionMode: "single" });
     }
@@ -244,7 +248,7 @@ async function runCreationBatch(
   initial: CreationWorkflow,
   dependencies: CreationExecutorDependencies,
   update: (workflow: CreationWorkflow) => CreationWorkflow,
-): Promise<CreationWorkflow> {
+): Promise<CreationWorkflow | null> {
   let workflow = initial;
   const writer = dependencies.writeBoundary;
   const existing = workflow.steps.createPool;
@@ -346,6 +350,10 @@ async function runCreationBatch(
     );
     if (!writer.executeBatch)
       throw new Error("Reconnect a wallet that supports this saved batch");
+    // Only a fresh workflow may fall back. Negotiate the actual planned calls,
+    // after omitting approvals that are already sufficient.
+    if (workflow.executionMode !== "batch" && !(await writer.supportsBatch?.(calls.length)))
+      return null;
     dependencies.assertCurrent?.();
     workflow = {
       ...workflow,

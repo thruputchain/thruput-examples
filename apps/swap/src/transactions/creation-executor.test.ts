@@ -55,6 +55,60 @@ const poolConfig = {
 describe("creation executor", () => {
   beforeEach(() => window.localStorage.clear());
 
+  it.each([2, 3, 4, 5])("negotiates the actual %s-call creation batch", async (count) => {
+    const state = { created: false, fundingAllowance: count === 2 ? 300n : 0n };
+    const deps = dependencies(state);
+    const token = deps.token;
+    deps.token = (address) => ({
+      ...token(address),
+      allowance: async () => view(address[0] === 6 ? state.fundingAllowance
+        : (address[0] === 1 && count >= 4) || (address[0] === 2 && count === 5) ? 0n : 20_000n),
+    });
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const writer = {
+      supportsBatch: vi.fn(async (actual: number) => actual <= count),
+      execute: vi.fn(),
+      executeBatch: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }),
+    };
+    const result = await runCreationWorkflow(config, workflow, { ...deps, writeBoundary: writer });
+    expect(writer.supportsBatch).toHaveBeenCalledExactlyOnceWith(count);
+    expect(writer.executeBatch).toHaveBeenCalledOnce();
+    expect(writer.executeBatch.mock.calls[0]![0]).toHaveLength(count);
+    expect(result.executionMode).toBe("batch");
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
+
+  it("uses individual calls when the constructed batch exceeds the wallet limit", async () => {
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const writer = {
+      supportsBatch: vi.fn(async (count: number) => count <= 2),
+      execute: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }),
+      executeBatch: vi.fn(),
+    };
+    const result = await runCreationWorkflow(config, workflow, {
+      ...dependencies({ created: false, fundingAllowance: 0n }), writeBoundary: writer,
+    });
+    expect(writer.supportsBatch).toHaveBeenCalledExactlyOnceWith(3);
+    expect(writer.executeBatch).not.toHaveBeenCalled();
+    expect(writer.execute).toHaveBeenCalledOnce();
+    expect(result.executionMode).toBe("single");
+    expect(result.batchSteps).toBeUndefined();
+  });
+
+  it("does not fall back or persist a batch when capability detection fails", async () => {
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const writer = {
+      supportsBatch: vi.fn().mockRejectedValue(new Error("Capabilities unavailable")),
+      execute: vi.fn(), executeBatch: vi.fn(),
+    };
+    await expect(runCreationWorkflow(config, workflow, {
+      ...dependencies({ created: false, fundingAllowance: 0n }), writeBoundary: writer,
+    })).rejects.toThrow("Capabilities unavailable");
+    expect(writer.execute).not.toHaveBeenCalled();
+    expect(writer.executeBatch).not.toHaveBeenCalled();
+    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+  });
+
   it("recovers one creation batch hash and applies all steps together", async () => {
     const state = { created: false, fundingAllowance: 0n };
     const deps = dependencies(state);

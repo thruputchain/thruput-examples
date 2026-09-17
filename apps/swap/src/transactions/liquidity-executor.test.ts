@@ -17,6 +17,7 @@ import { createCrankAttempt, saveCrankAttempt } from "./crank-attempt";
 import {
   createAddLiquidityOperation,
   createRemoveLiquidityOperation,
+  loadLiquidityOperations,
   saveLiquidityOperations,
 } from "./liquidity-operation";
 import {
@@ -47,6 +48,64 @@ const config = {
 
 describe("liquidity executor", () => {
   beforeEach(() => window.localStorage.clear());
+
+  it.each([
+    ["add", 1], ["add", 2], ["add", 3], ["remove", 1], ["remove", 2],
+  ] as const)("negotiates the actual %s liquidity batch of %s calls", async (kind, count) => {
+    const operation = kind === "add" ? createAddLiquidityOperation(config, {
+      amountsDesired: [10n, 20n], amountsMin: [9n, 18n], estimatedLiquidity: 10n,
+      liquidityBalanceBefore: 5n, reservesBefore: [100n, 200n],
+    }) : createRemoveLiquidityOperation(config, { liquidity: 1n, amountsMin: [1n, 1n] });
+    saveLiquidityOperations(config, [operation]);
+    const read = snapshot();
+    if (count >= 2) { read.tokenA.allowance = 0n; read.liquidityAllowance = 0n; }
+    if (count === 3) read.tokenB.allowance = 0n;
+    const writer = {
+      supportsBatch: vi.fn(async (actual: number) => actual <= count), execute: vi.fn(),
+      executeBatch: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }),
+    };
+    const result = await runLiquidityOperation(config, operation, {
+      writeBoundary: writer, readSnapshot: async () => read, automaticProcessing: false,
+    });
+    expect(writer.supportsBatch).toHaveBeenCalledExactlyOnceWith(count);
+    expect(writer.executeBatch).toHaveBeenCalledOnce();
+    expect(writer.executeBatch.mock.calls[0]![0]).toHaveLength(count);
+    expect(result.executionMode).toBe("batch");
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
+
+  it("falls back before signing when the actual liquidity batch is too large", async () => {
+    const operation = createRemoveLiquidityOperation(config, { liquidity: 1n, amountsMin: [1n, 1n] });
+    saveLiquidityOperations(config, [operation]);
+    const writer = {
+      supportsBatch: vi.fn(async (count: number) => count <= 1),
+      execute: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }),
+      executeBatch: vi.fn(),
+    };
+    const result = await runLiquidityOperation(config, operation, {
+      writeBoundary: writer, readSnapshot: async () => snapshot({ liquidityAllowance: 0n }),
+    });
+    expect(writer.supportsBatch).toHaveBeenCalledExactlyOnceWith(2);
+    expect(writer.executeBatch).not.toHaveBeenCalled();
+    expect(writer.execute).toHaveBeenCalledOnce();
+    expect(result.executionMode).toBe("single");
+    expect(result.batchSteps).toBeUndefined();
+  });
+
+  it("keeps the saved liquidity steps unchanged when capability detection fails", async () => {
+    const operation = createRemoveLiquidityOperation(config, { liquidity: 1n, amountsMin: [1n, 1n] });
+    saveLiquidityOperations(config, [operation]);
+    const writer = {
+      supportsBatch: vi.fn().mockRejectedValue(new Error("Capabilities unavailable")),
+      execute: vi.fn(), executeBatch: vi.fn(),
+    };
+    await expect(runLiquidityOperation(config, operation, {
+      writeBoundary: writer, readSnapshot: async () => snapshot(),
+    })).rejects.toThrow("Capabilities unavailable");
+    expect(writer.execute).not.toHaveBeenCalled();
+    expect(writer.executeBatch).not.toHaveBeenCalled();
+    expect(loadLiquidityOperations(config)).toEqual([operation]);
+  });
 
   it.each(["add", "remove"] as const)("recovers the original %s batch without re-approving", async (kind) => {
     const operation = kind === "add" ? createAddLiquidityOperation(config, {
