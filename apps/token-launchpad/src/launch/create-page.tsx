@@ -20,6 +20,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ReviewCard } from "./review-card";
+import { LaunchSuccessActions } from "./launch-success-actions";
+import { createAmmPoolLink } from "./swap-link";
 import { useLaunch, type LaunchOptions } from "./use-launch";
 import { useWallet } from "@/wallet/use-wallet";
 
@@ -90,6 +92,14 @@ export function CreatePage(props: LaunchOptions) {
             This browser cannot safely serialize launch transactions.
           </AlertDescription>
         </Alert>
+      ) : null}
+      {launch.workflow?.creation.status === "committed" ? (
+        <LaunchSuccessActions
+          className="mb-6 sm:flex-row sm:flex-wrap"
+          onReset={launch.reset}
+          disabled={launch.loading || !writesSupported || !connected}
+          ammPoolLink={createAmmPoolLink(props.config.swapAppUrl, launch.workflow)}
+        />
       ) : null}
       <div className="grid items-start gap-6 lg:grid-cols-[23fr_17fr]">
         <Card>

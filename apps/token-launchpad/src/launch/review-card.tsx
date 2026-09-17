@@ -5,7 +5,6 @@ import {
   CheckCircle2Icon,
   RefreshCwIcon,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 import type { AppConfig } from "@/config";
 import type { FactoryReview } from "@/contracts/launchpad-client";
 import {
@@ -30,6 +29,7 @@ import {
   loadingActionLabel,
 } from "./presentation";
 import { createAmmPoolLink } from "./swap-link";
+import { LaunchSuccessActions } from "./launch-success-actions";
 import type { LaunchWorkflow } from "./workflow";
 import { CONNECTION_LOST_MESSAGE } from "@/transactions/wallet-error";
 
@@ -77,9 +77,6 @@ export function ReviewCard({
     <ExplorerProvider explorerUrl={config.explorerUrl}>
       <Card className="h-fit lg:sticky lg:top-6">
         <CardHeader>
-          <div className="mb-3 grid min-h-14 w-fit min-w-14 max-w-full place-items-center rounded-lg border bg-muted px-3 py-2 font-mono text-xl font-medium break-all">
-            {draft.symbol.trim().toUpperCase() || "?"}
-          </div>
           <CardTitle>{draft.symbol.trim().toUpperCase() || "SYMBOL"}</CardTitle>
           <CardDescription>
             {draft.name.trim() || "Your token"} · {draft.decimals || "0"}{" "}
@@ -285,30 +282,11 @@ export function ReviewCard({
                         </Button>
                       </>
                     ) : null}
-                    <Button
-                      className="min-h-12 w-full"
-                      variant="outline"
-                      onClick={onReset}
+                    <LaunchSuccessActions
+                      onReset={onReset}
                       disabled={loading || !writesSupported || !connected}
-                    >
-                      Create another token
-                    </Button>
-                    <Button
-                      className="min-h-12 w-full"
-                      variant="outline"
-                      asChild
-                    >
-                      <Link to="/my-tokens">View my tokens</Link>
-                    </Button>
-                    {ammPoolLink ? (
-                      <Button
-                        className="min-h-12 w-full"
-                        variant="outline"
-                        asChild
-                      >
-                        <a href={ammPoolLink}>Create AMM Pool</a>
-                      </Button>
-                    ) : null}
+                      ammPoolLink={ammPoolLink}
+                    />
                   </>
                 ) : (
                   <>

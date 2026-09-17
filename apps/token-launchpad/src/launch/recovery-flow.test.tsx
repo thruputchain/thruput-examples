@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
@@ -108,6 +109,60 @@ it.each([false, true])(
     expect(writer.observe).not.toHaveBeenCalled();
   },
 );
+
+it("offers completed launch actions above the form and in the review, and resets from the top", async () => {
+  const { workflow, writer } = setup(true);
+  workflow.creation = { status: "committed", hash };
+  workflow.createdAddressHex = workflow.predictedAddressHex;
+  workflow.creationBlock = "1";
+  workflow.verification = {
+    status: "complete",
+    message: null,
+    totalSupply: "12",
+    holderBalance: "12",
+  };
+  saveWorkflow(localStorage, workflowStorageKey(config), workflow);
+  render(
+    <MemoryRouter>
+      <CreatePage
+        config={{ ...config, swapAppUrl: "https://swap.example.com" }}
+        client={client}
+        writer={writer}
+      />
+    </MemoryRouter>,
+  );
+  const actions = screen.getAllByRole("group", {
+    name: "Token creation actions",
+  });
+  expect(actions).toHaveLength(2);
+  expect(
+    actions[0]!.compareDocumentPosition(screen.getByLabelText("Token name")) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  for (const group of actions) {
+    expect(
+      within(group).getByRole("button", { name: "Create another token" }),
+    ).toBeEnabled();
+    expect(
+      within(group).getByRole("link", { name: "View my tokens" }),
+    ).toHaveAttribute("href", "/my-tokens");
+    expect(
+      within(group).getByRole("link", { name: "Create AMM Pool" }),
+    ).toHaveAttribute(
+      "href",
+      `https://swap.example.com/pools/new?tokenA=${workflow.createdAddressHex}`,
+    );
+  }
+  fireEvent.click(
+    within(actions[0]!).getByRole("button", { name: "Create another token" }),
+  );
+  await waitFor(() => expect(screen.getByLabelText("Token name")).toBeEnabled());
+  expect(screen.getByLabelText("Token name")).toHaveValue("");
+  expect(
+    screen.queryByRole("group", { name: "Token creation actions" }),
+  ).toBeNull();
+  expect(writer.execute).not.toHaveBeenCalled();
+});
 
 it("keeps token details when editing after timeout", async () => {
   const { page } = setup();

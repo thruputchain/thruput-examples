@@ -620,6 +620,7 @@ try {
     if (i)
       await page
         .getByRole("button", { name: "Create another token", exact: true })
+        .first()
         .click();
     const symbol = `${i ? "BET" : "ALP"}${randomBytes(2).toString("hex").toUpperCase()}`;
     for (const [label, value] of [
