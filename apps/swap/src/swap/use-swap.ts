@@ -940,8 +940,12 @@ export function useSwap({
 
         const localId = crypto.randomUUID();
         const needsApproval = initialQuote.allowanceDifference !== 0n;
+        const batched =
+          needsApproval &&
+          writeBoundary.executeBatch !== undefined &&
+          (await writeBoundary.supportsBatch?.(2)) === true;
         if (workspaceMounted.current) setIsAcquiringLock(false);
-        beginWorkflow(needsApproval);
+        beginWorkflow(needsApproval && !batched);
 
         const saveRecord = (request: RequestRecord): RequestRecord[] => {
           persisted = request;
@@ -972,7 +976,7 @@ export function useSwap({
           return next;
         };
 
-        if (needsApproval) {
+        if (needsApproval && !batched) {
           let approvalRequest = createRequestRecord(
             {
               status: "approving",
@@ -1108,7 +1112,7 @@ export function useSwap({
         if (
           !freshQuote.ok ||
           freshQuote.amountIn !== reviewedIntent.amountIn ||
-          freshQuote.allowanceDifference > 0n ||
+          (!batched && freshQuote.allowanceDifference > 0n) ||
           freshQuote.amountOut < reviewedIntent.amountOutMin
         ) {
           if (persisted !== null && persisted.phase === "approval") {
@@ -1178,25 +1182,38 @@ export function useSwap({
           });
         }
 
-        const submission = await writeBoundary.execute(
-          buildExactInputSwapTarget(config.routerAddress, {
-            amountIn: freshQuote.amountIn,
-            amountOutMin: reviewedIntent.amountOutMin,
-            tokenIn: submissionTokens.input.address,
-            tokenOut: submissionTokens.output.address,
-            recipient: config.accountAddress,
-          }),
-          {
-            onSigned: (hash) => {
-              submittingRequest = {
-                ...submittingRequest,
-                transactionHash: hash,
-                updatedAt: Date.now(),
-              };
-              saveRecord(submittingRequest);
-            },
+        const swapTarget = buildExactInputSwapTarget(config.routerAddress, {
+          amountIn: freshQuote.amountIn,
+          amountOutMin: reviewedIntent.amountOutMin,
+          tokenIn: submissionTokens.input.address,
+          tokenOut: submissionTokens.output.address,
+          recipient: config.accountAddress,
+        });
+        const signingObserver = {
+          onSigned: (hash: string) => {
+            submittingRequest = {
+              ...submittingRequest,
+              transactionHash: hash,
+              updatedAt: Date.now(),
+            };
+            saveRecord(submittingRequest);
           },
-        );
+        };
+        const submission = batched
+          ? await writeBoundary.executeBatch!(
+              [
+                ...(freshQuote.allowanceDifference > 0n
+                  ? [buildApprovalTarget(
+                      submissionTokens.input.address,
+                      config.handlerAddress,
+                      freshQuote.allowanceDifference,
+                    )]
+                  : []),
+                swapTarget,
+              ],
+              signingObserver,
+            )
+          : await writeBoundary.execute(swapTarget, signingObserver);
 
         if (submission.kind === "committedSuccess") {
           const queuedRequest = requestFromQueuedReceipt(

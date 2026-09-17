@@ -282,6 +282,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("worker lifecycle and authorization", () => {
+  it("reports batch capabilities only for an authorized account and network without prompting", async () => {
+    const query: ProviderRequest = { method: "getCapabilities", params: { account, networkHash: "00".repeat(32) } };
+    expect((await request(query)).error?.code).toBe(4100);
+    expect(windows).toHaveLength(0);
+    await approve("connect");
+    expect((await request(query)).result).toEqual({ account, networkHash: "00".repeat(32), atomicBatch: { maxCalls: 16 } });
+    expect((await request({ method: "getCapabilities", params: { account, networkHash: "11".repeat(32) } })).error?.code).toBe(4901);
+    expect(windows).toHaveLength(0);
+    expect(mock.send).not.toHaveBeenCalled();
+    await request({ method: "disconnect" });
+    expect((await request(query)).error?.code).toBe(4100);
+  });
   it.each([false, true])(
     "denies old and unreturned signatures after navigation during persistence (cleanup failure: %s)",
     async (cleanupFails) => {

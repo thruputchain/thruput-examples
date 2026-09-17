@@ -1,5 +1,6 @@
 import { addressFromHex, bytesEqual, toHex0x, type TransactionReceipt } from "@groundhogchain/client";
 import type { Invocation } from "@groundhogchain/protocol";
+import { DefaultWallet } from "@groundhogchain/client/contracts";
 
 import type { AppConfig, GlobalConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
@@ -11,7 +12,7 @@ import { createSwapFactoryReadAdapter, type PoolAddresses } from "@/contracts/fa
 import { buildCreatePairTarget } from "@/contracts/factory-target";
 import { creationFailureMessage } from "@/contracts/failure-message";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
-import { PoolCreated } from "@/contracts/generated/swap-factory";
+import { PoolCreated, SwapFactory } from "@/contracts/generated/swap-factory";
 import { buildAddLiquidityTarget } from "@/contracts/router-target";
 import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { formatAmount } from "@/domain/amount";
@@ -42,6 +43,7 @@ import {
   sameCreationIntent,
   type CreationPool,
   type CreationStepName,
+  type CreationStep,
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
 import { isBlockingCrankAttempt, loadAccountCrankAttempts } from "@/transactions/crank-attempt";
@@ -119,6 +121,25 @@ export async function runCreationWorkflow(
     }
   }
 
+  if (workflow.status === "active" && workflow.steps.enqueue.status !== "committed") {
+    const fresh = workflow.executionMode === "auto" && creationStepOrder.every((name) =>
+      workflow.steps[name].status === "pending" && workflow.steps[name].transactionHash === null);
+    // Creation needs at least createPool + enqueue. Skip batch-only prediction
+    // unless those fit, then check the complete plan before signing below.
+    if (workflow.executionMode === "batch" || (fresh && dependencies.writeBoundary.executeBatch &&
+      await dependencies.writeBoundary.supportsBatch?.(2))) {
+      const batched = await runCreationBatch(config, workflow, dependencies, update);
+      if (batched !== null) {
+        workflow = batched;
+        if (workflow.status !== "queued") return workflow;
+      }
+    }
+    if (fresh && workflow.executionMode === "auto") {
+      await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
+      workflow = update({ ...workflow, executionMode: "single" });
+    }
+  }
+
   for (const name of creationStepOrder) {
     if (["executed", "failed", "race", "archived"].includes(workflow.status)) break;
     if (name === "crank" && workflow.status === "queued" && dependencies.automaticProcessing === false) {
@@ -150,6 +171,7 @@ export async function runCreationWorkflow(
         dependencies,
         update,
       );
+      if (workflow.steps[name].status === "indeterminate") return workflow;
       continue;
     }
 
@@ -218,8 +240,268 @@ export async function runCreationWorkflow(
       dependencies,
       update,
     );
+    if (workflow.steps[name].status === "indeterminate") return workflow;
   }
   return workflow;
+}
+
+async function runCreationBatch(
+  config: GlobalConfig,
+  initial: CreationWorkflow,
+  dependencies: CreationExecutorDependencies,
+  update: (workflow: CreationWorkflow) => CreationWorkflow,
+): Promise<CreationWorkflow | null> {
+  let workflow = initial;
+  const writer = dependencies.writeBoundary;
+  const existing = workflow.steps.createPool;
+  let result: WriteResult;
+  if (
+    (existing.status === "signing" || existing.status === "indeterminate") &&
+    existing.transactionHash === null
+  )
+    throw new CreationRecoveryRequiredError("createPool");
+  if (
+    existing.transactionHash !== null &&
+    ["signing", "indeterminate"].includes(existing.status)
+  ) {
+    if (!writer.observe)
+      throw new Error("This wallet cannot recover the stored batch");
+    await verifyReadNetwork(
+      dependencies.client ?? createReadClient(config),
+      config,
+    );
+    result = await writer.observe(existing.transactionHash);
+  } else {
+    let review: PoolCreationReview;
+    try {
+      review = await revalidateWorkflow(config, workflow, {
+        ...dependencies,
+        predictPool: true,
+      });
+    } catch (error) {
+      if (
+        error instanceof PoolCreationValidationError &&
+        error.code === "poolExists"
+      )
+        return markRace(config, workflow, "createPool", dependencies, update);
+      throw error;
+    }
+    if (!review.predictedPool)
+      throw new Error("Predicted pool addresses are unavailable");
+    assertAccountCanSign(config, workflow, "createPool");
+    const pool = review.predictedPool;
+    const calls: Invocation[] = [];
+    const names: Exclude<CreationStepName, "crank">[] = [];
+    const add = (
+      name: Exclude<CreationStepName, "crank">,
+      call: Invocation | null,
+    ) => {
+      if (call) {
+        names.push(name);
+        calls.push(call);
+      }
+    };
+    add(
+      "approveFunding",
+      review.fundingApprovalDifference > 0n
+        ? buildApprovalTarget(
+            config.nativeHogAddress,
+            config.factoryAddress,
+            review.fundingApprovalDifference,
+          )
+        : null,
+    );
+    add(
+      "createPool",
+      buildCreatePairTarget(
+        config.factoryAddress,
+        review.token0.address,
+        review.token1.address,
+        review.fundingPerContract,
+      ),
+    );
+    add(
+      "approveToken0",
+      review.token0.approvalDifference > 0n
+        ? buildApprovalTarget(
+            review.token0.address,
+            pool.handler,
+            review.token0.approvalDifference,
+          )
+        : null,
+    );
+    add(
+      "approveToken1",
+      review.token1.approvalDifference > 0n
+        ? buildApprovalTarget(
+            review.token1.address,
+            pool.handler,
+            review.token1.approvalDifference,
+          )
+        : null,
+    );
+    add(
+      "enqueue",
+      buildAddLiquidityTarget(config.routerAddress, {
+        token0: review.token0.address,
+        token1: review.token1.address,
+        amountsDesired: [review.token0.amount, review.token1.amount],
+        amountsMin: [review.token0.amount, review.token1.amount],
+        recipient: config.accountAddress,
+      }),
+    );
+    if (!writer.executeBatch)
+      throw new Error("Reconnect a wallet that supports this saved batch");
+    // Only a fresh workflow may fall back. Negotiate the actual planned calls,
+    // after omitting approvals that are already sufficient.
+    if (workflow.executionMode !== "batch" && !(await writer.supportsBatch?.(calls.length)))
+      return null;
+    dependencies.assertCurrent?.();
+    workflow = {
+      ...workflow,
+      executionMode: "batch",
+      batchSteps: names,
+      batchPool: {
+        liquidityToken: toHex0x(pool.liquidityToken),
+        handler: toHex0x(pool.handler),
+        driver: toHex0x(pool.driver),
+      },
+    };
+    for (const name of creationStepOrder) {
+      if (name !== "crank" && !names.includes(name))
+        workflow = updateStep(workflow, name, {
+          status: "skipped",
+          transactionHash: null,
+          receiptBlock: null,
+          message: null,
+        });
+    }
+    workflow = update(
+      updateBatchSteps(workflow, {
+        status: "signing",
+        transactionHash: null,
+        receiptBlock: null,
+        message: "One wallet approval for this batch",
+      }),
+    );
+    result = await writer.executeBatch(calls, {
+      onSigned(transactionHash) {
+        workflow = update(updateBatchSteps(workflow, { transactionHash }));
+      },
+    });
+  }
+  await verifyReadNetwork(
+    dependencies.client ?? createReadClient(config),
+    config,
+  );
+  if (result.kind === "committedSuccess") {
+    try {
+      const returns = DefaultWallet.execute.decodeReceipt(result.receipt).value;
+      if (returns.length !== workflow.batchSteps!.length)
+        throw new Error("Unexpected batch results");
+      const created = SwapFactory.createPair.decodeReturn(
+        returns[workflow.batchSteps!.indexOf("createPool")]!,
+      );
+      const expected = workflow.batchPool!;
+      if (
+        toHex0x(created.handler) !== expected.handler ||
+        toHex0x(created.driver) !== expected.driver ||
+        toHex0x(created.liquidity_token) !== expected.liquidityToken
+      )
+        throw new Error("Pool prediction mismatch");
+      const events = PoolCreated.allFromReceipt(result.receipt, {
+        contractAddress: config.factoryAddress,
+      });
+      if (
+        events.length !== 1 ||
+        toHex0x(events[0]!.topics.token0) !== workflow.token0.address ||
+        toHex0x(events[0]!.topics.token1) !== workflow.token1.address ||
+        !bytesEqual(events[0]!.fields.handler, created.handler) ||
+        !bytesEqual(events[0]!.fields.driver, created.driver) ||
+        !bytesEqual(events[0]!.fields.liquidity_token, created.liquidity_token)
+      )
+        throw new Error("Pool creation evidence mismatch");
+      const resolved = await resolveExistingPool(
+        config,
+        workflow,
+        dependencies,
+        result.receipt.height,
+      );
+      if (
+        resolved.handler !== expected.handler ||
+        resolved.driver !== expected.driver ||
+        resolved.liquidityToken !== expected.liquidityToken
+      )
+        throw new Error("Factory state has not reached the batch yet");
+      const accepted = RequestAccepted.allFromReceipt(result.receipt, {
+        contractAddress: created.driver,
+      });
+      if (accepted.length !== 1)
+        throw new Error("Expected one liquidity request");
+      workflow = updateBatchSteps(workflow, {
+        status: "committed",
+        transactionHash: result.hash,
+        receiptBlock: result.receipt.height.toString(),
+        message: null,
+      });
+      return update({
+        ...workflow,
+        pool: expected,
+        status: "queued",
+        requestId: toHex0x(accepted[0]!.topics.request_id),
+        enqueueReceiptBlock: result.receipt.height.toString(),
+      });
+    } catch (error) {
+      return update(
+        updateBatchSteps(workflow, {
+          status: "indeterminate",
+          transactionHash: result.hash,
+          receiptBlock: null,
+          message: `Batch committed; verification pending: ${error instanceof Error ? error.message : "Unable to read batch evidence"}`,
+        }),
+      );
+    }
+  }
+  if (result.kind === "indeterminate")
+    return update(
+      updateBatchSteps(workflow, {
+        status: "indeterminate",
+        transactionHash: result.hash,
+        receiptBlock: null,
+        message:
+          "The batch may still commit. Check its original transaction before retrying.",
+      }),
+    );
+  const failed = update(
+    updateBatchSteps(workflow, {
+      status: result.kind === "preSubmissionFailure" ? "pending" : "failed",
+      transactionHash: result.hash,
+      receiptBlock: null,
+      message:
+        result.kind === "preSubmissionFailure"
+          ? result.message
+          : "Pool creation batch failed. All calls were rolled back.",
+    }),
+  );
+  if (result.kind === "preSubmissionFailure") return failed;
+  return markRaceIfPoolExists(
+    config,
+    failed,
+    "createPool",
+    dependencies,
+    update,
+  );
+}
+
+function updateBatchSteps(
+  workflow: CreationWorkflow,
+  patch: Partial<CreationStep>,
+): CreationWorkflow {
+  const steps = { ...workflow.steps };
+  const updatedAt = Date.now();
+  for (const name of workflow.batchSteps ?? [])
+    steps[name] = { ...steps[name], ...patch, updatedAt };
+  return { ...workflow, steps, updatedAt };
 }
 
 export function confirmCreationStepWasNotSigned(
@@ -230,6 +512,12 @@ export function confirmCreationStepWasNotSigned(
   const step = workflow.steps[expectedStep];
   if ((step.status !== "signing" && step.status !== "indeterminate") || step.transactionHash !== null) {
     throw new Error("The creation workflow advanced in another tab; review its current step");
+  }
+  if (workflow.executionMode === "batch" && workflow.batchSteps?.includes(expectedStep as Exclude<CreationStepName, "crank">)) {
+    return saveCreationWorkflow(config, updateBatchSteps(workflow, {
+      status: "pending", transactionHash: null, receiptBlock: null,
+      message: "Confirmed locally as not signed",
+    }));
   }
   return saveCreationWorkflow(config, updateStep(workflow, expectedStep, {
     status: "pending",
@@ -276,6 +564,7 @@ export function continueSupersededCreation(
   });
   return saveCreationWorkflow(config, {
     ...next,
+    executionMode: "single",
     status: "active",
     updatedAt: Date.now(),
   });
@@ -290,7 +579,7 @@ async function revalidateWorkflow(
   const requests = loadAccountRequestRecords(config);
   const liquidityOperations = loadAccountLiquidityOperations(config);
   const nativeHogHex = toHex0x(config.nativeHogAddress);
-  const review = await preparePoolCreation(
+  const readReview = () => preparePoolCreation(
     config,
     {
       tokenA: workflow.token0.address,
@@ -310,6 +599,16 @@ async function revalidateWorkflow(
       ...(workflow.pool === null ? {} : { existingPool: poolAddresses(workflow.pool) }),
     },
   );
+  const confirmedHeight = Object.values(workflow.steps).reduce((height, step) =>
+    step.status === "committed" && step.receiptBlock !== null && BigInt(step.receiptBlock) > height
+      ? BigInt(step.receiptBlock) : height, 0n);
+  let review = await readReview();
+  for (let attempt = 0; review.readHeight < confirmedHeight && attempt < 4; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    review = await readReview();
+  }
+  if (review.readHeight < confirmedHeight)
+    throw new Error("The pool snapshot has not reached the confirmed transaction block yet. Check again.");
   if (
     review.token0.addressHex !== workflow.token0.address
     || review.token1.addressHex !== workflow.token1.address
@@ -494,7 +793,7 @@ async function applyCommittedStep(
       try {
         next = {
           ...next,
-          pool: await resolveExistingPool(config, workflow, dependencies),
+          pool: await resolveExistingPool(config, workflow, dependencies, receipt.height),
         };
       } catch {
         return update(updateStep(workflow, name, {
@@ -508,7 +807,7 @@ async function applyCommittedStep(
     if (created.length === 1) {
       const eventPool = next.pool!;
       try {
-        const resolved = await resolveExistingPool(config, workflow, dependencies);
+        const resolved = await resolveExistingPool(config, workflow, dependencies, receipt.height);
         if (
           resolved.liquidityToken !== eventPool.liquidityToken
           || resolved.handler !== eventPool.handler
@@ -633,6 +932,7 @@ async function resolveExistingPool(
   config: GlobalConfig,
   workflow: CreationWorkflow,
   dependencies: PoolCreationDependencies,
+  minimumHeight?: bigint,
 ): Promise<CreationPool> {
   const factory = dependencies.factory ?? createSwapFactoryReadAdapter({
     client: createReadClient(config),
@@ -641,20 +941,21 @@ async function resolveExistingPool(
   });
   const token0 = addressFromHex(workflow.token0.address);
   const token1 = addressFromHex(workflow.token1.address);
-  const [registered, addresses] = await Promise.all([
-    factory.getPair(token0, token1),
-    factory.poolAddresses(token0, token1),
-  ]);
-  if (
-    registered.value === null
-    || registered.height !== addresses.height
-    || !bytesEqual(registered.value, addresses.value.handler)
-  ) throw new Error("The existing pool could not be resolved consistently");
-  return {
-    liquidityToken: toHex0x(addresses.value.liquidityToken),
-    handler: toHex0x(addresses.value.handler),
-    driver: toHex0x(addresses.value.driver),
-  };
+  // Receipts can be indexed before views reach their block. Retry reads only;
+  // never resubmit the batch because its factory view is briefly behind.
+  const attempts = minimumHeight === undefined ? 1 : 5;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const [registered, addresses] = await Promise.all([
+      factory.getPair(token0, token1), factory.poolAddresses(token0, token1),
+    ]);
+    if (registered.value !== null && registered.height === addresses.height &&
+      registered.height >= (minimumHeight ?? 0n) && bytesEqual(registered.value, addresses.value.handler)) {
+      return { liquidityToken: toHex0x(addresses.value.liquidityToken),
+        handler: toHex0x(addresses.value.handler), driver: toHex0x(addresses.value.driver) };
+    }
+    if (attempt + 1 < attempts) await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error("The existing pool could not be resolved consistently");
 }
 
 function updateStep(

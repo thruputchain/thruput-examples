@@ -62,8 +62,8 @@ lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflif
 ### Install Swap and Launchpad dependencies
 
 Use Node.js **22.13 or newer** and npm. The apps install the published
-`@groundhogchain/client@0.8.0` package, including its wallet provider API, from
-GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
+`@groundhogchain/client@0.9.0` package, including wallet capability discovery and
+atomic batching, from GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
 with `read:packages` and access to the Groundhog packages in your npm user config:
 
 ```ini
@@ -107,6 +107,8 @@ Run from the repository root:
 | `npm test` | App and seed unit/integration tests, plus Linux process-cleanup regressions |
 | `npm run test:browser` | Chromium fixture checks for wallet controls, token selection, network guards, and page layout; no live node |
 | `npm run test:wallet` | Real extension approvals through token launch, pool creation, swap, liquidity, transfer, and production-server checks on a fresh node |
+| `WALLET_ACCEPTANCE_LEGACY=1 npm run test:wallet` | The same live journey through the legacy provider surface, with individual transaction approvals |
+| `npm run test:batching` | Fresh-node atomic batches, rollback, token nonce retry, pool creation, LP ownership, and queued swaps |
 | `npm run test:seed` | Fresh-node seeding, indexed tokens, balances, liquidity, and repeatability |
 | `npm run test:counter` | Fresh-node counter setup, concurrent transactions, and real browser keyboard input; requires a built counter artifact and app |
 
@@ -117,7 +119,9 @@ dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
 Live checks need a compatible CLI/devnode pair, built contracts, and matching
-generated bindings. Use a separate checkout if you need to preserve the bindings
+generated bindings. Batching and wallet acceptance have been checked with CLI
+`0.17.4` and hog-devnode `0.1.28-rc.1`. Rebuild contracts from the current checkout
+before running them. Use a separate checkout if you need to preserve the bindings
 for the recorded Devnet deployment. From the repository root:
 
 ```sh
@@ -128,7 +132,9 @@ npm run generate:contracts --workspace apps/token-launchpad
 npm run generate:contracts --workspace apps/swap
 npm run build --workspace apps/counter
 npm --prefix apps/wallet-extension ci
+npm run test:batching
 npm run test:wallet
+WALLET_ACCEPTANCE_LEGACY=1 npm run test:wallet
 npm run test:seed
 npm run test:counter
 ```
@@ -137,7 +143,8 @@ The CLI and devnode must agree on the runtime-manifest schema, including
 `endpoints.schedulerGateway` when required by the CLI. A protocol override cannot
 repair a schema mismatch. `GROUNDHOG_E2E_HOGD_PROTOCOL` selects an explicitly
 compatible protocol build. `WALLET_ACCEPTANCE_ARTIFACT_ROOT` and
-`SEED_TEST_ARTIFACT_ROOT` override the respective artifact roots.
+`SEED_TEST_ARTIFACT_ROOT` override the respective artifact roots. Use
+`BATCH_TEST_ARTIFACT_ROOT` for the batching probe.
 
 Live tests create separate node state, app environments, databases, and browser
 profiles under the system temporary directory. They print their evidence paths.

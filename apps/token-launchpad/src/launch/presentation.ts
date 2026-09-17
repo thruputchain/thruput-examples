@@ -3,6 +3,7 @@ import type { LaunchWorkflow } from "./workflow";
 export function canDiscardWorkflow(workflow: LaunchWorkflow): boolean {
   return (
     workflow.creation.status === "committed" ||
+    (workflow.executionMode === "batch" && workflow.creation.status === "failed" && workflow.funding.status === "failed") ||
     (workflow.funding.status === "idle" &&
       workflow.funding.hash === null &&
       workflow.creation.status === "idle" &&
@@ -11,6 +12,11 @@ export function canDiscardWorkflow(workflow: LaunchWorkflow): boolean {
 }
 
 export function actionLabel(workflow: LaunchWorkflow, manual: boolean): string {
+  if (workflow.executionMode === "batch" && workflow.creation.status !== "committed") {
+    if (workflow.creation.status === "signing") return "Confirm no launch was signed";
+    if (workflow.creation.status === "failed" || (workflow.creation.status === "idle" && workflow.error)) return "Retry launch";
+    return workflow.creation.hash ? "Check launch transaction" : "Launch token";
+  }
   if (
     !manual &&
     !workflow.error &&

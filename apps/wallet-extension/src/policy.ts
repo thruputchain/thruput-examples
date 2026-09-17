@@ -40,6 +40,12 @@ export function requestSchema(value: unknown): ProviderRequest {
   exact(r, ["method", "params"]);
   if (["connect", "getSession", "disconnect"].includes(String(r.method))) {
     if (r.params !== undefined) fail(-32602, "This method takes no parameters");
+  } else if (r.method === "getCapabilities") {
+    const p = record(r.params);
+    exact(p, ["account", "networkHash"]);
+    address(p.account);
+    if (!/^[0-9a-f]{64}$/.test(text(p.networkHash, 64)))
+      fail(-32602, "Invalid network hash");
   } else if (
     r.method === "signTransaction" ||
     r.method === "submitTransaction"

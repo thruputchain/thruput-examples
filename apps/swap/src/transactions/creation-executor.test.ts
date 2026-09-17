@@ -25,7 +25,7 @@ import type { WriteBoundary, WriteResult } from "./write-boundary";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
-const view = <T>(value: T) => ({ value, height: 7n, events: [] });
+const view = <T>(value: T) => ({ value, height: 100n, events: [] });
 const pool: PoolAddresses = {
   liquidityToken: address(21),
   handler: address(22),
@@ -54,6 +54,153 @@ const poolConfig = {
 
 describe("creation executor", () => {
   beforeEach(() => window.localStorage.clear());
+
+  it.each([2, 3, 4, 5])("negotiates the actual %s-call creation batch", async (count) => {
+    const state = { created: false, fundingAllowance: count === 2 ? 300n : 0n };
+    const deps = dependencies(state);
+    const token = deps.token;
+    deps.token = (address) => ({
+      ...token(address),
+      allowance: async () => view(address[0] === 6 ? state.fundingAllowance
+        : (address[0] === 1 && count >= 4) || (address[0] === 2 && count === 5) ? 0n : 20_000n),
+    });
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const writer = {
+      supportsBatch: vi.fn(async (actual: number) => actual <= count),
+      execute: vi.fn(),
+      executeBatch: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }),
+    };
+    const result = await runCreationWorkflow(config, workflow, { ...deps, writeBoundary: writer });
+    expect(writer.supportsBatch.mock.calls).toEqual([[2], [count]]);
+    expect(writer.executeBatch).toHaveBeenCalledOnce();
+    expect(writer.executeBatch.mock.calls[0]![0]).toHaveLength(count);
+    expect(result.executionMode).toBe("batch");
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
+
+  it("uses individual calls when the constructed batch exceeds the wallet limit", async () => {
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const writer = {
+      supportsBatch: vi.fn(async (count: number) => count <= 2),
+      execute: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }),
+      executeBatch: vi.fn(),
+    };
+    const result = await runCreationWorkflow(config, workflow, {
+      ...dependencies({ created: false, fundingAllowance: 0n }), writeBoundary: writer,
+    });
+    expect(writer.supportsBatch.mock.calls).toEqual([[2], [3]]);
+    expect(writer.executeBatch).not.toHaveBeenCalled();
+    expect(writer.execute).toHaveBeenCalledOnce();
+    expect(result.executionMode).toBe("single");
+    expect(result.batchSteps).toBeUndefined();
+  });
+
+  it("does not fall back or persist a batch when capability detection fails", async () => {
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const writer = {
+      supportsBatch: vi.fn().mockRejectedValue(new Error("Capabilities unavailable")),
+      execute: vi.fn(), executeBatch: vi.fn(),
+    };
+    await expect(runCreationWorkflow(config, workflow, {
+      ...dependencies({ created: false, fundingAllowance: 0n }), writeBoundary: writer,
+    })).rejects.toThrow("Capabilities unavailable");
+    expect(writer.execute).not.toHaveBeenCalled();
+    expect(writer.executeBatch).not.toHaveBeenCalled();
+    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+  });
+
+  it.each([
+    ["unavailable", 0], ["stale", 0], ["unavailable", 1], ["stale", 1],
+  ] as const)("skips %s batch-only prediction when the wallet limit is %s", async (prediction, limit) => {
+    const state = { created: false, fundingAllowance: 0n };
+    const deps = dependencies(state);
+    const predictionStates: boolean[] = [];
+    deps.factory.poolAddresses = vi.fn(async () => {
+      predictionStates.push(state.created);
+      if (!state.created && prediction === "unavailable") throw new Error("Prediction unavailable");
+      return { ...view(pool), height: state.created ? 100n : 0n };
+    });
+    const execute = vi.fn(async () => {
+      if (execute.mock.calls.length === 1) {
+        state.fundingAllowance = 300n;
+        return committed(7n);
+      }
+      if (execute.mock.calls.length === 2) {
+        state.created = true;
+        return committed(7n, [poolCreatedEvent()]);
+      }
+      return committed(7n, [acceptedEvent(new Uint8Array(32).fill(60))]);
+    });
+    const writer = { supportsBatch: vi.fn(async (count: number) => count <= limit), execute, executeBatch: vi.fn() };
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const result = await runCreationWorkflow(config, workflow, {
+      ...deps, writeBoundary: writer, automaticProcessing: false,
+    });
+    expect(result.executionMode).toBe("single");
+    expect(result.status).toBe("queued");
+    expect(writer.supportsBatch).toHaveBeenCalledExactlyOnceWith(2);
+    expect(writer.executeBatch).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(predictionStates.length).toBeGreaterThan(0);
+    expect(predictionStates.every(Boolean)).toBe(true);
+  });
+
+  it("recovers one creation batch hash and applies all steps together", async () => {
+    const state = { created: false, fundingAllowance: 0n };
+    const deps = dependencies(state);
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const result = committed(7n, [poolCreatedEvent(), acceptedEvent(new Uint8Array(32).fill(60))]);
+    const poolReturn = new CxsWriter();
+    poolReturn.writeFixedOpaque(pool.liquidityToken, 32);
+    poolReturn.writeFixedOpaque(pool.handler, 32);
+    poolReturn.writeFixedOpaque(pool.driver, 32);
+    const returns = new CxsWriter();
+    returns.writeUint32(3n);
+    for (const bytes of [new Uint8Array(), poolReturn.finish(), new Uint8Array(32).fill(60)])
+      returns.writeVarOpaque(bytes, 0xffff_ffff);
+    result.receipt.returnData = returns.finish();
+    const writer: WriteBoundary = {
+      supportsBatch: vi.fn().mockResolvedValue(true), execute: vi.fn(),
+      executeBatch: vi.fn<NonNullable<WriteBoundary["executeBatch"]>>(async (calls, observer) => {
+        expect(calls).toHaveLength(3);
+        await observer?.onSigned(result.hash);
+        const stored = loadCreationWorkflow(config, hex(1), hex(2))!;
+        expect(stored.steps.createPool.transactionHash).toBe(result.hash);
+        expect(stored.steps.enqueue.transactionHash).toBe(result.hash);
+        state.created = true;
+        return { kind: "indeterminate", hash: result.hash, reason: "timeout" };
+      }),
+      observe: vi.fn().mockResolvedValue(result),
+    };
+    const options = { ...deps, writeBoundary: writer, automaticProcessing: false };
+    const pending = await runCreationWorkflow(config, workflow, options);
+    expect(pending.steps.createPool.status).toBe("indeterminate");
+    vi.mocked(writer.supportsBatch!).mockRejectedValue(new Error("Saved batches must not renegotiate"));
+    const recovered = await runCreationWorkflow(config, pending, options);
+    expect(recovered.status).toBe("queued");
+    expect(recovered.requestId).toBe(hex(60));
+    for (const name of recovered.batchSteps!) {
+      expect(recovered.steps[name]).toMatchObject({ status: "committed", transactionHash: result.hash });
+    }
+    expect(recovered.steps.approveToken0.status).toBe("skipped");
+    expect(writer.execute).not.toHaveBeenCalled();
+    expect(writer.executeBatch).toHaveBeenCalledOnce();
+    expect(writer.observe).toHaveBeenCalledExactlyOnceWith(result.hash);
+  });
+
+  it("keeps a rejected creation batch retryable without individual calls", async () => {
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const writer = { supportsBatch: vi.fn().mockResolvedValue(true), execute: vi.fn(),
+      executeBatch: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }) };
+    const options = { ...dependencies({ created: false, fundingAllowance: 0n }), writeBoundary: writer };
+    const rejected = await runCreationWorkflow(config, workflow, options);
+    expect(rejected.executionMode).toBe("batch");
+    expect(rejected.steps.createPool.status).toBe("pending");
+    expect(rejected.steps.enqueue.status).toBe("pending");
+    await runCreationWorkflow(config, rejected, options);
+    expect(writer.executeBatch).toHaveBeenCalledTimes(2);
+    expect(writer.execute).not.toHaveBeenCalled();
+  });
 
   it("approves factory funding, creates one atomic pool, and durably enqueues liquidity", async () => {
     const state = { created: false, fundingAllowance: 0n };

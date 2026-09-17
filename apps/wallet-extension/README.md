@@ -5,7 +5,8 @@ An experimental Chrome Manifest V3 wallet for Groundhog localnet and devnet. Use
 ## Build and Load
 
 Requires Node 22.12+ and GitHub Packages read access. This extension installs
-`@groundhogchain/client@0.8.0`, which includes the `/provider` and `/wallet` exports.
+`@groundhogchain/client@0.9.0`, which includes wallet capability discovery and
+atomic batching through the `/provider` and `/wallet` exports.
 Follow the [registry authentication instructions](../../README.md#install-swap-and-launchpad-dependencies)
 before installing dependencies.
 
@@ -137,6 +138,7 @@ Supported SDK `ProviderRequest` methods:
 
 - `connect`: opens an account-selection approval and returns the origin-authorized session.
 - `getSession`: returns a session with no accounts when locked or unconnected.
+- `getCapabilities`: returns account- and network-scoped capabilities for an authorized connection without opening an approval window. The provider advertises this optional method through `supportedMethods` and reports `atomicBatch: { maxCalls: 16 }`.
 - `disconnect`: revokes this origin's account grant.
 - `signTransaction`: validates canonical unsigned XDR, exact account authorization, DefaultWallet root, and network; opens a review; returns `{ signedTransaction, hash }`. It never broadcasts.
 - `submitTransaction`: broadcasts only previously approved identical signed bytes bound to this origin, account, and network. It never signs.
@@ -146,6 +148,8 @@ Accounts have canonical `0x`-prefixed 32-byte addresses and public keys, plus de
 Reviews decode DefaultWallet execute/deploy and recognized ERC20 transfer calldata. Root address, calldata, gas, expiry, nonce, calls, and deployment bytes remain visible. **Not simulated** is intentional: decoding cannot predict downstream contract effects, validate token legitimacy, or guarantee execution success.
 
 The native DefaultWallet implementation currently permits at most 16 calls. Signed XDR is capped at the SDK's 1 MiB boundary; unsigned requests reserve the actual 76 bytes needed for the Ed25519 signature wrapper.
+
+Swap and Token Launchpad use these capabilities to combine funding or approvals with the associated contract calls in one atomic transaction. Queue processing remains a separate transaction. Providers without batch support use individual transactions; rejection or an uncertain submission never triggers an automatic individual fallback. Update or reload the extension and refresh dapp tabs to enable the advertised capability.
 
 ## Security Model
 

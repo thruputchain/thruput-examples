@@ -14,7 +14,7 @@ import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 export function createTransactionObserver(
   config: Pick<AppConfig, "networkIdHex">,
   client: GroundhogClient,
-  options: { maxPolls?: number; delay?: () => Promise<void> } = {},
+  options: { maxPolls?: number; delay?: () => Promise<void>; preserveWalletReturns?: boolean } = {},
 ): WriteBoundary["observe"] {
   return async (hashHex) => {
     if (!/^0x[0-9a-f]{64}$/.test(hashHex))
@@ -36,6 +36,8 @@ export function createTransactionObserver(
             return { kind: "indeterminate", hash: hashHex, reason: "other" };
           const outcome = outcomeFromReceipt(receipt);
           if (outcome.kind === "committedSuccess") {
+            if (options.preserveWalletReturns)
+              return { kind: "committedSuccess", hash: hashHex, receipt };
             try {
               const returns =
                 DefaultWallet.execute.decodeReceipt(receipt).value;

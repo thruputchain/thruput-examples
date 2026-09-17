@@ -1,5 +1,6 @@
 import { toHex0x, type TransactionReceipt } from "@groundhogchain/client";
 import type { Invocation } from "@groundhogchain/protocol";
+import { DefaultWallet } from "@groundhogchain/client/contracts";
 
 import type { AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
@@ -15,7 +16,7 @@ import { RequestAccepted, RequestFailed } from "@/contracts/generated/swap-drive
 import {
   LiquidityBurnEvent as BurnEvent,
   LiquidityMintEvent as MintEvent,
-} from "@/contracts/generated/swap-handler";
+} from "@/contracts/liquidity-events";
 import {
   buildAddLiquidityTarget,
   buildRemoveLiquidityTarget,
@@ -94,6 +95,21 @@ export async function runLiquidityOperation(
     ? ["approveToken0", "approveToken1", "enqueue"]
     : ["approveLiquidity", "enqueue"];
 
+  if (operation.status === "active") {
+    const fresh = operation.executionMode === "auto" && steps.every((name) =>
+      operation.steps[name].status === "pending" && operation.steps[name].transactionHash === null);
+    // Probe basic support before preparing a batch; its final size is checked
+    // after unnecessary approvals have been omitted.
+    if (operation.executionMode === "batch" || (fresh && dependencies.writeBoundary.executeBatch &&
+      await dependencies.writeBoundary.supportsBatch?.(1))) {
+      const batched = await runLiquidityBatch(config, operation, steps, dependencies, update);
+      if (batched !== null) {
+        operation = batched;
+        if (operation.status !== "queued") return operation;
+      }
+    }
+  }
+
   for (const name of steps) {
     if (operation.status !== "active") break;
     const step = operation.steps[name];
@@ -112,7 +128,16 @@ export async function runLiquidityOperation(
       continue;
     }
 
-    const snapshot = await dependencies.readSnapshot();
+    let snapshot = await dependencies.readSnapshot();
+    const confirmedHeight = Object.values(operation.steps).reduce((height, entry) =>
+      entry.status === "committed" && entry.receiptBlock !== undefined && BigInt(entry.receiptBlock) > height
+        ? BigInt(entry.receiptBlock) : height, 0n);
+    for (let attempt = 0; snapshot.chainHeight < confirmedHeight && attempt < 4; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      snapshot = await dependencies.readSnapshot();
+    }
+    if (snapshot.chainHeight < confirmedHeight)
+      throw new Error("The pool snapshot has not reached the confirmed approval block yet. Check again.");
     assertAccountCanSign(config, operation, name);
     const target = targetForStep(config, operation, snapshot);
     if (target === null) {
@@ -123,7 +148,7 @@ export async function runLiquidityOperation(
       }));
       continue;
     }
-    operation = update(updateStep(operation, name, {
+    operation = update(updateStep({ ...operation, ...(operation.executionMode === "auto" ? { executionMode: "single" as const } : {}) }, name, {
       status: "signing",
       transactionHash: null,
       message: null,
@@ -240,6 +265,123 @@ export async function runLiquidityOperation(
   return reconcileCrankReceipt(config, operation, crankResult.receipt, dependencies, update);
 }
 
+async function runLiquidityBatch(
+  config: AppConfig,
+  initial: LiquidityOperation,
+  order: readonly LiquidityStepName[],
+  dependencies: LiquidityExecutorDependencies,
+  update: (operation: LiquidityOperation) => LiquidityOperation,
+): Promise<LiquidityOperation | null> {
+  let operation = initial;
+  const writer = dependencies.writeBoundary;
+  const step = operation.steps.enqueue;
+  let result: WriteResult;
+  if (["signing", "indeterminate"].includes(step.status)) {
+    if (step.transactionHash === null)
+      throw new Error(
+        "Confirm that the batch was never signed before retrying",
+      );
+    if (!writer.observe)
+      throw new Error("This wallet cannot recover the stored batch");
+    result = await writer.observe(step.transactionHash);
+  } else {
+    const snapshot = await dependencies.readSnapshot();
+    assertAccountCanSign(config, operation, "enqueue");
+    const calls: Invocation[] = [];
+    const names: LiquidityStepName[] = [];
+    for (const name of order) {
+      const target = targetForStep(config, operation, snapshot, name, true);
+      if (target) {
+        calls.push(target);
+        names.push(name);
+      } else
+        operation = updateStep(operation, name, {
+          status: "skipped",
+          transactionHash: null,
+          message: null,
+        });
+    }
+    if (!writer.executeBatch)
+      throw new Error("Reconnect a wallet that supports this saved batch");
+    if (operation.executionMode !== "batch" && !(await writer.supportsBatch?.(calls.length)))
+      return null;
+    operation = update(
+      updateLiquidityBatch(
+        { ...operation, executionMode: "batch", batchSteps: names },
+        {
+          status: "signing",
+          transactionHash: null,
+          message: "One wallet approval for this batch",
+        },
+      ),
+    );
+    result = await writer.executeBatch(calls, {
+      onSigned(transactionHash) {
+        operation = update(
+          updateLiquidityBatch(operation, { transactionHash }),
+        );
+      },
+    });
+  }
+  if (result.kind === "committedSuccess") {
+    try {
+      if (
+        DefaultWallet.execute.decodeReceipt(result.receipt).value.length !==
+        operation.batchSteps!.length
+      )
+        throw new Error("Unexpected batch results");
+      const accepted = RequestAccepted.allFromReceipt(result.receipt, {
+        contractAddress: config.driverAddress,
+      });
+      if (accepted.length !== 1)
+        throw new Error("Expected one liquidity request");
+      return applyCommittedRouterStep(
+        config,
+        updateLiquidityBatch(operation, {
+          status: "committed",
+          transactionHash: result.hash,
+          message: null,
+        }),
+        "enqueue",
+        result.receipt,
+        update,
+      );
+    } catch {
+      return update(
+        updateLiquidityBatch(operation, {
+          status: "indeterminate",
+          transactionHash: result.hash,
+          message:
+            "Batch committed; check its liquidity request evidence before continuing.",
+        }),
+      );
+    }
+  }
+  return update(
+    updateLiquidityBatch(operation, {
+      status: result.kind === "indeterminate" ? "indeterminate" : "failed",
+      transactionHash: result.hash,
+      message:
+        result.kind === "preSubmissionFailure"
+          ? result.message
+          : result.kind === "indeterminate"
+            ? "The batch may still commit. Check its original transaction."
+            : "Liquidity batch failed. All calls were rolled back.",
+    }),
+  );
+}
+
+function updateLiquidityBatch(
+  operation: LiquidityOperation,
+  patch: Partial<LiquidityOperation["steps"][LiquidityStepName]>,
+): LiquidityOperation {
+  const steps = { ...operation.steps };
+  const updatedAt = Date.now();
+  for (const name of operation.batchSteps ?? [])
+    steps[name] = { ...steps[name], ...patch, updatedAt };
+  return { ...operation, steps, updatedAt };
+}
+
 export function confirmLiquidityStepWasNotSigned(
   config: AppConfig,
   operation: LiquidityOperation,
@@ -251,11 +393,14 @@ export function confirmLiquidityStepWasNotSigned(
     (step.status !== "signing" && step.status !== "indeterminate")
     || step.transactionHash !== null
   ) throw new Error("The liquidity operation advanced in another tab");
-  const next = updateStep(authoritative, expectedStep, {
-    status: "pending",
+  const patch = {
+    status: "pending" as const,
     transactionHash: null,
     message: "Confirmed locally as not signed",
-  });
+  };
+  const next = authoritative.executionMode === "batch"
+    ? updateLiquidityBatch(authoritative, patch)
+    : updateStep(authoritative, expectedStep, patch);
   saveLiquidityOperations(
     config,
     upsertLiquidityOperation(loadLiquidityOperations(config), next),
@@ -421,8 +566,9 @@ function targetForStep(
   config: AppConfig,
   operation: LiquidityOperation,
   snapshot: Awaited<ReturnType<SnapshotReader>>,
+  name: LiquidityStepName | null = firstRunnableStep(operation),
+  approvalsIncluded = false,
 ): Invocation | null {
-  const name = firstRunnableStep(operation);
   if (name === null) return null;
   if (snapshot.feeTo !== null) throw new Error("Liquidity changes are disabled while protocol fees are enabled");
   const otherOperations = loadAccountLiquidityOperations(config)
@@ -459,10 +605,10 @@ function targetForStep(
         : buildApprovalTarget(token.address, config.handlerAddress, required - token.allowance);
     }
     if (name === "enqueue") {
-      if (
+      if (!approvalsIncluded && (
         snapshot.tokenA.allowance < desired[0] + allowanceReserved[0]!
         || snapshot.tokenB.allowance < desired[1] + allowanceReserved[1]!
-      ) throw new Error("The liquidity allowances have not been observed yet");
+      )) throw new Error("The liquidity allowances have not been observed yet");
       return buildAddLiquidityTarget(config.routerAddress, {
         token0: config.tokenAAddress,
         token1: config.tokenBAddress,
@@ -496,7 +642,7 @@ function targetForStep(
           );
     }
     if (name === "enqueue") {
-      if (snapshot.liquidityAllowance < liquidity + allowanceReserved) {
+      if (!approvalsIncluded && snapshot.liquidityAllowance < liquidity + allowanceReserved) {
         throw new Error("The LP allowance has not been observed yet");
       }
       return buildRemoveLiquidityTarget(config.routerAddress, {
@@ -555,6 +701,7 @@ function applyCommittedRouterStep(
   let next = updateStep(operation, name, {
     status: "committed",
     transactionHash: toHex0x(receipt.txHash),
+    receiptBlock: receipt.height.toString(),
     message: null,
   });
   if (name === "enqueue") {

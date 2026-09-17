@@ -3,7 +3,7 @@ import { toHex0x } from "@groundhogchain/client";
 import type { AppConfig } from "@/config";
 import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
 
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 const TERMINAL_LIMIT = 50;
 const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
 
@@ -21,11 +21,14 @@ export type LiquidityStepStatus =
 export interface LiquidityStep {
   status: LiquidityStepStatus;
   transactionHash: string | null;
+  receiptBlock?: string;
   message: string | null;
   updatedAt: number;
 }
 
 interface LiquidityOperationBase {
+  executionMode?: "auto" | "single" | "batch";
+  batchSteps?: LiquidityStepName[];
   version: typeof STORAGE_VERSION;
   id: string;
   kind: LiquidityOperationKind;
@@ -161,7 +164,7 @@ export function loadLiquidityOperations(config: AppConfig): LiquidityOperation[]
   const stored = window.localStorage.getItem(liquidityOperationKey(config));
   if (stored === null) return [];
   try {
-    const parsed: unknown = JSON.parse(stored);
+    const parsed: unknown = migrateCollection(JSON.parse(stored));
     if (!isCollection(parsed, config, "pool")) throw new Error("invalid collection");
     return parsed.operations;
   } catch {
@@ -180,7 +183,7 @@ export function loadAccountLiquidityOperations(
     const stored = window.localStorage.getItem(key);
     if (stored === null) continue;
     try {
-      const parsed: unknown = JSON.parse(stored);
+      const parsed: unknown = migrateCollection(JSON.parse(stored));
       if (!isCollection(parsed, config, "account")) throw new Error("invalid collection");
       if (parsed.operations.some((operation) => operationStorageKey(operation) !== key)) {
         throw new Error("operation scope mismatch");
@@ -300,6 +303,7 @@ function baseOperation(
   return {
     version: STORAGE_VERSION,
     id: crypto.randomUUID(),
+    executionMode: "auto",
     kind,
     status: "active",
     networkIdHex: config.networkIdHex,
@@ -338,6 +342,13 @@ function pruneOperations(
   );
 }
 
+function migrateCollection(value: unknown): unknown {
+  if (!isRecord(value) || value.version !== 2 || !Array.isArray(value.operations)) return value;
+  return { ...value, version: STORAGE_VERSION, operations: value.operations.map((operation) =>
+    isRecord(operation) && operation.version === 2
+      ? { ...operation, version: STORAGE_VERSION, executionMode: "single" } : operation) };
+}
+
 function isCollection(
   value: unknown,
   config: Pick<AppConfig, "networkIdHex" | "accountAddress"> | AppConfig,
@@ -365,6 +376,7 @@ function isOperation(
   const steps = value.steps;
   if (
     value.version !== STORAGE_VERSION
+    || (value.executionMode !== undefined && !["auto", "single", "batch"].includes(String(value.executionMode)))
     || typeof value.id !== "string"
     || value.id.length === 0
     || (value.kind !== "add" && value.kind !== "remove")
@@ -391,6 +403,17 @@ function isOperation(
     || !isIntentAndResult(value)
     || !isCoherentLifecycle(value)
   ) return false;
+  if (value.executionMode === "batch") {
+    const allowed = value.kind === "add" ? ["approveToken0", "approveToken1", "enqueue"] : ["approveLiquidity", "enqueue"];
+    if (!Array.isArray(value.batchSteps) || !value.batchSteps.includes("enqueue") ||
+      value.batchSteps.length > allowed.length || new Set(value.batchSteps).size !== value.batchSteps.length ||
+      value.batchSteps.some((name) => !allowed.includes(name))) return false;
+    const names = value.batchSteps as LiquidityStepName[];
+    if (names.some((name, index) => index > 0 && allowed.indexOf(name) <= allowed.indexOf(names[index - 1]!))) return false;
+    const members = steps as Record<LiquidityStepName, LiquidityStep>;
+    if (names.some((name) => members[name].transactionHash !== members.enqueue.transactionHash ||
+      members[name].status !== members.enqueue.status)) return false;
+  }
   if (scope === "pool") {
     const pool = config as AppConfig;
     if (
@@ -462,6 +485,7 @@ function isStep(value: unknown): value is LiquidityStep {
     !["pending", "signing", "committed", "skipped", "failed", "indeterminate"]
       .includes(String(value.status))
     || !nullableHash(value.transactionHash)
+    || !(value.receiptBlock === undefined || unsignedInteger(value.receiptBlock))
     || !(value.message === null || typeof value.message === "string")
     || !validTime(value.updatedAt)
   ) return false;
