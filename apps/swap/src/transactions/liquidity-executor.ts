@@ -98,8 +98,10 @@ export async function runLiquidityOperation(
   if (operation.status === "active") {
     const fresh = operation.executionMode === "auto" && steps.every((name) =>
       operation.steps[name].status === "pending" && operation.steps[name].transactionHash === null);
+    // Probe basic support before preparing a batch; its final size is checked
+    // after unnecessary approvals have been omitted.
     if (operation.executionMode === "batch" || (fresh && dependencies.writeBoundary.executeBatch &&
-      dependencies.writeBoundary.supportsBatch)) {
+      await dependencies.writeBoundary.supportsBatch?.(1))) {
       const batched = await runLiquidityBatch(config, operation, steps, dependencies, update);
       if (batched !== null) {
         operation = batched;

@@ -67,7 +67,7 @@ describe("liquidity executor", () => {
     const result = await runLiquidityOperation(config, operation, {
       writeBoundary: writer, readSnapshot: async () => read, automaticProcessing: false,
     });
-    expect(writer.supportsBatch).toHaveBeenCalledExactlyOnceWith(count);
+    expect(writer.supportsBatch.mock.calls).toEqual([[1], [count]]);
     expect(writer.executeBatch).toHaveBeenCalledOnce();
     expect(writer.executeBatch.mock.calls[0]![0]).toHaveLength(count);
     expect(result.executionMode).toBe("batch");
@@ -85,7 +85,7 @@ describe("liquidity executor", () => {
     const result = await runLiquidityOperation(config, operation, {
       writeBoundary: writer, readSnapshot: async () => snapshot({ liquidityAllowance: 0n }),
     });
-    expect(writer.supportsBatch).toHaveBeenCalledExactlyOnceWith(2);
+    expect(writer.supportsBatch.mock.calls).toEqual([[1], [2]]);
     expect(writer.executeBatch).not.toHaveBeenCalled();
     expect(writer.execute).toHaveBeenCalledOnce();
     expect(result.executionMode).toBe("single");

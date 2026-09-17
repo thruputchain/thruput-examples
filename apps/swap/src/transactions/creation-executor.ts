@@ -124,8 +124,10 @@ export async function runCreationWorkflow(
   if (workflow.status === "active" && workflow.steps.enqueue.status !== "committed") {
     const fresh = workflow.executionMode === "auto" && creationStepOrder.every((name) =>
       workflow.steps[name].status === "pending" && workflow.steps[name].transactionHash === null);
+    // Creation needs at least createPool + enqueue. Skip batch-only prediction
+    // unless those fit, then check the complete plan before signing below.
     if (workflow.executionMode === "batch" || (fresh && dependencies.writeBoundary.executeBatch &&
-      dependencies.writeBoundary.supportsBatch)) {
+      await dependencies.writeBoundary.supportsBatch?.(2))) {
       const batched = await runCreationBatch(config, workflow, dependencies, update);
       if (batched !== null) {
         workflow = batched;

@@ -71,7 +71,7 @@ describe("creation executor", () => {
       executeBatch: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }),
     };
     const result = await runCreationWorkflow(config, workflow, { ...deps, writeBoundary: writer });
-    expect(writer.supportsBatch).toHaveBeenCalledExactlyOnceWith(count);
+    expect(writer.supportsBatch.mock.calls).toEqual([[2], [count]]);
     expect(writer.executeBatch).toHaveBeenCalledOnce();
     expect(writer.executeBatch.mock.calls[0]![0]).toHaveLength(count);
     expect(result.executionMode).toBe("batch");
@@ -88,7 +88,7 @@ describe("creation executor", () => {
     const result = await runCreationWorkflow(config, workflow, {
       ...dependencies({ created: false, fundingAllowance: 0n }), writeBoundary: writer,
     });
-    expect(writer.supportsBatch).toHaveBeenCalledExactlyOnceWith(3);
+    expect(writer.supportsBatch.mock.calls).toEqual([[2], [3]]);
     expect(writer.executeBatch).not.toHaveBeenCalled();
     expect(writer.execute).toHaveBeenCalledOnce();
     expect(result.executionMode).toBe("single");
@@ -107,6 +107,42 @@ describe("creation executor", () => {
     expect(writer.execute).not.toHaveBeenCalled();
     expect(writer.executeBatch).not.toHaveBeenCalled();
     expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+  });
+
+  it.each([
+    ["unavailable", 0], ["stale", 0], ["unavailable", 1], ["stale", 1],
+  ] as const)("skips %s batch-only prediction when the wallet limit is %s", async (prediction, limit) => {
+    const state = { created: false, fundingAllowance: 0n };
+    const deps = dependencies(state);
+    const predictionStates: boolean[] = [];
+    deps.factory.poolAddresses = vi.fn(async () => {
+      predictionStates.push(state.created);
+      if (!state.created && prediction === "unavailable") throw new Error("Prediction unavailable");
+      return { ...view(pool), height: state.created ? 100n : 0n };
+    });
+    const execute = vi.fn(async () => {
+      if (execute.mock.calls.length === 1) {
+        state.fundingAllowance = 300n;
+        return committed(7n);
+      }
+      if (execute.mock.calls.length === 2) {
+        state.created = true;
+        return committed(7n, [poolCreatedEvent()]);
+      }
+      return committed(7n, [acceptedEvent(new Uint8Array(32).fill(60))]);
+    });
+    const writer = { supportsBatch: vi.fn(async (count: number) => count <= limit), execute, executeBatch: vi.fn() };
+    const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
+    const result = await runCreationWorkflow(config, workflow, {
+      ...deps, writeBoundary: writer, automaticProcessing: false,
+    });
+    expect(result.executionMode).toBe("single");
+    expect(result.status).toBe("queued");
+    expect(writer.supportsBatch).toHaveBeenCalledExactlyOnceWith(2);
+    expect(writer.executeBatch).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(predictionStates.length).toBeGreaterThan(0);
+    expect(predictionStates.every(Boolean)).toBe(true);
   });
 
   it("recovers one creation batch hash and applies all steps together", async () => {
@@ -139,6 +175,7 @@ describe("creation executor", () => {
     const options = { ...deps, writeBoundary: writer, automaticProcessing: false };
     const pending = await runCreationWorkflow(config, workflow, options);
     expect(pending.steps.createPool.status).toBe("indeterminate");
+    vi.mocked(writer.supportsBatch!).mockRejectedValue(new Error("Saved batches must not renegotiate"));
     const recovered = await runCreationWorkflow(config, pending, options);
     expect(recovered.status).toBe("queued");
     expect(recovered.requestId).toBe(hex(60));
