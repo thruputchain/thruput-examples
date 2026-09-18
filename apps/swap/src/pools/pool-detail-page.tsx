@@ -1,6 +1,7 @@
 import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
 import { useState } from "react";
+import { useClient } from "@groundhogchain/react";
 import { Link } from "react-router-dom";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -29,7 +30,8 @@ export function PoolDetailPage({
   config: AppConfig;
   readOnly?: boolean;
 }) {
-  const [reader] = useState(() => createSnapshotReader(config));
+  const client = useClient();
+  const [reader] = useState(() => createSnapshotReader(config, client));
   const state = usePoolSnapshot(reader);
   const path = poolPath(config.tokenAAddress, config.tokenBAddress);
 

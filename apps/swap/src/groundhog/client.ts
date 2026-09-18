@@ -6,6 +6,7 @@ import {
   NetworkMismatchError as ClientNetworkMismatchError,
   toHex0x,
   type GroundhogClient,
+  type ConnectedGroundhogClient,
 } from "@groundhogchain/client";
 import { networkHash } from "@groundhogchain/protocol";
 
@@ -23,7 +24,7 @@ export function createReadClient(
 export async function createNetworkReadClient(
   config: GlobalConfig,
   signal?: AbortSignal,
-) {
+): Promise<ConnectedGroundhogClient> {
   try {
     return await createGroundhogClient({
       cluster: defineCluster({

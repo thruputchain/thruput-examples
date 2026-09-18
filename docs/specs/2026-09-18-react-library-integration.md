@@ -96,3 +96,11 @@ Use published packages, without sibling-source aliases or linked dependencies.
   Launchpad: 400 tests pass; typecheck and production build pass. Focused coverage
   includes startup retry, draft/account isolation, cancellation, and a full
   20-token page with account changes and an isolated failing token.
+- Phase 3: swap uses the official provider and client hooks, with a small
+  binding-identity revision for existing route resets. Pool/creation/preview reads
+  reuse the initialized client while grouped snapshot checks remain intact.
+  Swap: 927 tests and typecheck pass. The optimized Vite build passes in test
+  mode; the deployment build requires a provisioned pool-token artifact/hash,
+  which this checkout does not contain. No deployment configuration was changed.
+  Chromium acceptance passes for both apps at 320px and desktop widths, including
+  wallet controls, launchpad handoff, and network-mismatch guards.

@@ -1,4 +1,8 @@
-import { addressFromHex, toHex0x } from "@groundhogchain/client";
+import {
+  addressFromHex,
+  toHex0x,
+  type CoreGroundhogClient,
+} from "@groundhogchain/client";
 
 import type { GlobalConfig } from "@/config";
 import type { PoolDirectoryEntry } from "@/pools/pool-directory";
@@ -35,7 +39,8 @@ export async function enrichRegistryPools(
   config: GlobalConfig,
   entries: readonly RegistryPoolEntry[],
   signal?: AbortSignal,
-  readPool: PoolReader = defaultPoolReader,
+  readPool?: PoolReader,
+  client?: Pick<CoreGroundhogClient, "view">,
 ): Promise<RegistryPoolEntry[]> {
   const enriched: RegistryPoolEntry[] = [];
   for (let offset = 0; offset < entries.length; offset += 4) {
@@ -44,7 +49,9 @@ export async function enrichRegistryPools(
       ...(await Promise.all(
         entries.slice(offset, offset + 4).map(async (entry) => {
           try {
-            const live = await readPool(config, entry.record, signal);
+            const live = await (readPool
+              ? readPool(config, entry.record, signal)
+              : defaultPoolReader(config, entry.record, signal, client));
             throwIfAborted(signal);
             if (
               toHex0x(live.config.liquidityTokenAddress) !==
@@ -72,8 +79,9 @@ async function defaultPoolReader(
   config: GlobalConfig,
   pool: RegistryPool,
   signal?: AbortSignal,
+  suppliedClient?: Pick<CoreGroundhogClient, "view">,
 ): Promise<PoolDirectoryEntry> {
-  const client = createReadClient(config, signal);
+  const client = suppliedClient ?? createReadClient(config, signal);
   const poolConfig = await resolvePoolConfig(
     config,
     addressFromHex(pool.token0Address),
