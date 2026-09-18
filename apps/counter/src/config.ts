@@ -48,8 +48,17 @@ export function parseConfig(value: unknown): AppConfig {
   };
 }
 
-export function errorMessage(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : "The request could not be completed.";
+export function errorMessage(
+  error: unknown,
+  fallback = "The request could not be completed.",
+): string {
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "error" in error &&
+    typeof error.error === "string"
+  )
+    return error.error;
+  return fallback;
 }

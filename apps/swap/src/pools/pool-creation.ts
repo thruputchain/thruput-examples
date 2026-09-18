@@ -15,7 +15,7 @@ import {
 } from "@/contracts/factory-adapter";
 import { parseAmount } from "@/domain/amount";
 import { orderTokens } from "@/domain/tokens";
-import { createNetworkReadClient, NetworkMismatchError, verifyReadNetwork } from "@/groundhog/client";
+import { NetworkMismatchError, verifyReadNetwork } from "@/groundhog/client";
 
 const MINIMUM_LIQUIDITY = 1_000n;
 const MAX_COHERENCE_ATTEMPTS = 3;
@@ -77,7 +77,7 @@ export class PoolCreationValidationError extends Error {
 }
 
 export interface PoolCreationDependencies {
-  client?: Pick<GroundhogClient, "view" | "getNetworkInfo">;
+  client: Pick<GroundhogClient, "view" | "getNetworkInfo">;
   factory?: SwapFactoryReadAdapter;
   token?: (address: ContractAddress) => Erc20ReadAdapter;
   requiredNativeHog?: bigint;
@@ -95,16 +95,15 @@ export class PoolCreationNetworkError extends Error {
 export async function preparePoolCreation(
   config: GlobalConfig,
   input: PoolCreationInput,
-  reservedNativeHog = 0n,
-  dependencies: PoolCreationDependencies = {},
+  reservedNativeHog: bigint,
+  dependencies: PoolCreationDependencies,
 ): Promise<PoolCreationReview> {
   const [inputTokenA, inputTokenB] = parseTokenAddresses(input.tokenA, input.tokenB);
   const ordered = orderTokens(inputTokenA, inputTokenB);
   const token0Input = ordered.inputIndex === 0 ? input.amountA : input.amountB;
   const token1Input = ordered.inputIndex === 0 ? input.amountB : input.amountA;
-  let client: NonNullable<PoolCreationDependencies["client"]>;
+  const { client } = dependencies;
   try {
-    client = dependencies.client ?? await createNetworkReadClient(config);
     await verifyReadNetwork(client, config);
   } catch (error) {
     if (error instanceof NetworkMismatchError) throw error;

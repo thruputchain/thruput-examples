@@ -99,7 +99,7 @@ export function LaunchpadRoutes({ config }: { config: AppConfig }) {
   );
 }
 
-export function Header({ readOnly = false }: { readOnly?: boolean }) {
+function Header({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <AppHeader
       product="Token Launchpad"

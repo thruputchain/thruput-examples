@@ -47,12 +47,7 @@ export function TopupSigner({
       const body: unknown = await response.json();
       if (!response.ok) {
         throw new Error(
-          body &&
-            typeof body === "object" &&
-            "error" in body &&
-            typeof body.error === "string"
-            ? body.error
-            : "Could not confirm the signer top-up.",
+          errorMessage(body, "Could not confirm the signer top-up."),
         );
       }
       if (

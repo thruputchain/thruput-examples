@@ -256,6 +256,7 @@ function CreationPage({
           config.nativeHogAddress,
           config.factoryAddress,
           {
+            client,
             writeBoundary: writer,
             assertCurrent,
             readAllowance: dependencies.readFactoryAllowance
@@ -358,7 +359,7 @@ function CreationPage({
           if (result.pool === null) throw new Error("The created pool is unavailable");
           const token0 = addressFromHex(result.token0.address);
           const token1 = addressFromHex(result.token1.address);
-          const poolConfig = await resolvePoolConfig(config, token0, token1, undefined, client);
+          const poolConfig = await resolvePoolConfig({ config, token0, token1, client });
           const snapshot = await createSnapshotReader(poolConfig, client)();
           if (
             snapshot.reserve0 <= 0n

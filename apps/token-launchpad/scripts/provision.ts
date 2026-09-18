@@ -255,7 +255,7 @@ export async function provisionLaunchpad(options: {
   }
 }
 
-export function renderEnvironment(input: {
+function renderEnvironment(input: {
   rpcUrl: string;
   networkHash: string;
   factoryAddress: ContractAddress;

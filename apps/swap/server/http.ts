@@ -29,7 +29,6 @@ export {
   RpcRateLimiter,
   rpcClientIdentity,
   DEFAULT_RPC_REQUESTS_PER_MINUTE,
-  DEFAULT_MAXIMUM_RATE_LIMIT_CLIENTS,
 } from "./rate-limit.ts";
 
 const MAX_REQUEST_TARGET_BYTES = 8 * 1_024;

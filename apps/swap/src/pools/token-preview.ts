@@ -13,7 +13,6 @@ import {
   type TokenMetadata,
 } from "@/contracts/erc20-adapter";
 import {
-  createNetworkReadClient,
   NetworkMismatchError,
   verifyReadNetwork,
 } from "@/groundhog/client";
@@ -23,10 +22,8 @@ export async function readTokenPreview(
   config: GlobalConfig,
   address: string,
   signal: AbortSignal,
-  suppliedClient?: Pick<CoreGroundhogClient, "view" | "getNetworkInfo">,
+  client: Pick<CoreGroundhogClient, "view" | "getNetworkInfo">,
 ): Promise<TokenMetadata> {
-  const client =
-    suppliedClient ?? (await createNetworkReadClient(config, signal));
   await verifyReadNetwork(client, config);
   signal.throwIfAborted();
   const metadata = await createErc20ReadAdapter({

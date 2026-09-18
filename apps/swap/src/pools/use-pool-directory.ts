@@ -105,7 +105,7 @@ export function usePoolDirectory({
       const initial = registryPoolsToEntries(page.data!.pools);
       const previous = queries.getQueryData<RegistryPoolEntry[]>(liveKey) ?? [];
       try {
-        const result = await enrich(config, initial, signal);
+        const result = await enrich(config, initial, client, signal);
         signal.throwIfAborted();
         return retainLiveData(result, previous);
       } catch (error) {

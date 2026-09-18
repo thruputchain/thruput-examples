@@ -7,12 +7,12 @@ import type { Erc20ReadAdapter } from "@/contracts/erc20-adapter";
 import type { PoolAddresses, SwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { RequestAccepted } from "@/contracts/generated/swap-driver";
 import { PoolCreated } from "@/contracts/generated/swap-factory";
-import * as readClient from "@/groundhog/client";
-import type { PoolCreationDependencies, PoolCreationReview } from "@/pools/pool-creation";
+import type { PoolCreationReview } from "@/pools/pool-creation";
 import {
   confirmCreationStepWasNotSigned,
   continueSupersededCreation,
   runCreationWorkflow,
+  type CreationExecutorDependencies,
 } from "./creation-executor";
 import {
   createCreationWorkflow,
@@ -408,18 +408,18 @@ describe("creation executor", () => {
     new TypeError("fetch failed"),
     new DOMException("Network request timed out", "TimeoutError"),
     new DOMException("The operation was aborted", "AbortError"),
-  ])("preserves funded recovery when network client initialization rejects with %s", async (failure) => {
+  ])("preserves funded recovery when network verification rejects with %s", async (failure) => {
     const workflow = createCreationWorkflow(config, review(), 10);
     workflow.steps.approveFunding = {
       ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "7",
     };
     saveCreationWorkflow(config, workflow);
     const deps = dependencies({ created: false, fundingAllowance: 300n });
-    const connect = vi.spyOn(readClient, "createNetworkReadClient").mockRejectedValueOnce(failure);
+    const connect = vi.spyOn(deps.client, "getNetworkInfo").mockRejectedValueOnce(failure);
     const execute = vi.fn();
     try {
       await expect(runCreationWorkflow(config, workflow, {
-        factory: deps.factory, token: deps.token, writeBoundary: { execute },
+        ...deps, writeBoundary: { execute },
       })).rejects.toThrow();
       expect(execute).not.toHaveBeenCalled();
       expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
@@ -526,12 +526,12 @@ describe("creation executor", () => {
 });
 
 function dependencies(state: { created: boolean; fundingAllowance: bigint }): {
-  client: NonNullable<PoolCreationDependencies["client"]>;
+  client: CreationExecutorDependencies["client"];
   factory: SwapFactoryReadAdapter;
   token: (token: ReturnType<typeof address>) => Erc20ReadAdapter;
 } {
   return {
-    client: { view: vi.fn(), getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) },
+    client: { view: vi.fn(), getEvents: vi.fn(), getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) },
     factory: {
       allPairsLength: async () => view(0n),
       pairAt: async () => view(null),

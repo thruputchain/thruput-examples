@@ -136,8 +136,8 @@ Run `npm run <command> --workspace apps/counter`:
 
 Set the values in [`.env.example`](.env.example), then run `build` and `start`.
 `PORT` defaults to 3000. Railway builds from the root npm workspace.
-The existing `railway.json` is for legacy
-Railway services. No database is needed.
+For Railway, select `apps/counter/railway.json` as the service's config-file path.
+No database is needed.
 
 The server returns public runtime configuration at `/api/config`: network ID,
 counter address, signer address, and optional explorer URL. The

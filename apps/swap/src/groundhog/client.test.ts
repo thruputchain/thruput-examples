@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { contractAddress } from "@groundhogchain/protocol";
-import { createNetworkReadClient, createReadClient, NetworkMismatchError, verifyReadNetwork } from "./client";
+import { createNetworkReadClient, NetworkMismatchError, verifyReadNetwork } from "./client";
 
 afterEach(() => vi.restoreAllMocks());
 
-describe("createReadClient", () => {
+describe("client initialization", () => {
   it("aborts transport requests when its lifecycle signal is aborted", async () => {
     const controller = new AbortController();
     let transportSignal: AbortSignal | null | undefined;
@@ -19,10 +19,10 @@ describe("createReadClient", () => {
         );
       });
     });
-    const pending = createReadClient(
-      { rpcUrl: new URL("http://127.0.0.1:9545") },
+    const pending = createNetworkReadClient(
+      { rpcUrl: new URL("http://127.0.0.1:9545"), networkIdHex: "00".repeat(32) },
       controller.signal,
-    ).getChainTip();
+    );
     await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
 
     controller.abort(new DOMException("superseded", "AbortError"));

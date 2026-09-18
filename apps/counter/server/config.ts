@@ -19,11 +19,6 @@ export interface ServerConfig {
 export function loadServerConfig(
   env: Record<string, string | undefined>,
 ): ServerConfig {
-  if (!env.COUNTER_SIGNING_PRIVATE_KEY && env.COUNTER_DEVELOPMENT_PRIVATE_KEY) {
-    throw new Error(
-      "Run setup:local to replace the previously public development signer.",
-    );
-  }
   const signingPrivateKey = hex32(
     env.COUNTER_SIGNING_PRIVATE_KEY,
     "Server signing key",

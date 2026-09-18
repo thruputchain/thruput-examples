@@ -3,7 +3,7 @@ import { isIP } from "node:net";
 import { ValidationError } from "./validation.ts";
 
 export const DEFAULT_RPC_REQUESTS_PER_MINUTE = 2_000;
-export const DEFAULT_MAXIMUM_RATE_LIMIT_CLIENTS = 10_000;
+const DEFAULT_MAXIMUM_RATE_LIMIT_CLIENTS = 10_000;
 
 interface RateLimitWindow {
   windowStartedAt: number;

@@ -4,16 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GlobalConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 import {
-  createNetworkReadClient,
   NetworkMismatchError,
 } from "@/groundhog/client";
 import { readTokenPreview, useTokenPreview } from "./token-preview";
 import { testClient, TestProviders } from "@/test/render";
 
-vi.mock("@/groundhog/client", async (original) => ({
-  ...(await original<object>()),
-  createNetworkReadClient: vi.fn(),
-}));
 vi.mock("@/contracts/erc20-adapter", () => ({
   createErc20ReadAdapter: vi.fn(),
 }));
@@ -41,10 +36,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   network.mockReset().mockResolvedValue({ networkHash: new Uint8Array(32) });
   read.mockReset().mockResolvedValue(metadata);
-  vi.mocked(createNetworkReadClient).mockResolvedValue({
-    getNetworkInfo: network,
-    view: vi.fn(),
-  } as never);
   vi.mocked(createErc20ReadAdapter).mockReturnValue({
     metadata: read,
     balanceOf: vi.fn(),
@@ -55,12 +46,11 @@ beforeEach(() => {
 describe("live token previews", () => {
   it("checks the actual network before metadata and uses the configured caller", async () => {
     const signal = new AbortController().signal;
-    await expect(readTokenPreview(config, hex(8), signal)).resolves.toEqual({
+    await expect(readTokenPreview(config, hex(8), signal, client)).resolves.toEqual({
       name: "Live Name",
       symbol: "LIVE",
       decimals: 6,
     });
-    expect(createNetworkReadClient).toHaveBeenCalledWith(config, signal);
     expect(createErc20ReadAdapter).toHaveBeenCalledWith(
       expect.objectContaining({
         caller: config.accountAddress,
@@ -75,7 +65,7 @@ describe("live token previews", () => {
   it("fails closed on network mismatch, without metadata reads", async () => {
     network.mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) });
     await expect(
-      readTokenPreview(config, hex(8), new AbortController().signal),
+      readTokenPreview(config, hex(8), new AbortController().signal, client),
     ).rejects.toBeInstanceOf(NetworkMismatchError);
     expect(read).not.toHaveBeenCalled();
   });
@@ -87,7 +77,7 @@ describe("live token previews", () => {
       decimals: view(null),
     });
     await expect(
-      readTokenPreview(config, hex(8), new AbortController().signal),
+      readTokenPreview(config, hex(8), new AbortController().signal, client),
     ).resolves.toEqual({ name: null, symbol: null, decimals: null });
   });
 

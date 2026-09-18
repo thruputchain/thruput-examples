@@ -193,7 +193,7 @@ describe("PoolCreatePage", () => {
     const execute = vi.fn();
     const readFactoryAllowance = vi.fn(async () => ({ value: 0n, height: 12n }));
     renderPage({ writer: { execute }, readFactoryAllowance });
-    vi.mocked(createNetworkReadClient).mockRejectedValueOnce(new NetworkMismatchError());
+    vi.mocked(verifyReadNetwork).mockRejectedValueOnce(new NetworkMismatchError());
     await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
     expect(await screen.findByText(/different Thruput network/)).toBeVisible();
     expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);

@@ -165,7 +165,7 @@ function PoolRoute({
   const pool = useQuery({
     queryKey: [...getClientQueryKey(client), "pool-config", poolRequestKey(config, params.token0 ?? "", params.token1 ?? "")],
     queryFn: parsed.kind !== "canonical" ? skipToken : async ({ signal }) => {
-      const result = await resolvePoolConfig(config, parsed.token0, parsed.token1, undefined, client);
+      const result = await resolvePoolConfig({ config, token0: parsed.token0, token1: parsed.token1, client });
       signal.throwIfAborted();
       return result;
     },

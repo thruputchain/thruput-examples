@@ -1,4 +1,4 @@
-export const I128_MIN = -(1n << 127n);
+const I128_MIN = -(1n << 127n);
 export const I128_MAX = (1n << 127n) - 1n;
 
 export type AllowanceDifference =

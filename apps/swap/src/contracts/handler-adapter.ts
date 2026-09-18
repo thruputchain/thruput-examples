@@ -3,7 +3,7 @@ import type { ContractAddress } from "@groundhogchain/protocol";
 
 import { SwapHandler } from "./generated/swap-handler";
 
-export interface PoolState {
+interface PoolState {
   reserve0: bigint;
   reserve1: bigint;
   blockTimestamp: bigint;

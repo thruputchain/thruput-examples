@@ -7,7 +7,6 @@ import {
   createSwapFactoryReadAdapter,
   type SwapFactoryReadAdapter,
 } from "@/contracts/factory-adapter";
-import { createReadClient } from "@/groundhog/client";
 
 export class PoolNotFoundError extends Error {
   constructor() {
@@ -23,19 +22,26 @@ export class PoolIdentityError extends Error {
   }
 }
 
-export async function resolvePoolConfig(
-  config: GlobalConfig,
-  token0: ContractAddress,
-  token1: ContractAddress,
-  suppliedFactory?: SwapFactoryReadAdapter,
-  suppliedClient?: Pick<GroundhogClient, "view">,
-): Promise<AppConfig> {
-  const client = suppliedClient ?? createReadClient(config);
-  const factory = suppliedFactory ?? createSwapFactoryReadAdapter({
-    client,
-    contract: config.factoryAddress,
-    caller: config.accountAddress,
-  });
+export async function resolvePoolConfig({
+  config,
+  token0,
+  token1,
+  client,
+  factory: suppliedFactory,
+}: {
+  config: GlobalConfig;
+  token0: ContractAddress;
+  token1: ContractAddress;
+  client: Pick<GroundhogClient, "view">;
+  factory?: SwapFactoryReadAdapter;
+}): Promise<AppConfig> {
+  const factory =
+    suppliedFactory ??
+    createSwapFactoryReadAdapter({
+      client,
+      contract: config.factoryAddress,
+      caller: config.accountAddress,
+    });
   const token0Adapter = createErc20ReadAdapter({
     client,
     contract: token0,
@@ -58,7 +64,10 @@ export async function resolvePoolConfig(
       token0Adapter.metadata(),
       token1Adapter.metadata(),
     ]);
-    if (metadata0.decimals.value === null || metadata1.decimals.value === null) {
+    if (
+      metadata0.decimals.value === null ||
+      metadata1.decimals.value === null
+    ) {
       throw new Error("Pool token decimals are unavailable");
     }
     const heights = [
@@ -86,7 +95,9 @@ export async function resolvePoolConfig(
       tokenBDecimals: metadata1.decimals.value,
     };
   }
-  throw new Error("Unable to resolve a consistent pool snapshot after three attempts");
+  throw new Error(
+    "Unable to resolve a consistent pool snapshot after three attempts",
+  );
 }
 
 function sameAddress(left: ContractAddress, right: ContractAddress): boolean {

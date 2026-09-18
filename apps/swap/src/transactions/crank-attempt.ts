@@ -42,7 +42,7 @@ export function crankAttemptKey(config: AppConfig): string {
   ].join(":");
 }
 
-export function accountCrankAttemptPrefix(
+function accountCrankAttemptPrefix(
   config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
 ): string {
   return [

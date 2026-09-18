@@ -12,17 +12,8 @@ import { networkHash } from "@groundhogchain/protocol";
 
 import type { GlobalConfig } from "@/config";
 
-export function createReadClient(
-  config: Pick<GlobalConfig, "rpcUrl">,
-  signal?: AbortSignal,
-): GroundhogClient {
-  return deferClient(
-    createGroundhogClient({ transport: readTransport(config, signal) }),
-  );
-}
-
 export async function createNetworkReadClient(
-  config: GlobalConfig,
+  config: Pick<GlobalConfig, "rpcUrl" | "networkIdHex">,
   signal?: AbortSignal,
 ): Promise<ConnectedGroundhogClient> {
   try {
@@ -88,19 +79,4 @@ function combineSignals(
     return lifecycleSignal;
   }
   return AbortSignal.any([lifecycleSignal, requestSignal]);
-}
-
-function deferClient(clientPromise: Promise<GroundhogClient>): GroundhogClient {
-  return new Proxy({} as GroundhogClient, {
-    get(_target, property) {
-      if (property === "then") return undefined;
-      return (...args: unknown[]) =>
-        clientPromise.then((client) => {
-          const method = Reflect.get(client, property) as (
-            ...values: unknown[]
-          ) => unknown;
-          return Reflect.apply(method, client, args);
-        });
-    },
-  });
 }

@@ -255,7 +255,7 @@ export async function provisionSwap(options: {
   }
 }
 
-export function renderEnvironment(
+function renderEnvironment(
   network: string,
   rpcUrl: string,
   deployment: {

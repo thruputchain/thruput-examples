@@ -293,7 +293,7 @@ describe("counter signing boundary", () => {
     );
   });
 
-  it("publishes only public identity and refuses a previously exposed key configuration", async () => {
+  it("publishes only public identity and requires the server-only signing key", async () => {
     const origin = await listen(createCounterServer(config));
     const response = await fetch(`${origin}/api/config`);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -309,9 +309,8 @@ describe("counter signing boundary", () => {
       loadServerConfig({
         ...environment,
         COUNTER_SIGNING_PRIVATE_KEY: undefined,
-        COUNTER_DEVELOPMENT_PRIVATE_KEY: key,
       }),
-    ).toThrow("previously public");
+    ).toThrow("Server signing key");
   });
 
   it.each(["increment", "decrement"] as const)(

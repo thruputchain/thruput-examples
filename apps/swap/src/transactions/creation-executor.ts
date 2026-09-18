@@ -1,4 +1,4 @@
-import { addressFromHex, bytesEqual, toHex0x, type TransactionReceipt } from "@groundhogchain/client";
+import { addressFromHex, bytesEqual, toHex0x, type TransactionReceipt, type CoreGroundhogClient } from "@groundhogchain/client";
 import type { Invocation } from "@groundhogchain/protocol";
 import { DefaultWallet } from "@groundhogchain/client/contracts";
 
@@ -17,7 +17,7 @@ import { buildAddLiquidityTarget } from "@/contracts/router-target";
 import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
-import { createReadClient, NetworkMismatchError, verifyReadNetwork } from "@/groundhog/client";
+import { NetworkMismatchError, verifyReadNetwork } from "@/groundhog/client";
 import {
   PoolCreationNetworkError,
   PoolCreationValidationError,
@@ -74,6 +74,7 @@ import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 const MAX_EXECUTION_EXPOSURE = 10;
 
 export interface CreationExecutorDependencies extends PoolCreationDependencies {
+  client: Pick<CoreGroundhogClient, "view" | "getNetworkInfo" | "getEvents">;
   writeBoundary: WriteBoundary;
   automaticProcessing?: boolean;
   observeQueued?: (workflow: CreationWorkflow) => Promise<CreationWorkflow>;
@@ -81,7 +82,7 @@ export interface CreationExecutorDependencies extends PoolCreationDependencies {
   assertCurrent?: () => void;
 }
 
-export class CreationRecoveryRequiredError extends Error {
+class CreationRecoveryRequiredError extends Error {
   constructor(public readonly step: CreationStepName) {
     super("Confirm that the pre-hash transaction was never signed before retrying");
     this.name = "CreationRecoveryRequiredError";
@@ -109,12 +110,12 @@ export async function runCreationWorkflow(
   };
 
   if (workflow.status === "queued") {
-    await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
+    await verifyReadNetwork(dependencies.client, config);
     const observed = await (
       dependencies.observeQueued
-      ?? createCreationObserver(config).scan
+      ?? createCreationObserver(config, dependencies.client).scan
     )(workflow);
-    await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
+    await verifyReadNetwork(dependencies.client, config);
     if (observed !== workflow) workflow = update(observed);
     if (workflow.status === "executed" || workflow.status === "failed") {
       return workflow;
@@ -135,7 +136,7 @@ export async function runCreationWorkflow(
       }
     }
     if (fresh && workflow.executionMode === "auto") {
-      await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
+      await verifyReadNetwork(dependencies.client, config);
       workflow = update({ ...workflow, executionMode: "single" });
     }
   }
@@ -153,9 +154,9 @@ export async function runCreationWorkflow(
       if (dependencies.writeBoundary.observe === undefined) {
         throw new Error("This wallet cannot recover the stored transaction");
       }
-      await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
+      await verifyReadNetwork(dependencies.client, config);
       const observed = await dependencies.writeBoundary.observe(step.transactionHash);
-      await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
+      await verifyReadNetwork(dependencies.client, config);
       workflow = applyWriteResult(workflow, name, observed, update);
       if (observed.kind !== "committedSuccess") {
         if (name === "createPool" && observed.kind !== "indeterminate") {
@@ -201,7 +202,7 @@ export async function runCreationWorkflow(
         throw error;
       }
     }
-    await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
+    await verifyReadNetwork(dependencies.client, config);
     assertAccountCanSign(config, workflow, name);
     dependencies.assertCurrent?.();
     const target = targetForStep(config, workflow, review, name);
@@ -224,7 +225,7 @@ export async function runCreationWorkflow(
         workflow = update(updateStep(workflow, name, { transactionHash }));
       },
     });
-    await verifyReadNetwork(dependencies.client ?? createReadClient(config), config);
+    await verifyReadNetwork(dependencies.client, config);
     workflow = applyWriteResult(workflow, name, result, update);
     if (result.kind !== "committedSuccess") {
       if (name === "createPool" && result.kind !== "indeterminate") {
@@ -267,7 +268,7 @@ async function runCreationBatch(
     if (!writer.observe)
       throw new Error("This wallet cannot recover the stored batch");
     await verifyReadNetwork(
-      dependencies.client ?? createReadClient(config),
+      dependencies.client,
       config,
     );
     result = await writer.observe(existing.transactionHash);
@@ -391,7 +392,7 @@ async function runCreationBatch(
     });
   }
   await verifyReadNetwork(
-    dependencies.client ?? createReadClient(config),
+    dependencies.client,
     config,
   );
   if (result.kind === "committedSuccess") {
@@ -935,7 +936,7 @@ async function resolveExistingPool(
   minimumHeight?: bigint,
 ): Promise<CreationPool> {
   const factory = dependencies.factory ?? createSwapFactoryReadAdapter({
-    client: createReadClient(config),
+    client: dependencies.client,
     contract: config.factoryAddress,
     caller: config.accountAddress,
   });

@@ -37,7 +37,7 @@ const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
 const I128_MAX = (1n << 127n) - 1n;
 const U128_MAX = (1n << 128n) - 1n;
 
-export class RequestCollectionError extends Error {
+class RequestCollectionError extends Error {
   constructor() {
     super("Stored swap request history is invalid");
     this.name = "RequestCollectionError";
@@ -126,7 +126,7 @@ export function requestCollectionKey(config: AppConfig): string {
   ].join(":");
 }
 
-export function accountRequestCollectionPrefix(
+function accountRequestCollectionPrefix(
   config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
 ): string {
   return [
@@ -280,7 +280,7 @@ export function dismissTerminalRequest(
   );
 }
 
-export function pruneRequestHistory(
+function pruneRequestHistory(
   requests: readonly RequestRecord[],
 ): RequestRecord[] {
   const terminal = requests.filter(isTerminalRequest);

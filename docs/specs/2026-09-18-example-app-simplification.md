@@ -345,3 +345,14 @@ All three scope choices were approved in Roughdraft. Implementation follows the 
   pool reads have separate keys; live keys include the client and account.
   All 24 swap directory tests still pass, including pinned pagination and retained
   reserves after background failures. Both app suites and Chromium acceptance pass.
+- Removed the deferred client Proxy and implicit client construction throughout
+  swap's readers, observers, creation review/execution, and allowance cleanup.
+  Pool resolution now accepts named inputs. Counter retains its scheduler and
+  uses simpler demo randomness, SDK hash parsing, and shared error extraction;
+  the obsolete public-key configuration branch is gone. Internal-only helpers
+  are no longer exported. Meaningful domain adapters and transaction forms were
+  retained rather than split solely to shorten files.
+- The isolated counter live check could not start the installed CLI/devnode pair:
+  default negotiation reports a protocol mismatch, and the supported explicit
+  protocol override reaches a scheduler RPC system error before app provisioning.
+  The counter's 47 unit/integration tests and production build pass.

@@ -9,7 +9,7 @@ import { loadAccountLiquidityOperations } from "@/transactions/liquidity-operati
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import { loadAllowanceTerminalHeight } from "@/transactions/allowance-evidence";
 
-export function loadAccountAllowanceRecords(
+function loadAccountAllowanceRecords(
   config: GlobalConfig,
 ): AccountAllowanceRecords {
   return {

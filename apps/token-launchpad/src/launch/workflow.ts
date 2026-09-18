@@ -6,7 +6,7 @@ import { userErrorMessage } from "@/errors";
 import type { ParsedToken } from "@/launch/form";
 import { MAX_SIGNED_AMOUNT } from "@/runtime";
 
-export const WORKFLOW_VERSION = 3 as const;
+const WORKFLOW_VERSION = 3 as const;
 const LEGACY_WORKFLOW_VERSION = 1;
 const HASH = /^0x[0-9a-f]{64}$/;
 

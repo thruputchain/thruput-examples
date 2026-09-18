@@ -5,10 +5,8 @@ import {
   LoaderCircleIcon,
   PlusIcon,
 } from "lucide-react";
-import { useCallback } from "react";
 import { usePoolDirectory } from "./use-pool-directory";
 export { DIRECTORY_REFRESH_INTERVAL_MS } from "./use-pool-directory";
-import { useClient } from "@groundhogchain/react";
 import { Link } from "react-router-dom";
 
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
@@ -67,19 +65,13 @@ export function PoolDirectoryPage({
   dependencies?: PoolDirectoryPageDependencies;
   readOnly?: boolean;
 }) {
-  const client = useClient();
-  const enrich = useCallback<typeof enrichRegistryPools>(
-    (config, entries, signal) =>
-      enrichRegistryPools(config, entries, signal, undefined, client),
-    [client],
-  );
   return (
     <RegistryPoolDirectoryPage
       config={config}
       read={dependencies.readRegistry ?? getRegistryPools}
       readStatus={dependencies.readStatus ?? getPoolRegistryStatus}
       requestSync={dependencies.requestSync ?? requestPoolRegistrySync}
-      enrich={dependencies.enrich ?? enrich}
+      enrich={dependencies.enrich ?? enrichRegistryPools}
       readOnly={readOnly}
     />
   );

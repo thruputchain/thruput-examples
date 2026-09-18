@@ -5,7 +5,6 @@ import type { AppConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 import { createSwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { createSwapHandlerReadAdapter } from "@/contracts/handler-adapter";
-import { createReadClient } from "@/groundhog/client";
 
 import { createSnapshotReader } from "./snapshot";
 
@@ -17,9 +16,6 @@ vi.mock("@/contracts/handler-adapter", () => ({
 }));
 vi.mock("@/contracts/factory-adapter", () => ({
   createSwapFactoryReadAdapter: vi.fn(),
-}));
-vi.mock("@/groundhog/client", () => ({
-  createReadClient: vi.fn(),
 }));
 
 const address = (byte: number) =>
@@ -97,11 +93,9 @@ describe("createSnapshotReader", () => {
       feeTo: null,
       chainHeight: 8n,
     });
-    expect(createReadClient).not.toHaveBeenCalled();
   });
 
   it("fails after three attempts when view heights do not match", async () => {
-    vi.mocked(createReadClient).mockReturnValue({} as never);
     vi.mocked(createErc20ReadAdapter)
       .mockReturnValueOnce(tokenAdapter("A", "A", 1n, 0n, 1n))
       .mockReturnValueOnce(tokenAdapter("B", "B", 1n, 0n, 1n))
@@ -134,7 +128,7 @@ describe("createSnapshotReader", () => {
       }),
     } as never);
 
-    await expect(createSnapshotReader(config)()).rejects.toThrow(
+    await expect(createSnapshotReader(config, { view: vi.fn() })()).rejects.toThrow(
       "consistent chain snapshot after three attempts",
     );
   });
