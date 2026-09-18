@@ -13,7 +13,7 @@ import { networkHash } from "@groundhogchain/protocol";
 import type { GlobalConfig } from "@/config";
 
 export function createReadClient(
-  config: Pick<GlobalConfig, "registryEnabled" | "rpcUrl">,
+  config: Pick<GlobalConfig, "rpcUrl">,
   signal?: AbortSignal,
 ): GroundhogClient {
   return deferClient(
@@ -43,15 +43,10 @@ export async function createNetworkReadClient(
 }
 
 function readTransport(
-  config: Pick<GlobalConfig, "registryEnabled" | "rpcUrl">,
+  config: Pick<GlobalConfig, "rpcUrl">,
   signal?: AbortSignal,
 ) {
-  const browserOrigin =
-    typeof window === "undefined" ||
-    import.meta.env.MODE === "local-integration"
-      ? undefined
-      : window.location.origin;
-  return new HttpTransport(resolveReadRpcUrl(config, browserOrigin), {
+  return new HttpTransport(config.rpcUrl.href, {
     fetch: (input, init) => {
       const combinedSignal = combineSignals(signal, init?.signal);
       return globalThis.fetch(
@@ -108,31 +103,4 @@ function deferClient(clientPromise: Promise<GroundhogClient>): GroundhogClient {
         });
     },
   });
-}
-
-export function resolveReadRpcUrl(
-  config: Pick<GlobalConfig, "registryEnabled" | "rpcUrl">,
-  browserOrigin?: string,
-): string {
-  if (browserOrigin === undefined) return config.rpcUrl.href;
-
-  if (config.registryEnabled) {
-    return new URL("/groundhog-rpc", browserOrigin).href;
-  }
-
-  const origin = new URL(browserOrigin);
-  if (
-    origin.origin !== config.rpcUrl.origin &&
-    isLoopback(origin.hostname) &&
-    isLoopback(config.rpcUrl.hostname)
-  ) {
-    return new URL("/groundhog-rpc", origin).href;
-  }
-  return config.rpcUrl.href;
-}
-
-function isLoopback(hostname: string): boolean {
-  return (
-    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
-  );
 }

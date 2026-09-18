@@ -1,4 +1,3 @@
-import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
 import { useEffect, useState } from "react";
 import { useClient } from "@groundhogchain/react";
@@ -11,7 +10,6 @@ import {
   useParams,
 } from "react-router-dom";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AppHeader } from "@/components/app-header";
 import { ProcessingModeProvider } from "@/components/processing-mode";
 import { ExplorerProvider } from "@/components/explorer-context";
@@ -24,8 +22,6 @@ import {
 } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
-  ConfigurationError,
-  loadGlobalConfig,
   type AppConfig,
   type GlobalConfig,
 } from "@/config";
@@ -376,64 +372,4 @@ export function ConfiguredApp({
       writeBoundary={writer}
     />
   );
-}
-
-export function ConfigurationErrorPage({ message }: { message: string }) {
-  return (
-    <>
-      <AppHeader product="Swap" />
-      <main className="isolate flex min-h-[calc(100svh-5rem)] items-center bg-background px-4 py-12 text-foreground antialiased sm:px-6">
-        <Card className="mx-auto w-full max-w-xl">
-          <CardHeader>
-            <CardTitle asChild>
-              <h1>Configuration required</h1>
-            </CardTitle>
-            <CardDescription>
-              Run the local setup command before starting the swap application.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Alert variant="destructive">
-              <AlertCircleIcon aria-hidden="true" />
-              <AlertTitle>Generated configuration is unavailable</AlertTitle>
-              <AlertDescription>{message}</AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-      </main>
-    </>
-  );
-}
-
-export function readBrowserConfiguration():
-  | { ok: true; config: GlobalConfig }
-  | { ok: false; message: string } {
-  try {
-    return {
-      ok: true,
-      config: loadGlobalConfig({
-        VITE_EXPLORER_URL: import.meta.env.VITE_EXPLORER_URL,
-        VITE_GROUNDHOG_RPC_URL: import.meta.env.VITE_GROUNDHOG_RPC_URL,
-        VITE_POOL_REGISTRY_ENABLED: import.meta.env.VITE_POOL_REGISTRY_ENABLED,
-        VITE_TOKEN_DISCOVERY_ENABLED: import.meta.env
-          .VITE_TOKEN_DISCOVERY_ENABLED,
-        VITE_STANDARD_TOKEN_FACTORY_ADDRESS: import.meta.env
-          .VITE_STANDARD_TOKEN_FACTORY_ADDRESS,
-        VITE_STANDARD_TOKEN_HASH: import.meta.env.VITE_STANDARD_TOKEN_HASH,
-        VITE_GROUNDHOG_NETWORK_ID: import.meta.env.VITE_GROUNDHOG_NETWORK_ID,
-        VITE_POOL_TOKEN_HASH: import.meta.env.VITE_POOL_TOKEN_HASH,
-        VITE_NATIVE_HOG_ADDRESS: import.meta.env.VITE_NATIVE_HOG_ADDRESS,
-        VITE_SWAP_FACTORY_ADDRESS: import.meta.env.VITE_SWAP_FACTORY_ADDRESS,
-        VITE_SWAP_ROUTER_ADDRESS: import.meta.env.VITE_SWAP_ROUTER_ADDRESS,
-      }),
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      message:
-        error instanceof ConfigurationError
-          ? error.message
-          : "Application configuration is invalid",
-    };
-  }
 }

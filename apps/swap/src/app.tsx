@@ -1,26 +1,9 @@
 import { BrowserRouter } from "react-router-dom";
-import {
-  AppProviders,
-  BrowserConfiguredApp,
-  ConfigurationErrorPage,
-  readBrowserConfiguration,
-} from "./routes";
+import { AppProviders, BrowserConfiguredApp } from "./routes";
+import type { GlobalConfig } from "./config";
 
-export function App() {
-  const configuration = readBrowserConfiguration();
-  return (
-    <AppProviders
-      explorerUrl={
-        configuration.ok ? configuration.config.explorerUrl : undefined
-      }
-    >
-      {configuration.ok ? (
-        <BrowserRouter>
-          <BrowserConfiguredApp config={configuration.config} />
-        </BrowserRouter>
-      ) : (
-        <ConfigurationErrorPage message={configuration.message} />
-      )}
-    </AppProviders>
-  );
+export function App({ config }: { config: GlobalConfig }) {
+  return <AppProviders explorerUrl={config.explorerUrl}>
+    <BrowserRouter><BrowserConfiguredApp config={config} /></BrowserRouter>
+  </AppProviders>;
 }

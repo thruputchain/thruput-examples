@@ -6,10 +6,7 @@ import { loadServerConfig } from "./config.ts";
 import { createGroundhogRegistrySource } from "./chain.ts";
 import { createRegistryHttpServer } from "./http.ts";
 import { RegistryIndexer } from "./indexer.ts";
-import {
-  PUBLIC_CONFIG_MANIFEST_FILENAME,
-  verifyPublicConfigManifest,
-} from "./public-config-manifest.ts";
+import { publicConfig } from "./public-config.ts";
 import { RegistryStore } from "./store.ts";
 import { validateStandardTokenArtifact } from "./contract-artifact.ts";
 
@@ -18,10 +15,6 @@ const staticDirectory = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../dist",
 );
-await verifyPublicConfigManifest(
-  path.join(staticDirectory, PUBLIC_CONFIG_MANIFEST_FILENAME),
-  process.env,
-);
 await validateStandardTokenArtifact(
   staticDirectory,
   config.scope.tokenCodeHash,
@@ -29,6 +22,7 @@ await validateStandardTokenArtifact(
 const indexStat = await stat(path.join(staticDirectory, "index.html"));
 if (!indexStat.isFile()) throw new Error("Production index.html is missing");
 const source = await createGroundhogRegistrySource(config);
+const browserConfig = publicConfig(process.env);
 await mkdir(path.dirname(config.databasePath), { recursive: true });
 
 const store = new RegistryStore(config.databasePath, config.scope);
@@ -39,6 +33,7 @@ const indexer = new RegistryIndexer(store, source, {
 const server = createRegistryHttpServer(store, indexer, {
   staticDirectory,
   rpcUrl: config.rpcUrl,
+  publicConfig: browserConfig,
 });
 
 try {

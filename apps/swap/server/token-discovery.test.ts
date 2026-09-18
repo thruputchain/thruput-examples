@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTokenDiscoveryHandler } from "./token-discovery.ts";
 import { createRegistryHttpServer } from "./http.ts";
 import { RegistryStore } from "./store.ts";
-import { tokenDiscoveryProxy } from "../vite.config.ts";
 
 const address = (n: number) => `0x${n.toString(16).padStart(64, "0")}`;
 const scope = {
@@ -555,31 +554,4 @@ describe("fixed token discovery boundary", () => {
     expect((await raw(origin, "/api/token-discovery/extra")).status).toBe(404);
   });
 
-  it.each(["configureServer", "configurePreviewServer"] as const)(
-    "wires the Vite %s middleware before SPA fallback",
-    async (hook) => {
-      const plugin = tokenDiscoveryProxy(null);
-      const use = vi.fn();
-      const configure = plugin[hook];
-      if (typeof configure !== "function") throw new Error("Missing hook");
-      // Vite's hook only uses Connect's middleware registration.
-      configure.call({} as never, { middlewares: { use } } as never);
-      const middleware = use.mock.calls[0]![0];
-      const next = vi.fn();
-      const origin = await listen(
-        createServer((request, response) =>
-          middleware(request, response, () => {
-            next();
-            response.end("SPA");
-          }),
-        ),
-      );
-      expect((await fetch(`${origin}/api/token-discovery`)).status).toBe(404);
-      expect((await raw(origin, "/api/token-discovery/%2e%2e")).status).toBe(
-        400,
-      );
-      expect(next).not.toHaveBeenCalled();
-      expect(await (await fetch(`${origin}/pools`)).text()).toBe("SPA");
-    },
-  );
 });

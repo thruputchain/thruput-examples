@@ -14,7 +14,6 @@ export const READ_ONLY_CALLER = addressFromHex(`0x${"00".repeat(32)}`);
 export interface GlobalConfig {
   explorerUrl?: string | undefined;
   rpcUrl: URL;
-  registryEnabled?: boolean;
   tokenDiscovery?: DiscoveryConfig;
   networkIdHex: string;
   poolTokenHash?: string;
@@ -41,7 +40,6 @@ export function publicConfigKey(config: GlobalConfig): string {
   return JSON.stringify([
     config.rpcUrl.href,
     config.networkIdHex,
-    config.registryEnabled ?? false,
     toHex0x(config.accountAddress),
     toHex0x(config.factoryAddress),
     toHex0x(config.routerAddress),
@@ -58,6 +56,14 @@ export function publicConfigKey(config: GlobalConfig): string {
 }
 
 export type Environment = Record<string, string | boolean | undefined>;
+
+export async function loadRuntimeConfig(): Promise<GlobalConfig> {
+  const response = await fetch("/api/config", { cache: "no-store" });
+  if (!response.ok) throw new Error("Application configuration is unavailable. Try again.");
+  const value: unknown = await response.json();
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid application configuration");
+  return loadGlobalConfig({ ...value, VITE_GROUNDHOG_RPC_URL: new URL("/groundhog-rpc", window.location.origin).href });
+}
 
 export class ConfigurationError extends Error {
   constructor(message: string) {
@@ -77,7 +83,6 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
   return {
     explorerUrl: parseExplorerUrl(environment.VITE_EXPLORER_URL),
     rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),
-    registryEnabled: true,
     tokenDiscovery: loadDiscoveryConfig(environment),
     networkIdHex: networkIdHex.replace(/^0x/, "").toLowerCase(),
     accountAddress: READ_ONLY_CALLER,

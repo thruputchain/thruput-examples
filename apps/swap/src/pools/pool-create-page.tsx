@@ -107,7 +107,7 @@ export function PoolCreatePage({
   dependencies?: PoolCreatePageDependencies;
 }) {
   const scope = JSON.stringify([
-    config.networkIdHex, config.rpcUrl.href, config.registryEnabled,
+    config.networkIdHex, config.rpcUrl.href,
     toHex0x(config.accountAddress), toHex0x(config.factoryAddress),
     toHex0x(config.routerAddress), toHex0x(config.nativeHogAddress),
   ]);
@@ -327,8 +327,7 @@ function CreationPage({
         let syncHintSent = false;
         const hintRegistryAfterCreation = (next: CreationWorkflow) => {
           if (
-            config.registryEnabled
-            && !syncHintSent
+            !syncHintSent
             && previousCreatePoolStatus !== "committed"
             && next.steps.createPool.status === "committed"
           ) {

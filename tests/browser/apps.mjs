@@ -23,7 +23,6 @@ Object.assign(process.env, {
   VITE_SWAP_ROUTER_ADDRESS: hex("04"),
   VITE_NATIVE_HOG_ADDRESS: hex("05"),
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
-  VITE_POOL_REGISTRY_ENABLED: "false",
   VITE_TOKEN_DISCOVERY_ENABLED: "true",
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: scope.factoryAddress,
   VITE_STANDARD_TOKEN_HASH: scope.tokenCodeHash,
@@ -88,6 +87,7 @@ try {
     },
   );
   const page = await context.newPage();
+  await context.route("**/api/config", (route) => route.fulfill({ json: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("VITE_") && key !== "VITE_GROUNDHOG_RPC_URL")) }));
   await context.route("https://explorer.example.test/**", (route) =>
     route.fulfill({ body: "Explorer fixture" }),
   );

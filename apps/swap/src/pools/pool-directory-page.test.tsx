@@ -21,7 +21,6 @@ const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
 const globalConfig: GlobalConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  registryEnabled: false,
   networkIdHex: "00".repeat(32),
   accountAddress: address(1),
   routerAddress: address(2),
@@ -79,7 +78,7 @@ describe("PoolDirectoryPage", () => {
     const empty = { ...page(), pools: [], total: 0 };
     const readRegistry = vi.fn().mockResolvedValue(empty);
     const readStatus = vi.fn().mockResolvedValue(status());
-    renderPage({ ...globalConfig, registryEnabled: true }, { readRegistry, readStatus, requestSync: vi.fn().mockResolvedValue(status()), enrich: vi.fn(async (_config, entries) => entries) });
+    renderPage(globalConfig, { readRegistry, readStatus, requestSync: vi.fn().mockResolvedValue(status()), enrich: vi.fn(async (_config, entries) => entries) });
     await act(async () => {});
     expect(screen.getByText("No pools yet")).toBeVisible();
     const before = readRegistry.mock.calls.length;
@@ -120,7 +119,7 @@ describe("PoolDirectoryPage", () => {
       const readStatus = vi.fn().mockResolvedValue(status());
       const requestSync = vi.fn().mockResolvedValue(status());
       const enrich = vi.fn(async (_config, entries) => entries);
-      renderPage({ ...globalConfig, registryEnabled: true }, {
+      renderPage(globalConfig, {
         readRegistry, readStatus, requestSync, enrich,
       });
       await act(async () => {});
@@ -174,7 +173,7 @@ describe("PoolDirectoryPage", () => {
     const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     const readRegistry = vi.fn().mockResolvedValue(page());
     const readStatus = vi.fn().mockResolvedValue(status());
-    renderPage({ ...globalConfig, registryEnabled: true }, { readRegistry, readStatus, requestSync: vi.fn().mockResolvedValue(status()), enrich: vi.fn(async (_config, entries) => entries) });
+    renderPage(globalConfig, { readRegistry, readStatus, requestSync: vi.fn().mockResolvedValue(status()), enrich: vi.fn(async (_config, entries) => entries) });
     await act(async () => {});
     const before = readRegistry.mock.calls.length;
     visibility.mockReturnValue("hidden");
@@ -204,7 +203,7 @@ describe("PoolDirectoryPage", () => {
       total: 21,
       hasMore: query.offset === 0,
     }));
-    renderPage({ ...globalConfig, registryEnabled: true }, {
+    renderPage(globalConfig, {
       readRegistry,
       readStatus: vi.fn().mockResolvedValue(status({ indexedThroughBlock: "99" })),
       requestSync: vi.fn().mockResolvedValue(status()),
@@ -247,7 +246,7 @@ describe("PoolDirectoryPage", () => {
     const replacement = page();
     replacement.pools[0] = { ...replacement.pools[0]!, token0Address: hex(20), token1Address: hex(21) };
     const readRegistry = vi.fn().mockResolvedValue(page());
-    renderPage({ ...globalConfig, registryEnabled: true }, {
+    renderPage(globalConfig, {
       readRegistry,
       readStatus: vi.fn().mockResolvedValue(status()),
       requestSync: vi.fn().mockResolvedValue(status()),
@@ -329,7 +328,7 @@ describe("PoolDirectoryPage", () => {
       },
     ]);
     renderPage(
-      { ...globalConfig, registryEnabled: true },
+      globalConfig,
       { readRegistry, requestSync, enrich },
     );
 
@@ -357,7 +356,7 @@ describe("PoolDirectoryPage", () => {
       total: 21,
     }));
     renderPage(
-      { ...globalConfig, registryEnabled: true },
+      globalConfig,
       {
         readRegistry,
         requestSync,
@@ -412,7 +411,7 @@ describe("PoolDirectoryPage", () => {
             }),
         );
       renderPage(
-        { ...globalConfig, registryEnabled: true },
+        globalConfig,
         {
           readRegistry,
           requestSync: vi.fn(() => new Promise<RegistryStatus>(() => {})),
@@ -470,7 +469,7 @@ describe("PoolDirectoryPage", () => {
       .mockRejectedValueOnce(new Error("gateway unavailable"))
       .mockResolvedValueOnce(status({ syncState: "idle", syncing: false }));
     renderPage(
-      { ...globalConfig, registryEnabled: true },
+      globalConfig,
       {
         readRegistry,
         readStatus,
@@ -501,7 +500,7 @@ describe("PoolDirectoryPage", () => {
       .mockResolvedValueOnce(status({ syncState: "syncing", syncing: true }))
       .mockResolvedValueOnce(status());
     renderPage(
-      { ...globalConfig, registryEnabled: true },
+      globalConfig,
       {
         readRegistry,
         readStatus,
@@ -542,7 +541,7 @@ describe("PoolDirectoryPage", () => {
       .mockResolvedValueOnce(secondPage);
     const enrich = vi.fn(async (_config, entries) => entries);
     renderPage(
-      { ...globalConfig, registryEnabled: true },
+      globalConfig,
       {
         readRegistry,
         requestSync: vi.fn(() => new Promise<RegistryStatus>(() => {})),
@@ -583,7 +582,7 @@ describe("PoolDirectoryPage", () => {
       )
       .mockImplementationOnce(async (_config, entries) => entries);
     renderPage(
-      { ...globalConfig, registryEnabled: true },
+      globalConfig,
       {
         readRegistry: vi
           .fn()

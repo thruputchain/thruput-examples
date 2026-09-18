@@ -3,7 +3,8 @@ import { render, screen } from "@/test/render";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AmmRoutes, readBrowserConfiguration } from "@/routes";
+import { AmmRoutes } from "@/routes";
+import { loadRuntimeConfig } from "@/config";
 import { ProcessingModeProvider } from "@/components/processing-mode";
 import type { GlobalConfig } from "@/config";
 
@@ -107,44 +108,21 @@ function LocationPath() {
 }
 
 describe("browser configuration", () => {
-  afterEach(() => vi.unstubAllEnvs());
-
-  it("forwards registry and discovery settings through browser bootstrap", () => {
-    vi.stubEnv("VITE_EXPLORER_URL", "https://Explorer.test/");
-    vi.stubEnv("VITE_GROUNDHOG_RPC_URL", "http://127.0.0.1:9545");
-    vi.stubEnv("VITE_GROUNDHOG_NETWORK_ID", "00".repeat(32));
-    vi.stubEnv("VITE_POOL_TOKEN_HASH", `0x${"01".repeat(32)}`);
-    vi.stubEnv("VITE_NATIVE_HOG_ADDRESS", `0x${"02".repeat(32)}`);
-    vi.stubEnv("VITE_SWAP_FACTORY_ADDRESS", `0x${"03".repeat(32)}`);
-    vi.stubEnv("VITE_SWAP_ROUTER_ADDRESS", `0x${"04".repeat(32)}`);
-    vi.stubEnv("VITE_POOL_REGISTRY_ENABLED", "true");
-    vi.stubEnv("VITE_TOKEN_DISCOVERY_ENABLED", "true");
-    vi.stubEnv("VITE_STANDARD_TOKEN_FACTORY_ADDRESS", `0x${"AB".repeat(32)}`);
-    vi.stubEnv("VITE_STANDARD_TOKEN_HASH", "CD".repeat(32));
-
-    expect(readBrowserConfiguration()).toMatchObject({
-      ok: true,
-      config: {
-        explorerUrl: "https://explorer.test",
-        registryEnabled: true,
-        poolTokenHash: `0x${"01".repeat(32)}`,
-        tokenDiscovery: {
-          enabled: true,
-          scope: {
-            networkId: "00".repeat(32),
-            factoryAddress: `0x${"ab".repeat(32)}`,
-            tokenCodeHash: `0x${"cd".repeat(32)}`,
-          },
-        },
-      },
-    });
-    vi.stubEnv("VITE_STANDARD_TOKEN_HASH", "invalid");
-    expect(readBrowserConfiguration().ok).toBe(false);
-    vi.stubEnv("VITE_STANDARD_TOKEN_HASH", "CD".repeat(32));
-    vi.stubEnv("VITE_EXPLORER_URL", "https://explorer.test/path");
-    expect(readBrowserConfiguration()).toMatchObject({
-      ok: false,
-      message: expect.stringContaining("VITE_EXPLORER_URL"),
-    });
+  afterEach(() => vi.restoreAllMocks());
+  it("loads runtime settings and always uses the same-origin RPC endpoint", async () => {
+    const body = {
+      VITE_EXPLORER_URL: "https://Explorer.test/",
+      VITE_GROUNDHOG_RPC_URL: "https://ignored-upstream.test",
+      VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
+      VITE_NATIVE_HOG_ADDRESS: `0x${"02".repeat(32)}`,
+      VITE_SWAP_FACTORY_ADDRESS: `0x${"03".repeat(32)}`,
+      VITE_SWAP_ROUTER_ADDRESS: `0x${"04".repeat(32)}`,
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify(body)));
+    const config = await loadRuntimeConfig();
+    expect(config.rpcUrl.href).toBe("http://localhost/groundhog-rpc");
+    expect(config.explorerUrl).toBe("https://explorer.test");
+    body.VITE_EXPLORER_URL = "https://explorer.test/path";
+    await expect(loadRuntimeConfig()).rejects.toThrow("VITE_EXPLORER_URL");
   });
 });

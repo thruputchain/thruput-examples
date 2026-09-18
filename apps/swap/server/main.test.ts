@@ -17,11 +17,6 @@ import {
   startupFailureMessage,
   start,
 } from "./main.ts";
-import {
-  createPublicConfigManifest,
-  PublicConfigManifestError,
-  verifyPublicConfigManifest,
-} from "./public-config-manifest.ts";
 
 vi.mock("./chain.ts", () => ({ createGroundhogRegistrySource: vi.fn() }));
 
@@ -32,7 +27,6 @@ const environment = {
   VITE_NATIVE_HOG_ADDRESS: `0x${"44".repeat(32)}`,
   VITE_SWAP_FACTORY_ADDRESS: `0x${"66".repeat(32)}`,
   VITE_SWAP_ROUTER_ADDRESS: `0x${"77".repeat(32)}`,
-  VITE_POOL_REGISTRY_ENABLED: "true",
 };
 
 describe("production startup reporting", () => {
@@ -77,10 +71,6 @@ describe("production startup reporting", () => {
       for (const [key, value] of Object.entries(settings))
         vi.stubEnv(key, value);
       await writeFile(
-        path.join(directory, "groundhog-public-config.json"),
-        JSON.stringify(createPublicConfigManifest(settings)),
-      );
-      await writeFile(
         path.join(directory, "index.html"),
         "<main>fixture</main>",
       );
@@ -119,44 +109,6 @@ describe("production startup reporting", () => {
         new ServerConfigurationError("PORT must be between 1 and 65535"),
       ),
     ).toBe("Pool registry failed to start: PORT must be between 1 and 65535");
-    expect(
-      startupFailureMessage(
-        new PublicConfigManifestError(
-          "Production public configuration manifest is missing or unreadable",
-        ),
-      ),
-    ).toBe(
-      "Pool registry failed to start: Production public configuration manifest is missing or unreadable",
-    );
-  });
-
-  it("reports the mismatched environment key without either value", async () => {
-    directory = await mkdtemp(path.join(os.tmpdir(), "swap-main-"));
-    const manifestPath = path.join(directory, "manifest.json");
-    await writeFile(
-      manifestPath,
-      JSON.stringify(createPublicConfigManifest(environment)),
-    );
-    const buildCanary = environment.VITE_SWAP_FACTORY_ADDRESS;
-    const runtimeCanary = `0x${"88".repeat(32)}`;
-
-    let error: unknown;
-    try {
-      await verifyPublicConfigManifest(manifestPath, {
-        ...environment,
-        VITE_SWAP_FACTORY_ADDRESS: runtimeCanary,
-      });
-    } catch (caught) {
-      error = caught;
-    }
-
-    const report = vi.fn<(message: string) => void>();
-    reportStartupFailure(error, report);
-    expect(report).toHaveBeenCalledExactlyOnceWith(
-      "Pool registry failed to start: VITE_SWAP_FACTORY_ADDRESS does not match the production build manifest",
-    );
-    expect(report.mock.calls[0]?.[0]).not.toContain(buildCanary);
-    expect(report.mock.calls[0]?.[0]).not.toContain(runtimeCanary);
   });
 
   it.each([

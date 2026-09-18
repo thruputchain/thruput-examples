@@ -12,7 +12,6 @@ const hex = (value: number) =>
   `0x${value.toString(16).padStart(2, "0").repeat(32)}`;
 const config: GlobalConfig = {
   rpcUrl: new URL("http://localhost"),
-  registryEnabled: true,
   networkIdHex: "00".repeat(32),
   accountAddress: address(1),
   routerAddress: address(2),

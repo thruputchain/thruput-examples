@@ -39,7 +39,6 @@ const config: GlobalConfig = {
 describe("PoolCreatePage", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    config.registryEnabled = false;
     vi.mocked(verifyReadNetwork).mockReset().mockResolvedValue(undefined);
     vi.mocked(createNetworkReadClient).mockReset().mockResolvedValue({ getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) } as never);
     vi.mocked(createErc20ReadAdapter).mockReset().mockReturnValue({ metadata: vi.fn().mockResolvedValue({ name: { value: "Live token" }, symbol: { value: "LIVE" }, decimals: { value: 6 } }) } as never);
@@ -440,7 +439,6 @@ describe("PoolCreatePage", () => {
 
   it("requests best-effort registry sync when verified pool creation commits", async () => {
     const user = userEvent.setup();
-    config.registryEnabled = true;
     const requestRegistrySync = vi.fn().mockRejectedValue(new Error("offline"));
     const run = vi.fn(async (
       _config: GlobalConfig,

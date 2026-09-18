@@ -181,8 +181,11 @@ paired with its bindings; the CI dependency update does not redeploy Devnet.
 
 Setup publishes `.env.local` or `.env.devnet` and immutable `public/contract-artifacts/<hash>.json`.
 `VITE_POOL_TOKEN_HASH` identifies the LP token implementation attached to pool
-creation. Builds and startup validate its hash. Rebuild after changing public
-configuration; build and server manifests must agree.
+creation. Server startup validates the served artifact against this hash before
+opening deployment state. The browser loads public settings from `/api/config`
+and always calls `/groundhog-rpc`; upstream URLs stay server-side. Configuration
+changes require a server restart and page reload, not a frontend rebuild. Keep
+the deployed artifacts and generated bindings paired when changing contract code.
 
 The LP-token code asset for the recorded Devnet deployment is checked in so a
 clean checkout can build and create pools. If a future setup produces

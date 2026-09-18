@@ -325,3 +325,14 @@ Please review these scope choices in particular:
 3. Approved: include only proven legacy transaction scaffolding removal; leave live transaction lifecycle and generic amount utilities to the upcoming SDK releases.
 
 All three scope choices were approved in Roughdraft. Implementation follows the six phases above on the stacked branch.
+
+## Implementation log
+
+- Removed the unused DevWallet generation and old v2 request storage. The live
+  request model and unchanged account-lock key remain; 62 swap-flow tests verify
+  recovery after removing the redundant initial asynchronous reload.
+- Runtime public config and the shared development/production RPC handler are in
+  place. Browser builds no longer embed deployment settings or require a public
+  config manifest. Startup still validates artifacts and chain scope. Workspace
+  typechecks, 880 swap tests, 361 launchpad tests, production builds, and Chromium
+  acceptance pass at this phase.

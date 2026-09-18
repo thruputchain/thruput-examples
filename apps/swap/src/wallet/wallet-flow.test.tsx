@@ -37,7 +37,6 @@ const config: GlobalConfig = {
   rpcUrl: new URL("http://localhost:9545"),
   networkIdHex: "00".repeat(32),
   accountAddress: READ_ONLY_CALLER,
-  registryEnabled: true,
   factoryAddress: addressFromHex(`0x${"03".repeat(32)}`),
   routerAddress: addressFromHex(`0x${"04".repeat(32)}`),
   nativeHogAddress: addressFromHex(`0x${"05".repeat(32)}`),

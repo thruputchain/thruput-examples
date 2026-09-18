@@ -6,6 +6,7 @@ import { createGroundhogRegistrySource } from "./chain.ts";
 import { createRegistryHttpServer } from "./http.ts";
 import { RegistryIndexer } from "./indexer.ts";
 import { RegistryStore } from "./store.ts";
+import { publicConfig } from "./public-config.ts";
 
 /** Development uses the same registry API and indexer as the production server. */
 export function developmentRegistry(
@@ -15,6 +16,7 @@ export function developmentRegistry(
   return {
     name: "token-registry",
     async configureServer(vite) {
+      const browserConfig = publicConfig(environment);
       const config = loadServerConfig({
         ...environment,
         PORT: "1",
@@ -35,9 +37,9 @@ export function developmentRegistry(
       });
       let stopping: Promise<void> | undefined;
       stop = () => (stopping ??= indexer.stop().finally(() => store.close()));
-      const api = createRegistryHttpServer(store, indexer);
+      const api = createRegistryHttpServer(store, indexer, { rpcUrl: config.rpcUrl, publicConfig: browserConfig });
       vite.middlewares.use((request, response, next) => {
-        if (request.url?.startsWith("/api/") || request.url === "/healthz")
+        if (request.url?.startsWith("/api/") || request.url?.startsWith("/groundhog-rpc") || request.url === "/healthz")
           api.emit("request", request, response);
         else next();
       });

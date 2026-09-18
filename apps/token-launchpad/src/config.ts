@@ -1,7 +1,7 @@
 import { addressFromHex, fromHex0x, toHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
-import { PINNED_NATIVE_BALANCE_ITEM_COST } from "@/runtime";
+import { PINNED_NATIVE_BALANCE_ITEM_COST } from "./runtime";
 import { loadSwapAppUrl } from "./swap-config.ts";
 import { loadExplorerUrl } from "./explorer-config.ts";
 
@@ -9,7 +9,6 @@ const HASH = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
 export interface AppConfig {
   rpcUrl: URL;
-  registryEnabled: boolean;
   swapAppUrl?: string | null;
   explorerUrl?: string | null;
   networkIdHex: string;
@@ -24,7 +23,6 @@ export function publicConfigKey(config: AppConfig): string {
   return JSON.stringify([
     config.rpcUrl.href,
     config.networkIdHex,
-    config.registryEnabled,
     toHex0x(config.accountAddress),
     toHex0x(config.factoryAddress),
     toHex0x(config.nativeHogAddress),
@@ -36,6 +34,14 @@ export function publicConfigKey(config: AppConfig): string {
 }
 
 export type Environment = Record<string, string | boolean | undefined>;
+
+export async function loadRuntimeConfig(): Promise<AppConfig> {
+  const response = await fetch("/api/config", { cache: "no-store" });
+  if (!response.ok) throw new Error("Application configuration is unavailable. Try again.");
+  const value: unknown = await response.json();
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid application configuration");
+  return loadConfig({ ...value, VITE_GROUNDHOG_RPC_URL: new URL("/groundhog-rpc", window.location.origin).href });
+}
 
 export class ConfigurationError extends Error {
   constructor(message: string) {
@@ -76,7 +82,6 @@ export function loadConfig(environment: Environment): AppConfig {
   }
   return {
     rpcUrl,
-    registryEnabled: true,
     swapAppUrl: loadSwapAppUrl(environment.VITE_SWAP_APP_URL),
     explorerUrl: loadExplorerUrl(environment.VITE_EXPLORER_URL),
     networkIdHex: network.replace(/^0x/, "").toLowerCase(),

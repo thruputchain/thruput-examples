@@ -55,7 +55,6 @@ export function useTokenPreview(
   const key = JSON.stringify([
     config.networkIdHex,
     config.rpcUrl.href,
-    config.registryEnabled,
     toHex0x(config.accountAddress),
     address,
     attempt,

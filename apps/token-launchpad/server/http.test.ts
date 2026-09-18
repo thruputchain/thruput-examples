@@ -26,7 +26,6 @@ import {
   isJsonRpcRequest,
   parseTokenQuery,
 } from "./http.ts";
-import { PUBLIC_CONFIG_MANIFEST_FILENAME } from "./public-config-manifest.ts";
 import { RegistryStore } from "./store.ts";
 
 const scope: RegistryScope = {
@@ -240,10 +239,6 @@ describe("production HTTP serving", () => {
       "<main>launchpad</main>",
     );
     await writeFile(path.join(directory, "assets", "app.js"), "export {};");
-    await writeFile(
-      path.join(directory, PUBLIC_CONFIG_MANIFEST_FILENAME),
-      '{"public":"configuration"}',
-    );
     await writeFile(path.join(outsideDirectory, "secret.txt"), "secret");
     store = new RegistryStore(":memory:", scope);
     upstreamFetch = vi.fn<typeof fetch>().mockResolvedValue(
@@ -257,6 +252,7 @@ describe("production HTTP serving", () => {
       {
         staticDirectory: directory,
         rpcUrl: "http://rpc.example.test/fixed",
+        publicConfig: { VITE_GROUNDHOG_NETWORK_ID: "11".repeat(32) },
         fetch: upstreamFetch,
       },
     );
@@ -320,17 +316,16 @@ describe("production HTTP serving", () => {
     expect(await response.text()).toBe("");
   });
 
-  it("serves the public build manifest without cacheable or relaxed responses", async () => {
+  it("serves runtime public configuration without exposing the upstream", async () => {
     const response = await fetch(
-      `${origin}/${PUBLIC_CONFIG_MANIFEST_FILENAME}`,
+      `${origin}/api/config`,
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(
       "application/json; charset=utf-8",
     );
-    expect(response.headers.get("cache-control")).toBe(
-      "no-cache, no-store, must-revalidate",
-    );
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(await response.json()).toEqual({ VITE_GROUNDHOG_NETWORK_ID: "11".repeat(32) });
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
