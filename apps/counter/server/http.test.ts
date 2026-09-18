@@ -9,6 +9,7 @@ import {
   defaultWalletAdapter,
   deserializeSignedTransaction,
   fromHex0x,
+  hashFromHex,
   hashSignedTransaction,
   PrivateKeySigner,
   serializeSignedTransaction,
@@ -27,7 +28,6 @@ import {
   gasAmount,
   HOG_ADDRESS,
   networkHash,
-  sha256Hash,
   type Invocation,
 } from "@groundhogchain/protocol";
 import { Counter, spec } from "../src/contracts/generated/counter";
@@ -46,9 +46,7 @@ const config = loadServerConfig(environment);
 const account = createPubkeyAccount({
   signer: new PrivateKeySigner(fromHex0x(`0x${key}`)),
 });
-const expectedNetwork = networkHash(
-  sha256Hash(fromHex0x(config.app.networkId)),
-);
+const expectedNetwork = networkHash(hashFromHex(config.app.networkId));
 const contract = addressFromHex(config.app.counterAddress);
 const gas = gasAmount(1_000_000n);
 const wrap = (invocation: Invocation) =>
