@@ -219,25 +219,28 @@ describe("advanceWorkflow", () => {
       );
       const writer = { execute: vi.fn(), observe: vi.fn() };
       const methods: string[] = [];
+      let initialized = false;
       const fetch = vi
         .spyOn(globalThis, "fetch")
         .mockImplementation(async (_url, init) => {
           const request = JSON.parse(init!.body as string);
           methods.push(request.method);
-          if (failure === "unavailable") throw new Error("offline");
+          if (initialized && failure === "unavailable") throw new Error("offline");
           return new Response(
             JSON.stringify({
               jsonrpc: "2.0",
               id: request.id,
               result: {
                 networkHash:
-                  failure === "mismatch" ? `0x${"99".repeat(32)}` : "broken",
+                  !initialized ? `0x${config.networkIdHex}` : failure === "mismatch" ? `0x${"99".repeat(32)}` : "broken",
               },
             }),
           );
         });
       try {
-        const client = createReadClient(config);
+        const client = await createReadClient(config);
+        initialized = true;
+        methods.length = 0;
         for (const status of ["idle", "signing", "uncertain"] as const) {
           const saved = {
             ...workflow,

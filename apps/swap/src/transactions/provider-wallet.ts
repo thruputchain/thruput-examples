@@ -1,4 +1,4 @@
-import { toHex0x, type GroundhogClient } from "@groundhogchain/client";
+import { toHex0x, type CoreGroundhogClient } from "@groundhogchain/client";
 import type { ProviderWalletClient } from "@groundhogchain/client/wallet";
 import { gasAmount, type Invocation } from "@groundhogchain/protocol";
 import type { GlobalConfig } from "@/config";
@@ -16,7 +16,7 @@ const WALLET_OVERHEAD_GAS = 5_000_000n;
 
 export function createProviderWriteBoundary(
   config: GlobalConfig,
-  client: GroundhogClient,
+  client: CoreGroundhogClient,
   wallet?: ProviderWalletClient,
   options: {
     maxPolls?: number;

@@ -1,6 +1,7 @@
 import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
 import { useState } from "react";
+import { useClient } from "@groundhogchain/react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AllowanceCleanupCard } from "@/components/allowance-cleanup-card";
@@ -75,11 +76,12 @@ export function LiquidityPage({
   config: AppConfig;
   dependencies?: LiquidityPageDependencies;
 }) {
-  const [reader] = useState(() => dependencies.readSnapshot ?? createSnapshotReader(config));
+  const client = useClient();
+  const [reader] = useState(() => dependencies.readSnapshot ?? createSnapshotReader(config, client));
   const connectedWriter = useWalletWriteBoundary();
   const writer = dependencies.writer ?? connectedWriter;
   const [observer] = useState(() =>
-    dependencies.observer ?? createLiquidityObserver(config)
+    dependencies.observer ?? createLiquidityObserver(config, client)
   );
   const snapshotState = usePoolSnapshot(reader);
   const [initialState] = useState(() => readLiquidityState(config));

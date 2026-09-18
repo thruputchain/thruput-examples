@@ -1,4 +1,4 @@
-import { bytesEqual, type GroundhogClient } from "@groundhogchain/client";
+import { bytesEqual, type CoreGroundhogClient } from "@groundhogchain/client";
 import type { ProviderWalletClient } from "@groundhogchain/client/wallet";
 import { gasAmount, type Invocation } from "@groundhogchain/protocol";
 import type { AppConfig } from "@/config";
@@ -12,28 +12,20 @@ import { walletFailure } from "./wallet-error";
 
 export function createProviderWriteBoundary(
   config: AppConfig,
-  client: GroundhogClient,
+  client: CoreGroundhogClient,
   wallet?: ProviderWalletClient,
-  onConnectionLost?: () => void,
-): WriteBoundary & { dispose(): void } {
+): WriteBoundary {
   const observe = createTransactionObserver(config, client);
   const observeBatch = createTransactionObserver(config, client, {
     preserveWalletReturns: true,
   });
   return {
-    dispose: () => wallet?.dispose(),
     observe,
     observeBatch,
     async supportsBatch(count) {
       if (!wallet) return false;
-      try {
-        const capabilities = await wallet.getCapabilities();
-        return (capabilities.atomicBatch?.maxCalls ?? 0) >= count;
-      } catch (error) {
-        if (walletFailure(error).reason === "connectionLost")
-          onConnectionLost?.();
-        throw error;
-      }
+      const capabilities = await wallet.getCapabilities();
+      return (capabilities.atomicBatch?.maxCalls ?? 0) >= count;
     },
     execute: (target, observer) => executeTargets([target], observer, false),
     executeBatch: (targets, observer) =>
@@ -91,7 +83,6 @@ export function createProviderWriteBoundary(
       await observer.onSigned(signed.hash);
     } catch (error) {
       const failure = walletFailure(error);
-      if (failure.reason === "connectionLost") onConnectionLost?.();
       return {
         kind: "preSubmissionFailure",
         hash: null,
@@ -105,9 +96,7 @@ export function createProviderWriteBoundary(
     }
     try {
       await wallet.submitTransaction(signed);
-    } catch (error) {
-      if (walletFailure(error).reason === "connectionLost")
-        onConnectionLost?.();
+    } catch {
       const result = await observeTransaction(signed.hash);
       return result.kind === "indeterminate" && result.reason === "timeout"
         ? { ...result, reason: "disconnect" }

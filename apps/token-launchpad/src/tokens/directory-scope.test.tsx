@@ -19,7 +19,6 @@ it("starts My Tokens on page one without the All Tokens snapshot", async () => {
   }));
   const options = {
     config,
-    client: {} as never,
     readOnly: true,
     registryRead: read,
     registrySync: () => new Promise<RegistryStatus>(() => {}),

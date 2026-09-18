@@ -19,10 +19,10 @@ import {
 import { unavailableWriteBoundary } from "@/transactions/write-boundary";
 import { allowanceCleanupKey, loadAllowanceCleanup } from "@/transactions/allowance-cleanup";
 import { PoolCreatePage } from "./pool-create-page";
-import { createNetworkReadClient, NetworkMismatchError } from "@/groundhog/client";
+import { createNetworkReadClient, verifyReadNetwork, NetworkMismatchError } from "@/groundhog/client";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 
-vi.mock("@/groundhog/client", async (original) => ({ ...await original<object>(), createNetworkReadClient: vi.fn() }));
+vi.mock("@/groundhog/client", async (original) => ({ ...await original<object>(), createNetworkReadClient: vi.fn(), verifyReadNetwork: vi.fn() }));
 vi.mock("@/contracts/erc20-adapter", () => ({ createErc20ReadAdapter: vi.fn() }));
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
@@ -40,6 +40,7 @@ describe("PoolCreatePage", () => {
   beforeEach(() => {
     window.localStorage.clear();
     config.registryEnabled = false;
+    vi.mocked(verifyReadNetwork).mockReset().mockResolvedValue(undefined);
     vi.mocked(createNetworkReadClient).mockReset().mockResolvedValue({ getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) } as never);
     vi.mocked(createErc20ReadAdapter).mockReset().mockReturnValue({ metadata: vi.fn().mockResolvedValue({ name: { value: "Live token" }, symbol: { value: "LIVE" }, decimals: { value: 6 } }) } as never);
   });
@@ -476,7 +477,8 @@ describe("PoolCreatePage", () => {
     expect(screen.getAllByLabelText("Contract address").map((el) => (el as HTMLInputElement).value)).toEqual([hex(2), hex(1)]);
     expect(screen.getAllByLabelText("Initial amount").every((el) => (el as HTMLInputElement).value === "")).toBe(true);
     await waitFor(() => expect(screen.getAllByText("Live name: Live token")).toHaveLength(2));
-    expect(createNetworkReadClient).toHaveBeenCalledTimes(2);
+    expect(verifyReadNetwork).toHaveBeenCalledTimes(2);
+    expect(createNetworkReadClient).not.toHaveBeenCalled();
     expect(prepare).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
@@ -489,7 +491,7 @@ describe("PoolCreatePage", () => {
     renderPage({}, `?tokenA=bad&tokenB=${hex(2)}`);
     expect(screen.getByText(/tokenA preset was ignored/)).toBeVisible();
     expect(screen.getAllByLabelText("Contract address")[0]).toHaveValue("");
-    await waitFor(() => expect(createNetworkReadClient).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(verifyReadNetwork).toHaveBeenCalledTimes(1));
   });
 
   it("gives recovery priority and starts empty after reset, without replaying URL tokens", async () => {
@@ -532,13 +534,13 @@ describe("PoolCreatePage", () => {
   it("does not reapply link presets when the query changes on the same mount", async () => {
     const user = userEvent.setup();
     renderPage({}, `?tokenA=${hex(1)}`);
-    await waitFor(() => expect(createNetworkReadClient).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(verifyReadNetwork).toHaveBeenCalledTimes(1));
     fireEvent.change(screen.getAllByLabelText("Contract address")[0]!, { target: { value: "0x" } });
     await user.click(screen.getByRole("link", { name: "Change test query" }));
     expect(screen.getByTestId("search")).toHaveTextContent(`?tokenB=${hex(4)}`);
     expect(screen.getAllByLabelText("Contract address")[0]).toHaveValue("0x");
     expect(screen.getAllByLabelText("Contract address")[1]).toHaveValue("");
-    expect(createNetworkReadClient).toHaveBeenCalledTimes(1);
+    expect(verifyReadNetwork).toHaveBeenCalledTimes(1);
   });
 
   it("invalidates a completed review on amount edits and a pending review on late failure", async () => {
@@ -558,7 +560,7 @@ describe("PoolCreatePage", () => {
 
   it("blocks mismatched-network review until retry and permits fresh review after transient preview failure", async () => {
     const user = userEvent.setup();
-    vi.mocked(createNetworkReadClient).mockRejectedValueOnce(new NetworkMismatchError()).mockRejectedValueOnce(new Error("offline"));
+    vi.mocked(verifyReadNetwork).mockRejectedValueOnce(new NetworkMismatchError()).mockRejectedValueOnce(new Error("offline"));
     const prepare = vi.fn().mockResolvedValue(review());
     renderPage({ prepare }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
     await screen.findByText(/RPC network mismatch/);
@@ -584,9 +586,7 @@ describe("PoolCreatePage", () => {
     );
     const page = render(tree(config));
     await user.click(screen.getByRole("button", { name: "Review pool" }));
-    const oldSignals = vi.mocked(createNetworkReadClient).mock.calls.map(([, signal]) => signal);
     page.rerender(tree({ ...config, accountAddress: address(10) }));
-    expect(oldSignals.every((signal) => signal?.aborted)).toBe(true);
     await act(async () => resolve(review()));
     expect(screen.queryByRole("button", { name: "Create pool" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Review pool" })).toBeEnabled();

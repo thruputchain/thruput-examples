@@ -1,6 +1,6 @@
 import { toHex0x } from "@groundhogchain/client";
 import { contractAddress } from "@groundhogchain/protocol";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

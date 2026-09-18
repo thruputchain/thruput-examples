@@ -122,7 +122,7 @@ try {
       json: {
         jsonrpc: "2.0",
         id: request.id,
-        result: { networkHash: hex("ff") },
+        result: { networkHash: checkingCreation ? hex("ff") : `0x${scope.networkId}` },
       },
     });
   });

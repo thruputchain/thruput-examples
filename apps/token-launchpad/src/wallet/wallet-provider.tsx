@@ -1,18 +1,23 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { addressFromHex } from "@groundhogchain/client";
+import { useMemo, useState, type ReactNode } from "react";
+import { addressFromHex, toHex0x } from "@groundhogchain/client";
 import {
-  discoverWalletProviders,
-  parseWalletSession,
-  type WalletProvider as Provider,
-  type WalletSession,
-} from "@groundhogchain/client/provider";
-import { createProviderWalletClient } from "@groundhogchain/client/wallet";
+  WalletProvider as GroundhogWalletProvider,
+  useClient,
+  useWallet,
+  useWalletClient,
+} from "@groundhogchain/react";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
+import { AppHeader } from "@/components/app-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { publicConfigKey, type AppConfig } from "@/config";
 import { createReadClient } from "@/groundhog/client";
 import { createProviderWriteBoundary } from "@/transactions/provider-wallet";
-import { userErrorMessage } from "@/errors";
 import { WalletWriteContext } from "./write-context";
-import { WalletContext } from "./use-wallet";
 
 interface WalletProviderProps {
   config: AppConfig;
@@ -24,213 +29,82 @@ interface WalletProviderProps {
 }
 
 export function WalletProvider(props: WalletProviderProps) {
-  return <WalletRuntime key={publicConfigKey(props.config)} {...props} />;
+  return <AppQueries key={publicConfigKey(props.config)} {...props} />;
 }
 
-function WalletRuntime({
-  config: initialConfig,
-  children,
-}: WalletProviderProps) {
-  const [base] = useState(initialConfig);
-  const [client] = useState(() => createReadClient(base));
-  const [readOnlyWriter] = useState(() =>
-    createProviderWriteBoundary(base, client),
-  );
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [provider, setProvider] = useState<Provider | null>(null);
-  const [session, setSession] = useState<WalletSession | null>(null);
-  const [binding, setBinding] = useState<{
-    config: AppConfig;
-    writer: ReturnType<typeof createProviderWriteBoundary>;
-    address: string;
-  } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const active = useRef<ReturnType<typeof createProviderWriteBoundary> | null>(
-    null,
-  );
-  const revision = useRef(0);
-  const accepting = useRef(false);
-  const selectedAddress = useRef<string | undefined>(undefined);
-  const lastConfig = useRef(base);
-
-  function invalidate() {
-    revision.current++;
-    active.current?.dispose();
-    active.current = null;
-    setBinding(null);
-  }
-  function activate(
-    value: unknown,
-    source: Provider,
-    address = selectedAddress.current,
-  ) {
-    invalidate();
-    const next = parseWalletSession(value);
-    setSession(next);
-    if (next.networkHash !== base.networkIdHex)
-      throw new Error("Switch your wallet to the configured launchpad network");
-    const account =
-      next.accounts.find((a) => a.address === address) ?? next.accounts[0];
-    if (!account) return;
-    const config =
-      selectedAddress.current === account.address
-        ? lastConfig.current
-        : { ...base, accountAddress: addressFromHex(account.address) };
-    const wallet = createProviderWalletClient({
-      client,
-      provider: source,
-      account,
-      networkHash: next.networkHash,
-    });
-    const writer = createProviderWriteBoundary(config, client, wallet, () => {
-      // An old request must not disconnect a newer wallet binding.
-      if (active.current !== writer) return;
-      invalidate();
-      setSession(null);
-      setBusy(false);
-    });
-    lastConfig.current = config;
-    selectedAddress.current = account.address;
-    active.current = writer;
-    setBinding({
-      config,
-      writer,
-      address: account.address,
-    });
-  }
-  useEffect(
-    () =>
-      discoverWalletProviders((entry) => {
-        setProviders((current) =>
-          current.some((p) => p.info.id === entry.info.id)
-            ? current
-            : [...current, entry],
-        );
-        setProvider((current) => current ?? entry);
-      }),
-    [],
-  );
-  useEffect(() => {
-    if (!provider) return;
-    try {
-      const unsubscribe = provider.on("change", (value) => {
-        if (!accepting.current) return;
-        invalidate();
-        setSession(null);
-        setBusy(false);
-        setError(null);
-        const changed = revision.current;
-        queueMicrotask(() => {
-          if (revision.current !== changed) return;
-          try {
-            activate(value, provider);
-          } catch (error) {
-            setError(userErrorMessage(error, "Wallet session is invalid"));
-          }
-        });
-      });
-      if (typeof unsubscribe !== "function")
-        throw new Error("Wallet subscription is unavailable");
-      return unsubscribe;
-    } catch (error) {
-      invalidate();
-      setBusy(false);
-      setError(userErrorMessage(error, "Wallet subscription failed"));
-    }
-  }, [provider]);
-  useEffect(
-    () => () => {
-      accepting.current = false;
-      revision.current++;
-      active.current?.dispose();
-    },
-    [],
-  );
-
-  async function connect() {
-    if (!provider || busy) return;
-    accepting.current = true;
-    setBusy(true);
-    setError(null);
-    const started = revision.current;
-    try {
-      const value = await provider.request({ method: "connect" });
-      if (started === revision.current) {
-        setBusy(false);
-        try {
-          activate(value, provider);
-        } catch (error) {
-          setError(userErrorMessage(error, "Wallet session is invalid"));
-        }
-      }
-    } catch (error) {
-      if (started === revision.current) {
-        setBusy(false);
-        if (
-          error instanceof Error &&
-          "code" in error &&
-          error.code === 4001 &&
-          error.message === "Page closed"
-        )
-          return;
-        setError(userErrorMessage(error, "Wallet connection failed"));
-      }
-    }
-  }
-  async function disconnect() {
-    accepting.current = false;
-    invalidate();
-    setSession(null);
-    setError(null);
-    setBusy(true);
-    try {
-      await provider?.request({ method: "disconnect" });
-    } catch {
-      setError(
-        "Disconnected locally. The wallet could not confirm permission revocation.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
+function AppQueries(props: WalletProviderProps) {
+  const [queries] = useState(() => new QueryClient());
+  const [config] = useState(props.config);
   return (
-    <WalletWriteContext value={binding?.writer ?? readOnlyWriter}>
-      <WalletContext
-        value={{
-          providers,
-          provider,
-          session,
-          address: binding?.address ?? null,
-          busy,
-          error,
-          connect,
-          disconnect,
-          selectProvider(id) {
-            accepting.current = false;
-            invalidate();
-            setSession(null);
-            setError(null);
-            selectedAddress.current = undefined;
-            setProvider(providers.find((p) => p.info.id === id) ?? null);
-          },
-          selectAccount(address) {
-            if (provider && session) {
-              try {
-                activate(session, provider, address);
-              } catch (error) {
-                setError(userErrorMessage(error, "Account selection failed"));
-              }
-            }
-          },
-        }}
-      >
-        {children(
-          binding?.config ?? lastConfig.current,
-          !!binding,
-          lastConfig.current !== base,
-        )}
-      </WalletContext>
+    <QueryClientProvider client={queries}>
+      <ConnectClient {...props} config={config} />
+    </QueryClientProvider>
+  );
+}
+
+function ConnectClient(props: WalletProviderProps) {
+  const client = useQuery({
+    queryKey: ["public-client"],
+    queryFn: () => createReadClient(props.config),
+    staleTime: Infinity,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+  if (!client.data)
+    return (
+      <>
+        <AppHeader product="Token Launchpad" />
+        <main className="mx-auto max-w-5xl p-6">
+          {client.isError ? (
+            <Alert variant="destructive">
+              <AlertTitle>Could not connect to Groundhog</AlertTitle>
+              <AlertDescription>
+                <p>{client.error.message}</p>
+                <Button
+                  variant="outline"
+                  disabled={client.isFetching}
+                  onClick={() => void client.refetch()}
+                >
+                  Try again
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <p role="status">Connecting to Groundhog…</p>
+          )}
+        </main>
+      </>
+    );
+  return (
+    <GroundhogWalletProvider client={client.data}>
+      <WalletRuntime {...props} />
+    </GroundhogWalletProvider>
+  );
+}
+
+function WalletRuntime({ config: base, children }: WalletProviderProps) {
+  const client = useClient();
+  const wallet = useWallet();
+  const signingClient = useWalletClient();
+  const connected = wallet.status === "connected";
+  // Workflow identity survives disconnect; authorization always comes from the library.
+  const [config, setConfig] = useState(base);
+  if (
+    connected &&
+    wallet.address &&
+    toHex0x(config.accountAddress) !== wallet.address
+  ) {
+    setConfig({ ...base, accountAddress: addressFromHex(wallet.address) });
+  }
+  const writer = useMemo(
+    () =>
+      createProviderWriteBoundary(config, client, signingClient ?? undefined),
+    [config, client, signingClient],
+  );
+  return (
+    <WalletWriteContext value={writer}>
+      {children(config, connected, config !== base)}
     </WalletWriteContext>
   );
 }

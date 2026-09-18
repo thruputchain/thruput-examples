@@ -5,7 +5,7 @@ import {
   type FactoryReview,
 } from "@/contracts/launchpad-client";
 import { userErrorMessage } from "@/errors";
-import type { createReadClient } from "@/groundhog/client";
+import type { CoreGroundhogClient } from "@groundhogchain/client";
 import { requestRegistrySync } from "@/registry/client";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 import { runWorkflow } from "./executor";
@@ -32,7 +32,8 @@ const initialDraft: TokenDraft = {
 
 export interface LaunchOptions {
   config: AppConfig;
-  client: ReturnType<typeof createReadClient>;
+  client: CoreGroundhogClient;
+  onCommitted?: () => void;
   writer: WriteBoundary;
   requestSync?: typeof requestRegistrySync;
   writesSupported?: boolean;
@@ -46,6 +47,7 @@ export function useLaunch({
   requestSync = requestRegistrySync,
   writesSupported = true,
   connected = true,
+  onCommitted,
 }: LaunchOptions) {
   const storageKey = workflowStorageKey(config);
   const [initial] = useState(() => {
@@ -181,8 +183,10 @@ export function useLaunch({
       if (
         workflow.creation.status !== "committed" &&
         next.creation.status === "committed"
-      )
+      ) {
+        onCommitted?.();
         void requestSync(config).catch(() => undefined);
+      }
     } catch (reason) {
       if (attempt === generation.current)
         setError(userErrorMessage(reason, "The launch could not continue."));

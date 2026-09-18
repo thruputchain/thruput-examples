@@ -129,13 +129,6 @@ function TokenDirectory(props: DirectoryOptions) {
               </p>
               {loading ? <span>Updating...</span> : null}
             </div>
-            <div role="status" className="sr-only">
-              {props.readOnly
-                ? "Public token metadata loaded"
-                : tokens.some((token) => token.balanceLoading)
-                  ? "Loading current token balances"
-                  : "Current token balances loaded"}
-            </div>
             <TokenCards tokens={tokens} connected={!props.readOnly} />
             <div className="flex justify-end gap-2">
               <Button
@@ -192,15 +185,6 @@ function TokenDirectory(props: DirectoryOptions) {
             <AlertDescription>
               The registry started after some factory events had left retained
               history, so these results are incomplete.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {!props.readOnly && tokens.some((token) => token.readError) ? (
-          <Alert>
-            <AlertTitle>Some current balances are unavailable</AlertTitle>
-            <AlertDescription>
-              Registry metadata is shown where live token balance views could
-              not be read.
             </AlertDescription>
           </Alert>
         ) : null}

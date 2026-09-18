@@ -1,10 +1,19 @@
 import { LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useWallet } from "./use-wallet";
+import { useWallet } from "@groundhogchain/react";
+import { WalletProviderError } from "@groundhogchain/client/provider";
 
 export function WalletControls() {
   const wallet = useWallet();
-  if (!wallet) return null;
+  const busy =
+    wallet.status === "connecting" || wallet.status === "disconnecting";
+  const address = wallet.status === "connected" ? wallet.address : null;
+  const error =
+    wallet.error instanceof WalletProviderError &&
+    wallet.error.code === 4001 &&
+    wallet.error.message === "Page closed"
+      ? null
+      : wallet.error;
   const selectClass =
     "max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm";
   return (
@@ -12,13 +21,13 @@ export function WalletControls() {
       aria-label="Wallet connection"
       className="flex min-w-0 flex-wrap items-center gap-2"
     >
-      {!wallet.address && wallet.providers.length > 1 ? (
+      {!address && wallet.providers.length > 1 ? (
         <label className="flex items-center gap-2">
           Wallet
           <select
             className={selectClass}
             aria-label="Wallet provider"
-            disabled={wallet.busy}
+            disabled={busy}
             value={wallet.provider?.info.id ?? ""}
             onChange={(event) => wallet.selectProvider(event.target.value)}
           >
@@ -30,23 +39,23 @@ export function WalletControls() {
           </select>
         </label>
       ) : null}
-      {wallet.address ? (
+      {address ? (
         <Button
           aria-label="Disconnect"
-          title={`Disconnect ${wallet.address}`}
-          disabled={wallet.busy}
+          title={`Disconnect ${address}`}
+          disabled={busy}
           onClick={() => void wallet.disconnect()}
         >
-          {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+          {address.slice(0, 6)}...{address.slice(-4)}
           <LogOutIcon aria-hidden="true" data-icon="inline-end" />
         </Button>
       ) : (
         <>
           <Button
-            disabled={!wallet.provider || wallet.busy}
+            disabled={!wallet.provider || busy}
             onClick={() => void wallet.connect()}
           >
-            {wallet.busy
+            {busy
               ? "Connecting..."
               : wallet.provider
                 ? `Connect ${wallet.provider.info.name}`
@@ -54,9 +63,9 @@ export function WalletControls() {
           </Button>
         </>
       )}
-      {wallet.error ? (
+      {error ? (
         <p role="alert" className="text-sm text-destructive">
-          {wallet.error}
+          {error.message}
         </p>
       ) : null}
     </section>

@@ -1,5 +1,5 @@
 import { contractAddress } from "@groundhogchain/protocol";
-import { render, screen } from "@testing-library/react";
+import { render, screen } from "@/test/render";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

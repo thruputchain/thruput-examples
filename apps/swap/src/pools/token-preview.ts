@@ -1,4 +1,8 @@
-import { addressFromHex, toHex0x } from "@groundhogchain/client";
+import {
+  addressFromHex,
+  toHex0x,
+  type CoreGroundhogClient,
+} from "@groundhogchain/client";
 import { useEffect, useState } from "react";
 
 import type { GlobalConfig } from "@/config";
@@ -17,8 +21,10 @@ export async function readTokenPreview(
   config: GlobalConfig,
   address: string,
   signal: AbortSignal,
+  suppliedClient?: Pick<CoreGroundhogClient, "view" | "getNetworkInfo">,
 ): Promise<TokenMetadata> {
-  const client = await createNetworkReadClient(config, signal);
+  const client =
+    suppliedClient ?? (await createNetworkReadClient(config, signal));
   await verifyReadNetwork(client, config);
   signal.throwIfAborted();
   const metadata = await createErc20ReadAdapter({
@@ -39,7 +45,11 @@ type Preview =
   | { status: "ready"; metadata: TokenMetadata }
   | { status: "unavailable"; networkMismatch: boolean };
 
-export function useTokenPreview(config: GlobalConfig, value: string) {
+export function useTokenPreview(
+  config: GlobalConfig,
+  value: string,
+  client?: CoreGroundhogClient,
+) {
   const address = tokenAddress(value);
   const [attempt, setAttempt] = useState(0);
   const key = JSON.stringify([
@@ -59,7 +69,7 @@ export function useTokenPreview(config: GlobalConfig, value: string) {
     if (address === null) return;
     const controller = new AbortController();
     let current = true;
-    void readTokenPreview(config, address, controller.signal).then(
+    void readTokenPreview(config, address, controller.signal, client).then(
       (metadata) => {
         if (current) setResult({ key, preview: { status: "ready", metadata } });
       },
@@ -79,7 +89,7 @@ export function useTokenPreview(config: GlobalConfig, value: string) {
       controller.abort();
     };
     // The key includes every configuration value used by this read, not object identity.
-  }, [key]);
+  }, [key, client]);
   return {
     preview:
       address === null

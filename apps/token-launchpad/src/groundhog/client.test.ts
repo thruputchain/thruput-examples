@@ -29,10 +29,10 @@ describe("network-bound read client", () => {
           );
         });
       try {
-        const client = createReadClient(config);
-        await expect(client.getEvents({ filters: [] })).rejects.toThrow();
+        await expect(createReadClient(config)).rejects.toThrow();
         expect(methods).toEqual(["groundhog_networkInfo"]);
         response = { networkHash: `0x${config.networkIdHex}` };
+        const client = await createReadClient(config);
         await expect(client.getNetworkInfo()).resolves.toHaveProperty(
           "networkHash",
         );

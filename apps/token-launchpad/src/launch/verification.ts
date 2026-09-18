@@ -1,4 +1,4 @@
-import { bytesEqual, type GroundhogClient } from "@groundhogchain/client";
+import { bytesEqual, type CoreGroundhogClient } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 import {
@@ -18,7 +18,7 @@ export interface TokenStateSnapshot {
 }
 
 export async function readAndAssessTokenState(input: {
-  client: GroundhogClient;
+  client: CoreGroundhogClient;
   token: ContractAddress;
   caller: ContractAddress;
   workflow: LaunchWorkflow;

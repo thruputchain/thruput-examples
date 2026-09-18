@@ -7,6 +7,33 @@ on:
     branches: [main]
 
 jobs:
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          registry-url: https://npm.pkg.github.com
+          scope: '@groundhogchain'
+          cache: npm
+      - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || github.token }}
+      - run: npm run typecheck
+      - run: npm test
+      # Bundle without deployment-specific contract artifacts or generated config.
+      - run: npm run build --workspaces -- --mode test
+      - run: npx --no-install playwright-core install --with-deps chromium
+      - name: Browser acceptance
+        run: |
+          export CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')"
+          npm run test:browser
+
   build-and-test:
     strategy:
       matrix:

@@ -23,13 +23,12 @@ import { ReviewCard } from "./review-card";
 import { LaunchSuccessActions } from "./launch-success-actions";
 import { createAmmPoolLink } from "./swap-link";
 import { useLaunch, type LaunchOptions } from "./use-launch";
-import { useWallet } from "@/wallet/use-wallet";
+import { useWallet } from "@groundhogchain/react";
 
 export function CreatePage(props: LaunchOptions) {
   const launch = useLaunch(props);
   const writesSupported = props.writesSupported ?? true;
   const connected = props.connected ?? true;
-  const wallet = useWallet();
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="mb-8 max-w-2xl">
@@ -47,12 +46,7 @@ export function CreatePage(props: LaunchOptions) {
               Your token details and launch progress are saved. Reconnect the
               same wallet to continue.
             </p>
-            <Button
-              onClick={() => wallet?.connect()}
-              disabled={!wallet?.provider || wallet.busy}
-            >
-              {wallet?.busy ? "Connecting..." : "Reconnect wallet"}
-            </Button>
+            <ReconnectWallet />
           </AlertDescription>
         </Alert>
       ) : null}
@@ -98,7 +92,10 @@ export function CreatePage(props: LaunchOptions) {
           className="mb-6 sm:flex-row sm:flex-wrap"
           onReset={launch.reset}
           disabled={launch.loading || !writesSupported || !connected}
-          ammPoolLink={createAmmPoolLink(props.config.swapAppUrl, launch.workflow)}
+          ammPoolLink={createAmmPoolLink(
+            props.config.swapAppUrl,
+            launch.workflow,
+          )}
         />
       ) : null}
       <div className="grid items-start gap-6 lg:grid-cols-[23fr_17fr]">
@@ -215,5 +212,19 @@ export function CreatePage(props: LaunchOptions) {
         />
       </Field>
     </main>
+  );
+}
+
+function ReconnectWallet() {
+  const wallet = useWallet();
+  const busy =
+    wallet.status === "connecting" || wallet.status === "disconnecting";
+  return (
+    <Button
+      onClick={() => void wallet.connect()}
+      disabled={!wallet.provider || busy}
+    >
+      {busy ? "Connecting..." : "Reconnect wallet"}
+    </Button>
   );
 }

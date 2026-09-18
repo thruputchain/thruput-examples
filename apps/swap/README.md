@@ -235,3 +235,16 @@ Root `npm test` also runs shared seed and process-cleanup regressions.
 `npm run test:browser` checks fixture-based browser interactions. Live
 `npm run test:wallet` and `npm run test:seed` use a fresh node. Their prerequisites,
 platform requirements, and coverage are in [Application checks](../../README.md#application-checks).
+## React integration
+
+`src/wallet/wallet-provider.tsx` composes the published `@groundhogchain/react`
+provider with a stable, network-validated public client and retryable startup UI.
+The app supplies its write boundary through `useWalletClient()` and resets
+account-scoped route forms when that signing binding changes. Wallet discovery,
+session invalidation, and client disposal belong to the library.
+
+Pool pages and token previews reuse `useClient()` for public reads. Pool balances,
+allowances, reserves, and creation reviews remain grouped application reads with
+same-height checks; independent balance hooks would not preserve that guarantee.
+Gas policy, artifact loading, persistence before broadcast, queue processing,
+and transaction recovery remain application-owned.

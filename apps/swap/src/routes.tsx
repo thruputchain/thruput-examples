@@ -1,6 +1,7 @@
 import { AlertCircleIcon } from "lucide-react";
 import { toHex0x } from "@groundhogchain/client";
 import { useEffect, useState } from "react";
+import { useClient } from "@groundhogchain/react";
 import {
   Link,
   Navigate,
@@ -161,6 +162,7 @@ function PoolRoute({
   view: "detail" | "swap" | "liquidity";
   readOnly?: boolean;
 }) {
+  const client = useClient();
   const params = useParams();
   const location = useLocation();
   const parsed = parsePoolRoute(params.token0, params.token1);
@@ -176,7 +178,7 @@ function PoolRoute({
     const key = poolRequestKey(config, parsed.token0Hex, parsed.token1Hex);
     let active = true;
     setState({ kind: "loading" });
-    void resolvePoolConfig(config, parsed.token0, parsed.token1).then(
+    void resolvePoolConfig(config, parsed.token0, parsed.token1, undefined, client).then(
       (poolConfig) => {
         if (active) setState({ kind: "ready", key, config: poolConfig });
       },
@@ -198,7 +200,7 @@ function PoolRoute({
     return () => {
       active = false;
     };
-  }, [config, parsed.kind, params.token0, params.token1]);
+  }, [client, config, parsed.kind, params.token0, params.token1]);
 
   if (parsed.kind === "invalid") return <NotFoundPage readOnly={readOnly} />;
   if (parsed.kind === "redirect") {
@@ -357,13 +359,14 @@ export function ConfiguredApp({
   requestObserver?: RequestObserver | undefined;
   writeBoundary?: WriteBoundary | undefined;
 }) {
+  const client = useClient();
   const [reader] = useState<SnapshotReader>(
-    () => readSnapshot ?? createSnapshotReader(config),
+    () => readSnapshot ?? createSnapshotReader(config, client),
   );
   const connectedWriter = useWalletWriteBoundary();
   const writer = writeBoundary ?? connectedWriter;
   const [observer] = useState<RequestObserver>(
-    () => requestObserver ?? createRequestObserver(config),
+    () => requestObserver ?? createRequestObserver(config, client),
   );
   return (
     <SwapPage

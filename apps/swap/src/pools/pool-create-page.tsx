@@ -1,5 +1,6 @@
 import { AlertCircleIcon, CheckCircle2Icon, CircleIcon, LoaderCircleIcon } from "lucide-react";
-import { addressFromHex, toHex0x } from "@groundhogchain/client";
+import { addressFromHex, toHex0x, type CoreGroundhogClient } from "@groundhogchain/client";
+import { useClient } from "@groundhogchain/react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -36,7 +37,6 @@ import {
 import { resolvePoolConfig } from "@/pools/pool-context";
 import { poolPath } from "@/pools/pool-route";
 import { createSnapshotReader } from "@/swap/snapshot";
-import { createReadClient } from "@/groundhog/client";
 import { requestPoolRegistrySync } from "@/registry/client";
 import {
   confirmCreationStepWasNotSigned,
@@ -121,6 +121,7 @@ function CreationPage({
   config: GlobalConfig;
   dependencies?: PoolCreatePageDependencies;
 }) {
+  const client = useClient();
   const navigate = useNavigate();
   const location = useLocation();
   const [initialState] = useState(() => readCreationState(config));
@@ -156,10 +157,10 @@ function CreationPage({
   const manualProcessing = processingMode === "manual";
   const [error, setError] = useState<string | null>(initialState.error);
   const canPreview = workflow === null && initialState.error === null;
-  const previewA = useTokenPreview(config, canPreview ? input.tokenA : "");
+  const previewA = useTokenPreview(config, canPreview ? input.tokenA : "", client);
   const previewB = useTokenPreview(config,
     canPreview && tokenAddress(input.tokenB) !== tokenAddress(input.tokenA)
-      ? input.tokenB : "",
+      ? input.tokenB : "", client,
   );
   const networkMismatch = [previewA, previewB].some(({ preview }) =>
     preview?.status === "unavailable" && preview.networkMismatch
@@ -214,6 +215,7 @@ function CreationPage({
             loadAccountLiquidityOperations(config),
             nativeHogHex,
           ),
+        { client },
       );
       if (generation === revision.current) setReview(next);
     } catch (cause) {
@@ -257,7 +259,7 @@ function CreationPage({
             writeBoundary: writer,
             assertCurrent,
             readAllowance: dependencies.readFactoryAllowance
-              ?? (() => readFactoryAllowance(config)),
+              ?? (() => readFactoryAllowance(config, client)),
           },
         );
         if (cleanup.kind === "pending") {
@@ -336,6 +338,7 @@ function CreationPage({
           previousCreatePoolStatus = next.steps.createPool.status;
         };
         const result = await run(config, current, {
+          client,
           writeBoundary: writer,
           assertCurrent,
           automaticProcessing: processQueue || !manualProcessing,
@@ -356,8 +359,8 @@ function CreationPage({
           if (result.pool === null) throw new Error("The created pool is unavailable");
           const token0 = addressFromHex(result.token0.address);
           const token1 = addressFromHex(result.token1.address);
-          const poolConfig = await resolvePoolConfig(config, token0, token1);
-          const snapshot = await createSnapshotReader(poolConfig)();
+          const poolConfig = await resolvePoolConfig(config, token0, token1, undefined, client);
+          const snapshot = await createSnapshotReader(poolConfig, client)();
           if (
             snapshot.reserve0 <= 0n
             || snapshot.reserve1 <= 0n
@@ -1030,9 +1033,10 @@ function describeError(error: unknown): string {
 
 async function readFactoryAllowance(
   config: GlobalConfig,
+  client: CoreGroundhogClient,
 ): Promise<{ value: bigint; height: bigint }> {
   const token = createErc20ReadAdapter({
-    client: createReadClient(config),
+    client,
     contract: config.nativeHogAddress,
     caller: config.accountAddress,
   });

@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useClient, getClientQueryKey } from "@groundhogchain/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Navigate, NavLink, Route, Routes } from "react-router-dom";
 import { ExplorerProvider } from "@/components/blockchain-identifier";
 import { AppHeader } from "@/components/app-header";
@@ -11,7 +12,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import type { AppConfig } from "@/config";
-import { createReadClient } from "@/groundhog/client";
 import { CreatePage } from "@/launch/create-page";
 import { TokensPage } from "@/tokens/tokens-page";
 import { type WriteBoundary } from "@/transactions/write-boundary";
@@ -27,7 +27,8 @@ export function LaunchpadRoutes({
   readOnly?: boolean;
   hasWalletAccount?: boolean;
 }) {
-  const client = useMemo(() => createReadClient(config), [config]);
+  const client = useClient();
+  const queries = useQueryClient();
   const connectedWriter = useWalletWriteBoundary();
   const writer = suppliedWriter ?? connectedWriter;
   return (
@@ -46,6 +47,11 @@ export function LaunchpadRoutes({
                 client={client}
                 writer={writer}
                 connected={!readOnly}
+                onCommitted={() => {
+                  void queries.invalidateQueries({
+                    queryKey: getClientQueryKey(client),
+                  });
+                }}
               />
             )
           }
@@ -53,12 +59,7 @@ export function LaunchpadRoutes({
         <Route
           path="/tokens"
           element={
-            <TokensPage
-              config={config}
-              client={client}
-              scope="all"
-              readOnly={readOnly}
-            />
+            <TokensPage config={config} scope="all" readOnly={readOnly} />
           }
         />
         <Route
@@ -67,7 +68,7 @@ export function LaunchpadRoutes({
             readOnly ? (
               <ConnectPrompt />
             ) : (
-              <TokensPage config={config} client={client} scope="mine" />
+              <TokensPage config={config} scope="mine" />
             )
           }
         />
