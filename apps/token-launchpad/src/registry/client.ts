@@ -2,11 +2,23 @@ import { toHex0x } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
 import { MAX_SIGNED_AMOUNT } from "@/runtime";
-import { REGISTRY_SORTS as SORTS, REGISTRY_SYNC_STATES as SYNC_STATES,
-  type RegistrySort, type RegistrySyncState, type RegistryToken, type RegistryStatus,
-  type TokenQueryResult as RegistryTokenPage, type TokenQuery,
+import {
+  REGISTRY_SORTS as SORTS,
+  REGISTRY_SYNC_STATES as SYNC_STATES,
+  type RegistrySort,
+  type RegistrySyncState,
+  type RegistryToken,
+  type RegistryStatus,
+  type TokenQueryResult as RegistryTokenPage,
+  type TokenQuery,
 } from "../../shared/registry";
-export type { RegistrySort, RegistrySyncState, RegistryToken, RegistryStatus, RegistryTokenPage };
+export type {
+  RegistrySort,
+  RegistrySyncState,
+  RegistryToken,
+  RegistryStatus,
+  RegistryTokenPage,
+};
 export type RegistryTokenQuery = Omit<TokenQuery, "tokenAddress">;
 
 const ADDRESS = /^0x[0-9a-f]{64}$/;

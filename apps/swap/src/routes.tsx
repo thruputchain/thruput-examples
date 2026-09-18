@@ -1,6 +1,11 @@
 import { addressFromHex, toHex0x } from "@groundhogchain/client";
 import { useMemo, useState } from "react";
-import { getClientQueryKey, useClient, useWallet, useWalletClient } from "@groundhogchain/react";
+import {
+  getClientQueryKey,
+  useClient,
+  useWallet,
+  useWalletClient,
+} from "@groundhogchain/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import {
   Link,
@@ -22,11 +27,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import {
-  type AppConfig,
-  type GlobalConfig,
-  READ_ONLY_CALLER,
-} from "@/config";
+import { type AppConfig, type GlobalConfig, READ_ONLY_CALLER } from "@/config";
 import {
   PoolIdentityError,
   PoolNotFoundError,
@@ -72,10 +73,26 @@ export function BrowserConfiguredApp({
   const wallet = useWallet();
   const binding = useWalletClient();
   const address = wallet.status === "connected" ? wallet.address : null;
-  const config = useMemo(() => ({ ...baseConfig, accountAddress: address ? addressFromHex(address) : READ_ONLY_CALLER }), [baseConfig, address]);
+  const config = useMemo(
+    () => ({
+      ...baseConfig,
+      accountAddress: address ? addressFromHex(address) : READ_ONLY_CALLER,
+    }),
+    [baseConfig, address],
+  );
   const [scope, setScope] = useState({ binding, revision: 0 });
-  if (scope.binding !== binding) setScope({ binding, revision: scope.revision + 1 });
-  return <><WalletInstallBanner /><AmmRoutes config={config} readOnly={wallet.status !== "connected"} writeRevision={scope.revision} /></>;
+  if (scope.binding !== binding)
+    setScope({ binding, revision: scope.revision + 1 });
+  return (
+    <>
+      <WalletInstallBanner />
+      <AmmRoutes
+        config={config}
+        readOnly={wallet.status !== "connected"}
+        writeRevision={scope.revision}
+      />
+    </>
+  );
 }
 
 export function AmmRoutes({
@@ -120,7 +137,12 @@ export function AmmRoutes({
           readOnly ? (
             <ReadOnlyPoolRedirect />
           ) : (
-            <PoolRoute key={writeRevision} config={config} view="swap" readOnly={readOnly} />
+            <PoolRoute
+              key={writeRevision}
+              config={config}
+              view="swap"
+              readOnly={readOnly}
+            />
           )
         }
       />
@@ -130,7 +152,12 @@ export function AmmRoutes({
           readOnly ? (
             <ReadOnlyPoolRedirect />
           ) : (
-            <PoolRoute key={writeRevision} config={config} view="liquidity" readOnly={readOnly} />
+            <PoolRoute
+              key={writeRevision}
+              config={config}
+              view="liquidity"
+              readOnly={readOnly}
+            />
           )
         }
       />
@@ -163,12 +190,24 @@ function PoolRoute({
   const location = useLocation();
   const parsed = parsePoolRoute(params.token0, params.token1);
   const pool = useQuery({
-    queryKey: [...getClientQueryKey(client), "pool-config", poolRequestKey(config, params.token0 ?? "", params.token1 ?? "")],
-    queryFn: parsed.kind !== "canonical" ? skipToken : async ({ signal }) => {
-      const result = await resolvePoolConfig({ config, token0: parsed.token0, token1: parsed.token1, client });
-      signal.throwIfAborted();
-      return result;
-    },
+    queryKey: [
+      ...getClientQueryKey(client),
+      "pool-config",
+      poolRequestKey(config, params.token0 ?? "", params.token1 ?? ""),
+    ],
+    queryFn:
+      parsed.kind !== "canonical"
+        ? skipToken
+        : async ({ signal }) => {
+            const result = await resolvePoolConfig({
+              config,
+              token0: parsed.token0,
+              token1: parsed.token1,
+              client,
+            });
+            signal.throwIfAborted();
+            return result;
+          },
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -206,7 +245,11 @@ function PoolRoute({
     return (
       <PlaceholderPage
         title="Pool unavailable"
-        description={pool.error instanceof PoolIdentityError ? pool.error.message : "The pool could not be loaded"}
+        description={
+          pool.error instanceof PoolIdentityError
+            ? pool.error.message
+            : "The pool could not be loaded"
+        }
         readOnly={readOnly}
       />
     );
@@ -226,9 +269,7 @@ function PoolRoute({
       />
     );
   }
-  return (
-    <LiquidityPage key={poolRuntimeKey(poolConfig)} config={poolConfig} />
-  );
+  return <LiquidityPage key={poolRuntimeKey(poolConfig)} config={poolConfig} />;
 }
 
 function poolRequestKey(

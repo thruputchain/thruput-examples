@@ -22,11 +22,20 @@ export interface AppConfig {
 export type Environment = Record<string, string | boolean | undefined>;
 
 export async function loadRuntimeConfig(): Promise<AppConfig> {
-  const response = await fetch("/api/config", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
-  if (!response.ok) throw new Error("Application configuration is unavailable. Try again.");
+  const response = await fetch("/api/config", {
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok)
+    throw new Error("Application configuration is unavailable. Try again.");
   const value: unknown = await response.json();
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid application configuration");
-  return loadConfig({ ...value, VITE_GROUNDHOG_RPC_URL: new URL("/groundhog-rpc", window.location.origin).href });
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Invalid application configuration");
+  return loadConfig({
+    ...value,
+    VITE_GROUNDHOG_RPC_URL: new URL("/groundhog-rpc", window.location.origin)
+      .href,
+  });
 }
 
 export class ConfigurationError extends Error {
