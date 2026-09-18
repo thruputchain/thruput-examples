@@ -2,7 +2,7 @@ import {
   bytesEqual,
   fixedBytes,
   toHex0x,
-  type GroundhogClient,
+  type CoreGroundhogClient,
 } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
@@ -30,13 +30,10 @@ export interface CreatedToken {
   symbol: string;
   decimals: number | null;
   initialSupply: bigint;
-  balance: bigint | null;
-  balanceLoading?: boolean;
   administratorHex: string;
   holderHex: string;
   block: bigint;
   transactionHash: string;
-  readError: boolean;
 }
 
 export function assertTrustedFactoryConfig(
@@ -79,7 +76,7 @@ export function safeDisplayDecimals(value: bigint | null): number | null {
 }
 
 export async function reviewFactory(
-  client: GroundhogClient,
+  client: CoreGroundhogClient,
   config: AppConfig,
   nonce: Uint8Array,
   options: { balanceItemKnown?: boolean } = {},

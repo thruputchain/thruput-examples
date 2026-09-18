@@ -1,43 +1,52 @@
 import {
   createGroundhogClient,
+  defineCluster,
+  getNetworkInfo,
+  hashFromHex,
   HttpTransport,
   toHex0x,
   type GroundhogClient,
+  type ConnectedGroundhogClient,
 } from "@groundhogchain/client";
+import { networkHash } from "@groundhogchain/protocol";
 
 import type { AppConfig } from "@/config";
 
 export function createReadClient(
   config: Pick<AppConfig, "registryEnabled" | "rpcUrl" | "networkIdHex">,
-): GroundhogClient {
+): Promise<ConnectedGroundhogClient> {
   const target = resolveReadRpcUrl(
     config,
     typeof window === "undefined" ? undefined : window.location.origin,
   );
-  const promise = createGroundhogClient({
-    transport: new HttpTransport(target, {
-      fetch: (...args) => globalThis.fetch(...args),
-      timeoutMs: 10_000,
-    }),
+  const transport = new HttpTransport(target, {
+    fetch: (...args) => globalThis.fetch(...args),
+    timeoutMs: 10_000,
   });
-  return new Proxy({} as GroundhogClient, {
-    get(_target, property) {
-      if (property === "then") return undefined;
-      return (...args: unknown[]) =>
-        promise.then(async (client) => {
-          await assertExpectedNetwork(client, config.networkIdHex);
-          return Reflect.apply(
-            Reflect.get(client, property) as (...values: unknown[]) => unknown,
-            client,
-            args,
+  return createGroundhogClient({
+    cluster: defineCluster({
+      name: "launchpad",
+      rpcUrl: target,
+      networkHash: networkHash(hashFromHex(`0x${config.networkIdHex}`)),
+      capabilities: [] as const,
+    }),
+    transport: {
+      async request(method, params, options) {
+        // Retain network checks for evidence reads after initial connection.
+        if (method !== "groundhog_networkInfo") {
+          await assertExpectedNetwork(
+            { getNetworkInfo: () => getNetworkInfo(transport) },
+            config.networkIdHex,
           );
-        });
+        }
+        return transport.request(method, params, options);
+      },
     },
   });
 }
 
 export async function assertExpectedNetwork(
-  client: GroundhogClient,
+  client: Pick<GroundhogClient, "getNetworkInfo">,
   expectedNetworkIdHex: string,
 ): Promise<void> {
   const network = await client.getNetworkInfo();

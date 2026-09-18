@@ -3,7 +3,7 @@ import {
   bytesEqual,
   fixedBytes,
   fromHex0x,
-  type GroundhogClient,
+  type CoreGroundhogClient,
 } from "@groundhogchain/client";
 import { ExecResult, gasAmount, sha256Hash } from "@groundhogchain/protocol";
 import { DefaultWallet } from "@groundhogchain/client/contracts";
@@ -37,7 +37,7 @@ const GAS_LIMIT = gasAmount(10_000_000n);
 
 export async function advanceWorkflow(input: {
   config: AppConfig;
-  client: GroundhogClient;
+  client: CoreGroundhogClient;
   writer: WriteBoundary;
   workflowId: string;
   workflowRevision: number;

@@ -1,7 +1,7 @@
 import {
   bytesEqual,
   fromHex0x,
-  type GroundhogClient,
+  type CoreGroundhogClient,
 } from "@groundhogchain/client";
 import { DefaultWallet } from "@groundhogchain/client/contracts";
 import { sha256Hash } from "@groundhogchain/protocol";
@@ -13,7 +13,7 @@ import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 // Observation uses only public RPC and remains usable after the wallet is disposed.
 export function createTransactionObserver(
   config: Pick<AppConfig, "networkIdHex">,
-  client: GroundhogClient,
+  client: CoreGroundhogClient,
   options: { maxPolls?: number; delay?: () => Promise<void>; preserveWalletReturns?: boolean } = {},
 ): WriteBoundary["observe"] {
   return async (hashHex) => {

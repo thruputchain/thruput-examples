@@ -1,11 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { configuration } from "@/test/fixtures";
 import type { RegistryToken } from "@/registry/client";
-import {
-  enrichTokenBalances,
-  registryTokenToCreatedToken,
-} from "@/registry/tokens";
+import { registryTokenToCreatedToken } from "@/registry/tokens";
 
 describe("registry token adaptation", () => {
   it("maps immutable metadata without losing bigint precision", () => {
@@ -16,44 +13,7 @@ describe("registry token adaptation", () => {
       decimals: null,
       initialSupply: 170141183460469231731687303715884105727n,
       block: 900719925474099300000n,
-      balance: null,
-      balanceLoading: true,
-      readError: true,
     });
-  });
-
-  it("reads balances in batches of ten and isolates token failures", async () => {
-    const pending: Array<() => void> = [];
-    let active = 0;
-    let maximumActive = 0;
-    const readBalance = vi.fn(async (_client, _config, item) => {
-      active += 1;
-      maximumActive = Math.max(maximumActive, active);
-      await new Promise<void>((resolve) => pending.push(resolve));
-      active -= 1;
-      if (item.addressHex.endsWith("0b")) throw new Error("view failed");
-      return BigInt(`0x${item.addressHex.slice(-2)}`);
-    });
-    const tokens = Array.from({ length: 12 }, (_, index) =>
-      registryTokenToCreatedToken(
-        token(`0x${(index + 1).toString(16).padStart(64, "0")}`),
-      ),
-    );
-    const resultPromise = enrichTokenBalances(
-      {} as never,
-      configuration(),
-      tokens,
-      undefined,
-      readBalance,
-    );
-    await vi.waitFor(() => expect(readBalance).toHaveBeenCalledTimes(10));
-    pending.splice(0).forEach((resolve) => resolve());
-    await vi.waitFor(() => expect(readBalance).toHaveBeenCalledTimes(12));
-    pending.splice(0).forEach((resolve) => resolve());
-    const result = await resultPromise;
-    expect(maximumActive).toBe(10);
-    expect(result[10]).toMatchObject({ balance: null, readError: true });
-    expect(result[11]?.balance).toBe(12n);
   });
 });
 

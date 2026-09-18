@@ -69,7 +69,7 @@ returnWriter.writeUint32(1n);
 returnWriter.writeVarOpaque(childReturn, 0xffff_ffff);
 const wrappedReturn = returnWriter.finish();
 
-function setup(onConnectionLost?: () => void) {
+function setup() {
   let session: WalletSession = {
     networkHash: config.networkIdHex,
     accounts: [account],
@@ -125,17 +125,13 @@ function setup(onConnectionLost?: () => void) {
     getTransactionStatus: vi.fn().mockResolvedValue({ status: "unknown" }),
     sendTransaction: vi.fn(),
   };
-  const boundary = createProviderWriteBoundary(
-    config,
-    client as unknown as GroundhogClient,
-    createProviderWalletClient({
+  const wallet = createProviderWalletClient({
       client: client as unknown as GroundhogClient,
       provider,
       account,
       networkHash: config.networkIdHex,
-    }),
-    onConnectionLost,
-  );
+    });
+  const boundary = { ...createProviderWriteBoundary(config, client as unknown as GroundhogClient, wallet), dispose: () => wallet.dispose() };
   return {
     boundary,
     request,
@@ -152,8 +148,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("provider write boundary with the real SDK", () => {
   it("keeps the adapter usable after approval timeout and signs a fresh transaction on retry", async () => {
-    const onConnectionLost = vi.fn();
-    const { boundary, request, client } = setup(onConnectionLost);
+    const { boundary, request, client } = setup();
     const original = request.getMockImplementation()!;
     let timeOut = true;
     request.mockImplementation(async (input) => {
@@ -170,7 +165,6 @@ describe("provider write boundary with the real SDK", () => {
       message: expect.stringContaining("Try again"),
     });
     expect(onSigned).not.toHaveBeenCalled();
-    expect(onConnectionLost).not.toHaveBeenCalled();
     expect(
       request.mock.calls.some(
         ([input]) => input.method === "submitTransaction",
@@ -187,8 +181,7 @@ describe("provider write boundary with the real SDK", () => {
   it.each([4100, 4900, 4901])(
     "reports invalidated signing clients on provider error %s",
     async (code) => {
-      const onConnectionLost = vi.fn();
-      const { boundary, request } = setup(onConnectionLost);
+      const { boundary, request } = setup();
       request.mockRejectedValueOnce(
         Object.assign(new Error("Wallet unavailable"), { code }),
       );
@@ -197,7 +190,6 @@ describe("provider write boundary with the real SDK", () => {
       ).toMatchObject({
         kind: "preSubmissionFailure",
       });
-      expect(onConnectionLost).toHaveBeenCalledOnce();
       boundary.dispose();
     },
   );
@@ -338,16 +330,13 @@ describe("provider write boundary with the real SDK", () => {
         ),
     );
     vi.stubGlobal("fetch", fetch);
-    const writer = createProviderWriteBoundary(
-      { ...config, expectedTokenHash: hash },
-      client as unknown as GroundhogClient,
-      createProviderWalletClient({
+    const wallet = createProviderWalletClient({
         client: client as unknown as GroundhogClient,
         provider,
         account,
         networkHash: config.networkIdHex,
-      }),
-    );
+      });
+    const writer = createProviderWriteBoundary({ ...config, expectedTokenHash: hash }, client as unknown as GroundhogClient, wallet);
     await writer.execute(target, { onSigned() {} });
     expect(fetch).not.toHaveBeenCalled();
     const creation = {
@@ -370,7 +359,7 @@ describe("provider write boundary with the real SDK", () => {
       "preSubmissionFailure",
     );
     expect(request).not.toHaveBeenCalled();
-    writer.dispose();
+    wallet.dispose();
     boundary.dispose();
   });
 

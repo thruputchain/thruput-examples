@@ -1,4 +1,6 @@
 import { fixedBytes } from "@groundhogchain/client";
+import { WalletProvider } from "@groundhogchain/react";
+import { testClient } from "@/test/wallet";
 import {
   act,
   fireEvent,
@@ -198,6 +200,7 @@ it("starts over only before funding and clears the token form", async () => {
 });
 
 it("preserves an in-flight launch through disconnect and permits retry after reconnect", async () => {
+  const publicClient = await testClient(config.networkIdHex);
   const { workflow, writer, page } = setup();
   let resolve!: (result: WriteResult) => void;
   writer.execute.mockImplementationOnce(
@@ -206,7 +209,7 @@ it("preserves an in-flight launch through disconnect and permits retry after rec
         resolve = done;
       }),
   );
-  const view = render(page());
+  const view = render(page(), { wrapper: ({ children }) => <WalletProvider client={publicClient}>{children}</WalletProvider> });
   fireEvent.click(screen.getByRole("button", { name: "Launch token" }));
   await waitFor(() => expect(writer.execute).toHaveBeenCalledOnce());
   view.rerender(page(false));

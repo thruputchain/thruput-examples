@@ -87,4 +87,12 @@ Use published packages, without sibling-source aliases or linked dependencies.
 
 ## Outcomes
 
-Implementation and verification results will be recorded as phases complete.
+- Phase 1: verified the published 0.2.0 package and self-reviewed this specification.
+- Phase 2: launchpad uses the official provider and a shared initialized client.
+  Removed custom wallet context/lifecycle and write-boundary disposal callbacks.
+  Token cards now fetch concurrently with independent query state; registry
+  metadata no longer carries balance state. Existing execution-time network checks
+  remain at the transport boundary after startup validation.
+  Launchpad: 400 tests pass; typecheck and production build pass. Focused coverage
+  includes startup retry, draft/account isolation, cancellation, and a full
+  20-token page with account changes and an isolated failing token.

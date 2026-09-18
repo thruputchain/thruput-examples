@@ -1,4 +1,4 @@
-import { useWallet } from "./use-wallet";
+import { useWallet } from "@groundhogchain/react";
 
 export function WalletInstallBanner() {
   const wallet = useWallet();

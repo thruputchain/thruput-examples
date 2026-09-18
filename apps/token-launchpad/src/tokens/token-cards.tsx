@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import type { CreatedToken } from "@/contracts/launchpad-client";
 import { formatUnits } from "@/launch/form";
+import { useTokenBalance } from "@groundhogchain/react";
 
 export function TokenCards({
   tokens,
@@ -47,13 +48,7 @@ export function TokenCards({
             <Detail
               label={connected ? "Your balance" : "Wallet balance"}
               value={
-                !connected
-                  ? "Connect a wallet"
-                  : token.balanceLoading
-                    ? "Loading..."
-                    : token.balance === null
-                      ? "Unavailable"
-                      : amount(token.balance, token.decimals)
+                !connected ? "Connect a wallet" : <TokenBalance token={token} />
               }
             />
             <Detail
@@ -79,5 +74,28 @@ export function TokenCards({
         </Card>
       ))}
     </div>
+  );
+}
+
+function TokenBalance({ token }: { token: CreatedToken }) {
+  const balance = useTokenBalance({
+    token: token.addressHex,
+    query: { staleTime: 10_000, refetchInterval: 15_000, retry: 1 },
+  });
+  return (
+    <span role="status">
+      {balance.data ? (
+        <>
+          {token.decimals === null
+            ? `${balance.data.rawBalance} base units`
+            : formatUnits(balance.data.rawBalance, token.decimals)}
+          {balance.isError ? " (refresh unavailable)" : ""}
+        </>
+      ) : balance.isError ? (
+        "Unavailable"
+      ) : (
+        "Loading..."
+      )}
+    </span>
   );
 }

@@ -6,7 +6,6 @@ import type { RegistryStatus, RegistryTokenPage } from "@/registry/client";
 import { useTokenDirectory } from "./use-token-directory";
 
 const config = configuration();
-const client = {} as never;
 const page = (asOfBlock = "12"): RegistryTokenPage => ({
   tokens: [],
   total: 0,
@@ -38,7 +37,6 @@ it("filters by creator, retains pagination snapshot, and ignores superseded page
   const { result } = renderHook(() =>
     useTokenDirectory({
       config,
-      client,
       scope: "mine",
       readOnly: true,
       registryRead: read,
@@ -79,7 +77,6 @@ it("refreshes on visibility without overlapping reads or replacing data on failu
   const read = vi.fn().mockResolvedValue(page());
   const options = {
     config,
-    client,
     scope: "all" as const,
     readOnly: true,
     registryRead: read,

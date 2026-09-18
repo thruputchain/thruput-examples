@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import type { AppConfig } from "@/config";
 import type { CreatedToken } from "@/contracts/launchpad-client";
 import { userErrorMessage } from "@/errors";
-import type { createReadClient } from "@/groundhog/client";
 import {
   getRegistryStatus,
   getRegistryTokens,
@@ -12,31 +11,23 @@ import {
   type RegistryStatus,
   type RegistryTokenPage,
 } from "@/registry/client";
-import {
-  enrichTokenBalances,
-  registryTokenToCreatedToken,
-} from "@/registry/tokens";
+import { registryTokenToCreatedToken } from "@/registry/tokens";
 
 export interface DirectoryOptions {
   config: AppConfig;
-  client: ReturnType<typeof createReadClient>;
   scope: "all" | "mine";
   readOnly?: boolean;
   registryRead?: typeof getRegistryTokens;
   registryStatus?: typeof getRegistryStatus;
   registrySync?: typeof requestRegistrySync;
-  enrichBalances?: typeof enrichTokenBalances;
 }
 
 export function useTokenDirectory({
   config,
-  client,
   scope,
-  readOnly = false,
   registryRead = getRegistryTokens,
   registryStatus = getRegistryStatus,
   registrySync = requestRegistrySync,
-  enrichBalances = enrichTokenBalances,
 }: DirectoryOptions) {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
@@ -87,22 +78,13 @@ export function useTokenDirectory({
       },
       controller.signal,
     )
-      .then(async (result) => {
+      .then((result) => {
         if (controller.signal.aborted) return;
         const metadata = result.tokens.map(registryTokenToCreatedToken);
         snapshot.current = result.asOfBlock;
         setPage(result);
         setTokens(metadata);
         setLoading(false);
-        if (!readOnly) {
-          const balances = await enrichBalances(
-            client,
-            config,
-            metadata,
-            controller.signal,
-          );
-          if (!controller.signal.aborted) setTokens(balances);
-        }
       })
       .catch((reason) => {
         if (!controller.signal.aborted)
@@ -119,18 +101,7 @@ export function useTokenDirectory({
     return () => {
       controller.abort();
     };
-  }, [
-    config,
-    client,
-    query,
-    sort,
-    offset,
-    refreshKey,
-    scope,
-    readOnly,
-    registryRead,
-    enrichBalances,
-  ]);
+  }, [config, query, sort, offset, refreshKey, scope, registryRead]);
 
   useEffect(() => {
     let stopped = false;
