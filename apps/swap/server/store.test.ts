@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { PoolQuery, RegistryPool, RegistryScope } from "./domain.ts";
+import type { PoolQuery, RegistryPool, RegistryScope } from "../shared/registry.ts";
 import {
   ImmutableRegistryConflictError,
   PairCountIntegrityError,

@@ -1,6 +1,6 @@
 # Simplify the Groundhog example apps
 
-Status: approved in Roughdraft on 2026-09-18; implementation in progress.
+Status: implemented; local verification complete. Live-node limitations are recorded below.
 
 Branch: `refactor/example-app-simplification`, stacked on `feat/react-wallet-integration` at `4451881` ([PR #104](https://github.com/groundhogchain/groundhog-examples/pull/104)). The eventual PR should target that branch while #104 is open. After #104 merges, retarget/rebase the stack onto main, keeping the integration commits out of this PR's diff.
 
@@ -356,3 +356,8 @@ All three scope choices were approved in Roughdraft. Implementation follows the 
   default negotiation reports a protocol mismatch, and the supported explicit
   protocol override reaches a scheduler RPC system error before app provisioning.
   The counter's 47 unit/integration tests and production build pass.
+- Registry wire models and sort/status constants now have one definition per app
+  in `shared/registry.ts`, consumed by both browser and server. The indexers remain
+  separate. Final local verification passes: 1,326 Vitest tests, three process
+  cleanup tests, workspace typechecks, all production builds, and Chromium
+  acceptance. CI now runs on stacked PRs as well as PRs targeting main.

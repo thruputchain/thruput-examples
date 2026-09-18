@@ -13,7 +13,7 @@ import {
   type PoolQuery,
   type RegistrySort,
   type SyncController,
-} from "./domain.ts";
+} from "../shared/registry.ts";
 import { RegistryStore } from "./store.ts";
 import { RpcRateLimiter, rpcClientIdentity } from "./rate-limit.ts";
 import { createTokenDiscoveryHandler } from "./token-discovery.ts";

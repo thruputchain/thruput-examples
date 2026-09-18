@@ -20,7 +20,7 @@ import {
   type Mock,
 } from "vitest";
 
-import type { RegistryScope, RegistryToken } from "./domain.ts";
+import type { RegistryScope, RegistryToken } from "../shared/registry.ts";
 import {
   createRegistryHttpServer,
   isJsonRpcRequest,

@@ -13,7 +13,7 @@ import {
   type RegistrySource,
   type RegistrySourcePage,
 } from "./chain.ts";
-import type { RegistryScope, RegistryToken } from "./domain.ts";
+import type { RegistryScope, RegistryToken } from "../shared/registry.ts";
 import { RegistryIndexer } from "./indexer.ts";
 import { RegistryStore } from "./store.ts";
 

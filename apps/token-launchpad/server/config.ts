@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { RegistryScope } from "./domain.ts";
+import type { RegistryScope } from "../shared/registry.ts";
 import {
   boundedInteger,
   canonicalAddress,

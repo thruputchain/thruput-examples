@@ -23,7 +23,7 @@ import {
   SwapFactory,
 } from "../src/contracts/generated/swap-factory.ts";
 import type { ServerConfig } from "./config.ts";
-import type { RegistryPool, RegistryScope } from "./domain.ts";
+import type { RegistryPool, RegistryScope } from "../shared/registry.ts";
 
 const MAX_CURSOR_CHARACTERS = 4_096;
 const FACTORY_VERIFICATION_ATTEMPTS = 3;

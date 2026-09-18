@@ -22,7 +22,7 @@ import {
   RegistryIntegrityError,
   RegistryScopeVerificationError,
 } from "./chain.ts";
-import type { RegistryScope } from "./domain.ts";
+import type { RegistryScope } from "../shared/registry.ts";
 
 const scope: RegistryScope = {
   networkId: "11".repeat(32),

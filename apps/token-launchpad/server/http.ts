@@ -13,7 +13,7 @@ import {
   type RegistrySort,
   type SyncController,
   type TokenQuery,
-} from "./domain.ts";
+} from "../shared/registry.ts";
 import { RegistryStore } from "./store.ts";
 import {
   boundedInteger,

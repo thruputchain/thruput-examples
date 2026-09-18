@@ -8,8 +8,8 @@ import type {
   RegistryToken,
   TokenQuery,
   TokenQueryResult,
-} from "./domain.ts";
-import { REGISTRY_SORTS } from "./domain.ts";
+} from "../shared/registry.ts";
+import { REGISTRY_SORTS } from "../shared/registry.ts";
 import { MAX_SIGNED_AMOUNT } from "../src/runtime.ts";
 import {
   canonicalAddress,
