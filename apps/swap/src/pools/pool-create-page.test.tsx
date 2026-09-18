@@ -19,10 +19,10 @@ import {
 import { unavailableWriteBoundary } from "@/transactions/write-boundary";
 import { allowanceCleanupKey, loadAllowanceCleanup } from "@/transactions/allowance-cleanup";
 import { PoolCreatePage } from "./pool-create-page";
-import { createNetworkReadClient, verifyReadNetwork, NetworkMismatchError } from "@/groundhog/client";
+import { createReadClient, verifyReadNetwork, NetworkMismatchError } from "@/groundhog/client";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 
-vi.mock("@/groundhog/client", async (original) => ({ ...await original<object>(), createNetworkReadClient: vi.fn(), verifyReadNetwork: vi.fn() }));
+vi.mock("@/groundhog/client", async (original) => ({ ...await original<object>(), createReadClient: vi.fn(), verifyReadNetwork: vi.fn() }));
 vi.mock("@/contracts/erc20-adapter", () => ({ createErc20ReadAdapter: vi.fn() }));
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
@@ -39,9 +39,8 @@ const config: GlobalConfig = {
 describe("PoolCreatePage", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    config.registryEnabled = false;
     vi.mocked(verifyReadNetwork).mockReset().mockResolvedValue(undefined);
-    vi.mocked(createNetworkReadClient).mockReset().mockResolvedValue({ getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) } as never);
+    vi.mocked(createReadClient).mockReset().mockResolvedValue({ getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) } as never);
     vi.mocked(createErc20ReadAdapter).mockReset().mockReturnValue({ metadata: vi.fn().mockResolvedValue({ name: { value: "Live token" }, symbol: { value: "LIVE" }, decimals: { value: 6 } }) } as never);
   });
 
@@ -194,7 +193,7 @@ describe("PoolCreatePage", () => {
     const execute = vi.fn();
     const readFactoryAllowance = vi.fn(async () => ({ value: 0n, height: 12n }));
     renderPage({ writer: { execute }, readFactoryAllowance });
-    vi.mocked(createNetworkReadClient).mockRejectedValueOnce(new NetworkMismatchError());
+    vi.mocked(verifyReadNetwork).mockRejectedValueOnce(new NetworkMismatchError());
     await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
     expect(await screen.findByText(/different Thruput network/)).toBeVisible();
     expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
@@ -440,7 +439,6 @@ describe("PoolCreatePage", () => {
 
   it("requests best-effort registry sync when verified pool creation commits", async () => {
     const user = userEvent.setup();
-    config.registryEnabled = true;
     const requestRegistrySync = vi.fn().mockRejectedValue(new Error("offline"));
     const run = vi.fn(async (
       _config: GlobalConfig,
@@ -478,7 +476,7 @@ describe("PoolCreatePage", () => {
     expect(screen.getAllByLabelText("Initial amount").every((el) => (el as HTMLInputElement).value === "")).toBe(true);
     await waitFor(() => expect(screen.getAllByText("Live name: Live token")).toHaveLength(2));
     expect(verifyReadNetwork).toHaveBeenCalledTimes(2);
-    expect(createNetworkReadClient).not.toHaveBeenCalled();
+    expect(createReadClient).not.toHaveBeenCalled();
     expect(prepare).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
@@ -501,10 +499,10 @@ describe("PoolCreatePage", () => {
     saveCreationWorkflow(config, workflow);
     renderPage({}, `?tokenA=${hex(4)}&tokenB=${hex(5)}`);
     expect(screen.getByText(/saved creation is being recovered/)).toBeVisible();
-    expect(createNetworkReadClient).not.toHaveBeenCalled();
+    expect(createReadClient).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Start another pool" }));
     expect(screen.getAllByLabelText("Contract address").every((el) => (el as HTMLInputElement).value === "")).toBe(true);
-    expect(createNetworkReadClient).not.toHaveBeenCalled();
+    expect(createReadClient).not.toHaveBeenCalled();
   });
 
   it("does not use presets or enable review when storage cannot be read safely", () => {
@@ -513,7 +511,7 @@ describe("PoolCreatePage", () => {
     renderPage({}, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
     expect(screen.getByText(/could not be loaded safely/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Review pool" })).toBeDisabled();
-    expect(createNetworkReadClient).not.toHaveBeenCalled();
+    expect(createReadClient).not.toHaveBeenCalled();
     get.mockRestore();
   });
 

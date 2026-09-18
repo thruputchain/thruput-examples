@@ -6,11 +6,7 @@ import { createGroundhogRegistrySource } from "./chain.ts";
 import { loadServerConfig, ServerConfigurationError } from "./config.ts";
 import { createRegistryHttpServer } from "./http.ts";
 import { RegistryIndexer } from "./indexer.ts";
-import {
-  PUBLIC_CONFIG_MANIFEST_FILENAME,
-  PublicConfigManifestError,
-  verifyPublicConfigManifest,
-} from "./public-config-manifest.ts";
+import { publicConfig } from "./public-config.ts";
 import { RegistryStore } from "./store.ts";
 import { verifyPoolTokenArtifact } from "./pool-token-artifact.ts";
 
@@ -32,17 +28,14 @@ export async function start(
   ),
 ): Promise<void> {
   const config = loadServerConfig(process.env);
-  const manifest = await verifyPublicConfigManifest(
-    path.join(staticDirectory, PUBLIC_CONFIG_MANIFEST_FILENAME),
-    process.env,
-  );
-  await verifyPoolTokenArtifact(staticDirectory, manifest.VITE_POOL_TOKEN_HASH);
+  await verifyPoolTokenArtifact(staticDirectory, process.env.VITE_POOL_TOKEN_HASH);
   if (!(await stat(path.join(staticDirectory, "index.html"))).isFile()) {
     throw new Error("Production index.html is missing");
   }
 
   // Verify the configured source before creating or opening deployment state.
   const source = await createGroundhogRegistrySource(config);
+  const browserConfig = publicConfig(process.env);
   await mkdir(path.dirname(config.databasePath), { recursive: true });
   const store = new RegistryStore(config.databasePath, config.scope);
   const indexer = new RegistryIndexer(store, source, {
@@ -52,6 +45,7 @@ export async function start(
   const server = createRegistryHttpServer(store, indexer, {
     staticDirectory,
     rpcUrl: config.rpcUrl,
+    publicConfig: browserConfig,
     tokenDiscovery: config.tokenDiscovery,
     // Railway identifies the client remote IP through X-Real-IP.
     trustedProxy: process.env.RAILWAY_ENVIRONMENT_ID !== undefined,
@@ -131,8 +125,7 @@ export function registerShutdownSignals(
 
 export function startupFailureMessage(error: unknown): string {
   const prefix = "Pool registry failed to start";
-  return error instanceof PublicConfigManifestError ||
-    error instanceof ServerConfigurationError
+  return error instanceof ServerConfigurationError
     ? `${prefix}: ${error.message}`
     : prefix;
 }

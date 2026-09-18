@@ -10,7 +10,7 @@ import {
   defineCluster,
   deriveContractAddress,
   fixedBytes,
-  fromHex0x,
+  hashFromHex,
   hashContract,
   HttpTransport,
   PrivateKeySigner,
@@ -46,7 +46,7 @@ export async function provisionCounter(options: {
     cluster: defineCluster({
       name: options.network,
       rpcUrl: options.rpcUrl,
-      networkHash: networkHash(sha256Hash(fromHex0x(options.networkId))),
+      networkHash: networkHash(hashFromHex(options.networkId)),
       capabilities: ["airdrop"] as const,
     }),
     transport: new HttpTransport(options.rpcUrl, { timeoutMs: 15_000 }),

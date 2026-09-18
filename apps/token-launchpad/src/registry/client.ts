@@ -1,68 +1,32 @@
 import { toHex0x } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
-import { MAX_SIGNED_AMOUNT } from "@/runtime";
+import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
+import {
+  REGISTRY_SORTS as SORTS,
+  REGISTRY_SYNC_STATES as SYNC_STATES,
+  type RegistrySort,
+  type RegistrySyncState,
+  type RegistryToken,
+  type RegistryStatus,
+  type TokenQueryResult as RegistryTokenPage,
+  type TokenQuery,
+} from "../../shared/registry";
+export type {
+  RegistrySort,
+  RegistrySyncState,
+  RegistryToken,
+  RegistryStatus,
+  RegistryTokenPage,
+};
+export type RegistryTokenQuery = Omit<TokenQuery, "tokenAddress">;
 
 const ADDRESS = /^0x[0-9a-f]{64}$/;
 const HASH = /^0x[0-9a-f]{64}$/;
 const NETWORK_ID = /^[0-9a-f]{64}$/;
 const DECIMAL = /^(?:0|[1-9]\d*)$/;
-const SORTS = ["newest", "oldest", "name", "symbol"] as const;
-const SYNC_STATES = ["idle", "syncing", "retrying", "integrityFault"] as const;
 const MAX_RESPONSE_BYTES = 256_000;
 const MAX_DECIMAL_DIGITS = 100;
-
-export type RegistrySort = (typeof SORTS)[number];
-export type RegistrySyncState = (typeof SYNC_STATES)[number];
-
-export interface RegistryToken {
-  networkId: string;
-  factoryAddress: string;
-  tokenAddress: string;
-  creatorAddress: string;
-  administratorAddress: string;
-  initialHolderAddress: string;
-  initialSupply: string;
-  name: string | null;
-  symbol: string | null;
-  decimals: number | null;
-  tokenCodeHash: string;
-  transactionHash: string;
-  eventSequence: number;
-  blockHeight: string;
-  indexedAt: string;
-}
-
-export interface RegistryStatus {
-  networkId: string;
-  factoryAddress: string;
-  indexedThroughBlock: string;
-  tokenCount: number;
-  historyLimited: boolean;
-  syncState: RegistrySyncState;
-  syncing: boolean;
-  lastSuccessfulSyncAt: string | null;
-  lastError: string | null;
-}
-
-export interface RegistryTokenPage {
-  tokens: RegistryToken[];
-  total: number;
-  limit: number;
-  offset: number;
-  asOfBlock: string;
-  hasMore: boolean;
-  historyLimited: boolean;
-}
-
-export interface RegistryTokenQuery {
-  q?: string;
-  creator?: string;
-  sort: RegistrySort;
-  limit: number;
-  offset: number;
-  asOfBlock?: string;
-}
 
 type RegistryConfig = Pick<
   AppConfig,

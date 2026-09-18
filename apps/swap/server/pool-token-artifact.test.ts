@@ -14,7 +14,7 @@ import { hashContract, toHex0x } from "@groundhogchain/client";
 import { ContractType } from "@groundhogchain/protocol";
 import { build } from "vite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import viteConfig, { productionPoolTokenArtifact } from "../vite.config.ts";
+import viteConfig from "../vite.config.ts";
 import { verifyPoolTokenArtifact } from "./pool-token-artifact.ts";
 
 // Serialization/integrity fixture, not proof that a contract executes on a ledger.
@@ -85,58 +85,16 @@ describe("served LP artifact validation", () => {
   });
 });
 
-describe("production artifact build guard", () => {
-  it.each([{ publicDir: false }, { build: { copyPublicDir: false } }] as const)(
-    "rejects disabled public asset copying %#",
-    async (options) => {
-      await expect(
-        build({
-          configFile: false,
-          root: directory,
-          logLevel: "silent",
-          plugins: [productionPoolTokenArtifact(hash)],
-          ...options,
-        }),
-      ).rejects.toThrow(/publicDir/);
-    },
-  );
-  it.each(["missing", "tampered", "extra fields"])(
-    "fails the build for %s assets",
-    async (failure) => {
-      await writeFile(
-        path.join(directory, "index.html"),
-        "<main>fixture</main>",
-      );
-      if (failure !== "missing")
-        await writeFile(
-          path.join(publicDir, relativePath),
-          JSON.stringify(
-            failure === "tampered"
-              ? { ...artifact, data: "0x04" }
-              : { ...artifact, extra: true },
-          ),
-        );
-      await expect(
-        build({
-          configFile: false,
-          root: directory,
-          publicDir,
-          logLevel: "silent",
-          plugins: [productionPoolTokenArtifact(hash)],
-        }),
-      ).rejects.toThrow(/artifact/);
-    },
-  );
-  it.each([false, true])(
-    "builds the actual production app with a controlled publicDir (registry=%s)",
-    async (registry) => {
+describe("production assets", () => {
+  it(
+    "builds the app and copies artifacts without baking in deployment settings",
+    async () => {
       const address = `0x${"11".repeat(32)}`;
       const environment = {
         VITE_POOL_TOKEN_HASH: hash,
         VITE_EXPLORER_URL: "",
         VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
         VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
-        VITE_POOL_REGISTRY_ENABLED: String(registry),
         VITE_TOKEN_DISCOVERY_ENABLED: "false",
         VITE_STANDARD_TOKEN_FACTORY_ADDRESS: "",
         VITE_STANDARD_TOKEN_HASH: "",
@@ -173,17 +131,7 @@ describe("production artifact build guard", () => {
       expect(await readFile(path.join(outDir, "index.html"), "utf8")).toContain(
         "<script",
       );
-      if (registry)
-        expect(
-          JSON.parse(
-            await readFile(
-              path.join(outDir, "groundhog-public-config.json"),
-              "utf8",
-            ),
-          ),
-        ).toMatchObject({
-          VITE_POOL_TOKEN_HASH: hash,
-        });
+      await expect(readFile(path.join(outDir, "groundhog-public-config.json"))).rejects.toThrow();
     },
     30_000,
   );

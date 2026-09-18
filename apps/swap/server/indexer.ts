@@ -1,4 +1,4 @@
-import type { SyncController } from "./domain.ts";
+import type { SyncController } from "../shared/registry.ts";
 import {
   RegistryCursorRejectedError,
   RegistryIntegrityError,

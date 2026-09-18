@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@/test/render";
 import { afterEach, expect, it, vi } from "vitest";
 import { toHex0x } from "@groundhogchain/client";
 import { configuration } from "@/test/fixtures";
@@ -100,7 +100,9 @@ it("refreshes on visibility without overlapping reads or replacing data on failu
   await act(async () => document.dispatchEvent(new Event("visibilitychange")));
   await act(async () => vi.advanceTimersByTimeAsync(30_000));
   expect(read).toHaveBeenCalledTimes(before + 1);
+  await act(() => vi.advanceTimersByTimeAsync(1));
   await act(async () => reject(new Error("offline")));
+  await act(() => vi.advanceTimersByTimeAsync(1));
   expect(result.current.page?.asOfBlock).toBe("12");
   expect(result.current.error).toBeTruthy();
 });

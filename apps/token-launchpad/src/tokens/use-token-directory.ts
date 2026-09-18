@@ -1,15 +1,17 @@
 import { toHex0x } from "@groundhogchain/client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { AppConfig } from "@/config";
-import type { CreatedToken } from "@/contracts/launchpad-client";
-import { userErrorMessage } from "@/errors";
+import { userErrorMessage } from "@/lib/errors";
 import {
   getRegistryStatus,
   getRegistryTokens,
   requestRegistrySync,
   type RegistrySort,
-  type RegistryStatus,
-  type RegistryTokenPage,
 } from "@/registry/client";
 import { registryTokenToCreatedToken } from "@/registry/tokens";
 
@@ -29,150 +31,137 @@ export function useTokenDirectory({
   registryStatus = getRegistryStatus,
   registrySync = requestRegistrySync,
 }: DirectoryOptions) {
+  const queries = useQueryClient();
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<RegistrySort>("newest");
-  const [offset, setOffset] = useState(0);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [page, setPage] = useState<RegistryTokenPage | null>(null);
-  const [tokens, setTokens] = useState<CreatedToken[]>([]);
-  const [status, setStatus] = useState<RegistryStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [statusError, setStatusError] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const snapshot = useRef<string | undefined>(undefined);
-  const request = useRef<AbortController | null>(null);
-  const busy = useRef(false);
-  function invalidate() {
-    request.current?.abort();
-    snapshot.current = undefined;
-    setOffset(0);
-  }
+  const [pagination, setPagination] = useState<{
+    offset: number;
+    asOfBlock?: string;
+  }>({ offset: 0 });
+  const lastStatus = useRef(0);
+  const prefix = useMemo(
+    () => [
+      "token-registry",
+      config.networkIdHex,
+      toHex0x(config.factoryAddress),
+      toHex0x(config.expectedTokenHash),
+    ],
+    [config],
+  );
+  const statusKey = useMemo(() => [...prefix, "status"], [prefix]);
+  const pageKey = useMemo(
+    () => [
+      ...prefix,
+      "page",
+      scope === "mine" ? toHex0x(config.accountAddress) : null,
+      query,
+      sort,
+      pagination,
+    ],
+    [prefix, scope, config.accountAddress, query, sort, pagination],
+  );
+
   useEffect(() => {
     if (search === query) return;
     const timer = setTimeout(() => {
-      invalidate();
+      setPagination({ offset: 0 });
       setQuery(search);
     }, 300);
     return () => clearTimeout(timer);
   }, [search, query]);
-  useEffect(() => {
-    const controller = new AbortController();
-    request.current = controller;
-    busy.current = true;
-    setLoading(true);
-    setError(null);
-    void registryRead(
-      config,
-      {
-        ...(query ? { q: query } : {}),
-        ...(scope === "mine"
-          ? { creator: toHex0x(config.accountAddress) }
-          : {}),
-        sort,
-        limit: 20,
-        offset,
-        ...(snapshot.current === undefined
-          ? {}
-          : { asOfBlock: snapshot.current }),
-      },
-      controller.signal,
-    )
-      .then((result) => {
-        if (controller.signal.aborted) return;
-        const metadata = result.tokens.map(registryTokenToCreatedToken);
-        snapshot.current = result.asOfBlock;
-        setPage(result);
-        setTokens(metadata);
-        setLoading(false);
-      })
-      .catch((reason) => {
-        if (!controller.signal.aborted)
-          setError(
-            userErrorMessage(reason, "The token registry is unavailable"),
-          );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          busy.current = false;
-          setLoading(false);
-        }
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [config, query, sort, offset, refreshKey, scope, registryRead]);
 
-  useEffect(() => {
-    let stopped = false;
-    let inFlight = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const controller = new AbortController();
-    async function poll(hint = false) {
-      if (
-        stopped ||
-        inFlight ||
-        (!hint && document.visibilityState !== "visible")
-      )
-        return;
-      inFlight = true;
-      clearTimeout(timer);
-      let syncing = false;
-      try {
-        const result = hint
-          ? await registrySync(config, controller.signal)
-          : await registryStatus(config, controller.signal);
-        if (stopped) return;
-        setStatus(result);
-        setStatusError(false);
-        syncing = result.syncing;
-        if (!syncing && !busy.current) {
-          if (offset === 0) snapshot.current = undefined;
-          setRefreshKey((value) => value + 1);
+  const page = useQuery({
+    queryKey: pageKey,
+    queryFn: ({ signal }) =>
+      registryRead(
+        config,
+        {
+          ...(query ? { q: query } : {}),
+          ...(scope === "mine"
+            ? { creator: toHex0x(config.accountAddress) }
+            : {}),
+          sort,
+          limit: 20,
+          ...pagination,
+        },
+        signal,
+      ),
+    placeholderData: keepPreviousData,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+  const readFreshness = useMemo(() => {
+    let first = true;
+    return async (signal: AbortSignal) => {
+      if (first) {
+        first = false;
+        try {
+          return await registrySync(config, signal);
+        } catch {
+          signal.throwIfAborted();
         }
-      } catch {
-        if (!stopped) setStatusError(true);
-      } finally {
-        inFlight = false;
-        if (!stopped)
-          timer = setTimeout(() => void poll(), syncing ? 1_000 : 15_000);
       }
-    }
-    const visible = () => void poll();
-    void poll(true);
-    window.addEventListener("focus", visible);
-    document.addEventListener("visibilitychange", visible);
-    return () => {
-      stopped = true;
-      controller.abort();
-      clearTimeout(timer);
-      window.removeEventListener("focus", visible);
-      document.removeEventListener("visibilitychange", visible);
+      return registryStatus(config, signal);
     };
-  }, [config, registryStatus, registrySync, offset]);
+  }, [config, registrySync, registryStatus]);
+  const status = useQuery({
+    queryKey: statusKey,
+    queryFn: ({ signal }) => readFreshness(signal),
+    refetchInterval: (query) => (query.state.data?.syncing ? 1_000 : 15_000),
+    retry: false,
+  });
+  const statusVersion = queries.getQueryState(statusKey)?.dataUpdateCount ?? 0;
+  useEffect(() => {
+    if (status.isFetching) return;
+    const previous = lastStatus.current;
+    lastStatus.current = statusVersion;
+    if (!previous || previous === statusVersion) return;
+    if (
+      document.visibilityState === "visible" &&
+      status.dataUpdatedAt &&
+      !status.data?.syncing &&
+      !queries.isFetching({ queryKey: pageKey })
+    ) {
+      if (pagination.offset === 0 && pagination.asOfBlock !== undefined)
+        setPagination({ offset: 0 });
+      else void queries.invalidateQueries({ queryKey: pageKey, exact: true });
+    }
+  }, [
+    statusVersion,
+    status.isFetching,
+    status.data?.syncing,
+    queries,
+    pageKey,
+    pagination,
+  ]);
 
   return {
     search,
     sort,
-    offset,
-    page,
-    tokens,
-    status,
-    statusError,
-    error,
-    loading,
+    offset: pagination.offset,
+    page: page.data ?? null,
+    tokens: (page.data?.tokens ?? []).map(registryTokenToCreatedToken),
+    status: status.data ?? null,
+    statusError: status.isError,
+    error: page.error
+      ? userErrorMessage(page.error, "The token registry is unavailable")
+      : null,
+    loading: page.isFetching,
     setSearch,
     setSort(value: RegistrySort) {
-      invalidate();
+      setPagination({ offset: 0 });
       setSort(value);
     },
-    changePage(value: number) {
-      request.current?.abort();
-      setOffset(value);
+    changePage(offset: number) {
+      setPagination({
+        offset,
+        ...(page.data ? { asOfBlock: page.data.asOfBlock } : {}),
+      });
     },
     refresh() {
-      request.current?.abort();
-      setRefreshKey((value) => value + 1);
+      void page.refetch();
     },
   };
 }

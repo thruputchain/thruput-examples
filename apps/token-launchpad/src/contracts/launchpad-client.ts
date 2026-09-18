@@ -12,7 +12,7 @@ import {
   type FactoryConfig,
 } from "@/contracts/generated/standard-token-factory";
 import { ERC20 } from "@/contracts/generated/standard-token";
-import { MAX_SIGNED_AMOUNT } from "@/runtime";
+import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
 
 export interface FactoryReview {
   config: FactoryConfig;
@@ -23,17 +23,6 @@ export interface FactoryReview {
   fundingAmount: bigint;
   creatorBalance: bigint;
   fundingShortfall: bigint;
-}
-export interface CreatedToken {
-  addressHex: string;
-  name: string;
-  symbol: string;
-  decimals: number | null;
-  initialSupply: bigint;
-  administratorHex: string;
-  holderHex: string;
-  block: bigint;
-  transactionHash: string;
 }
 
 export function assertTrustedFactoryConfig(

@@ -8,7 +8,6 @@ import {
 } from "@/contracts/erc20-adapter";
 import { createSwapFactoryReadAdapter } from "@/contracts/factory-adapter";
 import { createSwapHandlerReadAdapter } from "@/contracts/handler-adapter";
-import { createReadClient } from "@/groundhog/client";
 import { FALLBACK_LIQUIDITY_TOKEN_DECIMALS } from "@/pools/liquidity-token";
 
 export interface TokenSnapshot {
@@ -40,9 +39,8 @@ export type SnapshotReader = () => Promise<PoolSnapshot>;
 
 export function createSnapshotReader(
   config: AppConfig,
-  suppliedClient?: Pick<GroundhogClient, "view">,
+  client: Pick<GroundhogClient, "view">,
 ): SnapshotReader {
-  const client = suppliedClient ?? createReadClient(config);
   const tokenA = createErc20ReadAdapter({
     client,
     contract: config.tokenAAddress,

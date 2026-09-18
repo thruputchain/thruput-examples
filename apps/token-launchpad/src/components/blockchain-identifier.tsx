@@ -1,36 +1,13 @@
 import { ExternalLinkIcon } from "lucide-react";
-import { createContext, use, type ReactNode } from "react";
+import { useExplorerUrl } from "@/components/explorer-context";
 
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { loadExplorerUrl } from "@/explorer-config";
 
-const ExplorerContext = createContext<string | null>(null);
 export type IdentifierKind = "address" | "transaction" | "identifier";
-
-export function ExplorerProvider({
-  explorerUrl,
-  children,
-}: {
-  explorerUrl?: string | null | undefined;
-  children: ReactNode;
-}) {
-  let origin: string | null = null;
-  try {
-    origin = loadExplorerUrl(explorerUrl ?? undefined);
-  } catch {
-    // Supplied configs must not turn malformed origins into navigation targets.
-  }
-  return (
-    <ExplorerContext value={origin}>
-      <TooltipProvider>{children}</TooltipProvider>
-    </ExplorerContext>
-  );
-}
 
 export function BlockchainIdentifier({
   value,
@@ -39,7 +16,7 @@ export function BlockchainIdentifier({
   value: string;
   kind: IdentifierKind;
 }) {
-  const origin = use(ExplorerContext);
+  const origin = useExplorerUrl();
   const canonical =
     (value.length === 64 || value.length === 66) &&
     /^(?:0x)?[0-9a-fA-F]{64}$/.test(value)

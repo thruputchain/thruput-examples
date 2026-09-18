@@ -25,12 +25,3 @@ export interface WriteBoundary {
   ): Promise<WriteResult>;
   observe(hash: string): Promise<WriteResult>;
 }
-
-export const unavailableWriteBoundary: WriteBoundary = {
-  execute: async () => ({
-    kind: "preSubmissionFailure",
-    hash: null,
-    message: "Connect a wallet to perform state-changing actions",
-  }),
-  observe: async (hash) => ({ kind: "indeterminate", hash, reason: "other" }),
-};

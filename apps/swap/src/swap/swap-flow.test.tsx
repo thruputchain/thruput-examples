@@ -30,7 +30,7 @@ import {
   saveRequestCollection,
   upsertRequest,
 } from "@/transactions/request-collection";
-import type { OutstandingRequest } from "@/transactions/outstanding-request";
+import type { OutstandingRequest } from "@/transactions/request-collection";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 

@@ -23,7 +23,7 @@ import {
   StandardTokenFactory,
   TokenCreated,
 } from "../src/contracts/generated/standard-token-factory.ts";
-import type { RegistryScope, RegistryToken } from "./domain.ts";
+import type { RegistryScope, RegistryToken } from "../shared/registry.ts";
 import type { ServerConfig } from "./config.ts";
 
 export interface RegistrySourceRequest {

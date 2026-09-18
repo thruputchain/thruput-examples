@@ -7,10 +7,7 @@ import {
 } from "lucide-react";
 import type { AppConfig } from "@/config";
 import type { FactoryReview } from "@/contracts/launchpad-client";
-import {
-  BlockchainIdentifier,
-  ExplorerProvider,
-} from "@/components/blockchain-identifier";
+import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { Detail, IdentifierDetail } from "@/components/detail";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +40,6 @@ export function ReviewCard({
   onAdvance,
   onReset,
   onStartOver,
-  writesSupported,
   connected = true,
 }: {
   config: AppConfig;
@@ -55,7 +51,6 @@ export function ReviewCard({
   onAdvance: () => void;
   onReset: () => void;
   onStartOver?: () => void;
-  writesSupported: boolean;
   connected?: boolean;
 }) {
   if (workflow)
@@ -74,7 +69,7 @@ export function ReviewCard({
   const ammPoolLink = createAmmPoolLink(config.swapAppUrl, workflow);
   const label = workflow ? actionLabel(workflow, manualProcessing) : "";
   return (
-    <ExplorerProvider explorerUrl={config.explorerUrl}>
+    <>
       <Card className="h-fit lg:sticky lg:top-6">
         <CardHeader>
           <CardTitle>{draft.symbol.trim().toUpperCase() || "SYMBOL"}</CardTitle>
@@ -176,7 +171,11 @@ export function ReviewCard({
               ) : null}
               {workflow.creation.hash ? (
                 <IdentifierDetail
-                  label={workflow.executionMode === "batch" ? "Launch transaction" : "Creation transaction"}
+                  label={
+                    workflow.executionMode === "batch"
+                      ? "Launch transaction"
+                      : "Creation transaction"
+                  }
                   kind="transaction"
                   value={workflow.creation.hash}
                 />
@@ -211,11 +210,20 @@ export function ReviewCard({
               ) : null}
               <div className="space-y-3" aria-live="polite">
                 {workflow.executionMode === "batch" ? (
-                  <ProgressStep label="Launch token in one transaction" step={workflow.creation} />
+                  <ProgressStep
+                    label="Launch token in one transaction"
+                    step={workflow.creation}
+                  />
                 ) : (
                   <>
-                    <ProgressStep label="Fund token address" step={workflow.funding} />
-                    <ProgressStep label="Create and initialize token" step={workflow.creation} />
+                    <ProgressStep
+                      label="Fund token address"
+                      step={workflow.funding}
+                    />
+                    <ProgressStep
+                      label="Create and initialize token"
+                      step={workflow.creation}
+                    />
                   </>
                 )}
                 <ProgressStatus
@@ -272,7 +280,7 @@ export function ReviewCard({
                         <Button
                           className="min-h-12 w-full"
                           onClick={onAdvance}
-                          disabled={loading || !writesSupported || !connected}
+                          disabled={loading || !connected}
                           variant="outline"
                         >
                           {loading
@@ -284,7 +292,7 @@ export function ReviewCard({
                     ) : null}
                     <LaunchSuccessActions
                       onReset={onReset}
-                      disabled={loading || !writesSupported || !connected}
+                      disabled={loading || !connected}
                       ammPoolLink={ammPoolLink}
                     />
                   </>
@@ -293,7 +301,7 @@ export function ReviewCard({
                     <Button
                       className="min-h-12 w-full"
                       onClick={onAdvance}
-                      disabled={loading || !writesSupported || !connected}
+                      disabled={loading || !connected}
                       variant={
                         label === "Create token" || label === "Launch token"
                           ? "default"
@@ -322,7 +330,7 @@ export function ReviewCard({
                           className="min-h-12 w-full"
                           variant="outline"
                           onClick={onReset}
-                          disabled={loading || !writesSupported}
+                          disabled={loading}
                         >
                           Edit token details
                         </Button>
@@ -330,7 +338,7 @@ export function ReviewCard({
                           <Button
                             variant="ghost"
                             onClick={onStartOver}
-                            disabled={loading || !writesSupported}
+                            disabled={loading}
                           >
                             Start over
                           </Button>
@@ -353,7 +361,7 @@ export function ReviewCard({
           ) : null}
         </CardContent>
       </Card>
-    </ExplorerProvider>
+    </>
   );
 }
 

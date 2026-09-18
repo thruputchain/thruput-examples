@@ -25,7 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import type { AppConfig } from "@/config";
 import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { availableBalance, reservedInputForToken } from "@/domain/reservations";
-import { AmmPage } from "@/pools/amm-page";
+import { PoolPage } from "@/pools/pool-page";
 import {
   deriveAddLiquidityQuote,
   deriveRemoveLiquidityQuote,
@@ -56,8 +56,8 @@ import {
   type LiquidityStepName,
 } from "@/transactions/liquidity-operation";
 import { createLiquidityObserver, type LiquidityObserver } from "@/transactions/liquidity-observer";
-import { useWalletWriteBoundary } from "@/wallet/write-context";
-import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
+import { useTransactions } from "@/transactions/use-transactions";
+import { withAccountLock } from "@/transactions/account-lock";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
 import type { WriteBoundary } from "@/transactions/write-boundary";
@@ -78,12 +78,12 @@ export function LiquidityPage({
 }) {
   const client = useClient();
   const [reader] = useState(() => dependencies.readSnapshot ?? createSnapshotReader(config, client));
-  const connectedWriter = useWalletWriteBoundary();
+  const connectedWriter = useTransactions(config);
   const writer = dependencies.writer ?? connectedWriter;
   const [observer] = useState(() =>
     dependencies.observer ?? createLiquidityObserver(config, client)
   );
-  const snapshotState = usePoolSnapshot(reader);
+  const snapshotState = usePoolSnapshot(reader, config);
   const [initialState] = useState(() => readLiquidityState(config));
   const [operations, setOperations] = useState(initialState.operations);
   const [selectedKind, setSelectedKind] = useState<"add" | "remove">("add");
@@ -155,7 +155,7 @@ export function LiquidityPage({
     setIsRunning(true);
     setError(null);
     try {
-      const result = await withOutstandingRequestLock(config, async () => {
+      const result = await withAccountLock(config, async () => {
         if (hasBlockingAllowanceCleanup(config)) {
           throw new Error("Resolve the account's pending allowance cleanup first");
         }
@@ -243,7 +243,7 @@ export function LiquidityPage({
     if (current === null || isRunning) return;
     setIsRunning(true);
     try {
-      await withOutstandingRequestLock(config, async () => {
+      await withAccountLock(config, async () => {
         if (crankRequiresConfirmation) {
           confirmLiquidityCrankWasNotSigned(config);
           return;
@@ -261,7 +261,7 @@ export function LiquidityPage({
   }
 
   return (
-    <AmmPage
+    <PoolPage
       title="Manage liquidity"
       description={`${config.tokenASymbol} / ${config.tokenBSymbol} deposits and redemptions.`}
     >
@@ -379,7 +379,7 @@ export function LiquidityPage({
             setProcessingMode(manual ? "manual" : "automatic")}
         />
       </Field>
-    </AmmPage>
+    </PoolPage>
   );
 }
 

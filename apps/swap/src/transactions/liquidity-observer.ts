@@ -12,7 +12,6 @@ import {
   LiquidityBurnEvent as BurnEvent,
   LiquidityMintEvent as MintEvent,
 } from "@/contracts/liquidity-events";
-import { createReadClient } from "@/groundhog/client";
 import type { LiquidityOperation } from "@/transactions/liquidity-operation";
 
 export interface LiquidityObserver {
@@ -21,7 +20,7 @@ export interface LiquidityObserver {
 
 export function createLiquidityObserver(
   config: AppConfig,
-  client: Pick<GroundhogClient, "getEvents"> = createReadClient(config),
+  client: Pick<GroundhogClient, "getEvents">,
 ): LiquidityObserver {
   return {
     async scan(operation) {

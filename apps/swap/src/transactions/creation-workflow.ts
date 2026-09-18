@@ -74,14 +74,14 @@ interface CreationTokenIntent {
   amount: string;
 }
 
-export class CreationWorkflowError extends Error {
+class CreationWorkflowError extends Error {
   constructor() {
     super("Stored pool-creation workflow is invalid");
     this.name = "CreationWorkflowError";
   }
 }
 
-export function creationWorkflowKey(
+function creationWorkflowKey(
   config: GlobalConfig,
   token0Address: string,
   token1Address: string,

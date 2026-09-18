@@ -19,8 +19,7 @@ import {
   type SwapEvent,
 } from "@/contracts/generated/swap-handler";
 import { orderTokens } from "@/domain/tokens";
-import { createReadClient } from "@/groundhog/client";
-import type { OutstandingRequest } from "@/transactions/outstanding-request";
+import type { OutstandingRequest } from "@/transactions/request-collection";
 import type { RequestRecord } from "@/transactions/request-collection";
 
 export type RequestObservation =
@@ -66,7 +65,7 @@ export interface RequestObservationBatch {
 
 export function createRequestObserver(
   config: AppConfig,
-  client: Pick<GroundhogClient, "getEvents"> = createReadClient(config),
+  client: Pick<GroundhogClient, "getEvents">,
 ): RequestObserver {
   const scanAll = async (
     requests: readonly RequestRecord[],

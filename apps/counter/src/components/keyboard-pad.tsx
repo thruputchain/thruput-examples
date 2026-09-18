@@ -17,7 +17,7 @@ const RESERVED = new Set([
   "Unidentified",
 ]);
 
-export function isSmashKey(
+function isSmashKey(
   event: Pick<
     KeyboardEvent,
     "key" | "ctrlKey" | "altKey" | "metaKey" | "nativeEvent"
@@ -81,10 +81,7 @@ export function KeyboardPad({
         }
         if (disabled || !isSmashKey(event)) return;
         event.preventDefault();
-        const direction =
-          crypto.getRandomValues(new Uint8Array(1))[0]! < 128
-            ? "increment"
-            : "decrement";
+        const direction = Math.random() < 0.5 ? "increment" : "decrement";
         onInput(direction);
         setPulse((previous) => ({ id: (previous?.id ?? 0) + 1, direction }));
       }}

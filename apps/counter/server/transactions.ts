@@ -8,6 +8,7 @@ import {
   defineCluster,
   deserializeSignedTransaction,
   fromHex0x,
+  hashFromHex,
   HttpTransport,
   PrivateKeySigner,
   serializeSignedTransaction,
@@ -19,7 +20,6 @@ import {
   gasAmount,
   networkHash,
   serialize,
-  sha256Hash,
 } from "@groundhogchain/protocol";
 import { Counter } from "../src/contracts/generated/counter";
 import type { Direction } from "../src/transactions/engine";
@@ -61,7 +61,7 @@ export function createCounterTransactions(
   const account = createPubkeyAccount({
     signer: new PrivateKeySigner(fromHex0x(config.signingPrivateKey)),
   });
-  const expected = networkHash(sha256Hash(fromHex0x(config.app.networkId)));
+  const expected = networkHash(hashFromHex(config.app.networkId));
   const contract = addressFromHex(config.app.counterAddress);
   const invocations = {
     increment: Counter.increment.invocation(contract, GAS, { amount: 1n }),

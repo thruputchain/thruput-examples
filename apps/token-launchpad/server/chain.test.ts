@@ -15,7 +15,7 @@ import {
   RegistryIntegrityError,
   RegistryScopeVerificationError,
 } from "./chain.ts";
-import type { RegistryScope } from "./domain.ts";
+import type { RegistryScope } from "../shared/registry.ts";
 import { RegistryIndexer } from "./indexer.ts";
 import { RegistryStore } from "./store.ts";
 import {

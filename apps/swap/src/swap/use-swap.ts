@@ -61,10 +61,6 @@ import {
 } from "@/transactions/allowance-cleanup";
 import { loadRequiredAllowance } from "@/transactions/account-allowance";
 import {
-  isAccountOutstandingRequestKey,
-  outstandingRequestKey,
-} from "@/transactions/outstanding-request";
-import {
   isAccountCrankAttemptKey,
   crankAttemptKey,
   createCrankAttempt,
@@ -77,12 +73,10 @@ import {
 import {
   createRequestRecord,
   dismissTerminalRequest,
-  hasLegacyOutstandingRequest,
   isAccountRequestCollectionKey,
   loadAccountRequestRecords,
   loadRequestCollection,
   loadRequestCollectionForUpdate,
-  migrateRequestCollection,
   mutateRequestCollection,
   needsQueueProcessing,
   requestCollectionKey,
@@ -95,7 +89,7 @@ import {
   initialWorkflowState,
   workflowReducer,
   type WorkflowState,
-} from "@/workflow";
+} from "./workflow";
 import type {
   RequestObservation,
   RequestObserver,
@@ -157,9 +151,6 @@ export function useSwap({
   const { mode: processingMode, setMode: setProcessingMode } =
     useProcessingMode();
   const manualProcessing = processingMode === "manual";
-  const [collectionReady, setCollectionReady] = useState(
-    !hasLegacyOutstandingRequest(config),
-  );
   const [outstanding, setOutstanding] = useState<RequestRecord | null>(() =>
     selectDisplayRequest(initialRequestState.requests),
   );
@@ -249,7 +240,6 @@ export function useSwap({
     hasBlockingLiquidityTransaction,
   );
   const controlsLocked =
-    !collectionReady ||
     requestStorageError !== null ||
     accountSafety.error !== null ||
     (!manualProcessing && crankStorageError !== null) ||
@@ -334,44 +324,18 @@ export function useSwap({
     amount.length === 0 || quote.ok ? null : quoteErrorMessages[quote.error];
 
   useEffect(() => {
-    let cancelled = false;
-    void migrateRequestCollection(config).then(
-      () => {
-        if (cancelled) return;
-        const loaded = loadRequestCollection(config);
-        setRequests(loaded);
-        const recovery = selectRecoveryRequest(loaded);
-        setOutstanding(recovery ?? selectDisplayRequest(loaded));
-        setIsRecoveryRecord(recovery !== null);
-        setCollectionReady(true);
-      },
-      () => {
-        if (cancelled) return;
-        setRequestStorageError(
-          "Stored request history could not be loaded safely. Preserve the saved data and resolve pending transactions on the original ledger before submitting another swap.",
-        );
-        setCollectionReady(true);
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [config]);
-
-  useEffect(() => {
     const key = requestCollectionKey(config);
     const reload = (event: StorageEvent) => {
       if (
         event.key === null ||
         isAccountRequestCollectionKey(config, event.key) ||
-        isAccountOutstandingRequestKey(config, event.key) ||
         isAccountCreationWorkflowKey(config, event.key) ||
         isAccountLiquidityOperationKey(config, event.key) ||
         event.key === allowanceCleanupKey(config)
       ) {
         refreshAccountSafety();
       }
-      if (event.key === key) {
+      if (event.key === key || event.key === null) {
         try {
           const loaded = loadRequestCollection(config);
           setRequestStorageError(null);
@@ -389,26 +353,6 @@ export function useSwap({
             "Stored request history changed but could not be loaded safely.",
           );
         }
-      } else if (
-        event.key === null ||
-        event.key === outstandingRequestKey(config)
-      ) {
-        void migrateRequestCollection(config).then(
-          (loaded) => {
-            setRequestStorageError(null);
-            setRequests(loaded);
-            if (!actionInFlight.current) {
-              const recovery = selectRecoveryRequest(loaded);
-              setOutstanding(recovery ?? selectDisplayRequest(loaded));
-              setIsRecoveryRecord(recovery !== null);
-            }
-          },
-          () => {
-            setRequestStorageError(
-              "Stored request history changed but could not be migrated safely.",
-            );
-          },
-        );
       }
     };
     window.addEventListener("storage", reload);

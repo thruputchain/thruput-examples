@@ -26,8 +26,13 @@ export interface RegistryScan {
   nextCursor: string | null;
 }
 
-export type RegistrySyncState =
-  "idle" | "syncing" | "retrying" | "integrityFault";
+export const REGISTRY_SYNC_STATES = [
+  "idle",
+  "syncing",
+  "retrying",
+  "integrityFault",
+] as const;
+export type RegistrySyncState = (typeof REGISTRY_SYNC_STATES)[number];
 
 export interface RegistryStatus extends RegistryScope {
   indexedThroughBlock: string;

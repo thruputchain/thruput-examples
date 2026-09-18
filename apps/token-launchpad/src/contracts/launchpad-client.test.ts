@@ -8,7 +8,7 @@ import {
   safeDisplayDecimals,
 } from "@/contracts/launchpad-client";
 import { configuration } from "@/test/fixtures";
-import { MAX_SIGNED_AMOUNT } from "@/runtime";
+import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
 
 describe("factory review", () => {
   const config = configuration();

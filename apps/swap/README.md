@@ -4,6 +4,40 @@ Create pools, swap tokens, and manage liquidity through an external wallet.
 The directory uses the pool registry; balances, reserves, and transaction
 verification use live chain reads. The app never receives wallet private keys.
 
+## Application structure
+
+Swap and Token Launchpad follow the same application skeleton:
+
+```text
+src/main.tsx           Load runtime config and create the read client; retry startup
+src/app.tsx            Compose providers → router → layout → routes
+src/app-providers.tsx  Own stable Query, wallet, tooltip, and explorer providers
+src/app-layout.tsx     Render the persistent banner, header, navigation, and wallet UI
+src/routes.tsx         Select feature routes and apply wallet/workflow policy
+```
+
+Both apps keep app-wide UI in `src/components/`, wallet UI in `src/wallet/`,
+client integration in `src/groundhog/`, general helpers in `src/lib/`, browser
+registry access in `src/registry/`, and transaction execution/recovery in
+`src/transactions/`. `src/contracts/` contains bindings, `src/setup/` contains
+setup support, and `src/test/` contains shared test helpers. Module tests live
+beside their source. `server/`, `shared/`, `scripts/`, and `public/` have the same
+roles in both examples: backend, browser/server models and constants, tooling,
+and static assets.
+
+Swap's feature directories are `src/pools/`, `src/swap/`, and
+`src/token-discovery/`; Launchpad uses `src/tokens/` and `src/launch/`.
+Swap also retains `src/domain/` for pure amount, allowance, reservation, and
+token-ordering rules shared by pool creation, liquidity, swapping, and transaction
+execution. Swap-only quotes and workflow state live in `src/swap/`.
+
+Start with `app.tsx` and `app-layout.tsx`, then follow `routes.tsx` into
+`pools/pool-route-view.tsx` and `swap/swap-route.tsx`. Pages own their content
+and `<main>`, while the layout owns the global header. Signing-binding changes
+reset write forms below the layout; public directory filters and the providers
+remain mounted. Swap's additional `ProcessingModeProvider` preserves the chosen
+processing mode across routes.
+
 ## Requirements
 
 - Node.js 22.13 or newer and the [shared SDK/npm install](../../README.md#install-swap-and-launchpad-dependencies).
@@ -181,8 +215,11 @@ paired with its bindings; the CI dependency update does not redeploy Devnet.
 
 Setup publishes `.env.local` or `.env.devnet` and immutable `public/contract-artifacts/<hash>.json`.
 `VITE_POOL_TOKEN_HASH` identifies the LP token implementation attached to pool
-creation. Builds and startup validate its hash. Rebuild after changing public
-configuration; build and server manifests must agree.
+creation. Server startup validates the served artifact against this hash before
+opening deployment state. The browser loads public settings from `/api/config`
+and always calls `/groundhog-rpc`; upstream URLs stay server-side. Configuration
+changes require a server restart and page reload, not a frontend rebuild. Keep
+the deployed artifacts and generated bindings paired when changing contract code.
 
 The LP-token code asset for the recorded Devnet deployment is checked in so a
 clean checkout can build and create pools. If a future setup produces
@@ -237,10 +274,10 @@ Root `npm test` also runs shared seed and process-cleanup regressions.
 platform requirements, and coverage are in [Application checks](../../README.md#application-checks).
 ## React integration
 
-`src/wallet/wallet-provider.tsx` composes the published `@groundhogchain/react`
-provider with a stable, network-validated public client and retryable startup UI.
-The app supplies its write boundary through `useWalletClient()` and resets
-account-scoped route forms when that signing binding changes. Wallet discovery,
+`src/main.tsx` initializes runtime config and a stable, network-validated client
+with retryable startup UI. `src/app-providers.tsx` composes the official wallet
+and Query providers. The transaction hook composes `useWalletClient()` with app
+policy; only write forms reset when that signing binding changes. Wallet discovery,
 session invalidation, and client disposal belong to the library.
 
 Pool pages and token previews reuse `useClient()` for public reads. Pool balances,

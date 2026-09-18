@@ -42,7 +42,7 @@ import { SwapHandler } from "../../apps/swap/src/contracts/generated/swap-handle
 import type {
   RegistryStatus,
   TokenQueryResult,
-} from "../../apps/token-launchpad/server/domain.ts";
+} from "../../apps/token-launchpad/shared/registry.ts";
 import {
   executeStep,
   durableMkdir,

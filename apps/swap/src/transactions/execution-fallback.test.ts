@@ -2,7 +2,7 @@ import { contractAddress } from "@groundhogchain/protocol";
 import { describe, expect, it } from "vitest";
 
 import type { PoolSnapshot } from "@/swap/snapshot";
-import type { OutstandingRequest } from "@/transactions/outstanding-request";
+import type { OutstandingRequest } from "@/transactions/request-collection";
 import { createRequestRecord } from "@/transactions/request-collection";
 import {
   inferExecutionFromSnapshot,

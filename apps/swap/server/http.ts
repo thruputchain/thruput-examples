@@ -13,8 +13,7 @@ import {
   type PoolQuery,
   type RegistrySort,
   type SyncController,
-} from "./domain.ts";
-import { PUBLIC_CONFIG_MANIFEST_FILENAME } from "./public-config-manifest.ts";
+} from "../shared/registry.ts";
 import { RegistryStore } from "./store.ts";
 import { RpcRateLimiter, rpcClientIdentity } from "./rate-limit.ts";
 import { createTokenDiscoveryHandler } from "./token-discovery.ts";
@@ -30,7 +29,6 @@ export {
   RpcRateLimiter,
   rpcClientIdentity,
   DEFAULT_RPC_REQUESTS_PER_MINUTE,
-  DEFAULT_MAXIMUM_RATE_LIMIT_CLIENTS,
 } from "./rate-limit.ts";
 
 const MAX_REQUEST_TARGET_BYTES = 8 * 1_024;
@@ -77,8 +75,9 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 export interface ProductionHttpOptions {
-  staticDirectory: string;
+  staticDirectory?: string;
   rpcUrl: URL | string;
+  publicConfig?: Record<string, string>;
   fetch?: typeof globalThis.fetch;
   maximumRpcConcurrency?: number;
   rpcRequestsPerMinute?: number;
@@ -119,6 +118,13 @@ export function createRegistryHttpServer(
     try {
       if (await discovery(request, response)) return;
       const url = requestUrl(request);
+      if (url.pathname === "/api/config") {
+        if (request.method !== "GET") throw new HttpError(405, "method_not_allowed", "GET is required");
+        await requireEmptyBody(request);
+        rejectParameters(url);
+        if (!production?.publicConfig) throw new HttpError(503, "configuration_unavailable", "Public configuration is unavailable");
+        return sendJson(response, 200, production.publicConfig);
+      }
       const allowedMethod = methodForPath(url.pathname);
       if (allowedMethod !== null) {
         if (request.method !== allowedMethod) {
@@ -167,7 +173,7 @@ export function createRegistryHttpServer(
           productionContext,
         );
       }
-      if (productionContext === undefined) {
+      if (productionContext === undefined || !productionContext.staticDirectory) {
         return rejectBeforeBody(
           request,
           response,
@@ -308,9 +314,9 @@ function queryInteger(
 function createProductionContext(
   options: ProductionHttpOptions,
 ): ProductionContext {
-  const staticDirectory = realpathSync(options.staticDirectory);
-  const indexPath = realpathSync(path.join(staticDirectory, "index.html"));
-  if (!isWithin(staticDirectory, indexPath)) {
+  const staticDirectory = options.staticDirectory ? realpathSync(options.staticDirectory) : "";
+  const indexPath = staticDirectory ? realpathSync(path.join(staticDirectory, "index.html")) : "";
+  if (staticDirectory && !isWithin(staticDirectory, indexPath)) {
     throw new Error("Static index must be inside the static directory");
   }
   const rpcUrl = new URL(options.rpcUrl);
@@ -786,7 +792,7 @@ async function serveStatic(
     response.setHeader("content-length", fileStat.size);
     response.setHeader(
       "cache-control",
-      isIndex || pathname === `/${PUBLIC_CONFIG_MANIFEST_FILENAME}`
+      isIndex
         ? "no-cache, no-store, must-revalidate"
         : pathname.startsWith("/assets/")
           ? "public, max-age=31536000, immutable"

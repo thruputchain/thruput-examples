@@ -1,7 +1,7 @@
 import { errorMessage } from "../config";
 
 export type Direction = "increment" | "decrement";
-export type TransactionState =
+type TransactionState =
   "queued" | "signing" | "pending" | "confirmed" | "failed" | "unknown";
 export interface Transaction {
   id: number;
@@ -42,7 +42,7 @@ export const initialSnapshot: Snapshot = {
   rate: 0,
   recent: [],
 };
-export interface PreparedTransaction {
+interface PreparedTransaction {
   hash: string;
   submit(): Promise<void>;
 }

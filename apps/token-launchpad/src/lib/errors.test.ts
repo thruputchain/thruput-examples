@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { userErrorMessage } from "@/errors";
+import { userErrorMessage } from "./errors";
 
 describe("userErrorMessage", () => {
   it("bounds and redacts untrusted error content", () => {

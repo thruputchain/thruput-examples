@@ -2,7 +2,7 @@ import { contractAddress } from "@groundhogchain/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { AppConfig } from "@/config";
-import type { OutstandingRequest } from "@/transactions/outstanding-request";
+import type { OutstandingRequest } from "@/transactions/request-collection";
 import {
   createRequestRecord,
   loadAccountRequestRecords,

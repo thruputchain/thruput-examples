@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { skipToken, useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
@@ -18,7 +19,6 @@ import {
 } from "@/components/ui/popover";
 import { getDiscoveryTokens } from "@/token-discovery/client";
 import type { DiscoveryConfig } from "@/token-discovery/config";
-import type { DiscoveryResponse } from "@/token-discovery/wire";
 import { tokenAddress } from "./creation-presets";
 
 export function TokenAddressCombobox({
@@ -38,12 +38,7 @@ export function TokenAddressCombobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlighted, setHighlighted] = useState("");
-  const [attempt, setAttempt] = useState(0);
-  const key = JSON.stringify([open, query, attempt, discovery]);
-  const [result, setResult] = useState<{
-    key: string;
-    data: DiscoveryResponse | null;
-  } | null>(null);
+  const [debounced, setDebounced] = useState("");
   const enabled = discovery?.enabled === true;
   const selected = tokenAddress(value);
   const other = tokenAddress(otherAddress);
@@ -54,32 +49,23 @@ export function TokenAddressCombobox({
       : selected !== null && selected === other
         ? "Choose a different contract from the other token."
         : null;
-  const current = result?.key === key ? result : null;
-
   useEffect(() => {
-    setResult(null);
-    if (!open || !discovery?.enabled) return;
-    const controller = new AbortController();
-    let active = true;
-    const timer = setTimeout(
-      () => {
-        void getDiscoveryTokens(discovery, query, controller.signal).then(
-          (data) => {
-            if (active) setResult({ key, data });
-          },
-          () => {
-            if (active) setResult({ key, data: null });
-          },
-        );
-      },
-      query.trim() ? 250 : 0,
-    );
-    return () => {
-      active = false;
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [key]);
+    const timer = setTimeout(() => setDebounced(query), query.trim() ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [query]);
+  const result = useQuery({
+    queryKey: ["token-discovery", discovery?.scope, open ? debounced : null],
+    queryFn:
+      open && discovery?.enabled
+        ? ({ signal }) => getDiscoveryTokens(discovery, debounced, signal)
+        : skipToken,
+    enabled: query === debounced,
+    retry: false,
+  });
+  const current =
+    query !== debounced || result.isPending
+      ? null
+      : { data: result.isError ? null : (result.data ?? null) };
 
   function choose(address: string) {
     onChange(address);
@@ -170,7 +156,7 @@ export function TokenAddressCombobox({
                 variant="outline"
                 size="sm"
                 className="m-2"
-                onClick={() => setAttempt((n) => n + 1)}
+                onClick={() => void result.refetch()}
               >
                 Retry search
               </Button>
@@ -254,12 +240,22 @@ export function TokenAddressCombobox({
           </Command>
           {selected ? (
             <p className="px-3 pb-2 text-xs">
-              Selected address: <BlockchainIdentifier kind="address" value={selected} label="Selected address" />
+              Selected address:{" "}
+              <BlockchainIdentifier
+                kind="address"
+                value={selected}
+                label="Selected address"
+              />
             </p>
           ) : null}
           {tokenAddress(highlighted.replace(/^manual:/, "")) ? (
             <p className="px-3 pb-2 text-xs">
-              Highlighted address: <BlockchainIdentifier kind="address" value={highlighted.replace(/^manual:/, "")} label="Highlighted token address" />
+              Highlighted address:{" "}
+              <BlockchainIdentifier
+                kind="address"
+                value={highlighted.replace(/^manual:/, "")}
+                label="Highlighted token address"
+              />
             </p>
           ) : null}
         </PopoverContent>

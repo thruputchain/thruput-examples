@@ -8,10 +8,6 @@ vi.mock("./config.ts", () => ({
     scope: { tokenCodeHash: `0x${"11".repeat(32)}` },
   }),
 }));
-vi.mock("./public-config-manifest.ts", () => ({
-  PUBLIC_CONFIG_MANIFEST_FILENAME: "groundhog-public-config.json",
-  verifyPublicConfigManifest: vi.fn(),
-}));
 vi.mock("./contract-artifact.ts", () => ({
   validateStandardTokenArtifact: vi
     .fn()

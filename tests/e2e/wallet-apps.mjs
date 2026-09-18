@@ -220,8 +220,6 @@ async function productionSmoke(app, prefix, settings, context) {
   const runtime = {
     ...settings,
     VITE_TOKEN_DISCOVERY_ENABLED: "false",
-    VITE_POOL_REGISTRY_ENABLED: "true",
-    VITE_TOKEN_REGISTRY_ENABLED: "true",
     PORT: String(port),
     [`${prefix === "SWAP" ? "POOL" : "TOKEN"}_REGISTRY_DB_PATH`]: `${directory}/registry.sqlite`,
   };
@@ -295,11 +293,11 @@ async function productionSmoke(app, prefix, settings, context) {
   });
   assert.equal(response.status, 200);
   assert.deepEqual(Buffer.from(await response.arrayBuffer()), artifact);
-  const manifest = await fetch(`${origin}/groundhog-public-config.json`, {
+  const publicConfig = await fetch(`${origin}/api/config`, {
     signal: AbortSignal.timeout(10000),
   }).then((r) => r.json());
   assert.equal(
-    manifest[
+    publicConfig[
       prefix === "SWAP" ? "VITE_POOL_TOKEN_HASH" : "VITE_STANDARD_TOKEN_HASH"
     ],
     hash,

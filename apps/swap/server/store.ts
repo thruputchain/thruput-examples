@@ -10,7 +10,7 @@ import {
   type RegistryScope,
   type RegistryStatus,
   type RegistrySyncState,
-} from "./domain.ts";
+} from "../shared/registry.ts";
 import {
   canonicalAddress,
   canonicalDecimal,

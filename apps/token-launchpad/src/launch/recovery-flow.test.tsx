@@ -1,5 +1,5 @@
 import { fixedBytes } from "@groundhogchain/client";
-import { WalletProvider } from "@groundhogchain/react";
+import { AppProviders } from "@/app-providers";
 import { testClient } from "@/test/wallet";
 import {
   act,
@@ -8,7 +8,7 @@ import {
   screen,
   waitFor,
   within,
-} from "@testing-library/react";
+} from "@/test/render";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
 import { reviewFactory } from "@/contracts/launchpad-client";
@@ -209,7 +209,7 @@ it("preserves an in-flight launch through disconnect and permits retry after rec
         resolve = done;
       }),
   );
-  const view = render(page(), { wrapper: ({ children }) => <WalletProvider client={publicClient}>{children}</WalletProvider> });
+  const view = render(page(), { wrapper: ({ children }) => <AppProviders client={publicClient} explorerUrl={config.explorerUrl}>{children}</AppProviders> });
   fireEvent.click(screen.getByRole("button", { name: "Launch token" }));
   await waitFor(() => expect(writer.execute).toHaveBeenCalledOnce());
   view.rerender(page(false));

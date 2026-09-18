@@ -11,7 +11,6 @@ import {
 import type { GlobalConfig } from "@/config";
 import { RequestFailed } from "@/contracts/generated/swap-driver";
 import { LiquidityMintEvent as MintEvent } from "@/contracts/liquidity-events";
-import { createReadClient } from "@/groundhog/client";
 import type { CreationWorkflow } from "@/transactions/creation-workflow";
 
 export interface CreationObserver {
@@ -20,7 +19,7 @@ export interface CreationObserver {
 
 export function createCreationObserver(
   config: GlobalConfig,
-  client: Pick<GroundhogClient, "getEvents"> = createReadClient(config),
+  client: Pick<GroundhogClient, "getEvents">,
 ): CreationObserver {
   return {
     async scan(workflow) {

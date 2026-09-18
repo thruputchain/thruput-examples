@@ -69,5 +69,3 @@ export function minimumAmountOut(amountOut: bigint, slippageBps: bigint): bigint
   }
   return (amountOut * (BASIS_POINTS - slippageBps)) / BASIS_POINTS;
 }
-
-export const SWAP_FEE_BPS = 30n;

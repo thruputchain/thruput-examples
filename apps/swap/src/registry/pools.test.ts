@@ -12,7 +12,6 @@ const hex = (value: number) =>
   `0x${value.toString(16).padStart(2, "0").repeat(32)}`;
 const config: GlobalConfig = {
   rpcUrl: new URL("http://localhost"),
-  registryEnabled: true,
   networkIdHex: "00".repeat(32),
   accountAddress: address(1),
   routerAddress: address(2),
@@ -41,6 +40,7 @@ describe("registry pool enrichment", () => {
     const resultPromise = enrichRegistryPools(
       config,
       entries,
+      { view: vi.fn() },
       undefined,
       readPool,
     );
@@ -63,6 +63,7 @@ describe("registry pool enrichment", () => {
     const result = await enrichRegistryPools(
       config,
       entry,
+      { view: vi.fn() },
       undefined,
       async (_config, record) => ({
         ...live(record),
@@ -79,6 +80,7 @@ describe("registry pool enrichment", () => {
       enrichRegistryPools(
         config,
         registryPoolsToEntries([pool(1)]),
+        { view: vi.fn() },
         controller.signal,
         async () => live(pool(1)),
       ),
@@ -91,6 +93,7 @@ describe("registry pool enrichment", () => {
     await enrichRegistryPools(
       config,
       registryPoolsToEntries([pool(1)]),
+      { view: vi.fn() },
       signal,
       readPool,
     );

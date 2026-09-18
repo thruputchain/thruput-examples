@@ -25,7 +25,7 @@ import type { GlobalConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
-import { AmmPage } from "@/pools/amm-page";
+import { PoolPage } from "@/pools/pool-page";
 import { readCreationPresets, tokenAddress } from "@/pools/creation-presets";
 import { TokenAddressCombobox } from "@/pools/token-address-combobox";
 import { useTokenPreview } from "@/pools/token-preview";
@@ -59,8 +59,8 @@ import {
   type CreationStepName,
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
-import { useWalletWriteBoundary } from "@/wallet/write-context";
-import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
+import { useTransactions } from "@/transactions/use-transactions";
+import { withAccountLock } from "@/transactions/account-lock";
 import {
   hasBlockingAllowanceCleanup,
   confirmAllowanceCleanupWasNotSigned,
@@ -107,7 +107,7 @@ export function PoolCreatePage({
   dependencies?: PoolCreatePageDependencies;
 }) {
   const scope = JSON.stringify([
-    config.networkIdHex, config.rpcUrl.href, config.registryEnabled,
+    config.networkIdHex, config.rpcUrl.href,
     toHex0x(config.accountAddress), toHex0x(config.factoryAddress),
     toHex0x(config.routerAddress), toHex0x(config.nativeHogAddress),
   ]);
@@ -138,7 +138,7 @@ function CreationPage({
         : [],
     };
   });
-  const connectedWriter = useWalletWriteBoundary();
+  const connectedWriter = useTransactions(config);
   const writer = dependencies.writer ?? connectedWriter;
   const [input, setInput] = useState<PoolCreationInput>(() => ({
     ...emptyInput, tokenA: presets.tokenA, tokenB: presets.tokenB,
@@ -256,6 +256,7 @@ function CreationPage({
           config.nativeHogAddress,
           config.factoryAddress,
           {
+            client,
             writeBoundary: writer,
             assertCurrent,
             readAllowance: dependencies.readFactoryAllowance
@@ -269,7 +270,7 @@ function CreationPage({
         }
         if (cleanup.kind === "failed") throw new Error(cleanup.message);
         if (workflow.status === "failed") {
-          const archived = await withOutstandingRequestLock(config, async () => {
+          const archived = await withAccountLock(config, async () => {
             assertCurrent();
             return archiveCreationWorkflow(config, workflow);
           });
@@ -278,7 +279,7 @@ function CreationPage({
           return;
         }
       }
-      const result = await withOutstandingRequestLock(config, async () => {
+      const result = await withAccountLock(config, async () => {
         assertCurrent();
         if (hasBlockingAllowanceCleanup(config)) {
           throw new Error("Resolve the account's pending allowance cleanup first");
@@ -327,8 +328,7 @@ function CreationPage({
         let syncHintSent = false;
         const hintRegistryAfterCreation = (next: CreationWorkflow) => {
           if (
-            config.registryEnabled
-            && !syncHintSent
+            !syncHintSent
             && previousCreatePoolStatus !== "committed"
             && next.steps.createPool.status === "committed"
           ) {
@@ -359,7 +359,7 @@ function CreationPage({
           if (result.pool === null) throw new Error("The created pool is unavailable");
           const token0 = addressFromHex(result.token0.address);
           const token1 = addressFromHex(result.token1.address);
-          const poolConfig = await resolvePoolConfig(config, token0, token1, undefined, client);
+          const poolConfig = await resolvePoolConfig({ config, token0, token1, client });
           const snapshot = await createSnapshotReader(poolConfig, client)();
           if (
             snapshot.reserve0 <= 0n
@@ -405,7 +405,7 @@ function CreationPage({
     setIsRunning(true);
     setError(null);
     try {
-      const next = await withOutstandingRequestLock(config, async () => {
+      const next = await withAccountLock(config, async () => {
         const stored = loadCreationWorkflow(
           config,
           workflow.token0.address,
@@ -439,7 +439,7 @@ function CreationPage({
     setIsRunning(true);
     setError(null);
     try {
-      const archived = await withOutstandingRequestLock(config, async () =>
+      const archived = await withAccountLock(config, async () =>
         archiveCreationWorkflow(config, obsolete)
       );
       setAccountWorkflows((current) => [
@@ -463,7 +463,7 @@ function CreationPage({
     && workflow!.steps[blockingStep].transactionHash === null;
 
   return (
-    <AmmPage
+    <PoolPage
       title="Create pool"
       description="Review factory-recommended funding and exact initial liquidity before signing."
     >
@@ -622,7 +622,7 @@ function CreationPage({
             setProcessingMode(manual ? "manual" : "automatic")}
         />
       </Field>
-    </AmmPage>
+    </PoolPage>
   );
 }
 

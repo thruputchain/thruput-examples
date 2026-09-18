@@ -5,7 +5,7 @@ import {
   minimumAmountOut,
   QuoteArithmeticError,
   quoteExactInput,
-} from "@/domain/quote";
+} from "./quote";
 import { orientReserves, orderTokens } from "@/domain/tokens";
 import type { PoolSnapshot, TokenSnapshot } from "@/swap/snapshot";
 

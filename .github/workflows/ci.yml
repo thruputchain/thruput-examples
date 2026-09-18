@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 jobs:
   frontend:
@@ -26,8 +25,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || github.token }}
       - run: npm run typecheck
       - run: npm test
-      # Bundle without deployment-specific contract artifacts or generated config.
-      - run: npm run build --workspaces -- --mode test
+      # Public settings arrive at runtime; production bundles need no deployment env.
+      - run: npm run build --workspaces
       - run: npx --no-install playwright-core install --with-deps chromium
       - name: Browser acceptance
         run: |

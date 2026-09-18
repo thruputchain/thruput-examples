@@ -102,7 +102,7 @@ export function assessTokenState(
   };
 }
 
-export function isZeroAddress(address: ContractAddress): boolean {
+function isZeroAddress(address: ContractAddress): boolean {
   return bytesEqual(address, new Uint8Array(32));
 }
 

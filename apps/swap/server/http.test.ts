@@ -7,7 +7,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { RegistryPool, RegistryScope } from "./domain.ts";
+import type { RegistryPool, RegistryScope } from "../shared/registry.ts";
 import {
   createRegistryHttpServer,
   DEFAULT_MAXIMUM_RPC_CONCURRENCY,

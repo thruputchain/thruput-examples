@@ -2,7 +2,7 @@ import { toHex0x } from "@groundhogchain/client";
 
 import { orientReserves, orderTokens } from "@/domain/tokens";
 import type { PoolSnapshot, TokenSnapshot } from "@/swap/snapshot";
-import type { OutstandingRequest } from "@/transactions/outstanding-request";
+import type { OutstandingRequest } from "@/transactions/request-collection";
 import type { RequestRecord } from "@/transactions/request-collection";
 import type { RequestObservation } from "@/transactions/request-observer";
 

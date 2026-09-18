@@ -1,8 +1,17 @@
-import {
-  safeDisplayDecimals,
-  type CreatedToken,
-} from "@/contracts/launchpad-client";
+import { safeDisplayDecimals } from "@/contracts/launchpad-client";
 import type { RegistryToken } from "@/registry/client";
+
+export interface CreatedToken {
+  addressHex: string;
+  name: string;
+  symbol: string;
+  decimals: number | null;
+  initialSupply: bigint;
+  administratorHex: string;
+  holderHex: string;
+  block: bigint;
+  transactionHash: string;
+}
 
 export function registryTokenToCreatedToken(
   token: RegistryToken,

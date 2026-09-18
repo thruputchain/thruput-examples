@@ -4,7 +4,7 @@ import {
   reviewFactory,
   type FactoryReview,
 } from "@/contracts/launchpad-client";
-import { userErrorMessage } from "@/errors";
+import { userErrorMessage } from "@/lib/errors";
 import type { CoreGroundhogClient } from "@groundhogchain/client";
 import { requestRegistrySync } from "@/registry/client";
 import type { WriteBoundary } from "@/transactions/write-boundary";
@@ -36,7 +36,6 @@ export interface LaunchOptions {
   onCommitted?: () => void;
   writer: WriteBoundary;
   requestSync?: typeof requestRegistrySync;
-  writesSupported?: boolean;
   connected?: boolean;
 }
 
@@ -45,7 +44,6 @@ export function useLaunch({
   client,
   writer,
   requestSync = requestRegistrySync,
-  writesSupported = true,
   connected = true,
   onCommitted,
 }: LaunchOptions) {
@@ -109,7 +107,6 @@ export function useLaunch({
       working.current ||
       workflow ||
       storageError ||
-      !writesSupported ||
       !connected
     )
       return;
@@ -154,7 +151,7 @@ export function useLaunch({
   }
 
   async function advance() {
-    if (!workflow || working.current || !connected || !writesSupported) return;
+    if (!workflow || working.current || !connected) return;
     working.current = true;
     setLoading(true);
     setError(null);

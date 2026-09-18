@@ -3,12 +3,6 @@ import { contractAddress } from "@groundhogchain/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
-import { createNetworkReadClient } from "@/groundhog/client";
-
-vi.mock("@/groundhog/client", async (original) => ({
-  ...await original<object>(),
-  createNetworkReadClient: vi.fn(),
-}));
 import { loadCleanupAllowanceRequirement } from "./account-allowance";
 import {
   dismissTerminalRequest,
@@ -24,6 +18,7 @@ import {
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const client = { getNetworkInfo: vi.fn() };
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkIdHex: "00".repeat(32),
@@ -45,9 +40,7 @@ const config = {
 describe("allowance cleanup", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    vi.mocked(createNetworkReadClient).mockReset().mockResolvedValue({
-      getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }),
-    } as never);
+    client.getNetworkInfo.mockReset().mockResolvedValue({ networkHash: new Uint8Array(32) });
   });
 
   it("persists before signing and removes confirmed excess", async () => {
@@ -68,6 +61,7 @@ describe("allowance cleanup", () => {
     });
 
     await expect(runAllowanceCleanup(config, address(1), address(12), {
+      client,
       writeBoundary: { execute },
       readAllowance: async () => ({ value: 100n, height: 1n }),
       now: () => 10,
@@ -87,6 +81,7 @@ describe("allowance cleanup", () => {
       receipt: {} as TransactionReceipt,
     });
     const dependencies = {
+      client,
       writeBoundary: { execute, observe },
       readAllowance: async () => ({ value: 100n, height: 1n }),
     };
@@ -111,6 +106,7 @@ describe("allowance cleanup", () => {
   it("requires confirmation after an interruption before hash persistence", async () => {
     const execute = vi.fn().mockRejectedValue(new Error("page closed"));
     const dependencies = {
+      client,
       writeBoundary: { execute },
       readAllowance: async () => ({ value: 100n, height: 1n }),
     };
@@ -137,6 +133,7 @@ describe("allowance cleanup", () => {
     saveRequestCollection(config, [terminalRequest()]);
 
     await expect(runAllowanceCleanup(config, address(1), address(12), {
+      client,
       writeBoundary: { execute: vi.fn() },
       readAllowance: async () => ({ value: 100n, height: 11n }),
     })).rejects.toThrow("older than the terminal operation evidence");
@@ -162,13 +159,12 @@ describe("allowance cleanup", () => {
       transactionHash: hex(40), difference: "-300", updatedAt: 10,
     };
     if (recovery) window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify(record));
-    vi.mocked(createNetworkReadClient).mockResolvedValue({
-      getNetworkInfo: async () => ({ networkHash: new Uint8Array(32).fill(1) }),
-    } as never);
+    client.getNetworkInfo.mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) });
     const execute = vi.fn();
     const observe = vi.fn();
     const readAllowance = vi.fn(async () => ({ value: 0n, height: 12n }));
     await expect(runAllowanceCleanup(config, address(6), address(7), {
+      client,
       writeBoundary: { execute, observe }, readAllowance,
     })).rejects.toThrow("different Thruput network");
     expect(execute).not.toHaveBeenCalled();
@@ -178,13 +174,11 @@ describe("allowance cleanup", () => {
   });
 
   it("does not accept a zero allowance when the network changes during the read", async () => {
-    vi.mocked(createNetworkReadClient).mockResolvedValue({
-      getNetworkInfo: vi.fn()
-        .mockResolvedValueOnce({ networkHash: new Uint8Array(32) })
-        .mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) }),
-    } as never);
+    client.getNetworkInfo.mockResolvedValueOnce({ networkHash: new Uint8Array(32) })
+      .mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) });
     const execute = vi.fn();
     await expect(runAllowanceCleanup(config, address(6), address(7), {
+      client,
       writeBoundary: { execute },
       readAllowance: async () => ({ value: 0n, height: 12n }),
     })).rejects.toThrow("different Thruput network");
@@ -198,14 +192,12 @@ describe("allowance cleanup", () => {
       transactionHash: hex(40), difference: "-300", updatedAt: 10,
     };
     window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify(record));
-    vi.mocked(createNetworkReadClient).mockResolvedValue({
-      getNetworkInfo: vi.fn()
-        .mockResolvedValueOnce({ networkHash: new Uint8Array(32) })
-        .mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) }),
-    } as never);
+    client.getNetworkInfo.mockResolvedValueOnce({ networkHash: new Uint8Array(32) })
+      .mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) });
     const execute = vi.fn();
     const observe = vi.fn().mockResolvedValue({ kind: "committedSuccess", hash: hex(40), receipt: {} });
     await expect(runAllowanceCleanup(config, address(6), address(7), {
+      client,
       writeBoundary: { execute, observe }, readAllowance: vi.fn(),
     })).rejects.toThrow("different Thruput network");
     expect(loadAllowanceCleanup(config)).toEqual(record);

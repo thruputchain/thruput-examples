@@ -33,7 +33,6 @@ describe("loadConfig", () => {
   });
   it("parses trusted launchpad settings", () => {
     const config = loadConfig(environment);
-    expect(config.registryEnabled).toBe(true);
     expect(config.swapAppUrl).toBeNull();
     expect(config.nativeBalanceItemCost).toBe(1234n);
     expect(config.networkIdHex).toBe("22".repeat(32));
@@ -52,7 +51,6 @@ describe("loadConfig", () => {
       VITE_SWAP_APP_URL: "https://SWAP.example.test/",
     });
     expect(config.swapAppUrl).toBe("https://swap.example.test");
-    expect(config.registryEnabled).toBe(true);
     expect(() =>
       loadConfig({
         ...environment,

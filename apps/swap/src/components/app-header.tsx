@@ -10,13 +10,20 @@ export function AppHeader({
   homeHref = "/",
   navigation,
   actions,
+  navigationKey,
 }: {
   product: string;
   homeHref?: string;
   navigation?: ReactNode;
   actions?: ReactNode;
+  navigationKey?: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuLocation, setMenuLocation] = useState(navigationKey);
+  if (menuLocation !== navigationKey) {
+    setMenuLocation(navigationKey);
+    setMenuOpen(false);
+  }
   const navigationId = useId();
   const menuTrigger = useRef<HTMLButtonElement>(null);
   const hasRouter = useInRouterContext();

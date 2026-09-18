@@ -28,6 +28,8 @@ it("serves the real pool registry API from the development server", async () => 
     server: { host: "127.0.0.1", port: 0 },
     plugins: [
       developmentRegistry({
+        VITE_NATIVE_HOG_ADDRESS: `0x${"03".repeat(32)}`,
+        VITE_SWAP_ROUTER_ADDRESS: `0x${"04".repeat(32)}`,
         VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:1",
         VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
         VITE_SWAP_FACTORY_ADDRESS: `0x${"01".repeat(32)}`,
@@ -42,6 +44,9 @@ it("serves the real pool registry API from the development server", async () => 
       throw new Error("No HTTP port");
     const origin = `http://127.0.0.1:${address.port}`;
     const pools = await fetch(`${origin}/api/pools`);
+    const runtime = await (await fetch(`${origin}/api/config`)).json();
+    expect(runtime.VITE_SWAP_ROUTER_ADDRESS).toBe(`0x${"04".repeat(32)}`);
+    expect(runtime.VITE_GROUNDHOG_RPC_URL).toBeUndefined();
     expect(pools.status).toBe(200);
     expect(await pools.json()).toMatchObject({ pools: [], total: 0 });
     const sync = await fetch(`${origin}/api/registry/sync`, { method: "POST" });
@@ -62,6 +67,8 @@ it("closes its store when Vite shuts down in middleware mode", async () => {
     server: { middlewareMode: true },
     plugins: [
       developmentRegistry({
+        VITE_NATIVE_HOG_ADDRESS: `0x${"03".repeat(32)}`,
+        VITE_SWAP_ROUTER_ADDRESS: `0x${"04".repeat(32)}`,
         VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:1",
         VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
         VITE_SWAP_FACTORY_ADDRESS: `0x${"01".repeat(32)}`,

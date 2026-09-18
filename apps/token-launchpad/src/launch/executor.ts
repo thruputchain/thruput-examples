@@ -9,7 +9,7 @@ import { ExecResult, gasAmount, sha256Hash } from "@groundhogchain/protocol";
 import { DefaultWallet } from "@groundhogchain/client/contracts";
 
 import type { AppConfig } from "@/config";
-import { userErrorMessage } from "@/errors";
+import { userErrorMessage } from "@/lib/errors";
 import {
   StandardTokenFactory,
   TokenCreated,

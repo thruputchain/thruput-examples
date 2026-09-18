@@ -8,7 +8,6 @@ import type { GlobalConfig } from "@/config";
 import type { PoolDirectoryEntry } from "@/pools/pool-directory";
 import { resolvePoolConfig } from "@/pools/pool-context";
 import type { RegistryPool } from "@/registry/client";
-import { createReadClient } from "@/groundhog/client";
 import { createSnapshotReader } from "@/swap/snapshot";
 
 export interface RegistryPoolEntry {
@@ -38,9 +37,9 @@ export function registryPoolsToEntries(
 export async function enrichRegistryPools(
   config: GlobalConfig,
   entries: readonly RegistryPoolEntry[],
+  client: Pick<CoreGroundhogClient, "view">,
   signal?: AbortSignal,
   readPool?: PoolReader,
-  client?: Pick<CoreGroundhogClient, "view">,
 ): Promise<RegistryPoolEntry[]> {
   const enriched: RegistryPoolEntry[] = [];
   for (let offset = 0; offset < entries.length; offset += 4) {
@@ -51,7 +50,7 @@ export async function enrichRegistryPools(
           try {
             const live = await (readPool
               ? readPool(config, entry.record, signal)
-              : defaultPoolReader(config, entry.record, signal, client));
+              : defaultPoolReader(config, entry.record, client));
             throwIfAborted(signal);
             if (
               toHex0x(live.config.liquidityTokenAddress) !==
@@ -78,17 +77,14 @@ export async function enrichRegistryPools(
 async function defaultPoolReader(
   config: GlobalConfig,
   pool: RegistryPool,
-  signal?: AbortSignal,
-  suppliedClient?: Pick<CoreGroundhogClient, "view">,
+  client: Pick<CoreGroundhogClient, "view">,
 ): Promise<PoolDirectoryEntry> {
-  const client = suppliedClient ?? createReadClient(config, signal);
-  const poolConfig = await resolvePoolConfig(
+  const poolConfig = await resolvePoolConfig({
     config,
-    addressFromHex(pool.token0Address),
-    addressFromHex(pool.token1Address),
-    undefined,
     client,
-  );
+    token0: addressFromHex(pool.token0Address),
+    token1: addressFromHex(pool.token1Address),
+  });
   return {
     config: poolConfig,
     snapshot: await createSnapshotReader(poolConfig, client)(),

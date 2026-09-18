@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-
-import type { PoolSnapshot, SnapshotReader } from "@/swap/snapshot";
+import { useState } from "react";
+import { toHex0x } from "@groundhogchain/client";
+import { getClientQueryKey, useClient } from "@groundhogchain/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { AppConfig } from "@/config";
+import type { PoolSnapshot, SnapshotReader } from "./snapshot";
 
 export const SNAPSHOT_REFRESH_INTERVAL_MS = 15_000;
 
@@ -10,94 +13,59 @@ export interface PoolSnapshotState {
   isLoading: boolean;
   isRefreshing: boolean;
   isUserRefreshing: boolean;
-  refresh: () => void;
+  refresh(): void;
 }
 
-export function usePoolSnapshot(read: SnapshotReader): PoolSnapshotState {
-  const request = useRef(0);
-  const active = useRef(false);
-  const hasSnapshot = useRef(false);
-  const [state, setState] = useState<
-    Omit<PoolSnapshotState, "refresh">
-  >({
-    snapshot: null,
-    error: null,
-    isLoading: true,
-    isRefreshing: false,
-    isUserRefreshing: false,
+export function usePoolSnapshot(
+  read: SnapshotReader,
+  config: AppConfig,
+): PoolSnapshotState {
+  const client = useClient();
+  const queries = useQueryClient();
+  const [isUserRefreshing, setUserRefreshing] = useState(false);
+  const queryKey = [
+    ...getClientQueryKey(client),
+    "pool-snapshot",
+    {
+      addresses: [
+        config.accountAddress,
+        config.factoryAddress,
+        config.handlerAddress,
+        config.driverAddress,
+        config.liquidityTokenAddress,
+        config.tokenAAddress,
+        config.tokenBAddress,
+      ].map(toHex0x),
+      symbols: [config.tokenASymbol, config.tokenBSymbol],
+      decimals: [config.tokenADecimals, config.tokenBDecimals],
+    },
+  ] as const;
+  const result = useQuery({
+    queryKey,
+    queryFn: async ({ signal }) => {
+      const snapshot = await read();
+      signal.throwIfAborted();
+      return snapshot;
+    },
+    refetchInterval: SNAPSHOT_REFRESH_INTERVAL_MS,
+    retry: false,
   });
-
-  const runRefresh = useCallback((kind: "initial" | "manual" | "background") => {
-    if (kind === "background" && active.current) return;
-    active.current = true;
-    const currentRequest = ++request.current;
-    setState((current) => ({
-      ...current,
-      error: current.snapshot === null ? current.error : null,
-      isLoading: current.snapshot === null,
-      isRefreshing: current.snapshot !== null,
-      isUserRefreshing: kind === "manual",
-    }));
-
-    void read().then(
-      (snapshot) => {
-        if (request.current !== currentRequest) return;
-        active.current = false;
-        hasSnapshot.current = true;
-        setState({
-          snapshot,
-          error: null,
-          isLoading: false,
-          isRefreshing: false,
-          isUserRefreshing: false,
-        });
-      },
-      (error: unknown) => {
-        if (request.current !== currentRequest) return;
-        active.current = false;
-        setState((current) => ({
-          ...current,
-          error: describeReadError(error),
-          isLoading: false,
-          isRefreshing: false,
-          isUserRefreshing: false,
-        }));
-      },
-    );
-  }, [read]);
-
-  const refresh = useCallback(() => runRefresh("manual"), [runRefresh]);
-
-  useEffect(() => {
-    runRefresh("initial");
-    return () => {
-      request.current += 1;
-    };
-  }, [runRefresh]);
-
-  useEffect(() => {
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible" && hasSnapshot.current) {
-        runRefresh("background");
+  return {
+    snapshot: result.data ?? null,
+    error: result.error
+      ? `The configured RPC could not load the pool: ${result.error.message}`
+      : null,
+    isLoading: result.isPending,
+    isRefreshing: result.isFetching && result.data !== undefined,
+    isUserRefreshing,
+    async refresh() {
+      setUserRefreshing(true);
+      try {
+        await queries.cancelQueries({ queryKey, exact: true });
+        await result.refetch();
+      } finally {
+        setUserRefreshing(false);
       }
-    };
-    const interval = window.setInterval(
-      refreshWhenVisible,
-      SNAPSHOT_REFRESH_INTERVAL_MS,
-    );
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
-  }, [runRefresh]);
-
-  return { ...state, refresh };
-}
-
-function describeReadError(error: unknown): string {
-  if (error instanceof Error && error.message.length > 0) {
-    return `The configured RPC could not load the pool: ${error.message}`;
-  }
-  return "The configured RPC could not load the pool.";
+    },
+  };
 }

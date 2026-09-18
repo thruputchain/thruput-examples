@@ -18,12 +18,7 @@ export function useCounter() {
       const body: unknown = await response.json();
       if (!response.ok) {
         throw new Error(
-          body &&
-            typeof body === "object" &&
-            "error" in body &&
-            typeof body.error === "string"
-            ? body.error
-            : "Counter configuration could not be loaded.",
+            errorMessage(body, "Counter configuration could not be loaded."),
         );
       }
       const loaded = parseConfig(body);

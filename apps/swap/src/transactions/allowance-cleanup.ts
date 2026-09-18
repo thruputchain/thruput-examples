@@ -1,10 +1,10 @@
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x, type CoreGroundhogClient } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 import type { GlobalConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { allowanceDifference } from "@/domain/allowance";
-import { createNetworkReadClient, verifyReadNetwork } from "@/groundhog/client";
+import { verifyReadNetwork } from "@/groundhog/client";
 import {
   loadCleanupAllowanceRequirement,
 } from "@/transactions/account-allowance";
@@ -20,7 +20,7 @@ import {
   hasBlockingLiquidityTransaction,
   loadAccountLiquidityOperations,
 } from "@/transactions/liquidity-operation";
-import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
+import { withAccountLock } from "@/transactions/account-lock";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 
@@ -45,7 +45,7 @@ export type AllowanceCleanupResult =
   | { kind: "pending"; record: AllowanceCleanupRecord }
   | { kind: "failed"; message: string };
 
-export class AllowanceCleanupRecoveryError extends Error {
+class AllowanceCleanupRecoveryError extends Error {
   constructor() {
     super("Confirm that the pre-hash allowance cleanup was never signed before retrying");
     this.name = "AllowanceCleanupRecoveryError";
@@ -53,6 +53,7 @@ export class AllowanceCleanupRecoveryError extends Error {
 }
 
 export interface AllowanceCleanupDependencies {
+  client: Pick<CoreGroundhogClient, "getNetworkInfo">;
   writeBoundary: WriteBoundary;
   readAllowance: (
     token: ContractAddress,
@@ -94,7 +95,7 @@ export function hasBlockingAllowanceCleanup(config: AllowanceCleanupScope): bool
 export async function confirmAllowanceCleanupWasNotSigned(
   config: AllowanceCleanupScope,
 ): Promise<void> {
-  await withOutstandingRequestLock(config, async () => {
+  await withAccountLock(config, async () => {
     const record = loadAllowanceCleanup(config);
     if (record === null || record.transactionHash !== null) {
       throw new Error("The allowance cleanup has a transaction hash and must be observed");
@@ -109,9 +110,9 @@ export async function runAllowanceCleanup(
   spender: ContractAddress,
   dependencies: AllowanceCleanupDependencies,
 ): Promise<AllowanceCleanupResult> {
-  return withOutstandingRequestLock(config, async () => {
+  return withAccountLock(config, async () => {
     dependencies.assertCurrent?.();
-    const client = await createNetworkReadClient(config);
+    const client = dependencies.client;
     await verifyReadNetwork(client, config);
     const tokenAddress = toHex0x(token);
     const spenderAddress = toHex0x(spender);

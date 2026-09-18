@@ -9,6 +9,7 @@ import {
   defaultWalletAdapter,
   deserializeSignedTransaction,
   fromHex0x,
+  hashFromHex,
   hashSignedTransaction,
   PrivateKeySigner,
   serializeSignedTransaction,
@@ -27,7 +28,6 @@ import {
   gasAmount,
   HOG_ADDRESS,
   networkHash,
-  sha256Hash,
   type Invocation,
 } from "@groundhogchain/protocol";
 import { Counter, spec } from "../src/contracts/generated/counter";
@@ -46,9 +46,7 @@ const config = loadServerConfig(environment);
 const account = createPubkeyAccount({
   signer: new PrivateKeySigner(fromHex0x(`0x${key}`)),
 });
-const expectedNetwork = networkHash(
-  sha256Hash(fromHex0x(config.app.networkId)),
-);
+const expectedNetwork = networkHash(hashFromHex(config.app.networkId));
 const contract = addressFromHex(config.app.counterAddress);
 const gas = gasAmount(1_000_000n);
 const wrap = (invocation: Invocation) =>
@@ -293,7 +291,7 @@ describe("counter signing boundary", () => {
     );
   });
 
-  it("publishes only public identity and refuses a previously exposed key configuration", async () => {
+  it("publishes only public identity and requires the server-only signing key", async () => {
     const origin = await listen(createCounterServer(config));
     const response = await fetch(`${origin}/api/config`);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -309,9 +307,8 @@ describe("counter signing boundary", () => {
       loadServerConfig({
         ...environment,
         COUNTER_SIGNING_PRIVATE_KEY: undefined,
-        COUNTER_DEVELOPMENT_PRIVATE_KEY: key,
       }),
-    ).toThrow("previously public");
+    ).toThrow("Server signing key");
   });
 
   it.each(["increment", "decrement"] as const)(

@@ -6,10 +6,11 @@ import {
   deserializeSignedTransaction,
   fromHex0x,
   hashSignedTransaction,
+  hashFromHex,
   HttpTransport,
   toHex0x,
 } from "@groundhogchain/client";
-import { ExecResult, networkHash, sha256Hash } from "@groundhogchain/protocol";
+import { ExecResult, networkHash } from "@groundhogchain/protocol";
 import type { AppConfig } from "../config";
 import { Counter } from "../contracts/generated/counter";
 import type { CounterConnection } from "../transactions/engine";
@@ -19,7 +20,7 @@ export async function createCounterConnection(
   rpcUrl: string,
 ): Promise<CounterConnection> {
   const controller = new AbortController();
-  const expected = networkHash(sha256Hash(fromHex0x(config.networkId)));
+  const expected = networkHash(hashFromHex(config.networkId));
   const client = await createGroundhogClient({
     cluster: defineCluster({
       name: "counter",
@@ -89,7 +90,7 @@ export async function createCounterConnection(
       };
     },
     async observe(hashHex) {
-      const hash = sha256Hash(fromHex0x(hashHex));
+      const hash = hashFromHex(hashHex);
       const receipt = await client.getTransactionReceipt(hash);
       if (receipt) {
         if (!bytesEqual(receipt.txHash, hash))

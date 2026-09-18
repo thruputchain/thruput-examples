@@ -2,6 +2,7 @@ import { addressFromHex, toHex0x } from "@groundhogchain/client";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import type { ContractAddress } from "@groundhogchain/protocol";
 import { useEffect, useState } from "react";
+import { useClient } from "@groundhogchain/react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export function AllowanceCleanupCard({
   writer: WriteBoundary;
   onRefresh: () => void;
 }) {
+  const client = useClient();
   const [, setRevision] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -84,6 +86,7 @@ export function AllowanceCleanupCard({
     setMessage(null);
     try {
       const result = await runAllowanceCleanup(config, token, handler, {
+        client,
         writeBoundary: writer,
         readAllowance: async (requestedToken, requestedHandler) => {
           if (toHex0x(requestedHandler) !== toHex0x(config.handlerAddress)) {

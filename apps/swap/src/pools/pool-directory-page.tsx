@@ -5,8 +5,8 @@ import {
   LoaderCircleIcon,
   PlusIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useClient } from "@groundhogchain/react";
+import { usePoolDirectory } from "./use-pool-directory";
+export { DIRECTORY_REFRESH_INTERVAL_MS } from "./use-pool-directory";
 import { Link } from "react-router-dom";
 
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
@@ -32,7 +32,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { GlobalConfig } from "@/config";
-import { AmmPage } from "@/pools/amm-page";
+import { PoolPage } from "@/pools/pool-page";
 import {
   type PoolDirectoryEntry,
 } from "@/pools/pool-directory";
@@ -41,14 +41,10 @@ import {
   getPoolRegistryStatus,
   getRegistryPools,
   requestPoolRegistrySync,
-  type RegistryPoolPage,
   type RegistrySort,
-  type RegistryStatus,
 } from "@/registry/client";
 import {
   enrichRegistryPools,
-  registryPoolsToEntries,
-  type RegistryPoolEntry,
 } from "@/registry/pools";
 import { formatTokenAmount } from "@/swap/model";
 
@@ -59,7 +55,6 @@ interface PoolDirectoryPageDependencies {
   enrich?: typeof enrichRegistryPools;
 }
 
-export const DIRECTORY_REFRESH_INTERVAL_MS = 15_000;
 
 export function PoolDirectoryPage({
   config,
@@ -70,19 +65,13 @@ export function PoolDirectoryPage({
   dependencies?: PoolDirectoryPageDependencies;
   readOnly?: boolean;
 }) {
-  const client = useClient();
-  const enrich = useCallback<typeof enrichRegistryPools>(
-    (config, entries, signal) =>
-      enrichRegistryPools(config, entries, signal, undefined, client),
-    [client],
-  );
   return (
     <RegistryPoolDirectoryPage
       config={config}
       read={dependencies.readRegistry ?? getRegistryPools}
       readStatus={dependencies.readStatus ?? getPoolRegistryStatus}
       requestSync={dependencies.requestSync ?? requestPoolRegistrySync}
-      enrich={dependencies.enrich ?? enrich}
+      enrich={dependencies.enrich ?? enrichRegistryPools}
       readOnly={readOnly}
     />
   );
@@ -90,7 +79,6 @@ export function PoolDirectoryPage({
 
 const PAGE_SIZE = 20;
 const MAX_OFFSET = 10_000;
-const STATUS_POLL_MS = 1_000;
 
 function RegistryPoolDirectoryPage({
   config,
@@ -107,237 +95,12 @@ function RegistryPoolDirectoryPage({
   enrich: typeof enrichRegistryPools;
   readOnly: boolean;
 }) {
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [token, setToken] = useState("");
-  const [debouncedToken, setDebouncedToken] = useState("");
-  const [sort, setSort] = useState<RegistrySort>("newest");
-  const [offset, setOffset] = useState(0);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [syncKey, setSyncKey] = useState(0);
-  const [page, setPage] = useState<RegistryPoolPage | null>(null);
-  const [entries, setEntries] = useState<RegistryPoolEntry[]>([]);
-  const [status, setStatus] = useState<RegistryStatus | null>(null);
-  const [statusError, setStatusError] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const asOfBlock = useRef<string | undefined>(undefined);
-  const activeRequest = useRef<AbortController | null>(null);
-  const requestId = useRef(0);
-  const syncRequestId = useRef(0);
-  const inFlight = useRef(false);
-  const backgroundRefresh = useRef(false);
+  const { search, setSearch, token, setToken, sort, setSort, offset, page, entries, status, statusError, error, loading, hasFilters, refresh, changePage, resetSnapshot } = usePoolDirectory({ config, read, readStatus, requestSync, enrich });
 
-  useEffect(() => {
-    if (search === debouncedSearch) return;
-    const timeout = window.setTimeout(() => {
-      resetRegistrySnapshot(activeRequest, requestId, asOfBlock, setOffset);
-      setDebouncedSearch(search);
-    }, 300);
-    return () => window.clearTimeout(timeout);
-  }, [debouncedSearch, search]);
-
-  useEffect(() => {
-    if (token === debouncedToken) return;
-    const timeout = window.setTimeout(() => {
-      resetRegistrySnapshot(activeRequest, requestId, asOfBlock, setOffset);
-      setDebouncedToken(token);
-    }, 300);
-    return () => window.clearTimeout(timeout);
-  }, [debouncedToken, token]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    activeRequest.current = controller;
-    const currentRequestId = ++requestId.current;
-    const background = backgroundRefresh.current;
-    backgroundRefresh.current = false;
-    // Discover new pools on page one; later pages stay on their pinned snapshot.
-    const snapshotBlock = background && offset === 0 ? undefined : asOfBlock.current;
-    inFlight.current = true;
-    setLoading(true);
-    setError(null);
-    if (!background) {
-      setPage(null);
-      setEntries([]);
-    }
-    const normalizedToken = debouncedToken.trim();
-    void read(
-      config,
-      {
-        ...(debouncedSearch.trim() === "" ? {} : { q: debouncedSearch }),
-        ...(normalizedToken === "" ? {} : { token: normalizedToken }),
-        sort,
-        limit: PAGE_SIZE,
-        offset,
-        ...(snapshotBlock === undefined
-          ? {}
-          : { asOfBlock: snapshotBlock }),
-      },
-      AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]),
-    ).then(
-      async (result) => {
-        if (currentRequestId !== requestId.current) return;
-        const initialEntries = registryPoolsToEntries(result.pools);
-        setPage(result);
-        setEntries((previous) => background
-          ? retainLiveData(initialEntries, previous)
-          : initialEntries);
-        asOfBlock.current = result.asOfBlock;
-        setLoading(false);
-        await enrich(config, initialEntries, controller.signal).then(
-          (enriched) => {
-            if (currentRequestId === requestId.current) {
-              setEntries((current) => background
-                ? retainLiveData(enriched, current)
-                : enriched);
-            }
-          },
-          () => {
-            if (currentRequestId === requestId.current) {
-              setEntries((current) => current.map((entry) => ({
-                ...entry, loading: false, readError: true,
-              })));
-            }
-          },
-        );
-      },
-      (reason: unknown) => {
-        if (currentRequestId !== requestId.current) return;
-        if (!background) {
-          setPage(null);
-          setEntries([]);
-        }
-        setLoading(false);
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : "The pool registry is unavailable",
-        );
-      },
-    ).finally(() => {
-      if (currentRequestId === requestId.current) inFlight.current = false;
-    });
-    return () => {
-      controller.abort();
-      if (activeRequest.current === controller) {
-        activeRequest.current = null;
-        requestId.current += 1;
-      }
-    };
-  }, [
-    config,
-    debouncedSearch,
-    debouncedToken,
-    enrich,
-    offset,
-    read,
-    refreshKey,
-    sort,
-  ]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const currentSyncRequestId = ++syncRequestId.current;
-    let pollTimer: number | undefined;
-    let polling = false;
-    const isCurrent = () => currentSyncRequestId === syncRequestId.current;
-    const refreshCompletedSync = () => {
-      if (inFlight.current || document.visibilityState !== "visible") return;
-      inFlight.current = true;
-      backgroundRefresh.current = true;
-      requestId.current += 1;
-      activeRequest.current?.abort();
-      setRefreshKey((value) => value + 1);
-    };
-    function schedule(delay: number) {
-      window.clearTimeout(pollTimer);
-      if (isCurrent() && document.visibilityState === "visible")
-        pollTimer = window.setTimeout(pollStatus, delay);
-    }
-    const consumeStatus = (result: RegistryStatus, refreshIfIdle: boolean) => {
-      if (!isCurrent()) return;
-      setStatus(result);
-      setStatusError(false);
-      if (result.syncing) {
-        schedule(STATUS_POLL_MS);
-      } else {
-        if (refreshIfIdle) refreshCompletedSync();
-        schedule(DIRECTORY_REFRESH_INTERVAL_MS);
-      }
-    };
-    async function pollStatus() {
-      if (polling || !isCurrent() || document.visibilityState !== "visible")
-        return;
-      polling = true;
-      window.clearTimeout(pollTimer);
-      try {
-        consumeStatus(await readStatus(config, readSignal()), true);
-      } catch {
-        if (!isCurrent() || controller.signal.aborted) return;
-        setStatusError(true);
-        schedule(STATUS_POLL_MS);
-      } finally {
-        polling = false;
-      }
-    }
-    async function hintSync() {
-      if (document.visibilityState !== "visible") return;
-      polling = true;
-      try {
-        consumeStatus(await requestSync(config, readSignal()), true);
-      } catch {
-        if (!isCurrent() || controller.signal.aborted) return;
-        try {
-          consumeStatus(await readStatus(config, readSignal()), false);
-        } catch {
-          if (!isCurrent() || controller.signal.aborted) return;
-          setStatus(null);
-          setStatusError(true);
-          schedule(STATUS_POLL_MS);
-        }
-      } finally {
-        polling = false;
-      }
-    }
-    function readSignal() {
-      return AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
-    }
-    function refreshVisible() {
-      window.clearTimeout(pollTimer);
-      void pollStatus();
-    }
-    window.addEventListener("focus", refreshVisible);
-    document.addEventListener("visibilitychange", refreshVisible);
-    void hintSync();
-    return () => {
-      syncRequestId.current += 1;
-      controller.abort();
-      if (pollTimer !== undefined) window.clearTimeout(pollTimer);
-      window.removeEventListener("focus", refreshVisible);
-      document.removeEventListener("visibilitychange", refreshVisible);
-    };
-  }, [config, readStatus, requestSync, syncKey]);
-
-  const hasFilters =
-    debouncedSearch.trim() !== "" || debouncedToken.trim() !== "";
   const failedReads = entries.filter(({ readError }) => readError).length;
-  function resetSnapshot() {
-    resetRegistrySnapshot(activeRequest, requestId, asOfBlock, setOffset);
-  }
-  function refresh() {
-    resetSnapshot();
-    setRefreshKey((value) => value + 1);
-    setSyncKey((value) => value + 1);
-  }
-  function changePage(nextOffset: number) {
-    requestId.current += 1;
-    activeRequest.current?.abort();
-    setOffset(nextOffset);
-  }
 
   return (
-    <DirectoryLayout readOnly={readOnly}>
+    <DirectoryLayout>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem]">
         <Field>
           <FieldLabel htmlFor="pool-search">Search addresses</FieldLabel>
@@ -488,45 +251,18 @@ function RegistryPoolDirectoryPage({
   );
 }
 
-function retainLiveData(
-  next: RegistryPoolEntry[],
-  previous: RegistryPoolEntry[],
-): RegistryPoolEntry[] {
-  return next.map((entry) => ({
-    ...entry,
-    live: entry.live ?? previous.find(
-      (old) => old.record.handlerAddress === entry.record.handlerAddress,
-    )?.live ?? null,
-  }));
-}
-
-function resetRegistrySnapshot(
-  activeRequest: React.RefObject<AbortController | null>,
-  requestId: React.RefObject<number>,
-  asOfBlock: React.RefObject<string | undefined>,
-  setOffset: React.Dispatch<React.SetStateAction<number>>,
-) {
-  requestId.current += 1;
-  activeRequest.current?.abort();
-  asOfBlock.current = undefined;
-  setOffset(0);
-}
-
 function DirectoryLayout({
   children,
-  readOnly = false,
 }: {
   children: React.ReactNode;
-  readOnly?: boolean;
 }) {
   return (
-    <AmmPage
+    <PoolPage
       title="Pools"
       description="Explore token markets on Thruput."
-      readOnly={readOnly}
     >
       {children}
-    </AmmPage>
+    </PoolPage>
   );
 }
 

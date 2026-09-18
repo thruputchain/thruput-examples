@@ -23,7 +23,6 @@ Object.assign(process.env, {
   VITE_SWAP_ROUTER_ADDRESS: hex("04"),
   VITE_NATIVE_HOG_ADDRESS: hex("05"),
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
-  VITE_POOL_REGISTRY_ENABLED: "false",
   VITE_TOKEN_DISCOVERY_ENABLED: "true",
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: scope.factoryAddress,
   VITE_STANDARD_TOKEN_HASH: scope.tokenCodeHash,
@@ -88,6 +87,14 @@ try {
     },
   );
   const page = await context.newPage();
+  let firstConfigRequest = true;
+  await context.route("**/api/config", (route) => {
+    if (firstConfigRequest) {
+      firstConfigRequest = false;
+      return route.fulfill({ status: 503, json: { error: "temporarily unavailable" } });
+    }
+    return route.fulfill({ json: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("VITE_") && key !== "VITE_GROUNDHOG_RPC_URL")) });
+  });
   await context.route("https://explorer.example.test/**", (route) =>
     route.fulfill({ body: "Explorer fixture" }),
   );
@@ -153,6 +160,7 @@ try {
   });
   const url = `${origin}/pools/new?tokenA=${a}`;
   await page.goto(url);
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
   await page
     .getByRole("heading", { name: "Connect your wallet", exact: true })
     .waitFor();

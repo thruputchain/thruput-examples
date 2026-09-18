@@ -12,7 +12,7 @@ import type { AppConfig } from "@/config";
 import { Cause, RequestFailed } from "@/contracts/generated/swap-driver";
 import { requestFailedEvent } from "@/test/request-failed";
 import { SwapEvent } from "@/contracts/generated/swap-handler";
-import type { OutstandingRequest } from "@/transactions/outstanding-request";
+import type { OutstandingRequest } from "@/transactions/request-collection";
 import {
   createRequestRecord,
   loadRequestCollection,
