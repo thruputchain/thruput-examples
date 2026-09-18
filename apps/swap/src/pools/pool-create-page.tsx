@@ -60,7 +60,7 @@ import {
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
 import { useWalletWriteBoundary } from "@/wallet/write-context";
-import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
+import { withAccountLock } from "@/transactions/account-lock";
 import {
   hasBlockingAllowanceCleanup,
   confirmAllowanceCleanupWasNotSigned,
@@ -269,7 +269,7 @@ function CreationPage({
         }
         if (cleanup.kind === "failed") throw new Error(cleanup.message);
         if (workflow.status === "failed") {
-          const archived = await withOutstandingRequestLock(config, async () => {
+          const archived = await withAccountLock(config, async () => {
             assertCurrent();
             return archiveCreationWorkflow(config, workflow);
           });
@@ -278,7 +278,7 @@ function CreationPage({
           return;
         }
       }
-      const result = await withOutstandingRequestLock(config, async () => {
+      const result = await withAccountLock(config, async () => {
         assertCurrent();
         if (hasBlockingAllowanceCleanup(config)) {
           throw new Error("Resolve the account's pending allowance cleanup first");
@@ -405,7 +405,7 @@ function CreationPage({
     setIsRunning(true);
     setError(null);
     try {
-      const next = await withOutstandingRequestLock(config, async () => {
+      const next = await withAccountLock(config, async () => {
         const stored = loadCreationWorkflow(
           config,
           workflow.token0.address,
@@ -439,7 +439,7 @@ function CreationPage({
     setIsRunning(true);
     setError(null);
     try {
-      const archived = await withOutstandingRequestLock(config, async () =>
+      const archived = await withAccountLock(config, async () =>
         archiveCreationWorkflow(config, obsolete)
       );
       setAccountWorkflows((current) => [

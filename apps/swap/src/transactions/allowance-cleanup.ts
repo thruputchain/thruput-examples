@@ -20,7 +20,7 @@ import {
   hasBlockingLiquidityTransaction,
   loadAccountLiquidityOperations,
 } from "@/transactions/liquidity-operation";
-import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
+import { withAccountLock } from "@/transactions/account-lock";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 
@@ -94,7 +94,7 @@ export function hasBlockingAllowanceCleanup(config: AllowanceCleanupScope): bool
 export async function confirmAllowanceCleanupWasNotSigned(
   config: AllowanceCleanupScope,
 ): Promise<void> {
-  await withOutstandingRequestLock(config, async () => {
+  await withAccountLock(config, async () => {
     const record = loadAllowanceCleanup(config);
     if (record === null || record.transactionHash !== null) {
       throw new Error("The allowance cleanup has a transaction hash and must be observed");
@@ -109,7 +109,7 @@ export async function runAllowanceCleanup(
   spender: ContractAddress,
   dependencies: AllowanceCleanupDependencies,
 ): Promise<AllowanceCleanupResult> {
-  return withOutstandingRequestLock(config, async () => {
+  return withAccountLock(config, async () => {
     dependencies.assertCurrent?.();
     const client = await createNetworkReadClient(config);
     await verifyReadNetwork(client, config);

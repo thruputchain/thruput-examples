@@ -57,7 +57,7 @@ import {
 } from "@/transactions/liquidity-operation";
 import { createLiquidityObserver, type LiquidityObserver } from "@/transactions/liquidity-observer";
 import { useWalletWriteBoundary } from "@/wallet/write-context";
-import { withOutstandingRequestLock } from "@/transactions/outstanding-request";
+import { withAccountLock } from "@/transactions/account-lock";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
 import type { WriteBoundary } from "@/transactions/write-boundary";
@@ -155,7 +155,7 @@ export function LiquidityPage({
     setIsRunning(true);
     setError(null);
     try {
-      const result = await withOutstandingRequestLock(config, async () => {
+      const result = await withAccountLock(config, async () => {
         if (hasBlockingAllowanceCleanup(config)) {
           throw new Error("Resolve the account's pending allowance cleanup first");
         }
@@ -243,7 +243,7 @@ export function LiquidityPage({
     if (current === null || isRunning) return;
     setIsRunning(true);
     try {
-      await withOutstandingRequestLock(config, async () => {
+      await withAccountLock(config, async () => {
         if (crankRequiresConfirmation) {
           confirmLiquidityCrankWasNotSigned(config);
           return;

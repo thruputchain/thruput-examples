@@ -27,7 +27,6 @@ import { useWallet } from "@groundhogchain/react";
 
 export function CreatePage(props: LaunchOptions) {
   const launch = useLaunch(props);
-  const writesSupported = props.writesSupported ?? true;
   const connected = props.connected ?? true;
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
@@ -64,7 +63,7 @@ export function CreatePage(props: LaunchOptions) {
           className="mb-6"
           variant="outline"
           onClick={launch.reset}
-          disabled={launch.loading || !writesSupported}
+          disabled={launch.loading}
         >
           Discard invalid saved workflow
         </Button>
@@ -78,20 +77,11 @@ export function CreatePage(props: LaunchOptions) {
           </AlertDescription>
         </Alert>
       ) : null}
-      {!writesSupported ? (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircleIcon />
-          <AlertTitle>Transactions unavailable</AlertTitle>
-          <AlertDescription>
-            This browser cannot safely serialize launch transactions.
-          </AlertDescription>
-        </Alert>
-      ) : null}
       {launch.workflow?.creation.status === "committed" ? (
         <LaunchSuccessActions
           className="mb-6 sm:flex-row sm:flex-wrap"
           onReset={launch.reset}
-          disabled={launch.loading || !writesSupported || !connected}
+          disabled={launch.loading || !connected}
           ammPoolLink={createAmmPoolLink(
             props.config.swapAppUrl,
             launch.workflow,
@@ -167,7 +157,6 @@ export function CreatePage(props: LaunchOptions) {
                     disabled={
                       launch.loading ||
                       launch.storageError !== null ||
-                      !writesSupported ||
                       !connected
                     }
                   >
@@ -189,7 +178,6 @@ export function CreatePage(props: LaunchOptions) {
           onAdvance={launch.advance}
           onReset={launch.reset}
           onStartOver={launch.startOver}
-          writesSupported={writesSupported}
           connected={connected}
         />
       </div>

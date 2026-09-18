@@ -2,10 +2,34 @@ import { toHex0x } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
 import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
-import {
-  withOutstandingRequestLock,
-  type OutstandingRequest,
-} from "@/transactions/outstanding-request";
+import { withAccountLock } from "./account-lock";
+import type { SwapIntent } from "@/workflow";
+
+export interface OutstandingRequest {
+  status: "approving" | "submitting" | "indeterminate" | "committedFailure" | "queued" | "queuedNotObserved" | "queuedUntracked";
+  phase: "approval" | "swap";
+  intent: SwapIntent;
+  transactionHash: string | null;
+  receiptBlock: bigint | null;
+  requestId: string | null;
+  visibleObservationMs: number;
+  observationBaseline: {
+    chainHeight: bigint;
+    inputBalance: bigint;
+    outputBalance: bigint;
+    inputAllowance: bigint;
+    reserveIn: bigint;
+    reserveOut: bigint;
+  } | null;
+  criteria: {
+    handlerAddress: string;
+    driverAddress: string;
+    sender: string;
+    recipient: string;
+    tokenIn: string;
+    tokenOut: string;
+  };
+}
 
 const STORAGE_VERSION = 3;
 const TERMINAL_HISTORY_LIMIT = 50;
@@ -144,10 +168,6 @@ export function loadAccountRequestRecords(
   return records;
 }
 
-export function hasLegacyOutstandingRequest(_config: AppConfig): boolean {
-  return false;
-}
-
 export function createRequestRecord(
   request: OutstandingRequest,
   options: { localId?: string; now?: number } = {},
@@ -233,17 +253,11 @@ export async function mutateRequestCollection(
   });
 }
 
-export async function migrateRequestCollection(
-  config: AppConfig,
-): Promise<RequestRecord[]> {
-  return withRequestCollectionLock(config, () => loadRequestCollection(config));
-}
-
 export async function withRequestCollectionLock<T>(
   config: AppConfig,
   action: () => Promise<T> | T,
 ): Promise<T> {
-  return withOutstandingRequestLock(config, async () => action());
+  return withAccountLock(config, action);
 }
 
 export function upsertRequest(

@@ -20,7 +20,7 @@ import {
 } from "@/contracts/generated/swap-handler";
 import { orderTokens } from "@/domain/tokens";
 import { createReadClient } from "@/groundhog/client";
-import type { OutstandingRequest } from "@/transactions/outstanding-request";
+import type { OutstandingRequest } from "@/transactions/request-collection";
 import type { RequestRecord } from "@/transactions/request-collection";
 
 export type RequestObservation =

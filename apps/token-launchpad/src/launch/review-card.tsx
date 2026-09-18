@@ -43,7 +43,6 @@ export function ReviewCard({
   onAdvance,
   onReset,
   onStartOver,
-  writesSupported,
   connected = true,
 }: {
   config: AppConfig;
@@ -55,7 +54,6 @@ export function ReviewCard({
   onAdvance: () => void;
   onReset: () => void;
   onStartOver?: () => void;
-  writesSupported: boolean;
   connected?: boolean;
 }) {
   if (workflow)
@@ -272,7 +270,7 @@ export function ReviewCard({
                         <Button
                           className="min-h-12 w-full"
                           onClick={onAdvance}
-                          disabled={loading || !writesSupported || !connected}
+                          disabled={loading || !connected}
                           variant="outline"
                         >
                           {loading
@@ -284,7 +282,7 @@ export function ReviewCard({
                     ) : null}
                     <LaunchSuccessActions
                       onReset={onReset}
-                      disabled={loading || !writesSupported || !connected}
+                      disabled={loading || !connected}
                       ammPoolLink={ammPoolLink}
                     />
                   </>
@@ -293,7 +291,7 @@ export function ReviewCard({
                     <Button
                       className="min-h-12 w-full"
                       onClick={onAdvance}
-                      disabled={loading || !writesSupported || !connected}
+                      disabled={loading || !connected}
                       variant={
                         label === "Create token" || label === "Launch token"
                           ? "default"
@@ -322,7 +320,7 @@ export function ReviewCard({
                           className="min-h-12 w-full"
                           variant="outline"
                           onClick={onReset}
-                          disabled={loading || !writesSupported}
+                          disabled={loading}
                         >
                           Edit token details
                         </Button>
@@ -330,7 +328,7 @@ export function ReviewCard({
                           <Button
                             variant="ghost"
                             onClick={onStartOver}
-                            disabled={loading || !writesSupported}
+                            disabled={loading}
                           >
                             Start over
                           </Button>
