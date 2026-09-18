@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from "react";
 import type { ConnectedGroundhogClient } from "@groundhogchain/client";
 import { WalletProvider } from "@groundhogchain/react";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { ExplorerProvider } from "@/components/explorer-context";
+import { ProcessingModeProvider } from "@/components/processing-mode";
 import {
   QueryClient,
   QueryClientProvider,
@@ -21,15 +24,23 @@ focusManager.setEventListener((notify) => {
 
 export function AppProviders({
   client,
+  explorerUrl,
   children,
 }: {
   client: ConnectedGroundhogClient;
+  explorerUrl?: string | undefined;
   children: ReactNode;
 }) {
   const [queries] = useState(() => new QueryClient());
   return (
     <QueryClientProvider client={queries}>
-      <WalletProvider client={client}>{children}</WalletProvider>
+      <WalletProvider client={client}>
+        <TooltipProvider>
+          <ExplorerProvider value={explorerUrl}>
+            <ProcessingModeProvider>{children}</ProcessingModeProvider>
+          </ExplorerProvider>
+        </TooltipProvider>
+      </WalletProvider>
     </QueryClientProvider>
   );
 }

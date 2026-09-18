@@ -32,7 +32,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { GlobalConfig } from "@/config";
-import { AmmPage } from "@/pools/amm-page";
+import { PoolPage } from "@/pools/pool-page";
 import {
   type PoolDirectoryEntry,
 } from "@/pools/pool-directory";
@@ -100,7 +100,7 @@ function RegistryPoolDirectoryPage({
   const failedReads = entries.filter(({ readError }) => readError).length;
 
   return (
-    <DirectoryLayout readOnly={readOnly}>
+    <DirectoryLayout>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem]">
         <Field>
           <FieldLabel htmlFor="pool-search">Search addresses</FieldLabel>
@@ -253,19 +253,16 @@ function RegistryPoolDirectoryPage({
 
 function DirectoryLayout({
   children,
-  readOnly = false,
 }: {
   children: React.ReactNode;
-  readOnly?: boolean;
 }) {
   return (
-    <AmmPage
+    <PoolPage
       title="Pools"
       description="Explore token markets on Thruput."
-      readOnly={readOnly}
     >
       {children}
-    </AmmPage>
+    </PoolPage>
   );
 }
 

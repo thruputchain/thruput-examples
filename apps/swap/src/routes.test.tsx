@@ -3,7 +3,7 @@ import { render, screen } from "@/test/render";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AmmRoutes } from "@/routes";
+import { PoolRoutes } from "@/routes";
 import { loadRuntimeConfig } from "@/config";
 import { ProcessingModeProvider } from "@/components/processing-mode";
 import type { GlobalConfig } from "@/config";
@@ -27,12 +27,12 @@ const config: GlobalConfig = {
   nativeHogAddress: address(4),
 };
 
-describe("AmmRoutes", () => {
+describe("PoolRoutes", () => {
   it("redirects the root route to the pool directory", async () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <ProcessingModeProvider>
-          <AmmRoutes config={config} />
+          <PoolRoutes config={config} />
         </ProcessingModeProvider>
       </MemoryRouter>,
     );
@@ -44,7 +44,7 @@ describe("AmmRoutes", () => {
     render(
       <MemoryRouter initialEntries={["/pools/new"]}>
         <ProcessingModeProvider>
-          <AmmRoutes config={config} />
+          <PoolRoutes config={config} />
         </ProcessingModeProvider>
       </MemoryRouter>,
     );
@@ -58,7 +58,7 @@ describe("AmmRoutes", () => {
       render(
         <MemoryRouter initialEntries={[`/pools/new${search}`]}>
           <ProcessingModeProvider>
-            <AmmRoutes config={config} readOnly />
+            <PoolRoutes config={config} readOnly />
             <LocationPath />
           </ProcessingModeProvider>
         </MemoryRouter>,
@@ -84,7 +84,7 @@ describe("AmmRoutes", () => {
       render(
         <MemoryRouter initialEntries={[`/pools/${token0}/${token1}/${view}`]}>
           <ProcessingModeProvider>
-            <AmmRoutes config={config} readOnly />
+            <PoolRoutes config={config} readOnly />
             <LocationPath />
           </ProcessingModeProvider>
         </MemoryRouter>,

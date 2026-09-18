@@ -2,9 +2,9 @@ import { toHex0x } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
 import type { FactoryReview } from "@/contracts/launchpad-client";
-import { userErrorMessage } from "@/errors";
+import { userErrorMessage } from "@/lib/errors";
 import type { ParsedToken } from "@/launch/form";
-import { MAX_SIGNED_AMOUNT } from "@/runtime";
+import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
 
 const WORKFLOW_VERSION = 3 as const;
 const LEGACY_WORKFLOW_VERSION = 1;

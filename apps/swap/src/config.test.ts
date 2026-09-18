@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ConfigurationError,
   isLoopbackHostname,
   isLoopbackUrl,
   loadGlobalConfig,
-  parseExplorerUrl,
   READ_ONLY_CALLER,
   type Environment,
 } from "./config";
+import { ConfigurationError } from "./lib/errors";
 
 const ADDRESS = `0x${"11".repeat(32)}`;
 const OTHER_ADDRESS = `0x${"22".repeat(32)}`;
@@ -49,8 +48,8 @@ describe("loadGlobalConfig", () => {
     "https://explorer.test/?secret=x", "https://explorer.test/#fragment",
     "https://explorer.test\\path", "https://explorer.test/ ",
   ])("rejects unsafe explorer root %s", (value) => {
-    expect(() => parseExplorerUrl(value)).toThrow(ConfigurationError);
-    expect(() => parseExplorerUrl(value)).toThrow(/VITE_EXPLORER_URL/);
+    expect(() => loadGlobalConfig(environment({ VITE_EXPLORER_URL: value }))).toThrow(ConfigurationError);
+    expect(() => loadGlobalConfig(environment({ VITE_EXPLORER_URL: value }))).toThrow(/VITE_EXPLORER_URL/);
   });
   it("requires only factory-oriented runtime values", () => {
     const config = loadGlobalConfig(environment());

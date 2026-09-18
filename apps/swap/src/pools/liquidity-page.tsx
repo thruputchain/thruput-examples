@@ -25,7 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import type { AppConfig } from "@/config";
 import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { availableBalance, reservedInputForToken } from "@/domain/reservations";
-import { AmmPage } from "@/pools/amm-page";
+import { PoolPage } from "@/pools/pool-page";
 import {
   deriveAddLiquidityQuote,
   deriveRemoveLiquidityQuote,
@@ -261,7 +261,7 @@ export function LiquidityPage({
   }
 
   return (
-    <AmmPage
+    <PoolPage
       title="Manage liquidity"
       description={`${config.tokenASymbol} / ${config.tokenBSymbol} deposits and redemptions.`}
     >
@@ -379,7 +379,7 @@ export function LiquidityPage({
             setProcessingMode(manual ? "manual" : "automatic")}
         />
       </Field>
-    </AmmPage>
+    </PoolPage>
   );
 }
 

@@ -1,5 +1,6 @@
 import { BrowserRouter } from "react-router-dom";
-import { AppProviders as PageProviders, BrowserConfiguredApp } from "./routes";
+import { AppRoutes } from "./routes";
+import { AppLayout } from "./app-layout";
 import { AppProviders } from "./app-providers";
 import type { ConnectedGroundhogClient } from "@groundhogchain/client";
 import type { GlobalConfig } from "./config";
@@ -12,12 +13,12 @@ export function App({
   client: ConnectedGroundhogClient;
 }) {
   return (
-    <AppProviders client={client}>
-      <PageProviders explorerUrl={config.explorerUrl}>
-        <BrowserRouter>
-          <BrowserConfiguredApp config={config} />
-        </BrowserRouter>
-      </PageProviders>
+    <AppProviders client={client} explorerUrl={config.explorerUrl}>
+      <BrowserRouter>
+        <AppLayout>
+          <AppRoutes config={config} />
+        </AppLayout>
+      </BrowserRouter>
     </AppProviders>
   );
 }

@@ -1,4 +1,4 @@
-export function loadExplorerUrl(
+export function parseExplorerUrl(
   value: string | boolean | undefined,
 ): string | null {
   if (value === undefined || (typeof value === "string" && value.trim() === ""))

@@ -16,7 +16,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import type { AppConfig } from "@/config";
-import { AmmPage } from "@/pools/amm-page";
+import { PoolPage } from "@/pools/pool-page";
 import type { RequestObserver } from "@/transactions/request-observer";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 import type { SnapshotReader } from "./snapshot";
@@ -55,7 +55,7 @@ export function SwapPage({
           ? `Pool data loaded at block ${state.snapshot.chainHeight}.`
           : "Pool data is unavailable.";
   return (
-    <AmmPage
+    <PoolPage
       title={`Swap ${config.tokenASymbol} / ${config.tokenBSymbol}`}
       description="Trade an exact input amount against this pool's current reserves."
     >
@@ -155,6 +155,6 @@ export function SwapPage({
           />
         )}
       </div>
-    </AmmPage>
+    </PoolPage>
   );
 }

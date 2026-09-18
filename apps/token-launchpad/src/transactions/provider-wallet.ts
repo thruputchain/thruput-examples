@@ -4,7 +4,7 @@ import { gasAmount, type Invocation } from "@groundhogchain/protocol";
 import type { AppConfig } from "@/config";
 import { StandardTokenFactory } from "@/contracts/generated/standard-token-factory";
 import { loadStandardTokenArtifact } from "@/contracts/token-artifact";
-import { userErrorMessage } from "@/errors";
+import { userErrorMessage } from "@/lib/errors";
 import { assertExpectedNetwork } from "@/groundhog/client";
 import { createTransactionObserver } from "./transaction-observation";
 import type { WriteBoundary, WriteResult } from "./write-boundary";

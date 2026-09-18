@@ -12,7 +12,7 @@ import {
   type FactoryConfig,
 } from "@/contracts/generated/standard-token-factory";
 import { ERC20 } from "@/contracts/generated/standard-token";
-import { MAX_SIGNED_AMOUNT } from "@/runtime";
+import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
 
 export interface FactoryReview {
   config: FactoryConfig;

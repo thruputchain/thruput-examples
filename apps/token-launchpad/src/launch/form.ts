@@ -1,4 +1,4 @@
-import { MAX_SIGNED_AMOUNT } from "@/runtime";
+import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
 
 const encoder = new TextEncoder();
 

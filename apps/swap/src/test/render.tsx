@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import { notifyManager, focusManager } from "@tanstack/react-query";
 import { afterEach } from "vitest";
 import { AppProviders } from "@/app-providers";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   createGroundhogClient,
   localnet,
@@ -24,7 +23,7 @@ afterEach(() => focusManager.setFocused(undefined));
 export function TestProviders({ children }: { children: ReactNode }) {
   return (
     <AppProviders client={client}>
-      <TooltipProvider>{children}</TooltipProvider>
+      {children}
     </AppProviders>
   );
 }

@@ -1,5 +1,6 @@
 import { createContext, use, type ReactNode } from "react";
-import { ConfigurationError, parseExplorerUrl } from "@/config";
+import { ConfigurationError } from "@/lib/errors";
+import { parseExplorerUrl } from "@/lib/explorer-url";
 
 const ExplorerContext = createContext<string | undefined>(undefined);
 

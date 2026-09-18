@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AppConfig } from "@/config";
-import { AmmPage } from "@/pools/amm-page";
+import { PoolPage } from "@/pools/pool-page";
 import { poolPath } from "@/pools/pool-route";
 import { formatTokenAmount } from "@/swap/model";
 import { createSnapshotReader, type PoolSnapshot } from "@/swap/snapshot";
@@ -36,14 +36,13 @@ export function PoolDetailPage({
   const path = poolPath(config.tokenAAddress, config.tokenBAddress);
 
   return (
-    <AmmPage
+    <PoolPage
       title={
         state.snapshot === null
           ? `${config.tokenASymbol} / ${config.tokenBSymbol}`
           : `${state.snapshot.tokenA.symbol} / ${state.snapshot.tokenB.symbol}`
       }
       description="Pool reserves, liquidity ownership, and contract identity."
-      readOnly={readOnly}
     >
       {state.error === null ? null : (
         <Alert variant="destructive">
@@ -202,7 +201,7 @@ export function PoolDetailPage({
           </Card>
         </>
       )}
-    </AmmPage>
+    </PoolPage>
   );
 }
 

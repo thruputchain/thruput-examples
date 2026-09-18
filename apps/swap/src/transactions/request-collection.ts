@@ -3,7 +3,7 @@ import { toHex0x } from "@groundhogchain/client";
 import type { AppConfig } from "@/config";
 import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
 import { withAccountLock } from "./account-lock";
-import type { SwapIntent } from "@/workflow";
+import type { SwapIntent } from "@/swap/workflow";
 
 export interface OutstandingRequest {
   status: "approving" | "submitting" | "indeterminate" | "committedFailure" | "queued" | "queuedNotObserved" | "queuedUntracked";

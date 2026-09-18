@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
 import { AppProviders } from "@/app-providers";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { LaunchpadRoutes } from "@/routes";
+import { AppLayout } from "@/app-layout";
+import { AppRoutes } from "@/routes";
 import { configuration } from "@/test/fixtures";
 import { testAccount, testClient, testWallet } from "@/test/wallet";
 
@@ -23,11 +23,11 @@ async function setup() {
   cleanups.push(wallet.unregister);
   render(
     <AppProviders client={client}>
-      <TooltipProvider>
-        <MemoryRouter initialEntries={["/tokens"]}>
-          <LaunchpadRoutes config={config} />
-        </MemoryRouter>
-      </TooltipProvider>
+      <MemoryRouter initialEntries={["/tokens"]}>
+        <AppLayout>
+          <AppRoutes config={config} />
+        </AppLayout>
+      </MemoryRouter>
     </AppProviders>,
   );
   return { wallet, user: userEvent.setup() };

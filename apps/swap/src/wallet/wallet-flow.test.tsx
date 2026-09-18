@@ -23,16 +23,15 @@ import { MemoryRouter, Link } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
 import { READ_ONLY_CALLER, type GlobalConfig } from "@/config";
 import { AppProviders } from "@/app-providers";
-import { BrowserConfiguredApp } from "@/routes";
+import { AppRoutes } from "@/routes";
+import { AppLayout } from "@/app-layout";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 import { useTransactions } from "@/transactions/use-transactions";
-import { WalletControls } from "./wallet-controls";
 
 let writer: WriteBoundary;
 vi.mock("@/pools/pool-directory-page", () => ({
   PoolDirectoryPage: () => (
     <>
-      <WalletControls />
       <Link to="/pools/new">Create pool</Link>
       <input aria-label="Directory search" />
     </>
@@ -43,7 +42,6 @@ vi.mock("@/pools/pool-create-page", () => ({
     writer = useTransactions(config);
     return (
       <>
-        <WalletControls />
         <input aria-label="Route draft" />
       </>
     );
@@ -100,7 +98,9 @@ it("preserves public filters, resets write forms on rebinding, and invalidates o
   render(
     <AppProviders client={client}>
       <MemoryRouter initialEntries={["/pools"]}>
-        <BrowserConfiguredApp config={config} />
+        <AppLayout>
+          <AppRoutes config={config} />
+        </AppLayout>
       </MemoryRouter>
     </AppProviders>,
   );

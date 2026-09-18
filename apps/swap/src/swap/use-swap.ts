@@ -89,7 +89,7 @@ import {
   initialWorkflowState,
   workflowReducer,
   type WorkflowState,
-} from "@/workflow";
+} from "./workflow";
 import type {
   RequestObservation,
   RequestObserver,

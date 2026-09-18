@@ -1,9 +1,9 @@
 import { addressFromHex, fromHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
-import { PINNED_NATIVE_BALANCE_ITEM_COST } from "./runtime";
-import { loadSwapAppUrl } from "./swap-config.ts";
-import { loadExplorerUrl } from "./explorer-config.ts";
+import { PINNED_NATIVE_BALANCE_ITEM_COST } from "./groundhog/storage-cost";
+import { loadSwapAppUrl } from "./launch/swap-config.ts";
+import { parseExplorerUrl } from "./lib/explorer-url.ts";
 
 const HASH = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
@@ -78,7 +78,7 @@ export function loadConfig(environment: Environment): AppConfig {
   return {
     rpcUrl,
     swapAppUrl: loadSwapAppUrl(environment.VITE_SWAP_APP_URL),
-    explorerUrl: loadExplorerUrl(environment.VITE_EXPLORER_URL),
+    explorerUrl: parseExplorerUrl(environment.VITE_EXPLORER_URL),
     networkIdHex: network.replace(/^0x/, "").toLowerCase(),
     // Public views need a caller, not a connected wallet identity.
     accountAddress: addressFromHex(`0x${"00".repeat(32)}`),

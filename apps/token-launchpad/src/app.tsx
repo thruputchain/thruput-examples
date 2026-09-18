@@ -1,10 +1,9 @@
 import { BrowserRouter } from "react-router-dom";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import type { AppConfig } from "@/config";
 import { AppProviders } from "@/app-providers";
 import type { ConnectedGroundhogClient } from "@groundhogchain/client";
-import { WalletInstallBanner } from "@/wallet/wallet-controls";
-import { LaunchpadRoutes } from "./routes";
+import { AppLayout } from "./app-layout";
+import { AppRoutes } from "./routes";
 
 export function App({
   config,
@@ -14,13 +13,12 @@ export function App({
   client: ConnectedGroundhogClient;
 }) {
   return (
-    <TooltipProvider>
+    <AppProviders client={client} explorerUrl={config.explorerUrl}>
       <BrowserRouter>
-        <AppProviders client={client}>
-          <WalletInstallBanner />
-          <LaunchpadRoutes config={config} />
-        </AppProviders>
+        <AppLayout>
+          <AppRoutes config={config} />
+        </AppLayout>
       </BrowserRouter>
-    </TooltipProvider>
+    </AppProviders>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   render as renderReact,
   renderHook as renderReactHook,
@@ -15,7 +16,11 @@ function Queries({ children }: { children: ReactNode }) {
         defaultOptions: { queries: { retry: false, gcTime: 0 } },
       }),
   );
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <TooltipProvider>{children}</TooltipProvider>
+    </QueryClientProvider>
+  );
 }
 export function render(ui: ReactNode, options?: RenderOptions) {
   return renderReact(ui, { wrapper: Queries, ...options });

@@ -10,7 +10,7 @@ import { AllowanceCleanupCard } from "./allowance-cleanup-card";
 
 vi.mock("@/groundhog/client", async (original) => ({
   ...await original<object>(),
-  createNetworkReadClient: vi.fn(async () => ({
+  createReadClient: vi.fn(async () => ({
     getNetworkInfo: async () => ({ networkHash: new Uint8Array(32) }),
   })),
 }));

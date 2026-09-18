@@ -34,8 +34,8 @@ import {
   StandardTokenFactory,
   type FactoryConfig,
 } from "../src/contracts/generated/standard-token-factory";
-import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../src/runtime";
-import { loadExplorerUrl } from "../src/explorer-config";
+import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../src/groundhog/storage-cost";
+import { parseExplorerUrl } from "../src/lib/explorer-url";
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 const CONTRACT_FUNDING = 10_000_000n;
@@ -67,7 +67,7 @@ export async function provisionLaunchpad(options: {
   );
   const rpcUrl = options.rpcUrl;
   const expectedNetwork = networkHash(sha256Hash(fromHex0x(options.networkId)));
-  const explorerUrl = loadExplorerUrl(options.explorerUrl);
+  const explorerUrl = parseExplorerUrl(options.explorerUrl);
   const requiredTokenFunding =
     options.network === "devnet" ? CONTRACT_FUNDING : REQUIRED_TOKEN_FUNDING;
   const client = await createGroundhogClient({

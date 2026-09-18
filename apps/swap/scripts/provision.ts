@@ -32,7 +32,7 @@ import {
 
 import { SwapFactory } from "../src/contracts/generated/swap-factory";
 import { SwapRouter } from "../src/contracts/generated/swap-router";
-import { parseExplorerUrl } from "../src/config";
+import { parseExplorerUrl } from "../src/lib/explorer-url";
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 const CONTRACT_FUNDING = 10_000_000n;

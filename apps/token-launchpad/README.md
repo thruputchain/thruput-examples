@@ -4,6 +4,42 @@ Create standard tokens through an external wallet and browse factory launches.
 The directory uses the token registry; balances and creation verification use
 live chain reads. The app never receives wallet private keys.
 
+## Application structure
+
+Token Launchpad and Swap follow the same application skeleton:
+
+```text
+src/main.tsx           Load runtime config and create the read client; retry startup
+src/app.tsx            Compose providers → router → layout → routes
+src/app-providers.tsx  Own stable Query, wallet, tooltip, and explorer providers
+src/app-layout.tsx     Render the persistent banner, header, navigation, and wallet UI
+src/routes.tsx         Select feature routes and apply wallet/workflow policy
+```
+
+Both apps keep app-wide UI in `src/components/`, wallet UI in `src/wallet/`,
+client integration in `src/groundhog/`, general helpers in `src/lib/`, browser
+registry access in `src/registry/`, and transaction execution/recovery in
+`src/transactions/`. `src/contracts/` contains bindings, `src/setup/` contains
+setup support, and `src/test/` contains shared test helpers. Module tests live
+beside their source. `server/`, `shared/`, `scripts/`, and `public/` have the same
+roles in both examples: backend, browser/server models and constants, tooling,
+and static assets.
+
+Launchpad's feature directories are `src/tokens/` and `src/launch/`; Swap uses
+`src/pools/`, `src/swap/`, and `src/token-discovery/`. Swap additionally needs
+`src/domain/` for rules shared across several trading/liquidity features.
+Launchpad's swap handoff configuration belongs in `src/launch/`, URL validation
+and error formatting in `src/lib/`, pinned chain storage costs in
+`src/groundhog/`, and the amount limit used by both browser and server in
+`shared/amount.ts`.
+
+Start with `app.tsx` and `app-layout.tsx`, then follow `routes.tsx` into
+`launch/create-page.tsx` or `tokens/tokens-page.tsx`. Pages own their content
+and `<main>`, while the layout owns the global header. Launchpad retains the
+workflow account across disconnects so drafts survive, but signing authorization
+always comes from the current wallet connection. Switching accounts isolates
+the creation workflow without remounting the shell or public directory.
+
 ## Requirements
 
 - Node.js 22.13 or newer and the [shared SDK/npm install](../../README.md#install-swap-and-launchpad-dependencies).

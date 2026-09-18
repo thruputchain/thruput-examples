@@ -1,7 +1,7 @@
 import { toHex0x } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
-import { MAX_SIGNED_AMOUNT } from "@/runtime";
+import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
 import {
   REGISTRY_SORTS as SORTS,
   REGISTRY_SYNC_STATES as SYNC_STATES,

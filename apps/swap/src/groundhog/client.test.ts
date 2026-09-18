@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { contractAddress } from "@groundhogchain/protocol";
-import { createNetworkReadClient, NetworkMismatchError, verifyReadNetwork } from "./client";
+import { createReadClient, NetworkMismatchError, verifyReadNetwork } from "./client";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -19,7 +19,7 @@ describe("client initialization", () => {
         );
       });
     });
-    const pending = createNetworkReadClient(
+    const pending = createReadClient(
       { rpcUrl: new URL("http://127.0.0.1:9545"), networkIdHex: "00".repeat(32) },
       controller.signal,
     );
@@ -46,7 +46,7 @@ describe("network-bound creation reads", () => {
       expect(request.method).toBe("groundhog_networkInfo");
       return Response.json({ jsonrpc: "2.0", id: request.id, result: { networkHash: `0x${config.networkIdHex}` } });
     });
-    const client = await createNetworkReadClient(config, controller.signal);
+    const client = await createReadClient(config, controller.signal);
     expect(client.cluster.networkHash).toEqual(new Uint8Array(32));
     await verifyReadNetwork(client, config);
     expect(fetcher).toHaveBeenCalledTimes(2);
@@ -59,9 +59,9 @@ describe("network-bound creation reads", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => Response.json({
       jsonrpc: "2.0", id: JSON.parse(String(init?.body)).id, result: { networkHash: `0x${observed}` },
     }));
-    await expect(createNetworkReadClient(config)).rejects.toBeInstanceOf(NetworkMismatchError);
+    await expect(createReadClient(config)).rejects.toBeInstanceOf(NetworkMismatchError);
     observed = config.networkIdHex;
-    const client = await createNetworkReadClient(config);
+    const client = await createReadClient(config);
     observed = "02".repeat(32);
     await expect(verifyReadNetwork(client, config)).rejects.toBeInstanceOf(NetworkMismatchError);
   });

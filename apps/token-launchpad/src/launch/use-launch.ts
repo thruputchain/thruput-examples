@@ -4,7 +4,7 @@ import {
   reviewFactory,
   type FactoryReview,
 } from "@/contracts/launchpad-client";
-import { userErrorMessage } from "@/errors";
+import { userErrorMessage } from "@/lib/errors";
 import type { CoreGroundhogClient } from "@groundhogchain/client";
 import { requestRegistrySync } from "@/registry/client";
 import type { WriteBoundary } from "@/transactions/write-boundary";

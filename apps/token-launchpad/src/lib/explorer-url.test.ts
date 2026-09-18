@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { loadExplorerUrl } from "./explorer-config";
+import { parseExplorerUrl } from "./explorer-url";
 
 describe("explorer origin", () => {
   it.each([undefined, "", " \n "])(
     "disables absent or blank values: %s",
     (value) => {
-      expect(loadExplorerUrl(value)).toBeNull();
+      expect(parseExplorerUrl(value)).toBeNull();
     },
   );
   it.each([
@@ -14,7 +14,7 @@ describe("explorer origin", () => {
     ["http://127.0.0.1:3000", "http://127.0.0.1:3000"],
     ["http://[::1]:3000/", "http://[::1]:3000"],
   ])("normalizes %s", (value, expected) =>
-    expect(loadExplorerUrl(value)).toBe(expected),
+    expect(parseExplorerUrl(value)).toBe(expected),
   );
   it.each([
     true,
@@ -41,7 +41,7 @@ describe("explorer origin", () => {
     "https://",
     "https://example.test:99999",
   ])("rejects malformed or unsafe values: %s", (value) => {
-    expect(() => loadExplorerUrl(value)).toThrow(/VITE_EXPLORER_URL/);
-    expect(() => loadExplorerUrl(value)).not.toThrow(/secret/);
+    expect(() => parseExplorerUrl(value)).toThrow(/VITE_EXPLORER_URL/);
+    expect(() => parseExplorerUrl(value)).not.toThrow(/secret/);
   });
 });

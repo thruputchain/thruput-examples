@@ -12,7 +12,7 @@ import { networkHash } from "@groundhogchain/protocol";
 
 import type { GlobalConfig } from "@/config";
 
-export async function createNetworkReadClient(
+export async function createReadClient(
   config: Pick<GlobalConfig, "rpcUrl" | "networkIdHex">,
   signal?: AbortSignal,
 ): Promise<ConnectedGroundhogClient> {

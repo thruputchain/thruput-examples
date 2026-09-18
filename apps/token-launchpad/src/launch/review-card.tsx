@@ -7,10 +7,7 @@ import {
 } from "lucide-react";
 import type { AppConfig } from "@/config";
 import type { FactoryReview } from "@/contracts/launchpad-client";
-import {
-  BlockchainIdentifier,
-  ExplorerProvider,
-} from "@/components/blockchain-identifier";
+import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { Detail, IdentifierDetail } from "@/components/detail";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -72,7 +69,7 @@ export function ReviewCard({
   const ammPoolLink = createAmmPoolLink(config.swapAppUrl, workflow);
   const label = workflow ? actionLabel(workflow, manualProcessing) : "";
   return (
-    <ExplorerProvider explorerUrl={config.explorerUrl}>
+    <>
       <Card className="h-fit lg:sticky lg:top-6">
         <CardHeader>
           <CardTitle>{draft.symbol.trim().toUpperCase() || "SYMBOL"}</CardTitle>
@@ -174,7 +171,11 @@ export function ReviewCard({
               ) : null}
               {workflow.creation.hash ? (
                 <IdentifierDetail
-                  label={workflow.executionMode === "batch" ? "Launch transaction" : "Creation transaction"}
+                  label={
+                    workflow.executionMode === "batch"
+                      ? "Launch transaction"
+                      : "Creation transaction"
+                  }
                   kind="transaction"
                   value={workflow.creation.hash}
                 />
@@ -209,11 +210,20 @@ export function ReviewCard({
               ) : null}
               <div className="space-y-3" aria-live="polite">
                 {workflow.executionMode === "batch" ? (
-                  <ProgressStep label="Launch token in one transaction" step={workflow.creation} />
+                  <ProgressStep
+                    label="Launch token in one transaction"
+                    step={workflow.creation}
+                  />
                 ) : (
                   <>
-                    <ProgressStep label="Fund token address" step={workflow.funding} />
-                    <ProgressStep label="Create and initialize token" step={workflow.creation} />
+                    <ProgressStep
+                      label="Fund token address"
+                      step={workflow.funding}
+                    />
+                    <ProgressStep
+                      label="Create and initialize token"
+                      step={workflow.creation}
+                    />
                   </>
                 )}
                 <ProgressStatus
@@ -351,7 +361,7 @@ export function ReviewCard({
           ) : null}
         </CardContent>
       </Card>
-    </ExplorerProvider>
+    </>
   );
 }
 

@@ -25,7 +25,7 @@ import type { GlobalConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
-import { AmmPage } from "@/pools/amm-page";
+import { PoolPage } from "@/pools/pool-page";
 import { readCreationPresets, tokenAddress } from "@/pools/creation-presets";
 import { TokenAddressCombobox } from "@/pools/token-address-combobox";
 import { useTokenPreview } from "@/pools/token-preview";
@@ -463,7 +463,7 @@ function CreationPage({
     && workflow!.steps[blockingStep].transactionHash === null;
 
   return (
-    <AmmPage
+    <PoolPage
       title="Create pool"
       description="Review factory-recommended funding and exact initial liquidity before signing."
     >
@@ -622,7 +622,7 @@ function CreationPage({
             setProcessingMode(manual ? "manual" : "automatic")}
         />
       </Field>
-    </AmmPage>
+    </PoolPage>
   );
 }
 

@@ -7,10 +7,7 @@ import {
   useWalletClient,
 } from "@groundhogchain/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Navigate, NavLink, Route, Routes } from "react-router-dom";
-import { ExplorerProvider } from "@/components/blockchain-identifier";
-import { AppHeader } from "@/components/app-header";
-import { WalletControls } from "@/wallet/wallet-controls";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { createProviderWriteBoundary } from "@/transactions/provider-wallet";
 import { workflowStorageKey } from "@/launch/workflow";
 import {
@@ -23,7 +20,7 @@ import type { AppConfig } from "@/config";
 import { CreatePage } from "@/launch/create-page";
 import { TokensPage } from "@/tokens/tokens-page";
 
-export function LaunchpadRoutes({ config }: { config: AppConfig }) {
+export function AppRoutes({ config }: { config: AppConfig }) {
   const client = useClient();
   const queries = useQueryClient();
   const wallet = useWallet();
@@ -52,73 +49,45 @@ export function LaunchpadRoutes({ config }: { config: AppConfig }) {
   );
   const hasWalletAccount = workflowConfig !== config;
   return (
-    <ExplorerProvider explorerUrl={config.explorerUrl}>
-      <Header readOnly={readOnly} />
-      <Routes>
-        <Route path="/" element={<Navigate to="/tokens" replace />} />
-        <Route
-          path="/create"
-          element={
-            readOnly && !hasWalletAccount ? (
-              <ConnectPrompt />
-            ) : (
-              <CreatePage
-                key={workflowStorageKey(workflowConfig)}
-                config={workflowConfig}
-                client={client}
-                writer={writer}
-                connected={!readOnly}
-                onCommitted={() => {
-                  void queries.invalidateQueries({
-                    queryKey: getClientQueryKey(client),
-                  });
-                }}
-              />
-            )
-          }
-        />
-        <Route
-          path="/tokens"
-          element={
-            <TokensPage config={config} scope="all" readOnly={readOnly} />
-          }
-        />
-        <Route
-          path="/my-tokens"
-          element={
-            readOnly ? (
-              <ConnectPrompt />
-            ) : (
-              <TokensPage config={workflowConfig} scope="mine" />
-            )
-          }
-        />
-        <Route path="*" element={<Navigate to="/tokens" replace />} />
-      </Routes>
-    </ExplorerProvider>
-  );
-}
-
-function Header({ readOnly = false }: { readOnly?: boolean }) {
-  return (
-    <AppHeader
-      product="Token Launchpad"
-      homeHref={readOnly ? "/tokens" : "/create"}
-      navigation={
-        <>
-          <NavLink className="app-nav-link" to="/tokens">
-            Tokens
-          </NavLink>
-          <NavLink className="app-nav-link" to="/my-tokens">
-            My Tokens
-          </NavLink>
-          <NavLink className="app-nav-link" to="/create">
-            Create Token
-          </NavLink>
-        </>
-      }
-      actions={<WalletControls />}
-    />
+    <Routes>
+      <Route path="/" element={<Navigate to="/tokens" replace />} />
+      <Route
+        path="/create"
+        element={
+          readOnly && !hasWalletAccount ? (
+            <ConnectPrompt />
+          ) : (
+            <CreatePage
+              key={workflowStorageKey(workflowConfig)}
+              config={workflowConfig}
+              client={client}
+              writer={writer}
+              connected={!readOnly}
+              onCommitted={() => {
+                void queries.invalidateQueries({
+                  queryKey: getClientQueryKey(client),
+                });
+              }}
+            />
+          )
+        }
+      />
+      <Route
+        path="/tokens"
+        element={<TokensPage config={config} scope="all" readOnly={readOnly} />}
+      />
+      <Route
+        path="/my-tokens"
+        element={
+          readOnly ? (
+            <ConnectPrompt />
+          ) : (
+            <TokensPage config={workflowConfig} scope="mine" />
+          )
+        }
+      />
+      <Route path="*" element={<Navigate to="/tokens" replace />} />
+    </Routes>
   );
 }
 

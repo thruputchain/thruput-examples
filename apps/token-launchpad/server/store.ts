@@ -10,7 +10,7 @@ import type {
   TokenQueryResult,
 } from "../shared/registry.ts";
 import { REGISTRY_SORTS } from "../shared/registry.ts";
-import { MAX_SIGNED_AMOUNT } from "../src/runtime.ts";
+import { MAX_SIGNED_AMOUNT } from "../shared/amount.ts";
 import {
   canonicalAddress,
   canonicalDecimal,
