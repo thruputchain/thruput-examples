@@ -2,7 +2,7 @@ import { useWallet } from "@groundhogchain/react";
 
 export function WalletInstallBanner() {
   const wallet = useWallet();
-  if (!wallet || wallet.providers.length > 0) return null;
+  if (wallet.providers.length > 0) return null;
 
   return (
     <div

@@ -104,3 +104,7 @@ Use published packages, without sibling-source aliases or linked dependencies.
   which this checkout does not contain. No deployment configuration was changed.
   Chromium acceptance passes for both apps at 320px and desktop widths, including
   wallet controls, launchpad handoff, and network-mismatch guards.
+- Final verification: workspace typechecks, all 1,413 Vitest tests, three process
+  cleanup tests, and all three optimized test-mode builds pass. Added a frontend
+  CI job for those checks plus the existing Chromium acceptance harness so this
+  integration is verified on PRs alongside the existing Rust checks.
