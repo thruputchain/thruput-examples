@@ -59,7 +59,7 @@ import {
   type CreationStepName,
   type CreationWorkflow,
 } from "@/transactions/creation-workflow";
-import { useWalletWriteBoundary } from "@/wallet/write-context";
+import { useTransactions } from "@/transactions/use-transactions";
 import { withAccountLock } from "@/transactions/account-lock";
 import {
   hasBlockingAllowanceCleanup,
@@ -138,7 +138,7 @@ function CreationPage({
         : [],
     };
   });
-  const connectedWriter = useWalletWriteBoundary();
+  const connectedWriter = useTransactions(config);
   const writer = dependencies.writer ?? connectedWriter;
   const [input, setInput] = useState<PoolCreationInput>(() => ({
     ...emptyInput, tokenA: presets.tokenA, tokenB: presets.tokenB,

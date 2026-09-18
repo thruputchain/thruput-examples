@@ -1,6 +1,6 @@
-import { toHex0x } from "@groundhogchain/client";
-import { useEffect, useState } from "react";
-import { useClient } from "@groundhogchain/react";
+import { addressFromHex, toHex0x } from "@groundhogchain/client";
+import { useEffect, useMemo, useState } from "react";
+import { useClient, useWallet, useWalletClient } from "@groundhogchain/react";
 import {
   Link,
   Navigate,
@@ -24,6 +24,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   type AppConfig,
   type GlobalConfig,
+  READ_ONLY_CALLER,
 } from "@/config";
 import {
   PoolIdentityError,
@@ -42,10 +43,9 @@ import {
   type RequestObserver,
 } from "@/transactions/request-observer";
 import { type WriteBoundary } from "@/transactions/write-boundary";
-import { WalletProvider } from "@/wallet/wallet-provider";
 import { WalletControls } from "@/wallet/wallet-controls";
-import { WalletInstallBanner } from "@/wallet/wallet-install-banner";
-import { useWalletWriteBoundary } from "@/wallet/write-context";
+import { WalletInstallBanner } from "@/wallet/wallet-controls";
+import { useTransactions } from "@/transactions/use-transactions";
 
 export function AppProviders({
   children,
@@ -68,24 +68,23 @@ export function BrowserConfiguredApp({
 }: {
   config: GlobalConfig;
 }) {
-  return (
-    <WalletProvider config={baseConfig}>
-      {(config, connected, revision) => (
-        <>
-          <WalletInstallBanner />
-          <AmmRoutes key={revision} config={config} readOnly={!connected} />
-        </>
-      )}
-    </WalletProvider>
-  );
+  const wallet = useWallet();
+  const binding = useWalletClient();
+  const address = wallet.status === "connected" ? wallet.address : null;
+  const config = useMemo(() => ({ ...baseConfig, accountAddress: address ? addressFromHex(address) : READ_ONLY_CALLER }), [baseConfig, address]);
+  const [scope, setScope] = useState({ binding, revision: 0 });
+  if (scope.binding !== binding) setScope({ binding, revision: scope.revision + 1 });
+  return <><WalletInstallBanner /><AmmRoutes config={config} readOnly={wallet.status !== "connected"} writeRevision={scope.revision} /></>;
 }
 
 export function AmmRoutes({
   config,
   readOnly = false,
+  writeRevision = 0,
 }: {
   config: GlobalConfig;
   readOnly?: boolean;
+  writeRevision?: number;
 }) {
   return (
     <Routes>
@@ -104,7 +103,7 @@ export function AmmRoutes({
               readOnly
             />
           ) : (
-            <PoolCreatePage config={config} />
+            <PoolCreatePage key={writeRevision} config={config} />
           )
         }
       />
@@ -120,7 +119,7 @@ export function AmmRoutes({
           readOnly ? (
             <ReadOnlyPoolRedirect />
           ) : (
-            <PoolRoute config={config} view="swap" readOnly={readOnly} />
+            <PoolRoute key={writeRevision} config={config} view="swap" readOnly={readOnly} />
           )
         }
       />
@@ -130,7 +129,7 @@ export function AmmRoutes({
           readOnly ? (
             <ReadOnlyPoolRedirect />
           ) : (
-            <PoolRoute config={config} view="liquidity" readOnly={readOnly} />
+            <PoolRoute key={writeRevision} config={config} view="liquidity" readOnly={readOnly} />
           )
         }
       />
@@ -359,7 +358,7 @@ export function ConfiguredApp({
   const [reader] = useState<SnapshotReader>(
     () => readSnapshot ?? createSnapshotReader(config, client),
   );
-  const connectedWriter = useWalletWriteBoundary();
+  const connectedWriter = useTransactions(config);
   const writer = writeBoundary ?? connectedWriter;
   const [observer] = useState<RequestObserver>(
     () => requestObserver ?? createRequestObserver(config, client),

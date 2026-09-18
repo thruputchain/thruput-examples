@@ -336,3 +336,7 @@ All three scope choices were approved in Roughdraft. Implementation follows the 
   config manifest. Startup still validates artifacts and chain scope. Workspace
   typechecks, 880 swap tests, 361 launchpad tests, production builds, and Chromium
   acceptance pass at this phase.
+- Wallet setup now consists of provider composition and wallet controls. Client
+  initialization is in bootstrap; writer context and broad route remounts are
+  removed. Focused tests verify public filters survive wallet changes, launch
+  drafts survive disconnect, and swap write forms reset on signing rebinding.

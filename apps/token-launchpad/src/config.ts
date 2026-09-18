@@ -1,4 +1,4 @@
-import { addressFromHex, fromHex0x, toHex0x } from "@groundhogchain/client";
+import { addressFromHex, fromHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
 import { PINNED_NATIVE_BALANCE_ITEM_COST } from "./runtime";
@@ -19,24 +19,10 @@ export interface AppConfig {
   expectedTokenHash: Uint8Array;
 }
 
-export function publicConfigKey(config: AppConfig): string {
-  return JSON.stringify([
-    config.rpcUrl.href,
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
-    toHex0x(config.factoryAddress),
-    toHex0x(config.nativeHogAddress),
-    toHex0x(config.expectedTokenHash),
-    config.nativeBalanceItemCost.toString(),
-    config.explorerUrl ?? null,
-    config.swapAppUrl ?? null,
-  ]);
-}
-
 export type Environment = Record<string, string | boolean | undefined>;
 
 export async function loadRuntimeConfig(): Promise<AppConfig> {
-  const response = await fetch("/api/config", { cache: "no-store" });
+  const response = await fetch("/api/config", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
   if (!response.ok) throw new Error("Application configuration is unavailable. Try again.");
   const value: unknown = await response.json();
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid application configuration");

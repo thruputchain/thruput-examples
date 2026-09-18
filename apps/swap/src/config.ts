@@ -35,30 +35,10 @@ export interface AppConfig extends GlobalConfig {
   tokenBDecimals: number;
 }
 
-export function publicConfigKey(config: GlobalConfig): string {
-  const discovery = config.tokenDiscovery;
-  return JSON.stringify([
-    config.rpcUrl.href,
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
-    toHex0x(config.factoryAddress),
-    toHex0x(config.routerAddress),
-    toHex0x(config.nativeHogAddress),
-    config.poolTokenHash ?? null,
-    config.explorerUrl ?? null,
-    discovery?.enabled ?? false,
-    discovery?.factoryAddress ?? "",
-    discovery?.tokenCodeHash ?? "",
-    discovery?.scope?.networkId ?? null,
-    discovery?.scope?.factoryAddress ?? null,
-    discovery?.scope?.tokenCodeHash ?? null,
-  ]);
-}
-
 export type Environment = Record<string, string | boolean | undefined>;
 
 export async function loadRuntimeConfig(): Promise<GlobalConfig> {
-  const response = await fetch("/api/config", { cache: "no-store" });
+  const response = await fetch("/api/config", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
   if (!response.ok) throw new Error("Application configuration is unavailable. Try again.");
   const value: unknown = await response.json();
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid application configuration");

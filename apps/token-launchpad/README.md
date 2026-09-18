@@ -232,9 +232,9 @@ platform requirements, and coverage are in [Application checks](../../README.md#
 ## React integration
 
 The app uses the published `@groundhogchain/react` wallet provider and balance
-hooks. `src/wallet/wallet-provider.tsx` initializes a stable, network-validated
-public client, exposes retryable startup errors, and adapts the active wallet to
-the app's transaction boundary. Routes reuse that client through `useClient()`.
+hooks. `src/main.tsx` initializes public configuration and a stable, validated
+client with retryable startup feedback. `src/app-providers.tsx` composes the
+official providers; routes build the transaction adapter using their client hooks.
 Wallet disconnection disables writes while keeping the last account's launch
 workflow available for recovery.
 

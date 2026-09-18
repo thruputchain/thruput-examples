@@ -56,7 +56,7 @@ import {
   type LiquidityStepName,
 } from "@/transactions/liquidity-operation";
 import { createLiquidityObserver, type LiquidityObserver } from "@/transactions/liquidity-observer";
-import { useWalletWriteBoundary } from "@/wallet/write-context";
+import { useTransactions } from "@/transactions/use-transactions";
 import { withAccountLock } from "@/transactions/account-lock";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import { hasBlockingAllowanceCleanup } from "@/transactions/allowance-cleanup";
@@ -78,7 +78,7 @@ export function LiquidityPage({
 }) {
   const client = useClient();
   const [reader] = useState(() => dependencies.readSnapshot ?? createSnapshotReader(config, client));
-  const connectedWriter = useWalletWriteBoundary();
+  const connectedWriter = useTransactions(config);
   const writer = dependencies.writer ?? connectedWriter;
   const [observer] = useState(() =>
     dependencies.observer ?? createLiquidityObserver(config, client)
