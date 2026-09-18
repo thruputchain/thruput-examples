@@ -32,7 +32,7 @@ export function PoolDetailPage({
 }) {
   const client = useClient();
   const [reader] = useState(() => createSnapshotReader(config, client));
-  const state = usePoolSnapshot(reader);
+  const state = usePoolSnapshot(reader, config);
   const path = poolPath(config.tokenAAddress, config.tokenBAddress);
 
   return (

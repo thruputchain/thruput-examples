@@ -1,6 +1,7 @@
 import { addressFromHex, toHex0x } from "@groundhogchain/client";
-import { useEffect, useMemo, useState } from "react";
-import { useClient, useWallet, useWalletClient } from "@groundhogchain/react";
+import { useMemo, useState } from "react";
+import { getClientQueryKey, useClient, useWallet, useWalletClient } from "@groundhogchain/react";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import {
   Link,
   Navigate,
@@ -161,41 +162,17 @@ function PoolRoute({
   const params = useParams();
   const location = useLocation();
   const parsed = parsePoolRoute(params.token0, params.token1);
-  const [state, setState] = useState<
-    | { kind: "loading" }
-    | { kind: "ready"; key: string; config: AppConfig }
-    | { kind: "missing" }
-    | { kind: "error"; message: string }
-  >({ kind: "loading" });
-
-  useEffect(() => {
-    if (parsed.kind !== "canonical") return;
-    const key = poolRequestKey(config, parsed.token0Hex, parsed.token1Hex);
-    let active = true;
-    setState({ kind: "loading" });
-    void resolvePoolConfig(config, parsed.token0, parsed.token1, undefined, client).then(
-      (poolConfig) => {
-        if (active) setState({ kind: "ready", key, config: poolConfig });
-      },
-      (error: unknown) => {
-        if (!active) return;
-        if (error instanceof PoolNotFoundError) {
-          setState({ kind: "missing" });
-          return;
-        }
-        setState({
-          kind: "error",
-          message:
-            error instanceof PoolIdentityError
-              ? error.message
-              : "The pool could not be loaded",
-        });
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [client, config, parsed.kind, params.token0, params.token1]);
+  const pool = useQuery({
+    queryKey: [...getClientQueryKey(client), "pool-config", poolRequestKey(config, params.token0 ?? "", params.token1 ?? "")],
+    queryFn: parsed.kind !== "canonical" ? skipToken : async ({ signal }) => {
+      const result = await resolvePoolConfig(config, parsed.token0, parsed.token1, undefined, client);
+      signal.throwIfAborted();
+      return result;
+    },
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
 
   if (parsed.kind === "invalid") return <NotFoundPage readOnly={readOnly} />;
   if (parsed.kind === "redirect") {
@@ -207,7 +184,7 @@ function PoolRoute({
       />
     );
   }
-  if (state.kind === "loading") {
+  if (pool.isPending || pool.isFetching) {
     return (
       <PlaceholderPage
         title="Loading pool"
@@ -216,7 +193,7 @@ function PoolRoute({
       />
     );
   }
-  if (state.kind === "missing") {
+  if (pool.error instanceof PoolNotFoundError) {
     return (
       <PlaceholderPage
         title="Pool not found"
@@ -225,41 +202,32 @@ function PoolRoute({
       />
     );
   }
-  if (state.kind === "error") {
+  if (pool.isError) {
     return (
       <PlaceholderPage
         title="Pool unavailable"
-        description={state.message}
+        description={pool.error instanceof PoolIdentityError ? pool.error.message : "The pool could not be loaded"}
         readOnly={readOnly}
       />
     );
   }
-  const requestKey = poolRequestKey(config, parsed.token0Hex, parsed.token1Hex);
-  if (state.kind !== "ready" || state.key !== requestKey) {
-    return (
-      <PlaceholderPage
-        title="Loading pool"
-        description="Reading the factory and token metadata."
-        readOnly={readOnly}
-      />
-    );
-  }
+  const poolConfig = pool.data;
   if (view === "swap") {
     return (
-      <ConfiguredApp key={poolRuntimeKey(state.config)} config={state.config} />
+      <ConfiguredApp key={poolRuntimeKey(poolConfig)} config={poolConfig} />
     );
   }
   if (view === "detail") {
     return (
       <PoolDetailPage
-        key={poolRuntimeKey(state.config)}
-        config={state.config}
+        key={poolRuntimeKey(poolConfig)}
+        config={poolConfig}
         readOnly={readOnly}
       />
     );
   }
   return (
-    <LiquidityPage key={poolRuntimeKey(state.config)} config={state.config} />
+    <LiquidityPage key={poolRuntimeKey(poolConfig)} config={poolConfig} />
   );
 }
 

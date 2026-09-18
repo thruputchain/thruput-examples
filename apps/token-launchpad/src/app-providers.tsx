@@ -1,7 +1,22 @@
 import { useState, type ReactNode } from "react";
 import type { ConnectedGroundhogClient } from "@groundhogchain/client";
 import { WalletProvider } from "@groundhogchain/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  focusManager,
+} from "@tanstack/react-query";
+
+focusManager.setEventListener((notify) => {
+  if (typeof window === "undefined") return;
+  const visible = () => notify();
+  window.addEventListener("focus", visible);
+  document.addEventListener("visibilitychange", visible);
+  return () => {
+    window.removeEventListener("focus", visible);
+    document.removeEventListener("visibilitychange", visible);
+  };
+});
 
 export function AppProviders({
   client,

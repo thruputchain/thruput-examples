@@ -83,7 +83,7 @@ export function LiquidityPage({
   const [observer] = useState(() =>
     dependencies.observer ?? createLiquidityObserver(config, client)
   );
-  const snapshotState = usePoolSnapshot(reader);
+  const snapshotState = usePoolSnapshot(reader, config);
   const [initialState] = useState(() => readLiquidityState(config));
   const [operations, setOperations] = useState(initialState.operations);
   const [selectedKind, setSelectedKind] = useState<"add" | "remove">("add");

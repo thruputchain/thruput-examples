@@ -2,8 +2,10 @@ import {
   addressFromHex,
   toHex0x,
   type CoreGroundhogClient,
+  type ConnectedGroundhogClient,
 } from "@groundhogchain/client";
-import { useEffect, useState } from "react";
+import { useQuery, skipToken } from "@tanstack/react-query";
+import { getClientQueryKey } from "@groundhogchain/react";
 
 import type { GlobalConfig } from "@/config";
 import {
@@ -48,54 +50,38 @@ type Preview =
 export function useTokenPreview(
   config: GlobalConfig,
   value: string,
-  client?: CoreGroundhogClient,
+  client: ConnectedGroundhogClient,
 ) {
   const address = tokenAddress(value);
-  const [attempt, setAttempt] = useState(0);
-  const key = JSON.stringify([
-    config.networkIdHex,
-    config.rpcUrl.href,
-    toHex0x(config.accountAddress),
-    address,
-    attempt,
-  ]);
-  const [result, setResult] = useState<{
-    key: string;
-    preview: Preview;
-  } | null>(null);
-  useEffect(() => {
-    setResult(null);
-    if (address === null) return;
-    const controller = new AbortController();
-    let current = true;
-    void readTokenPreview(config, address, controller.signal, client).then(
-      (metadata) => {
-        if (current) setResult({ key, preview: { status: "ready", metadata } });
-      },
-      (error: unknown) => {
-        if (current)
-          setResult({
-            key,
-            preview: {
-              status: "unavailable",
-              networkMismatch: error instanceof NetworkMismatchError,
-            },
-          });
-      },
-    );
-    return () => {
-      current = false;
-      controller.abort();
-    };
-    // The key includes every configuration value used by this read, not object identity.
-  }, [key, client]);
-  return {
-    preview:
+  const result = useQuery({
+    queryKey: [
+      ...getClientQueryKey(client),
+      "token-preview",
+      config.networkIdHex,
+      toHex0x(config.accountAddress),
+      address,
+    ],
+    queryFn:
       address === null
-        ? null
-        : result?.key === key
-          ? result.preview
-          : ({ status: "pending" } as const),
-    retry: () => setAttempt((current) => current + 1),
+        ? skipToken
+        : ({ signal }) => readTokenPreview(config, address, signal, client),
+    retry: false,
+  });
+  const preview: Preview | null =
+    address === null
+      ? null
+      : result.isError
+        ? {
+            status: "unavailable",
+            networkMismatch: result.error instanceof NetworkMismatchError,
+          }
+        : result.data
+          ? { status: "ready", metadata: result.data }
+          : { status: "pending" };
+  return {
+    preview,
+    retry: () => {
+      void result.refetch();
+    },
   };
 }

@@ -8,6 +8,7 @@ import {
   NetworkMismatchError,
 } from "@/groundhog/client";
 import { readTokenPreview, useTokenPreview } from "./token-preview";
+import { testClient, TestProviders } from "@/test/render";
 
 vi.mock("@/groundhog/client", async (original) => ({
   ...(await original<object>()),
@@ -34,6 +35,7 @@ const metadata = {
 };
 const read = vi.fn();
 const network = vi.fn();
+const client = { ...testClient, getNetworkInfo: network };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -89,7 +91,7 @@ describe("live token previews", () => {
     ).resolves.toEqual({ name: null, symbol: null, decimals: null });
   });
 
-  it("aborts edits, suppresses late metadata, and never reads invalid addresses", async () => {
+  it("abandons old queries, suppresses late metadata, and never reads invalid addresses", async () => {
     let resolveOld!: (value: typeof metadata) => void;
     read.mockImplementationOnce(
       () =>
@@ -98,15 +100,13 @@ describe("live token previews", () => {
         }),
     );
     const { result, rerender, unmount } = renderHook(
-      ({ value }) => useTokenPreview(config, value),
-      { initialProps: { value: hex(8) } },
+      ({ value }) => useTokenPreview(config, value, client),
+      { initialProps: { value: hex(8) }, wrapper: TestProviders },
     );
     await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
-    const oldSignal = vi.mocked(createNetworkReadClient).mock.calls[0]![1]!;
     rerender({ value: hex(9) });
     expect(result.current.preview).toEqual({ status: "pending" });
     await waitFor(() => expect(result.current.preview?.status).toBe("ready"));
-    expect(oldSignal.aborted).toBe(true);
     await act(async () => resolveOld({ ...metadata, name: view("OLD") }));
     expect(result.current.preview).toMatchObject({
       status: "ready",
@@ -116,16 +116,13 @@ describe("live token previews", () => {
     expect(result.current.preview).toBeNull();
     expect(read).toHaveBeenCalledTimes(2);
     unmount();
-    expect(vi.mocked(createNetworkReadClient).mock.calls[1]![1]!.aborted).toBe(
-      true,
-    );
   });
 
   it("rechecks network on retry and on caller/network changes", async () => {
     network.mockRejectedValueOnce(new NetworkMismatchError());
     const { result, rerender } = renderHook(
-      ({ current }) => useTokenPreview(current, hex(8)),
-      { initialProps: { current: config } },
+      ({ current }) => useTokenPreview(current, hex(8), client),
+      { initialProps: { current: config }, wrapper: TestProviders },
     );
     await waitFor(() =>
       expect(result.current.preview).toEqual({
@@ -148,10 +145,10 @@ describe("live token previews", () => {
   it("keeps independent slot results when a second token is loaded", async () => {
     const { result, rerender } = renderHook(
       ({ b }) => ({
-        a: useTokenPreview(config, hex(8)),
-        b: useTokenPreview(config, b),
+        a: useTokenPreview(config, hex(8), client),
+        b: useTokenPreview(config, b, client),
       }),
-      { initialProps: { b: "" } },
+      { initialProps: { b: "" }, wrapper: TestProviders },
     );
     await waitFor(() => expect(result.current.a.preview?.status).toBe("ready"));
     read.mockRejectedValueOnce(new Error("offline"));

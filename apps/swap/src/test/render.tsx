@@ -3,8 +3,10 @@ import {
   type RenderOptions,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { notifyManager, focusManager } from "@tanstack/react-query";
+import { afterEach } from "vitest";
+import { AppProviders } from "@/app-providers";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { WalletProvider } from "@groundhogchain/react";
 import {
   createGroundhogClient,
   localnet,
@@ -15,12 +17,15 @@ const client = await createGroundhogClient({
   cluster: localnet(),
   transport: new MockTransport(),
 });
+export { client as testClient };
+notifyManager.setScheduler(queueMicrotask);
+afterEach(() => focusManager.setFocused(undefined));
 
-function Providers({ children }: { children: ReactNode }) {
+export function TestProviders({ children }: { children: ReactNode }) {
   return (
-    <WalletProvider client={client}>
+    <AppProviders client={client}>
       <TooltipProvider>{children}</TooltipProvider>
-    </WalletProvider>
+    </AppProviders>
   );
 }
 
@@ -31,9 +36,9 @@ export function render(ui: ReactNode, options?: RenderOptions) {
   return renderReact(ui, {
     ...rest,
     wrapper: ({ children }) => (
-      <Providers>
+      <TestProviders>
         {Wrapper ? <Wrapper>{children}</Wrapper> : children}
-      </Providers>
+      </TestProviders>
     ),
   });
 }

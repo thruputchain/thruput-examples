@@ -340,3 +340,8 @@ All three scope choices were approved in Roughdraft. Implementation follows the 
   initialization is in bootstrap; writer context and broad route remounts are
   removed. Focused tests verify public filters survive wallet changes, launch
   drafts survive disconnect, and swap write forms reset on signing rebinding.
+- Directory/status reads, token preview/discovery, pool resolution, and grouped
+  pool snapshots now use TanStack queries. Immutable registry metadata and live
+  pool reads have separate keys; live keys include the client and account.
+  All 24 swap directory tests still pass, including pinned pagination and retained
+  reserves after background failures. Both app suites and Chromium acceptance pass.

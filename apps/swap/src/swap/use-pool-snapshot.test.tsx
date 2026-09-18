@@ -1,5 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { addressFromHex } from "@groundhogchain/client";
+import { TestProviders } from "@/test/render";
+const address = addressFromHex(`0x${"01".repeat(32)}`);
+const config = { rpcUrl: new URL("http://localhost"), networkIdHex: "00".repeat(32), accountAddress: address, factoryAddress: address, routerAddress: address, nativeHogAddress: address, handlerAddress: address, driverAddress: address, liquidityTokenAddress: address, tokenAAddress: address, tokenBAddress: address, tokenASymbol: "A", tokenBSymbol: "B", tokenADecimals: 7, tokenBDecimals: 7 };
 
 import type { PoolSnapshot } from "@/swap/snapshot";
 
@@ -20,7 +24,7 @@ describe("usePoolSnapshot", () => {
     });
     const latest = { chainHeight: 9n } as PoolSnapshot;
     const read = vi.fn().mockReturnValueOnce(first).mockResolvedValueOnce(latest);
-    const { result } = renderHook(() => usePoolSnapshot(read));
+    const { result } = renderHook(() => usePoolSnapshot(read, config), { wrapper: TestProviders });
 
     await act(async () => result.current.refresh());
     expect(result.current.snapshot).toBe(latest);
@@ -33,7 +37,7 @@ describe("usePoolSnapshot", () => {
   it("refreshes visible pool data on the quote interval", async () => {
     vi.useFakeTimers();
     const read = vi.fn().mockResolvedValue({ chainHeight: 1n } as PoolSnapshot);
-    renderHook(() => usePoolSnapshot(read));
+    renderHook(() => usePoolSnapshot(read, config), { wrapper: TestProviders });
 
     await act(async () => {
       await Promise.resolve();
@@ -50,7 +54,7 @@ describe("usePoolSnapshot", () => {
     const read = vi.fn(
       () => new Promise<PoolSnapshot>(() => undefined),
     );
-    renderHook(() => usePoolSnapshot(read));
+    renderHook(() => usePoolSnapshot(read, config), { wrapper: TestProviders });
 
     await act(async () => {
       await Promise.resolve();

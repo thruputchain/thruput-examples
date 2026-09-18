@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { CreatedToken } from "@/contracts/launchpad-client";
+import type { CreatedToken } from "@/registry/tokens";
 import { formatUnits } from "@/launch/form";
 import { useTokenBalance } from "@groundhogchain/react";
 

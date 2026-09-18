@@ -34,7 +34,7 @@ export function SwapPage({
   requestObserver: RequestObserver;
   writeBoundary: WriteBoundary;
 }) {
-  const state = usePoolSnapshot(readSnapshot);
+  const state = usePoolSnapshot(readSnapshot, config);
   const heading = useRef<HTMLHeadingElement>(null);
   const recovering = useRef(false);
   useEffect(() => {

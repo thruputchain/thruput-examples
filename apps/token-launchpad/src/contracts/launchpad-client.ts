@@ -24,17 +24,6 @@ export interface FactoryReview {
   creatorBalance: bigint;
   fundingShortfall: bigint;
 }
-export interface CreatedToken {
-  addressHex: string;
-  name: string;
-  symbol: string;
-  decimals: number | null;
-  initialSupply: bigint;
-  administratorHex: string;
-  holderHex: string;
-  block: bigint;
-  transactionHash: string;
-}
 
 export function assertTrustedFactoryConfig(
   factory: FactoryConfig,
