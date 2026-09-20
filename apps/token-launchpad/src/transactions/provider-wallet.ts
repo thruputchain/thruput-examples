@@ -31,11 +31,10 @@ export function createProviderWriteBoundary(
       const capabilities = await wallet.getCapabilities();
       return (capabilities.atomicBatch?.maxCalls ?? 0) >= count;
     },
-    execute: (target, observer) => executeTargets([target], observer, false),
-    executeBatch: (targets, observer) =>
-      executeTargets(targets, observer, true),
+    execute: (call, observer) => executeCalls([call], observer, false),
+    executeBatch: (calls, observer) => executeCalls(calls, observer, true),
   };
-  async function executeTargets(
+  async function executeCalls(
     calls: readonly ContractCall[],
     observer: Parameters<WriteBoundary["execute"]>[1],
     batched: boolean,

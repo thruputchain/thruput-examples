@@ -15,11 +15,11 @@ export type WriteResult =
 export interface WriteBoundary {
   supportsBatch?(count: number): Promise<boolean>;
   executeBatch?(
-    targets: readonly ContractCall[],
+    calls: readonly ContractCall[],
     observer: { onSigned: (hash: string) => void | Promise<void> },
   ): Promise<WriteResult>;
   execute(
-    target: ContractCall,
+    call: ContractCall,
     observer: { onSigned: (hash: string) => void | Promise<void> },
   ): Promise<WriteResult>;
   observe(hash: string): Promise<WriteResult>;

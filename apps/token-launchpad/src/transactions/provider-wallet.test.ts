@@ -160,6 +160,46 @@ function setup() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("provider write boundary with the real SDK", () => {
+  it("preserves committed failure without trying to decode child return bytes", async () => {
+    const { boundary, client } = setup();
+    client.waitForTransactionReceipt.mockImplementationOnce(async (hash) => ({
+      txHash: sha256Hash(hash),
+      height: blockHeight(11n),
+      execResult: ExecResult.ExecResultTxRootFrameReverted,
+      returnData: null,
+      abortData: new Uint8Array([1]),
+      events: [],
+    }));
+    try {
+      expect(await boundary.execute(target, { onSigned() {} })).toMatchObject({
+        kind: "committedFailure",
+      });
+    } finally {
+      boundary.dispose();
+    }
+  });
+
+  it("retains the original successful receipt when child decoding fails", async () => {
+    const { boundary, client } = setup();
+    client.waitForTransactionReceipt.mockImplementationOnce(async (hash) => ({
+      txHash: sha256Hash(hash),
+      height: blockHeight(11n),
+      execResult: ExecResult.ExecResultOK,
+      returnData: new Uint8Array([1]),
+      abortData: null,
+      events: [],
+    }));
+    try {
+      const result = await boundary.execute(target, { onSigned() {} });
+      expect(result).toMatchObject({
+        kind: "committedSuccess",
+        receipt: { returnData: new Uint8Array([1]) },
+      });
+    } finally {
+      boundary.dispose();
+    }
+  });
+
   it("keeps the adapter usable after approval timeout and signs a fresh transaction on retry", async () => {
     const { boundary, request, client } = setup();
     const original = request.getMockImplementation()!;

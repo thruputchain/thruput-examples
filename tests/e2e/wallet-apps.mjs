@@ -226,7 +226,7 @@ async function productionSmoke(app, prefix, settings, context) {
   await mkdir(directory, { recursive: true });
   // Unchanged production entrypoints resolve ../dist. Copy only code, never
   // user env files or databases, and share installed dependencies read-only.
-  for (const path of ["server", "src", "package.json", "tsconfig.json"])
+  for (const path of ["server", "src", "shared", "package.json", "tsconfig.json"])
     await cp(`${app}/${path}`, `${directory}/${path}`, { recursive: true });
   await symlink(`${root}/node_modules`, `${directory}/node_modules`, "dir");
   const buildArgs = [

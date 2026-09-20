@@ -94,12 +94,21 @@ export async function advanceWorkflow(input: {
         // Receipt indexing can lead the state snapshot used by views. Retry only
         // a proven stale read, never a fresh shortfall or the funding transaction.
         if (review.reserveHeight < receipt.height) {
-          review = await (input.review ?? reviewFactory)(
-            input.client,
-            input.config,
-            nonce,
-            { balanceItemKnown: true },
-          );
+          for (
+            let attempt = 0;
+            attempt < 3 && review.reserveHeight < receipt.height;
+            attempt++
+          ) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, 100 * (attempt + 1)),
+            );
+            review = await (input.review ?? reviewFactory)(
+              input.client,
+              input.config,
+              nonce,
+              { balanceItemKnown: true },
+            );
+          }
           if (review.reserveHeight < receipt.height) {
             throw new Error(
               "Funding committed, but the reserve snapshot has not reached its block yet. Check again.",
@@ -242,7 +251,7 @@ export async function advanceWorkflow(input: {
         workflow.creation.status !== "committed"
       ) {
         const amount = BigInt(workflow.plannedFundingAmount);
-        const invocations =
+        const calls =
           amount > 0n ? [fundingCall(amount), creation] : [creation];
         return continueStep({
           workflow,
@@ -250,8 +259,8 @@ export async function advanceWorkflow(input: {
           storage,
           key,
           writer: input.writer,
-          invocation: creation,
-          invocations,
+          call: creation,
+          calls,
           onCommitted,
           confirmUnsigned: input.confirmUnsignedStep !== undefined,
           onUpdate: input.onUpdate,
@@ -278,7 +287,7 @@ export async function advanceWorkflow(input: {
             storage,
             key,
             writer: input.writer,
-            invocation: fundingCall(review.fundingAmount),
+            call: fundingCall(review.fundingAmount),
             confirmUnsigned: input.confirmUnsignedStep === "funding",
             onUpdate: input.onUpdate,
           });
@@ -316,7 +325,7 @@ export async function advanceWorkflow(input: {
         storage,
         key,
         writer: input.writer,
-        invocation: creation,
+        call: creation,
         onCommitted,
         confirmUnsigned: input.confirmUnsignedStep === "creation",
         onUpdate: input.onUpdate,
@@ -374,8 +383,8 @@ async function continueStep(input: {
   storage: Pick<Storage, "getItem" | "setItem">;
   key: string;
   writer: WriteBoundary;
-  invocation: Parameters<WriteBoundary["execute"]>[0];
-  invocations?: readonly Parameters<WriteBoundary["execute"]>[0][];
+  call: Parameters<WriteBoundary["execute"]>[0];
+  calls?: readonly Parameters<WriteBoundary["execute"]>[0][];
   confirmUnsigned: boolean;
   onUpdate?: ((workflow: LaunchWorkflow) => void) | undefined;
   onCommitted?: (
@@ -427,15 +436,15 @@ async function continueStep(input: {
         input.onUpdate?.(workflow);
       },
     };
-    result = input.invocations
+    result = input.calls
       ? await (input.writer.executeBatch
-          ? input.writer.executeBatch(input.invocations, observer)
+          ? input.writer.executeBatch(input.calls, observer)
           : Promise.resolve({
               kind: "preSubmissionFailure" as const,
               hash: null,
               message: "Reconnect a wallet that supports this saved batch",
             }))
-      : await input.writer.execute(input.invocation, observer);
+      : await input.writer.execute(input.call, observer);
   }
   switch (result.kind) {
     case "preSubmissionFailure":

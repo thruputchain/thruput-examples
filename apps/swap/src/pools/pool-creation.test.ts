@@ -27,6 +27,27 @@ const input = {
 };
 
 describe("preparePoolCreation", () => {
+  it("retries a changed factory snapshot without treating it as a different pool", async () => {
+    const deps = dependencies();
+    const pool = { handler: address(7), driver: address(8), liquidityToken: address(9) };
+    vi.mocked(deps.factory.getPair).mockResolvedValue(view(pool.handler));
+    vi.mocked(deps.factory.poolAddresses).mockResolvedValueOnce({ ...view(pool), height: 11n }).mockResolvedValue(view(pool));
+    const review = await preparePoolCreation(config, input, 0n, { ...deps, existingPool: pool });
+    expect(review.pool).toEqual(pool);
+    expect(deps.factory.getPair).toHaveBeenCalledTimes(2);
+    vi.mocked(deps.factory.poolAddresses).mockResolvedValue({ ...view(pool), height: 11n });
+    await expect(preparePoolCreation(config, input, 0n, { ...deps, existingPool: pool })).rejects.toMatchObject({ code: "staleReads" });
+  });
+
+  it("still rejects different pool addresses at the same height", async () => {
+    const deps = dependencies();
+    const pool = { handler: address(7), driver: address(8), liquidityToken: address(9) };
+    vi.mocked(deps.factory.getPair).mockResolvedValue(view(pool.handler));
+    vi.mocked(deps.factory.poolAddresses).mockResolvedValue(view({ ...pool, driver: address(10) }));
+    await expect(preparePoolCreation(config, input, 0n, { ...deps, existingPool: pool })).rejects.toMatchObject({ code: "poolIdentity" });
+    expect(deps.factory.getPair).toHaveBeenCalledOnce();
+  });
+
   it("rejects the wrong network before any authoritative contract reads", async () => {
     const deps = dependencies();
     deps.client.getNetworkInfo.mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) });

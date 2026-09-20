@@ -132,6 +132,8 @@ export async function preparePoolCreation(
       token1.metadata(),
     ]);
     const pool = await resolvePool(factory, ordered.token0, ordered.token1, registered, dependencies.existingPool);
+    // A changed snapshot needs a new coherent review, not an identity failure.
+    if (pool === undefined) continue;
     const predicted = dependencies.predictPool && pool === null
       ? await factory.poolAddresses(ordered.token0, ordered.token1)
       : undefined;
@@ -235,7 +237,7 @@ async function resolvePool(
   token1: ContractAddress,
   registered: ContractView<ContractAddress | null>,
   expected: PoolAddresses | undefined,
-): Promise<PoolAddresses | null> {
+): Promise<PoolAddresses | null | undefined> {
   if (registered.value === null) {
     if (expected !== undefined) {
       throw new PoolCreationValidationError("poolIdentity", "The created pool is not registered");
@@ -246,9 +248,9 @@ async function resolvePool(
     throw new PoolCreationValidationError("poolExists", "A pool for these tokens already exists");
   }
   const resolved = await factory.poolAddresses(token0, token1);
+  if (resolved.height !== registered.height) return undefined;
   if (
-    resolved.height !== registered.height
-    || !bytesEqual(registered.value, resolved.value.handler)
+    !bytesEqual(registered.value, resolved.value.handler)
     || !samePool(expected, resolved.value)
   ) {
     throw new PoolCreationValidationError("poolIdentity", "The factory returned inconsistent pool addresses");

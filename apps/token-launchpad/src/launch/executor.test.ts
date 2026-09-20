@@ -96,13 +96,11 @@ describe("advanceWorkflow", () => {
       supportsBatch: vi.fn().mockResolvedValue(true),
       execute: vi.fn(),
       observe: vi.fn(),
-      executeBatch: vi
-        .fn()
-        .mockResolvedValue({
-          kind: "preSubmissionFailure",
-          hash: null,
-          message: "User rejected the request",
-        }),
+      executeBatch: vi.fn().mockResolvedValue({
+        kind: "preSubmissionFailure",
+        hash: null,
+        message: "User rejected the request",
+      }),
     };
     const input = {
       config,
@@ -139,13 +137,11 @@ describe("advanceWorkflow", () => {
         .fn()
         .mockRejectedValue(new Error("Capability unavailable")),
       executeBatch: vi.fn(),
-      execute: vi
-        .fn()
-        .mockResolvedValue({
-          kind: "preSubmissionFailure",
-          hash: null,
-          message: "Rejected",
-        }),
+      execute: vi.fn().mockResolvedValue({
+        kind: "preSubmissionFailure",
+        hash: null,
+        message: "Rejected",
+      }),
       observe: vi.fn(),
     };
     const input = {
@@ -191,13 +187,11 @@ describe("advanceWorkflow", () => {
         observe: vi
           .fn()
           .mockResolvedValue({ kind: "committedSuccess", hash, receipt: {} }),
-        execute: vi
-          .fn()
-          .mockResolvedValue({
-            kind: "preSubmissionFailure",
-            hash: null,
-            message: "creation rejected",
-          }),
+        execute: vi.fn().mockResolvedValue({
+          kind: "preSubmissionFailure",
+          hash: null,
+          message: "creation rejected",
+        }),
       };
       const input = {
         config,
@@ -304,7 +298,9 @@ describe("advanceWorkflow", () => {
           loadWorkflow(storage, workflowStorageKey(config))!.funding,
         ).toEqual(workflow.funding);
       }
-      expect(review).toHaveBeenCalledTimes(state === "fresh-shortfall" ? 1 : 2);
+      expect(review).toHaveBeenCalledTimes(
+        state === "fresh-shortfall" ? 1 : state === "still-stale" ? 4 : 2,
+      );
       expect(writer.observe).not.toHaveBeenCalled();
     },
   );
