@@ -281,6 +281,13 @@ try {
     fullPage: true,
   });
   await page.setViewportSize({ width: 320, height: 800 });
+  // Measure the mobile layout after fonts and the resized frame have settled.
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)),
+    );
+  });
   const mobileHeaderHeight = (await header.boundingBox())!.height;
   await page.route("**/api/topup", (route) =>
     route.fulfill({

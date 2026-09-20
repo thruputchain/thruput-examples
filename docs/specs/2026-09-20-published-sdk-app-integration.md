@@ -96,3 +96,14 @@ Completed on `feat/published-sdk-app-integration`.
 ### Simplification measurements
 
 Compared with main, the two provisioning scripts remove 40 net lines. The Swap ERC20 adapter and Launchpad token verification remove another 23 net lines, and the obsolete Launchpad outcome module removes 41 lines. These are scoped source reductions, not a claim that the whole diff shrinks: generated metadata, regression tests, and shared receipt-cache integration add code. The larger benefit is that the SDK now owns polling, wallet return decoding, deployment identity checks, and transaction lifecycle ordering.
+
+### Counter follow-up
+
+At the user's request, this PR also simplifies Counter's setup and public reads. Provisioning now uses `prepareContractDeployment`, prefunding, `deployContractAndWait`, and `executeAndWait`; the worker's Counter reader binds once with `getContract`. Updated CLI guidance explains the distinction between sequential setup and concurrent interactive submissions. Counter's provisioning script removes another 24 net lines, bringing the three provisioning scripts' combined reduction to 64 lines.
+
+Counter's server-signing boundary and separate bounded submission/observation queues are preserved. Tests verify funding precedes deployment, initialization follows commitment, and failures preserve the existing private environment file.
+
+- All 49 Counter tests, browser/server/setup typechecks, and the production build passed.
+- `test:counter` passed with CLI 0.18.0 and hog-devnode 0.1.27-rc.7: two fresh setups, 120/120 burst confirmations with the exact final value, 42/42 browser confirmations, signer top-up, keyboard controls, reconnect, mobile layout, and Vite development-server submission.
+- Live evidence and screenshots: `/tmp/groundhog-counter-hBuBZE`.
+- The first live run reached the mobile-header assertion before layout settled after resizing. The harness now awaits fonts and the resized frame before measuring; the exact no-resize assertion remains in place.
