@@ -16,11 +16,10 @@ import {
   PrivateKeySigner,
   toHex0x,
 } from "@groundhogchain/client";
-import { deriveContractAddress } from "@groundhogchain/client/contract";
-import { DefaultWallet, ERC20 } from "@groundhogchain/client/contracts";
+import { prepareContractDeployment } from "@groundhogchain/client/wallet";
+import { ERC20 } from "@groundhogchain/client/contracts";
 import {
   ContractType,
-  ExecResult,
   gasAmount,
   HOG_ADDRESS,
   networkHash,
@@ -115,18 +114,12 @@ export async function provisionLaunchpad(options: {
     signer: new PrivateKeySigner(randomBytes(32)),
   });
   const wallet = createWalletClient({ client, account });
-  const requireSuccess = (result: ExecResult): void => {
-    if (result !== ExecResult.ExecResultOK) {
-      throw new Error(`Setup transaction failed with ${ExecResult[result]}`);
-    }
-  };
   const execute = async (invocation: Invocation): Promise<void> => {
-    const hash = await wallet.execute({ invocation, gasLimit: GAS_LIMIT });
-    console.log(`Setup transaction: ${toHex0x(hash)}`);
-    requireSuccess(
-      (await wallet.waitForTransactionReceipt(hash, { timeoutMs: 60_000 }))
-        .execResult,
+    const { txHash } = await wallet.executeAndWait(
+      { invocation, gasLimit: GAS_LIMIT },
+      { timeoutMs: 60_000 },
     );
+    console.log(`Setup transaction: ${toHex0x(txHash)}`);
   };
 
   await mkdir(dirname(environmentPath), { recursive: true });
@@ -152,13 +145,11 @@ export async function provisionLaunchpad(options: {
     // Unused contractsToDeploy attachments are not persisted by the node.
     // The first user token creation must attach standard_token.rv32a; setup
     // deliberately does not instantiate a token just to register its code.
-    const nonce = sha256Hash(randomBytes(32));
-    const factoryHash = hashContract(factoryContract!);
-    const predicted = deriveContractAddress(
-      account.address,
-      nonce,
-      factoryHash,
-    );
+    const deployment = prepareContractDeployment({
+      deployer: account.address,
+      contract: factoryContract!,
+    });
+    const predicted = deployment.address;
     // DefaultWallet.deploy does not fund the deployment's storage automatically.
     for (const receiver of [HOG_ADDRESS, predicted]) {
       await execute(
@@ -178,21 +169,11 @@ export async function provisionLaunchpad(options: {
         );
       }
     }
-    const hash = await wallet.sendInvocation({
-      invocation: DefaultWallet.deploy.invocation(account.address, GAS_LIMIT, {
-        nonce: fixedBytes(nonce, 32),
-        contractHash: fixedBytes(factoryHash, 32),
-      }),
-      contractsToDeploy: [factoryContract!],
-    });
-    console.log(`Deploy token factory: ${toHex0x(hash)}`);
-    const receipt = await wallet.waitForTransactionReceipt(hash, {
-      timeoutMs: 60_000,
-    });
-    requireSuccess(receipt.execResult);
-    const factoryAddress = DefaultWallet.deploy.decodeReceipt(receipt).value;
-    if (!bytesEqual(factoryAddress, predicted))
-      throw new Error("Deployment address did not match its funded address");
+    const { txHash, address: factoryAddress } =
+      await wallet.deployContractAndWait(deployment, GAS_LIMIT, {
+        timeoutMs: 60_000,
+      });
+    console.log(`Deploy token factory: ${toHex0x(txHash)}`);
     const expectedConfig: FactoryConfig = {
       token_code_hash: fixedBytes(tokenHash, 32),
       required_token_funding: requiredTokenFunding,

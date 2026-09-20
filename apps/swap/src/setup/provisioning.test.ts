@@ -19,10 +19,9 @@ import {
   hashContract,
   toHex0x,
 } from "@groundhogchain/client";
-import { DefaultWallet, ERC20 } from "@groundhogchain/client/contracts";
+import { ERC20 } from "@groundhogchain/client/contracts";
 import {
   ContractType,
-  ExecResult,
   contractAddress,
   gasAmount,
   HOG_ADDRESS,
@@ -37,9 +36,8 @@ const mocks = vi.hoisted(() => ({
   getVersion: vi.fn(),
   requestAirdrop: vi.fn(),
   getBalance: vi.fn(),
-  sendInvocation: vi.fn(),
-  execute: vi.fn(),
-  waitForTransactionReceipt: vi.fn(),
+  deployContractAndWait: vi.fn(),
+  executeAndWait: vi.fn(),
   deriveContractAddress: vi.fn(),
   rename: vi.fn(),
   link: vi.fn(),
@@ -49,10 +47,18 @@ vi.mock("node:fs/promises", async (original) => ({
   rename: mocks.rename,
   link: mocks.link,
 }));
-vi.mock("@groundhogchain/client/contract", async (original) => ({
-  ...(await original<typeof import("@groundhogchain/client/contract")>()),
-  deriveContractAddress: mocks.deriveContractAddress,
-}));
+vi.mock("@groundhogchain/client/wallet", async (original) => {
+  const sdk = await original<typeof import("@groundhogchain/client/wallet")>();
+  return {
+    ...sdk,
+    prepareContractDeployment: (
+      input: Parameters<typeof sdk.prepareContractDeployment>[0],
+    ) => ({
+      ...sdk.prepareContractDeployment(input),
+      address: mocks.deriveContractAddress(),
+    }),
+  };
+});
 vi.mock("@groundhogchain/client", async (original) => ({
   ...(await original<typeof import("@groundhogchain/client")>()),
   createGroundhogClient: vi.fn(async () => ({ getVersion: mocks.getVersion })),
@@ -73,7 +79,7 @@ const artifactNames = [
 ];
 const contract = (name: string) => ({
   contract_type: ContractType.kRv32 as const,
-  rv32_contract: { data: Buffer.from(name) },
+  rv32_contract: { data: new Uint8Array(Buffer.from(name)) },
 });
 let root: string;
 let output: string;
@@ -128,23 +134,17 @@ beforeEach(async () => {
     return { status: { result: "ok" } };
   });
   mocks.getBalance.mockResolvedValue({ rawBalance: 1_000_000_000n });
-  mocks.sendInvocation.mockImplementation(async () => {
+  mocks.deployContractAndWait.mockImplementation(async (deployment) => {
     phases.push("deploy");
-    return new Uint8Array(32);
+    return { txHash: new Uint8Array(32), address: deployment.address };
   });
-  mocks.execute.mockImplementation(async () => {
+  mocks.executeAndWait.mockImplementation(async () => {
     phases.push("execute");
-    return new Uint8Array(32);
-  });
-  mocks.waitForTransactionReceipt.mockResolvedValue({
-    execResult: ExecResult.ExecResultOK,
+    return { txHash: new Uint8Array(32) };
   });
   const deployments = [address(1), address(2), factory, router];
   const predicted = [...deployments];
   mocks.deriveContractAddress.mockImplementation(() => predicted.shift()!);
-  vi.spyOn(DefaultWallet.deploy, "decodeReceipt").mockImplementation(
-    () => ({ value: deployments.shift()! }) as never,
-  );
   vi.spyOn(SwapFactory.allPairsLength, "view").mockResolvedValue({
     value: 0n,
   } as never);
@@ -189,7 +189,7 @@ describe("infrastructure-only swap provisioning", () => {
       "VITE_EXPLORER_URL=https://explorer.thruput.network\n",
     );
     expect(env).not.toMatch(/PRIVATE|WALLET|SIGNER/);
-    expect(mocks.sendInvocation).toHaveBeenCalledTimes(4);
+    expect(mocks.deployContractAndWait).toHaveBeenCalledTimes(4);
   });
 
   it("rejects invalid Devnet targets and missing network pins before RPC", async () => {
@@ -287,22 +287,22 @@ describe("infrastructure-only swap provisioning", () => {
     const account = vi.mocked(createWalletClient).mock.calls[0]![0].account;
     expect(account.kind).toBe("pubkey");
     expect(
-      mocks.sendInvocation.mock.calls.map(
-        ([request]) => request.contractsToDeploy,
+      mocks.deployContractAndWait.mock.calls.map(
+        ([deployment]) => deployment.contract,
       ),
     ).toEqual(
       ["swap_handler", "swap_driver", "swap_factory", "swap_router"].map(
-        (name) => [contract(name)],
+        (name) => contract(name),
       ),
     );
-    for (const [request] of mocks.sendInvocation.mock.calls) {
-      expect(request.invocation.invoked_address).toEqual(account.address);
-      expect(request.invocation.entrypoint).toEqual(
-        DefaultWallet.deploy.entrypoint,
-      );
+    for (const [deployment, gasLimit, options] of mocks.deployContractAndWait
+      .mock.calls) {
+      expect(deployment.deployer).toEqual(account.address);
+      expect(gasLimit).toBe(gas);
+      expect(options).toEqual({ timeoutMs: 60_000 });
     }
     expect(
-      mocks.execute.mock.calls.map(([request]) => request.invocation),
+      mocks.executeAndWait.mock.calls.map(([request]) => request.invocation),
     ).toEqual([
       ...[HOG_ADDRESS, address(1), address(2), factory, router].map(
         (receiver) =>
@@ -377,13 +377,11 @@ describe("infrastructure-only swap provisioning", () => {
         status: { result: "reverted" },
       });
     if (phase === "receipt")
-      mocks.waitForTransactionReceipt.mockResolvedValueOnce({
-        execResult: -1,
-      });
+      mocks.executeAndWait.mockRejectedValueOnce(new Error("Execution failed"));
     if (phase === "address")
-      vi.mocked(DefaultWallet.deploy.decodeReceipt).mockReturnValueOnce({
-        value: address(99),
-      } as never);
+      mocks.deployContractAndWait.mockRejectedValueOnce(
+        new Error("Deployment address mismatch"),
+      );
     if (phase === "verification")
       vi.mocked(SwapFactory.allPairsLength.view).mockResolvedValueOnce({
         value: 1n,
