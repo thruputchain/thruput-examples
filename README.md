@@ -62,7 +62,7 @@ lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflif
 ### Install Swap and Launchpad dependencies
 
 Use Node.js **22.13 or newer** and npm. The apps install the published
-`@groundhogchain/client@0.9.0` package, including wallet capability discovery and
+`@groundhogchain/client@0.10.0` package, including wallet capability discovery and
 atomic batching, from GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
 with `read:packages` and access to the Groundhog packages in your npm user config:
 
@@ -119,8 +119,8 @@ dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
 Live checks need a compatible CLI/devnode pair, built contracts, and matching
-generated bindings. Batching and wallet acceptance have been checked with CLI
-`0.17.4` and hog-devnode `0.1.28-rc.1`. Rebuild contracts from the current checkout
+generated bindings. Atomic and sequential wallet acceptance both pass with CLI
+`0.18.0` and hog-devnode `0.1.27-rc.7`. Rebuild contracts from the current checkout
 before running them. Use a separate checkout if you need to preserve the bindings
 for the recorded Devnet deployment. From the repository root:
 
@@ -155,7 +155,8 @@ the optional external identity/airdrop check; its result is reported separately.
 Set `SEED_TEST_DEFAULT_OWNER=1` to check tool-account ownership instead of the
 seed test's explicit recipient.
 
-CI currently checks the Rust contracts. Run the application checks above locally.
+CI checks Rust contracts and frontend types, tests, builds, and browser fixtures.
+Run the live application checks above locally.
 
 Fixture tests do not prove live transaction execution. The live journey checks
 completed-state reloads; it does not cover full browser restart with an unresolved
@@ -167,7 +168,7 @@ transaction or remote deployment. Wallet unit tests run independently through
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI, **version 0.17.4 or newer** (it must match the SDK the
+- The `groundhog` CLI, **version 0.18.0 or newer** (it must match the SDK the
   contracts build against):
 
   ```sh

@@ -62,4 +62,37 @@ Run focused tests as each phase changes behavior; run the full suite at the end.
 
 ## Completion record
 
-Implementation and verification results will be recorded here as phases finish.
+Completed on `feat/published-sdk-app-integration`.
+
+### Implementation
+
+- Installed published client 0.10.0 and React 0.3.0 through the registry lockfile. Updated Rust SDK/interface/RPC pins and the CLI minimum/CI pin. Rebuilt contracts and regenerated all eight workspace bindings, including Counter because it shares the Rust workspace and client dependency.
+- Launchpad uses typed `ContractCall` descriptors, `executeCallsAndWait`, and `decodeExecution`. Removed receipt rewriting, `observeBatch`, and the unused outcome module. Malformed child returns retain the committed root receipt and never become permission to resubmit.
+- Swap uses `executeAndWait` for single writes. Its event-driven raw batches keep explicit prepare/sign/persist, then delegate submission observation to `submitAndObserve`; no synthetic typed decoder was introduced for queue workflows.
+- Both apps map SDK receipt outcomes into their existing workflow states and use `walletGasLimit` for explicit batch budgets. Network pins, exact-hash persistence, artifact checks, locks, and capability selection remain enforced.
+- Bound token/factory views replace repeated client/address arguments. Both provisioning scripts use `prepareContractDeployment`, prefunding, `deployContractAndWait`, and `executeAndWait`.
+- Matching `transactions/use-transactions.ts` hooks integrate React's `transactionReceiptQueryOptions` for cached, deduplicated public recovery. Regression tests cover disconnected observation, failed committed receipts, explicit retry after timeout, and wrong-network rejection. Existing independent balance hooks and coherent snapshot queries remain appropriate; wrapping a persisted multi-step workflow in `useExecute` would add a competing state model.
+- Kept the application shell and directory ownership from #105. Updated matching README sections and documented that regenerated bindings require rebuilt deployments; historical Devnet deployments were not modified.
+- Incorporated the pre-existing four Swap wallet-mock stubs while migrating that test deliberately.
+
+### Issues found during verification
+
+- Updated Rust test expectations for direct integer topics and interface version 0.1.33.
+- The production acceptance harness omitted the new `shared/` directory from #105. It now copies that directory with the isolated production app.
+- Faster receipt observation exposed stale views during sequential launches. Launchpad now retries only proven stale funding views with a bounded delay; a fresh shortfall still stops immediately and funding is never resent.
+- Swap's creation review treated mismatched factory view heights as inconsistent addresses. It now retries the coherent read; different addresses at the same height still fail. Both cases have regression coverage.
+
+### Verification
+
+- Clean `npm ci` and workspace/seed typechecks passed on Node 24.21.0.
+- All 1,327 Vitest tests passed: Counter 47, Swap 876, Launchpad 365, shared seeds 39. All three process-cleanup tests passed.
+- All three production builds passed; browser fixtures passed at desktop and 320px widths in Chromium 152.
+- `cargo test --all --locked`, workspace Clippy with warnings denied, and `cargo fmt --check` passed. Tests explicitly marked as requiring separate live/guest harnesses remain ignored in the native suite.
+- Repeated Swap/Launchpad generation produced no binding diff; the CLI version-check suite passed all 23 cases.
+- Live atomic wallet acceptance passed all 20 checks with CLI 0.18.0 and hog-devnode 0.1.27-rc.7. Evidence: `/tmp/groundhog-wallet-apps-rb1jvA/evidence`.
+- Live sequential fallback acceptance passed all 20 checks with the same tools. Evidence: `/tmp/groundhog-wallet-apps-xSIpku/evidence`.
+- Both live runs covered two token launches, pool creation, independent balances/reserves/LP evidence, rejection, swap/add/remove, reconnect, wallet transfer, and real production server startup. No external Devnet writes were requested. Harness cleanup verified owned processes exited and user app environments were unchanged.
+
+### Simplification measurements
+
+Compared with main, the two provisioning scripts remove 40 net lines. The Swap ERC20 adapter and Launchpad token verification remove another 23 net lines, and the obsolete Launchpad outcome module removes 41 lines. These are scoped source reductions, not a claim that the whole diff shrinks: generated metadata, regression tests, and shared receipt-cache integration add code. The larger benefit is that the SDK now owns polling, wallet return decoding, deployment identity checks, and transaction lifecycle ordering.
