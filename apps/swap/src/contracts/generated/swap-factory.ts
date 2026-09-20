@@ -498,6 +498,10 @@ export const SwapFactory = {
     SwapFactoryAllPairsLengthResult,
     SwapFactoryDeclaredException
   >({
+    interfaceName: "SwapFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "all_pairs_length",
+    publicName: "allPairsLength",
     entrypoint: entrypoints.SwapFactory.allPairsLength,
     args: [],
     returnType: spec.interfaces[0]!.methods[0]!.return_type,
@@ -535,6 +539,10 @@ export const SwapFactory = {
     SwapFactoryCreatePairResult,
     SwapFactoryDeclaredException
   >({
+    interfaceName: "SwapFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "create_pair",
+    publicName: "createPair",
     entrypoint: entrypoints.SwapFactory.createPair,
     args: [
       {
@@ -588,6 +596,10 @@ export const SwapFactory = {
     SwapFactoryFeeToResult,
     SwapFactoryDeclaredException
   >({
+    interfaceName: "SwapFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "fee_to",
+    publicName: "feeTo",
     entrypoint: entrypoints.SwapFactory.feeTo,
     args: [],
     returnType: spec.interfaces[0]!.methods[2]!.return_type,
@@ -625,6 +637,10 @@ export const SwapFactory = {
     SwapFactoryGetPairResult,
     SwapFactoryDeclaredException
   >({
+    interfaceName: "SwapFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "get_pair",
+    publicName: "getPair",
     entrypoint: entrypoints.SwapFactory.getPair,
     args: [
       {
@@ -673,6 +689,10 @@ export const SwapFactory = {
     SwapFactoryInitializeResult,
     SwapFactoryDeclaredException
   >({
+    interfaceName: "SwapFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "initialize",
+    publicName: "initialize",
     entrypoint: entrypoints.SwapFactory.initialize,
     args: [
       {
@@ -726,6 +746,10 @@ export const SwapFactory = {
     SwapFactoryPairAtResult,
     SwapFactoryDeclaredException
   >({
+    interfaceName: "SwapFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "pair_at",
+    publicName: "pairAt",
     entrypoint: entrypoints.SwapFactory.pairAt,
     args: [
       {
@@ -769,6 +793,10 @@ export const SwapFactory = {
     SwapFactoryPoolAddressesResult,
     SwapFactoryDeclaredException
   >({
+    interfaceName: "SwapFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "pool_addresses",
+    publicName: "poolAddresses",
     entrypoint: entrypoints.SwapFactory.poolAddresses,
     args: [
       {
@@ -817,6 +845,10 @@ export const SwapFactory = {
     SwapFactoryPoolFundingResult,
     SwapFactoryDeclaredException
   >({
+    interfaceName: "SwapFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "pool_funding",
+    publicName: "poolFunding",
     entrypoint: entrypoints.SwapFactory.poolFunding,
     args: [],
     returnType: spec.interfaces[0]!.methods[7]!.return_type,

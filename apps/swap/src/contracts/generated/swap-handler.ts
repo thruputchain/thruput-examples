@@ -523,10 +523,10 @@ export const spec: ContractSpec = {
   ],
   events: [
     {
-      name: s("BurnEvent"),
+      name: s("LiquidityBurnEvent"),
       signature: topic(
         fromHex(
-          "44934a1f6a6a0d7c09f5464a14adefd9da1e9cde4d9420b333fecb917c47f52c",
+          "3c2f1654cb81e61936b5544fd2ddec7c1ae881b4f6eca293cd21d0f3e5b999a3",
         ),
       ),
       topics: [
@@ -554,10 +554,10 @@ export const spec: ContractSpec = {
       ],
     },
     {
-      name: s("MintEvent"),
+      name: s("LiquidityMintEvent"),
       signature: topic(
         fromHex(
-          "48e990a9515a2084882012e9e7c7cf93100fd7f03be5f1665969aefe519444be",
+          "972c26dc446a644066cd50d95bc7523ce1dd815f505dfc28cba88e00bcc771a7",
         ),
       ),
       topics: [
@@ -645,6 +645,10 @@ export const SwapHandler = {
     SwapHandlerHandleRequestResult,
     SwapHandlerDeclaredException
   >({
+    interfaceName: "SwapHandler",
+    interfaceVersion: "0.1.0",
+    abiName: "handle_request",
+    publicName: "handleRequest",
     entrypoint: entrypoints.SwapHandler.handleRequest,
     args: [
       {
@@ -683,6 +687,10 @@ export const SwapHandler = {
     SwapHandlerInitializeResult,
     SwapHandlerDeclaredException
   >({
+    interfaceName: "SwapHandler",
+    interfaceVersion: "0.1.0",
+    abiName: "initialize",
+    publicName: "initialize",
     entrypoint: entrypoints.SwapHandler.initialize,
     args: [
       {
@@ -741,6 +749,10 @@ export const SwapHandler = {
     SwapHandlerPoolStateResult,
     SwapHandlerDeclaredException
   >({
+    interfaceName: "SwapHandler",
+    interfaceVersion: "0.1.0",
+    abiName: "pool_state",
+    publicName: "poolState",
     entrypoint: entrypoints.SwapHandler.poolState,
     args: [],
     returnType: spec.interfaces[0]!.methods[2]!.return_type,
@@ -773,6 +785,10 @@ export const SwapHandler = {
     SwapHandlerSkimResult,
     SwapHandlerDeclaredException
   >({
+    interfaceName: "SwapHandler",
+    interfaceVersion: "0.1.0",
+    abiName: "skim",
+    publicName: "skim",
     entrypoint: entrypoints.SwapHandler.skim,
     args: [
       {
@@ -811,6 +827,10 @@ export const SwapHandler = {
     SwapHandlerSyncResult,
     SwapHandlerDeclaredException
   >({
+    interfaceName: "SwapHandler",
+    interfaceVersion: "0.1.0",
+    abiName: "sync",
+    publicName: "sync",
     entrypoint: entrypoints.SwapHandler.sync,
     args: [],
     returnType: spec.interfaces[0]!.methods[4]!.return_type,
@@ -840,8 +860,8 @@ export const SwapHandler = {
   }),
 } as const;
 
-export interface BurnEvent extends DecodedContractEvent<
-  "BurnEvent",
+export interface LiquidityBurnEvent extends DecodedContractEvent<
+  "LiquidityBurnEvent",
   { sender: ContractAddress; recipient: ContractAddress },
   {
     amounts_redeemed: readonly [bigint, bigint];
@@ -849,18 +869,18 @@ export interface BurnEvent extends DecodedContractEvent<
   }
 > {}
 
-export interface BurnEventFilter {
+export interface LiquidityBurnEventFilter {
   sender?: ContractEventFilterValue<ContractAddress>;
   recipient?: ContractEventFilterValue<ContractAddress>;
 }
 
-export const BurnEvent = defineContractEvent<
-  "BurnEvent",
-  BurnEvent["topics"],
-  BurnEvent["fields"],
-  BurnEventFilter
+export const LiquidityBurnEvent = defineContractEvent<
+  "LiquidityBurnEvent",
+  LiquidityBurnEvent["topics"],
+  LiquidityBurnEvent["fields"],
+  LiquidityBurnEventFilter
 >({
-  name: "BurnEvent",
+  name: "LiquidityBurnEvent",
   signature: spec.events[0]!.signature,
   topics: [
     {
@@ -881,24 +901,24 @@ export const BurnEvent = defineContractEvent<
   codecs,
 });
 
-export interface MintEvent extends DecodedContractEvent<
-  "MintEvent",
+export interface LiquidityMintEvent extends DecodedContractEvent<
+  "LiquidityMintEvent",
   { sender: ContractAddress; recipient: ContractAddress },
   { amount_minted: bigint; request_id: FixedBytes<32> | null }
 > {}
 
-export interface MintEventFilter {
+export interface LiquidityMintEventFilter {
   sender?: ContractEventFilterValue<ContractAddress>;
   recipient?: ContractEventFilterValue<ContractAddress>;
 }
 
-export const MintEvent = defineContractEvent<
-  "MintEvent",
-  MintEvent["topics"],
-  MintEvent["fields"],
-  MintEventFilter
+export const LiquidityMintEvent = defineContractEvent<
+  "LiquidityMintEvent",
+  LiquidityMintEvent["topics"],
+  LiquidityMintEvent["fields"],
+  LiquidityMintEventFilter
 >({
-  name: "MintEvent",
+  name: "LiquidityMintEvent",
   signature: spec.events[1]!.signature,
   topics: [
     {
@@ -983,19 +1003,16 @@ export const SyncEvent = defineContractEvent<
   codecs,
 });
 
-export type SwapHandlerEvent = BurnEvent | MintEvent | SwapEvent | SyncEvent;
-
-// Compatibility names for the existing deployment. Keep its event signatures;
-// bindings generated from the upgraded contracts export these names directly.
-export { BurnEvent as LiquidityBurnEvent, MintEvent as LiquidityMintEvent };
+export type SwapHandlerEvent =
+  LiquidityBurnEvent | LiquidityMintEvent | SwapEvent | SyncEvent;
 
 export function decodeEvent(event: {
   topics: Uint8Array[];
   data: Uint8Array;
 }): SwapHandlerEvent | null {
   return (
-    BurnEvent.decode(event) ??
-    MintEvent.decode(event) ??
+    LiquidityBurnEvent.decode(event) ??
+    LiquidityMintEvent.decode(event) ??
     SwapEvent.decode(event) ??
     SyncEvent.decode(event)
   );

@@ -313,6 +313,10 @@ export const StandardTokenFactory = {
     StandardTokenFactoryConfigResult,
     StandardTokenFactoryDeclaredException
   >({
+    interfaceName: "StandardTokenFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "config",
+    publicName: "config",
     entrypoint: entrypoints.StandardTokenFactory.config,
     args: [],
     returnType: spec.interfaces[0]!.methods[0]!.return_type,
@@ -335,6 +339,10 @@ export const StandardTokenFactory = {
     StandardTokenFactoryCreateTokenResult,
     StandardTokenFactoryDeclaredException
   >({
+    interfaceName: "StandardTokenFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "create_token",
+    publicName: "createToken",
     entrypoint: entrypoints.StandardTokenFactory.createToken,
     args: [
       {
@@ -393,6 +401,10 @@ export const StandardTokenFactory = {
     StandardTokenFactoryCreationFeeResult,
     StandardTokenFactoryDeclaredException
   >({
+    interfaceName: "StandardTokenFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "creation_fee",
+    publicName: "creationFee",
     entrypoint: entrypoints.StandardTokenFactory.creationFee,
     args: [],
     returnType: spec.interfaces[0]!.methods[2]!.return_type,
@@ -415,6 +427,10 @@ export const StandardTokenFactory = {
     StandardTokenFactoryInitializeResult,
     StandardTokenFactoryDeclaredException
   >({
+    interfaceName: "StandardTokenFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "initialize",
+    publicName: "initialize",
     entrypoint: entrypoints.StandardTokenFactory.initialize,
     args: [
       {
@@ -443,6 +459,10 @@ export const StandardTokenFactory = {
     StandardTokenFactoryPredictTokenResult,
     StandardTokenFactoryDeclaredException
   >({
+    interfaceName: "StandardTokenFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "predict_token",
+    publicName: "predictToken",
     entrypoint: entrypoints.StandardTokenFactory.predictToken,
     args: [
       {
@@ -476,6 +496,10 @@ export const StandardTokenFactory = {
     StandardTokenFactoryRequiredTokenFundingResult,
     StandardTokenFactoryDeclaredException
   >({
+    interfaceName: "StandardTokenFactory",
+    interfaceVersion: "0.1.0",
+    abiName: "required_token_funding",
+    publicName: "requiredTokenFunding",
     entrypoint: entrypoints.StandardTokenFactory.requiredTokenFunding,
     args: [],
     returnType: spec.interfaces[0]!.methods[5]!.return_type,

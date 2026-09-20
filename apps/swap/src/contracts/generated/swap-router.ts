@@ -470,6 +470,10 @@ export const SwapRouter = {
     SwapRouterAddLiquidityResult,
     SwapRouterDeclaredException
   >({
+    interfaceName: "SwapRouter",
+    interfaceVersion: "0.1.0",
+    abiName: "add_liquidity",
+    publicName: "addLiquidity",
     entrypoint: entrypoints.SwapRouter.addLiquidity,
     args: [
       {
@@ -543,6 +547,10 @@ export const SwapRouter = {
     SwapRouterInitializeResult,
     SwapRouterDeclaredException
   >({
+    interfaceName: "SwapRouter",
+    interfaceVersion: "0.1.0",
+    abiName: "initialize",
+    publicName: "initialize",
     entrypoint: entrypoints.SwapRouter.initialize,
     args: [
       {
@@ -596,6 +604,10 @@ export const SwapRouter = {
     SwapRouterRemoveLiquidityResult,
     SwapRouterDeclaredException
   >({
+    interfaceName: "SwapRouter",
+    interfaceVersion: "0.1.0",
+    abiName: "remove_liquidity",
+    publicName: "removeLiquidity",
     entrypoint: entrypoints.SwapRouter.removeLiquidity,
     args: [
       {
@@ -669,6 +681,10 @@ export const SwapRouter = {
     SwapRouterSwapExactTokensForTokensResult,
     SwapRouterDeclaredException
   >({
+    interfaceName: "SwapRouter",
+    interfaceVersion: "0.1.0",
+    abiName: "swap_exact_tokens_for_tokens",
+    publicName: "swapExactTokensForTokens",
     entrypoint: entrypoints.SwapRouter.swapExactTokensForTokens,
     args: [
       {
@@ -742,6 +758,10 @@ export const SwapRouter = {
     SwapRouterSwapTokensForExactTokensResult,
     SwapRouterDeclaredException
   >({
+    interfaceName: "SwapRouter",
+    interfaceVersion: "0.1.0",
+    abiName: "swap_tokens_for_exact_tokens",
+    publicName: "swapTokensForExactTokens",
     entrypoint: entrypoints.SwapRouter.swapTokensForExactTokens,
     args: [
       {

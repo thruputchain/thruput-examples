@@ -67,10 +67,10 @@ jobs:
             ~/.cargo/bin/groundhog
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
-          key: groundhog-cli-${{ runner.os }}-${{ runner.arch }}-0.17.4
+          key: groundhog-cli-${{ runner.os }}-${{ runner.arch }}-0.18.0
 
       - name: Install groundhog-cli
-        run: cargo install --registry groundhog --version 0.17.4 --locked groundhog-cli
+        run: cargo install --registry groundhog --version 0.18.0 --locked groundhog-cli
 
       - name: Build guest contracts
         run: ./scripts/build-guest.sh

@@ -603,6 +603,10 @@ export const SwapDriver = {
     SwapDriverInitializeResult,
     SwapDriverDeclaredException
   >({
+    interfaceName: "SwapDriver",
+    interfaceVersion: "0.1.0",
+    abiName: "initialize",
+    publicName: "initialize",
     entrypoint: entrypoints.SwapDriver.initialize,
     args: [
       {
@@ -661,6 +665,10 @@ export const SwapDriver = {
     SwapDriverProcessRequestsResult,
     SwapDriverDeclaredException
   >({
+    interfaceName: "SwapDriver",
+    interfaceVersion: "0.1.0",
+    abiName: "process_requests",
+    publicName: "processRequests",
     entrypoint: entrypoints.SwapDriver.processRequests,
     args: [],
     returnType: spec.interfaces[0]!.methods[1]!.return_type,
@@ -698,6 +706,10 @@ export const SwapDriver = {
     SwapDriverRequestResult,
     SwapDriverDeclaredException
   >({
+    interfaceName: "SwapDriver",
+    interfaceVersion: "0.1.0",
+    abiName: "request",
+    publicName: "request",
     entrypoint: entrypoints.SwapDriver.request,
     args: [
       {
