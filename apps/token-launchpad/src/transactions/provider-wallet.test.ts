@@ -4,6 +4,8 @@ import {
   PrivateKeySigner,
   signTransaction,
   toHex0x,
+  TransactionReceiptTimeoutError,
+  TransactionRejectedError,
   type GroundhogClient,
   type TransactionReceipt,
 } from "@groundhogchain/client";
@@ -48,10 +50,13 @@ const config = loadConfig({
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
 });
 const target = {
-  invoked_address: contractAddress(new Uint8Array(32).fill(9)),
-  entrypoint: contractEntrypointID(new Uint8Array(8)),
-  gas_limit: gasAmount(1000n),
-  calldata: calldata(new Uint8Array()),
+  method: StandardTokenFactory.createToken,
+  invocation: {
+    invoked_address: contractAddress(new Uint8Array(32).fill(9)),
+    entrypoint: contractEntrypointID(new Uint8Array(8)),
+    gas_limit: gasAmount(1000n),
+    calldata: calldata(new Uint8Array()),
+  },
 };
 const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
 const localAccount = createPubkeyAccount({ signer, nonce: 7n });
@@ -123,15 +128,23 @@ function setup() {
     getChainTip: vi.fn().mockResolvedValue({ height: 10n }),
     getTransactionReceipt: vi.fn(async (hash: Uint8Array) => receipt(hash)),
     getTransactionStatus: vi.fn().mockResolvedValue({ status: "unknown" }),
+    waitForTransactionReceipt: vi.fn(async (hash: Uint8Array) => receipt(hash)),
     sendTransaction: vi.fn(),
   };
   const wallet = createProviderWalletClient({
-      client: client as unknown as GroundhogClient,
-      provider,
-      account,
-      networkHash: config.networkIdHex,
-    });
-  const boundary = { ...createProviderWriteBoundary(config, client as unknown as GroundhogClient, wallet), dispose: () => wallet.dispose() };
+    client: client as unknown as GroundhogClient,
+    provider,
+    account,
+    networkHash: config.networkIdHex,
+  });
+  const boundary = {
+    ...createProviderWriteBoundary(
+      config,
+      client as unknown as GroundhogClient,
+      wallet,
+    ),
+    dispose: () => wallet.dispose(),
+  };
   return {
     boundary,
     request,
@@ -194,7 +207,7 @@ describe("provider write boundary with the real SDK", () => {
     },
   );
 
-  it("awaits persistence, submits only through the provider, and unwraps child returns without changing evidence", async () => {
+  it("awaits persistence, submits only through the provider, and preserves the root receipt", async () => {
     const { boundary, request, client } = setup();
     let persist!: () => void;
     const barrier = new Promise<void>((resolve) => {
@@ -213,7 +226,7 @@ describe("provider write boundary with the real SDK", () => {
     expect(result.kind).toBe("committedSuccess");
     if (result.kind !== "committedSuccess") throw new Error("Expected commit");
     expect(result.hash).toBe(onSigned.mock.calls[0]![0]);
-    expect(result.receipt.returnData).toEqual(childReturn);
+    expect(result.receipt.returnData).toEqual(wrappedReturn);
     expect(toHex0x(result.receipt.txHash)).toBe(result.hash);
     expect(result.receipt.events).toEqual([]);
     expect(client.sendTransaction).not.toHaveBeenCalled();
@@ -285,8 +298,9 @@ describe("provider write boundary with the real SDK", () => {
         kind: "committedSuccess",
         hash: onSigned.mock.calls[0]![0],
       });
-      expect(client.getTransactionReceipt).toHaveBeenCalledWith(
+      expect(client.waitForTransactionReceipt).toHaveBeenCalledWith(
         fromHex0x(onSigned.mock.calls[0]![0]),
+        expect.objectContaining({ expectedNetworkHash: signingNetwork }),
       );
     } finally {
       boundary.dispose();
@@ -300,7 +314,7 @@ describe("provider write boundary with the real SDK", () => {
         change({ networkHash: config.networkIdHex, accounts: [] });
       },
     });
-    expect(result.kind).toBe("committedSuccess");
+    expect(result.kind).toBe("preSubmissionFailure");
     expect(
       request.mock.calls.some(
         ([input]) => input.method === "submitTransaction",
@@ -331,18 +345,25 @@ describe("provider write boundary with the real SDK", () => {
     );
     vi.stubGlobal("fetch", fetch);
     const wallet = createProviderWalletClient({
-        client: client as unknown as GroundhogClient,
-        provider,
-        account,
-        networkHash: config.networkIdHex,
-      });
-    const writer = createProviderWriteBoundary({ ...config, expectedTokenHash: hash }, client as unknown as GroundhogClient, wallet);
+      client: client as unknown as GroundhogClient,
+      provider,
+      account,
+      networkHash: config.networkIdHex,
+    });
+    const writer = createProviderWriteBoundary(
+      { ...config, expectedTokenHash: hash },
+      client as unknown as GroundhogClient,
+      wallet,
+    );
     await writer.execute(target, { onSigned() {} });
     expect(fetch).not.toHaveBeenCalled();
     const creation = {
       ...target,
-      invoked_address: config.factoryAddress,
-      entrypoint: StandardTokenFactory.createToken.entrypoint,
+      invocation: {
+        ...target.invocation,
+        invoked_address: config.factoryAddress,
+        entrypoint: StandardTokenFactory.createToken.entrypoint,
+      },
     };
     await writer.execute(creation, { onSigned() {} });
     expect(fetch).toHaveBeenCalledOnce();
@@ -367,15 +388,28 @@ describe("provider write boundary with the real SDK", () => {
     "preserves %s status semantics",
     async (status) => {
       const { client, boundary } = setup();
-      client.getTransactionReceipt.mockResolvedValue(null as never);
-      client.getTransactionStatus.mockResolvedValue({
-        status,
-        reason: "Rejected",
-      });
+      const hash = sha256Hash(new Uint8Array(32).fill(1));
+      client.waitForTransactionReceipt.mockRejectedValue(
+        status === "invalid"
+          ? new TransactionRejectedError(hash, "Rejected")
+          : new TransactionReceiptTimeoutError(
+              hash,
+              status === "recentFailure"
+                ? {
+                    status,
+                    attemptHeight: blockHeight(1n),
+                    conflict: {
+                      code: "exclusiveLock",
+                      address: target.invocation.invoked_address,
+                      key: new Uint8Array(32),
+                    },
+                  }
+                : { status: "unknown" },
+            ),
+      );
       const observe = createTransactionObserver(
         config,
         client as unknown as GroundhogClient,
-        { maxPolls: 1, delay: async () => {} },
       );
       expect(await observe(`0x${"01".repeat(32)}`)).toMatchObject(
         status === "invalid"

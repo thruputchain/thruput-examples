@@ -5,6 +5,7 @@ import {
   type CoreGroundhogClient,
 } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
+import { getContract } from "@groundhogchain/client/contract";
 
 import type { AppConfig } from "@/config";
 import {
@@ -70,33 +71,32 @@ export async function reviewFactory(
   nonce: Uint8Array,
   options: { balanceItemKnown?: boolean } = {},
 ): Promise<FactoryReview> {
-  const factory = (
-    await StandardTokenFactory.config.view({
-      client,
-      contract: config.factoryAddress,
-      caller: config.accountAddress,
-    })
-  ).value;
+  const factoryContract = getContract({
+    binding: StandardTokenFactory,
+    address: config.factoryAddress,
+    client,
+  });
+  const nativeToken = getContract({
+    binding: ERC20,
+    address: config.nativeHogAddress,
+    client,
+  });
+  const caller = config.accountAddress;
+  const factory = (await factoryContract.config.view({ caller })).value;
   assertTrustedFactoryConfig(factory, config);
   const predictedAddress = (
-    await StandardTokenFactory.predictToken.view({
-      client,
-      contract: config.factoryAddress,
-      caller: config.accountAddress,
+    await factoryContract.predictToken.view({
+      caller,
       args: { creator: config.accountAddress, nonce: fixedBytes(nonce, 32) },
     })
   ).value;
   const [reserveResult, creatorResult] = await Promise.all([
-    ERC20.getBalanceOf.view({
-      client,
-      contract: config.nativeHogAddress,
-      caller: config.accountAddress,
+    nativeToken.getBalanceOf.view({
+      caller,
       args: { addr: predictedAddress },
     }),
-    ERC20.getBalanceOf.view({
-      client,
-      contract: config.nativeHogAddress,
-      caller: config.accountAddress,
+    nativeToken.getBalanceOf.view({
+      caller,
       args: { addr: config.accountAddress },
     }),
   ]);

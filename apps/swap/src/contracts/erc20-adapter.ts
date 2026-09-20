@@ -1,5 +1,6 @@
 import type { ContractView, GroundhogClient } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
+import { getContract } from "@groundhogchain/client/contract";
 
 import { ERC20, ERC20Metadata } from "@/contracts/generated/erc20";
 
@@ -29,40 +30,30 @@ export function createErc20ReadAdapter(params: {
   contract: ContractAddress;
   caller: ContractAddress;
 }): Erc20ReadAdapter {
+  const token = getContract({
+    binding: { ...ERC20, ...ERC20Metadata },
+    address: params.contract,
+    client: params.client,
+  });
+  const caller = params.caller;
   return {
     balanceOf(owner) {
-      return ERC20.getBalanceOf.view({
-        client: params.client,
-        contract: params.contract,
-        caller: params.caller,
+      return token.getBalanceOf.view({
+        caller,
         args: { addr: owner },
       });
     },
     allowance(owner, spender) {
-      return ERC20.allowance.view({
-        client: params.client,
-        contract: params.contract,
-        caller: params.caller,
+      return token.allowance.view({
+        caller,
         args: { owner, spender },
       });
     },
     async metadata() {
       const [name, symbol, decimals] = await Promise.all([
-        ERC20Metadata.name.view({
-          client: params.client,
-          contract: params.contract,
-          caller: params.caller,
-        }),
-        ERC20Metadata.symbol.view({
-          client: params.client,
-          contract: params.contract,
-          caller: params.caller,
-        }),
-        ERC20Metadata.decimals.view({
-          client: params.client,
-          contract: params.contract,
-          caller: params.caller,
-        }),
+        token.name.view({ caller }),
+        token.symbol.view({ caller }),
+        token.decimals.view({ caller }),
       ]);
       return {
         name,

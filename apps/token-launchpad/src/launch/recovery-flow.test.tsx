@@ -1,14 +1,7 @@
 import { fixedBytes } from "@groundhogchain/client";
 import { AppProviders } from "@/app-providers";
 import { testClient } from "@/test/wallet";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@/test/render";
+import { act, fireEvent, render, screen, waitFor, within } from "@/test/render";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
 import { reviewFactory } from "@/contracts/launchpad-client";
@@ -105,7 +98,7 @@ it.each([false, true])(
     expect(stored.token).toEqual(workflow.token);
     expect(stored.funding).toEqual(workflow.funding);
     for (const [invocation] of writer.execute.mock.calls)
-      expect(invocation.invoked_address).toEqual(
+      expect(invocation.invocation.invoked_address).toEqual(
         funded ? config.factoryAddress : config.nativeHogAddress,
       );
     expect(writer.observe).not.toHaveBeenCalled();
@@ -158,7 +151,9 @@ it("offers completed launch actions above the form and in the review, and resets
   fireEvent.click(
     within(actions[0]!).getByRole("button", { name: "Create another token" }),
   );
-  await waitFor(() => expect(screen.getByLabelText("Token name")).toBeEnabled());
+  await waitFor(() =>
+    expect(screen.getByLabelText("Token name")).toBeEnabled(),
+  );
   expect(screen.getByLabelText("Token name")).toHaveValue("");
   expect(
     screen.queryByRole("group", { name: "Token creation actions" }),
@@ -209,7 +204,13 @@ it("preserves an in-flight launch through disconnect and permits retry after rec
         resolve = done;
       }),
   );
-  const view = render(page(), { wrapper: ({ children }) => <AppProviders client={publicClient} explorerUrl={config.explorerUrl}>{children}</AppProviders> });
+  const view = render(page(), {
+    wrapper: ({ children }) => (
+      <AppProviders client={publicClient} explorerUrl={config.explorerUrl}>
+        {children}
+      </AppProviders>
+    ),
+  });
   fireEvent.click(screen.getByRole("button", { name: "Launch token" }));
   await waitFor(() => expect(writer.execute).toHaveBeenCalledOnce());
   view.rerender(page(false));

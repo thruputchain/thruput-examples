@@ -1,5 +1,6 @@
 import { bytesEqual, type CoreGroundhogClient } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
+import { getContract } from "@groundhogchain/client/contract";
 
 import {
   ERC20,
@@ -28,36 +29,21 @@ export async function readAndAssessTokenState(input: {
     input.retryWait ??
     ((milliseconds: number) =>
       new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  const token = getContract({
+    binding: { ...ERC20, ...ERC20Metadata },
+    address: input.token,
+    client: input.client,
+  });
+  const caller = input.caller;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const [name, symbol, decimals, totalSupply, holderBalance] =
         await Promise.all([
-          ERC20Metadata.name.view({
-            client: input.client,
-            contract: input.token,
-            caller: input.caller,
-          }),
-          ERC20Metadata.symbol.view({
-            client: input.client,
-            contract: input.token,
-            caller: input.caller,
-          }),
-          ERC20Metadata.decimals.view({
-            client: input.client,
-            contract: input.token,
-            caller: input.caller,
-          }),
-          ERC20.totalSupply.view({
-            client: input.client,
-            contract: input.token,
-            caller: input.caller,
-          }),
-          ERC20.getBalanceOf.view({
-            client: input.client,
-            contract: input.token,
-            caller: input.caller,
-            args: { addr: input.caller },
-          }),
+          token.name.view({ caller }),
+          token.symbol.view({ caller }),
+          token.decimals.view({ caller }),
+          token.totalSupply.view({ caller }),
+          token.getBalanceOf.view({ caller, args: { addr: caller } }),
         ]);
       return assessTokenState(input.workflow, {
         name: name.value,
