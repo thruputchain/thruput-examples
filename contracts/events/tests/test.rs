@@ -69,7 +69,7 @@ fn test_transfer_event_with_address_topics() {
 // ── Hashed topics (non-32-byte types, XDR-encoded + SHA-256) ─────────────
 
 #[test]
-fn test_tagged_action_with_hashed_topics() {
+fn test_tagged_action_with_hashed_category_and_scalar_code() {
     let (env, contract_hash) = setup();
 
     let result = env.transact(|tx| {
@@ -82,16 +82,16 @@ fn test_tagged_action_with_hashed_topics() {
     result.assert_success();
     result.assert_event_count(1);
 
-    // TaggedAction has 3 topics: SIGNATURE + hashed category + hashed code.
-    // Non-32-byte topic values are XDR-encoded then SHA-256 hashed.
+    // Strings stay hashed; integers use a padded big-endian scalar topic.
     use sha2::{Digest, Sha256};
     let expected_category: [u8; 32] = {
         let encoded = encode_xdr(&"audit").unwrap();
         Sha256::digest(encoded).into()
     };
     let expected_code: [u8; 32] = {
-        let encoded = encode_xdr(&7u32).unwrap();
-        Sha256::digest(encoded).into()
+        let mut topic = [0; 32];
+        topic[28..].copy_from_slice(&7u32.to_be_bytes());
+        topic
     };
 
     result.assert_event::<TaggedAction>(0, |e| {
