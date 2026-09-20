@@ -1,14 +1,9 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { addressFromHex, toHex0x } from "@groundhogchain/client";
-import {
-  useClient,
-  getClientQueryKey,
-  useWallet,
-  useWalletClient,
-} from "@groundhogchain/react";
+import { useClient, getClientQueryKey, useWallet } from "@groundhogchain/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { createProviderWriteBoundary } from "@/transactions/provider-wallet";
+import { useTransactions } from "@/transactions/use-transactions";
 import { workflowStorageKey } from "@/launch/workflow";
 import {
   Empty,
@@ -24,7 +19,6 @@ export function AppRoutes({ config }: { config: AppConfig }) {
   const client = useClient();
   const queries = useQueryClient();
   const wallet = useWallet();
-  const signingClient = useWalletClient();
   const readOnly = wallet.status !== "connected";
   // Saved workflow identity survives disconnect; it never grants authorization.
   const [workflowConfig, setWorkflowConfig] = useState(config);
@@ -38,15 +32,7 @@ export function AppRoutes({ config }: { config: AppConfig }) {
       accountAddress: addressFromHex(wallet.address),
     });
   }
-  const writer = useMemo(
-    () =>
-      createProviderWriteBoundary(
-        workflowConfig,
-        client,
-        signingClient ?? undefined,
-      ),
-    [workflowConfig, client, signingClient],
-  );
+  const writer = useTransactions(workflowConfig);
   const hasWalletAccount = workflowConfig !== config;
   return (
     <Routes>
