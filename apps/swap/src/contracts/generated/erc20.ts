@@ -1,6 +1,6 @@
-// Generated from erc20.spec.xdr - ERC20 interface v0.1.22
-// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.22
-// Generated from erc20.spec.xdr - ERC20Permit interface v0.1.22
+// Generated from erc20.spec.xdr - ERC20 interface v0.1.33
+// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.33
+// Generated from erc20.spec.xdr - ERC20Permit interface v0.1.33
 // DO NOT EDIT. Re-run codegen to update.
 
 import type { ContractAddress } from "@groundhogchain/protocol";
@@ -181,7 +181,7 @@ export const spec: ContractSpec = {
   interfaces: [
     {
       name: s("ERC20"),
-      vers: s("0.1.22"),
+      vers: s("0.1.33"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -264,7 +264,7 @@ export const spec: ContractSpec = {
     },
     {
       name: s("ERC20Metadata"),
-      vers: s("0.1.22"),
+      vers: s("0.1.33"),
       throws: [],
       methods: [
         {
@@ -323,7 +323,7 @@ export const spec: ContractSpec = {
     },
     {
       name: s("ERC20Permit"),
-      vers: s("0.1.22"),
+      vers: s("0.1.33"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -421,6 +421,26 @@ export const spec: ContractSpec = {
       fields: [{ name: s("difference"), ty: { v: ContractTypeKind.I128 } }],
     },
     {
+      name: s("BurnEvent"),
+      signature: topic(
+        fromHex(
+          "513f00645e2752c8b6273adbbd6b0dae498cf7c4028751e05c7d8900fb4182c5",
+        ),
+      ),
+      topics: [{ name: s("from"), ty: { v: ContractTypeKind.Address } }],
+      fields: [{ name: s("amount"), ty: { v: ContractTypeKind.I128 } }],
+    },
+    {
+      name: s("MintEvent"),
+      signature: topic(
+        fromHex(
+          "10c4493b678f7f00f19a3bbf4fa153186a2d1f4cf328a495718af7679fa54ea4",
+        ),
+      ),
+      topics: [{ name: s("to"), ty: { v: ContractTypeKind.Address } }],
+      fields: [{ name: s("amount"), ty: { v: ContractTypeKind.I128 } }],
+    },
+    {
       name: s("TransferEvent"),
       signature: topic(
         fromHex(
@@ -444,6 +464,10 @@ export const ERC20 = {
     ERC20AdjustAllowanceResult,
     ERC20DeclaredException
   >({
+    interfaceName: "ERC20",
+    interfaceVersion: "0.1.33",
+    abiName: "adjust_allowance",
+    publicName: "adjustAllowance",
     entrypoint: entrypoints.ERC20.adjustAllowance,
     args: [
       {
@@ -472,6 +496,10 @@ export const ERC20 = {
     ERC20AllowanceResult,
     ERC20DeclaredException
   >({
+    interfaceName: "ERC20",
+    interfaceVersion: "0.1.33",
+    abiName: "allowance",
+    publicName: "allowance",
     entrypoint: entrypoints.ERC20.allowance,
     args: [
       {
@@ -500,6 +528,10 @@ export const ERC20 = {
     ERC20BurnResult,
     ERC20DeclaredException
   >({
+    interfaceName: "ERC20",
+    interfaceVersion: "0.1.33",
+    abiName: "burn",
+    publicName: "burn",
     entrypoint: entrypoints.ERC20.burn,
     args: [
       {
@@ -528,6 +560,10 @@ export const ERC20 = {
     ERC20GetBalanceResult,
     ERC20DeclaredException
   >({
+    interfaceName: "ERC20",
+    interfaceVersion: "0.1.33",
+    abiName: "get_balance",
+    publicName: "getBalance",
     entrypoint: entrypoints.ERC20.getBalance,
     args: [],
     returnType: spec.interfaces[0]!.methods[3]!.return_type,
@@ -545,6 +581,10 @@ export const ERC20 = {
     ERC20GetBalanceOfResult,
     ERC20DeclaredException
   >({
+    interfaceName: "ERC20",
+    interfaceVersion: "0.1.33",
+    abiName: "get_balance_of",
+    publicName: "getBalanceOf",
     entrypoint: entrypoints.ERC20.getBalanceOf,
     args: [
       {
@@ -568,6 +608,10 @@ export const ERC20 = {
     ERC20InitializeResult,
     ERC20DeclaredException
   >({
+    interfaceName: "ERC20",
+    interfaceVersion: "0.1.33",
+    abiName: "initialize",
+    publicName: "initialize",
     entrypoint: entrypoints.ERC20.initialize,
     args: [
       {
@@ -591,6 +635,10 @@ export const ERC20 = {
     ERC20MintResult,
     ERC20DeclaredException
   >({
+    interfaceName: "ERC20",
+    interfaceVersion: "0.1.33",
+    abiName: "mint",
+    publicName: "mint",
     entrypoint: entrypoints.ERC20.mint,
     args: [
       {
@@ -619,6 +667,10 @@ export const ERC20 = {
     ERC20TotalSupplyResult,
     ERC20DeclaredException
   >({
+    interfaceName: "ERC20",
+    interfaceVersion: "0.1.33",
+    abiName: "total_supply",
+    publicName: "totalSupply",
     entrypoint: entrypoints.ERC20.totalSupply,
     args: [],
     returnType: spec.interfaces[0]!.methods[7]!.return_type,
@@ -636,6 +688,10 @@ export const ERC20 = {
     ERC20TransferResult,
     ERC20DeclaredException
   >({
+    interfaceName: "ERC20",
+    interfaceVersion: "0.1.33",
+    abiName: "transfer",
+    publicName: "transfer",
     entrypoint: entrypoints.ERC20.transfer,
     args: [
       {
@@ -664,6 +720,10 @@ export const ERC20 = {
     ERC20TransferFromResult,
     ERC20DeclaredException
   >({
+    interfaceName: "ERC20",
+    interfaceVersion: "0.1.33",
+    abiName: "transfer_from",
+    publicName: "transferFrom",
     entrypoint: entrypoints.ERC20.transferFrom,
     args: [
       {
@@ -700,6 +760,10 @@ export const ERC20Metadata = {
     ERC20MetadataDecimalsResult,
     ERC20MetadataDeclaredException
   >({
+    interfaceName: "ERC20Metadata",
+    interfaceVersion: "0.1.33",
+    abiName: "decimals",
+    publicName: "decimals",
     entrypoint: entrypoints.ERC20Metadata.decimals,
     args: [],
     returnType: spec.interfaces[1]!.methods[0]!.return_type,
@@ -711,6 +775,10 @@ export const ERC20Metadata = {
     ERC20MetadataInitializeResult,
     ERC20MetadataDeclaredException
   >({
+    interfaceName: "ERC20Metadata",
+    interfaceVersion: "0.1.33",
+    abiName: "initialize",
+    publicName: "initialize",
     entrypoint: entrypoints.ERC20Metadata.initialize,
     args: [
       {
@@ -743,6 +811,10 @@ export const ERC20Metadata = {
     ERC20MetadataNameResult,
     ERC20MetadataDeclaredException
   >({
+    interfaceName: "ERC20Metadata",
+    interfaceVersion: "0.1.33",
+    abiName: "name",
+    publicName: "name",
     entrypoint: entrypoints.ERC20Metadata.name,
     args: [],
     returnType: spec.interfaces[1]!.methods[2]!.return_type,
@@ -754,6 +826,10 @@ export const ERC20Metadata = {
     ERC20MetadataSymbolResult,
     ERC20MetadataDeclaredException
   >({
+    interfaceName: "ERC20Metadata",
+    interfaceVersion: "0.1.33",
+    abiName: "symbol",
+    publicName: "symbol",
     entrypoint: entrypoints.ERC20Metadata.symbol,
     args: [],
     returnType: spec.interfaces[1]!.methods[3]!.return_type,
@@ -768,6 +844,10 @@ export const ERC20Permit = {
     ERC20PermitPermitResult,
     ERC20PermitDeclaredException
   >({
+    interfaceName: "ERC20Permit",
+    interfaceVersion: "0.1.33",
+    abiName: "permit",
+    publicName: "permit",
     entrypoint: entrypoints.ERC20Permit.permit,
     args: [
       {
@@ -796,6 +876,10 @@ export const ERC20Permit = {
     ERC20PermitTransferFromSignedResult,
     ERC20PermitDeclaredException
   >({
+    interfaceName: "ERC20Permit",
+    interfaceVersion: "0.1.33",
+    abiName: "transfer_from_signed",
+    publicName: "transferFromSigned",
     entrypoint: entrypoints.ERC20Permit.transferFromSigned,
     args: [
       {
@@ -861,6 +945,64 @@ export const ApprovalEvent = defineContractEvent<
   codecs,
 });
 
+export interface BurnEvent extends DecodedContractEvent<
+  "BurnEvent",
+  { from: ContractAddress },
+  { amount: bigint }
+> {}
+
+export interface BurnEventFilter {
+  from?: ContractEventFilterValue<ContractAddress>;
+}
+
+export const BurnEvent = defineContractEvent<
+  "BurnEvent",
+  BurnEvent["topics"],
+  BurnEvent["fields"],
+  BurnEventFilter
+>({
+  name: "BurnEvent",
+  signature: spec.events[1]!.signature,
+  topics: [
+    {
+      name: "from",
+      type: spec.events[1]!.topics[0]!.ty,
+      representation: "address",
+    },
+  ],
+  fields: [{ name: "amount", type: spec.events[1]!.fields[0]!.ty }],
+  codecs,
+});
+
+export interface MintEvent extends DecodedContractEvent<
+  "MintEvent",
+  { to: ContractAddress },
+  { amount: bigint }
+> {}
+
+export interface MintEventFilter {
+  to?: ContractEventFilterValue<ContractAddress>;
+}
+
+export const MintEvent = defineContractEvent<
+  "MintEvent",
+  MintEvent["topics"],
+  MintEvent["fields"],
+  MintEventFilter
+>({
+  name: "MintEvent",
+  signature: spec.events[2]!.signature,
+  topics: [
+    {
+      name: "to",
+      type: spec.events[2]!.topics[0]!.ty,
+      representation: "address",
+    },
+  ],
+  fields: [{ name: "amount", type: spec.events[2]!.fields[0]!.ty }],
+  codecs,
+});
+
 export interface TransferEvent extends DecodedContractEvent<
   "TransferEvent",
   { from: ContractAddress; to: ContractAddress },
@@ -879,28 +1021,33 @@ export const TransferEvent = defineContractEvent<
   TransferEventFilter
 >({
   name: "TransferEvent",
-  signature: spec.events[1]!.signature,
+  signature: spec.events[3]!.signature,
   topics: [
     {
       name: "from",
-      type: spec.events[1]!.topics[0]!.ty,
+      type: spec.events[3]!.topics[0]!.ty,
       representation: "address",
     },
     {
       name: "to",
-      type: spec.events[1]!.topics[1]!.ty,
+      type: spec.events[3]!.topics[1]!.ty,
       representation: "address",
     },
   ],
-  fields: [{ name: "amount", type: spec.events[1]!.fields[0]!.ty }],
+  fields: [{ name: "amount", type: spec.events[3]!.fields[0]!.ty }],
   codecs,
 });
 
-export type ERC20Event = ApprovalEvent | TransferEvent;
+export type ERC20Event = ApprovalEvent | BurnEvent | MintEvent | TransferEvent;
 
 export function decodeEvent(event: {
   topics: Uint8Array[];
   data: Uint8Array;
 }): ERC20Event | null {
-  return ApprovalEvent.decode(event) ?? TransferEvent.decode(event);
+  return (
+    ApprovalEvent.decode(event) ??
+    BurnEvent.decode(event) ??
+    MintEvent.decode(event) ??
+    TransferEvent.decode(event)
+  );
 }

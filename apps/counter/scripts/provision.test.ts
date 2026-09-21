@@ -10,18 +10,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { DefaultWallet } from "@groundhogchain/client/contracts";
-import { ExecResult } from "@groundhogchain/protocol";
+import { toHex0x } from "@groundhogchain/client";
+import { ERC20 } from "@groundhogchain/client/contracts";
+import type { ContractDeployment } from "@groundhogchain/client/wallet";
+import { gasAmount, HOG_ADDRESS } from "@groundhogchain/protocol";
 import { loadServerConfig } from "../server/config";
 import { Counter } from "../src/contracts/generated/counter";
 import { provisionCounter } from "./provision";
 
 const mocks = vi.hoisted(() => ({
-  address: new Uint8Array(32),
   requestAirdrop: vi.fn(),
-  execute: vi.fn(),
-  sendInvocation: vi.fn(),
-  waitForTransactionReceipt: vi.fn(),
+  executeAndWait: vi.fn(),
+  deployContractAndWait: vi.fn(),
 }));
 vi.mock("@groundhogchain/client", async (original) => {
   const sdk = await original<typeof import("@groundhogchain/client")>();
@@ -31,13 +31,6 @@ vi.mock("@groundhogchain/client", async (original) => {
       getVersion: async () => ({ wireFormat: "5.0.0" }),
     })),
     createWalletClient: vi.fn(() => mocks),
-    deriveContractAddress: (
-      ...args: Parameters<typeof sdk.deriveContractAddress>
-    ) => {
-      const address = sdk.deriveContractAddress(...args);
-      mocks.address = new Uint8Array(address);
-      return address;
-    },
   };
 });
 
@@ -55,13 +48,12 @@ beforeEach(async () => {
   };
   await writeFile(options.artifact!, "counter artifact");
   mocks.requestAirdrop.mockResolvedValue({ status: { result: "ok" } });
-  mocks.execute.mockResolvedValue(new Uint8Array(32));
-  mocks.sendInvocation.mockResolvedValue(new Uint8Array(32));
-  mocks.waitForTransactionReceipt.mockResolvedValue({
-    execResult: ExecResult.ExecResultOK,
-  });
-  vi.spyOn(DefaultWallet.deploy, "decodeReceipt").mockImplementation(
-    () => ({ value: mocks.address }) as never,
+  mocks.executeAndWait.mockResolvedValue({ txHash: new Uint8Array(32) });
+  mocks.deployContractAndWait.mockImplementation(
+    async (deployment: ContractDeployment) => ({
+      txHash: new Uint8Array(32),
+      address: deployment.address,
+    }),
   );
   vi.spyOn(Counter.get, "view").mockResolvedValue({
     value: 1_000_000n,
@@ -89,31 +81,80 @@ it("creates a fresh counter and signer on each run and writes only an environmen
     ".env.local",
     "counter.rv32a",
   ]);
-  expect(mocks.sendInvocation).toHaveBeenCalledTimes(2);
-  expect(mocks.execute).toHaveBeenCalledTimes(4);
+  expect(mocks.deployContractAndWait).toHaveBeenCalledTimes(2);
+  expect(mocks.executeAndWait).toHaveBeenCalledTimes(4);
+  const gas = gasAmount(10_000_000n);
+  for (const [index, config] of [first, second].entries()) {
+    const [deployment, gasLimit, wait] =
+      mocks.deployContractAndWait.mock.calls[index]!;
+    expect(toHex0x(deployment.address)).toBe(config.counterAddress);
+    expect(toHex0x(deployment.deployer)).toBe(config.signerAddress);
+    expect(gasLimit).toBe(gas);
+    expect(wait).toEqual({ timeoutMs: 60_000 });
+    expect(mocks.executeAndWait.mock.calls[index * 2]).toEqual([
+      {
+        invocation: ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+          receiver: deployment.address,
+          amount: 10_000_000n,
+        }),
+        gasLimit: gas,
+      },
+      { timeoutMs: 60_000 },
+    ]);
+    expect(mocks.executeAndWait.mock.calls[index * 2 + 1]).toEqual([
+      {
+        invocation: Counter.initialize.invocation(deployment.address, gas, {
+          initialValue: 1_000_000n,
+        }),
+        gasLimit: gas,
+      },
+      { timeoutMs: 60_000 },
+    ]);
+    expect(
+      mocks.executeAndWait.mock.invocationCallOrder[index * 2],
+    ).toBeLessThan(
+      mocks.deployContractAndWait.mock.invocationCallOrder[index]!,
+    );
+    expect(
+      mocks.deployContractAndWait.mock.invocationCallOrder[index],
+    ).toBeLessThan(
+      mocks.executeAndWait.mock.invocationCallOrder[index * 2 + 1]!,
+    );
+  }
 });
 
-it.each(["funding", "transaction", "verification"])(
-  "preserves the existing environment when %s fails",
-  async (phase) => {
-    await writeFile(options.output, "previous environment");
-    if (phase === "funding")
-      mocks.requestAirdrop.mockResolvedValue({
-        status: { result: "reverted" },
-      });
-    if (phase === "transaction")
-      mocks.waitForTransactionReceipt.mockResolvedValue({
-        execResult: ExecResult.ExecResultTxDeterministicError,
-      });
-    if (phase === "verification")
-      vi.mocked(Counter.get.view).mockResolvedValue({ value: 0n } as never);
-    await expect(provisionCounter(options)).rejects.toThrow();
-    expect(
-      (await readFile(options.output, "utf8")) === "previous environment",
-    ).toBe(true);
-    expect((await readdir(directory)).sort()).toEqual([
-      ".env.local",
-      "counter.rv32a",
-    ]);
-  },
-);
+it.each([
+  "funding",
+  "transaction",
+  "deployment",
+  "initialization",
+  "verification",
+])("preserves the existing environment when %s fails", async (phase) => {
+  await writeFile(options.output, "previous environment");
+  if (phase === "funding")
+    mocks.requestAirdrop.mockResolvedValue({
+      status: { result: "reverted" },
+    });
+  if (phase === "transaction")
+    mocks.executeAndWait.mockRejectedValueOnce(
+      new Error("Funding transaction failed"),
+    );
+  if (phase === "deployment")
+    mocks.deployContractAndWait.mockRejectedValueOnce(
+      new Error("Deployment address mismatch"),
+    );
+  if (phase === "initialization")
+    mocks.executeAndWait
+      .mockResolvedValueOnce({ txHash: new Uint8Array(32) })
+      .mockRejectedValueOnce(new Error("Initialization failed"));
+  if (phase === "verification")
+    vi.mocked(Counter.get.view).mockResolvedValue({ value: 0n } as never);
+  await expect(provisionCounter(options)).rejects.toThrow();
+  expect(
+    (await readFile(options.output, "utf8")) === "previous environment",
+  ).toBe(true);
+  expect((await readdir(directory)).sort()).toEqual([
+    ".env.local",
+    "counter.rv32a",
+  ]);
+});

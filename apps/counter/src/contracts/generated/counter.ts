@@ -15,6 +15,7 @@ import {
   type ContractException,
   defineContractEvent,
   type DecodedContractEvent,
+  type ContractEventFilterValue,
 } from "@groundhogchain/client/contract";
 
 const s = contractSpecString;
@@ -144,6 +145,10 @@ export const Counter = {
     CounterDecrementResult,
     CounterDeclaredException
   >({
+    interfaceName: "Counter",
+    interfaceVersion: "0.1.0",
+    abiName: "decrement",
+    publicName: "decrement",
     entrypoint: entrypoints.Counter.decrement,
     args: [
       {
@@ -167,6 +172,10 @@ export const Counter = {
     CounterErrorResult,
     CounterDeclaredException
   >({
+    interfaceName: "Counter",
+    interfaceVersion: "0.1.0",
+    abiName: "error",
+    publicName: "error",
     entrypoint: entrypoints.Counter.error,
     args: [],
     returnType: spec.interfaces[0]!.methods[1]!.return_type,
@@ -184,6 +193,10 @@ export const Counter = {
     CounterGetResult,
     CounterDeclaredException
   >({
+    interfaceName: "Counter",
+    interfaceVersion: "0.1.0",
+    abiName: "get",
+    publicName: "get",
     entrypoint: entrypoints.Counter.get,
     args: [],
     returnType: spec.interfaces[0]!.methods[2]!.return_type,
@@ -201,6 +214,10 @@ export const Counter = {
     CounterIncrementResult,
     CounterDeclaredException
   >({
+    interfaceName: "Counter",
+    interfaceVersion: "0.1.0",
+    abiName: "increment",
+    publicName: "increment",
     entrypoint: entrypoints.Counter.increment,
     args: [
       {
@@ -224,6 +241,10 @@ export const Counter = {
     CounterInitializeResult,
     CounterDeclaredException
   >({
+    interfaceName: "Counter",
+    interfaceVersion: "0.1.0",
+    abiName: "initialize",
+    publicName: "initialize",
     entrypoint: entrypoints.Counter.initialize,
     args: [
       {
@@ -247,6 +268,10 @@ export const Counter = {
     CounterPingResult,
     CounterDeclaredException
   >({
+    interfaceName: "Counter",
+    interfaceVersion: "0.1.0",
+    abiName: "ping",
+    publicName: "ping",
     entrypoint: entrypoints.Counter.ping,
     args: [
       {
@@ -269,11 +294,13 @@ export const Counter = {
 
 export interface PingEvent extends DecodedContractEvent<
   "PingEvent",
-  { tag: Uint8Array },
+  { tag: bigint },
   {}
 > {}
 
-export type PingEventFilter = Record<string, never>;
+export interface PingEventFilter {
+  tag?: ContractEventFilterValue<bigint>;
+}
 
 export const PingEvent = defineContractEvent<
   "PingEvent",
@@ -287,7 +314,7 @@ export const PingEvent = defineContractEvent<
     {
       name: "tag",
       type: spec.events[0]!.topics[0]!.ty,
-      representation: "hash",
+      representation: "u64",
     },
   ],
   fields: [],

@@ -11,8 +11,8 @@ Use Node.js 22.13 or newer and run `npm ci` from the repository root with the
 [npm registry authentication](../../README.md#install-swap-and-launchpad-dependencies)
 configured.
 
-Local setup has been checked with **Groundhog CLI 0.17.0** and
-**hog-devnode 0.1.27-rc.7**. Use compatible CLI/devnode builds: a newer CLI can
+Use **Groundhog CLI 0.18.0** and **hog-devnode 0.1.27-rc.7** for local checks.
+Use compatible CLI/devnode builds: a newer CLI can
 require a runtime manifest that an older devnode does not provide.
 
 Start the compatible node in a separate terminal:
@@ -116,6 +116,25 @@ file while using that deployment; run setup again when you want a fresh demo.
 - Session state is in memory. Reloading starts new session counts; committed
   transactions and the shared counter persist on the node. Reload does not
   cancel transactions already sent.
+
+## SDK integration
+
+Counter uses the published client 0.10.0 and bindings generated with CLI 0.18.0.
+`src/groundhog/client.ts` binds the Counter address and public client once with
+`getContract`, then refreshes with `counter.get.view({ caller: signerAddress })`.
+Counter and signer-balance reads run concurrently within each scheduled refresh.
+
+Provisioning uses `prepareContractDeployment` to predict the address before
+prefunding it, then `wallet.deployContractAndWait` to deploy and verify the result.
+Funding and initialization use `wallet.executeAndWait`. Each setup step finishes
+before the next begins, and the environment file is published only after the
+initialized counter value is verified.
+
+Interactive input has a different lifetime: the server signs, the browser records
+the hash and submits, and the worker observes receipts through its separate bounded
+queue. Keeping those stages separate lets new inputs submit while earlier ones
+await confirmation. The worker owns refresh timing and cancellation; React renders
+its snapshots.
 
 ## Commands
 

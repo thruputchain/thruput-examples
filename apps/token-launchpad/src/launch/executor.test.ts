@@ -31,47 +31,89 @@ describe("advanceWorkflow", () => {
   it("persists one batch hash for both steps and recovers it without individual submissions", async () => {
     const config = configuration();
     const storage = new MemoryStorage();
-    const workflow = createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), factoryReview(config));
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
     saveWorkflow(storage, workflowStorageKey(config), workflow);
     const hash = `0x${"06".repeat(32)}`;
     const writer: WriteBoundary = {
       supportsBatch: vi.fn().mockResolvedValue(true),
-      execute: vi.fn(), observe: vi.fn(),
-      executeBatch: vi.fn<NonNullable<WriteBoundary["executeBatch"]>>(async (calls, observer) => {
-        expect(calls).toHaveLength(2);
-        await observer.onSigned(hash);
-        const saved = loadWorkflow(storage, workflowStorageKey(config))!;
-        expect(saved.funding).toEqual({ status: "pending", hash });
-        expect(saved.creation).toEqual(saved.funding);
-        return { kind: "indeterminate", hash, reason: "timeout" };
-      }),
-      observeBatch: vi.fn().mockResolvedValue({ kind: "invalid", hash, reason: "expired" }),
+      execute: vi.fn(),
+      observe: vi
+        .fn()
+        .mockResolvedValue({ kind: "invalid", hash, reason: "expired" }),
+      executeBatch: vi.fn<NonNullable<WriteBoundary["executeBatch"]>>(
+        async (calls, observer) => {
+          expect(calls).toHaveLength(2);
+          await observer.onSigned(hash);
+          const saved = loadWorkflow(storage, workflowStorageKey(config))!;
+          expect(saved.funding).toEqual({ status: "pending", hash });
+          expect(saved.creation).toEqual(saved.funding);
+          return { kind: "indeterminate", hash, reason: "timeout" };
+        },
+      ),
     };
-    const input = { config, client: {} as GroundhogClient, writer, storage, locks, automatic: true,
-      workflowId: workflow.id, workflowRevision: workflow.revision, expectedIntent: workflowIntent(workflow),
-      review: async () => factoryReview(config) };
+    const input = {
+      config,
+      client: {} as GroundhogClient,
+      writer,
+      storage,
+      locks,
+      automatic: true,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      review: async () => factoryReview(config),
+    };
     const pending = await runWorkflow(input);
     expect(pending.executionMode).toBe("batch");
     expect(pending.creation.status).toBe("uncertain");
-    const recovered = await runWorkflow({ ...input, workflowRevision: pending.revision });
+    const recovered = await runWorkflow({
+      ...input,
+      workflowRevision: pending.revision,
+    });
     expect(recovered.funding.status).toBe("failed");
     expect(recovered.creation).toEqual(recovered.funding);
-    expect(writer.observeBatch).toHaveBeenCalledExactlyOnceWith(hash);
+    expect(writer.observe).toHaveBeenCalledExactlyOnceWith(hash);
     expect(writer.executeBatch).toHaveBeenCalledTimes(1);
     expect(writer.execute).not.toHaveBeenCalled();
-    expect(writer.observe).not.toHaveBeenCalled();
   });
 
   it("keeps a rejected batch together and allows an explicit batch retry", async () => {
     const config = configuration();
     const storage = new MemoryStorage();
-    const workflow = createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), factoryReview(config));
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
     saveWorkflow(storage, workflowStorageKey(config), workflow);
-    const writer = { supportsBatch: vi.fn().mockResolvedValue(true), execute: vi.fn(), observe: vi.fn(),
-      executeBatch: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "User rejected the request" }) };
-    const input = { config, client: {} as GroundhogClient, writer, storage, locks, automatic: true,
-      workflowId: workflow.id, workflowRevision: workflow.revision, expectedIntent: workflowIntent(workflow),
-      review: async () => factoryReview(config) };
+    const writer = {
+      supportsBatch: vi.fn().mockResolvedValue(true),
+      execute: vi.fn(),
+      observe: vi.fn(),
+      executeBatch: vi.fn().mockResolvedValue({
+        kind: "preSubmissionFailure",
+        hash: null,
+        message: "User rejected the request",
+      }),
+    };
+    const input = {
+      config,
+      client: {} as GroundhogClient,
+      writer,
+      storage,
+      locks,
+      automatic: true,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      review: async () => factoryReview(config),
+    };
     const rejected = await runWorkflow(input);
     expect(rejected.funding.status).toBe("idle");
     expect(rejected.creation.status).toBe("idle");
@@ -84,12 +126,36 @@ describe("advanceWorkflow", () => {
   it("does not batch saved legacy workflows or bypass a capability error", async () => {
     const config = configuration();
     const storage = new MemoryStorage();
-    const workflow = createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), factoryReview(config));
-    const writer = { supportsBatch: vi.fn().mockRejectedValue(new Error("Capability unavailable")), executeBatch: vi.fn(),
-      execute: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }), observe: vi.fn() };
-    const input = { config, client: {} as GroundhogClient, writer, storage, locks, automatic: true,
-      workflowId: workflow.id, workflowRevision: workflow.revision, expectedIntent: workflowIntent(workflow),
-      review: async () => factoryReview(config) };
+    const workflow = createWorkflow(
+      config,
+      { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+      new Uint8Array(32).fill(5),
+      factoryReview(config),
+    );
+    const writer = {
+      supportsBatch: vi
+        .fn()
+        .mockRejectedValue(new Error("Capability unavailable")),
+      executeBatch: vi.fn(),
+      execute: vi.fn().mockResolvedValue({
+        kind: "preSubmissionFailure",
+        hash: null,
+        message: "Rejected",
+      }),
+      observe: vi.fn(),
+    };
+    const input = {
+      config,
+      client: {} as GroundhogClient,
+      writer,
+      storage,
+      locks,
+      automatic: true,
+      workflowId: workflow.id,
+      workflowRevision: workflow.revision,
+      expectedIntent: workflowIntent(workflow),
+      review: async () => factoryReview(config),
+    };
     saveWorkflow(storage, workflowStorageKey(config), workflow);
     await expect(runWorkflow(input)).rejects.toThrow("Capability unavailable");
     expect(writer.execute).not.toHaveBeenCalled();
@@ -101,25 +167,61 @@ describe("advanceWorkflow", () => {
     expect(writer.executeBatch).not.toHaveBeenCalled();
     expect(writer.supportsBatch).toHaveBeenCalledOnce();
   });
-  it.each(["pending", "uncertain"] as const)("only observes recovered %s funding even when automatic continuation was requested", async (status) => {
-    const config = configuration();
-    const storage = new MemoryStorage();
-    const hash = `0x${"06".repeat(32)}`;
-    const workflow = { ...createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), factoryReview(config)), funding: { status, hash } };
-    saveWorkflow(storage, workflowStorageKey(config), workflow);
-    const writer = {
-      observe: vi.fn().mockResolvedValue({ kind: "committedSuccess", hash, receipt: {} }),
-      execute: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "creation rejected" }),
-    };
-    const input = { config, client: {} as GroundhogClient, writer, workflowId: workflow.id, workflowRevision: workflow.revision, expectedIntent: workflowIntent(workflow), storage, locks, automatic: true, review: async () => ({ ...factoryReview(config), currentReserve: 100n, fundingAmount: 0n }) };
-    const recovered = await runWorkflow(input);
-    expect(writer.observe).toHaveBeenCalledExactlyOnceWith(hash);
-    expect(writer.execute).not.toHaveBeenCalled();
-    expect(recovered.funding.status).toBe("committed");
-    expect(recovered.creation.status).toBe("idle");
-    await runWorkflow({ ...input, automatic: false, workflowRevision: recovered.revision });
-    expect(writer.execute).toHaveBeenCalledOnce();
-  });
+  it.each(["pending", "uncertain"] as const)(
+    "only observes recovered %s funding even when automatic continuation was requested",
+    async (status) => {
+      const config = configuration();
+      const storage = new MemoryStorage();
+      const hash = `0x${"06".repeat(32)}`;
+      const workflow = {
+        ...createWorkflow(
+          config,
+          { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+          new Uint8Array(32).fill(5),
+          factoryReview(config),
+        ),
+        funding: { status, hash },
+      };
+      saveWorkflow(storage, workflowStorageKey(config), workflow);
+      const writer = {
+        observe: vi
+          .fn()
+          .mockResolvedValue({ kind: "committedSuccess", hash, receipt: {} }),
+        execute: vi.fn().mockResolvedValue({
+          kind: "preSubmissionFailure",
+          hash: null,
+          message: "creation rejected",
+        }),
+      };
+      const input = {
+        config,
+        client: {} as GroundhogClient,
+        writer,
+        workflowId: workflow.id,
+        workflowRevision: workflow.revision,
+        expectedIntent: workflowIntent(workflow),
+        storage,
+        locks,
+        automatic: true,
+        review: async () => ({
+          ...factoryReview(config),
+          currentReserve: 100n,
+          fundingAmount: 0n,
+        }),
+      };
+      const recovered = await runWorkflow(input);
+      expect(writer.observe).toHaveBeenCalledExactlyOnceWith(hash);
+      expect(writer.execute).not.toHaveBeenCalled();
+      expect(recovered.funding.status).toBe("committed");
+      expect(recovered.creation.status).toBe("idle");
+      await runWorkflow({
+        ...input,
+        automatic: false,
+        workflowRevision: recovered.revision,
+      });
+      expect(writer.execute).toHaveBeenCalledOnce();
+    },
+  );
   it.each(["caught-up", "still-stale", "fresh-shortfall"])(
     "handles %s reserve evidence after committed funding without re-funding",
     async (state) => {
@@ -137,12 +239,10 @@ describe("advanceWorkflow", () => {
         funding: { status: "committed" as const, hash },
       };
       saveWorkflow(storage, workflowStorageKey(config), workflow);
-      const review = vi
-        .fn()
-        .mockResolvedValue({
-          ...factoryReview(config),
-          reserveHeight: state === "fresh-shortfall" ? 10n : 9n,
-        });
+      const review = vi.fn().mockResolvedValue({
+        ...factoryReview(config),
+        reserveHeight: state === "fresh-shortfall" ? 10n : 9n,
+      });
       if (state === "caught-up")
         review
           .mockResolvedValueOnce({
@@ -156,22 +256,18 @@ describe("advanceWorkflow", () => {
             fundingAmount: 0n,
           });
       const client = {
-        getTransactionReceipt: vi
-          .fn()
-          .mockResolvedValue({
-            txHash: fromHex0x(hash),
-            height: 10n,
-            execResult: ExecResult.ExecResultOK,
-          }),
+        getTransactionReceipt: vi.fn().mockResolvedValue({
+          txHash: fromHex0x(hash),
+          height: 10n,
+          execResult: ExecResult.ExecResultOK,
+        }),
       } as unknown as GroundhogClient;
       const writer = {
-        execute: vi
-          .fn()
-          .mockResolvedValue({
-            kind: "preSubmissionFailure",
-            hash: null,
-            message: "Creation signing not approved",
-          }),
+        execute: vi.fn().mockResolvedValue({
+          kind: "preSubmissionFailure",
+          hash: null,
+          message: "Creation signing not approved",
+        }),
         observe: vi.fn(),
       };
       const result = advanceWorkflow({
@@ -188,9 +284,9 @@ describe("advanceWorkflow", () => {
       if (state === "caught-up") {
         expect((await result).funding).toEqual(workflow.funding);
         expect(writer.execute).toHaveBeenCalledOnce();
-        expect(writer.execute.mock.calls[0]![0].invoked_address).toEqual(
-          config.factoryAddress,
-        );
+        expect(
+          writer.execute.mock.calls[0]![0].invocation.invoked_address,
+        ).toEqual(config.factoryAddress);
       } else {
         await expect(result).rejects.toThrow(
           state === "still-stale"
@@ -202,7 +298,9 @@ describe("advanceWorkflow", () => {
           loadWorkflow(storage, workflowStorageKey(config))!.funding,
         ).toEqual(workflow.funding);
       }
-      expect(review).toHaveBeenCalledTimes(state === "fresh-shortfall" ? 1 : 2);
+      expect(review).toHaveBeenCalledTimes(
+        state === "fresh-shortfall" ? 1 : state === "still-stale" ? 4 : 2,
+      );
       expect(writer.observe).not.toHaveBeenCalled();
     },
   );
@@ -225,14 +323,18 @@ describe("advanceWorkflow", () => {
         .mockImplementation(async (_url, init) => {
           const request = JSON.parse(init!.body as string);
           methods.push(request.method);
-          if (initialized && failure === "unavailable") throw new Error("offline");
+          if (initialized && failure === "unavailable")
+            throw new Error("offline");
           return new Response(
             JSON.stringify({
               jsonrpc: "2.0",
               id: request.id,
               result: {
-                networkHash:
-                  !initialized ? `0x${config.networkIdHex}` : failure === "mismatch" ? `0x${"99".repeat(32)}` : "broken",
+                networkHash: !initialized
+                  ? `0x${config.networkIdHex}`
+                  : failure === "mismatch"
+                    ? `0x${"99".repeat(32)}`
+                    : "broken",
               },
             }),
           );
@@ -339,10 +441,23 @@ describe("advanceWorkflow", () => {
         onUpdate,
       });
       expect(writer.execute).toHaveBeenCalledTimes(expectedExecutions);
-      expect(onUpdate.mock.calls.map(([next]) => [next.funding.status, next.creation.status])).toEqual(
+      expect(
+        onUpdate.mock.calls.map(([next]) => [
+          next.funding.status,
+          next.creation.status,
+        ]),
+      ).toEqual(
         automatic
-          ? [["signing", "idle"], ["committed", "idle"], ["committed", "signing"], ["committed", "idle"]]
-          : [["signing", "idle"], ["committed", "idle"]],
+          ? [
+              ["signing", "idle"],
+              ["committed", "idle"],
+              ["committed", "signing"],
+              ["committed", "idle"],
+            ]
+          : [
+              ["signing", "idle"],
+              ["committed", "idle"],
+            ],
       );
       expect(result.funding.status).toBe("committed");
       expect(result.creation.status).toBe("idle");

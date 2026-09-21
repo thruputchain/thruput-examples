@@ -1,13 +1,29 @@
-import { toHex0x, type CoreGroundhogClient } from "@groundhogchain/client";
-import type { ProviderWalletClient } from "@groundhogchain/client/wallet";
-import { gasAmount, type Invocation } from "@groundhogchain/protocol";
+import {
+  hashFromHex,
+  toHex0x,
+  type CoreGroundhogClient,
+} from "@groundhogchain/client";
+import {
+  submitAndObserve,
+  walletGasLimit,
+  type ProviderWalletClient,
+} from "@groundhogchain/client/wallet";
+import {
+  gasAmount,
+  networkHash,
+  type Invocation,
+} from "@groundhogchain/protocol";
 import type { GlobalConfig } from "@/config";
 import { verifyReadNetwork } from "@/groundhog/client";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
 import { SwapDriver } from "@/contracts/generated/swap-driver";
 import { CRANK_FRAME_GAS } from "@/contracts/driver-target";
 import { fetchPoolTokenArtifact } from "./pool-token-artifact";
-import { pollTransaction } from "./transaction-observation";
+import {
+  createTransactionObserver,
+  executionFailure,
+  receiptResult,
+} from "./transaction-observation";
 import type { WriteBoundary, WriteResult } from "./write-boundary";
 
 // What the transaction needs beyond the driver frame itself: the wallet
@@ -19,19 +35,10 @@ export function createProviderWriteBoundary(
   client: CoreGroundhogClient,
   wallet?: ProviderWalletClient,
   options: {
-    maxPolls?: number;
-    delay?: (ms: number) => Promise<void>;
     loadArtifact?: typeof fetchPoolTokenArtifact;
   } = {},
 ): WriteBoundary {
-  const observe = (hash: string) =>
-    pollTransaction(
-      client,
-      hash,
-      config.networkIdHex,
-      options.maxPolls,
-      options.delay,
-    );
+  const observe = createTransactionObserver(config, client);
   return {
     observe,
     async supportsBatch(count) {
@@ -56,7 +63,6 @@ export function createProviderWriteBoundary(
         hash: null,
         message: "Connect a wallet to make changes",
       };
-    let signed;
     try {
       await verifyReadNetwork(client, config);
       const isCreation = invocations.some(
@@ -84,10 +90,7 @@ export function createProviderWriteBoundary(
         // to be restated here whenever that is recalibrated.
         gasLimit: gasAmount(
           batched
-            ? invocations.reduce(
-                (total, invocation) => total + invocation.gas_limit,
-                WALLET_OVERHEAD_GAS,
-              )
+            ? walletGasLimit(invocations, gasAmount(WALLET_OVERHEAD_GAS))
             : isCrank
               ? CRANK_FRAME_GAS + WALLET_OVERHEAD_GAS
               : 10_000_000n,
@@ -95,16 +98,37 @@ export function createProviderWriteBoundary(
         expiryBlocks: 1_000n,
         ...(contractsToDeploy ? { contractsToDeploy } : {}),
       };
-      const transaction = batched
-        ? await wallet.prepareBatchExecution({ ...preparation, invocations })
-        : await wallet.prepareExecution({
-            ...preparation,
-            invocation: invocations[0]!,
-          });
-      signed = await wallet.signTransaction(transaction);
-      // Persist the approved hash before crossing the irreversible broadcast boundary.
+      const wait = {
+        expectedNetworkHash: networkHash(
+          hashFromHex(`0x${config.networkIdHex}`),
+        ),
+        timeoutMs: 20_000,
+        pollingIntervalMs: 500,
+      };
+      if (!batched) {
+        const result = await wallet.executeAndWait(
+          { ...preparation, invocation: invocations[0]! },
+          { onSigned: ({ hash }) => observer?.onSigned(hash), wait },
+        );
+        return receiptResult(result.receipt);
+      }
+      // Queued swap workflows use raw targets and verify completion events later.
+      const transaction = await wallet.prepareBatchExecution({
+        ...preparation,
+        invocations,
+      });
+      const signed = await wallet.signTransaction(transaction);
       await observer?.onSigned(signed.hash);
+      const result = await submitAndObserve(
+        client,
+        hashFromHex(signed.hash),
+        () => wallet.submitTransaction(signed),
+        wait,
+      );
+      return receiptResult(result.receipt);
     } catch (error) {
+      const result = executionFailure(error);
+      if (result) return result;
       return {
         kind: "preSubmissionFailure",
         hash: null,
@@ -112,14 +136,5 @@ export function createProviderWriteBoundary(
           error instanceof Error ? error.message : "Wallet preparation failed",
       };
     }
-    try {
-      await wallet.submitTransaction(signed);
-    } catch {
-      const result = await observe(signed.hash);
-      return result.kind === "indeterminate" && result.reason === "timeout"
-        ? { ...result, reason: "disconnect" }
-        : result;
-    }
-    return observe(signed.hash);
   }
 }

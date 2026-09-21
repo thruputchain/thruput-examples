@@ -1,63 +1,85 @@
-import { fromHex0x, type GroundhogClient } from "@groundhogchain/client";
-import { sha256Hash } from "@groundhogchain/protocol";
-import { verifyReadNetwork } from "@/groundhog/client";
-import { outcomeFromReceipt, outcomeFromStatus } from "./outcome";
+import {
+  hashFromHex,
+  toHex0x,
+  TransactionReceiptTimeoutError,
+  TransactionRejectedError,
+  type CoreGroundhogClient,
+  type TransactionReceipt,
+} from "@groundhogchain/client";
+import {
+  TransactionExecutionError,
+  TransactionObservationError,
+} from "@groundhogchain/client/wallet";
+import { ExecResult, networkHash } from "@groundhogchain/protocol";
 import type { WriteResult } from "./write-boundary";
 
-export async function pollTransaction(
-  client: Pick<
-    GroundhogClient,
-    "getNetworkInfo" | "getTransactionReceipt" | "getTransactionStatus"
-  >,
-  hash: string,
-  networkIdHex: string,
-  maxPolls = 40,
-  delay: (milliseconds: number) => Promise<void> = (ms) =>
-    new Promise((resolve) => setTimeout(resolve, ms)),
-): Promise<WriteResult> {
-  if (!/^0x[0-9a-f]{64}$/.test(hash)) {
+export function receiptResult(receipt: TransactionReceipt): WriteResult {
+  return {
+    kind:
+      receipt.execResult === ExecResult.ExecResultOK
+        ? "committedSuccess"
+        : "committedFailure",
+    hash: toHex0x(receipt.txHash),
+    receipt,
+  };
+}
+
+export function observationFailure(hash: string, error: unknown): WriteResult {
+  if (error instanceof TransactionRejectedError)
+    return { kind: "invalid", hash, reason: error.reason };
+  if (error instanceof TransactionReceiptTimeoutError) {
+    const status = error.lastStatus?.status;
     return {
-      kind: "preSubmissionFailure",
-      hash: null,
-      message: "The stored transaction hash is invalid",
+      kind: "indeterminate",
+      hash,
+      reason: error.cause
+        ? "disconnect"
+        : status === "unknown" ||
+            status === "recentFailure" ||
+            status === "other"
+          ? status
+          : "timeout",
     };
   }
-  const bytes = sha256Hash(fromHex0x(hash));
-  let errors = 0;
-  let reason: Extract<WriteResult, { kind: "indeterminate" }>["reason"] =
-    "timeout";
-  for (let poll = 0; poll < maxPolls; poll += 1) {
+  return {
+    kind: "indeterminate",
+    hash,
+    reason: error instanceof TypeError ? "disconnect" : "other",
+  };
+}
+
+// These errors carry evidence that submission was attempted or commitment occurred.
+export function executionFailure(error: unknown): WriteResult | undefined {
+  if (error instanceof TransactionExecutionError)
+    return receiptResult(error.receipt);
+  if (error instanceof TransactionObservationError)
+    return observationFailure(toHex0x(error.txHash), error.cause);
+}
+
+// Public observation remains available after the signing wallet is disposed.
+export function createTransactionObserver(
+  config: { networkIdHex: string },
+  client: Pick<CoreGroundhogClient, "waitForTransactionReceipt">,
+): (hash: string) => Promise<WriteResult> {
+  return async (hash) => {
+    if (!/^0x[0-9a-f]{64}$/.test(hash))
+      return {
+        kind: "preSubmissionFailure",
+        hash: null,
+        message: "The stored transaction hash is invalid",
+      };
     try {
-      await verifyReadNetwork(client, { networkIdHex });
-      const receipt = await client.getTransactionReceipt(bytes);
-      if (receipt !== null) {
-        if (
-          receipt.txHash.length !== bytes.length ||
-          !receipt.txHash.every((byte, index) => byte === bytes[index])
-        ) {
-          return { kind: "indeterminate", hash, reason: "other" };
-        }
-        const outcome = outcomeFromReceipt(receipt);
-        if (
-          outcome.kind === "committedSuccess" ||
-          outcome.kind === "committedFailure"
-        )
-          return { ...outcome, hash };
-        if (outcome.kind === "invalid" || outcome.kind === "indeterminate")
-          return { ...outcome, hash };
-        return { kind: "indeterminate", hash, reason: "timeout" };
-      }
-      const outcome = outcomeFromStatus(
-        await client.getTransactionStatus(bytes),
+      return receiptResult(
+        await client.waitForTransactionReceipt(hashFromHex(hash), {
+          expectedNetworkHash: networkHash(
+            hashFromHex(`0x${config.networkIdHex}`),
+          ),
+          timeoutMs: 20_000,
+          pollingIntervalMs: 500,
+        }),
       );
-      errors = 0;
-      if (outcome.kind === "invalid") return { ...outcome, hash };
-      if (outcome.kind === "indeterminate") reason = outcome.reason;
-    } catch {
-      if (++errors >= 2)
-        return { kind: "indeterminate", hash, reason: "disconnect" };
+    } catch (error) {
+      return observationFailure(hash, error);
     }
-    await delay(500);
-  }
-  return { kind: "indeterminate", hash, reason };
+  };
 }

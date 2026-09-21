@@ -1,5 +1,5 @@
 import type { TransactionReceipt } from "@groundhogchain/client";
-import type { Invocation } from "@groundhogchain/protocol";
+import type { ContractCall } from "@groundhogchain/client/contract";
 
 export type WriteResult =
   | { kind: "preSubmissionFailure"; hash: null; message: string }
@@ -14,13 +14,12 @@ export type WriteResult =
 
 export interface WriteBoundary {
   supportsBatch?(count: number): Promise<boolean>;
-  observeBatch?(hash: string): Promise<WriteResult>;
   executeBatch?(
-    targets: readonly Invocation[],
+    calls: readonly ContractCall[],
     observer: { onSigned: (hash: string) => void | Promise<void> },
   ): Promise<WriteResult>;
   execute(
-    target: Invocation,
+    call: ContractCall,
     observer: { onSigned: (hash: string) => void | Promise<void> },
   ): Promise<WriteResult>;
   observe(hash: string): Promise<WriteResult>;

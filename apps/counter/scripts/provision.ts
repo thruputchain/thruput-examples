@@ -3,26 +3,20 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  bytesEqual,
   createGroundhogClient,
   createPubkeyAccount,
   createWalletClient,
   defineCluster,
-  deriveContractAddress,
-  fixedBytes,
   hashFromHex,
-  hashContract,
   HttpTransport,
   PrivateKeySigner,
   toHex0x,
 } from "@groundhogchain/client";
-import { DefaultWallet, ERC20 } from "@groundhogchain/client/contracts";
+import { ERC20 } from "@groundhogchain/client/contracts";
+import { prepareContractDeployment } from "@groundhogchain/client/wallet";
 import {
-  ContractType,
-  ExecResult,
   gasAmount,
   networkHash,
-  sha256Hash,
   HOG_ADDRESS,
   type Invocation,
 } from "@groundhogchain/protocol";
@@ -61,23 +55,20 @@ export async function provisionCounter(options: {
       `RPC wire format >=4.0.0 is required; found ${version.wireFormat}`,
     );
   }
-  const contract = {
-    contract_type: ContractType.kRv32 as const,
-    rv32_contract: {
-      data: await readFile(
-        resolve(
-          repositoryRoot,
-          options.artifact || "target/groundhog/counter.rv32a",
-        ),
-      ),
-    },
-  };
+  const contract = await readFile(
+    resolve(
+      repositoryRoot,
+      options.artifact || "target/groundhog/counter.rv32a",
+    ),
+  );
   const key = randomBytes(32);
   const account = createPubkeyAccount({ signer: new PrivateKeySigner(key) });
   const wallet = createWalletClient({ client, account });
-  const codeHash = hashContract(contract);
-  const nonce = sha256Hash(randomBytes(32));
-  const address = deriveContractAddress(account.address, nonce, codeHash);
+  const deployment = prepareContractDeployment({
+    deployer: account.address,
+    contract,
+  });
+  const address = deployment.address;
   const config = parseConfig({
     networkId: options.networkId,
     counterAddress: toHex0x(address),
@@ -85,13 +76,11 @@ export async function provisionCounter(options: {
     explorerUrl: options.explorerUrl,
   });
   const execute = async (name: string, invocation: Invocation) => {
-    const hash = await wallet.execute({ invocation, gasLimit: GAS });
-    console.log(`${name}: ${toHex0x(hash)}`);
-    const receipt = await wallet.waitForTransactionReceipt(hash, {
-      timeoutMs: 60_000,
-    });
-    if (receipt.execResult !== ExecResult.ExecResultOK)
-      throw new Error(`${name} failed: ${ExecResult[receipt.execResult]}`);
+    const { txHash } = await wallet.executeAndWait(
+      { invocation, gasLimit: GAS },
+      { timeoutMs: 60_000 },
+    );
+    console.log(`${name}: ${toHex0x(txHash)}`);
   };
   const output = resolve(repositoryRoot, options.output);
   await mkdir(dirname(output), { recursive: true });
@@ -109,23 +98,10 @@ export async function provisionCounter(options: {
         amount: 10_000_000n,
       }),
     );
-    const hash = await wallet.sendInvocation({
-      invocation: DefaultWallet.deploy.invocation(account.address, GAS, {
-        nonce: fixedBytes(nonce, 32),
-        contractHash: fixedBytes(codeHash, 32),
-      }),
-      contractsToDeploy: [contract],
-    });
-    console.log(`Deploy counter: ${toHex0x(hash)}`);
-    const receipt = await wallet.waitForTransactionReceipt(hash, {
+    const { txHash } = await wallet.deployContractAndWait(deployment, GAS, {
       timeoutMs: 60_000,
     });
-    if (
-      receipt.execResult !== ExecResult.ExecResultOK ||
-      !bytesEqual(DefaultWallet.deploy.decodeReceipt(receipt).value, address)
-    ) {
-      throw new Error("Counter deployment failed.");
-    }
+    console.log(`Deploy counter: ${toHex0x(txHash)}`);
     await execute(
       "Initialize counter",
       Counter.initialize.invocation(address, GAS, {

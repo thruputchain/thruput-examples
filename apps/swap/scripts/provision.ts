@@ -16,11 +16,10 @@ import {
   PrivateKeySigner,
   toHex0x,
 } from "@groundhogchain/client";
-import { deriveContractAddress } from "@groundhogchain/client/contract";
-import { DefaultWallet, ERC20 } from "@groundhogchain/client/contracts";
+import { prepareContractDeployment } from "@groundhogchain/client/wallet";
+import { ERC20 } from "@groundhogchain/client/contracts";
 import {
   ContractType,
-  ExecResult,
   gasAmount,
   HOG_ADDRESS,
   networkHash,
@@ -110,53 +109,33 @@ export async function provisionSwap(options: {
     signer: new PrivateKeySigner(randomBytes(32)),
   });
   const wallet = createWalletClient({ client, account });
-  const requireSuccess = (result: ExecResult): void => {
-    if (result !== ExecResult.ExecResultOK) {
-      throw new Error(`Setup transaction failed with ${ExecResult[result]}`);
-    }
-  };
   const deploy = async (
     name: string,
     contract: Contract,
   ): Promise<ContractAddress> => {
-    const nonce = sha256Hash(randomBytes(32));
-    const contractHash = hashContract(contract);
-    const predicted = deriveContractAddress(
-      account.address,
-      nonce,
-      contractHash,
-    );
+    const deployment = prepareContractDeployment({
+      deployer: account.address,
+      contract,
+    });
     await execute(
       ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
-        receiver: predicted,
+        receiver: deployment.address,
         amount: CONTRACT_FUNDING,
       }),
     );
-    const hash = await wallet.sendInvocation({
-      invocation: DefaultWallet.deploy.invocation(account.address, GAS_LIMIT, {
-        nonce: fixedBytes(nonce, 32),
-        contractHash: fixedBytes(contractHash, 32),
-      }),
-      contractsToDeploy: [contract],
-    });
-    console.log(`Deploy ${name}: ${toHex0x(hash)}`);
-    const receipt = await wallet.waitForTransactionReceipt(hash, {
+    const result = await wallet.deployContractAndWait(deployment, GAS_LIMIT, {
       timeoutMs: 60_000,
     });
-    requireSuccess(receipt.execResult);
-    const deployed = DefaultWallet.deploy.decodeReceipt(receipt).value;
-    if (!bytesEqual(deployed, predicted))
-      throw new Error("Deployment address did not match its funded address");
-    console.log(`${name}: ${toHex0x(deployed)}`);
-    return deployed;
+    console.log(`Deploy ${name}: ${toHex0x(result.txHash)}`);
+    console.log(`${name}: ${toHex0x(result.address)}`);
+    return result.address;
   };
   const execute = async (invocation: Invocation): Promise<void> => {
-    const hash = await wallet.execute({ invocation, gasLimit: GAS_LIMIT });
-    console.log(`Setup transaction: ${toHex0x(hash)}`);
-    requireSuccess(
-      (await wallet.waitForTransactionReceipt(hash, { timeoutMs: 60_000 }))
-        .execResult,
+    const { txHash } = await wallet.executeAndWait(
+      { invocation, gasLimit: GAS_LIMIT },
+      { timeoutMs: 60_000 },
     );
+    console.log(`Setup transaction: ${toHex0x(txHash)}`);
   };
 
   await mkdir(dirname(environmentPath), { recursive: true });

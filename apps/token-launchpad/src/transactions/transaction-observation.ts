@@ -1,79 +1,91 @@
 import {
-  bytesEqual,
-  fromHex0x,
+  hashFromHex,
+  toHex0x,
+  TransactionReceiptTimeoutError,
+  TransactionRejectedError,
   type CoreGroundhogClient,
+  type TransactionReceipt,
 } from "@groundhogchain/client";
-import { DefaultWallet } from "@groundhogchain/client/contracts";
-import { sha256Hash } from "@groundhogchain/protocol";
-import type { AppConfig } from "@/config";
-import { assertExpectedNetwork } from "@/groundhog/client";
-import { outcomeFromReceipt, outcomeFromStatus } from "@/transactions/outcome";
-import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
+import {
+  ExecutionDecodeError,
+  ExecutionReturnUnavailableError,
+  TransactionExecutionError,
+  TransactionObservationError,
+} from "@groundhogchain/client/wallet";
+import { ExecResult, networkHash } from "@groundhogchain/protocol";
+import type { WriteResult } from "./write-boundary";
 
-// Observation uses only public RPC and remains usable after the wallet is disposed.
+export function receiptResult(receipt: TransactionReceipt): WriteResult {
+  return {
+    kind:
+      receipt.execResult === ExecResult.ExecResultOK
+        ? "committedSuccess"
+        : "committedFailure",
+    hash: toHex0x(receipt.txHash),
+    receipt,
+  };
+}
+
+export function observationFailure(hash: string, error: unknown): WriteResult {
+  if (error instanceof TransactionRejectedError)
+    return { kind: "invalid", hash, reason: error.reason };
+  if (error instanceof TransactionReceiptTimeoutError) {
+    const status = error.lastStatus?.status;
+    return {
+      kind: "indeterminate",
+      hash,
+      reason: error.cause
+        ? "disconnect"
+        : status === "unknown" ||
+            status === "recentFailure" ||
+            status === "other"
+          ? status
+          : "timeout",
+    };
+  }
+  return {
+    kind: "indeterminate",
+    hash,
+    reason: error instanceof TypeError ? "disconnect" : "other",
+  };
+}
+
+// Decoding failure must preserve commitment; the workflow verifies the original receipt.
+export function executionFailure(error: unknown): WriteResult | undefined {
+  if (
+    error instanceof TransactionExecutionError ||
+    error instanceof ExecutionDecodeError ||
+    error instanceof ExecutionReturnUnavailableError
+  )
+    return receiptResult(error.receipt);
+  if (error instanceof TransactionObservationError)
+    return observationFailure(toHex0x(error.txHash), error.cause);
+}
+
+// Public observation remains available after the signing wallet is disposed.
 export function createTransactionObserver(
-  config: Pick<AppConfig, "networkIdHex">,
-  client: CoreGroundhogClient,
-  options: { maxPolls?: number; delay?: () => Promise<void>; preserveWalletReturns?: boolean } = {},
-): WriteBoundary["observe"] {
-  return async (hashHex) => {
-    if (!/^0x[0-9a-f]{64}$/.test(hashHex))
+  config: { networkIdHex: string },
+  client: Pick<CoreGroundhogClient, "waitForTransactionReceipt">,
+): (hash: string) => Promise<WriteResult> {
+  return async (hash) => {
+    if (!/^0x[0-9a-f]{64}$/.test(hash))
       return {
         kind: "preSubmissionFailure",
         hash: null,
         message: "The stored transaction hash is invalid",
       };
-    const hash = sha256Hash(fromHex0x(hashHex));
-    let errors = 0;
-    let reason: Extract<WriteResult, { kind: "indeterminate" }>["reason"] =
-      "timeout";
-    for (let attempt = 0; attempt < (options.maxPolls ?? 40); attempt++) {
-      try {
-        await assertExpectedNetwork(client, config.networkIdHex);
-        const receipt = await client.getTransactionReceipt(hash);
-        if (receipt !== null) {
-          if (!bytesEqual(receipt.txHash, hash))
-            return { kind: "indeterminate", hash: hashHex, reason: "other" };
-          const outcome = outcomeFromReceipt(receipt);
-          if (outcome.kind === "committedSuccess") {
-            if (options.preserveWalletReturns)
-              return { kind: "committedSuccess", hash: hashHex, receipt };
-            try {
-              const returns =
-                DefaultWallet.execute.decodeReceipt(receipt).value;
-              if (returns.length !== 1)
-                throw new Error("Expected one wallet child return");
-              return {
-                kind: "committedSuccess",
-                hash: hashHex,
-                receipt: { ...receipt, returnData: returns[0]! },
-              };
-            } catch {
-              // Keep committed evidence; verification will report malformed return data.
-              return {
-                kind: "committedSuccess",
-                hash: hashHex,
-                receipt: { ...receipt, returnData: null },
-              };
-            }
-          }
-          if (outcome.kind === "committedFailure")
-            return { kind: "committedFailure", hash: hashHex, receipt };
-        }
-        const outcome = outcomeFromStatus(
-          await client.getTransactionStatus(hash),
-        );
-        errors = 0;
-        if (outcome.kind === "invalid")
-          return { kind: "invalid", hash: hashHex, reason: outcome.reason };
-        if (outcome.kind === "indeterminate") reason = outcome.reason;
-      } catch {
-        if (++errors >= 2)
-          return { kind: "indeterminate", hash: hashHex, reason: "disconnect" };
-      }
-      await (options.delay?.() ??
-        new Promise((resolve) => setTimeout(resolve, 500)));
+    try {
+      return receiptResult(
+        await client.waitForTransactionReceipt(hashFromHex(hash), {
+          expectedNetworkHash: networkHash(
+            hashFromHex(`0x${config.networkIdHex}`),
+          ),
+          timeoutMs: 20_000,
+          pollingIntervalMs: 500,
+        }),
+      );
+    } catch (error) {
+      return observationFailure(hash, error);
     }
-    return { kind: "indeterminate", hash: hashHex, reason };
   };
 }

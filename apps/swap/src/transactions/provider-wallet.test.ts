@@ -1,17 +1,26 @@
 import {
   addressFromHex,
   hashFromHex,
+  TransactionRejectedError,
+  TransactionReceiptTimeoutError,
   type GroundhogClient,
+  type TransactionReceipt,
 } from "@groundhogchain/client";
+import {
+  TransactionExecutionError,
+  TransactionObservationError,
+  type ProviderWalletClient,
+  type ProviderExecutionOptions,
+} from "@groundhogchain/client/wallet";
 import {
   calldata,
   contractEntrypointID,
   ContractType,
   ExecResult,
   gasAmount,
+  blockHeight,
   type Transaction,
 } from "@groundhogchain/protocol";
-import type { ProviderWalletClient } from "@groundhogchain/client/wallet";
 import { describe, expect, it, vi } from "vitest";
 import type { GlobalConfig } from "@/config";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
@@ -35,9 +44,9 @@ const target = {
   gas_limit: gasAmount(1n),
   calldata: calldata(new Uint8Array()),
 };
-const receipt = {
+const receipt: TransactionReceipt = {
   txHash: hashFromHex(hash),
-  height: 11n,
+  height: blockHeight(11n),
   execResult: ExecResult.ExecResultOK,
   events: [],
   returnData: new Uint8Array(),
@@ -45,13 +54,28 @@ const receipt = {
 };
 
 function fixture() {
+  const pending = {
+    hash,
+    signedTransaction: "0x00",
+    networkHash: config.networkIdHex,
+    account: { address: hex("01"), publicKey: hex("02"), nonce: "0" },
+  };
   const wallet = {
-    getCapabilities: vi.fn().mockResolvedValue({ account: hex("01"), networkHash: config.networkIdHex, atomicBatch: { maxCalls: 16 } }),
-    prepareBatchExecution: vi.fn().mockResolvedValue({} as Transaction),
-    prepareExecution: vi.fn().mockResolvedValue({} as Transaction),
-    signTransaction: vi
+    prepareDeployment: vi.fn(),
+    deployContractAndWait: vi.fn(),
+    executeCallsAndWait: vi.fn(),
+    executeAndWait: vi.fn<ProviderWalletClient["executeAndWait"]>(
+      async (_request, options) => {
+        await options.onSigned(pending);
+        return { txHash: receipt.txHash, receipt };
+      },
+    ),
+    getCapabilities: vi
       .fn()
-      .mockResolvedValue({ signedTransaction: "0x00", hash }),
+      .mockResolvedValue({ atomicBatch: { maxCalls: 16 } }),
+    prepareBatchExecution: vi.fn().mockResolvedValue({} as Transaction),
+    prepareExecution: vi.fn(),
+    signTransaction: vi.fn().mockResolvedValue(pending),
     submitTransaction: vi.fn().mockResolvedValue({ hash }),
     dispose: vi.fn(),
   } satisfies ProviderWalletClient;
@@ -59,9 +83,7 @@ function fixture() {
     getNetworkInfo: vi
       .fn()
       .mockResolvedValue({ networkHash: new Uint8Array(32) }),
-    getTransactionReceipt: vi.fn().mockResolvedValue(receipt),
-    getTransactionStatus: vi.fn().mockResolvedValue({ status: "pending" }),
-    sendTransaction: vi.fn(),
+    waitForTransactionReceipt: vi.fn().mockResolvedValue(receipt),
   };
   const artifact = {
     contract_type: ContractType.kRv32,
@@ -72,269 +94,173 @@ function fixture() {
     config,
     client as unknown as GroundhogClient,
     wallet,
-    { maxPolls: 2, delay: async () => {}, loadArtifact },
+    { loadArtifact },
   );
-  return { wallet, client, boundary, loadArtifact, artifact };
+  return { wallet, client, boundary, artifact, loadArtifact };
 }
 
 describe("provider write boundary", () => {
-  it("funds the crank frame and enclosing wallet transaction for an eight-request batch", async () => {
-    const { wallet, boundary } = fixture();
+  it("keeps the calibrated crank frame and enclosing wallet budget", async () => {
+    const { boundary, wallet } = fixture();
     const invocation = buildProcessRequestsTarget(addressFromHex(hex("06")));
-    // `budget_for_batch(8)`: EPILOGUE_GAS + 8 * REQUEST_GAS_MAX. A crank that
-    // declares less than this is refused outright when eight or more requests
-    // are waiting, so the frame has to clear it.
-    const batchFloor = 200_000n + 8n * 1_500_000n;
-    expect(invocation.gas_limit).toBeGreaterThan(batchFloor);
-    await expect(boundary.execute(invocation)).resolves.toMatchObject({
-      kind: "committedSuccess",
-    });
-    expect(wallet.prepareExecution).toHaveBeenCalledWith({
-      invocation,
-      gasLimit: 18_700_000n,
-      expiryBlocks: 1_000n,
-    });
-    expect(18_700_000n - invocation.gas_limit).toBe(5_000_000n);
-  });
-
-  it("does not prepare a transaction against a different RPC network", async () => {
-    const { client, wallet, boundary } = fixture();
-    client.getNetworkInfo.mockResolvedValue({
-      networkHash: new Uint8Array(32).fill(1),
-    });
-    await expect(boundary.execute(target)).resolves.toMatchObject({
-      kind: "preSubmissionFailure",
-    });
-    expect(wallet.prepareExecution).not.toHaveBeenCalled();
-    expect(wallet.signTransaction).not.toHaveBeenCalled();
-  });
-
-  it("keeps the original hash unresolved when the RPC network changes during recovery", async () => {
-    const { client, boundary } = fixture();
-    client.getNetworkInfo.mockResolvedValue({
-      networkHash: new Uint8Array(32).fill(1),
-    });
-    client.getTransactionReceipt.mockResolvedValue(null);
-    client.getTransactionStatus.mockResolvedValue({
-      status: "invalid",
-      reason: "expired",
-    });
-    await expect(boundary.observe!(hash)).resolves.toMatchObject({
-      kind: "indeterminate",
-      hash,
-    });
-    expect(client.getTransactionReceipt).not.toHaveBeenCalled();
-    expect(client.getTransactionStatus).not.toHaveBeenCalled();
-  });
-  it("awaits durable hash persistence before submitting approved bytes, then observes via public RPC", async () => {
-    const { wallet, client, boundary, loadArtifact } = fixture();
-    let persisted!: () => void;
-    const onSigned = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          persisted = resolve;
-        }),
+    expect(invocation.gas_limit).toBeGreaterThan(200_000n + 8n * 1_500_000n);
+    expect((await boundary.execute(invocation)).kind).toBe("committedSuccess");
+    expect(wallet.executeAndWait).toHaveBeenCalledWith(
+      { invocation, gasLimit: 18_700_000n, expiryBlocks: 1_000n },
+      expect.anything(),
     );
-    const execution = boundary.execute(target, { onSigned });
-    await vi.waitFor(() => expect(onSigned).toHaveBeenCalledWith(hash));
-    expect(wallet.submitTransaction).not.toHaveBeenCalled();
-    persisted();
-    await expect(execution).resolves.toMatchObject({
-      kind: "committedSuccess",
-      hash,
-    });
-    expect(wallet.prepareExecution).toHaveBeenCalledWith({
-      invocation: target,
-      gasLimit: 10_000_000n,
-      expiryBlocks: 1_000n,
-    });
-    expect(wallet.submitTransaction).toHaveBeenCalledWith({
-      signedTransaction: "0x00",
-      hash,
-    });
-    expect(client.sendTransaction).not.toHaveBeenCalled();
-    expect(loadArtifact).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])(
-    "never submits when the persistence callback fails (async=%s)",
-    async (asyncFailure) => {
-      const { wallet, boundary } = fixture();
-      const onSigned = () => {
-        if (asyncFailure) return Promise.reject(new Error("storage failed"));
-        throw new Error("storage failed");
-      };
-      await expect(
-        boundary.execute(target, { onSigned }),
-      ).resolves.toMatchObject({
-        kind: "preSubmissionFailure",
-        message: "storage failed",
-      });
-      expect(wallet.submitTransaction).not.toHaveBeenCalled();
-    },
-  );
+  it("delegates single execution and forwards durable persistence to the SDK", async () => {
+    const { boundary, wallet } = fixture();
+    const onSigned = vi.fn();
+    expect(await boundary.execute(target, { onSigned })).toMatchObject({
+      kind: "committedSuccess",
+      hash,
+      receipt,
+    });
+    expect(onSigned).toHaveBeenCalledExactlyOnceWith(hash);
+    expect(wallet.prepareExecution).not.toHaveBeenCalled();
+    expect(wallet.submitTransaction).not.toHaveBeenCalled();
+    const controls: ProviderExecutionOptions =
+      wallet.executeAndWait.mock.calls[0]![1];
+    expect(controls.wait).toMatchObject({
+      expectedNetworkHash: new Uint8Array(32),
+      timeoutMs: 20_000,
+    });
+  });
 
-  it.each(["prepareExecution", "signTransaction"] as const)(
-    "does not submit after %s fails",
-    async (method) => {
-      const { wallet, boundary } = fixture();
-      wallet[method].mockRejectedValue(new Error("Rejected"));
-      await expect(boundary.execute(target)).resolves.toMatchObject({
-        kind: "preSubmissionFailure",
-      });
-      expect(wallet.submitTransaction).not.toHaveBeenCalled();
-    },
-  );
+  it("rejects wrong read networks and artifact mismatches before asking the wallet", async () => {
+    const { boundary, wallet, client, loadArtifact } = fixture();
+    client.getNetworkInfo.mockResolvedValueOnce({
+      networkHash: new Uint8Array(32).fill(1),
+    });
+    expect((await boundary.execute(target)).kind).toBe("preSubmissionFailure");
+    loadArtifact.mockRejectedValue(new Error("hash mismatch"));
+    expect(
+      (
+        await boundary.execute({
+          ...target,
+          invoked_address: config.factoryAddress,
+          entrypoint: SwapFactory.createPair.entrypoint,
+        })
+      ).kind,
+    ).toBe("preSubmissionFailure");
+    expect(wallet.executeAndWait).not.toHaveBeenCalled();
+  });
 
-  it("attaches the LP artifact only to the configured factory's createPair", async () => {
-    const { wallet, boundary, loadArtifact, artifact } = fixture();
-    const creation = {
+  it("attaches code only to the configured factory createPair", async () => {
+    const { boundary, wallet, loadArtifact, artifact } = fixture();
+    await boundary.execute({
       ...target,
       invoked_address: config.factoryAddress,
       entrypoint: SwapFactory.createPair.entrypoint,
-    };
-    await boundary.execute(creation);
-    expect(loadArtifact).toHaveBeenCalledWith(config.poolTokenHash);
-    expect(wallet.prepareExecution).toHaveBeenLastCalledWith({
-      invocation: creation,
-      gasLimit: 10_000_000n,
-      expiryBlocks: 1_000n,
-      contractsToDeploy: [artifact],
     });
-    await boundary.execute({
-      ...creation,
-      invoked_address: config.routerAddress,
-    });
+    expect(wallet.executeAndWait.mock.calls[0]![0].contractsToDeploy).toEqual([
+      artifact,
+    ]);
     await boundary.execute({
       ...target,
-      invoked_address: config.factoryAddress,
+      entrypoint: SwapFactory.createPair.entrypoint,
     });
-    expect(loadArtifact).toHaveBeenCalledTimes(1);
-    expect(wallet.prepareExecution.mock.calls[1]?.[0]).not.toHaveProperty(
-      "contractsToDeploy",
-    );
-    expect(wallet.prepareExecution.mock.calls[2]?.[0]).not.toHaveProperty(
-      "contractsToDeploy",
-    );
+    expect(
+      wallet.executeAndWait.mock.calls[1]![0].contractsToDeploy,
+    ).toBeUndefined();
+    expect(loadArtifact).toHaveBeenCalledExactlyOnceWith(config.poolTokenHash);
   });
 
-  it("artifact failure happens before preparation or signing", async () => {
-    const { wallet, boundary, loadArtifact } = fixture();
-    loadArtifact.mockRejectedValue(new Error("hash mismatch"));
-    await expect(
-      boundary.execute({
-        ...target,
-        invoked_address: config.factoryAddress,
-        entrypoint: SwapFactory.createPair.entrypoint,
-      }),
-    ).resolves.toMatchObject({
-      kind: "preSubmissionFailure",
-      message: "hash mismatch",
-    });
-    expect(wallet.prepareExecution).not.toHaveBeenCalled();
-    expect(wallet.signTransaction).not.toHaveBeenCalled();
-  });
+  it.each([false, true])(
+    "awaits persistence before broadcasting raw batches (failure=%s)",
+    async (failure) => {
+      const { boundary, wallet, client } = fixture();
+      let release!: () => void;
+      const onSigned = vi.fn(async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        if (failure) throw new Error("storage full");
+      });
+      const result = boundary.executeBatch!([target, target], { onSigned });
+      await vi.waitFor(() => expect(onSigned).toHaveBeenCalledOnce());
+      expect(wallet.submitTransaction).not.toHaveBeenCalled();
+      release();
+      expect((await result).kind).toBe(
+        failure ? "preSubmissionFailure" : "committedSuccess",
+      );
+      expect(wallet.submitTransaction).toHaveBeenCalledTimes(failure ? 0 : 1);
+      expect(client.waitForTransactionReceipt).toHaveBeenCalledTimes(
+        failure ? 0 : 1,
+      );
+      expect(wallet.prepareBatchExecution.mock.calls[0]![0].gasLimit).toBe(
+        5_000_002n,
+      );
+    },
+  );
 
-  it("observes the original hash after ambiguous submit failure without re-signing", async () => {
-    const { wallet, client, boundary } = fixture();
-    wallet.submitTransaction.mockRejectedValue(new Error("disconnected"));
-    client.getTransactionReceipt.mockRejectedValue(new Error("offline"));
-    await expect(boundary.execute(target)).resolves.toEqual({
-      kind: "indeterminate",
-      hash,
-      reason: "disconnect",
-    });
-    expect(client.getTransactionReceipt).toHaveBeenCalledWith(
-      hashFromHex(hash),
-    );
-    expect(wallet.signTransaction).toHaveBeenCalledTimes(1);
-    expect(wallet.submitTransaction).toHaveBeenCalledTimes(1);
-  });
-
-  it("can recover a committed receipt even when submission threw", async () => {
-    const { wallet, boundary } = fixture();
+  it("observes the original batch hash after ambiguous submit without re-signing", async () => {
+    const { boundary, wallet, client } = fixture();
     wallet.submitTransaction.mockRejectedValue(
       new Error("lost acknowledgement"),
     );
-    await expect(boundary.execute(target)).resolves.toMatchObject({
-      kind: "committedSuccess",
-      hash,
-    });
+    expect((await boundary.executeBatch!([target, target])).kind).toBe(
+      "committedSuccess",
+    );
+    expect(client.waitForTransactionReceipt).toHaveBeenCalledWith(
+      receipt.txHash,
+      expect.anything(),
+    );
+    expect(wallet.signTransaction).toHaveBeenCalledOnce();
+    expect(wallet.submitTransaction).toHaveBeenCalledOnce();
   });
 
-  it("observes the approved hash when the SDK rejects a submission hash mismatch", async () => {
-    const { wallet, client, boundary } = fixture();
-    wallet.submitTransaction.mockRejectedValue(
-      new Error(
-        "Provider submission hash mismatch; broadcast may have occurred",
+  it("retains committed failure and uncertain submission evidence", async () => {
+    const { boundary, wallet } = fixture();
+    wallet.executeAndWait.mockRejectedValueOnce(
+      new TransactionExecutionError({ ...receipt, execResult: 1 }),
+    );
+    expect(await boundary.execute(target)).toMatchObject({
+      kind: "committedFailure",
+      hash,
+    });
+    wallet.executeAndWait.mockRejectedValueOnce(
+      new TransactionObservationError(
+        receipt.txHash,
+        new TransactionReceiptTimeoutError(receipt.txHash, undefined),
       ),
     );
-    await expect(boundary.execute(target)).resolves.toMatchObject({
-      kind: "committedSuccess",
+    expect(await boundary.execute(target)).toEqual({
+      kind: "indeterminate",
       hash,
+      reason: "timeout",
     });
-    expect(client.getTransactionReceipt).toHaveBeenCalledWith(
-      hashFromHex(hash),
-    );
   });
 
-  it("observes signed requests while disconnected, but refuses new writes", async () => {
+  it("recovers through public RPC while disconnected, pinned to the original network", async () => {
     const { client } = fixture();
     const boundary = createProviderWriteBoundary(
       config,
       client as unknown as GroundhogClient,
     );
-    await expect(boundary.execute(target)).resolves.toMatchObject({
-      kind: "preSubmissionFailure",
-    });
-    await expect(boundary.observe?.(hash)).resolves.toMatchObject({
+    expect((await boundary.execute(target)).kind).toBe("preSubmissionFailure");
+    expect(await boundary.observe!(hash)).toMatchObject({
       kind: "committedSuccess",
       hash,
+      receipt,
     });
-    await expect(boundary.observe?.("invalid")).resolves.toMatchObject({
-      kind: "preSubmissionFailure",
-    });
-    expect(client.getTransactionReceipt).toHaveBeenCalledTimes(1);
-    expect(client.sendTransaction).not.toHaveBeenCalled();
-  });
-
-  it("tolerates a transient polling failure and a temporarily unknown status", async () => {
-    const { client, boundary } = fixture();
-    client.getTransactionReceipt.mockRejectedValueOnce(new Error("offline"));
-    await expect(boundary.observe?.(hash)).resolves.toMatchObject({
-      kind: "committedSuccess",
-    });
-    client.getTransactionReceipt.mockResolvedValueOnce(null);
-    client.getTransactionStatus.mockResolvedValue({ status: "unknown" });
-    await expect(boundary.observe?.(hash)).resolves.toMatchObject({
-      kind: "committedSuccess",
-    });
-  });
-
-  it("requires a matching receipt and distinguishes committed failure from invalid status", async () => {
-    const { client, boundary } = fixture();
-    client.getTransactionReceipt.mockResolvedValueOnce({
-      ...receipt,
-      txHash: hashFromHex(hex("ff")),
-    });
-    await expect(boundary.observe?.(hash)).resolves.toMatchObject({
-      kind: "indeterminate",
-      reason: "other",
-    });
-    client.getTransactionReceipt.mockResolvedValueOnce({
-      ...receipt,
-      execResult: 1,
-    });
-    await expect(boundary.observe?.(hash)).resolves.toMatchObject({
-      kind: "committedFailure",
-    });
-    client.getTransactionReceipt.mockResolvedValue(null);
-    client.getTransactionStatus.mockResolvedValue({
-      status: "invalid",
-      reason: "expired",
-    });
-    await expect(boundary.observe?.(hash)).resolves.toMatchObject({
+    expect(client.waitForTransactionReceipt).toHaveBeenCalledWith(
+      receipt.txHash,
+      expect.objectContaining({ expectedNetworkHash: new Uint8Array(32) }),
+    );
+    expect((await boundary.observe!("invalid")).kind).toBe(
+      "preSubmissionFailure",
+    );
+    expect(client.waitForTransactionReceipt).toHaveBeenCalledOnce();
+    client.waitForTransactionReceipt.mockRejectedValueOnce(
+      new TransactionRejectedError(receipt.txHash, "expired"),
+    );
+    expect(await boundary.observe!(hash)).toEqual({
       kind: "invalid",
+      hash,
       reason: "expired",
     });
   });

@@ -10,6 +10,7 @@ import {
   HttpTransport,
   toHex0x,
 } from "@groundhogchain/client";
+import { getContract } from "@groundhogchain/client/contract";
 import { ExecResult, networkHash } from "@groundhogchain/protocol";
 import type { AppConfig } from "../config";
 import { Counter } from "../contracts/generated/counter";
@@ -40,7 +41,11 @@ export async function createCounterConnection(
     }),
   });
   const signerAddress = addressFromHex(config.signerAddress);
-  const contract = addressFromHex(config.counterAddress);
+  const counter = getContract({
+    binding: Counter,
+    address: addressFromHex(config.counterAddress),
+    client,
+  });
 
   return {
     async read() {
@@ -48,11 +53,11 @@ export async function createCounterConnection(
       const network = await client.getNetworkInfo();
       if (!bytesEqual(network.networkHash, expected))
         throw new Error("Network changed. Check the app configuration.");
-      const [counter, balance] = await Promise.all([
-        Counter.get.view({ client, contract, caller: signerAddress }),
+      const [counterView, balance] = await Promise.all([
+        counter.get.view({ caller: signerAddress }),
         client.getBalance(signerAddress),
       ]);
-      return { value: counter.value, signerBalance: balance.rawBalance };
+      return { value: counterView.value, signerBalance: balance.rawBalance };
     },
     async prepare(direction) {
       const response = await fetch(new URL("/api/prepare", rpcUrl), {

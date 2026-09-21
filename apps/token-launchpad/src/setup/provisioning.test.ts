@@ -20,10 +20,9 @@ import {
   hashContract,
   toHex0x,
 } from "@groundhogchain/client";
-import { DefaultWallet, ERC20 } from "@groundhogchain/client/contracts";
+import { ERC20 } from "@groundhogchain/client/contracts";
 import {
   ContractType,
-  ExecResult,
   contractAddress,
   gasAmount,
   HOG_ADDRESS,
@@ -37,9 +36,8 @@ const mocks = vi.hoisted(() => ({
   getVersion: vi.fn(),
   requestAirdrop: vi.fn(),
   getBalance: vi.fn(),
-  sendInvocation: vi.fn(),
-  execute: vi.fn(),
-  waitForTransactionReceipt: vi.fn(),
+  deployContractAndWait: vi.fn(),
+  executeAndWait: vi.fn(),
   deriveContractAddress: vi.fn(),
   rename: vi.fn(),
   link: vi.fn(),
@@ -49,10 +47,18 @@ vi.mock("node:fs/promises", async (original) => ({
   rename: mocks.rename,
   link: mocks.link,
 }));
-vi.mock("@groundhogchain/client/contract", async (original) => ({
-  ...(await original<typeof import("@groundhogchain/client/contract")>()),
-  deriveContractAddress: mocks.deriveContractAddress,
-}));
+vi.mock("@groundhogchain/client/wallet", async (original) => {
+  const sdk = await original<typeof import("@groundhogchain/client/wallet")>();
+  return {
+    ...sdk,
+    prepareContractDeployment: (
+      input: Parameters<typeof sdk.prepareContractDeployment>[0],
+    ) => ({
+      ...sdk.prepareContractDeployment(input),
+      address: mocks.deriveContractAddress(),
+    }),
+  };
+});
 vi.mock("@groundhogchain/client", async (original) => ({
   ...(await original<typeof import("@groundhogchain/client")>()),
   createGroundhogClient: vi.fn(async () => ({ getVersion: mocks.getVersion })),
@@ -63,7 +69,7 @@ const factory = contractAddress(new Uint8Array(32).fill(3));
 const gas = gasAmount(10_000_000n);
 const contract = (name: string) => ({
   contract_type: ContractType.kRv32 as const,
-  rv32_contract: { data: Buffer.from(name) },
+  rv32_contract: { data: new Uint8Array(Buffer.from(name)) },
 });
 const config = {
   token_code_hash: fixedBytes(hashContract(contract("standard_token")), 32),
@@ -147,20 +153,14 @@ beforeEach(async () => {
     return { status: { result: "ok" } };
   });
   mocks.getBalance.mockResolvedValue({ rawBalance: 1_000_000_000n });
-  mocks.sendInvocation.mockImplementation(async () => {
+  mocks.deployContractAndWait.mockImplementation(async (deployment) => {
     phases.push("deploy");
-    return new Uint8Array(32);
+    return { txHash: new Uint8Array(32), address: deployment.address };
   });
-  mocks.execute.mockImplementation(async () => {
+  mocks.executeAndWait.mockImplementation(async () => {
     phases.push("execute");
-    return new Uint8Array(32);
+    return { txHash: new Uint8Array(32) };
   });
-  mocks.waitForTransactionReceipt.mockResolvedValue({
-    execResult: ExecResult.ExecResultOK,
-  });
-  vi.spyOn(DefaultWallet.deploy, "decodeReceipt").mockReturnValue({
-    value: factory,
-  } as never);
   vi.spyOn(StandardTokenFactory.config, "view").mockResolvedValue({
     value: config,
   } as never);
@@ -217,7 +217,7 @@ describe("infrastructure-only launchpad provisioning", () => {
         GROUNDHOG_RPC_URL: "https://rpc.example.com",
       }),
     ).rejects.toThrow(/balance bookkeeping cost/);
-    expect(mocks.sendInvocation).not.toHaveBeenCalled();
+    expect(mocks.deployContractAndWait).not.toHaveBeenCalled();
     expect(await readFile(output, "utf8")).toBe("previous environment\n");
   });
 
@@ -350,16 +350,14 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(mocks.requestAirdrop).toHaveBeenCalledWith();
     const account = vi.mocked(createWalletClient).mock.calls[0]![0].account;
     expect(account.kind).toBe("pubkey");
-    const request = mocks.sendInvocation.mock.calls[0]![0];
-    expect(request.contractsToDeploy).toEqual([
-      contract("standard_token_factory"),
-    ]);
-    expect(request.invocation.invoked_address).toEqual(account.address);
-    expect(request.invocation.entrypoint).toEqual(
-      DefaultWallet.deploy.entrypoint,
-    );
+    const [deployment, gasLimit, options] =
+      mocks.deployContractAndWait.mock.calls[0]!;
+    expect(deployment.contract).toEqual(contract("standard_token_factory"));
+    expect(deployment.deployer).toEqual(account.address);
+    expect(gasLimit).toBe(gas);
+    expect(options).toEqual({ timeoutMs: 60_000 });
     expect(
-      mocks.execute.mock.calls.map(([request]) => request.invocation),
+      mocks.executeAndWait.mock.calls.map(([request]) => request.invocation),
     ).toEqual([
       ERC20.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: HOG_ADDRESS,
@@ -425,13 +423,11 @@ describe("infrastructure-only launchpad provisioning", () => {
         status: { result: "reverted" },
       });
     if (phase === "receipt")
-      mocks.waitForTransactionReceipt.mockResolvedValueOnce({
-        execResult: -1,
-      });
+      mocks.executeAndWait.mockRejectedValueOnce(new Error("Execution failed"));
     if (phase === "address")
-      vi.mocked(DefaultWallet.deploy.decodeReceipt).mockReturnValueOnce({
-        value: HOG_ADDRESS,
-      } as never);
+      mocks.deployContractAndWait.mockRejectedValueOnce(
+        new Error("Deployment address mismatch"),
+      );
     if (phase === "verification")
       vi.mocked(StandardTokenFactory.config.view).mockResolvedValueOnce({
         value: { ...config, creation_fee: 1n },
@@ -480,7 +476,7 @@ describe("infrastructure-only launchpad provisioning", () => {
     await writeFile(manifest, JSON.stringify(manifestContents()));
     vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", manifest);
     await main();
-    expect(mocks.sendInvocation).toHaveBeenCalledTimes(1);
+    expect(mocks.deployContractAndWait).toHaveBeenCalledTimes(1);
   });
 
   it.each(["ab".repeat(32), `0x${"AB".repeat(32)}`, `0X${"ab".repeat(32)}`])(
