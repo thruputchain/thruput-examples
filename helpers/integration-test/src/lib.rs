@@ -608,7 +608,8 @@ mod tests {
             "txHash": format!("0x{}", "00".repeat(32)),
             "height": 10,
             "status": status,
-            "events": []
+            "events": [],
+            "gasUsed": 0
         }))
         .expect("test receipt should deserialize")
     }
