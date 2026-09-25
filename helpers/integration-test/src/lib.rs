@@ -608,7 +608,10 @@ mod tests {
             "txHash": format!("0x{}", "00".repeat(32)),
             "height": 10,
             "status": status,
-            "events": []
+            "events": [],
+            // Committed by consensus since protocol-rs 0.38.0; the receipt
+            // type requires it, and these fixtures assert on status alone.
+            "gasUsed": 0
         }))
         .expect("test receipt should deserialize")
     }
