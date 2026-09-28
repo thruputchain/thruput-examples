@@ -11,7 +11,8 @@ Use Node.js 22.13 or newer and run `npm ci` from the repository root with the
 [npm registry authentication](../../README.md#install-swap-and-launchpad-dependencies)
 configured.
 
-Use **Groundhog CLI 0.18.0** and **hog-devnode 0.1.27-rc.7** for local checks.
+Use **Groundhog CLI 0.19.0-pre.1** (the minimum `scripts/check-groundhog-version.sh`
+enforces) and the **hog-devnode** from the same client bundle for local checks.
 Use compatible CLI/devnode builds: a newer CLI can
 require a runtime manifest that an older devnode does not provide.
 
@@ -62,7 +63,8 @@ Recorded deployment on the hosted network:
 | Initial value | `1,000,000` |
 
 This deployment was verified on **2026-09-15 UTC** against RPC **0.17.2**, wire
-format **5.2.0**. Its signer received a confirmed **1,000 HOG** airdrop.
+format **5.2.0**; the gateway has since moved to wire format **6.0.0**, so
+compare `groundhog_version` and the network hash before relying on it. Its signer received a confirmed **1,000 HOG** airdrop.
 
 Both setup commands build the counter and regenerate bindings before running
 their TypeScript setup script. To create a fresh Devnet demo:
@@ -119,7 +121,7 @@ file while using that deployment; run setup again when you want a fresh demo.
 
 ## SDK integration
 
-Counter uses the published client 0.10.0 and bindings generated with CLI 0.18.0.
+Counter uses the published client 0.10.0 and bindings generated with CLI 0.19.0-pre.1.
 `src/groundhog/client.ts` binds the Counter address and public client once with
 `getContract`, then refreshes with `counter.get.view({ caller: signerAddress })`.
 Counter and signer-balance reads run concurrently within each scheduled refresh.

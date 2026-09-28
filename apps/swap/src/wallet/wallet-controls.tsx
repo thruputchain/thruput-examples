@@ -12,7 +12,7 @@ export function WalletInstallBanner() {
       className="w-full bg-primary px-4 py-2 text-center text-sm text-primary-foreground"
     >
       <a
-        href="https://github.com/groundhogchain/hackathon/blob/main/WALLET_SETUP.md"
+        href="https://docs.groundhog.dev/tutorials/connect-a-wallet-to-your-app/"
         className="underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4"
       >
         Install or enable a Thruput Wallet to use this app

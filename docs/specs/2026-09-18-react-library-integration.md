@@ -73,10 +73,9 @@ the repository harness. Review the complete diff for avoidable abstractions,
 duplicate lifecycle code, and obsolete tests. Update this document with outcomes,
 commit, and open a PR from the integration branch into main.
 
-Read Greptile's score in the PR description as well as its review threads. Evaluate
-each finding, fix genuine issues, and reply inline either way. Request another
-review with `@greptileai please rereview` after addressing findings. Pause for human
-review when the latest commit has passing CI and a 5/5 with no remaining feedback.
+Address automated review findings, fix genuine issues, and reply inline either
+way. Pause for human review when the latest commit has passing CI and no
+remaining feedback.
 
 ## Verification approach
 

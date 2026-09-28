@@ -6,7 +6,7 @@ Implemented approval-timeout recovery, progress preservation through reconnects,
 
 ## Summary
 
-{==Daniel's pause could have triggered a wallet approval timeout before any transaction was sent. Block-height expiry is also possible, but the report does not establish it. The reconnect problem needs a browser reproduction before we assign a root cause.==}{>>if we have a 1000 block expiry i doubt it was that, more likely the wallet approval timeout. so lets go down that path first so we dont go down a rabbithole unnecesarily.<<}{id="c1" by="user" at="2026-09-15T21:49:52.118Z"}
+the reporter's pause could have triggered a wallet approval timeout before any transaction was sent. Block-height expiry is also possible, but the report does not establish it. The reconnect problem needs a browser reproduction before we assign a root cause.
 
 Start with the 115-second wallet approval timeout and follow its retry and reconnect behavior. Defer block-expiry investigation and storage changes unless this reproduction points to them. The proposed work is to make approval recovery clear, preserve launch progress through reconnects, and make wallet setup clear.
 
@@ -20,7 +20,7 @@ Start with the 115-second wallet approval timeout and follow its retry and recon
 | Page request: 120 seconds               | Rejects with `Wallet request timed out` and sends cancellation to the extension.                                  | `apps/wallet-extension/src/inpage.ts:57–70`                     |
 | Wallet session: 10 minutes after unlock | Locks the wallet and cancels pending approvals. A worker restart also loses the unlocked session and site grants. | `apps/wallet-extension/src/worker.ts:234–259`, `ui.tsx:478–481` |
 
-The launchpad separately prepares each transaction with a **1,000-block lifetime** before requesting a signature (`apps/token-launchpad/src/transactions/provider-wallet.ts:40–46`). We cannot convert that lifetime into Daniel's waiting time without the relevant chain heights or block rate.
+The launchpad separately prepares each transaction with a **1,000-block lifetime** before requesting a signature (`apps/token-launchpad/src/transactions/provider-wallet.ts:40–46`). We cannot convert that lifetime into the reporter's waiting time without the relevant chain heights or block rate.
 
 ### Best current explanation
 
@@ -30,7 +30,7 @@ The launchpad separately prepares each transaction with a **1,000-block lifetime
 
 3. The UI presents all stored errors under **Launch paused**. For an idle funding step, its action becomes **Fund token address**, rather than an explicit retry message.
 
-4. If Daniel saw the exact **Edit token details** button, the current code says both steps were idle with no saved transaction hashes. That favors a failure during the first approval, before confirmed funding. His wording was approximate, so this is a clue rather than proof.
+4. If the reporter saw the exact **Edit token details** button, the current code says both steps were idle with no saved transaction hashes. That favors a failure during the first approval, before confirmed funding. His wording was approximate, so this is a clue rather than proof.
 
 5. A normal approval timeout uses error code `4001`. It does not itself revoke the site connection or invalidate the SDK signing client. The later disconnection therefore needs another explanation: wallet locking, worker restart, network reconnect, another provider error, or different deployed code.
 
@@ -52,7 +52,7 @@ Relevant files: `launch/executor.ts`, `launch/presentation.ts`, `launch/use-laun
 
 - The full message beneath **Launch paused**, on both occasions.
 
-- Whether Daniel approved funding before the pause, and whether either step showed a transaction hash.
+- Whether the reporter approved funding before the pause, and whether either step showed a transaction hash.
 
 - Roughly how long he waited, whether the wallet locked, and which Reconnect control he used.
 
@@ -68,7 +68,7 @@ Use a test wallet and record the launch step, provider error code, connection ch
 
 2. Complete funding, then leave the creation approval open past 115 seconds. Retry creation.
 
-3. Follow Daniel's full sequence: pause, edit, launch, reconnect, and continue. Include reload during recovery.
+3. Follow the reporter's full sequence: pause, edit, launch, reconnect, and continue. Include reload during recovery.
 
 4. If timeout alone does not explain the disconnection, test the extension toolbar's Reconnect action, then wallet lock and worker restart. Check the app's connection state before and after reconnect.
 
@@ -176,7 +176,7 @@ Required recovery checks:
 
 - New-wallet and restore modes are visually and programmatically distinct.
 
-Investigation checks already run: 45 tests passed across the launchpad executor, launch flow, provider write boundary, and wallet flow; 67 wallet worker tests passed. These establish the current baseline, not a reproduction of Daniel's complete incident.
+Investigation checks already run: 45 tests passed across the launchpad executor, launch flow, provider write boundary, and wallet flow; 67 wallet worker tests passed. These establish the current baseline, not a reproduction of the reporter's complete incident.
 
 ## Review questions
 
@@ -190,7 +190,7 @@ Investigation checks already run: 45 tests passed across the launchpad executor,
 
 comments:
 c2:
-body: "Agreed. The plan now starts with the 115-second approval timeout at each launch step, then follows Daniel's edit and reconnect sequence. Block-expiry investigation and storage migrations are deferred unless that reproduction provides evidence for them. Lock and worker-restart checks are conditional follow-ups."
+body: "Agreed. The plan now starts with the 115-second approval timeout at each launch step, then follows the reporter's edit and reconnect sequence. Block-expiry investigation and storage migrations are deferred unless that reproduction provides evidence for them. Lock and worker-restart checks are conditional follow-ups."
 by: AI
 at: "2026-09-15T21:51:12Z"
 re: c1

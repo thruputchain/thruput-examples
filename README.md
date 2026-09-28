@@ -56,9 +56,6 @@ Each app README contains its setup, configuration, and testing instructions.
 Counter, Swap, and Launchpad share one npm workspace and root lockfile. The wallet has an
 independent install.
 
-Game of Life (atomic and async worlds, frontend, indexer, and test fixtures) now
-lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflife).
-
 ### Install Swap and Launchpad dependencies
 
 Use Node.js **22.13 or newer** and npm. The apps install the published
@@ -119,8 +116,9 @@ dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
 Live checks need a compatible CLI/devnode pair, built contracts, and matching
-generated bindings. Atomic and sequential wallet acceptance both pass with CLI
-`0.18.0` and hog-devnode `0.1.27-rc.7`. Rebuild contracts from the current checkout
+generated bindings. Use the CLI version `scripts/check-groundhog-version.sh`
+requires (currently `0.19.0-pre.1`) and a `hog-devnode` from the same client
+bundle. Rebuild contracts from the current checkout
 before running them. Use a separate checkout if you need to preserve the bindings
 for the recorded Devnet deployment. From the repository root:
 
@@ -168,12 +166,14 @@ transaction or remote deployment. Wallet unit tests run independently through
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI, **version 0.18.0 or newer** (it must match the SDK the
-  contracts build against):
+- The `groundhog` CLI, **version 0.19.0-pre.1 or newer** (it must match the
+  SDK the contracts build against; `scripts/check-groundhog-version.sh` enforces
+  the minimum and every app setup script runs it). An unpinned install picks the
+  latest stable release, which a prerelease minimum will not be, so pin it:
 
   ```sh
   export CARGO_REGISTRIES_GROUNDHOG_INDEX="sparse+https://crates.thruput.network/api/v1/crates/"
-  cargo install --locked --registry groundhog groundhog-cli
+  cargo install --locked --registry groundhog --version =0.19.0-pre.1 groundhog-cli
   ```
 
   (`cargo install` is global, so it does not see this repo's
@@ -183,12 +183,12 @@ transaction or remote deployment. Wallet unit tests run independently through
 
 - Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`).
 - `jq`, used by [`scripts/build-guest.sh`](scripts/build-guest.sh).
-- For RPC-based tests, `groundhog-cli` must be able to find a "devnode" binary
-  from the *same client release*.
-  [`scripts/integration-tests.sh`](scripts/integration-tests.sh) takes the
-  `hog-devnode` sitting beside the CLI on `PATH`, which is the matching one
-  when both come from a client bundle, and checks the two releases agree before
-  starting anything. `GROUNDHOG_DEVNODE_BINARY` overrides the choice.
+- For RPC-based tests, `groundhog test --integration` must be able to find a
+  `hog-devnode` binary from the *same client release*. It looks at
+  `GROUNDHOG_DEVNODE_BINARY`, then a sibling executable beside `groundhog`,
+  then `PATH`; a client bundle satisfies the sibling lookup.
+  [`scripts/integration-tests.sh`](scripts/integration-tests.sh) runs the
+  integration tests for `counter` and `erc20` through that path.
 
 ## Building
 
@@ -198,7 +198,8 @@ Build a contract to a deployable guest binary (also generates the contract spec)
 groundhog build -p fibonacci
 ```
 
-Artifacts land in `target/groundhog/` as `<crate>.rv32a` and `<crate>.spec.xdr`.
+Artifacts land in `target/groundhog/` as `<crate_snake_case>.rv32a` and
+`<crate_snake_case>.spec.xdr` (for example `cross_call.rv32a`).
 
 ## Testing
 
@@ -277,6 +278,11 @@ runs in its own invocation, rather than a contract of its own.
 request-batching driver pattern.  It builds on
 [`unique-ids`](helpers/unique-ids/), which mints ids distinct across
 everything a contract accepts and stands on its own.
+[`integration-test`](helpers/integration-test/) is the shared RPC harness the
+`counter` and `erc20` integration tests use;
+[`token-factory-failing-child`](helpers/token-factory-failing-child/) and
+[`token-factory-test-wallet`](helpers/token-factory-test-wallet/) are test-only
+contracts for the standard-token factory tests.
 
 ### Running tests
 
@@ -308,7 +314,7 @@ remain separate commands listed above; application checks are listed under
 - `scripts/`: contract build/check commands and shared `seed/` tooling.
 - `tests/browser/`, `tests/e2e/`: browser fixtures and cross-app live tests.
 - `tests/token-factory-ts/`: TypeScript contract tests.
-- `docs/specs/`, `docs/superpowers/`: design specifications and AI-assisted development records.
+- `docs/specs/`: design notes for the applications and contracts.
 
 ## License
 

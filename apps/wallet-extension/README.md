@@ -45,7 +45,7 @@ One-time infrastructure setup:
 
 The workflow stores the ZIP and checksum together under `wallet/<zip-sha256>/`. It verifies both public downloads before replacing the single [latest release pointer](https://groundhog-public-release-artifacts-017820684264.s3.us-west-2.amazonaws.com/wallet/latest.json).
 
-Read `latest.json` once to get a matching `url`, `checksumUrl`, and `sha256`. Both URLs use the same immutable content path, so a later publish cannot mix versions. Participant guides should link to that release's ZIP and checksum directly. Publication no longer writes a mutable `wallet/latest/` file pair.
+Read `latest.json` once to get a matching `url`, `checksumUrl`, and `sha256`. Both URLs use the same immutable content path, so a later publish cannot mix versions. Guides should link to that release's ZIP and checksum directly.
 
 Downloads become available after the first successful publish. The publication gate includes the node-free `npm run test:browser -- --connect-only` check, which loads the built extension and exercises connection and approval in an isolated browser profile.
 
@@ -132,7 +132,7 @@ This is an advanced Chrome repair for this unpacked extension. Do not use `chrom
 
 The in-page provider is announced as the `CustomEvent.detail` of `groundhog:announceProvider`, initially and in response to `groundhog:requestProvider`. It coexists with other providers; no global singleton is overwritten. Use `discoverWalletProviders` from `@groundhogchain/client/provider` in the dapp.
 
-Provider identity: `dev.groundhog.wallet`, name `Thruput Wallet`, contract version `1.0.0`. The display-name change does not change provider IDs, storage or vault keys, or messaging protocols.
+Provider identity: `dev.groundhog.wallet`, name `Thruput Wallet`, contract version `1.0.0`.
 
 Supported SDK `ProviderRequest` methods:
 
@@ -182,5 +182,3 @@ Unit tests cover vault tampering and wrong passwords, derivation invariants, str
 For an isolated browser check without a node or funds, run `npm run test:browser -- --connect-only` after building. A local proxy returns mock identity and balance responses and blocks other RPC methods. The check verifies the Thruput display name, stable provider ID, Chrome icon sizes, and the lock → wrong password → unlock → explicit connection approval flow. It also verifies change-event ordering with immediate SDK preparation, preflight cancellation, failed connection cleanup followed by an actual worker restart, and account-scoped balance refresh after a simulated airdrop. The airdrop response is injected in the disposable worker and never reaches a node. UI-only fixtures cover stale portfolio errors and transfer preparations invalidated by account changes, external network changes, or lock.
 
 Set `WALLET_SCREENSHOT_DIR=/tmp/thruput-wallet-screenshots` on that command to capture 400px and 800px layouts. Screenshots cover onboarding, restore, settings, portfolio, send, unlock, errors, keyboard focus, and connection approval. Separate presentation-only fixtures cover signature review, pending/failed transfers, unavailable balances, and loading with reduced motion. Fixtures cannot sign or write storage. Captures reject populated password/phrase fields and visible recovery backups. The temporary browser profile is removed when the check finishes.
-
-During implementation, Chromium unpacked-extension checks also passed: wallet creation, 24-word recovery backup with reauthentication, hiding the backup, lock, provider discovery, connection approval, transaction review and signing, and locked-submit rejection. A live localnet airdrop and a one-base-unit HOG self-transfer both confirmed. The 400px popup and wider extension-page layouts were checked for horizontal overflow. Devnet and non-native token transfers still need deployment-specific acceptance testing.
