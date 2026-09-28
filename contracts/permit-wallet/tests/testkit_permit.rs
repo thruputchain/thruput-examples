@@ -31,6 +31,7 @@ use groundhog_testkit::{
     Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Result, Scenario,
     TestkitError, xdrs,
 };
+use permit_wallet::WalletRequest;
 use sdk::types::transaction::Uniquifier;
 use sdk::types::{Ed25519PublicKey, Ed25519Signature};
 use sdk::xdr::BytesM;
@@ -123,12 +124,13 @@ async fn network_hash(ctx: &AgentContext) -> sdk::types::NetworkHash {
 
 /// What Alice does off-chain: build the preimage from the network, her
 /// wallet, the `(nonce, expiry)` uniquifier and the body's `TYPE_DEF`, then
-/// sign it. Deterministic, so the same inputs reproduce the same bytes.
+/// sign it. Deterministic, so the same inputs reproduce the same bytes. The
+/// body is the wallet's own request type, naming the grant it should mint.
 fn sign_permit(
     network: &sdk::types::NetworkHash,
     wallet: &Address,
     expiry: i64,
-    body: &PermitRequest,
+    body: &WalletRequest,
 ) -> (Operation, Ed25519Signature) {
     let key = SigningKey::from_bytes(&ALICE_SEED);
     let expiry = sdk::BlockHeight::from(expiry);
@@ -241,11 +243,11 @@ fn spender() -> Agent {
         // out of band; here we hold her test-only key.
         let network = network_hash(&ctx).await;
         let expiry = *ctx.network().chain_tip().await?.height + HORIZON;
-        let request = PermitRequest {
+        let request = WalletRequest::Permit(PermitRequest {
             token: sdk_address(&cfg.token),
             spender: sdk_address(&me),
             amount: GRANTED,
-        };
+        });
         let (op, signature) = sign_permit(&network, &cfg.wallet, expiry, &request);
 
         // Relay it: the wallet verifies and mints, the token records the

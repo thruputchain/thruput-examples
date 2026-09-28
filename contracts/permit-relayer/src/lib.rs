@@ -9,6 +9,11 @@
 //! no part: the grant's owner is its minter, and its spender is in the body
 //! the owner signed.
 //!
+//! What it relays is the allowance path, `increase_allowance_signed`: the
+//! grant becomes a standing allowance the spender draws on later through
+//! `transfer_from`. The other path, `transfer_from_signed`, needs no relayer,
+//! since the spender it names makes both calls itself.
+//!
 //! Stateless: no storage, nothing to initialize.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
@@ -27,7 +32,8 @@ pub struct PermitRelayer;
 #[contract]
 impl PermitRelayer {
     /// Take `op` and `signature` to `wallet`, then pass the grant it mints to
-    /// `token`'s `permit`, which records an allowance for the grant's spender.
+    /// `token`'s `increase_allowance_signed`, which adds the granted amount to
+    /// the allowance of the grant's spender.
     ///
     /// A refusal anywhere along the way — an invalid, expired or replayed
     /// signature at the wallet, or a grant the token will not consume —
@@ -42,6 +48,6 @@ impl PermitRelayer {
         let grant: Signed<PermitGrant> = SignedOpClient::new(wallet)
             .execute_signed_op(op, signature)
             .assume();
-        ERC20PermitClient::new(token).permit(grant);
+        ERC20PermitClient::new(token).increase_allowance_signed(grant);
     }
 }
