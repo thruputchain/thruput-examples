@@ -1,6 +1,6 @@
 # groundhog-examples
 
-Example smart contracts and applications for the [Groundhog SDK](https://github.com/groundhogchain/sdk_rs). Each
+Example smart contracts and applications for the [Groundhog SDK](https://docs.groundhog.dev/tools/rust-api-docs/). Each
 crate in this Cargo workspace demonstrates a specific SDK feature, from a minimal stateless contract
 up to cross-contract calls, error handling, and event emission.
 
@@ -112,15 +112,15 @@ Run from the repository root:
 | `npm run test:seed` | Fresh-node seeding, indexed tokens, balances, liquidity, and repeatability |
 | `npm run test:counter` | Fresh-node counter setup, concurrent transactions, and real browser keyboard input; requires a built counter artifact and app |
 
-Set `CHROMIUM_PATH` to your Chromium binary if needed. Browser fixtures default
-to `/usr/bin/chromium`; the live wallet test defaults to `/usr/lib/chromium/chromium`.
+Set `CHROMIUM_PATH` to your Chromium binary (browser fixtures default to
+`/usr/bin/chromium`; the live wallet test defaults to `/usr/lib/chromium/chromium`).
 Both live runners use Linux process groups and `/proc`. Install the wallet's
 dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
 Live checks need a compatible CLI/devnode pair, built contracts, and matching
-generated bindings. Atomic and sequential wallet acceptance both pass with CLI
-`0.18.0` and hog-devnode `0.1.27-rc.7`. Rebuild contracts from the current checkout
+generated bindings. The expected pairing is CLI `0.19.0-pre.1` or newer with
+hog-devnode `0.1.29-rc.2`. Rebuild contracts from the current checkout
 before running them. Use a separate checkout if you need to preserve the bindings
 for the recorded Devnet deployment. From the repository root:
 
@@ -168,7 +168,7 @@ transaction or remote deployment. Wallet unit tests run independently through
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI, **version 0.18.0 or newer** (it must match the SDK the
+- The `groundhog` CLI, **version 0.19.0-pre.1 or newer** (it must match the SDK the
   contracts build against):
 
   ```sh
