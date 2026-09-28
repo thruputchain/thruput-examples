@@ -4,7 +4,7 @@ set -euo pipefail
 
 app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_root="$(cd "$app_dir/../.." && pwd)"
-groundhog_cli="${GROUNDHOG_CLI:-groundhog}"
+groundhog_cli="${GROUNDHOG_CLI:?Set GROUNDHOG_CLI to the validated CLI executable}"
 
 cli_version="$("$groundhog_cli" --version)"
 bash "$repo_root/scripts/check-groundhog-version.sh" "$cli_version"

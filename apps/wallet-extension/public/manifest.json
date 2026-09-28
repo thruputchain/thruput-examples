@@ -3,7 +3,7 @@
   "name": "Thruput Wallet",
   "version": "0.1.0",
   "minimum_chrome_version": "120",
-  "description": "A local-first Groundhog testnet wallet. Keep your keys, approve every signature.",
+  "description": "A local-first Groundhog devnet and localnet wallet. Keep your keys, approve every signature.",
   "permissions": ["storage", "alarms", "webNavigation"],
   "host_permissions": ["http://127.0.0.1/*", "https://rpc.thruput.network/*"],
   "icons": {

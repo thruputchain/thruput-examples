@@ -518,8 +518,9 @@ function App() {
               <details>
                 <summary>Technical details</summary>
                 <p className="hint">
-                  For Groundhog localnet and devnet. Testnet derivation:
-                  m/44'/1'/index', Ed25519 SLIP-0010, address nonce 0.
+                  For Groundhog localnet and devnet. Derivation uses the
+                  BIP44 test coin type: m/44'/1'/index', Ed25519 SLIP-0010,
+                  address nonce 0.
                   No BIP39 passphrase.
                 </p>
               </details>
@@ -581,7 +582,7 @@ function App() {
                 <dt>Network</dt>
                 <dd>
                   {state.network === "localnet" ? "Localnet" : "Devnet"} /
-                  Testnet only
+                  Test funds only
                 </dd>
               </dl>
               <details>
