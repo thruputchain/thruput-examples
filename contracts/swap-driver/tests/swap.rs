@@ -212,10 +212,12 @@ fn concurrent_swap_strategy<const N: usize>(
             ctx.token0().adjust_allowance(
                 &ctx.request_handler_addr,
                 amounts[0].try_into().unwrap(),
+                false,
             );
             ctx.token1().adjust_allowance(
                 &ctx.request_handler_addr,
                 amounts[1].try_into().unwrap(),
+                false,
             );
         })?;
     }

@@ -1,303 +1,427 @@
 // Generated from standard_token_factory.spec.xdr - StandardTokenFactory interface v0.1.0
 // DO NOT EDIT. Re-run codegen to update.
 
-import type { ContractAddress } from "@groundhogchain/protocol";
-import { contractEntrypointID, topic } from "@groundhogchain/protocol";
-import { fromHex } from "@groundhogchain/protocol/utils";
-import {
-  ContractTypeKind,
-  ContractTypeDefKind,
-  contractSpecString,
-} from "@groundhogchain/contract-spec";
-import {
-  type ContractSpec,
-  createContractCodecContext,
-  defineContractMethod,
-  type ContractException,
-  type FixedBytes,
-  defineContractEvent,
-  type DecodedContractEvent,
-  type ContractEventFilterValue,
-} from "@groundhogchain/client/contract";
+import * as __gh_protocol from "@groundhogchain/protocol";
+import * as __gh_protocol_utils from "@groundhogchain/protocol/utils";
+import * as __gh_contract_spec from "@groundhogchain/contract-spec";
+import * as __gh_client_contract from "@groundhogchain/client/contract";
 
-const s = contractSpecString;
+const __gh_s = __gh_contract_spec.contractSpecString;
 
-const entrypoints = {
+const __gh_entrypoints = {
   StandardTokenFactory: {
-    config: contractEntrypointID(fromHex("49740e257d5d343e")),
-    createToken: contractEntrypointID(fromHex("a844e73d3616140b")),
-    creationFee: contractEntrypointID(fromHex("d81138ac5db7fd91")),
-    initialize: contractEntrypointID(fromHex("11505cf753cf2025")),
-    predictToken: contractEntrypointID(fromHex("60bfe6a5d280afdd")),
-    requiredTokenFunding: contractEntrypointID(fromHex("77e6d53b541dde73")),
+    v0_1: {
+      config: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("49740e257d5d343e"),
+      ),
+      createToken: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("a844e73d3616140b"),
+      ),
+      creationFee: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("d81138ac5db7fd91"),
+      ),
+      initialize: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("11505cf753cf2025"),
+      ),
+      predictToken: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("60bfe6a5d280afdd"),
+      ),
+      requiredTokenFunding: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("77e6d53b541dde73"),
+      ),
+    },
   },
 } as const;
 
-export const ERC20Error = {
-  AlreadyInitialized: 1n,
-  MustBeContractOwner: 2n,
-  TooLarge: 3n,
-  Internal: 100n,
-} as const;
-
-export type ERC20Error = (typeof ERC20Error)[keyof typeof ERC20Error];
-
-export interface FactoryConfig {
-  token_code_hash: FixedBytes<32>;
-  required_token_funding: bigint;
-  native_token: ContractAddress;
-  creation_fee: bigint;
-  fee_recipient: ContractAddress | null;
-}
-
-export const TokenFactoryError = {
-  AlreadyInitialized: 1n,
-  InvalidConfig: 2n,
-  InvalidTokenConfig: 3n,
-  InsufficientTokenFunding: 4n,
-} as const;
-
-export type TokenFactoryError =
-  (typeof TokenFactoryError)[keyof typeof TokenFactoryError];
-
-export type StandardTokenFactoryConfigArgs = void;
-export type StandardTokenFactoryConfigResult = FactoryConfig;
-
-export interface StandardTokenFactoryCreateTokenArgs {
-  nonce: FixedBytes<32>;
-  administrator: ContractAddress;
-  name: string | null;
-  symbol: string | null;
-  decimals: bigint | null;
-  initialHolder: ContractAddress;
-  initialSupply: bigint;
-}
-export type StandardTokenFactoryCreateTokenResult = ContractAddress;
-
-export type StandardTokenFactoryCreationFeeArgs = void;
-export type StandardTokenFactoryCreationFeeResult = bigint;
-
-export interface StandardTokenFactoryInitializeArgs {
-  config: FactoryConfig;
-}
-export type StandardTokenFactoryInitializeResult = void;
-
-export interface StandardTokenFactoryPredictTokenArgs {
-  creator: ContractAddress;
-  nonce: FixedBytes<32>;
-}
-export type StandardTokenFactoryPredictTokenResult = ContractAddress;
-
-export type StandardTokenFactoryRequiredTokenFundingArgs = void;
-export type StandardTokenFactoryRequiredTokenFundingResult = bigint;
-
-export type StandardTokenFactoryDeclaredException =
-  | {
-      kind: "declared";
-      name: "ERC20Error";
-      selector: 0xb19947acb2fa14ffn;
-      value: ERC20Error;
+export namespace groundhog_erc20_if {
+  export namespace v0_1 {
+    export namespace error {
+      export type ERC20Error = 1n | 2n | 3n | 4n | 100n;
     }
-  | {
-      kind: "declared";
-      name: "TokenFactoryError";
-      selector: 0xdfe28e95b625ef76n;
-      value: TokenFactoryError;
-    };
-export type StandardTokenFactoryException =
-  ContractException<StandardTokenFactoryDeclaredException>;
+  }
+}
 
-export const spec: ContractSpec = {
+export namespace standard_token_factory_if {
+  export namespace v0_1 {
+    export namespace events {
+      export interface TokenCreated extends __gh_client_contract.DecodedContractEvent<
+        "TokenCreated",
+        {
+          token: __gh_protocol.ContractAddress;
+          creator: __gh_protocol.ContractAddress;
+        },
+        {
+          administrator: __gh_protocol.ContractAddress;
+          initial_holder: __gh_protocol.ContractAddress;
+          initial_supply: bigint;
+          name: string | null;
+          symbol: string | null;
+          decimals: bigint | null;
+          token_code_hash: __gh_client_contract.FixedBytes<32>;
+        }
+      > {}
+
+      export interface TokenCreatedFilter {
+        token?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
+        creator?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
+      }
+    }
+
+    export namespace factory {
+      export interface FactoryConfig {
+        token_code_hash: __gh_client_contract.FixedBytes<32>;
+        required_token_funding: bigint;
+        native_token: __gh_protocol.ContractAddress;
+        creation_fee: bigint;
+        fee_recipient: __gh_protocol.ContractAddress | null;
+      }
+
+      export type TokenFactoryError = 1n | 2n | 3n | 4n;
+    }
+  }
+}
+
+export namespace StandardTokenFactory {
+  export namespace v0_1 {
+    export type ConfigArgs = void;
+    export type ConfigResult =
+      __gh_codegen.standard_token_factory_if$v0_1$factory$FactoryConfig;
+
+    export interface CreateTokenArgs {
+      nonce: __gh_client_contract.FixedBytes<32>;
+      administrator: __gh_protocol.ContractAddress;
+      name: string | null;
+      symbol: string | null;
+      decimals: bigint | null;
+      initialHolder: __gh_protocol.ContractAddress;
+      initialSupply: bigint;
+    }
+    export type CreateTokenResult = __gh_protocol.ContractAddress;
+
+    export type CreationFeeArgs = void;
+    export type CreationFeeResult = bigint;
+
+    export interface InitializeArgs {
+      config: __gh_codegen.standard_token_factory_if$v0_1$factory$FactoryConfig;
+    }
+    export type InitializeResult = void;
+
+    export interface PredictTokenArgs {
+      creator: __gh_protocol.ContractAddress;
+      nonce: __gh_client_contract.FixedBytes<32>;
+    }
+    export type PredictTokenResult = __gh_protocol.ContractAddress;
+
+    export type RequiredTokenFundingArgs = void;
+    export type RequiredTokenFundingResult = bigint;
+
+    export type DeclaredException =
+      | {
+          kind: "declared";
+          name: "ERC20Error";
+          selector: 0xb19947acb2fa14ffn;
+          value: __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error;
+        }
+      | {
+          kind: "declared";
+          name: "TokenFactoryError";
+          selector: 0xdfe28e95b625ef76n;
+          value: __gh_codegen.standard_token_factory_if$v0_1$factory$TokenFactoryError;
+        };
+    export type Exception =
+      __gh_client_contract.ContractException<DeclaredException>;
+  }
+}
+
+export const spec: __gh_client_contract.ContractSpec = {
   interfaces: [
     {
-      name: s("StandardTokenFactory"),
-      vers: s("0.1.0"),
+      name: __gh_s("StandardTokenFactory"),
+      vers: __gh_s("0.1.0"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
-          ty: { v: ContractTypeKind.Named, named: s("ERC20Error") },
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("groundhog-erc20-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("groundhog_erc20_if::error"),
+              declared: __gh_s("ERC20Error"),
+            },
+          },
         },
         {
           selector: 0xdfe28e95b625ef76n,
-          ty: { v: ContractTypeKind.Named, named: s("TokenFactoryError") },
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("standard-token-factory-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("standard_token_factory_if::factory"),
+              declared: __gh_s("TokenFactoryError"),
+            },
+          },
         },
       ],
       methods: [
         {
-          name: s("config"),
+          name: __gh_s("config"),
           args: [],
-          return_type: { v: ContractTypeKind.Named, named: s("FactoryConfig") },
+          return_type: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("standard-token-factory-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("standard_token_factory_if::factory"),
+              declared: __gh_s("FactoryConfig"),
+            },
+          },
         },
         {
-          name: s("create_token"),
+          name: __gh_s("create_token"),
           args: [
             {
-              name: s("nonce"),
+              name: __gh_s("nonce"),
               ty: {
-                v: ContractTypeKind.Array,
-                array: { element: { v: ContractTypeKind.U8 }, len: 32n },
-              },
-            },
-            { name: s("administrator"), ty: { v: ContractTypeKind.Address } },
-            {
-              name: s("name"),
-              ty: {
-                v: ContractTypeKind.Option,
-                option_inner: { v: ContractTypeKind.String },
+                v: __gh_contract_spec.ContractTypeKind.Array,
+                array: {
+                  element: { v: __gh_contract_spec.ContractTypeKind.U8 },
+                  len: 32n,
+                },
               },
             },
             {
-              name: s("symbol"),
+              name: __gh_s("administrator"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+            },
+            {
+              name: __gh_s("name"),
               ty: {
-                v: ContractTypeKind.Option,
-                option_inner: { v: ContractTypeKind.String },
+                v: __gh_contract_spec.ContractTypeKind.Option,
+                option_inner: { v: __gh_contract_spec.ContractTypeKind.String },
               },
             },
             {
-              name: s("decimals"),
+              name: __gh_s("symbol"),
               ty: {
-                v: ContractTypeKind.Option,
-                option_inner: { v: ContractTypeKind.U32 },
+                v: __gh_contract_spec.ContractTypeKind.Option,
+                option_inner: { v: __gh_contract_spec.ContractTypeKind.String },
               },
             },
-            { name: s("initial_holder"), ty: { v: ContractTypeKind.Address } },
-            { name: s("initial_supply"), ty: { v: ContractTypeKind.U128 } },
+            {
+              name: __gh_s("decimals"),
+              ty: {
+                v: __gh_contract_spec.ContractTypeKind.Option,
+                option_inner: { v: __gh_contract_spec.ContractTypeKind.U32 },
+              },
+            },
+            {
+              name: __gh_s("initial_holder"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+            },
+            {
+              name: __gh_s("initial_supply"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+            },
           ],
-          return_type: { v: ContractTypeKind.Address },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Address },
         },
         {
-          name: s("creation_fee"),
+          name: __gh_s("creation_fee"),
           args: [],
-          return_type: { v: ContractTypeKind.U128 },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.U128 },
         },
         {
-          name: s("initialize"),
+          name: __gh_s("initialize"),
           args: [
             {
-              name: s("config"),
-              ty: { v: ContractTypeKind.Named, named: s("FactoryConfig") },
-            },
-          ],
-          return_type: { v: ContractTypeKind.Void },
-        },
-        {
-          name: s("predict_token"),
-          args: [
-            { name: s("creator"), ty: { v: ContractTypeKind.Address } },
-            {
-              name: s("nonce"),
+              name: __gh_s("config"),
               ty: {
-                v: ContractTypeKind.Array,
-                array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+                v: __gh_contract_spec.ContractTypeKind.Named,
+                named: {
+                  crate_name: __gh_s("standard-token-factory-if"),
+                  major: __gh_s("0.1"),
+                  module_path: __gh_s("standard_token_factory_if::factory"),
+                  declared: __gh_s("FactoryConfig"),
+                },
               },
             },
           ],
-          return_type: { v: ContractTypeKind.Address },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
         },
         {
-          name: s("required_token_funding"),
+          name: __gh_s("predict_token"),
+          args: [
+            {
+              name: __gh_s("creator"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+            },
+            {
+              name: __gh_s("nonce"),
+              ty: {
+                v: __gh_contract_spec.ContractTypeKind.Array,
+                array: {
+                  element: { v: __gh_contract_spec.ContractTypeKind.U8 },
+                  len: 32n,
+                },
+              },
+            },
+          ],
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Address },
+        },
+        {
+          name: __gh_s("required_token_funding"),
           args: [],
-          return_type: { v: ContractTypeKind.U128 },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.U128 },
         },
       ],
     },
   ],
   type_defs: [
     {
-      v: ContractTypeDefKind.TypeDefEnum,
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
-        name: s("ERC20Error"),
+        name: {
+          crate_name: __gh_s("groundhog-erc20-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("groundhog_erc20_if::error"),
+          declared: __gh_s("ERC20Error"),
+        },
         variants: [
-          { name: s("AlreadyInitialized"), value: 1n },
-          { name: s("MustBeContractOwner"), value: 2n },
-          { name: s("TooLarge"), value: 3n },
-          { name: s("Internal"), value: 100n },
+          { name: __gh_s("AlreadyInitialized"), value: 1n },
+          { name: __gh_s("MustBeContractOwner"), value: 2n },
+          { name: __gh_s("TooLarge"), value: 3n },
+          { name: __gh_s("BalanceNotZero"), value: 4n },
+          { name: __gh_s("Internal"), value: 100n },
         ],
       },
     },
     {
-      v: ContractTypeDefKind.TypeDefStruct,
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefStruct,
       struct_def: {
-        name: s("FactoryConfig"),
+        name: {
+          crate_name: __gh_s("standard-token-factory-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("standard_token_factory_if::factory"),
+          declared: __gh_s("FactoryConfig"),
+        },
         fields: [
           {
-            name: s("token_code_hash"),
+            name: __gh_s("token_code_hash"),
             ty: {
-              v: ContractTypeKind.Array,
-              array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+              v: __gh_contract_spec.ContractTypeKind.Array,
+              array: {
+                element: { v: __gh_contract_spec.ContractTypeKind.U8 },
+                len: 32n,
+              },
             },
           },
           {
-            name: s("required_token_funding"),
-            ty: { v: ContractTypeKind.U128 },
+            name: __gh_s("required_token_funding"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
           },
-          { name: s("native_token"), ty: { v: ContractTypeKind.Address } },
-          { name: s("creation_fee"), ty: { v: ContractTypeKind.U128 } },
           {
-            name: s("fee_recipient"),
+            name: __gh_s("native_token"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+          },
+          {
+            name: __gh_s("creation_fee"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          },
+          {
+            name: __gh_s("fee_recipient"),
             ty: {
-              v: ContractTypeKind.Option,
-              option_inner: { v: ContractTypeKind.Address },
+              v: __gh_contract_spec.ContractTypeKind.Option,
+              option_inner: { v: __gh_contract_spec.ContractTypeKind.Address },
             },
           },
         ],
       },
     },
     {
-      v: ContractTypeDefKind.TypeDefEnum,
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
-        name: s("TokenFactoryError"),
+        name: {
+          crate_name: __gh_s("standard-token-factory-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("standard_token_factory_if::factory"),
+          declared: __gh_s("TokenFactoryError"),
+        },
         variants: [
-          { name: s("AlreadyInitialized"), value: 1n },
-          { name: s("InvalidConfig"), value: 2n },
-          { name: s("InvalidTokenConfig"), value: 3n },
-          { name: s("InsufficientTokenFunding"), value: 4n },
+          { name: __gh_s("AlreadyInitialized"), value: 1n },
+          { name: __gh_s("InvalidConfig"), value: 2n },
+          { name: __gh_s("InvalidTokenConfig"), value: 3n },
+          { name: __gh_s("InsufficientTokenFunding"), value: 4n },
         ],
       },
     },
   ],
   events: [
     {
-      name: s("TokenCreated"),
-      signature: topic(
-        fromHex(
+      name: {
+        crate_name: __gh_s("standard-token-factory-if"),
+        major: __gh_s("0.1"),
+        module_path: __gh_s("standard_token_factory_if::events"),
+        declared: __gh_s("TokenCreated"),
+      },
+      signature: __gh_protocol.topic(
+        __gh_protocol_utils.fromHex(
           "dd680fc0379c6d45b2f32a7d83aad4b44cff6a895c1c580dcfb749545c213446",
         ),
       ),
       topics: [
-        { name: s("token"), ty: { v: ContractTypeKind.Address } },
-        { name: s("creator"), ty: { v: ContractTypeKind.Address } },
+        {
+          name: __gh_s("token"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+        },
+        {
+          name: __gh_s("creator"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+        },
       ],
       fields: [
-        { name: s("administrator"), ty: { v: ContractTypeKind.Address } },
-        { name: s("initial_holder"), ty: { v: ContractTypeKind.Address } },
-        { name: s("initial_supply"), ty: { v: ContractTypeKind.U128 } },
         {
-          name: s("name"),
+          name: __gh_s("administrator"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+        },
+        {
+          name: __gh_s("initial_holder"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+        },
+        {
+          name: __gh_s("initial_supply"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+        },
+        {
+          name: __gh_s("name"),
           ty: {
-            v: ContractTypeKind.Option,
-            option_inner: { v: ContractTypeKind.String },
+            v: __gh_contract_spec.ContractTypeKind.Option,
+            option_inner: { v: __gh_contract_spec.ContractTypeKind.String },
           },
         },
         {
-          name: s("symbol"),
+          name: __gh_s("symbol"),
           ty: {
-            v: ContractTypeKind.Option,
-            option_inner: { v: ContractTypeKind.String },
+            v: __gh_contract_spec.ContractTypeKind.Option,
+            option_inner: { v: __gh_contract_spec.ContractTypeKind.String },
           },
         },
         {
-          name: s("decimals"),
+          name: __gh_s("decimals"),
           ty: {
-            v: ContractTypeKind.Option,
-            option_inner: { v: ContractTypeKind.U32 },
+            v: __gh_contract_spec.ContractTypeKind.Option,
+            option_inner: { v: __gh_contract_spec.ContractTypeKind.U32 },
           },
         },
         {
-          name: s("token_code_hash"),
+          name: __gh_s("token_code_hash"),
           ty: {
-            v: ContractTypeKind.Array,
-            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+            v: __gh_contract_spec.ContractTypeKind.Array,
+            array: {
+              element: { v: __gh_contract_spec.ContractTypeKind.U8 },
+              len: 32n,
+            },
           },
         },
       ],
@@ -305,276 +429,301 @@ export const spec: ContractSpec = {
   ],
 };
 
-const codecs = createContractCodecContext(spec.type_defs);
+const __gh_codecs = __gh_client_contract.createContractCodecContext(
+  spec.type_defs,
+);
 
 export const StandardTokenFactory = {
-  config: defineContractMethod<
-    StandardTokenFactoryConfigArgs,
-    StandardTokenFactoryConfigResult,
-    StandardTokenFactoryDeclaredException
-  >({
-    interfaceName: "StandardTokenFactory",
-    interfaceVersion: "0.1.0",
-    abiName: "config",
-    publicName: "config",
-    entrypoint: entrypoints.StandardTokenFactory.config,
-    args: [],
-    returnType: spec.interfaces[0]!.methods[0]!.return_type,
-    throws: [
-      {
-        selector: 0xb19947acb2fa14ffn,
-        name: "ERC20Error",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-      {
-        selector: 0xdfe28e95b625ef76n,
-        name: "TokenFactoryError",
-        type: spec.interfaces[0]!.throws[1]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  createToken: defineContractMethod<
-    StandardTokenFactoryCreateTokenArgs,
-    StandardTokenFactoryCreateTokenResult,
-    StandardTokenFactoryDeclaredException
-  >({
-    interfaceName: "StandardTokenFactory",
-    interfaceVersion: "0.1.0",
-    abiName: "create_token",
-    publicName: "createToken",
-    entrypoint: entrypoints.StandardTokenFactory.createToken,
-    args: [
-      {
-        abiName: "nonce",
-        publicName: "nonce",
-        type: spec.interfaces[0]!.methods[1]!.args[0]!.ty,
-      },
-      {
-        abiName: "administrator",
-        publicName: "administrator",
-        type: spec.interfaces[0]!.methods[1]!.args[1]!.ty,
-      },
-      {
-        abiName: "name",
-        publicName: "name",
-        type: spec.interfaces[0]!.methods[1]!.args[2]!.ty,
-      },
-      {
-        abiName: "symbol",
-        publicName: "symbol",
-        type: spec.interfaces[0]!.methods[1]!.args[3]!.ty,
-      },
-      {
-        abiName: "decimals",
-        publicName: "decimals",
-        type: spec.interfaces[0]!.methods[1]!.args[4]!.ty,
-      },
-      {
-        abiName: "initial_holder",
-        publicName: "initialHolder",
-        type: spec.interfaces[0]!.methods[1]!.args[5]!.ty,
-      },
-      {
-        abiName: "initial_supply",
-        publicName: "initialSupply",
-        type: spec.interfaces[0]!.methods[1]!.args[6]!.ty,
-      },
-    ],
-    returnType: spec.interfaces[0]!.methods[1]!.return_type,
-    throws: [
-      {
-        selector: 0xb19947acb2fa14ffn,
-        name: "ERC20Error",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-      {
-        selector: 0xdfe28e95b625ef76n,
-        name: "TokenFactoryError",
-        type: spec.interfaces[0]!.throws[1]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  creationFee: defineContractMethod<
-    StandardTokenFactoryCreationFeeArgs,
-    StandardTokenFactoryCreationFeeResult,
-    StandardTokenFactoryDeclaredException
-  >({
-    interfaceName: "StandardTokenFactory",
-    interfaceVersion: "0.1.0",
-    abiName: "creation_fee",
-    publicName: "creationFee",
-    entrypoint: entrypoints.StandardTokenFactory.creationFee,
-    args: [],
-    returnType: spec.interfaces[0]!.methods[2]!.return_type,
-    throws: [
-      {
-        selector: 0xb19947acb2fa14ffn,
-        name: "ERC20Error",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-      {
-        selector: 0xdfe28e95b625ef76n,
-        name: "TokenFactoryError",
-        type: spec.interfaces[0]!.throws[1]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  initialize: defineContractMethod<
-    StandardTokenFactoryInitializeArgs,
-    StandardTokenFactoryInitializeResult,
-    StandardTokenFactoryDeclaredException
-  >({
-    interfaceName: "StandardTokenFactory",
-    interfaceVersion: "0.1.0",
-    abiName: "initialize",
-    publicName: "initialize",
-    entrypoint: entrypoints.StandardTokenFactory.initialize,
-    args: [
-      {
-        abiName: "config",
-        publicName: "config",
-        type: spec.interfaces[0]!.methods[3]!.args[0]!.ty,
-      },
-    ],
-    returnType: spec.interfaces[0]!.methods[3]!.return_type,
-    throws: [
-      {
-        selector: 0xb19947acb2fa14ffn,
-        name: "ERC20Error",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-      {
-        selector: 0xdfe28e95b625ef76n,
-        name: "TokenFactoryError",
-        type: spec.interfaces[0]!.throws[1]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  predictToken: defineContractMethod<
-    StandardTokenFactoryPredictTokenArgs,
-    StandardTokenFactoryPredictTokenResult,
-    StandardTokenFactoryDeclaredException
-  >({
-    interfaceName: "StandardTokenFactory",
-    interfaceVersion: "0.1.0",
-    abiName: "predict_token",
-    publicName: "predictToken",
-    entrypoint: entrypoints.StandardTokenFactory.predictToken,
-    args: [
-      {
-        abiName: "creator",
-        publicName: "creator",
-        type: spec.interfaces[0]!.methods[4]!.args[0]!.ty,
-      },
-      {
-        abiName: "nonce",
-        publicName: "nonce",
-        type: spec.interfaces[0]!.methods[4]!.args[1]!.ty,
-      },
-    ],
-    returnType: spec.interfaces[0]!.methods[4]!.return_type,
-    throws: [
-      {
-        selector: 0xb19947acb2fa14ffn,
-        name: "ERC20Error",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-      {
-        selector: 0xdfe28e95b625ef76n,
-        name: "TokenFactoryError",
-        type: spec.interfaces[0]!.throws[1]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  requiredTokenFunding: defineContractMethod<
-    StandardTokenFactoryRequiredTokenFundingArgs,
-    StandardTokenFactoryRequiredTokenFundingResult,
-    StandardTokenFactoryDeclaredException
-  >({
-    interfaceName: "StandardTokenFactory",
-    interfaceVersion: "0.1.0",
-    abiName: "required_token_funding",
-    publicName: "requiredTokenFunding",
-    entrypoint: entrypoints.StandardTokenFactory.requiredTokenFunding,
-    args: [],
-    returnType: spec.interfaces[0]!.methods[5]!.return_type,
-    throws: [
-      {
-        selector: 0xb19947acb2fa14ffn,
-        name: "ERC20Error",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-      {
-        selector: 0xdfe28e95b625ef76n,
-        name: "TokenFactoryError",
-        type: spec.interfaces[0]!.throws[1]!.ty,
-      },
-    ],
-    codecs,
-  }),
+  v0_1: {
+    config: __gh_client_contract.defineContractMethod<
+      StandardTokenFactory.v0_1.ConfigArgs,
+      StandardTokenFactory.v0_1.ConfigResult,
+      StandardTokenFactory.v0_1.DeclaredException
+    >({
+      interfaceName: "StandardTokenFactory",
+      interfaceVersion: "0.1.0",
+      abiName: "config",
+      publicName: "config",
+      entrypoint: __gh_entrypoints.StandardTokenFactory.v0_1.config,
+      args: [],
+      returnType: spec.interfaces[0]!.methods[0]!.return_type,
+      throws: [
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+        {
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
+          type: spec.interfaces[0]!.throws[1]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    createToken: __gh_client_contract.defineContractMethod<
+      StandardTokenFactory.v0_1.CreateTokenArgs,
+      StandardTokenFactory.v0_1.CreateTokenResult,
+      StandardTokenFactory.v0_1.DeclaredException
+    >({
+      interfaceName: "StandardTokenFactory",
+      interfaceVersion: "0.1.0",
+      abiName: "create_token",
+      publicName: "createToken",
+      entrypoint: __gh_entrypoints.StandardTokenFactory.v0_1.createToken,
+      args: [
+        {
+          abiName: "nonce",
+          publicName: "nonce",
+          type: spec.interfaces[0]!.methods[1]!.args[0]!.ty,
+        },
+        {
+          abiName: "administrator",
+          publicName: "administrator",
+          type: spec.interfaces[0]!.methods[1]!.args[1]!.ty,
+        },
+        {
+          abiName: "name",
+          publicName: "name",
+          type: spec.interfaces[0]!.methods[1]!.args[2]!.ty,
+        },
+        {
+          abiName: "symbol",
+          publicName: "symbol",
+          type: spec.interfaces[0]!.methods[1]!.args[3]!.ty,
+        },
+        {
+          abiName: "decimals",
+          publicName: "decimals",
+          type: spec.interfaces[0]!.methods[1]!.args[4]!.ty,
+        },
+        {
+          abiName: "initial_holder",
+          publicName: "initialHolder",
+          type: spec.interfaces[0]!.methods[1]!.args[5]!.ty,
+        },
+        {
+          abiName: "initial_supply",
+          publicName: "initialSupply",
+          type: spec.interfaces[0]!.methods[1]!.args[6]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[0]!.methods[1]!.return_type,
+      throws: [
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+        {
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
+          type: spec.interfaces[0]!.throws[1]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    creationFee: __gh_client_contract.defineContractMethod<
+      StandardTokenFactory.v0_1.CreationFeeArgs,
+      StandardTokenFactory.v0_1.CreationFeeResult,
+      StandardTokenFactory.v0_1.DeclaredException
+    >({
+      interfaceName: "StandardTokenFactory",
+      interfaceVersion: "0.1.0",
+      abiName: "creation_fee",
+      publicName: "creationFee",
+      entrypoint: __gh_entrypoints.StandardTokenFactory.v0_1.creationFee,
+      args: [],
+      returnType: spec.interfaces[0]!.methods[2]!.return_type,
+      throws: [
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+        {
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
+          type: spec.interfaces[0]!.throws[1]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    initialize: __gh_client_contract.defineContractMethod<
+      StandardTokenFactory.v0_1.InitializeArgs,
+      StandardTokenFactory.v0_1.InitializeResult,
+      StandardTokenFactory.v0_1.DeclaredException
+    >({
+      interfaceName: "StandardTokenFactory",
+      interfaceVersion: "0.1.0",
+      abiName: "initialize",
+      publicName: "initialize",
+      entrypoint: __gh_entrypoints.StandardTokenFactory.v0_1.initialize,
+      args: [
+        {
+          abiName: "config",
+          publicName: "config",
+          type: spec.interfaces[0]!.methods[3]!.args[0]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[0]!.methods[3]!.return_type,
+      throws: [
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+        {
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
+          type: spec.interfaces[0]!.throws[1]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    predictToken: __gh_client_contract.defineContractMethod<
+      StandardTokenFactory.v0_1.PredictTokenArgs,
+      StandardTokenFactory.v0_1.PredictTokenResult,
+      StandardTokenFactory.v0_1.DeclaredException
+    >({
+      interfaceName: "StandardTokenFactory",
+      interfaceVersion: "0.1.0",
+      abiName: "predict_token",
+      publicName: "predictToken",
+      entrypoint: __gh_entrypoints.StandardTokenFactory.v0_1.predictToken,
+      args: [
+        {
+          abiName: "creator",
+          publicName: "creator",
+          type: spec.interfaces[0]!.methods[4]!.args[0]!.ty,
+        },
+        {
+          abiName: "nonce",
+          publicName: "nonce",
+          type: spec.interfaces[0]!.methods[4]!.args[1]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[0]!.methods[4]!.return_type,
+      throws: [
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+        {
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
+          type: spec.interfaces[0]!.throws[1]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    requiredTokenFunding: __gh_client_contract.defineContractMethod<
+      StandardTokenFactory.v0_1.RequiredTokenFundingArgs,
+      StandardTokenFactory.v0_1.RequiredTokenFundingResult,
+      StandardTokenFactory.v0_1.DeclaredException
+    >({
+      interfaceName: "StandardTokenFactory",
+      interfaceVersion: "0.1.0",
+      abiName: "required_token_funding",
+      publicName: "requiredTokenFunding",
+      entrypoint:
+        __gh_entrypoints.StandardTokenFactory.v0_1.requiredTokenFunding,
+      args: [],
+      returnType: spec.interfaces[0]!.methods[5]!.return_type,
+      throws: [
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+        {
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
+          type: spec.interfaces[0]!.throws[1]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+  },
 } as const;
 
-export interface TokenCreated extends DecodedContractEvent<
-  "TokenCreated",
-  { token: ContractAddress; creator: ContractAddress },
-  {
-    administrator: ContractAddress;
-    initial_holder: ContractAddress;
-    initial_supply: bigint;
-    name: string | null;
-    symbol: string | null;
-    decimals: bigint | null;
-    token_code_hash: FixedBytes<32>;
-  }
-> {}
+export const groundhog_erc20_if = {
+  v0_1: {
+    error: {
+      ERC20Error: {
+        AlreadyInitialized: 1n,
+        MustBeContractOwner: 2n,
+        TooLarge: 3n,
+        BalanceNotZero: 4n,
+        Internal: 100n,
+      },
+    },
+  },
+} as const;
 
-export interface TokenCreatedFilter {
-  token?: ContractEventFilterValue<ContractAddress>;
-  creator?: ContractEventFilterValue<ContractAddress>;
+export const standard_token_factory_if = {
+  v0_1: {
+    events: {
+      TokenCreated: __gh_client_contract.defineContractEvent<
+        "TokenCreated",
+        standard_token_factory_if.v0_1.events.TokenCreated["topics"],
+        standard_token_factory_if.v0_1.events.TokenCreated["fields"],
+        standard_token_factory_if.v0_1.events.TokenCreatedFilter
+      >({
+        name: "TokenCreated",
+        signature: spec.events[0]!.signature,
+        topics: [
+          {
+            name: "token",
+            type: spec.events[0]!.topics[0]!.ty,
+            representation: "address",
+          },
+          {
+            name: "creator",
+            type: spec.events[0]!.topics[1]!.ty,
+            representation: "address",
+          },
+        ],
+        fields: [
+          { name: "administrator", type: spec.events[0]!.fields[0]!.ty },
+          { name: "initial_holder", type: spec.events[0]!.fields[1]!.ty },
+          { name: "initial_supply", type: spec.events[0]!.fields[2]!.ty },
+          { name: "name", type: spec.events[0]!.fields[3]!.ty },
+          { name: "symbol", type: spec.events[0]!.fields[4]!.ty },
+          { name: "decimals", type: spec.events[0]!.fields[5]!.ty },
+          { name: "token_code_hash", type: spec.events[0]!.fields[6]!.ty },
+        ],
+        codecs: __gh_codecs,
+      }),
+    },
+    factory: {
+      TokenFactoryError: {
+        AlreadyInitialized: 1n,
+        InvalidConfig: 2n,
+        InvalidTokenConfig: 3n,
+        InsufficientTokenFunding: 4n,
+      },
+    },
+  },
+} as const;
+
+export type StandardTokenFactoryEvent =
+  standard_token_factory_if.v0_1.events.TokenCreated;
+
+export function decodeEvent(__gh_event: {
+  topics: globalThis.Uint8Array[];
+  data: globalThis.Uint8Array;
+}): StandardTokenFactoryEvent | null {
+  return standard_token_factory_if.v0_1.events.TokenCreated.decode(__gh_event);
 }
 
-export const TokenCreated = defineContractEvent<
-  "TokenCreated",
-  TokenCreated["topics"],
-  TokenCreated["fields"],
-  TokenCreatedFilter
->({
-  name: "TokenCreated",
-  signature: spec.events[0]!.signature,
-  topics: [
-    {
-      name: "token",
-      type: spec.events[0]!.topics[0]!.ty,
-      representation: "address",
-    },
-    {
-      name: "creator",
-      type: spec.events[0]!.topics[1]!.ty,
-      representation: "address",
-    },
-  ],
-  fields: [
-    { name: "administrator", type: spec.events[0]!.fields[0]!.ty },
-    { name: "initial_holder", type: spec.events[0]!.fields[1]!.ty },
-    { name: "initial_supply", type: spec.events[0]!.fields[2]!.ty },
-    { name: "name", type: spec.events[0]!.fields[3]!.ty },
-    { name: "symbol", type: spec.events[0]!.fields[4]!.ty },
-    { name: "decimals", type: spec.events[0]!.fields[5]!.ty },
-    { name: "token_code_hash", type: spec.events[0]!.fields[6]!.ty },
-  ],
-  codecs,
-});
-
-export type StandardTokenFactoryEvent = TokenCreated;
-
-export function decodeEvent(event: {
-  topics: Uint8Array[];
-  data: Uint8Array;
-}): StandardTokenFactoryEvent | null {
-  return TokenCreated.decode(event);
+// The types the namespaces above refer to, under names no declaration can capture.
+export namespace __gh_codegen {
+  export type groundhog_erc20_if$v0_1$error$ERC20Error =
+    groundhog_erc20_if.v0_1.error.ERC20Error;
+  export type standard_token_factory_if$v0_1$factory$FactoryConfig =
+    standard_token_factory_if.v0_1.factory.FactoryConfig;
+  export type standard_token_factory_if$v0_1$factory$TokenFactoryError =
+    standard_token_factory_if.v0_1.factory.TokenFactoryError;
 }

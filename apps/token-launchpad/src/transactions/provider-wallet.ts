@@ -53,7 +53,7 @@ export function createProviderWriteBoundary(
           bytesEqual(target.invoked_address, config.factoryAddress) &&
           bytesEqual(
             target.entrypoint,
-            StandardTokenFactory.createToken.entrypoint,
+            StandardTokenFactory.v0_1.createToken.entrypoint,
           ),
       );
       const contractsToDeploy = createsToken

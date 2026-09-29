@@ -7,10 +7,10 @@ import {
   type Invocation,
 } from "@groundhogchain/protocol";
 
-import {
-  RequestsProcessed,
-  SwapDriver,
-} from "@/contracts/generated/swap-driver";
+import { SwapDriver, batch_driver } from "@/contracts/generated/swap-driver";
+
+const RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
+type RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
 
 // What the driver advises for a batch of MIN_CRANK_BATCH (8): `gas_for_batch(8)`
 // = EPILOGUE_GAS + 9 * REQUEST_GAS_MAX = 200_000 + 9 * 1_500_000. A crank facing
@@ -26,7 +26,7 @@ export const CRANK_FRAME_GAS = 13_700_000n;
 const TARGET_GAS = gasAmount(CRANK_FRAME_GAS);
 
 export function buildProcessRequestsTarget(driver: ContractAddress): Invocation {
-  return SwapDriver.processRequests.invocation(driver, TARGET_GAS);
+  return SwapDriver.v0_1.processRequests.invocation(driver, TARGET_GAS);
 }
 
 export function decodeRequestsProcessedSummary(

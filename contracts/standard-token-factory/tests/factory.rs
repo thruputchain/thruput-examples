@@ -495,7 +495,7 @@ fn nonzero_supply_creation_emits_exact_discovery_and_supports_full_lifecycle() {
                 match operation {
                     0 => token.mint(&HOLDER, 100),
                     1 => token.transfer(&RECEIVER, 200),
-                    2 => token.adjust_allowance(&SPENDER, 150),
+                    2 => token.adjust_allowance(&SPENDER, 150, false),
                     3 => token.transfer_from(&HOLDER, &RECEIVER, 75),
                     4 => token.burn(&RECEIVER, 25),
                     _ => unreachable!(),

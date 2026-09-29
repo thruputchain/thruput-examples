@@ -5,15 +5,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
 import { requestFailedEvent } from "@/test/request-failed";
-import {
-  LiquidityBurnEvent as BurnEvent,
-  LiquidityMintEvent as MintEvent,
-} from "@/contracts/generated/swap-handler";
+import { swap_if } from "@/contracts/generated/swap-handler";
 import {
   createAddLiquidityOperation,
   createRemoveLiquidityOperation,
 } from "@/transactions/liquidity-operation";
 import { createLiquidityObserver } from "./liquidity-observer";
+
+const BurnEvent = swap_if.v0_1.events.LiquidityBurnEvent;
+type BurnEvent = swap_if.v0_1.events.LiquidityBurnEvent;
+const MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
+type MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
 
 const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));

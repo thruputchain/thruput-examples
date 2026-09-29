@@ -1,331 +1,404 @@
 // Generated from counter.spec.xdr - Counter interface v0.1.0
 // DO NOT EDIT. Re-run codegen to update.
 
-import { contractEntrypointID, topic } from "@groundhogchain/protocol";
-import { fromHex } from "@groundhogchain/protocol/utils";
-import {
-  ContractTypeKind,
-  ContractTypeDefKind,
-  contractSpecString,
-} from "@groundhogchain/contract-spec";
-import {
-  type ContractSpec,
-  createContractCodecContext,
-  defineContractMethod,
-  type ContractException,
-  defineContractEvent,
-  type DecodedContractEvent,
-  type ContractEventFilterValue,
-} from "@groundhogchain/client/contract";
+import * as __gh_protocol from "@groundhogchain/protocol";
+import * as __gh_protocol_utils from "@groundhogchain/protocol/utils";
+import * as __gh_contract_spec from "@groundhogchain/contract-spec";
+import * as __gh_client_contract from "@groundhogchain/client/contract";
 
-const s = contractSpecString;
+const __gh_s = __gh_contract_spec.contractSpecString;
 
-const entrypoints = {
+const __gh_entrypoints = {
   Counter: {
-    decrement: contractEntrypointID(fromHex("048705b4b12f5264")),
-    error: contractEntrypointID(fromHex("dcb12efadd026c01")),
-    get: contractEntrypointID(fromHex("4a63f587ead25ca6")),
-    increment: contractEntrypointID(fromHex("009cca8514f955ce")),
-    initialize: contractEntrypointID(fromHex("2bfe21a62e5119c4")),
-    ping: contractEntrypointID(fromHex("1bdf2969df1758bd")),
+    v0_1: {
+      decrement: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("048705b4b12f5264"),
+      ),
+      error: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("dcb12efadd026c01"),
+      ),
+      get: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("4a63f587ead25ca6"),
+      ),
+      increment: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("009cca8514f955ce"),
+      ),
+      initialize: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("2bfe21a62e5119c4"),
+      ),
+      ping: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("1bdf2969df1758bd"),
+      ),
+    },
   },
 } as const;
 
-export const CounterError = { NotAuthorized: 1n } as const;
+export namespace counter {
+  export namespace v0_1 {
+    export namespace implementation {
+      export type CounterError = 1n;
 
-export type CounterError = (typeof CounterError)[keyof typeof CounterError];
+      export interface PingEvent extends __gh_client_contract.DecodedContractEvent<
+        "PingEvent",
+        { tag: bigint },
+        {}
+      > {}
 
-export interface CounterDecrementArgs {
-  amount: bigint;
+      export interface PingEventFilter {
+        tag?: __gh_client_contract.ContractEventFilterValue<bigint>;
+      }
+    }
+  }
 }
-export type CounterDecrementResult = void;
 
-export type CounterErrorArgs = void;
-export type CounterErrorResult = bigint;
+export namespace Counter {
+  export namespace v0_1 {
+    export interface DecrementArgs {
+      amount: bigint;
+    }
+    export type DecrementResult = void;
 
-export type CounterGetArgs = void;
-export type CounterGetResult = bigint;
+    export type ErrorArgs = void;
+    export type ErrorResult = bigint;
 
-export interface CounterIncrementArgs {
-  amount: bigint;
+    export type GetArgs = void;
+    export type GetResult = bigint;
+
+    export interface IncrementArgs {
+      amount: bigint;
+    }
+    export type IncrementResult = void;
+
+    export interface InitializeArgs {
+      initialValue: bigint;
+    }
+    export type InitializeResult = void;
+
+    export interface PingArgs {
+      tag: bigint;
+    }
+    export type PingResult = void;
+
+    export type DeclaredException = {
+      kind: "declared";
+      name: "CounterError";
+      selector: 0xeb2cf72be75a4c62n;
+      value: __gh_codegen.counter$v0_1$implementation$CounterError;
+    };
+    export type Exception =
+      __gh_client_contract.ContractException<DeclaredException>;
+  }
 }
-export type CounterIncrementResult = void;
 
-export interface CounterInitializeArgs {
-  initialValue: bigint;
-}
-export type CounterInitializeResult = void;
-
-export interface CounterPingArgs {
-  tag: bigint;
-}
-export type CounterPingResult = void;
-
-export type CounterDeclaredException = {
-  kind: "declared";
-  name: "CounterError";
-  selector: 0xeb2cf72be75a4c62n;
-  value: CounterError;
-};
-export type CounterException = ContractException<CounterDeclaredException>;
-
-export const spec: ContractSpec = {
+export const spec: __gh_client_contract.ContractSpec = {
   interfaces: [
     {
-      name: s("Counter"),
-      vers: s("0.1.0"),
+      name: __gh_s("Counter"),
+      vers: __gh_s("0.1.0"),
       throws: [
         {
           selector: 0xeb2cf72be75a4c62n,
-          ty: { v: ContractTypeKind.Named, named: s("CounterError") },
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("counter"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("counter::implementation"),
+              declared: __gh_s("CounterError"),
+            },
+          },
         },
       ],
       methods: [
         {
-          name: s("decrement"),
-          args: [{ name: s("amount"), ty: { v: ContractTypeKind.U64 } }],
-          return_type: { v: ContractTypeKind.Void },
+          name: __gh_s("decrement"),
+          args: [
+            {
+              name: __gh_s("amount"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.U64 },
+            },
+          ],
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
         },
         {
-          name: s("error"),
+          name: __gh_s("error"),
           args: [],
-          return_type: { v: ContractTypeKind.U64 },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.U64 },
         },
         {
-          name: s("get"),
+          name: __gh_s("get"),
           args: [],
-          return_type: { v: ContractTypeKind.U64 },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.U64 },
         },
         {
-          name: s("increment"),
-          args: [{ name: s("amount"), ty: { v: ContractTypeKind.U64 } }],
-          return_type: { v: ContractTypeKind.Void },
+          name: __gh_s("increment"),
+          args: [
+            {
+              name: __gh_s("amount"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.U64 },
+            },
+          ],
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
         },
         {
-          name: s("initialize"),
-          args: [{ name: s("initial_value"), ty: { v: ContractTypeKind.U64 } }],
-          return_type: { v: ContractTypeKind.Void },
+          name: __gh_s("initialize"),
+          args: [
+            {
+              name: __gh_s("initial_value"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.U64 },
+            },
+          ],
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
         },
         {
-          name: s("ping"),
-          args: [{ name: s("tag"), ty: { v: ContractTypeKind.U64 } }],
-          return_type: { v: ContractTypeKind.Void },
+          name: __gh_s("ping"),
+          args: [
+            {
+              name: __gh_s("tag"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.U64 },
+            },
+          ],
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
         },
       ],
     },
   ],
   type_defs: [
     {
-      v: ContractTypeDefKind.TypeDefEnum,
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
-        name: s("CounterError"),
-        variants: [{ name: s("NotAuthorized"), value: 1n }],
+        name: {
+          crate_name: __gh_s("counter"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("counter::implementation"),
+          declared: __gh_s("CounterError"),
+        },
+        variants: [{ name: __gh_s("NotAuthorized"), value: 1n }],
       },
     },
   ],
   events: [
     {
-      name: s("PingEvent"),
-      signature: topic(
-        fromHex(
+      name: {
+        crate_name: __gh_s("counter"),
+        major: __gh_s("0.1"),
+        module_path: __gh_s("counter::implementation"),
+        declared: __gh_s("PingEvent"),
+      },
+      signature: __gh_protocol.topic(
+        __gh_protocol_utils.fromHex(
           "f0c8fa264c489d9d6bc8796daa7d6ab408d76b37ef41b6d6d951e20f63d10f52",
         ),
       ),
-      topics: [{ name: s("tag"), ty: { v: ContractTypeKind.U64 } }],
+      topics: [
+        {
+          name: __gh_s("tag"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.U64 },
+        },
+      ],
       fields: [],
     },
   ],
 };
 
-const codecs = createContractCodecContext(spec.type_defs);
+const __gh_codecs = __gh_client_contract.createContractCodecContext(
+  spec.type_defs,
+);
 
 export const Counter = {
-  decrement: defineContractMethod<
-    CounterDecrementArgs,
-    CounterDecrementResult,
-    CounterDeclaredException
-  >({
-    interfaceName: "Counter",
-    interfaceVersion: "0.1.0",
-    abiName: "decrement",
-    publicName: "decrement",
-    entrypoint: entrypoints.Counter.decrement,
-    args: [
-      {
-        abiName: "amount",
-        publicName: "amount",
-        type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
-      },
-    ],
-    returnType: spec.interfaces[0]!.methods[0]!.return_type,
-    throws: [
-      {
-        selector: 0xeb2cf72be75a4c62n,
-        name: "CounterError",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  error: defineContractMethod<
-    CounterErrorArgs,
-    CounterErrorResult,
-    CounterDeclaredException
-  >({
-    interfaceName: "Counter",
-    interfaceVersion: "0.1.0",
-    abiName: "error",
-    publicName: "error",
-    entrypoint: entrypoints.Counter.error,
-    args: [],
-    returnType: spec.interfaces[0]!.methods[1]!.return_type,
-    throws: [
-      {
-        selector: 0xeb2cf72be75a4c62n,
-        name: "CounterError",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  get: defineContractMethod<
-    CounterGetArgs,
-    CounterGetResult,
-    CounterDeclaredException
-  >({
-    interfaceName: "Counter",
-    interfaceVersion: "0.1.0",
-    abiName: "get",
-    publicName: "get",
-    entrypoint: entrypoints.Counter.get,
-    args: [],
-    returnType: spec.interfaces[0]!.methods[2]!.return_type,
-    throws: [
-      {
-        selector: 0xeb2cf72be75a4c62n,
-        name: "CounterError",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  increment: defineContractMethod<
-    CounterIncrementArgs,
-    CounterIncrementResult,
-    CounterDeclaredException
-  >({
-    interfaceName: "Counter",
-    interfaceVersion: "0.1.0",
-    abiName: "increment",
-    publicName: "increment",
-    entrypoint: entrypoints.Counter.increment,
-    args: [
-      {
-        abiName: "amount",
-        publicName: "amount",
-        type: spec.interfaces[0]!.methods[3]!.args[0]!.ty,
-      },
-    ],
-    returnType: spec.interfaces[0]!.methods[3]!.return_type,
-    throws: [
-      {
-        selector: 0xeb2cf72be75a4c62n,
-        name: "CounterError",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  initialize: defineContractMethod<
-    CounterInitializeArgs,
-    CounterInitializeResult,
-    CounterDeclaredException
-  >({
-    interfaceName: "Counter",
-    interfaceVersion: "0.1.0",
-    abiName: "initialize",
-    publicName: "initialize",
-    entrypoint: entrypoints.Counter.initialize,
-    args: [
-      {
-        abiName: "initial_value",
-        publicName: "initialValue",
-        type: spec.interfaces[0]!.methods[4]!.args[0]!.ty,
-      },
-    ],
-    returnType: spec.interfaces[0]!.methods[4]!.return_type,
-    throws: [
-      {
-        selector: 0xeb2cf72be75a4c62n,
-        name: "CounterError",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  ping: defineContractMethod<
-    CounterPingArgs,
-    CounterPingResult,
-    CounterDeclaredException
-  >({
-    interfaceName: "Counter",
-    interfaceVersion: "0.1.0",
-    abiName: "ping",
-    publicName: "ping",
-    entrypoint: entrypoints.Counter.ping,
-    args: [
-      {
-        abiName: "tag",
-        publicName: "tag",
-        type: spec.interfaces[0]!.methods[5]!.args[0]!.ty,
-      },
-    ],
-    returnType: spec.interfaces[0]!.methods[5]!.return_type,
-    throws: [
-      {
-        selector: 0xeb2cf72be75a4c62n,
-        name: "CounterError",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-    ],
-    codecs,
-  }),
+  v0_1: {
+    decrement: __gh_client_contract.defineContractMethod<
+      Counter.v0_1.DecrementArgs,
+      Counter.v0_1.DecrementResult,
+      Counter.v0_1.DeclaredException
+    >({
+      interfaceName: "Counter",
+      interfaceVersion: "0.1.0",
+      abiName: "decrement",
+      publicName: "decrement",
+      entrypoint: __gh_entrypoints.Counter.v0_1.decrement,
+      args: [
+        {
+          abiName: "amount",
+          publicName: "amount",
+          type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[0]!.methods[0]!.return_type,
+      throws: [
+        {
+          selector: 0xeb2cf72be75a4c62n,
+          name: "CounterError",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    error: __gh_client_contract.defineContractMethod<
+      Counter.v0_1.ErrorArgs,
+      Counter.v0_1.ErrorResult,
+      Counter.v0_1.DeclaredException
+    >({
+      interfaceName: "Counter",
+      interfaceVersion: "0.1.0",
+      abiName: "error",
+      publicName: "error",
+      entrypoint: __gh_entrypoints.Counter.v0_1.error,
+      args: [],
+      returnType: spec.interfaces[0]!.methods[1]!.return_type,
+      throws: [
+        {
+          selector: 0xeb2cf72be75a4c62n,
+          name: "CounterError",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    get: __gh_client_contract.defineContractMethod<
+      Counter.v0_1.GetArgs,
+      Counter.v0_1.GetResult,
+      Counter.v0_1.DeclaredException
+    >({
+      interfaceName: "Counter",
+      interfaceVersion: "0.1.0",
+      abiName: "get",
+      publicName: "get",
+      entrypoint: __gh_entrypoints.Counter.v0_1.get,
+      args: [],
+      returnType: spec.interfaces[0]!.methods[2]!.return_type,
+      throws: [
+        {
+          selector: 0xeb2cf72be75a4c62n,
+          name: "CounterError",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    increment: __gh_client_contract.defineContractMethod<
+      Counter.v0_1.IncrementArgs,
+      Counter.v0_1.IncrementResult,
+      Counter.v0_1.DeclaredException
+    >({
+      interfaceName: "Counter",
+      interfaceVersion: "0.1.0",
+      abiName: "increment",
+      publicName: "increment",
+      entrypoint: __gh_entrypoints.Counter.v0_1.increment,
+      args: [
+        {
+          abiName: "amount",
+          publicName: "amount",
+          type: spec.interfaces[0]!.methods[3]!.args[0]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[0]!.methods[3]!.return_type,
+      throws: [
+        {
+          selector: 0xeb2cf72be75a4c62n,
+          name: "CounterError",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    initialize: __gh_client_contract.defineContractMethod<
+      Counter.v0_1.InitializeArgs,
+      Counter.v0_1.InitializeResult,
+      Counter.v0_1.DeclaredException
+    >({
+      interfaceName: "Counter",
+      interfaceVersion: "0.1.0",
+      abiName: "initialize",
+      publicName: "initialize",
+      entrypoint: __gh_entrypoints.Counter.v0_1.initialize,
+      args: [
+        {
+          abiName: "initial_value",
+          publicName: "initialValue",
+          type: spec.interfaces[0]!.methods[4]!.args[0]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[0]!.methods[4]!.return_type,
+      throws: [
+        {
+          selector: 0xeb2cf72be75a4c62n,
+          name: "CounterError",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    ping: __gh_client_contract.defineContractMethod<
+      Counter.v0_1.PingArgs,
+      Counter.v0_1.PingResult,
+      Counter.v0_1.DeclaredException
+    >({
+      interfaceName: "Counter",
+      interfaceVersion: "0.1.0",
+      abiName: "ping",
+      publicName: "ping",
+      entrypoint: __gh_entrypoints.Counter.v0_1.ping,
+      args: [
+        {
+          abiName: "tag",
+          publicName: "tag",
+          type: spec.interfaces[0]!.methods[5]!.args[0]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[0]!.methods[5]!.return_type,
+      throws: [
+        {
+          selector: 0xeb2cf72be75a4c62n,
+          name: "CounterError",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+  },
 } as const;
 
-export interface PingEvent extends DecodedContractEvent<
-  "PingEvent",
-  { tag: bigint },
-  {}
-> {}
+export const counter = {
+  v0_1: {
+    implementation: {
+      CounterError: {
+        NotAuthorized: 1n,
+      },
+      PingEvent: __gh_client_contract.defineContractEvent<
+        "PingEvent",
+        counter.v0_1.implementation.PingEvent["topics"],
+        counter.v0_1.implementation.PingEvent["fields"],
+        counter.v0_1.implementation.PingEventFilter
+      >({
+        name: "PingEvent",
+        signature: spec.events[0]!.signature,
+        topics: [
+          {
+            name: "tag",
+            type: spec.events[0]!.topics[0]!.ty,
+            representation: "u64",
+          },
+        ],
+        fields: [],
+        codecs: __gh_codecs,
+      }),
+    },
+  },
+} as const;
 
-export interface PingEventFilter {
-  tag?: ContractEventFilterValue<bigint>;
+export type CounterEvent = counter.v0_1.implementation.PingEvent;
+
+export function decodeEvent(__gh_event: {
+  topics: globalThis.Uint8Array[];
+  data: globalThis.Uint8Array;
+}): CounterEvent | null {
+  return counter.v0_1.implementation.PingEvent.decode(__gh_event);
 }
 
-export const PingEvent = defineContractEvent<
-  "PingEvent",
-  PingEvent["topics"],
-  PingEvent["fields"],
-  PingEventFilter
->({
-  name: "PingEvent",
-  signature: spec.events[0]!.signature,
-  topics: [
-    {
-      name: "tag",
-      type: spec.events[0]!.topics[0]!.ty,
-      representation: "u64",
-    },
-  ],
-  fields: [],
-  codecs,
-});
-
-export type CounterEvent = PingEvent;
-
-export function decodeEvent(event: {
-  topics: Uint8Array[];
-  data: Uint8Array;
-}): CounterEvent | null {
-  return PingEvent.decode(event);
+// The types the namespaces above refer to, under names no declaration can capture.
+export namespace __gh_codegen {
+  export type counter$v0_1$implementation$CounterError =
+    counter.v0_1.implementation.CounterError;
 }

@@ -50,7 +50,7 @@ const config = loadConfig({
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
 });
 const target = {
-  method: StandardTokenFactory.createToken,
+  method: StandardTokenFactory.v0_1.createToken,
   invocation: {
     invoked_address: contractAddress(new Uint8Array(32).fill(9)),
     entrypoint: contractEntrypointID(new Uint8Array(8)),
@@ -87,7 +87,7 @@ function setup() {
     if (input.method === "signTransaction") {
       const tx = parseTransactionHex(input.params.transaction);
       expect(tx.invocation.entrypoint).toEqual(
-        DefaultWallet.execute.entrypoint,
+        DefaultWallet.v0_1.execute.entrypoint,
       );
       expect(tx.auth_claim).toEqual(localAccount.authClaim);
       expect(tx.uniquifier.block_expiry_height).toBe(1_010n);
@@ -119,6 +119,7 @@ function setup() {
     txHash: sha256Hash(hash),
     height: blockHeight(11n),
     execResult: ExecResult.ExecResultOK,
+    gasUsed: 0n,
     events: [],
     returnData: wrappedReturn,
     abortData: null,
@@ -166,6 +167,7 @@ describe("provider write boundary with the real SDK", () => {
       txHash: sha256Hash(hash),
       height: blockHeight(11n),
       execResult: ExecResult.ExecResultTxRootFrameReverted,
+      gasUsed: 0n,
       returnData: null,
       abortData: new Uint8Array([1]),
       events: [],
@@ -185,6 +187,7 @@ describe("provider write boundary with the real SDK", () => {
       txHash: sha256Hash(hash),
       height: blockHeight(11n),
       execResult: ExecResult.ExecResultOK,
+      gasUsed: 0n,
       returnData: new Uint8Array([1]),
       abortData: null,
       events: [],
@@ -402,7 +405,7 @@ describe("provider write boundary with the real SDK", () => {
       invocation: {
         ...target.invocation,
         invoked_address: config.factoryAddress,
-        entrypoint: StandardTokenFactory.createToken.entrypoint,
+        entrypoint: StandardTokenFactory.v0_1.createToken.entrypoint,
       },
     };
     await writer.execute(creation, { onSigned() {} });

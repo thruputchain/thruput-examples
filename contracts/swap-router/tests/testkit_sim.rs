@@ -38,7 +38,7 @@ type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as recorded in each
 // `*.spec.json`. `entrypoint_id` derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.5");
+const ERC20: (&str, &str) = ("ERC20", "0.1.42");
 const HANDLER: (&str, &str) = ("SwapHandler", "0.1.0");
 const DRIVER: (&str, &str) = ("SwapDriver", "0.1.0");
 const ROUTER: (&str, &str) = ("SwapRouter", "0.1.0");
@@ -189,7 +189,7 @@ async fn deploy_and_init(
         .call(
             ctx,
             "adjust_allowance",
-            &(factory.address(), 3 * POOL_FUNDING.recommended),
+            &(factory.address(), 3 * POOL_FUNDING.recommended, false),
         )
         .await?;
     factory
@@ -222,10 +222,18 @@ async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
     // Let the request handler pull our tokens when the request is executed.
     let supply = i128::try_from(SUPPLY).expect("bug: supply fits i128");
     s.token0
-        .call(ctx, "adjust_allowance", &(s.handler.address(), supply))
+        .call(
+            ctx,
+            "adjust_allowance",
+            &(s.handler.address(), supply, false),
+        )
         .await?;
     s.token1
-        .call(ctx, "adjust_allowance", &(s.handler.address(), supply))
+        .call(
+            ctx,
+            "adjust_allowance",
+            &(s.handler.address(), supply, false),
+        )
         .await?;
 
     // Route an add-liquidity request. The pair doesn't exist, so this creates it, then enqueues the
@@ -287,10 +295,18 @@ fn liquidity_provider(name: &str) -> Agent {
         // Allow the request handler to pull our A/B tokens when the request runs.
         let allowance = i128::try_from(USER_LIQUIDITY).expect("bug: allowance fits i128");
         token0
-            .call(&mut ctx, "adjust_allowance", &(cfg.handler, allowance))
+            .call(
+                &mut ctx,
+                "adjust_allowance",
+                &(cfg.handler, allowance, false),
+            )
             .await?;
         token1
-            .call(&mut ctx, "adjust_allowance", &(cfg.handler, allowance))
+            .call(
+                &mut ctx,
+                "adjust_allowance",
+                &(cfg.handler, allowance, false),
+            )
             .await?;
 
         // Submit an add-liquidity request (executed later, by the driver). LP is minted to us; we
@@ -490,10 +506,18 @@ fn calibrator(fee_enabled: bool) -> Agent {
         let add: Amount = SUPPLY / 1_000;
         let add_i = i128::try_from(add).unwrap();
         s.token0
-            .call(&mut ctx, "adjust_allowance", &(s.handler.address(), add_i))
+            .call(
+                &mut ctx,
+                "adjust_allowance",
+                &(s.handler.address(), add_i, false),
+            )
             .await?;
         s.token1
-            .call(&mut ctx, "adjust_allowance", &(s.handler.address(), add_i))
+            .call(
+                &mut ctx,
+                "adjust_allowance",
+                &(s.handler.address(), add_i, false),
+            )
             .await?;
         s.router
             .call(
@@ -519,7 +543,7 @@ fn calibrator(fee_enabled: bool) -> Agent {
         s.lp.call(
             &mut ctx,
             "adjust_allowance",
-            &(s.handler.address(), i128::try_from(redeem).unwrap()),
+            &(s.handler.address(), i128::try_from(redeem).unwrap(), false),
         )
         .await?;
         s.router
@@ -562,7 +586,11 @@ async fn swap_a_little(ctx: &mut AgentContext, s: &Swap, me: Address) -> Result<
         .call(
             ctx,
             "adjust_allowance",
-            &(s.handler.address(), i128::try_from(amount_in).unwrap()),
+            &(
+                s.handler.address(),
+                i128::try_from(amount_in).unwrap(),
+                false,
+            ),
         )
         .await?;
     s.router
@@ -586,7 +614,11 @@ async fn swap_a_little_exact_out(ctx: &mut AgentContext, s: &Swap, me: Address) 
         .call(
             ctx,
             "adjust_allowance",
-            &(s.handler.address(), i128::try_from(amount_in_max).unwrap()),
+            &(
+                s.handler.address(),
+                i128::try_from(amount_in_max).unwrap(),
+                false,
+            ),
         )
         .await?;
     s.router

@@ -1,4 +1,10 @@
-import { addressFromHex, bytesEqual, toHex0x, type TransactionReceipt, type CoreGroundhogClient } from "@groundhogchain/client";
+import {
+  addressFromHex,
+  bytesEqual,
+  toHex0x,
+  type TransactionReceipt,
+  type CoreGroundhogClient,
+} from "@groundhogchain/client";
 import type { Invocation } from "@groundhogchain/protocol";
 import { DefaultWallet } from "@groundhogchain/client/contracts";
 
@@ -11,8 +17,8 @@ import {
 import { createSwapFactoryReadAdapter, type PoolAddresses } from "@/contracts/factory-adapter";
 import { buildCreatePairTarget } from "@/contracts/factory-target";
 import { creationFailureMessage } from "@/contracts/failure-message";
-import { RequestAccepted } from "@/contracts/generated/swap-driver";
-import { PoolCreated, SwapFactory } from "@/contracts/generated/swap-factory";
+import { batch_driver } from "@/contracts/generated/swap-driver";
+import { SwapFactory, swap_if } from "@/contracts/generated/swap-factory";
 import { buildAddLiquidityTarget } from "@/contracts/router-target";
 import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { formatAmount } from "@/domain/amount";
@@ -70,6 +76,11 @@ import {
   saveRequestCollection,
 } from "@/transactions/request-collection";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
+
+const RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+type RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+const PoolCreated = swap_if.v0_1.events.PoolCreated;
+type PoolCreated = swap_if.v0_1.events.PoolCreated;
 
 const MAX_EXECUTION_EXPOSURE = 10;
 
@@ -397,10 +408,10 @@ async function runCreationBatch(
   );
   if (result.kind === "committedSuccess") {
     try {
-      const returns = DefaultWallet.execute.decodeReceipt(result.receipt).value;
+      const returns = DefaultWallet.v0_1.execute.decodeReceipt(result.receipt).value;
       if (returns.length !== workflow.batchSteps!.length)
         throw new Error("Unexpected batch results");
-      const created = SwapFactory.createPair.decodeReturn(
+      const created = SwapFactory.v0_1.createPair.decodeReturn(
         returns[workflow.batchSteps!.indexOf("createPool")]!,
       );
       const expected = workflow.batchPool!;

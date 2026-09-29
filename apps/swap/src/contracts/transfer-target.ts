@@ -10,5 +10,5 @@ export function buildTransferTarget(
   amount: bigint,
 ): Invocation {
   if (amount <= 0n) throw new RangeError("Transfer amount must be positive");
-  return ERC20.transfer.invocation(token, TARGET_GAS, { receiver, amount });
+  return ERC20.v0_1.transfer.invocation(token, TARGET_GAS, { receiver, amount });
 }

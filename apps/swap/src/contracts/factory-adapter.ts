@@ -41,19 +41,19 @@ export function createSwapFactoryReadAdapter(params: {
   };
   return {
     allPairsLength() {
-      return SwapFactory.allPairsLength.view(context);
+      return SwapFactory.v0_1.allPairsLength.view(context);
     },
     pairAt(index) {
-      return SwapFactory.pairAt.view({ ...context, args: { index } });
+      return SwapFactory.v0_1.pairAt.view({ ...context, args: { index } });
     },
     getPair(tokenA, tokenB) {
-      return SwapFactory.getPair.view({
+      return SwapFactory.v0_1.getPair.view({
         ...context,
         args: { tokenA, tokenB },
       });
     },
     async poolAddresses(tokenA, tokenB) {
-      const result = await SwapFactory.poolAddresses.view({
+      const result = await SwapFactory.v0_1.poolAddresses.view({
         ...context,
         args: { tokenA, tokenB },
       });
@@ -67,10 +67,10 @@ export function createSwapFactoryReadAdapter(params: {
       };
     },
     poolFunding() {
-      return SwapFactory.poolFunding.view(context);
+      return SwapFactory.v0_1.poolFunding.view(context);
     },
     feeTo() {
-      return SwapFactory.feeTo.view(context);
+      return SwapFactory.v0_1.feeTo.view(context);
     },
   };
 }

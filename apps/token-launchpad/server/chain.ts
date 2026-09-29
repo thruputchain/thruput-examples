@@ -21,10 +21,13 @@ import { networkHash } from "@groundhogchain/protocol";
 
 import {
   StandardTokenFactory,
-  TokenCreated,
+  standard_token_factory_if,
 } from "../src/contracts/generated/standard-token-factory.ts";
 import type { RegistryScope, RegistryToken } from "../shared/registry.ts";
 import type { ServerConfig } from "./config.ts";
+
+const TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
+type TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 
 export interface RegistrySourceRequest {
   anchorBlock: string;
@@ -142,7 +145,7 @@ export class GroundhogRegistrySource implements RegistrySource {
     let observed;
     try {
       observed = (
-        await StandardTokenFactory.config.view({
+        await StandardTokenFactory.v0_1.config.view({
           client: this.#client,
           contract: this.#factoryAddress,
         })

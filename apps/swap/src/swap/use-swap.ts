@@ -8,7 +8,7 @@ import {
   buildProcessRequestsTarget,
   decodeRequestsProcessedSummary,
 } from "@/contracts/driver-target";
-import { RequestAccepted } from "@/contracts/generated/swap-driver";
+import { batch_driver } from "@/contracts/generated/swap-driver";
 import { swapFailureMessage } from "@/contracts/failure-message";
 import { buildExactInputSwapTarget } from "@/contracts/router-target";
 import { formatAmount } from "@/domain/amount";
@@ -99,6 +99,9 @@ import {
   observationsFromReceipt,
 } from "@/transactions/request-observer";
 import { inferSingleExecutionFromSnapshot } from "@/transactions/execution-fallback";
+
+const RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+type RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
 
 const OBSERVATION_POLL_MS = 2_000;
 const POST_TIMEOUT_OBSERVATION_POLL_MS = 10_000;

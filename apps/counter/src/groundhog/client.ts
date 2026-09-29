@@ -42,7 +42,7 @@ export async function createCounterConnection(
   });
   const signerAddress = addressFromHex(config.signerAddress);
   const counter = getContract({
-    binding: Counter,
+    binding: Counter.v0_1,
     address: addressFromHex(config.counterAddress),
     client,
   });
