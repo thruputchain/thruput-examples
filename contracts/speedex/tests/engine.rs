@@ -170,6 +170,78 @@ fn crossed_limits_trade_nothing() {
     }
 }
 
+#[test]
+fn buckets_up_to_i128_max_clear_without_overflow() {
+    // A cell totals whatever its offers add up to, far beyond the per-offer bound. The engine must
+    // neither fault nor pay out more than it takes in.
+    let huge = i128::MAX as u128;
+    let buckets = [
+        bucket(0, 1, 0.9, huge, OCTAVES),
+        bucket(1, 0, 0.9, huge, OCTAVES),
+        bucket(1, 2, 0.5, huge / 3, OCTAVES),
+        bucket(2, 1, 1.9, 1 << 20, OCTAVES),
+    ];
+    let c = clear(&buckets, 3);
+    assert!(c.trims.iter().all(|&t| t as u128 <= ONE));
+    assert!(c.haircuts.iter().all(|&h| h as u128 <= ONE));
+    assert!(c.volume > 0, "{c:?}");
+
+    // One offer of the largest allowed size inside the huge bucket settles at the clearing rate.
+    let f = fill(MAX_AMOUNT - 1, 0, 1, buckets[0].limit, &c);
+    assert!(f.sold < MAX_AMOUNT);
+    assert!(
+        f.bought as f64 + 1.0 >= (f.sold as f64 - 2.0) * 0.9,
+        "{f:?}"
+    );
+
+    // And a batch with one bucket at the maximum and nothing to trade against it is fine too.
+    let lone = [bucket(0, 1, 0.9, huge, OCTAVES)];
+    let c = clear(&lone, 2);
+    assert_eq!(c.volume, 0);
+    assert_eq!(fill(MIN_AMOUNT, 0, 1, lone[0].limit, &c), Fill::default());
+}
+
+#[test]
+fn the_largest_configuration_clears_a_full_histogram() {
+    // Eight assets on a one-octave grid is the most cells an exchange may have (1024). Fill every
+    // one and clear it, treating each bucket as a single offer for the conservation check.
+    let (n, octaves) = (8, 1);
+    let mut rng = Lcg(7);
+    let mut buckets = Vec::new();
+    for sell in 0..n {
+        for buy in (0..n).filter(|&b| b != sell) {
+            for level in 0..levels(octaves) {
+                buckets.push(Bucket {
+                    sell,
+                    buy,
+                    limit: level_ratio(level, octaves),
+                    amount: MIN_AMOUNT + rng.below(1 << 40) as u128,
+                });
+            }
+        }
+    }
+    assert_eq!(buckets.len(), 896);
+    let c = clear(&buckets, n);
+    assert!(c.volume > 0);
+
+    let mut sold = [0u128; MAX_ASSETS];
+    let mut bought = [0u128; MAX_ASSETS];
+    for b in &buckets {
+        let f = fill(b.amount, b.sell, b.buy, b.limit, &c);
+        sold[b.sell] += f.sold;
+        bought[b.buy] += f.bought;
+    }
+    for a in 0..n {
+        assert!(
+            bought[a] <= sold[a],
+            "asset {a}: paid {} of {}",
+            bought[a],
+            sold[a]
+        );
+        assert!(c.surplus[a] <= sold[a] - bought[a], "asset {a}");
+    }
+}
+
 // A small deterministic generator, so the property test below is reproducible.
 struct Lcg(u64);
 
@@ -206,11 +278,12 @@ fn random_batches_are_feasible_and_respect_every_limit() {
             let limit = level_ratio(level, octaves);
             let mut total = 0;
             for _ in 0..1 + rng.below(3) {
-                let amount = match rng.below(3) {
-                    0 => 1 + rng.below(1_000),
-                    1 => 1 + rng.below(1_000_000_000),
-                    _ => 1 + rng.below(1 << 40),
-                } as u128;
+                let amount = MIN_AMOUNT
+                    + match rng.below(3) {
+                        0 => rng.below(1_000),
+                        1 => rng.below(1_000_000_000),
+                        _ => rng.below(1 << 40),
+                    } as u128;
                 offers.push((sell, buy, limit, amount));
                 total += amount;
             }

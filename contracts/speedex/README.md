@@ -79,8 +79,10 @@ per-batch step whose cost is independent of load.
   assets are handled by scaling their buyers back (`engine::feasibility`); where that would chase a
   residual around a cycle of assets, the residual becomes a haircut on what those buyers receive,
   bounded by one more fee's worth -- and offers execute only when the rate beats their limit by both
-  fees, so every limit holds exactly. The fee (and the rounding, which always goes the exchange's
-  way) accrues per asset as the batch clears, and the admin collects it with `collect_fees`.
+  fees, so the fee and the haircut never take a seller below its limit. Rounding can, by under a
+  unit of each asset per offer, which is why offers have a minimum size (`engine::MIN_AMOUNT`). The
+  fee (and the rounding, which always goes the exchange's way) accrues per asset as the batch
+  clears, and the admin collects it with `collect_fees`.
 - **Deterministic tâtonnement from equal prices.** SPEEDEX warm-starts from the previous block and
   lets the proposer's result stand. Here every clearing starts from equal prices so that the
   clearing is a pure function of the batch, at the cost of some extra rounds. A batch in which no
@@ -91,9 +93,16 @@ per-batch step whose cost is independent of load.
 ## Bounds
 
 Prices are Q32 fixed point, normalized so the largest is `2^56` and none is below `2^8`, so no rate
-exceeds `2^48`; offers are below `2^80`. Within those, every product fits `u128`, and the exact
-rational comparisons in the feasibility pass fit `U256`. The grid bounds the rates that can actually
-trade far more tightly than that.
+exceeds `2^48`; offers are between `2^16` and `2^80`. Within those, every per-offer product fits
+`u128`. A histogram cell is an `i128` and may total anything up to `i128::MAX` (the increment
+refuses more), and the aggregate arithmetic is exact in `U256` for any such total. The grid bounds
+the rates that can actually trade far more tightly than that.
+
+An exchange may have at most `MAX_CELLS` (1024) histogram cells -- `n (n - 1) * levels` -- since a
+clearing reads every one of them whether or not it is occupied. That bounds a clearing's cost, but
+does not measure it: the mock environment used by the tests does not meter gas the way a node does,
+so calibrate on a devnode (as `scripts/swap-gas-calibrate.sh` does for the swap example) before
+choosing a configuration near the bound.
 
 The chain caps a contract's code at 64 KiB, and RV32 has no 128-bit multiply or divide, so the
 engine's arithmetic is expensive in code. The engine's routines are `#[inline(never)]` so that each

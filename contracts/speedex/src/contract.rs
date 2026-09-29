@@ -50,19 +50,21 @@ pub type OfferId = SHA256Hash;
 /// Which batch an offer belongs to: its block height divided by the epoch length.
 pub type BatchId = u64;
 
-/// The most offers of one asset a batch may hold at one level: the histogram cell is an `i128`, and
-/// `2^80` offers of `2^47` fit.
-pub const MAX_OFFERS_PER_CELL: u128 = 1 << 47;
+/// The most histogram cells an exchange may have: `n_assets * (n_assets - 1) * levels`. Clearing
+/// reads every cell of the batch whether or not it is occupied, so this bounds what a clearing
+/// costs. (Eight assets on a one-octave grid, or three on a five-octave one, fit; calibrate on a
+/// devnode before choosing a configuration near the bound.)
+pub const MAX_CELLS: u32 = 1024;
 
 #[contract_exception]
 pub enum SpeedexError {
     AlreadyInitialized = 1,
-    /// Fewer than two assets, more than [`MAX_ASSETS`], a repeated or zero asset, a zero epoch, or
-    /// a grid wider than [`engine::MAX_OCTAVES`].
+    /// Fewer than two assets, more than [`MAX_ASSETS`], a repeated or zero asset, a zero epoch, a
+    /// grid wider than [`engine::MAX_OCTAVES`], or more than [`MAX_CELLS`] histogram cells.
     InvalidConfiguration = 2,
     /// An asset index out of range, or a sell asset equal to the buy asset.
     InvalidAsset = 3,
-    /// A zero amount, or one at or above [`engine::MAX_AMOUNT`].
+    /// An amount below [`engine::MIN_AMOUNT`] or at or above [`engine::MAX_AMOUNT`].
     InvalidAmount = 4,
     /// A zero limit, or one above the top of the grid.
     InvalidPrice = 5,
@@ -242,7 +244,8 @@ impl Speedex {
         ensure(
             (2..=MAX_ASSETS).contains(&n)
                 && epoch_len > 0
-                && (1..=engine::MAX_OCTAVES).contains(&octaves),
+                && (1..=engine::MAX_OCTAVES).contains(&octaves)
+                && (n_assets * (n_assets - 1)).saturating_mul(engine::levels(octaves)) <= MAX_CELLS,
             SpeedexError::InvalidConfiguration,
         );
         let zero = Address::new([0; 32]);
@@ -279,7 +282,7 @@ impl Speedex {
             SpeedexError::InvalidAsset,
         );
         ensure(
-            amount > 0 && amount < engine::MAX_AMOUNT,
+            (engine::MIN_AMOUNT..engine::MAX_AMOUNT).contains(&amount),
             SpeedexError::InvalidAmount,
         );
         ensure(min_price > 0, SpeedexError::InvalidPrice);
@@ -297,6 +300,9 @@ impl Speedex {
 
         // The id names the submission (a per-transaction unique id) and commits to what was
         // submitted, so ids of distinct offers stay distinct even where transaction hashes do not.
+        // The record is written under an exclusive lock so that even two *identical* submissions
+        // with one id (possible only where transaction hashes coincide) cannot both land: the loser
+        // is returned to the mempool rather than escrowed under a record it shares.
         let offer = Offer {
             owner,
             batch,
@@ -306,7 +312,7 @@ impl Speedex {
             amount,
         };
         let id = (self.ids.next_id(), offer).hash();
-        self.offers.at_mut(&id).set(&offer);
+        self.offers.at_mut(&id).set_exclusive(&offer);
 
         log_event(&OfferAccepted {
             owner: &owner,

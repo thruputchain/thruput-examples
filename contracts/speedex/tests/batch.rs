@@ -333,6 +333,10 @@ fn malformed_offers_are_refused() {
     assert_eq!(refused(A, 3, UNIT, px(1.0)), SpeedexError::InvalidAsset);
     assert_eq!(refused(A, B, 0, px(1.0)), SpeedexError::InvalidAmount);
     assert_eq!(
+        refused(A, B, engine::MIN_AMOUNT - 1, px(1.0)),
+        SpeedexError::InvalidAmount
+    );
+    assert_eq!(
         refused(A, B, engine::MAX_AMOUNT, px(1.0)),
         SpeedexError::InvalidAmount
     );
@@ -366,4 +370,56 @@ fn an_epoch_groups_several_blocks_into_one_batch() {
     x.settle_all(&[alice, bob]);
     assert!(x.balances(&ALICE)[B as usize] >= 9 * UNIT);
     assert!(x.balances(&BOB)[A as usize] >= 9 * UNIT);
+}
+
+#[test]
+fn identical_offers_in_one_block_cannot_share_a_record() {
+    // The mock environment gives every transaction the same source hash, so two identical
+    // submissions by one user in one block would mint one id. The record is written under an
+    // exclusive lock, so the second transaction is excluded from the block instead of escrowing
+    // tokens under a record it cannot settle. (On a network, distinct transactions have distinct
+    // hashes and both land.)
+    let x = Exchange::setup();
+    x.mint(&ALICE, A, 20 * UNIT);
+
+    let first = x.submit(&ALICE, A, B, 10 * UNIT, px(1.0));
+    let second = x.as_user(&ALICE, || {
+        x.token(A).adjust_allowance(&x.addr, (10 * UNIT) as i128);
+        x.client().submit_offer(A, B, 10 * UNIT, px(1.0))
+    });
+    assert!(second.is_err(), "the duplicate must not commit");
+
+    x.advance_block();
+    assert_eq!(x.balances(&ALICE), [10 * UNIT, 0, 0], "one escrow, not two");
+    assert_eq!(x.offer(&first).unwrap().amount, 10 * UNIT);
+
+    // Resubmitted in a later block, it is a distinct offer.
+    let again = x.submit(&ALICE, A, B, 10 * UNIT, px(1.0));
+    assert_ne!(again, first);
+}
+
+#[test]
+fn a_histogram_too_large_to_clear_is_refused_at_initialization() {
+    hash_ident! { static OTHER_NONCE: SHA256Hash; }
+    let x = Exchange::setup();
+    let exchange_hash = *speedex::register_mock_contract(&x.env).as_hash();
+
+    // Eight distinct addresses; `initialize` does not check that they are tokens.
+    let mut assets = [ContractAddress::new([0; 32]); MAX_ASSETS];
+    for (i, a) in assets.iter_mut().enumerate() {
+        *a = ContractAddress::new([i as u8 + 1; 32]);
+    }
+
+    let (wide, narrow) = x
+        .as_user(&TEST, || {
+            let addr = deploy_contract(&OTHER_NONCE, &exchange_hash);
+            let client = SpeedexClient::new(&addr);
+            // 8 * 7 * 32 cells is over the bound; 8 * 7 * 16 is under it.
+            let wide = client.try_initialize(&TEST, 8, assets, 1, 2);
+            let narrow = client.try_initialize(&TEST, 8, assets, 1, 1);
+            (wide, narrow)
+        })
+        .expect("deploy");
+    assert_eq!(speedex_error(wide), SpeedexError::InvalidConfiguration);
+    narrow.expect("the largest allowed configuration");
 }

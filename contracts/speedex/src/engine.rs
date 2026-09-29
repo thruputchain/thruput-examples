@@ -14,7 +14,8 @@
 //! Q32 too, and only their ratios mean anything: `p_sell / p_buy` is how many units of the buy
 //! asset one unit of the sell asset is worth. [`normalize`] pins the largest price of a batch to
 //! [`PRICE_ANCHOR`] and floors the rest at [`MIN_PRICE`], which is what keeps every intermediate
-//! product within `u128` for amounts below [`MAX_AMOUNT`].
+//! product within `u128` for offers below [`MAX_AMOUNT`], and within `U256` for the aggregates,
+//! whose buckets may total anything up to `i128::MAX`.
 
 #![allow(clippy::needless_range_loop)]
 
@@ -44,8 +45,13 @@ pub const PRICE_ANCHOR: Price = 1 << 56;
 /// The smallest price [`normalize`] allows, so that no ratio exceeds `2^48`.
 pub const MIN_PRICE: Price = 1 << 8;
 /// Offers must be smaller than this so that `amount * ratio` fits in `u128` at every ratio the
-/// prices admit.
+/// prices admit. A histogram cell -- the total of a level's offers -- is an `i128`, and the engine
+/// is exact for any total up to `i128::MAX`; see [`fill`] for where the per-offer bound matters.
 pub const MAX_AMOUNT: u128 = 1 << 80;
+/// Offers must be at least this. Each rounding in [`fill`] costs the seller less than a unit, so the
+/// smallest offer bounds how far an effective price can fall short of its limit: for an offer of
+/// this size, under two parts in `2^15`.
+pub const MIN_AMOUNT: u128 = 1 << 16;
 
 /// Price levels per octave (doubling) of the grid.
 pub const LEVELS_PER_OCTAVE: u32 = 8;
@@ -247,7 +253,8 @@ fn aggregate(buckets: &[Bucket], n: usize, p: &Prices) -> ([u128; MAX_ASSETS], [
         if phi == 0 {
             continue;
         }
-        let sold = b.amount * phi / ONE;
+        // Buckets may exceed 2^96, so the product needs the wide multiply.
+        let sold = mul_div(b.amount, phi, ONE);
         supply[b.sell] = supply[b.sell].saturating_add(sold);
         let bought = convert(sold, p[b.sell], p[b.buy]);
         demand[b.buy] = demand[b.buy].saturating_add(bought);
@@ -381,6 +388,9 @@ pub fn tatonnement(buckets: &[Bucket], n: usize) -> (Prices, u32) {
 // owed after the fee. Comparing them is exact, so the check below is free of rounding noise; the
 // only rounding is per offer, in `fill`, and it always goes the exchange's way. `sold[a]` is the
 // integer part of the supply, for the volume.
+//
+// Magnitudes: a term is at most `2^127 * 2^32 * 2^56 * 2^10 = 2^225`, and an asset has under 2^10
+// buckets on either side, so a sum stays under 2^235.
 struct Flows {
     supply: [U256; MAX_ASSETS],
     demand: [U256; MAX_ASSETS],
@@ -400,11 +410,29 @@ fn flows(buckets: &[Bucket], p: &Prices, trims: &Trims) -> Flows {
             continue;
         }
         let traded = U256::from(b.amount) * U256::from(s);
-        f.sold[b.sell] = f.sold[b.sell].saturating_add(b.amount * s / ONE);
+        f.sold[b.sell] = f.sold[b.sell].saturating_add(mul_div(b.amount, s, ONE));
         f.supply[b.sell] += traded * U256::from(p[b.sell] as u128 * FEE_DEN);
         f.demand[b.buy] += traded * U256::from(p[b.sell] as u128 * FEE_KEEP);
     }
     f
+}
+
+// `num / den` as a Q32 fraction, rounded down, capped at one. When `num << 32` would not fit, both
+// are scaled down first, the divisor rounded up, so the result is never more than the exact value:
+// the callers use it to shrink a flow to fit a bound, and shrinking a little too much is safe.
+#[inline(never)]
+fn scale_q32(num: U256, den: U256) -> Fraction {
+    let excess = num.bit_len().saturating_sub(U256::BITS - 33);
+    let (n, d) = if excess == 0 {
+        (num, den)
+    } else {
+        (num >> excess, (den >> excess) + U256::ONE)
+    };
+    if d.is_zero() {
+        return ONE as Fraction;
+    }
+    let q = (n << 32u32) / d;
+    u128::try_from(q).unwrap_or(u128::MAX).min(ONE) as Fraction
 }
 
 /// Make the trades at `prices` exactly feasible: a buyer-side trim and a receipt haircut per asset.
@@ -444,16 +472,15 @@ pub fn feasibility(buckets: &[Bucket], n: usize, prices: &Prices) -> (Trims, Hai
                 continue;
             }
             if round < TRIM_ROUNDS {
-                let scaled = U256::from(trims[a] as u128) * f.supply[a] / f.demand[a];
-                trims[a] = u128::try_from(scaled).unwrap_or(0) as Fraction;
+                let by = scale_q32(f.supply[a], f.demand[a]) as u128;
+                trims[a] = (trims[a] as u128 * by / ONE) as Fraction;
                 again = true;
             } else if f.demand[a] * U256::from(FEE_KEEP) > f.supply[a] * U256::from(FEE_DEN) {
                 // More than a haircut may take: these buyers are out.
                 trims[a] = 0;
                 again = true;
             } else {
-                let cut = U256::from(ONE) * f.supply[a] / f.demand[a];
-                haircuts[a] = u128::try_from(cut).unwrap_or(0) as Fraction;
+                haircuts[a] = scale_q32(f.supply[a], f.demand[a]);
             }
         }
         if !again {
@@ -477,10 +504,15 @@ pub fn clear(buckets: &[Bucket], n: usize) -> Clearing {
     let mut surplus = [0u128; MAX_ASSETS];
     for a in 0..n {
         volume = volume.saturating_add(mul_div(f.sold[a], prices[a] as u128, ONE));
-        // Over the flows' denominator and one more factor of 2^32 for the haircut.
-        let owed = f.demand[a] * U256::from(haircuts[a] as u128);
-        let kept = (f.supply[a] * U256::from(ONE) - owed)
-            / (U256::from(ONE * prices[a] as u128 * FEE_DEN) * U256::from(ONE));
+        // What the buyers are owed after the haircut, rounded up, over the flows' denominator:
+        // split the demand at 2^32 so neither product can outgrow `U256`.
+        let h = U256::from(haircuts[a] as u128);
+        let one = U256::from(ONE);
+        let (q, r) = (f.demand[a] / one, f.demand[a] % one);
+        let owed =
+            q * h + U256::from((u128::try_from(r).unwrap() * haircuts[a] as u128).div_ceil(ONE));
+        let kept = f.supply[a].checked_sub(owed).unwrap_or(U256::ZERO)
+            / U256::from(ONE * prices[a] as u128 * FEE_DEN);
         surplus[a] = u128::try_from(kept).unwrap_or(u128::MAX);
     }
 
@@ -504,6 +536,12 @@ pub fn clear(buckets: &[Bucket], n: usize) -> Clearing {
 /// they receive is at most its exact demand -- the quantities [`feasibility`] compared -- so the
 /// exchange can pay every offer of every batch it cleared, in any order, without ever having seen
 /// them together.
+///
+/// The roundings are also the one way an effective price can fall short of a limit: by under a unit
+/// of the buy asset, on a sale that may be rounded up by under a unit of the sell asset. Relative to
+/// an offer of [`MIN_AMOUNT`] that is under two parts in `2^15`; the fee margin in
+/// [`effective_ratio`] does not cover it, since a rate may beat a limit by as little as one Q32
+/// unit.
 #[inline(never)]
 pub fn fill(amount: u128, sell: usize, buy: usize, limit: Price, clearing: &Clearing) -> Fill {
     let (p_sell, p_buy) = (clearing.prices[sell], clearing.prices[buy]);
