@@ -15,9 +15,9 @@ members = [
 edition = "2024"
 license = "Apache-2.0"
 authors = ["Groundhog Team"]
-publish = ["groundhog"]
+publish = false
 repository = "https://github.com/groundhogchain/groundhog-examples.git"
-homepage = "https://github.com/groundhogchain/groundhog-examples.git"
+homepage = "https://github.com/groundhogchain/groundhog-examples"
 keywords = ["groundhog"]
 categories = ["blockchain"]
 
