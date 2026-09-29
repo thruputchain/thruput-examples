@@ -156,7 +156,7 @@ impl Exchange {
     ) -> Result<OfferId, CallError> {
         self.as_user(user, || {
             self.token(sell)
-                .adjust_allowance(&self.addr, amount as i128);
+                .adjust_allowance(&self.addr, amount as i128, false);
             self.client().try_submit_offer(sell, buy, amount, min_price)
         })
         .expect("submit transaction")

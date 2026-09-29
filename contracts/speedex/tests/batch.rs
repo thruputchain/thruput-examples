@@ -339,7 +339,8 @@ fn identical_offers_in_one_block_cannot_share_a_record() {
 
     let first = x.submit(&ALICE, A, B, 10 * UNIT, px(1.0));
     let second = x.as_user(&ALICE, || {
-        x.token(A).adjust_allowance(&x.addr, (10 * UNIT) as i128);
+        x.token(A)
+            .adjust_allowance(&x.addr, (10 * UNIT) as i128, false);
         x.client().submit_offer(A, B, 10 * UNIT, px(1.0))
     });
     assert!(second.is_err(), "the duplicate must not commit");

@@ -74,8 +74,11 @@ fn ring_trade_rv32() {
         .iter()
         .map(|&(user, sell, buy)| {
             run(&env, user, || {
-                ERC20Client::new(&tokens[sell as usize])
-                    .adjust_allowance(&exchange, (1000 * UNIT) as i128);
+                ERC20Client::new(&tokens[sell as usize]).adjust_allowance(
+                    &exchange,
+                    (1000 * UNIT) as i128,
+                    false,
+                );
                 client.submit_offer(sell, buy, 1000 * UNIT, PRICE_ONE * 9 / 10)
             })
         })
