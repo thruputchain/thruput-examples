@@ -2738,6 +2738,7 @@ version = "0.1.0"
 dependencies = [
  "erc20",
  "groundhog-erc20-if",
+ "groundhog-signing",
  "groundhog-testkit",
  "sdk",
  "speedex",

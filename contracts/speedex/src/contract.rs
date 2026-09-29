@@ -55,13 +55,25 @@ pub type OfferId = SHA256Hash;
 /// Which batch an offer belongs to: its block height divided by the epoch length.
 pub type BatchId = u64;
 
-/// The most occupied histogram cells -- price levels in use, over all orderbooks -- one clearing
-/// will read. A batch with more cannot be cleared, so this is a liveness bound to set against the
-/// grid's fineness and the epoch's length. A clearing holds every bucket of its batch, and the
-/// SDK's record of every cell it read, in the guest's 64 KiB of memory; this many fits with room
-/// to spare, and about 400 do not (`tests/test_rv32.rs`). What a node charges bounds a batch more
-/// tightly still, at about 39k gas per cell read on a devnode (`tests/testkit_gas.rs`).
-pub const MAX_CLEAR_CELLS: usize = 256;
+/// The guest's memory, as a budget of histogram cells: a clearing of an exchange with `n` assets
+/// reads at most [`max_clear_cells`]`(n)` occupied cells -- price levels in use, over all
+/// orderbooks. A batch with more cannot be cleared, so this is a liveness bound to set against the
+/// grid's fineness and the epoch's length.
+///
+/// The guest's allocator never frees, so everything a clearing allocates has to fit the 64 KiB of
+/// data memory, less the 30 KiB stack reserve, at once: the buckets, the calldata, the value
+/// graph's edges (one per orderbook, in `U256`), and what the SDK allocates for each storage
+/// access. Measured on the RV32 executor, that runs out at about `360 - 3 * books` cells
+/// (`tests/test_rv32.rs`); this budget keeps a tenth in hand. What a node charges is the other
+/// bound on a batch: about 39k gas per cell read, and a circulation that grows with the square of
+/// the orderbooks (`tests/testkit_gas.rs`).
+pub const CELL_BUDGET: usize = 320;
+
+/// The most occupied cells one clearing reads on an exchange with `n_assets` assets; see
+/// [`CELL_BUDGET`].
+pub const fn max_clear_cells(n_assets: usize) -> usize {
+    CELL_BUDGET - 3 * n_assets * (n_assets - 1)
+}
 
 #[contract_exception]
 pub enum SpeedexError {
@@ -90,7 +102,7 @@ pub enum SpeedexError {
     /// `cancel_offer` on an offer whose batch has closed; settle it instead.
     BatchClosed = 12,
     /// `clear_batch` was given a malformed cell list: not whole cells, not strictly increasing,
-    /// more than [`MAX_CLEAR_CELLS`], or a cell outside the exchange's books and levels.
+    /// more than [`max_clear_cells`] allows, or a cell outside the exchange's books and levels.
     InvalidCells = 13,
     /// `clear_batch` was given a cell list that does not account for everything offered in the
     /// batch: some orderbook's listed cells do not sum to its total.
@@ -402,7 +414,7 @@ impl Speedex {
     ///
     /// `cells` names the histogram cells in use -- each a `u32` as [`cell`] packs it, little-endian,
     /// concatenated, strictly increasing -- which any indexer knows from the batch's
-    /// [`OfferAccepted`] events. The contract reads exactly those, at most [`MAX_CLEAR_CELLS`], and
+    /// [`OfferAccepted`] events. The contract reads exactly those, at most [`max_clear_cells`], and
     /// refuses the list unless every orderbook's listed cells sum to what it was offered in total:
     /// an incomplete list is [`SpeedexError::BatchMismatch`], never a clearing.
     pub fn clear_batch(&mut self, batch: BatchId, cells: &[u8]) -> Clearing {
@@ -493,7 +505,7 @@ impl Speedex {
         let n = cfg.n_assets as usize;
         let grid = Self::grid(cfg);
         ensure(
-            cells.len().is_multiple_of(4) && cells.len() / 4 <= MAX_CLEAR_CELLS,
+            cells.len().is_multiple_of(4) && cells.len() / 4 <= max_clear_cells(n),
             SpeedexError::InvalidCells,
         );
 

@@ -509,8 +509,10 @@ struct Edge {
 
 // The edges of a batch at prices `p`: one per orderbook with anything in the money.
 #[inline(never)]
-fn edges(buckets: &[Bucket], p: &Prices) -> Vec<Edge> {
-    let mut out: Vec<Edge> = Vec::new();
+fn edges(buckets: &[Bucket], n: usize, p: &Prices) -> Vec<Edge> {
+    // Sized once: the guest's allocator never frees, so a vector that grew by doubling would
+    // leave its outgrown copies behind.
+    let mut out: Vec<Edge> = Vec::with_capacity(n * (n - 1));
     for b in buckets {
         let (sell, buy) = (b.sell as usize, b.buy as usize);
         let r = ratio(p[sell], p[buy]);
@@ -649,11 +651,11 @@ pub fn trades(
     prices: &Prices,
     rounds: u32,
 ) -> (Clearing, Vec<(usize, BookFill)>) {
-    let mut es = edges(buckets, prices);
+    let mut es = edges(buckets, n, prices);
     let cancellations = circulate(&mut es, n);
 
     let mut volume = U256::ZERO;
-    let mut fills = Vec::new();
+    let mut fills = Vec::with_capacity(es.len());
     let mut shortfall = U256::ZERO;
     for e in &es {
         shortfall += e.must - e.flow_must;

@@ -28,13 +28,21 @@ mod synthetic;
 use std::io::Write;
 use std::path::PathBuf;
 
-use groundhog_testkit::xdr::types::ContractAddress;
+use groundhog_signing::{
+    BuildDevWalletDoActionTransaction, LocalSigner, SignTransactionParams,
+    build_dev_wallet_do_action_transaction, derive_dev_account_signer,
+    sign_and_encode_transaction_hex,
+};
+use groundhog_testkit::rpc_types::receipt::TransactionReceipt;
+use groundhog_testkit::rpc_types::runtime_manifest::{RuntimeManifest, parse_runtime_manifest};
+use groundhog_testkit::xdr::types::{ContractAddress, NetworkHash};
 use groundhog_testkit::xdrs::{self, ReadXDR, WriteXDR};
 use groundhog_testkit::{
-    Agent, AgentContext, BlockDriverConfig, Contract, LocalNetworkConfig, NetworkConfig, Result,
-    Scenario, entrypoint_id,
+    Agent, AgentContext, BlockDriverConfig, Contract, ContractEntrypointID, LocalNetworkConfig,
+    NetworkConfig, Result, Scenario, TestkitError, entrypoint_id,
 };
 use speedex::engine::{Grid, MAX_ASSETS};
+use speedex::max_clear_cells;
 use synthetic::{Rng, Shape};
 
 /// Interface identities the artifacts stamp; `entrypoint_id` derives selectors from these.
@@ -53,6 +61,11 @@ const ROUNDS: u32 = 64;
 const ASSETS: [usize; 4] = [3, 4, 6, 8];
 const OFFERS: [usize; 5] = [8, 32, 64, 128, 256];
 const ROUND_CAPS: [u32; 9] = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+
+/// Gas a clearing transaction is sent with. The testkit sends every transaction with 10M, which
+/// a clearing of a few hundred cells exceeds, so the clearings are built and signed here, through
+/// the same dev-wallet `doAction` wrapper, with this limit instead.
+const CLEARING_GAS: u64 = 1_000_000_000;
 
 /// Native (HOG) tokens granted to each contract for the storage it creates. The exchange writes
 /// three records per offer, so it gets a great deal more than a token does.
@@ -148,7 +161,7 @@ fn native_token() -> Contract {
     Contract::new(ContractAddress::from(bytes), "ERC20", "0.1.3")
 }
 
-fn status_of(receipt: &groundhog_testkit::rpc_types::receipt::TransactionReceipt) -> String {
+fn status_of(receipt: &TransactionReceipt) -> String {
     use groundhog_testkit::rpc_types::receipt::ExecStatus;
     match &receipt.status {
         ExecStatus::Ok => "ok".to_owned(),
@@ -160,25 +173,125 @@ fn status_of(receipt: &groundhog_testkit::rpc_types::receipt::TransactionReceipt
     }
 }
 
-/// Submit a call to the exchange, produce the block it runs in, and return its receipt whatever
-/// the outcome: a clearing that runs out of gas is a measurement too.
-async fn transact<A: WriteXDR + ?Sized>(
-    ctx: &mut AgentContext,
-    exchange: &Contract,
-    method: &str,
-    args: &A,
-) -> Result<groundhog_testkit::rpc_types::receipt::TransactionReceipt> {
-    let calldata = xdrs::cxs::encode(args).expect("encoding calldata");
-    let submitted = ctx
-        .submit_call(
-            exchange.address(),
-            entrypoint_id(SPEEDEX.0, SPEEDEX.1, method),
-            &calldata,
+/// The bench agent's dev wallet, for transactions the testkit's fixed gas limit does not fit:
+/// the same signer and `doAction` wrapper the testkit uses, taken from the node's runtime
+/// manifest, with a nonce sequence of its own.
+struct Wallet {
+    address: ContractAddress,
+    signer: LocalSigner,
+    do_action: ContractEntrypointID,
+    network_hash: NetworkHash,
+    sequence: u32,
+}
+
+impl Wallet {
+    fn of(ctx: &AgentContext) -> Result<Self> {
+        let manifest = runtime_manifest()?;
+        let signer = derive_dev_account_signer(
+            &manifest.bootstrap_account_derivation.seed,
+            ctx.account_index() as usize,
+        );
+        let do_action = manifest
+            .bootstrap
+            .dev_wallet
+            .do_action_entrypoint_id()
+            .map_err(|e| TestkitError::Manifest {
+                field: "bootstrap.devWallet.doActionEntrypoint",
+                detail: e.to_string(),
+            })?;
+        Ok(Wallet {
+            address: ctx.address(),
+            signer,
+            do_action,
+            network_hash: manifest.network_hash.to_network_hash(),
+            // A namespace the testkit's own nonces (a hashed namespace over a sequence) will not
+            // produce.
+            sequence: 0,
+        })
+    }
+
+    /// Submit `method` on `exchange` with [`CLEARING_GAS`], produce the block it runs in, and
+    /// return its receipt whatever the outcome: a clearing that runs out of gas is a
+    /// measurement too.
+    async fn transact<A: WriteXDR + ?Sized>(
+        &mut self,
+        ctx: &mut AgentContext,
+        exchange: &Contract,
+        method: &str,
+        args: &A,
+    ) -> Result<TransactionReceipt> {
+        let calldata = xdrs::cxs::encode(args).expect("encoding calldata");
+        self.sequence += 1;
+        let tx = build_dev_wallet_do_action_transaction(BuildDevWalletDoActionTransaction {
+            wallet_address: self.address,
+            wallet_entrypoint: self.do_action,
+            target_address: exchange.address(),
+            target_entrypoint: entrypoint_id(SPEEDEX.0, SPEEDEX.1, method),
+            target_calldata: &calldata,
+            gas_limit: CLEARING_GAS,
+            target_gas_limit: CLEARING_GAS,
+            block_expiry_height: 10_000_000,
+            nonce: (0x5bed_u64 << 40) | u64::from(self.sequence),
+        })
+        .map_err(signing_error)?;
+        let tx_hex = sign_and_encode_transaction_hex(
+            tx,
+            &self.signer,
+            SignTransactionParams::default(),
+            &self.network_hash,
         )
-        .await?;
-    submitted.await_pending().await?;
-    ctx.network().produce_block().await?;
-    submitted.await_receipt().await
+        .map_err(signing_error)?;
+        let network = ctx.network().clone();
+        let tx_hash = network.submit_raw(tx_hex).await?;
+        network.await_pending(tx_hash).await?;
+        network.produce_block().await?;
+        network.await_receipt(tx_hash).await
+    }
+}
+
+fn signing_error(e: impl std::fmt::Display) -> TestkitError {
+    TestkitError::Manifest {
+        field: "signing",
+        detail: e.to_string(),
+    }
+}
+
+/// The runtime manifest the devnode wrote for this run: the newest `runtime-manifest.json`
+/// under the temporary directory.
+fn runtime_manifest() -> Result<RuntimeManifest> {
+    fn walk(dir: &std::path::Path, depth: usize, found: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && depth > 0 {
+                walk(&path, depth - 1, found);
+            } else if path
+                .file_name()
+                .is_some_and(|n| n == "runtime-manifest.json")
+            {
+                found.push(path);
+            }
+        }
+    }
+    let mut found = Vec::new();
+    walk(&std::env::temp_dir(), 5, &mut found);
+    let newest = found
+        .into_iter()
+        .max_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
+        .ok_or(TestkitError::Manifest {
+            field: "runtime-manifest.json",
+            detail: "no runtime manifest found under the temporary directory".to_owned(),
+        })?;
+    let bytes = std::fs::read(&newest).map_err(|e| TestkitError::Manifest {
+        field: "runtime-manifest.json",
+        detail: e.to_string(),
+    })?;
+    parse_runtime_manifest(&bytes).map_err(|e| TestkitError::Manifest {
+        field: "runtime-manifest.json",
+        detail: e.to_string(),
+    })
 }
 
 /// Call a method that must succeed, in a block of its own.
@@ -187,16 +300,14 @@ async fn call<A: WriteXDR + ?Sized>(
     contract: &Contract,
     method: &str,
     args: &A,
-) -> Result<groundhog_testkit::rpc_types::receipt::TransactionReceipt> {
+) -> Result<TransactionReceipt> {
     let submitted = contract.submit_call(ctx, method, args).await?;
     submitted.await_pending().await?;
     ctx.network().produce_block().await?;
     submitted.await_receipt().await
 }
 
-fn decode<R: for<'r> ReadXDR<'r>>(
-    receipt: &groundhog_testkit::rpc_types::receipt::TransactionReceipt,
-) -> R {
+fn decode<R: for<'r> ReadXDR<'r>>(receipt: &TransactionReceipt) -> R {
     let bytes = receipt
         .return_data
         .as_ref()
@@ -224,6 +335,7 @@ fn bench(out: PathBuf) -> Agent {
     Agent::new("bench", move |mut ctx| async move {
         let me = ctx.address();
         let zero = ContractAddress::from([0u8; 32]);
+        let mut wallet = Wallet::of(&ctx)?;
 
         // The native token pays for its own storage, so it needs funds to store balances and
         // allowances.
@@ -241,7 +353,15 @@ fn bench(out: PathBuf) -> Agent {
 
         let mut rows: Vec<Row> = Vec::new();
         for &n in &ASSETS {
-            for &offers in &OFFERS {
+            // The sweep, cut at the configuration's cell cap (an offer per cell, near enough).
+            let cap = max_clear_cells(n);
+            let sizes: Vec<usize> = OFFERS
+                .iter()
+                .map(|&o| o.min(cap))
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect();
+            for offers in sizes {
                 println!("-- {n} assets, {offers} offers");
                 let address = deploy(&mut ctx, "speedex").await?;
                 fund(&mut ctx, address, EXCHANGE_FUNDING).await?;
@@ -321,13 +441,14 @@ fn bench(out: PathBuf) -> Agent {
 
                 let cells = synthetic::cell_list(&batch.buckets);
                 for &cap in &ROUND_CAPS {
-                    let receipt = transact(
-                        &mut ctx,
-                        &exchange,
-                        "measure_clearing",
-                        &(batch_id, &cells, cap),
-                    )
-                    .await?;
+                    let receipt = wallet
+                        .transact(
+                            &mut ctx,
+                            &exchange,
+                            "measure_clearing",
+                            &(batch_id, &cells, cap),
+                        )
+                        .await?;
                     let status = status_of(&receipt);
                     let report: Option<GasReport> = (status == "ok").then(|| decode(&receipt));
                     let r = report.as_ref();
@@ -361,8 +482,9 @@ fn bench(out: PathBuf) -> Agent {
                     }
                 }
 
-                let receipt =
-                    transact(&mut ctx, &exchange, "clear_batch", &(batch_id, &cells)).await?;
+                let receipt = wallet
+                    .transact(&mut ctx, &exchange, "clear_batch", &(batch_id, &cells))
+                    .await?;
                 let status = status_of(&receipt);
                 let clearing: Option<Clearing> = (status == "ok").then(|| decode(&receipt));
                 println!(
@@ -386,7 +508,9 @@ fn bench(out: PathBuf) -> Agent {
                 });
 
                 if status == "ok" {
-                    let receipt = transact(&mut ctx, &exchange, "settle_offer", &first).await?;
+                    let receipt = wallet
+                        .transact(&mut ctx, &exchange, "settle_offer", &first)
+                        .await?;
                     rows.push(Row {
                         kind: "settle",
                         n,

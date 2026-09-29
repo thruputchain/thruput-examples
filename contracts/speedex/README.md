@@ -116,13 +116,16 @@ refuses more); the circulation works in value, amount times price, which is unde
 edge and is exact in `U256`. The grid bounds the rates that can actually trade far more tightly
 than that.
 
-A clearing reads at most `MAX_CLEAR_CELLS` (256) occupied cells; a batch with more distinct
-(orderbook, level) pairs than that cannot be cleared, so a deployment that expects such batches
-must choose a coarser grid or a shorter epoch. The bound comes from the guest's 64 KiB of data
-memory, which holds every bucket of the batch and the SDK's record of every cell read: with three
-assets, somewhere between 384 and 512 cells is where it runs out
-(`tests/test_rv32.rs::largest_clearing_fits_the_guest_rv32`). Gas bounds a batch more tightly
-still; see below.
+A clearing reads at most `max_clear_cells(n)` occupied cells, `320 - 3 n (n - 1)`: 302 with three
+assets, 152 with eight. A batch with more distinct (orderbook, level) pairs than that cannot be
+cleared, so a deployment that expects such batches must choose a coarser grid or a shorter epoch.
+The bound comes from the guest's memory: 64 KiB, of which 30 KiB is the stack reserve, under an
+allocator that never frees, so everything a clearing allocates -- the buckets, the calldata, the
+value graph's edges (one per orderbook, in `U256`), and whatever the SDK allocates for each
+storage access -- has to fit at once. Measured on the RV32 executor
+(`tests/test_rv32.rs::largest_clearing_fits_the_guest_rv32`), that runs out at about
+`360 - 3 * books` cells; the budget keeps a tenth in hand. Gas is the other bound on a batch; see
+below.
 
 The chain caps a contract's code at 64 KiB, and RV32 has no 128-bit multiply or divide, so the
 engine's arithmetic is expensive in code. The engine's routines are `#[inline(never)]` so that each
@@ -163,25 +166,30 @@ sit from the truth. Reading the run in `bench/`:
 
 [`tests/testkit_gas.rs`](tests/testkit_gas.rs) measures the contract itself, on a local devnode
 through `groundhog-testkit`, because the mock environment does not meter gas as a node does. For
-3 to 8 assets and 8 to 256 offers it submits a synthetic batch in one block, closes it, and has the
+3 to 8 assets and 8 offers up to each configuration's cell cap it submits a synthetic batch in one block, closes it, and has the
 contract run the clearing at each round cap through `measure_clearing` -- an entry point that
 does everything `clear_batch` does but record the result, and reports the gas of reading the
 cells, of tâtonnement and of the circulation separately (it is also how a clearer can learn what
 a clearing will cost before paying for it). A real `clear_batch`, a `submit_offer` and a
-`settle_offer` are measured from their receipts. What the run in `bench/` says:
+`settle_offer` are measured from their receipts. The clearings are sent with a gas limit of their
+own -- the benchmark builds and signs those transactions itself, through the same dev-wallet
+wrapper the testkit uses -- since the testkit's 10M would cut the sweep short. What the run in
+`bench/` says:
 
-- Reading the histogram dominates: about 39k gas per occupied cell, almost all of it the storage
-  read itself, plus one such read per orderbook for the totals. A batch of 128 cells costs some
-  5M gas before any arithmetic; a submission costs 183k and a settlement 213k.
+- Reading the histogram dominates for few assets: about 39k gas per occupied cell, almost all of
+  it the storage read itself, plus one such read per orderbook for the totals. A batch of 256
+  cells costs some 10M gas before any arithmetic; a submission costs 183k and a settlement 213k.
 - A round of tâtonnement costs about 1k gas per bucket plus some 20k to 50k for the price update
   (RV32 has no 128-bit divide, and a round takes one per asset), so the price computation of a
   converged clearing is comparable to the reads at a hundred cells and well under them at fewer.
-  The circulation costs about as much as a few rounds.
-- The testkit sends every transaction with 10M gas. Under that, a three-asset batch of 128 cells
-  clears converged (8.8M), a four-asset batch of 64 cells does (8.6M), and with six or eight
-  assets a batch of 32 cells runs out of gas before tâtonnement converges; a 256-cell batch
-  cannot clear at all. That, not `MAX_CLEAR_CELLS`, is the working limit on a batch, and a
-  deployment should set the grid, the epoch and the round cap against it -- or raise the gas.
+- The circulation grows with the square of the orderbooks: cycle cancelling runs Bellman-Ford over
+  four arcs per orderbook, in `U256`, once per cycle. It is a rounding error with three assets
+  and the largest part of a clearing with eight, where it reaches 32M gas at the 152-cell cap.
+- Altogether a converged clearing costs from 2M gas (three assets, 8 cells) to 53M (eight assets,
+  152 cells). The testkit sends transactions with 10M gas, which the benchmark raises for the
+  clearings; under 10M, three assets clear 128 cells and eight assets clear 8. A deployment
+  should set the grid, the epoch, the round cap and the number of assets against what its
+  chain's gas limit affords.
 
 ![Gas against batch size](bench/gas-vs-size.png)
 

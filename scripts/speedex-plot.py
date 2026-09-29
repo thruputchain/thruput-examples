@@ -180,8 +180,7 @@ def quality_vs_size(quality, out):
 
 def converged_measures(gas):
     """For each (assets, offers), the `measure_clearing` row at the largest round cap that
-    completed: a converged clearing where the cap exceeded the rounds needed, and the deepest
-    truncated one the gas limit allowed otherwise."""
+    completed: a converged clearing, unless the cap cut it short."""
     best = {}
     for r in gas:
         if r["kind"] != "measure" or r["status"] != "ok":

@@ -115,10 +115,14 @@ fn ring_trade_rv32() {
     }
 }
 
-/// The largest clearing the contract accepts, `MAX_CLEAR_CELLS` cells, fits the guest's memory:
-/// every bucket of the batch is held at once, along with the SDK's record of every cell read, and
-/// the RV32 executor enforces the 64 KiB. `SPEEDEX_RV32_CELLS` overrides the count, to find the
-/// bound when the contract or the SDK changes: with three assets it lies between 384 and 512.
+/// The largest clearing the contract accepts, `max_clear_cells(n)` cells, fits the guest's memory
+/// at the most assets. The guest's allocator never frees, so everything a clearing allocates (the
+/// buckets, the calldata, the edges of the value graph, whatever the SDK allocates per storage
+/// access) has to fit the 64 KiB, less the 30 KiB stack reserve, at once; the RV32 executor
+/// enforces it. `SPEEDEX_RV32_ASSETS` and `SPEEDEX_RV32_CELLS` override the counts, to find the
+/// bound again when the contract or the SDK changes: it was measured at 192 to 208 cells with
+/// eight assets, 256 to 288 with six, and under 384 with three, which `CELL_BUDGET` fits as
+/// `360 - 3 * books`.
 #[test]
 #[ignore = "requires RV32 build — run via `groundhog test`"]
 fn largest_clearing_fits_the_guest_rv32() {
@@ -132,20 +136,30 @@ fn largest_clearing_fits_the_guest_rv32() {
         level_bits: 12,
     };
 
+    let n: usize = std::env::var("SPEEDEX_RV32_ASSETS")
+        .map(|v| v.parse().unwrap())
+        .unwrap_or(MAX_ASSETS);
     let (exchange, tokens) = run(&env, &TEST, || {
-        let tokens = [
-            deploy_contract(&TOKEN_A_NONCE, &token_hash),
-            deploy_contract(&TOKEN_B_NONCE, &token_hash),
-            deploy_contract(&TOKEN_C_NONCE, &token_hash),
-        ];
-        for t in &tokens {
-            ERC20Client::new(t).initialize(&TEST);
-            ERC20Client::new(t).mint(&ALICE, u128::MAX / 4);
-        }
+        let tokens: Vec<ContractAddress> = (0..n as u8)
+            .map(|i| {
+                let nonce = SHA256Hash::from([i + 1; 32]);
+                let t = deploy_contract(&nonce, &token_hash);
+                ERC20Client::new(&t).initialize(&TEST);
+                ERC20Client::new(&t).mint(&ALICE, u128::MAX / 4);
+                t
+            })
+            .collect();
         let exchange = deploy_contract(&BIG_EXCHANGE_NONCE, &exchange_hash);
         let mut assets = [ContractAddress::new([0; 32]); MAX_ASSETS];
-        assets[..3].copy_from_slice(&tokens);
-        SpeedexClient::new(&exchange).initialize(3, assets, 1, grid.octaves, grid.level_bits, 64);
+        assets[..n].copy_from_slice(&tokens);
+        SpeedexClient::new(&exchange).initialize(
+            n as u32,
+            assets,
+            1,
+            grid.octaves,
+            grid.level_bits,
+            64,
+        );
         (exchange, tokens)
     });
     env.advance_block();
@@ -156,17 +170,19 @@ fn largest_clearing_fits_the_guest_rv32() {
     });
     env.advance_block();
 
-    // One offer per cell, spread over the six orderbooks and a band of levels around one.
+    // One offer per cell, spread over every orderbook and a band of levels around one.
     let client = SpeedexClient::new(&exchange);
     let batch = run(&env, &TEST, || client.current_batch());
     let mut cells: Vec<u32> = Vec::new();
     let mut id = None;
     let cells_wanted: u32 = std::env::var("SPEEDEX_RV32_CELLS")
         .map(|v| v.parse().unwrap())
-        .unwrap_or(MAX_CLEAR_CELLS as u32);
+        .unwrap_or(max_clear_cells(n) as u32);
     for i in 0..cells_wanted {
-        let (sell, buy) = [(0u32, 1u32), (1, 2), (2, 0), (1, 0), (2, 1), (0, 2)][i as usize % 6];
-        let level = grid.levels() / 2 - 100 + i / 6;
+        let books = (n * (n - 1)) as u32;
+        let (sell, buy) = (i % books / (n as u32 - 1), i % books % (n as u32 - 1));
+        let buy = if buy >= sell { buy + 1 } else { buy };
+        let level = grid.levels() / 2 - 100 + i / books;
         let min_price = grid.ratio(level);
         cells.push((engine::book(sell as usize, buy as usize) as u32) << 20 | level);
         let this = run(&env, &ALICE, || {
