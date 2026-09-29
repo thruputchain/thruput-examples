@@ -7,7 +7,7 @@ mod common;
 use common::*;
 
 // For every asset, what the users hold plus what the exchange holds is what was minted. The
-// exchange's holding -- escrow for unsettled offers, fees, rounding dust -- is never negative.
+// exchange's holding -- escrow for unsettled offers and rounding dust -- is never negative.
 fn assert_conserved(x: &Exchange, minted: [u128; N], users: &[&ContractAddress]) {
     let pool = x.pool();
     for asset in 0..N {
@@ -42,57 +42,12 @@ fn ring_trade_clears_through_three_assets() {
 
     for (user, bought) in [(&ALICE, B), (&BOB, C), (&CAROL, A)] {
         let b = x.balances(user);
-        assert!(b[bought as usize] >= 980 * UNIT, "{b:?}");
-        assert!(b.iter().sum::<u128>() >= 980 * UNIT);
+        assert_eq!(b[bought as usize], 1000 * UNIT, "{b:?}");
     }
     assert_conserved(&x, [1000 * UNIT; N], &[&ALICE, &BOB, &CAROL]);
-    // What stays behind is the fee (one part in 1024) and rounding dust.
-    assert!(
-        x.pool().iter().all(|&kept| kept < 2 * UNIT),
-        "{:?}",
-        x.pool()
-    );
-}
-
-#[test]
-fn fees_accrue_per_batch_and_go_to_the_admin() {
-    let x = Exchange::setup();
-    x.mint(&ALICE, A, 1000 * UNIT);
-    x.mint(&BOB, B, 1000 * UNIT);
-
-    let batch = x.current_batch();
-    let alice = x.submit(&ALICE, A, B, 1000 * UNIT, px(0.9));
-    let bob = x.submit(&BOB, B, A, 1000 * UNIT, px(0.9));
-    let clearing = x.close_and_clear(batch);
-
-    // The fee is one part in 1024 of each purchase, and is the exchange's as soon as the batch
-    // clears -- before anyone settles.
-    let fee = 1000 * UNIT / 1024;
-    for asset in [A, B] {
-        let s = clearing.surplus[asset as usize];
-        assert!(s.abs_diff(fee) < fee / 20, "surplus {s} vs fee {fee}");
-        assert_eq!(x.fees(asset), s);
-    }
-
-    assert_eq!(
-        speedex_error(x.try_collect_fees(&BOB, A)),
-        SpeedexError::Unauthorized
-    );
-    assert_eq!(
-        speedex_error(x.try_collect_fees(&TEST, 3)),
-        SpeedexError::InvalidAsset
-    );
-    let collected = x.try_collect_fees(&TEST, A).expect("collect");
-    assert_eq!(collected, clearing.surplus[A as usize]);
-    x.advance_block();
-    assert_eq!(x.balances(&TEST)[A as usize], collected);
-    assert_eq!(x.fees(A), 0);
-
-    // Collecting first cannot short the offers: they settle in full afterwards.
-    x.settle_all(&[alice, bob]);
-    assert!(x.balances(&ALICE)[B as usize] >= 1000 * UNIT - 2 * fee);
-    assert!(x.balances(&BOB)[A as usize] >= 1000 * UNIT - 2 * fee);
-    assert_conserved(&x, [1000 * UNIT, 1000 * UNIT, 0], &[&ALICE, &BOB, &TEST]);
+    // With no fee, only rounding dust could stay behind, and a symmetric ring leaves none.
+    assert_eq!(x.pool(), [0; N]);
+    assert_eq!(clearing.shortfall, 0);
 }
 
 #[test]
@@ -415,11 +370,43 @@ fn a_histogram_too_large_to_clear_is_refused_at_initialization() {
             let addr = deploy_contract(&OTHER_NONCE, &exchange_hash);
             let client = SpeedexClient::new(&addr);
             // 8 * 7 * 32 cells is over the bound; 8 * 7 * 16 is under it.
-            let wide = client.try_initialize(&TEST, 8, assets, 1, 2);
-            let narrow = client.try_initialize(&TEST, 8, assets, 1, 1);
+            let wide = client.try_initialize(8, assets, 1, 2);
+            let narrow = client.try_initialize(8, assets, 1, 1);
             (wide, narrow)
         })
         .expect("deploy");
     assert_eq!(speedex_error(wide), SpeedexError::InvalidConfiguration);
     narrow.expect("the largest allowed configuration");
+}
+
+#[test]
+fn a_cleared_book_reports_its_fill_and_an_idle_one_none() {
+    let x = Exchange::setup();
+    x.mint(&ALICE, A, 100 * UNIT);
+    x.mint(&BOB, B, 30 * UNIT);
+
+    let batch = x.current_batch();
+    let alice = x.submit(&ALICE, A, B, 100 * UNIT, px(0.4));
+    let bob = x.submit(&BOB, B, A, 30 * UNIT, px(1.0));
+    let _ = x.close_and_clear(batch);
+
+    let ab = x
+        .as_user(&TEST, || x.client().book_fill(batch, A, B))
+        .unwrap();
+    let ba = x
+        .as_user(&TEST, || x.client().book_fill(batch, B, A))
+        .unwrap();
+    let ac = x
+        .as_user(&TEST, || x.client().book_fill(batch, A, C))
+        .unwrap();
+    assert!(ac.is_none(), "nothing was offered on A for C");
+    let ba = ba.expect("Bob's book traded");
+    assert!(ba.full_below >= 1 || ba.hi > 0, "{ba:?}");
+    let ab = ab.expect("Alice's book traded");
+    // Alice's single level is the marginal one: partially filled against Bob's 30 B.
+    assert_eq!(ab.total, 100 * UNIT, "{ab:?}");
+    assert!(ab.lo > 0 && ab.hi >= ab.lo && ab.hi <= ab.lo + 1, "{ab:?}");
+
+    x.settle_all(&[alice, bob]);
+    assert_conserved(&x, [100 * UNIT, 30 * UNIT, 0], &[&ALICE, &BOB]);
 }

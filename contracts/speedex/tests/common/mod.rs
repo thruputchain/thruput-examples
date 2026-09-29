@@ -4,7 +4,7 @@
 
 pub use groundhog_erc20_if::ERC20Client;
 pub use sdk::*;
-pub use speedex::engine::{self, Clearing, PRICE_ONE, Price};
+pub use speedex::engine::{self, BookFill, Clearing, PRICE_ONE, Price};
 pub use speedex::*;
 
 use std::sync::{Arc, Mutex};
@@ -91,7 +91,7 @@ impl Exchange {
             let addr = deploy_contract(&EXCHANGE_NONCE, &exchange_hash);
             let mut assets = [ContractAddress::new([0; 32]); MAX_ASSETS];
             assets[..N].copy_from_slice(&tokens);
-            SpeedexClient::new(&addr).initialize(&TEST, N as u32, assets, epoch_len, OCTAVES);
+            SpeedexClient::new(&addr).initialize(N as u32, assets, epoch_len, OCTAVES);
 
             (addr, tokens)
         })
@@ -195,16 +195,6 @@ impl Exchange {
 
     pub fn settle(&self, id: &OfferId) {
         self.try_settle(id).expect("settle_offer")
-    }
-
-    pub fn fees(&self, asset: u32) -> u128 {
-        self.as_user(&TEST, || self.client().fees(asset))
-            .expect("fees")
-    }
-
-    pub fn try_collect_fees(&self, user: &ContractAddress, asset: u32) -> Result<u128, CallError> {
-        self.as_user(user, || self.client().try_collect_fees(asset))
-            .expect("collect transaction")
     }
 
     pub fn current_batch(&self) -> BatchId {

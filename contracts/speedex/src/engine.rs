@@ -3,19 +3,20 @@
 //! A batch is described to the engine as a list of [`Bucket`]s -- for each orderbook (a `sell`
 //! asset and a `buy` asset) and each price level on the [grid](level_ratio), the total amount
 //! offered at that level. The engine never sees individual offers: it computes one price per asset
-//! by [tâtonnement](tatonnement) over that aggregate supply and demand, then per-asset [trims and
-//! haircuts](feasibility) that make the trades at those prices exactly feasible. [`fill`] then tells any single offer, from
-//! those few numbers alone, what it sold and what it bought -- which is what lets the contract
-//! settle offers one at a time, in any order, in parallel.
+//! by [tâtonnement](tatonnement) over that aggregate supply and demand, then the amount each
+//! orderbook trades by solving the paper's linear program as what it is, a [circulation](clear) on
+//! the graph of assets, in exact integer arithmetic. [`fill`] then tells any single offer, from
+//! its orderbook's [`BookFill`] alone, what it sold and what it bought -- which is what lets the
+//! contract settle offers one at a time, in any order, in parallel.
 //!
 //! # Fixed point
 //!
 //! Every fraction here is Q32: an integer whose value is `x / 2^32`, with [`ONE`] as one. Prices are
 //! Q32 too, and only their ratios mean anything: `p_sell / p_buy` is how many units of the buy
 //! asset one unit of the sell asset is worth. [`normalize`] pins the largest price of a batch to
-//! [`PRICE_ANCHOR`] and floors the rest at [`MIN_PRICE`], which is what keeps every intermediate
-//! product within `u128` for offers below [`MAX_AMOUNT`], and within `U256` for the aggregates,
-//! whose buckets may total anything up to `i128::MAX`.
+//! [`PRICE_ANCHOR`] and floors the rest at [`MIN_PRICE`], which is what keeps every per-offer
+//! product within `u128` for offers below [`MAX_AMOUNT`], and the aggregate arithmetic within
+//! `U256` for buckets that may total anything up to `i128::MAX`.
 
 #![allow(clippy::needless_range_loop)]
 
@@ -24,17 +25,13 @@ use sdk::{U256, checked_mul_div_u128};
 
 /// The most assets one exchange can value. Arrays are sized by this; a batch uses the first `n`.
 pub const MAX_ASSETS: usize = 8;
+/// Orderbooks are indexed by [`book`], which leaves the diagonal unused.
+pub const MAX_BOOKS: usize = MAX_ASSETS * MAX_ASSETS;
 
 /// A valuation, Q32.
 pub type Price = u64;
 /// One price per asset; entries at or past the exchange's asset count are zero.
 pub type Prices = [Price; MAX_ASSETS];
-/// A fraction in `[0, ONE]`, Q32.
-pub type Fraction = u64;
-/// The buyer-side trim per asset; see [`feasibility`].
-pub type Trims = [Fraction; MAX_ASSETS];
-/// The receipt haircut per asset, between `FEE_KEEP / FEE_DEN` and one; see [`feasibility`].
-pub type Haircuts = [Fraction; MAX_ASSETS];
 
 /// One in Q32.
 pub const ONE: u128 = 1 << 32;
@@ -46,11 +43,11 @@ pub const PRICE_ANCHOR: Price = 1 << 56;
 pub const MIN_PRICE: Price = 1 << 8;
 /// Offers must be smaller than this so that `amount * ratio` fits in `u128` at every ratio the
 /// prices admit. A histogram cell -- the total of a level's offers -- is an `i128`, and the engine
-/// is exact for any total up to `i128::MAX`; see [`fill`] for where the per-offer bound matters.
+/// is exact for any total up to `i128::MAX`.
 pub const MAX_AMOUNT: u128 = 1 << 80;
 /// Offers must be at least this. Each rounding in [`fill`] costs the seller less than a unit, so the
 /// smallest offer bounds how far an effective price can fall short of its limit: for an offer of
-/// this size, under two parts in `2^15`.
+/// this size, under a few parts in `2^15`.
 pub const MIN_AMOUNT: u128 = 1 << 16;
 
 /// Price levels per octave (doubling) of the grid.
@@ -72,28 +69,17 @@ const EIGHTH_OCTAVE: [u64; 8] = [
     7_877_004_752,
 ];
 
-/// Width of the smoothing band as a fraction of the level: an offer at level `L` executes fully
-/// once the ratio reaches `L * (1 + 2^-SMOOTH_SHIFT)`, and proportionally in between. The band is
-/// what gives tâtonnement a gradient to follow instead of a step.
+/// Width of the smoothing band as a fraction of the level: for tâtonnement, an offer at level `L`
+/// executes fully once the ratio reaches `L * (1 + 2^-SMOOTH_SHIFT)`, and proportionally in
+/// between. The band is what gives tâtonnement a gradient to follow instead of a step. For the
+/// circulation, buckets past the band are lower bounds (they must execute) and buckets inside it
+/// are upper bounds (they may).
 pub const SMOOTH_SHIFT: u32 = 6;
-/// The exchange's fee, as a denominator: a buyer receives `FEE_KEEP / FEE_DEN` of what its sale is
-/// worth at the clearing ratio, and the exchange keeps the rest.
-///
-/// This is SPEEDEX's fee parameter, and it does more than pay the exchange. At exactly clearing
-/// prices the value bought of every asset equals the value sold (Walras' law), so requiring the
-/// sold amount to cover the bought amount is a knife edge that any rounding falls off. The fee
-/// turns it into a margin, which is what lets [`feasibility`] settle in a round or two rather than
-/// chasing rounding around a cycle of assets.
-pub const FEE_DEN: u128 = 1 << 10;
-/// See [`FEE_DEN`].
-pub const FEE_KEEP: u128 = FEE_DEN - 1;
-/// Tâtonnement is not done while any asset is over-demanded by more than one part in this: the
-/// residual [`feasibility`] then absorbs as a haircut stays well inside the fee's margin.
-const OVER_DEMAND_DEN: u128 = 2 * FEE_DEN;
 /// The most price-update rounds tâtonnement will run.
 pub const MAX_ROUNDS: u32 = 64;
-/// How many rounds [`feasibility`] trims before it settles the rest with haircuts.
-pub const TRIM_ROUNDS: u32 = 16;
+/// The most cycles [`clear`] will push flow around. Each is an integer step, so this bounds the
+/// clearing's work; a circulation left short of the optimum is still exact, just smaller.
+pub const MAX_CANCELLATIONS: u32 = 256;
 // Clearing error below one part in this of the traded volume ends tâtonnement early.
 const TOLERANCE: u128 = 1000;
 // Step-size control, Q32.
@@ -106,29 +92,51 @@ const STEP_MIN: u128 = ONE >> 12;
 pub struct Bucket {
     pub sell: usize,
     pub buy: usize,
+    /// The grid level.
+    pub level: u32,
     /// The level's limit ratio (see [`level_ratio`]): the least `p_sell / p_buy` at which these
     /// offers execute.
     pub limit: Price,
     pub amount: u128,
 }
 
-/// What clearing a batch decided, and all that settling any of its offers needs.
+/// What clearing a batch decided about prices; what each orderbook trades is its [`BookFill`].
 #[sdk::contract_type]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Clearing {
     /// The valuation prices, normalized.
     pub prices: Prices,
-    /// The buyer-side trim per asset, Q32; see [`feasibility`].
-    pub trims: Trims,
-    /// The receipt haircut per asset, Q32; see [`feasibility`].
-    pub haircuts: Haircuts,
     /// How many price-update rounds tâtonnement ran.
     pub rounds: u32,
-    /// The value traded, summed over assets at the clearing prices: `sum(sold_a * p_a) / 2^32`.
+    /// How many cycles the circulation was pushed around; see [`MAX_CANCELLATIONS`].
+    pub cancellations: u32,
+    /// The value traded, summed over orderbooks at the clearing prices: `sum(sold * p_sell) /
+    /// 2^32`, saturating.
     pub volume: u128,
-    /// What the exchange is sure to keep of each asset once every offer has settled: the fee, less
-    /// than what rounding adds on top. See [`fill`].
-    pub surplus: [u128; MAX_ASSETS],
+    /// The value of the buckets past the smoothing band that did *not* trade, in the same units as
+    /// `volume`. Zero means every such bucket executed in full. Prices only approximately clear
+    /// the market, so where every book on a cycle is past the band the cycle cannot balance
+    /// exactly and some of it goes unfilled; the circulation keeps that as small as possible.
+    pub shortfall: u128,
+}
+
+/// What one orderbook trades: its levels fill from the most in-the-money down, so this is how many
+/// levels filled in full and how much of the next one.
+///
+/// The remainder is kept as an integer floor and ceiling because it is a rational -- a value flow
+/// divided by a price -- and [`fill`] needs to round the sold side up from it and the bought side
+/// down, so that a book's offers together give up at least the flow and receive at most it.
+#[sdk::contract_type]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct BookFill {
+    /// Levels below this filled in full.
+    pub full_below: u32,
+    /// The remainder traded at level `full_below`, rounded down.
+    pub lo: u128,
+    /// The same remainder, rounded up.
+    pub hi: u128,
+    /// The total offered at level `full_below`, which the remainder is a share of.
+    pub total: u128,
 }
 
 /// One offer's settlement.
@@ -162,34 +170,35 @@ pub fn level_for(min_price: Price, octaves: u32) -> Option<u32> {
     (0..levels(octaves)).find(|&k| level_ratio(k, octaves) >= min_price)
 }
 
+/// Where the orderbook selling `sell` for `buy` sits in a per-book array.
+pub const fn book(sell: usize, buy: usize) -> usize {
+    sell * MAX_ASSETS + buy
+}
+
 // ── Fractions ──────────────────────────────────────────────────────────────
 //
 // The functions from here on are `#[inline(never)]`: the contract calls the engine from several
 // entry points, and the chain caps a contract's code at 64 KiB, so each routine (and the `U256`
-// arithmetic behind it) should exist in the artifact once rather than once per call site.─
+// arithmetic behind it) should exist in the artifact once rather than once per call site.
 
-/// The least a unit of `sell` can fetch in `buy` at these prices, Q32: the ratio less the fee, less
-/// the most a receipt haircut may take (another fee's worth). An offer executes only if this beats
-/// its limit, which is what makes the limit hold whatever [`feasibility`] then does.
+/// `p_sell / p_buy`, Q32: what a unit of `sell` fetches in `buy`.
 #[inline(never)]
-pub fn effective_ratio(p_sell: Price, p_buy: Price) -> u128 {
-    div((p_sell as u128) << 32, p_buy as u128) * FEE_KEEP / FEE_DEN * FEE_KEEP / FEE_DEN
+pub fn ratio(p_sell: Price, p_buy: Price) -> u128 {
+    div((p_sell as u128) << 32, p_buy as u128)
 }
 
-/// What `traded` units of `sell` fetch in `buy` after the fee, rounded down.
+/// What `traded` units of `sell` fetch in `buy`, rounded down; saturates.
 #[inline(never)]
 fn convert(traded: u128, p_sell: Price, p_buy: Price) -> u128 {
-    let bought = U256::from(traded) * U256::from(p_sell as u128 * FEE_KEEP)
-        / U256::from(p_buy as u128 * FEE_DEN);
-    u128::try_from(bought).unwrap_or(u128::MAX)
+    mul_div(traded, p_sell as u128, p_buy as u128)
 }
 
-/// The fraction (Q32) of a bucket at `limit` that executes at these prices: none while the
-/// effective ratio is at or below the limit, all of it once the ratio clears the smoothing band
+/// The fraction (Q32) of a bucket at `limit` that executes at these prices, for tâtonnement: none
+/// while the ratio is at or below the limit, all of it once the ratio clears the smoothing band
 /// above the limit, and proportionally in between.
 #[inline(never)]
 pub fn fill_fraction(p_sell: Price, p_buy: Price, limit: Price) -> u128 {
-    let r = effective_ratio(p_sell, p_buy);
+    let r = ratio(p_sell, p_buy);
     let l = limit as u128;
     if r <= l {
         return 0;
@@ -203,17 +212,20 @@ pub fn fill_fraction(p_sell: Price, p_buy: Price, limit: Price) -> u128 {
     }
 }
 
-/// The share (Q32) of a bucket's amount that actually trades: its fill fraction at the prices,
-/// scaled by its buy asset's trim. One rounding, shared by every path that settles or sums.
-#[inline(never)]
-fn share(fraction: u128, trim: Fraction) -> u128 {
-    fraction * trim as u128 / ONE
-}
-
 // `a * b / d`, rounded down; saturates if the quotient does not fit.
 #[inline(never)]
 fn mul_div(a: u128, b: u128, d: u128) -> u128 {
     checked_mul_div_u128(a, b, d).unwrap_or(u128::MAX)
+}
+
+// `a * b / d`, rounded up; saturates if the quotient does not fit.
+#[inline(never)]
+fn mul_div_ceil(a: u128, b: u128, d: u128) -> u128 {
+    let Some((q, r)) = U256::widening_mul(a, b).checked_div_rem(U256::from(d)) else {
+        return u128::MAX;
+    };
+    let q = u128::try_from(q).unwrap_or(u128::MAX);
+    if r.is_zero() { q } else { q.saturating_add(1) }
 }
 
 // `a / d` for a divisor that is not a power of two. RV32 has no 128-bit divide, so each division
@@ -245,7 +257,7 @@ pub fn normalize(p: &mut Prices, n: usize) {
 // Supply of and demand for each asset at prices `p`, in units of that asset: what the executing
 // buckets sell, and what they buy with it.
 #[inline(never)]
-fn aggregate(buckets: &[Bucket], n: usize, p: &Prices) -> ([u128; MAX_ASSETS], [u128; MAX_ASSETS]) {
+fn aggregate(buckets: &[Bucket], p: &Prices) -> ([u128; MAX_ASSETS], [u128; MAX_ASSETS]) {
     let mut supply = [0u128; MAX_ASSETS];
     let mut demand = [0u128; MAX_ASSETS];
     for b in buckets {
@@ -259,49 +271,28 @@ fn aggregate(buckets: &[Bucket], n: usize, p: &Prices) -> ([u128; MAX_ASSETS], [
         let bought = convert(sold, p[b.sell], p[b.buy]);
         demand[b.buy] = demand[b.buy].saturating_add(bought);
     }
-    let _ = n;
     (supply, demand)
 }
 
-// How far `p` is from clearing the market.
-#[derive(Clone, Copy)]
-struct Imbalance {
-    // The value of the excess demand, summed over assets.
-    err: u128,
-    // The value supplied, to measure `err` against.
-    volume: u128,
-    // Whether any asset is demanded beyond its supply by more than one part in `OVER_DEMAND_DEN`.
-    over_demanded: bool,
-}
-
+// How far `p` is from clearing the market: the value of the excess demand, summed over assets, and
+// the value supplied, to measure it against.
 #[inline(never)]
-fn imbalance(buckets: &[Bucket], n: usize, p: &Prices) -> Imbalance {
-    let (supply, demand) = aggregate(buckets, n, p);
+fn imbalance(buckets: &[Bucket], n: usize, p: &Prices) -> (u128, u128) {
+    let (supply, demand) = aggregate(buckets, p);
     let mut err = 0u128;
     let mut volume = 0u128;
-    let mut over_demanded = false;
     for a in 0..n {
         let p_a = p[a] as u128;
         err = err.saturating_add(mul_div(supply[a].abs_diff(demand[a]), p_a, ONE));
         volume = volume.saturating_add(mul_div(supply[a], p_a, ONE));
-        if demand[a] > supply[a]
-            && (demand[a] - supply[a]).saturating_mul(OVER_DEMAND_DEN) > supply[a]
-        {
-            over_demanded = true;
-        }
     }
-    Imbalance {
-        err,
-        volume,
-        over_demanded,
-    }
+    (err, volume)
 }
 
-// Within tolerance: the clearing error is a small fraction of the volume, and no asset is
-// over-demanded by more than a haircut can absorb. Zero volume is never convergence -- the no-trade
-// state clears trivially, and is worth nothing.
-fn converged(i: &Imbalance) -> bool {
-    i.volume > 0 && i.err.saturating_mul(TOLERANCE) <= i.volume && !i.over_demanded
+// Within tolerance: the clearing error is a small fraction of the volume. Zero volume is never
+// convergence -- the no-trade state clears trivially, and is worth nothing.
+fn converged(err: u128, volume: u128) -> bool {
+    volume > 0 && err.saturating_mul(TOLERANCE) <= volume
 }
 
 // Whether `(err_q, volume_q)` is a better state than `(err_p, volume_p)`: a smaller clearing error
@@ -338,17 +329,17 @@ pub fn tatonnement(buckets: &[Bucket], n: usize) -> (Prices, u32) {
     let mut p = [0 as Price; MAX_ASSETS];
     normalize(&mut p, n);
 
-    let mut at = imbalance(buckets, n, &p);
-    if at.volume == 0 {
+    let (mut err, mut volume) = imbalance(buckets, n, &p);
+    if volume == 0 {
         return (p, 0);
     }
     let mut step = STEP_INIT;
     let mut rounds = 0;
 
-    while rounds < MAX_ROUNDS && step >= STEP_MIN && !converged(&at) {
+    while rounds < MAX_ROUNDS && step >= STEP_MIN && !converged(err, volume) {
         rounds += 1;
 
-        let (supply, demand) = aggregate(buckets, n, &p);
+        let (supply, demand) = aggregate(buckets, &p);
         let mut q = p;
         for a in 0..n {
             let (s, d) = (supply[a], demand[a]);
@@ -366,10 +357,11 @@ pub fn tatonnement(buckets: &[Bucket], n: usize) -> (Prices, u32) {
         }
         normalize(&mut q, n);
 
-        let to = imbalance(buckets, n, &q);
-        if better(to.err, to.volume, at.err, at.volume) {
+        let (err_q, volume_q) = imbalance(buckets, n, &q);
+        if better(err_q, volume_q, err, volume) {
             p = q;
-            at = to;
+            err = err_q;
+            volume = volume_q;
             step = (step + step / 2).min(STEP_MAX);
         } else {
             step /= 2;
@@ -379,185 +371,243 @@ pub fn tatonnement(buckets: &[Bucket], n: usize) -> (Prices, u32) {
     (p, rounds)
 }
 
-// ── Feasibility ─────────────────────────────────────────────────────────────
+// ── The circulation ─────────────────────────────────────────────────────────
+//
+// SPEEDEX's linear program, without a fee, is a circulation problem. Each orderbook is an edge
+// from its sell asset to its buy asset carrying *value* -- amount sold times the sell price --
+// and the constraint that no asset is bought in greater value than it is sold sums to zero over
+// the assets, so it holds with equality everywhere: value in equals value out at every asset. An
+// edge's capacity is the value of its buckets in the money, and the part of it belonging to
+// buckets past the smoothing band ought to be used before any marginal bucket trades. Maximizing
+// volume under that priority is a minimum-cost circulation with two arcs per edge, which has an
+// integral solution, found here by cycle cancelling in `U256` (a bucket of up to 2^127 at a price
+// of up to 2^56 is a value of up to 2^183) with no rounding anywhere.
 
-// The value flows at these prices and trims, exactly.
-//
-// For each asset `a`, `supply[a]` and `demand[a]` are rationals over the common denominator
-// `2^32 * p_a * FEE_DEN`: what the buckets selling `a` give up, and what the buckets buying `a` are
-// owed after the fee. Comparing them is exact, so the check below is free of rounding noise; the
-// only rounding is per offer, in `fill`, and it always goes the exchange's way. `sold[a]` is the
-// integer part of the supply, for the volume.
-//
-// Magnitudes: a term is at most `2^127 * 2^32 * 2^56 * 2^10 = 2^225`, and an asset has under 2^10
-// buckets on either side, so a sum stays under 2^235.
-struct Flows {
-    supply: [U256; MAX_ASSETS],
-    demand: [U256; MAX_ASSETS],
-    sold: [u128; MAX_ASSETS],
+// An orderbook as an edge of the value graph: what must trade if it can, what may, and what does.
+struct Edge {
+    sell: usize,
+    buy: usize,
+    /// The value of the buckets past the smoothing band.
+    must: U256,
+    /// The value of the buckets inside it.
+    may: U256,
+    /// Flow on the `must` part, then on the `may` part.
+    flow_must: U256,
+    flow_may: U256,
 }
 
+// The edges of a batch at prices `p`: one per orderbook with anything in the money.
 #[inline(never)]
-fn flows(buckets: &[Bucket], p: &Prices, trims: &Trims) -> Flows {
-    let mut f = Flows {
-        supply: [U256::ZERO; MAX_ASSETS],
-        demand: [U256::ZERO; MAX_ASSETS],
-        sold: [0u128; MAX_ASSETS],
-    };
+fn edges(buckets: &[Bucket], p: &Prices) -> Vec<Edge> {
+    let mut out: Vec<Edge> = Vec::new();
     for b in buckets {
-        let s = share(fill_fraction(p[b.sell], p[b.buy], b.limit), trims[b.buy]);
-        if s == 0 {
+        let r = ratio(p[b.sell], p[b.buy]);
+        let l = b.limit as u128;
+        if r <= l {
             continue;
         }
-        let traded = U256::from(b.amount) * U256::from(s);
-        f.sold[b.sell] = f.sold[b.sell].saturating_add(mul_div(b.amount, s, ONE));
-        f.supply[b.sell] += traded * U256::from(p[b.sell] as u128 * FEE_DEN);
-        f.demand[b.buy] += traded * U256::from(p[b.sell] as u128 * FEE_KEEP);
-    }
-    f
-}
-
-// `num / den` as a Q32 fraction, rounded down, capped at one. When `num << 32` would not fit, both
-// are scaled down first, the divisor rounded up, so the result is never more than the exact value:
-// the callers use it to shrink a flow to fit a bound, and shrinking a little too much is safe.
-#[inline(never)]
-fn scale_q32(num: U256, den: U256) -> Fraction {
-    let excess = num.bit_len().saturating_sub(U256::BITS - 33);
-    let (n, d) = if excess == 0 {
-        (num, den)
-    } else {
-        (num >> excess, (den >> excess) + U256::ONE)
-    };
-    if d.is_zero() {
-        return ONE as Fraction;
-    }
-    let q = (n << 32u32) / d;
-    u128::try_from(q).unwrap_or(u128::MAX).min(ONE) as Fraction
-}
-
-/// Make the trades at `prices` exactly feasible: a buyer-side trim and a receipt haircut per asset.
-///
-/// Tâtonnement only clears the market approximately, so at its prices an asset may be owed in
-/// greater quantity than it is sold. SPEEDEX resolves this with a linear program; this engine uses
-/// two simpler levers, one after the other.
-///
-/// *Trims* first: every buyer of an over-demanded asset is scaled back by the same fraction, and
-/// the check is repeated, since a scaled-back buyer also sells less of its own asset. Trims only
-/// decrease, and while the fee's slack outweighs the price error this settles in a round or two.
-/// Where it does not -- when the excess circulates around the assets and every trim shrinks a
-/// little each round -- iterating further would only shrink the batch, so after [`TRIM_ROUNDS`]
-/// the residual goes to the second lever.
-///
-/// *Haircuts* then: buyers of an asset still over-demanded receive `supply / demand` of what they
-/// are owed. A haircut cannot cascade, because it changes what a buyer receives and not what it
-/// sells, so this makes every asset exactly feasible at once. It does lower the buyer's effective
-/// price, so a haircut is allowed at most one fee's worth -- which [`effective_ratio`] already held
-/// back when deciding what executes, so every limit still holds -- and an asset that would need
-/// more has its buyers zeroed instead, which is the one thing that may take a few more rounds.
-///
-/// All checks are exact: the supply and demand of each asset are compared as rationals, so the
-/// only rounding is per offer, in [`fill`], and it always goes the exchange's way.
-#[inline(never)]
-pub fn feasibility(buckets: &[Bucket], n: usize, prices: &Prices) -> (Trims, Haircuts) {
-    let mut trims = [0 as Fraction; MAX_ASSETS];
-    trims[..n].fill(ONE as Fraction);
-    let mut haircuts = [0 as Fraction; MAX_ASSETS];
-
-    for round in 0.. {
-        let f = flows(buckets, prices, &trims);
-        let mut again = false;
-        for a in 0..n {
-            haircuts[a] = ONE as Fraction;
-            if f.demand[a] <= f.supply[a] {
-                continue;
+        let value = U256::from(b.amount) * U256::from(p[b.sell] as u128);
+        let past_band = r >= l + (l >> SMOOTH_SHIFT).max(1);
+        let e = match out.iter_mut().find(|e| e.sell == b.sell && e.buy == b.buy) {
+            Some(e) => e,
+            None => {
+                out.push(Edge {
+                    sell: b.sell,
+                    buy: b.buy,
+                    must: U256::ZERO,
+                    may: U256::ZERO,
+                    flow_must: U256::ZERO,
+                    flow_may: U256::ZERO,
+                });
+                out.last_mut().unwrap()
             }
-            if round < TRIM_ROUNDS {
-                let by = scale_q32(f.supply[a], f.demand[a]) as u128;
-                trims[a] = (trims[a] as u128 * by / ONE) as Fraction;
-                again = true;
-            } else if f.demand[a] * U256::from(FEE_KEEP) > f.supply[a] * U256::from(FEE_DEN) {
-                // More than a haircut may take: these buyers are out.
-                trims[a] = 0;
-                again = true;
-            } else {
-                haircuts[a] = scale_q32(f.supply[a], f.demand[a]);
-            }
-        }
-        if !again {
-            break;
+        };
+        if past_band {
+            e.must += value;
+        } else {
+            e.may += value;
         }
     }
+    out
+}
 
-    (trims, haircuts)
+// What a unit of flow on a `must` arc is worth against a unit on a `may` arc. A cancelled cycle
+// has at most `4 * MAX_BOOKS` arcs, so no cycle can profitably trade `must` flow for `may` flow:
+// the solution fills the buckets past the band as fully as any circulation can before any
+// marginal bucket trades at all.
+const PRIORITY: i32 = 4 * MAX_BOOKS as i32 + 1;
+
+// The residual arcs of edge `e`, four to an edge: forward and backward on each part. Each is
+// `(from, to, capacity, cost per unit)`.
+fn residual(edges: &[Edge], i: usize) -> (usize, usize, U256, i32) {
+    let e = &edges[i / 4];
+    match i % 4 {
+        0 => (e.sell, e.buy, e.must - e.flow_must, -PRIORITY),
+        1 => (e.buy, e.sell, e.flow_must, PRIORITY),
+        2 => (e.sell, e.buy, e.may - e.flow_may, -1),
+        _ => (e.buy, e.sell, e.flow_may, 1),
+    }
+}
+
+// Find the maximum-priority, then maximum-volume circulation by cycle cancelling, starting from
+// no flow at all (which is a circulation), and return how many cycles it took.
+//
+// Bellman-Ford over the residual arcs finds a cycle of negative total cost -- one that gains more
+// than it gives up -- and the bottleneck of flow is pushed around it. When no such cycle remains
+// the circulation is optimal. Every push is an integer step that strictly improves the objective,
+// so the loop terminates; [`MAX_CANCELLATIONS`] bounds it anyway, since the flow is a valid
+// circulation at every step and stopping early only costs volume.
+#[inline(never)]
+fn circulate(edges: &mut [Edge], n: usize) -> u32 {
+    let arcs = 4 * edges.len();
+    for cancelled in 0..MAX_CANCELLATIONS {
+        let mut dist = [0i32; MAX_ASSETS];
+        let mut via = [usize::MAX; MAX_ASSETS];
+        let mut last_relaxed = usize::MAX;
+        for _ in 0..n {
+            last_relaxed = usize::MAX;
+            for i in 0..arcs {
+                let (from, to, cap, cost) = residual(edges, i);
+                if !cap.is_zero() && dist[from] + cost < dist[to] {
+                    dist[to] = dist[from] + cost;
+                    via[to] = i;
+                    last_relaxed = to;
+                }
+            }
+            if last_relaxed == usize::MAX {
+                return cancelled;
+            }
+        }
+
+        // A relaxation on the n-th pass means a negative cycle; walking back n steps lands on it.
+        let mut v = last_relaxed;
+        for _ in 0..n {
+            v = residual(edges, via[v]).0;
+        }
+        let start = v;
+        let mut bottleneck = U256::MAX;
+        loop {
+            let (from, _, cap, _) = residual(edges, via[v]);
+            bottleneck = bottleneck.min(cap);
+            v = from;
+            if v == start {
+                break;
+            }
+        }
+        let mut v = start;
+        loop {
+            let i = via[v];
+            let from = residual(edges, i).0;
+            let e = &mut edges[i / 4];
+            match i % 4 {
+                0 => e.flow_must += bottleneck,
+                1 => e.flow_must -= bottleneck,
+                2 => e.flow_may += bottleneck,
+                _ => e.flow_may -= bottleneck,
+            }
+            v = from;
+            if v == start {
+                break;
+            }
+        }
+    }
+    MAX_CANCELLATIONS
 }
 
 // ── Putting it together ─────────────────────────────────────────────────────
 
-/// Clear a batch: prices by [`tatonnement`], then [`feasibility`].
+/// Clear a batch: prices by [`tatonnement`], then the trades as a maximum circulation, buckets
+/// past the smoothing band first.
+///
+/// Returns the clearing and, for every orderbook that trades, its index (see [`book`]) and
+/// [`BookFill`]. A book absent from the list trades nothing.
 #[inline(never)]
-pub fn clear(buckets: &[Bucket], n: usize) -> Clearing {
+pub fn clear(buckets: &[Bucket], n: usize) -> (Clearing, Vec<(usize, BookFill)>) {
     let (prices, rounds) = tatonnement(buckets, n);
-    let (trims, haircuts) = feasibility(buckets, n, &prices);
 
-    let f = flows(buckets, &prices, &trims);
-    let mut volume = 0u128;
-    let mut surplus = [0u128; MAX_ASSETS];
-    for a in 0..n {
-        volume = volume.saturating_add(mul_div(f.sold[a], prices[a] as u128, ONE));
-        // What the buyers are owed after the haircut, rounded up, over the flows' denominator:
-        // split the demand at 2^32 so neither product can outgrow `U256`.
-        let h = U256::from(haircuts[a] as u128);
-        let one = U256::from(ONE);
-        let (q, r) = (f.demand[a] / one, f.demand[a] % one);
-        let owed =
-            q * h + U256::from((u128::try_from(r).unwrap() * haircuts[a] as u128).div_ceil(ONE));
-        let kept = f.supply[a].checked_sub(owed).unwrap_or(U256::ZERO)
-            / U256::from(ONE * prices[a] as u128 * FEE_DEN);
-        surplus[a] = u128::try_from(kept).unwrap_or(u128::MAX);
+    let mut es = edges(buckets, &prices);
+    let cancellations = circulate(&mut es, n);
+
+    let mut volume = U256::ZERO;
+    let mut fills = Vec::new();
+    let mut shortfall = U256::ZERO;
+    for e in &es {
+        shortfall += e.must - e.flow_must;
+        let flow = e.flow_must + e.flow_may;
+        if flow.is_zero() {
+            continue;
+        }
+        volume += flow;
+
+        // The amount of the sell asset this flow is worth, as a rational: fill levels in full
+        // from the bottom while they fit, and the next one takes the remainder.
+        let price = U256::from(prices[e.sell] as u128);
+        let (mut whole, rem) = flow.checked_div_rem(price).unwrap();
+        let mut fill = BookFill::default();
+        for b in buckets
+            .iter()
+            .filter(|b| b.sell == e.sell && b.buy == e.buy)
+        {
+            let amount = U256::from(b.amount);
+            if whole > amount || (whole == amount && rem.is_zero()) {
+                whole -= amount;
+                fill.full_below = b.level + 1;
+                continue;
+            }
+            // `whole + rem / price` of this bucket, which is less than all of it.
+            fill.full_below = b.level;
+            fill.total = b.amount;
+            fill.lo = u128::try_from(whole).unwrap();
+            fill.hi = if rem.is_zero() { fill.lo } else { fill.lo + 1 };
+            break;
+        }
+        fills.push((book(e.sell, e.buy), fill));
     }
 
-    Clearing {
+    let clearing = Clearing {
         prices,
-        trims,
-        haircuts,
         rounds,
-        volume,
-        surplus,
-    }
+        cancellations,
+        volume: u128::try_from(volume >> 32u32).unwrap_or(u128::MAX),
+        shortfall: u128::try_from(shortfall >> 32u32).unwrap_or(u128::MAX),
+    };
+    (clearing, fills)
 }
 
-/// Settle one offer of `amount`, selling `sell` for `buy` at `limit`, under a [`Clearing`].
+/// Settle one offer of `amount` at grid `level`, under its orderbook's [`BookFill`], selling at
+/// `p_sell` for `p_buy`.
 ///
-/// The share that trades is the bucket's fill fraction times the buy asset's trim. What the offer
-/// gives up is that share of its amount rounded *up* (capped at the amount); what it receives is
-/// the share rounded *down*, converted at the clearing ratio less the fee, less the buy asset's
-/// haircut, rounding down at each step. Every rounding favors the exchange by less than a unit.
-/// Summed over a bucket's offers, what they give up is at least the bucket's exact supply and what
-/// they receive is at most its exact demand -- the quantities [`feasibility`] compared -- so the
-/// exchange can pay every offer of every batch it cleared, in any order, without ever having seen
-/// them together.
+/// A level below `full_below` sold everything. The marginal level sold its share of the
+/// remainder, rounded *up* (capped at the amount), and is paid its share of the remainder rounded
+/// *down*, converted at the clearing ratio and rounded down again. Every rounding favors the
+/// exchange by less than a unit. Summed over a book's offers, what they give up is at least the
+/// value that flowed out of the sell asset on that book and what they receive is at most the value
+/// that flowed in to the buy asset -- and the flows are a circulation, so the exchange can pay
+/// every offer of every batch it cleared, in any order, without ever having seen them together.
 ///
-/// The roundings are also the one way an effective price can fall short of a limit: by under a unit
-/// of the buy asset, on a sale that may be rounded up by under a unit of the sell asset. Relative to
-/// an offer of [`MIN_AMOUNT`] that is under two parts in `2^15`; the fee margin in
-/// [`effective_ratio`] does not cover it, since a rate may beat a limit by as little as one Q32
-/// unit.
+/// The roundings are also the one way an effective price can fall short of a limit: by under a
+/// unit of the buy asset, on a sale that may be rounded up by under a unit of the sell asset.
+/// Relative to an offer of [`MIN_AMOUNT`] that is under a few parts in `2^15`.
 #[inline(never)]
-pub fn fill(amount: u128, sell: usize, buy: usize, limit: Price, clearing: &Clearing) -> Fill {
-    let (p_sell, p_buy) = (clearing.prices[sell], clearing.prices[buy]);
-    let s = share(fill_fraction(p_sell, p_buy, limit), clearing.trims[buy]);
-    if s == 0 {
+pub fn fill(amount: u128, level: u32, book: &BookFill, p_sell: Price, p_buy: Price) -> Fill {
+    if level < book.full_below {
+        return Fill {
+            sold: amount,
+            bought: convert(amount, p_sell, p_buy),
+        };
+    }
+    if level > book.full_below || book.total == 0 || book.hi == 0 {
         return Fill::default();
     }
-    let traded = amount * s / ONE;
-    let owed = convert(traded, p_sell, p_buy);
+    let traded = mul_div(amount, book.lo, book.total);
     Fill {
-        sold: (amount * s).div_ceil(ONE).min(amount),
-        bought: mul_div(owed, clearing.haircuts[buy] as u128, ONE),
+        sold: mul_div_ceil(amount, book.hi, book.total).min(amount),
+        bought: convert(traded, p_sell, p_buy),
     }
 }
 
-/// Gather a batch's non-empty buckets from a histogram, `f(sell, buy, level) -> amount`.
+/// Gather a batch's non-empty buckets from a histogram, `f(sell, buy, level) -> amount`, in level
+/// order within each orderbook.
 #[inline(never)]
 pub fn buckets(
     n: usize,
@@ -576,6 +626,7 @@ pub fn buckets(
                     out.push(Bucket {
                         sell,
                         buy,
+                        level,
                         limit: level_ratio(level, octaves),
                         amount,
                     });

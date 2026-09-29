@@ -54,7 +54,7 @@ fn ring_trade_rv32() {
         let exchange = deploy_contract(&EXCHANGE_NONCE, &exchange_hash);
         let mut assets = [ContractAddress::new([0; 32]); MAX_ASSETS];
         assets[..3].copy_from_slice(&tokens);
-        SpeedexClient::new(&exchange).initialize(&TEST, 3, assets, 1, 2);
+        SpeedexClient::new(&exchange).initialize(3, assets, 1, 2);
         (exchange, tokens)
     });
     env.advance_block();

@@ -13,8 +13,8 @@
 //!   block without contending. The offer itself is recorded under a fresh id.
 //! * [`clear_batch`](Speedex::clear_batch) runs once per batch, after the batch's blocks have all
 //!   closed. It reads the histogram -- a fixed number of cells, however many offers were made --
-//!   computes prices, trims and haircuts with [`engine::clear`], and records them. Deterministic, so
-//!   anyone may run it.
+//!   computes prices and each orderbook's trades with [`engine::clear`], and records them.
+//!   Deterministic, so anyone may run it.
 //! * [`settle_offer`](Speedex::settle_offer) pays out one offer from the recorded clearing and its
 //!   own record alone. Settlements touch disjoint records and commutative balances, so a batch's
 //!   offers settle in any order, any number to a block, alongside the next batch's submissions.
@@ -29,11 +29,11 @@
 //!   next level.
 //! * Offers are one-shot: what a batch does not fill is refunded at settlement, rather than resting
 //!   in the orderbook for the next batch.
-//! * Feasibility comes from per-asset trims and haircuts ([`engine::feasibility`]) instead of
-//!   SPEEDEX's linear program. The exchange keeps a fee of one part in [`engine::FEE_DEN`] of every
-//!   purchase, which is also what gives those levers their slack; the admin collects it.
+//! * There is no fee. The linear program that decides what each orderbook trades is, without one,
+//!   a maximum circulation on the graph of assets, and is solved as such in exact integers
+//!   ([`engine::clear`]); what rounding leaves behind stays with the exchange as dust.
 
-use crate::engine::{self, Clearing, Haircuts, Price, Prices, Trims};
+use crate::engine::{self, BookFill, Clearing, Price, Prices};
 use groundhog_erc20_if::{ERC20Client, ERC20Error};
 use sdk::storage::*;
 use sdk::*;
@@ -78,8 +78,7 @@ pub enum SpeedexError {
     NotCleared = 9,
     /// No offer with that id is waiting.
     NoSuchOffer = 10,
-    /// `cancel_offer` by someone other than the owner, or `collect_fees` by someone other than the
-    /// admin.
+    /// `cancel_offer` by someone other than the owner.
     Unauthorized = 11,
     /// `cancel_offer` on an offer whose batch has closed; settle it instead.
     BatchClosed = 12,
@@ -89,8 +88,6 @@ pub enum SpeedexError {
 #[contract_type]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Config {
-    /// Who may collect the exchange's fees.
-    pub admin: Address,
     pub n_assets: u32,
     pub assets: Assets,
     /// Blocks per batch.
@@ -139,11 +136,10 @@ pub struct BatchCleared {
     #[topic]
     pub batch: BatchId,
     pub prices: Prices,
-    pub trims: Trims,
-    pub haircuts: Haircuts,
     pub rounds: u32,
+    pub cancellations: u32,
     pub volume: u128,
-    pub surplus: [u128; MAX_ASSETS],
+    pub shortfall: u128,
 }
 
 #[derive(Event, Clone, Debug, PartialEq, Eq)]
@@ -166,16 +162,14 @@ pub struct Speedex {
     // one block never contend. Cells are deleted as their batch is cleared.
     books: Map<BatchId, Map<u32, NNInt>>,
 
-    // What clearing each batch decided. Written once, by whoever clears the batch first.
+    // What clearing each batch decided: the prices, and per orderbook (see `engine::book`) what it
+    // traded. Written once, by whoever clears the batch first; a book with no entry traded nothing.
     clearings: Map<BatchId, Value<Clearing>>,
+    fills: Map<BatchId, Map<u32, Value<BookFill>>>,
 
     // Offers awaiting settlement, each under its own key.
     offers: Map<OfferId, Value<Offer>>,
     ids: Node<UniqueIds>,
-
-    // Fees the admin may collect, per asset: credited by each clearing with the surplus the engine
-    // guarantees, debited by `collect_fees`. Increments and decrements merge.
-    fees: Map<u32, NNInt>,
 }
 
 // Where an orderbook level lives in a batch's histogram.
@@ -202,16 +196,6 @@ impl Speedex {
     }
 
     #[inline(never)]
-    fn fees_of(&self, asset: u32) -> u128 {
-        self.fees
-            .at(&asset)
-            .try_get()
-            .none_if_missing()
-            .unwrap_or(0)
-            .max(0) as u128
-    }
-
-    #[inline(never)]
     fn offer_at(&self, id: &OfferId) -> Offer {
         self.offers
             .at(id)
@@ -227,16 +211,8 @@ impl Speedex {
 )]
 impl Speedex {
     /// Set up the exchange over `assets[..n_assets]`, batching every `epoch_len` blocks, with limit
-    /// prices on a grid of `octaves` doublings either side of one. `admin` collects the fees. Call
-    /// once.
-    pub fn initialize(
-        &mut self,
-        admin: &Address,
-        n_assets: u32,
-        assets: Assets,
-        epoch_len: u64,
-        octaves: u32,
-    ) {
+    /// prices on a grid of `octaves` doublings either side of one. Call once.
+    pub fn initialize(&mut self, n_assets: u32, assets: Assets, epoch_len: u64, octaves: u32) {
         if self.config.try_get().none_if_missing().is_some() {
             throw(SpeedexError::AlreadyInitialized);
         }
@@ -259,7 +235,6 @@ impl Speedex {
         assets[n..].fill(zero);
 
         self.config.set_exclusive(&Config {
-            admin: *admin,
             n_assets,
             assets,
             epoch_len,
@@ -379,36 +354,29 @@ impl Speedex {
         drop(book);
         ensure(!buckets.is_empty(), SpeedexError::BatchEmpty);
 
-        let clearing = engine::clear(&buckets, n);
+        let (clearing, fills) = engine::clear(&buckets, n);
 
         // The histogram has served its purpose; only the clearing is needed from here on.
         let mut book = self.books.at_mut(&batch);
         for b in &buckets {
-            let level = engine::level_for(b.limit, cfg.octaves).unwrap();
-            book.delete_at(&cell(b.sell as u32, b.buy as u32, level));
+            book.delete_at(&cell(b.sell as u32, b.buy as u32, b.level));
         }
         drop(book);
 
         self.clearings.at_mut(&batch).set_exclusive(&clearing);
-
-        // The fee is the exchange's as soon as the batch clears: every offer's escrow is already
-        // here, and settlement pays out strictly less than what stays.
-        for a in 0..n {
-            if clearing.surplus[a] > 0 {
-                self.fees
-                    .at_mut(&(a as u32))
-                    .inc(clearing.surplus[a] as i128);
-            }
+        let mut traded = self.fills.at_mut(&batch);
+        for (index, fill) in &fills {
+            traded.at_mut(&(*index as u32)).set_exclusive(fill);
         }
+        drop(traded);
 
         log_event(&BatchCleared {
             batch,
             prices: clearing.prices,
-            trims: clearing.trims,
-            haircuts: clearing.haircuts,
             rounds: clearing.rounds,
+            cancellations: clearing.cancellations,
             volume: clearing.volume,
-            surplus: clearing.surplus,
+            shortfall: clearing.shortfall,
         });
 
         clearing
@@ -428,12 +396,20 @@ impl Speedex {
             .none_if_missing()
             .unwrap_or_else(|| throw(SpeedexError::NotCleared));
 
+        let book = engine::book(offer.sell as usize, offer.buy as usize) as u32;
+        let traded = self
+            .fills
+            .at(&offer.batch)
+            .at(&book)
+            .try_get()
+            .none_if_missing()
+            .unwrap_or_default();
         let fill = engine::fill(
             offer.amount,
-            offer.sell as usize,
-            offer.buy as usize,
-            engine::level_ratio(offer.level, cfg.octaves),
-            &clearing,
+            offer.level,
+            &traded,
+            clearing.prices[offer.sell as usize],
+            clearing.prices[offer.buy as usize],
         );
         let refunded = offer.amount - fill.sold;
 
@@ -454,27 +430,8 @@ impl Speedex {
         });
     }
 
-    /// Send the fees collected so far in `asset` to the admin, and return the amount. Admin only.
-    pub fn collect_fees(&mut self, asset: u32) -> u128 {
-        let cfg = self.cfg();
-        ensure(get_caller() == cfg.admin, SpeedexError::Unauthorized);
-        ensure(asset < cfg.n_assets, SpeedexError::InvalidAsset);
-
-        let amount = self.fees_of(asset);
-        if amount > 0 {
-            self.fees.at_mut(&asset).inc(-(amount as i128));
-            Self::token(&cfg, asset).transfer(&cfg.admin, amount);
-        }
-        amount
-    }
-
     pub fn config(&self) -> Config {
         self.cfg()
-    }
-
-    /// The fees collectable in `asset`.
-    pub fn fees(&self, asset: u32) -> u128 {
-        self.fees_of(asset)
     }
 
     /// The batch an offer submitted now would join.
@@ -485,6 +442,12 @@ impl Speedex {
     /// A batch's clearing, if it has one.
     pub fn clearing(&self, batch: BatchId) -> Option<Clearing> {
         self.clearings.at(&batch).try_get().none_if_missing()
+    }
+
+    /// What the orderbook selling `sell` for `buy` traded in a cleared batch; `None` if nothing.
+    pub fn book_fill(&self, batch: BatchId, sell: u32, buy: u32) -> Option<BookFill> {
+        let book = engine::book(sell as usize, buy as usize) as u32;
+        self.fills.at(&batch).at(&book).try_get().none_if_missing()
     }
 
     /// An offer awaiting settlement, if there is one under this id.

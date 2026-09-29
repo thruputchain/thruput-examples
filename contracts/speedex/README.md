@@ -4,7 +4,7 @@ An example port (not for production) of [SPEEDEX], a batch exchange, to Groundho
 one set of valuation prices per batch, and every offer in the batch trading at those prices.
 
 - [`engine`](src/engine.rs): the arithmetic -- the limit-price grid, tâtonnement over aggregate
-  supply and demand, the trims and haircuts that make its prices exactly feasible, and the rule that
+  supply and demand, the circulation that turns its prices into exact trades, and the rule that
   settles one offer. Plain functions over plain numbers, with no storage behind them, tested on their
   own in [`tests/engine.rs`](tests/engine.rs).
 - [`contract`](src/contract.rs): the exchange -- escrow, the per-batch histogram, the clearing
@@ -53,7 +53,7 @@ made in (batches span `epoch_len` blocks), and can be cancelled until the batch 
 **Clearing a batch** (`clear_batch`) runs once, after the batch's last block, and may be run by
 anyone: it is a pure function of the histogram, so everyone gets the same answer. It reads the
 histogram -- `n (n - 1) * levels` cells, however many offers were made -- runs the engine, and
-records the resulting prices, trims and haircuts, one `Value` per batch. This is the one thing in
+records the resulting prices and each orderbook's trades. This is the one thing in
 the design that runs alone, and its cost does not grow with the number of offers.
 
 **Settling an offer** (`settle_offer`) pays one offer from that record and its own entry: what it
@@ -72,17 +72,20 @@ per-batch step whose cost is independent of load.
   seller never trades below what it asked, but may occasionally miss a trade it would have taken.
 - **One-shot offers.** SPEEDEX keeps unfilled offers resting for later batches. Here a batch is a
   one-shot auction: what it does not fill is refunded at settlement, and the seller may resubmit.
-- **A fee, and trims and haircuts instead of the LP.** The exchange keeps one part in
-  `engine::FEE_DEN` (1/1024) of every purchase, as SPEEDEX's tâtonnement also does. The fee is what
-  makes the feasibility pass simple: without it, value conservation leaves exactly one feasible way
-  to trade two assets against each other, and any rounding falls off it. With it, over-demanded
-  assets are handled by scaling their buyers back (`engine::feasibility`); where that would chase a
-  residual around a cycle of assets, the residual becomes a haircut on what those buyers receive,
-  bounded by one more fee's worth -- and offers execute only when the rate beats their limit by both
-  fees, so the fee and the haircut never take a seller below its limit. Rounding can, by under a
-  unit of each asset per offer, which is why offers have a minimum size (`engine::MIN_AMOUNT`). The
-  fee (and the rounding, which always goes the exchange's way) accrues per asset as the batch
-  clears, and the admin collects it with `collect_fees`.
+- **No fee, and the LP as a circulation.** SPEEDEX's linear program picks how much each orderbook
+  trades so that no asset is paid out beyond what was sold of it. Without a fee those constraints
+  sum to zero across assets, so they hold with equality: value in equals value out at every asset,
+  and the problem is a circulation on the graph of assets with one edge per orderbook. That has an
+  integral solution, so `engine::clear` finds it in exact integers -- a minimum-cost circulation by
+  cycle cancelling in `U256` -- rather than with an LP solver in floating point. Each edge has two
+  arcs: the value of the buckets past the smoothing band, which is filled first (a cycle can never
+  profitably trade it for marginal volume), and the value of the buckets inside the band. Within a
+  book, levels fill from the most in-the-money down, and the marginal level's offers share its
+  remainder. Rounding at settlement goes the exchange's way by under a unit per offer, and the
+  circulation makes what the exchange must pay out of each asset at most what it took in; the dust
+  simply stays. Where every book on a cycle is past the band, approximate prices cannot balance
+  the cycle exactly and a little of it goes unfilled; the clearing reports that value as its
+  `shortfall`.
 - **Deterministic tâtonnement from equal prices.** SPEEDEX warm-starts from the previous block and
   lets the proposer's result stand. Here every clearing starts from equal prices so that the
   clearing is a pure function of the batch, at the cost of some extra rounds. A batch in which no
@@ -95,8 +98,9 @@ per-batch step whose cost is independent of load.
 Prices are Q32 fixed point, normalized so the largest is `2^56` and none is below `2^8`, so no rate
 exceeds `2^48`; offers are between `2^16` and `2^80`. Within those, every per-offer product fits
 `u128`. A histogram cell is an `i128` and may total anything up to `i128::MAX` (the increment
-refuses more), and the aggregate arithmetic is exact in `U256` for any such total. The grid bounds
-the rates that can actually trade far more tightly than that.
+refuses more); the circulation works in value, amount times price, which is under `2^184` per
+edge and is exact in `U256`. The grid bounds the rates that can actually trade far more tightly
+than that.
 
 An exchange may have at most `MAX_CELLS` (1024) histogram cells -- `n (n - 1) * levels` -- since a
 clearing reads every one of them whether or not it is occupied. That bounds a clearing's cost, but
@@ -107,7 +111,7 @@ choosing a configuration near the bound.
 The chain caps a contract's code at 64 KiB, and RV32 has no 128-bit multiply or divide, so the
 engine's arithmetic is expensive in code. The engine's routines are `#[inline(never)]` so that each
 exists once rather than once per entry point, and the workspace `Cargo.toml` builds this package at
-`opt-level = "s"`, which brings the artifact to about 54 KiB (it is 68 KiB at opt-level 3).
+`opt-level = "s"`.
 
 ## Running
 
