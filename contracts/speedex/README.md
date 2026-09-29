@@ -51,10 +51,15 @@ that names its submission and commits to its contents. Offers join the batch of 
 made in (batches span `epoch_len` blocks), and can be cancelled until the batch closes.
 
 **Clearing a batch** (`clear_batch`) runs once, after the batch's last block, and may be run by
-anyone: it is a pure function of the histogram, so everyone gets the same answer. It reads the
-histogram -- `n (n - 1) * levels` cells, however many offers were made -- runs the engine, and
-records the resulting prices and each orderbook's trades. This is the one thing in
-the design that runs alone, and its cost does not grow with the number of offers.
+anyone: it is a pure function of the histogram, so everyone gets the same answer. The grid is far
+too fine for a clearing to read every cell, so the caller lists the occupied ones (`cell_of` gives
+the key of each; any reader of the batch's submission events can build the list). The contract
+checks the list against a per-orderbook total that submissions also maintain -- a list that leaves
+out an occupied cell sums short and is refused as a `BatchMismatch`, so an incomplete list can only
+fail, never clear a different batch. It then runs the engine over the listed cells and records the
+resulting prices and each orderbook's trades. This is the one thing in the design that runs alone,
+and its cost grows with the number of distinct limit prices in the batch, not with the number of
+offers.
 
 **Settling an offer** (`settle_offer`) pays one offer from that record and its own entry: what it
 bought, and a refund of what it did not sell. It touches nothing another settlement touches, so a
@@ -66,10 +71,13 @@ per-batch step whose cost is independent of load.
 
 ## Simplifications
 
-- **A price grid.** Limit prices live on a geometric grid, eight levels to the doubling, over
-  `octaves` doublings either side of one (`engine::level_ratio`). That is what makes an orderbook a
-  histogram rather than a sorted list. An offer's limit is rounded *up* to the next level, so a
-  seller never trades below what it asked, but may occasionally miss a trade it would have taken.
+- **A price grid.** Limit prices live on a geometric grid, `2^level_bits` levels to the doubling
+  (up to 65536, a step of about one part in ninety thousand), over `octaves` doublings either side
+  of one (`engine::Grid`). That is what makes an orderbook a histogram rather than a sorted list. An
+  offer's limit is rounded *up* to the next level, so a seller never trades below what it asked, but
+  may occasionally miss a trade it would have taken. Tâtonnement does not need that resolution: when
+  a batch has more than `COARSE_ABOVE` (256) occupied cells the engine searches for prices over the
+  cells merged to 256 levels, then clears the full-resolution cells at the prices it found.
 - **One-shot offers.** SPEEDEX keeps unfilled offers resting for later batches. Here a batch is a
   one-shot auction: what it does not fill is refunded at settlement, and the seller may resubmit.
 - **No fee, and the LP as a circulation.** SPEEDEX's linear program picks how much each orderbook
@@ -102,11 +110,12 @@ refuses more); the circulation works in value, amount times price, which is unde
 edge and is exact in `U256`. The grid bounds the rates that can actually trade far more tightly
 than that.
 
-An exchange may have at most `MAX_CELLS` (1024) histogram cells -- `n (n - 1) * levels` -- since a
-clearing reads every one of them whether or not it is occupied. That bounds a clearing's cost, but
-does not measure it: the mock environment used by the tests does not meter gas the way a node does,
-so calibrate on a devnode (as `scripts/swap-gas-calibrate.sh` does for the swap example) before
-choosing a configuration near the bound.
+A clearing reads at most `MAX_CLEAR_CELLS` (2048) occupied cells; a batch with more distinct
+(orderbook, level) pairs than that cannot be cleared, so a deployment that expects such batches
+should choose a coarser grid. That bounds a clearing's cost, but does not measure it: the mock
+environment used by the tests does not meter gas the way a node does, so calibrate on a devnode (as
+`scripts/swap-gas-calibrate.sh` does for the swap example) before choosing a configuration near the
+bound.
 
 The chain caps a contract's code at 64 KiB, and RV32 has no 128-bit multiply or divide, so the
 engine's arithmetic is expensive in code. The engine's routines are `#[inline(never)]` so that each

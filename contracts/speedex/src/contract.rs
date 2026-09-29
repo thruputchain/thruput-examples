@@ -12,7 +12,7 @@
 //!   level. The cell is an `NNInt`, whose increments merge, so any number of offers land in one
 //!   block without contending. The offer itself is recorded under a fresh id.
 //! * [`clear_batch`](Speedex::clear_batch) runs once per batch, after the batch's blocks have all
-//!   closed. It reads the histogram -- a fixed number of cells, however many offers were made --
+//!   closed. It reads the histogram's occupied cells -- one per price level in use --
 //!   computes prices and each orderbook's trades with [`engine::clear`], and records them.
 //!   Deterministic, so anyone may run it.
 //! * [`settle_offer`](Speedex::settle_offer) pays out one offer from the recorded clearing and its
@@ -24,16 +24,21 @@
 //!
 //! # Simplifications relative to SPEEDEX
 //!
-//! * Limit prices sit on a geometric grid ([`engine::level_ratio`]), eight levels to the doubling,
-//!   so an orderbook is a histogram rather than a sorted list. An offer's limit is rounded up to the
-//!   next level.
+//! * Limit prices sit on a geometric grid ([`engine::Grid`]) of up to `2^16` levels to the
+//!   doubling, so an orderbook is a histogram rather than a sorted list. An offer's limit is rounded
+//!   up to the next level.
+//! * A grid that fine cannot be read whole, so the clearer names the occupied cells and the
+//!   contract checks the list against a per-orderbook total that every submission also updates:
+//!   a list that does not account for everything offered is refused, so the clearing remains a
+//!   pure function of the batch.
 //! * Offers are one-shot: what a batch does not fill is refunded at settlement, rather than resting
 //!   in the orderbook for the next batch.
 //! * There is no fee. The linear program that decides what each orderbook trades is, without one,
 //!   a maximum circulation on the graph of assets, and is solved as such in exact integers
 //!   ([`engine::clear`]); what rounding leaves behind stays with the exchange as dust.
 
-use crate::engine::{self, BookFill, Clearing, Price, Prices};
+use crate::engine::{self, BookFill, Clearing, Grid, Price, Prices};
+use alloc::vec::Vec;
 use groundhog_erc20_if::{ERC20Client, ERC20Error};
 use sdk::storage::*;
 use sdk::*;
@@ -50,17 +55,17 @@ pub type OfferId = SHA256Hash;
 /// Which batch an offer belongs to: its block height divided by the epoch length.
 pub type BatchId = u64;
 
-/// The most histogram cells an exchange may have: `n_assets * (n_assets - 1) * levels`. Clearing
-/// reads every cell of the batch whether or not it is occupied, so this bounds what a clearing
-/// costs. (Eight assets on a one-octave grid, or three on a five-octave one, fit; calibrate on a
-/// devnode before choosing a configuration near the bound.)
-pub const MAX_CELLS: u32 = 1024;
+/// The most occupied histogram cells -- price levels in use, over all orderbooks -- one clearing
+/// will read. A batch with more cannot be cleared, so this is a liveness bound to set against the
+/// grid's fineness and the epoch's length; calibrate on a devnode before choosing a configuration
+/// near it.
+pub const MAX_CLEAR_CELLS: usize = 2048;
 
 #[contract_exception]
 pub enum SpeedexError {
     AlreadyInitialized = 1,
-    /// Fewer than two assets, more than [`MAX_ASSETS`], a repeated or zero asset, a zero epoch, a
-    /// grid wider than [`engine::MAX_OCTAVES`], or more than [`MAX_CELLS`] histogram cells.
+    /// Fewer than two assets, more than [`MAX_ASSETS`], a repeated or zero asset, a zero epoch, or
+    /// a grid outside what [`engine::Grid::is_valid`] allows.
     InvalidConfiguration = 2,
     /// An asset index out of range, or a sell asset equal to the buy asset.
     InvalidAsset = 3,
@@ -82,6 +87,12 @@ pub enum SpeedexError {
     Unauthorized = 11,
     /// `cancel_offer` on an offer whose batch has closed; settle it instead.
     BatchClosed = 12,
+    /// `clear_batch` was given a malformed cell list: not whole cells, not strictly increasing,
+    /// more than [`MAX_CLEAR_CELLS`], or a cell outside the exchange's books and levels.
+    InvalidCells = 13,
+    /// `clear_batch` was given a cell list that does not account for everything offered in the
+    /// batch: some orderbook's listed cells do not sum to its total.
+    BatchMismatch = 14,
 }
 
 /// How the exchange was set up.
@@ -92,8 +103,10 @@ pub struct Config {
     pub assets: Assets,
     /// Blocks per batch.
     pub epoch_len: u64,
-    /// Half-width of the limit-price grid, in doublings; see [`engine::levels`].
+    /// Half-width of the limit-price grid, in doublings; see [`engine::Grid`].
     pub octaves: u32,
+    /// Fineness of the grid: `2^level_bits` levels to the doubling.
+    pub level_bits: u32,
 }
 
 /// An offer awaiting settlement.
@@ -162,6 +175,10 @@ pub struct Speedex {
     // one block never contend. Cells are deleted as their batch is cleared.
     books: Map<BatchId, Map<u32, NNInt>>,
 
+    // What each orderbook was offered in total, per batch: the check that a clearing's cell list
+    // is complete.
+    totals: Map<BatchId, Map<u32, NNInt>>,
+
     // What clearing each batch decided: the prices, and per orderbook (see `engine::book`) what it
     // traded. Written once, by whoever clears the batch first; a book with no entry traded nothing.
     clearings: Map<BatchId, Value<Clearing>>,
@@ -172,16 +189,26 @@ pub struct Speedex {
     ids: Node<UniqueIds>,
 }
 
-// Where an orderbook level lives in a batch's histogram.
+// Where an orderbook level lives in a batch's histogram: the book index (see `engine::book`) above
+// the level's 20 bits. Cells therefore sort by book, then level.
+const LEVEL_BITS: u32 = 20;
+
 #[inline(never)]
-fn cell(sell: u32, buy: u32, level: u32) -> u32 {
-    (sell * MAX_ASSETS as u32 + buy) * engine::MAX_LEVELS + level
+fn cell(book: u32, level: u32) -> u32 {
+    (book << LEVEL_BITS) | level
 }
 
 impl Speedex {
     #[inline(never)]
     fn cfg(&self) -> Config {
         self.config.get()
+    }
+
+    fn grid(cfg: &Config) -> Grid {
+        Grid {
+            octaves: cfg.octaves,
+            level_bits: cfg.level_bits,
+        }
     }
 
     #[inline(never)]
@@ -211,17 +238,26 @@ impl Speedex {
 )]
 impl Speedex {
     /// Set up the exchange over `assets[..n_assets]`, batching every `epoch_len` blocks, with limit
-    /// prices on a grid of `octaves` doublings either side of one. Call once.
-    pub fn initialize(&mut self, n_assets: u32, assets: Assets, epoch_len: u64, octaves: u32) {
+    /// prices on a grid of `octaves` doublings either side of one, `2^level_bits` levels to the
+    /// doubling. Call once.
+    pub fn initialize(
+        &mut self,
+        n_assets: u32,
+        assets: Assets,
+        epoch_len: u64,
+        octaves: u32,
+        level_bits: u32,
+    ) {
         if self.config.try_get().none_if_missing().is_some() {
             throw(SpeedexError::AlreadyInitialized);
         }
         let n = n_assets as usize;
+        let grid = Grid {
+            octaves,
+            level_bits,
+        };
         ensure(
-            (2..=MAX_ASSETS).contains(&n)
-                && epoch_len > 0
-                && (1..=engine::MAX_OCTAVES).contains(&octaves)
-                && (n_assets * (n_assets - 1)).saturating_mul(engine::levels(octaves)) <= MAX_CELLS,
+            (2..=MAX_ASSETS).contains(&n) && epoch_len > 0 && grid.is_valid(),
             SpeedexError::InvalidConfiguration,
         );
         let zero = Address::new([0; 32]);
@@ -239,6 +275,7 @@ impl Speedex {
             assets,
             epoch_len,
             octaves,
+            level_bits,
         });
     }
 
@@ -261,17 +298,21 @@ impl Speedex {
             SpeedexError::InvalidAmount,
         );
         ensure(min_price > 0, SpeedexError::InvalidPrice);
-        let level = engine::level_for(min_price, cfg.octaves)
+        let grid = Self::grid(&cfg);
+        let level = grid
+            .level_for(min_price)
             .unwrap_or_else(|| throw(SpeedexError::InvalidPrice));
 
         let owner = get_caller();
         Self::token(&cfg, sell).transfer_from(&owner, &get_current_address(), amount);
 
         let batch = Self::batch_of_height(&cfg);
+        let book = engine::book(sell as usize, buy as usize) as u32;
         self.books
             .at_mut(&batch)
-            .at_mut(&cell(sell, buy, level))
+            .at_mut(&cell(book, level))
             .inc(amount as i128);
+        self.totals.at_mut(&batch).at_mut(&book).inc(amount as i128);
 
         // The id names the submission (a per-transaction unique id) and commits to what was
         // submitted, so ids of distinct offers stay distinct even where transaction hashes do not.
@@ -296,7 +337,7 @@ impl Speedex {
             sell,
             buy,
             amount,
-            limit: engine::level_ratio(level, cfg.octaves),
+            limit: grid.ratio(level),
         });
 
         id
@@ -312,9 +353,14 @@ impl Speedex {
             SpeedexError::BatchClosed,
         );
 
+        let book = engine::book(offer.sell as usize, offer.buy as usize) as u32;
         self.books
             .at_mut(&offer.batch)
-            .at_mut(&cell(offer.sell, offer.buy, offer.level))
+            .at_mut(&cell(book, offer.level))
+            .inc(-(offer.amount as i128));
+        self.totals
+            .at_mut(&offer.batch)
+            .at_mut(&book)
             .inc(-(offer.amount as i128));
         self.offers.delete_at(id);
         Self::token(&cfg, offer.sell).transfer(&offer.owner, offer.amount);
@@ -328,9 +374,12 @@ impl Speedex {
     /// Compute and record the clearing of a closed batch. Anyone may call this, once per batch;
     /// the result is a pure function of the batch's histogram.
     ///
-    /// Reads `n * (n - 1) * levels` histogram cells whatever the number of offers, and deletes the
-    /// ones it found occupied.
-    pub fn clear_batch(&mut self, batch: BatchId) -> Clearing {
+    /// `cells` names the histogram cells in use -- each a `u32` as [`cell`] packs it, little-endian,
+    /// concatenated, strictly increasing -- which any indexer knows from the batch's
+    /// [`OfferAccepted`] events. The contract reads exactly those, at most [`MAX_CLEAR_CELLS`], and
+    /// refuses the list unless every orderbook's listed cells sum to what it was offered in total:
+    /// an incomplete list is [`SpeedexError::BatchMismatch`], never a clearing.
+    pub fn clear_batch(&mut self, batch: BatchId, cells: &[u8]) -> Clearing {
         let cfg = self.cfg();
         ensure(batch < Self::batch_of_height(&cfg), SpeedexError::BatchOpen);
         ensure(
@@ -343,25 +392,81 @@ impl Speedex {
         );
 
         let n = cfg.n_assets as usize;
+        let grid = Self::grid(&cfg);
+        ensure(
+            cells.len().is_multiple_of(4) && cells.len() / 4 <= MAX_CLEAR_CELLS,
+            SpeedexError::InvalidCells,
+        );
+
+        // Read the listed cells, in order, into buckets, summing each book as we go.
         let book = self.books.at(&batch);
-        let buckets = engine::buckets(n, cfg.octaves, |sell, buy, level| {
-            book.at(&cell(sell as u32, buy as u32, level))
+        let mut buckets: Vec<engine::Bucket> = Vec::with_capacity(cells.len() / 4);
+        let mut listed = [0u128; engine::MAX_BOOKS];
+        let mut previous: Option<u32> = None;
+        for word in cells.as_chunks::<4>().0 {
+            let key = u32::from_le_bytes(*word);
+            ensure(previous.is_none_or(|p| key > p), SpeedexError::InvalidCells);
+            previous = Some(key);
+            let (index, level) = ((key >> LEVEL_BITS) as usize, key & ((1 << LEVEL_BITS) - 1));
+            let (sell, buy) = (index / MAX_ASSETS, index % MAX_ASSETS);
+            ensure(
+                sell < n && buy < n && sell != buy && level < grid.levels(),
+                SpeedexError::InvalidCells,
+            );
+            let amount = book
+                .at(&key)
                 .try_get()
                 .none_if_missing()
                 .unwrap_or(0)
-                .max(0) as u128
-        });
+                .max(0) as u128;
+            if amount == 0 {
+                continue;
+            }
+            listed[index] = listed[index].saturating_add(amount);
+            buckets.push(engine::Bucket {
+                sell,
+                buy,
+                level,
+                limit: grid.ratio(level),
+                amount,
+            });
+        }
         drop(book);
+
+        // Every book's listed cells must account for everything it was offered.
+        let totals = self.totals.at(&batch);
+        for sell in 0..n {
+            for buy in (0..n).filter(|&b| b != sell) {
+                let index = engine::book(sell, buy);
+                let total = totals
+                    .at(&(index as u32))
+                    .try_get()
+                    .none_if_missing()
+                    .unwrap_or(0);
+                ensure(
+                    listed[index] == total.max(0) as u128,
+                    SpeedexError::BatchMismatch,
+                );
+            }
+        }
+        drop(totals);
         ensure(!buckets.is_empty(), SpeedexError::BatchEmpty);
 
-        let (clearing, fills) = engine::clear(&buckets, n);
+        let (clearing, fills) = engine::clear(&buckets, n, grid);
 
         // The histogram has served its purpose; only the clearing is needed from here on.
         let mut book = self.books.at_mut(&batch);
         for b in &buckets {
-            book.delete_at(&cell(b.sell as u32, b.buy as u32, b.level));
+            book.delete_at(&cell(engine::book(b.sell, b.buy) as u32, b.level));
         }
         drop(book);
+        let mut totals = self.totals.at_mut(&batch);
+        for (index, total) in listed.iter().enumerate() {
+            if *total > 0 {
+                totals.delete_at(&(index as u32));
+            }
+        }
+        drop(totals);
 
         self.clearings.at_mut(&batch).set_exclusive(&clearing);
         let mut traded = self.fills.at_mut(&batch);
@@ -457,12 +562,19 @@ impl Speedex {
 
     /// The grid level a limit of `min_price` would be rounded up to.
     pub fn level_for(&self, min_price: Price) -> u32 {
-        engine::level_for(min_price, self.cfg().octaves)
+        Self::grid(&self.cfg())
+            .level_for(min_price)
             .unwrap_or_else(|| throw(SpeedexError::InvalidPrice))
     }
 
     /// The limit ratio (Q32) of a grid level.
     pub fn level_ratio(&self, level: u32) -> Price {
-        engine::level_ratio(level, self.cfg().octaves)
+        Self::grid(&self.cfg()).ratio(level)
+    }
+
+    /// The histogram cell an offer on the orderbook selling `sell` for `buy` at `level` lands in,
+    /// as `clear_batch` expects it listed.
+    pub fn cell_of(&self, sell: u32, buy: u32, level: u32) -> u32 {
+        cell(engine::book(sell as usize, buy as usize) as u32, level)
     }
 }

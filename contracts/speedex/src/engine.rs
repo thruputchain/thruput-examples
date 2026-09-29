@@ -1,7 +1,7 @@
 //! The clearing engine: SPEEDEX's arithmetic, with no storage behind it.
 //!
 //! A batch is described to the engine as a list of [`Bucket`]s -- for each orderbook (a `sell`
-//! asset and a `buy` asset) and each price level on the [grid](level_ratio), the total amount
+//! asset and a `buy` asset) and each price level on the [grid](Grid), the total amount
 //! offered at that level. The engine never sees individual offers: it computes one price per asset
 //! by [tâtonnement](tatonnement) over that aggregate supply and demand, then the amount each
 //! orderbook trades by solving the paper's linear program as what it is, a [circulation](clear) on
@@ -50,23 +50,34 @@ pub const MAX_AMOUNT: u128 = 1 << 80;
 /// this size, under a few parts in `2^15`.
 pub const MIN_AMOUNT: u128 = 1 << 16;
 
-/// Price levels per octave (doubling) of the grid.
-pub const LEVELS_PER_OCTAVE: u32 = 8;
 /// The widest grid: limit ratios from `2^-8` to just under `2^8`.
 pub const MAX_OCTAVES: u32 = 8;
-/// The most levels a grid can have, and so the most buckets one orderbook can hold.
-pub const MAX_LEVELS: u32 = 2 * MAX_OCTAVES * LEVELS_PER_OCTAVE;
+/// The finest grid: `2^16` levels to the doubling, a step of about one part in 100,000.
+pub const MAX_LEVEL_BITS: u32 = 16;
+/// The most levels any grid has (`2^20`), so a level fits in 20 bits.
+pub const MAX_LEVELS: u32 = (2 * MAX_OCTAVES) << MAX_LEVEL_BITS;
+/// Past this many buckets, tâtonnement searches over a copy of the histogram merged to 64 levels
+/// per doubling; the circulation and settlement always use the fine buckets.
+pub const COARSE_ABOVE: usize = 256;
 
-// 2^(i/8) for i in 0..8, Q32.
-const EIGHTH_OCTAVE: [u64; 8] = [
-    4_294_967_296,
-    4_683_695_048,
-    5_107_605_667,
-    5_569_883_475,
-    6_074_001_000,
-    6_623_745_059,
-    7_223_245_206,
-    7_877_004_752,
+// 2^(2^-j) for j in 1..=16, Q62: the factors a fractional power of two is assembled from.
+const ROOTS_OF_TWO: [u64; 16] = [
+    6_521_908_912_666_391_106,
+    5_484_249_825_272_419_512,
+    5_029_079_263_719_320_435,
+    4_815_862_801_830_788_490,
+    4_712_668_792_719_003_884,
+    4_661_903_986_662_671_290,
+    4_636_727_017_470_743_990,
+    4_624_189_567_668_517_720,
+    4_617_933_561_212_708_776,
+    4_614_808_732_577_250_068,
+    4_613_247_111_281_068_008,
+    4_612_466_498_810_092_975,
+    4_612_076_242_109_103_707,
+    4_611_881_126_141_011_236,
+    4_611_783_571_252_412_754,
+    4_611_734_794_581_956_353,
 ];
 
 /// Width of the smoothing band as a fraction of the level: for tâtonnement, an offer at level `L`
@@ -94,7 +105,7 @@ pub struct Bucket {
     pub buy: usize,
     /// The grid level.
     pub level: u32,
-    /// The level's limit ratio (see [`level_ratio`]): the least `p_sell / p_buy` at which these
+    /// The level's limit ratio (see [`Grid::ratio`]): the least `p_sell / p_buy` at which these
     /// offers execute.
     pub limit: Price,
     pub amount: u128,
@@ -150,24 +161,70 @@ pub struct Fill {
 
 // ── The price grid ──────────────────────────────────────────────────────────
 
-/// How many levels a grid of `octaves` has: ratios from `2^-octaves` up to (not including)
-/// `2^octaves`, [`LEVELS_PER_OCTAVE`] to the doubling.
-pub const fn levels(octaves: u32) -> u32 {
-    2 * octaves * LEVELS_PER_OCTAVE
+/// The limit-price grid: `octaves` doublings either side of a ratio of one, each divided into
+/// `2^level_bits` geometric steps. Level `k` has the ratio `2^(k / 2^level_bits - octaves)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Grid {
+    pub octaves: u32,
+    pub level_bits: u32,
 }
 
-/// The limit ratio of level `k` on a grid of `octaves`: `2^(k / 8 - octaves)`, Q32.
-#[inline(never)]
-pub fn level_ratio(k: u32, octaves: u32) -> Price {
-    let step = EIGHTH_OCTAVE[(k % LEVELS_PER_OCTAVE) as usize] as u128;
-    ((step << (k / LEVELS_PER_OCTAVE)) >> octaves) as Price
-}
+impl Grid {
+    /// Whether this is a grid the engine supports.
+    pub const fn is_valid(self) -> bool {
+        self.octaves >= 1
+            && self.octaves <= MAX_OCTAVES
+            && self.level_bits >= 1
+            && self.level_bits <= MAX_LEVEL_BITS
+    }
 
-/// The lowest level whose ratio is at least `min_price`, or `None` if `min_price` is above the
-/// grid. A limit below the grid is raised to level zero.
-#[inline(never)]
-pub fn level_for(min_price: Price, octaves: u32) -> Option<u32> {
-    (0..levels(octaves)).find(|&k| level_ratio(k, octaves) >= min_price)
+    /// How many levels the grid has: ratios from `2^-octaves` up to (not including)
+    /// `2^octaves`.
+    pub const fn levels(self) -> u32 {
+        (2 * self.octaves) << self.level_bits
+    }
+
+    /// The limit ratio of level `k`, Q32.
+    ///
+    /// Exact to within a few parts in `2^62`: the fractional power of two is a product of the
+    /// [`ROOTS_OF_TWO`] its bits select, in Q62, and only then shifted to Q32.
+    #[inline(never)]
+    pub fn ratio(self, k: u32) -> Price {
+        let frac = k & ((1 << self.level_bits) - 1);
+        let whole = (k >> self.level_bits) as i32 - self.octaves as i32;
+        let mut acc = U256::from(1u128 << 62);
+        for j in 1..=self.level_bits {
+            if (frac >> (self.level_bits - j)) & 1 == 1 {
+                acc = (acc * U256::from(ROOTS_OF_TWO[(j - 1) as usize] as u128)) >> 62u32;
+            }
+        }
+        let q32 = acc >> 30u32;
+        let r = if whole >= 0 {
+            q32 << (whole as u32)
+        } else {
+            q32 >> ((-whole) as u32)
+        };
+        u128::try_from(r).unwrap() as Price
+    }
+
+    /// The lowest level whose ratio is at least `min_price`, or `None` if `min_price` is above
+    /// the grid. A limit below the grid is raised to level zero.
+    #[inline(never)]
+    pub fn level_for(self, min_price: Price) -> Option<u32> {
+        let (mut lo, mut hi) = (0, self.levels());
+        if self.ratio(hi - 1) < min_price {
+            return None;
+        }
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if self.ratio(mid) >= min_price {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        Some(lo)
+    }
 }
 
 /// Where the orderbook selling `sell` for `buy` sits in a per-book array.
@@ -516,14 +573,46 @@ fn circulate(edges: &mut [Edge], n: usize) -> u32 {
 
 // ── Putting it together ─────────────────────────────────────────────────────
 
+// The histogram merged to at most 64 levels per doubling, for a cheaper price search over a big
+// batch: each merged bucket takes the ratio of the highest level it covers, so tâtonnement sees
+// its offers as slightly more demanding than they are, never less.
+#[inline(never)]
+fn coarsen(buckets: &[Bucket], grid: Grid) -> Vec<Bucket> {
+    let shift = grid.level_bits.saturating_sub(6);
+    let mut out: Vec<Bucket> = Vec::new();
+    for b in buckets {
+        let group = b.level >> shift;
+        match out.last_mut() {
+            Some(last) if last.sell == b.sell && last.buy == b.buy && last.level == group => {
+                last.amount = last.amount.saturating_add(b.amount);
+            }
+            _ => {
+                let top = (((group + 1) << shift) - 1).min(grid.levels() - 1);
+                out.push(Bucket {
+                    sell: b.sell,
+                    buy: b.buy,
+                    level: group,
+                    limit: grid.ratio(top),
+                    amount: b.amount,
+                });
+            }
+        }
+    }
+    out
+}
+
 /// Clear a batch: prices by [`tatonnement`], then the trades as a maximum circulation, buckets
-/// past the smoothing band first.
+/// past the smoothing band first. `buckets` must be in level order within each orderbook.
 ///
 /// Returns the clearing and, for every orderbook that trades, its index (see [`book`]) and
 /// [`BookFill`]. A book absent from the list trades nothing.
 #[inline(never)]
-pub fn clear(buckets: &[Bucket], n: usize) -> (Clearing, Vec<(usize, BookFill)>) {
-    let (prices, rounds) = tatonnement(buckets, n);
+pub fn clear(buckets: &[Bucket], n: usize, grid: Grid) -> (Clearing, Vec<(usize, BookFill)>) {
+    let (prices, rounds) = if buckets.len() > COARSE_ABOVE {
+        tatonnement(&coarsen(buckets, grid), n)
+    } else {
+        tatonnement(buckets, n)
+    };
 
     let mut es = edges(buckets, &prices);
     let cancellations = circulate(&mut es, n);
@@ -604,35 +693,4 @@ pub fn fill(amount: u128, level: u32, book: &BookFill, p_sell: Price, p_buy: Pri
         sold: mul_div_ceil(amount, book.hi, book.total).min(amount),
         bought: convert(traded, p_sell, p_buy),
     }
-}
-
-/// Gather a batch's non-empty buckets from a histogram, `f(sell, buy, level) -> amount`, in level
-/// order within each orderbook.
-#[inline(never)]
-pub fn buckets(
-    n: usize,
-    octaves: u32,
-    mut f: impl FnMut(usize, usize, u32) -> u128,
-) -> Vec<Bucket> {
-    let mut out = Vec::new();
-    for sell in 0..n {
-        for buy in 0..n {
-            if sell == buy {
-                continue;
-            }
-            for level in 0..levels(octaves) {
-                let amount = f(sell, buy, level);
-                if amount > 0 {
-                    out.push(Bucket {
-                        sell,
-                        buy,
-                        level,
-                        limit: level_ratio(level, octaves),
-                        amount,
-                    });
-                }
-            }
-        }
-    }
-    out
 }

@@ -10,15 +10,21 @@ fn ratio(p: &Prices, sell: usize, buy: usize) -> f64 {
     p[sell] as f64 / p[buy] as f64
 }
 
-fn bucket(sell: usize, buy: usize, limit: f64, amount: u128, octaves: u32) -> Bucket {
-    let level = level_for(px(limit), octaves).expect("limit on the grid");
+fn bucket(sell: usize, buy: usize, limit: f64, amount: u128, grid: Grid) -> Bucket {
+    let level = grid.level_for(px(limit)).expect("limit on the grid");
     Bucket {
         sell,
         buy,
         level,
-        limit: level_ratio(level, octaves),
+        limit: grid.ratio(level),
         amount,
     }
+}
+
+// Sort into the order `clear` expects: by orderbook, then level.
+fn sorted(mut buckets: Vec<Bucket>) -> Vec<Bucket> {
+    buckets.sort_by_key(|b| (b.sell, b.buy, b.level));
+    buckets
 }
 
 // The fill recorded for a book, or none.
@@ -77,33 +83,56 @@ fn assert_sound(buckets: &[Bucket], n: usize, c: &Clearing, fills: &[(usize, Boo
 }
 
 const OCTAVES: u32 = 2;
+const GRID: Grid = Grid {
+    octaves: OCTAVES,
+    level_bits: 12,
+};
 
 #[test]
 fn grid_is_geometric_and_rounds_limits_up() {
-    // Eight levels to the doubling, centered on one.
-    assert_eq!(levels(OCTAVES), 32);
-    assert_eq!(level_ratio(16, OCTAVES), PRICE_ONE);
-    assert_eq!(level_ratio(24, OCTAVES), 2 * PRICE_ONE);
-    assert_eq!(level_ratio(0, OCTAVES), PRICE_ONE / 4);
-    for k in 1..levels(OCTAVES) {
-        let step = level_ratio(k, OCTAVES) as f64 / level_ratio(k - 1, OCTAVES) as f64;
-        assert!(
-            (step - 2f64.powf(1.0 / 8.0)).abs() < 1e-6,
-            "level {k}: {step}"
-        );
+    // 4096 levels to the doubling, centered on one.
+    assert_eq!(GRID.levels(), 16384);
+    assert_eq!(GRID.ratio(8192), PRICE_ONE);
+    assert_eq!(GRID.ratio(12288), 2 * PRICE_ONE);
+    assert_eq!(GRID.ratio(0), PRICE_ONE / 4);
+    let step = 2f64.powf(1.0 / 4096.0);
+    let mut previous = GRID.ratio(0);
+    for k in 1..GRID.levels() {
+        let r = GRID.ratio(k);
+        assert!(r > previous, "level {k}: {r} after {previous}");
+        let ratio = r as f64 / previous as f64;
+        assert!((ratio - step).abs() < 1e-7, "level {k}: {ratio}");
+        previous = r;
     }
+    // Exact where the fraction is a single bit: 2^(1/2) at level 8192 + 2048.
+    let sqrt2 = (2f64.sqrt() * PRICE_ONE as f64).round() as Price;
+    assert!(GRID.ratio(8192 + 2048).abs_diff(sqrt2) <= 1);
 
     // A limit lands on its level exactly, or on the next one up.
-    assert_eq!(level_for(px(1.0), OCTAVES), Some(16));
-    assert_eq!(level_for(px(1.01), OCTAVES), Some(17));
-    assert_eq!(level_for(px(0.9), OCTAVES), Some(15));
-    assert!(level_ratio(15, OCTAVES) >= px(0.9));
-    assert!(level_ratio(14, OCTAVES) < px(0.9));
+    assert_eq!(GRID.level_for(px(1.0)), Some(8192));
+    assert_eq!(GRID.level_for(px(1.0001)), Some(8193));
+    assert_eq!(GRID.level_for(px(2.0)), Some(12288));
+    let k = GRID.level_for(px(0.9)).unwrap();
+    assert!(GRID.ratio(k) >= px(0.9) && GRID.ratio(k - 1) < px(0.9));
 
     // Below the grid is raised to its floor; above it is refused.
-    assert_eq!(level_for(1, OCTAVES), Some(0));
-    assert_eq!(level_for(px(3.9), OCTAVES), None);
-    assert_eq!(level_for(px(3.6), OCTAVES), Some(31));
+    assert_eq!(GRID.level_for(1), Some(0));
+    assert_eq!(GRID.level_for(px(4.0)), None);
+    assert_eq!(GRID.level_for(px(3.999)), Some(16383));
+
+    // The finest and coarsest grids are consistent with each other.
+    let fine = Grid {
+        octaves: 8,
+        level_bits: 16,
+    };
+    let coarse = Grid {
+        octaves: 8,
+        level_bits: 1,
+    };
+    assert_eq!(fine.ratio(8 << 16), PRICE_ONE);
+    assert_eq!(coarse.ratio(16), PRICE_ONE);
+    assert_eq!(fine.ratio(9 << 16), coarse.ratio(18));
+    assert!(fine.ratio((8 << 16) + 1) > PRICE_ONE);
 }
 
 #[test]
@@ -125,11 +154,11 @@ fn ring_of_three_clears_at_equal_prices() {
     // fee and equal prices, exactly.
     let amount = 1_000_000;
     let buckets = [
-        bucket(0, 1, 0.9, amount, OCTAVES),
-        bucket(1, 2, 0.9, amount, OCTAVES),
-        bucket(2, 0, 0.9, amount, OCTAVES),
+        bucket(0, 1, 0.9, amount, GRID),
+        bucket(1, 2, 0.9, amount, GRID),
+        bucket(2, 0, 0.9, amount, GRID),
     ];
-    let (c, fills) = clear(&buckets, 3);
+    let (c, fills) = clear(&buckets, 3, GRID);
 
     for (sell, buy) in [(0, 1), (1, 2), (2, 0)] {
         assert!(
@@ -156,10 +185,10 @@ fn ring_of_three_clears_at_equal_prices() {
 fn two_sided_market_finds_the_price_that_fills_both_sides() {
     // 100 A for B at no less than 0.4 B/A; 50 B for A at no less than 1.5 A/B. Both clear when
     // p_A / p_B is between 0.4 and 0.667; equal value on both sides puts it at 0.5.
-    let a_for_b = bucket(0, 1, 0.4, 100_000_000, OCTAVES);
-    let b_for_a = bucket(1, 0, 1.5, 50_000_000, OCTAVES);
+    let a_for_b = bucket(0, 1, 0.4, 100_000_000, GRID);
+    let b_for_a = bucket(1, 0, 1.5, 50_000_000, GRID);
     let buckets = [a_for_b, b_for_a];
-    let (c, fills) = clear(&buckets, 2);
+    let (c, fills) = clear(&buckets, 2, GRID);
 
     let r = ratio(&c.prices, 0, 1);
     assert!((r - 0.5).abs() < 0.02, "p_A / p_B = {r}");
@@ -185,10 +214,10 @@ fn a_limit_that_binds_fills_partially_at_the_limit() {
     // 100 A for B at 0.4 or better -- which the grid rounds up to about 0.42 -- against only 30 B
     // for A. Filling all of the A would need 42 B, so the A seller's limit binds: the 30 B buy
     // about 71 A at a ratio just above the limit, inside its smoothing band.
-    let a_for_b = bucket(0, 1, 0.4, 100_000_000, OCTAVES);
-    let b_for_a = bucket(1, 0, 1.0, 30_000_000, OCTAVES);
+    let a_for_b = bucket(0, 1, 0.4, 100_000_000, GRID);
+    let b_for_a = bucket(1, 0, 1.0, 30_000_000, GRID);
     let buckets = [a_for_b, b_for_a];
-    let (c, fills) = clear(&buckets, 2);
+    let (c, fills) = clear(&buckets, 2, GRID);
 
     let limit = a_for_b.limit as f64 / PRICE_ONE as f64;
     assert!(limit > 0.4 && limit < 0.43, "grid level {limit}");
@@ -217,13 +246,13 @@ fn levels_fill_from_the_most_in_the_money_down() {
     // Three levels of A for B against one lot of B that covers about two of them. The lowest
     // levels fill in full, the next one takes the remainder, and the highest gets nothing.
     let buckets = [
-        bucket(0, 1, 0.5, 10_000_000, OCTAVES),
-        bucket(0, 1, 0.7, 10_000_000, OCTAVES),
-        bucket(0, 1, 0.9, 10_000_000, OCTAVES),
-        bucket(0, 1, 1.5, 10_000_000, OCTAVES),
-        bucket(1, 0, 0.9, 20_000_000, OCTAVES),
+        bucket(0, 1, 0.5, 10_000_000, GRID),
+        bucket(0, 1, 0.7, 10_000_000, GRID),
+        bucket(0, 1, 0.9, 10_000_000, GRID),
+        bucket(0, 1, 1.5, 10_000_000, GRID),
+        bucket(1, 0, 0.9, 20_000_000, GRID),
     ];
-    let (c, fills) = clear(&buckets, 2);
+    let (c, fills) = clear(&buckets, 2, GRID);
     let ab = book_fill(&fills, 0, 1).expect("A for B traded");
     let r = ratio(&c.prices, 0, 1);
 
@@ -252,10 +281,10 @@ fn levels_fill_from_the_most_in_the_money_down() {
 fn crossed_limits_trade_nothing() {
     // Each side wants two of the other per unit; no ratio satisfies both.
     let buckets = [
-        bucket(0, 1, 2.0, 1_000_000, OCTAVES),
-        bucket(1, 0, 2.0, 1_000_000, OCTAVES),
+        bucket(0, 1, 2.0, 1_000_000, GRID),
+        bucket(1, 0, 2.0, 1_000_000, GRID),
     ];
-    let (c, fills) = clear(&buckets, 2);
+    let (c, fills) = clear(&buckets, 2, GRID);
     assert_eq!(c.volume, 0);
     assert!(fills.is_empty());
     for b in &buckets {
@@ -269,12 +298,12 @@ fn buckets_up_to_i128_max_clear_without_overflow() {
     // neither fault nor pay out more than it takes in.
     let huge = i128::MAX as u128;
     let buckets = [
-        bucket(0, 1, 0.9, huge, OCTAVES),
-        bucket(1, 0, 0.9, huge, OCTAVES),
-        bucket(1, 2, 0.5, huge / 3, OCTAVES),
-        bucket(2, 1, 1.9, 1 << 20, OCTAVES),
+        bucket(0, 1, 0.9, huge, GRID),
+        bucket(1, 0, 0.9, huge, GRID),
+        bucket(1, 2, 0.5, huge / 3, GRID),
+        bucket(2, 1, 1.9, 1 << 20, GRID),
     ];
-    let (c, fills) = clear(&buckets, 3);
+    let (c, fills) = clear(&buckets, 3, GRID);
     assert!(c.volume > 0, "{c:?}");
     assert_sound(&buckets, 3, &c, &fills);
 
@@ -294,8 +323,8 @@ fn buckets_up_to_i128_max_clear_without_overflow() {
     );
 
     // And a batch with one bucket at the maximum and nothing to trade against it is fine too.
-    let lone = [bucket(0, 1, 0.9, huge, OCTAVES)];
-    let (c, fills) = clear(&lone, 2);
+    let lone = [bucket(0, 1, 0.9, huge, GRID)];
+    let (c, fills) = clear(&lone, 2, GRID);
     assert_eq!(c.volume, 0);
     assert!(fills.is_empty());
 }
@@ -318,27 +347,36 @@ impl Lcg {
 }
 
 #[test]
-fn the_largest_configuration_clears_a_full_histogram() {
-    // Eight assets on a one-octave grid is the most cells an exchange may have (1024). Fill every
-    // one and clear it, treating each bucket as a single offer for the invariants.
-    let (n, octaves) = (8, 1);
+fn a_batch_of_two_thousand_cells_clears_through_the_coarse_price_search() {
+    // More buckets than `COARSE_ABOVE`: tâtonnement runs over the histogram merged to 64 levels
+    // per doubling, and the circulation over the fine buckets, which must still be sound.
+    let (n, grid) = (
+        8,
+        Grid {
+            octaves: 3,
+            level_bits: 12,
+        },
+    );
     let mut rng = Lcg(7);
     let mut buckets = Vec::new();
-    for sell in 0..n {
-        for buy in (0..n).filter(|&b| b != sell) {
-            for level in 0..levels(octaves) {
-                buckets.push(Bucket {
-                    sell,
-                    buy,
-                    level,
-                    limit: level_ratio(level, octaves),
-                    amount: MIN_AMOUNT + rng.below(1 << 40) as u128,
-                });
-            }
+    let mut seen = std::collections::BTreeSet::new();
+    while buckets.len() < 2048 {
+        let sell = rng.below(n as u64) as usize;
+        let buy = (sell + 1 + rng.below(n as u64 - 1) as usize) % n;
+        let level = rng.below(grid.levels() as u64) as u32;
+        if !seen.insert((sell, buy, level)) {
+            continue;
         }
+        buckets.push(Bucket {
+            sell,
+            buy,
+            level,
+            limit: grid.ratio(level),
+            amount: MIN_AMOUNT + rng.below(1 << 40) as u128,
+        });
     }
-    assert_eq!(buckets.len(), 896);
-    let (c, fills) = clear(&buckets, n);
+    let buckets = sorted(buckets);
+    let (c, fills) = clear(&buckets, n, grid);
     assert!(c.volume > 0);
     assert_sound(&buckets, n, &c, &fills);
 }
@@ -351,7 +389,10 @@ fn random_batches_are_sound_and_respect_every_limit() {
 
     for trial in 0..300 {
         let n = 2 + rng.below(4) as usize;
-        let octaves = 1 + rng.below(3) as u32;
+        let grid = Grid {
+            octaves: 1 + rng.below(3) as u32,
+            level_bits: 1 + rng.below(12) as u32,
+        };
         let n_buckets = 1 + rng.below(12) as usize;
 
         // Aggregate buckets, each standing for one to three offers of the same level.
@@ -360,7 +401,7 @@ fn random_batches_are_sound_and_respect_every_limit() {
         for _ in 0..n_buckets {
             let sell = rng.below(n as u64) as usize;
             let buy = (sell + 1 + rng.below(n as u64 - 1) as usize) % n;
-            let level = rng.below(levels(octaves) as u64) as u32;
+            let level = rng.below(grid.levels() as u64) as u32;
             if let Some(b) = buckets
                 .iter_mut()
                 .find(|b| b.sell == sell && b.buy == buy && b.level == level)
@@ -385,14 +426,12 @@ fn random_batches_are_sound_and_respect_every_limit() {
                 sell,
                 buy,
                 level,
-                limit: level_ratio(level, octaves),
+                limit: grid.ratio(level),
                 amount: total,
             });
         }
-        // The engine expects each book's buckets in level order.
-        buckets.sort_by_key(|b| (b.sell, b.buy, b.level));
-
-        let (c, fills) = clear(&buckets, n);
+        let buckets = sorted(buckets);
+        let (c, fills) = clear(&buckets, n, grid);
         relaxed += (c.shortfall > 0) as u32;
         most_cancellations = most_cancellations.max(c.cancellations);
 
@@ -419,7 +458,7 @@ fn random_batches_are_sound_and_respect_every_limit() {
             sold[sell] += f.sold;
             bought[buy] += f.bought;
 
-            let limit = level_ratio(level, octaves) as f64 / PRICE_ONE as f64;
+            let limit = grid.ratio(level) as f64 / PRICE_ONE as f64;
             assert!(
                 f.bought as f64 + 1.0 >= (f.sold as f64 - 2.0) * limit,
                 "trial {trial}: {f:?} at limit {limit}"

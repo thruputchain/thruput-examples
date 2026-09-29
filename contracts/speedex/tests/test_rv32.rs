@@ -6,7 +6,7 @@
 
 use groundhog_erc20_if::ERC20Client;
 use sdk::*;
-use speedex::engine::PRICE_ONE;
+use speedex::engine::{self, Grid, PRICE_ONE};
 use speedex::*;
 
 hash_ident! { static TEST: ContractAddress; }
@@ -54,7 +54,7 @@ fn ring_trade_rv32() {
         let exchange = deploy_contract(&EXCHANGE_NONCE, &exchange_hash);
         let mut assets = [ContractAddress::new([0; 32]); MAX_ASSETS];
         assets[..3].copy_from_slice(&tokens);
-        SpeedexClient::new(&exchange).initialize(3, assets, 1, 2);
+        SpeedexClient::new(&exchange).initialize(3, assets, 1, 2, 12);
         (exchange, tokens)
     });
     env.advance_block();
@@ -85,7 +85,19 @@ fn ring_trade_rv32() {
         .collect();
     env.advance_block();
 
-    let clearing = run(&env, &TEST, || client.clear_batch(batch));
+    // The cells the offers landed in, as an indexer would know them from the events.
+    let grid = Grid {
+        octaves: 2,
+        level_bits: 12,
+    };
+    let level = grid.level_for(PRICE_ONE * 9 / 10).unwrap();
+    let mut cells: Vec<u32> = users
+        .iter()
+        .map(|&(_, sell, buy)| (engine::book(sell as usize, buy as usize) as u32) << 20 | level)
+        .collect();
+    cells.sort_unstable();
+    let cells: Vec<u8> = cells.iter().flat_map(|c| c.to_le_bytes()).collect();
+    let clearing = run(&env, &TEST, || client.clear_batch(batch, &cells));
     assert!(clearing.volume > 0);
     env.advance_block();
 

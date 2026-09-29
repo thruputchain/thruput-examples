@@ -355,7 +355,7 @@ fn identical_offers_in_one_block_cannot_share_a_record() {
 }
 
 #[test]
-fn a_histogram_too_large_to_clear_is_refused_at_initialization() {
+fn a_grid_finer_than_the_engine_supports_is_refused_at_initialization() {
     hash_ident! { static OTHER_NONCE: SHA256Hash; }
     let x = Exchange::setup();
     let exchange_hash = *speedex::register_mock_contract(&x.env).as_hash();
@@ -370,14 +370,14 @@ fn a_histogram_too_large_to_clear_is_refused_at_initialization() {
         .as_user(&TEST, || {
             let addr = deploy_contract(&OTHER_NONCE, &exchange_hash);
             let client = SpeedexClient::new(&addr);
-            // 8 * 7 * 32 cells is over the bound; 8 * 7 * 16 is under it.
-            let wide = client.try_initialize(8, assets, 1, 2);
-            let narrow = client.try_initialize(8, assets, 1, 1);
+            // 2^17 levels to the doubling is past the engine's finest; 2^16 is its finest.
+            let wide = client.try_initialize(8, assets, 1, 2, 17);
+            let narrow = client.try_initialize(8, assets, 1, 1, 16);
             (wide, narrow)
         })
         .expect("deploy");
     assert_eq!(speedex_error(wide), SpeedexError::InvalidConfiguration);
-    narrow.expect("the largest allowed configuration");
+    narrow.expect("the finest allowed grid");
 }
 
 #[test]
@@ -410,4 +410,49 @@ fn a_cleared_book_reports_its_fill_and_an_idle_one_none() {
 
     x.settle_all(&[alice, bob]);
     assert_conserved(&x, [100 * UNIT, 30 * UNIT, 0], &[&ALICE, &BOB]);
+}
+
+#[test]
+fn a_clearing_must_be_told_every_occupied_cell() {
+    let x = Exchange::setup();
+    x.mint(&ALICE, A, 10 * UNIT);
+    x.mint(&BOB, B, 10 * UNIT);
+
+    let batch = x.current_batch();
+    let alice = x.submit(&ALICE, A, B, 10 * UNIT, px(0.9));
+    let bob = x.submit(&BOB, B, A, 10 * UNIT, px(0.9));
+    x.advance_block();
+
+    let full = x.cell_list(batch);
+    assert_eq!(full.len(), 8, "two cells");
+
+    // Leaving a cell out is refused: Bob's book would not add up.
+    assert_eq!(
+        speedex_error(x.try_clear_with(batch, &full[..4])),
+        SpeedexError::BatchMismatch
+    );
+    // So is a list that is not strictly increasing, or not whole cells.
+    let twice: Vec<u8> = [&full[..4], &full[..4], &full[4..]].concat();
+    assert_eq!(
+        speedex_error(x.try_clear_with(batch, &twice)),
+        SpeedexError::InvalidCells
+    );
+    assert_eq!(
+        speedex_error(x.try_clear_with(batch, &full[..7])),
+        SpeedexError::InvalidCells
+    );
+    // A cell nobody used is harmless: it reads as empty.
+    let stray = x
+        .as_user(&TEST, || x.client().cell_of(C, A, 0))
+        .unwrap()
+        .to_le_bytes();
+    let mut with_stray = full.clone();
+    with_stray.extend_from_slice(&stray);
+    let clearing = x.try_clear_with(batch, &with_stray).expect("clears");
+    assert!(clearing.volume > 0);
+
+    x.advance_block();
+    x.settle_all(&[alice, bob]);
+    assert_eq!(x.balances(&ALICE)[B as usize], 10 * UNIT);
+    assert_eq!(x.balances(&BOB)[A as usize], 10 * UNIT);
 }

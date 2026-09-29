@@ -4,9 +4,11 @@
 
 pub use groundhog_erc20_if::ERC20Client;
 pub use sdk::*;
-pub use speedex::engine::{self, BookFill, Clearing, PRICE_ONE, Price};
+pub use speedex::engine::{self, BookFill, Clearing, Grid, PRICE_ONE, Price};
 pub use speedex::*;
 
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 hash_ident! { pub static TEST: ContractAddress; }
@@ -29,8 +31,13 @@ pub const C: u32 = 2;
 
 /// One whole token, at six decimals.
 pub const UNIT: u128 = 1_000_000;
-/// Limit ratios from 1/4 to just under 4.
+/// Limit ratios from 1/4 to just under 4, in 4096 steps to the doubling.
 pub const OCTAVES: u32 = 2;
+pub const LEVEL_BITS: u32 = 12;
+pub const GRID: Grid = Grid {
+    octaves: OCTAVES,
+    level_bits: LEVEL_BITS,
+};
 
 /// A limit or price as a Q32 fixed-point number.
 pub fn px(x: f64) -> Price {
@@ -65,6 +72,9 @@ pub struct Exchange {
     pub env: TestEnvironmentHandle,
     pub addr: ContractAddress,
     pub tokens: [ContractAddress; N],
+    /// The histogram cells each batch's submissions landed in -- what an indexer would know from
+    /// the `OfferAccepted` events, and what `clear_batch` is told.
+    pub cells: RefCell<BTreeMap<BatchId, BTreeSet<u32>>>,
 }
 
 impl Exchange {
@@ -91,14 +101,27 @@ impl Exchange {
             let addr = deploy_contract(&EXCHANGE_NONCE, &exchange_hash);
             let mut assets = [ContractAddress::new([0; 32]); MAX_ASSETS];
             assets[..N].copy_from_slice(&tokens);
-            SpeedexClient::new(&addr).initialize(N as u32, assets, epoch_len, OCTAVES);
+            SpeedexClient::new(&addr).initialize(N as u32, assets, epoch_len, OCTAVES, LEVEL_BITS);
 
             (addr, tokens)
         })
         .expect("deploy");
         env.advance_block();
 
-        Self { env, addr, tokens }
+        Self {
+            env,
+            addr,
+            tokens,
+            cells: RefCell::new(BTreeMap::new()),
+        }
+    }
+
+    /// The cell list `clear_batch` expects for `batch`: the cells recorded at submission, packed
+    /// little-endian in increasing order.
+    pub fn cell_list(&self, batch: BatchId) -> Vec<u8> {
+        let cells = self.cells.borrow();
+        let set = cells.get(&batch).cloned().unwrap_or_default();
+        set.iter().flat_map(|c| c.to_le_bytes()).collect()
     }
 
     pub fn client(&self) -> SpeedexClient {
@@ -154,12 +177,24 @@ impl Exchange {
         amount: u128,
         min_price: Price,
     ) -> Result<OfferId, CallError> {
-        self.as_user(user, || {
-            self.token(sell)
-                .adjust_allowance(&self.addr, amount as i128, false);
-            self.client().try_submit_offer(sell, buy, amount, min_price)
-        })
-        .expect("submit transaction")
+        let batch = self.current_batch();
+        let result = self
+            .as_user(user, || {
+                self.token(sell)
+                    .adjust_allowance(&self.addr, amount as i128, false);
+                self.client().try_submit_offer(sell, buy, amount, min_price)
+            })
+            .expect("submit transaction");
+        if result.is_ok() {
+            let level = GRID.level_for(min_price).expect("on the grid");
+            let cell = (engine::book(sell as usize, buy as usize) as u32) << 20 | level;
+            self.cells
+                .borrow_mut()
+                .entry(batch)
+                .or_default()
+                .insert(cell);
+        }
+        result
     }
 
     pub fn submit(
@@ -180,7 +215,11 @@ impl Exchange {
     }
 
     pub fn try_clear(&self, batch: BatchId) -> Result<Clearing, CallError> {
-        self.as_user(&DAVE, || self.client().try_clear_batch(batch))
+        self.try_clear_with(batch, &self.cell_list(batch))
+    }
+
+    pub fn try_clear_with(&self, batch: BatchId, cells: &[u8]) -> Result<Clearing, CallError> {
+        self.as_user(&DAVE, || self.client().try_clear_batch(batch, cells))
             .expect("clear transaction")
     }
 
