@@ -64,8 +64,8 @@ export function createCounterTransactions(
   const expected = networkHash(hashFromHex(config.app.networkId));
   const contract = addressFromHex(config.app.counterAddress);
   const invocations = {
-    increment: Counter.increment.invocation(contract, GAS, { amount: 1n }),
-    decrement: Counter.decrement.invocation(contract, GAS, { amount: 1n }),
+    increment: Counter.v0_1.increment.invocation(contract, GAS, { amount: 1n }),
+    decrement: Counter.v0_1.decrement.invocation(contract, GAS, { amount: 1n }),
   };
   const roots = Object.values(invocations).map((invocation) =>
     serialize(

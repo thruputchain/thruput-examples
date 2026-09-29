@@ -118,7 +118,7 @@ export async function provisionSwap(options: {
       contract,
     });
     await execute(
-      ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
+      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
         receiver: deployment.address,
         amount: CONTRACT_FUNDING,
       }),
@@ -161,7 +161,7 @@ export async function provisionSwap(options: {
     console.log(`Airdrop confirmed: ${airdrop.rawAmount} raw HOG (7 decimals)`);
     // Native-token storage also needs a reserve for future user allowance rows.
     await execute(
-      ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
+      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
         receiver: HOG_ADDRESS,
         amount: CONTRACT_FUNDING,
       }),
@@ -175,7 +175,7 @@ export async function provisionSwap(options: {
     const factory = await deploy("Factory", factoryContract!);
     const router = await deploy("Router", routerContract!);
     await execute(
-      SwapFactory.initialize.invocation(factory, GAS_LIMIT, {
+      SwapFactory.v0_1.initialize.invocation(factory, GAS_LIMIT, {
         hashes: {
           token: fixedBytes(tokenHash, 32),
           handler: fixedBytes(handlerHash, 32),
@@ -186,12 +186,12 @@ export async function provisionSwap(options: {
       }),
     );
     await execute(
-      SwapRouter.initialize.invocation(router, GAS_LIMIT, { factory }),
+      SwapRouter.v0_1.initialize.invocation(router, GAS_LIMIT, { factory }),
     );
     const viewOptions = { client, contract: factory, caller: account.address };
-    const count = (await SwapFactory.allPairsLength.view(viewOptions)).value;
-    const funding = (await SwapFactory.poolFunding.view(viewOptions)).value;
-    const feeTo = (await SwapFactory.feeTo.view(viewOptions)).value;
+    const count = (await SwapFactory.v0_1.allPairsLength.view(viewOptions)).value;
+    const funding = (await SwapFactory.v0_1.poolFunding.view(viewOptions)).value;
+    const feeTo = (await SwapFactory.v0_1.feeTo.view(viewOptions)).value;
     if (
       count !== 0n ||
       feeTo !== null ||

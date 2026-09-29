@@ -4,6 +4,7 @@ description = "Example contract implementing two traits from a separate crate"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
 
 [features]
 entrypoints = []

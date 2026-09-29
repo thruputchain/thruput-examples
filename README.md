@@ -1,6 +1,6 @@
 # groundhog-examples
 
-Example smart contracts and applications for the [Groundhog SDK](https://docs.groundhog.dev/tools/rust-api-docs/). Each
+Example smart contracts and applications for the [Groundhog SDK](https://github.com/groundhogchain/sdk_rs). Each
 crate in this Cargo workspace demonstrates a specific SDK feature, from a minimal stateless contract
 up to cross-contract calls, error handling, and event emission.
 
@@ -29,7 +29,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`cross-trait-throws`](contracts/cross-trait-throws/) | One contract implementing two traits with different `throws` types; a client on one catching the peer trait's error with `match_exn!` |
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and optional `metadata` and `permit` features |
 | [`permit-wallet`](contracts/permit-wallet/) | Off-chain authorization: an owner's wallet implementing `SignedOp`, turning an ed25519 signature made off-chain into a `PermitGrant` auth token the `erc20` consumes; the owner never submits a transaction |
-| [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit from the wallet to the token in one frame, so anyone can submit it |
+| [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit or allowance clear from the wallet to the token in one frame, routing by the signed request, so anyone can submit it |
 | [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](contracts/swap-router/README.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
 
@@ -62,7 +62,7 @@ lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflif
 ### Install Swap and Launchpad dependencies
 
 Use Node.js **22.13 or newer** and npm. The apps install the published
-`@groundhogchain/client@0.10.0` package, including wallet capability discovery and
+`@groundhogchain/client@0.11.0` package, including wallet capability discovery and
 atomic batching, from GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
 with `read:packages` and access to the Groundhog packages in your npm user config:
 
@@ -112,15 +112,15 @@ Run from the repository root:
 | `npm run test:seed` | Fresh-node seeding, indexed tokens, balances, liquidity, and repeatability |
 | `npm run test:counter` | Fresh-node counter setup, concurrent transactions, and real browser keyboard input; requires a built counter artifact and app |
 
-Set `CHROMIUM_PATH` to your Chromium binary (browser fixtures default to
-`/usr/bin/chromium`; the live wallet test defaults to `/usr/lib/chromium/chromium`).
+Set `CHROMIUM_PATH` to your Chromium binary if needed. Browser fixtures default
+to `/usr/bin/chromium`; the live wallet test defaults to `/usr/lib/chromium/chromium`.
 Both live runners use Linux process groups and `/proc`. Install the wallet's
 dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
 Live checks need a compatible CLI/devnode pair, built contracts, and matching
-generated bindings. The expected pairing is CLI `0.19.0-pre.1` or newer with
-hog-devnode `0.1.29-rc.2`. Rebuild contracts from the current checkout
+generated bindings: CLI `0.19.0` or newer with the hog-devnode it manages
+(`0.1.29-rc.4`). Rebuild contracts from the current checkout
 before running them. Use a separate checkout if you need to preserve the bindings
 for the recorded Devnet deployment. From the repository root:
 
@@ -168,7 +168,7 @@ transaction or remote deployment. Wallet unit tests run independently through
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI, **version 0.19.0-pre.1 or newer** (it must match the SDK the
+- The `groundhog` CLI, **version 0.19.0 or newer** (it must match the SDK the
   contracts build against):
 
   ```sh

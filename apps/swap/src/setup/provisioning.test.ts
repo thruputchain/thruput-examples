@@ -145,13 +145,13 @@ beforeEach(async () => {
   const deployments = [address(1), address(2), factory, router];
   const predicted = [...deployments];
   mocks.deriveContractAddress.mockImplementation(() => predicted.shift()!);
-  vi.spyOn(SwapFactory.allPairsLength, "view").mockResolvedValue({
+  vi.spyOn(SwapFactory.v0_1.allPairsLength, "view").mockResolvedValue({
     value: 0n,
   } as never);
-  vi.spyOn(SwapFactory.poolFunding, "view").mockResolvedValue({
+  vi.spyOn(SwapFactory.v0_1.poolFunding, "view").mockResolvedValue({
     value: { min: 1n, recommended: 2n },
   } as never);
-  vi.spyOn(SwapFactory.feeTo, "view").mockResolvedValue({
+  vi.spyOn(SwapFactory.v0_1.feeTo, "view").mockResolvedValue({
     value: null,
   } as never);
   vi.spyOn(console, "log").mockImplementation(() => {});
@@ -306,12 +306,12 @@ describe("infrastructure-only swap provisioning", () => {
     ).toEqual([
       ...[HOG_ADDRESS, address(1), address(2), factory, router].map(
         (receiver) =>
-          ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+          ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
             receiver,
             amount: 10_000_000n,
           }),
       ),
-      SwapFactory.initialize.invocation(factory, gas, {
+      SwapFactory.v0_1.initialize.invocation(factory, gas, {
         hashes: {
           token: fixedBytes(hashContract(contract("erc20")), 32),
           handler: fixedBytes(hashContract(contract("swap_handler")), 32),
@@ -320,7 +320,7 @@ describe("infrastructure-only swap provisioning", () => {
         feeTo: null,
         router,
       }),
-      SwapRouter.initialize.invocation(router, gas, { factory }),
+      SwapRouter.v0_1.initialize.invocation(router, gas, { factory }),
     ]);
     const env = await readFile(output, "utf8");
     expect(
@@ -383,13 +383,13 @@ describe("infrastructure-only swap provisioning", () => {
         new Error("Deployment address mismatch"),
       );
     if (phase === "verification")
-      vi.mocked(SwapFactory.allPairsLength.view).mockResolvedValueOnce({
+      vi.mocked(SwapFactory.v0_1.allPairsLength.view).mockResolvedValueOnce({
         value: 1n,
       } as never);
     if (phase === "asset publication")
       mocks.link.mockRejectedValueOnce(new Error("Cannot publish asset"));
     if (phase === "fee recipient")
-      vi.mocked(SwapFactory.feeTo.view).mockResolvedValueOnce({
+      vi.mocked(SwapFactory.v0_1.feeTo.view).mockResolvedValueOnce({
         value: address(99),
       } as never);
     await expect(main()).rejects.toThrow();

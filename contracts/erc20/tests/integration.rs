@@ -145,7 +145,11 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
 
     // Unreserved, the same account cannot be granted an allowance.
     let before = hog
-        .submit("adjust_allowance", encode(&(spender, 1i128)), options())
+        .submit(
+            "adjust_allowance",
+            encode(&(spender, 1i128, false)),
+            options(),
+        )
         .await
         .expect("submitting adjust_allowance");
     assert!(
@@ -180,7 +184,7 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
     let after = hog
         .submit(
             "adjust_allowance",
-            encode(&(fresh_spender, 1i128)),
+            encode(&(fresh_spender, 1i128, false)),
             options(),
         )
         .await

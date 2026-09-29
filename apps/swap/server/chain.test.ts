@@ -12,10 +12,7 @@ import {
 import { networkHash } from "@groundhogchain/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  PoolCreated,
-  SwapFactory,
-} from "../src/contracts/generated/swap-factory.ts";
+import { SwapFactory, swap_if } from "../src/contracts/generated/swap-factory.ts";
 import {
   GroundhogRegistrySource,
   RegistryCursorRejectedError,
@@ -23,6 +20,9 @@ import {
   RegistryScopeVerificationError,
 } from "./chain.ts";
 import type { RegistryScope } from "../shared/registry.ts";
+
+const PoolCreated = swap_if.v0_1.events.PoolCreated;
+type PoolCreated = swap_if.v0_1.events.PoolCreated;
 
 const scope: RegistryScope = {
   networkId: "11".repeat(32),
@@ -74,7 +74,7 @@ describe("GroundhogRegistrySource", () => {
         ],
       }),
     );
-    expect(SwapFactory.pairAt.view).toHaveBeenCalledWith(
+    expect(SwapFactory.v0_1.pairAt.view).toHaveBeenCalledWith(
       expect.objectContaining({ args: { index: 0n } }),
     );
     expect(client.getNetworkInfo).toHaveBeenCalledTimes(2);
@@ -171,13 +171,13 @@ describe("GroundhogRegistrySource", () => {
     const client = mockClient();
     client.getEvents.mockResolvedValue(eventPage());
     vi.spyOn(PoolCreated, "decode").mockReturnValue(decoded());
-    vi.spyOn(SwapFactory.getPair, "view")
+    vi.spyOn(SwapFactory.v0_1.getPair, "view")
       .mockResolvedValueOnce(view(address(4), 7n))
       .mockResolvedValueOnce(view(address(4), 9n));
-    vi.spyOn(SwapFactory.poolAddresses, "view")
+    vi.spyOn(SwapFactory.v0_1.poolAddresses, "view")
       .mockResolvedValueOnce(view(pool(), 8n))
       .mockResolvedValueOnce(view(pool(), 9n));
-    vi.spyOn(SwapFactory.pairAt, "view")
+    vi.spyOn(SwapFactory.v0_1.pairAt, "view")
       .mockResolvedValueOnce(view([address(1), address(2)] as const, 8n))
       .mockResolvedValueOnce(view([address(1), address(2)] as const, 9n));
 
@@ -186,7 +186,7 @@ describe("GroundhogRegistrySource", () => {
         request(),
       ),
     ).resolves.toMatchObject({ pools: [{ handlerAddress: addressHex(4) }] });
-    expect(SwapFactory.getPair.view).toHaveBeenCalledTimes(2);
+    expect(SwapFactory.v0_1.getPair.view).toHaveBeenCalledTimes(2);
   });
 
   it("rejects contradictory state and exhausted incoherent reads", async () => {
@@ -204,13 +204,13 @@ describe("GroundhogRegistrySource", () => {
     const incoherent = mockClient();
     incoherent.getEvents.mockResolvedValue(eventPage());
     vi.spyOn(PoolCreated, "decode").mockReturnValue(decoded());
-    vi.spyOn(SwapFactory.getPair, "view").mockResolvedValue(
+    vi.spyOn(SwapFactory.v0_1.getPair, "view").mockResolvedValue(
       view(address(4), 7n),
     );
-    vi.spyOn(SwapFactory.poolAddresses, "view").mockResolvedValue(
+    vi.spyOn(SwapFactory.v0_1.poolAddresses, "view").mockResolvedValue(
       view(pool(), 8n),
     );
-    vi.spyOn(SwapFactory.pairAt, "view").mockResolvedValue(
+    vi.spyOn(SwapFactory.v0_1.pairAt, "view").mockResolvedValue(
       view([address(1), address(2)] as const, 8n),
     );
     await expect(
@@ -218,7 +218,7 @@ describe("GroundhogRegistrySource", () => {
         request(),
       ),
     ).rejects.toThrow("one coherent block");
-    expect(SwapFactory.getPair.view).toHaveBeenCalledTimes(3);
+    expect(SwapFactory.v0_1.getPair.view).toHaveBeenCalledTimes(3);
   });
 
   it("classifies only invalid supplied cursors and preserves the abort signal", async () => {
@@ -413,7 +413,7 @@ describe("GroundhogRegistrySource", () => {
       client.getEvents.mockResolvedValue(eventPage());
       vi.spyOn(PoolCreated, "decode").mockReturnValue(decoded());
       mockCoherentFactoryViews();
-      vi.mocked(SwapFactory.getPair.view).mockRejectedValue(error);
+      vi.mocked(SwapFactory.v0_1.getPair.view).mockRejectedValue(error);
 
       const caught = await new GroundhogRegistrySource(
         typedClient(client),
@@ -433,7 +433,7 @@ describe("GroundhogRegistrySource", () => {
     vi.spyOn(PoolCreated, "decode").mockReturnValue(decoded());
     mockCoherentFactoryViews();
     const transportFailure = new Error("transport unavailable");
-    vi.mocked(SwapFactory.getPair.view).mockRejectedValue(transportFailure);
+    vi.mocked(SwapFactory.v0_1.getPair.view).mockRejectedValue(transportFailure);
 
     const caught = await new GroundhogRegistrySource(typedClient(client), scope)
       .getPage(request())
@@ -498,13 +498,13 @@ function decoded(
 function mockCoherentFactoryViews(
   overrides: { handler?: ReturnType<typeof address> } = {},
 ) {
-  vi.spyOn(SwapFactory.getPair, "view").mockResolvedValue(
+  vi.spyOn(SwapFactory.v0_1.getPair, "view").mockResolvedValue(
     view(overrides.handler ?? address(4), 8n),
   );
-  vi.spyOn(SwapFactory.poolAddresses, "view").mockResolvedValue(
+  vi.spyOn(SwapFactory.v0_1.poolAddresses, "view").mockResolvedValue(
     view(pool(), 8n),
   );
-  vi.spyOn(SwapFactory.pairAt, "view").mockResolvedValue(
+  vi.spyOn(SwapFactory.v0_1.pairAt, "view").mockResolvedValue(
     view([address(1), address(2)] as const, 8n),
   );
 }

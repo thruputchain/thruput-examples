@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppConfig, GlobalConfig } from "@/config";
 import type { Erc20ReadAdapter } from "@/contracts/erc20-adapter";
 import type { PoolAddresses, SwapFactoryReadAdapter } from "@/contracts/factory-adapter";
-import { RequestAccepted } from "@/contracts/generated/swap-driver";
-import { PoolCreated } from "@/contracts/generated/swap-factory";
+import { batch_driver } from "@/contracts/generated/swap-driver";
+import { swap_if } from "@/contracts/generated/swap-factory";
 import type { PoolCreationReview } from "@/pools/pool-creation";
 import {
   confirmCreationStepWasNotSigned,
@@ -22,6 +22,11 @@ import {
 } from "./creation-workflow";
 import { createCrankAttempt, saveCrankAttempt } from "./crank-attempt";
 import type { WriteBoundary, WriteResult } from "./write-boundary";
+
+const RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+type RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+const PoolCreated = swap_if.v0_1.events.PoolCreated;
+type PoolCreated = swap_if.v0_1.events.PoolCreated;
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
@@ -590,6 +595,7 @@ function committed(
       txHash: sha256Hash(new Uint8Array(32).fill(41)),
       height,
       execResult: ExecResult.ExecResultOK,
+      gasUsed: 0n,
       events,
       returnData: new Uint8Array(),
       abortData: null,

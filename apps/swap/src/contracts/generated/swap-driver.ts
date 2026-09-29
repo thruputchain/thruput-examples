@@ -1,248 +1,358 @@
 // Generated from swap_driver.spec.xdr - SwapDriver interface v0.1.0
 // DO NOT EDIT. Re-run codegen to update.
 
-import type { ContractAddress } from "@groundhogchain/protocol";
-import { contractEntrypointID, topic } from "@groundhogchain/protocol";
-import { fromHex } from "@groundhogchain/protocol/utils";
-import {
-  ContractTypeKind,
-  ContractTypeDefKind,
-  contractSpecString,
-  ContractUnionCaseKind,
-} from "@groundhogchain/contract-spec";
-import {
-  type ContractSpec,
-  createContractCodecContext,
-  defineContractMethod,
-  type ContractException,
-  type FixedBytes,
-  defineContractEvent,
-  type DecodedContractEvent,
-  type ContractEventFilterValue,
-} from "@groundhogchain/client/contract";
+import * as __gh_protocol from "@groundhogchain/protocol";
+import * as __gh_protocol_utils from "@groundhogchain/protocol/utils";
+import * as __gh_contract_spec from "@groundhogchain/contract-spec";
+import * as __gh_client_contract from "@groundhogchain/client/contract";
 
-const s = contractSpecString;
+const __gh_s = __gh_contract_spec.contractSpecString;
 
-const entrypoints = {
+const __gh_entrypoints = {
   SwapDriver: {
-    initialize: contractEntrypointID(fromHex("5141f296502fd167")),
-    processRequests: contractEntrypointID(fromHex("4f3ee265487ea6e3")),
-    request: contractEntrypointID(fromHex("1a3e665ef0730c72")),
+    v0_1: {
+      initialize: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("5141f296502fd167"),
+      ),
+      processRequests: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("4f3ee265487ea6e3"),
+      ),
+      request: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("1a3e665ef0730c72"),
+      ),
+    },
   },
 } as const;
 
-export interface AddLiquidityRequest {
-  purchaser: ContractAddress;
-  amounts_desired: readonly [bigint, bigint];
-  amounts_min: readonly [bigint, bigint];
-  recipient: ContractAddress;
-}
+export namespace batch_driver {
+  export namespace v0_1 {
+    export namespace events {
+      export type Cause = 1n | 2n | 3n | 4n;
 
-export const Cause = {
-  Exception: 1n,
-  Fault: 2n,
-  Rejected: 3n,
-  Malformed: 4n,
-} as const;
+      export interface RequestAccepted extends __gh_client_contract.DecodedContractEvent<
+        "RequestAccepted",
+        { request_id: __gh_client_contract.FixedBytes<32> },
+        {}
+      > {}
 
-export type Cause = (typeof Cause)[keyof typeof Cause];
+      export interface RequestAcceptedFilter {
+        request_id?: __gh_client_contract.ContractEventFilterValue<
+          __gh_client_contract.FixedBytes<32>
+        >;
+      }
 
-export const ERC20Error = {
-  AlreadyInitialized: 1n,
-  MustBeContractOwner: 2n,
-  TooLarge: 3n,
-  Internal: 100n,
-} as const;
+      export interface RequestFailed extends __gh_client_contract.DecodedContractEvent<
+        "RequestFailed",
+        { request_id: __gh_client_contract.FixedBytes<32> },
+        {
+          cause: __gh_codegen.batch_driver$v0_1$events$Cause;
+          selector: bigint;
+          payload: globalThis.Uint8Array;
+          payload_len: bigint;
+        }
+      > {}
 
-export type ERC20Error = (typeof ERC20Error)[keyof typeof ERC20Error];
+      export interface RequestFailedFilter {
+        request_id?: __gh_client_contract.ContractEventFilterValue<
+          __gh_client_contract.FixedBytes<32>
+        >;
+      }
 
-export interface RemoveLiquidityRequest {
-  redeemer: ContractAddress;
-  liquidity: bigint;
-  amounts_min: readonly [bigint, bigint];
-  recipient: ContractAddress;
-}
+      export interface RequestsProcessed extends __gh_client_contract.DecodedContractEvent<
+        "RequestsProcessed",
+        {},
+        { processed: bigint; failed: bigint }
+      > {}
 
-export const SwapDriverError = {
-  BatchTooSmall: 1n,
-  AlreadyInitialized: 2n,
-  InvalidConfiguration: 3n,
-  Unauthorized: 4n,
-} as const;
-
-export type SwapDriverError =
-  (typeof SwapDriverError)[keyof typeof SwapDriverError];
-
-export interface SwapExactInRequest {
-  trader: ContractAddress;
-  amount_in: bigint;
-  amount_out_min: bigint;
-  in_index: bigint;
-  recipient: ContractAddress;
-}
-
-export interface SwapExactOutRequest {
-  trader: ContractAddress;
-  amount_out: bigint;
-  amount_in_max: bigint;
-  in_index: bigint;
-  recipient: ContractAddress;
-}
-
-export const SwapLibraryError = {
-  InsufficientAmount: 1n,
-  InsufficientLiquidity: 2n,
-  InsufficientInputAmount: 3n,
-  InsufficientOutputAmount: 4n,
-} as const;
-
-export type SwapLibraryError =
-  (typeof SwapLibraryError)[keyof typeof SwapLibraryError];
-
-export type SwapOp =
-  | { case: "AddLiquidity"; value: readonly [AddLiquidityRequest] }
-  | { case: "RemoveLiquidity"; value: readonly [RemoveLiquidityRequest] }
-  | { case: "SwapExactIn"; value: readonly [SwapExactInRequest] }
-  | { case: "SwapExactOut"; value: readonly [SwapExactOutRequest] };
-
-export type SwapPairError =
-  | { case: "InitializeFailed" }
-  | { case: "AlreadyInitialized" }
-  | { case: "NoLiquidityToBurn" }
-  | { case: "InsufficientOutputAmount" }
-  | { case: "InsufficientInputAmount" }
-  | { case: "InsufficientLiquidity" }
-  | { case: "InsufficientLiquidityMinted" }
-  | { case: "InsufficientLiquidityBurned" }
-  | { case: "InvalidDestination" }
-  | { case: "InvalidSwapProduct" }
-  | { case: "Overflow" }
-  | { case: "TransferFailed" }
-  | { case: "LPTokenFailure"; value: readonly [ERC20Error] };
-
-export interface SwapRequest {
-  request_id: FixedBytes<32>;
-  op: SwapOp;
-}
-
-export const SwapRequestError = {
-  Unauthorized: 100n,
-  InsufficientAmountA: 1n,
-  InsufficientAmountB: 2n,
-  InsufficientOutputAmount: 3n,
-  ExcessiveInputAmount: 4n,
-} as const;
-
-export type SwapRequestError =
-  (typeof SwapRequestError)[keyof typeof SwapRequestError];
-
-export interface SwapDriverInitializeArgs {
-  handler: ContractAddress;
-  router: ContractAddress;
-  maxQueueLen: bigint;
-  minCrankBatch: bigint;
-}
-export type SwapDriverInitializeResult = void;
-
-export type SwapDriverProcessRequestsArgs = void;
-export type SwapDriverProcessRequestsResult = readonly [bigint, bigint];
-
-export interface SwapDriverRequestArgs {
-  request: SwapRequest;
-}
-export type SwapDriverRequestResult = FixedBytes<32>;
-
-export type SwapDriverDeclaredException =
-  | {
-      kind: "declared";
-      name: "SwapLibraryError";
-      selector: 0x17e7e152700d9279n;
-      value: SwapLibraryError;
+      export type RequestsProcessedFilter = globalThis.Record<string, never>;
     }
-  | {
-      kind: "declared";
-      name: "SwapPairError";
-      selector: 0x25d002d47b07640dn;
-      value: SwapPairError;
-    }
-  | {
-      kind: "declared";
-      name: "SwapRequestError";
-      selector: 0x947bdd51feea1ccen;
-      value: SwapRequestError;
-    }
-  | {
-      kind: "declared";
-      name: "ERC20Error";
-      selector: 0xb19947acb2fa14ffn;
-      value: ERC20Error;
-    }
-  | {
-      kind: "declared";
-      name: "SwapDriverError";
-      selector: 0xb7f3f28894243a52n;
-      value: SwapDriverError;
-    };
-export type SwapDriverException =
-  ContractException<SwapDriverDeclaredException>;
+  }
+}
 
-export const spec: ContractSpec = {
+export namespace groundhog_erc20_if {
+  export namespace v0_1 {
+    export namespace error {
+      export type ERC20Error = 1n | 2n | 3n | 4n | 100n;
+    }
+  }
+}
+
+export namespace swap_if {
+  export namespace v0_1 {
+    export namespace driver {
+      export type SwapDriverError = 1n | 2n | 3n | 4n;
+    }
+
+    export namespace handler {
+      export type SwapLibraryError = 1n | 2n | 3n | 4n;
+
+      export type SwapRequestError = 100n | 1n | 2n | 3n | 4n;
+    }
+
+    export namespace pair {
+      export type SwapPairError =
+        | { case: "InitializeFailed" }
+        | { case: "AlreadyInitialized" }
+        | { case: "NoLiquidityToBurn" }
+        | { case: "InsufficientOutputAmount" }
+        | { case: "InsufficientInputAmount" }
+        | { case: "InsufficientLiquidity" }
+        | { case: "InsufficientLiquidityMinted" }
+        | { case: "InsufficientLiquidityBurned" }
+        | { case: "InvalidDestination" }
+        | { case: "InvalidSwapProduct" }
+        | { case: "Overflow" }
+        | { case: "TransferFailed" }
+        | {
+            case: "LPTokenFailure";
+            value: readonly [
+              __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error,
+            ];
+          };
+    }
+
+    export namespace request {
+      export interface AddLiquidityRequest {
+        purchaser: __gh_protocol.ContractAddress;
+        amounts_desired: readonly [bigint, bigint];
+        amounts_min: readonly [bigint, bigint];
+        recipient: __gh_protocol.ContractAddress;
+      }
+
+      export interface RemoveLiquidityRequest {
+        redeemer: __gh_protocol.ContractAddress;
+        liquidity: bigint;
+        amounts_min: readonly [bigint, bigint];
+        recipient: __gh_protocol.ContractAddress;
+      }
+
+      export interface SwapExactInRequest {
+        trader: __gh_protocol.ContractAddress;
+        amount_in: bigint;
+        amount_out_min: bigint;
+        in_index: bigint;
+        recipient: __gh_protocol.ContractAddress;
+      }
+
+      export interface SwapExactOutRequest {
+        trader: __gh_protocol.ContractAddress;
+        amount_out: bigint;
+        amount_in_max: bigint;
+        in_index: bigint;
+        recipient: __gh_protocol.ContractAddress;
+      }
+
+      export type SwapOp =
+        | {
+            case: "AddLiquidity";
+            value: readonly [
+              __gh_codegen.swap_if$v0_1$request$AddLiquidityRequest,
+            ];
+          }
+        | {
+            case: "RemoveLiquidity";
+            value: readonly [
+              __gh_codegen.swap_if$v0_1$request$RemoveLiquidityRequest,
+            ];
+          }
+        | {
+            case: "SwapExactIn";
+            value: readonly [
+              __gh_codegen.swap_if$v0_1$request$SwapExactInRequest,
+            ];
+          }
+        | {
+            case: "SwapExactOut";
+            value: readonly [
+              __gh_codegen.swap_if$v0_1$request$SwapExactOutRequest,
+            ];
+          };
+
+      export interface SwapRequest {
+        request_id: __gh_client_contract.FixedBytes<32>;
+        op: __gh_codegen.swap_if$v0_1$request$SwapOp;
+      }
+    }
+  }
+}
+
+export namespace SwapDriver {
+  export namespace v0_1 {
+    export interface InitializeArgs {
+      handler: __gh_protocol.ContractAddress;
+      router: __gh_protocol.ContractAddress;
+      maxQueueLen: bigint;
+      minCrankBatch: bigint;
+    }
+    export type InitializeResult = void;
+
+    export type ProcessRequestsArgs = void;
+    export type ProcessRequestsResult = readonly [bigint, bigint];
+
+    export interface RequestArgs {
+      request: __gh_codegen.swap_if$v0_1$request$SwapRequest;
+    }
+    export type RequestResult = __gh_client_contract.FixedBytes<32>;
+
+    export type DeclaredException =
+      | {
+          kind: "declared";
+          name: "SwapLibraryError";
+          selector: 0x17e7e152700d9279n;
+          value: __gh_codegen.swap_if$v0_1$handler$SwapLibraryError;
+        }
+      | {
+          kind: "declared";
+          name: "SwapPairError";
+          selector: 0x25d002d47b07640dn;
+          value: __gh_codegen.swap_if$v0_1$pair$SwapPairError;
+        }
+      | {
+          kind: "declared";
+          name: "SwapRequestError";
+          selector: 0x947bdd51feea1ccen;
+          value: __gh_codegen.swap_if$v0_1$handler$SwapRequestError;
+        }
+      | {
+          kind: "declared";
+          name: "ERC20Error";
+          selector: 0xb19947acb2fa14ffn;
+          value: __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error;
+        }
+      | {
+          kind: "declared";
+          name: "SwapDriverError";
+          selector: 0xb7f3f28894243a52n;
+          value: __gh_codegen.swap_if$v0_1$driver$SwapDriverError;
+        };
+    export type Exception =
+      __gh_client_contract.ContractException<DeclaredException>;
+  }
+}
+
+export const spec: __gh_client_contract.ContractSpec = {
   interfaces: [
     {
-      name: s("SwapDriver"),
-      vers: s("0.1.0"),
+      name: __gh_s("SwapDriver"),
+      vers: __gh_s("0.1.0"),
       throws: [
         {
           selector: 0x17e7e152700d9279n,
-          ty: { v: ContractTypeKind.Named, named: s("SwapLibraryError") },
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("swap-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("swap_if::handler"),
+              declared: __gh_s("SwapLibraryError"),
+            },
+          },
         },
         {
           selector: 0x25d002d47b07640dn,
-          ty: { v: ContractTypeKind.Named, named: s("SwapPairError") },
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("swap-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("swap_if::pair"),
+              declared: __gh_s("SwapPairError"),
+            },
+          },
         },
         {
           selector: 0x947bdd51feea1ccen,
-          ty: { v: ContractTypeKind.Named, named: s("SwapRequestError") },
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("swap-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("swap_if::handler"),
+              declared: __gh_s("SwapRequestError"),
+            },
+          },
         },
         {
           selector: 0xb19947acb2fa14ffn,
-          ty: { v: ContractTypeKind.Named, named: s("ERC20Error") },
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("groundhog-erc20-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("groundhog_erc20_if::error"),
+              declared: __gh_s("ERC20Error"),
+            },
+          },
         },
         {
           selector: 0xb7f3f28894243a52n,
-          ty: { v: ContractTypeKind.Named, named: s("SwapDriverError") },
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("swap-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("swap_if::driver"),
+              declared: __gh_s("SwapDriverError"),
+            },
+          },
         },
       ],
       methods: [
         {
-          name: s("initialize"),
+          name: __gh_s("initialize"),
           args: [
-            { name: s("handler"), ty: { v: ContractTypeKind.Address } },
-            { name: s("router"), ty: { v: ContractTypeKind.Address } },
-            { name: s("max_queue_len"), ty: { v: ContractTypeKind.U32 } },
-            { name: s("min_crank_batch"), ty: { v: ContractTypeKind.U32 } },
+            {
+              name: __gh_s("handler"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+            },
+            {
+              name: __gh_s("router"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+            },
+            {
+              name: __gh_s("max_queue_len"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.U32 },
+            },
+            {
+              name: __gh_s("min_crank_batch"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.U32 },
+            },
           ],
-          return_type: { v: ContractTypeKind.Void },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
         },
         {
-          name: s("process_requests"),
+          name: __gh_s("process_requests"),
           args: [],
           return_type: {
-            v: ContractTypeKind.Tuple,
-            tuple: [{ v: ContractTypeKind.U32 }, { v: ContractTypeKind.U32 }],
+            v: __gh_contract_spec.ContractTypeKind.Tuple,
+            tuple: [
+              { v: __gh_contract_spec.ContractTypeKind.U32 },
+              { v: __gh_contract_spec.ContractTypeKind.U32 },
+            ],
           },
         },
         {
-          name: s("request"),
+          name: __gh_s("request"),
           args: [
             {
-              name: s("request"),
-              ty: { v: ContractTypeKind.Named, named: s("SwapRequest") },
+              name: __gh_s("request"),
+              ty: {
+                v: __gh_contract_spec.ContractTypeKind.Named,
+                named: {
+                  crate_name: __gh_s("swap-if"),
+                  major: __gh_s("0.1"),
+                  module_path: __gh_s("swap_if::request"),
+                  declared: __gh_s("SwapRequest"),
+                },
+              },
             },
           ],
           return_type: {
-            v: ContractTypeKind.Array,
-            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+            v: __gh_contract_spec.ContractTypeKind.Array,
+            array: {
+              element: { v: __gh_contract_spec.ContractTypeKind.U8 },
+              len: 32n,
+            },
           },
         },
       ],
@@ -250,603 +360,888 @@ export const spec: ContractSpec = {
   ],
   type_defs: [
     {
-      v: ContractTypeDefKind.TypeDefStruct,
-      struct_def: {
-        name: s("AddLiquidityRequest"),
-        fields: [
-          { name: s("purchaser"), ty: { v: ContractTypeKind.Address } },
-          {
-            name: s("amounts_desired"),
-            ty: {
-              v: ContractTypeKind.Array,
-              array: { element: { v: ContractTypeKind.U128 }, len: 2n },
-            },
-          },
-          {
-            name: s("amounts_min"),
-            ty: {
-              v: ContractTypeKind.Array,
-              array: { element: { v: ContractTypeKind.U128 }, len: 2n },
-            },
-          },
-          { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
-        ],
-      },
-    },
-    {
-      v: ContractTypeDefKind.TypeDefEnum,
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
-        name: s("Cause"),
+        name: {
+          crate_name: __gh_s("batch-driver"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("batch_driver::events"),
+          declared: __gh_s("Cause"),
+        },
         variants: [
-          { name: s("Exception"), value: 1n },
-          { name: s("Fault"), value: 2n },
-          { name: s("Rejected"), value: 3n },
-          { name: s("Malformed"), value: 4n },
+          { name: __gh_s("Exception"), value: 1n },
+          { name: __gh_s("Fault"), value: 2n },
+          { name: __gh_s("Rejected"), value: 3n },
+          { name: __gh_s("Malformed"), value: 4n },
         ],
       },
     },
     {
-      v: ContractTypeDefKind.TypeDefEnum,
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
-        name: s("ERC20Error"),
+        name: {
+          crate_name: __gh_s("groundhog-erc20-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("groundhog_erc20_if::error"),
+          declared: __gh_s("ERC20Error"),
+        },
         variants: [
-          { name: s("AlreadyInitialized"), value: 1n },
-          { name: s("MustBeContractOwner"), value: 2n },
-          { name: s("TooLarge"), value: 3n },
-          { name: s("Internal"), value: 100n },
+          { name: __gh_s("AlreadyInitialized"), value: 1n },
+          { name: __gh_s("MustBeContractOwner"), value: 2n },
+          { name: __gh_s("TooLarge"), value: 3n },
+          { name: __gh_s("BalanceNotZero"), value: 4n },
+          { name: __gh_s("Internal"), value: 100n },
         ],
       },
     },
     {
-      v: ContractTypeDefKind.TypeDefStruct,
-      struct_def: {
-        name: s("RemoveLiquidityRequest"),
-        fields: [
-          { name: s("redeemer"), ty: { v: ContractTypeKind.Address } },
-          { name: s("liquidity"), ty: { v: ContractTypeKind.U128 } },
-          {
-            name: s("amounts_min"),
-            ty: {
-              v: ContractTypeKind.Array,
-              array: { element: { v: ContractTypeKind.U128 }, len: 2n },
-            },
-          },
-          { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
-        ],
-      },
-    },
-    {
-      v: ContractTypeDefKind.TypeDefEnum,
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
-        name: s("SwapDriverError"),
+        name: {
+          crate_name: __gh_s("swap-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("swap_if::driver"),
+          declared: __gh_s("SwapDriverError"),
+        },
         variants: [
-          { name: s("BatchTooSmall"), value: 1n },
-          { name: s("AlreadyInitialized"), value: 2n },
-          { name: s("InvalidConfiguration"), value: 3n },
-          { name: s("Unauthorized"), value: 4n },
+          { name: __gh_s("BatchTooSmall"), value: 1n },
+          { name: __gh_s("AlreadyInitialized"), value: 2n },
+          { name: __gh_s("InvalidConfiguration"), value: 3n },
+          { name: __gh_s("Unauthorized"), value: 4n },
         ],
       },
     },
     {
-      v: ContractTypeDefKind.TypeDefStruct,
-      struct_def: {
-        name: s("SwapExactInRequest"),
-        fields: [
-          { name: s("trader"), ty: { v: ContractTypeKind.Address } },
-          { name: s("amount_in"), ty: { v: ContractTypeKind.U128 } },
-          { name: s("amount_out_min"), ty: { v: ContractTypeKind.U128 } },
-          { name: s("in_index"), ty: { v: ContractTypeKind.U32 } },
-          { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
-        ],
-      },
-    },
-    {
-      v: ContractTypeDefKind.TypeDefStruct,
-      struct_def: {
-        name: s("SwapExactOutRequest"),
-        fields: [
-          { name: s("trader"), ty: { v: ContractTypeKind.Address } },
-          { name: s("amount_out"), ty: { v: ContractTypeKind.U128 } },
-          { name: s("amount_in_max"), ty: { v: ContractTypeKind.U128 } },
-          { name: s("in_index"), ty: { v: ContractTypeKind.U32 } },
-          { name: s("recipient"), ty: { v: ContractTypeKind.Address } },
-        ],
-      },
-    },
-    {
-      v: ContractTypeDefKind.TypeDefEnum,
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
-        name: s("SwapLibraryError"),
+        name: {
+          crate_name: __gh_s("swap-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("swap_if::handler"),
+          declared: __gh_s("SwapLibraryError"),
+        },
         variants: [
-          { name: s("InsufficientAmount"), value: 1n },
-          { name: s("InsufficientLiquidity"), value: 2n },
-          { name: s("InsufficientInputAmount"), value: 3n },
-          { name: s("InsufficientOutputAmount"), value: 4n },
+          { name: __gh_s("InsufficientAmount"), value: 1n },
+          { name: __gh_s("InsufficientLiquidity"), value: 2n },
+          { name: __gh_s("InsufficientInputAmount"), value: 3n },
+          { name: __gh_s("InsufficientOutputAmount"), value: 4n },
         ],
       },
     },
     {
-      v: ContractTypeDefKind.TypeDefUnion,
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
+      enum_def: {
+        name: {
+          crate_name: __gh_s("swap-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("swap_if::handler"),
+          declared: __gh_s("SwapRequestError"),
+        },
+        variants: [
+          { name: __gh_s("Unauthorized"), value: 100n },
+          { name: __gh_s("InsufficientAmountA"), value: 1n },
+          { name: __gh_s("InsufficientAmountB"), value: 2n },
+          { name: __gh_s("InsufficientOutputAmount"), value: 3n },
+          { name: __gh_s("ExcessiveInputAmount"), value: 4n },
+        ],
+      },
+    },
+    {
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefUnion,
       union_def: {
-        name: s("SwapOp"),
+        name: {
+          crate_name: __gh_s("swap-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("swap_if::pair"),
+          declared: __gh_s("SwapPairError"),
+        },
         cases: [
           {
-            name: s("AddLiquidity"),
+            name: __gh_s("InitializeFailed"),
             discriminant: 1n,
             case_type: {
-              v: ContractUnionCaseKind.UnionCaseTuple,
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("AlreadyInitialized"),
+            discriminant: 2n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("NoLiquidityToBurn"),
+            discriminant: 3n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("InsufficientOutputAmount"),
+            discriminant: 4n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("InsufficientInputAmount"),
+            discriminant: 5n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("InsufficientLiquidity"),
+            discriminant: 6n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("InsufficientLiquidityMinted"),
+            discriminant: 7n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("InsufficientLiquidityBurned"),
+            discriminant: 8n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("InvalidDestination"),
+            discriminant: 9n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("InvalidSwapProduct"),
+            discriminant: 10n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("Overflow"),
+            discriminant: 11n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("TransferFailed"),
+            discriminant: 12n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseVoid,
+            },
+          },
+          {
+            name: __gh_s("LPTokenFailure"),
+            discriminant: 13n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseTuple,
               tuple: [
-                { v: ContractTypeKind.Named, named: s("AddLiquidityRequest") },
+                {
+                  v: __gh_contract_spec.ContractTypeKind.Named,
+                  named: {
+                    crate_name: __gh_s("groundhog-erc20-if"),
+                    major: __gh_s("0.1"),
+                    module_path: __gh_s("groundhog_erc20_if::error"),
+                    declared: __gh_s("ERC20Error"),
+                  },
+                },
               ],
             },
           },
+        ],
+      },
+    },
+    {
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefStruct,
+      struct_def: {
+        name: {
+          crate_name: __gh_s("swap-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("swap_if::request"),
+          declared: __gh_s("AddLiquidityRequest"),
+        },
+        fields: [
           {
-            name: s("RemoveLiquidity"),
-            discriminant: 2n,
+            name: __gh_s("purchaser"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+          },
+          {
+            name: __gh_s("amounts_desired"),
+            ty: {
+              v: __gh_contract_spec.ContractTypeKind.Array,
+              array: {
+                element: { v: __gh_contract_spec.ContractTypeKind.U128 },
+                len: 2n,
+              },
+            },
+          },
+          {
+            name: __gh_s("amounts_min"),
+            ty: {
+              v: __gh_contract_spec.ContractTypeKind.Array,
+              array: {
+                element: { v: __gh_contract_spec.ContractTypeKind.U128 },
+                len: 2n,
+              },
+            },
+          },
+          {
+            name: __gh_s("recipient"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+          },
+        ],
+      },
+    },
+    {
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefStruct,
+      struct_def: {
+        name: {
+          crate_name: __gh_s("swap-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("swap_if::request"),
+          declared: __gh_s("RemoveLiquidityRequest"),
+        },
+        fields: [
+          {
+            name: __gh_s("redeemer"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+          },
+          {
+            name: __gh_s("liquidity"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          },
+          {
+            name: __gh_s("amounts_min"),
+            ty: {
+              v: __gh_contract_spec.ContractTypeKind.Array,
+              array: {
+                element: { v: __gh_contract_spec.ContractTypeKind.U128 },
+                len: 2n,
+              },
+            },
+          },
+          {
+            name: __gh_s("recipient"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+          },
+        ],
+      },
+    },
+    {
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefStruct,
+      struct_def: {
+        name: {
+          crate_name: __gh_s("swap-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("swap_if::request"),
+          declared: __gh_s("SwapExactInRequest"),
+        },
+        fields: [
+          {
+            name: __gh_s("trader"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+          },
+          {
+            name: __gh_s("amount_in"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          },
+          {
+            name: __gh_s("amount_out_min"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          },
+          {
+            name: __gh_s("in_index"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.U32 },
+          },
+          {
+            name: __gh_s("recipient"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+          },
+        ],
+      },
+    },
+    {
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefStruct,
+      struct_def: {
+        name: {
+          crate_name: __gh_s("swap-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("swap_if::request"),
+          declared: __gh_s("SwapExactOutRequest"),
+        },
+        fields: [
+          {
+            name: __gh_s("trader"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+          },
+          {
+            name: __gh_s("amount_out"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          },
+          {
+            name: __gh_s("amount_in_max"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          },
+          {
+            name: __gh_s("in_index"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.U32 },
+          },
+          {
+            name: __gh_s("recipient"),
+            ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+          },
+        ],
+      },
+    },
+    {
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefUnion,
+      union_def: {
+        name: {
+          crate_name: __gh_s("swap-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("swap_if::request"),
+          declared: __gh_s("SwapOp"),
+        },
+        cases: [
+          {
+            name: __gh_s("AddLiquidity"),
+            discriminant: 1n,
             case_type: {
-              v: ContractUnionCaseKind.UnionCaseTuple,
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseTuple,
               tuple: [
                 {
-                  v: ContractTypeKind.Named,
-                  named: s("RemoveLiquidityRequest"),
+                  v: __gh_contract_spec.ContractTypeKind.Named,
+                  named: {
+                    crate_name: __gh_s("swap-if"),
+                    major: __gh_s("0.1"),
+                    module_path: __gh_s("swap_if::request"),
+                    declared: __gh_s("AddLiquidityRequest"),
+                  },
                 },
               ],
             },
           },
           {
-            name: s("SwapExactIn"),
-            discriminant: 3n,
-            case_type: {
-              v: ContractUnionCaseKind.UnionCaseTuple,
-              tuple: [
-                { v: ContractTypeKind.Named, named: s("SwapExactInRequest") },
-              ],
-            },
-          },
-          {
-            name: s("SwapExactOut"),
-            discriminant: 4n,
-            case_type: {
-              v: ContractUnionCaseKind.UnionCaseTuple,
-              tuple: [
-                { v: ContractTypeKind.Named, named: s("SwapExactOutRequest") },
-              ],
-            },
-          },
-        ],
-      },
-    },
-    {
-      v: ContractTypeDefKind.TypeDefUnion,
-      union_def: {
-        name: s("SwapPairError"),
-        cases: [
-          {
-            name: s("InitializeFailed"),
-            discriminant: 1n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("AlreadyInitialized"),
+            name: __gh_s("RemoveLiquidity"),
             discriminant: 2n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("NoLiquidityToBurn"),
-            discriminant: 3n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("InsufficientOutputAmount"),
-            discriminant: 4n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("InsufficientInputAmount"),
-            discriminant: 5n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("InsufficientLiquidity"),
-            discriminant: 6n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("InsufficientLiquidityMinted"),
-            discriminant: 7n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("InsufficientLiquidityBurned"),
-            discriminant: 8n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("InvalidDestination"),
-            discriminant: 9n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("InvalidSwapProduct"),
-            discriminant: 10n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("Overflow"),
-            discriminant: 11n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("TransferFailed"),
-            discriminant: 12n,
-            case_type: { v: ContractUnionCaseKind.UnionCaseVoid },
-          },
-          {
-            name: s("LPTokenFailure"),
-            discriminant: 13n,
             case_type: {
-              v: ContractUnionCaseKind.UnionCaseTuple,
-              tuple: [{ v: ContractTypeKind.Named, named: s("ERC20Error") }],
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseTuple,
+              tuple: [
+                {
+                  v: __gh_contract_spec.ContractTypeKind.Named,
+                  named: {
+                    crate_name: __gh_s("swap-if"),
+                    major: __gh_s("0.1"),
+                    module_path: __gh_s("swap_if::request"),
+                    declared: __gh_s("RemoveLiquidityRequest"),
+                  },
+                },
+              ],
+            },
+          },
+          {
+            name: __gh_s("SwapExactIn"),
+            discriminant: 3n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseTuple,
+              tuple: [
+                {
+                  v: __gh_contract_spec.ContractTypeKind.Named,
+                  named: {
+                    crate_name: __gh_s("swap-if"),
+                    major: __gh_s("0.1"),
+                    module_path: __gh_s("swap_if::request"),
+                    declared: __gh_s("SwapExactInRequest"),
+                  },
+                },
+              ],
+            },
+          },
+          {
+            name: __gh_s("SwapExactOut"),
+            discriminant: 4n,
+            case_type: {
+              v: __gh_contract_spec.ContractUnionCaseKind.UnionCaseTuple,
+              tuple: [
+                {
+                  v: __gh_contract_spec.ContractTypeKind.Named,
+                  named: {
+                    crate_name: __gh_s("swap-if"),
+                    major: __gh_s("0.1"),
+                    module_path: __gh_s("swap_if::request"),
+                    declared: __gh_s("SwapExactOutRequest"),
+                  },
+                },
+              ],
             },
           },
         ],
       },
     },
     {
-      v: ContractTypeDefKind.TypeDefStruct,
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefStruct,
       struct_def: {
-        name: s("SwapRequest"),
+        name: {
+          crate_name: __gh_s("swap-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("swap_if::request"),
+          declared: __gh_s("SwapRequest"),
+        },
         fields: [
           {
-            name: s("request_id"),
+            name: __gh_s("request_id"),
             ty: {
-              v: ContractTypeKind.Array,
-              array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+              v: __gh_contract_spec.ContractTypeKind.Array,
+              array: {
+                element: { v: __gh_contract_spec.ContractTypeKind.U8 },
+                len: 32n,
+              },
             },
           },
           {
-            name: s("op"),
-            ty: { v: ContractTypeKind.Named, named: s("SwapOp") },
+            name: __gh_s("op"),
+            ty: {
+              v: __gh_contract_spec.ContractTypeKind.Named,
+              named: {
+                crate_name: __gh_s("swap-if"),
+                major: __gh_s("0.1"),
+                module_path: __gh_s("swap_if::request"),
+                declared: __gh_s("SwapOp"),
+              },
+            },
           },
-        ],
-      },
-    },
-    {
-      v: ContractTypeDefKind.TypeDefEnum,
-      enum_def: {
-        name: s("SwapRequestError"),
-        variants: [
-          { name: s("Unauthorized"), value: 100n },
-          { name: s("InsufficientAmountA"), value: 1n },
-          { name: s("InsufficientAmountB"), value: 2n },
-          { name: s("InsufficientOutputAmount"), value: 3n },
-          { name: s("ExcessiveInputAmount"), value: 4n },
         ],
       },
     },
   ],
   events: [
     {
-      name: s("RequestAccepted"),
-      signature: topic(
-        fromHex(
+      name: {
+        crate_name: __gh_s("batch-driver"),
+        major: __gh_s("0.1"),
+        module_path: __gh_s("batch_driver::events"),
+        declared: __gh_s("RequestAccepted"),
+      },
+      signature: __gh_protocol.topic(
+        __gh_protocol_utils.fromHex(
           "923dee82bb3fafeed2fff1a9a9a07f2e4ff296bfebfe73c0ebc8405a9f09d818",
         ),
       ),
       topics: [
         {
-          name: s("request_id"),
+          name: __gh_s("request_id"),
           ty: {
-            v: ContractTypeKind.Array,
-            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+            v: __gh_contract_spec.ContractTypeKind.Array,
+            array: {
+              element: { v: __gh_contract_spec.ContractTypeKind.U8 },
+              len: 32n,
+            },
           },
         },
       ],
       fields: [],
     },
     {
-      name: s("RequestFailed"),
-      signature: topic(
-        fromHex(
+      name: {
+        crate_name: __gh_s("batch-driver"),
+        major: __gh_s("0.1"),
+        module_path: __gh_s("batch_driver::events"),
+        declared: __gh_s("RequestFailed"),
+      },
+      signature: __gh_protocol.topic(
+        __gh_protocol_utils.fromHex(
           "2658275650fee240216d7bbd388f183cedbbfe8182198d09857fb836f0e2a5fd",
         ),
       ),
       topics: [
         {
-          name: s("request_id"),
+          name: __gh_s("request_id"),
           ty: {
-            v: ContractTypeKind.Array,
-            array: { element: { v: ContractTypeKind.U8 }, len: 32n },
+            v: __gh_contract_spec.ContractTypeKind.Array,
+            array: {
+              element: { v: __gh_contract_spec.ContractTypeKind.U8 },
+              len: 32n,
+            },
           },
         },
       ],
       fields: [
         {
-          name: s("cause"),
-          ty: { v: ContractTypeKind.Named, named: s("Cause") },
-        },
-        { name: s("selector"), ty: { v: ContractTypeKind.U64 } },
-        {
-          name: s("payload"),
+          name: __gh_s("cause"),
           ty: {
-            v: ContractTypeKind.Vector,
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("batch-driver"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("batch_driver::events"),
+              declared: __gh_s("Cause"),
+            },
+          },
+        },
+        {
+          name: __gh_s("selector"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.U64 },
+        },
+        {
+          name: __gh_s("payload"),
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Vector,
             vector: {
-              element: { v: ContractTypeKind.U8 },
+              element: { v: __gh_contract_spec.ContractTypeKind.U8 },
               max_len: 4294967295n,
             },
           },
         },
-        { name: s("payload_len"), ty: { v: ContractTypeKind.U32 } },
+        {
+          name: __gh_s("payload_len"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.U32 },
+        },
       ],
     },
     {
-      name: s("RequestsProcessed"),
-      signature: topic(
-        fromHex(
+      name: {
+        crate_name: __gh_s("batch-driver"),
+        major: __gh_s("0.1"),
+        module_path: __gh_s("batch_driver::events"),
+        declared: __gh_s("RequestsProcessed"),
+      },
+      signature: __gh_protocol.topic(
+        __gh_protocol_utils.fromHex(
           "af935ed73c377e2fdd245da79dd3585bd4b5a41897c99590b23d127ade6f324c",
         ),
       ),
       topics: [],
       fields: [
-        { name: s("processed"), ty: { v: ContractTypeKind.U32 } },
-        { name: s("failed"), ty: { v: ContractTypeKind.U32 } },
+        {
+          name: __gh_s("processed"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.U32 },
+        },
+        {
+          name: __gh_s("failed"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.U32 },
+        },
       ],
     },
   ],
 };
 
-const codecs = createContractCodecContext(spec.type_defs);
+const __gh_codecs = __gh_client_contract.createContractCodecContext(
+  spec.type_defs,
+);
 
 export const SwapDriver = {
-  initialize: defineContractMethod<
-    SwapDriverInitializeArgs,
-    SwapDriverInitializeResult,
-    SwapDriverDeclaredException
-  >({
-    interfaceName: "SwapDriver",
-    interfaceVersion: "0.1.0",
-    abiName: "initialize",
-    publicName: "initialize",
-    entrypoint: entrypoints.SwapDriver.initialize,
-    args: [
-      {
-        abiName: "handler",
-        publicName: "handler",
-        type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
-      },
-      {
-        abiName: "router",
-        publicName: "router",
-        type: spec.interfaces[0]!.methods[0]!.args[1]!.ty,
-      },
-      {
-        abiName: "max_queue_len",
-        publicName: "maxQueueLen",
-        type: spec.interfaces[0]!.methods[0]!.args[2]!.ty,
-      },
-      {
-        abiName: "min_crank_batch",
-        publicName: "minCrankBatch",
-        type: spec.interfaces[0]!.methods[0]!.args[3]!.ty,
-      },
-    ],
-    returnType: spec.interfaces[0]!.methods[0]!.return_type,
-    throws: [
-      {
-        selector: 0x17e7e152700d9279n,
-        name: "SwapLibraryError",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-      {
-        selector: 0x25d002d47b07640dn,
-        name: "SwapPairError",
-        type: spec.interfaces[0]!.throws[1]!.ty,
-      },
-      {
-        selector: 0x947bdd51feea1ccen,
-        name: "SwapRequestError",
-        type: spec.interfaces[0]!.throws[2]!.ty,
-      },
-      {
-        selector: 0xb19947acb2fa14ffn,
-        name: "ERC20Error",
-        type: spec.interfaces[0]!.throws[3]!.ty,
-      },
-      {
-        selector: 0xb7f3f28894243a52n,
-        name: "SwapDriverError",
-        type: spec.interfaces[0]!.throws[4]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  processRequests: defineContractMethod<
-    SwapDriverProcessRequestsArgs,
-    SwapDriverProcessRequestsResult,
-    SwapDriverDeclaredException
-  >({
-    interfaceName: "SwapDriver",
-    interfaceVersion: "0.1.0",
-    abiName: "process_requests",
-    publicName: "processRequests",
-    entrypoint: entrypoints.SwapDriver.processRequests,
-    args: [],
-    returnType: spec.interfaces[0]!.methods[1]!.return_type,
-    throws: [
-      {
-        selector: 0x17e7e152700d9279n,
-        name: "SwapLibraryError",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-      {
-        selector: 0x25d002d47b07640dn,
-        name: "SwapPairError",
-        type: spec.interfaces[0]!.throws[1]!.ty,
-      },
-      {
-        selector: 0x947bdd51feea1ccen,
-        name: "SwapRequestError",
-        type: spec.interfaces[0]!.throws[2]!.ty,
-      },
-      {
-        selector: 0xb19947acb2fa14ffn,
-        name: "ERC20Error",
-        type: spec.interfaces[0]!.throws[3]!.ty,
-      },
-      {
-        selector: 0xb7f3f28894243a52n,
-        name: "SwapDriverError",
-        type: spec.interfaces[0]!.throws[4]!.ty,
-      },
-    ],
-    codecs,
-  }),
-  request: defineContractMethod<
-    SwapDriverRequestArgs,
-    SwapDriverRequestResult,
-    SwapDriverDeclaredException
-  >({
-    interfaceName: "SwapDriver",
-    interfaceVersion: "0.1.0",
-    abiName: "request",
-    publicName: "request",
-    entrypoint: entrypoints.SwapDriver.request,
-    args: [
-      {
-        abiName: "request",
-        publicName: "request",
-        type: spec.interfaces[0]!.methods[2]!.args[0]!.ty,
-      },
-    ],
-    returnType: spec.interfaces[0]!.methods[2]!.return_type,
-    throws: [
-      {
-        selector: 0x17e7e152700d9279n,
-        name: "SwapLibraryError",
-        type: spec.interfaces[0]!.throws[0]!.ty,
-      },
-      {
-        selector: 0x25d002d47b07640dn,
-        name: "SwapPairError",
-        type: spec.interfaces[0]!.throws[1]!.ty,
-      },
-      {
-        selector: 0x947bdd51feea1ccen,
-        name: "SwapRequestError",
-        type: spec.interfaces[0]!.throws[2]!.ty,
-      },
-      {
-        selector: 0xb19947acb2fa14ffn,
-        name: "ERC20Error",
-        type: spec.interfaces[0]!.throws[3]!.ty,
-      },
-      {
-        selector: 0xb7f3f28894243a52n,
-        name: "SwapDriverError",
-        type: spec.interfaces[0]!.throws[4]!.ty,
-      },
-    ],
-    codecs,
-  }),
+  v0_1: {
+    initialize: __gh_client_contract.defineContractMethod<
+      SwapDriver.v0_1.InitializeArgs,
+      SwapDriver.v0_1.InitializeResult,
+      SwapDriver.v0_1.DeclaredException
+    >({
+      interfaceName: "SwapDriver",
+      interfaceVersion: "0.1.0",
+      abiName: "initialize",
+      publicName: "initialize",
+      entrypoint: __gh_entrypoints.SwapDriver.v0_1.initialize,
+      args: [
+        {
+          abiName: "handler",
+          publicName: "handler",
+          type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
+        },
+        {
+          abiName: "router",
+          publicName: "router",
+          type: spec.interfaces[0]!.methods[0]!.args[1]!.ty,
+        },
+        {
+          abiName: "max_queue_len",
+          publicName: "maxQueueLen",
+          type: spec.interfaces[0]!.methods[0]!.args[2]!.ty,
+        },
+        {
+          abiName: "min_crank_batch",
+          publicName: "minCrankBatch",
+          type: spec.interfaces[0]!.methods[0]!.args[3]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[0]!.methods[0]!.return_type,
+      throws: [
+        {
+          selector: 0x17e7e152700d9279n,
+          name: "SwapLibraryError",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+        {
+          selector: 0x25d002d47b07640dn,
+          name: "SwapPairError",
+          type: spec.interfaces[0]!.throws[1]!.ty,
+        },
+        {
+          selector: 0x947bdd51feea1ccen,
+          name: "SwapRequestError",
+          type: spec.interfaces[0]!.throws[2]!.ty,
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[0]!.throws[3]!.ty,
+        },
+        {
+          selector: 0xb7f3f28894243a52n,
+          name: "SwapDriverError",
+          type: spec.interfaces[0]!.throws[4]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    processRequests: __gh_client_contract.defineContractMethod<
+      SwapDriver.v0_1.ProcessRequestsArgs,
+      SwapDriver.v0_1.ProcessRequestsResult,
+      SwapDriver.v0_1.DeclaredException
+    >({
+      interfaceName: "SwapDriver",
+      interfaceVersion: "0.1.0",
+      abiName: "process_requests",
+      publicName: "processRequests",
+      entrypoint: __gh_entrypoints.SwapDriver.v0_1.processRequests,
+      args: [],
+      returnType: spec.interfaces[0]!.methods[1]!.return_type,
+      throws: [
+        {
+          selector: 0x17e7e152700d9279n,
+          name: "SwapLibraryError",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+        {
+          selector: 0x25d002d47b07640dn,
+          name: "SwapPairError",
+          type: spec.interfaces[0]!.throws[1]!.ty,
+        },
+        {
+          selector: 0x947bdd51feea1ccen,
+          name: "SwapRequestError",
+          type: spec.interfaces[0]!.throws[2]!.ty,
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[0]!.throws[3]!.ty,
+        },
+        {
+          selector: 0xb7f3f28894243a52n,
+          name: "SwapDriverError",
+          type: spec.interfaces[0]!.throws[4]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    request: __gh_client_contract.defineContractMethod<
+      SwapDriver.v0_1.RequestArgs,
+      SwapDriver.v0_1.RequestResult,
+      SwapDriver.v0_1.DeclaredException
+    >({
+      interfaceName: "SwapDriver",
+      interfaceVersion: "0.1.0",
+      abiName: "request",
+      publicName: "request",
+      entrypoint: __gh_entrypoints.SwapDriver.v0_1.request,
+      args: [
+        {
+          abiName: "request",
+          publicName: "request",
+          type: spec.interfaces[0]!.methods[2]!.args[0]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[0]!.methods[2]!.return_type,
+      throws: [
+        {
+          selector: 0x17e7e152700d9279n,
+          name: "SwapLibraryError",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+        {
+          selector: 0x25d002d47b07640dn,
+          name: "SwapPairError",
+          type: spec.interfaces[0]!.throws[1]!.ty,
+        },
+        {
+          selector: 0x947bdd51feea1ccen,
+          name: "SwapRequestError",
+          type: spec.interfaces[0]!.throws[2]!.ty,
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[0]!.throws[3]!.ty,
+        },
+        {
+          selector: 0xb7f3f28894243a52n,
+          name: "SwapDriverError",
+          type: spec.interfaces[0]!.throws[4]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+  },
 } as const;
 
-export interface RequestAccepted extends DecodedContractEvent<
-  "RequestAccepted",
-  { request_id: FixedBytes<32> },
-  {}
-> {}
-
-export interface RequestAcceptedFilter {
-  request_id?: ContractEventFilterValue<FixedBytes<32>>;
-}
-
-export const RequestAccepted = defineContractEvent<
-  "RequestAccepted",
-  RequestAccepted["topics"],
-  RequestAccepted["fields"],
-  RequestAcceptedFilter
->({
-  name: "RequestAccepted",
-  signature: spec.events[0]!.signature,
-  topics: [
-    {
-      name: "request_id",
-      type: spec.events[0]!.topics[0]!.ty,
-      representation: "fixedBytes32",
+export const batch_driver = {
+  v0_1: {
+    events: {
+      Cause: {
+        Exception: 1n,
+        Fault: 2n,
+        Rejected: 3n,
+        Malformed: 4n,
+      },
+      RequestAccepted: __gh_client_contract.defineContractEvent<
+        "RequestAccepted",
+        batch_driver.v0_1.events.RequestAccepted["topics"],
+        batch_driver.v0_1.events.RequestAccepted["fields"],
+        batch_driver.v0_1.events.RequestAcceptedFilter
+      >({
+        name: "RequestAccepted",
+        signature: spec.events[0]!.signature,
+        topics: [
+          {
+            name: "request_id",
+            type: spec.events[0]!.topics[0]!.ty,
+            representation: "fixedBytes32",
+          },
+        ],
+        fields: [],
+        codecs: __gh_codecs,
+      }),
+      RequestFailed: __gh_client_contract.defineContractEvent<
+        "RequestFailed",
+        batch_driver.v0_1.events.RequestFailed["topics"],
+        batch_driver.v0_1.events.RequestFailed["fields"],
+        batch_driver.v0_1.events.RequestFailedFilter
+      >({
+        name: "RequestFailed",
+        signature: spec.events[1]!.signature,
+        topics: [
+          {
+            name: "request_id",
+            type: spec.events[1]!.topics[0]!.ty,
+            representation: "fixedBytes32",
+          },
+        ],
+        fields: [
+          { name: "cause", type: spec.events[1]!.fields[0]!.ty },
+          { name: "selector", type: spec.events[1]!.fields[1]!.ty },
+          { name: "payload", type: spec.events[1]!.fields[2]!.ty },
+          { name: "payload_len", type: spec.events[1]!.fields[3]!.ty },
+        ],
+        codecs: __gh_codecs,
+      }),
+      RequestsProcessed: __gh_client_contract.defineContractEvent<
+        "RequestsProcessed",
+        batch_driver.v0_1.events.RequestsProcessed["topics"],
+        batch_driver.v0_1.events.RequestsProcessed["fields"],
+        batch_driver.v0_1.events.RequestsProcessedFilter
+      >({
+        name: "RequestsProcessed",
+        signature: spec.events[2]!.signature,
+        topics: [],
+        fields: [
+          { name: "processed", type: spec.events[2]!.fields[0]!.ty },
+          { name: "failed", type: spec.events[2]!.fields[1]!.ty },
+        ],
+        codecs: __gh_codecs,
+      }),
     },
-  ],
-  fields: [],
-  codecs,
-});
+  },
+} as const;
 
-export interface RequestFailed extends DecodedContractEvent<
-  "RequestFailed",
-  { request_id: FixedBytes<32> },
-  { cause: Cause; selector: bigint; payload: Uint8Array; payload_len: bigint }
-> {}
-
-export interface RequestFailedFilter {
-  request_id?: ContractEventFilterValue<FixedBytes<32>>;
-}
-
-export const RequestFailed = defineContractEvent<
-  "RequestFailed",
-  RequestFailed["topics"],
-  RequestFailed["fields"],
-  RequestFailedFilter
->({
-  name: "RequestFailed",
-  signature: spec.events[1]!.signature,
-  topics: [
-    {
-      name: "request_id",
-      type: spec.events[1]!.topics[0]!.ty,
-      representation: "fixedBytes32",
+export const groundhog_erc20_if = {
+  v0_1: {
+    error: {
+      ERC20Error: {
+        AlreadyInitialized: 1n,
+        MustBeContractOwner: 2n,
+        TooLarge: 3n,
+        BalanceNotZero: 4n,
+        Internal: 100n,
+      },
     },
-  ],
-  fields: [
-    { name: "cause", type: spec.events[1]!.fields[0]!.ty },
-    { name: "selector", type: spec.events[1]!.fields[1]!.ty },
-    { name: "payload", type: spec.events[1]!.fields[2]!.ty },
-    { name: "payload_len", type: spec.events[1]!.fields[3]!.ty },
-  ],
-  codecs,
-});
+  },
+} as const;
 
-export interface RequestsProcessed extends DecodedContractEvent<
-  "RequestsProcessed",
-  {},
-  { processed: bigint; failed: bigint }
-> {}
-
-export type RequestsProcessedFilter = Record<string, never>;
-
-export const RequestsProcessed = defineContractEvent<
-  "RequestsProcessed",
-  RequestsProcessed["topics"],
-  RequestsProcessed["fields"],
-  RequestsProcessedFilter
->({
-  name: "RequestsProcessed",
-  signature: spec.events[2]!.signature,
-  topics: [],
-  fields: [
-    { name: "processed", type: spec.events[2]!.fields[0]!.ty },
-    { name: "failed", type: spec.events[2]!.fields[1]!.ty },
-  ],
-  codecs,
-});
+export const swap_if = {
+  v0_1: {
+    driver: {
+      SwapDriverError: {
+        BatchTooSmall: 1n,
+        AlreadyInitialized: 2n,
+        InvalidConfiguration: 3n,
+        Unauthorized: 4n,
+      },
+    },
+    handler: {
+      SwapLibraryError: {
+        InsufficientAmount: 1n,
+        InsufficientLiquidity: 2n,
+        InsufficientInputAmount: 3n,
+        InsufficientOutputAmount: 4n,
+      },
+      SwapRequestError: {
+        Unauthorized: 100n,
+        InsufficientAmountA: 1n,
+        InsufficientAmountB: 2n,
+        InsufficientOutputAmount: 3n,
+        ExcessiveInputAmount: 4n,
+      },
+    },
+  },
+} as const;
 
 export type SwapDriverEvent =
-  RequestAccepted | RequestFailed | RequestsProcessed;
+  | batch_driver.v0_1.events.RequestAccepted
+  | batch_driver.v0_1.events.RequestFailed
+  | batch_driver.v0_1.events.RequestsProcessed;
 
-export function decodeEvent(event: {
-  topics: Uint8Array[];
-  data: Uint8Array;
+export function decodeEvent(__gh_event: {
+  topics: globalThis.Uint8Array[];
+  data: globalThis.Uint8Array;
 }): SwapDriverEvent | null {
   return (
-    RequestAccepted.decode(event) ??
-    RequestFailed.decode(event) ??
-    RequestsProcessed.decode(event)
+    batch_driver.v0_1.events.RequestAccepted.decode(__gh_event) ??
+    batch_driver.v0_1.events.RequestFailed.decode(__gh_event) ??
+    batch_driver.v0_1.events.RequestsProcessed.decode(__gh_event)
   );
+}
+
+// The types the namespaces above refer to, under names no declaration can capture.
+export namespace __gh_codegen {
+  export type batch_driver$v0_1$events$Cause = batch_driver.v0_1.events.Cause;
+  export type groundhog_erc20_if$v0_1$error$ERC20Error =
+    groundhog_erc20_if.v0_1.error.ERC20Error;
+  export type swap_if$v0_1$driver$SwapDriverError =
+    swap_if.v0_1.driver.SwapDriverError;
+  export type swap_if$v0_1$handler$SwapLibraryError =
+    swap_if.v0_1.handler.SwapLibraryError;
+  export type swap_if$v0_1$handler$SwapRequestError =
+    swap_if.v0_1.handler.SwapRequestError;
+  export type swap_if$v0_1$pair$SwapPairError = swap_if.v0_1.pair.SwapPairError;
+  export type swap_if$v0_1$request$AddLiquidityRequest =
+    swap_if.v0_1.request.AddLiquidityRequest;
+  export type swap_if$v0_1$request$RemoveLiquidityRequest =
+    swap_if.v0_1.request.RemoveLiquidityRequest;
+  export type swap_if$v0_1$request$SwapExactInRequest =
+    swap_if.v0_1.request.SwapExactInRequest;
+  export type swap_if$v0_1$request$SwapExactOutRequest =
+    swap_if.v0_1.request.SwapExactOutRequest;
+  export type swap_if$v0_1$request$SwapOp = swap_if.v0_1.request.SwapOp;
+  export type swap_if$v0_1$request$SwapRequest =
+    swap_if.v0_1.request.SwapRequest;
 }

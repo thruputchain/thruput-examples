@@ -128,8 +128,11 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     // The factory funds the pool's three contracts as it deploys them, on the allowance the creator
     // grants it.
     exec_tx(&env, &DEPLOYER, || {
-        ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
-            .adjust_allowance(&factory, CONTRACT_FUNDING as Difference);
+        ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN).adjust_allowance(
+            &factory,
+            CONTRACT_FUNDING as Difference,
+            false,
+        );
     })
     .unwrap();
     env.advance_block();

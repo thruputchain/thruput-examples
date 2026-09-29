@@ -10,10 +10,12 @@ import { getContract } from "@groundhogchain/client/contract";
 import type { AppConfig } from "@/config";
 import {
   StandardTokenFactory,
-  type FactoryConfig,
+  standard_token_factory_if,
 } from "@/contracts/generated/standard-token-factory";
 import { ERC20 } from "@/contracts/generated/standard-token";
 import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
+
+type FactoryConfig = standard_token_factory_if.v0_1.factory.FactoryConfig;
 
 export interface FactoryReview {
   config: FactoryConfig;
@@ -72,12 +74,12 @@ export async function reviewFactory(
   options: { balanceItemKnown?: boolean } = {},
 ): Promise<FactoryReview> {
   const factoryContract = getContract({
-    binding: StandardTokenFactory,
+    binding: StandardTokenFactory.v0_1,
     address: config.factoryAddress,
     client,
   });
   const nativeToken = getContract({
-    binding: ERC20,
+    binding: ERC20.v0_1,
     address: config.nativeHogAddress,
     client,
   });

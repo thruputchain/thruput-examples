@@ -93,7 +93,7 @@ export async function provisionCounter(options: {
     console.log(`Airdrop confirmed: ${funding.rawAmount} raw HOG (7 decimals)`);
     await execute(
       "Fund counter",
-      ERC20.transfer.invocation(HOG_ADDRESS, GAS, {
+      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS, {
         receiver: address,
         amount: 10_000_000n,
       }),
@@ -104,13 +104,13 @@ export async function provisionCounter(options: {
     console.log(`Deploy counter: ${toHex0x(txHash)}`);
     await execute(
       "Initialize counter",
-      Counter.initialize.invocation(address, GAS, {
+      Counter.v0_1.initialize.invocation(address, GAS, {
         initialValue: INITIAL_VALUE,
       }),
     );
     if (
       (
-        await Counter.get.view({
+        await Counter.v0_1.get.view({
           client,
           contract: address,
           caller: account.address,

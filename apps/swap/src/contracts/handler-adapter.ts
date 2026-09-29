@@ -23,7 +23,7 @@ export function createSwapHandlerReadAdapter(params: {
 }): SwapHandlerReadAdapter {
   return {
     async poolState() {
-      const result = await SwapHandler.poolState.view({
+      const result = await SwapHandler.v0_1.poolState.view({
         client: params.client,
         contract: params.contract,
         caller: params.caller,

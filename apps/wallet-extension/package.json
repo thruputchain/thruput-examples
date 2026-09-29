@@ -1,6 +1,7 @@
 {
   "name": "groundhog-wallet-extension",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,8 +13,8 @@
     "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
-    "@groundhogchain/client": "0.9.0",
-    "@groundhogchain/protocol": "0.11.0",
+    "@groundhogchain/client": "0.11.0",
+    "@groundhogchain/protocol": "0.12.0",
     "@scure/bip39": "^2.0.1",
     "@noble/hashes": "^2.2.0",
     "@noble/ed25519": "^3.1.0",

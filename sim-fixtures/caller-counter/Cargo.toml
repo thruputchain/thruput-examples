@@ -4,6 +4,7 @@ description = "Per-caller counter contract used as a read-after-write simulation
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
 
 [features]
 entrypoints = []

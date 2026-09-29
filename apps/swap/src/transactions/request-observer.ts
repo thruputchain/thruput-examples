@@ -13,14 +13,16 @@ import {
 
 import type { AppConfig } from "@/config";
 import { requestFailureMessage } from "@/contracts/failure-message";
-import { RequestFailed } from "@/contracts/generated/swap-driver";
-import {
-  SwapEvent as GeneratedSwapEvent,
-  type SwapEvent,
-} from "@/contracts/generated/swap-handler";
+import { batch_driver } from "@/contracts/generated/swap-driver";
+import { swap_if } from "@/contracts/generated/swap-handler";
 import { orderTokens } from "@/domain/tokens";
-import type { OutstandingRequest } from "@/transactions/request-collection";
-import type { RequestRecord } from "@/transactions/request-collection";
+import type { OutstandingRequest, RequestRecord } from "@/transactions/request-collection";
+
+const RequestFailed = batch_driver.v0_1.events.RequestFailed;
+type RequestFailed = batch_driver.v0_1.events.RequestFailed;
+const GeneratedSwapEvent = swap_if.v0_1.events.SwapEvent;
+type GeneratedSwapEvent = swap_if.v0_1.events.SwapEvent;
+type SwapEvent = swap_if.v0_1.events.SwapEvent;
 
 export type RequestObservation =
   | {

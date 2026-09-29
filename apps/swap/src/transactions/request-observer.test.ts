@@ -9,9 +9,9 @@ import type { GroundhogClient } from "@groundhogchain/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
-import { Cause, RequestFailed } from "@/contracts/generated/swap-driver";
+import { batch_driver } from "@/contracts/generated/swap-driver";
 import { requestFailedEvent } from "@/test/request-failed";
-import { SwapEvent } from "@/contracts/generated/swap-handler";
+import { swap_if } from "@/contracts/generated/swap-handler";
 import type { OutstandingRequest } from "@/transactions/request-collection";
 import {
   createRequestRecord,
@@ -24,6 +24,13 @@ import {
   createRequestObserver,
   observationsFromReceipt,
 } from "./request-observer";
+
+const Cause = batch_driver.v0_1.events.Cause;
+type Cause = batch_driver.v0_1.events.Cause;
+const RequestFailed = batch_driver.v0_1.events.RequestFailed;
+type RequestFailed = batch_driver.v0_1.events.RequestFailed;
+const SwapEvent = swap_if.v0_1.events.SwapEvent;
+type SwapEvent = swap_if.v0_1.events.SwapEvent;
 
 const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
@@ -170,6 +177,7 @@ describe("request observer", () => {
       txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
       height: 10n,
       execResult: ExecResult.ExecResultOK,
+      gasUsed: 0n,
       events: [event],
       returnData: new Uint8Array(),
       abortData: null,
@@ -429,6 +437,7 @@ describe("request observer", () => {
       txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
       height: 10n,
       execResult: ExecResult.ExecResultOK,
+      gasUsed: 0n,
       events: [
         swapEvent(new Uint8Array(32).fill(0xcc)),
         failedEvent(new Uint8Array(32).fill(0xee)),
@@ -461,6 +470,7 @@ describe("request observer", () => {
       txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
       height: 10n,
       execResult: ExecResult.ExecResultOK,
+      gasUsed: 0n,
       events: [event, event],
       returnData: new Uint8Array(),
       abortData: null,
