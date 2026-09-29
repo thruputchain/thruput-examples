@@ -43,6 +43,7 @@ it("shares committed recovery across observers without wallet permission and ret
     txHash: hashFromHex(hash),
     height: blockHeight(1n),
     execResult: ExecResult.ExecResultTxRootFrameReverted,
+    gasUsed: 0n,
     returnData: null,
     abortData: null,
     events: [],

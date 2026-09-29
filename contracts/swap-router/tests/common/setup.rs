@@ -150,7 +150,7 @@ pub fn setup_contracts(
     // the allowance it is granted here.
     exec_tx(env, &TEST_ADDR, move || {
         ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
-            .adjust_allowance(&factory_addr, 3 * POOL_FUNDING.recommended as i128);
+            .adjust_allowance(&factory_addr, 3 * POOL_FUNDING.recommended as i128, false);
     })?;
 
     /* ----- */ env.advance_block(); /* ----- */

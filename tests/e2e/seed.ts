@@ -224,7 +224,7 @@ try {
   });
   const factory = addressFromHex(swap.VITE_SWAP_FACTORY_ADDRESS!);
   const count = async () =>
-    (await SwapFactory.allPairsLength.view({ client, contract: factory }))
+    (await SwapFactory.v0_1.allPairsLength.view({ client, contract: factory }))
       .value;
   assert.equal(await count(), 0n);
   assert.equal(store!.getStatus().tokenCount, 0);
@@ -271,7 +271,7 @@ try {
   for (const token of manifest.tokens) {
     assert.equal(
       (
-        await ERC20.getBalanceOf.view({
+        await ERC20.v0_1.getBalanceOf.view({
           client,
           contract: addressFromHex(token.address),
           args: { addr: addressFromHex(manifest.recipient) },
@@ -281,7 +281,7 @@ try {
     );
     assert.equal(
       (
-        await ERC20.getBalanceOf.view({
+        await ERC20.v0_1.getBalanceOf.view({
           client,
           contract: addressFromHex(token.address),
           args: { addr: addressFromHex(manifest.signer) },
@@ -291,7 +291,7 @@ try {
     );
   }
   const pool = (
-    await SwapHandler.poolState.view({
+    await SwapHandler.v0_1.poolState.view({
       client,
       contract: addressFromHex(manifest.pool.handler),
     })
@@ -299,7 +299,7 @@ try {
   assert.deepEqual(pool.reserves, [1_000_000_000n, 1_000_000_000n]);
   assert.ok(
     (
-      await ERC20.getBalanceOf.view({
+      await ERC20.v0_1.getBalanceOf.view({
         client,
         contract: addressFromHex(manifest.pool.liquidityToken),
         args: { addr: addressFromHex(manifest.recipient) },

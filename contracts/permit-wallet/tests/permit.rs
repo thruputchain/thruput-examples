@@ -16,11 +16,14 @@
 //! anything reads it.
 
 use ed25519_dalek::{Signer, SigningKey};
-use erc20::{ERC20Client, ERC20PermitClient, PermitGrant, PermitRequest};
+use erc20::{
+    ClearAllowanceGrant, ClearAllowanceRequest, ERC20Client, ERC20Error, ERC20PermitClient,
+    ERC20PermitError, PermitGrant, PermitRequest,
+};
 use groundhog_domain_separator::SignedOp as SignedOpPreimage;
 use groundhog_signed_op_if::{Operation, SignedOpClient, SignedOpError};
 use permit_relayer::PermitRelayerClient;
-use permit_wallet::PermitWalletClient;
+use permit_wallet::{PermitWalletClient, WalletRequest};
 use sdk::signer::Signed;
 use sdk::types::transaction::Uniquifier;
 use sdk::types::{Ed25519PublicKey, Ed25519Signature};
@@ -93,13 +96,14 @@ fn current_height(env: &TestEnvironmentHandle) -> BlockHeight {
 /// What an off-chain signer does: build the preimage from the network, the
 /// wallet, the `(nonce, expiry)` uniquifier and the body's `TYPE_DEF`, then
 /// sign it. The key reaches neither contract; the wallet checks against the
-/// key it holds.
+/// key it holds. The body is the wallet's own request type, which names the
+/// grant it should mint.
 fn sign(
     seed: &[u8; 32],
     verifying_contract: &ContractAddress,
     nonce: u64,
     expiry: BlockHeight,
-    body: &PermitRequest,
+    body: &WalletRequest,
 ) -> (Operation, Ed25519Signature) {
     let key = SigningKey::from_bytes(seed);
     let preimage = SignedOpPreimage {
@@ -122,14 +126,22 @@ fn sign(
     (op, Ed25519Signature::from(key.sign(&preimage).to_bytes()))
 }
 
-/// The permit Alice signs in these tests: `GRANTED` units of `token()`,
-/// spendable by `spender()`.
-fn standard_request() -> PermitRequest {
-    PermitRequest {
+/// The permit Alice signs in most of these tests: up to `GRANTED` units of
+/// `token()`, spendable by `spender()`.
+fn standard_request() -> WalletRequest {
+    WalletRequest::Permit(PermitRequest {
         token: token(),
         spender: spender(),
         amount: GRANTED,
-    }
+    })
+}
+
+/// Alice's request to revoke `spender()`'s allowance on `token()`.
+fn clear_request() -> WalletRequest {
+    WalletRequest::ClearAllowance(ClearAllowanceRequest {
+        token: token(),
+        spender: spender(),
+    })
 }
 
 /// Alice's standard permit at nonce 0, valid through `expiry`. ed25519 is
@@ -141,6 +153,39 @@ fn alice_permit_until(expiry: BlockHeight) -> (Operation, Ed25519Signature) {
 
 fn alice_permit(env: &TestEnvironmentHandle) -> (Operation, Ed25519Signature) {
     alice_permit_until(current_height(env) + HORIZON)
+}
+
+/// The submitter's first step, inside a frame: take the operation to Alice's
+/// wallet and name the grant it mints. `T` is only what the submitter claims
+/// the grant is; the token decodes the payload when it consumes it.
+fn mint_grant<T: sdk::mintable::MintableType>(
+    op: Operation,
+    signature: &Ed25519Signature,
+) -> Signed<T> {
+    SignedOpClient::new(&wallet())
+        .execute_signed_op(op, signature)
+        .assume()
+}
+
+/// Sign `body` as Alice at `nonce`, then submit it as `spender()` and redeem
+/// it through `redeem` inside the same frame.
+fn submit_signed<F>(
+    env: &TestEnvironmentHandle,
+    nonce: u64,
+    body: WalletRequest,
+    redeem: F,
+) -> TransactResult
+where
+    F: FnOnce(Operation, Ed25519Signature) + std::panic::UnwindSafe + 'static,
+{
+    let (op, signature) = sign(
+        &ALICE_SEED,
+        &wallet(),
+        nonce,
+        current_height(env) + HORIZON,
+        &body,
+    );
+    env.transact(|tx| tx.call(&spender()).run(move || redeem(op, signature)))
 }
 
 /// Submit as `spender()` through the relayer: the wallet mints, the token
@@ -236,10 +281,8 @@ fn transfer_from_signed_moves_the_balance_and_leaves_no_allowance() {
 
     env.transact(|tx| {
         tx.call(&spender()).run(move || {
-            let grant: Signed<PermitGrant> = SignedOpClient::new(&wallet())
-                .execute_signed_op(op, &signature)
-                .assume();
-            ERC20PermitClient::new(&token()).transfer_from_signed(grant, &receiver());
+            let grant = mint_grant(op, &signature);
+            ERC20PermitClient::new(&token()).transfer_from_signed(grant, &receiver(), GRANTED);
         })
     })
     .assert_success();
@@ -250,6 +293,169 @@ fn transfer_from_signed_moves_the_balance_and_leaves_no_allowance() {
     // The capability was spent, not copied into storage where it would
     // outlive the transfer.
     assert_eq!(allowance(&env), 0);
+}
+
+/// A grant is a ceiling, not an exact amount: the spender moves what it
+/// needs, and the unused remainder goes nowhere.
+#[test]
+fn transfer_from_signed_moves_up_to_the_granted_amount() {
+    let env = setup();
+    submit_signed(&env, 0, standard_request(), |op, signature| {
+        let grant = mint_grant(op, &signature);
+        ERC20PermitClient::new(&token()).transfer_from_signed(grant, &receiver(), GRANTED - 50);
+    })
+    .assert_success();
+    env.advance_block();
+
+    assert_eq!(balance_of(&env, receiver()), GRANTED - 50);
+    assert_eq!(balance_of(&env, wallet()), MINTED - GRANTED + 50);
+    assert_eq!(allowance(&env), 0, "the remainder is not kept as allowance");
+}
+
+#[test]
+fn transfer_from_signed_refuses_more_than_the_grant() {
+    let env = setup();
+    submit_signed(&env, 0, standard_request(), |op, signature| {
+        let grant = mint_grant(op, &signature);
+        let result = ERC20PermitClient::new(&token()).try_transfer_from_signed(
+            grant,
+            &receiver(),
+            GRANTED + 1,
+        );
+        assert_eq!(
+            result.unwrap_err().try_as(),
+            Some(ERC20PermitError::ExceedsGrant)
+        );
+    })
+    .assert_success();
+    env.advance_block();
+
+    assert_eq!(balance_of(&env, receiver()), 0);
+    assert_eq!(balance_of(&env, wallet()), MINTED);
+}
+
+/// The grant names who may spend it. Someone else presenting a genuine grant
+/// is refused by the token, not by the wallet.
+#[test]
+fn only_the_named_spender_may_redeem_a_grant_directly() {
+    let env = setup();
+    let (op, signature) = alice_permit(&env);
+
+    env.transact(|tx| {
+        tx.call(&receiver()).run(move || {
+            let grant = mint_grant(op, &signature);
+            let result = ERC20PermitClient::new(&token()).try_transfer_from_signed(
+                grant,
+                &receiver(),
+                GRANTED,
+            );
+            assert_eq!(
+                result.unwrap_err().try_as(),
+                Some(ERC20PermitError::NotSpender)
+            );
+        })
+    })
+    .assert_success();
+    env.advance_block();
+
+    assert_eq!(balance_of(&env, receiver()), 0);
+}
+
+/// The relayer reads the signed body to pick the token method, so a clear
+/// request relays the same way a permit does, and takes the allowance back.
+#[test]
+fn a_relayed_clear_revokes_the_allowance() {
+    let env = setup();
+    let (op, signature) = alice_permit(&env);
+    relay(&env, op, signature).assert_success();
+    env.advance_block();
+    assert_eq!(allowance(&env), GRANTED);
+
+    let (op, signature) = sign(
+        &ALICE_SEED,
+        &wallet(),
+        1,
+        current_height(&env) + HORIZON,
+        &clear_request(),
+    );
+    relay(&env, op, signature).assert_success();
+    env.advance_block();
+    assert_eq!(allowance(&env), 0);
+}
+
+/// A body the wallet could not decode is refused by the relayer before the
+/// wallet sees it; nothing is minted and nothing is consumed.
+#[test]
+fn the_relayer_refuses_a_body_that_is_not_a_wallet_request() {
+    let env = setup();
+    let (mut op, signature) = alice_permit(&env);
+    op.body.0.truncate(1);
+
+    env.transact(|tx| {
+        tx.call(&spender()).run(move || {
+            let result =
+                PermitRelayerClient::new(&relayer()).try_relay(&wallet(), &token(), op, &signature);
+            assert_eq!(
+                result.unwrap_err().try_as(),
+                Some(permit_relayer::RelayError::NotAWalletRequest)
+            );
+        })
+    })
+    .assert_success();
+    env.advance_block();
+    assert_eq!(allowance(&env), 0);
+}
+
+/// A signed clear takes a standing allowance back: the entry is deleted, and
+/// the spender can no longer draw on it.
+#[test]
+fn clear_allowance_signed_revokes_a_standing_allowance() {
+    let env = setup();
+    let (op, signature) = alice_permit(&env);
+    relay(&env, op, signature).assert_success();
+    env.advance_block();
+    assert_eq!(allowance(&env), GRANTED);
+
+    submit_signed(&env, 1, clear_request(), |op, signature| {
+        let grant = mint_grant::<ClearAllowanceGrant>(op, &signature);
+        ERC20PermitClient::new(&token()).clear_allowance_signed(grant);
+    })
+    .assert_success();
+    env.advance_block();
+    assert_eq!(allowance(&env), 0);
+
+    env.transact(|tx| {
+        tx.call(&spender()).run(|| {
+            let result = ERC20Client::new(&token()).try_transfer_from(&wallet(), &receiver(), 1);
+            assert_eq!(result.unwrap_err().try_as(), Some(ERC20Error::TooLarge));
+        })
+    })
+    .assert_success();
+}
+
+/// The signed body names the operation, and the grant's payload follows it:
+/// a grant signed to raise an allowance cannot be redeemed as a clear, and a
+/// clear cannot be redeemed as a transfer. The token refuses to decode the
+/// payload as the other type, so the call aborts.
+#[test]
+fn a_grant_cannot_be_redeemed_for_a_different_operation() {
+    let env = setup();
+    submit_signed(&env, 0, standard_request(), |op, signature| {
+        let grant = mint_grant::<ClearAllowanceGrant>(op, &signature);
+        ERC20PermitClient::new(&token()).clear_allowance_signed(grant);
+    })
+    .assert_abort();
+    env.advance_block();
+
+    submit_signed(&env, 1, clear_request(), |op, signature| {
+        let grant = mint_grant::<PermitGrant>(op, &signature);
+        ERC20PermitClient::new(&token()).transfer_from_signed(grant, &receiver(), 0);
+    })
+    .assert_abort();
+    env.advance_block();
+
+    assert_eq!(allowance(&env), 0);
+    assert_eq!(balance_of(&env, receiver()), 0);
 }
 
 /// Replay protection is the chain's uniquifier model: the `(nonce, expiry)`

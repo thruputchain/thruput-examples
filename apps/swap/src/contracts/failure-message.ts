@@ -2,12 +2,8 @@ import type { TransactionReceipt } from "@groundhogchain/client";
 import { CxsWriter, Uint64Codec } from "@groundhogchain/xdr";
 
 import { ERC20 } from "@/contracts/generated/erc20";
-import {
-  Cause,
-  SwapDriver,
-  type RequestFailed,
-} from "@/contracts/generated/swap-driver";
-import { SwapHandler, SwapRequestError } from "@/contracts/generated/swap-handler";
+import { SwapDriver, batch_driver } from "@/contracts/generated/swap-driver";
+import { SwapHandler, swap_if } from "@/contracts/generated/swap-handler";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
 import { SwapRouter } from "@/contracts/generated/swap-router";
 import type { CreationStepName } from "@/transactions/creation-workflow";
@@ -16,20 +12,26 @@ import type {
   LiquidityStepName,
 } from "@/transactions/liquidity-operation";
 
+const Cause = batch_driver.v0_1.events.Cause;
+type Cause = batch_driver.v0_1.events.Cause;
+type RequestFailed = batch_driver.v0_1.events.RequestFailed;
+const SwapRequestError = swap_if.v0_1.handler.SwapRequestError;
+type SwapRequestError = swap_if.v0_1.handler.SwapRequestError;
+
 export function creationFailureMessage(
   step: CreationStepName,
   receipt: TransactionReceipt,
 ): string | null {
   if (step === "approveFunding" || step === "approveToken0" || step === "approveToken1") {
-    return decode(() => ERC20.adjustAllowance.decodeReceiptOutcome(receipt));
+    return decode(() => ERC20.v0_1.adjustAllowance.decodeReceiptOutcome(receipt));
   }
   if (step === "createPool") {
-    return decode(() => SwapFactory.createPair.decodeReceiptOutcome(receipt));
+    return decode(() => SwapFactory.v0_1.createPair.decodeReceiptOutcome(receipt));
   }
   if (step === "enqueue") {
-    return decode(() => SwapRouter.addLiquidity.decodeReceiptOutcome(receipt));
+    return decode(() => SwapRouter.v0_1.addLiquidity.decodeReceiptOutcome(receipt));
   }
-  return decode(() => SwapDriver.processRequests.decodeReceiptOutcome(receipt));
+  return decode(() => SwapDriver.v0_1.processRequests.decodeReceiptOutcome(receipt));
 }
 
 export function liquidityFailureMessage(
@@ -38,11 +40,11 @@ export function liquidityFailureMessage(
   receipt: TransactionReceipt,
 ): string | null {
   if (step !== "enqueue") {
-    return decode(() => ERC20.adjustAllowance.decodeReceiptOutcome(receipt));
+    return decode(() => ERC20.v0_1.adjustAllowance.decodeReceiptOutcome(receipt));
   }
   return operation.kind === "add"
-    ? decode(() => SwapRouter.addLiquidity.decodeReceiptOutcome(receipt))
-    : decode(() => SwapRouter.removeLiquidity.decodeReceiptOutcome(receipt));
+    ? decode(() => SwapRouter.v0_1.addLiquidity.decodeReceiptOutcome(receipt))
+    : decode(() => SwapRouter.v0_1.removeLiquidity.decodeReceiptOutcome(receipt));
 }
 
 export function swapFailureMessage(
@@ -50,12 +52,12 @@ export function swapFailureMessage(
   receipt: TransactionReceipt,
 ): string | null {
   if (phase === "approval") {
-    return decode(() => ERC20.adjustAllowance.decodeReceiptOutcome(receipt));
+    return decode(() => ERC20.v0_1.adjustAllowance.decodeReceiptOutcome(receipt));
   }
   if (phase === "submission") {
-    return decode(() => SwapRouter.swapExactTokensForTokens.decodeReceiptOutcome(receipt));
+    return decode(() => SwapRouter.v0_1.swapExactTokensForTokens.decodeReceiptOutcome(receipt));
   }
-  return decode(() => SwapDriver.processRequests.decodeReceiptOutcome(receipt));
+  return decode(() => SwapDriver.v0_1.processRequests.decodeReceiptOutcome(receipt));
 }
 
 export function requestFailureMessage(
@@ -78,7 +80,7 @@ export function requestFailureMessage(
         const data = new Uint8Array(selector.length + fields.payload.length);
         data.set(selector);
         data.set(fields.payload, selector.length);
-        const exception = SwapHandler.handleRequest.decodeException(data);
+        const exception = SwapHandler.v0_1.handleRequest.decodeException(data);
         if (exception.kind !== "declared") return null;
         if (
           exception.name === "SwapRequestError"

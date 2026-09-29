@@ -166,10 +166,16 @@ impl Ctx {
         let amounts = [amt0, amt1];
 
         // Give the request handler access to my tokens
-        self.token0()
-            .adjust_allowance(&self.request_handler_addr, amounts[0].try_into().unwrap());
-        self.token1()
-            .adjust_allowance(&self.request_handler_addr, amounts[1].try_into().unwrap());
+        self.token0().adjust_allowance(
+            &self.request_handler_addr,
+            amounts[0].try_into().unwrap(),
+            false,
+        );
+        self.token1().adjust_allowance(
+            &self.request_handler_addr,
+            amounts[1].try_into().unwrap(),
+            false,
+        );
 
         self.user_print_balances(user);
 
@@ -211,7 +217,7 @@ impl Ctx {
 
         // Give the request handler access to all my LP tokens
         self.lp()
-            .adjust_allowance(&self.request_handler_addr, return_amt);
+            .adjust_allowance(&self.request_handler_addr, return_amt, false);
 
         return_amt
     }

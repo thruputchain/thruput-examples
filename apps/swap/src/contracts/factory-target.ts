@@ -11,7 +11,7 @@ export function buildCreatePairTarget(
   funding: bigint,
 ): Invocation {
   if (funding <= 0n) throw new RangeError("Pool funding must be positive");
-  return SwapFactory.createPair.invocation(factory, TARGET_GAS, {
+  return SwapFactory.v0_1.createPair.invocation(factory, TARGET_GAS, {
     tokenA,
     tokenB,
     funding,

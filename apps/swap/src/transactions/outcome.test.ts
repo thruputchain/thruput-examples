@@ -52,6 +52,7 @@ describe("transaction outcomes", () => {
       txHash: hash,
       height: 7n,
       execResult: ExecResult.ExecResultOK,
+      gasUsed: 0n,
       events: [],
       returnData: null,
       abortData: null,
@@ -63,6 +64,7 @@ describe("transaction outcomes", () => {
       outcomeFromReceipt({
         ...receipt,
         execResult: ExecResult.ExecResultTxRootFrameReverted,
+        gasUsed: 0n,
       }),
     ).toMatchObject({ kind: "committedFailure" });
   });

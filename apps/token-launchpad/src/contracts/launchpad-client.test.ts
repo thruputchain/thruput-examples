@@ -1,7 +1,7 @@
 import { fixedBytes } from "@groundhogchain/client";
 import { describe, expect, it } from "vitest";
 
-import type { FactoryConfig } from "@/contracts/generated/standard-token-factory";
+import { standard_token_factory_if } from "@/contracts/generated/standard-token-factory";
 import {
   assertTrustedFactoryConfig,
   calculateFundingAmount,
@@ -9,6 +9,8 @@ import {
 } from "@/contracts/launchpad-client";
 import { configuration } from "@/test/fixtures";
 import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
+
+type FactoryConfig = standard_token_factory_if.v0_1.factory.FactoryConfig;
 
 describe("factory review", () => {
   const config = configuration();

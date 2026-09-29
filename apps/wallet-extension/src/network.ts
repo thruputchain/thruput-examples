@@ -38,8 +38,8 @@ export async function tokenMetadata(
   const client = await clientFor(network),
     contract = addressFromHex(address);
   const [symbol, decimals] = await Promise.all([
-    ERC20Metadata.symbol.view({ client, contract }),
-    ERC20Metadata.decimals.view({ client, contract }),
+    ERC20Metadata.v0_1.symbol.view({ client, contract }),
+    ERC20Metadata.v0_1.decimals.view({ client, contract }),
   ]);
   if (decimals.value === null || decimals.value < 0n || decimals.value > 38n)
     throw new Error("Token has unsupported decimals");
@@ -62,7 +62,7 @@ export async function portfolio(
           token.address === HOG
             ? (await client.getBalance(addressFromHex(owner))).rawBalance
             : (
-                await ERC20.getBalanceOf.view({
+                await ERC20.v0_1.getBalanceOf.view({
                   client,
                   contract: addressFromHex(token.address),
                   args: { addr: addressFromHex(owner) },
@@ -102,7 +102,7 @@ export async function transferTransaction(
     accountOf(secret).address,
     {
       gasLimit: gasAmount(1_000_000n),
-      invocation: ERC20.transfer.invocation(
+      invocation: ERC20.v0_1.transfer.invocation(
         addressFromHex(token.address),
         gasAmount(500_000n),
         {

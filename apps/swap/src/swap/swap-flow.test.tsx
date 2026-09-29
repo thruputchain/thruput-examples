@@ -7,9 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "@/test/swap-app";
 import type { AppConfig } from "@/config";
-import {
-  RequestAccepted,
-} from "@/contracts/generated/swap-driver";
+import { batch_driver } from "@/contracts/generated/swap-driver";
 import { requestFailedEvent } from "@/test/request-failed";
 import type { PoolSnapshot, SnapshotReader } from "@/swap/snapshot";
 import type {
@@ -31,6 +29,9 @@ import {
   upsertRequest,
 } from "@/transactions/request-collection";
 import type { OutstandingRequest } from "@/transactions/request-collection";
+
+const RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+type RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 
@@ -181,6 +182,7 @@ function committedSuccess(
       txHash: sha256Hash(new Uint8Array(32).fill(0xab)),
       height,
       execResult: ExecResult.ExecResultOK,
+      gasUsed: 0n,
       events: [
         {
           contractAddress: config.driverAddress,
@@ -508,6 +510,7 @@ describe("local swap submission", () => {
           receipt: {
             ...failedReceipt,
             execResult: ExecResult.ExecResultTxRootFrameReverted,
+            gasUsed: 0n,
           },
         } satisfies WriteResult)
         .mockResolvedValueOnce({
@@ -1555,6 +1558,7 @@ describe("local swap submission", () => {
         receipt: {
           ...failedReceipt,
           execResult: ExecResult.ExecResultTxRootFrameReverted,
+          gasUsed: 0n,
         },
       } satisfies WriteResult),
     };

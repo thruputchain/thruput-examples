@@ -46,9 +46,9 @@ export function inspectTransaction(value: string, secret: SecretAccount) {
     const root = tx.invocation;
     const entrypoint = hex(root.entrypoint);
     let method: string;
-    if (entrypoint === hex(DefaultWallet.execute.entrypoint))
+    if (entrypoint === hex(DefaultWallet.v0_1.execute.entrypoint))
       method = "execute";
-    else if (entrypoint === hex(DefaultWallet.deploy.entrypoint))
+    else if (entrypoint === hex(DefaultWallet.v0_1.deploy.entrypoint))
       method = "deploy";
     else fail(4200, "Only DefaultWallet execute and deploy are supported");
     const args = decodeCalldata(
@@ -90,7 +90,7 @@ export function inspectTransaction(value: string, secret: SecretAccount) {
       calls: calls.map((call) => {
         // A selector match only identifies an ABI interpretation, not the target's behavior.
         let decodedTransfer: { receiver: string; amount: string } | undefined;
-        if (hex(call.entrypoint) === hex(ERC20.transfer.entrypoint)) {
+        if (hex(call.entrypoint) === hex(ERC20.v0_1.transfer.entrypoint)) {
           const decoded = decodeCalldata(
             ERC20Spec,
             "ERC20",

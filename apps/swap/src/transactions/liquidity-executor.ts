@@ -12,7 +12,7 @@ import {
   liquidityFailureMessage,
   swapFailureMessage,
 } from "@/contracts/failure-message";
-import { RequestAccepted, RequestFailed } from "@/contracts/generated/swap-driver";
+import { batch_driver } from "@/contracts/generated/swap-driver";
 import {
   LiquidityBurnEvent as BurnEvent,
   LiquidityMintEvent as MintEvent,
@@ -65,6 +65,11 @@ import {
 } from "@/transactions/request-observer";
 import type { SnapshotReader } from "@/swap/snapshot";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
+
+const RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+type RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+const RequestFailed = batch_driver.v0_1.events.RequestFailed;
+type RequestFailed = batch_driver.v0_1.events.RequestFailed;
 
 const MAX_EXECUTION_EXPOSURE = 10;
 
@@ -326,7 +331,7 @@ async function runLiquidityBatch(
   if (result.kind === "committedSuccess") {
     try {
       if (
-        DefaultWallet.execute.decodeReceipt(result.receipt).value.length !==
+        DefaultWallet.v0_1.execute.decodeReceipt(result.receipt).value.length !==
         operation.batchSteps!.length
       )
         throw new Error("Unexpected batch results");

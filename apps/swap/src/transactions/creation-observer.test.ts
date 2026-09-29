@@ -8,7 +8,7 @@ import { CxsWriter } from "@groundhogchain/xdr";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GlobalConfig } from "@/config";
-import { LiquidityMintEvent as MintEvent } from "@/contracts/generated/swap-handler";
+import { swap_if } from "@/contracts/generated/swap-handler";
 import type { PoolCreationReview } from "@/pools/pool-creation";
 import { createCreationWorkflow } from "@/transactions/creation-workflow";
 import {
@@ -16,6 +16,9 @@ import {
   createCreationObserver,
 } from "./creation-observer";
 import { requestFailedEvent } from "@/test/request-failed";
+
+const MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
+type MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
 
 const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
@@ -49,6 +52,7 @@ describe("creation observer", () => {
         txHash,
         height: 10n,
         execResult: ExecResult.ExecResultOK,
+        gasUsed: 0n,
         events: [event],
         returnData: null,
         abortData: null,

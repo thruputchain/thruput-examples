@@ -13,7 +13,7 @@ sdk::declare_mock_contract!();
 mod implementation;
 
 pub use groundhog_erc20_if::{
-    Amount, ApprovalEvent, CONTRACT_ADDR_ZERO, Difference, ERC20, ERC20Client, ERC20Error,
+    AllowanceChangeEvent, Amount, CONTRACT_ADDR_ZERO, Difference, ERC20, ERC20Client, ERC20Error,
     TransferEvent,
 };
 pub use groundhog_erc20_metadata_if::{ERC20Metadata, ERC20MetadataClient, Name, Symbol};

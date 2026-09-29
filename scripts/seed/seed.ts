@@ -17,7 +17,6 @@ import {
   PrivateKeySigner,
   toHex0x,
 } from "@groundhogchain/client";
-import { ERC20 } from "@groundhogchain/client/contracts";
 import {
   codec,
   serialize,
@@ -30,14 +29,16 @@ import {
   type ContractAddress,
   type Invocation,
 } from "@groundhogchain/protocol";
-import { StandardTokenFactory } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
-import { ERC20Metadata } from "../../apps/token-launchpad/src/contracts/generated/standard-token.ts";
+import {
+  StandardTokenFactory,
+} from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
+import {
+  ERC20Metadata,
+} from "../../apps/token-launchpad/src/contracts/generated/standard-token.ts";
+import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20.ts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapRouter } from "../../apps/swap/src/contracts/generated/swap-router.ts";
-import {
-  SwapDriver,
-  RequestAccepted,
-} from "../../apps/swap/src/contracts/generated/swap-driver.ts";
+import { SwapDriver, batch_driver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { SwapHandler } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
 import type {
   RegistryStatus,
@@ -57,6 +58,9 @@ import {
   completeSeedLiquidity,
   type LiquidityProgress,
 } from "./seed-liquidity.ts";
+
+const RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+type RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const GAS = gasAmount(10_000_000n);
@@ -181,7 +185,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     };
     await verifyRegistry();
     const config = (
-      await StandardTokenFactory.config.view({ client, contract: factory })
+      await StandardTokenFactory.v0_1.config.view({ client, contract: factory })
     ).value;
     if (
       toHex0x(config.token_code_hash) !== tokenHash ||
@@ -196,7 +200,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
           router: addressFromHex(swap.VITE_SWAP_ROUTER_ADDRESS!),
           poolHash: hex(swap.VITE_POOL_TOKEN_HASH!),
           funding: (
-            await SwapFactory.poolFunding.view({
+            await SwapFactory.v0_1.poolFunding.view({
               client,
               contract: addressFromHex(swap.VITE_SWAP_FACTORY_ADDRESS!),
             })
@@ -291,7 +295,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       for (const token of TOKENS) {
         const nonce = fixedBytes(randomBytes(32), 32);
         const address = (
-          await StandardTokenFactory.predictToken.view({
+          await StandardTokenFactory.v0_1.predictToken.view({
             client,
             contract: factory,
             args: { creator: account.address, nonce },
@@ -390,10 +394,10 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       token: ContractAddress,
       receiver: ContractAddress,
       amount: bigint,
-    ) => ERC20.transfer.invocation(token, GAS, { receiver, amount });
+    ) => ERC20.v0_1.transfer.invocation(token, GAS, { receiver, amount });
     const balance = async (token: ContractAddress, addr: ContractAddress) =>
       (
-        await ERC20.getBalanceOf.view({
+        await ERC20.v0_1.getBalanceOf.view({
           client,
           contract: token,
           args: { addr },
@@ -405,7 +409,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       if (token.name !== expected.name || token.symbol !== expected.symbol)
         throw new Error("Seed token intent changed");
       const predicted = (
-        await StandardTokenFactory.predictToken.view({
+        await StandardTokenFactory.v0_1.predictToken.view({
           client,
           contract: factory,
           args: {
@@ -417,10 +421,10 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       assertScope(toHex0x(predicted), token.address);
       const options = { client, contract: predicted };
       if (
-        (await ERC20Metadata.name.view(options)).value !== token.name ||
-        (await ERC20Metadata.symbol.view(options)).value !== token.symbol ||
-        (await ERC20Metadata.decimals.view(options)).value !== 6n ||
-        (await ERC20.totalSupply.view(options)).value !== SUPPLY
+        (await ERC20Metadata.v0_1.name.view(options)).value !== token.name ||
+        (await ERC20Metadata.v0_1.symbol.view(options)).value !== token.symbol ||
+        (await ERC20Metadata.v0_1.decimals.view(options)).value !== 6n ||
+        (await ERC20.v0_1.totalSupply.view(options)).value !== SUPPLY
       )
         throw new Error("Live seed token metadata or supply mismatch");
     };
@@ -464,7 +468,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       for (const [index, token] of state.tokens.entries()) {
         const address = addressFromHex(token.address);
         const predicted = (
-          await StandardTokenFactory.predictToken.view({
+          await StandardTokenFactory.v0_1.predictToken.view({
             client,
             contract: factory,
             args: {
@@ -486,7 +490,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         );
         await execute(
           `create-${token.symbol}`,
-          StandardTokenFactory.createToken.invocation(factory, GAS, {
+          StandardTokenFactory.v0_1.createToken.invocation(factory, GAS, {
             nonce: fixedBytes(fromHex0x(token.nonce), 32),
             administrator: recipient,
             initialHolder: account.address,
@@ -531,7 +535,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     ) as [ContractAddress, ContractAddress];
     const pairArgs = { tokenA, tokenB };
     const options = { client, contract: swapFactory, args: pairArgs };
-    const existing = (await SwapFactory.getPair.view(options)).value;
+    const existing = (await SwapFactory.v0_1.getPair.view(options)).value;
     if (existing && !state.steps["create-pair"])
       throw new Error("Pair already exists outside this seed run");
     context = "validate immutable LP code artifact";
@@ -542,21 +546,22 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     );
     await execute(
       "approve-pool-funding",
-      ERC20.adjustAllowance.invocation(HOG_ADDRESS, GAS, {
+      ERC20.v0_1.adjustAllowance.invocation(HOG_ADDRESS, GAS, {
         spender: swapFactory,
-        diff: funding.recommended * 3n,
+        difference: funding.recommended * 3n,
+        exclusive: false,
       }),
     );
     await execute(
       "create-pair",
-      SwapFactory.createPair.invocation(swapFactory, GAS, {
+      SwapFactory.v0_1.createPair.invocation(swapFactory, GAS, {
         ...pairArgs,
         funding: funding.recommended,
       }),
       [code],
     );
-    const pool = (await SwapFactory.poolAddresses.view(options)).value;
-    const livePair = (await SwapFactory.getPair.view(options)).value;
+    const pool = (await SwapFactory.v0_1.poolAddresses.view(options)).value;
+    const livePair = (await SwapFactory.v0_1.getPair.view(options)).value;
     if (!livePair || !bytesEqual(livePair, pool.handler))
       throw new Error("Created pool address mismatch");
     const poolRecord = {
@@ -571,9 +576,10 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     for (const token of [tokenA, tokenB]) {
       await execute(
         `approve-liquidity-${toHex0x(token)}`,
-        ERC20.adjustAllowance.invocation(token, GAS, {
+        ERC20.v0_1.adjustAllowance.invocation(token, GAS, {
           spender: pool.handler,
-          diff: LIQUIDITY,
+          difference: LIQUIDITY,
+          exclusive: false,
         }),
       );
     }
@@ -587,7 +593,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       );
     const queued = await execute(
       "add-liquidity",
-      SwapRouter.addLiquidity.invocation(router, GAS, {
+      SwapRouter.v0_1.addLiquidity.invocation(router, GAS, {
         ...pairArgs,
         amountsDesired: [LIQUIDITY, LIQUIDITY],
         amountsMin: [LIQUIDITY, LIQUIDITY],
@@ -611,12 +617,12 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       signer: account.address,
       recipient,
       crank: (name) =>
-        execute(name, SwapDriver.processRequests.invocation(pool.driver, GAS)),
+        execute(name, SwapDriver.v0_1.processRequests.invocation(pool.driver, GAS)),
     });
     context =
       "verify correlated liquidity mint, live reserves and recipient LP balance";
     const live = (
-      await SwapHandler.poolState.view({ client, contract: pool.handler })
+      await SwapHandler.v0_1.poolState.view({ client, contract: pool.handler })
     ).value;
     if (
       !bytesEqual(live.liquidity_token, pool.liquidity_token) ||

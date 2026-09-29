@@ -1,6 +1,6 @@
 mod support;
 
-use groundhog_erc20_if::{ApprovalEvent, ERC20Error, TransferEvent};
+use groundhog_erc20_if::{AllowanceChangeEvent, ERC20Error, TransferEvent};
 use sdk::call::RawCallError;
 use sdk::*;
 use standard_token_factory::{
@@ -20,12 +20,10 @@ fn assert_erc20_error(result: &TransactResult, expected: ERC20Error) {
 }
 
 fn assert_fee_events(result: &TransactResult, setup: &Setup) {
-    let approvals = result.filter_events::<ApprovalEvent<'_>>(&setup.native_token);
+    // Spending the fee allowance is recorded by the transfer alone.
+    let changes = result.filter_events::<AllowanceChangeEvent<'_>>(&setup.native_token);
     let transfers = result.filter_events::<TransferEvent<'_>>(&setup.native_token);
-    assert_eq!(approvals.len(), 1);
-    assert_eq!(approvals[0].topic(1).unwrap(), setup.wallet.as_ref());
-    assert_eq!(approvals[0].topic(2).unwrap(), setup.factory.as_ref());
-    assert_eq!(approvals[0].payload().difference, -(FEE as i128));
+    assert!(changes.is_empty());
     assert_eq!(transfers.len(), 1);
     assert_eq!(transfers[0].topic(1).unwrap(), setup.wallet.as_ref());
     assert_eq!(transfers[0].topic(2).unwrap(), TREASURY.as_ref());
@@ -208,10 +206,9 @@ fn duplicate_same_block_creation_commits_once() {
             .len(),
         1
     );
-    let approvals = committed.filter_events::<ApprovalEvent<'_>>(&setup.native_token);
+    let changes = committed.filter_events::<AllowanceChangeEvent<'_>>(&setup.native_token);
     let transfers = committed.filter_events::<TransferEvent<'_>>(&setup.native_token);
-    assert_eq!(approvals.len(), 1);
-    assert_eq!(approvals[0].payload().difference, -(FEE as i128));
+    assert!(changes.is_empty());
     assert_eq!(transfers.len(), 1);
     assert_eq!(transfers[0].topic(2).unwrap(), TREASURY.as_ref());
     assert_eq!(transfers[0].payload().amount, FEE as i128);

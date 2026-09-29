@@ -13,7 +13,7 @@ const methods = vi.hoisted(() => ({
 }));
 
 vi.mock("@/contracts/generated/swap-factory", () => ({
-  SwapFactory: methods,
+  SwapFactory: { v0_1: methods },
 }));
 
 const address = (byte: number) =>

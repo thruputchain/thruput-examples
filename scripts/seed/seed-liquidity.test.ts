@@ -25,12 +25,15 @@ import {
 import { CxsWriter, Uint128Codec } from "@groundhogchain/xdr";
 import { SwapDriver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { requestFailedEvent } from "../../apps/swap/src/test/request-failed.ts";
-import { LiquidityMintEvent as MintEvent } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
+import { swap_if } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
 import { executeStep, type SeedJournal } from "./seed-journal.ts";
 import {
   completeSeedLiquidity,
   type LiquidityProgress,
 } from "./seed-liquidity.ts";
+
+const MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
+type MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
 
 const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
@@ -42,6 +45,7 @@ const queued: TransactionReceipt = {
   txHash: sha256Hash(new Uint8Array(32).fill(6)),
   height: 10n,
   execResult: ExecResult.ExecResultOK,
+  gasUsed: 0n,
   events: [],
   returnData: null,
   abortData: null,
@@ -105,7 +109,7 @@ function fixture(terminalAt = 2, failed = false) {
   const prepare = vi.fn(async () =>
     signTransaction(
       createTransaction({
-        invocation: SwapDriver.processRequests.invocation(
+        invocation: SwapDriver.v0_1.processRequests.invocation(
           driver,
           gasAmount(10_000_000n),
         ),

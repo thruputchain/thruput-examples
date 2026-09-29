@@ -12,9 +12,14 @@ import {
   sha256Hash,
   type ContractAddress,
 } from "@groundhogchain/protocol";
-import { RequestFailed } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
-import { LiquidityMintEvent as MintEvent } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
+import { batch_driver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
+import { swap_if } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
 import { SeedError, type SeedJournal } from "./seed-journal.ts";
+
+const RequestFailed = batch_driver.v0_1.events.RequestFailed;
+type RequestFailed = batch_driver.v0_1.events.RequestFailed;
+const MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
+type MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
 
 interface Terminal {
   kind: "minted" | "failed";
