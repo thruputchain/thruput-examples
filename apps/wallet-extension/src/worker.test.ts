@@ -153,7 +153,7 @@ async function transaction() {
     {
       invocation: defaultWalletAdapter.createRootInvocation(wallet.address, {
         gasLimit: gasAmount(100000n),
-        invocation: ERC20.transfer.invocation(
+        invocation: ERC20.v0_1.transfer.invocation(
           contractAddress(new Uint8Array(32).fill(1)),
           gasAmount(50000n),
           { receiver: wallet.address, amount: 1n },
@@ -835,7 +835,7 @@ describe("worker lifecycle and authorization", () => {
     await expect(
       adapter.prepareExecution({
         gasLimit: gasAmount(100000n),
-        invocation: ERC20.transfer.invocation(
+        invocation: ERC20.v0_1.transfer.invocation(
           contractAddress(new Uint8Array(32).fill(1)),
           gasAmount(50000n),
           {
@@ -1329,7 +1329,7 @@ describe("worker lifecycle and authorization", () => {
       {
         invocation: defaultWalletAdapter.createRootInvocation(wallet.address, {
           gasLimit: gasAmount(100000n),
-          invocation: ERC20.transfer.invocation(
+          invocation: ERC20.v0_1.transfer.invocation(
             contractAddress(new Uint8Array(32).fill(1)),
             gasAmount(50000n),
             { receiver: wallet.address, amount: 1n },

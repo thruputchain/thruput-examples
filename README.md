@@ -62,7 +62,7 @@ lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflif
 ### Install Swap and Launchpad dependencies
 
 Use Node.js **22.13 or newer** and npm. The apps install the published
-`@groundhogchain/client@0.10.0` package, including wallet capability discovery and
+`@groundhogchain/client@0.11.0` package, including wallet capability discovery and
 atomic batching, from GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
 with `read:packages` and access to the Groundhog packages in your npm user config:
 

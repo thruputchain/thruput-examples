@@ -284,7 +284,7 @@ approved transaction evidence before broadcasting.
 
 ### Reading and writing contracts
 
-Both apps use client 0.10.0, React 0.3.0, and the same
+Both apps use client 0.11.0, React 0.3.1, and the same
 `src/transactions/use-transactions.ts` entry point. It combines the current wallet
 with public receipt queries from `transactionReceiptQueryOptions`. Recovery
 shares committed receipts, works without wallet permission, and only retries

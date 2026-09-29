@@ -161,7 +161,7 @@ beforeEach(async () => {
     phases.push("execute");
     return { txHash: new Uint8Array(32) };
   });
-  vi.spyOn(StandardTokenFactory.config, "view").mockResolvedValue({
+  vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
     value: config,
   } as never);
   vi.spyOn(console, "log").mockImplementation(() => {});
@@ -182,7 +182,7 @@ describe("infrastructure-only launchpad provisioning", () => {
     mocks.getBalance
       .mockResolvedValueOnce({ rawBalance: 1_000_000_000n })
       .mockResolvedValueOnce({ rawBalance: 10_000_000n - 1_234n });
-    vi.mocked(StandardTokenFactory.config.view).mockResolvedValueOnce({
+    vi.mocked(StandardTokenFactory.v0_1.config.view).mockResolvedValueOnce({
       value: { ...config, required_token_funding: 10_000_000n },
     } as never);
     await setupDevnet();
@@ -359,15 +359,15 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(
       mocks.executeAndWait.mock.calls.map(([request]) => request.invocation),
     ).toEqual([
-      ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: HOG_ADDRESS,
         amount: 10_000_000n,
       }),
-      ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: factory,
         amount: 10_000_000n,
       }),
-      StandardTokenFactory.initialize.invocation(factory, gas, { config }),
+      StandardTokenFactory.v0_1.initialize.invocation(factory, gas, { config }),
     ]);
     const env = await readFile(output, "utf8");
     expect(
@@ -429,7 +429,7 @@ describe("infrastructure-only launchpad provisioning", () => {
         new Error("Deployment address mismatch"),
       );
     if (phase === "verification")
-      vi.mocked(StandardTokenFactory.config.view).mockResolvedValueOnce({
+      vi.mocked(StandardTokenFactory.v0_1.config.view).mockResolvedValueOnce({
         value: { ...config, creation_fee: 1n },
       } as never);
     if (phase === "asset publication")

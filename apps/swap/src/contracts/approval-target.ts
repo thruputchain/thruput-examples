@@ -12,7 +12,7 @@ export function buildApprovalTarget(
   if (difference === 0n) {
     throw new RangeError("Approval difference must not be zero");
   }
-  return ERC20.adjustAllowance.invocation(token, TARGET_GAS, {
+  return ERC20.v0_1.adjustAllowance.invocation(token, TARGET_GAS, {
     spender,
     diff: difference,
   });

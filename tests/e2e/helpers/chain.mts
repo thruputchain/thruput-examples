@@ -16,7 +16,7 @@ const client = await createGroundhogClient({
 });
 const factory = addressFromHex(process.env.VITE_SWAP_FACTORY_ADDRESS!);
 const count = (
-  await SwapFactory.allPairsLength.view({ client, contract: factory })
+  await SwapFactory.v0_1.allPairsLength.view({ client, contract: factory })
 ).value;
 if (process.argv[2] === "empty") {
   assert.equal(count, 0n);
@@ -34,7 +34,7 @@ if (process.argv[2] === "empty") {
     tokenB: addressFromHex(evidence.counter),
   };
   const mapping = (
-    await SwapFactory.poolAddresses.view({
+    await SwapFactory.v0_1.poolAddresses.view({
       client,
       caller,
       contract: factory,
@@ -42,7 +42,7 @@ if (process.argv[2] === "empty") {
     })
   ).value;
   const reverse = (
-    await SwapFactory.getPair.view({
+    await SwapFactory.v0_1.getPair.view({
       client,
       caller,
       contract: factory,
@@ -62,7 +62,7 @@ if (process.argv[2] === "empty") {
     }).poolState()
   ).value;
   const lp = (
-    await ERC20.getBalanceOf.view({
+    await ERC20.v0_1.getBalanceOf.view({
       client,
       caller,
       contract: mapping.liquidity_token,
@@ -72,7 +72,7 @@ if (process.argv[2] === "empty") {
   const balances = await Promise.all(
     [args.tokenA, args.tokenB].map(async (contract) =>
       (
-        await ERC20.getBalanceOf.view({
+        await ERC20.v0_1.getBalanceOf.view({
           client,
           caller,
           contract,
@@ -86,7 +86,7 @@ if (process.argv[2] === "empty") {
     ? await Promise.all(
         [args.tokenA, args.tokenB].map(async (contract) =>
           (
-            await ERC20.getBalanceOf.view({
+            await ERC20.v0_1.getBalanceOf.view({
               client,
               caller,
               contract,

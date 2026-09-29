@@ -119,7 +119,7 @@ file while using that deployment; run setup again when you want a fresh demo.
 
 ## SDK integration
 
-Counter uses the published client 0.10.0 and bindings generated with CLI 0.18.0.
+Counter uses the published client 0.11.0 and bindings generated with CLI 0.19.0-pre.2.
 `src/groundhog/client.ts` binds the Counter address and public client once with
 `getContract`, then refreshes with `counter.get.view({ caller: signerAddress })`.
 Counter and signer-balance reads run concurrently within each scheduled refresh.

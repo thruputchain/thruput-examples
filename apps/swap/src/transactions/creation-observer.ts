@@ -9,9 +9,12 @@ import {
 } from "@groundhogchain/client";
 
 import type { GlobalConfig } from "@/config";
-import { RequestFailed } from "@/contracts/generated/swap-driver";
+import { batch_driver } from "@/contracts/generated/swap-driver";
 import { LiquidityMintEvent as MintEvent } from "@/contracts/liquidity-events";
 import type { CreationWorkflow } from "@/transactions/creation-workflow";
+
+const RequestFailed = batch_driver.v0_1.events.RequestFailed;
+type RequestFailed = batch_driver.v0_1.events.RequestFailed;
 
 export interface CreationObserver {
   scan(workflow: CreationWorkflow): Promise<CreationWorkflow>;

@@ -7,7 +7,12 @@ import {
   Uint64Codec,
   VarOpaqueCodec,
 } from "@groundhogchain/xdr";
-import { Cause, RequestFailed } from "../contracts/generated/swap-driver";
+import { batch_driver } from "../contracts/generated/swap-driver";
+
+const Cause = batch_driver.v0_1.events.Cause;
+type Cause = batch_driver.v0_1.events.Cause;
+const RequestFailed = batch_driver.v0_1.events.RequestFailed;
+type RequestFailed = batch_driver.v0_1.events.RequestFailed;
 
 /** Wire fixture for the batch-driver failure event, including its diagnostic payload. */
 export function requestFailedEvent(

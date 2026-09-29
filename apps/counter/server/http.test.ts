@@ -20,7 +20,7 @@ import {
   DefaultWallet,
   DefaultWalletSpec,
   ERC20,
-  type WalletCall,
+  type default_wallet,
 } from "@groundhogchain/client/contracts";
 import {
   blockHeight,
@@ -57,7 +57,7 @@ const wrap = (invocation: Invocation) =>
 const normal = () =>
   createTransaction({
     invocation: wrap(
-      Counter.increment.invocation(contract, gas, { amount: 1n }),
+      Counter.v0_1.increment.invocation(contract, gas, { amount: 1n }),
     ),
     auth_claim: account.authClaim,
     uniquifier: { nonce: 1n, block_expiry_height: blockHeight(1_000n) },
@@ -324,7 +324,7 @@ describe("counter signing boundary", () => {
       expect(signed.signatures).toHaveLength(1);
       expect(signed.tx.invocation.invoked_address).toEqual(account.address);
       expect(signed.tx.invocation.entrypoint).toEqual(
-        DefaultWallet.execute.entrypoint,
+        DefaultWallet.v0_1.execute.entrypoint,
       );
       expect(signed.tx.contracts_to_deploy).toEqual([]);
       const { calls } = decodeCalldata(
@@ -333,10 +333,10 @@ describe("counter signing boundary", () => {
         "execute",
         signed.tx.invocation.calldata,
         buildNamedCodecs(DefaultWalletSpec.type_defs),
-      ) as { calls: WalletCall[] };
+      ) as { calls: default_wallet.v0_1.$interface.WalletCall[] };
       expect(calls).toHaveLength(1);
       expect(calls[0]!.target).toEqual(contract);
-      expect(calls[0]!.entrypoint).toEqual(Counter[direction].entrypoint);
+      expect(calls[0]!.entrypoint).toEqual(Counter.v0_1[direction].entrypoint);
       expect(
         decodeCalldata(
           spec,
@@ -397,22 +397,22 @@ describe("counter signing boundary", () => {
   it("rejects transfers, other contracts, all other entrypoints, and arbitrary amounts even when signed by the funded key", async () => {
     const { send, upstream } = await fixture();
     const calls = [
-      ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: contract,
         amount: 10n,
       }),
-      Counter.increment.invocation(
+      Counter.v0_1.increment.invocation(
         addressFromHex(`0x${"33".repeat(32)}`),
         gas,
         { amount: 1n },
       ),
-      Counter.initialize.invocation(contract, gas, { initialValue: 1n }),
-      Counter.ping.invocation(contract, gas, { tag: 1n }),
-      Counter.error.invocation(contract, gas),
-      Counter.get.invocation(contract, gas),
+      Counter.v0_1.initialize.invocation(contract, gas, { initialValue: 1n }),
+      Counter.v0_1.ping.invocation(contract, gas, { tag: 1n }),
+      Counter.v0_1.error.invocation(contract, gas),
+      Counter.v0_1.get.invocation(contract, gas),
       ...[0n, 2n, (1n << 64n) - 1n].flatMap((amount) => [
-        Counter.increment.invocation(contract, gas, { amount }),
-        Counter.decrement.invocation(contract, gas, { amount }),
+        Counter.v0_1.increment.invocation(contract, gas, { amount }),
+        Counter.v0_1.decrement.invocation(contract, gas, { amount }),
       ]),
     ];
     for (const call of calls)
@@ -432,7 +432,7 @@ describe("counter signing boundary", () => {
       "execute",
       valid.invocation.calldata,
       buildNamedCodecs(DefaultWalletSpec.type_defs),
-    ) as { calls: WalletCall[] };
+    ) as { calls: default_wallet.v0_1.$interface.WalletCall[] };
     const variants = [
       {
         ...valid,
@@ -444,7 +444,7 @@ describe("counter signing boundary", () => {
       },
       {
         ...valid,
-        invocation: DefaultWallet.execute.invocation(account.address, gas, {
+        invocation: DefaultWallet.v0_1.execute.invocation(account.address, gas, {
           calls: [...calls, ...calls],
         }),
       },

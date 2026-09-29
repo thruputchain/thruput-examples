@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { requestFailureMessage } from "./failure-message";
-import { Cause, type RequestFailed } from "./generated/swap-driver";
+import { batch_driver } from "./generated/swap-driver";
+
+const Cause = batch_driver.v0_1.events.Cause;
+type Cause = batch_driver.v0_1.events.Cause;
+type RequestFailed = batch_driver.v0_1.events.RequestFailed;
 
 const slippage: RequestFailed["fields"] = {
   cause: Cause.Exception,

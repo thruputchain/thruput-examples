@@ -2,13 +2,12 @@ import { bytesEqual, type CoreGroundhogClient } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 import { getContract } from "@groundhogchain/client/contract";
 
-import {
-  ERC20,
-  ERC20Metadata,
-  type TransferEvent as DecodedTransferEvent,
-} from "@/contracts/generated/standard-token";
-import type { TokenCreated as DecodedTokenCreated } from "@/contracts/generated/standard-token-factory";
+import { ERC20, ERC20Metadata, groundhog_erc20_if } from "@/contracts/generated/standard-token";
+import { standard_token_factory_if } from "@/contracts/generated/standard-token-factory";
 import type { LaunchWorkflow } from "@/launch/workflow";
+
+type DecodedTransferEvent = groundhog_erc20_if.v0_1.events.TransferEvent;
+type DecodedTokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 
 export interface TokenStateSnapshot {
   name: string | null;
@@ -30,7 +29,7 @@ export async function readAndAssessTokenState(input: {
     ((milliseconds: number) =>
       new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
   const token = getContract({
-    binding: { ...ERC20, ...ERC20Metadata },
+    binding: { ...ERC20.v0_1, ...ERC20Metadata.v0_1 },
     address: input.token,
     client: input.client,
   });

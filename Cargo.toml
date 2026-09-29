@@ -35,10 +35,10 @@ groundhog-signed-op-if = { registry = "groundhog", version = "=0.1.40" }
 groundhog-signed-op = { registry = "groundhog", version = "=0.1.40" }
 
 # from groundhog-rpc repo:
-groundhog-json-rpc-client = { registry = "groundhog", version = "=0.19.0-pre.1" }
-groundhog-json-rpc-types = { registry = "groundhog", version = "=0.19.0-pre.1" }
-groundhog-signing = { registry = "groundhog", version = "=0.19.0-pre.1" }
-groundhog-testkit = { registry = "groundhog", version = "=0.19.0-pre.1" }
+groundhog-json-rpc-client = { registry = "groundhog", version = "=0.19.0-pre.2" }
+groundhog-json-rpc-types = { registry = "groundhog", version = "=0.19.0-pre.2" }
+groundhog-signing = { registry = "groundhog", version = "=0.19.0-pre.2" }
+groundhog-testkit = { registry = "groundhog", version = "=0.19.0-pre.2" }
 
 # from other groundhog crates:
 groundhog-xdr = { registry = "groundhog", version = "=0.42.0", features = ["serde", "xdrs"] }

@@ -285,11 +285,11 @@ Pool pages and token previews reuse `useClient()` for public reads. Pool balance
 allowances, reserves, and creation reviews remain grouped application reads with
 same-height checks; independent balance hooks would not preserve that guarantee.
 Gas policy, artifact loading, persistence before broadcast, and queue processing
-remain application-owned. Receipt polling and network checks use client 0.10.0.
+remain application-owned. Receipt polling and network checks use client 0.11.0.
 
 ### Reading and writing contracts
 
-Both apps use React 0.3.0 and the same `src/transactions/use-transactions.ts`
+Both apps use React 0.3.1 and the same `src/transactions/use-transactions.ts`
 entry point. It combines the current wallet with public receipt queries from
 `transactionReceiptQueryOptions`. Recovery shares committed receipts, works
 without wallet permission, and only retries observation when requested.

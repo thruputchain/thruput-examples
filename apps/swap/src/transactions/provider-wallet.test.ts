@@ -48,6 +48,7 @@ const receipt: TransactionReceipt = {
   txHash: hashFromHex(hash),
   height: blockHeight(11n),
   execResult: ExecResult.ExecResultOK,
+  gasUsed: 0n,
   events: [],
   returnData: new Uint8Array(),
   abortData: null,
@@ -142,7 +143,7 @@ describe("provider write boundary", () => {
         await boundary.execute({
           ...target,
           invoked_address: config.factoryAddress,
-          entrypoint: SwapFactory.createPair.entrypoint,
+          entrypoint: SwapFactory.v0_1.createPair.entrypoint,
         })
       ).kind,
     ).toBe("preSubmissionFailure");
@@ -154,14 +155,14 @@ describe("provider write boundary", () => {
     await boundary.execute({
       ...target,
       invoked_address: config.factoryAddress,
-      entrypoint: SwapFactory.createPair.entrypoint,
+      entrypoint: SwapFactory.v0_1.createPair.entrypoint,
     });
     expect(wallet.executeAndWait.mock.calls[0]![0].contractsToDeploy).toEqual([
       artifact,
     ]);
     await boundary.execute({
       ...target,
-      entrypoint: SwapFactory.createPair.entrypoint,
+      entrypoint: SwapFactory.v0_1.createPair.entrypoint,
     });
     expect(
       wallet.executeAndWait.mock.calls[1]![0].contractsToDeploy,

@@ -55,7 +55,7 @@ beforeEach(async () => {
       address: deployment.address,
     }),
   );
-  vi.spyOn(Counter.get, "view").mockResolvedValue({
+  vi.spyOn(Counter.v0_1.get, "view").mockResolvedValue({
     value: 1_000_000n,
   } as never);
   vi.spyOn(console, "log").mockImplementation(() => {});
@@ -93,7 +93,7 @@ it("creates a fresh counter and signer on each run and writes only an environmen
     expect(wait).toEqual({ timeoutMs: 60_000 });
     expect(mocks.executeAndWait.mock.calls[index * 2]).toEqual([
       {
-        invocation: ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+        invocation: ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
           receiver: deployment.address,
           amount: 10_000_000n,
         }),
@@ -103,7 +103,7 @@ it("creates a fresh counter and signer on each run and writes only an environmen
     ]);
     expect(mocks.executeAndWait.mock.calls[index * 2 + 1]).toEqual([
       {
-        invocation: Counter.initialize.invocation(deployment.address, gas, {
+        invocation: Counter.v0_1.initialize.invocation(deployment.address, gas, {
           initialValue: 1_000_000n,
         }),
         gasLimit: gas,
@@ -148,7 +148,7 @@ it.each([
       .mockResolvedValueOnce({ txHash: new Uint8Array(32) })
       .mockRejectedValueOnce(new Error("Initialization failed"));
   if (phase === "verification")
-    vi.mocked(Counter.get.view).mockResolvedValue({ value: 0n } as never);
+    vi.mocked(Counter.v0_1.get.view).mockResolvedValue({ value: 0n } as never);
   await expect(provisionCounter(options)).rejects.toThrow();
   expect(
     (await readFile(options.output, "utf8")) === "previous environment",

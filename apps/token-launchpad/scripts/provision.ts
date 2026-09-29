@@ -31,10 +31,12 @@ import {
 
 import {
   StandardTokenFactory,
-  type FactoryConfig,
+  standard_token_factory_if,
 } from "../src/contracts/generated/standard-token-factory";
 import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../src/groundhog/storage-cost";
 import { parseExplorerUrl } from "../src/lib/explorer-url";
+
+type FactoryConfig = standard_token_factory_if.v0_1.factory.FactoryConfig;
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 const CONTRACT_FUNDING = 10_000_000n;
@@ -150,10 +152,10 @@ export async function provisionLaunchpad(options: {
       contract: factoryContract!,
     });
     const predicted = deployment.address;
-    // DefaultWallet.deploy does not fund the deployment's storage automatically.
+    // DefaultWallet.v0_1.deploy does not fund the deployment's storage automatically.
     for (const receiver of [HOG_ADDRESS, predicted]) {
       await execute(
-        ERC20.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
+        ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
           receiver,
           amount: CONTRACT_FUNDING,
         }),
@@ -182,12 +184,12 @@ export async function provisionLaunchpad(options: {
       fee_recipient: null,
     };
     await execute(
-      StandardTokenFactory.initialize.invocation(factoryAddress, GAS_LIMIT, {
+      StandardTokenFactory.v0_1.initialize.invocation(factoryAddress, GAS_LIMIT, {
         config: expectedConfig,
       }),
     );
     const observed = (
-      await StandardTokenFactory.config.view({
+      await StandardTokenFactory.v0_1.config.view({
         client,
         contract: factoryAddress,
         caller: account.address,

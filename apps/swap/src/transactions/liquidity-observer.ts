@@ -7,12 +7,15 @@ import {
 } from "@groundhogchain/client";
 
 import type { AppConfig } from "@/config";
-import { RequestFailed } from "@/contracts/generated/swap-driver";
+import { batch_driver } from "@/contracts/generated/swap-driver";
 import {
   LiquidityBurnEvent as BurnEvent,
   LiquidityMintEvent as MintEvent,
 } from "@/contracts/liquidity-events";
 import type { LiquidityOperation } from "@/transactions/liquidity-operation";
+
+const RequestFailed = batch_driver.v0_1.events.RequestFailed;
+type RequestFailed = batch_driver.v0_1.events.RequestFailed;
 
 export interface LiquidityObserver {
   scan(operation: LiquidityOperation): Promise<LiquidityOperation>;

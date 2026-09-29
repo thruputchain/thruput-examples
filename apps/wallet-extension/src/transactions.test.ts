@@ -34,7 +34,7 @@ export async function fixtureTransaction() {
       nonce: 4n,
       invocation: defaultWalletAdapter.createRootInvocation(account.address, {
         gasLimit: gasAmount(100000n),
-        invocation: ERC20.transfer.invocation(
+        invocation: ERC20.v0_1.transfer.invocation(
           contractAddress(new Uint8Array(32).fill(1)),
           gasAmount(50000n),
           { receiver: account.address, amount: 10n },
@@ -53,7 +53,7 @@ describe("transaction validation and signing", () => {
       calldata: new Uint8Array(0),
     };
     const root = () =>
-      DefaultWallet.execute.invocation(
+      DefaultWallet.v0_1.execute.invocation(
         accountOf(secret).address,
         gasAmount(100000n),
         { calls: [call] },
@@ -95,7 +95,7 @@ describe("transaction validation and signing", () => {
       gas_limit: 1n,
       calldata: new Uint8Array(0),
     };
-    tx.invocation = DefaultWallet.execute.invocation(
+    tx.invocation = DefaultWallet.v0_1.execute.invocation(
       accountOf(secret).address,
       gasAmount(100000n),
       { calls: Array.from({ length: 16 }, () => call) },
@@ -104,7 +104,7 @@ describe("transaction validation and signing", () => {
       inspectTransaction(toHex0x(serializeTransaction(tx)), secret).review
         .calls,
     ).toHaveLength(16);
-    tx.invocation = DefaultWallet.execute.invocation(
+    tx.invocation = DefaultWallet.v0_1.execute.invocation(
       accountOf(secret).address,
       gasAmount(100000n),
       { calls: Array.from({ length: 17 }, () => call) },
@@ -149,7 +149,7 @@ describe("transaction validation and signing", () => {
   });
   it("treats a malicious arbitrary target's matching selector as decoded fields only", async () => {
     const tx = await fixtureTransaction();
-    const invocation = ERC20.transfer.invocation(
+    const invocation = ERC20.v0_1.transfer.invocation(
       contractAddress(new Uint8Array(32).fill(0xde)),
       gasAmount(50000n),
       { receiver: accountOf(secret).address, amount: 10n },

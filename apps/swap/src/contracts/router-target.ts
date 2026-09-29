@@ -44,7 +44,7 @@ export function buildAddLiquidityTarget(
   ) {
     throw new RangeError("Liquidity amounts and minimums must be positive and bounded");
   }
-  return SwapRouter.addLiquidity.invocation(router, TARGET_GAS, {
+  return SwapRouter.v0_1.addLiquidity.invocation(router, TARGET_GAS, {
     tokenA: request.token0,
     tokenB: request.token1,
     amountsDesired: request.amountsDesired,
@@ -60,7 +60,7 @@ export function buildRemoveLiquidityTarget(
   if (request.liquidity <= 0n || request.amountsMin.some((amount) => amount <= 0n)) {
     throw new RangeError("Liquidity and minimum outputs must be positive");
   }
-  return SwapRouter.removeLiquidity.invocation(router, TARGET_GAS, {
+  return SwapRouter.v0_1.removeLiquidity.invocation(router, TARGET_GAS, {
     tokenA: request.token0,
     tokenB: request.token1,
     liquidity: request.liquidity,
@@ -73,7 +73,7 @@ export function buildExactInputSwapTarget(
   router: ContractAddress,
   request: ExactInputSwapRequest,
 ): Invocation {
-  return SwapRouter.swapExactTokensForTokens.invocation(
+  return SwapRouter.v0_1.swapExactTokensForTokens.invocation(
     router,
     TARGET_GAS,
     request,

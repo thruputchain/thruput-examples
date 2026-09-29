@@ -20,8 +20,11 @@ import { RegistryIndexer } from "./indexer.ts";
 import { RegistryStore } from "./store.ts";
 import {
   StandardTokenFactory,
-  TokenCreated,
+  standard_token_factory_if,
 } from "../src/contracts/generated/standard-token-factory.ts";
+
+const TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
+type TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 
 const scope: RegistryScope = {
   networkId: "11".repeat(32),
@@ -43,7 +46,7 @@ describe("GroundhogRegistrySource", () => {
   it.each(["before scan", "during page", "empty page", "no new blocks"])(
     "halts without committing when the network changes: %s",
     async (timing) => {
-      vi.spyOn(StandardTokenFactory.config, "view").mockResolvedValue({
+      vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
         value: factoryConfig(0x33),
         height: 1n,
         events: [],
@@ -169,7 +172,7 @@ describe("GroundhogRegistrySource", () => {
   );
 
   it("verifies the configured factory token implementation", async () => {
-    vi.spyOn(StandardTokenFactory.config, "view").mockResolvedValue({
+    vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
       value: factoryConfig(0x33),
       height: 1n,
       events: [],
@@ -181,7 +184,7 @@ describe("GroundhogRegistrySource", () => {
   });
 
   it("rejects a factory outside the configured token scope", async () => {
-    vi.spyOn(StandardTokenFactory.config, "view").mockResolvedValue({
+    vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
       value: factoryConfig(0x44),
       height: 1n,
       events: [],
