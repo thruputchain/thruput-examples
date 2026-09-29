@@ -105,7 +105,7 @@ fn regular_erc20_lifecycle_preserves_balances_supply_allowances_and_authority() 
         &env,
         env.transact(|tx| {
             tx.call(&ADMIN)
-                .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 200))
+                .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 200, false))
         }),
     );
     commit(
@@ -220,12 +220,12 @@ fn overdrafts_and_allowance_overflow_throw_without_events() {
         &env,
         env.transact(|tx| {
             tx.call(&ADMIN)
-                .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, i128::MAX))
+                .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, i128::MAX, false))
         }),
     );
     let allowance_overflow = env.transact(|tx| {
         tx.call(&ADMIN)
-            .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 1))
+            .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 1, false))
     });
     assert_erc20_error(&allowance_overflow, ERC20Error::TooLarge);
 
@@ -261,11 +261,11 @@ fn zero_operations_emit_canonical_transfer_and_approval_events() {
 
     let approval = env.transact(|tx| {
         tx.call(&ADMIN)
-            .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 0))
+            .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 0, false))
     });
     approval.assert_success();
     approval.assert_event_count(1);
-    approval.assert_event::<ApprovalEvent<'_>>(0, |event| {
+    approval.assert_event::<AllowanceChangeEvent<'_>>(0, |event| {
         assert_eq!(event.topic(1).unwrap(), ADMIN.as_ref());
         assert_eq!(event.topic(2).unwrap(), SPENDER.as_ref());
         assert_eq!(event.payload().difference, 0);
@@ -546,8 +546,8 @@ fn factory_caller_has_no_implicit_mint_authority() {
 
 #[test]
 fn erc20_identity_comes_from_the_pinned_interface_crates() {
-    assert_eq!(ERC20Client::INTERFACE_VERSION, "0.1.40");
-    assert_eq!(ERC20MetadataClient::INTERFACE_VERSION, "0.1.40");
+    assert_eq!(ERC20Client::INTERFACE_VERSION, "0.1.42");
+    assert_eq!(ERC20MetadataClient::INTERFACE_VERSION, "0.1.42");
     assert_eq!(
         TransferEvent::SIGNATURE,
         groundhog_erc20_if::TransferEvent::SIGNATURE

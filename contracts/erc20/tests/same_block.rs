@@ -176,7 +176,7 @@ fn an_approval_is_not_spendable_in_its_own_block() {
 
     env.transact(|tx| {
         tx.call(&alice())
-            .run(|| ERC20Client::new(&token()).adjust_allowance(&bob(), 40))
+            .run(|| ERC20Client::new(&token()).adjust_allowance(&bob(), 40, false))
     })
     .assert_success();
 
@@ -203,7 +203,7 @@ fn an_allowance_spend_merges_with_the_owners_own_debit() {
 
     env.transact(|tx| {
         tx.call(&alice())
-            .run(|| ERC20Client::new(&token()).adjust_allowance(&bob(), 40))
+            .run(|| ERC20Client::new(&token()).adjust_allowance(&bob(), 40, false))
     })
     .assert_success();
     env.advance_block();

@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use groundhog_erc20_if::{ApprovalEvent, CONTRACT_ADDR_ZERO, TransferEvent};
+use groundhog_erc20_if::{AllowanceChangeEvent, CONTRACT_ADDR_ZERO, TransferEvent};
 use groundhog_json_rpc_types::events::{
     BlockAnchor, ContractAddressList, EventFilter, EventFilterList, EventQuery, EventTopicFilter,
     IdentifiedEvent, IterationOrder, PaginationCursor, TopicList,
@@ -20,12 +20,12 @@ use sdk::sys::{SyscallErrorCode, SyscallNo};
 use standard_token::Config;
 use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
 
-const ERC20: (&str, &str) = ("ERC20", "0.1.9");
-const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.9");
+const ERC20: (&str, &str) = ("ERC20", "0.1.42");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.42");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
 const REQUIRED_FACTORY_FUNDING: u128 = 1_000_000;
-const REQUIRED_TOKEN_FUNDING: u128 = 350_770;
-const TOKEN_SOURCE_FUNDING: u128 = 352_004;
+const REQUIRED_TOKEN_FUNDING: u128 = 353_130;
+const TOKEN_SOURCE_FUNDING: u128 = 354_364;
 const ROW_FUNDING: u128 = 12_000;
 const NATIVE_TOKEN_FUNDING: u128 = 1_000_000;
 const CREATION_FEE: u128 = 25;
@@ -144,7 +144,7 @@ fn assert_transfer(
     assert_eq!(xdrs::cxs::decode::<i128>(&event.data.0).unwrap(), amount);
 }
 
-fn assert_approval(
+fn assert_allowance_change(
     receipt: &TransactionReceipt,
     index: usize,
     contract: ContractAddress,
@@ -155,7 +155,7 @@ fn assert_approval(
     let event = &receipt.events[index];
     assert_eq!(event.contract_address.0, contract);
     assert_eq!(event.topics.len(), 3);
-    assert_eq!(event.topics[0].0, *ApprovalEvent::SIGNATURE);
+    assert_eq!(event.topics[0].0, *AllowanceChangeEvent::SIGNATURE);
     assert_eq!(event.topics[1].0, *owner.as_ref());
     assert_eq!(event.topics[2].0, *spender.as_ref());
     assert_eq!(
@@ -265,12 +265,26 @@ fn spec_names<'a>(value: &'a serde_json::Value, key: &str) -> Vec<&'a str> {
         .collect()
 }
 
+/// The `declared` identifier of each structured spec id (events, type defs).
+fn declared_names<'a>(value: &'a serde_json::Value, key: &str) -> Vec<&'a str> {
+    value[key]
+        .as_array()
+        .expect("spec collection")
+        .iter()
+        .map(|item| {
+            item["name"]["declared"]
+                .as_str()
+                .expect("structured spec id")
+        })
+        .collect()
+}
+
 fn named<'a>(items: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
     items
         .as_array()
         .expect("spec collection")
         .iter()
-        .find(|item| item["name"] == name)
+        .find(|item| item["name"] == name || item["name"]["declared"] == name)
         .unwrap_or_else(|| panic!("missing spec item {name}"))
 }
 
@@ -287,10 +301,15 @@ fn assert_generated_specs(root: &Path) {
     assert_eq!(factory["format"], "gh_contract_spec_v1");
     assert_eq!(token["format"], "gh_contract_spec_v1");
     assert_eq!(factory["interfaces"][0]["version"], FACTORY.1);
-    assert_eq!(spec_names(&factory, "events"), ["TokenCreated"]);
+    assert_eq!(declared_names(&factory, "events"), ["TokenCreated"]);
     assert_eq!(
-        spec_names(&token, "events"),
-        ["ApprovalEvent", "TransferEvent"]
+        declared_names(&token, "events"),
+        [
+            "AllowanceChangeEvent",
+            "BurnEvent",
+            "MintEvent",
+            "TransferEvent"
+        ]
     );
     let factory_config = named(&factory["type_defs"], "FactoryConfig");
     assert_eq!(
@@ -381,7 +400,7 @@ fn assert_generated_specs(root: &Path) {
         assert!(erc20_methods.contains(&method));
     }
     assert_eq!(
-        spec_names(named(&token["events"], "ApprovalEvent"), "fields"),
+        spec_names(named(&token["events"], "AllowanceChangeEvent"), "fields"),
         ["difference"]
     );
     assert_eq!(
@@ -411,18 +430,11 @@ fn spender_agent() -> Agent {
                 &(request.owner, me, request.amount),
             )
             .await?;
-        assert_eq!(receipt.events.len(), 2);
-        assert_approval(
-            &receipt,
-            0,
-            request.token,
-            request.owner,
-            me,
-            -(request.amount as i128),
-        );
+        // Spending an allowance emits only the transfer it pays for.
+        assert_eq!(receipt.events.len(), 1);
         assert_transfer(
             &receipt,
-            1,
+            0,
             request.token,
             request.owner,
             me,
@@ -657,10 +669,10 @@ fn creator_agent() -> Agent {
             .call(&mut ctx, "transfer", &(created, ROW_FUNDING))
             .await?;
         let approval = token
-            .call(&mut ctx, "adjust_allowance", &(spender, 150_i128))
+            .call(&mut ctx, "adjust_allowance", &(spender, 150_i128, false))
             .await?;
         assert_eq!(approval.events.len(), 1);
-        assert_approval(&approval, 0, created, creator, spender, 150);
+        assert_allowance_change(&approval, 0, created, creator, spender, 150);
         assert_eq!(balance(&ctx, &token, creator).await?, 900);
         assert_eq!(balance(&ctx, &token, spender).await?, 200);
         assert_eq!(reserve(&ctx, &native, created).await?, 0);
@@ -743,7 +755,7 @@ fn creator_agent() -> Agent {
             .call(
                 &mut ctx,
                 "adjust_allowance",
-                &(fee_factory.address(), CREATION_FEE as i128),
+                &(fee_factory.address(), CREATION_FEE as i128, false),
             )
             .await?;
         let recipient_before = reserve(&ctx, &native, spender).await?;

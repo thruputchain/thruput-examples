@@ -14,6 +14,7 @@ export function buildApprovalTarget(
   }
   return ERC20.v0_1.adjustAllowance.invocation(token, TARGET_GAS, {
     spender,
-    diff: difference,
+    difference,
+    exclusive: false,
   });
 }

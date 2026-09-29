@@ -73,7 +73,7 @@ const contract = (name: string) => ({
 });
 const config = {
   token_code_hash: fixedBytes(hashContract(contract("standard_token")), 32),
-  required_token_funding: 350_770n,
+  required_token_funding: 360_000n,
   native_token: HOG_ADDRESS,
   creation_fee: 0n,
   fee_recipient: null,
@@ -330,11 +330,11 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });
 
-  it("enforces the maximum token artifact size within 350770 funding", async () => {
-    // 50914 fixed worst-case storage cost leaves room for 29985 code bytes.
-    expect(() => validateTokenFunding(costs, 29_985)).not.toThrow();
-    expect(() => validateTokenFunding(costs, 29_986)).toThrow(/funding budget/);
-    await writeFile(join(root, "standard_token.rv32a"), Buffer.alloc(29_986));
+  it("enforces the maximum token artifact size within 360000 funding", async () => {
+    // 50914 fixed worst-case storage cost leaves room for 30908 code bytes.
+    expect(() => validateTokenFunding(costs, 30_908)).not.toThrow();
+    expect(() => validateTokenFunding(costs, 30_909)).toThrow(/funding budget/);
+    await writeFile(join(root, "standard_token.rv32a"), Buffer.alloc(30_909));
     await expect(main()).rejects.toThrow(/funding budget/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });

@@ -23,22 +23,22 @@ categories = ["blockchain"]
 
 [workspace.dependencies]
 # from sdk_rs repo:
-sdk = { registry = "groundhog", version = "=0.40.0" }
-groundhog-contract-util = { registry = "groundhog", version = "=0.40.0" }
-groundhog-u256 = { registry = "groundhog", version = "=0.40.0", default-features = false }
-groundhog-domain-separator = { registry = "groundhog", version = "=0.40.0", default-features = false }
-groundhog-event = { registry = "groundhog", version = "=0.40.0" }
-groundhog-erc20-if = { registry = "groundhog", version = "=0.1.40" }
-groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.40" }
-groundhog-erc20-permit-if = { registry = "groundhog", version = "=0.1.40" }
-groundhog-signed-op-if = { registry = "groundhog", version = "=0.1.40" }
-groundhog-signed-op = { registry = "groundhog", version = "=0.1.40" }
+sdk = { registry = "groundhog", version = "=0.41.1" }
+groundhog-contract-util = { registry = "groundhog", version = "=0.41.1" }
+groundhog-u256 = { registry = "groundhog", version = "=0.41.1", default-features = false }
+groundhog-domain-separator = { registry = "groundhog", version = "=0.41.1", default-features = false }
+groundhog-event = { registry = "groundhog", version = "=0.41.1" }
+groundhog-erc20-if = { registry = "groundhog", version = "=0.1.42" }
+groundhog-erc20-metadata-if = { registry = "groundhog", version = "=0.1.42" }
+groundhog-erc20-permit-if = { registry = "groundhog", version = "=0.1.42" }
+groundhog-signed-op-if = { registry = "groundhog", version = "=0.1.42" }
+groundhog-signed-op = { registry = "groundhog", version = "=0.1.42" }
 
 # from groundhog-rpc repo:
-groundhog-json-rpc-client = { registry = "groundhog", version = "=0.19.0-pre.2" }
-groundhog-json-rpc-types = { registry = "groundhog", version = "=0.19.0-pre.2" }
-groundhog-signing = { registry = "groundhog", version = "=0.19.0-pre.2" }
-groundhog-testkit = { registry = "groundhog", version = "=0.19.0-pre.2" }
+groundhog-json-rpc-client = { registry = "groundhog", version = "=0.19.0" }
+groundhog-json-rpc-types = { registry = "groundhog", version = "=0.19.0" }
+groundhog-signing = { registry = "groundhog", version = "=0.19.0" }
+groundhog-testkit = { registry = "groundhog", version = "=0.19.0" }
 
 # from other groundhog crates:
 groundhog-xdr = { registry = "groundhog", version = "=0.42.0", features = ["serde", "xdrs"] }

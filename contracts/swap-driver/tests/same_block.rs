@@ -196,7 +196,7 @@ fn revoking_the_allowance_starves_a_queued_request() {
         // Alice thinks better of it.
         etx.exec_user_tx(ALICE, |_| {
             ctx.token0()
-                .adjust_allowance(&ctx.request_handler_addr, -(SWAP_IN_AMT as i128));
+                .adjust_allowance(&ctx.request_handler_addr, -(SWAP_IN_AMT as i128), false);
         })?;
 
         let (crank, counts) = crank_capturing(&etx);
@@ -218,7 +218,7 @@ fn user_requests_a_swap(etx: &Etx, user: User) -> Result<RequestId> {
 
     etx.exec_user_tx(user, |_| {
         ctx.token0()
-            .adjust_allowance(&ctx.request_handler_addr, SWAP_IN_AMT as i128);
+            .adjust_allowance(&ctx.request_handler_addr, SWAP_IN_AMT as i128, false);
     })?;
 
     etx.exec_tx(&ROUTER_ADDR, move || {

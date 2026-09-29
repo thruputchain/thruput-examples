@@ -17,7 +17,6 @@ import {
   PrivateKeySigner,
   toHex0x,
 } from "@groundhogchain/client";
-import { ERC20 } from "@groundhogchain/client/contracts";
 import {
   codec,
   serialize,
@@ -36,6 +35,7 @@ import {
 import {
   ERC20Metadata,
 } from "../../apps/token-launchpad/src/contracts/generated/standard-token.ts";
+import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20.ts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapRouter } from "../../apps/swap/src/contracts/generated/swap-router.ts";
 import { SwapDriver, batch_driver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
@@ -548,7 +548,8 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       "approve-pool-funding",
       ERC20.v0_1.adjustAllowance.invocation(HOG_ADDRESS, GAS, {
         spender: swapFactory,
-        diff: funding.recommended * 3n,
+        difference: funding.recommended * 3n,
+        exclusive: false,
       }),
     );
     await execute(
@@ -577,7 +578,8 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         `approve-liquidity-${toHex0x(token)}`,
         ERC20.v0_1.adjustAllowance.invocation(token, GAS, {
           spender: pool.handler,
-          diff: LIQUIDITY,
+          difference: LIQUIDITY,
+          exclusive: false,
         }),
       );
     }

@@ -6,14 +6,12 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 check="$script_dir/check-groundhog-version.sh"
 
 for version in \
-  'groundhog 0.19.0-pre.2 (commit unavailable)' \
-  'groundhog 0.19.0-pre.2+build.1' \
-  'groundhog 0.19.0-pre.3' \
-  'groundhog 0.19.0-pre.10' \
-  'groundhog 0.19.0' \
+  'groundhog 0.19.0 (commit unavailable)' \
+  'groundhog 0.19.0+build.1' \
+  'groundhog 0.19.1' \
   'groundhog 0.19.1-rc.1' \
-  'groundhog 0.19.0-rc.1 (commit unavailable)' \
-  'groundhog 0.19.0-rc.1+build.42 (commit abc123)' \
+  'groundhog 0.19.1-rc.1+build.42 (commit abc123)' \
+  'groundhog 0.20.0-pre.1' \
   'groundhog 1.0.0-rc.1' \
   'groundhog 1.0.0' \
   'groundhog 2.0.0'; do
@@ -28,9 +26,10 @@ for version in \
   'groundhog 0.17.3' \
   'groundhog 0.18.0' \
   'groundhog 0.18.1-rc.1' \
-  'groundhog 0.19.0-pre.0' \
   'groundhog 0.19.0-pre.1' \
-  'groundhog 0.19.0-pre.1+build.1' \
+  'groundhog 0.19.0-pre.2' \
+  'groundhog 0.19.0-pre.2+build.1' \
+  'groundhog 0.19.0-rc.1' \
   'groundhog 0.19.0-alpha.9' \
   'groundhog 0.18.0-rc.1+build.1' \
   'groundhog 0.16' \
@@ -45,7 +44,7 @@ for version in \
     printf 'Expected rejection: %s\n' "$version" >&2
     exit 1
   fi
-  [[ "$output" == "Groundhog CLI 0.19.0-pre.2 or newer is required; found $version." ]]
+  [[ "$output" == "Groundhog CLI 0.19.0 or newer is required; found $version." ]]
 done
 
-printf 'Groundhog CLI version checks passed (28 cases).\n'
+printf 'Groundhog CLI version checks passed (27 cases).\n'

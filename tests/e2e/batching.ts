@@ -18,7 +18,7 @@ import {
   PrivateKeySigner,
   toHex0x,
 } from "@groundhogchain/client";
-import { DefaultWallet, ERC20 } from "@groundhogchain/client/contracts";
+import { DefaultWallet } from "@groundhogchain/client/contracts";
 import {
   ContractType,
   ExecResult,
@@ -30,6 +30,7 @@ import {
 import {
   StandardTokenFactory,
 } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
+import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20.ts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapRouter } from "../../apps/swap/src/contracts/generated/swap-router.ts";
 import { SwapDriver, batch_driver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
@@ -319,7 +320,8 @@ try {
   const calls = [
     ERC20.v0_1.adjustAllowance.invocation(HOG_ADDRESS, gas, {
       spender: swapFactory,
-      diff: funding * 3n,
+      difference: funding * 3n,
+      exclusive: false,
     }),
     SwapFactory.v0_1.createPair.invocation(swapFactory, gas, {
       tokenA: token0!,
@@ -328,11 +330,13 @@ try {
     }),
     ERC20.v0_1.adjustAllowance.invocation(token0!, gas, {
       spender: pool.handler,
-      diff: amount,
+      difference: amount,
+      exclusive: false,
     }),
     ERC20.v0_1.adjustAllowance.invocation(token1!, gas, {
       spender: pool.handler,
-      diff: amount,
+      difference: amount,
+      exclusive: false,
     }),
     SwapRouter.v0_1.addLiquidity.invocation(router, gas, {
       tokenA: token0!,
@@ -373,7 +377,8 @@ try {
       await batch("Approve eight queued swaps", [
         ERC20.v0_1.adjustAllowance.invocation(token0!, gas, {
           spender: pool.handler,
-          diff: 8_000n,
+          difference: 8_000n,
+          exclusive: false,
         }),
       ])
     ).execResult,

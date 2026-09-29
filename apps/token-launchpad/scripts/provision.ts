@@ -40,7 +40,7 @@ type FactoryConfig = standard_token_factory_if.v0_1.factory.FactoryConfig;
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 const CONTRACT_FUNDING = 10_000_000n;
-const REQUIRED_TOKEN_FUNDING = 350_770n;
+const REQUIRED_TOKEN_FUNDING = 360_000n;
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
 export async function provisionLaunchpad(options: {

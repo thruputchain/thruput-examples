@@ -6,7 +6,7 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
 pub use groundhog_erc20_if::{
-    Amount, ApprovalEvent, Difference, ERC20, ERC20Client, ERC20Error, TransferEvent,
+    AllowanceChangeEvent, Amount, Difference, ERC20, ERC20Client, ERC20Error, TransferEvent,
 };
 pub use groundhog_erc20_metadata_if::{ERC20Metadata, ERC20MetadataClient, Name, Symbol};
 pub use sdk::{ContractAddress, SHA256Hash};
