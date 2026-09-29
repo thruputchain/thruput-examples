@@ -2062,7 +2062,9 @@ dependencies = [
  "groundhog-erc20-permit-if",
  "groundhog-signed-op-if",
  "permit-relayer",
+ "permit-wallet",
  "sdk",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

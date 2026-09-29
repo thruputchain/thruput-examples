@@ -11,7 +11,7 @@ Use Node.js 22.13 or newer and run `npm ci` from the repository root with the
 [npm registry authentication](../../README.md#install-swap-and-launchpad-dependencies)
 configured.
 
-Use **Groundhog CLI 0.18.0** and **hog-devnode 0.1.27-rc.7** for local checks.
+Use **Groundhog CLI 0.19.0-pre.2** and **hog-devnode 0.1.29-rc.3** for local checks.
 Use compatible CLI/devnode builds: a newer CLI can
 require a runtime manifest that an older devnode does not provide.
 

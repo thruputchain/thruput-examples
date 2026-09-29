@@ -361,6 +361,51 @@ fn only_the_named_spender_may_redeem_a_grant_directly() {
     assert_eq!(balance_of(&env, receiver()), 0);
 }
 
+/// The relayer reads the signed body to pick the token method, so a clear
+/// request relays the same way a permit does, and takes the allowance back.
+#[test]
+fn a_relayed_clear_revokes_the_allowance() {
+    let env = setup();
+    let (op, signature) = alice_permit(&env);
+    relay(&env, op, signature).assert_success();
+    env.advance_block();
+    assert_eq!(allowance(&env), GRANTED);
+
+    let (op, signature) = sign(
+        &ALICE_SEED,
+        &wallet(),
+        1,
+        current_height(&env) + HORIZON,
+        &clear_request(),
+    );
+    relay(&env, op, signature).assert_success();
+    env.advance_block();
+    assert_eq!(allowance(&env), 0);
+}
+
+/// A body the wallet could not decode is refused by the relayer before the
+/// wallet sees it; nothing is minted and nothing is consumed.
+#[test]
+fn the_relayer_refuses_a_body_that_is_not_a_wallet_request() {
+    let env = setup();
+    let (mut op, signature) = alice_permit(&env);
+    op.body.0.truncate(1);
+
+    env.transact(|tx| {
+        tx.call(&spender()).run(move || {
+            let result =
+                PermitRelayerClient::new(&relayer()).try_relay(&wallet(), &token(), op, &signature);
+            assert_eq!(
+                result.unwrap_err().try_as(),
+                Some(permit_relayer::RelayError::NotAWalletRequest)
+            );
+        })
+    })
+    .assert_success();
+    env.advance_block();
+    assert_eq!(allowance(&env), 0);
+}
+
 /// A signed clear takes a standing allowance back: the entry is deleted, and
 /// the spender can no longer draw on it.
 #[test]
