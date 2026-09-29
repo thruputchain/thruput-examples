@@ -2,6 +2,9 @@
 
 use speedex::engine::*;
 
+/// The round cap every test clears with.
+const ROUNDS: u32 = 64;
+
 fn px(x: f64) -> Price {
     (x * PRICE_ONE as f64).round() as Price
 }
@@ -10,7 +13,7 @@ fn ratio(p: &Prices, sell: usize, buy: usize) -> f64 {
     p[sell] as f64 / p[buy] as f64
 }
 
-fn bucket(sell: usize, buy: usize, limit: f64, amount: u128, grid: Grid) -> Bucket {
+fn bucket(sell: u8, buy: u8, limit: f64, amount: u128, grid: Grid) -> Bucket {
     let level = grid.level_for(px(limit)).expect("limit on the grid");
     Bucket {
         sell,
@@ -38,8 +41,9 @@ fn book_fill(fills: &[(usize, BookFill)], sell: usize, buy: usize) -> Option<&Bo
 // Settle a bucket as if it were one offer, under a clearing's book fills.
 fn fill_of(b: &Bucket, c: &Clearing, fills: &[(usize, BookFill)]) -> Fill {
     let none = BookFill::default();
-    let bf = book_fill(fills, b.sell, b.buy).unwrap_or(&none);
-    fill(b.amount, b.level, bf, c.prices[b.sell], c.prices[b.buy])
+    let (sell, buy) = (b.sell as usize, b.buy as usize);
+    let bf = book_fill(fills, sell, buy).unwrap_or(&none);
+    fill(b.amount, b.level, bf, c.prices[sell], c.prices[buy])
 }
 
 // What every clearing must satisfy over a set of offers (here, buckets standing in for offers):
@@ -52,11 +56,11 @@ fn assert_sound(buckets: &[Bucket], n: usize, c: &Clearing, fills: &[(usize, Boo
     for b in buckets {
         let f = fill_of(b, c, fills);
         assert!(f.sold <= b.amount, "{f:?} of {}", b.amount);
-        sold[b.sell] += f.sold;
-        bought[b.buy] += f.bought;
+        sold[b.sell as usize] += f.sold;
+        bought[b.buy as usize] += f.bought;
 
         let limit = b.limit as f64 / PRICE_ONE as f64;
-        let r = ratio(&c.prices, b.sell, b.buy);
+        let r = ratio(&c.prices, b.sell as usize, b.buy as usize);
         if f.sold > 0 {
             assert!(r > limit, "traded at {r} under limit {limit}");
         }
@@ -158,7 +162,7 @@ fn ring_of_three_clears_at_equal_prices() {
         bucket(1, 2, 0.9, amount, GRID),
         bucket(2, 0, 0.9, amount, GRID),
     ];
-    let (c, fills) = clear(&buckets, 3, GRID);
+    let (c, fills) = clear(&buckets, 3, ROUNDS);
 
     for (sell, buy) in [(0, 1), (1, 2), (2, 0)] {
         assert!(
@@ -188,7 +192,7 @@ fn two_sided_market_finds_the_price_that_fills_both_sides() {
     let a_for_b = bucket(0, 1, 0.4, 100_000_000, GRID);
     let b_for_a = bucket(1, 0, 1.5, 50_000_000, GRID);
     let buckets = [a_for_b, b_for_a];
-    let (c, fills) = clear(&buckets, 2, GRID);
+    let (c, fills) = clear(&buckets, 2, ROUNDS);
 
     let r = ratio(&c.prices, 0, 1);
     assert!((r - 0.5).abs() < 0.02, "p_A / p_B = {r}");
@@ -217,7 +221,7 @@ fn a_limit_that_binds_fills_partially_at_the_limit() {
     let a_for_b = bucket(0, 1, 0.4, 100_000_000, GRID);
     let b_for_a = bucket(1, 0, 1.0, 30_000_000, GRID);
     let buckets = [a_for_b, b_for_a];
-    let (c, fills) = clear(&buckets, 2, GRID);
+    let (c, fills) = clear(&buckets, 2, ROUNDS);
 
     let limit = a_for_b.limit as f64 / PRICE_ONE as f64;
     assert!(limit > 0.4 && limit < 0.43, "grid level {limit}");
@@ -252,7 +256,7 @@ fn levels_fill_from_the_most_in_the_money_down() {
         bucket(0, 1, 1.5, 10_000_000, GRID),
         bucket(1, 0, 0.9, 20_000_000, GRID),
     ];
-    let (c, fills) = clear(&buckets, 2, GRID);
+    let (c, fills) = clear(&buckets, 2, ROUNDS);
     let ab = book_fill(&fills, 0, 1).expect("A for B traded");
     let r = ratio(&c.prices, 0, 1);
 
@@ -284,7 +288,7 @@ fn crossed_limits_trade_nothing() {
         bucket(0, 1, 2.0, 1_000_000, GRID),
         bucket(1, 0, 2.0, 1_000_000, GRID),
     ];
-    let (c, fills) = clear(&buckets, 2, GRID);
+    let (c, fills) = clear(&buckets, 2, ROUNDS);
     assert_eq!(c.volume, 0);
     assert!(fills.is_empty());
     for b in &buckets {
@@ -303,7 +307,7 @@ fn buckets_up_to_i128_max_clear_without_overflow() {
         bucket(1, 2, 0.5, huge / 3, GRID),
         bucket(2, 1, 1.9, 1 << 20, GRID),
     ];
-    let (c, fills) = clear(&buckets, 3, GRID);
+    let (c, fills) = clear(&buckets, 3, ROUNDS);
     assert!(c.volume > 0, "{c:?}");
     assert_sound(&buckets, 3, &c, &fills);
 
@@ -324,7 +328,7 @@ fn buckets_up_to_i128_max_clear_without_overflow() {
 
     // And a batch with one bucket at the maximum and nothing to trade against it is fine too.
     let lone = [bucket(0, 1, 0.9, huge, GRID)];
-    let (c, fills) = clear(&lone, 2, GRID);
+    let (c, fills) = clear(&lone, 2, ROUNDS);
     assert_eq!(c.volume, 0);
     assert!(fills.is_empty());
 }
@@ -368,15 +372,15 @@ fn a_batch_of_two_thousand_cells_clears_through_the_coarse_price_search() {
             continue;
         }
         buckets.push(Bucket {
-            sell,
-            buy,
+            sell: sell as u8,
+            buy: buy as u8,
             level,
             limit: grid.ratio(level),
             amount: MIN_AMOUNT + rng.below(1 << 40) as u128,
         });
     }
     let buckets = sorted(buckets);
-    let (c, fills) = clear(&buckets, n, grid);
+    let (c, fills) = clear(&buckets, n, ROUNDS);
     assert!(c.volume > 0);
     assert_sound(&buckets, n, &c, &fills);
 }
@@ -404,7 +408,7 @@ fn random_batches_are_sound_and_respect_every_limit() {
             let level = rng.below(grid.levels() as u64) as u32;
             if let Some(b) = buckets
                 .iter_mut()
-                .find(|b| b.sell == sell && b.buy == buy && b.level == level)
+                .find(|b| (b.sell as usize, b.buy as usize, b.level) == (sell, buy, level))
             {
                 let amount = MIN_AMOUNT + rng.below(1 << 40) as u128;
                 offers.push((sell, buy, level, amount));
@@ -423,15 +427,15 @@ fn random_batches_are_sound_and_respect_every_limit() {
                 total += amount;
             }
             buckets.push(Bucket {
-                sell,
-                buy,
+                sell: sell as u8,
+                buy: buy as u8,
                 level,
                 limit: grid.ratio(level),
                 amount: total,
             });
         }
         let buckets = sorted(buckets);
-        let (c, fills) = clear(&buckets, n, grid);
+        let (c, fills) = clear(&buckets, n, ROUNDS);
         relaxed += (c.shortfall > 0) as u32;
         most_cancellations = most_cancellations.max(c.cancellations);
 

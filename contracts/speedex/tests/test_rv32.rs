@@ -17,6 +17,7 @@ hash_ident! { static TOKEN_A_NONCE: SHA256Hash; }
 hash_ident! { static TOKEN_B_NONCE: SHA256Hash; }
 hash_ident! { static TOKEN_C_NONCE: SHA256Hash; }
 hash_ident! { static EXCHANGE_NONCE: SHA256Hash; }
+hash_ident! { static BIG_EXCHANGE_NONCE: SHA256Hash; }
 
 const UNIT: u128 = 1_000_000;
 
@@ -54,7 +55,7 @@ fn ring_trade_rv32() {
         let exchange = deploy_contract(&EXCHANGE_NONCE, &exchange_hash);
         let mut assets = [ContractAddress::new([0; 32]); MAX_ASSETS];
         assets[..3].copy_from_slice(&tokens);
-        SpeedexClient::new(&exchange).initialize(3, assets, 1, 2, 12);
+        SpeedexClient::new(&exchange).initialize(3, assets, 1, 2, 12, 64);
         (exchange, tokens)
     });
     env.advance_block();
@@ -112,4 +113,73 @@ fn ring_trade_rv32() {
         });
         assert!(got >= 980 * UNIT, "{got}");
     }
+}
+
+/// The largest clearing the contract accepts, `MAX_CLEAR_CELLS` cells, fits the guest's memory:
+/// every bucket of the batch is held at once, along with the SDK's record of every cell read, and
+/// the RV32 executor enforces the 64 KiB. `SPEEDEX_RV32_CELLS` overrides the count, to find the
+/// bound when the contract or the SDK changes: with three assets it lies between 384 and 512.
+#[test]
+#[ignore = "requires RV32 build — run via `groundhog test`"]
+fn largest_clearing_fits_the_guest_rv32() {
+    let env = TestEnvironment::no_cost();
+    let token_hash =
+        env.setup_create_contract(&load_rv32_contract("../../target/groundhog/erc20.rv32a"));
+    let exchange_hash =
+        env.setup_create_contract(&load_rv32_contract("../../target/groundhog/speedex.rv32a"));
+    let grid = Grid {
+        octaves: 2,
+        level_bits: 12,
+    };
+
+    let (exchange, tokens) = run(&env, &TEST, || {
+        let tokens = [
+            deploy_contract(&TOKEN_A_NONCE, &token_hash),
+            deploy_contract(&TOKEN_B_NONCE, &token_hash),
+            deploy_contract(&TOKEN_C_NONCE, &token_hash),
+        ];
+        for t in &tokens {
+            ERC20Client::new(t).initialize(&TEST);
+            ERC20Client::new(t).mint(&ALICE, u128::MAX / 4);
+        }
+        let exchange = deploy_contract(&BIG_EXCHANGE_NONCE, &exchange_hash);
+        let mut assets = [ContractAddress::new([0; 32]); MAX_ASSETS];
+        assets[..3].copy_from_slice(&tokens);
+        SpeedexClient::new(&exchange).initialize(3, assets, 1, grid.octaves, grid.level_bits, 64);
+        (exchange, tokens)
+    });
+    env.advance_block();
+    run(&env, &ALICE, || {
+        for t in &tokens {
+            ERC20Client::new(t).adjust_allowance(&exchange, i128::MAX / 4, false);
+        }
+    });
+    env.advance_block();
+
+    // One offer per cell, spread over the six orderbooks and a band of levels around one.
+    let client = SpeedexClient::new(&exchange);
+    let batch = run(&env, &TEST, || client.current_batch());
+    let mut cells: Vec<u32> = Vec::new();
+    let mut id = None;
+    let cells_wanted: u32 = std::env::var("SPEEDEX_RV32_CELLS")
+        .map(|v| v.parse().unwrap())
+        .unwrap_or(MAX_CLEAR_CELLS as u32);
+    for i in 0..cells_wanted {
+        let (sell, buy) = [(0u32, 1u32), (1, 2), (2, 0), (1, 0), (2, 1), (0, 2)][i as usize % 6];
+        let level = grid.levels() / 2 - 100 + i / 6;
+        let min_price = grid.ratio(level);
+        cells.push((engine::book(sell as usize, buy as usize) as u32) << 20 | level);
+        let this = run(&env, &ALICE, || {
+            client.submit_offer(sell, buy, 1000 * UNIT, min_price)
+        });
+        id.get_or_insert(this);
+    }
+    env.advance_block();
+
+    cells.sort_unstable();
+    let cells: Vec<u8> = cells.iter().flat_map(|c| c.to_le_bytes()).collect();
+    let clearing = run(&env, &TEST, || client.clear_batch(batch, &cells));
+    assert!(clearing.volume > 0);
+    env.advance_block();
+    run(&env, &TEST, || client.settle_offer(&id.unwrap()));
 }

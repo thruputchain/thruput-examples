@@ -19,8 +19,8 @@
 //!   own record alone. Settlements touch disjoint records and commutative balances, so a batch's
 //!   offers settle in any order, any number to a block, alongside the next batch's submissions.
 //!
-//! The one thing that runs alone is the clearing transaction, and its cost does not grow with the
-//! batch.
+//! The one thing that runs alone is the clearing transaction, and its cost grows with the number
+//! of distinct limit prices in the batch, never with the number of offers.
 //!
 //! # Simplifications relative to SPEEDEX
 //!
@@ -57,9 +57,11 @@ pub type BatchId = u64;
 
 /// The most occupied histogram cells -- price levels in use, over all orderbooks -- one clearing
 /// will read. A batch with more cannot be cleared, so this is a liveness bound to set against the
-/// grid's fineness and the epoch's length; calibrate on a devnode before choosing a configuration
-/// near it.
-pub const MAX_CLEAR_CELLS: usize = 2048;
+/// grid's fineness and the epoch's length. A clearing holds every bucket of its batch, and the
+/// SDK's record of every cell it read, in the guest's 64 KiB of memory; this many fits with room
+/// to spare, and about 400 do not (`tests/test_rv32.rs`). What a node charges bounds a batch more
+/// tightly still, at about 39k gas per cell read on a devnode (`tests/testkit_gas.rs`).
+pub const MAX_CLEAR_CELLS: usize = 256;
 
 #[contract_exception]
 pub enum SpeedexError {
@@ -107,6 +109,25 @@ pub struct Config {
     pub octaves: u32,
     /// Fineness of the grid: `2^level_bits` levels to the doubling.
     pub level_bits: u32,
+    /// The most tâtonnement rounds a clearing runs; see [`engine::MAX_ROUNDS`].
+    pub rounds: u32,
+}
+
+/// What the parts of a clearing cost, measured on the node that ran
+/// [`measure_clearing`](Speedex::measure_clearing).
+#[contract_type]
+#[derive(Clone, Copy)]
+pub struct GasReport {
+    /// Occupied cells read.
+    pub cells: u32,
+    /// Gas spent checking and reading the cell list.
+    pub read: u64,
+    /// Gas spent finding prices (tâtonnement).
+    pub prices: u64,
+    /// Gas spent on the circulation and the book fills.
+    pub circulation: u64,
+    /// The clearing those prices give.
+    pub clearing: Clearing,
 }
 
 /// An offer awaiting settlement.
@@ -247,6 +268,7 @@ impl Speedex {
         epoch_len: u64,
         octaves: u32,
         level_bits: u32,
+        rounds: u32,
     ) {
         if self.config.try_get().none_if_missing().is_some() {
             throw(SpeedexError::AlreadyInitialized);
@@ -257,7 +279,10 @@ impl Speedex {
             level_bits,
         };
         ensure(
-            (2..=MAX_ASSETS).contains(&n) && epoch_len > 0 && grid.is_valid(),
+            (2..=MAX_ASSETS).contains(&n)
+                && epoch_len > 0
+                && grid.is_valid()
+                && (1..=engine::MAX_ROUNDS).contains(&rounds),
             SpeedexError::InvalidConfiguration,
         );
         let zero = Address::new([0; 32]);
@@ -276,6 +301,7 @@ impl Speedex {
             epoch_len,
             octaves,
             level_bits,
+            rounds,
         });
     }
 
@@ -381,7 +407,80 @@ impl Speedex {
     /// an incomplete list is [`SpeedexError::BatchMismatch`], never a clearing.
     pub fn clear_batch(&mut self, batch: BatchId, cells: &[u8]) -> Clearing {
         let cfg = self.cfg();
-        ensure(batch < Self::batch_of_height(&cfg), SpeedexError::BatchOpen);
+        let (buckets, listed) = self.read_batch(&cfg, batch, cells);
+        let n = cfg.n_assets as usize;
+        let (clearing, fills) = engine::clear(&buckets, n, cfg.rounds);
+
+        // The histogram has served its purpose; only the clearing is needed from here on.
+        let mut book = self.books.at_mut(&batch);
+        for b in &buckets {
+            book.delete_at(&cell(
+                engine::book(b.sell as usize, b.buy as usize) as u32,
+                b.level,
+            ));
+        }
+        drop(book);
+        let mut totals = self.totals.at_mut(&batch);
+        for (index, total) in listed.iter().enumerate() {
+            if *total > 0 {
+                totals.delete_at(&(index as u32));
+            }
+        }
+        drop(totals);
+
+        self.clearings.at_mut(&batch).set_exclusive(&clearing);
+        let mut traded = self.fills.at_mut(&batch);
+        for (index, fill) in &fills {
+            traded.at_mut(&(*index as u32)).set_exclusive(fill);
+        }
+        drop(traded);
+
+        log_event(&BatchCleared {
+            batch,
+            prices: clearing.prices,
+            rounds: clearing.rounds,
+            cancellations: clearing.cancellations,
+            volume: clearing.volume,
+            shortfall: clearing.shortfall,
+        });
+
+        clearing
+    }
+
+    /// Run a closed batch's clearing without recording it, and report what each part of it cost
+    /// in gas, with tâtonnement capped at `rounds` in place of the configured cap. The batch stays
+    /// clearable: this is how a clearer learns what [`clear_batch`](Self::clear_batch) will cost
+    /// before paying it, and how `tests/testkit_gas.rs` measures the engine.
+    pub fn measure_clearing(&mut self, batch: BatchId, cells: &[u8], rounds: u32) -> GasReport {
+        use sdk::stats::gas_remaining;
+        let start = gas_remaining();
+        let cfg = self.cfg();
+        let (buckets, _) = self.read_batch(&cfg, batch, cells);
+        let read = gas_remaining();
+        let n = cfg.n_assets as usize;
+        let (prices, rounds) = engine::tatonnement(&buckets, n, rounds);
+        let priced = gas_remaining();
+        let (clearing, _) = engine::trades(&buckets, n, &prices, rounds);
+        let circulated = gas_remaining();
+        GasReport {
+            cells: buckets.len() as u32,
+            read: start.saturating_sub(read),
+            prices: read.saturating_sub(priced),
+            circulation: priced.saturating_sub(circulated),
+            clearing,
+        }
+    }
+
+    // A closed, uncleared batch's listed cells as buckets, in list order, with each orderbook's
+    // listed total; every check of `clear_batch` is here. Not inlined: two entry points share it.
+    #[inline(never)]
+    fn read_batch(
+        &self,
+        cfg: &Config,
+        batch: BatchId,
+        cells: &[u8],
+    ) -> (Vec<engine::Bucket>, [u128; engine::MAX_BOOKS]) {
+        ensure(batch < Self::batch_of_height(cfg), SpeedexError::BatchOpen);
         ensure(
             self.clearings
                 .at(&batch)
@@ -392,7 +491,7 @@ impl Speedex {
         );
 
         let n = cfg.n_assets as usize;
-        let grid = Self::grid(&cfg);
+        let grid = Self::grid(cfg);
         ensure(
             cells.len().is_multiple_of(4) && cells.len() / 4 <= MAX_CLEAR_CELLS,
             SpeedexError::InvalidCells,
@@ -424,8 +523,8 @@ impl Speedex {
             }
             listed[index] = listed[index].saturating_add(amount);
             buckets.push(engine::Bucket {
-                sell,
-                buy,
+                sell: sell as u8,
+                buy: buy as u8,
                 level,
                 limit: grid.ratio(level),
                 amount,
@@ -451,40 +550,7 @@ impl Speedex {
         }
         drop(totals);
         ensure(!buckets.is_empty(), SpeedexError::BatchEmpty);
-
-        let (clearing, fills) = engine::clear(&buckets, n, grid);
-
-        // The histogram has served its purpose; only the clearing is needed from here on.
-        let mut book = self.books.at_mut(&batch);
-        for b in &buckets {
-            book.delete_at(&cell(engine::book(b.sell, b.buy) as u32, b.level));
-        }
-        drop(book);
-        let mut totals = self.totals.at_mut(&batch);
-        for (index, total) in listed.iter().enumerate() {
-            if *total > 0 {
-                totals.delete_at(&(index as u32));
-            }
-        }
-        drop(totals);
-
-        self.clearings.at_mut(&batch).set_exclusive(&clearing);
-        let mut traded = self.fills.at_mut(&batch);
-        for (index, fill) in &fills {
-            traded.at_mut(&(*index as u32)).set_exclusive(fill);
-        }
-        drop(traded);
-
-        log_event(&BatchCleared {
-            batch,
-            prices: clearing.prices,
-            rounds: clearing.rounds,
-            cancellations: clearing.cancellations,
-            volume: clearing.volume,
-            shortfall: clearing.shortfall,
-        });
-
-        clearing
+        (buckets, listed)
     }
 
     /// Pay out one offer of a cleared batch: what it bought, and a refund of what it did not sell.

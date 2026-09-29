@@ -75,9 +75,7 @@ per-batch step whose cost is independent of load.
   (up to 65536, a step of about one part in ninety thousand), over `octaves` doublings either side
   of one (`engine::Grid`). That is what makes an orderbook a histogram rather than a sorted list. An
   offer's limit is rounded *up* to the next level, so a seller never trades below what it asked, but
-  may occasionally miss a trade it would have taken. Tâtonnement does not need that resolution: when
-  a batch has more than `COARSE_ABOVE` (256) occupied cells the engine searches for prices over the
-  cells merged to 256 levels, then clears the full-resolution cells at the prices it found.
+  may occasionally miss a trade it would have taken.
 - **One-shot offers.** SPEEDEX keeps unfilled offers resting for later batches. Here a batch is a
   one-shot auction: what it does not fill is refunded at settlement, and the seller may resubmit.
 - **No fee, and the LP as a circulation.** SPEEDEX's linear program picks how much each orderbook
@@ -94,12 +92,20 @@ per-batch step whose cost is independent of load.
   simply stays. Where every book on a cycle is past the band, approximate prices cannot balance
   the cycle exactly and a little of it goes unfilled; the clearing reports that value as its
   `shortfall`.
-- **Deterministic tâtonnement from equal prices.** SPEEDEX warm-starts from the previous block and
-  lets the proposer's result stand. Here every clearing starts from equal prices so that the
-  clearing is a pure function of the batch, at the cost of some extra rounds. A batch in which no
-  offer executes at equal prices can execute nothing at any prices -- every offer would want more
-  than one of its buy asset per unit sold, and a trade is a cycle of sales whose rates multiply to
-  one -- so such a batch returns at once and refunds everything.
+- **Tâtonnement by sign, from equal prices.** SPEEDEX warm-starts from the previous block and lets
+  the proposer's result stand. Here every clearing starts from equal prices, so that the clearing
+  is a pure function of the batch. A market of limit offers is one of gross substitutes -- raising
+  an asset's price only ever adds to its supply and takes from its demand -- and in such a market a
+  price that moves with the sign of its excess demand closes in on the equilibrium; but no
+  *observable* error does so monotonically (a book whose asks are all out of the money adds the
+  same value of excess demand whatever the price, until the price reaches them), so a search that
+  discards steps for not improving the error stalls. `engine::tatonnement` discards none: each
+  asset keeps its own step, grown while its direction persists and halved when it reverses, and
+  the prices returned are the best seen. A batch in which no offer executes at equal prices can
+  execute nothing at any prices -- every offer would want more than one of its buy asset per unit
+  sold, and a trade is a cycle of sales whose rates multiply to one -- so such a batch returns at
+  once and refunds everything. The cap on rounds is part of the exchange's configuration; see
+  below for what it buys.
 
 ## Bounds
 
@@ -110,17 +116,74 @@ refuses more); the circulation works in value, amount times price, which is unde
 edge and is exact in `U256`. The grid bounds the rates that can actually trade far more tightly
 than that.
 
-A clearing reads at most `MAX_CLEAR_CELLS` (2048) occupied cells; a batch with more distinct
+A clearing reads at most `MAX_CLEAR_CELLS` (256) occupied cells; a batch with more distinct
 (orderbook, level) pairs than that cannot be cleared, so a deployment that expects such batches
-should choose a coarser grid. That bounds a clearing's cost, but does not measure it: the mock
-environment used by the tests does not meter gas the way a node does, so calibrate on a devnode (as
-`scripts/swap-gas-calibrate.sh` does for the swap example) before choosing a configuration near the
-bound.
+must choose a coarser grid or a shorter epoch. The bound comes from the guest's 64 KiB of data
+memory, which holds every bucket of the batch and the SDK's record of every cell read: with three
+assets, somewhere between 384 and 512 cells is where it runs out
+(`tests/test_rv32.rs::largest_clearing_fits_the_guest_rv32`). Gas bounds a batch more tightly
+still; see below.
 
 The chain caps a contract's code at 64 KiB, and RV32 has no 128-bit multiply or divide, so the
 engine's arithmetic is expensive in code. The engine's routines are `#[inline(never)]` so that each
 exists once rather than once per entry point, and the workspace `Cargo.toml` builds this package at
 `opt-level = "s"`.
+
+## Measuring it
+
+Two benchmarks, both `#[ignore]`d, put numbers on the trade-offs; `scripts/speedex-bench.sh` runs
+both and `scripts/speedex-plot.py` graphs their CSVs. The figures in [`bench/`](bench/) are one
+such run.
+
+[`tests/quality.rs`](tests/quality.rs) runs the engine natively over synthetic batches -- offers
+whose limits scatter around a hidden set of true valuations (`tests/synthetic`), 3 to 8 assets, 10
+to 10,000 offers, five batches of each -- at every tâtonnement round cap from 1 to 256, and
+reports for each: the *clearing error* at the prices found (the value of the excess demand,
+relative to the value supplied), the *shortfall* (the value of buckets past the smoothing band
+that could not trade, relative to all of them), the fraction of the value in the money that
+traded, how many offers in the money filled in full, in part or not at all, and how far the prices
+sit from the truth. Reading the run in `bench/`:
+
+- Tâtonnement converges to the engine's tolerance (a clearing error of one part in a thousand)
+  in 7 to 30 rounds for batches of a hundred offers or more, and then stops; a cap beyond that is
+  never used. Small batches of ten offers are the exception: with so few, steps of supply and
+  demand can be too coarse for any price to balance, and some of the value past the band goes
+  unfilled whatever the cap.
+- Below the rounds a batch needs, quality falls off fast: at 4 assets and 1,000 offers a cap of 4
+  leaves a 31% clearing error and 11% of the must-trade value unfilled, a cap of 8 leaves 1% and
+  none, and from 12 on the run is converged.
+- With prices converged, no bucket past the band goes unfilled (a shortfall of zero) in every
+  batch of 100 offers or more, and 84% to 98% of the value in the money trades; what does not is
+  the marginal buckets inside the band, which the circulation fills only as far as the cycles
+  balance.
+
+![Quality against the round cap](bench/quality-vs-rounds.png)
+
+![Quality against batch size](bench/quality-vs-size.png)
+
+[`tests/testkit_gas.rs`](tests/testkit_gas.rs) measures the contract itself, on a local devnode
+through `groundhog-testkit`, because the mock environment does not meter gas as a node does. For
+3 to 8 assets and 8 to 256 offers it submits a synthetic batch in one block, closes it, and has the
+contract run the clearing at each round cap through `measure_clearing` -- an entry point that
+does everything `clear_batch` does but record the result, and reports the gas of reading the
+cells, of tâtonnement and of the circulation separately (it is also how a clearer can learn what
+a clearing will cost before paying for it). A real `clear_batch`, a `submit_offer` and a
+`settle_offer` are measured from their receipts. What the run in `bench/` says:
+
+- Reading the histogram dominates: about 39k gas per occupied cell, almost all of it the storage
+  read itself, plus one such read per orderbook for the totals. A batch of 128 cells costs some
+  5M gas before any arithmetic; a submission costs 183k and a settlement 213k.
+- A round of tâtonnement costs about 1k gas per bucket plus some 20k to 50k for the price update
+  (RV32 has no 128-bit divide, and a round takes one per asset), so the price computation of a
+  converged clearing is comparable to the reads at a hundred cells and well under them at fewer.
+  The circulation costs about as much as a few rounds.
+- The testkit sends every transaction with 10M gas. Under that, a three-asset batch of 128 cells
+  clears converged (8.8M), a four-asset batch of 64 cells does (8.6M), and with six or eight
+  assets a batch of 32 cells runs out of gas before tâtonnement converges; a 256-cell batch
+  cannot clear at all. That, not `MAX_CLEAR_CELLS`, is the working limit on a batch, and a
+  deployment should set the grid, the epoch and the round cap against it -- or raise the gas.
+
+![Gas against batch size](bench/gas-vs-size.png)
 
 ## Running
 
@@ -128,7 +191,8 @@ exists once rather than once per entry point, and the workspace `Cargo.toml` bui
 cargo test -p speedex                        # engine and contract tests, natively
 groundhog build -p erc20 -- -F metadata      # the RV32 artifacts the next line loads
 groundhog build -p speedex
-groundhog test -p speedex                    # the ring trade on the RV32 artifact
+groundhog test -p speedex                    # the ring trade, and the largest clearing, on RV32
+scripts/speedex-bench.sh                     # the benchmarks above (devnode: groundhog toolchain install)
 ```
 
 [SPEEDEX]: https://www.usenix.org/conference/nsdi23/presentation/ramseyer

@@ -4,7 +4,7 @@
 
 pub use groundhog_erc20_if::ERC20Client;
 pub use sdk::*;
-pub use speedex::engine::{self, BookFill, Clearing, Grid, PRICE_ONE, Price};
+pub use speedex::engine::{self, BookFill, Clearing, Grid, MAX_ROUNDS, PRICE_ONE, Price};
 pub use speedex::*;
 
 use std::cell::RefCell;
@@ -34,6 +34,8 @@ pub const UNIT: u128 = 1_000_000;
 /// Limit ratios from 1/4 to just under 4, in 4096 steps to the doubling.
 pub const OCTAVES: u32 = 2;
 pub const LEVEL_BITS: u32 = 12;
+/// The tâtonnement cap the harness configures.
+pub const ROUNDS: u32 = 64;
 pub const GRID: Grid = Grid {
     octaves: OCTAVES,
     level_bits: LEVEL_BITS,
@@ -101,7 +103,8 @@ impl Exchange {
             let addr = deploy_contract(&EXCHANGE_NONCE, &exchange_hash);
             let mut assets = [ContractAddress::new([0; 32]); MAX_ASSETS];
             assets[..N].copy_from_slice(&tokens);
-            SpeedexClient::new(&addr).initialize(N as u32, assets, epoch_len, OCTAVES, LEVEL_BITS);
+            SpeedexClient::new(&addr)
+                .initialize(N as u32, assets, epoch_len, OCTAVES, LEVEL_BITS, ROUNDS);
 
             (addr, tokens)
         })

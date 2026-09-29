@@ -366,17 +366,19 @@ fn a_grid_finer_than_the_engine_supports_is_refused_at_initialization() {
         *a = ContractAddress::new([i as u8 + 1; 32]);
     }
 
-    let (wide, narrow) = x
+    let (wide, tireless, narrow) = x
         .as_user(&TEST, || {
             let addr = deploy_contract(&OTHER_NONCE, &exchange_hash);
             let client = SpeedexClient::new(&addr);
             // 2^17 levels to the doubling is past the engine's finest; 2^16 is its finest.
-            let wide = client.try_initialize(8, assets, 1, 2, 17);
-            let narrow = client.try_initialize(8, assets, 1, 1, 16);
-            (wide, narrow)
+            let wide = client.try_initialize(8, assets, 1, 2, 17, ROUNDS);
+            let tireless = client.try_initialize(8, assets, 1, 1, 16, MAX_ROUNDS + 1);
+            let narrow = client.try_initialize(8, assets, 1, 1, 16, MAX_ROUNDS);
+            (wide, tireless, narrow)
         })
         .expect("deploy");
     assert_eq!(speedex_error(wide), SpeedexError::InvalidConfiguration);
+    assert_eq!(speedex_error(tireless), SpeedexError::InvalidConfiguration);
     narrow.expect("the finest allowed grid");
 }
 

@@ -265,6 +265,11 @@ Beyond the tests in the table, there are two specially-handled kinds of test:
   [`scripts/permit-live.sh`](scripts/permit-live.sh). The native version of
   the same flow, `permit-wallet/tests/permit.rs`, runs under plain
   `cargo test` and also covers `transfer_from_signed` and key rotation.
+  [`speedex/tests/testkit_gas.rs`](contracts/speedex/tests/testkit_gas.rs)
+  measures what the batch exchange's clearing costs on a devnode, by batch
+  size and tâtonnement round cap; with the native execution-quality
+  benchmark in `speedex/tests/quality.rs`, it is what
+  [`scripts/speedex-bench.sh`](scripts/speedex-bench.sh) runs and graphs.
 
 ### Non-contract crates
 
