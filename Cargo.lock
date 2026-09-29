@@ -2730,6 +2730,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "speedex"
+version = "0.1.0"
+dependencies = [
+ "erc20",
+ "groundhog-erc20-if",
+ "sdk",
+ "speedex",
+ "unique-ids",
+]
+
+[[package]]
 name = "spki"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

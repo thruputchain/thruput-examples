@@ -32,6 +32,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit from the wallet to the token in one frame, so anyone can submit it |
 | [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](contracts/swap-router/README.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
+| [`speedex`](contracts/speedex/) | A [SPEEDEX](https://www.usenix.org/conference/nsdi23/presentation/ramseyer)-style batch exchange over several assets: offers aggregate into a commutative histogram, one transaction per batch computes clearing prices by tâtonnement, and settlement is per offer and order-free |
 
 ### Simulation fixtures
 

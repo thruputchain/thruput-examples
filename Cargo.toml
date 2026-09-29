@@ -57,3 +57,9 @@ ed25519-dalek = "3"
 
 [profile.release]
 trim-paths = "all" # unstable
+
+# The chain caps a contract's code at 64 KiB. The Speedex example's clearing engine (128-bit and
+# 256-bit fixed-point arithmetic, reached from several entry points) is over that at opt-level 3
+# and well under it optimized for size.
+[profile.release.package.speedex]
+opt-level = "s"
