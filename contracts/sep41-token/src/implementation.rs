@@ -85,10 +85,10 @@ impl Token {
 
 /// The functions SEP-41 leaves to each token.
 ///
-/// `initialize` stands in for the Soroban token example's constructor. `mint`
-/// and `set_admin` are not part of SEP-41, but they match the Stellar Asset
-/// Contract's functions of the same names, since diverging from them would
-/// gain nothing.
+/// `initialize` stands in for the Soroban token example's constructor. `mint`,
+/// `set_admin` and `admin` are not part of SEP-41, but they match the Stellar
+/// Asset Contract's functions of the same names, since diverging from them
+/// would gain nothing.
 #[contract(
     interface = "TokenAdmin",
     throws(TokenError, TokenAdminError),
@@ -138,6 +138,12 @@ impl Token {
             admin: &admin,
             new_admin,
         });
+    }
+
+    /// Returns the administrator. Aborts if the token has not been
+    /// initialized.
+    pub fn admin(&self) -> ContractAddress {
+        self.admin.get()
     }
 }
 

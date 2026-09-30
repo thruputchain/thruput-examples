@@ -14,10 +14,10 @@ addresses, and its clawback event.
 - `sep41-token`: A token implementing it, after the Soroban token example. It
   defines the exceptions its functions throw, `TokenError`, and adds a
   `TokenAdmin` interface with the functions SEP-41 leaves to each token:
-  `initialize`, and the administrator's `mint` and `set_admin`. SEP-41 doesn't
-  define `mint` and `set_admin`, but they match the Stellar Asset Contract's
-  (SAC's) functions of the same names, since diverging from them would gain
-  nothing.
+  `initialize`, the administrator's `mint` and `set_admin`, and `admin`, which
+  returns the administrator. SEP-41 doesn't define `mint`, `set_admin` and
+  `admin`, but they match the Stellar Asset Contract's (SAC's) functions of the
+  same names, since diverging from them would gain nothing.
 
 The interface reads as SEP-41 does, less the `env: Env` parameter:
 

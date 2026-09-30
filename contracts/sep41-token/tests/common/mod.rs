@@ -28,6 +28,7 @@ macro_rules! scenarios {
             initialize_can_be_called_once,
             balances_start_at_zero,
             mint_credits_to_and_emits_mint,
+            admin_returns_the_administrator,
             set_admin_hands_over_the_administration_and_emits_set_admin,
             transfer_moves_the_amount_and_emits_transfer,
             burn_destroys_the_amount_and_emits_burn,
@@ -173,6 +174,12 @@ pub fn mint_credits_to_and_emits_mint(token: &TestToken) {
     assert_eq!(token.balance(&BOB), 500);
 }
 
+/// `admin` returns the administrator.
+pub fn admin_returns_the_administrator(token: &TestToken) {
+    let admin = token.admin(&OUTSIDER, |client| client.admin());
+    assert_eq!(admin.assert_return_as::<ContractAddress>(), ADMIN);
+}
+
 /// `set_admin` makes `new_admin` the administrator, in place of the current
 /// one, and emits `set_admin`.
 pub fn set_admin_hands_over_the_administration_and_emits_set_admin(token: &TestToken) {
@@ -184,6 +191,8 @@ pub fn set_admin_hands_over_the_administration_and_emits_set_admin(token: &TestT
     });
     token.commit(&set_admin);
 
+    let admin = token.admin(&OUTSIDER, |client| client.admin());
+    assert_eq!(admin.assert_return_as::<ContractAddress>(), BOB);
     token.commit(&token.admin(&BOB, |client| client.mint(&ALICE, 1_000)));
     assert_throws(
         &token.admin(&ADMIN, |client| client.mint(&ALICE, 1_000)),
