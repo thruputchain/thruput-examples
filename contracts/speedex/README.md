@@ -116,16 +116,21 @@ refuses more); the circulation works in value, amount times price, which is unde
 edge and is exact in `U256`. The grid bounds the rates that can actually trade far more tightly
 than that.
 
-A clearing reads at most `max_clear_cells(n)` occupied cells, `320 - 3 n (n - 1)`: 302 with three
-assets, 152 with eight. A batch with more distinct (orderbook, level) pairs than that cannot be
-cleared, so a deployment that expects such batches must choose a coarser grid or a shorter epoch.
-The bound comes from the guest's memory: 64 KiB, of which 30 KiB is the stack reserve, under an
-allocator that never frees, so everything a clearing allocates -- the buckets, the calldata, the
-value graph's edges (one per orderbook, in `U256`), and whatever the SDK allocates for each
-storage access -- has to fit at once. Measured on the RV32 executor
-(`tests/test_rv32.rs::largest_clearing_fits_the_guest_rv32`), that runs out at about
-`360 - 3 * books` cells; the budget keeps a tenth in hand. Gas is the other bound on a batch; see
-below.
+A clearing reads at most `max_clear_cells(n)` occupied cells. A batch with more distinct
+(orderbook, level) pairs than that cannot be cleared, so a deployment that expects such batches
+must choose a coarser grid, a shorter epoch, or more memory: the bound is the guest's memory,
+which the artifact declares (`initial_memory_bytes` in `Cargo.toml`, the protocol's 64 KiB unless
+stated) and the contract reads back at run time from the linker's end-of-memory symbol. The
+guest's allocator never frees, so everything a clearing allocates has to fit at once. Measured on
+the RV32 executor (`tests/test_rv32.rs::largest_clearing_fits_the_guest_rv32`), 43.7 KiB is
+spoken for before an entry point runs (a 30 KiB stack reserve, the runtime's and the SDK's own),
+and a clearing then takes 4.2 KiB, 32 bytes per bucket and about 190 bytes per orderbook (its
+edge of the value graph, in `U256`); the cap keeps a tenth of the rest in hand. With 64 KiB that
+is 302 cells for three assets and 152 for eight; with 256 KiB, about 6,100 and 5,700. A chain
+admits a larger declaration through its `max_rv32_memory_bytes` parameter. The mock executor the
+RV32 tests run on verifies artifacts under the protocol defaults whatever the environment is
+configured with (hogd's `test_ffi`), so the committed manifest keeps 64 KiB and the benchmark
+builds its larger artifact from a copy. Gas is the other bound on a batch; see below.
 
 The chain caps a contract's code at 64 KiB, and RV32 has no 128-bit multiply or divide, so the
 engine's arithmetic is expensive in code. The engine's routines are `#[inline(never)]` so that each
@@ -166,30 +171,33 @@ sit from the truth. Reading the run in `bench/`:
 
 [`tests/testkit_gas.rs`](tests/testkit_gas.rs) measures the contract itself, on a local devnode
 through `groundhog-testkit`, because the mock environment does not meter gas as a node does. For
-3 to 8 assets and 8 offers up to each configuration's cell cap it submits a synthetic batch in one block, closes it, and has the
-contract run the clearing at each round cap through `measure_clearing` -- an entry point that
-does everything `clear_batch` does but record the result, and reports the gas of reading the
-cells, of tâtonnement and of the circulation separately (it is also how a clearer can learn what
-a clearing will cost before paying for it). A real `clear_batch`, a `submit_offer` and a
-`settle_offer` are measured from their receipts. The clearings are sent with a gas limit of their
-own -- the benchmark builds and signs those transactions itself, through the same dev-wallet
-wrapper the testkit uses -- since the testkit's 10M would cut the sweep short. What the run in
-`bench/` says:
+3 to 8 assets and 8 to 4,096 offers it submits a synthetic batch (a thousand offers to a block,
+within one epoch), closes it, and has the contract run the clearing at each round cap through
+`measure_clearing` -- an entry point that does everything `clear_batch` does but record the
+result, and reports the gas of reading the cells, of tâtonnement and of the circulation
+separately (it is also how a clearer can learn what a clearing will cost before paying for it).
+A real `clear_batch`, a `submit_offer` and a `settle_offer` are measured from their receipts.
+Three things about the node's tooling shape the benchmark, and `scripts/speedex-bench.sh` handles
+them: the artifact is built declaring 256 KiB of guest memory and the devnode is started admitting
+it; the clearings are signed by the benchmark itself as calls from the agent's key-pair account
+through the node's default wallet, since the testkit's transactions carry 10M gas and pass through
+a dev wallet that takes 4 KiB of calldata; and each asset count runs on a devnode of its own,
+since an account may have 8,000 transactions at one expiry height. What the run in `bench/` says:
 
-- Reading the histogram dominates for few assets: about 39k gas per occupied cell, almost all of
-  it the storage read itself, plus one such read per orderbook for the totals. A batch of 256
-  cells costs some 10M gas before any arithmetic; a submission costs 183k and a settlement 213k.
+- Reading the histogram dominates for few assets: about 30k to 39k gas per occupied cell, almost
+  all of it the storage read itself (a cold database load is 37,300 in hogd's gas table; a warm
+  one is 200), plus one such read per orderbook for the totals. A batch of 4,096 cells costs
+  128M gas to read; a submission costs 183k and a settlement 213k.
 - A round of tâtonnement costs about 1k gas per bucket plus some 20k to 50k for the price update
   (RV32 has no 128-bit divide, and a round takes one per asset), so the price computation of a
-  converged clearing is comparable to the reads at a hundred cells and well under them at fewer.
+  converged clearing stays well under the reads at any size: 15M at 4,096 cells.
 - The circulation grows with the square of the orderbooks: cycle cancelling runs Bellman-Ford over
-  four arcs per orderbook, in `U256`, once per cycle. It is a rounding error with three assets
-  and the largest part of a clearing with eight, where it reaches 32M gas at the 152-cell cap.
-- Altogether a converged clearing costs from 2M gas (three assets, 8 cells) to 53M (eight assets,
-  152 cells). The testkit sends transactions with 10M gas, which the benchmark raises for the
-  clearings; under 10M, three assets clear 128 cells and eight assets clear 8. A deployment
-  should set the grid, the epoch, the round cap and the number of assets against what its
-  chain's gas limit affords.
+  four arcs per orderbook, in `U256`, once per cycle. It is a tenth of a clearing with three
+  assets and the largest part with eight.
+- Altogether a converged clearing costs from 2M gas (three assets, 8 cells) to 161M (three
+  assets, 4,096 cells) and 344M (eight assets, 4,096 cells, of which the circulation is 150M).
+  A deployment should set the grid, the epoch, the round cap and the number of assets against
+  what its chain's gas limit affords.
 
 ![Gas against batch size](bench/gas-vs-size.png)
 

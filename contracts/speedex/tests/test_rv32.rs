@@ -117,12 +117,12 @@ fn ring_trade_rv32() {
 
 /// The largest clearing the contract accepts, `max_clear_cells(n)` cells, fits the guest's memory
 /// at the most assets. The guest's allocator never frees, so everything a clearing allocates (the
-/// buckets, the calldata, the edges of the value graph, whatever the SDK allocates per storage
-/// access) has to fit the 64 KiB, less the 30 KiB stack reserve, at once; the RV32 executor
-/// enforces it. `SPEEDEX_RV32_ASSETS` and `SPEEDEX_RV32_CELLS` override the counts, to find the
-/// bound again when the contract or the SDK changes: it was measured at 192 to 208 cells with
-/// eight assets, 256 to 288 with six, and under 384 with three, which `CELL_BUDGET` fits as
-/// `360 - 3 * books`.
+/// buckets, the calldata, the edges of the value graph) has to fit the declared memory, less the
+/// 30 KiB stack reserve and what the runtime takes, at once; the RV32 executor enforces it.
+/// `SPEEDEX_RV32_ASSETS` and `SPEEDEX_RV32_CELLS` override the counts, to find the bound again
+/// when the contract or the SDK changes (with 64 KiB it lay at 192 to 208 cells with eight
+/// assets, 256 to 288 with six). The mock verifies artifacts under the protocol defaults, so
+/// this can only run the 64 KiB build; the devnode benchmark runs the larger one.
 #[test]
 #[ignore = "requires RV32 build — run via `groundhog test`"]
 fn largest_clearing_fits_the_guest_rv32() {

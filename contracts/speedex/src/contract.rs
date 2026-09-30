@@ -55,24 +55,47 @@ pub type OfferId = SHA256Hash;
 /// Which batch an offer belongs to: its block height divided by the epoch length.
 pub type BatchId = u64;
 
-/// The guest's memory, as a budget of histogram cells: a clearing of an exchange with `n` assets
-/// reads at most [`max_clear_cells`]`(n)` occupied cells -- price levels in use, over all
-/// orderbooks. A batch with more cannot be cleared, so this is a liveness bound to set against the
-/// grid's fineness and the epoch's length.
-///
-/// The guest's allocator never frees, so everything a clearing allocates has to fit the 64 KiB of
-/// data memory, less the 30 KiB stack reserve, at once: the buckets, the calldata, the value
-/// graph's edges (one per orderbook, in `U256`), and what the SDK allocates for each storage
-/// access. Measured on the RV32 executor, that runs out at about `360 - 3 * books` cells
-/// (`tests/test_rv32.rs`); this budget keeps a tenth in hand. What a node charges is the other
-/// bound on a batch: about 39k gas per cell read, and a circulation that grows with the square of
-/// the orderbooks (`tests/testkit_gas.rs`).
-pub const CELL_BUDGET: usize = 320;
+/// The guest's data memory, in bytes: what the artifact declares (`initial_memory_bytes` in
+/// `Cargo.toml`, the protocol's 64 KiB unless stated), read from the linker's end-of-memory
+/// symbol so that a build with more memory clears larger batches without any other change.
+/// Natively there is no guest, and the protocol default stands in.
+pub fn guest_memory() -> usize {
+    #[cfg(target_arch = "riscv32")]
+    {
+        unsafe extern "C" {
+            static __heap_end: u8;
+        }
+        (&raw const __heap_end) as usize
+    }
+    #[cfg(not(target_arch = "riscv32"))]
+    {
+        64 * 1024
+    }
+}
 
-/// The most occupied cells one clearing reads on an exchange with `n_assets` assets; see
-/// [`CELL_BUDGET`].
-pub const fn max_clear_cells(n_assets: usize) -> usize {
-    CELL_BUDGET - 3 * n_assets * (n_assets - 1)
+/// The most occupied histogram cells -- price levels in use, over all orderbooks -- one clearing
+/// of an exchange with `n_assets` assets reads: [`max_clear_cells_in`] the guest's memory. A
+/// batch with more cannot be cleared, so this is a liveness bound to set against the grid's
+/// fineness and the epoch's length.
+pub fn max_clear_cells(n_assets: usize) -> usize {
+    max_clear_cells_in(guest_memory(), n_assets)
+}
+
+/// [`max_clear_cells`] for a guest with `memory` bytes.
+///
+/// The bound is memory: the guest's allocator never frees, so everything a clearing allocates
+/// has to fit at once. Measured on the RV32 executor (`tests/test_rv32.rs`), 43.7 KiB of the
+/// guest's memory is spoken for before an entry point runs (a 30 KiB stack reserve, the
+/// runtime's and the SDK's own), and a clearing then takes 4.2 KiB, 32 bytes per bucket and
+/// about 190 bytes per orderbook (its edge of the value graph, in `U256`); this keeps a tenth of
+/// the rest in hand. With the protocol's 64 KiB that is 152 cells for eight assets and 302 for
+/// three; with 256 KiB, about 5,700 and 6,100. What a node charges is the other bound on a
+/// batch: about 37.5k gas per cell read (a cold database load), and a circulation that grows
+/// with the square of the orderbooks (`tests/testkit_gas.rs`).
+pub const fn max_clear_cells_in(memory: usize, n_assets: usize) -> usize {
+    let books = n_assets * (n_assets - 1);
+    let free = memory - 44 * 1024 - 4200 - 190 * books;
+    free / 32 * 9 / 10
 }
 
 #[contract_exception]

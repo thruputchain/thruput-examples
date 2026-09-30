@@ -18,6 +18,10 @@
 //!     cargo test -p speedex --test testkit_gas -- --ignored --nocapture
 //! ```
 //!
+//! `SPEEDEX_GUEST_MEMORY` states the guest memory the artifact under test declares (the
+//! protocol's 64 KiB unless set), which bounds the sweep's batch sizes; `scripts/speedex-bench.sh`
+//! builds the artifact with more and starts the devnode admitting it.
+//!
 //! Every measurement is a CSV row in `SPEEDEX_GAS_OUT` (default: `speedex-gas.csv` in the
 //! workspace's `target/`), which `scripts/speedex-plot.py` graphs together with the native
 //! execution-quality runs. Blocks are produced by hand so that a batch's offers share one block
@@ -27,10 +31,11 @@ mod synthetic;
 
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use groundhog_signing::{
-    BuildDevWalletDoActionTransaction, LocalSigner, SignTransactionParams,
-    build_dev_wallet_do_action_transaction, derive_dev_account_signer,
+    BuildCallTransaction, DEFAULT_PUBKEY_ACCOUNT_NONCE, LocalSigner, PubkeyAccount,
+    SignTransactionParams, build_call_transaction, derive_dev_account_signer,
     sign_and_encode_transaction_hex,
 };
 use groundhog_testkit::rpc_types::receipt::TransactionReceipt;
@@ -38,16 +43,29 @@ use groundhog_testkit::rpc_types::runtime_manifest::{RuntimeManifest, parse_runt
 use groundhog_testkit::xdr::types::{ContractAddress, NetworkHash};
 use groundhog_testkit::xdrs::{self, ReadXDR, WriteXDR};
 use groundhog_testkit::{
-    Agent, AgentContext, BlockDriverConfig, Contract, ContractEntrypointID, LocalNetworkConfig,
-    NetworkConfig, Result, Scenario, TestkitError, entrypoint_id,
+    Agent, AgentContext, BlockDriverConfig, Contract, LocalNetworkConfig, NetworkConfig, Result,
+    Scenario, TestkitError, entrypoint_id,
 };
 use speedex::engine::{Grid, MAX_ASSETS};
-use speedex::max_clear_cells;
+use speedex::max_clear_cells_in;
 use synthetic::{Rng, Shape};
 
 /// Interface identities the artifacts stamp; `entrypoint_id` derives selectors from these.
 const ERC20: (&str, &str) = ("ERC20", "0.1.42");
 const SPEEDEX: (&str, &str) = ("Speedex", "0.1.0");
+/// The node's default wallet, which serves every key-pair account: `execute` runs a list of
+/// calls from the account, and takes calldata of any length.
+const DEFAULT_WALLET: (&str, &str) = ("DefaultWallet", "0.1.0");
+
+/// One call of the default wallet's `execute`.
+#[derive(Debug, Clone, xdrs::WriteXDR, xdrs::ReadXDR)]
+#[xdr(crate = "groundhog_testkit::xdrs")]
+struct WalletCall {
+    target: ContractAddress,
+    entrypoint: [u8; 8],
+    gas_limit: u64,
+    calldata: Vec<u8>,
+}
 
 /// The grid every exchange is configured with (as `tests/quality.rs` and `tests/batch.rs`).
 const GRID: Grid = Grid {
@@ -59,13 +77,23 @@ const ROUNDS: u32 = 64;
 
 /// The sweep: assets, offers per batch, and the round caps `measure_clearing` is run at.
 const ASSETS: [usize; 4] = [3, 4, 6, 8];
-const OFFERS: [usize; 5] = [8, 32, 64, 128, 256];
+const OFFERS: [usize; 6] = [8, 32, 128, 512, 2048, 4096];
 const ROUND_CAPS: [u32; 9] = [1, 2, 4, 8, 16, 32, 64, 128, 256];
 
-/// Gas a clearing transaction is sent with. The testkit sends every transaction with 10M, which
-/// a clearing of a few hundred cells exceeds, so the clearings are built and signed here, through
-/// the same dev-wallet `doAction` wrapper, with this limit instead.
+/// Gas a clearing transaction is sent with. The testkit sends every transaction with 10M
+/// through the dev wallet, which also takes at most 4 KiB of calldata; a clearing of thousands
+/// of cells exceeds both, so the clearings are signed here as direct calls from the agent's
+/// key-pair account, funded for the purpose, with this limit.
 const CLEARING_GAS: u64 = 1_000_000_000;
+/// Native tokens moved to the key-pair account to pay for the clearings.
+const CLEARING_FUNDING: u128 = 500_000_000_000;
+/// Offers submitted per block: the node bounds what one account may have in flight in a block.
+const OFFERS_PER_BLOCK: usize = 1024;
+/// Blocks per batch, enough for the largest sweep to be submitted in.
+const EPOCH_LEN: u64 = 64;
+// The node keeps at most 8,000 nonces per account and expiry height, and the testkit sends
+// everything with one expiry height, so each asset count of the sweep runs on a devnode of its
+// own, and the sweep's sizes (6,824 offers in all) stay under that.
 
 /// Native (HOG) tokens granted to each contract for the storage it creates. The exchange writes
 /// three records per offer, so it gets a great deal more than a token does.
@@ -173,41 +201,37 @@ fn status_of(receipt: &TransactionReceipt) -> String {
     }
 }
 
-/// The bench agent's dev wallet, for transactions the testkit's fixed gas limit does not fit:
-/// the same signer and `doAction` wrapper the testkit uses, taken from the node's runtime
-/// manifest, with a nonce sequence of its own.
-struct Wallet {
-    address: ContractAddress,
+/// The bench agent's key-pair account, for the clearing transactions: the testkit's signer (from
+/// the node's runtime manifest) signing direct calls, outside the dev wallet the testkit routes
+/// everything through, with a nonce sequence of its own.
+struct Account {
+    account: PubkeyAccount,
     signer: LocalSigner,
-    do_action: ContractEntrypointID,
     network_hash: NetworkHash,
     sequence: u32,
 }
 
-impl Wallet {
+impl Account {
     fn of(ctx: &AgentContext) -> Result<Self> {
         let manifest = runtime_manifest()?;
         let signer = derive_dev_account_signer(
             &manifest.bootstrap_account_derivation.seed,
             ctx.account_index() as usize,
         );
-        let do_action = manifest
-            .bootstrap
-            .dev_wallet
-            .do_action_entrypoint_id()
-            .map_err(|e| TestkitError::Manifest {
-                field: "bootstrap.devWallet.doActionEntrypoint",
-                detail: e.to_string(),
-            })?;
-        Ok(Wallet {
-            address: ctx.address(),
+        let account = PubkeyAccount::from_public_key_bytes(
+            signer.verifying_key_bytes(),
+            DEFAULT_PUBKEY_ACCOUNT_NONCE,
+        );
+        Ok(Account {
+            account,
             signer,
-            do_action,
             network_hash: manifest.network_hash.to_network_hash(),
-            // A namespace the testkit's own nonces (a hashed namespace over a sequence) will not
-            // produce.
             sequence: 0,
         })
+    }
+
+    fn address(&self) -> ContractAddress {
+        self.account.address()
     }
 
     /// Submit `method` on `exchange` with [`CLEARING_GAS`], produce the block it runs in, and
@@ -220,20 +244,23 @@ impl Wallet {
         method: &str,
         args: &A,
     ) -> Result<TransactionReceipt> {
-        let calldata = xdrs::cxs::encode(args).expect("encoding calldata");
-        self.sequence += 1;
-        let tx = build_dev_wallet_do_action_transaction(BuildDevWalletDoActionTransaction {
-            wallet_address: self.address,
-            wallet_entrypoint: self.do_action,
-            target_address: exchange.address(),
-            target_entrypoint: entrypoint_id(SPEEDEX.0, SPEEDEX.1, method),
-            target_calldata: &calldata,
+        let call = WalletCall {
+            target: exchange.address(),
+            entrypoint: entrypoint_id(SPEEDEX.0, SPEEDEX.1, method).into_inner(),
             gas_limit: CLEARING_GAS,
-            target_gas_limit: CLEARING_GAS,
+            calldata: xdrs::cxs::encode(args).expect("encoding calldata"),
+        };
+        let calldata = xdrs::cxs::encode(&vec![call]).expect("encoding the wallet call");
+        self.sequence += 1;
+        let tx = build_call_transaction(BuildCallTransaction {
+            invoked_address: self.account.address(),
+            entrypoint: entrypoint_id(DEFAULT_WALLET.0, DEFAULT_WALLET.1, "execute"),
+            calldata,
+            gas_limit: CLEARING_GAS,
             block_expiry_height: 10_000_000,
             nonce: (0x5bed_u64 << 40) | u64::from(self.sequence),
-        })
-        .map_err(signing_error)?;
+            auth_claim: self.account.auth_claim(),
+        });
         let tx_hex = sign_and_encode_transaction_hex(
             tx,
             &self.signer,
@@ -315,6 +342,13 @@ fn decode<R: for<'r> ReadXDR<'r>>(receipt: &TransactionReceipt) -> R {
     xdrs::cxs::decode(bytes).expect("decoding a return value")
 }
 
+/// A return value from a call the default wallet made on the account's behalf: the wallet
+/// returns one raw return buffer per call it ran.
+fn decode_wallet<R: for<'r> ReadXDR<'r>>(receipt: &TransactionReceipt) -> R {
+    let returns: Vec<Vec<u8>> = decode(receipt);
+    xdrs::cxs::decode(&returns[0]).expect("decoding the call's return value")
+}
+
 /// Deploy an artifact in a block of its own.
 async fn deploy(ctx: &mut AgentContext, name: &str) -> Result<ContractAddress> {
     let submitted = ctx.submit_deploy_artifact(name).await?;
@@ -331,18 +365,23 @@ async fn fund(ctx: &mut AgentContext, target: ContractAddress, amount: u128) -> 
 }
 
 /// The bench, as one agent: deploy the tokens once, then an exchange per size in the sweep.
-fn bench(out: PathBuf) -> Agent {
+fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
     Agent::new("bench", move |mut ctx| async move {
         let me = ctx.address();
         let zero = ContractAddress::from([0u8; 32]);
-        let mut wallet = Wallet::of(&ctx)?;
+        let mut wallet = Account::of(&ctx)?;
+        fund(&mut ctx, wallet.address(), CLEARING_FUNDING).await?;
+        // The guest memory the artifact under test declares, which bounds a batch.
+        let memory: usize = std::env::var("SPEEDEX_GUEST_MEMORY")
+            .map(|v| v.parse().expect("SPEEDEX_GUEST_MEMORY in bytes"))
+            .unwrap_or(64 * 1024);
 
         // The native token pays for its own storage, so it needs funds to store balances and
         // allowances.
         fund(&mut ctx, native_token().address(), TOKEN_FUNDING).await?;
 
         let mut tokens: Vec<Contract> = Vec::new();
-        for _ in 0..MAX_ASSETS {
+        for _ in 0..n {
             let address = deploy(&mut ctx, "erc20").await?;
             fund(&mut ctx, address, TOKEN_FUNDING).await?;
             let token = Contract::new(address, ERC20.0, ERC20.1);
@@ -352,9 +391,9 @@ fn bench(out: PathBuf) -> Agent {
         }
 
         let mut rows: Vec<Row> = Vec::new();
-        for &n in &ASSETS {
+        {
             // The sweep, cut at the configuration's cell cap (an offer per cell, near enough).
-            let cap = max_clear_cells(n);
+            let cap = max_clear_cells_in(memory, n);
             let sizes: Vec<usize> = OFFERS
                 .iter()
                 .map(|&o| o.min(cap))
@@ -377,7 +416,7 @@ fn bench(out: PathBuf) -> Agent {
                     &(
                         n as u32,
                         assets,
-                        1u64,
+                        EPOCH_LEN,
                         GRID.octaves,
                         GRID.level_bits,
                         ROUNDS,
@@ -394,50 +433,63 @@ fn bench(out: PathBuf) -> Agent {
                     .await?;
                 }
 
-                // The batch: every offer submitted, then one block for them all.
+                // The batch: every offer submitted, a block per thousand of them, all within
+                // one epoch.
                 let mut rng = Rng::new(((n as u64) << 32) ^ offers as u64);
                 let batch = synthetic::batch(&mut rng, n, offers, GRID, Shape::default());
-                let mut submitted = Vec::with_capacity(offers);
-                for o in &batch.offers {
-                    let args = (o.sell as u32, o.buy as u32, o.amount, o.min_price);
-                    submitted.push(
-                        exchange
-                            .submit_call(&mut ctx, "submit_offer", &args)
-                            .await?,
-                    );
-                }
-                for s in &submitted {
-                    s.await_pending().await?;
-                }
-                ctx.network().produce_block().await?;
                 let mut first: Option<[u8; 32]> = None;
-                for s in &submitted {
-                    let receipt = s.await_receipt().await?;
-                    if first.is_none() {
-                        first = Some(decode(&receipt));
-                        rows.push(Row {
-                            kind: "submit",
-                            n,
-                            offers,
-                            cells: batch.buckets.len() as u32,
-                            round_cap: 0,
-                            rounds: 0,
-                            status: status_of(&receipt),
-                            gas_total: receipt.gas_used,
-                            gas_read: 0,
-                            gas_prices: 0,
-                            gas_circulation: 0,
-                            volume: 0,
-                            shortfall: 0,
-                        });
+                let mut batch_id: Option<u64> = None;
+                for chunk in batch.offers.chunks(OFFERS_PER_BLOCK) {
+                    let mut submitted = Vec::with_capacity(chunk.len());
+                    for o in chunk {
+                        let args = (o.sell as u32, o.buy as u32, o.amount, o.min_price);
+                        submitted.push(
+                            exchange
+                                .submit_call(&mut ctx, "submit_offer", &args)
+                                .await?,
+                        );
+                    }
+                    for s in &submitted {
+                        s.await_pending().await?;
+                    }
+                    ctx.network().produce_block().await?;
+                    for s in &submitted {
+                        let receipt = s.await_receipt().await?;
+                        if first.is_none() {
+                            let id: [u8; 32] = decode(&receipt);
+                            first = Some(id);
+                            let offer: Option<Offer> =
+                                exchange.view(&ctx, "offer", &id, None).await?;
+                            batch_id = Some(offer.expect("the offer was accepted").batch);
+                            rows.push(Row {
+                                kind: "submit",
+                                n,
+                                offers,
+                                cells: batch.buckets.len() as u32,
+                                round_cap: 0,
+                                rounds: 0,
+                                status: status_of(&receipt),
+                                gas_total: receipt.gas_used,
+                                gas_read: 0,
+                                gas_prices: 0,
+                                gas_circulation: 0,
+                                volume: 0,
+                                shortfall: 0,
+                            });
+                        }
                     }
                 }
                 let first = first.expect("a batch has offers");
-                let offer: Option<Offer> = exchange.view(&ctx, "offer", &first, None).await?;
-                let batch_id = offer.expect("the offer was accepted").batch;
+                let batch_id = batch_id.expect("a batch has offers");
 
-                // Close the batch.
-                ctx.network().produce_block().await?;
+                // Close the batch: blocks until the exchange is on the next one.
+                loop {
+                    ctx.network().produce_block().await?;
+                    let current: u64 = exchange.view(&ctx, "current_batch", &(), None).await?;
+                    if current > batch_id {
+                        break;
+                    }
+                }
 
                 let cells = synthetic::cell_list(&batch.buckets);
                 for &cap in &ROUND_CAPS {
@@ -450,7 +502,8 @@ fn bench(out: PathBuf) -> Agent {
                         )
                         .await?;
                     let status = status_of(&receipt);
-                    let report: Option<GasReport> = (status == "ok").then(|| decode(&receipt));
+                    let report: Option<GasReport> =
+                        (status == "ok").then(|| decode_wallet(&receipt));
                     let r = report.as_ref();
                     rows.push(Row {
                         kind: "measure",
@@ -486,7 +539,7 @@ fn bench(out: PathBuf) -> Agent {
                     .transact(&mut ctx, &exchange, "clear_batch", &(batch_id, &cells))
                     .await?;
                 let status = status_of(&receipt);
-                let clearing: Option<Clearing> = (status == "ok").then(|| decode(&receipt));
+                let clearing: Option<Clearing> = (status == "ok").then(|| decode_wallet(&receipt));
                 println!(
                     "   clear_batch at the configured {ROUNDS}: {status}, {} gas",
                     receipt.gas_used
@@ -530,15 +583,7 @@ fn bench(out: PathBuf) -> Agent {
             }
         }
 
-        if let Some(dir) = out.parent() {
-            std::fs::create_dir_all(dir).expect("creating the output directory");
-        }
-        let mut file = std::fs::File::create(&out).expect("creating the CSV");
-        writeln!(file, "{HEADER}").unwrap();
-        for r in &rows {
-            writeln!(file, "{}", r.csv()).unwrap();
-        }
-        println!("wrote {} measurements to {}", rows.len(), out.display());
+        shared.lock().unwrap().extend(rows);
         Ok(())
     })
 }
@@ -564,17 +609,30 @@ async fn clearing_gas() {
         config.hog_devnode_binary = Some(bin.into());
     }
 
-    let scenario = Scenario::builder("speedex-gas")
-        .network(NetworkConfig::local(config))
-        .artifact("erc20", artifact("erc20.rv32a"))
-        .artifact("speedex", artifact("speedex.rv32a"))
-        .build()
-        .await
-        .expect("local node starts with the artifacts registered");
+    let rows = Arc::new(Mutex::new(Vec::new()));
+    for &n in &ASSETS {
+        let scenario = Scenario::builder("speedex-gas")
+            .network(NetworkConfig::local(config.clone()))
+            .artifact("erc20", artifact("erc20.rv32a"))
+            .artifact("speedex", artifact("speedex.rv32a"))
+            .build()
+            .await
+            .expect("local node starts with the artifacts registered");
+        scenario
+            .run_agents([bench(n, rows.clone())])
+            .await
+            .expect("the bench runs to completion");
+        scenario.stop().await.expect("clean teardown");
+    }
 
-    scenario
-        .run_agents([bench(out)])
-        .await
-        .expect("the bench runs to completion");
-    scenario.stop().await.expect("clean teardown");
+    let rows = rows.lock().unwrap();
+    if let Some(dir) = out.parent() {
+        std::fs::create_dir_all(dir).expect("creating the output directory");
+    }
+    let mut file = std::fs::File::create(&out).expect("creating the CSV");
+    writeln!(file, "{HEADER}").unwrap();
+    for r in rows.iter() {
+        writeln!(file, "{}", r.csv()).unwrap();
+    }
+    println!("wrote {} measurements to {}", rows.len(), out.display());
 }
