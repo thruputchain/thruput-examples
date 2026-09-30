@@ -11,16 +11,7 @@ use sep41_token_if::*;
 #[sdk::storage]
 pub struct Token {
     admin: Value<ContractAddress>,
-    metadata: Value<TokenMetadata>,
     balances: Map<ContractAddress, Balance>,
-}
-
-/// The token's decimals, name and symbol.
-#[contract_type]
-pub struct TokenMetadata {
-    pub decimal: u32,
-    pub name: String,
-    pub symbol: String,
 }
 
 /// The failure of the administrator's interface that SEP-41 has no
@@ -75,18 +66,12 @@ impl Token {
     emits(Mint)
 )]
 impl Token {
-    /// Sets the token's administrator and metadata.
+    /// Sets the token's administrator.
     ///
     /// Throws [`TokenAdminError::AlreadyInitialized`] after the first call, so
     /// deploy and initialize the token in one transaction, leaving nobody a
     /// chance to call it first.
-    pub fn initialize(
-        &mut self,
-        admin: &ContractAddress,
-        decimal: u32,
-        name: String,
-        symbol: String,
-    ) {
+    pub fn initialize(&mut self, admin: &ContractAddress) {
         if self.admin.try_get().none_if_missing().is_some() {
             throw(TokenAdminError::AlreadyInitialized);
         }
@@ -94,11 +79,6 @@ impl Token {
         // Exclusive, so that two initializations in one block cannot both
         // commit.
         self.admin.set_exclusive(admin);
-        self.metadata.set(&TokenMetadata {
-            decimal,
-            name,
-            symbol,
-        });
     }
 
     /// Mints `amount` to `to`. Authorized by the administrator, who must be
@@ -135,17 +115,5 @@ impl TokenInterface for Token {
 
         self.spend_balance(from, value);
         log_event(&Burn { from, amount });
-    }
-
-    fn decimals(&self) -> u32 {
-        self.metadata.get().decimal
-    }
-
-    fn name(&self) -> String {
-        self.metadata.get().name
-    }
-
-    fn symbol(&self) -> String {
-        self.metadata.get().symbol
     }
 }

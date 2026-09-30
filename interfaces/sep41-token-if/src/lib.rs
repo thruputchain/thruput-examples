@@ -1,12 +1,22 @@
 //! The [SEP-41] token interface, for Groundhog contracts.
 //!
 //! SEP-41 (v0.5.2) is the interface Stellar tokens share. This crate carries
-//! over its balance, transfer, burn and metadata functions, as
-//! [`TokenInterface`], and the events those and minting emit, in [`events`],
-//! with SEP-41's names, argument order, argument and return types, and event
-//! topics and data. It leaves off SEP-41's allowances (`allowance`,
-//! `approve`, `transfer_from` and `burn_from`), its muxed addresses, which
-//! Groundhog has no counterpart for, and its clawback event.
+//! over its balance, transfer and burn functions, as [`TokenInterface`], and
+//! the events those and minting emit, in [`events`], with SEP-41's names,
+//! argument order, argument and return types, and event topics and data.
+//!
+//! It leaves off the rest of SEP-41:
+//!
+//! - **Allowances** (`allowance`, `approve`, `transfer_from` and `burn_from`).
+//!   SEP-41's allowances are absolute: `approve` sets an allowance to an
+//!   amount. That isn't compatible with values that change strictly
+//!   relatively, as a Groundhog `Balance` does: it only increases and
+//!   decreases, so that concurrent changes merge.
+//! - **`name`, `symbol` and `decimals`**. The SEP-41 tokens on Groundhog wrap
+//!   Stellar tokens, so a wallet can call the wrapped token's `name`,
+//!   `symbol` and `decimals` on Stellar instead.
+//! - **Muxed addresses**, which Groundhog has no counterpart for.
+//! - **The clawback event.**
 //!
 //! Where Groundhog has its own mechanism for something SEP-41 relies on, the
 //! port uses it:
@@ -35,12 +45,6 @@ use sdk::{ContractAddress, contract, contract_exception};
 pub mod events;
 pub use events::{Burn, Mint, Transfer};
 
-/// SEP-41's `String`, bounded to 100 bytes so a contract needs no allocator.
-///
-/// The contract spec, and the bindings generated from it, carry it as a plain
-/// string.
-pub type String = heapless::String<100>;
-
 /// The ways a SEP-41 function fails.
 #[contract_exception]
 pub enum TokenError {
@@ -54,7 +58,7 @@ pub enum TokenError {
     BalanceOverflow = 4,
 }
 
-/// SEP-41's token interface, less its allowances.
+/// SEP-41's balance, transfer and burn functions.
 ///
 /// Each method is the SEP-41 function of the same name, less its `env: Env`
 /// parameter, and each is specified as SEP-41 specifies it. Where SEP-41 has
@@ -107,14 +111,4 @@ pub trait TokenInterface {
     /// - topics - `[Burn::SIGNATURE, from: ContractAddress]`
     /// - data - `amount: i128`
     fn burn(&mut self, from: &ContractAddress, amount: i128);
-
-    /// Returns the number of decimals used to represent amounts of this
-    /// token.
-    fn decimals(&self) -> u32;
-
-    /// Returns the name for this token.
-    fn name(&self) -> String;
-
-    /// Returns the symbol for this token.
-    fn symbol(&self) -> String;
 }

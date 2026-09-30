@@ -1,10 +1,11 @@
 # SEP-41 Token
 
 An example port (not for production) of [SEP-41] v0.5.2, the token interface
-Stellar tokens share, to Groundhog. The port keeps SEP-41's balance,
-transfer, burn and metadata functions, their argument names, order and types,
-their return types, their events and their behaviour. It leaves off SEP-41's
-allowances, its muxed addresses, and its clawback event.
+Stellar tokens share, to Groundhog. The port keeps SEP-41's balance, transfer
+and burn functions, their argument names, order and types, their return
+types, their events and their behaviour. It [leaves off](#left-off) the rest:
+SEP-41's allowances, its `name`, `symbol` and `decimals`, its muxed
+addresses, and its clawback event.
 
 - [`sep41-token-if`](../../interfaces/sep41-token-if/): Interface-only crate.
   It defines SEP-41's `TokenInterface` trait and its generated `TokenClient`,
@@ -21,9 +22,6 @@ The interface reads as SEP-41 does, less the `env: Env` parameter:
 fn balance(&self, id: &ContractAddress) -> i128;
 fn transfer(&mut self, from: &ContractAddress, to: &ContractAddress, amount: i128);
 fn burn(&mut self, from: &ContractAddress, amount: i128);
-fn decimals(&self) -> u32;
-fn name(&self) -> String;
-fn symbol(&self) -> String;
 ```
 
 ## From Soroban to Groundhog
@@ -35,7 +33,6 @@ port uses it:
 | --- | --- |
 | `env: Env` parameter | No parameter: the SDK reaches the host through free functions |
 | `Address` | `ContractAddress`. Every Groundhog account is a contract, usually a wallet |
-| `String` | `String`, a `heapless::String<100>`, so a contract needs no allocator. The contract spec carries it as a plain string |
 | `address.require_auth()` | `address` must be the caller. Groundhog authenticates the contract making a call, so an account authorizes a call by making it |
 | Event name topic, `"transfer"` | Topic 0, the event's signature, which Groundhog derives from the event type's name and crate |
 | Event data | The event's `amount` field: SEP-41's single-value data format |
@@ -71,7 +68,13 @@ choice:
 ## Left off
 
 - **Allowances**: `allowance`, `approve`, `transfer_from` and `burn_from`, and
-  the `approve` event.
+  the `approve` event. SEP-41's allowances are absolute: `approve` sets an
+  allowance to an amount. That isn't compatible with values that change
+  strictly relatively, as a Groundhog `Balance` does: it only increases and
+  decreases, so that concurrent changes merge.
+- **`name`, `symbol` and `decimals`**. The SEP-41 tokens on Groundhog wrap
+  Stellar tokens, so a wallet can call the wrapped token's `name`, `symbol`
+  and `decimals` on Stellar instead.
 - **Muxed addresses**, which Groundhog has no counterpart for: `transfer`
   takes a plain `ContractAddress`, and the `transfer` and `mint` events carry
   no `to_muxed_id`.

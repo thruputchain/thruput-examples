@@ -19,9 +19,6 @@ pub const BOB: ContractAddress = ContractAddress::new([0x40; 32]);
 /// An address with no role, which reads the token.
 pub const OUTSIDER: ContractAddress = ContractAddress::new([0x60; 32]);
 
-pub const DECIMALS: u32 = 7;
-pub const NAME: &str = "Example Token";
-pub const SYMBOL: &str = "EXT";
 /// Alice's balance when a scenario starts.
 pub const MINTED: i128 = 1_000;
 
@@ -31,7 +28,7 @@ pub const MINTED: i128 = 1_000;
 macro_rules! scenarios {
     ($(#[$attr:meta])* $token:path) => {
         $crate::common::scenarios!(@tests [$(#[$attr])*] $token;
-            initialize_sets_the_metadata_once,
+            initialize_can_be_called_once,
             balances_start_at_zero,
             mint_credits_to_and_emits_mint,
             transfer_moves_the_amount_and_emits_transfer,
@@ -70,12 +67,7 @@ impl TestToken {
         let deployed = env.transact(|tx| {
             tx.call(&DEPLOYER).run(move || {
                 let token = deploy_contract(&SHA256Hash::new([0x77; 32]), &contract);
-                TokenAdminClient::new(&token).initialize(
-                    &ADMIN,
-                    DECIMALS,
-                    string(NAME),
-                    string(SYMBOL),
-                );
+                TokenAdminClient::new(&token).initialize(&ADMIN);
                 token
             })
         });
@@ -147,10 +139,6 @@ impl TestToken {
     }
 }
 
-pub fn string(value: &str) -> String {
-    String::try_from(value).unwrap()
-}
-
 /// Asserts that `result`'s call threw `expected`, so its transaction changed
 /// nothing and emitted nothing.
 #[track_caller]
@@ -162,17 +150,13 @@ where
     result.assert_no_events();
 }
 
-/// `initialize` sets `decimals`, `name` and `symbol`, and can be called once.
-pub fn initialize_sets_the_metadata_once(token: &TestToken) {
-    assert_eq!(
-        token.read(|client| (client.decimals(), client.name(), client.symbol())),
-        (DECIMALS, string(NAME), string(SYMBOL)),
+/// `initialize` can be called once, so nobody can make themselves the
+/// administrator of an initialized token.
+pub fn initialize_can_be_called_once(token: &TestToken) {
+    assert_throws(
+        &token.admin(&BOB, |client| client.initialize(&BOB)),
+        TokenAdminError::AlreadyInitialized,
     );
-
-    let again = token.admin(&ADMIN, |client| {
-        client.initialize(&BOB, 18, string("Other Token"), string("OTH"))
-    });
-    assert_throws(&again, TokenAdminError::AlreadyInitialized);
 }
 
 /// An address with no balance has a balance of 0.

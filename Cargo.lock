@@ -2567,7 +2567,6 @@ dependencies = [
 name = "sep41-token-if"
 version = "0.1.0"
 dependencies = [
- "heapless",
  "sdk",
 ]
 

@@ -21,4 +21,3 @@ test = false
 
 [dependencies]
 sdk = { workspace = true }
-heapless = { workspace = true }
