@@ -38,29 +38,29 @@ fn require_auth(address: &ContractAddress) {
     ensure(get_caller() == *address, TokenError::Unauthorized);
 }
 
-fn require_nonnegative_amount(amount: i128) {
-    ensure(amount >= 0, TokenError::NegativeAmount);
+/// Returns `amount` as the `u128` a `Balance` takes, throwing
+/// `NegativeAmount` if it is negative. The balance helpers take only that
+/// `u128`, so every amount they move has been through this check.
+fn require_nonnegative_amount(amount: i128) -> u128 {
+    u128::try_from(amount).unwrap_or_else(|_| throw(TokenError::NegativeAmount))
 }
 
-// Amounts reach these helpers checked non-negative, so `as u128` keeps their
-// value, and a `Balance` never holds more than `i128::MAX`, so `as i128` keeps
-// its.
 impl Token {
     fn read_balance(&self, id: &ContractAddress) -> i128 {
-        self.balances.at(id).get() as i128
+        i128::try_from(self.balances.at(id).get()).expect("bug: a Balance holds at most i128::MAX")
     }
 
-    fn receive_balance(&mut self, id: &ContractAddress, amount: i128) {
+    fn receive_balance(&mut self, id: &ContractAddress, amount: u128) {
         self.balances
             .at_mut(id)
-            .try_increase(amount as u128)
+            .try_increase(amount)
             .unwrap_or_else(|_| throw(TokenError::BalanceOverflow));
     }
 
-    fn spend_balance(&mut self, id: &ContractAddress, amount: i128) {
+    fn spend_balance(&mut self, id: &ContractAddress, amount: u128) {
         self.balances
             .at_mut(id)
-            .try_decrease(amount as u128)
+            .try_decrease(amount)
             .unwrap_or_else(|_| throw(TokenError::InsufficientBalance));
     }
 }
@@ -107,9 +107,9 @@ impl Token {
     /// Emits [`Mint`].
     pub fn mint(&mut self, to: &ContractAddress, amount: i128) {
         require_auth(&self.admin.get());
-        require_nonnegative_amount(amount);
+        let value = require_nonnegative_amount(amount);
 
-        self.receive_balance(to, amount);
+        self.receive_balance(to, value);
         log_event(&Mint { to, amount });
     }
 }
@@ -122,18 +122,18 @@ impl TokenInterface for Token {
 
     fn transfer(&mut self, from: &ContractAddress, to: &ContractAddress, amount: i128) {
         require_auth(from);
-        require_nonnegative_amount(amount);
+        let value = require_nonnegative_amount(amount);
 
-        self.spend_balance(from, amount);
-        self.receive_balance(to, amount);
+        self.spend_balance(from, value);
+        self.receive_balance(to, value);
         log_event(&Transfer { from, to, amount });
     }
 
     fn burn(&mut self, from: &ContractAddress, amount: i128) {
         require_auth(from);
-        require_nonnegative_amount(amount);
+        let value = require_nonnegative_amount(amount);
 
-        self.spend_balance(from, amount);
+        self.spend_balance(from, value);
         log_event(&Burn { from, amount });
     }
 
