@@ -9,7 +9,7 @@
 use core::panic::UnwindSafe;
 use sdk::xdr::{ReadXDROwned, WriteXDR};
 use sdk::*;
-use sep41_token::{TokenAdminClient, TokenAdminError};
+use sep41_token::{TokenAdminClient, TokenAdminError, TokenError};
 use sep41_token_if::*;
 
 pub const DEPLOYER: ContractAddress = ContractAddress::new([0x10; 32]);

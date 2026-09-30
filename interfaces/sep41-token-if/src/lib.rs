@@ -28,35 +28,25 @@
 //! - **`address.require_auth()`** becomes "`address` must be the caller". The
 //!   runtime authenticates the contract making a call, so an account
 //!   authorizes a call by making it. A call that needs the authorization of
-//!   an address other than its caller's throws [`TokenError::Unauthorized`].
+//!   an address other than its caller's fails.
 //! - **An event's name topic** (`"transfer"`) is its signature, topic 0, which
 //!   Groundhog derives from the event type's name and the crate defining it.
 //!   The topics after it are SEP-41's, and the payload is SEP-41's data; see
 //!   [`events`].
-//! - **A failure** is a [`TokenError`] exception. SEP-41 says when its
-//!   functions fail and leaves the error encoding to implementations.
+//! - **A failure** is an exception the implementation defines. SEP-41 says
+//!   when its functions fail and leaves the errors to implementations, so
+//!   [`TokenInterface`] declares none, and a token's contract spec lists none
+//!   for these functions. A caller catches a token's exceptions by type, with
+//!   `sdk::match_exn!`.
 //!
 //! [SEP-41]: https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::{ContractAddress, contract, contract_exception};
+use sdk::{ContractAddress, contract};
 
 pub mod events;
 pub use events::{Burn, Mint, Transfer};
-
-/// The ways a SEP-41 function fails.
-#[contract_exception]
-pub enum TokenError {
-    /// An address whose authorization the call needs is not its caller.
-    Unauthorized = 1,
-    /// `amount` is negative.
-    NegativeAmount = 2,
-    /// The balance is less than `amount`.
-    InsufficientBalance = 3,
-    /// The receiving balance would exceed `i128::MAX`.
-    BalanceOverflow = 4,
-}
 
 /// SEP-41's balance, transfer and burn functions.
 ///
@@ -67,7 +57,7 @@ pub enum TokenError {
 /// SEP-41 also standardizes a [`Mint`] event, but not the function that emits
 /// it. An implementation emits it from its own mint function, and lists it in
 /// the `emits` of the interface that function belongs to.
-#[contract(client = TokenClient, throws = TokenError, emits(Transfer, Burn))]
+#[contract(client = TokenClient, emits(Transfer, Burn))]
 pub trait TokenInterface {
     /// Returns the balance of `id`.
     ///

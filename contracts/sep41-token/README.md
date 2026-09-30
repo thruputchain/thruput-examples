@@ -9,12 +9,12 @@ addresses, and its clawback event.
 
 - [`sep41-token-if`](../../interfaces/sep41-token-if/): Interface-only crate.
   It defines SEP-41's `TokenInterface` trait and its generated `TokenClient`,
-  SEP-41's transfer, burn and mint events, and the `TokenError` exceptions. A
-  contract that calls a token depends on this crate only, as a Soroban
-  contract uses `soroban_sdk::token`.
+  and SEP-41's transfer, burn and mint events. A contract that calls a token
+  depends on this crate only, as a Soroban contract uses `soroban_sdk::token`.
 - `sep41-token`: A token implementing it, after the Soroban token example. It
-  adds a `TokenAdmin` interface with the functions SEP-41 leaves to each
-  token: `initialize`, and the administrator's `mint`.
+  defines the exceptions its functions throw, `TokenError`, and adds a
+  `TokenAdmin` interface with the functions SEP-41 leaves to each token:
+  `initialize`, and the administrator's `mint`.
 
 The interface reads as SEP-41 does, less the `env: Env` parameter:
 
@@ -36,7 +36,7 @@ port uses it:
 | `address.require_auth()` | `address` must be the caller. Groundhog authenticates the contract making a call, so an account authorizes a call by making it |
 | Event name topic, `"transfer"` | Topic 0, the event's signature, which Groundhog derives from the event type's name and crate |
 | Event data | The event's `amount` field: SEP-41's single-value data format |
-| Panic or host error | A `TokenError` exception |
+| Panic or host error | An exception the token defines, here a `TokenError`. SEP-41 leaves errors to each token, so the interface declares none |
 | Constructor | `initialize`, called in the transaction that deploys the token |
 
 ## Events

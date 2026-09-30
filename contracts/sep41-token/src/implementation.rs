@@ -14,6 +14,22 @@ pub struct Token {
     balances: Map<ContractAddress, Balance>,
 }
 
+/// The ways the token's SEP-41 functions fail.
+///
+/// SEP-41 leaves the errors to each token, so `TokenInterface` declares none,
+/// and the token defines its own.
+#[contract_exception]
+pub enum TokenError {
+    /// An address whose authorization the call needs is not its caller.
+    Unauthorized = 1,
+    /// `amount` is negative.
+    NegativeAmount = 2,
+    /// The balance is less than `amount`.
+    InsufficientBalance = 3,
+    /// The receiving balance would exceed `i128::MAX`.
+    BalanceOverflow = 4,
+}
+
 /// The failure of the administrator's interface that SEP-41 has no
 /// counterpart for.
 #[contract_exception]
