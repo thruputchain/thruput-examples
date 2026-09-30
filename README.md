@@ -32,6 +32,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit or allowance clear from the wallet to the token in one frame, routing by the signed request, so anyone can submit it |
 | [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](contracts/swap-router/README.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
+| [`speedex`](contracts/speedex/) | A [SPEEDEX](https://www.usenix.org/conference/nsdi23/presentation/ramseyer)-style batch exchange over several assets: offers aggregate into a commutative histogram, one transaction per batch computes clearing prices by tâtonnement, and settlement is per offer and order-free |
 
 ### Simulation fixtures
 
@@ -264,6 +265,11 @@ Beyond the tests in the table, there are two specially-handled kinds of test:
   [`scripts/permit-live.sh`](scripts/permit-live.sh). The native version of
   the same flow, `permit-wallet/tests/permit.rs`, runs under plain
   `cargo test` and also covers `transfer_from_signed` and key rotation.
+  [`speedex/tests/testkit_gas.rs`](contracts/speedex/tests/testkit_gas.rs)
+  measures what the batch exchange's clearing costs on a devnode, by batch
+  size and tâtonnement round cap; with the native execution-quality
+  benchmark in `speedex/tests/quality.rs`, it is what
+  [`scripts/speedex-bench.sh`](scripts/speedex-bench.sh) runs and graphs.
 
 ### Non-contract crates
 
