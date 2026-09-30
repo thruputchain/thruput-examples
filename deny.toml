@@ -1,0 +1,59 @@
+# cargo-deny configuration
+#   (advisory, license, source, and duplicate-version policy)
+#
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+all-features = true
+
+[advisories]
+ignore = []
+# Informational advisories (unsound, unmaintained) default to workspace-direct
+# dependencies only.
+unsound = "all"
+unmaintained = "all"
+# Inert while we fetch every run; matters only if the DB is cached or
+# --offline is used. Default bound is 90 days; measured from the last fetch.
+maximum-db-staleness = "P7D"
+
+[licenses]
+private = { ignore = true }
+allow = [
+    "Apache-2.0",
+    "MIT",
+    # wasi, wasip2, wit-bindgen: not implied by the bare Apache-2.0 above.
+    "Apache-2.0 WITH LLVM-exception",
+    # fiat-crypto
+    "BSD-1-Clause",
+    # zerocopy
+    "BSD-2-Clause",
+    # curve25519-dalek, ed25519-dalek, subtle
+    "BSD-3-Clause",
+    # ryu, dual-licensed Apache-2.0 OR BSL-1.0
+    "BSL-1.0",
+    # webpki-root-certs: the Mozilla CA bundle, under a permissive data
+    # license rather than a code license.
+    "CDLA-Permissive-2.0",
+    # ring, rustls and friends
+    "ISC",
+    # the icu_* family is (MIT OR Apache-2.0) AND Unicode-3.0
+    "Unicode-3.0",
+    # dual-licensed Unlicense OR MIT (byteorder, memchr, walkdir)
+    "Unlicense",
+]
+# NOTE: r-efi is "MIT OR Apache-2.0 OR LGPL-2.1-or-later"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Internal path dependencies carry no version requirement. Registry wildcards
+# stay denied.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = [
+    "https://github.com/rust-lang/crates.io-index",
+    "sparse+https://crates.thruput.network/api/v1/crates/",
+]
