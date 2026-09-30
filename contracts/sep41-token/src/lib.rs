@@ -3,7 +3,7 @@
 //! [`Token`] implements the [SEP-41] interface from `sep41-token-if`, the way
 //! the Soroban token example does, and adds a [`TokenAdmin`](TokenAdminClient)
 //! interface with the functions SEP-41 leaves to each token: `initialize`,
-//! and the administrator's `mint` and `clawback`.
+//! and the administrator's `mint`.
 //!
 //! [SEP-41]: https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md
 
