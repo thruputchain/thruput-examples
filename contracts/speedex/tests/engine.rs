@@ -389,7 +389,7 @@ fn a_batch_of_two_thousand_cells_clears_through_the_coarse_price_search() {
 fn random_batches_are_sound_and_respect_every_limit() {
     let mut rng = Lcg(2024);
     let mut relaxed = 0;
-    let mut most_cancellations = 0;
+    let mut most_pivots = 0;
 
     for trial in 0..300 {
         let n = 2 + rng.below(4) as usize;
@@ -437,7 +437,7 @@ fn random_batches_are_sound_and_respect_every_limit() {
         let buckets = sorted(buckets);
         let (c, fills) = clear(&buckets, n, ROUNDS);
         relaxed += (c.shortfall > 0) as u32;
-        most_cancellations = most_cancellations.max(c.cancellations);
+        most_pivots = most_pivots.max(c.pivots);
 
         // Prices are normalized.
         assert_eq!(
@@ -487,8 +487,6 @@ fn random_batches_are_sound_and_respect_every_limit() {
     }
     // Where every book on a cycle is past the band, approximate prices leave a little unfilled; it
     // should never take the solver anywhere near its cycle budget.
-    println!(
-        "some lower bound unmet in {relaxed} of 300 batches; at most {most_cancellations} cycles"
-    );
-    assert!(most_cancellations < MAX_CANCELLATIONS);
+    println!("some lower bound unmet in {relaxed} of 300 batches; at most {most_pivots} pivots");
+    assert!(most_pivots < MAX_PIVOTS);
 }

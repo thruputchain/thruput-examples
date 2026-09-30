@@ -81,11 +81,14 @@ per-batch step whose cost is independent of load.
 - **No fee, and the LP as a circulation.** SPEEDEX's linear program picks how much each orderbook
   trades so that no asset is paid out beyond what was sold of it. Without a fee those constraints
   sum to zero across assets, so they hold with equality: value in equals value out at every asset,
-  and the problem is a circulation on the graph of assets with one edge per orderbook. That has an
-  integral solution, so `engine::clear` finds it in exact integers -- a minimum-cost circulation by
-  cycle cancelling in `U256` -- rather than with an LP solver in floating point. Each edge has two
-  arcs: the value of the buckets past the smoothing band, which is filled first (a cycle can never
-  profitably trade it for marginal volume), and the value of the buckets inside the band. Within a
+  and the problem is a circulation on the graph of assets with one edge per orderbook. Its
+  constraint matrix is a node-arc incidence matrix, hence totally unimodular, so `engine::clear`
+  solves it with the simplex method in exact integers: the tableau stays in `{-1, 0, 1}` through
+  every pivot, pivoting is addition and subtraction of `U256` values, and the optimum is integral
+  -- no LP solver in floating point. The arcs' upper bounds are kept implicitly, so the tableau
+  has a row per asset and two columns per orderbook. Each edge has two arcs: the value of the
+  buckets past the smoothing band, which is filled first (weighted so that no exchange of it for
+  marginal volume can pay), and the value of the buckets inside the band. Within a
   book, levels fill from the most in-the-money down, and the marginal level's offers share its
   remainder. Rounding at settlement goes the exchange's way by under a unit per offer, and the
   circulation makes what the exchange must pay out of each asset at most what it took in; the dust
@@ -124,9 +127,10 @@ stated) and the contract reads back at run time from the linker's end-of-memory 
 guest's allocator never frees, so everything a clearing allocates has to fit at once. Measured on
 the RV32 executor (`tests/test_rv32.rs::largest_clearing_fits_the_guest_rv32`), 43.7 KiB is
 spoken for before an entry point runs (a 30 KiB stack reserve, the runtime's and the SDK's own),
-and a clearing then takes 4.2 KiB, 32 bytes per bucket and about 190 bytes per orderbook (its
-edge of the value graph, in `U256`); the cap keeps a tenth of the rest in hand. With 64 KiB that
-is 302 cells for three assets and 152 for eight; with 256 KiB, about 6,100 and 5,700. A chain
+and a clearing then takes some 5 KiB, 32 bytes per bucket and about 240 bytes per orderbook (its
+edge of the value graph in `U256`, its fill, and its two columns of the simplex tableau); the cap
+keeps a tenth of the rest in hand. With 64 KiB that is 300 cells for three assets and 130 for
+eight; with 256 KiB, about 6,100 and 5,600. A chain
 admits a larger declaration through its `max_rv32_memory_bytes` parameter. The mock executor the
 RV32 tests run on verifies artifacts under the protocol defaults whatever the environment is
 configured with (hogd's `test_ffi`), so the committed manifest keeps 64 KiB and the benchmark
@@ -191,13 +195,14 @@ since an account may have 8,000 transactions at one expiry height. What the run 
 - A round of tâtonnement costs about 1k gas per bucket plus some 20k to 50k for the price update
   (RV32 has no 128-bit divide, and a round takes one per asset), so the price computation of a
   converged clearing stays well under the reads at any size: 15M at 4,096 cells.
-- The circulation grows with the square of the orderbooks: cycle cancelling runs Bellman-Ford over
-  four arcs per orderbook, in `U256`, once per cycle. It is a tenth of a clearing with three
-  assets and the largest part with eight.
-- Altogether a converged clearing costs from 2M gas (three assets, 8 cells) to 161M (three
-  assets, 4,096 cells) and 344M (eight assets, 4,096 cells, of which the circulation is 150M).
-  A deployment should set the grid, the epoch, the round cap and the number of assets against
-  what its chain's gas limit affords.
+- The circulation is a few dozen simplex pivots over a tableau of `n` rows and two columns per
+  orderbook, each an integer pass over it plus a `U256` addition per row: under 1M gas at 128
+  cells and 9.5M at 4,096 cells with eight assets (a cycle-cancelling predecessor took 150M
+  there), the rest of it the pass over the buckets that builds the edges and the fills.
+- Altogether a converged clearing costs from 2M gas (three assets, 8 cells) to 150M (three
+  assets, 4,096 cells) and 203M (eight assets, 4,096 cells): reads first, then tâtonnement. A
+  deployment should set the grid, the epoch, the round cap and the number of assets against what
+  its chain's gas limit affords.
 
 ![Gas against batch size](bench/gas-vs-size.png)
 

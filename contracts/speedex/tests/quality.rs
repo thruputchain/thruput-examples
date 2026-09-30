@@ -65,14 +65,14 @@ struct Row {
     /// not fill in full.
     offers_must: usize,
     offers_must_short: usize,
-    cancellations: u32,
+    pivots: u32,
     prices_us: u128,
     trades_us: u128,
 }
 
 const HEADER: &str = "n,offers,cells,seed,round_cap,rounds,converged,price_error,price_deviation,\
 fill_fraction,shortfall_fraction,offers_in_money,offers_full,offers_partial,offers_unfilled,\
-offers_must,offers_must_short,cancellations,prices_us,trades_us";
+offers_must,offers_must_short,pivots,prices_us,trades_us";
 
 impl Row {
     fn csv(&self) -> String {
@@ -95,7 +95,7 @@ impl Row {
             self.offers_unfilled,
             self.offers_must,
             self.offers_must_short,
-            self.cancellations,
+            self.pivots,
             self.prices_us,
             self.trades_us,
         )
@@ -223,7 +223,7 @@ fn evaluate(batch: &Batch, seed: u64, round_cap: u32) -> Row {
         offers_unfilled,
         offers_must,
         offers_must_short,
-        cancellations: clearing.cancellations,
+        pivots: clearing.pivots,
         prices_us,
         trades_us,
     }

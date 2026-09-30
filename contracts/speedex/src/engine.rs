@@ -87,9 +87,6 @@ pub const SMOOTH_SHIFT: u32 = 6;
 /// over the batch's buckets; how many a batch needs to reach [`TOLERANCE`] is what
 /// `tests/quality.rs` measures.
 pub const MAX_ROUNDS: u32 = 256;
-/// The most cycles [`clear`] will push flow around. Each is an integer step, so this bounds the
-/// clearing's work; a circulation left short of the optimum is still exact, just smaller.
-pub const MAX_CANCELLATIONS: u32 = 256;
 /// Tâtonnement stops once the clearing error is below one part in this of the traded volume.
 pub const TOLERANCE: u128 = 1000;
 // Step-size control, Q32: where each asset's step starts, the most it grows to, and the least
@@ -121,8 +118,8 @@ pub struct Clearing {
     pub prices: Prices,
     /// How many price-update rounds tâtonnement ran.
     pub rounds: u32,
-    /// How many cycles the circulation was pushed around; see [`MAX_CANCELLATIONS`].
-    pub cancellations: u32,
+    /// How many simplex pivots the circulation took; see [`MAX_PIVOTS`].
+    pub pivots: u32,
     /// The value traded, summed over orderbooks at the clearing prices: `sum(sold * p_sell) /
     /// 2^32`, saturating.
     pub volume: u128,
@@ -489,10 +486,15 @@ pub fn tatonnement(buckets: &[Bucket], n: usize, max_rounds: u32) -> (Prices, u3
 // and the constraint that no asset is bought in greater value than it is sold sums to zero over
 // the assets, so it holds with equality everywhere: value in equals value out at every asset. An
 // edge's capacity is the value of its buckets in the money, and the part of it belonging to
-// buckets past the smoothing band ought to be used before any marginal bucket trades. Maximizing
-// volume under that priority is a minimum-cost circulation with two arcs per edge, which has an
-// integral solution, found here by cycle cancelling in `U256` (a bucket of up to 2^127 at a price
-// of up to 2^56 is a value of up to 2^183) with no rounding anywhere.
+// buckets past the smoothing band ought to be used before any marginal bucket trades.
+//
+// Maximizing volume under that priority is a small linear program whose constraint matrix is a
+// node-arc incidence matrix, hence totally unimodular: the simplex tableau stays in {-1, 0, 1}
+// through every pivot, so pivoting is integer addition and subtraction, and the optimum is
+// integral with no rounding anywhere. The program is solved by the simplex method with the arcs'
+// upper bounds kept implicitly (a nonbasic arc sits at zero or at its bound), so the tableau has
+// one row per asset and two columns per orderbook (a bucket of up to 2^127 at a price of up to
+// 2^56 is a value of up to 2^183, so the basic values are `U256`).
 
 // An orderbook as an edge of the value graph: what must trade if it can, what may, and what does.
 struct Edge {
@@ -507,24 +509,32 @@ struct Edge {
     flow_may: U256,
 }
 
-// The edges of a batch at prices `p`: one per orderbook with anything in the money.
+// The edges of a batch at prices `p`: one per orderbook with anything in the money, in the order
+// the orderbooks come in `buckets`.
 #[inline(never)]
 fn edges(buckets: &[Bucket], n: usize, p: &Prices) -> Vec<Edge> {
     // Sized once: the guest's allocator never frees, so a vector that grew by doubling would
     // leave its outgrown copies behind.
     let mut out: Vec<Edge> = Vec::with_capacity(n * (n - 1));
+    // Buckets come grouped by orderbook, so the book's ratio -- a 128-bit division -- is taken
+    // once per book.
+    let mut book = (u8::MAX, u8::MAX);
+    let mut r = 0u128;
     for b in buckets {
-        let (sell, buy) = (b.sell as usize, b.buy as usize);
-        let r = ratio(p[sell], p[buy]);
+        if book != (b.sell, b.buy) {
+            book = (b.sell, b.buy);
+            r = ratio(p[b.sell as usize], p[b.buy as usize]);
+        }
         let l = b.limit as u128;
         if r <= l {
             continue;
         }
+        let (sell, buy) = (b.sell as usize, b.buy as usize);
         let value = U256::from(b.amount) * U256::from(p[sell] as u128);
         let past_band = r >= l + (l >> SMOOTH_SHIFT).max(1);
-        let e = match out.iter_mut().find(|e| e.sell == sell && e.buy == buy) {
-            Some(e) => e,
-            None => {
+        let e = match out.last_mut() {
+            Some(e) if e.sell == sell && e.buy == buy => e,
+            _ => {
                 out.push(Edge {
                     sell,
                     buy,
@@ -545,87 +555,177 @@ fn edges(buckets: &[Bucket], n: usize, p: &Prices) -> Vec<Edge> {
     out
 }
 
-// What a unit of flow on a `must` arc is worth against a unit on a `may` arc. A cancelled cycle
-// has at most `4 * MAX_BOOKS` arcs, so no cycle can profitably trade `must` flow for `may` flow:
-// the solution fills the buckets past the band as fully as any circulation can before any
-// marginal bucket trades at all.
-const PRIORITY: i32 = 4 * MAX_BOOKS as i32 + 1;
+// What a unit of flow on a `must` arc is worth against a unit on a `may` arc. A basic solution
+// has at most `2 * MAX_BOOKS` arcs at a fractional bound, so no exchange of `must` flow for `may`
+// flow can pay: the optimum fills the buckets past the band as fully as any circulation can
+// before any marginal bucket trades at all.
+const PRIORITY: i64 = 4 * MAX_BOOKS as i64 + 1;
 
-// The residual arcs of edge `e`, four to an edge: forward and backward on each part. Each is
-// `(from, to, capacity, cost per unit)`.
-fn residual(edges: &[Edge], i: usize) -> (usize, usize, U256, i32) {
-    let e = &edges[i / 4];
-    match i % 4 {
-        0 => (e.sell, e.buy, e.must - e.flow_must, -PRIORITY),
-        1 => (e.buy, e.sell, e.flow_must, PRIORITY),
-        2 => (e.sell, e.buy, e.may - e.flow_may, -1),
-        _ => (e.buy, e.sell, e.flow_may, 1),
-    }
-}
+/// The most simplex pivots [`clear`] takes. Each is a pass over a tableau of `n` rows and two
+/// columns per orderbook, so this bounds the clearing's work; a solution left short of the
+/// optimum is still an exact circulation within the bounds, just smaller.
+pub const MAX_PIVOTS: u32 = 2048;
 
-// Find the maximum-priority, then maximum-volume circulation by cycle cancelling, starting from
-// no flow at all (which is a circulation), and return how many cycles it took.
-//
-// Bellman-Ford over the residual arcs finds a cycle of negative total cost -- one that gains more
-// than it gives up -- and the bottleneck of flow is pushed around it. When no such cycle remains
-// the circulation is optimal. Every push is an integer step that strictly improves the objective,
-// so the loop terminates; [`MAX_CANCELLATIONS`] bounds it anyway, since the flow is a valid
-// circulation at every step and stopping early only costs volume.
+// Where a nonbasic variable sits.
+const AT_LOWER: u8 = 0;
+const AT_UPPER: u8 = 1;
+const BASIC: u8 = 2;
+
+// Maximize `PRIORITY * sum(flow_must) + sum(flow_may)` over the circulations within the edges'
+// bounds, by the bounded-variable simplex method (Bland's rule, so it terminates). Column `2k`
+// is edge `k`'s `must` arc, `2k + 1` its `may` arc, and `2E + a` the slack of asset `a`; row `a`
+// reads `bought_a - sold_a + slack_a = 0`, with the slack basic to start from (every slack is
+// zero in any feasible point, since the rows sum to zero). Returns the pivots taken.
 #[inline(never)]
-fn circulate(edges: &mut [Edge], n: usize) -> u32 {
-    let arcs = 4 * edges.len();
-    for cancelled in 0..MAX_CANCELLATIONS {
-        let mut dist = [0i32; MAX_ASSETS];
-        let mut via = [usize::MAX; MAX_ASSETS];
-        let mut last_relaxed = usize::MAX;
-        for _ in 0..n {
-            last_relaxed = usize::MAX;
-            for i in 0..arcs {
-                let (from, to, cap, cost) = residual(edges, i);
-                if !cap.is_zero() && dist[from] + cost < dist[to] {
-                    dist[to] = dist[from] + cost;
-                    via[to] = i;
-                    last_relaxed = to;
-                }
+fn solve(edges: &mut [Edge], n: usize) -> u32 {
+    let arcs = 2 * edges.len();
+    let cols = arcs + n;
+    let bound = |j: usize, edges: &[Edge]| -> Option<U256> {
+        (j < arcs).then(|| {
+            if j.is_multiple_of(2) {
+                edges[j / 2].must
+            } else {
+                edges[j / 2].may
             }
-            if last_relaxed == usize::MAX {
-                return cancelled;
-            }
-        }
+        })
+    };
 
-        // A relaxation on the n-th pass means a negative cycle; walking back n steps lands on it.
-        let mut v = last_relaxed;
-        for _ in 0..n {
-            v = residual(edges, via[v]).0;
+    // The tableau `B^-1 A`, row-major, in {-1, 0, 1}.
+    let mut a: Vec<i8> = alloc::vec![0i8; n * cols];
+    for (k, e) in edges.iter().enumerate() {
+        for part in 0..2 {
+            a[e.buy * cols + 2 * k + part] = 1;
+            a[e.sell * cols + 2 * k + part] = -1;
         }
-        let start = v;
-        let mut bottleneck = U256::MAX;
-        loop {
-            let (from, _, cap, _) = residual(edges, via[v]);
-            bottleneck = bottleneck.min(cap);
-            v = from;
-            if v == start {
-                break;
+    }
+    for asset in 0..n {
+        a[asset * cols + arcs + asset] = 1;
+    }
+    // Reduced costs of maximizing, values of the basic variables, the basis, and where every
+    // nonbasic variable sits.
+    let mut obj: Vec<i64> = Vec::with_capacity(cols);
+    for j in 0..cols {
+        obj.push(if j >= arcs {
+            0
+        } else if j.is_multiple_of(2) {
+            PRIORITY
+        } else {
+            1
+        });
+    }
+    let mut beta = [U256::ZERO; MAX_ASSETS];
+    let mut basis = [0usize; MAX_ASSETS];
+    let mut status: Vec<u8> = alloc::vec![AT_LOWER; cols];
+    for asset in 0..n {
+        basis[asset] = arcs + asset;
+        status[arcs + asset] = BASIC;
+    }
+
+    let mut pivots = 0;
+    while pivots < MAX_PIVOTS {
+        // Entering: the lowest-indexed variable that improves the objective by moving off its
+        // bound (Bland's rule).
+        let Some(j) = (0..cols).find(|&j| {
+            (status[j] == AT_LOWER && obj[j] > 0) || (status[j] == AT_UPPER && obj[j] < 0)
+        }) else {
+            break;
+        };
+        pivots += 1;
+        let up = status[j] == AT_LOWER;
+
+        // How far it can move: until it reaches its own other bound, or a basic variable
+        // reaches one of its bounds (the lowest such row on ties).
+        let mut t = bound(j, edges).unwrap_or(U256::MAX);
+        let mut blocking: Option<(usize, u8)> = None;
+        for i in 0..n {
+            let coeff = a[i * cols + j];
+            if coeff == 0 {
+                continue;
+            }
+            // The basic variable of row `i` moves by `-coeff` per unit `j` moves up.
+            let falling = (coeff > 0) == up;
+            let room = if falling {
+                Some((beta[i], AT_LOWER))
+            } else {
+                bound(basis[i], edges).map(|b| (b - beta[i], AT_UPPER))
+            };
+            if let Some((room, to)) = room
+                && room < t
+            {
+                t = room;
+                blocking = Some((i, to));
             }
         }
-        let mut v = start;
-        loop {
-            let i = via[v];
-            let from = residual(edges, i).0;
-            let e = &mut edges[i / 4];
-            match i % 4 {
-                0 => e.flow_must += bottleneck,
-                1 => e.flow_must -= bottleneck,
-                2 => e.flow_may += bottleneck,
-                _ => e.flow_may -= bottleneck,
+        if t == U256::MAX {
+            // Unbounded: not possible within the edges' bounds, but never loop on it.
+            break;
+        }
+        for i in 0..n {
+            let coeff = a[i * cols + j];
+            if coeff == 0 {
+                continue;
             }
-            v = from;
-            if v == start {
-                break;
+            if (coeff > 0) == up {
+                beta[i] -= t;
+            } else {
+                beta[i] += t;
+            }
+        }
+        let Some((r, to)) = blocking else {
+            // The entering variable reached its other bound first: it just switches sides.
+            status[j] = if up { AT_UPPER } else { AT_LOWER };
+            continue;
+        };
+
+        // Pivot: `j` takes row `r` from its basic variable, which leaves at the bound it hit.
+        let leaving = basis[r];
+        status[leaving] = to;
+        let entering_value = if up { t } else { bound(j, edges).unwrap() - t };
+        beta[r] = entering_value;
+        if a[r * cols + j] < 0 {
+            for c in 0..cols {
+                a[r * cols + c] = -a[r * cols + c];
+            }
+        }
+        for i in 0..n {
+            if i == r {
+                continue;
+            }
+            let coeff = a[i * cols + j];
+            if coeff == 0 {
+                continue;
+            }
+            for c in 0..cols {
+                a[i * cols + c] -= coeff * a[r * cols + c];
+            }
+        }
+        let d = obj[j];
+        if d != 0 {
+            for c in 0..cols {
+                obj[c] -= d * a[r * cols + c] as i64;
+            }
+        }
+        basis[r] = j;
+        status[j] = BASIC;
+    }
+
+    // Read the flows off the final basis.
+    for k in 0..edges.len() {
+        for part in 0..2 {
+            let j = 2 * k + part;
+            let value = match status[j] {
+                AT_LOWER => U256::ZERO,
+                AT_UPPER => bound(j, edges).unwrap(),
+                _ => beta[basis.iter().position(|&b| b == j).unwrap()],
+            };
+            if part == 0 {
+                edges[k].flow_must = value;
+            } else {
+                edges[k].flow_may = value;
             }
         }
     }
-    MAX_CANCELLATIONS
+    pivots
 }
 
 // ── Putting it together ─────────────────────────────────────────────────────
@@ -652,11 +752,14 @@ pub fn trades(
     rounds: u32,
 ) -> (Clearing, Vec<(usize, BookFill)>) {
     let mut es = edges(buckets, n, prices);
-    let cancellations = circulate(&mut es, n);
+    let pivots = solve(&mut es, n);
 
     let mut volume = U256::ZERO;
     let mut fills = Vec::with_capacity(es.len());
     let mut shortfall = U256::ZERO;
+    // Edges come in the order their orderbooks come in `buckets`, so one pass over the buckets
+    // serves every edge.
+    let mut next = 0;
     for e in &es {
         shortfall += e.must - e.flow_must;
         let flow = e.flow_must + e.flow_may;
@@ -670,9 +773,12 @@ pub fn trades(
         let price = U256::from(prices[e.sell] as u128);
         let (mut whole, rem) = flow.checked_div_rem(price).unwrap();
         let mut fill = BookFill::default();
-        for b in buckets
+        while (buckets[next].sell as usize, buckets[next].buy as usize) != (e.sell, e.buy) {
+            next += 1;
+        }
+        for b in buckets[next..]
             .iter()
-            .filter(|b| (b.sell as usize, b.buy as usize) == (e.sell, e.buy))
+            .take_while(|b| (b.sell as usize, b.buy as usize) == (e.sell, e.buy))
         {
             let amount = U256::from(b.amount);
             if whole > amount || (whole == amount && rem.is_zero()) {
@@ -693,7 +799,7 @@ pub fn trades(
     let clearing = Clearing {
         prices: *prices,
         rounds,
-        cancellations,
+        pivots,
         volume: u128::try_from(volume >> 32u32).unwrap_or(u128::MAX),
         shortfall: u128::try_from(shortfall >> 32u32).unwrap_or(u128::MAX),
     };

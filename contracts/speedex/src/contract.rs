@@ -86,15 +86,15 @@ pub fn max_clear_cells(n_assets: usize) -> usize {
 /// The bound is memory: the guest's allocator never frees, so everything a clearing allocates
 /// has to fit at once. Measured on the RV32 executor (`tests/test_rv32.rs`), 43.7 KiB of the
 /// guest's memory is spoken for before an entry point runs (a 30 KiB stack reserve, the
-/// runtime's and the SDK's own), and a clearing then takes 4.2 KiB, 32 bytes per bucket and
-/// about 190 bytes per orderbook (its edge of the value graph, in `U256`); this keeps a tenth of
-/// the rest in hand. With the protocol's 64 KiB that is 152 cells for eight assets and 302 for
-/// three; with 256 KiB, about 5,700 and 6,100. What a node charges is the other bound on a
-/// batch: about 37.5k gas per cell read (a cold database load), and a circulation that grows
-/// with the square of the orderbooks (`tests/testkit_gas.rs`).
+/// runtime's and the SDK's own), and a clearing then takes some 5 KiB, 32 bytes per bucket and
+/// about 240 bytes per orderbook (its edge of the value graph in `U256`, its fill, and its two
+/// columns of the simplex tableau); this keeps a tenth of the rest in hand. With the protocol's
+/// 64 KiB that is 130 cells for eight assets and 300 for three; with 256 KiB, about 5,600 and
+/// 6,100. What a node charges is the other bound on a batch: about 37.5k gas per cell read (a
+/// cold database load) (`tests/testkit_gas.rs`).
 pub const fn max_clear_cells_in(memory: usize, n_assets: usize) -> usize {
     let books = n_assets * (n_assets - 1);
-    let free = memory - 44 * 1024 - 4200 - 190 * books;
+    let free = memory - 44 * 1024 - 5 * 1024 - 240 * books;
     free / 32 * 9 / 10
 }
 
@@ -206,7 +206,7 @@ pub struct BatchCleared {
     pub batch: BatchId,
     pub prices: Prices,
     pub rounds: u32,
-    pub cancellations: u32,
+    pub pivots: u32,
     pub volume: u128,
     pub shortfall: u128,
 }
@@ -474,7 +474,7 @@ impl Speedex {
             batch,
             prices: clearing.prices,
             rounds: clearing.rounds,
-            cancellations: clearing.cancellations,
+            pivots: clearing.pivots,
             volume: clearing.volume,
             shortfall: clearing.shortfall,
         });

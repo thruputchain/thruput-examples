@@ -108,7 +108,7 @@ const SUPPLY: u128 = 1 << 80;
 struct Clearing {
     prices: [u64; MAX_ASSETS],
     rounds: u32,
-    cancellations: u32,
+    pivots: u32,
     volume: u128,
     shortfall: u128,
 }
