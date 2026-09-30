@@ -41,7 +41,7 @@ fn a_successful_batch_reports_no_failures() {
         for user in [ALICE, BOB] {
             etx.exec_user_tx(user, |_| {
                 ctx.token0()
-                    .adjust_allowance(&ctx.request_handler_addr, SWAP_IN_AMT as i128)
+                    .adjust_allowance(&ctx.request_handler_addr, SWAP_IN_AMT as i128, false)
             })?;
         }
         etx.advance_block();

@@ -73,7 +73,7 @@ const contract = (name: string) => ({
 });
 const config = {
   token_code_hash: fixedBytes(hashContract(contract("standard_token")), 32),
-  required_token_funding: 350_770n,
+  required_token_funding: 360_000n,
   native_token: HOG_ADDRESS,
   creation_fee: 0n,
   fee_recipient: null,
@@ -161,7 +161,7 @@ beforeEach(async () => {
     phases.push("execute");
     return { txHash: new Uint8Array(32) };
   });
-  vi.spyOn(StandardTokenFactory.config, "view").mockResolvedValue({
+  vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
     value: config,
   } as never);
   vi.spyOn(console, "log").mockImplementation(() => {});
@@ -182,7 +182,7 @@ describe("infrastructure-only launchpad provisioning", () => {
     mocks.getBalance
       .mockResolvedValueOnce({ rawBalance: 1_000_000_000n })
       .mockResolvedValueOnce({ rawBalance: 10_000_000n - 1_234n });
-    vi.mocked(StandardTokenFactory.config.view).mockResolvedValueOnce({
+    vi.mocked(StandardTokenFactory.v0_1.config.view).mockResolvedValueOnce({
       value: { ...config, required_token_funding: 10_000_000n },
     } as never);
     await setupDevnet();
@@ -330,11 +330,11 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });
 
-  it("enforces the maximum token artifact size within 350770 funding", async () => {
-    // 50914 fixed worst-case storage cost leaves room for 29985 code bytes.
-    expect(() => validateTokenFunding(costs, 29_985)).not.toThrow();
-    expect(() => validateTokenFunding(costs, 29_986)).toThrow(/funding budget/);
-    await writeFile(join(root, "standard_token.rv32a"), Buffer.alloc(29_986));
+  it("enforces the maximum token artifact size within 360000 funding", async () => {
+    // 50914 fixed worst-case storage cost leaves room for 30908 code bytes.
+    expect(() => validateTokenFunding(costs, 30_908)).not.toThrow();
+    expect(() => validateTokenFunding(costs, 30_909)).toThrow(/funding budget/);
+    await writeFile(join(root, "standard_token.rv32a"), Buffer.alloc(30_909));
     await expect(main()).rejects.toThrow(/funding budget/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });
@@ -359,15 +359,15 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(
       mocks.executeAndWait.mock.calls.map(([request]) => request.invocation),
     ).toEqual([
-      ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: HOG_ADDRESS,
         amount: 10_000_000n,
       }),
-      ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: factory,
         amount: 10_000_000n,
       }),
-      StandardTokenFactory.initialize.invocation(factory, gas, { config }),
+      StandardTokenFactory.v0_1.initialize.invocation(factory, gas, { config }),
     ]);
     const env = await readFile(output, "utf8");
     expect(
@@ -429,7 +429,7 @@ describe("infrastructure-only launchpad provisioning", () => {
         new Error("Deployment address mismatch"),
       );
     if (phase === "verification")
-      vi.mocked(StandardTokenFactory.config.view).mockResolvedValueOnce({
+      vi.mocked(StandardTokenFactory.v0_1.config.view).mockResolvedValueOnce({
         value: { ...config, creation_fee: 1n },
       } as never);
     if (phase === "asset publication")

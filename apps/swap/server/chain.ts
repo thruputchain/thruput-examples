@@ -18,12 +18,12 @@ import {
 } from "@groundhogchain/client";
 import { networkHash } from "@groundhogchain/protocol";
 
-import {
-  PoolCreated,
-  SwapFactory,
-} from "../src/contracts/generated/swap-factory.ts";
+import { SwapFactory, swap_if } from "../src/contracts/generated/swap-factory.ts";
 import type { ServerConfig } from "./config.ts";
 import type { RegistryPool, RegistryScope } from "../shared/registry.ts";
+
+const PoolCreated = swap_if.v0_1.events.PoolCreated;
+type PoolCreated = swap_if.v0_1.events.PoolCreated;
 
 const MAX_CURSOR_CHARACTERS = 4_096;
 const FACTORY_VERIFICATION_ATTEMPTS = 3;
@@ -274,7 +274,7 @@ export class GroundhogRegistrySource implements RegistrySource {
         views = await this.#runRpc(
           () =>
             Promise.all([
-              SwapFactory.getPair.view({
+              SwapFactory.v0_1.getPair.view({
                 client: this.#client,
                 contract: this.#factoryAddress,
                 args: {
@@ -282,7 +282,7 @@ export class GroundhogRegistrySource implements RegistrySource {
                   tokenB: decoded.topics.token1,
                 },
               }),
-              SwapFactory.poolAddresses.view({
+              SwapFactory.v0_1.poolAddresses.view({
                 client: this.#client,
                 contract: this.#factoryAddress,
                 args: {
@@ -290,7 +290,7 @@ export class GroundhogRegistrySource implements RegistrySource {
                   tokenB: decoded.topics.token1,
                 },
               }),
-              SwapFactory.pairAt.view({
+              SwapFactory.v0_1.pairAt.view({
                 client: this.#client,
                 contract: this.#factoryAddress,
                 args: { index: decoded.fields.pair_count - 1n },

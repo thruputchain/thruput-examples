@@ -70,7 +70,7 @@ export function createProviderWriteBoundary(
           toHex0x(invocation.invoked_address) ===
             toHex0x(config.factoryAddress) &&
           toHex0x(invocation.entrypoint) ===
-            toHex0x(SwapFactory.createPair.entrypoint),
+            toHex0x(SwapFactory.v0_1.createPair.entrypoint),
       );
       const contractsToDeploy = isCreation
         ? [
@@ -82,7 +82,7 @@ export function createProviderWriteBoundary(
       const isCrank = invocations.some(
         (invocation) =>
           toHex0x(invocation.entrypoint) ===
-          toHex0x(SwapDriver.processRequests.entrypoint),
+          toHex0x(SwapDriver.v0_1.processRequests.entrypoint),
       );
       const preparation = {
         // Cover the driver frame plus wallet and transaction overhead. The

@@ -31,7 +31,7 @@ export function createErc20ReadAdapter(params: {
   caller: ContractAddress;
 }): Erc20ReadAdapter {
   const token = getContract({
-    binding: { ...ERC20, ...ERC20Metadata },
+    binding: { ...ERC20.v0_1, ...ERC20Metadata.v0_1 },
     address: params.contract,
     client: params.client,
   });

@@ -42,20 +42,20 @@ function workflow() {
 
 describe("readAndAssessTokenState", () => {
   it("retries temporary view failures before reporting success", async () => {
-    vi.spyOn(ERC20Metadata.name, "view")
+    vi.spyOn(ERC20Metadata.v0_1.name, "view")
       .mockRejectedValueOnce(new Error("not indexed"))
       .mockRejectedValueOnce(new Error("not indexed"))
       .mockResolvedValue({ value: "Acorn" } as never);
-    vi.spyOn(ERC20Metadata.symbol, "view").mockResolvedValue({
+    vi.spyOn(ERC20Metadata.v0_1.symbol, "view").mockResolvedValue({
       value: "NUT",
     } as never);
-    vi.spyOn(ERC20Metadata.decimals, "view").mockResolvedValue({
+    vi.spyOn(ERC20Metadata.v0_1.decimals, "view").mockResolvedValue({
       value: 7n,
     } as never);
-    vi.spyOn(ERC20.totalSupply, "view").mockResolvedValue({
+    vi.spyOn(ERC20.v0_1.totalSupply, "view").mockResolvedValue({
       value: 12n,
     } as never);
-    vi.spyOn(ERC20.getBalanceOf, "view").mockResolvedValue({
+    vi.spyOn(ERC20.v0_1.getBalanceOf, "view").mockResolvedValue({
       value: 12n,
     } as never);
     const retryWait = vi.fn().mockResolvedValue(undefined);
@@ -69,7 +69,7 @@ describe("readAndAssessTokenState", () => {
         retryWait,
       }),
     ).resolves.toMatchObject({ status: "complete" });
-    expect(ERC20Metadata.name.view).toHaveBeenCalledTimes(3);
+    expect(ERC20Metadata.v0_1.name.view).toHaveBeenCalledTimes(3);
     expect(retryWait).toHaveBeenCalledTimes(2);
   });
 });

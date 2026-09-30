@@ -18,7 +18,7 @@ import {
   PrivateKeySigner,
   toHex0x,
 } from "@groundhogchain/client";
-import { DefaultWallet, ERC20 } from "@groundhogchain/client/contracts";
+import { DefaultWallet } from "@groundhogchain/client/contracts";
 import {
   ContractType,
   ExecResult,
@@ -27,15 +27,18 @@ import {
   type Contract,
   type Invocation,
 } from "@groundhogchain/protocol";
-import { StandardTokenFactory } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
+import {
+  StandardTokenFactory,
+} from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
+import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20.ts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapRouter } from "../../apps/swap/src/contracts/generated/swap-router.ts";
-import {
-  SwapDriver,
-  RequestsProcessed,
-} from "../../apps/swap/src/contracts/generated/swap-driver.ts";
+import { SwapDriver, batch_driver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { CRANK_FRAME_GAS } from "../../apps/swap/src/contracts/driver-target.ts";
 import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
+
+const RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
+type RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp(join(tmpdir(), "groundhog-batching-"));
@@ -170,7 +173,7 @@ try {
     contractsToDeploy: Contract[] = [],
   ) {
     const hash = await wallet.sendInvocation({
-      invocation: DefaultWallet.execute.invocation(
+      invocation: DefaultWallet.v0_1.execute.invocation(
         account.address,
         gasAmount(
           invocations.reduce(
@@ -197,7 +200,7 @@ try {
   }
   const invalidNonce = fixedBytes(randomBytes(32), 32);
   const rollbackAddress = (
-    await StandardTokenFactory.predictToken.view({
+    await StandardTokenFactory.v0_1.predictToken.view({
       client,
       contract: tokenFactory,
       args: { creator: account.address, nonce: invalidNonce },
@@ -206,11 +209,11 @@ try {
   const rejected = await batch(
     "Rollback funding when token initialization fails",
     [
-      ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: rollbackAddress,
         amount: 1_000_000n,
       }),
-      StandardTokenFactory.createToken.invocation(tokenFactory, gas, {
+      StandardTokenFactory.v0_1.createToken.invocation(tokenFactory, gas, {
         nonce: invalidNonce,
         name: "Invalid",
         symbol: "INVALID",
@@ -228,11 +231,11 @@ try {
   const retry = await batch(
     "Retry the same token nonce after rollback",
     [
-      ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: rollbackAddress,
         amount: 1_000_000n,
       }),
-      StandardTokenFactory.createToken.invocation(tokenFactory, gas, {
+      StandardTokenFactory.v0_1.createToken.invocation(tokenFactory, gas, {
         nonce: invalidNonce,
         name: "Recovered",
         symbol: "RECOVERED",
@@ -247,7 +250,7 @@ try {
   assert.equal(retry.execResult, ExecResult.ExecResultOK);
   assert.equal(
     (
-      await ERC20.getBalanceOf.view({
+      await ERC20.v0_1.getBalanceOf.view({
         client,
         contract: rollbackAddress,
         args: { addr: account.address },
@@ -259,17 +262,17 @@ try {
   for (const symbol of ["ALPHA", "BETA"]) {
     const nonce = fixedBytes(randomBytes(32), 32);
     const predicted = (
-      await StandardTokenFactory.predictToken.view({
+      await StandardTokenFactory.v0_1.predictToken.view({
         client,
         contract: tokenFactory,
         args: { creator: account.address, nonce },
       })
     ).value;
-    const funding = ERC20.transfer.invocation(HOG_ADDRESS, gas, {
+    const funding = ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
       receiver: predicted,
       amount: 1_000_000n,
     });
-    const creation = StandardTokenFactory.createToken.invocation(
+    const creation = StandardTokenFactory.v0_1.createToken.invocation(
       tokenFactory,
       gas,
       {
@@ -290,7 +293,7 @@ try {
     assert.equal(receipt.execResult, ExecResult.ExecResultOK);
     assert.equal(
       (
-        await ERC20.getBalanceOf.view({
+        await ERC20.v0_1.getBalanceOf.view({
           client,
           contract: predicted,
           args: { addr: account.address },
@@ -304,35 +307,38 @@ try {
     toHex0x(a).localeCompare(toHex0x(b)),
   );
   const pool = (
-    await SwapFactory.poolAddresses.view({
+    await SwapFactory.v0_1.poolAddresses.view({
       client,
       contract: swapFactory,
       args: { tokenA: token0!, tokenB: token1! },
     })
   ).value;
   const funding = (
-    await SwapFactory.poolFunding.view({ client, contract: swapFactory })
+    await SwapFactory.v0_1.poolFunding.view({ client, contract: swapFactory })
   ).value.recommended;
   const amount = 1_000_000_000n;
   const calls = [
-    ERC20.adjustAllowance.invocation(HOG_ADDRESS, gas, {
+    ERC20.v0_1.adjustAllowance.invocation(HOG_ADDRESS, gas, {
       spender: swapFactory,
-      diff: funding * 3n,
+      difference: funding * 3n,
+      exclusive: false,
     }),
-    SwapFactory.createPair.invocation(swapFactory, gas, {
+    SwapFactory.v0_1.createPair.invocation(swapFactory, gas, {
       tokenA: token0!,
       tokenB: token1!,
       funding,
     }),
-    ERC20.adjustAllowance.invocation(token0!, gas, {
+    ERC20.v0_1.adjustAllowance.invocation(token0!, gas, {
       spender: pool.handler,
-      diff: amount,
+      difference: amount,
+      exclusive: false,
     }),
-    ERC20.adjustAllowance.invocation(token1!, gas, {
+    ERC20.v0_1.adjustAllowance.invocation(token1!, gas, {
       spender: pool.handler,
-      diff: amount,
+      difference: amount,
+      exclusive: false,
     }),
-    SwapRouter.addLiquidity.invocation(router, gas, {
+    SwapRouter.v0_1.addLiquidity.invocation(router, gas, {
       tokenA: token0!,
       tokenB: token1!,
       amountsDesired: [amount, amount],
@@ -349,7 +355,7 @@ try {
   assert.equal(
     (
       await batch("Process liquidity", [
-        SwapDriver.processRequests.invocation(
+        SwapDriver.v0_1.processRequests.invocation(
           pool.driver,
           gasAmount(CRANK_FRAME_GAS),
         ),
@@ -358,7 +364,7 @@ try {
     ExecResult.ExecResultOK,
   );
   const lpBalance = (
-    await ERC20.getBalanceOf.view({
+    await ERC20.v0_1.getBalanceOf.view({
       client,
       contract: pool.liquidity_token,
       args: { addr: account.address },
@@ -369,9 +375,10 @@ try {
   assert.equal(
     (
       await batch("Approve eight queued swaps", [
-        ERC20.adjustAllowance.invocation(token0!, gas, {
+        ERC20.v0_1.adjustAllowance.invocation(token0!, gas, {
           spender: pool.handler,
-          diff: 8_000n,
+          difference: 8_000n,
+          exclusive: false,
         }),
       ])
     ).execResult,
@@ -381,7 +388,7 @@ try {
     assert.equal(
       (
         await batch(`Queue swap ${i + 1}`, [
-          SwapRouter.swapExactTokensForTokens.invocation(router, gas, {
+          SwapRouter.v0_1.swapExactTokensForTokens.invocation(router, gas, {
             amountIn: 1_000n,
             amountOutMin: 1n,
             tokenIn: token0!,
@@ -396,7 +403,7 @@ try {
   const drained = await batch(
     "Crank eight-request backlog with the app budget",
     [
-      SwapDriver.processRequests.invocation(
+      SwapDriver.v0_1.processRequests.invocation(
         pool.driver,
         gasAmount(CRANK_FRAME_GAS),
       ),

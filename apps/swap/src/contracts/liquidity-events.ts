@@ -1,8 +1,10 @@
 import { bytesEqual, fromHex0x } from "@groundhogchain/client";
-import {
-  LiquidityMintEvent as BaseMint,
-  LiquidityBurnEvent as BaseBurn,
-} from "./generated/swap-handler";
+import { swap_if } from "./generated/swap-handler";
+
+const BaseMint = swap_if.v0_1.events.LiquidityMintEvent;
+type BaseMint = swap_if.v0_1.events.LiquidityMintEvent;
+const BaseBurn = swap_if.v0_1.events.LiquidityBurnEvent;
+type BaseBurn = swap_if.v0_1.events.LiquidityBurnEvent;
 
 // The Rust event rename changed topic0, but not the topics or payload layout.
 // Retain the deployed signatures while accepting freshly rebuilt contracts.

@@ -164,7 +164,7 @@ impl Ctx {
 
         // Give the swap-pair access to all my LP tokens
         self.lp()
-            .adjust_allowance(&self.request_handler_addr, return_amt);
+            .adjust_allowance(&self.request_handler_addr, return_amt, false);
 
         return_amt
     }

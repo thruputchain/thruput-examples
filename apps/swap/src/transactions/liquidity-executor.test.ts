@@ -7,11 +7,8 @@ import { CxsWriter, FixedArrayCodec, Uint128Codec } from "@groundhogchain/xdr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
-import { RequestAccepted } from "@/contracts/generated/swap-driver";
-import {
-  LiquidityBurnEvent as BurnEvent,
-  LiquidityMintEvent as MintEvent,
-} from "@/contracts/generated/swap-handler";
+import { batch_driver } from "@/contracts/generated/swap-driver";
+import { swap_if } from "@/contracts/generated/swap-handler";
 import type { PoolSnapshot } from "@/swap/snapshot";
 import { createCrankAttempt, saveCrankAttempt } from "./crank-attempt";
 import {
@@ -25,6 +22,13 @@ import {
   runLiquidityOperation,
 } from "./liquidity-executor";
 import type { WriteBoundary, WriteResult } from "./write-boundary";
+
+const RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+type RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+const BurnEvent = swap_if.v0_1.events.LiquidityBurnEvent;
+type BurnEvent = swap_if.v0_1.events.LiquidityBurnEvent;
+const MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
+type MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
@@ -407,6 +411,7 @@ function committed(
       txHash: sha256Hash(new Uint8Array(32).fill(40)),
       height,
       execResult: ExecResult.ExecResultOK,
+      gasUsed: 0n,
       events,
       returnData: new Uint8Array(),
       abortData: null,

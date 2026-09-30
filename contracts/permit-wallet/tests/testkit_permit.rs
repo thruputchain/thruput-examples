@@ -6,7 +6,9 @@
 //! plays the submitter: it holds a permit Alice signed off-chain — with a key
 //! that exists only in this test and never touches the chain — relays it, and
 //! draws on the resulting allowance from its own account. The same permit
-//! relayed a second time is refused.
+//! relayed a second time is refused. A further permit and then a signed clear
+//! go through the same relayer, which reads each signed body to pick the
+//! token method, so the allowance is re-granted and then revoked.
 //!
 //! It is `#[ignore]`d because it needs a devnode binary and built artifacts.
 //! `scripts/permit-live.sh` wires up both. Roughly:
@@ -23,7 +25,7 @@ use std::path::PathBuf;
 
 use ed25519_dalek::{Signer, SigningKey};
 use groundhog_domain_separator::SignedOp as SignedOpPreimage;
-use groundhog_erc20_permit_if::PermitRequest;
+use groundhog_erc20_permit_if::{ClearAllowanceRequest, PermitRequest};
 use groundhog_json_rpc_client::GroundhogApiClient;
 use groundhog_signed_op_if::Operation;
 use groundhog_testkit::xdr::types::ContractAddress;
@@ -31,6 +33,7 @@ use groundhog_testkit::{
     Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Result, Scenario,
     TestkitError, xdrs,
 };
+use permit_wallet::WalletRequest;
 use sdk::types::transaction::Uniquifier;
 use sdk::types::{Ed25519PublicKey, Ed25519Signature};
 use sdk::xdr::BytesM;
@@ -40,7 +43,7 @@ type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as
 // recorded in each `*.spec.json`; the testkit derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.5");
+const ERC20: (&str, &str) = ("ERC20", "0.1.42");
 const WALLET: (&str, &str) = ("PermitWallet", "0.1.0");
 const RELAYER: (&str, &str) = ("PermitRelayer", "0.1.0");
 
@@ -54,8 +57,8 @@ const GRANTED: u128 = 250;
 /// Blocks past the tip at signing time during which the permit stays valid.
 const HORIZON: i64 = 1_000;
 
-/// The permit's nonce: any value the pair `(nonce, expiry)` has not been
-/// consumed under at the wallet.
+/// The first permit's nonce: any value the pair `(nonce, expiry)` has not
+/// been consumed under at the wallet. Later operations count up from it.
 const NONCE: u64 = 7;
 
 /// Native (HOG) storage tokens the admin grants each contract that writes
@@ -123,12 +126,14 @@ async fn network_hash(ctx: &AgentContext) -> sdk::types::NetworkHash {
 
 /// What Alice does off-chain: build the preimage from the network, her
 /// wallet, the `(nonce, expiry)` uniquifier and the body's `TYPE_DEF`, then
-/// sign it. Deterministic, so the same inputs reproduce the same bytes.
-fn sign_permit(
+/// sign it. Deterministic, so the same inputs reproduce the same bytes. The
+/// body is the wallet's own request type, naming the grant it should mint.
+fn sign_request(
     network: &sdk::types::NetworkHash,
     wallet: &Address,
+    nonce: u64,
     expiry: i64,
-    body: &PermitRequest,
+    body: &WalletRequest,
 ) -> (Operation, Ed25519Signature) {
     let key = SigningKey::from_bytes(&ALICE_SEED);
     let expiry = sdk::BlockHeight::from(expiry);
@@ -137,7 +142,7 @@ fn sign_permit(
         verifying_contract: sdk_address(wallet),
         uniquifier: Uniquifier {
             block_expiry_height: expiry.clone(),
-            nonce: NONCE,
+            nonce,
         },
         body,
     }
@@ -146,7 +151,7 @@ fn sign_permit(
 
     let op = Operation {
         block_expiry_height: expiry,
-        nonce: NONCE,
+        nonce,
         body: BytesM(sdk::xdr::cxs::encode(body).expect("encoding the body")),
     };
     (op, Ed25519Signature::from(key.sign(&preimage).to_bytes()))
@@ -241,12 +246,12 @@ fn spender() -> Agent {
         // out of band; here we hold her test-only key.
         let network = network_hash(&ctx).await;
         let expiry = *ctx.network().chain_tip().await?.height + HORIZON;
-        let request = PermitRequest {
+        let request = WalletRequest::Permit(PermitRequest {
             token: sdk_address(&cfg.token),
             spender: sdk_address(&me),
             amount: GRANTED,
-        };
-        let (op, signature) = sign_permit(&network, &cfg.wallet, expiry, &request);
+        });
+        let (op, signature) = sign_request(&network, &cfg.wallet, NONCE, expiry, &request);
 
         // Relay it: the wallet verifies and mints, the token records the
         // allowance, all in the relayer's one frame.
@@ -271,7 +276,7 @@ fn spender() -> Agent {
         // The same bytes again: the wallet already consumed this
         // `(nonce, expiry)` pair, so the relayer's frame reverts and the
         // allowance does not grow.
-        let (op, signature) = sign_permit(&network, &cfg.wallet, expiry, &request);
+        let (op, signature) = sign_request(&network, &cfg.wallet, NONCE, expiry, &request);
         match relayer
             .call(&mut ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
             .await
@@ -284,7 +289,45 @@ fn spender() -> Agent {
             .await?;
         assert_eq!(allowance, 0, "the replay added nothing");
 
-        println!("spender: permit relayed, {GRANTED} drawn, replay refused");
+        // A fresh permit under the next nonce is honored again, and the
+        // relayer routes it by its body to `increase_allowance_signed`.
+        let (op, signature) = sign_request(&network, &cfg.wallet, NONCE + 1, expiry, &request);
+        relayer
+            .call(&mut ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
+            .await?;
+        let allowance: u128 = token
+            .view(&ctx, "allowance", &(cfg.wallet, me), None)
+            .await?;
+        assert_eq!(
+            allowance, GRANTED,
+            "a second permit re-granted the allowance"
+        );
+
+        // Alice takes it back with a signed clear. The same relayer carries
+        // it, reads the body, and hands the grant to `clear_allowance_signed`.
+        let clear = WalletRequest::ClearAllowance(ClearAllowanceRequest {
+            token: sdk_address(&cfg.token),
+            spender: sdk_address(&me),
+        });
+        let (op, signature) = sign_request(&network, &cfg.wallet, NONCE + 2, expiry, &clear);
+        relayer
+            .call(&mut ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
+            .await?;
+        let allowance: u128 = token
+            .view(&ctx, "allowance", &(cfg.wallet, me), None)
+            .await?;
+        assert_eq!(allowance, 0, "the relayed clear revoked the allowance");
+        match token
+            .call(&mut ctx, "transfer_from", &(cfg.wallet, me, 1u128))
+            .await
+        {
+            Err(TestkitError::Reverted { .. }) => {}
+            other => panic!("drawing on a cleared allowance should revert, got {other:?}"),
+        }
+
+        println!(
+            "spender: permit relayed, {GRANTED} drawn, replay refused, re-granted, then cleared"
+        );
         ctx.send("admin", &())?;
         Ok(())
     })

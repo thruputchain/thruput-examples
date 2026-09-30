@@ -2,12 +2,13 @@
 //!
 //! This is the owner's half of the permit flow. The token contract never sees
 //! a public key or a signature: a submitter brings the signed operation here,
-//! [`SignedOp::execute_signed_op`] validates it and mints a `PermitGrant` auth
-//! token naming the requested ERC20 as consumer, and the submitter carries
-//! that token down into the token contract in the same frame (see
-//! `permit-relayer` for a contract that does exactly that). Which key is
-//! currently authoritative is therefore wallet state, not something derived
-//! from the wallet's address, so the owner's balance lives at *this* address.
+//! [`SignedOp::execute_signed_op`] validates it and mints the grant auth token
+//! the request asks for, naming the requested ERC20 as consumer, and the
+//! submitter carries that token down into the token contract in the same
+//! frame (see `permit-relayer` for a contract that does exactly that). Which
+//! key is currently authoritative is therefore wallet state, not something
+//! derived from the wallet's address, so the owner's balance lives at *this*
+//! address.
 //!
 //! Verification, replay protection and the signed-message format all come
 //! from `groundhog-signed-op`: the wallet embeds a [`SignedOpReplayCache`],
@@ -15,17 +16,18 @@
 //! mints from whatever decodes. The operation names no key, so a submitter
 //! cannot pick what the signature is checked against.
 //!
-//! Deliberately single-purpose. A signature binds exactly one payload type
-//! (the preimage covers `PermitRequest::TYPE_DEF`), so a wallet serving
-//! several kinds of signed operation would need one enum spanning all of them
-//! — and every added variant would change that `TYPE_DEF` and retire every
-//! outstanding signature.
+//! A signature binds exactly one payload type (the preimage covers its
+//! `TYPE_DEF`), so the wallet signs [`WalletRequest`], one enum spanning every
+//! operation it serves. Adding a variant changes that `TYPE_DEF` and retires
+//! every outstanding signature.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
 sdk::declare_mock_contract!();
 
-use groundhog_erc20_permit_if::{PermitGrant, PermitRequest};
+use groundhog_erc20_permit_if::{
+    ClearAllowanceGrant, ClearAllowanceRequest, PermitGrant, PermitRequest,
+};
 use groundhog_signed_op::{Operation, SignedOp, SignedOpReplayCache};
 use sdk::mintable::{AuthTokenPreimage, MintableType};
 use sdk::signer::{Opaque, Signed};
@@ -34,9 +36,19 @@ use sdk::types::transaction::Uniquifier;
 use sdk::types::{Ed25519PublicKey, Ed25519Signature};
 use sdk::*;
 
-/// What goes into a `PermitGrant` mint: `#[contract_type]` generates a
-/// preimage mirror of every mintable type, and this names it.
+/// What goes into a grant mint: `#[contract_type]` generates a preimage mirror
+/// of every mintable type, and these name them.
 type PermitGrantPreimage = <PermitGrant as MintableType>::Preimage;
+type ClearAllowanceGrantPreimage = <ClearAllowanceGrant as MintableType>::Preimage;
+
+/// The body the owner signs: which grant the wallet should mint.
+#[contract_type]
+pub enum WalletRequest {
+    /// Mint a [`PermitGrant`]: a transfer or allowance of up to `amount`.
+    Permit(PermitRequest) = 0,
+    /// Mint a [`ClearAllowanceGrant`] revoking the spender's allowance.
+    ClearAllowance(ClearAllowanceRequest) = 1,
+}
 
 /// Why the wallet refused, as distinct from why an operation failed
 /// verification — those are
@@ -126,19 +138,31 @@ impl SignedOp for PermitWallet {
         // reverts the frame, consuming nothing: a permit signed by a former
         // key fails as InvalidSignature while that key is not the owner, and
         // is honored again if the key is rotated back.
-        let request: PermitRequest = self.replay.consume(&op, signature, &self.owner.get());
+        let request: WalletRequest = self.replay.consume(&op, signature, &self.owner.get());
 
         // `consumer` comes from the signed body, so the owner picks which
         // token may consume this grant. Taking it from `get_caller()` instead
         // would let whoever submits the operation point it at a different
         // ERC20 the owner also holds.
-        let node = sdk::mintable::build_auth_token_node::<PermitGrant>(AuthTokenPreimage {
-            consumer: request.token,
-            data: PermitGrantPreimage {
-                spender: request.spender,
-                amount: request.amount,
-            },
-        });
+        let node = match request {
+            WalletRequest::Permit(request) => {
+                sdk::mintable::build_auth_token_node::<PermitGrant>(AuthTokenPreimage {
+                    consumer: request.token,
+                    data: PermitGrantPreimage {
+                        spender: request.spender,
+                        amount: request.amount,
+                    },
+                })
+            }
+            WalletRequest::ClearAllowance(request) => {
+                sdk::mintable::build_auth_token_node::<ClearAllowanceGrant>(AuthTokenPreimage {
+                    consumer: request.token,
+                    data: ClearAllowanceGrantPreimage {
+                        spender: request.spender,
+                    },
+                })
+            }
+        };
 
         // The submitter carries the token to the ERC20 in this same frame, so
         // it need not outlive the current block.

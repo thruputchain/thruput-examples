@@ -23,7 +23,7 @@ RUSTFLAGS="-D warnings" \
 cargo test --all
 
 # Run `test_r32` tests
-for p in erc20 counter sep41-token; do
+for p in erc20 counter speedex sep41-token; do
     groundhog test -p "$p"
 done
 

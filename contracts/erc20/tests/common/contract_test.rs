@@ -95,13 +95,13 @@ pub fn erc20_test(deployed_addr: &ContractAddress) -> Model {
 
     // Approve spending by "other"
     let amt = 17;
-    client.adjust_allowance(other, amt);
+    client.adjust_allowance(other, amt, false);
     m.adjust_allowance(other, amt);
 
     // Withdraw too much approval
     assert_eq!(
         client
-            .try_adjust_allowance(other, -20)
+            .try_adjust_allowance(other, -20, false)
             .unwrap_err()
             .try_as(),
         Some(ERC20Error::TooLarge)
@@ -109,8 +109,32 @@ pub fn erc20_test(deployed_addr: &ContractAddress) -> Model {
 
     // Withdraw some approval
     let amt = 10;
-    client.adjust_allowance(other, -amt);
+    client.adjust_allowance(other, -amt, false);
     m.adjust_allowance(other, -amt);
+
+    // Grant exclusively: the same change, with the pair locked for the block
+    let amt = 3;
+    client.adjust_allowance(other, amt, true);
+    m.adjust_allowance(other, amt);
+
+    // Revoke the allowance entirely; the change reported is the remainder
+    client.clear_allowance(other);
+    m.clear_allowance(other);
+    assert_eq!(client.allowance(&owner, other), 0);
+
+    // A nonzero balance can't be cleared ...
+    let balance = m.balances[&owner];
+    assert!(balance > 0);
+    assert_eq!(
+        client.try_clear_balance().unwrap_err().try_as(),
+        Some(ERC20Error::BalanceNotZero)
+    );
+
+    // ... but an emptied one can, and reads as zero afterwards
+    client.transfer(other, balance);
+    m.transfer(other, balance);
+    client.clear_balance();
+    assert_eq!(client.get_balance(), 0);
 
     // Check client state against the model
     m.check(&client);

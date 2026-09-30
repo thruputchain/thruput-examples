@@ -12,9 +12,9 @@ import type { AppConfig } from "@/config";
 import { userErrorMessage } from "@/lib/errors";
 import {
   StandardTokenFactory,
-  TokenCreated,
+  standard_token_factory_if,
 } from "@/contracts/generated/standard-token-factory";
-import { ERC20, TransferEvent } from "@/contracts/generated/standard-token";
+import { ERC20, groundhog_erc20_if } from "@/contracts/generated/standard-token";
 import { reviewFactory } from "@/contracts/launchpad-client";
 import {
   assertWorkflowScope,
@@ -32,6 +32,11 @@ import {
   validateCreationEvidence,
 } from "@/launch/verification";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
+
+const TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
+type TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
+const TransferEvent = groundhog_erc20_if.v0_1.events.TransferEvent;
+type TransferEvent = groundhog_erc20_if.v0_1.events.TransferEvent;
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 
@@ -188,7 +193,7 @@ export async function advanceWorkflow(input: {
         workflow = { ...workflow, executionMode: batch ? "batch" : "single" };
         saveWorkflow(storage, key, workflow);
       }
-      const creation = StandardTokenFactory.createToken.call({
+      const creation = StandardTokenFactory.v0_1.createToken.call({
         contract: input.config.factoryAddress,
         gasLimit: GAS_LIMIT,
         args: {
@@ -241,7 +246,7 @@ export async function advanceWorkflow(input: {
         };
       };
       const fundingCall = (amount: bigint) =>
-        ERC20.transfer.call({
+        ERC20.v0_1.transfer.call({
           contract: input.config.nativeHogAddress,
           gasLimit: GAS_LIMIT,
           args: { receiver: review.predictedAddress, amount },

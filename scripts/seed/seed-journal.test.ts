@@ -31,7 +31,7 @@ async function fixture(nonce = 1n) {
   const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
   const account = createPubkeyAccount({ signer });
   const tx = createTransaction({
-    invocation: ERC20.transfer.invocation(HOG_ADDRESS, gasAmount(1_000_000n), {
+    invocation: ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gasAmount(1_000_000n), {
       receiver: account.address,
       amount: 1n,
     }),
@@ -49,6 +49,7 @@ async function fixture(nonce = 1n) {
     txHash: hash,
     height: 10n,
     execResult: ExecResult.ExecResultOK,
+    gasUsed: 0n,
     events: [],
     returnData: null,
     abortData: null,
@@ -198,6 +199,7 @@ describe("seed transaction recovery", () => {
     f.client.getTransactionReceipt.mockResolvedValue({
       ...f.receipt,
       execResult: ExecResult.ExecResultTxRootFrameReverted,
+      gasUsed: 0n,
     });
     await expect(executeStep(f.options)).rejects.toThrow("SEED_RETRY_FAILED=1");
     expect(f.prepare).not.toHaveBeenCalled();

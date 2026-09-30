@@ -29,10 +29,11 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`cross-trait-throws`](contracts/cross-trait-throws/) | One contract implementing two traits with different `throws` types; a client on one catching the peer trait's error with `match_exn!` |
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and optional `metadata` and `permit` features |
 | [`permit-wallet`](contracts/permit-wallet/) | Off-chain authorization: an owner's wallet implementing `SignedOp`, turning an ed25519 signature made off-chain into a `PermitGrant` auth token the `erc20` consumes; the owner never submits a transaction |
-| [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit from the wallet to the token in one frame, so anyone can submit it |
+| [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit or allowance clear from the wallet to the token in one frame, routing by the signed request, so anyone can submit it |
 | [`sep41-token`](contracts/sep41-token/README.md), [`sep41-token-if`](interfaces/sep41-token-if/) | A port of Stellar's token interface, [SEP-41](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md): its functions, arguments, events and behaviour, in an interface crate, and a token implementing it with an administrator's `mint` and `clawback` |
 | [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](contracts/swap-router/README.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
+| [`speedex`](contracts/speedex/) | A [SPEEDEX](https://www.usenix.org/conference/nsdi23/presentation/ramseyer)-style batch exchange over several assets: offers aggregate into a commutative histogram, one transaction per batch computes clearing prices by tâtonnement, and settlement is per offer and order-free |
 
 ### Simulation fixtures
 
@@ -63,7 +64,7 @@ lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflif
 ### Install Swap and Launchpad dependencies
 
 Use Node.js **22.13 or newer** and npm. The apps install the published
-`@groundhogchain/client@0.10.0` package, including wallet capability discovery and
+`@groundhogchain/client@0.11.0` package, including wallet capability discovery and
 atomic batching, from GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
 with `read:packages` and access to the Groundhog packages in your npm user config:
 
@@ -120,8 +121,8 @@ dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
 Live checks need a compatible CLI/devnode pair, built contracts, and matching
-generated bindings. Atomic and sequential wallet acceptance both pass with CLI
-`0.18.0` and hog-devnode `0.1.27-rc.7`. Rebuild contracts from the current checkout
+generated bindings: CLI `0.19.0` or newer with the hog-devnode it manages
+(`0.1.29-rc.4`). Rebuild contracts from the current checkout
 before running them. Use a separate checkout if you need to preserve the bindings
 for the recorded Devnet deployment. From the repository root:
 
@@ -169,7 +170,7 @@ transaction or remote deployment. Wallet unit tests run independently through
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI, **version 0.18.0 or newer** (it must match the SDK the
+- The `groundhog` CLI, **version 0.19.0 or newer** (it must match the SDK the
   contracts build against):
 
   ```sh
@@ -267,6 +268,11 @@ Beyond the tests in the table, there are two specially-handled kinds of test:
   [`scripts/permit-live.sh`](scripts/permit-live.sh). The native version of
   the same flow, `permit-wallet/tests/permit.rs`, runs under plain
   `cargo test` and also covers `transfer_from_signed` and key rotation.
+  [`speedex/tests/testkit_gas.rs`](contracts/speedex/tests/testkit_gas.rs)
+  measures what the batch exchange's clearing costs on a devnode, by batch
+  size and tâtonnement round cap; with the native execution-quality
+  benchmark in `speedex/tests/quality.rs`, it is what
+  [`scripts/speedex-bench.sh`](scripts/speedex-bench.sh) runs and graphs.
 
 ### Non-contract crates
 

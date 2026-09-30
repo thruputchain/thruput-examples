@@ -1,5 +1,6 @@
 use groundhog_erc20_if::*;
 use groundhog_erc20_metadata_if::*;
+use sdk::storage::deletable::Deletable;
 use sdk::storage::{Balance, Map, NNInt, Value};
 use sdk::*;
 use standard_token_factory_if::StandardTokenInitializer;
@@ -57,7 +58,7 @@ impl TokenContract {
                 self.total_supply
                     .try_increase(mint.supply)
                     .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
-                log_transfer_event(CONTRACT_ADDR_ZERO, mint.holder, mint.supply);
+                TransferEvent::new(CONTRACT_ADDR_ZERO, mint.holder, supply).log();
             }
         }
     }
@@ -92,21 +93,44 @@ impl TokenContract {
         Self::amount(&self.balances.at(owner))
     }
 
+    fn apply_difference(allowance: &mut Allowance, difference: Difference) {
+        let result = if difference >= 0 {
+            allowance.try_increase(difference as u128)
+        } else {
+            allowance.try_decrease(difference.unsigned_abs())
+        };
+        result.unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+    }
+
+    // Adjust `spender`'s allowance from `owner` by `difference` and emit the
+    // change. With `exclusive`, the pair's entry is locked so no other
+    // transaction's write to it lands in the same block.
     fn adjust_allowance_by(
         &mut self,
         owner: &ContractAddress,
         spender: &ContractAddress,
-        diff: Difference,
+        difference: Difference,
+        exclusive: bool,
     ) {
         let mut owner_allowances = self.allowances.at_mut(owner);
-        let mut allowance = owner_allowances.at_mut(spender);
-        let result = if diff >= 0 {
-            allowance.try_increase(diff as u128)
+        let mut allowance = if exclusive {
+            owner_allowances.at_mut_exclusive(spender)
         } else {
-            allowance.try_decrease(diff.unsigned_abs())
+            owner_allowances.at_mut(spender)
         };
-        result.unwrap_or_else(|_| throw(ERC20Error::TooLarge));
-        log_approval_event(owner, spender, diff);
+        Self::apply_difference(&mut allowance, difference);
+        AllowanceChangeEvent::new(owner, spender, difference).log();
+    }
+
+    // Spend `amount` of `spender`'s allowance from `owner`. Spending emits no
+    // allowance event: the transfer it pays for is the record.
+    fn spend_allowance(
+        &mut self,
+        owner: &ContractAddress,
+        spender: &ContractAddress,
+        amount: Amount,
+    ) {
+        Self::decrease(&mut self.allowances.at_mut(owner).at_mut(spender), amount);
     }
 }
 
@@ -128,7 +152,7 @@ impl ERC20 for TokenContract {
         let owner = get_caller();
         Self::decrease(&mut self.balances.at_mut(&owner), amount);
         Self::lazy_increase(&mut self.balances.at_mut(receiver), amount);
-        log_transfer_event(&owner, receiver, amount);
+        TransferEvent::new(&owner, receiver, amount_to_diff(amount)).log();
     }
 
     fn transfer_from(
@@ -138,14 +162,37 @@ impl ERC20 for TokenContract {
         amount: Amount,
     ) {
         let spender = get_caller();
-        self.adjust_allowance_by(owner, &spender, -amount_to_diff(amount));
+        self.spend_allowance(owner, &spender, amount);
         Self::decrease(&mut self.balances.at_mut(owner), amount);
         Self::lazy_increase(&mut self.balances.at_mut(receiver), amount);
-        log_transfer_event(owner, receiver, amount);
+        TransferEvent::new(owner, receiver, amount_to_diff(amount)).log();
     }
 
-    fn adjust_allowance(&mut self, spender: &ContractAddress, diff: Difference) {
-        self.adjust_allowance_by(&get_caller(), spender, diff);
+    fn adjust_allowance(
+        &mut self,
+        spender: &ContractAddress,
+        difference: Difference,
+        exclusive: bool,
+    ) {
+        self.adjust_allowance_by(&get_caller(), spender, difference, exclusive);
+    }
+
+    fn clear_allowance(&mut self, spender: &ContractAddress) {
+        let owner = get_caller();
+        let mut owner_allowances = self.allowances.at_mut(&owner);
+        let mut allowance = owner_allowances.at_mut(spender);
+        let cleared = allowance.get();
+        // Delete rather than zero, freeing the entry's storage, and lock it so
+        // no other transaction's write to the pair lands in the same block.
+        allowance.delete_exclusive();
+        AllowanceChangeEvent::new(&owner, spender, -amount_to_diff(cleared)).log();
+    }
+
+    fn clear_balance(&mut self) {
+        let owner = get_caller();
+        let mut balance = self.balances.at_mut(&owner);
+        ensure(balance.get() == 0, ERC20Error::BalanceNotZero);
+        balance.delete_exclusive();
     }
 
     fn allowance(&self, owner: &ContractAddress, spender: &ContractAddress) -> Amount {
@@ -167,7 +214,7 @@ impl ERC20 for TokenContract {
         );
         self.increase_supply(amount);
         Self::lazy_increase(&mut self.balances.at_mut(receiver), amount);
-        log_transfer_event(CONTRACT_ADDR_ZERO, receiver, amount);
+        TransferEvent::new(CONTRACT_ADDR_ZERO, receiver, amount_to_diff(amount)).log();
     }
 
     fn burn(&mut self, owner: &ContractAddress, amount: Amount) {
@@ -177,7 +224,7 @@ impl ERC20 for TokenContract {
         );
         Self::decrease(&mut self.balances.at_mut(owner), amount);
         Self::decrease(&mut self.total_supply, amount);
-        log_transfer_event(owner, CONTRACT_ADDR_ZERO, amount);
+        TransferEvent::new(owner, CONTRACT_ADDR_ZERO, amount_to_diff(amount)).log();
     }
 
     fn total_supply(&self) -> Amount {

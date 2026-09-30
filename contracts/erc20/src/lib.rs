@@ -22,7 +22,10 @@ pub use interface::ERC20Client;
 pub use interface::ERC20MetadataClient;
 
 #[cfg(feature = "permit")]
-pub use interface::{ERC20Permit, ERC20PermitClient, ERC20PermitError, PermitGrant, PermitRequest};
+pub use interface::{
+    ClearAllowanceGrant, ClearAllowanceRequest, ERC20Permit, ERC20PermitClient, ERC20PermitError,
+    PermitGrant, PermitRequest,
+};
 
 // An implementation of the contract interface
 mod implementation;
@@ -30,5 +33,6 @@ mod implementation;
 // The actual implementation, exposed for use in tests
 pub use implementation::TokenContract;
 
-// Re-export the ERC20 trait so tests can write `dyn erc20::ERC20`
-pub use interface::ERC20;
+// Re-export the ERC20 trait so tests can write `dyn erc20::ERC20`, and its
+// error so they can name what a refused call throws.
+pub use interface::{ERC20, ERC20Error};

@@ -13,7 +13,7 @@ edition.workspace = true
 
 [features]
 entrypoints = []
-dev = ["sdk/dev"]
+dev = ["sdk/dev", "dep:thiserror", "permit-wallet/dev"]
 
 [lib]
 crate-type = ["rlib"]
@@ -31,6 +31,10 @@ bench = false
 sdk = { workspace = true }
 groundhog-signed-op-if = { workspace = true }
 groundhog-erc20-permit-if = { workspace = true }
+# The wallet's signed body type, so the relayer can tell which grant the wallet
+# minted and hand it to the matching token method.
+permit-wallet = { path = "../permit-wallet" }
+thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
 permit-relayer = { path = ".", features = ["dev"] }
