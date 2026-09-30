@@ -38,7 +38,7 @@ fn require_auth(address: &ContractAddress) {
     ensure(get_caller() == *address, TokenError::Unauthorized);
 }
 
-fn check_nonnegative_amount(amount: i128) {
+fn require_nonnegative_amount(amount: i128) {
     ensure(amount >= 0, TokenError::NegativeAmount);
 }
 
@@ -107,7 +107,7 @@ impl Token {
     /// Emits [`Mint`].
     pub fn mint(&mut self, to: &ContractAddress, amount: i128) {
         require_auth(&self.admin.get());
-        check_nonnegative_amount(amount);
+        require_nonnegative_amount(amount);
 
         self.receive_balance(to, amount);
         log_event(&Mint { to, amount });
@@ -122,7 +122,7 @@ impl TokenInterface for Token {
 
     fn transfer(&mut self, from: &ContractAddress, to: &ContractAddress, amount: i128) {
         require_auth(from);
-        check_nonnegative_amount(amount);
+        require_nonnegative_amount(amount);
 
         self.spend_balance(from, amount);
         self.receive_balance(to, amount);
@@ -131,7 +131,7 @@ impl TokenInterface for Token {
 
     fn burn(&mut self, from: &ContractAddress, amount: i128) {
         require_auth(from);
-        check_nonnegative_amount(amount);
+        require_nonnegative_amount(amount);
 
         self.spend_balance(from, amount);
         log_event(&Burn { from, amount });
