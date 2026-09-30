@@ -19,9 +19,6 @@ pub const BOB: ContractAddress = ContractAddress::new([0x40; 32]);
 /// An address with no role, which reads the token.
 pub const OUTSIDER: ContractAddress = ContractAddress::new([0x60; 32]);
 
-/// Alice's balance when a scenario starts.
-pub const MINTED: i128 = 1_000;
-
 /// Declares a `#[test]` for each scenario, running it against a fresh token
 /// from `$token`, a `fn() -> TestToken`. Attributes given before `$token` go
 /// on every test.
@@ -53,8 +50,8 @@ macro_rules! scenarios {
 }
 pub(crate) use scenarios;
 
-/// A token deployed and initialized with [`ADMIN`] as its administrator, with
-/// [`MINTED`] minted to [`ALICE`], all committed.
+/// A token deployed and initialized with [`ADMIN`] as its administrator, and
+/// committed.
 pub struct TestToken {
     pub env: TestEnvironmentHandle,
     pub address: ContractAddress,
@@ -77,8 +74,6 @@ impl TestToken {
             env,
         };
         token.env.advance_block();
-
-        token.commit(&token.admin(&ADMIN, |client| client.mint(&ALICE, MINTED)));
         token
     }
 
@@ -179,6 +174,8 @@ pub fn mint_credits_to_and_emits_mint(token: &TestToken) {
 
 /// `transfer` moves `amount` from `from` to `to`, and emits `transfer`.
 pub fn transfer_moves_the_amount_and_emits_transfer(token: &TestToken) {
+    token.commit(&token.admin(&ADMIN, |client| client.mint(&ALICE, 1_000)));
+
     let transfer = token.call(&ALICE, |client| client.transfer(&ALICE, &BOB, 250));
     transfer.assert_event_count(1);
     transfer.assert_event::<Transfer<'_>>(0, |event| {
@@ -188,12 +185,14 @@ pub fn transfer_moves_the_amount_and_emits_transfer(token: &TestToken) {
     });
     token.commit(&transfer);
 
-    assert_eq!(token.balance(&ALICE), MINTED - 250);
+    assert_eq!(token.balance(&ALICE), 750);
     assert_eq!(token.balance(&BOB), 250);
 }
 
 /// `burn` destroys the amount, and emits `burn`.
 pub fn burn_destroys_the_amount_and_emits_burn(token: &TestToken) {
+    token.commit(&token.admin(&ADMIN, |client| client.mint(&ALICE, 1_000)));
+
     let burn = token.call(&ALICE, |client| client.burn(&ALICE, 100));
     burn.assert_event_count(1);
     burn.assert_event::<Burn<'_>>(0, |event| {
@@ -202,11 +201,13 @@ pub fn burn_destroys_the_amount_and_emits_burn(token: &TestToken) {
     });
     token.commit(&burn);
 
-    assert_eq!(token.balance(&ALICE), MINTED - 100);
+    assert_eq!(token.balance(&ALICE), 900);
 }
 
 /// A zero amount is not negative: moving it succeeds and emits the event.
 pub fn zero_amounts_move_and_emit_events(token: &TestToken) {
+    token.commit(&token.admin(&ADMIN, |client| client.mint(&ALICE, 1_000)));
+
     let transfer = token.call(&BOB, |client| client.transfer(&BOB, &ALICE, 0));
     transfer.assert_event::<Transfer<'_>>(0, |event| {
         assert_eq!(event.payload().amount, 0);
@@ -217,13 +218,15 @@ pub fn zero_amounts_move_and_emit_events(token: &TestToken) {
     });
     token.commit(&burn);
 
-    assert_eq!(token.balance(&ALICE), MINTED);
+    assert_eq!(token.balance(&ALICE), 1_000);
     assert_eq!(token.balance(&BOB), 0);
 }
 
 /// Each function is authorized by the address whose tokens it spends, or by
 /// the administrator, and that address must be the caller.
 pub fn each_function_is_authorized_by_the_address_it_spends_for(token: &TestToken) {
+    token.commit(&token.admin(&ADMIN, |client| client.mint(&ALICE, 1_000)));
+
     assert_throws(
         &token.call(&BOB, |client| client.transfer(&ALICE, &BOB, 1)),
         TokenError::Unauthorized,
@@ -256,21 +259,24 @@ pub fn negative_amounts_are_rejected(token: &TestToken) {
 
 /// Spending more than the balance fails, and moves nothing.
 pub fn spending_more_than_the_balance_fails(token: &TestToken) {
+    token.commit(&token.admin(&ADMIN, |client| client.mint(&ALICE, 1_000)));
+
     assert_throws(
-        &token.call(&ALICE, |client| client.transfer(&ALICE, &BOB, MINTED + 1)),
+        &token.call(&ALICE, |client| client.transfer(&ALICE, &BOB, 1_001)),
         TokenError::InsufficientBalance,
     );
     assert_throws(
-        &token.call(&ALICE, |client| client.burn(&ALICE, MINTED + 1)),
+        &token.call(&ALICE, |client| client.burn(&ALICE, 1_001)),
         TokenError::InsufficientBalance,
     );
     token.next_ledger();
 
-    assert_eq!(token.balance(&ALICE), MINTED);
+    assert_eq!(token.balance(&ALICE), 1_000);
 }
 
 /// A balance holds at most `i128::MAX`, the largest amount there is.
 pub fn a_balance_cannot_exceed_i128_max(token: &TestToken) {
+    token.commit(&token.admin(&ADMIN, |client| client.mint(&ALICE, 1_000)));
     token.commit(&token.admin(&ADMIN, |client| client.mint(&BOB, i128::MAX)));
 
     assert_throws(
