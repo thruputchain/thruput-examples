@@ -16,7 +16,8 @@
 //!   Stellar tokens, so a wallet can call the wrapped token's `name`,
 //!   `symbol` and `decimals` on Stellar instead.
 //! - **Muxed addresses**, which Groundhog has no counterpart for.
-//! - **The clawback event.**
+//! - **The clawback event.** It records a clawback, a Stellar asset issuer's
+//!   feature that SEP-41 doesn't define.
 //!
 //! Where Groundhog has its own mechanism for something SEP-41 relies on, the
 //! port uses it:

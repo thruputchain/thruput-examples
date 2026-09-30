@@ -38,6 +38,17 @@ pub enum TokenAdminError {
     AlreadyInitialized = 1,
 }
 
+/// Emitted when the administrator is changed, as the SAC's `set_admin` event
+/// is.
+#[derive(Event, Clone, Debug, PartialEq, Eq)]
+pub struct SetAdmin<'a> {
+    /// The administrator before the change.
+    #[topic]
+    pub admin: &'a ContractAddress,
+    /// The administrator after it.
+    pub new_admin: &'a ContractAddress,
+}
+
 /// SEP-41's `address.require_auth()`. Groundhog authenticates the contract
 /// making a call, so an account authorizes a call by making it: `address`
 /// must be the caller.
@@ -74,12 +85,14 @@ impl Token {
 
 /// The functions SEP-41 leaves to each token.
 ///
-/// `initialize` stands in for the Soroban token example's constructor, and
-/// `mint` is that example's.
+/// `initialize` stands in for the Soroban token example's constructor. `mint`
+/// and `set_admin` are not part of SEP-41, but they match the Stellar Asset
+/// Contract's functions of the same names, since diverging from them would
+/// gain nothing.
 #[contract(
     interface = "TokenAdmin",
     throws(TokenError, TokenAdminError),
-    emits(Mint)
+    emits(Mint, SetAdmin)
 )]
 impl Token {
     /// Sets the token's administrator.
@@ -102,11 +115,29 @@ impl Token {
     ///
     /// Emits [`Mint`].
     pub fn mint(&mut self, to: &ContractAddress, amount: i128) {
-        require_auth(&self.admin.get());
+        // The amount first, then the authorization, as the SAC checks them.
         let value = require_nonnegative_amount(amount);
+        require_auth(&self.admin.get());
 
         self.receive_balance(to, value);
         log_event(&Mint { to, amount });
+    }
+
+    /// Sets the administrator to `new_admin`. Authorized by the current
+    /// administrator, who must be the caller.
+    ///
+    /// Emits [`SetAdmin`].
+    pub fn set_admin(&mut self, new_admin: &ContractAddress) {
+        let admin = self.admin.get();
+        require_auth(&admin);
+
+        // Exclusive, as in `initialize`, so that two changes of administrator
+        // in one block cannot both commit.
+        self.admin.set_exclusive(new_admin);
+        log_event(&SetAdmin {
+            admin: &admin,
+            new_admin,
+        });
     }
 }
 

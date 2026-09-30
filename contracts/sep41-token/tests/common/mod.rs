@@ -9,7 +9,7 @@
 use core::panic::UnwindSafe;
 use sdk::xdr::{ReadXDROwned, WriteXDR};
 use sdk::*;
-use sep41_token::{TokenAdminClient, TokenAdminError, TokenError};
+use sep41_token::{SetAdmin, TokenAdminClient, TokenAdminError, TokenError};
 use sep41_token_if::*;
 
 pub const DEPLOYER: ContractAddress = ContractAddress::new([0x10; 32]);
@@ -28,6 +28,7 @@ macro_rules! scenarios {
             initialize_can_be_called_once,
             balances_start_at_zero,
             mint_credits_to_and_emits_mint,
+            set_admin_hands_over_the_administration_and_emits_set_admin,
             transfer_moves_the_amount_and_emits_transfer,
             burn_destroys_the_amount_and_emits_burn,
             zero_amounts_move_and_emit_events,
@@ -172,6 +173,24 @@ pub fn mint_credits_to_and_emits_mint(token: &TestToken) {
     assert_eq!(token.balance(&BOB), 500);
 }
 
+/// `set_admin` makes `new_admin` the administrator, in place of the current
+/// one, and emits `set_admin`.
+pub fn set_admin_hands_over_the_administration_and_emits_set_admin(token: &TestToken) {
+    let set_admin = token.admin(&ADMIN, |client| client.set_admin(&BOB));
+    set_admin.assert_event_count(1);
+    set_admin.assert_event::<SetAdmin<'_>>(0, |event| {
+        assert_eq!(event.topic(1).unwrap(), ADMIN.as_ref());
+        assert_eq!(event.payload().new_admin, &BOB);
+    });
+    token.commit(&set_admin);
+
+    token.commit(&token.admin(&BOB, |client| client.mint(&ALICE, 1_000)));
+    assert_throws(
+        &token.admin(&ADMIN, |client| client.mint(&ALICE, 1_000)),
+        TokenError::Unauthorized,
+    );
+}
+
 /// `transfer` moves `amount` from `from` to `to`, and emits `transfer`.
 pub fn transfer_moves_the_amount_and_emits_transfer(token: &TestToken) {
     token.commit(&token.admin(&ADMIN, |client| client.mint(&ALICE, 1_000)));
@@ -237,6 +256,10 @@ pub fn each_function_is_authorized_by_the_address_it_spends_for(token: &TestToke
     );
     assert_throws(
         &token.admin(&BOB, |client| client.mint(&BOB, 1)),
+        TokenError::Unauthorized,
+    );
+    assert_throws(
+        &token.admin(&BOB, |client| client.set_admin(&BOB)),
         TokenError::Unauthorized,
     );
 }

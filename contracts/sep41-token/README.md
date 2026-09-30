@@ -14,7 +14,10 @@ addresses, and its clawback event.
 - `sep41-token`: A token implementing it, after the Soroban token example. It
   defines the exceptions its functions throw, `TokenError`, and adds a
   `TokenAdmin` interface with the functions SEP-41 leaves to each token:
-  `initialize`, and the administrator's `mint`.
+  `initialize`, and the administrator's `mint` and `set_admin`. SEP-41 doesn't
+  define `mint` and `set_admin`, but they match the Stellar Asset Contract's
+  (SAC's) functions of the same names, since diverging from them would gain
+  nothing.
 
 The interface reads as SEP-41 does, less the `env: Env` parameter:
 
@@ -46,12 +49,17 @@ port uses it:
 | `Transfer` | `from`, `to` | `amount: i128` | `transfer` |
 | `Burn` | `from` | `amount: i128` | `burn` |
 | `Mint` | `to` | `amount: i128` | `mint` |
+| `SetAdmin` | `admin` | `new_admin: ContractAddress` | `set_admin` |
 
-An event's signature is derived from the crate that defines it, so the events
-live in the interface crate: every token implementing it emits the same
+An event's signature is derived from the crate that defines it, so SEP-41's
+events live in the interface crate: every token implementing it emits the same
 signatures, and a wallet or indexer can recognize them. SEP-41 defines the
 `Mint` event but not the function that emits it, so the token declares it on
 `TokenAdmin`.
+
+`SetAdmin` is the SAC's `set_admin` event, which SEP-41 doesn't define, so the
+token defines it. The SAC's `mint` and `set_admin` events also carry the
+asset's name as a last topic, which this token, having no name, leaves off.
 
 ## Behaviour
 
@@ -64,6 +72,10 @@ choice:
   `InsufficientBalance`.
 - A balance holds at most `i128::MAX`, and a mint or transfer that would take
   it higher throws `BalanceOverflow`.
+- `set_admin` takes effect from the next block. Every transaction in a block
+  runs against the state the previous block committed, so a `mint` by the old
+  administrator in the same block still succeeds, and of two `set_admin`s in
+  one block, only one commits.
 
 ## Left off
 
@@ -78,7 +90,9 @@ choice:
 - **Muxed addresses**, which Groundhog has no counterpart for: `transfer`
   takes a plain `ContractAddress`, and the `transfer` and `mint` events carry
   no `to_muxed_id`.
-- **Clawback**, and its event.
+- **Authorized holders and the other Stellar asset issuer features**, which
+  aren't part of SEP-41: the SAC's `set_authorized` and `authorized`, and its
+  `clawback`, with the `clawback` event that SEP-41 defines for it.
 - **Authorization by anyone but the caller.** Soroban's `require_auth` also
   accepts an address that signed for a call deeper in the call tree. Here the
   address must make the call itself: a holder's wallet calls the token.
