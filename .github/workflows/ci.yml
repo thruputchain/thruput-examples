@@ -5,7 +5,26 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  dependency-policy:
+    permissions:
+      contents: read
+    uses: groundhogchain/actions/.github/workflows/rust-dependency-policy.yml@af074672d3a6f3ddedcacd758224ea5a5cf2a8f3 # v0
+    with:
+      registry-name: groundhog
+    secrets:
+      registry-token: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
+
+  workflow-lint:
+    permissions:
+      contents: read
+    uses: groundhogchain/actions/.github/workflows/workflow-lint.yml@af074672d3a6f3ddedcacd758224ea5a5cf2a8f3 # v0
+
+  # Not gated on dependency-policy: that job checks the cargo graph, and this
+  # one builds only the npm workspace.
   frontend:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -14,6 +33,8 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
@@ -30,10 +51,14 @@ jobs:
       - run: npx --no-install playwright-core install --with-deps chromium
       - name: Browser acceptance
         run: |
-          export CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')"
+          CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')"
+          export CHROMIUM_PATH
           npm run test:browser
 
   build-and-test:
+    needs: dependency-policy # inspect dependencies before anything builds them
+    permissions:
+      contents: read
     strategy:
       matrix:
         runner: [namespace-profile-hogd-linux-2604, namespace-profile-hogd-arm64-macos]
@@ -44,6 +69,8 @@ jobs:
       CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Test Groundhog CLI version checks
         run: bash scripts/check-groundhog-version.test.sh
@@ -61,7 +88,7 @@ jobs:
 
       - name: Cache groundhog-cli
         id: cache-groundhog
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/bin/groundhog
@@ -88,6 +115,9 @@ jobs:
           done
 
   quality-checks:
+    needs: dependency-policy
+    permissions:
+      contents: read
     runs-on: namespace-profile-hogd-linux-2604
     env:
       CARGO_REGISTRIES_GROUNDHOG_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
@@ -95,6 +125,8 @@ jobs:
       CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Set up Rust toolchain
         run: rustup show
