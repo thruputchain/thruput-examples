@@ -1,0 +1,12 @@
+# zizmor configuration
+#   https://docs.zizmor.sh/configuration/
+
+rules:
+  # This allows us to tag-pin (e.g. `@v1`) our org's shared workflows, so we
+  # get fixes automatically when that tag moves without needing to bump a pin
+  # here. (The `ref-pin` policy also accepts a commit-hash, if we prefer to
+  # prevent automatic movement.)
+  unpinned-uses:
+    config:
+      policies:
+        groundhogchain/*: ref-pin
