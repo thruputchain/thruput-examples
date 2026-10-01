@@ -55,20 +55,21 @@ impl SignedOp for PaymentWallet {
     fn execute_signed_op(&mut self, op: Operation, signature: &Ed25519Signature) -> Signed<Opaque> {
         let expiry = op.block_expiry_height.clone();
         let request: PaymentRequest = self.replay.consume(&op, signature, &self.owner.get());
-        let node = sdk::mintable::build_auth_token_node::<PaymentAuthorization>(AuthTokenPreimage {
-            consumer: request.service,
-            data: PaymentPreimage {
-                to: request.to,
-                amount: request.amount,
-                debit: AuthTokenPreimage {
-                    consumer: request.token,
-                    data: DebitPreimage {
-                        spender: request.service,
-                        amount: request.amount,
+        let node =
+            sdk::mintable::build_auth_token_node::<PaymentAuthorization>(AuthTokenPreimage {
+                consumer: request.service,
+                data: PaymentPreimage {
+                    to: request.to,
+                    amount: request.amount,
+                    debit: AuthTokenPreimage {
+                        consumer: request.token,
+                        data: DebitPreimage {
+                            spender: request.service,
+                            amount: request.amount,
+                        },
                     },
                 },
-            },
-        });
+            });
         sdk::signer::mint_opaque_auth_token(expiry, &sdk::mintable::encode_auth_token_node(&node))
     }
 }

@@ -124,7 +124,9 @@ fn submit(
                 SignedOpClient::new(&auth.wallet).execute_signed_op(auth.op, &auth.signature);
             let forwarder = PaymentForwarderClient::new(&addr("forwarder"));
             if let Some(expected) = expected_error {
-                let error = forwarder.try_forward(&service, &to, amount, opaque).unwrap_err();
+                let error = forwarder
+                    .try_forward(&service, &to, amount, opaque)
+                    .unwrap_err();
                 assert_eq!(error.try_as(), Some(expected));
                 // Propagate after checking the reason: the entire transaction,
                 // including the wallet nonce consumed above, must roll back.
@@ -164,9 +166,8 @@ fn opaque_forwarding_pays_once_without_a_from_argument_or_standing_allowance() {
     assert_eq!(balance(&env, "bob"), INITIAL);
     assert_eq!(balance(&env, "receiver"), PAYMENT);
     let result = env.transact(|tx| {
-        tx.call(&addr("reader")).run(|| {
-            ERC20Client::new(&addr("token")).allowance(&addr("alice"), &addr("service"))
-        })
+        tx.call(&addr("reader"))
+            .run(|| ERC20Client::new(&addr("token")).allowance(&addr("alice"), &addr("service")))
     });
     result.assert_success();
     assert_eq!(result.assert_return_as::<u128>(), 0);
