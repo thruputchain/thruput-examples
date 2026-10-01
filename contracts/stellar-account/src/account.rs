@@ -160,11 +160,13 @@ impl StellarAccount {
     }
 
     /// Stellar `set_options` adding or replacing a signer. Slot 0 is the
-    /// master key and cannot be re-keyed. High threshold.
+    /// master key and cannot be re-keyed, and the master key cannot take a
+    /// second slot (that would count its weight twice). High threshold.
     pub fn set_signer(&mut self, slot: u32, key: &Ed25519PublicKey, weight: u32) {
         let mut config = self.authorize(Category::High);
         Self::check_signer_slot(slot);
         ensure(weight >= 1, AccountError::ZeroWeight);
+        ensure(*key != config.master_key, AccountError::InvalidSlot);
         Self::register(slot, key, weight);
         config.weights[slot as usize] = weight;
         self.commit(&config);
@@ -185,10 +187,15 @@ impl StellarAccount {
         log_event(&SignerChanged { slot, weight: 0 });
     }
 
-    /// Stellar's master weight. 0 deregisters slot 0; any other value
-    /// registers the stored master key with that weight. High threshold.
+    /// Stellar's master weight. 0 deregisters slot 0 (refused if it is
+    /// already empty); any other value registers the stored master key with
+    /// that weight. High threshold.
     pub fn set_master_weight(&mut self, weight: u32) {
         let mut config = self.authorize(Category::High);
+        ensure(
+            weight != 0 || config.weights[0] != 0,
+            AccountError::InvalidSlot,
+        );
         if weight == 0 {
             Self::deregister(0);
         } else {

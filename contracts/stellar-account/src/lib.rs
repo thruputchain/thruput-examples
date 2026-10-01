@@ -86,7 +86,10 @@ pub enum AccountError {
         error("Claimed weight is below the operation's threshold")
     )]
     InsufficientAuthWeight = 2,
-    /// Slot 0, a slot at or past 21, or removing an empty slot.
+    /// Slot 0 or a slot at or past 21 for `set_signer`/`remove_signer`,
+    /// removing an empty slot (including `set_master_weight(0)` on an empty
+    /// slot 0), or `set_signer` with the master key, which already owns slot
+    /// 0 (a second slot would count its weight twice).
     #[cfg_attr(feature = "dev", error("Invalid signer slot"))]
     InvalidSlot = 3,
     /// `set_signer` with weight 0; use `remove_signer`.

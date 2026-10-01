@@ -45,4 +45,6 @@ transaction sharing a block with the change is judged against the old set.
 No sequence numbers (the transaction uniquifier covers replay). No trustlines or non-native
 assets beyond ERC20 addresses. No data entries, flags, home domain, sponsorship, pre-auth or
 hash-x signers. No Stellar XDR envelopes: transactions are Groundhog transactions signed by the
-registered keys.
+registered keys. The master key cannot take a second slot, but the same non-master key in two
+slots is not detected (the account cannot read other slots' keys back) and would count twice
+(Stellar keys signers by key, so a key can appear only once).

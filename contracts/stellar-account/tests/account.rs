@@ -764,3 +764,31 @@ fn the_chain_enforces_low_even_when_the_claim_is_lower() {
         1
     ));
 }
+
+/// The master key already owns slot 0; a second slot would double its weight.
+#[test]
+fn set_signer_refuses_the_master_key_in_another_slot() {
+    let env = setup();
+    let result = as_account(
+        &env,
+        claim(1),
+        &(1u32, master_key(), 1u32),
+        stellar_account::stellar_account_exports::set_signer_internal,
+    );
+    assert_account_error(&result, AccountError::InvalidSlot);
+    env.advance_block();
+    assert_eq!(weights(&env)[1], 0, "nothing was written");
+}
+
+/// `set_master_weight(0)` when slot 0 is already empty has nothing to remove.
+#[test]
+fn master_weight_zero_on_an_empty_slot_zero_is_refused() {
+    let env = setup();
+    add_second_signer(&env, 1).assert_success();
+    env.advance_block();
+    set_master_weight_at(&env, 1, 0).assert_success();
+    env.advance_block();
+    let result = set_master_weight_at(&env, 1, 0);
+    assert_account_error(&result, AccountError::InvalidSlot);
+    result.assert_no_events();
+}

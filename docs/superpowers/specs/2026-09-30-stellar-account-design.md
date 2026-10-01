@@ -159,13 +159,15 @@ High threshold:
 
 - `set_signer(slot: u32, key: Ed25519PublicKey, weight: u32)`: `1 <= slot < 21`, `weight >= 1`
   (`InvalidSlot`, `ZeroWeight`). Registers or replaces the key at `slot`, updates the mirror, runs
-  the guard. Slot 0 is refused: the master key cannot be replaced. Emits
-  `SignerChanged { slot, weight }`.
+  the guard. Slot 0 is refused: the master key cannot be replaced. The master key itself is refused
+  in any other slot (`InvalidSlot`): it already owns slot 0, and a second slot would count its
+  weight twice. Duplicate non-master keys across slots are not detected (the account cannot read
+  other slots' keys back) and would count twice. Emits `SignerChanged { slot, weight }`.
 - `remove_signer(slot: u32)`: `1 <= slot < 21` (`InvalidSlot`). Deregisters, zeros the mirror
   entry, runs the guard. Emits `SignerChanged { slot, weight: 0 }`.
 - `set_master_weight(weight: u32)`: Stellar's master weight. `weight >= 1` re-registers the stored
-  master key at slot 0 with that weight; `weight == 0` deregisters slot 0. Updates the mirror, runs
-  the guard. Emits `SignerChanged { slot: 0, weight }`.
+  master key at slot 0 with that weight; `weight == 0` deregisters slot 0 (`InvalidSlot` if slot 0
+  is already empty). Updates the mirror, runs the guard. Emits `SignerChanged { slot: 0, weight }`.
 - `set_thresholds(low: u32, medium: u32, high: u32)`: stores, writes `low` as the chain's required
   weight, runs the guard. Emits `ThresholdsChanged { low, medium, high }`.
 
@@ -210,8 +212,8 @@ is hashed in-process with `sha2` because the SDK's hash is a syscall).
 Account (`#[contract_exception] #[non_exhaustive]`, `thiserror` under `dev`):
 `NotRootInvocation = 1`, `InsufficientAuthWeight = 2`, `InvalidSlot = 3`, `ZeroWeight = 4`,
 `WouldLockOut = 5`, `CallFaulted = 6`. A child abort inside `invoke` is not an account error:
-the child's own abort payload is re-raised verbatim. `remove_signer` on an empty slot is
-`InvalidSlot`.
+the child's own abort payload is re-raised verbatim. `remove_signer` on an empty slot,
+`set_master_weight(0)` on an empty slot 0, and `set_signer` with the master key are `InvalidSlot`.
 
 > `AccountInitError::AlreadyInitialized = 1` lives in the interface crate with the initializer
 > trait.
