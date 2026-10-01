@@ -201,8 +201,9 @@ reasoning as `permit-wallet` applies.
 
 The interface crate exports the trait, the generated `StellarAccountFactoryClient`, and
 `fn account_address(factory: &ContractAddress, code_hash: &SHA256Hash, master_key: &Ed25519PublicKey) -> ContractAddress`
-built on `get_deploy_address_for_other`, plus a `dev`-only pure-Rust equivalent for off-chain use
-(same preimage as `groundhog-signing::derive_deploy_address`).
+built on `get_deploy_address_for_other`, plus a `dev`-only pure-Rust equivalent for off-chain use,
+`account_address_offchain` (same preimage as `groundhog-signing::derive_deploy_address`; the nonce
+is hashed in-process with `sha2` because the SDK's hash is a syscall).
 
 ## Errors
 

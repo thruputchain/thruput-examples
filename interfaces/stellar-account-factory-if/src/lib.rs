@@ -105,3 +105,22 @@ pub fn account_address(
 ) -> ContractAddress {
     get_deploy_address_for_other(factory, &deployment_nonce(master_key), account_code_hash)
 }
+
+/// [`account_address`] without a host: the same `deployment_nonce`
+/// (computed here with the same CXS encoding and an in-process sha256, since
+/// the SDK's hash is a syscall) and the same deployment-address preimage as
+/// `groundhog_signing::derive_deploy_address`. For clients and tests that
+/// have no contract context.
+#[cfg(feature = "dev")]
+pub fn account_address_offchain(
+    factory: &ContractAddress,
+    account_code_hash: &SHA256Hash,
+    master_key: &Ed25519PublicKey,
+) -> ContractAddress {
+    use sha2::{Digest, Sha256};
+    let nonce_preimage = sdk::xdr::cxs::encode(&(DEPLOYMENT_DOMAIN, master_key))
+        .expect("encoding the nonce preimage");
+    let nonce: [u8; 32] = Sha256::digest(nonce_preimage).into();
+    groundhog_signing::derive_deploy_address(factory, &SHA256Hash::new(nonce), account_code_hash)
+        .expect("encoding the deployment preimage")
+}

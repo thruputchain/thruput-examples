@@ -240,3 +240,14 @@ fn the_master_key_formats_as_a_stellar_g_strkey() {
         bytes
     );
 }
+
+#[test]
+fn the_offchain_helper_agrees_with_address_of() {
+    let s = setup();
+    let master = key(0x17);
+    assert_eq!(
+        stellar_account_factory_if::account_address_offchain(&FACTORY, &s.account_hash, &master),
+        address_of(&s, master),
+        "the same nonce and preimage, no host needed"
+    );
+}
