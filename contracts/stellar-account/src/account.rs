@@ -6,7 +6,9 @@ use sdk::sys::{SyscallErrorCode, SyscallNo};
 use sdk::*;
 use stellar_account_factory_if::{AccountInitError, StellarAccountInitializer};
 
-use crate::{AccountConfig, AccountError, MAX_SIGNERS, Thresholds};
+use crate::{
+    AccountConfig, AccountError, MAX_SIGNERS, SignerChanged, Thresholds, ThresholdsChanged,
+};
 
 #[sdk::storage]
 pub struct StellarAccount {
@@ -16,7 +18,6 @@ pub struct StellarAccount {
 /// Stellar's operation categories. Low is stored but no shipped operation
 /// uses it.
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
 enum Category {
     Medium,
     High,
@@ -62,7 +63,6 @@ impl StellarAccount {
     }
 
     /// Deregister `slot` on this address.
-    #[allow(dead_code)]
     fn deregister(slot: u32) {
         remove_address_public_key(slot).or_syscall_throw(SyscallNo::kChangePublicKeyRegistration);
     }
@@ -70,6 +70,29 @@ impl StellarAccount {
     /// Pin the chain-enforced required weight to the low threshold.
     fn write_chain_threshold(low: u32) {
         set_address_required_weight(low).or_syscall_throw(SyscallNo::kWriteAddressRequiredWeight);
+    }
+
+    /// The lockout guard, then the write. The sum of the mirrored weights
+    /// must reach the high threshold and no threshold may be below 1 (the
+    /// chain-enforced weight is the low one, so this also keeps an unsigned
+    /// transaction from ever clearing it). On refusal the frame reverts,
+    /// including any registration syscall already issued.
+    fn commit(&mut self, config: &AccountConfig) {
+        let total: u64 = config.weights.iter().map(|w| u64::from(*w)).sum();
+        let t = config.thresholds;
+        ensure(
+            t.low >= 1 && t.medium >= 1 && t.high >= 1 && total >= u64::from(t.high),
+            AccountError::WouldLockOut,
+        );
+        self.config.set(config);
+    }
+
+    /// A slot other than the master's, inside the table.
+    fn check_signer_slot(slot: u32) {
+        ensure(
+            slot >= 1 && (slot as usize) < MAX_SIGNERS,
+            AccountError::InvalidSlot,
+        );
     }
 }
 
@@ -123,10 +146,61 @@ impl StellarAccount {
         self.authorize(Category::Medium);
         ERC20Client::new(asset).transfer(to, amount);
     }
+
+    /// Stellar `set_options` adding or replacing a signer. Slot 0 is the
+    /// master key and cannot be re-keyed. High threshold.
+    pub fn set_signer(&mut self, slot: u32, key: &Ed25519PublicKey, weight: u32) {
+        let mut config = self.authorize(Category::High);
+        Self::check_signer_slot(slot);
+        ensure(weight >= 1, AccountError::ZeroWeight);
+        Self::register(slot, key, weight);
+        config.weights[slot as usize] = weight;
+        self.commit(&config);
+        log_event(&SignerChanged { slot, weight });
+    }
+
+    /// Stellar `set_options` removing a signer (weight 0). High threshold.
+    pub fn remove_signer(&mut self, slot: u32) {
+        let mut config = self.authorize(Category::High);
+        Self::check_signer_slot(slot);
+        ensure(
+            config.weights[slot as usize] != 0,
+            AccountError::InvalidSlot,
+        );
+        Self::deregister(slot);
+        config.weights[slot as usize] = 0;
+        self.commit(&config);
+        log_event(&SignerChanged { slot, weight: 0 });
+    }
+
+    /// Stellar's master weight. 0 deregisters slot 0; any other value
+    /// registers the stored master key with that weight. High threshold.
+    pub fn set_master_weight(&mut self, weight: u32) {
+        let mut config = self.authorize(Category::High);
+        if weight == 0 {
+            Self::deregister(0);
+        } else {
+            Self::register(0, &config.master_key, weight);
+        }
+        config.weights[0] = weight;
+        self.commit(&config);
+        log_event(&SignerChanged { slot: 0, weight });
+    }
+
+    /// Stellar `set_options` thresholds. `low` becomes the chain-enforced
+    /// required weight. High threshold.
+    pub fn set_thresholds(&mut self, low: u32, medium: u32, high: u32) {
+        let mut config = self.authorize(Category::High);
+        config.thresholds = Thresholds { low, medium, high };
+        Self::write_chain_threshold(low);
+        self.commit(&config);
+        log_event(&ThresholdsChanged { low, medium, high });
+    }
 }
 
 /// Public bridge so external tests can call raw entry points via
 /// `stellar_account::stellar_account_exports::*_internal`.
+#[cfg(feature = "dev")]
 pub mod stellar_account_exports_pub {
     pub use super::stellar_account_exports::*;
 }
