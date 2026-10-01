@@ -34,6 +34,10 @@ pub const SECOND_SEED: [u8; 32] = [0x22; 32];
 
 pub const MINTED: u128 = 1_000;
 
+/// Every slot the chain has. hogd rejects a bitmap with any bit at or past
+/// slot 21 (`kMaxSigners`) as `kAuthMalformed`.
+pub const ALL_SLOTS: u32 = (1u32 << MAX_SIGNERS) - 1;
+
 pub fn key_from(seed: &[u8; 32]) -> Ed25519PublicKey {
     Ed25519PublicKey::from(SigningKey::from_bytes(seed).verifying_key().to_bytes())
 }
@@ -45,11 +49,11 @@ pub fn second_key() -> Ed25519PublicKey {
 }
 
 /// A source-address claim asking for `weight`. Any registered signer is
-/// allowed; the account ignores the bitmap, as Stellar does.
+/// allowed ([`ALL_SLOTS`]); the account ignores the bitmap, as Stellar does.
 pub fn claim(weight: u32) -> AuthClaim {
     AuthClaim::kSourceAddressAuthData {
         source_address_claim: AuthClaim_source_address_claim {
-            allowed_keys: 0xFFFF_FFFF,
+            allowed_keys: ALL_SLOTS,
             required_weight: weight,
         },
     }
@@ -154,14 +158,7 @@ pub fn chain_accepts(
         gas_limit: 1_000_000,
         block_expiry_height: *height + 100,
         nonce: 1,
-        // Every slot the chain has: hogd rejects a bitmap naming a slot at or
-        // past `kMaxSigners` as malformed.
-        auth_claim: AuthClaim::kSourceAddressAuthData {
-            source_address_claim: AuthClaim_source_address_claim {
-                allowed_keys: (1 << MAX_SIGNERS) - 1,
-                required_weight,
-            },
-        },
+        auth_claim: claim(required_weight),
     });
     let preimage = transaction_signature_preimage(&sdk::test_network_hash(), &tx)
         .expect("encoding the signature preimage");

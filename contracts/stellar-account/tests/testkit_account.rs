@@ -45,6 +45,9 @@ const ERC20: (&str, &str) = ("ERC20", "0.1.3");
 const MASTER_SEED: [u8; 32] = [0x11; 32];
 const SECOND_SEED: [u8; 32] = [0x22; 32];
 
+/// Every slot the chain has: hogd rejects any bit at or past slot 21 as `kAuthMalformed`.
+const ALL_SLOTS: u32 = (1u32 << 21) - 1;
+
 /// Starting balance for the account: covers deployment storage, the
 /// account's own storage writes, and gas for the transactions below.
 const STARTING_BALANCE: u128 = 5_000_000_000;
@@ -65,7 +68,7 @@ fn public_key(seed: &[u8; 32]) -> Ed25519PublicKey {
 fn source_claim(required_weight: u32) -> AuthClaim {
     AuthClaim::kSourceAddressAuthData {
         source_address_claim: AuthClaim_source_address_claim {
-            allowed_keys: 0xFFFF_FFFF,
+            allowed_keys: ALL_SLOTS,
             required_weight,
         },
     }
