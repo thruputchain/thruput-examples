@@ -35,7 +35,7 @@ impl StellarAccountFactoryContract {
     }
 }
 
-#[contract(exports = "stellar_account_factory_exports")]
+#[contract]
 impl StellarAccountFactory for StellarAccountFactoryContract {
     fn initialize(&mut self, config: FactoryConfig) {
         if self.config.try_get().none_if_missing().is_some() {

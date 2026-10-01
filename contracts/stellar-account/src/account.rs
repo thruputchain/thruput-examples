@@ -108,7 +108,7 @@ impl StellarAccount {
     }
 }
 
-#[contract(exports = "stellar_account_init_exports")]
+#[contract]
 impl StellarAccountInitializer for StellarAccount {
     fn initialize(&mut self, master_key: &Ed25519PublicKey) {
         if self.config.try_get().none_if_missing().is_some() {
@@ -134,7 +134,6 @@ impl StellarAccountInitializer for StellarAccount {
     client = StellarAccountClient,
     throws = AccountError,
     emits(SignerChanged, ThresholdsChanged),
-    exports = "stellar_account_exports"
 )]
 impl StellarAccount {
     /// The creation key, whether or not slot 0 is currently registered.
@@ -269,11 +268,4 @@ impl StellarAccount {
             Err(_) => throw(AccountError::CallFaulted),
         }
     }
-}
-
-/// Public bridge so external tests can call raw entry points via
-/// `stellar_account::stellar_account_exports::*_internal`.
-#[cfg(feature = "dev")]
-pub mod stellar_account_exports_pub {
-    pub use super::stellar_account_exports::*;
 }

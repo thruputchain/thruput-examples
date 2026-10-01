@@ -25,17 +25,9 @@ fn erc20_transfer_entrypoint() -> ContractEntrypointID {
 fn invoke_forwards_opaque_calldata_and_returns_the_child_bytes() {
     let env = setup();
     let calldata = sdk::xdr::cxs::encode(&(RECEIVER, 100u128)).unwrap();
-    let result = as_account(
-        &env,
-        claim(1),
-        &(
-            TOKEN,
-            erc20_transfer_entrypoint(),
-            u64::MAX,
-            calldata.as_slice(),
-        ),
-        stellar_account::stellar_account_exports::invoke_internal,
-    );
+    let result = as_account(&env, claim(1), |a| {
+        a.invoke(&TOKEN, erc20_transfer_entrypoint(), u64::MAX, &calldata)
+    });
     result.assert_success();
     assert!(
         result.assert_return_as::<BytesM>().is_empty(),
@@ -49,17 +41,9 @@ fn invoke_forwards_opaque_calldata_and_returns_the_child_bytes() {
 fn invoke_re_raises_the_child_abort_verbatim() {
     let env = setup();
     let calldata = sdk::xdr::cxs::encode(&(RECEIVER, MINTED + 1)).unwrap();
-    let result = as_account(
-        &env,
-        claim(1),
-        &(
-            TOKEN,
-            erc20_transfer_entrypoint(),
-            u64::MAX,
-            calldata.as_slice(),
-        ),
-        stellar_account::stellar_account_exports::invoke_internal,
-    );
+    let result = as_account(&env, claim(1), |a| {
+        a.invoke(&TOKEN, erc20_transfer_entrypoint(), u64::MAX, &calldata)
+    });
     result.assert_abort();
     match into_root_call_result::<BytesM>(&result) {
         Err(sdk::call::RawCallError::Exception(error)) => {
@@ -90,17 +74,9 @@ fn stellar_account_master_key_entrypoint() -> ContractEntrypointID {
 #[test]
 fn invoke_of_an_unknown_entrypoint_re_raises_the_targets_unknown_method_abort() {
     let env = setup();
-    let result = as_account(
-        &env,
-        claim(1),
-        &(
-            TOKEN,
-            ContractEntrypointID::from([0xFF; 8]),
-            u64::MAX,
-            &[] as &[u8],
-        ),
-        stellar_account::stellar_account_exports::invoke_internal,
-    );
+    let result = as_account(&env, claim(1), |a| {
+        a.invoke(&TOKEN, ContractEntrypointID::from([0xFF; 8]), u64::MAX, &[])
+    });
     result.assert_abort();
     match into_root_call_result::<BytesM>(&result) {
         Err(sdk::call::RawCallError::Exception(error)) => {
@@ -119,17 +95,14 @@ fn invoke_of_an_unknown_entrypoint_re_raises_the_targets_unknown_method_abort() 
 #[test]
 fn invoke_into_itself_is_a_fault_not_a_hang() {
     let env = setup();
-    let result = as_account(
-        &env,
-        claim(1),
-        &(
-            ACCOUNT,
+    let result = as_account(&env, claim(1), |a| {
+        a.invoke(
+            &ACCOUNT,
             stellar_account_master_key_entrypoint(),
             u64::MAX,
-            &[] as &[u8],
-        ),
-        stellar_account::stellar_account_exports::invoke_internal,
-    );
+            &[],
+        )
+    });
     assert_account_error(&result, AccountError::CallFaulted);
 }
 
@@ -182,13 +155,7 @@ fn initialize_refuses_a_second_call() {
 #[test]
 fn payment_at_the_medium_threshold_moves_tokens() {
     let env = setup();
-    as_account(
-        &env,
-        claim(1),
-        &(TOKEN, RECEIVER, 250u128),
-        stellar_account::stellar_account_exports::payment_internal,
-    )
-    .assert_success();
+    as_account(&env, claim(1), |a| a.payment(&TOKEN, &RECEIVER, 250)).assert_success();
     env.advance_block();
     assert_eq!(balance_of(&env, RECEIVER), 250);
     assert_eq!(balance_of(&env, ACCOUNT), MINTED - 250);
@@ -201,12 +168,7 @@ fn payment_below_the_medium_threshold_is_refused() {
     add_second_signer(&env, 1).assert_success();
     env.advance_block();
     raise_thresholds(&env, 1, 2, 2);
-    let result = as_account(
-        &env,
-        claim(1),
-        &(TOKEN, RECEIVER, 250u128),
-        stellar_account::stellar_account_exports::payment_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.payment(&TOKEN, &RECEIVER, 250));
     assert_account_error(&result, AccountError::InsufficientAuthWeight);
     env.advance_block();
     assert_eq!(balance_of(&env, RECEIVER), 0);
@@ -215,12 +177,7 @@ fn payment_below_the_medium_threshold_is_refused() {
 #[test]
 fn a_pubkey_claim_carries_no_weight() {
     let env = setup();
-    let result = as_account(
-        &env,
-        pubkey_claim(),
-        &(TOKEN, RECEIVER, 1u128),
-        stellar_account::stellar_account_exports::payment_internal,
-    );
+    let result = as_account(&env, pubkey_claim(), |a| a.payment(&TOKEN, &RECEIVER, 1));
     assert_account_error(&result, AccountError::InsufficientAuthWeight);
 }
 
@@ -245,12 +202,7 @@ fn a_call_from_another_contract_is_not_the_root_invocation() {
 #[test]
 fn payment_beyond_the_balance_surfaces_the_token_error() {
     let env = setup();
-    let result = as_account(
-        &env,
-        claim(1),
-        &(TOKEN, RECEIVER, MINTED + 1),
-        stellar_account::stellar_account_exports::payment_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.payment(&TOKEN, &RECEIVER, MINTED + 1));
     result.assert_abort();
     match into_root_call_result::<()>(&result) {
         Err(sdk::call::RawCallError::Exception(error)) => {
@@ -273,24 +225,13 @@ fn weights(env: &TestEnvironmentHandle) -> [u32; MAX_SIGNERS] {
 }
 
 fn add_second_signer(env: &TestEnvironmentHandle, weight: u32) -> TransactResult {
-    as_account(
-        env,
-        claim(1),
-        &(1u32, second_key(), weight),
-        stellar_account::stellar_account_exports::set_signer_internal,
-    )
+    as_account(env, claim(1), |a| a.set_signer(1, &second_key(), weight))
 }
 
 /// Raise thresholds as the account at a claimed weight that clears the
 /// current high threshold (1 right after setup).
 fn raise_thresholds(env: &TestEnvironmentHandle, low: u32, medium: u32, high: u32) {
-    as_account(
-        env,
-        claim(1),
-        &(low, medium, high),
-        stellar_account::stellar_account_exports::set_thresholds_internal,
-    )
-    .assert_success();
+    as_account(env, claim(1), |a| a.set_thresholds(low, medium, high)).assert_success();
     env.advance_block();
 }
 
@@ -307,12 +248,7 @@ fn set_signer_needs_the_high_threshold_and_updates_the_mirror_and_event() {
 
     // Claiming 2 passes the account check. (On chain this would need two
     // signers; the mock does not verify signatures.)
-    let result = as_account(
-        &env,
-        claim(2),
-        &(1u32, second_key(), 3u32),
-        stellar_account::stellar_account_exports::set_signer_internal,
-    );
+    let result = as_account(&env, claim(2), |a| a.set_signer(1, &second_key(), 3));
     result.assert_success();
     result.assert_event_count(1);
     result.assert_event::<SignerChanged>(0, |e| {
@@ -332,12 +268,9 @@ fn set_signer_rejects_slot_zero_out_of_range_slots_and_zero_weight() {
         (MAX_SIGNERS as u32, 1, AccountError::InvalidSlot),
         (1, 0, AccountError::ZeroWeight),
     ] {
-        let result = as_account(
-            &env,
-            claim(1),
-            &(slot, second_key(), weight),
-            stellar_account::stellar_account_exports::set_signer_internal,
-        );
+        let result = as_account(&env, claim(1), |a| {
+            a.set_signer(slot, &second_key(), weight)
+        });
         assert_account_error(&result, expected);
     }
 }
@@ -346,12 +279,7 @@ fn set_signer_rejects_slot_zero_out_of_range_slots_and_zero_weight() {
 fn remove_signer_rejects_slot_zero_out_of_range_and_empty_slots() {
     let env = setup();
     for slot in [0u32, MAX_SIGNERS as u32, 5] {
-        let result = as_account(
-            &env,
-            claim(1),
-            &slot,
-            stellar_account::stellar_account_exports::remove_signer_internal,
-        );
+        let result = as_account(&env, claim(1), |a| a.remove_signer(slot));
         assert_account_error(&result, AccountError::InvalidSlot);
     }
 }
@@ -361,12 +289,7 @@ fn remove_signer_clears_the_slot_and_emits_weight_zero() {
     let env = setup();
     add_second_signer(&env, 2).assert_success();
     env.advance_block();
-    let result = as_account(
-        &env,
-        claim(1),
-        &1u32,
-        stellar_account::stellar_account_exports::remove_signer_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.remove_signer(1));
     result.assert_success();
     result.assert_event::<SignerChanged>(0, |e| assert_eq!(e.payload().weight, 0));
     env.advance_block();
@@ -378,12 +301,7 @@ fn set_thresholds_pins_low_as_the_chain_threshold_and_emits() {
     let env = setup();
     add_second_signer(&env, 2).assert_success();
     env.advance_block();
-    let result = as_account(
-        &env,
-        claim(1),
-        &(1u32, 2u32, 3u32),
-        stellar_account::stellar_account_exports::set_thresholds_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.set_thresholds(1, 2, 3));
     result.assert_success();
     result.assert_event::<ThresholdsChanged>(0, |e| {
         assert_eq!(
@@ -411,31 +329,16 @@ fn set_thresholds_pins_low_as_the_chain_threshold_and_emits() {
 fn changes_that_would_lock_the_account_out_are_refused_and_write_nothing() {
     let env = setup();
     // Total weight is 1; a high threshold of 2 is unreachable.
-    let result = as_account(
-        &env,
-        claim(1),
-        &(1u32, 1u32, 2u32),
-        stellar_account::stellar_account_exports::set_thresholds_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.set_thresholds(1, 1, 2));
     assert_account_error(&result, AccountError::WouldLockOut);
     result.assert_no_events();
 
     // A zero threshold is never allowed: it would admit an unsigned transaction.
-    let result = as_account(
-        &env,
-        claim(1),
-        &(0u32, 1u32, 1u32),
-        stellar_account::stellar_account_exports::set_thresholds_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.set_thresholds(0, 1, 1));
     assert_account_error(&result, AccountError::WouldLockOut);
 
     // Removing the only signer that carries the high threshold.
-    let result = as_account(
-        &env,
-        claim(1),
-        &0u32,
-        stellar_account::stellar_account_exports::set_master_weight_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.set_master_weight(0));
     assert_account_error(&result, AccountError::WouldLockOut);
     env.advance_block();
     assert_eq!(weights(&env)[0], 1, "nothing was written");
@@ -447,13 +350,7 @@ fn master_weight_zero_disables_slot_zero_but_the_master_key_is_unchanged() {
     add_second_signer(&env, 1).assert_success();
     env.advance_block();
 
-    as_account(
-        &env,
-        claim(1),
-        &0u32,
-        stellar_account::stellar_account_exports::set_master_weight_internal,
-    )
-    .assert_success();
+    as_account(&env, claim(1), |a| a.set_master_weight(0)).assert_success();
     env.advance_block();
     assert_eq!(weights(&env)[0], 0);
     let key = env.transact(|tx| {
@@ -468,13 +365,7 @@ fn master_weight_zero_disables_slot_zero_but_the_master_key_is_unchanged() {
     );
 
     // Re-enabling re-registers the stored creation key with the new weight.
-    as_account(
-        &env,
-        claim(1),
-        &4u32,
-        stellar_account::stellar_account_exports::set_master_weight_internal,
-    )
-    .assert_success();
+    as_account(&env, claim(1), |a| a.set_master_weight(4)).assert_success();
     env.advance_block();
     assert_eq!(weights(&env)[0], 4);
 }
@@ -506,12 +397,9 @@ fn setup_factory(env: &TestEnvironmentHandle, account_hash: SHA256Hash) {
 fn create_account_funds_and_creates_a_second_account_in_one_frame() {
     let (env, account_hash) = setup_with_hash();
     setup_factory(&env, account_hash);
-    let result = as_account(
-        &env,
-        claim(1),
-        &(FACTORY, second_key(), STARTING_BALANCE),
-        stellar_account::stellar_account_exports::create_account_internal,
-    );
+    let result = as_account(&env, claim(1), |a| {
+        a.create_account(&FACTORY, &second_key(), STARTING_BALANCE)
+    });
     result.assert_success();
     let created: ContractAddress = result.assert_return_as();
     assert_eq!(
@@ -536,12 +424,9 @@ fn create_account_funds_and_creates_a_second_account_in_one_frame() {
 fn create_account_with_too_small_a_starting_balance_fails_whole() {
     let (env, account_hash) = setup_with_hash();
     setup_factory(&env, account_hash);
-    let result = as_account(
-        &env,
-        claim(1),
-        &(FACTORY, second_key(), STARTING_BALANCE - 1),
-        stellar_account::stellar_account_exports::create_account_internal,
-    );
+    let result = as_account(&env, claim(1), |a| {
+        a.create_account(&FACTORY, &second_key(), STARTING_BALANCE - 1)
+    });
     result.assert_abort();
     match into_root_call_result::<ContractAddress>(&result) {
         Err(sdk::call::RawCallError::Exception(e)) => {
@@ -580,12 +465,7 @@ const ONES: Thresholds = Thresholds {
 #[test]
 fn a_low_threshold_above_the_total_weight_is_refused() {
     let env = setup();
-    let result = as_account(
-        &env,
-        claim(1),
-        &(2u32, 1u32, 1u32),
-        stellar_account::stellar_account_exports::set_thresholds_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.set_thresholds(2, 1, 1));
     assert_account_error(&result, AccountError::WouldLockOut);
     result.assert_no_events();
     env.advance_block();
@@ -596,12 +476,7 @@ fn a_low_threshold_above_the_total_weight_is_refused() {
 #[test]
 fn a_medium_threshold_above_the_total_weight_is_refused() {
     let env = setup();
-    let result = as_account(
-        &env,
-        claim(1),
-        &(1u32, 2u32, 1u32),
-        stellar_account::stellar_account_exports::set_thresholds_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.set_thresholds(1, 2, 1));
     assert_account_error(&result, AccountError::WouldLockOut);
     result.assert_no_events();
     env.advance_block();
@@ -615,12 +490,7 @@ fn removing_a_signer_below_the_low_threshold_is_refused() {
     add_second_signer(&env, 1).assert_success();
     env.advance_block();
     raise_thresholds(&env, 2, 1, 1);
-    let result = as_account(
-        &env,
-        claim(1),
-        &1u32,
-        stellar_account::stellar_account_exports::remove_signer_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.remove_signer(1));
     assert_account_error(&result, AccountError::WouldLockOut);
     env.advance_block();
     assert_eq!(weights(&env)[1], 1, "nothing was written");
@@ -633,12 +503,7 @@ fn lowering_a_signer_weight_below_the_high_threshold_is_refused() {
     add_second_signer(&env, 2).assert_success();
     env.advance_block();
     raise_thresholds(&env, 1, 1, 3);
-    let result = as_account(
-        &env,
-        claim(3),
-        &(1u32, second_key(), 1u32),
-        stellar_account::stellar_account_exports::set_signer_internal,
-    );
+    let result = as_account(&env, claim(3), |a| a.set_signer(1, &second_key(), 1));
     assert_account_error(&result, AccountError::WouldLockOut);
     env.advance_block();
     assert_eq!(weights(&env)[1], 2, "nothing was written");
@@ -654,12 +519,7 @@ fn set_thresholds_at(
     weight: u32,
     t: (u32, u32, u32),
 ) -> TransactResult {
-    as_account(
-        env,
-        claim(weight),
-        &t,
-        stellar_account::stellar_account_exports::set_thresholds_internal,
-    )
+    as_account(env, claim(weight), |a| a.set_thresholds(t.0, t.1, t.2))
 }
 
 fn set_master_weight_at(
@@ -667,12 +527,7 @@ fn set_master_weight_at(
     weight: u32,
     master_weight: u32,
 ) -> TransactResult {
-    as_account(
-        env,
-        claim(weight),
-        &master_weight,
-        stellar_account::stellar_account_exports::set_master_weight_internal,
-    )
+    as_account(env, claim(weight), |a| a.set_master_weight(master_weight))
 }
 
 #[test]
@@ -735,12 +590,9 @@ fn a_refused_change_leaves_the_chain_registration_and_required_weight_unchanged(
 
     // Re-keying slot 1 to a third key at weight 1 drops the total to 2,
     // below high: refused after the registration syscall was issued.
-    let refused = as_account(
-        &env,
-        claim(3),
-        &(1u32, key_from(&THIRD_SEED), 1u32),
-        stellar_account::stellar_account_exports::set_signer_internal,
-    );
+    let refused = as_account(&env, claim(3), |a| {
+        a.set_signer(1, &key_from(&THIRD_SEED), 1)
+    });
     assert_account_error(&refused, AccountError::WouldLockOut);
     // A low above the total: refused after the required-weight syscall.
     assert_account_error(
@@ -786,12 +638,7 @@ fn the_chain_enforces_low_even_when_the_claim_is_lower() {
 #[test]
 fn set_signer_refuses_the_master_key_in_another_slot() {
     let env = setup();
-    let result = as_account(
-        &env,
-        claim(1),
-        &(1u32, master_key(), 1u32),
-        stellar_account::stellar_account_exports::set_signer_internal,
-    );
+    let result = as_account(&env, claim(1), |a| a.set_signer(1, &master_key(), 1));
     assert_account_error(&result, AccountError::InvalidSlot);
     env.advance_block();
     assert_eq!(weights(&env)[1], 0, "nothing was written");

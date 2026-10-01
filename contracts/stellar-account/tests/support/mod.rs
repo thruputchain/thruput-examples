@@ -21,7 +21,7 @@ use groundhog_xdr::auth_claim::{AuthClaim_source_address_claim, AuthVerifyErrorC
 use groundhog_xdr::transaction::{DecoratedSignature, SignedTransaction};
 use sdk::call::RawCallError;
 use sdk::*;
-use stellar_account::{AccountError, MAX_SIGNERS};
+use stellar_account::{AccountError, MAX_SIGNERS, StellarAccount};
 use stellar_account_factory_if::StellarAccountInitializerClient;
 
 pub const ROOT: ContractAddress = ContractAddress::new([0x10; 32]);
@@ -71,19 +71,23 @@ pub fn pubkey_claim() -> AuthClaim {
     }
 }
 
-/// Run `entry` as the account's root invocation with `claim` attached and
-/// `args` as the calldata it decodes. `entry` is one of the
-/// `stellar_account_exports::*_internal` raw entrypoints.
-pub fn as_account<A: WriteXDR>(
-    env: &TestEnvironmentHandle,
-    claim: AuthClaim,
-    args: &A,
-    entry: fn(),
-) -> TransactResult {
-    let calldata = BytesM(sdk::xdr::cxs::encode(args).expect("encoding calldata"));
-    env.transaction()
-        .with_auth_claim(claim)
-        .transact(|tx| tx.call(&ACCOUNT).with_calldata(calldata).run(entry))
+/// Run `op` against the account as the transaction's root invocation, with
+/// `claim` attached. `op` receives the contract state the way a generated
+/// entrypoint would and calls the method under test directly, so the
+/// root-invocation and claim-weight checks see exactly what they would on
+/// chain. The mock does not verify signatures, so the claim's
+/// `required_weight` is the whole input to the threshold check.
+pub fn as_account<T, F>(env: &TestEnvironmentHandle, claim: AuthClaim, op: F) -> TransactResult
+where
+    T: WriteXDR,
+    F: FnOnce(&mut StellarAccount) -> T,
+{
+    env.transaction().with_auth_claim(claim).transact(|tx| {
+        tx.call(&ACCOUNT).run(std::panic::AssertUnwindSafe(move || {
+            let mut state = sdk::storage::contract_state_root::<StellarAccount>();
+            op(&mut state)
+        }))
+    })
 }
 
 /// The account refused the root invocation with `expected`.
