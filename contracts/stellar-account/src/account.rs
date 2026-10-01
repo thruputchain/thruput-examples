@@ -1,6 +1,7 @@
 //! The account contract: storage, authorization preamble, entry points.
 
 use groundhog_erc20_if::ERC20Client;
+use sdk::call::{CallOutcome, ReturnBuf, contract_call};
 use sdk::storage::Value;
 use sdk::sys::{SyscallErrorCode, SyscallNo};
 use sdk::*;
@@ -195,6 +196,37 @@ impl StellarAccount {
         Self::write_chain_threshold(low);
         self.commit(&config);
         log_event(&ThresholdsChanged { low, medium, high });
+    }
+
+    /// Raw passthrough: call `entrypoint` on `target` with `calldata` as this
+    /// account, returning the child's bytes. A child abort is re-raised with
+    /// its own payload; a fault or a call rejected before running throws
+    /// [`AccountError::CallFaulted`]. No auth tokens are forwarded. Medium
+    /// threshold.
+    pub fn invoke(
+        &self,
+        target: &ContractAddress,
+        entrypoint: ContractEntrypointID,
+        gas_limit: u64,
+        calldata: &[u8],
+    ) -> BytesM {
+        self.authorize(Category::Medium);
+        let mut return_buf = ReturnBuf::new();
+        let mut returned_tokens = AuthHandleBuf::new();
+        match contract_call(
+            target,
+            entrypoint,
+            gas_limit,
+            calldata,
+            &AuthHandleBuf::new(),
+            InvokeFlagSet::default(),
+            &mut return_buf,
+            &mut returned_tokens,
+        ) {
+            Ok(CallOutcome::Return) => BytesM(return_buf.as_slice().to_vec()),
+            Ok(CallOutcome::Abort) => contract_abort(return_buf.as_slice()),
+            Err(_) => throw(AccountError::CallFaulted),
+        }
     }
 }
 

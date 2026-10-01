@@ -8,6 +8,82 @@ use stellar_account::{
 use stellar_account_factory_if::StellarAccountInitializerClient;
 use support::*;
 
+/// The ERC20 `transfer` entrypoint ID.
+///
+/// `ERC20Entrypoints` is not generated for a trait impl (only for inherent
+/// impls). Computed here with the same formula as the `#[contract]` macro:
+/// sha256(INTERFACE_NAME ++ "::" ++ MAJOR_VERSION ++ "::" ++ METHOD_NAME)[0..8].
+/// For groundhog-erc20-if 0.1.42: interface = "ERC20", major = "0.1",
+/// method = "transfer".  The `sdk::hash_to_array!` proc-macro hashes
+/// "ERC20::0.1::transfer" with sha256 at compile time.
+fn erc20_transfer_entrypoint() -> ContractEntrypointID {
+    let h: [u8; 32] = sdk::hash_to_array!("ERC20::0.1::transfer");
+    ContractEntrypointID::from([h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]])
+}
+
+#[test]
+fn invoke_forwards_opaque_calldata_and_returns_the_child_bytes() {
+    let env = setup();
+    let calldata = sdk::xdr::cxs::encode(&(RECEIVER, 100u128)).unwrap();
+    let result = as_account(
+        &env,
+        claim(1),
+        &(
+            TOKEN,
+            erc20_transfer_entrypoint(),
+            u64::MAX,
+            calldata.as_slice(),
+        ),
+        stellar_account::stellar_account_exports::invoke_internal,
+    );
+    result.assert_success();
+    assert!(
+        result.assert_return_as::<BytesM>().is_empty(),
+        "transfer returns unit"
+    );
+    env.advance_block();
+    assert_eq!(balance_of(&env, RECEIVER), 100);
+}
+
+#[test]
+fn invoke_re_raises_the_child_abort_verbatim() {
+    let env = setup();
+    let calldata = sdk::xdr::cxs::encode(&(RECEIVER, MINTED + 1)).unwrap();
+    let result = as_account(
+        &env,
+        claim(1),
+        &(
+            TOKEN,
+            erc20_transfer_entrypoint(),
+            u64::MAX,
+            calldata.as_slice(),
+        ),
+        stellar_account::stellar_account_exports::invoke_internal,
+    );
+    result.assert_abort();
+    match into_root_call_result::<BytesM>(&result) {
+        Err(sdk::call::RawCallError::Exception(error)) => {
+            assert!(
+                error.try_as::<erc20::ERC20Error>().is_some(),
+                "the token's own error, got {error:?}"
+            );
+        }
+        other => panic!("expected the child's exception, got {other:?}"),
+    }
+}
+
+#[test]
+fn invoke_into_itself_is_a_fault_not_a_hang() {
+    let env = setup();
+    let result = as_account(
+        &env,
+        claim(1),
+        &(ACCOUNT, erc20_transfer_entrypoint(), u64::MAX, &[] as &[u8]),
+        stellar_account::stellar_account_exports::invoke_internal,
+    );
+    assert_account_error(&result, AccountError::CallFaulted);
+}
+
 #[test]
 fn initialize_registers_the_master_key_at_slot_zero_with_every_threshold_at_one() {
     let env = setup();
