@@ -15,6 +15,10 @@ jobs:
     uses: groundhogchain/actions/.github/workflows/rust-dependency-policy.yml@v1
     with:
       registry-name: groundhog
+      # The workspace manifest opts into the nightly-only `trim-paths` cargo
+      # feature, so the stable cargo the reusable workflow defaults to cannot
+      # parse it. Keep this in step with rust-toolchain.toml.
+      toolchain: nightly-2026-07-01
     secrets:
       registry-token: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
 
