@@ -23,7 +23,8 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true }
+# The derived minting implementation for a payload with a nested Signed needs alloc.
+sdk = { workspace = true, features = ["alloc"] }
 groundhog-erc20-permit-if = { workspace = true }
 
 [lints]
