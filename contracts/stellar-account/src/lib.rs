@@ -99,7 +99,9 @@ pub enum AccountError {
     /// or high), or a threshold below 1.
     #[cfg_attr(feature = "dev", error("Change would lock the account out"))]
     WouldLockOut = 5,
-    /// `invoke`'s target faulted or the call was rejected before running.
+    /// `invoke`'s target faulted or the call was rejected before running,
+    /// or a called contract returned something inconsistent (the factory
+    /// reporting a created address other than the one derived locally).
     #[cfg_attr(feature = "dev", error("Invoked call faulted"))]
     CallFaulted = 6,
 }

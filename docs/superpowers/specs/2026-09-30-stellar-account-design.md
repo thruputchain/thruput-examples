@@ -177,8 +177,10 @@ Medium threshold:
   account via `groundhog-erc20-if`. Native HOG is the ERC20 at
   `sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN`, so one entry point covers both.
 - `create_account(factory: ContractAddress, master_key: Ed25519PublicKey, starting_balance: u128) -> ContractAddress`:
-  reads `address_of` from the factory, pays `starting_balance` HOG to it, calls the factory's
-  `create_account`, returns the address. One frame.
+  reads the factory's `config()`, derives the address locally with `account_address` and the
+  configured code hash, pays `starting_balance` of the configured native token to it, calls the
+  factory's `create_account`, and throws `CallFaulted` unless the factory returns that same
+  address. One frame.
 - `invoke(target: ContractAddress, entrypoint: ContractEntrypointID, gas_limit: u64, calldata: BytesM) -> BytesM`:
   raw passthrough via `sdk::call::contract_call`. Returns the child's bytes on `Return`; on `Abort`
   re-aborts with the child's payload; on a fault throws `CallFaulted`. No auth tokens are forwarded

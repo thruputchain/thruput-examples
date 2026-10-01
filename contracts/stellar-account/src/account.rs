@@ -6,7 +6,7 @@ use sdk::storage::Value;
 use sdk::sys::{SyscallErrorCode, SyscallNo};
 use sdk::*;
 use stellar_account_factory_if::{
-    AccountInitError, StellarAccountFactoryClient, StellarAccountInitializer,
+    AccountInitError, StellarAccountFactoryClient, StellarAccountInitializer, account_address,
 };
 
 // `AccountError` is imported because the `throws = AccountError` macro attribute references it by
@@ -218,8 +218,11 @@ impl StellarAccount {
 
     /// Stellar's `create_account`: pay `starting_balance` of the factory's
     /// native token to the new account's address, then have the factory
-    /// deploy and initialize it. One frame, so a refusal anywhere leaves no
-    /// trace. Medium threshold.
+    /// deploy and initialize it. The address is derived here from the
+    /// factory's configured code hash rather than taken from the factory, and
+    /// the factory's answer must match it ([`AccountError::CallFaulted`]
+    /// otherwise). One frame, so a refusal anywhere leaves no trace. Medium
+    /// threshold.
     pub fn create_account(
         &self,
         factory: &ContractAddress,
@@ -227,11 +230,13 @@ impl StellarAccount {
         starting_balance: u128,
     ) -> ContractAddress {
         self.authorize(Category::Medium);
-        let factory = StellarAccountFactoryClient::new(factory);
-        let native_token = factory.config().native_token;
-        let predicted = factory.address_of(master_key);
-        ERC20Client::new(&native_token).transfer(&predicted, starting_balance);
-        factory.create_account(master_key)
+        let client = StellarAccountFactoryClient::new(factory);
+        let config = client.config();
+        let predicted = account_address(factory, &config.account_code_hash, master_key);
+        ERC20Client::new(&config.native_token).transfer(&predicted, starting_balance);
+        let created = client.create_account(master_key);
+        ensure(created == predicted, AccountError::CallFaulted);
+        created
     }
 
     /// Raw passthrough: call `entrypoint` on `target` with `calldata` as this
