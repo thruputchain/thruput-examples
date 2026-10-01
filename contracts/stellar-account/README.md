@@ -28,8 +28,10 @@ level, so the contract adds the thresholds and nothing else.
 | Any other operation | `invoke(target, entrypoint, gas, calldata)`: raw passthrough. |
 
 Signer and threshold changes are high threshold; everything else is medium; low is stored but
-unused by any shipped operation. A change that would leave the summed weights below the high
-threshold, or any threshold below 1, is refused (`WouldLockOut`).
+unused by any shipped operation. A change that would leave the summed weights below any of the
+three thresholds, or any threshold below 1, is refused (`WouldLockOut`). `low` matters most: it is
+the chain-enforced required weight, so above the total weight it would keep the chain from
+admitting any transaction for the account again.
 
 Every operation must be the transaction's root invocation. The auth claim is verified against the
 invoked address's registration, so a claim observed from another contract's frame says nothing

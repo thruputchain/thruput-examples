@@ -92,8 +92,8 @@ pub enum AccountError {
     /// `set_signer` with weight 0; use `remove_signer`.
     #[cfg_attr(feature = "dev", error("Signer weight must be at least 1"))]
     ZeroWeight = 4,
-    /// The change would leave total weight below the high threshold, or a
-    /// threshold below 1.
+    /// The change would leave total weight below any threshold (low, medium,
+    /// or high), or a threshold below 1.
     #[cfg_attr(feature = "dev", error("Change would lock the account out"))]
     WouldLockOut = 5,
     /// `invoke`'s target faulted or the call was rejected before running.

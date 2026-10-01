@@ -140,10 +140,14 @@ Categories:
 
 The chain-enforced `required_weight` is always written equal to `thresholds.low`.
 
-**Lockout guard.** After applying any signer or threshold change, require
-`sum(weights) >= thresholds.high` and `min(low, medium, high) >= 1`; otherwise throw `WouldLockOut`
-and revert. The second rule also guarantees the chain threshold is at least 1, so an unsigned
-transaction can never clear it.
+**Lockout guard.** After applying any signer or threshold change (the account's private `commit`
+step, which every high-threshold entry point ends with), require `min(low, medium, high) >= 1` and
+`sum(weights) >= max(low, medium, high)`; otherwise throw `WouldLockOut` and revert, including any
+registration syscall already issued. Every category must stay satisfiable. `low` is the one that
+cannot be recovered from: it is the chain-enforced required weight, so a `low` above the total
+weight would keep hogd from ever admitting another transaction for the account, and a `low` of 0
+would let an unsigned transaction clear it. An unreachable `medium` would only disable payments
+until a high-threshold fix, but there is no reason to allow it.
 
 **Timing.** Registration writes land with the block. A signer change is in force from the next
 block; a transaction sharing a block with the change is judged against the old set. Same caveat
@@ -233,8 +237,9 @@ signatures, so the claimed weight is the whole input to the threshold check:
 - `set_master_weight(0)` after a second signer carries the high threshold deregisters slot 0 while
   `master_key` still returns the creation key; `set_master_weight(0)` as the only signer throws
   `WouldLockOut`.
-- A change that drops `sum(weights)` below high throws `WouldLockOut` with nothing written; a zero
-  threshold likewise.
+- A change that drops `sum(weights)` below any of low, medium, or high throws `WouldLockOut` with
+  nothing written (threshold raises, `remove_signer`, and a signer weight decrease are each
+  covered); a zero threshold likewise.
 - Calling the account from another mock contract, with a strong claim on that contract, throws
   `NotRootInvocation`.
 - Factory: `address_of` equals the deployed address; an unfunded predicted address throws

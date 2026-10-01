@@ -542,3 +542,87 @@ fn create_account_with_too_small_a_starting_balance_fails_whole() {
         "the prefund was rolled back too"
     );
 }
+
+fn thresholds(env: &TestEnvironmentHandle) -> Thresholds {
+    let result = env.transact(|tx| {
+        tx.call(&ROOT)
+            .run(|| StellarAccountClient::new(&ACCOUNT).thresholds())
+    });
+    result.assert_success();
+    result.assert_return_as()
+}
+
+const ONES: Thresholds = Thresholds {
+    low: 1,
+    medium: 1,
+    high: 1,
+};
+
+/// `low` is the chain-enforced required weight: above the total weight, no
+/// transaction would ever be admitted again.
+#[test]
+fn a_low_threshold_above_the_total_weight_is_refused() {
+    let env = setup();
+    let result = as_account(
+        &env,
+        claim(1),
+        &(2u32, 1u32, 1u32),
+        stellar_account::stellar_account_exports::set_thresholds_internal,
+    );
+    assert_account_error(&result, AccountError::WouldLockOut);
+    result.assert_no_events();
+    env.advance_block();
+    assert_eq!(thresholds(&env), ONES, "nothing was written");
+}
+
+/// A medium threshold above the total weight would make payments dead.
+#[test]
+fn a_medium_threshold_above_the_total_weight_is_refused() {
+    let env = setup();
+    let result = as_account(
+        &env,
+        claim(1),
+        &(1u32, 2u32, 1u32),
+        stellar_account::stellar_account_exports::set_thresholds_internal,
+    );
+    assert_account_error(&result, AccountError::WouldLockOut);
+    result.assert_no_events();
+    env.advance_block();
+    assert_eq!(thresholds(&env), ONES, "nothing was written");
+}
+
+/// Removing a signer whose weight the low threshold depends on.
+#[test]
+fn removing_a_signer_below_the_low_threshold_is_refused() {
+    let env = setup();
+    add_second_signer(&env, 1).assert_success();
+    env.advance_block();
+    raise_thresholds(&env, 2, 1, 1);
+    let result = as_account(
+        &env,
+        claim(1),
+        &1u32,
+        stellar_account::stellar_account_exports::remove_signer_internal,
+    );
+    assert_account_error(&result, AccountError::WouldLockOut);
+    env.advance_block();
+    assert_eq!(weights(&env)[1], 1, "nothing was written");
+}
+
+/// Lowering a signer's weight below the high threshold.
+#[test]
+fn lowering_a_signer_weight_below_the_high_threshold_is_refused() {
+    let env = setup();
+    add_second_signer(&env, 2).assert_success();
+    env.advance_block();
+    raise_thresholds(&env, 1, 1, 3);
+    let result = as_account(
+        &env,
+        claim(3),
+        &(1u32, second_key(), 1u32),
+        stellar_account::stellar_account_exports::set_signer_internal,
+    );
+    assert_account_error(&result, AccountError::WouldLockOut);
+    env.advance_block();
+    assert_eq!(weights(&env)[1], 2, "nothing was written");
+}

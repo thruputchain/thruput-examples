@@ -79,16 +79,21 @@ impl StellarAccount {
         set_address_required_weight(low).or_syscall_throw(SyscallNo::kWriteAddressRequiredWeight);
     }
 
-    /// The lockout guard, then the write. The sum of the mirrored weights
-    /// must reach the high threshold and no threshold may be below 1 (the
-    /// chain-enforced weight is the low one, so this also keeps an unsigned
-    /// transaction from ever clearing it). On refusal the frame reverts,
-    /// including any registration syscall already issued.
+    /// The lockout guard, then the write. Every threshold must be at least 1
+    /// and the sum of the mirrored weights must reach the largest of them, so
+    /// every category stays satisfiable. `low` matters most: it is the
+    /// chain-enforced required weight, so a `low` above the total would keep
+    /// hogd from admitting any transaction again, and a `low` of 0 would let
+    /// an unsigned one through. On refusal the frame reverts, including any
+    /// registration syscall already issued.
     fn commit(&mut self, config: &AccountConfig) {
         let total: u64 = config.weights.iter().map(|w| u64::from(*w)).sum();
         let t = config.thresholds;
         ensure(
-            t.low >= 1 && t.medium >= 1 && t.high >= 1 && total >= u64::from(t.high),
+            t.low >= 1
+                && t.medium >= 1
+                && t.high >= 1
+                && total >= u64::from(t.low.max(t.medium).max(t.high)),
             AccountError::WouldLockOut,
         );
         self.config.set(config);
