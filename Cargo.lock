@@ -29,6 +29,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
+name = "auth-payment-forwarder"
+version = "0.1.0"
+dependencies = [
+ "auth-payment-service",
+ "sdk",
+]
+
+[[package]]
+name = "auth-payment-service"
+version = "0.1.0"
+dependencies = [
+ "groundhog-erc20-permit-if",
+ "sdk",
+]
+
+[[package]]
+name = "auth-payment-wallet"
+version = "0.1.0"
+dependencies = [
+ "auth-payment-forwarder",
+ "auth-payment-service",
+ "auth-payment-wallet",
+ "ed25519-dalek",
+ "erc20",
+ "groundhog-domain-separator",
+ "groundhog-erc20-permit-if",
+ "groundhog-signed-op",
+ "sdk",
+]
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -147,15 +178,15 @@ dependencies = [
 
 [[package]]
 name = "const-oid"
-version = "0.9.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
-
-[[package]]
-name = "const-oid"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
+
+[[package]]
+name = "const-oid"
+version = "0.9.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
 name = "core-foundation"
