@@ -72,13 +72,45 @@ fn invoke_re_raises_the_child_abort_verbatim() {
     }
 }
 
+/// The `StellarAccount::master_key` entrypoint ID.
+///
+/// Same formula as `erc20_transfer_entrypoint`:
+/// sha256(INTERFACE_NAME ++ "::" ++ MAJOR_VERSION ++ "::" ++ METHOD_NAME)[0..8].
+/// For stellar-account 0.1.0 (inherent impl, interface name = "StellarAccount"):
+/// interface = "StellarAccount", major = "0.1", method = "master_key".
+fn stellar_account_master_key_entrypoint() -> ContractEntrypointID {
+    let h: [u8; 32] = sdk::hash_to_array!("StellarAccount::0.1::master_key");
+    ContractEntrypointID::from([h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]])
+}
+
+/// Regression: a target that does not have the requested entrypoint is a fault.
+#[test]
+fn invoke_of_an_unknown_entrypoint_is_a_fault() {
+    let env = setup();
+    let result = as_account(
+        &env,
+        claim(1),
+        &(ACCOUNT, erc20_transfer_entrypoint(), u64::MAX, &[] as &[u8]),
+        stellar_account::stellar_account_exports::invoke_internal,
+    );
+    assert_account_error(&result, AccountError::CallFaulted);
+}
+
+/// The account invokes itself (reentrance): must surface as a fault, not a
+/// hang or silent success. Uses a known entrypoint (`master_key`) so the
+/// failure must come from reentrance detection, not from an absent entrypoint.
 #[test]
 fn invoke_into_itself_is_a_fault_not_a_hang() {
     let env = setup();
     let result = as_account(
         &env,
         claim(1),
-        &(ACCOUNT, erc20_transfer_entrypoint(), u64::MAX, &[] as &[u8]),
+        &(
+            ACCOUNT,
+            stellar_account_master_key_entrypoint(),
+            u64::MAX,
+            &[] as &[u8],
+        ),
         stellar_account::stellar_account_exports::invoke_internal,
     );
     assert_account_error(&result, AccountError::CallFaulted);
