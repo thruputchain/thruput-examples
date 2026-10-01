@@ -25,7 +25,7 @@ level, so the contract adds the thresholds and nothing else.
 | Operation threshold check | The transaction's auth claim asks for a `required_weight`; hogd admits the transaction only if the signers' weights reach it; the account requires that claimed weight to reach the operation's threshold. |
 | `payment` | `payment(asset, to, amount)`: an ERC20 transfer. Native HOG is the ERC20 at the precompile address. |
 | `create_account` with starting balance | `create_account(factory, G, starting_balance)`: pays the balance to the predicted address, then the factory deploys and initializes. hogd charges deployment storage to the deployed address, which is why the balance is required. |
-| Any other operation | `invoke(target, entrypoint, gas, calldata)`: raw passthrough. |
+| Any other operation | `invoke(target, entrypoint, gas_limit, calldata)`: raw passthrough. |
 
 Signer and threshold changes are high threshold; everything else is medium; low is stored but
 unused by any shipped operation. A change that would leave the summed weights below any of the

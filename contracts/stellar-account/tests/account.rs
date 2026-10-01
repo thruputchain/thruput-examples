@@ -83,17 +83,34 @@ fn stellar_account_master_key_entrypoint() -> ContractEntrypointID {
     ContractEntrypointID::from([h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]])
 }
 
-/// Regression: a target that does not have the requested entrypoint is a fault.
+/// A target without the requested entrypoint aborts with the SDK's
+/// `LibraryExn::UnknownMethod` (the dispatcher's undefined-method hook, on
+/// rv32 as on the native executor); `invoke` re-raises that abort verbatim
+/// like any other child abort. It is not a fault, so not `CallFaulted`.
 #[test]
-fn invoke_of_an_unknown_entrypoint_is_a_fault() {
+fn invoke_of_an_unknown_entrypoint_re_raises_the_targets_unknown_method_abort() {
     let env = setup();
     let result = as_account(
         &env,
         claim(1),
-        &(ACCOUNT, erc20_transfer_entrypoint(), u64::MAX, &[] as &[u8]),
+        &(
+            TOKEN,
+            ContractEntrypointID::from([0xFF; 8]),
+            u64::MAX,
+            &[] as &[u8],
+        ),
         stellar_account::stellar_account_exports::invoke_internal,
     );
-    assert_account_error(&result, AccountError::CallFaulted);
+    result.assert_abort();
+    match into_root_call_result::<BytesM>(&result) {
+        Err(sdk::call::RawCallError::Exception(error)) => {
+            assert_eq!(
+                error.try_as::<sdk::exn::LibraryExn>(),
+                Some(sdk::exn::LibraryExn::UnknownMethod)
+            );
+        }
+        other => panic!("expected the target's UnknownMethod abort, got {other:?}"),
+    }
 }
 
 /// The account invokes itself (reentrance): must surface as a fault, not a
@@ -326,9 +343,9 @@ fn set_signer_rejects_slot_zero_out_of_range_slots_and_zero_weight() {
 }
 
 #[test]
-fn remove_signer_rejects_slot_zero_and_empty_slots() {
+fn remove_signer_rejects_slot_zero_out_of_range_and_empty_slots() {
     let env = setup();
-    for slot in [0u32, 5] {
+    for slot in [0u32, MAX_SIGNERS as u32, 5] {
         let result = as_account(
             &env,
             claim(1),

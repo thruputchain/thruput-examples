@@ -177,6 +177,17 @@ fn the_same_master_key_cannot_be_created_twice() {
     fund(&s, account, REQUIRED_FUNDING);
     let second = create(&s, master);
     second.assert_abort();
+    s.env.advance_block();
+    let still = s.env.transact(|tx| {
+        tx.call(&ROOT)
+            .run(move || StellarAccountClient::new(&account).master_key())
+    });
+    still.assert_success();
+    assert_eq!(
+        still.assert_return_as::<Ed25519PublicKey>(),
+        master,
+        "the existing account is untouched"
+    );
 }
 
 #[test]
