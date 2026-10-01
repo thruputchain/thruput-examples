@@ -5,7 +5,9 @@ use sdk::call::{CallOutcome, ReturnBuf, contract_call};
 use sdk::storage::Value;
 use sdk::sys::{SyscallErrorCode, SyscallNo};
 use sdk::*;
-use stellar_account_factory_if::{AccountInitError, StellarAccountInitializer};
+use stellar_account_factory_if::{
+    AccountInitError, StellarAccountFactoryClient, StellarAccountInitializer,
+};
 
 use crate::{
     AccountConfig, AccountError, MAX_SIGNERS, SignerChanged, Thresholds, ThresholdsChanged,
@@ -196,6 +198,24 @@ impl StellarAccount {
         Self::write_chain_threshold(low);
         self.commit(&config);
         log_event(&ThresholdsChanged { low, medium, high });
+    }
+
+    /// Stellar's `create_account`: pay `starting_balance` of the factory's
+    /// native token to the new account's address, then have the factory
+    /// deploy and initialize it. One frame, so a refusal anywhere leaves no
+    /// trace. Medium threshold.
+    pub fn create_account(
+        &self,
+        factory: &ContractAddress,
+        master_key: &Ed25519PublicKey,
+        starting_balance: u128,
+    ) -> ContractAddress {
+        self.authorize(Category::Medium);
+        let factory = StellarAccountFactoryClient::new(factory);
+        let native_token = factory.config().native_token;
+        let predicted = factory.address_of(master_key);
+        ERC20Client::new(&native_token).transfer(&predicted, starting_balance);
+        factory.create_account(master_key)
     }
 
     /// Raw passthrough: call `entrypoint` on `target` with `calldata` as this

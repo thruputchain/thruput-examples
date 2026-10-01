@@ -461,3 +461,84 @@ fn master_weight_zero_disables_slot_zero_but_the_master_key_is_unchanged() {
     env.advance_block();
     assert_eq!(weights(&env)[0], 4);
 }
+
+const FACTORY: ContractAddress = ContractAddress::new([0x50; 32]);
+const STARTING_BALANCE: u128 = 300;
+
+/// A factory whose native token is `TOKEN`, so the account's `MINTED`
+/// balance is what funds a new account. `account_hash` comes from
+/// `setup_with_hash()`; the account package is registered only there.
+fn setup_factory(env: &TestEnvironmentHandle, account_hash: SHA256Hash) {
+    stellar_account_factory::register_mock_contract(env).deploy_contract_to(&FACTORY);
+    env.transact(|tx| {
+        tx.call(&ROOT).run(move || {
+            stellar_account_factory::StellarAccountFactoryClient::new(&FACTORY).initialize(
+                stellar_account_factory::FactoryConfig {
+                    account_code_hash: account_hash,
+                    native_token: TOKEN,
+                    required_funding: STARTING_BALANCE,
+                },
+            )
+        })
+    })
+    .assert_success();
+    env.advance_block();
+}
+
+#[test]
+fn create_account_funds_and_creates_a_second_account_in_one_frame() {
+    let (env, account_hash) = setup_with_hash();
+    setup_factory(&env, account_hash);
+    let result = as_account(
+        &env,
+        claim(1),
+        &(FACTORY, second_key(), STARTING_BALANCE),
+        stellar_account::stellar_account_exports::create_account_internal,
+    );
+    result.assert_success();
+    let created: ContractAddress = result.assert_return_as();
+    assert_eq!(
+        result
+            .filter_events::<stellar_account::AccountCreated>(&FACTORY)
+            .len(),
+        1
+    );
+    env.advance_block();
+
+    assert_eq!(balance_of(&env, created), STARTING_BALANCE);
+    assert_eq!(balance_of(&env, ACCOUNT), MINTED - STARTING_BALANCE);
+    let key = env.transact(|tx| {
+        tx.call(&ROOT)
+            .run(move || StellarAccountClient::new(&created).master_key())
+    });
+    key.assert_success();
+    assert_eq!(key.assert_return_as::<Ed25519PublicKey>(), second_key());
+}
+
+#[test]
+fn create_account_with_too_small_a_starting_balance_fails_whole() {
+    let (env, account_hash) = setup_with_hash();
+    setup_factory(&env, account_hash);
+    let result = as_account(
+        &env,
+        claim(1),
+        &(FACTORY, second_key(), STARTING_BALANCE - 1),
+        stellar_account::stellar_account_exports::create_account_internal,
+    );
+    result.assert_abort();
+    match into_root_call_result::<ContractAddress>(&result) {
+        Err(sdk::call::RawCallError::Exception(e)) => {
+            assert_eq!(
+                e.try_as::<stellar_account::AccountFactoryError>(),
+                Some(stellar_account::AccountFactoryError::InsufficientFunding),
+            );
+        }
+        other => panic!("expected InsufficientFunding, got {other:?}"),
+    }
+    env.advance_block();
+    assert_eq!(
+        balance_of(&env, ACCOUNT),
+        MINTED,
+        "the prefund was rolled back too"
+    );
+}
