@@ -42,7 +42,7 @@ thiserror = { workspace = true, optional = true }
 [dev-dependencies]
 stellar-account = { path = ".", features = ["dev"] }
 erc20 = { path = "../erc20", features = ["dev"] }
-# stellar-account-factory = { path = "../stellar-account-factory", features = ["dev"] }
+stellar-account-factory = { path = "../stellar-account-factory", features = ["dev"] }
 groundhog-xdr = { workspace = true }
 ed25519-dalek = { workspace = true }
 groundhog-signing = { workspace = true }

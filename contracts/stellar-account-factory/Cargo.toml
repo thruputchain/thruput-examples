@@ -1,0 +1,44 @@
+[package]
+name = "stellar-account-factory"
+description = "Deterministic deployment of Stellar-classic accounts from a master key"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+entrypoints = []
+dev = [
+    "sdk/dev",
+    "groundhog-erc20-if/dev",
+    "stellar-account-factory-if/dev",
+]
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "stellar_account_factory"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
+stellar-account-factory-if = { path = "../../interfaces/stellar-account-factory-if", version = "=0.1.0" }
+
+[dev-dependencies]
+stellar-account-factory = { path = ".", features = ["dev"] }
+stellar-account = { path = "../stellar-account", features = ["dev"] }
+erc20 = { path = "../erc20", features = ["dev"] }
+ed25519-dalek = { workspace = true }
+groundhog-signing = { workspace = true }

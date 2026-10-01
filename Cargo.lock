@@ -2825,9 +2825,24 @@ dependencies = [
  "sdk",
  "serde_json",
  "stellar-account",
+ "stellar-account-factory",
  "stellar-account-factory-if",
  "thiserror 2.0.20",
  "tokio",
+]
+
+[[package]]
+name = "stellar-account-factory"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek 3.0.0",
+ "erc20",
+ "groundhog-erc20-if",
+ "groundhog-signing",
+ "sdk",
+ "stellar-account",
+ "stellar-account-factory",
+ "stellar-account-factory-if",
 ]
 
 [[package]]
