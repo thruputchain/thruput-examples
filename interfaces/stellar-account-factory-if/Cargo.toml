@@ -1,0 +1,25 @@
+[package]
+name = "stellar-account-factory-if"
+description = "Shared interfaces and address derivation for the Stellar-classic account factory"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+sdk = { workspace = true }
+thiserror = { workspace = true, optional = true }
+
+[dev-dependencies]
+stellar-account-factory-if = { path = ".", features = ["dev"] }
+
+[features]
+dev = ["sdk/dev", "dep:thiserror"]
