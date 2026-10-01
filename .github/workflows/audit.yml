@@ -9,15 +9,34 @@ permissions:
   contents: read
 
 jobs:
+  # Same reason as ci.yml: the manifest needs nightly cargo to parse, and the
+  # channel comes from rust-toolchain.toml so there is one pin to bump.
+  toolchain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    outputs:
+      channel: ${{ steps.read.outputs.channel }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - id: read
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+
   scan:
+    needs: toolchain
     permissions:
       contents: read
     uses: groundhogchain/actions/.github/workflows/rust-dependency-policy.yml@v1
     with:
       checks: advisories
       registry-name: groundhog
-      # Same reason as ci.yml: the manifest needs nightly cargo to parse.
-      toolchain: nightly-2026-07-01
+      toolchain: ${{ needs.toolchain.outputs.channel }}
     secrets:
       registry-token: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
 
