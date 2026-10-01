@@ -31,6 +31,7 @@ use sdk::*;
 
 mod account;
 
+pub use account::stellar_account_exports_pub as stellar_account_exports;
 pub use account::{StellarAccount, StellarAccountClient};
 pub use stellar_account_factory_if::{
     AccountCreated, AccountFactoryError, AccountInitError, FactoryConfig,
