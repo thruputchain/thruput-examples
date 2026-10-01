@@ -51,7 +51,7 @@ dependencies = [
  "auth-payment-forwarder",
  "auth-payment-service",
  "auth-payment-wallet",
- "ed25519-dalek",
+ "ed25519-dalek 3.0.0",
  "erc20",
  "groundhog-domain-separator",
  "groundhog-erc20-permit-if",

@@ -120,8 +120,8 @@ fn submit(
 ) -> TransactResult {
     env.transact(|tx| {
         tx.call(&addr("relayer")).run(move || {
-            let opaque = SignedOpClient::new(&auth.wallet)
-                .execute_signed_op(auth.op, &auth.signature);
+            let opaque =
+                SignedOpClient::new(&auth.wallet).execute_signed_op(auth.op, &auth.signature);
             let forwarder = PaymentForwarderClient::new(&addr("forwarder"));
             if let Some(expected) = expected_error {
                 let error = forwarder.try_forward(&service, &to, amount, opaque).unwrap_err();
