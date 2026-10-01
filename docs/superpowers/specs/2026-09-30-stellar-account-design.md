@@ -72,8 +72,10 @@ account_address(G) = get_deploy_address_for_other(factory, sha256(G), account_co
 Forward direction: `factory.address_of(G)` on-chain, and the same function exported from the
 interface crate for tests and clients. Reverse direction: `account.master_key()`.
 
-Rotating the master key (re-keying slot 0) does not move the account; the address is fixed at
-creation. `master_key()` always reports the key currently in slot 0.
+As in Stellar, the master key is the account's identity and is never replaced: slot 0 holds the
+creation key for the life of the account, and only its weight can change (including to 0, which
+deregisters it). `master_key()` always reports the creation key, whether or not slot 0 is currently
+registered.
 
 ## Creation flow
 
@@ -101,7 +103,7 @@ pub struct Thresholds { pub low: u32, pub medium: u32, pub high: u32 }
 
 #[contract_type]
 pub struct AccountConfig {
-    pub master_key: Ed25519PublicKey,
+    pub master_key: Ed25519PublicKey, // immutable after initialize
     pub thresholds: Thresholds,      // each >= 1, invariant enforced on every write
     pub weights: [u32; 21],          // mirror of each slot's registered weight; 0 = empty
 }
@@ -131,7 +133,7 @@ Categories:
 
 | Category | Operations |
 |---|---|
-| High | `set_signer`, `remove_signer`, `set_thresholds` |
+| High | `set_signer`, `remove_signer`, `set_master_weight`, `set_thresholds` |
 | Medium | `payment`, `create_account`, `invoke` |
 | Low | none shipped; stored and settable for fidelity |
 
@@ -150,12 +152,15 @@ block; a transaction sharing a block with the change is judged against the old s
 
 High threshold:
 
-- `set_signer(slot: u32, key: Ed25519PublicKey, weight: u32)`: `slot < 21`, `weight >= 1`
+- `set_signer(slot: u32, key: Ed25519PublicKey, weight: u32)`: `1 <= slot < 21`, `weight >= 1`
   (`InvalidSlot`, `ZeroWeight`). Registers or replaces the key at `slot`, updates the mirror, runs
-  the guard. Slot 0 also updates `master_key`. Emits `SignerChanged { slot, weight }`.
-- `remove_signer(slot: u32)`: deregisters, zeros the mirror entry, runs the guard. Slot 0 is
-  allowed (Stellar master weight 0) when the guard still passes; `master_key` is left as the last
-  key that held slot 0. Emits `SignerChanged { slot, weight: 0 }`.
+  the guard. Slot 0 is refused: the master key cannot be replaced. Emits
+  `SignerChanged { slot, weight }`.
+- `remove_signer(slot: u32)`: `1 <= slot < 21` (`InvalidSlot`). Deregisters, zeros the mirror
+  entry, runs the guard. Emits `SignerChanged { slot, weight: 0 }`.
+- `set_master_weight(weight: u32)`: Stellar's master weight. `weight >= 1` re-registers the stored
+  master key at slot 0 with that weight; `weight == 0` deregisters slot 0. Updates the mirror, runs
+  the guard. Emits `SignerChanged { slot: 0, weight }`.
 - `set_thresholds(low: u32, medium: u32, high: u32)`: stores, writes `low` as the chain's required
   weight, runs the guard. Emits `ThresholdsChanged { low, medium, high }`.
 
@@ -219,7 +224,10 @@ signatures, so the claimed weight is the whole input to the threshold check:
 - `payment` with claimed weight equal to medium succeeds; below medium throws
   `InsufficientAuthWeight`.
 - `set_signer` at medium is refused; at high it succeeds, and `signer_weights` and the
-  `SignerChanged` event reflect it.
+  `SignerChanged` event reflect it. `set_signer` and `remove_signer` on slot 0 throw `InvalidSlot`.
+- `set_master_weight(0)` after a second signer carries the high threshold deregisters slot 0 while
+  `master_key` still returns the creation key; `set_master_weight(0)` as the only signer throws
+  `WouldLockOut`.
 - A change that drops `sum(weights)` below high throws `WouldLockOut` with nothing written; a zero
   threshold likewise.
 - Calling the account from another mock contract, with a strong claim on that contract, throws
