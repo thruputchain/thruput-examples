@@ -626,3 +626,141 @@ fn lowering_a_signer_weight_below_the_high_threshold_is_refused() {
     env.advance_block();
     assert_eq!(weights(&env)[1], 2, "nothing was written");
 }
+
+// The chain's side: these observe the registration and required weight the
+// native executor stores for the account, through its own auth verifier.
+
+const THIRD_SEED: [u8; 32] = [0x33; 32];
+
+fn set_thresholds_at(
+    env: &TestEnvironmentHandle,
+    weight: u32,
+    t: (u32, u32, u32),
+) -> TransactResult {
+    as_account(
+        env,
+        claim(weight),
+        &t,
+        stellar_account::stellar_account_exports::set_thresholds_internal,
+    )
+}
+
+fn set_master_weight_at(
+    env: &TestEnvironmentHandle,
+    weight: u32,
+    master_weight: u32,
+) -> TransactResult {
+    as_account(
+        env,
+        claim(weight),
+        &master_weight,
+        stellar_account::stellar_account_exports::set_master_weight_internal,
+    )
+}
+
+#[test]
+fn the_chain_requires_both_signers_for_a_claim_of_two() {
+    let env = setup();
+    add_second_signer(&env, 1).assert_success();
+    env.advance_block();
+    raise_thresholds(&env, 1, 1, 2);
+
+    assert!(
+        !chain_accepts(&env, &[(0, &MASTER_SEED)], 2),
+        "the master's weight 1 does not reach a claim of 2"
+    );
+    assert!(
+        chain_accepts(&env, &[(0, &MASTER_SEED), (1, &SECOND_SEED)], 2),
+        "master plus the registered second signer do"
+    );
+    assert!(
+        !chain_accepts(&env, &[(0, &MASTER_SEED), (1, &THIRD_SEED)], 2),
+        "an unregistered key at slot 1 does not"
+    );
+}
+
+#[test]
+fn master_weight_zero_then_four_re_registers_the_creation_key_on_the_chain() {
+    let env = setup();
+    add_second_signer(&env, 1).assert_success();
+    env.advance_block();
+
+    set_master_weight_at(&env, 1, 0).assert_success();
+    env.advance_block();
+    assert!(
+        !chain_accepts(&env, &[(0, &MASTER_SEED)], 1),
+        "slot 0 is deregistered"
+    );
+    assert!(chain_accepts(&env, &[(1, &SECOND_SEED)], 1));
+
+    set_master_weight_at(&env, 1, 4).assert_success();
+    env.advance_block();
+    assert!(
+        chain_accepts(&env, &[(0, &MASTER_SEED)], 4),
+        "the creation key is back at slot 0 with weight 4"
+    );
+    assert!(
+        !chain_accepts(&env, &[(0, &MASTER_SEED)], 5),
+        "and with exactly weight 4"
+    );
+}
+
+#[test]
+fn a_refused_change_leaves_the_chain_registration_and_required_weight_unchanged() {
+    let env = setup();
+    add_second_signer(&env, 2).assert_success();
+    env.advance_block();
+    raise_thresholds(&env, 1, 1, 3);
+    let both = [(0, &MASTER_SEED), (1, &SECOND_SEED)];
+    let with_third = [(0, &MASTER_SEED), (1, &THIRD_SEED)];
+    assert!(chain_accepts(&env, &both, 3));
+    assert!(!chain_accepts(&env, &with_third, 1));
+
+    // Re-keying slot 1 to a third key at weight 1 drops the total to 2,
+    // below high: refused after the registration syscall was issued.
+    let refused = as_account(
+        &env,
+        claim(3),
+        &(1u32, key_from(&THIRD_SEED), 1u32),
+        stellar_account::stellar_account_exports::set_signer_internal,
+    );
+    assert_account_error(&refused, AccountError::WouldLockOut);
+    // A low above the total: refused after the required-weight syscall.
+    assert_account_error(
+        &set_thresholds_at(&env, 3, (5, 1, 3)),
+        AccountError::WouldLockOut,
+    );
+    env.advance_block();
+
+    assert!(
+        chain_accepts(&env, &both, 3),
+        "slot 1 still holds the second key at weight 2"
+    );
+    assert!(
+        !chain_accepts(&env, &with_third, 1),
+        "the third key never reached the chain"
+    );
+    assert!(
+        chain_accepts(&env, &[(0, &MASTER_SEED)], 1),
+        "the chain's required weight is still 1, not 5"
+    );
+}
+
+#[test]
+fn the_chain_enforces_low_even_when_the_claim_is_lower() {
+    let env = setup();
+    add_second_signer(&env, 1).assert_success();
+    env.advance_block();
+    raise_thresholds(&env, 2, 2, 2);
+
+    assert!(
+        !chain_accepts(&env, &[(0, &MASTER_SEED)], 1),
+        "hogd requires max(stored 2, claimed 1)"
+    );
+    assert!(!chain_accepts(&env, &[(1, &SECOND_SEED)], 1));
+    assert!(chain_accepts(
+        &env,
+        &[(0, &MASTER_SEED), (1, &SECOND_SEED)],
+        1
+    ));
+}

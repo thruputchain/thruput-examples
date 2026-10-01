@@ -250,11 +250,24 @@ signatures, so the claimed weight is the whole input to the threshold check:
 - `invoke` passes a call to a mock target and returns its bytes; a child abort surfaces as the
   child's exception.
 
+The chain side is observed natively too: `tests/support/mod.rs::chain_accepts` builds and really
+signs a transaction to the account and asks the native executor's own verifier
+(`TestEnvironmentHandle::verify_signed_transaction_auth`) whether it would be admitted against the
+registration and required weight the executor stores for the account, not the contract's mirror.
+Those tests show that a claim of 2 needs both signers once high is 2, that `set_master_weight(0)`
+then `set_master_weight(4)` re-registers the creation key at slot 0 with weight 4, that a refused
+`WouldLockOut` change leaves the registration and the required weight as they were, and that the
+chain enforces `low` even when the claim asks for less (`max(stored, claimed)`).
+
 **Live, `contracts/stellar-account/tests/testkit_account.rs`, `#[ignore]`.** Against a devnode via
-`groundhog-testkit`: deploy factory and account code through a dev wallet, create an account for a
-fresh key, add a second signer at high threshold, then submit a payment signed by both keys with a
-hand-assembled two-signature `SignedTransaction` (the signing crate's helper emits one signature;
-the test builds the list). This is the only place the chain's own weight check is exercised.
+`groundhog-testkit`: register the account code, deploy and configure the factory, fund the predicted
+address, and create an account for a test-only master key. Then, with hand-built transactions whose
+invoked address is the account (the test assembles the signature list itself; the signing crate's
+helper emits one signature): add a second signer at weight 1 and raise high to 2 with the master
+alone; show a high-threshold change signed by the master alone and claiming 2 is refused at
+admission, and one claiming only 1 is admitted but refused by the account; land the same change
+signed by both keys; then make a payment signed by the second signer alone. This exercises the
+real node end to end, where the native tests above exercise the same verifier in-process.
 
 **Open risk (resolved).** The native mock executor honors both `ChangePublicKeyRegistration` and
 `WriteAddressRequiredWeight`, so every rule has native coverage. The raw entrypoints used by the
