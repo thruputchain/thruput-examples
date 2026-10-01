@@ -163,6 +163,9 @@ fn a_created_account_cannot_be_initialized_again() {
         .assert_success();
 }
 
+/// The abort comes from the executor's `ContractAlreadyDeployed` error on a second deployment
+/// to the same address: the deployment nonce is deterministic, so the predicted address is
+/// already occupied after the first `create_account`.
 #[test]
 fn the_same_master_key_cannot_be_created_twice() {
     let s = setup();

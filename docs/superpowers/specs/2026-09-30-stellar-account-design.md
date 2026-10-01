@@ -1,6 +1,6 @@
 # Stellar-Classic Account Example
 
-Status: Approved design, pending implementation plan
+Status: Implemented (live devnode test not yet executed)
 Date: 2026-09-30
 
 A pair of example contracts, `stellar-account` and `stellar-account-factory`, plus the factory's
@@ -62,11 +62,12 @@ pulling `thiserror`, `publish = false` via the workspace.
 
 ## Address derivation
 
-The factory deploys an account with deployment nonce `sha256(master_key)` and its configured
+The factory deploys an account with a domain-tagged hash of the master key (`deployment_nonce`,
+domain `groundhog-stellar-account-factory-v1`) as the deployment nonce, and its configured
 account code hash, so:
 
 ```
-account_address(G) = get_deploy_address_for_other(factory, sha256(G), account_code_hash)
+account_address(G) = get_deploy_address_for_other(factory, deployment_nonce(G), account_code_hash)
 ```
 
 Forward direction: `factory.address_of(G)` on-chain, and the same function exported from the
@@ -186,13 +187,13 @@ reasoning as `permit-wallet` applies.
 
 ## Factory entry points
 
-- `initialize(account_code_hash: SHA256Hash, native_token: ContractAddress, required_funding: u128)`:
-  once; `required_funding >= 1` else `InvalidConfig`.
+- `initialize(config: FactoryConfig)`: once; `required_funding >= 1` else `InvalidConfig`.
+  `FactoryConfig { account_code_hash: SHA256Hash, native_token: ContractAddress, required_funding: u128 }`.
 - `create_account(master_key: Ed25519PublicKey) -> ContractAddress`: as in the creation flow.
   Throws `InsufficientFunding` if the predicted address holds less than `required_funding`,
   `AddressMismatch` if the deployed address differs from the prediction.
 - `address_of(master_key: Ed25519PublicKey) -> ContractAddress`: view.
-- `required_funding() -> u128`: view.
+- `config() -> FactoryConfig`: view; returns the immutable configuration.
 
 The interface crate exports the trait, the generated `StellarAccountFactoryClient`, and
 `fn account_address(factory: &ContractAddress, code_hash: &SHA256Hash, master_key: &Ed25519PublicKey) -> ContractAddress`
@@ -202,9 +203,13 @@ built on `get_deploy_address_for_other`, plus a `dev`-only pure-Rust equivalent 
 ## Errors
 
 Account (`#[contract_exception] #[non_exhaustive]`, `thiserror` under `dev`):
-`AlreadyInitialized = 1`, `NotRootInvocation = 2`, `InsufficientAuthWeight = 3`, `InvalidSlot = 4`,
-`ZeroWeight = 5`, `WouldLockOut = 6`, `CallFaulted = 7`. A child abort inside `invoke` is not an
-account error: the child's own abort payload is re-raised verbatim.
+`NotRootInvocation = 1`, `InsufficientAuthWeight = 2`, `InvalidSlot = 3`, `ZeroWeight = 4`,
+`WouldLockOut = 5`, `CallFaulted = 6`. A child abort inside `invoke` is not an account error:
+the child's own abort payload is re-raised verbatim. `remove_signer` on an empty slot is
+`InvalidSlot`.
+
+> `AccountInitError::AlreadyInitialized = 1` lives in the interface crate with the initializer
+> trait.
 
 Factory: `AlreadyInitialized = 1`, `InvalidConfig = 2`, `InsufficientFunding = 3`,
 `AddressMismatch = 4`.
@@ -246,11 +251,13 @@ fresh key, add a second signer at high threshold, then submit a payment signed b
 hand-assembled two-signature `SignedTransaction` (the signing crate's helper emits one signature;
 the test builds the list). This is the only place the chain's own weight check is exercised.
 
-**Open risk, probed first.** `get_auth_claim` is known to work in the native mock (the handler
-passes the configured claim through FFI). Whether `ChangePublicKeyRegistration` and
-`WriteAddressRequiredWeight` are wired in the mock executor is unconfirmed. If they are not, the
-native tests still cover every rule above except those two writes, which the live test carries. The
-implementation plan starts with a short probe.
+**Open risk (resolved).** The native mock executor honors both `ChangePublicKeyRegistration` and
+`WriteAddressRequiredWeight`, so every rule has native coverage. The raw entrypoints used by the
+native tests are reached through a `dev`-gated re-export (`stellar_account::stellar_account_exports`),
+because the contract macro emits its exports module privately. The ERC20 `transfer` selector in
+tests is computed with `sdk::hash_to_array!("ERC20::0.1::transfer")` because the macro generates
+no entrypoints enum for trait impls. The live devnode test exists but has not been executed on
+this machine (no devnode binary available).
 
 ## Documentation
 

@@ -21,7 +21,6 @@
 //! ```
 
 use std::path::PathBuf;
-use std::time::Duration;
 
 use groundhog_domain_separator::transaction_signature_preimage;
 use groundhog_json_rpc_client::GroundhogApiClient;
@@ -87,8 +86,11 @@ async fn network_hash(ctx: &AgentContext) -> NetworkHash {
 
 /// Build a transaction invoking `method` on `account`, claim `required_weight`,
 /// and sign it with every signer in `signers` (slot, key) in slot order.
+/// `network` is computed once by the caller and passed in to avoid a round-trip per call.
+#[allow(clippy::too_many_arguments)]
 async fn account_tx<A: xdrs::WriteXDR>(
     ctx: &AgentContext,
+    network: &NetworkHash,
     account: Address,
     method: &str,
     args: &A,
@@ -106,8 +108,7 @@ async fn account_tx<A: xdrs::WriteXDR>(
         nonce,
         auth_claim: source_claim(required_weight),
     });
-    let network = network_hash(ctx).await;
-    let preimage = transaction_signature_preimage(&network, &tx).expect("preimage");
+    let preimage = transaction_signature_preimage(network, &tx).expect("preimage");
     let signatures: Vec<DecoratedSignature> = signers
         .iter()
         .map(|(slot, signer)| DecoratedSignature {
@@ -188,9 +189,13 @@ fn admin() -> Agent {
         let reported: Ed25519PublicKey = account_c.view(&ctx, "master_key", &(), None).await?;
         assert_eq!(reported, master_pk);
 
+        // Fetch the network hash once; pass it into every account_tx call below.
+        let network = network_hash(&ctx).await;
+
         // Master alone (weight 1, every threshold 1): add a second signer.
         let tx = account_tx(
             &ctx,
+            &network,
             account,
             "set_signer",
             &(1u32, public_key(&SECOND_SEED), 1u32),
@@ -204,6 +209,7 @@ fn admin() -> Agent {
         // Raise high to 2 (total weight is now 2). Still a weight-1 operation.
         let tx = account_tx(
             &ctx,
+            &network,
             account,
             "set_thresholds",
             &(1u32, 1u32, 2u32),
@@ -218,6 +224,7 @@ fn admin() -> Agent {
         // claimed weight of 2: hogd refuses it before execution.
         let tx = account_tx(
             &ctx,
+            &network,
             account,
             "set_thresholds",
             &(1u32, 1u32, 1u32),
@@ -244,6 +251,7 @@ fn admin() -> Agent {
         // Claiming only 1 for the same change is refused by the account itself.
         let tx = account_tx(
             &ctx,
+            &network,
             account,
             "set_thresholds",
             &(1u32, 1u32, 1u32),
@@ -269,6 +277,7 @@ fn admin() -> Agent {
         // Both keys, claim 2: lands.
         let tx = account_tx(
             &ctx,
+            &network,
             account,
             "set_thresholds",
             &(1u32, 1u32, 1u32),
@@ -283,6 +292,7 @@ fn admin() -> Agent {
         let me = ctx.address();
         let tx = account_tx(
             &ctx,
+            &network,
             account,
             "payment",
             &(native.address(), me, 1u128),
@@ -294,7 +304,6 @@ fn admin() -> Agent {
         submit_ok(&ctx, tx).await;
 
         println!("admin: account {account:?} created, two-signer threshold change landed");
-        tokio::time::sleep(Duration::from_millis(10)).await;
         Ok(())
     })
 }

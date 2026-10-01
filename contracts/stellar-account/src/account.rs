@@ -9,6 +9,10 @@ use stellar_account_factory_if::{
     AccountInitError, StellarAccountFactoryClient, StellarAccountInitializer,
 };
 
+// `AccountError` is imported because the `throws = AccountError` macro attribute references it by
+// name in generated code; `SignerChanged`/`ThresholdsChanged` are imported because the `log_event`
+// calls in the method bodies use them directly (the `emits(...)` attribute alone would not require
+// the event types to be in scope here).
 use crate::{
     AccountConfig, AccountError, MAX_SIGNERS, SignerChanged, Thresholds, ThresholdsChanged,
 };
