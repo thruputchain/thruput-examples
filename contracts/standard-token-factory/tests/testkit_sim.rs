@@ -299,9 +299,11 @@ fn spec_names<'a>(value: &'a serde_json::Value, key: &str) -> Vec<&'a str> {
         .collect()
 }
 
-/// The `declared` identifier of each structured spec id (events, type defs).
+/// The `declared` identifier of each structured spec id (events, type defs),
+/// sorted: the spec lists them grouped by declaring crate, which is not a
+/// property these checks are about.
 fn declared_names<'a>(value: &'a serde_json::Value, key: &str) -> Vec<&'a str> {
-    value[key]
+    let mut names: Vec<&str> = value[key]
         .as_array()
         .expect("spec collection")
         .iter()
@@ -310,7 +312,9 @@ fn declared_names<'a>(value: &'a serde_json::Value, key: &str) -> Vec<&'a str> {
                 .as_str()
                 .expect("structured spec id")
         })
-        .collect()
+        .collect();
+    names.sort_unstable();
+    names
 }
 
 fn named<'a>(items: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
@@ -877,6 +881,7 @@ async fn real_artifact_rpc_lifecycle() {
     config.dev_account_tokens = 100_000_000_000;
 
     let scenario = Scenario::builder("standard-token-phase-6")
+        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("standard_token", root.join("standard_token.rv32a"))
         .artifact(

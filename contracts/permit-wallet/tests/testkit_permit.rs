@@ -363,6 +363,7 @@ async fn permit_signed_off_chain_relayed_on_chain() {
     }
 
     let scenario = Scenario::builder("permit-live")
+        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
         .artifact("permit_wallet", artifact("permit_wallet.rv32a"))
