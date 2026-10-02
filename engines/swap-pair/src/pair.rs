@@ -12,10 +12,23 @@ use crate::{Address, Amount, Amounts, SwapPairError};
 use core::cmp::min;
 use core::iter::zip;
 use core::ops::Mul;
-use groundhog_erc20_if::ERC20Client;
+use groundhog_erc20_controls_if::ERC20BurnClient;
+use groundhog_erc20_if::{ERC20Client, ERC20Error};
 use sdk::storage::*;
 use sdk::*;
 use swap_if::SwapFactoryClient;
+
+/// The ERC20 interface counts in `i128` (never negative on the wire); the
+/// pair's arithmetic is in `u128`. A token reporting a negative amount is
+/// misbehaving, and that is reported as the token's own error.
+pub fn from_token(amount: i128) -> u128 {
+    u128::try_from(amount).unwrap_or_else(|_| throw(ERC20Error::NegativeAmount))
+}
+
+/// The reverse: an amount above `i128::MAX` cannot be held by any token.
+pub fn to_token(amount: u128) -> i128 {
+    i128::try_from(amount).unwrap_or_else(|_| throw(ERC20Error::TooLarge))
+}
 
 /// The pair's state.
 #[derive(Storage)]
@@ -83,7 +96,7 @@ impl Pair {
 
     /// The total supply of LP tokens.
     pub fn get_liquidity(&self) -> Amount {
-        self.lp().total_supply()
+        from_token(self.lp().total_supply())
     }
 
     /// Mint LP to `recipient` in exchange for the A/B-tokens deposited here
@@ -122,11 +135,11 @@ impl Pair {
         let fee_on = self.mint_fee(prev_balances);
 
         // Read the supply *after* any fee mint
-        let lp_total_supply = lp.total_supply();
+        let lp_total_supply = from_token(lp.total_supply());
 
         let lp_to_create = if lp_total_supply == 0 {
             // Permanently lock the first MINIMUM_LIQUIDITY tokens
-            lp.mint(&Self::BLACK_HOLE, Self::MINIMUM_LIQUIDITY);
+            lp.mint(&Self::BLACK_HOLE, to_token(Self::MINIMUM_LIQUIDITY));
 
             let lp: u128 = U256::widening_mul(amounts[0], amounts[1])
                 .integer_sqrt()
@@ -143,7 +156,7 @@ impl Pair {
         ensure(lp_to_create > 0, SwapPairError::InsufficientLiquidityMinted);
 
         // Mint the new liquidity to the address specified by the LP
-        lp.mint(recipient, lp_to_create);
+        lp.mint(recipient, to_token(lp_to_create));
         let lp_minted = lp_to_create;
 
         // Record k for the next fee computation (reserves are now `balances`).
@@ -165,7 +178,7 @@ impl Pair {
         let lp = self.lp();
 
         // Amount of LP tokens returned to us
-        let lp_returned = lp.get_balance();
+        let lp_returned = from_token(lp.get_balance());
 
         // Mint the protocol fee (if enabled) before computing the burn, using
         // the last-recorded reserves.
@@ -173,7 +186,7 @@ impl Pair {
         let fee_on = self.mint_fee(recorded);
 
         // Read the supply *after* any fee mint.
-        let total_liquidity = lp.total_supply();
+        let total_liquidity = from_token(lp.total_supply());
 
         // NOTE: added this check to avoid divide-by-zero below
         ensure(total_liquidity > 0, SwapPairError::NoLiquidityToBurn);
@@ -187,8 +200,8 @@ impl Pair {
             SwapPairError::InsufficientLiquidityBurned,
         );
 
-        // Vaporize our LP tokens
-        lp.burn(&get_current_address(), lp_returned);
+        // Vaporize our LP tokens: we hold them, so this is a holder's burn.
+        ERC20BurnClient::new(&self.lp_addr.get()).burn(to_token(lp_returned));
 
         // Return pair tokens to the user
         self.transfer_to(recipient, amounts);
@@ -365,7 +378,7 @@ impl Pair {
 
             if root_k > root_k_last {
                 let lp = self.lp();
-                let total_supply = U256::from(lp.total_supply());
+                let total_supply = U256::from(from_token(lp.total_supply()));
 
                 // liquidity = totalSupply * (rootK - rootKLast)
                 //             / (5 * rootK + rootKLast)
@@ -374,7 +387,7 @@ impl Pair {
                 let liquidity: u128 = (numerator / denominator).try_into().unwrap();
 
                 if liquidity > 0 {
-                    lp.mint(&fee_to, liquidity);
+                    lp.mint(&fee_to, to_token(liquidity));
                 }
             }
         }
@@ -391,7 +404,7 @@ impl Pair {
 
     // Get our holdings of the A/B tokens
     fn get_token_balances(&self) -> Amounts {
-        self.tokens().map(|t| t.get_balance())
+        self.tokens().map(|t| from_token(t.get_balance()))
     }
 
     fn transfer_to(&mut self, to: &Address, amounts: Amounts) {
@@ -406,7 +419,7 @@ impl Pair {
     ) -> Result<(), SwapPairError> {
         for (token, amount) in zip(self.tokens(), amounts) {
             token
-                .try_transfer(recipient, amount)
+                .try_transfer(recipient, to_token(amount))
                 .map_err(|_| SwapPairError::TransferFailed)?;
         }
 

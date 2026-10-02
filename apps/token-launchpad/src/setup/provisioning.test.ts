@@ -350,11 +350,11 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(mocks.requestAirdrop).toHaveBeenCalledWith();
     const account = vi.mocked(createWalletClient).mock.calls[0]![0].account;
     expect(account.kind).toBe("pubkey");
-    const [deployment, gasLimit, options] =
+    const [deployment, deployOptions, options] =
       mocks.deployContractAndWait.mock.calls[0]!;
     expect(deployment.contract).toEqual(contract("standard_token_factory"));
     expect(deployment.deployer).toEqual(account.address);
-    expect(gasLimit).toBe(gas);
+    expect(deployOptions).toEqual({ gasLimit: gas, amount: 0n });
     expect(options).toEqual({ timeoutMs: 60_000 });
     expect(
       mocks.executeAndWait.mock.calls.map(([request]) => request.invocation),

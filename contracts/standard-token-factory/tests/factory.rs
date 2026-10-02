@@ -1,6 +1,7 @@
-use groundhog_erc20_if::{CONTRACT_ADDR_ZERO, ERC20Client, ERC20Error, TransferEvent};
+use groundhog_erc20_if::{CONTRACT_ADDR_ZERO, ERC20Client, ERC20Error, MintEvent};
 use sdk::call::RawCallError;
 use sdk::*;
+use standard_token::ERC20ClawbackClient;
 use standard_token::ERC20MetadataClient;
 use standard_token_factory::*;
 use standard_token_factory_if::predicted_token;
@@ -194,7 +195,7 @@ fn initialization_validates_configuration_and_exposes_immutable_views() {
             ..valid
         },
         FactoryConfig {
-            required_token_funding: i128::MAX as u128 + 1,
+            required_token_funding: -1,
             ..valid
         },
         FactoryConfig {
@@ -321,7 +322,7 @@ fn token_validation_and_funding_fail_before_deployment_and_can_be_retried() {
     for (administrator, holder, supply) in [
         (*CONTRACT_ADDR_ZERO, HOLDER, 1),
         (ADMIN, *CONTRACT_ADDR_ZERO, 1),
-        (ADMIN, HOLDER, i128::MAX as u128 + 1),
+        (ADMIN, HOLDER, -1),
     ] {
         let rejected = create(
             &setup,
@@ -383,7 +384,7 @@ fn maximum_signed_supply_is_accepted_through_the_factory() {
         None,
         None,
         &HOLDER,
-        i128::MAX as u128,
+        i128::MAX,
     );
     created.assert_success();
     assert_eq!(created.assert_return_as::<ContractAddress>(), predicted);
@@ -394,7 +395,7 @@ fn maximum_signed_supply_is_accepted_through_the_factory() {
             .run(|| ERC20Client::new(&predicted).total_supply())
     });
     supply.assert_success();
-    assert_eq!(supply.assert_return_as::<Amount>(), i128::MAX as u128);
+    assert_eq!(supply.assert_return_as::<Amount>(), i128::MAX);
 }
 
 #[test]
@@ -422,15 +423,11 @@ fn nonzero_supply_creation_emits_exact_discovery_and_supports_full_lifecycle() {
     created.assert_event_count(2);
     assert_eq!(created.assert_return_as::<ContractAddress>(), predicted);
     assert!(created.events_from(&setup.native_token).is_empty());
-    created.assert_event::<TransferEvent<'_>>(0, |event| {
-        assert_eq!(event.topic(1).unwrap(), CONTRACT_ADDR_ZERO.as_ref());
-        assert_eq!(event.topic(2).unwrap(), HOLDER.as_ref());
+    created.assert_event::<MintEvent<'_>>(0, |event| {
+        assert_eq!(event.topic(1).unwrap(), HOLDER.as_ref());
         assert_eq!(event.payload().amount, 1_000);
     });
-    assert_eq!(
-        created.filter_events::<TransferEvent<'_>>(&predicted).len(),
-        1
-    );
+    assert_eq!(created.filter_events::<MintEvent<'_>>(&predicted).len(), 1);
     created.assert_event::<TokenCreated>(1, |event| {
         assert_eq!(event.topic(0).unwrap(), TokenCreated::SIGNATURE);
         assert_eq!(event.topic(1).unwrap(), predicted.as_ref());
@@ -495,9 +492,9 @@ fn nonzero_supply_creation_emits_exact_discovery_and_supports_full_lifecycle() {
                 match operation {
                     0 => token.mint(&HOLDER, 100),
                     1 => token.transfer(&RECEIVER, 200),
-                    2 => token.adjust_allowance(&SPENDER, 150, false),
+                    2 => token.adjust_allowance(&SPENDER, 150),
                     3 => token.transfer_from(&HOLDER, &RECEIVER, 75),
-                    4 => token.burn(&RECEIVER, 25),
+                    4 => ERC20ClawbackClient::new(&predicted).clawback(&RECEIVER, 25),
                     _ => unreachable!(),
                 }
             })
@@ -546,7 +543,7 @@ fn zero_supply_creation_accepts_excess_funding_and_emits_only_discovery() {
     assert_eq!(created.assert_return_as::<ContractAddress>(), predicted);
     assert!(
         created
-            .filter_events::<TransferEvent<'_>>(&predicted)
+            .filter_events::<MintEvent<'_>>(&predicted)
             .is_empty()
     );
     let discovery = created.filter_events::<TokenCreated>(&setup.factory);

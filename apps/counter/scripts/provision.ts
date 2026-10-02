@@ -98,7 +98,7 @@ export async function provisionCounter(options: {
         amount: 10_000_000n,
       }),
     );
-    const { txHash } = await wallet.deployContractAndWait(deployment, GAS, {
+    const { txHash } = await wallet.deployContractAndWait(deployment, { gasLimit: GAS, amount: 0n }, {
       timeoutMs: 60_000,
     });
     console.log(`Deploy counter: ${toHex0x(txHash)}`);

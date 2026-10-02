@@ -275,12 +275,10 @@ impl Etx {
             ctx.token0().adjust_allowance(
                 &ctx.request_handler_addr,
                 amounts_allowed[0].try_into().unwrap(),
-                false,
             );
             ctx.token1().adjust_allowance(
                 &ctx.request_handler_addr,
                 amounts_allowed[1].try_into().unwrap(),
-                false,
             );
         })
     }
@@ -290,11 +288,8 @@ impl Etx {
         let ctx = &self.ctx;
 
         self.exec_user_tx(user, |_| {
-            ctx.lp().adjust_allowance(
-                &ctx.request_handler_addr,
-                liquidity.try_into().unwrap(),
-                false,
-            );
+            ctx.lp()
+                .adjust_allowance(&ctx.request_handler_addr, liquidity.try_into().unwrap());
         })
     }
 

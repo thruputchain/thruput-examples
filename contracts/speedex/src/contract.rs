@@ -365,7 +365,7 @@ impl Speedex {
             .unwrap_or_else(|| throw(SpeedexError::InvalidPrice));
 
         let owner = get_caller();
-        Self::token(&cfg, sell).transfer_from(&owner, &get_current_address(), amount);
+        Self::token(&cfg, sell).transfer_from(&owner, &get_current_address(), amount as i128);
 
         let batch = Self::batch_of_height(&cfg);
         let book = engine::book(sell as usize, buy as usize) as u32;
@@ -424,7 +424,7 @@ impl Speedex {
             .at_mut(&book)
             .inc(-(offer.amount as i128));
         self.offers.delete_at(id);
-        Self::token(&cfg, offer.sell).transfer(&offer.owner, offer.amount);
+        Self::token(&cfg, offer.sell).transfer(&offer.owner, offer.amount as i128);
 
         log_event(&OfferCancelled {
             owner: &offer.owner,
@@ -621,10 +621,10 @@ impl Speedex {
 
         self.offers.delete_at(id);
         if fill.bought > 0 {
-            Self::token(&cfg, offer.buy).transfer(&offer.owner, fill.bought);
+            Self::token(&cfg, offer.buy).transfer(&offer.owner, fill.bought as i128);
         }
         if refunded > 0 {
-            Self::token(&cfg, offer.sell).transfer(&offer.owner, refunded);
+            Self::token(&cfg, offer.sell).transfer(&offer.owner, refunded as i128);
         }
 
         log_event(&OfferSettled {

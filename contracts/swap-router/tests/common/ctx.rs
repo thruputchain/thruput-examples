@@ -12,11 +12,11 @@ pub struct Ctx {
 }
 
 impl Ctx {
-    pub fn token0(&self) -> ERC20Client {
-        ERC20Client::new(&self.token_addrs[0])
+    pub fn token0(&self) -> TokenClient {
+        TokenClient::new(&self.token_addrs[0])
     }
-    pub fn token1(&self) -> ERC20Client {
-        ERC20Client::new(&self.token_addrs[1])
+    pub fn token1(&self) -> TokenClient {
+        TokenClient::new(&self.token_addrs[1])
     }
     pub fn token0_meta(&self) -> ERC20MetadataClient {
         ERC20MetadataClient::new(&self.token_addrs[0])
@@ -29,8 +29,8 @@ impl Ctx {
     pub fn pair(&self) -> SwapHandlerClient {
         SwapHandlerClient::new(&self.request_handler_addr)
     }
-    pub fn lp(&self) -> ERC20Client {
-        ERC20Client::new(&self.liquidity_token)
+    pub fn lp(&self) -> TokenClient {
+        TokenClient::new(&self.liquidity_token)
     }
     pub fn driver(&self) -> SwapDriverClient {
         SwapDriverClient::new(&self.driver_addr)
@@ -164,7 +164,7 @@ impl Ctx {
 
         // Give the swap-pair access to all my LP tokens
         self.lp()
-            .adjust_allowance(&self.request_handler_addr, return_amt, false);
+            .adjust_allowance(&self.request_handler_addr, return_amt);
 
         return_amt
     }

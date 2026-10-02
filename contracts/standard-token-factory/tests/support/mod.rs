@@ -142,7 +142,7 @@ pub fn adjust_allowance(setup: &Setup, difference: i128) {
     let factory = setup.factory;
     let result = setup.env.transact(|tx| {
         tx.call(&wallet)
-            .run(|| ERC20Client::new(&native_token).adjust_allowance(&factory, difference, false))
+            .run(|| ERC20Client::new(&native_token).adjust_allowance(&factory, difference))
     });
     result.assert_success();
     setup.env.advance_block();

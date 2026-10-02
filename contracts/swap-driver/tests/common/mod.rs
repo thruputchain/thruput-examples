@@ -6,6 +6,7 @@ mod etx;
 mod help;
 mod setup;
 mod stats;
+mod token;
 mod user;
 mod util;
 
@@ -15,6 +16,7 @@ pub use etx::*;
 pub use help::*;
 pub use setup::*;
 pub use stats::*;
+pub use token::*;
 pub use user::*;
 pub use util::*;
 

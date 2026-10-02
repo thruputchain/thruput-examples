@@ -112,8 +112,8 @@ fn ab_tokens_deploy_init(token_hash: &SHA256Hash) -> Addresses {
     let token0_addr = deploy_contract(&TOKEN_0_NONCE, token_hash);
     let token1_addr = deploy_contract(&TOKEN_1_NONCE, token_hash);
 
-    let token0 = ERC20Client::new(&token0_addr);
-    let token1 = ERC20Client::new(&token1_addr);
+    let token0 = TokenClient::new(&token0_addr);
+    let token1 = TokenClient::new(&token1_addr);
 
     // Initialize the token contracts, putting them under control of the test
     token0.initialize(TEST.addr);
@@ -123,8 +123,8 @@ fn ab_tokens_deploy_init(token_hash: &SHA256Hash) -> Addresses {
 }
 
 fn airdrop_tokens(token_addrs: &Addresses) {
-    let token0 = ERC20Client::new(&token_addrs[0]);
-    let token1 = ERC20Client::new(&token_addrs[1]);
+    let token0 = TokenClient::new(&token_addrs[0]);
+    let token1 = TokenClient::new(&token_addrs[1]);
 
     assert_eq!(token0.get_balance_of(ALICE.addr), 0);
     assert_eq!(token1.get_balance_of(ALICE.addr), 0);

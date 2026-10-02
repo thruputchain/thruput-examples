@@ -28,7 +28,8 @@ use std::path::PathBuf;
 use groundhog_erc20_if::Amount;
 use groundhog_testkit::xdr::types::ContractAddress;
 use groundhog_testkit::{
-    Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Result, Scenario, xdrs,
+    Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Result,
+    Scenario, xdrs,
 };
 use swap_factory::POOL_FUNDING;
 use swap_if::{Pool, SwapHashes};
@@ -38,7 +39,7 @@ type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as recorded in each
 // `*.spec.json`. `entrypoint_id` derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.42");
+const ERC20: (&str, &str) = ("ERC20", "0.1.44");
 const HANDLER: (&str, &str) = ("SwapHandler", "0.1.0");
 const DRIVER: (&str, &str) = ("SwapDriver", "0.1.0");
 const ROUTER: (&str, &str) = ("SwapRouter", "0.1.0");
@@ -139,14 +140,24 @@ async fn deploy_and_init(
     // store balances and allowance records.
     fund(ctx, native, native.address()).await?;
 
-    ctx.register_artifact("swap_handler").await?;
-    ctx.register_artifact("swap_driver").await?;
+    ctx.register_artifact("swap_handler", DeployOptions::funded(0))
+        .await?;
+    ctx.register_artifact("swap_driver", DeployOptions::funded(0))
+        .await?;
 
     // The two A/B token contracts (owned by us). Each is funded right after deploy so it can pay
     // for the storage its state writes create.
-    let token0 = erc20(ctx.deploy_artifact("erc20").await?.address);
+    let token0 = erc20(
+        ctx.deploy_artifact("erc20", DeployOptions::funded(0))
+            .await?
+            .address,
+    );
     fund(ctx, native, token0.address()).await?;
-    let token1 = erc20(ctx.deploy_artifact("erc20").await?.address);
+    let token1 = erc20(
+        ctx.deploy_artifact("erc20", DeployOptions::funded(0))
+            .await?
+            .address,
+    );
     fund(ctx, native, token1.address()).await?;
     token0.call(ctx, "initialize", &me).await?;
     token1.call(ctx, "initialize", &me).await?;
@@ -159,13 +170,17 @@ async fn deploy_and_init(
     // from the router alone, so the factory has to be told the router's address -- which means
     // deploying the router first, and initializing it second.
     let factory = Contract::new(
-        ctx.deploy_artifact("swap_factory").await?.address,
+        ctx.deploy_artifact("swap_factory", DeployOptions::funded(0))
+            .await?
+            .address,
         FACTORY.0,
         FACTORY.1,
     );
     fund(ctx, native, factory.address()).await?;
     let router = Contract::new(
-        ctx.deploy_artifact("swap_router").await?.address,
+        ctx.deploy_artifact("swap_router", DeployOptions::funded(0))
+            .await?
+            .address,
         ROUTER.0,
         ROUTER.1,
     );
@@ -220,7 +235,7 @@ async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
     let me = ctx.address();
 
     // Let the request handler pull our tokens when the request is executed.
-    let supply = i128::try_from(SUPPLY).expect("bug: supply fits i128");
+    let supply = SUPPLY;
     s.token0
         .call(
             ctx,
@@ -293,7 +308,7 @@ fn liquidity_provider(name: &str) -> Agent {
         let lp = erc20(cfg.lp);
 
         // Allow the request handler to pull our A/B tokens when the request runs.
-        let allowance = i128::try_from(USER_LIQUIDITY).expect("bug: allowance fits i128");
+        let allowance = USER_LIQUIDITY;
         token0
             .call(
                 &mut ctx,
@@ -586,11 +601,7 @@ async fn swap_a_little(ctx: &mut AgentContext, s: &Swap, me: Address) -> Result<
         .call(
             ctx,
             "adjust_allowance",
-            &(
-                s.handler.address(),
-                i128::try_from(amount_in).unwrap(),
-                false,
-            ),
+            &(s.handler.address(), i128::try_from(amount_in).unwrap()),
         )
         .await?;
     s.router
@@ -614,11 +625,7 @@ async fn swap_a_little_exact_out(ctx: &mut AgentContext, s: &Swap, me: Address) 
         .call(
             ctx,
             "adjust_allowance",
-            &(
-                s.handler.address(),
-                i128::try_from(amount_in_max).unwrap(),
-                false,
-            ),
+            &(s.handler.address(), i128::try_from(amount_in_max).unwrap()),
         )
         .await?;
     s.router

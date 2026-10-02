@@ -43,15 +43,15 @@ use groundhog_testkit::rpc_types::runtime_manifest::{RuntimeManifest, parse_runt
 use groundhog_testkit::xdr::types::{ContractAddress, NetworkHash};
 use groundhog_testkit::xdrs::{self, ReadXDR, WriteXDR};
 use groundhog_testkit::{
-    Agent, AgentContext, BlockDriverConfig, Contract, LocalNetworkConfig, NetworkConfig, Result,
-    Scenario, TestkitError, entrypoint_id,
+    Agent, AgentContext, BlockDriverConfig, Contract, DeployOptions, LocalNetworkConfig,
+    NetworkConfig, Result, Scenario, TestkitError, entrypoint_id,
 };
 use speedex::engine::{Grid, MAX_ASSETS};
 use speedex::max_clear_cells_in;
 use synthetic::{Rng, Shape};
 
 /// Interface identities the artifacts stamp; `entrypoint_id` derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.42");
+const ERC20: (&str, &str) = ("ERC20", "0.1.44");
 const SPEEDEX: (&str, &str) = ("Speedex", "0.1.0");
 /// The node's default wallet, which serves every key-pair account: `execute` runs a list of
 /// calls from the account, and takes calldata of any length.
@@ -351,7 +351,9 @@ fn decode_wallet<R: for<'r> ReadXDR<'r>>(receipt: &TransactionReceipt) -> R {
 
 /// Deploy an artifact in a block of its own.
 async fn deploy(ctx: &mut AgentContext, name: &str) -> Result<ContractAddress> {
-    let submitted = ctx.submit_deploy_artifact(name).await?;
+    let submitted = ctx
+        .submit_deploy_artifact(name, DeployOptions::funded(0))
+        .await?;
     submitted.await_pending().await?;
     ctx.network().produce_block().await?;
     Ok(submitted.await_receipt().await?.address)
@@ -428,7 +430,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
                         &mut ctx,
                         token,
                         "adjust_allowance",
-                        &(address, i128::try_from(SUPPLY).unwrap(), false),
+                        &(address, i128::try_from(SUPPLY).unwrap()),
                     )
                     .await?;
                 }

@@ -441,10 +441,13 @@ describe("provider write boundary with the real SDK", () => {
                 ? {
                     status,
                     attemptHeight: blockHeight(1n),
-                    conflict: {
-                      code: "exclusiveLock",
-                      address: target.invocation.invoked_address,
-                      key: new Uint8Array(32),
+                    cause: {
+                      kind: "dbConflict",
+                      conflict: {
+                        code: "exclusiveLock",
+                        address: target.invocation.invoked_address,
+                        key: new Uint8Array(32),
+                      },
                     },
                   }
                 : { status: "unknown" },

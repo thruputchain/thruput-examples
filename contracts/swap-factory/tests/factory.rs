@@ -1,7 +1,7 @@
 //! Tests for the swap factory: one-transaction pool bring-up, the pair registry, and the protocol
 //! fee flowing to the factory's `fee_to`.
 
-use groundhog_erc20_if::{Amount, Difference, ERC20Client};
+use groundhog_erc20_if::{Difference, ERC20Client};
 use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use sdk::storage::Node;
 use sdk::*;
@@ -25,7 +25,7 @@ const SUPPLY: u128 = 3_000_000;
 const CONTRACT_FUNDING: i64 = 1_000_000_000;
 
 // What the tests hand `create_pair` for each of the pool's three contracts.
-const FUNDING: Amount = POOL_FUNDING.recommended;
+const FUNDING: u128 = POOL_FUNDING.recommended;
 
 // Deploy nonces, at module scope so a contract's deterministic address can be computed (and funded)
 // before it is deployed.
@@ -109,8 +109,8 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
         let t1 = deploy_contract(&T1_NONCE, &hashes.token);
         ERC20Client::new(&t0).initialize(&DEPLOYER);
         ERC20Client::new(&t1).initialize(&DEPLOYER);
-        ERC20Client::new(&t0).mint(&DEPLOYER, SUPPLY);
-        ERC20Client::new(&t1).mint(&DEPLOYER, SUPPLY);
+        ERC20Client::new(&t0).mint(&DEPLOYER, SUPPLY as i128);
+        ERC20Client::new(&t1).mint(&DEPLOYER, SUPPLY as i128);
         (t0, t1)
     })
     .unwrap();
@@ -128,11 +128,8 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     // The factory funds the pool's three contracts as it deploys them, on the allowance the creator
     // grants it.
     exec_tx(&env, &DEPLOYER, || {
-        ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN).adjust_allowance(
-            &factory,
-            CONTRACT_FUNDING as Difference,
-            false,
-        );
+        ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
+            .adjust_allowance(&factory, CONTRACT_FUNDING as Difference);
     })
     .unwrap();
     env.advance_block();
@@ -326,7 +323,7 @@ fn fee_accrues_to_factory_fee_to() {
 
     // The fee reached the factory's `fee_to`, proving the pair consulted the factory dynamically.
     assert!(expected > U256::ZERO);
-    assert_eq!(U256::from(fee), expected);
+    assert_eq!(U256::from(fee as u128), expected);
 }
 
 // The liquidity a pool is primed with, and the amount donated afterwards to grow `k` the way
@@ -360,8 +357,8 @@ fn prime_and_grow(
     s.env.advance_block();
 
     exec_tx(&s.env, &DEPLOYER, || {
-        ERC20Client::new(&t0).transfer(&pair, PRIME);
-        ERC20Client::new(&t1).transfer(&pair, PRIME);
+        ERC20Client::new(&t0).transfer(&pair, PRIME as i128);
+        ERC20Client::new(&t1).transfer(&pair, PRIME as i128);
         SwapHandlerClient::new(&pair).sync();
     })
     .unwrap();
@@ -401,8 +398,8 @@ fn deposit_and_mint_frame(
 ) -> FrameResult {
     tx.call(&DEPLOYER)
         .run_continuable(|frame| {
-            ERC20Client::new(&t0).transfer(&pool, PRIME);
-            ERC20Client::new(&t1).transfer(&pool, PRIME);
+            ERC20Client::new(&t0).transfer(&pool, PRIME as i128);
+            ERC20Client::new(&t1).transfer(&pool, PRIME as i128);
 
             frame
                 .child_call(&pool)

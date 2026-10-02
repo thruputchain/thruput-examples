@@ -13,14 +13,14 @@ pub struct Ctx {
 }
 
 impl Ctx {
-    pub fn token0(&self) -> ERC20Client {
-        ERC20Client::new(&self.token_addrs[0])
+    pub fn token0(&self) -> TokenClient {
+        TokenClient::new(&self.token_addrs[0])
     }
-    pub fn token1(&self) -> ERC20Client {
-        ERC20Client::new(&self.token_addrs[1])
+    pub fn token1(&self) -> TokenClient {
+        TokenClient::new(&self.token_addrs[1])
     }
-    pub fn lp(&self) -> ERC20Client {
-        ERC20Client::new(&self.liquidity_token)
+    pub fn lp(&self) -> TokenClient {
+        TokenClient::new(&self.liquidity_token)
     }
 }
 

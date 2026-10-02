@@ -6,6 +6,9 @@ sdk::declare_mock_contract!();
 
 // A trait describing the contract interface
 mod interface {
+    pub use groundhog_erc20_controls_if::{
+        ClawbackEvent, ERC20Burn, ERC20BurnClient, ERC20Clawback, ERC20ClawbackClient,
+    };
     pub use groundhog_erc20_if::*;
 
     #[cfg(feature = "metadata")]
@@ -18,12 +21,19 @@ mod interface {
 // A client stub that provides the interface via cross-contract calls
 pub use interface::ERC20Client;
 
+// Destruction lives in extensions: holders burn what they hold (or hold an
+// allowance for) through `ERC20Burn`; the administrator forces a burn from
+// any holder through `ERC20Clawback`.
+pub use interface::{
+    ClawbackEvent, ERC20Burn, ERC20BurnClient, ERC20Clawback, ERC20ClawbackClient,
+};
+
 #[cfg(feature = "metadata")]
 pub use interface::ERC20MetadataClient;
 
 #[cfg(feature = "permit")]
 pub use interface::{
-    ClearAllowanceGrant, ClearAllowanceRequest, ERC20Permit, ERC20PermitClient, ERC20PermitError,
+    DeleteAllowanceGrant, DeleteAllowanceRequest, ERC20Permit, ERC20PermitClient, ERC20PermitError,
     PermitGrant, PermitRequest,
 };
 

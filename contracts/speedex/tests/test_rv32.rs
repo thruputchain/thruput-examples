@@ -63,7 +63,7 @@ fn ring_trade_rv32() {
     let users = [(&ALICE, 0u32, 1u32), (&BOB, 1, 2), (&CAROL, 2, 0)];
     run(&env, &TEST, || {
         for (user, sell, _) in users {
-            ERC20Client::new(&tokens[sell as usize]).mint(user, 1000 * UNIT);
+            ERC20Client::new(&tokens[sell as usize]).mint(user, (1000 * UNIT) as i128);
         }
     });
     env.advance_block();
@@ -75,11 +75,8 @@ fn ring_trade_rv32() {
         .iter()
         .map(|&(user, sell, buy)| {
             run(&env, user, || {
-                ERC20Client::new(&tokens[sell as usize]).adjust_allowance(
-                    &exchange,
-                    (1000 * UNIT) as i128,
-                    false,
-                );
+                ERC20Client::new(&tokens[sell as usize])
+                    .adjust_allowance(&exchange, (1000 * UNIT) as i128);
                 client.submit_offer(sell, buy, 1000 * UNIT, PRICE_ONE * 9 / 10)
             })
         })
@@ -111,7 +108,7 @@ fn ring_trade_rv32() {
         let got = run(&env, &TEST, || {
             ERC20Client::new(&tokens[buy as usize]).get_balance_of(user)
         });
-        assert!(got >= 980 * UNIT, "{got}");
+        assert!(got >= (980 * UNIT) as i128, "{got}");
     }
 }
 
@@ -145,7 +142,7 @@ fn largest_clearing_fits_the_guest_rv32() {
                 let nonce = SHA256Hash::from([i + 1; 32]);
                 let t = deploy_contract(&nonce, &token_hash);
                 ERC20Client::new(&t).initialize(&TEST);
-                ERC20Client::new(&t).mint(&ALICE, u128::MAX / 4);
+                ERC20Client::new(&t).mint(&ALICE, i128::MAX / 4);
                 t
             })
             .collect();
@@ -165,7 +162,7 @@ fn largest_clearing_fits_the_guest_rv32() {
     env.advance_block();
     run(&env, &ALICE, || {
         for t in &tokens {
-            ERC20Client::new(t).adjust_allowance(&exchange, i128::MAX / 4, false);
+            ERC20Client::new(t).adjust_allowance(&exchange, i128::MAX / 4);
         }
     });
     env.advance_block();

@@ -30,7 +30,7 @@ type PoolCreated = swap_if.v0_1.events.PoolCreated;
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
-const view = <T>(value: T) => ({ value, height: 100n, events: [] });
+const view = <T>(value: T) => ({ value, height: 100n, gasUsed: 0n, events: [] });
 const pool: PoolAddresses = {
   liquidityToken: address(21),
   handler: address(22),

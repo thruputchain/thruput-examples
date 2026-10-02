@@ -172,7 +172,7 @@ export async function provisionLaunchpad(options: {
       }
     }
     const { txHash, address: factoryAddress } =
-      await wallet.deployContractAndWait(deployment, GAS_LIMIT, {
+      await wallet.deployContractAndWait(deployment, { gasLimit: GAS_LIMIT, amount: 0n }, {
         timeoutMs: 60_000,
       });
     console.log(`Deploy token factory: ${toHex0x(txHash)}`);

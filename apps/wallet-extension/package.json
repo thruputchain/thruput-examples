@@ -13,7 +13,7 @@
     "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
-    "@groundhogchain/client": "0.11.0",
+    "@groundhogchain/client": "0.14.0",
     "@groundhogchain/protocol": "0.12.0",
     "@scure/bip39": "^2.0.1",
     "@noble/hashes": "^2.2.0",

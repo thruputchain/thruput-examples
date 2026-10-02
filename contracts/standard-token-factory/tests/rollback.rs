@@ -15,7 +15,7 @@ fn failing_initializer_rolls_back_creation_fee_funding_and_events() {
     let setup = setup_with_token(FEE, Some(TREASURY), register_failing_child);
     let creation = Creation::default();
     let predicted = predict(&setup, &creation);
-    adjust_allowance(&setup, FEE as i128);
+    adjust_allowance(&setup, FEE);
     let before = native_state(&setup, &predicted);
 
     let failed = fund_and_create(&setup, &creation, REQUIRED_FUNDING);
