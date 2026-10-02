@@ -2791,6 +2791,7 @@ version = "0.1.0"
 dependencies = [
  "groundhog-erc20-if",
  "groundhog-json-rpc-types",
+ "groundhog-signing",
  "groundhog-testkit",
  "sdk",
  "serde_json",
@@ -2921,6 +2922,7 @@ dependencies = [
  "groundhog-erc20-metadata-if",
  "groundhog-event",
  "groundhog-json-rpc-types",
+ "groundhog-signing",
  "groundhog-testkit",
  "groundhog-xdr",
  "sdk",

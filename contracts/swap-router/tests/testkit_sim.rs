@@ -204,7 +204,7 @@ async fn deploy_and_init(
         .call(
             ctx,
             "adjust_allowance",
-            &(factory.address(), 3 * POOL_FUNDING.recommended, false),
+            &(factory.address(), 3 * POOL_FUNDING.recommended),
         )
         .await?;
     factory
@@ -237,18 +237,10 @@ async fn prime_pool(ctx: &mut AgentContext, s: &Swap) -> Result<()> {
     // Let the request handler pull our tokens when the request is executed.
     let supply = SUPPLY;
     s.token0
-        .call(
-            ctx,
-            "adjust_allowance",
-            &(s.handler.address(), supply, false),
-        )
+        .call(ctx, "adjust_allowance", &(s.handler.address(), supply))
         .await?;
     s.token1
-        .call(
-            ctx,
-            "adjust_allowance",
-            &(s.handler.address(), supply, false),
-        )
+        .call(ctx, "adjust_allowance", &(s.handler.address(), supply))
         .await?;
 
     // Route an add-liquidity request. The pair doesn't exist, so this creates it, then enqueues the
@@ -310,18 +302,10 @@ fn liquidity_provider(name: &str) -> Agent {
         // Allow the request handler to pull our A/B tokens when the request runs.
         let allowance = USER_LIQUIDITY;
         token0
-            .call(
-                &mut ctx,
-                "adjust_allowance",
-                &(cfg.handler, allowance, false),
-            )
+            .call(&mut ctx, "adjust_allowance", &(cfg.handler, allowance))
             .await?;
         token1
-            .call(
-                &mut ctx,
-                "adjust_allowance",
-                &(cfg.handler, allowance, false),
-            )
+            .call(&mut ctx, "adjust_allowance", &(cfg.handler, allowance))
             .await?;
 
         // Submit an add-liquidity request (executed later, by the driver). LP is minted to us; we
@@ -521,18 +505,10 @@ fn calibrator(fee_enabled: bool) -> Agent {
         let add: Amount = SUPPLY / 1_000;
         let add_i = i128::try_from(add).unwrap();
         s.token0
-            .call(
-                &mut ctx,
-                "adjust_allowance",
-                &(s.handler.address(), add_i, false),
-            )
+            .call(&mut ctx, "adjust_allowance", &(s.handler.address(), add_i))
             .await?;
         s.token1
-            .call(
-                &mut ctx,
-                "adjust_allowance",
-                &(s.handler.address(), add_i, false),
-            )
+            .call(&mut ctx, "adjust_allowance", &(s.handler.address(), add_i))
             .await?;
         s.router
             .call(
@@ -558,7 +534,7 @@ fn calibrator(fee_enabled: bool) -> Agent {
         s.lp.call(
             &mut ctx,
             "adjust_allowance",
-            &(s.handler.address(), i128::try_from(redeem).unwrap(), false),
+            &(s.handler.address(), i128::try_from(redeem).unwrap()),
         )
         .await?;
         s.router
@@ -650,11 +626,18 @@ async fn crank_and_report(ctx: &mut AgentContext, s: &Swap) -> Result<GasReport>
 
     // A failed request still costs gas, so measuring one would quietly report
     // the cost of the failure path instead of the work.
-    let counts: (u32, u32) = receipt
+    // The account's default wallet ran the call and returns one buffer per
+    // call it made; unwrap that envelope before decoding the counts.
+    let returned = receipt
         .return_data
         .as_ref()
-        .map(|d| xdrs::cxs::decode(d.0.as_slice()).expect("decoding (processed, failed)"))
+        .map(|d| {
+            groundhog_signing::default_wallet::decode_default_wallet_call_return(d.0.as_slice())
+                .expect("unwrapping the wallet's return")
+        })
         .expect("process_requests returns counts");
+    let counts: (u32, u32) =
+        xdrs::cxs::decode(returned.as_slice()).expect("decoding (processed, failed)");
     assert_eq!(
         counts,
         (1, 0),

@@ -623,14 +623,18 @@ fn creator_agent() -> Agent {
         let submitted = create(&mut ctx, &factory, nonce, &config, creator, 1_000).await?;
         let creation_receipt = submitted.await_receipt().await?;
         assert_eq!(creation_receipt.events.len(), 2);
-        let created: ContractAddress = xdrs::cxs::decode(
+        // The account's default wallet ran the call and returns one buffer per
+        // call it made; unwrap that envelope before decoding the address.
+        let returned = groundhog_signing::default_wallet::decode_default_wallet_call_return(
             &creation_receipt
                 .return_data
                 .as_ref()
                 .expect("create_token returns an address")
                 .0,
         )
-        .expect("decode created token address");
+        .expect("unwrap the wallet's return");
+        let created: ContractAddress =
+            xdrs::cxs::decode(returned.as_slice()).expect("decode created token address");
         assert_eq!(created, predicted);
         assert_created(
             &creation_receipt,

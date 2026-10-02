@@ -458,7 +458,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
                     for s in &submitted {
                         let receipt = s.await_receipt().await?;
                         if first.is_none() {
-                            let id: [u8; 32] = decode(&receipt);
+                            let id: [u8; 32] = decode_wallet(&receipt);
                             first = Some(id);
                             let offer: Option<Offer> =
                                 exchange.view(&ctx, "offer", &id, None).await?;
