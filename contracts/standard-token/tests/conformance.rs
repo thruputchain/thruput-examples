@@ -592,3 +592,48 @@ fn erc20_identity_comes_from_the_pinned_interface_crates() {
         groundhog_erc20_if::ERC20Error::TooLarge
     );
 }
+
+#[test]
+fn zero_allowance_adjustment_emits_but_writes_no_storage_row() {
+    let (env, token) = setup();
+    commit(
+        &env,
+        env.transact(|tx| {
+            tx.call(&ADMIN)
+                .run(|| ERC20Client::new(&token).initialize(&ADMIN))
+        }),
+    );
+
+    let key_result = env.transact(|tx| {
+        tx.call(&token)
+            .run(|| allowance_storage_key(&ADMIN, &SPENDER))
+    });
+    key_result.assert_success();
+    let key = key_result.assert_return_as();
+
+    // A zero change is reported but recorded nowhere: no allowance row exists
+    // for the pair afterwards, so the owner pays nothing for it.
+    let zero = env.transact(|tx| {
+        tx.call(&ADMIN)
+            .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 0))
+    });
+    zero.assert_success();
+    zero.assert_event_count(1);
+    env.advance_block();
+    assert!(env.get_snapshot_storage_item(&token, &key).is_none());
+
+    // A real grant materializes the row.
+    commit(
+        &env,
+        env.transact(|tx| {
+            tx.call(&ADMIN)
+                .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 5))
+        }),
+    );
+    match env.get_snapshot_storage_item(&token, &key) {
+        Some(WireStorageItem::kItemTypeNonnegativeInt { nnint }) => {
+            assert_eq!(i128::from(nnint), 5);
+        }
+        other => panic!("expected an allowance row after a nonzero grant, got {other:?}"),
+    }
+}

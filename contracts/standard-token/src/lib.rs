@@ -26,4 +26,4 @@ pub use implementation::{Config, TokenContract};
 pub use standard_token_factory_if::{StandardTokenInitializer, StandardTokenInitializerClient};
 
 #[cfg(feature = "dev")]
-pub use implementation::balance_storage_key;
+pub use implementation::{allowance_storage_key, balance_storage_key};

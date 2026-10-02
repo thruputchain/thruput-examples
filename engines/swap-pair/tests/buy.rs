@@ -47,12 +47,12 @@ fn serial_buy_redeem() {
 
         // Do Alice and Bob have the same amount they started with?
         etx.exec_user_tx(ALICE, |u| {
-            assert_eq!(u.init.0, ctx.token0().get_balance());
-            assert_eq!(u.init.1, ctx.token1().get_balance());
+            assert_eq!(u.init.0, from_token(ctx.token0().get_balance()));
+            assert_eq!(u.init.1, from_token(ctx.token1().get_balance()));
         })?;
         etx.exec_user_tx(BOB, |u| {
-            assert_eq!(u.init.0, ctx.token0().get_balance());
-            assert_eq!(u.init.1, ctx.token1().get_balance());
+            assert_eq!(u.init.0, from_token(ctx.token0().get_balance()));
+            assert_eq!(u.init.1, from_token(ctx.token1().get_balance()));
         })?;
 
         Ok(())

@@ -4,13 +4,13 @@ use crate::interface::*;
 #[cfg(feature = "permit")]
 use sdk::signer::Signed;
 use sdk::storage::deletable::Deletable;
-use sdk::storage::{Balance, Map, NNInt, Value};
+use sdk::storage::{Balance, Map, Value};
 use sdk::*;
 
-/// An allowance is a non-negative integer like a balance, but it is adjusted
-/// by a signed difference, so it lives in an [`NNInt`] whose strict increment
-/// refuses to cross zero or `i128::MAX` in either direction.
-type Allowance = NNInt;
+/// An allowance is a non-negative amount like a balance: a missing entry
+/// reads as zero, a zero change touches no storage, and the checked
+/// operations refuse to cross zero or `i128::MAX`.
+type Allowance = Balance;
 
 #[sdk::storage]
 #[cfg_attr(feature = "dev", derive(Debug))]
@@ -80,29 +80,36 @@ impl TokenContract {
 
     // A missing entry -- never granted, or deleted -- reads as zero.
     fn _allowance(&self, owner: &ContractAddress, spender: &ContractAddress) -> Amount {
-        self.allowances
-            .at(owner)
-            .at(spender)
-            .try_get()
-            .none_if_missing()
-            .unwrap_or(0)
+        self.allowances.at(owner).at(spender).get()
     }
 
-    // Move the allowance for `owner` and `spender` by a signed difference,
-    // from zero if empty, and emit the change. Allowances are not bounded by
-    // total supply, so the increment is strict to preserve the interface's
-    // immediate TooLarge error at either bound.
+    // Move an allowance by a signed difference, from zero if empty.
+    // Allowances are not bounded by total supply, so increases are checked to
+    // preserve the interface's immediate TooLarge error at either bound.
+    fn _apply_difference(allowance: &mut Allowance, difference: Difference) {
+        let result = if difference >= 0 {
+            allowance.try_increase(difference)
+        } else {
+            // `i128::MIN` has no negation; no allowance could cover it either.
+            let decrement = difference
+                .checked_neg()
+                .unwrap_or_else(|| throw(ERC20Error::TooLarge));
+            allowance.try_decrease(decrement)
+        };
+        result.unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+    }
+
+    // Adjust the allowance for `owner` and `spender` by `difference` and emit
+    // the change.
     fn _adjust_allowance(
         &mut self,
         owner: &ContractAddress,
         spender: &ContractAddress,
         difference: Difference,
     ) {
-        self.allowances
-            .at_mut(owner)
-            .at_mut(spender)
-            .try_strict_inc(difference)
-            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+        let mut owner_allowances = self.allowances.at_mut(owner);
+        let mut allowance = owner_allowances.at_mut(spender);
+        Self::_apply_difference(&mut allowance, difference);
 
         AllowanceChangeEvent::new(owner, spender, difference).log();
     }
@@ -118,7 +125,7 @@ impl TokenContract {
         self.allowances
             .at_mut(owner)
             .at_mut(spender)
-            .try_strict_inc(-amount)
+            .try_decrease(amount)
             .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
     }
 

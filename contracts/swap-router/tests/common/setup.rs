@@ -149,7 +149,7 @@ pub fn setup_contracts(
     // The factory funds this pair's contracts (LP token, handler, driver) as it deploys them, on
     // the allowance it is granted here.
     exec_tx(env, &TEST_ADDR, move || {
-        TokenClient::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
+        ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
             .adjust_allowance(&factory_addr, 3 * POOL_FUNDING.recommended as i128);
     })?;
 
@@ -234,15 +234,15 @@ fn ab_tokens_deploy_init(token_hash: &SHA256Hash) -> Addresses {
 }
 
 fn airdrop_tokens(token_addrs: &Addresses) {
-    let token0 = TokenClient::new(&token_addrs[0]);
-    let token1 = TokenClient::new(&token_addrs[1]);
+    let token0 = ERC20Client::new(&token_addrs[0]);
+    let token1 = ERC20Client::new(&token_addrs[1]);
 
-    assert_eq!(token0.get_balance_of(ALICE.addr), 0);
-    assert_eq!(token1.get_balance_of(ALICE.addr), 0);
+    assert_eq!(from_token(token0.get_balance_of(ALICE.addr)), 0);
+    assert_eq!(from_token(token1.get_balance_of(ALICE.addr)), 0);
 
     // Initial airdrops
     for u in USERS {
-        token0.mint(u.addr, u.init.0);
-        token1.mint(u.addr, u.init.1);
+        token0.mint(u.addr, to_token(u.init.0));
+        token1.mint(u.addr, to_token(u.init.1));
     }
 }

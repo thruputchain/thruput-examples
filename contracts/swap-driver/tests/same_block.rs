@@ -76,7 +76,8 @@ fn a_sync_with_something_to_record_conflicts_with_the_crank() {
         alice_requests_a_swap(&etx)?;
         // Bob sends tokens straight to the pool, unrecorded.
         etx.exec_user_tx(BOB, |_| {
-            ctx.token0().transfer(&ctx.request_handler_addr, UNIT_AMT);
+            ctx.token0()
+                .transfer(&ctx.request_handler_addr, to_token(UNIT_AMT));
         })?;
         etx.advance_block();
 
@@ -116,8 +117,8 @@ fn a_same_block_withdrawal_fails_only_its_own_request() {
 
         // Alice moves everything to Bob ...
         etx.exec_user_tx(ALICE, |_| {
-            let all = ctx.token0().get_balance();
-            ctx.token0().transfer(BOB.addr, all);
+            let all = from_token(ctx.token0().get_balance());
+            ctx.token0().transfer(BOB.addr, to_token(all));
         })?;
 
         // ... and, in the same block, the crank handles her request.
@@ -158,7 +159,7 @@ fn a_crank_that_lands_first_excludes_the_conflicting_withdrawal() {
 
         let withdrawal = etx
             .exec_user_tx(ALICE, move |_| {
-                ctx.token0().transfer(BOB.addr, all);
+                ctx.token0().transfer(BOB.addr, to_token(all));
             })
             .expect_err("overdraws once merged with the crank's debit");
         withdrawal.assert_commit_failed_nondeterministically();
@@ -168,7 +169,7 @@ fn a_crank_that_lands_first_excludes_the_conflicting_withdrawal() {
         // Now the balance the block begins with is short, and the same transfer fails at call time.
         let refused = etx
             .exec_user_tx(ALICE, move |_| {
-                ctx.token0().transfer(BOB.addr, all);
+                ctx.token0().transfer(BOB.addr, to_token(all));
             })
             .expect_err("the balance is short");
         refused.assert_abort();

@@ -18,8 +18,8 @@ fn cumulative_price_accumulates() {
         // her token0 to the pair, then a `sync()` records the new, unequal
         // reserves (r0 > r1). Now price0 = r1/r0 < 1.
         etx.exec_user_tx(ALICE, move |_| {
-            let amt = ctx.token0().get_balance();
-            ctx.token0().transfer(&ctx.pair_addr, amt);
+            let amt = from_token(ctx.token0().get_balance());
+            ctx.token0().transfer(&ctx.pair_addr, to_token(amt));
         })?;
         etx.advance_block();
         etx.exec_as_pair(|pair| pair.sync())?;
@@ -55,7 +55,7 @@ fn cumulative_price_accumulates() {
         // donation of one unit, then a `sync()` that records it -- accounts
         // for the whole interval at the reserves that held throughout it.
         etx.exec_user_tx(BOB, move |_| {
-            ctx.token0().transfer(&ctx.pair_addr, 1);
+            ctx.token0().transfer(&ctx.pair_addr, to_token(1));
         })?;
         etx.advance_block();
         etx.exec_as_pair(|pair| pair.sync())?;

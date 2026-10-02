@@ -6,7 +6,6 @@ mod etx;
 mod help;
 mod setup;
 mod stats;
-mod token;
 mod user;
 mod util;
 
@@ -16,11 +15,10 @@ pub use etx::*;
 pub use help::*;
 pub use setup::*;
 pub use stats::*;
-pub use token::*;
 pub use user::*;
 pub use util::*;
 
 pub use groundhog_erc20_if::{ERC20Client, ERC20Error};
 pub use sdk::storage::{Keypath, Node};
 pub use sdk::*;
-pub use swap_pair::{Amount, Amounts, Pair, SwapPairError};
+pub use swap_pair::{Amount, Amounts, Pair, SwapPairError, from_token, to_token};

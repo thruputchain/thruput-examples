@@ -6,9 +6,10 @@ use sdk::storage::{Balance, Map, NNInt, Value};
 use sdk::*;
 use standard_token_factory_if::StandardTokenInitializer;
 
-/// An allowance is adjusted by a signed difference, so it lives in an
-/// [`NNInt`] whose strict increment refuses to cross zero or `i128::MAX`.
-type Allowance = NNInt;
+/// An allowance is a non-negative amount like a balance: a missing entry
+/// reads as zero, a zero change touches no storage, and the checked
+/// operations refuse to cross zero or `i128::MAX`.
+type Allowance = Balance;
 
 #[sdk::storage]
 #[cfg_attr(feature = "dev", derive(Debug))]
@@ -102,27 +103,34 @@ impl TokenContract {
 
     // A missing entry -- never granted, or deleted -- reads as zero.
     fn allowance_of(&self, owner: &ContractAddress, spender: &ContractAddress) -> Amount {
-        self.allowances
-            .at(owner)
-            .at(spender)
-            .try_get()
-            .none_if_missing()
-            .unwrap_or(0)
+        Self::amount(&self.allowances.at(owner).at(spender))
     }
 
-    // Move `spender`'s allowance from `owner` by a signed difference, from zero
-    // if empty. The increment is strict so either bound throws immediately.
+    // Move an allowance by a signed difference, from zero if empty. Increases
+    // are checked so either bound throws immediately.
+    fn apply_difference(allowance: &mut Allowance, difference: Difference) {
+        let result = if difference >= 0 {
+            allowance.try_increase(difference)
+        } else {
+            // `i128::MIN` has no negation; no allowance could cover it either.
+            let decrement = difference
+                .checked_neg()
+                .unwrap_or_else(|| throw(ERC20Error::TooLarge));
+            allowance.try_decrease(decrement)
+        };
+        result.unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+    }
+
+    // Adjust `spender`'s allowance from `owner` by `difference`.
     fn adjust_allowance_by(
         &mut self,
         owner: &ContractAddress,
         spender: &ContractAddress,
         difference: Difference,
     ) {
-        self.allowances
-            .at_mut(owner)
-            .at_mut(spender)
-            .try_strict_inc(difference)
-            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+        let mut owner_allowances = self.allowances.at_mut(owner);
+        let mut allowance = owner_allowances.at_mut(spender);
+        Self::apply_difference(&mut allowance, difference);
     }
 
     // Spend `amount` of `spender`'s allowance from `owner`. Spending emits no
@@ -133,7 +141,7 @@ impl TokenContract {
         spender: &ContractAddress,
         amount: Amount,
     ) {
-        self.adjust_allowance_by(owner, spender, -amount);
+        Self::decrease(&mut self.allowances.at_mut(owner).at_mut(spender), amount);
     }
 
     // Move `amount` from `owner` to `receiver` and emit [`TransferEvent`].
@@ -331,4 +339,15 @@ impl StandardTokenInitializer for TokenContract {
 pub fn balance_storage_key(owner: &ContractAddress) -> StorageKey {
     let state = sdk::storage::contract_state_root::<TokenContract>();
     state.balances.keypath().child(owner).generate_key()
+}
+
+#[cfg(feature = "dev")]
+pub fn allowance_storage_key(owner: &ContractAddress, spender: &ContractAddress) -> StorageKey {
+    let state = sdk::storage::contract_state_root::<TokenContract>();
+    state
+        .allowances
+        .keypath()
+        .child(owner)
+        .child(spender)
+        .generate_key()
 }
