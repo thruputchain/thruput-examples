@@ -48,7 +48,7 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 
 | App | Purpose |
 | --- | --- |
-| [Counter](apps/counter/README.md) | Send concurrent counter transactions with buttons or keyboard input; uses a development signer |
+| [Counter](apps/counter/README.md) | Update a counter with a development signer or connected wallet; includes concurrent keyboard input |
 | [Token Launchpad](apps/token-launchpad/README.md) | Create standard tokens and browse launches |
 | [Swap](apps/swap/README.md) | Create pools, swap tokens, and manage liquidity |
 | [Thruput Wallet](apps/wallet-extension/README.md) | Chrome wallet for localnet and devnet |
@@ -94,7 +94,7 @@ Counter uses the same dependency install, with a local development signer and
 its own submission-capable RPC proxy. See its [setup guide](apps/counter/README.md)
 for keyboard controls and the compatible CLI/devnode pairing.
 
-All three apps use the same `setup:local` flow: `generate:contracts`, then
+The Counter demo, Swap, and Launchpad use the same `setup:local` flow: `generate:contracts`, then
 `tsx scripts/setup-local.ts`. All three also provide `setup:devnet`, which writes
 `.env.devnet` for a fresh deployment on a pinned network.
 

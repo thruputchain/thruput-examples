@@ -55,7 +55,7 @@ export function createApiHandler(
   fetchRpc: typeof fetch = fetch,
 ) {
   const transactions =
-    config instanceof Error
+    config instanceof Error || !config.signingPrivateKey
       ? null
       : createCounterTransactions(config, fetchRpc);
   return async (
@@ -91,6 +91,10 @@ export function createApiHandler(
     }
     if (request.method !== "POST") {
       json(response, 405, { error: "POST is required." });
+      return true;
+    }
+    if ((path === "/api/prepare" || path === "/api/topup") && !transactions) {
+      json(response, 503, { error: "Development signer is not configured." });
       return true;
     }
     if (path === "/api/topup" && !allowsBrowserTopup(request)) {
@@ -180,6 +184,7 @@ export function createApiHandler(
     }
     if (body.method === "groundhog_sendRawTransaction") {
       try {
+        if (!transactions) throw new CounterPolicyError("Development signer is not configured.");
         transactions!.assertSubmission(
           "params" in body ? body.params : undefined,
         );

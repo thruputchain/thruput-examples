@@ -13,6 +13,9 @@ import { loadServerConfig } from "../../apps/counter/server/config.ts";
 import { createCounterServer } from "../../apps/counter/server/main.ts";
 import { createCounterConnection } from "../../apps/counter/src/groundhog/client.ts";
 import { TransactionEngine } from "../../apps/counter/src/transactions/engine.ts";
+import { createPublicClient } from "../../apps/counter/src/groundhog/public-client.ts";
+import { Counter } from "../../apps/counter/src/contracts/generated/counter.ts";
+import { addressFromHex } from "@groundhogchain/client";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp(join(tmpdir(), "groundhog-counter-"));
@@ -129,6 +132,7 @@ try {
   const origin = `http://127.0.0.1:${address.port}`;
   const publicResponse = await fetch(`${origin}/api/config`);
   const publicConfig = await publicResponse.text();
+  assert.ok(config.signingPrivateKey);
   assert.ok(
     !publicConfig.includes(config.signingPrivateKey),
     "Public config must not include the signing key",
@@ -138,9 +142,14 @@ try {
     `${origin}/groundhog-rpc`,
   );
   engine = new TransactionEngine(connection);
+  const publicClient = await createPublicClient(config.app, `${origin}/groundhog-rpc`);
+  const readValue = async () => (await Counter.v0_1.get.view({
+    client: publicClient,
+    contract: addressFromHex(config.app.counterAddress),
+  })).value;
   timer = setInterval(() => engine!.tick(), 25);
   await until(() => engine!.snapshot().ready, "engine readiness");
-  assert.equal(engine.snapshot().value, 1_000_000n);
+  assert.equal(await readValue(), 1_000_000n);
   for (let index = 0; index < 120; index++)
     assert.ok(engine.enqueue(index % 3 === 0 ? "decrement" : "increment"));
   await until(
@@ -153,7 +162,7 @@ try {
     JSON.stringify(engine.snapshot().recent),
   );
   await until(
-    () => engine!.snapshot().value === 1_000_040n,
+    async () => await readValue() === 1_000_040n,
     "final counter value",
   );
   console.log("Live burst: 120/120 confirmed; final value 1,000,040.");
@@ -174,12 +183,12 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(origin);
   const inc = page.getByRole("button", { name: "Increment", exact: true });
-  await inc.waitFor();
   await page
     .getByText("Node connections retry automatically.", { exact: false })
     .waitFor();
-  assert.equal(await inc.isEnabled(), false);
+  assert.equal(await page.getByRole("button", { name: "Increment", exact: true }).count(), 0);
   config.rpcUrl = rpcUrl;
+  await inc.waitFor();
   await until(() => inc.isEnabled(), "browser connection");
   await inc.click();
   await until(

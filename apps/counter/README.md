@@ -2,8 +2,13 @@
 
 A shared counter with increment/decrement buttons and a keyboard transaction
 area. Each captured keydown sends a random +1 or −1 transaction. Holding a key
-repeats; Escape stops capture. The server signs with a funded development key
-that stays on the server.
+repeats; Escape stops capture. By default, the server signs with a funded
+development key that stays on the server. Connect a wallet to approve button
+updates with that account. Disconnect explicitly to return to development signing.
+
+The [four-part counter guide](https://docs.groundhog.dev/tutorials/build-a-counter/)
+builds a smaller app from scratch. This app adds the worker, keyboard input,
+and transaction statistics.
 
 ## Local setup
 
@@ -92,6 +97,15 @@ file while using that deployment; run setup again when you want a fresh demo.
 
 ## Behavior
 
+- Public counter reads work independently of the selected signer. A connected
+  wallet replaces development signing for new button updates. Rejection, session
+  loss, or a wrong network never switches back to the development signer.
+- Switching to a wallet stops new development submissions and cancels queued
+  inputs. Already submitted transactions remain under observation.
+- Wallet updates save the original account, network, and hash before submission.
+  Reloading resumes observation of that record without submitting it again.
+- Without `COUNTER_SIGNING_PRIVATE_KEY`, reads and wallet updates remain available;
+  development signing and signer top-ups are unavailable.
 - **Top up Signer** in the header shows the live signer balance and requests a test-HOG airdrop for the configured
   signer. The server allows one attempt every 10 minutes, including failed
   attempts. The faucet also applies its own cooldown or quota. The
@@ -113,16 +127,15 @@ file while using that deployment; run setup again when you want a fresh demo.
 - The counter cannot go below zero. Manual decrement is disabled at zero; a
   random decrement can fail at the lower bound. The initial value gives the
   demo room for random updates.
-- Session state is in memory. Reloading starts new session counts; committed
+- Development session statistics are in memory. Reloading starts new counts; committed
   transactions and the shared counter persist on the node. Reload does not
   cancel transactions already sent.
 
 ## SDK integration
 
 Counter uses the published client 0.14.0 and bindings generated with CLI 0.22.1.
-`src/groundhog/client.ts` binds the Counter address and public client once with
-`getContract`, then refreshes with `counter.get.view({ caller: signerAddress })`.
-Counter and signer-balance reads run concurrently within each scheduled refresh.
+`src/groundhog/use-counter-value.ts` reads through React Query every
+two seconds. The worker separately reads the development signer's balance.
 
 Provisioning uses `prepareContractDeployment` to predict the address before
 prefunding it, then `wallet.deployContractAndWait` to deploy and verify the result.
@@ -196,6 +209,7 @@ export GROUNDHOG_CLI=/absolute/path/to/groundhog
 export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
 npm run build --workspace apps/counter
 npm run test:counter
+npm run test:counter-wallet
 ```
 
 This Linux test owns an isolated node and uses temporary app configuration. It
@@ -207,11 +221,17 @@ mobile overflow, then confirms a transaction through the Vite development server
 It saves desktop/mobile screenshots in the printed temporary directory.
 Set `CHROMIUM_PATH` if Chromium is not at `/usr/bin/chromium`.
 
+The wallet check uses a controlled browser provider and real local-node
+transactions. It checks default development signing, wallet switching, rejection,
+wrong-network handling, explicit disconnect, reload recovery, and mobile layout.
+It does not require an installed wallet extension.
+
 ## Code map
 
 - `src/app.tsx`, `src/components/`, `src/styles.css`: screen and Thruput theme.
 - `src/transactions/`: bounded engine, worker, and React lifecycle.
-- `src/groundhog/client.ts`: signing requests, submission, reads, and receipt observation.
+- `src/groundhog/`: shared public reads, development signing requests, and receipt observation.
+- `src/wallet/`: signing-mode selection, wallet controls, and persisted wallet transaction observation.
 - `src/contracts/generated/`: generated ABI; do not edit by hand.
 - `server/`: private signing, submission policy, runtime configuration, RPC forwarding, and production static server.
 - `scripts/`: contract generation, network-specific setup entrypoints, and shared Counter provisioning.

@@ -10,16 +10,15 @@ import {
   HttpTransport,
   toHex0x,
 } from "@groundhogchain/client";
-import { getContract } from "@groundhogchain/client/contract";
 import { ExecResult, networkHash } from "@groundhogchain/protocol";
 import type { AppConfig } from "../config";
-import { Counter } from "../contracts/generated/counter";
 import type { CounterConnection } from "../transactions/engine";
 
 export async function createCounterConnection(
   config: AppConfig,
   rpcUrl: string,
 ): Promise<CounterConnection> {
+  if (!config.signerAddress) throw new Error("Development signer is not configured.");
   const controller = new AbortController();
   const expected = networkHash(hashFromHex(config.networkId));
   const client = await createGroundhogClient({
@@ -41,11 +40,6 @@ export async function createCounterConnection(
     }),
   });
   const signerAddress = addressFromHex(config.signerAddress);
-  const counter = getContract({
-    binding: Counter.v0_1,
-    address: addressFromHex(config.counterAddress),
-    client,
-  });
 
   return {
     async read() {
@@ -53,11 +47,8 @@ export async function createCounterConnection(
       const network = await client.getNetworkInfo();
       if (!bytesEqual(network.networkHash, expected))
         throw new Error("Network changed. Check the app configuration.");
-      const [counterView, balance] = await Promise.all([
-        counter.get.view({ caller: signerAddress }),
-        client.getBalance(signerAddress),
-      ]);
-      return { value: counterView.value, signerBalance: balance.rawBalance };
+      const balance = await client.getBalance(signerAddress);
+      return { value: null, signerBalance: balance.rawBalance };
     },
     async prepare(direction) {
       const response = await fetch(new URL("/api/prepare", rpcUrl), {

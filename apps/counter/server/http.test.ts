@@ -291,7 +291,7 @@ describe("counter signing boundary", () => {
     );
   });
 
-  it("publishes only public identity and requires the server-only signing key", async () => {
+  it("publishes only public identity and supports configuration without a signer", async () => {
     const origin = await listen(createCounterServer(config));
     const response = await fetch(`${origin}/api/config`);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -303,12 +303,25 @@ describe("counter signing boundary", () => {
       signerAddress: toHex0x(account.address),
       explorerUrl: null,
     });
-    expect(() =>
+    expect(
       loadServerConfig({
         ...environment,
         COUNTER_SIGNING_PRIVATE_KEY: undefined,
       }),
-    ).toThrow("Server signing key");
+    ).toMatchObject({ signingPrivateKey: null, app: { signerAddress: null } });
+  });
+
+  it("serves public reads but refuses signing and submission when no development key is configured", async () => {
+    const withoutSigner = loadServerConfig({ ...environment, COUNTER_SIGNING_PRIVATE_KEY: undefined });
+    const upstream = rpcMock();
+    const handler = createApiHandler(withoutSigner, upstream);
+    const origin = await listen(createServer((req, res) => { void handler(req, res); }));
+    expect((await (await fetch(`${origin}/api/config`)).json()).signerAddress).toBeNull();
+    const post = (path: string, body: unknown) => fetch(origin + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    expect((await post("/groundhog-rpc", { jsonrpc: "2.0", id: 1, method: "groundhog_chainTip", params: [] })).status).toBe(200);
+    expect((await post("/api/prepare", { direction: "increment" })).status).toBe(503);
+    expect((await post("/api/topup", {})).status).toBe(503);
+    expect((await post("/groundhog-rpc", { jsonrpc: "2.0", id: 2, method: "groundhog_sendRawTransaction", params: [await sign()] })).status).toBe(403);
   });
 
   it.each(["increment", "decrement"] as const)(
