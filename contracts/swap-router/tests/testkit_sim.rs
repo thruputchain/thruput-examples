@@ -140,25 +140,29 @@ async fn deploy_and_init(
     // store balances and allowance records.
     fund(ctx, native, native.address()).await?;
 
-    ctx.register_artifact("swap_handler", DeployOptions::funded(0))
-        .await?;
-    ctx.register_artifact("swap_driver", DeployOptions::funded(0))
-        .await?;
+    ctx.register_artifact(
+        "swap_handler",
+        DeployOptions::funded(CONTRACT_FUNDING as u128),
+    )
+    .await?;
+    ctx.register_artifact(
+        "swap_driver",
+        DeployOptions::funded(CONTRACT_FUNDING as u128),
+    )
+    .await?;
 
-    // The two A/B token contracts (owned by us). Each is funded right after deploy so it can pay
+    // The two A/B token contracts (owned by us). Each is funded at deploy so it can pay
     // for the storage its state writes create.
     let token0 = erc20(
-        ctx.deploy_artifact("erc20", DeployOptions::funded(0))
+        ctx.deploy_artifact("erc20", DeployOptions::funded(CONTRACT_FUNDING as u128))
             .await?
             .address,
     );
-    fund(ctx, native, token0.address()).await?;
     let token1 = erc20(
-        ctx.deploy_artifact("erc20", DeployOptions::funded(0))
+        ctx.deploy_artifact("erc20", DeployOptions::funded(CONTRACT_FUNDING as u128))
             .await?
             .address,
     );
-    fund(ctx, native, token1.address()).await?;
     token0.call(ctx, "initialize", &me).await?;
     token1.call(ctx, "initialize", &me).await?;
 
@@ -170,21 +174,25 @@ async fn deploy_and_init(
     // from the router alone, so the factory has to be told the router's address -- which means
     // deploying the router first, and initializing it second.
     let factory = Contract::new(
-        ctx.deploy_artifact("swap_factory", DeployOptions::funded(0))
-            .await?
-            .address,
+        ctx.deploy_artifact(
+            "swap_factory",
+            DeployOptions::funded(CONTRACT_FUNDING as u128),
+        )
+        .await?
+        .address,
         FACTORY.0,
         FACTORY.1,
     );
-    fund(ctx, native, factory.address()).await?;
     let router = Contract::new(
-        ctx.deploy_artifact("swap_router", DeployOptions::funded(0))
-            .await?
-            .address,
+        ctx.deploy_artifact(
+            "swap_router",
+            DeployOptions::funded(CONTRACT_FUNDING as u128),
+        )
+        .await?
+        .address,
         ROUTER.0,
         ROUTER.1,
     );
-    fund(ctx, native, router.address()).await?;
 
     let hashes = SwapHashes {
         token: ctx.contract_hash("erc20")?,
@@ -504,7 +512,7 @@ fn calibrator(fee_enabled: bool) -> Agent {
 
         // A liquidity deposit, against a grown `k`.
         let add: Amount = SUPPLY / 1_000;
-        let add_i = i128::try_from(add).unwrap();
+        let add_i = add;
         s.token0
             .call(&mut ctx, "adjust_allowance", &(s.handler.address(), add_i))
             .await?;
@@ -532,12 +540,8 @@ fn calibrator(fee_enabled: bool) -> Agent {
 
         let lp_balance: Amount = s.lp.view(&ctx, "get_balance_of", &me, None).await?;
         let redeem = lp_balance / 10;
-        s.lp.call(
-            &mut ctx,
-            "adjust_allowance",
-            &(s.handler.address(), i128::try_from(redeem).unwrap()),
-        )
-        .await?;
+        s.lp.call(&mut ctx, "adjust_allowance", &(s.handler.address(), redeem))
+            .await?;
         s.router
             .call(
                 &mut ctx,
@@ -575,11 +579,7 @@ fn calibrator(fee_enabled: bool) -> Agent {
 async fn swap_a_little(ctx: &mut AgentContext, s: &Swap, me: Address) -> Result<()> {
     let amount_in: Amount = SUPPLY / 1_000;
     s.token0
-        .call(
-            ctx,
-            "adjust_allowance",
-            &(s.handler.address(), i128::try_from(amount_in).unwrap()),
-        )
+        .call(ctx, "adjust_allowance", &(s.handler.address(), amount_in))
         .await?;
     s.router
         .call(
@@ -602,7 +602,7 @@ async fn swap_a_little_exact_out(ctx: &mut AgentContext, s: &Swap, me: Address) 
         .call(
             ctx,
             "adjust_allowance",
-            &(s.handler.address(), i128::try_from(amount_in_max).unwrap()),
+            &(s.handler.address(), amount_in_max),
         )
         .await?;
     s.router

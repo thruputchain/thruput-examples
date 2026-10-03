@@ -17,7 +17,6 @@ use groundhog_testkit::{
 };
 use sdk::Event as _;
 use sdk::exn::{LibraryExn, RawException};
-use sdk::sys::{SyscallErrorCode, SyscallNo};
 use standard_token::ClawbackEvent;
 use standard_token::Config;
 use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
@@ -26,8 +25,14 @@ const ERC20: (&str, &str) = ("ERC20", "0.1.44");
 const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.44");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
 const REQUIRED_FACTORY_FUNDING: i128 = 1_000_000;
-const REQUIRED_TOKEN_FUNDING: i128 = 353_130;
-const TOKEN_SOURCE_FUNDING: i128 = 354_364;
+// Exactly what creating a token through the factory costs its new address
+// under the devnode's default cost model: the deployment (base plus the
+// artifact's bytes), the config and holder rows, and the holder's native
+// balance item. Pinned to the artifact size, so it moves when the token does.
+const REQUIRED_TOKEN_FUNDING: i128 = 363_450;
+// What to send the predicted address so that, after its own balance item is
+// paid for, exactly `REQUIRED_TOKEN_FUNDING` arrives.
+const TOKEN_SOURCE_FUNDING: i128 = 364_684;
 const ROW_FUNDING: i128 = 12_000;
 const NATIVE_TOKEN_FUNDING: i128 = 1_000_000;
 const CREATION_FEE: i128 = 25;
@@ -63,25 +68,19 @@ fn maximum_config(administrator: ContractAddress) -> Config {
     }
 }
 
-async fn deploy_factory(
-    ctx: &mut AgentContext,
-    native: &Contract,
-    config: FactoryConfig,
-) -> Result<Contract> {
+async fn deploy_factory(ctx: &mut AgentContext, config: FactoryConfig) -> Result<Contract> {
+    // The factory pays for its own storage, so the deployment carries its
+    // funding.
     let factory = Contract::new(
-        ctx.deploy_artifact("standard_token_factory", DeployOptions::funded(0))
-            .await?
-            .address,
+        ctx.deploy_artifact(
+            "standard_token_factory",
+            DeployOptions::funded(REQUIRED_FACTORY_FUNDING as u128),
+        )
+        .await?
+        .address,
         FACTORY.0,
         FACTORY.1,
     );
-    native
-        .call(
-            ctx,
-            "transfer",
-            &(factory.address(), REQUIRED_FACTORY_FUNDING),
-        )
-        .await?;
     factory.call(ctx, "initialize", &config).await?;
     let stored: FactoryConfig = factory.view(ctx, "config", &(), None).await?;
     assert_eq!(stored, config);
@@ -129,6 +128,22 @@ async fn balance(ctx: &AgentContext, contract: &Contract, owner: ContractAddress
 
 async fn reserve(ctx: &AgentContext, native: &Contract, address: ContractAddress) -> Result<i128> {
     balance(ctx, native, address).await
+}
+
+/// A call that aborted inside the account's default wallet. The wallet made
+/// the call on the account's behalf and reports the abort as its own
+/// `WalletError::CallAborted` (variant 5); the callee's exception, such as the
+/// factory's `TokenFactoryError`, is not forwarded through it.
+fn assert_wallet_call_aborted(receipt: &TransactionReceipt) {
+    assert!(matches!(receipt.status, ExecStatus::Reverted { .. }));
+    let abort = receipt
+        .abort_data
+        .as_ref()
+        .expect("an aborted call carries the wallet's exception");
+    let exception = RawException::from_abort_buf(&abort.0).expect("decode the wallet's exception");
+    assert!(exception.try_as::<LibraryExn>().is_none());
+    assert!(exception.try_as::<TokenFactoryError>().is_none());
+    assert_eq!(exception.payload(), [5]);
 }
 
 fn assert_transfer(
@@ -501,7 +516,10 @@ fn creator_agent() -> Agent {
         let native = native_token();
 
         let registration = ctx
-            .register_artifact("standard_token", DeployOptions::funded(0))
+            .register_artifact(
+                "standard_token",
+                DeployOptions::funded(NATIVE_TOKEN_FUNDING as u128),
+            )
             .await?;
         assert!(registration.registered);
         assert!(ctx.is_registered("standard_token")?);
@@ -509,7 +527,6 @@ fn creator_agent() -> Agent {
 
         let unavailable_factory = deploy_factory(
             &mut ctx,
-            &native,
             FactoryConfig {
                 token_code_hash: SHA256Hash::from([0xff; 32]),
                 required_token_funding: REQUIRED_TOKEN_FUNDING,
@@ -545,19 +562,7 @@ fn creator_agent() -> Agent {
             ExecStatus::Reverted { .. }
         ));
         assert!(unavailable_receipt.events.is_empty());
-        let unavailable_abort = unavailable_receipt
-            .abort_data
-            .as_ref()
-            .expect("unavailable artifact returns an SDK exception");
-        let unavailable_exception = RawException::from_abort_buf(&unavailable_abort.0)
-            .expect("decode unavailable artifact exception");
-        let library = unavailable_exception
-            .try_as::<LibraryExn>()
-            .expect("unavailable artifact is a library exception");
-        assert!(library.as_syscall_exn().unwrap().is(
-            SyscallNo::kDeployContract,
-            SyscallErrorCode::kSyscallErrorCodeInvalidSyscallInput,
-        ));
+        assert_wallet_call_aborted(&unavailable_receipt);
         assert_eq!(
             reserve(&ctx, &native, unavailable_address).await?,
             unavailable_reserve
@@ -579,7 +584,7 @@ fn creator_agent() -> Agent {
             creation_fee: 0,
             fee_recipient: None,
         };
-        let factory = deploy_factory(&mut ctx, &native, factory_config).await?;
+        let factory = deploy_factory(&mut ctx, factory_config).await?;
         let published: i128 = factory
             .view(&ctx, "required_token_funding", &(), None)
             .await?;
@@ -603,16 +608,7 @@ fn creator_agent() -> Agent {
             ExecStatus::Reverted { .. }
         ));
         assert!(underfunded_receipt.events.is_empty());
-        let underfunded_abort = underfunded_receipt
-            .abort_data
-            .as_ref()
-            .expect("underfunded creation returns a factory exception");
-        assert_eq!(
-            RawException::from_abort_buf(&underfunded_abort.0)
-                .expect("decode underfunded exception")
-                .try_as::<TokenFactoryError>(),
-            Some(TokenFactoryError::InsufficientTokenFunding)
-        );
+        assert_wallet_call_aborted(&underfunded_receipt);
         assert!(
             indexed_created_events(&ctx, factory.address(), underfunded_receipt.height)
                 .await?
@@ -783,7 +779,6 @@ fn creator_agent() -> Agent {
 
         let fee_factory = deploy_factory(
             &mut ctx,
-            &native,
             FactoryConfig {
                 token_code_hash: token_hash,
                 required_token_funding: REQUIRED_TOKEN_FUNDING,

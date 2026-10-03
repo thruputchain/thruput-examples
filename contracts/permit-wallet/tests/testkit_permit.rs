@@ -66,21 +66,6 @@ const NONCE: u64 = 7;
 /// and allowances. The relayer keeps no state and needs none.
 const CONTRACT_FUNDING: i128 = 1_000_000_000;
 
-/// The devnode's native token contract, at the genesis precompile address
-/// `0x00…01`, speaking the ERC20 interface.
-fn native_token() -> Contract {
-    let mut bytes = [0u8; 32];
-    bytes[31] = 1;
-    Contract::new(ContractAddress::from(bytes), "ERC20", "0.1.3")
-}
-
-async fn fund(ctx: &mut AgentContext, native: &Contract, target: Address) -> Result<()> {
-    native
-        .call(ctx, "transfer", &(target, CONTRACT_FUNDING))
-        .await?;
-    Ok(())
-}
-
 fn alice_public_key() -> Ed25519PublicKey {
     Ed25519PublicKey::from(
         SigningKey::from_bytes(&ALICE_SEED)
@@ -160,27 +145,31 @@ fn sign_request(
 /// As admin: deploy and fund the token and Alice's wallet, deploy the
 /// relayer, initialize both stateful contracts, and mint Alice's balance to
 /// her wallet.
-async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<PermitConfig> {
+async fn deploy_and_init(ctx: &mut AgentContext) -> Result<PermitConfig> {
     let me = ctx.address();
 
     let token = Contract::new(
-        ctx.deploy_artifact("erc20", DeployOptions::funded(0))
+        ctx.deploy_artifact("erc20", DeployOptions::funded(CONTRACT_FUNDING as u128))
             .await?
             .address,
         ERC20.0,
         ERC20.1,
     );
-    fund(ctx, native, token.address()).await?;
     let wallet = Contract::new(
-        ctx.deploy_artifact("permit_wallet", DeployOptions::funded(0))
-            .await?
-            .address,
+        ctx.deploy_artifact(
+            "permit_wallet",
+            DeployOptions::funded(CONTRACT_FUNDING as u128),
+        )
+        .await?
+        .address,
         WALLET.0,
         WALLET.1,
     );
-    fund(ctx, native, wallet.address()).await?;
     let relayer = ctx
-        .deploy_artifact("permit_relayer", DeployOptions::funded(0))
+        .deploy_artifact(
+            "permit_relayer",
+            DeployOptions::funded(CONTRACT_FUNDING as u128),
+        )
         .await?
         .address;
 
@@ -207,8 +196,7 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Pe
 
 fn admin() -> Agent {
     Agent::new("admin", |mut ctx| async move {
-        let native = native_token();
-        let cfg = deploy_and_init(&mut ctx, &native).await?;
+        let cfg = deploy_and_init(&mut ctx).await?;
 
         // The spender announces itself, then gets the addresses.
         let spender = ctx

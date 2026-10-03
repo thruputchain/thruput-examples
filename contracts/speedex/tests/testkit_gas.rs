@@ -350,9 +350,9 @@ fn decode_wallet<R: for<'r> ReadXDR<'r>>(receipt: &TransactionReceipt) -> R {
 }
 
 /// Deploy an artifact in a block of its own.
-async fn deploy(ctx: &mut AgentContext, name: &str) -> Result<ContractAddress> {
+async fn deploy(ctx: &mut AgentContext, name: &str, amount: u128) -> Result<ContractAddress> {
     let submitted = ctx
-        .submit_deploy_artifact(name, DeployOptions::funded(0))
+        .submit_deploy_artifact(name, DeployOptions::funded(amount))
         .await?;
     submitted.await_pending().await?;
     ctx.network().produce_block().await?;
@@ -384,8 +384,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
 
         let mut tokens: Vec<Contract> = Vec::new();
         for _ in 0..n {
-            let address = deploy(&mut ctx, "erc20").await?;
-            fund(&mut ctx, address, TOKEN_FUNDING).await?;
+            let address = deploy(&mut ctx, "erc20", TOKEN_FUNDING).await?;
             let token = Contract::new(address, ERC20.0, ERC20.1);
             call(&mut ctx, &token, "initialize", &me).await?;
             call(&mut ctx, &token, "mint", &(me, SUPPLY)).await?;
@@ -404,8 +403,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
                 .collect();
             for offers in sizes {
                 println!("-- {n} assets, {offers} offers");
-                let address = deploy(&mut ctx, "speedex").await?;
-                fund(&mut ctx, address, EXCHANGE_FUNDING).await?;
+                let address = deploy(&mut ctx, "speedex", EXCHANGE_FUNDING).await?;
                 let exchange = Contract::new(address, SPEEDEX.0, SPEEDEX.1);
                 let mut assets = [zero; MAX_ASSETS];
                 for (a, token) in assets.iter_mut().zip(&tokens).take(n) {
