@@ -13,7 +13,7 @@ use stellar_account_factory::{
 const ROOT: ContractAddress = ContractAddress::new([0x10; 32]);
 const FACTORY: ContractAddress = ContractAddress::new([0x50; 32]);
 const NATIVE: ContractAddress = ContractAddress::new([0x60; 32]);
-const REQUIRED_FUNDING: u128 = 100;
+const REQUIRED_FUNDING: i128 = 100;
 
 fn key(seed: u8) -> Ed25519PublicKey {
     Ed25519PublicKey::from(
@@ -59,7 +59,7 @@ fn address_of(s: &Setup, master: Ed25519PublicKey) -> ContractAddress {
     r.assert_return_as()
 }
 
-fn fund(s: &Setup, to: ContractAddress, amount: u128) {
+fn fund(s: &Setup, to: ContractAddress, amount: i128) {
     s.env
         .transact(|tx| {
             tx.call(&ROOT)

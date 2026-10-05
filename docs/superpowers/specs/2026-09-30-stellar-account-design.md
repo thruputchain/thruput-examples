@@ -173,10 +173,10 @@ High threshold:
 
 Medium threshold:
 
-- `payment(asset: ContractAddress, to: ContractAddress, amount: u128)`: ERC20 `transfer` from the
+- `payment(asset: ContractAddress, to: ContractAddress, amount: Amount)`: ERC20 `transfer` from the
   account via `groundhog-erc20-if`. Native HOG is the ERC20 at
   `sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN`, so one entry point covers both.
-- `create_account(factory: ContractAddress, master_key: Ed25519PublicKey, starting_balance: u128) -> ContractAddress`:
+- `create_account(factory: ContractAddress, master_key: Ed25519PublicKey, starting_balance: Amount) -> ContractAddress`:
   reads the factory's `config()`, derives the address locally with `account_address` and the
   configured code hash, pays `starting_balance` of the configured native token to it, calls the
   factory's `create_account`, and throws `CallFaulted` unless the factory returns that same
@@ -196,7 +196,8 @@ reasoning as `permit-wallet` applies.
 ## Factory entry points
 
 - `initialize(config: FactoryConfig)`: once; `required_funding >= 1` else `InvalidConfig`.
-  `FactoryConfig { account_code_hash: SHA256Hash, native_token: ContractAddress, required_funding: u128 }`.
+  `FactoryConfig { account_code_hash: SHA256Hash, native_token: ContractAddress, required_funding: Amount }`.
+  `Amount = i128` re-exported from `groundhog-erc20-if`.
 - `create_account(master_key: Ed25519PublicKey) -> ContractAddress`: as in the creation flow.
   Throws `InsufficientFunding` if the predicted address holds less than `required_funding`,
   `AddressMismatch` if the deployed address differs from the prediction.

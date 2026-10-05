@@ -32,7 +32,7 @@ pub const RECEIVER: ContractAddress = ContractAddress::new([0x40; 32]);
 pub const MASTER_SEED: [u8; 32] = [0x11; 32];
 pub const SECOND_SEED: [u8; 32] = [0x22; 32];
 
-pub const MINTED: u128 = 1_000;
+pub const MINTED: i128 = 1_000;
 
 /// Every slot the chain has. hogd rejects a bitmap with any bit at or past
 /// slot 21 (`kMaxSigners`) as `kAuthMalformed`.
@@ -132,13 +132,13 @@ pub fn setup_with_hash() -> (TestEnvironmentHandle, SHA256Hash) {
     (env, account_hash)
 }
 
-pub fn balance_of(env: &TestEnvironmentHandle, who: ContractAddress) -> u128 {
+pub fn balance_of(env: &TestEnvironmentHandle, who: ContractAddress) -> i128 {
     let result = env.transact(|tx| {
         tx.call(&ROOT)
             .run(move || erc20::ERC20Client::new(&TOKEN).get_balance_of(&who))
     });
     result.assert_success();
-    result.assert_return_as::<u128>()
+    result.assert_return_as::<i128>()
 }
 
 /// Whether the chain would admit a transaction to `ACCOUNT` claiming

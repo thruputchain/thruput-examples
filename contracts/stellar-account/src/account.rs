@@ -1,6 +1,6 @@
 //! The account contract: storage, authorization preamble, entry points.
 
-use groundhog_erc20_if::ERC20Client;
+use groundhog_erc20_if::{Amount, ERC20Client};
 use sdk::call::{CallOutcome, ReturnBuf, contract_call};
 use sdk::storage::Value;
 use sdk::sys::{SyscallErrorCode, SyscallNo};
@@ -153,7 +153,7 @@ impl StellarAccount {
     /// Stellar's `payment`: an ERC20 transfer from this account. Native HOG
     /// is the ERC20 at `sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN`.
     /// Medium threshold.
-    pub fn payment(&self, asset: &ContractAddress, to: &ContractAddress, amount: u128) {
+    pub fn payment(&self, asset: &ContractAddress, to: &ContractAddress, amount: Amount) {
         self.authorize(Category::Medium);
         ERC20Client::new(asset).transfer(to, amount);
     }
@@ -226,7 +226,7 @@ impl StellarAccount {
         &self,
         factory: &ContractAddress,
         master_key: &Ed25519PublicKey,
-        starting_balance: u128,
+        starting_balance: Amount,
     ) -> ContractAddress {
         self.authorize(Category::Medium);
         let client = StellarAccountFactoryClient::new(factory);

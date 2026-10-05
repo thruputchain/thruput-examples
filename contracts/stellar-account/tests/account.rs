@@ -24,7 +24,7 @@ fn erc20_transfer_entrypoint() -> ContractEntrypointID {
 #[test]
 fn invoke_forwards_opaque_calldata_and_returns_the_child_bytes() {
     let env = setup();
-    let calldata = sdk::xdr::cxs::encode(&(RECEIVER, 100u128)).unwrap();
+    let calldata = sdk::xdr::cxs::encode(&(RECEIVER, 100i128)).unwrap();
     let result = as_account(&env, claim(1), |a| {
         a.invoke(&TOKEN, erc20_transfer_entrypoint(), u64::MAX, &calldata)
     });
@@ -215,6 +215,22 @@ fn payment_beyond_the_balance_surfaces_the_token_error() {
     }
 }
 
+#[test]
+fn payment_with_a_negative_amount_surfaces_the_erc20_error() {
+    let env = setup();
+    let result = as_account(&env, claim(1), |a| a.payment(&TOKEN, &RECEIVER, -1));
+    result.assert_abort();
+    match into_root_call_result::<()>(&result) {
+        Err(sdk::call::RawCallError::Exception(error)) => {
+            assert!(
+                error.try_as::<erc20::ERC20Error>().is_some(),
+                "an ERC20 error, got {error:?}"
+            );
+        }
+        other => panic!("expected an ERC20 exception, got {other:?}"),
+    }
+}
+
 fn weights(env: &TestEnvironmentHandle) -> [u32; MAX_SIGNERS] {
     let result = env.transact(|tx| {
         tx.call(&ROOT)
@@ -371,7 +387,7 @@ fn master_weight_zero_disables_slot_zero_but_the_master_key_is_unchanged() {
 }
 
 const FACTORY: ContractAddress = ContractAddress::new([0x50; 32]);
-const STARTING_BALANCE: u128 = 300;
+const STARTING_BALANCE: i128 = 300;
 
 /// A factory whose native token is `TOKEN`, so the account's `MINTED`
 /// balance is what funds a new account. `account_hash` comes from

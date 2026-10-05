@@ -2861,6 +2861,7 @@ dependencies = [
 name = "stellar-account-factory-if"
 version = "0.1.0"
 dependencies = [
+ "groundhog-erc20-if",
  "groundhog-signing",
  "sdk",
  "sha2 0.11.0",

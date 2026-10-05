@@ -6,6 +6,7 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
+pub use groundhog_erc20_if::Amount;
 use sdk::*;
 pub use sdk::{ContractAddress, Ed25519PublicKey, SHA256Hash};
 
@@ -20,7 +21,7 @@ pub struct FactoryConfig {
     /// Native HOG an account address must hold before it can be created:
     /// Stellar's starting balance, and where hogd's deployment storage charge
     /// lands.
-    pub required_funding: u128,
+    pub required_funding: Amount,
 }
 
 /// Why the factory refused.

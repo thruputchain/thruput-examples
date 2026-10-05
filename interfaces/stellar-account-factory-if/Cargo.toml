@@ -16,6 +16,7 @@ doctest = false
 
 [dependencies]
 sdk = { workspace = true }
+groundhog-erc20-if = { workspace = true }
 thiserror = { workspace = true, optional = true }
 # `dev`-only off-chain address derivation (`account_address_offchain`).
 groundhog-signing = { workspace = true, optional = true }
@@ -25,4 +26,4 @@ sha2 = { workspace = true, optional = true }
 stellar-account-factory-if = { path = ".", features = ["dev"] }
 
 [features]
-dev = ["sdk/dev", "dep:thiserror", "dep:groundhog-signing", "dep:sha2"]
+dev = ["sdk/dev", "groundhog-erc20-if/dev", "dep:thiserror", "dep:groundhog-signing", "dep:sha2"]
