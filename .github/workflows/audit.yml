@@ -16,6 +16,9 @@ jobs:
     with:
       checks: advisories
       registry-name: groundhog
+      # Same reason as ci.yml: the manifest needs nightly cargo to parse. Must
+      # match rust-toolchain.toml; CI's quality-checks verifies that.
+      toolchain: nightly-2026-07-01
     secrets:
       registry-token: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
 

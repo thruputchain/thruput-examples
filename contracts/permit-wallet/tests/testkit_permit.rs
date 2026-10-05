@@ -25,13 +25,13 @@ use std::path::PathBuf;
 
 use ed25519_dalek::{Signer, SigningKey};
 use groundhog_domain_separator::SignedOp as SignedOpPreimage;
-use groundhog_erc20_permit_if::{ClearAllowanceRequest, PermitRequest};
+use groundhog_erc20_permit_if::{DeleteAllowanceRequest, PermitRequest};
 use groundhog_json_rpc_client::GroundhogApiClient;
 use groundhog_signed_op_if::Operation;
 use groundhog_testkit::xdr::types::ContractAddress;
 use groundhog_testkit::{
-    Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Result, Scenario,
-    TestkitError, xdrs,
+    Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Result,
+    Scenario, TestkitError, xdrs,
 };
 use permit_wallet::WalletRequest;
 use sdk::types::transaction::Uniquifier;
@@ -43,7 +43,7 @@ type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as
 // recorded in each `*.spec.json`; the testkit derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.42");
+const ERC20: (&str, &str) = ("ERC20", "0.1.44");
 const WALLET: (&str, &str) = ("PermitWallet", "0.1.0");
 const RELAYER: (&str, &str) = ("PermitRelayer", "0.1.0");
 
@@ -51,8 +51,8 @@ const RELAYER: (&str, &str) = ("PermitRelayer", "0.1.0");
 /// and no transaction is ever signed with it.
 const ALICE_SEED: [u8; 32] = [0x11; 32];
 
-const MINTED: u128 = 1_000;
-const GRANTED: u128 = 250;
+const MINTED: i128 = 1_000;
+const GRANTED: i128 = 250;
 
 /// Blocks past the tip at signing time during which the permit stays valid.
 const HORIZON: i64 = 1_000;
@@ -64,22 +64,7 @@ const NONCE: u64 = 7;
 /// Native (HOG) storage tokens the admin grants each contract that writes
 /// storage: the wallet records consumed permits, the token records balances
 /// and allowances. The relayer keeps no state and needs none.
-const CONTRACT_FUNDING: u128 = 1_000_000_000;
-
-/// The devnode's native token contract, at the genesis precompile address
-/// `0x00…01`, speaking the ERC20 interface.
-fn native_token() -> Contract {
-    let mut bytes = [0u8; 32];
-    bytes[31] = 1;
-    Contract::new(ContractAddress::from(bytes), "ERC20", "0.1.3")
-}
-
-async fn fund(ctx: &mut AgentContext, native: &Contract, target: Address) -> Result<()> {
-    native
-        .call(ctx, "transfer", &(target, CONTRACT_FUNDING))
-        .await?;
-    Ok(())
-}
+const CONTRACT_FUNDING: i128 = 1_000_000_000;
 
 fn alice_public_key() -> Ed25519PublicKey {
     Ed25519PublicKey::from(
@@ -160,22 +145,33 @@ fn sign_request(
 /// As admin: deploy and fund the token and Alice's wallet, deploy the
 /// relayer, initialize both stateful contracts, and mint Alice's balance to
 /// her wallet.
-async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<PermitConfig> {
+async fn deploy_and_init(ctx: &mut AgentContext) -> Result<PermitConfig> {
     let me = ctx.address();
 
     let token = Contract::new(
-        ctx.deploy_artifact("erc20").await?.address,
+        ctx.deploy_artifact("erc20", DeployOptions::funded(CONTRACT_FUNDING as u128))
+            .await?
+            .address,
         ERC20.0,
         ERC20.1,
     );
-    fund(ctx, native, token.address()).await?;
     let wallet = Contract::new(
-        ctx.deploy_artifact("permit_wallet").await?.address,
+        ctx.deploy_artifact(
+            "permit_wallet",
+            DeployOptions::funded(CONTRACT_FUNDING as u128),
+        )
+        .await?
+        .address,
         WALLET.0,
         WALLET.1,
     );
-    fund(ctx, native, wallet.address()).await?;
-    let relayer = ctx.deploy_artifact("permit_relayer").await?.address;
+    let relayer = ctx
+        .deploy_artifact(
+            "permit_relayer",
+            DeployOptions::funded(CONTRACT_FUNDING as u128),
+        )
+        .await?
+        .address;
 
     token.call(ctx, "initialize", &me).await?;
     // The admin can rotate Alice's key; Alice's key authorizes permits.
@@ -200,8 +196,7 @@ async fn deploy_and_init(ctx: &mut AgentContext, native: &Contract) -> Result<Pe
 
 fn admin() -> Agent {
     Agent::new("admin", |mut ctx| async move {
-        let native = native_token();
-        let cfg = deploy_and_init(&mut ctx, &native).await?;
+        let cfg = deploy_and_init(&mut ctx).await?;
 
         // The spender announces itself, then gets the addresses.
         let spender = ctx
@@ -217,10 +212,10 @@ fn admin() -> Agent {
             .await
             .expect("bug: spender closed before finishing")?;
         let token = Contract::new(cfg.token, ERC20.0, ERC20.1);
-        let wallet_balance: u128 = token
+        let wallet_balance: i128 = token
             .view(&ctx, "get_balance_of", &cfg.wallet, None)
             .await?;
-        let spender_balance: u128 = token.view(&ctx, "get_balance_of", &spender, None).await?;
+        let spender_balance: i128 = token.view(&ctx, "get_balance_of", &spender, None).await?;
         assert_eq!(wallet_balance, MINTED - GRANTED, "the wallet was debited");
         assert_eq!(spender_balance, GRANTED, "the spender was credited");
         println!("admin: wallet holds {wallet_balance}, spender holds {spender_balance}");
@@ -258,7 +253,7 @@ fn spender() -> Agent {
         relayer
             .call(&mut ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
             .await?;
-        let allowance: u128 = token
+        let allowance: i128 = token
             .view(&ctx, "allowance", &(cfg.wallet, me), None)
             .await?;
         assert_eq!(
@@ -270,7 +265,7 @@ fn spender() -> Agent {
         token
             .call(&mut ctx, "transfer_from", &(cfg.wallet, me, GRANTED))
             .await?;
-        let balance: u128 = token.view(&ctx, "get_balance_of", &me, None).await?;
+        let balance: i128 = token.view(&ctx, "get_balance_of", &me, None).await?;
         assert_eq!(balance, GRANTED, "transfer_from moved the granted amount");
 
         // The same bytes again: the wallet already consumed this
@@ -284,7 +279,7 @@ fn spender() -> Agent {
             Err(TestkitError::Reverted { .. }) => {}
             other => panic!("a replayed permit should revert, got {other:?}"),
         }
-        let allowance: u128 = token
+        let allowance: i128 = token
             .view(&ctx, "allowance", &(cfg.wallet, me), None)
             .await?;
         assert_eq!(allowance, 0, "the replay added nothing");
@@ -295,7 +290,7 @@ fn spender() -> Agent {
         relayer
             .call(&mut ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
             .await?;
-        let allowance: u128 = token
+        let allowance: i128 = token
             .view(&ctx, "allowance", &(cfg.wallet, me), None)
             .await?;
         assert_eq!(
@@ -304,8 +299,8 @@ fn spender() -> Agent {
         );
 
         // Alice takes it back with a signed clear. The same relayer carries
-        // it, reads the body, and hands the grant to `clear_allowance_signed`.
-        let clear = WalletRequest::ClearAllowance(ClearAllowanceRequest {
+        // it, reads the body, and hands the grant to `delete_allowance_signed`.
+        let clear = WalletRequest::DeleteAllowance(DeleteAllowanceRequest {
             token: sdk_address(&cfg.token),
             spender: sdk_address(&me),
         });
@@ -313,12 +308,12 @@ fn spender() -> Agent {
         relayer
             .call(&mut ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
             .await?;
-        let allowance: u128 = token
+        let allowance: i128 = token
             .view(&ctx, "allowance", &(cfg.wallet, me), None)
             .await?;
         assert_eq!(allowance, 0, "the relayed clear revoked the allowance");
         match token
-            .call(&mut ctx, "transfer_from", &(cfg.wallet, me, 1u128))
+            .call(&mut ctx, "transfer_from", &(cfg.wallet, me, 1i128))
             .await
         {
             Err(TestkitError::Reverted { .. }) => {}
@@ -356,6 +351,7 @@ async fn permit_signed_off_chain_relayed_on_chain() {
     }
 
     let scenario = Scenario::builder("permit-live")
+        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
         .artifact("permit_wallet", artifact("permit_wallet.rv32a"))

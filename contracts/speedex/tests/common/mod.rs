@@ -152,14 +152,14 @@ impl Exchange {
     /// reads the state its block began with, so a balance minted in one block is spendable and
     /// readable only from the next.)
     pub fn mint(&self, user: &ContractAddress, asset: u32, amount: u128) {
-        self.as_user(&TEST, || self.token(asset).mint(user, amount))
+        self.as_user(&TEST, || self.token(asset).mint(user, amount as i128))
             .expect("mint");
         self.advance_block();
     }
 
     pub fn balances(&self, who: &ContractAddress) -> [u128; N] {
         self.as_user(&TEST, || {
-            [A, B, C].map(|asset| self.token(asset).get_balance_of(who))
+            [A, B, C].map(|asset| self.token(asset).get_balance_of(who) as u128)
         })
         .expect("balances")
     }
@@ -184,7 +184,7 @@ impl Exchange {
         let result = self
             .as_user(user, || {
                 self.token(sell)
-                    .adjust_allowance(&self.addr, amount as i128, false);
+                    .adjust_allowance(&self.addr, amount as i128);
                 self.client().try_submit_offer(sell, buy, amount, min_price)
             })
             .expect("submit transaction");

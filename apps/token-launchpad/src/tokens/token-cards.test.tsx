@@ -38,6 +38,7 @@ it("loads all visible balances concurrently and isolates account changes and fai
       output: { result: "return", returnData: data.finish() },
       height: 1n,
       events: [],
+      gasUsed: 0n,
     };
   });
   const tokens = Array.from({ length: 20 }, (_, i) => ({

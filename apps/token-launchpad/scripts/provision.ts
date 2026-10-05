@@ -40,7 +40,7 @@ type FactoryConfig = standard_token_factory_if.v0_1.factory.FactoryConfig;
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 const CONTRACT_FUNDING = 10_000_000n;
-const REQUIRED_TOKEN_FUNDING = 360_000n;
+const REQUIRED_TOKEN_FUNDING = 370_000n;
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
 export async function provisionLaunchpad(options: {
@@ -172,7 +172,7 @@ export async function provisionLaunchpad(options: {
       }
     }
     const { txHash, address: factoryAddress } =
-      await wallet.deployContractAndWait(deployment, GAS_LIMIT, {
+      await wallet.deployContractAndWait(deployment, { gasLimit: GAS_LIMIT, amount: 0n }, {
         timeoutMs: 60_000,
       });
     console.log(`Deploy token factory: ${toHex0x(txHash)}`);

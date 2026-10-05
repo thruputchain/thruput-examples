@@ -26,8 +26,11 @@ impl Ctx {
 
 impl Ctx {
     pub fn my_balances(&self) -> (Amounts, Amount) {
-        let token_balances = [self.token0().get_balance(), self.token1().get_balance()];
-        let lp_balance = self.lp().get_balance();
+        let token_balances = [
+            from_token(self.token0().get_balance()),
+            from_token(self.token1().get_balance()),
+        ];
+        let lp_balance = from_token(self.lp().get_balance());
 
         (token_balances, lp_balance)
     }
@@ -40,27 +43,27 @@ impl Ctx {
 
     // As a user, send all my AB-tokens to the pair.
     pub fn user_deposit_tokens(&self, _user: &User) {
-        let amt0 = self.token0().get_balance();
-        let amt1 = self.token1().get_balance();
+        let amt0 = from_token(self.token0().get_balance());
+        let amt1 = from_token(self.token1().get_balance());
 
-        self.token0().transfer(&self.pair_addr, amt0);
-        self.token1().transfer(&self.pair_addr, amt1);
+        self.token0().transfer(&self.pair_addr, to_token(amt0));
+        self.token1().transfer(&self.pair_addr, to_token(amt1));
 
         // My accounts should be drained
-        assert_eq!(0, self.token0().get_balance());
-        assert_eq!(0, self.token1().get_balance());
+        assert_eq!(0, from_token(self.token0().get_balance()));
+        assert_eq!(0, from_token(self.token1().get_balance()));
     }
 
     // As a user, send all my LP tokens back to the pair.
     pub fn user_deposit_lp(&self, user: &User) {
         let lp = self.lp();
 
-        let return_amt = lp.get_balance();
-        lp.transfer(&self.pair_addr, return_amt);
+        let return_amt = from_token(lp.get_balance());
+        lp.transfer(&self.pair_addr, to_token(return_amt));
         println!("> {} redeemed {:.3} LP", user.name, decimalized(return_amt));
 
         // I should have zero LP tokens now
-        assert_eq!(lp.get_balance(), 0);
+        assert_eq!(from_token(lp.get_balance()), 0);
     }
 
     // Make sure we're not holding any LP tokens

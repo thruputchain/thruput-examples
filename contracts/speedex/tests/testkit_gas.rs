@@ -43,15 +43,15 @@ use groundhog_testkit::rpc_types::runtime_manifest::{RuntimeManifest, parse_runt
 use groundhog_testkit::xdr::types::{ContractAddress, NetworkHash};
 use groundhog_testkit::xdrs::{self, ReadXDR, WriteXDR};
 use groundhog_testkit::{
-    Agent, AgentContext, BlockDriverConfig, Contract, LocalNetworkConfig, NetworkConfig, Result,
-    Scenario, TestkitError, entrypoint_id,
+    Agent, AgentContext, BlockDriverConfig, Contract, DeployOptions, LocalNetworkConfig,
+    NetworkConfig, Result, Scenario, TestkitError, entrypoint_id,
 };
 use speedex::engine::{Grid, MAX_ASSETS};
 use speedex::max_clear_cells_in;
 use synthetic::{Rng, Shape};
 
 /// Interface identities the artifacts stamp; `entrypoint_id` derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.42");
+const ERC20: (&str, &str) = ("ERC20", "0.1.44");
 const SPEEDEX: (&str, &str) = ("Speedex", "0.1.0");
 /// The node's default wallet, which serves every key-pair account: `execute` runs a list of
 /// calls from the account, and takes calldata of any length.
@@ -350,8 +350,10 @@ fn decode_wallet<R: for<'r> ReadXDR<'r>>(receipt: &TransactionReceipt) -> R {
 }
 
 /// Deploy an artifact in a block of its own.
-async fn deploy(ctx: &mut AgentContext, name: &str) -> Result<ContractAddress> {
-    let submitted = ctx.submit_deploy_artifact(name).await?;
+async fn deploy(ctx: &mut AgentContext, name: &str, amount: u128) -> Result<ContractAddress> {
+    let submitted = ctx
+        .submit_deploy_artifact(name, DeployOptions::funded(amount))
+        .await?;
     submitted.await_pending().await?;
     ctx.network().produce_block().await?;
     Ok(submitted.await_receipt().await?.address)
@@ -382,8 +384,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
 
         let mut tokens: Vec<Contract> = Vec::new();
         for _ in 0..n {
-            let address = deploy(&mut ctx, "erc20").await?;
-            fund(&mut ctx, address, TOKEN_FUNDING).await?;
+            let address = deploy(&mut ctx, "erc20", TOKEN_FUNDING).await?;
             let token = Contract::new(address, ERC20.0, ERC20.1);
             call(&mut ctx, &token, "initialize", &me).await?;
             call(&mut ctx, &token, "mint", &(me, SUPPLY)).await?;
@@ -402,8 +403,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
                 .collect();
             for offers in sizes {
                 println!("-- {n} assets, {offers} offers");
-                let address = deploy(&mut ctx, "speedex").await?;
-                fund(&mut ctx, address, EXCHANGE_FUNDING).await?;
+                let address = deploy(&mut ctx, "speedex", EXCHANGE_FUNDING).await?;
                 let exchange = Contract::new(address, SPEEDEX.0, SPEEDEX.1);
                 let mut assets = [zero; MAX_ASSETS];
                 for (a, token) in assets.iter_mut().zip(&tokens).take(n) {
@@ -428,7 +428,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
                         &mut ctx,
                         token,
                         "adjust_allowance",
-                        &(address, i128::try_from(SUPPLY).unwrap(), false),
+                        &(address, i128::try_from(SUPPLY).unwrap()),
                     )
                     .await?;
                 }
@@ -456,7 +456,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
                     for s in &submitted {
                         let receipt = s.await_receipt().await?;
                         if first.is_none() {
-                            let id: [u8; 32] = decode(&receipt);
+                            let id: [u8; 32] = decode_wallet(&receipt);
                             first = Some(id);
                             let offer: Option<Offer> =
                                 exchange.view(&ctx, "offer", &id, None).await?;
@@ -612,6 +612,7 @@ async fn clearing_gas() {
     let rows = Arc::new(Mutex::new(Vec::new()));
     for &n in &ASSETS {
         let scenario = Scenario::builder("speedex-gas")
+            .bootstrap_accounts()
             .network(NetworkConfig::local(config.clone()))
             .artifact("erc20", artifact("erc20.rv32a"))
             .artifact("speedex", artifact("speedex.rv32a"))

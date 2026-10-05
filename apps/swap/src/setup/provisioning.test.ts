@@ -295,10 +295,10 @@ describe("infrastructure-only swap provisioning", () => {
         (name) => contract(name),
       ),
     );
-    for (const [deployment, gasLimit, options] of mocks.deployContractAndWait
+    for (const [deployment, deployOptions, options] of mocks.deployContractAndWait
       .mock.calls) {
       expect(deployment.deployer).toEqual(account.address);
-      expect(gasLimit).toBe(gas);
+      expect(deployOptions).toEqual({ gasLimit: gas, amount: 0n });
       expect(options).toEqual({ timeoutMs: 60_000 });
     }
     expect(

@@ -33,7 +33,7 @@ fn carol() -> ContractAddress {
 
 /// The token deployed, initialized under `admin`, and `minted` units at Alice
 /// -- all committed, because the block that wrote them has been advanced past.
-fn setup(minted: u128) -> TestEnvironmentHandle {
+fn setup(minted: i128) -> TestEnvironmentHandle {
     let env = TestEnvironment::no_cost();
     erc20::register_mock_contract(&env).deploy_contract_to(&token());
 
@@ -53,7 +53,7 @@ fn transfer(
     env: &TestEnvironmentHandle,
     from: ContractAddress,
     to: ContractAddress,
-    amount: u128,
+    amount: i128,
 ) -> TransactResult {
     env.transact(|tx| {
         tx.call(&from)
@@ -61,22 +61,22 @@ fn transfer(
     })
 }
 
-fn balance_of(env: &TestEnvironmentHandle, who: ContractAddress) -> u128 {
+fn balance_of(env: &TestEnvironmentHandle, who: ContractAddress) -> i128 {
     let result = env.transact(|tx| {
         tx.call(&admin())
             .run(move || ERC20Client::new(&token()).get_balance_of(&who))
     });
     result.assert_success();
-    result.assert_return_as::<u128>()
+    result.assert_return_as::<i128>()
 }
 
-fn total_supply(env: &TestEnvironmentHandle) -> u128 {
+fn total_supply(env: &TestEnvironmentHandle) -> i128 {
     let result = env.transact(|tx| {
         tx.call(&admin())
             .run(|| ERC20Client::new(&token()).total_supply())
     });
     result.assert_success();
-    result.assert_return_as::<u128>()
+    result.assert_return_as::<i128>()
 }
 
 #[track_caller]
@@ -176,7 +176,7 @@ fn an_approval_is_not_spendable_in_its_own_block() {
 
     env.transact(|tx| {
         tx.call(&alice())
-            .run(|| ERC20Client::new(&token()).adjust_allowance(&bob(), 40, false))
+            .run(|| ERC20Client::new(&token()).adjust_allowance(&bob(), 40))
     })
     .assert_success();
 
@@ -203,7 +203,7 @@ fn an_allowance_spend_merges_with_the_owners_own_debit() {
 
     env.transact(|tx| {
         tx.call(&alice())
-            .run(|| ERC20Client::new(&token()).adjust_allowance(&bob(), 40, false))
+            .run(|| ERC20Client::new(&token()).adjust_allowance(&bob(), 40))
     })
     .assert_success();
     env.advance_block();

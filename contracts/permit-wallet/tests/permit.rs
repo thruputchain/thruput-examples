@@ -17,7 +17,7 @@
 
 use ed25519_dalek::{Signer, SigningKey};
 use erc20::{
-    ClearAllowanceGrant, ClearAllowanceRequest, ERC20Client, ERC20Error, ERC20PermitClient,
+    DeleteAllowanceGrant, DeleteAllowanceRequest, ERC20Client, ERC20Error, ERC20PermitClient,
     ERC20PermitError, PermitGrant, PermitRequest,
 };
 use groundhog_domain_separator::SignedOp as SignedOpPreimage;
@@ -33,8 +33,8 @@ use sdk::*;
 const ALICE_SEED: [u8; 32] = [0x11; 32];
 const MALLORY_SEED: [u8; 32] = [0x22; 32];
 
-const MINTED: u128 = 1_000;
-const GRANTED: u128 = 250;
+const MINTED: i128 = 1_000;
+const GRANTED: i128 = 250;
 
 /// How many blocks past signing a permit stays valid: enough to survive the
 /// `advance_block`s a test needs to observe its own effects.
@@ -138,7 +138,7 @@ fn standard_request() -> WalletRequest {
 
 /// Alice's request to revoke `spender()`'s allowance on `token()`.
 fn clear_request() -> WalletRequest {
-    WalletRequest::ClearAllowance(ClearAllowanceRequest {
+    WalletRequest::DeleteAllowance(DeleteAllowanceRequest {
         token: token(),
         spender: spender(),
     })
@@ -218,22 +218,22 @@ macro_rules! assert_wallet_refuses {
     }};
 }
 
-fn balance_of(env: &TestEnvironmentHandle, who: ContractAddress) -> u128 {
+fn balance_of(env: &TestEnvironmentHandle, who: ContractAddress) -> i128 {
     let result = env.transact(|tx| {
         tx.call(&admin())
             .run(move || ERC20Client::new(&token()).get_balance_of(&who))
     });
     result.assert_success();
-    result.assert_return_as::<u128>()
+    result.assert_return_as::<i128>()
 }
 
-fn allowance(env: &TestEnvironmentHandle) -> u128 {
+fn allowance(env: &TestEnvironmentHandle) -> i128 {
     let result = env.transact(|tx| {
         tx.call(&admin())
             .run(|| ERC20Client::new(&token()).allowance(&wallet(), &spender()))
     });
     result.assert_success();
-    result.assert_return_as::<u128>()
+    result.assert_return_as::<i128>()
 }
 
 fn rotate_owner_as(
@@ -409,7 +409,7 @@ fn the_relayer_refuses_a_body_that_is_not_a_wallet_request() {
 /// A signed clear takes a standing allowance back: the entry is deleted, and
 /// the spender can no longer draw on it.
 #[test]
-fn clear_allowance_signed_revokes_a_standing_allowance() {
+fn delete_allowance_signed_revokes_a_standing_allowance() {
     let env = setup();
     let (op, signature) = alice_permit(&env);
     relay(&env, op, signature).assert_success();
@@ -417,8 +417,8 @@ fn clear_allowance_signed_revokes_a_standing_allowance() {
     assert_eq!(allowance(&env), GRANTED);
 
     submit_signed(&env, 1, clear_request(), |op, signature| {
-        let grant = mint_grant::<ClearAllowanceGrant>(op, &signature);
-        ERC20PermitClient::new(&token()).clear_allowance_signed(grant);
+        let grant = mint_grant::<DeleteAllowanceGrant>(op, &signature);
+        ERC20PermitClient::new(&token()).delete_allowance_signed(grant);
     })
     .assert_success();
     env.advance_block();
@@ -441,8 +441,8 @@ fn clear_allowance_signed_revokes_a_standing_allowance() {
 fn a_grant_cannot_be_redeemed_for_a_different_operation() {
     let env = setup();
     submit_signed(&env, 0, standard_request(), |op, signature| {
-        let grant = mint_grant::<ClearAllowanceGrant>(op, &signature);
-        ERC20PermitClient::new(&token()).clear_allowance_signed(grant);
+        let grant = mint_grant::<DeleteAllowanceGrant>(op, &signature);
+        ERC20PermitClient::new(&token()).delete_allowance_signed(grant);
     })
     .assert_abort();
     env.advance_block();

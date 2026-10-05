@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use groundhog_erc20_if::{AllowanceChangeEvent, CONTRACT_ADDR_ZERO, TransferEvent};
+use groundhog_erc20_if::{AllowanceChangeEvent, BurnEvent, MintEvent, TransferEvent};
 use groundhog_json_rpc_types::events::{
     BlockAnchor, ContractAddressList, EventFilter, EventFilterList, EventQuery, EventTopicFilter,
     IdentifiedEvent, IterationOrder, PaginationCursor, TopicList,
@@ -12,30 +12,37 @@ use groundhog_json_rpc_types::hex::{Hex0x, Topic};
 use groundhog_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
 use groundhog_testkit::xdr::types::{ContractAddress, SHA256Hash};
 use groundhog_testkit::{
-    Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Result, Scenario, xdrs,
+    Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Result,
+    Scenario, xdrs,
 };
 use sdk::Event as _;
 use sdk::exn::{LibraryExn, RawException};
-use sdk::sys::{SyscallErrorCode, SyscallNo};
+use standard_token::ClawbackEvent;
 use standard_token::Config;
 use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
 
-const ERC20: (&str, &str) = ("ERC20", "0.1.42");
-const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.42");
+const ERC20: (&str, &str) = ("ERC20", "0.1.44");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.44");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
-const REQUIRED_FACTORY_FUNDING: u128 = 1_000_000;
-const REQUIRED_TOKEN_FUNDING: u128 = 353_130;
-const TOKEN_SOURCE_FUNDING: u128 = 354_364;
-const ROW_FUNDING: u128 = 12_000;
-const NATIVE_TOKEN_FUNDING: u128 = 1_000_000;
-const CREATION_FEE: u128 = 25;
+const REQUIRED_FACTORY_FUNDING: i128 = 1_000_000;
+// Exactly what creating a token through the factory costs its new address
+// under the devnode's default cost model: the deployment (base plus the
+// artifact's bytes), the config and holder rows, and the holder's native
+// balance item. Pinned to the artifact size, so it moves when the token does.
+const REQUIRED_TOKEN_FUNDING: i128 = 363_450;
+// What to send the predicted address so that, after its own balance item is
+// paid for, exactly `REQUIRED_TOKEN_FUNDING` arrives.
+const TOKEN_SOURCE_FUNDING: i128 = 364_684;
+const ROW_FUNDING: i128 = 12_000;
+const NATIVE_TOKEN_FUNDING: i128 = 1_000_000;
+const CREATION_FEE: i128 = 25;
 
 #[derive(Debug, Clone, xdrs::WriteXDR, xdrs::ReadXDR)]
 #[xdr(crate = "groundhog_testkit::xdrs")]
 struct SpendRequest {
     token: ContractAddress,
     owner: ContractAddress,
-    amount: u128,
+    amount: i128,
 }
 
 fn native_token() -> Contract {
@@ -61,23 +68,19 @@ fn maximum_config(administrator: ContractAddress) -> Config {
     }
 }
 
-async fn deploy_factory(
-    ctx: &mut AgentContext,
-    native: &Contract,
-    config: FactoryConfig,
-) -> Result<Contract> {
+async fn deploy_factory(ctx: &mut AgentContext, config: FactoryConfig) -> Result<Contract> {
+    // The factory pays for its own storage, so the deployment carries its
+    // funding.
     let factory = Contract::new(
-        ctx.deploy_artifact("standard_token_factory").await?.address,
+        ctx.deploy_artifact(
+            "standard_token_factory",
+            DeployOptions::funded(REQUIRED_FACTORY_FUNDING as u128),
+        )
+        .await?
+        .address,
         FACTORY.0,
         FACTORY.1,
     );
-    native
-        .call(
-            ctx,
-            "transfer",
-            &(factory.address(), REQUIRED_FACTORY_FUNDING),
-        )
-        .await?;
     factory.call(ctx, "initialize", &config).await?;
     let stored: FactoryConfig = factory.view(ctx, "config", &(), None).await?;
     assert_eq!(stored, config);
@@ -100,7 +103,7 @@ async fn create(
     nonce: SHA256Hash,
     config: &Config,
     initial_holder: ContractAddress,
-    initial_supply: u128,
+    initial_supply: i128,
 ) -> Result<groundhog_testkit::SubmittedContractCall> {
     factory
         .submit_call(
@@ -119,12 +122,28 @@ async fn create(
         .await
 }
 
-async fn balance(ctx: &AgentContext, contract: &Contract, owner: ContractAddress) -> Result<u128> {
+async fn balance(ctx: &AgentContext, contract: &Contract, owner: ContractAddress) -> Result<i128> {
     contract.view(ctx, "get_balance_of", &owner, None).await
 }
 
-async fn reserve(ctx: &AgentContext, native: &Contract, address: ContractAddress) -> Result<u128> {
+async fn reserve(ctx: &AgentContext, native: &Contract, address: ContractAddress) -> Result<i128> {
     balance(ctx, native, address).await
+}
+
+/// A call that aborted inside the account's default wallet. The wallet made
+/// the call on the account's behalf and reports the abort as its own
+/// `WalletError::CallAborted` (variant 5); the callee's exception, such as the
+/// factory's `TokenFactoryError`, is not forwarded through it.
+fn assert_wallet_call_aborted(receipt: &TransactionReceipt) {
+    assert!(matches!(receipt.status, ExecStatus::Reverted { .. }));
+    let abort = receipt
+        .abort_data
+        .as_ref()
+        .expect("an aborted call carries the wallet's exception");
+    let exception = RawException::from_abort_buf(&abort.0).expect("decode the wallet's exception");
+    assert!(exception.try_as::<LibraryExn>().is_none());
+    assert!(exception.try_as::<TokenFactoryError>().is_none());
+    assert_eq!(exception.payload(), [5]);
 }
 
 fn assert_transfer(
@@ -142,6 +161,43 @@ fn assert_transfer(
     assert_eq!(event.topics[1].0, *from.as_ref());
     assert_eq!(event.topics[2].0, *to.as_ref());
     assert_eq!(xdrs::cxs::decode::<i128>(&event.data.0).unwrap(), amount);
+}
+
+fn assert_mint(
+    receipt: &TransactionReceipt,
+    index: usize,
+    contract: ContractAddress,
+    to: ContractAddress,
+    amount: i128,
+) {
+    let event = &receipt.events[index];
+    assert_eq!(event.contract_address.0, contract);
+    assert_eq!(event.topics.len(), 2);
+    assert_eq!(event.topics[0].0, *MintEvent::SIGNATURE);
+    assert_eq!(event.topics[1].0, *to.as_ref());
+    assert_eq!(xdrs::cxs::decode::<i128>(&event.data.0).unwrap(), amount);
+}
+
+/// A forced burn: the canonical `BurnEvent`, then the `ClawbackEvent` that
+/// records it was the administrator's doing.
+fn assert_clawback(
+    receipt: &TransactionReceipt,
+    index: usize,
+    contract: ContractAddress,
+    from: ContractAddress,
+    amount: i128,
+) {
+    let burn = &receipt.events[index];
+    assert_eq!(burn.contract_address.0, contract);
+    assert_eq!(burn.topics.len(), 2);
+    assert_eq!(burn.topics[0].0, *BurnEvent::SIGNATURE);
+    assert_eq!(burn.topics[1].0, *from.as_ref());
+    assert_eq!(xdrs::cxs::decode::<i128>(&burn.data.0).unwrap(), amount);
+
+    let clawback = &receipt.events[index + 1];
+    assert_eq!(clawback.contract_address.0, contract);
+    assert_eq!(clawback.topics[0].0, *ClawbackEvent::SIGNATURE);
+    assert_eq!(clawback.topics[1].0, *from.as_ref());
 }
 
 fn assert_allowance_change(
@@ -175,19 +231,12 @@ fn assert_created(
     creator: ContractAddress,
     config: &Config,
     holder: ContractAddress,
-    supply: u128,
+    supply: i128,
     token_hash: SHA256Hash,
 ) {
     assert!(receipt.events.len() >= 2);
     let first_creation_event = receipt.events.len() - 2;
-    assert_transfer(
-        receipt,
-        first_creation_event,
-        token,
-        *CONTRACT_ADDR_ZERO,
-        holder,
-        supply as i128,
-    );
+    assert_mint(receipt, first_creation_event, token, holder, supply);
 
     let event = &receipt.events[first_creation_event + 1];
     assert_eq!(event.contract_address.0, factory);
@@ -265,9 +314,11 @@ fn spec_names<'a>(value: &'a serde_json::Value, key: &str) -> Vec<&'a str> {
         .collect()
 }
 
-/// The `declared` identifier of each structured spec id (events, type defs).
+/// The `declared` identifier of each structured spec id (events, type defs),
+/// sorted: the spec lists them grouped by declaring crate, which is not a
+/// property these checks are about.
 fn declared_names<'a>(value: &'a serde_json::Value, key: &str) -> Vec<&'a str> {
-    value[key]
+    let mut names: Vec<&str> = value[key]
         .as_array()
         .expect("spec collection")
         .iter()
@@ -276,7 +327,9 @@ fn declared_names<'a>(value: &'a serde_json::Value, key: &str) -> Vec<&'a str> {
                 .as_str()
                 .expect("structured spec id")
         })
-        .collect()
+        .collect();
+    names.sort_unstable();
+    names
 }
 
 fn named<'a>(items: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
@@ -306,7 +359,9 @@ fn assert_generated_specs(root: &Path) {
         declared_names(&token, "events"),
         [
             "AllowanceChangeEvent",
+            "AllowanceDeleteEvent",
             "BurnEvent",
+            "ClawbackEvent",
             "MintEvent",
             "TransferEvent"
         ]
@@ -384,17 +439,22 @@ fn assert_generated_specs(root: &Path) {
     let interfaces = spec_names(&token, "interfaces");
     assert_eq!(
         interfaces,
-        ["ERC20", "ERC20Metadata", "StandardTokenInitializer"]
+        [
+            "ERC20",
+            "ERC20Burn",
+            "ERC20Clawback",
+            "ERC20Metadata",
+            "StandardTokenInitializer"
+        ]
     );
     assert_eq!(token["interfaces"][0]["version"], ERC20.1);
-    assert_eq!(token["interfaces"][1]["version"], METADATA.1);
+    assert_eq!(token["interfaces"][3]["version"], METADATA.1);
     let erc20_methods = spec_names(&token["interfaces"][0], "methods");
     for method in [
         "mint",
         "transfer",
         "adjust_allowance",
         "transfer_from",
-        "burn",
         "total_supply",
     ] {
         assert!(erc20_methods.contains(&method));
@@ -438,7 +498,7 @@ fn spender_agent() -> Agent {
             request.token,
             request.owner,
             me,
-            request.amount as i128,
+            request.amount,
         );
         ctx.send("creator", &())?;
         Ok(())
@@ -455,14 +515,18 @@ fn creator_agent() -> Agent {
             .body;
         let native = native_token();
 
-        let registration = ctx.register_artifact("standard_token").await?;
+        let registration = ctx
+            .register_artifact(
+                "standard_token",
+                DeployOptions::funded(NATIVE_TOKEN_FUNDING as u128),
+            )
+            .await?;
         assert!(registration.registered);
         assert!(ctx.is_registered("standard_token")?);
         let token_hash = ctx.contract_hash("standard_token")?;
 
         let unavailable_factory = deploy_factory(
             &mut ctx,
-            &native,
             FactoryConfig {
                 token_code_hash: SHA256Hash::from([0xff; 32]),
                 required_token_funding: REQUIRED_TOKEN_FUNDING,
@@ -498,19 +562,7 @@ fn creator_agent() -> Agent {
             ExecStatus::Reverted { .. }
         ));
         assert!(unavailable_receipt.events.is_empty());
-        let unavailable_abort = unavailable_receipt
-            .abort_data
-            .as_ref()
-            .expect("unavailable artifact returns an SDK exception");
-        let unavailable_exception = RawException::from_abort_buf(&unavailable_abort.0)
-            .expect("decode unavailable artifact exception");
-        let library = unavailable_exception
-            .try_as::<LibraryExn>()
-            .expect("unavailable artifact is a library exception");
-        assert!(library.as_syscall_exn().unwrap().is(
-            SyscallNo::kDeployContract,
-            SyscallErrorCode::kSyscallErrorCodeInvalidSyscallInput,
-        ));
+        assert_wallet_call_aborted(&unavailable_receipt);
         assert_eq!(
             reserve(&ctx, &native, unavailable_address).await?,
             unavailable_reserve
@@ -532,8 +584,8 @@ fn creator_agent() -> Agent {
             creation_fee: 0,
             fee_recipient: None,
         };
-        let factory = deploy_factory(&mut ctx, &native, factory_config).await?;
-        let published: u128 = factory
+        let factory = deploy_factory(&mut ctx, factory_config).await?;
+        let published: i128 = factory
             .view(&ctx, "required_token_funding", &(), None)
             .await?;
         assert_eq!(published, REQUIRED_TOKEN_FUNDING);
@@ -556,16 +608,7 @@ fn creator_agent() -> Agent {
             ExecStatus::Reverted { .. }
         ));
         assert!(underfunded_receipt.events.is_empty());
-        let underfunded_abort = underfunded_receipt
-            .abort_data
-            .as_ref()
-            .expect("underfunded creation returns a factory exception");
-        assert_eq!(
-            RawException::from_abort_buf(&underfunded_abort.0)
-                .expect("decode underfunded exception")
-                .try_as::<TokenFactoryError>(),
-            Some(TokenFactoryError::InsufficientTokenFunding)
-        );
+        assert_wallet_call_aborted(&underfunded_receipt);
         assert!(
             indexed_created_events(&ctx, factory.address(), underfunded_receipt.height)
                 .await?
@@ -580,14 +623,18 @@ fn creator_agent() -> Agent {
         let submitted = create(&mut ctx, &factory, nonce, &config, creator, 1_000).await?;
         let creation_receipt = submitted.await_receipt().await?;
         assert_eq!(creation_receipt.events.len(), 2);
-        let created: ContractAddress = xdrs::cxs::decode(
+        // The account's default wallet ran the call and returns one buffer per
+        // call it made; unwrap that envelope before decoding the address.
+        let returned = groundhog_signing::default_wallet::decode_default_wallet_call_return(
             &creation_receipt
                 .return_data
                 .as_ref()
                 .expect("create_token returns an address")
                 .0,
         )
-        .expect("decode created token address");
+        .expect("unwrap the wallet's return");
+        let created: ContractAddress =
+            xdrs::cxs::decode(returned.as_slice()).expect("decode created token address");
         assert_eq!(created, predicted);
         assert_created(
             &creation_receipt,
@@ -635,19 +682,19 @@ fn creator_agent() -> Agent {
         assert_eq!(balance(&ctx, &token, creator).await?, 1_000);
         assert_eq!(
             token
-                .view::<_, u128>(&ctx, "total_supply", &(), None)
+                .view::<_, i128>(&ctx, "total_supply", &(), None)
                 .await?,
             1_000
         );
         assert_eq!(reserve(&ctx, &native, created).await?, 0);
 
-        let mint = token.call(&mut ctx, "mint", &(creator, 100_u128)).await?;
+        let mint = token.call(&mut ctx, "mint", &(creator, 100_i128)).await?;
         assert_eq!(mint.events.len(), 1);
-        assert_transfer(&mint, 0, created, *CONTRACT_ADDR_ZERO, creator, 100);
+        assert_mint(&mint, 0, created, creator, 100);
         assert_eq!(balance(&ctx, &token, creator).await?, 1_100);
         assert_eq!(
             token
-                .view::<_, u128>(&ctx, "total_supply", &(), None)
+                .view::<_, i128>(&ctx, "total_supply", &(), None)
                 .await?,
             1_100
         );
@@ -657,7 +704,7 @@ fn creator_agent() -> Agent {
             .call(&mut ctx, "transfer", &(created, ROW_FUNDING))
             .await?;
         let transfer = token
-            .call(&mut ctx, "transfer", &(spender, 200_u128))
+            .call(&mut ctx, "transfer", &(spender, 200_i128))
             .await?;
         assert_eq!(transfer.events.len(), 1);
         assert_transfer(&transfer, 0, created, creator, spender, 200);
@@ -669,7 +716,7 @@ fn creator_agent() -> Agent {
             .call(&mut ctx, "transfer", &(created, ROW_FUNDING))
             .await?;
         let approval = token
-            .call(&mut ctx, "adjust_allowance", &(spender, 150_i128, false))
+            .call(&mut ctx, "adjust_allowance", &(spender, 150_i128))
             .await?;
         assert_eq!(approval.events.len(), 1);
         assert_allowance_change(&approval, 0, created, creator, spender, 150);
@@ -678,7 +725,7 @@ fn creator_agent() -> Agent {
         assert_eq!(reserve(&ctx, &native, created).await?, 0);
         assert_eq!(
             token
-                .view::<_, u128>(&ctx, "allowance", &(creator, spender), None)
+                .view::<_, i128>(&ctx, "allowance", &(creator, spender), None)
                 .await?,
             150
         );
@@ -698,19 +745,22 @@ fn creator_agent() -> Agent {
         assert_eq!(balance(&ctx, &token, spender).await?, 275);
         assert_eq!(
             token
-                .view::<_, u128>(&ctx, "allowance", &(creator, spender), None)
+                .view::<_, i128>(&ctx, "allowance", &(creator, spender), None)
                 .await?,
             75
         );
         assert_eq!(reserve(&ctx, &native, created).await?, 0);
 
-        let burn = token.call(&mut ctx, "burn", &(spender, 25_u128)).await?;
-        assert_eq!(burn.events.len(), 1);
-        assert_transfer(&burn, 0, created, spender, *CONTRACT_ADDR_ZERO, 25);
+        let clawback = Contract::new(created, "ERC20Clawback", ERC20.1);
+        let burn = clawback
+            .call(&mut ctx, "clawback", &(spender, 25_i128))
+            .await?;
+        assert_eq!(burn.events.len(), 2);
+        assert_clawback(&burn, 0, created, spender, 25);
         assert_eq!(balance(&ctx, &token, spender).await?, 250);
         assert_eq!(
             token
-                .view::<_, u128>(&ctx, "total_supply", &(), None)
+                .view::<_, i128>(&ctx, "total_supply", &(), None)
                 .await?,
             1_075
         );
@@ -720,7 +770,7 @@ fn creator_agent() -> Agent {
         native
             .call(&mut ctx, "transfer", &(created, ROW_FUNDING))
             .await?;
-        let unseen_transfer = token.call(&mut ctx, "transfer", &(unseen, 1_u128)).await?;
+        let unseen_transfer = token.call(&mut ctx, "transfer", &(unseen, 1_i128)).await?;
         assert_eq!(unseen_transfer.events.len(), 1);
         assert_transfer(&unseen_transfer, 0, created, creator, unseen, 1);
         assert_eq!(balance(&ctx, &token, creator).await?, 824);
@@ -729,7 +779,6 @@ fn creator_agent() -> Agent {
 
         let fee_factory = deploy_factory(
             &mut ctx,
-            &native,
             FactoryConfig {
                 token_code_hash: token_hash,
                 required_token_funding: REQUIRED_TOKEN_FUNDING,
@@ -755,7 +804,7 @@ fn creator_agent() -> Agent {
             .call(
                 &mut ctx,
                 "adjust_allowance",
-                &(fee_factory.address(), CREATION_FEE as i128, false),
+                &(fee_factory.address(), CREATION_FEE),
             )
             .await?;
         let recipient_before = reserve(&ctx, &native, spender).await?;
@@ -771,7 +820,7 @@ fn creator_agent() -> Agent {
             native.address(),
             creator,
             spender,
-            CREATION_FEE as i128,
+            CREATION_FEE,
         );
         assert_created(
             &fee_creation,
@@ -793,7 +842,7 @@ fn creator_agent() -> Agent {
         );
         assert_eq!(
             native
-                .view::<_, u128>(&ctx, "allowance", &(creator, fee_factory.address()), None,)
+                .view::<_, i128>(&ctx, "allowance", &(creator, fee_factory.address()), None,)
                 .await?,
             0
         );
@@ -827,6 +876,7 @@ async fn real_artifact_rpc_lifecycle() {
     config.dev_account_tokens = 100_000_000_000;
 
     let scenario = Scenario::builder("standard-token-phase-6")
+        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("standard_token", root.join("standard_token.rv32a"))
         .artifact(

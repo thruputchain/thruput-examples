@@ -19,8 +19,9 @@
 //!
 //! [`Harness`] holds everything needed to exercise a contract the way a client
 //! would: it signs and submits transactions through the bootstrapped `dev-0`
-//! wallet, then hands back each transaction's receipt. The contract-specific
-//! method calls and return decoding live in each contract's own test.
+//! native account, then hands back each transaction's receipt. The
+//! contract-specific method calls and return decoding live in each contract's
+//! own test.
 
 use groundhog_contract_util::{NormalizedMethodSignature, contract_entrypoint_id};
 use groundhog_json_rpc_client::{GroundhogApiClient, HttpClient, HttpClientBuilder};
@@ -31,26 +32,19 @@ use groundhog_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
 use groundhog_json_rpc_types::runtime_manifest::{RuntimeManifest, parse_runtime_manifest};
 use groundhog_json_rpc_types::transaction::{TransactionStatus, TxHash};
 use groundhog_json_rpc_types::view::{RootInvocationOutput, ViewRequest, ViewResponse};
+use groundhog_signing::default_wallet::{
+    BuildDefaultWalletCallTransaction, DEFAULT_WALLET_EXECUTE_ENTRYPOINT,
+    build_default_wallet_call_transaction, decode_default_wallet_call_return,
+};
 use groundhog_signing::{
-    BuildDevWalletDoActionTransaction, DEFAULT_TX_GAS_LIMIT, LocalSigner, SignTransactionParams,
-    build_dev_wallet_do_action_transaction, derive_default_dev_account_signer,
+    DEFAULT_PUBKEY_ACCOUNT_NONCE, DEFAULT_TX_GAS_LIMIT, LocalSigner, PubkeyAccount,
+    SignTransactionParams, Signer, derive_default_dev_account_signer,
     sign_and_encode_transaction_hex,
 };
 use groundhog_xdr::contract::ContractEntrypointID;
 use groundhog_xdr::types::{ContractAddress, NetworkHash};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-
-/// Legacy fallback for the dev wallet's `do_action` entrypoint (from the
-/// dev-wallet guest-binary exports), used only when the runtime manifest does
-/// not advertise a parseable entrypoint.
-const WALLET_DO_ACTION_ENTRYPOINT: [u8; 8] = 0x1984_6D75_0FAD_81D6_u64.to_be_bytes();
-
-/// Source labels for the resolved wallet `do_action` entrypoint, surfaced in
-/// failure diagnostics to show whether it came from the manifest or the
-/// baked-in fallback.
-const WALLET_ENTRYPOINT_SOURCE_RUNTIME_MANIFEST: &str = "runtime_manifest";
-const WALLET_ENTRYPOINT_SOURCE_LEGACY_DEFAULT: &str = "legacy_default";
 
 /// Default transaction expiry and receipt polling configuration.
 const DEFAULT_EXPIRY_OFFSET: i64 = 1_000;
@@ -69,7 +63,7 @@ pub enum TransactionExpiry {
 /// Per-invocation transaction and receipt polling settings.
 #[derive(Clone, Copy, Debug)]
 pub struct InvocationOptions {
-    /// Gas available to the outer dev-wallet transaction.
+    /// Gas available to the outer native-account transaction.
     pub outer_transaction_gas_limit: u64,
     /// Gas available to the target contract call.
     pub target_call_gas_limit: u64,
@@ -156,13 +150,11 @@ pub struct Harness {
     interface: &'static str,
     version: &'static str,
     signer: LocalSigner,
-    /// dev-0's wallet contract address (the transaction caller).
+    /// dev-0's native account: the transaction caller. Its address is the
+    /// nonce-zero pubkey account of the signer, as the manifest confirms.
+    account: PubkeyAccount,
     wallet: ContractAddress,
-    /// The wallet's resolved `do_action` entrypoint, and a label recording
-    /// whether it came from the runtime manifest or the legacy fallback.
-    wallet_entrypoint: ContractEntrypointID,
-    wallet_entrypoint_source: &'static str,
-    /// Runtime manifest, retained to resolve additional bootstrap wallets.
+    /// Runtime manifest, retained to resolve additional bootstrap accounts.
     manifest: RuntimeManifest,
     network_hash: NetworkHash,
     /// Monotonic transaction nonce.
@@ -187,14 +179,20 @@ impl Harness {
             .unwrap_or_else(|e| panic!("parsing runtime manifest {manifest_path}: {e}"));
 
         // `dev-0`'s signing key is derived deterministically from the well-known
-        // seed; its on-chain wallet address comes from the manifest.
+        // seed. Its native account is the nonce-zero pubkey account of that
+        // key; the manifest's bootstrap entry must agree, or the node was
+        // bootstrapped from a different seed than this harness derives from.
         let signer = derive_default_dev_account_signer(0);
-        let wallet = wallet_address(&manifest, 0);
-
-        // Prefer the `do_action` entrypoint the node advertises in its manifest,
-        // falling back to the baked-in default if the manifest's value can't be
-        // parsed. The source is recorded for failure diagnostics.
-        let (wallet_entrypoint, wallet_entrypoint_source) = resolve_wallet_entrypoint(&manifest);
+        let account = PubkeyAccount::new(signer.public_key(), DEFAULT_PUBKEY_ACCOUNT_NONCE);
+        let wallet = account.address();
+        let advertised = wallet_address(&manifest, 0);
+        assert_eq!(
+            wallet,
+            advertised,
+            "runtime manifest's dev-0 address {} is not the nonce-zero native account {} of the default dev-0 key",
+            format_contract_address(&advertised),
+            format_contract_address(&wallet),
+        );
         let network_hash = manifest.network_hash.to_network_hash();
 
         // Seed the nonce from the wall clock so reruns against the same node
@@ -211,9 +209,8 @@ impl Harness {
             interface,
             version,
             signer,
+            account,
             wallet,
-            wallet_entrypoint,
-            wallet_entrypoint_source,
             manifest,
             network_hash,
             nonce: AtomicU64::new(seed),
@@ -245,8 +242,8 @@ impl Harness {
             .map_err(|message| SubmissionError::BuildClient(message.clone()))
     }
 
-    /// dev-0's wallet address — the caller of every transaction this harness
-    /// submits.
+    /// dev-0's native account address — the caller of every transaction this
+    /// harness submits.
     pub fn wallet(&self) -> ContractAddress {
         self.wallet
     }
@@ -256,7 +253,8 @@ impl Harness {
         self.contract
     }
 
-    /// Resolve the wallet address for `dev-{index}` from the runtime manifest.
+    /// Resolve the native account address for `dev-{index}` from the runtime
+    /// manifest.
     pub fn dev_wallet(&self, index: u32) -> ContractAddress {
         wallet_address(&self.manifest, index)
     }
@@ -273,6 +271,7 @@ impl Harness {
                 entrypoint: HexBytes(self.entrypoint_id(method).into_inner().to_vec()),
                 calldata: HexBytes(calldata),
                 caller: Some(Hex0x(self.wallet)),
+                gas_limit: None,
             })
             .await
             .map_err(|e| rpc_error("view", e, None))
@@ -351,14 +350,13 @@ impl Harness {
             .map_err(|e| rpc_error("chainTip", e, None))?;
         let block_expiry_height = expiry_height(*tip.height, options.expiry);
 
-        let tx = build_dev_wallet_do_action_transaction(BuildDevWalletDoActionTransaction {
-            wallet_address: self.wallet,
-            wallet_entrypoint: self.wallet_entrypoint,
+        let tx = build_default_wallet_call_transaction(BuildDefaultWalletCallTransaction {
+            account: &self.account,
             target_address: self.contract,
             target_entrypoint: self.entrypoint_id(method),
             target_calldata: &calldata,
-            gas_limit: options.outer_transaction_gas_limit,
             target_gas_limit: options.target_call_gas_limit,
+            gas_limit: options.outer_transaction_gas_limit,
             block_expiry_height,
             nonce: self.nonce.fetch_add(1, Ordering::Relaxed),
         })
@@ -433,10 +431,11 @@ impl Harness {
     }
 
     /// Render the call context a failed call needs for debugging, mirroring the
-    /// diagnostics the `groundhog call` CLI prints: the wallet and its resolved
-    /// entrypoint (with source), the target contract/method/entrypoint, and the
-    /// receipt's status and abort payload. The receipt we already hold is our
-    /// stand-in for the CLI's `groundhog_dev_getTransactionDetail` dump.
+    /// diagnostics the `groundhog call` CLI prints: the native account and the
+    /// default-wallet entrypoint it executes through, the target
+    /// contract/method/entrypoint, and the receipt's status and abort payload.
+    /// The receipt we already hold is our stand-in for the CLI's
+    /// `groundhog_dev_getTransactionDetail` dump.
     fn failure_diagnostics(&self, method: &str, receipt: &TransactionReceipt) -> String {
         let abort_data = receipt
             .abort_data
@@ -445,13 +444,12 @@ impl Harness {
         format!(
             "`{method}` did not succeed\n  \
              status: {:?}\n  \
-             wallet: {} entrypoint={} source={}\n  \
+             account: {} entrypoint={}\n  \
              target: {} method=`{method}` entrypoint={}\n  \
              abort_data: {abort_data}",
             receipt.status,
             format_contract_address(&self.wallet),
-            format_entrypoint_id(self.wallet_entrypoint),
-            self.wallet_entrypoint_source,
+            format_entrypoint_id(DEFAULT_WALLET_EXECUTE_ENTRYPOINT),
             format_contract_address(&self.contract),
             format_entrypoint_id(self.entrypoint_id(method)),
         )
@@ -516,6 +514,11 @@ pub fn encode<T: xdrs::WriteXDR>(args: &T) -> Vec<u8> {
 }
 
 /// Decode a transaction receipt's return value as `T`.
+///
+/// The transaction's root is the native account's default wallet, which
+/// executes the target call and returns the list of its calls' return values
+/// (one here). That envelope is stripped before decoding the method's own
+/// return.
 pub fn decode_return<T>(receipt: &TransactionReceipt) -> T
 where
     T: for<'a> xdrs::ReadXDR<'a>,
@@ -524,7 +527,9 @@ where
         .return_data
         .as_ref()
         .expect("expected a return value");
-    xdrs::cxs::decode(data.0.as_slice()).expect("decode return value")
+    let returned = decode_default_wallet_call_return(data.0.as_slice())
+        .expect("unwrap the default wallet's return");
+    xdrs::cxs::decode(returned.as_slice()).expect("decode return value")
 }
 
 /// Decode a successful view response's return value as `T`.
@@ -541,20 +546,6 @@ where
     xdrs::cxs::decode(return_data.0.as_slice()).expect("decode view return value")
 }
 
-/// Resolve the dev-wallet `do_action` entrypoint, preferring the value the
-/// runtime manifest advertises and falling back to the baked-in legacy default
-/// when the manifest's field can't be parsed. Returns the entrypoint together
-/// with a label describing which source won.
-fn resolve_wallet_entrypoint(manifest: &RuntimeManifest) -> (ContractEntrypointID, &'static str) {
-    match manifest.bootstrap.dev_wallet.do_action_entrypoint_id() {
-        Ok(id) => (id, WALLET_ENTRYPOINT_SOURCE_RUNTIME_MANIFEST),
-        Err(_) => (
-            ContractEntrypointID::from(WALLET_DO_ACTION_ENTRYPOINT),
-            WALLET_ENTRYPOINT_SOURCE_LEGACY_DEFAULT,
-        ),
-    }
-}
-
 fn format_entrypoint_id(entrypoint: ContractEntrypointID) -> String {
     format!("0x{}", hex::encode(entrypoint.into_inner()))
 }
@@ -567,7 +558,7 @@ fn format_hex_bytes(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
 }
 
-/// Resolve the wallet address for `dev-{index}` from the runtime manifest.
+/// Resolve the native account address for `dev-{index}` from the runtime manifest.
 fn wallet_address(manifest: &RuntimeManifest, index: u32) -> ContractAddress {
     manifest
         .bootstrap_accounts
@@ -661,10 +652,13 @@ mod tests {
         let status: TransactionStatus = serde_json::from_value(serde_json::json!({
             "status": "recentFailure",
             "attemptHeight": 9,
-            "conflict": {
-                "address": format!("0x{}", "00".repeat(32)),
-                "key": "0x",
-                "code": "exclusiveLock"
+            "cause": {
+                "kind": "dbConflict",
+                "conflict": {
+                    "address": format!("0x{}", "00".repeat(32)),
+                    "key": "0x",
+                    "code": "exclusiveLock"
+                }
             }
         }))
         .expect("test recent failure should deserialize");

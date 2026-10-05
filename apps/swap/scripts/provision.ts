@@ -123,7 +123,7 @@ export async function provisionSwap(options: {
         amount: CONTRACT_FUNDING,
       }),
     );
-    const result = await wallet.deployContractAndWait(deployment, GAS_LIMIT, {
+    const result = await wallet.deployContractAndWait(deployment, { gasLimit: GAS_LIMIT, amount: 0n }, {
       timeoutMs: 60_000,
     });
     console.log(`Deploy ${name}: ${toHex0x(result.txHash)}`);

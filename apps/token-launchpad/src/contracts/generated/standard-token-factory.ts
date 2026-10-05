@@ -36,7 +36,7 @@ const __gh_entrypoints = {
 export namespace groundhog_erc20_if {
   export namespace v0_1 {
     export namespace error {
-      export type ERC20Error = 1n | 2n | 3n | 4n | 100n;
+      export type ERC20Error = 1n | 2n | 3n | 4n | 5n | 100n;
     }
   }
 }
@@ -222,7 +222,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
             {
               name: __gh_s("initial_supply"),
-              ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+              ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Address },
@@ -230,7 +230,7 @@ export const spec: __gh_client_contract.ContractSpec = {
         {
           name: __gh_s("creation_fee"),
           args: [],
-          return_type: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
         },
         {
           name: __gh_s("initialize"),
@@ -273,7 +273,7 @@ export const spec: __gh_client_contract.ContractSpec = {
         {
           name: __gh_s("required_token_funding"),
           args: [],
-          return_type: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
         },
       ],
     },
@@ -293,6 +293,7 @@ export const spec: __gh_client_contract.ContractSpec = {
           { name: __gh_s("MustBeContractOwner"), value: 2n },
           { name: __gh_s("TooLarge"), value: 3n },
           { name: __gh_s("BalanceNotZero"), value: 4n },
+          { name: __gh_s("NegativeAmount"), value: 5n },
           { name: __gh_s("Internal"), value: 100n },
         ],
       },
@@ -319,7 +320,7 @@ export const spec: __gh_client_contract.ContractSpec = {
           },
           {
             name: __gh_s("required_token_funding"),
-            ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+            ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
           },
           {
             name: __gh_s("native_token"),
@@ -327,7 +328,7 @@ export const spec: __gh_client_contract.ContractSpec = {
           },
           {
             name: __gh_s("creation_fee"),
-            ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+            ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
           },
           {
             name: __gh_s("fee_recipient"),
@@ -391,7 +392,7 @@ export const spec: __gh_client_contract.ContractSpec = {
         },
         {
           name: __gh_s("initial_supply"),
-          ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
         },
         {
           name: __gh_s("name"),
@@ -656,6 +657,7 @@ export const groundhog_erc20_if = {
         MustBeContractOwner: 2n,
         TooLarge: 3n,
         BalanceNotZero: 4n,
+        NegativeAmount: 5n,
         Internal: 100n,
       },
     },

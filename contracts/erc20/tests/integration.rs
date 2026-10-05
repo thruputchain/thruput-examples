@@ -18,7 +18,7 @@ use groundhog_xdr::types::ContractAddress;
 use integration_test::{Harness, InvocationOptions, SubmissionOutcome, decode_return, encode};
 
 const INTERFACE: &str = "ERC20";
-const VERSION: &str = "0.1.4";
+const VERSION: &str = "0.1.44";
 
 #[tokio::test]
 async fn erc20_lifecycle_over_rpc() {
@@ -78,27 +78,27 @@ impl Erc20 {
         self.0.invoke("initialize", encode(administrator)).await;
     }
 
-    async fn mint(&self, receiver: &ContractAddress, amount: u128) {
+    async fn mint(&self, receiver: &ContractAddress, amount: i128) {
         self.0.invoke("mint", encode(&(*receiver, amount))).await;
     }
 
-    async fn transfer(&self, receiver: &ContractAddress, amount: u128) {
+    async fn transfer(&self, receiver: &ContractAddress, amount: i128) {
         self.0
             .invoke("transfer", encode(&(*receiver, amount)))
             .await;
     }
 
-    async fn total_supply(&self) -> u128 {
+    async fn total_supply(&self) -> i128 {
         decode_return(&self.0.invoke("total_supply", Vec::new()).await)
     }
 
-    async fn balance_of(&self, owner: &ContractAddress) -> u128 {
+    async fn balance_of(&self, owner: &ContractAddress) -> i128 {
         decode_return(&self.0.invoke("get_balance_of", encode(owner)).await)
     }
 }
 
 const NATIVE_INTERFACE: (&str, &str) = ("ERC20", "0.1.3");
-const NATIVE_STORAGE_RESERVE: u128 = 10_000_000;
+const NATIVE_STORAGE_RESERVE: i128 = 10_000_000;
 
 fn native_hog() -> ContractAddress {
     let mut bytes = [0u8; 32];
@@ -134,7 +134,7 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
     // so the account, signing, entrypoint IDs and node are all in order.
     let spender = hog.dev_wallet(1);
     let transfer = hog
-        .submit("transfer", encode(&(spender, 1u128)), options())
+        .submit("transfer", encode(&(spender, 1i128)), options())
         .await
         .expect("submitting transfer");
     assert!(
@@ -145,11 +145,7 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
 
     // Unreserved, the same account cannot be granted an allowance.
     let before = hog
-        .submit(
-            "adjust_allowance",
-            encode(&(spender, 1i128, false)),
-            options(),
-        )
+        .submit("adjust_allowance", encode(&(spender, 1i128)), options())
         .await
         .expect("submitting adjust_allowance");
     assert!(
@@ -184,7 +180,7 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
     let after = hog
         .submit(
             "adjust_allowance",
-            encode(&(fresh_spender, 1i128, false)),
+            encode(&(fresh_spender, 1i128)),
             options(),
         )
         .await

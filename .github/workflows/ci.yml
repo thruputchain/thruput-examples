@@ -15,6 +15,10 @@ jobs:
     uses: groundhogchain/actions/.github/workflows/rust-dependency-policy.yml@v1
     with:
       registry-name: groundhog
+      # The workspace manifest opts into the nightly-only `trim-paths` cargo
+      # feature, so the stable cargo the reusable workflow defaults to cannot
+      # parse it. Must match rust-toolchain.toml; quality-checks verifies that.
+      toolchain: nightly-2026-07-01
     secrets:
       registry-token: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
 
@@ -94,10 +98,10 @@ jobs:
             ~/.cargo/bin/groundhog
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
-          key: groundhog-cli-${{ runner.os }}-${{ runner.arch }}-0.19.0
+          key: groundhog-cli-${{ runner.os }}-${{ runner.arch }}-0.22.1
 
       - name: Install groundhog-cli
-        run: cargo install --registry groundhog --version 0.19.0 --locked groundhog-cli
+        run: cargo install --registry groundhog --version 0.22.1 --locked groundhog-cli
 
       - name: Build guest contracts
         run: ./scripts/build-guest.sh
@@ -130,6 +134,17 @@ jobs:
 
       - name: Set up Rust toolchain
         run: rustup show
+
+      - name: Dependency-policy toolchain matches rust-toolchain.toml
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          for f in .github/workflows/ci.yml .github/workflows/audit.yml; do
+            grep -Fq "toolchain: $channel" "$f" || {
+              echo "::error file=$f::dependency-policy toolchain pin does not match rust-toolchain.toml ($channel)"
+              exit 1
+            }
+          done
 
       - name: Run clippy
         run: cargo clippy --workspace --all-targets --no-deps --locked -- -D warnings

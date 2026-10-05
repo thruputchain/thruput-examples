@@ -56,10 +56,10 @@ fn serial_swap_user(
 
     // Send the purchasing funds to the swap-pair contract
     etx.exec_user_tx(user, |_| {
-        ctx.token0().transfer(&ctx.pair_addr, amounts_in[0])
+        ctx.token0().transfer(&ctx.pair_addr, to_token(amounts_in[0]))
     })?;
     etx.exec_user_tx(user, |_| {
-        ctx.token1().transfer(&ctx.pair_addr, amounts_in[1])
+        ctx.token1().transfer(&ctx.pair_addr, to_token(amounts_in[1]))
     })?;
 
     /* ----- */ etx.advance_block(); /* ----- */

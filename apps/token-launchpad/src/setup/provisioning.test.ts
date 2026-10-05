@@ -73,7 +73,7 @@ const contract = (name: string) => ({
 });
 const config = {
   token_code_hash: fixedBytes(hashContract(contract("standard_token")), 32),
-  required_token_funding: 360_000n,
+  required_token_funding: 370_000n,
   native_token: HOG_ADDRESS,
   creation_fee: 0n,
   fee_recipient: null,
@@ -330,11 +330,11 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });
 
-  it("enforces the maximum token artifact size within 360000 funding", async () => {
-    // 50914 fixed worst-case storage cost leaves room for 30908 code bytes.
-    expect(() => validateTokenFunding(costs, 30_908)).not.toThrow();
-    expect(() => validateTokenFunding(costs, 30_909)).toThrow(/funding budget/);
-    await writeFile(join(root, "standard_token.rv32a"), Buffer.alloc(30_909));
+  it("enforces the maximum token artifact size within 370000 funding", async () => {
+    // 50914 fixed worst-case storage cost leaves room for 31908 code bytes.
+    expect(() => validateTokenFunding(costs, 31_908)).not.toThrow();
+    expect(() => validateTokenFunding(costs, 31_909)).toThrow(/funding budget/);
+    await writeFile(join(root, "standard_token.rv32a"), Buffer.alloc(31_909));
     await expect(main()).rejects.toThrow(/funding budget/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });
@@ -350,11 +350,11 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(mocks.requestAirdrop).toHaveBeenCalledWith();
     const account = vi.mocked(createWalletClient).mock.calls[0]![0].account;
     expect(account.kind).toBe("pubkey");
-    const [deployment, gasLimit, options] =
+    const [deployment, deployOptions, options] =
       mocks.deployContractAndWait.mock.calls[0]!;
     expect(deployment.contract).toEqual(contract("standard_token_factory"));
     expect(deployment.deployer).toEqual(account.address);
-    expect(gasLimit).toBe(gas);
+    expect(deployOptions).toEqual({ gasLimit: gas, amount: 0n });
     expect(options).toEqual({ timeoutMs: 60_000 });
     expect(
       mocks.executeAndWait.mock.calls.map(([request]) => request.invocation),

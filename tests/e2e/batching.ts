@@ -321,7 +321,6 @@ try {
     ERC20.v0_1.adjustAllowance.invocation(HOG_ADDRESS, gas, {
       spender: swapFactory,
       difference: funding * 3n,
-      exclusive: false,
     }),
     SwapFactory.v0_1.createPair.invocation(swapFactory, gas, {
       tokenA: token0!,
@@ -331,12 +330,10 @@ try {
     ERC20.v0_1.adjustAllowance.invocation(token0!, gas, {
       spender: pool.handler,
       difference: amount,
-      exclusive: false,
     }),
     ERC20.v0_1.adjustAllowance.invocation(token1!, gas, {
       spender: pool.handler,
       difference: amount,
-      exclusive: false,
     }),
     SwapRouter.v0_1.addLiquidity.invocation(router, gas, {
       tokenA: token0!,
@@ -378,7 +375,6 @@ try {
         ERC20.v0_1.adjustAllowance.invocation(token0!, gas, {
           spender: pool.handler,
           difference: 8_000n,
-          exclusive: false,
         }),
       ])
     ).execResult,

@@ -130,7 +130,14 @@ impl PausableLedger {
     }
 
     fn _balance_of(&self, owner: &ContractAddress) -> u128 {
-        self.balances.at(owner).get()
+        // A `Balance` is non-negative by construction, so the cast is lossless.
+        self.balances.at(owner).get() as u128
+    }
+
+    /// The `Ledger` interface counts in `u128`; a `Balance` cell holds an
+    /// `i128` and refuses anything above `i128::MAX` as too large.
+    fn _cell_amount(amount: u128) -> i128 {
+        i128::try_from(amount).unwrap_or_else(|_| throw(LedgerError::BalanceTooLarge))
     }
 
     /// The line the two interfaces meet on: a `Ledger` operation refused for
@@ -196,7 +203,7 @@ impl Ledger for PausableLedger {
         // conflicting. Nothing here needs to know the running total.
         self.balances
             .at_mut(&get_caller())
-            .try_lazy_increase(amount)
+            .try_lazy_increase(Self::_cell_amount(amount))
             .unwrap_or_else(|_| throw(LedgerError::BalanceTooLarge));
     }
 
@@ -213,7 +220,7 @@ impl Ledger for PausableLedger {
         // `lazy_decrease` would defer the same check to commit time.
         self.balances
             .at_mut(&get_caller())
-            .try_decrease(amount)
+            .try_decrease(Self::_cell_amount(amount))
             .unwrap_or_else(|_| throw(LedgerError::InsufficientFunds { requested: amount }));
     }
 

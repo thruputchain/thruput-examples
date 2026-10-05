@@ -50,6 +50,7 @@ describe("GroundhogRegistrySource", () => {
         value: factoryConfig(0x33),
         height: 1n,
         events: [],
+        gasUsed: 0n,
       });
       vi.spyOn(TokenCreated, "decode").mockReturnValue({
         name: "TokenCreated",
@@ -176,6 +177,7 @@ describe("GroundhogRegistrySource", () => {
       value: factoryConfig(0x33),
       height: 1n,
       events: [],
+      gasUsed: 0n,
     });
 
     await expect(
@@ -188,6 +190,7 @@ describe("GroundhogRegistrySource", () => {
       value: factoryConfig(0x44),
       height: 1n,
       events: [],
+      gasUsed: 0n,
     });
 
     await expect(
