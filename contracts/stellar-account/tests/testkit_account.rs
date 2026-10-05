@@ -32,7 +32,8 @@ use groundhog_testkit::xdr::auth_claim::{AuthClaim, AuthClaim_source_address_cla
 use groundhog_testkit::xdr::transaction::{DecoratedSignature, SignedTransaction};
 use groundhog_testkit::xdr::types::{ContractAddress, Ed25519PublicKey, NetworkHash, SHA256Hash};
 use groundhog_testkit::{
-    Agent, AgentContext, Contract, LocalNetworkConfig, NetworkConfig, Scenario, entrypoint_id, xdrs,
+    Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Scenario,
+    entrypoint_id, xdrs,
 };
 use stellar_account_factory_if::FactoryConfig;
 
@@ -40,7 +41,7 @@ type Address = ContractAddress;
 
 const ACCOUNT_IF: (&str, &str) = ("StellarAccount", "0.1.0");
 const FACTORY_IF: (&str, &str) = ("StellarAccountFactory", "0.1.0");
-const ERC20: (&str, &str) = ("ERC20", "0.1.3");
+const ERC20: (&str, &str) = ("ERC20", "0.1.44");
 
 const MASTER_SEED: [u8; 32] = [0x11; 32];
 const SECOND_SEED: [u8; 32] = [0x22; 32];
@@ -50,8 +51,8 @@ const ALL_SLOTS: u32 = (1u32 << 21) - 1;
 
 /// Starting balance for the account: covers deployment storage, the
 /// account's own storage writes, and gas for the transactions below.
-const STARTING_BALANCE: u128 = 5_000_000_000;
-const REQUIRED_FUNDING: u128 = 1_000_000_000;
+const STARTING_BALANCE: i128 = 5_000_000_000;
+const REQUIRED_FUNDING: i128 = 1_000_000_000;
 const GAS_LIMIT: u64 = 10_000_000;
 const HORIZON: i64 = 1_000;
 
@@ -154,18 +155,22 @@ fn admin() -> Agent {
 
         // Code and factory. `register_artifact` deploys a throwaway first
         // instance; only the registered hash matters here.
-        ctx.register_artifact("stellar_account").await?;
+        ctx.register_artifact(
+            "stellar_account",
+            DeployOptions::funded(REQUIRED_FUNDING as u128),
+        )
+        .await?;
         let account_hash = ctx.contract_hash("stellar_account")?;
         let factory = Contract::new(
-            ctx.deploy_artifact("stellar_account_factory")
-                .await?
-                .address,
+            ctx.deploy_artifact(
+                "stellar_account_factory",
+                DeployOptions::funded(REQUIRED_FUNDING as u128),
+            )
+            .await?
+            .address,
             FACTORY_IF.0,
             FACTORY_IF.1,
         );
-        native
-            .call(&mut ctx, "transfer", &(factory.address(), REQUIRED_FUNDING))
-            .await?;
         factory
             .call(
                 &mut ctx,
@@ -298,7 +303,7 @@ fn admin() -> Agent {
             &network,
             account,
             "payment",
-            &(native.address(), me, 1u128),
+            &(native.address(), me, 1i128),
             1,
             &[(1, &second)],
             6,
