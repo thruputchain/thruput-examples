@@ -164,12 +164,13 @@ High threshold:
   weight twice. The chain refuses any registration that would place one key in two slots of an
   address (hogd `DuplicateSigner` conflict), so such a transaction fails to commit; the account
   cannot read other slots' keys back, so this guarantee is provided by the chain, not the contract.
-  Emits `SignerChanged { slot, weight }`.
+  Emits `SignerChanged { slot, key: Some(key), weight }`.
 - `remove_signer(slot: u32)`: `1 <= slot < 21` (`InvalidSlot`). Deregisters, zeros the mirror
-  entry, runs the guard. Emits `SignerChanged { slot, weight: 0 }`.
+  entry, runs the guard. Emits `SignerChanged { slot, key: None, weight: 0 }`.
 - `set_master_weight(weight: u32)`: Stellar's master weight. `weight >= 1` re-registers the stored
   master key at slot 0 with that weight; `weight == 0` deregisters slot 0 (`InvalidSlot` if slot 0
-  is already empty). Updates the mirror, runs the guard. Emits `SignerChanged { slot: 0, weight }`.
+  is already empty). Updates the mirror, runs the guard. Emits
+  `SignerChanged { slot: 0, key: Some(master_key) or None, weight }`.
 - `set_thresholds(low: u32, medium: u32, high: u32)`: stores, writes `low` as the chain's required
   weight, runs the guard. Emits `ThresholdsChanged { low, medium, high }`.
 
@@ -228,9 +229,11 @@ Factory: `AlreadyInitialized = 1`, `InvalidConfig = 2`, `InsufficientFunding = 3
 
 ## Events
 
-Account: `SignerChanged { slot: u32, weight: u32 }`, `ThresholdsChanged { low, medium, high }`.
+Account: `SignerChanged { slot: u32, key: Option<Ed25519PublicKey>, weight: u32 }` (`key` is the
+key now in the slot, `None` when the slot was cleared), `ThresholdsChanged { low, medium, high }`.
 Factory: `AccountCreated { account: ContractAddress, master_key: Ed25519PublicKey }`.
-Together these let an indexer reconstruct the signer set without a read syscall.
+Together these let an indexer reconstruct the signer table (keys and weights) without a read
+syscall; a contract-side view of the table still needs one.
 
 ## Testing
 

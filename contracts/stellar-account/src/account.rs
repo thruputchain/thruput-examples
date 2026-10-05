@@ -169,7 +169,11 @@ impl StellarAccount {
         Self::register(slot, key, weight);
         config.weights[slot as usize] = weight;
         self.commit(&config);
-        log_event(&SignerChanged { slot, weight });
+        log_event(&SignerChanged {
+            slot,
+            key: Some(*key),
+            weight,
+        });
     }
 
     /// Stellar `set_options` removing a signer (weight 0). High threshold.
@@ -183,7 +187,11 @@ impl StellarAccount {
         Self::deregister(slot);
         config.weights[slot as usize] = 0;
         self.commit(&config);
-        log_event(&SignerChanged { slot, weight: 0 });
+        log_event(&SignerChanged {
+            slot,
+            key: None,
+            weight: 0,
+        });
     }
 
     /// Stellar's master weight. 0 deregisters slot 0 (refused if it is
@@ -195,14 +203,20 @@ impl StellarAccount {
             weight != 0 || config.weights[0] != 0,
             AccountError::InvalidSlot,
         );
-        if weight == 0 {
+        let key = if weight == 0 {
             Self::deregister(0);
+            None
         } else {
             Self::register(0, &config.master_key, weight);
-        }
+            Some(config.master_key)
+        };
         config.weights[0] = weight;
         self.commit(&config);
-        log_event(&SignerChanged { slot: 0, weight });
+        log_event(&SignerChanged {
+            slot: 0,
+            key,
+            weight,
+        });
     }
 
     /// Stellar `set_options` thresholds. `low` becomes the chain-enforced

@@ -104,11 +104,15 @@ pub enum AccountError {
     CallFaulted = 6,
 }
 
-/// A slot's registration changed; `weight` 0 means it was removed.
+/// A slot's registration changed. `key` is the key now registered at
+/// `slot`, or `None` when the slot was cleared (`weight` is then 0). Together
+/// with `AccountCreated`, these events let an indexer rebuild the signer table
+/// without reading the chain's registration.
 #[derive(Event)]
 pub struct SignerChanged {
     #[topic]
     pub slot: u32,
+    pub key: Option<Ed25519PublicKey>,
     pub weight: u32,
 }
 
