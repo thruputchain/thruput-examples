@@ -72,7 +72,7 @@ try {
   assert.equal(funded.status.result, "ok");
   const plan = prepareContractDeployment({
     deployer: account.address,
-    contract: await readFile(join(root, "target/groundhog/counter.rv32a")),
+    contract: await readFile(process.env.COUNTER_ARTIFACT || join(root, "target/groundhog/counter.rv32a")),
   });
   await wallet.executeAndWait({
     invocation: ERC20.v0_1.transfer.invocation(
