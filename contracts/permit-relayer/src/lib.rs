@@ -11,8 +11,8 @@
 //!
 //! The wallet mints whichever grant the signed [`WalletRequest`] asks for, so
 //! the relayer reads that body to know where the grant goes: a permit becomes
-//! a standing allowance through `increase_allowance_signed`, and a clear
-//! revokes one through `clear_allowance_signed`. The remaining path,
+//! a standing allowance through `increase_allowance_signed`, and a delete
+//! revokes one through `delete_allowance_signed`. The remaining path,
 //! `transfer_from_signed`, needs no relayer, since the spender it names makes
 //! both calls itself.
 //!
@@ -22,7 +22,7 @@
 
 sdk::declare_mock_contract!();
 
-use groundhog_erc20_permit_if::{ClearAllowanceGrant, ERC20PermitClient, PermitGrant};
+use groundhog_erc20_permit_if::{DeleteAllowanceGrant, ERC20PermitClient, PermitGrant};
 use groundhog_signed_op_if::{Operation, SignedOpClient};
 use permit_wallet::WalletRequest;
 use sdk::signer::Signed;
@@ -48,8 +48,8 @@ pub struct PermitRelayer;
 impl PermitRelayer {
     /// Take `op` and `signature` to `wallet`, then pass the grant it mints to
     /// `token`: a permit request adds the granted amount to the allowance of
-    /// its spender through `increase_allowance_signed`, and a clear request
-    /// revokes that spender's allowance through `clear_allowance_signed`.
+    /// its spender through `increase_allowance_signed`, and a delete request
+    /// revokes that spender's allowance through `delete_allowance_signed`.
     ///
     /// A refusal anywhere along the way — a body that is not a wallet
     /// request, an invalid, expired or replayed signature at the wallet, or a
@@ -74,9 +74,9 @@ impl PermitRelayer {
                 let grant: Signed<PermitGrant> = minted.assume();
                 token.increase_allowance_signed(grant);
             }
-            WalletRequest::ClearAllowance(_) => {
-                let grant: Signed<ClearAllowanceGrant> = minted.assume();
-                token.clear_allowance_signed(grant);
+            WalletRequest::DeleteAllowance(_) => {
+                let grant: Signed<DeleteAllowanceGrant> = minted.assume();
+                token.delete_allowance_signed(grant);
             }
         }
     }

@@ -43,8 +43,11 @@ impl Ctx {
 
 impl Ctx {
     pub fn my_balances(&self) -> (Amounts, Amount) {
-        let token_balances = [self.token0().get_balance(), self.token1().get_balance()];
-        let lp_balance = self.lp().get_balance();
+        let token_balances = [
+            from_token(self.token0().get_balance()),
+            from_token(self.token1().get_balance()),
+        ];
+        let lp_balance = from_token(self.lp().get_balance());
 
         (token_balances, lp_balance)
     }
@@ -89,8 +92,8 @@ impl Ctx {
         );
 
         let reserves = [
-            self.token0().get_balance_of(&self.request_handler_addr),
-            self.token1().get_balance_of(&self.request_handler_addr),
+            from_token(self.token0().get_balance_of(&self.request_handler_addr)),
+            from_token(self.token1().get_balance_of(&self.request_handler_addr)),
         ];
         assert!(reserves[0] > 0 && reserves[1] > 0);
 
@@ -119,15 +122,20 @@ impl Ctx {
     pub fn user_buy_unpriced(&self, user: &User) {
         assert_eq!(user.addr, &get_current_address());
 
-        let amts = [self.token0().get_balance(), self.token1().get_balance()];
+        let amts = [
+            from_token(self.token0().get_balance()),
+            from_token(self.token1().get_balance()),
+        ];
 
         // Transfer our AB-tokens to the pair contract
-        self.token0().transfer(&self.request_handler_addr, amts[0]);
-        self.token1().transfer(&self.request_handler_addr, amts[1]);
+        self.token0()
+            .transfer(&self.request_handler_addr, to_token(amts[0]));
+        self.token1()
+            .transfer(&self.request_handler_addr, to_token(amts[1]));
 
         // Our balances should be drained
-        assert_eq!(0, self.token0().get_balance());
-        assert_eq!(0, self.token1().get_balance());
+        assert_eq!(0, from_token(self.token0().get_balance()));
+        assert_eq!(0, from_token(self.token1().get_balance()));
 
         self.user_print_balances(user);
     }
@@ -137,18 +145,20 @@ impl Ctx {
     pub fn user_buy(&self, user: &User) {
         assert_eq!(user.addr, &get_current_address());
 
-        let amt0 = self.token0().get_balance();
+        let amt0 = from_token(self.token0().get_balance());
         let amt1 = self.quote01(amt0);
 
-        let bal1 = self.token1().get_balance();
+        let bal1 = from_token(self.token1().get_balance());
         assert!(bal1 >= amt1);
 
         // Transfer our AB-tokens to the pair contract
-        self.token0().transfer(&self.request_handler_addr, amt0);
-        self.token1().transfer(&self.request_handler_addr, amt1);
+        self.token0()
+            .transfer(&self.request_handler_addr, to_token(amt0));
+        self.token1()
+            .transfer(&self.request_handler_addr, to_token(amt1));
 
         // Our token0 balance should be drained
-        assert_eq!(0, self.token0().get_balance());
+        assert_eq!(0, from_token(self.token0().get_balance()));
 
         self.user_print_balances(user);
     }
@@ -156,26 +166,20 @@ impl Ctx {
     // As a user: allow the handler to take the tokens a liquidity purchase will need, and report
     // the amounts the request should name.
     pub fn user_buy_prepare(&self, user: &User) -> Amounts {
-        let amt0 = self.token0().get_balance();
+        let amt0 = from_token(self.token0().get_balance());
         let amt1 = self.quote01(amt0);
 
-        let bal1 = self.token1().get_balance();
+        let bal1 = from_token(self.token1().get_balance());
         assert!(bal1 >= amt1);
 
         // We want to sell all our A tokens and the equivalent amount of B tokens for LP tokens
         let amounts = [amt0, amt1];
 
         // Give the request handler access to my tokens
-        self.token0().adjust_allowance(
-            &self.request_handler_addr,
-            amounts[0].try_into().unwrap(),
-            false,
-        );
-        self.token1().adjust_allowance(
-            &self.request_handler_addr,
-            amounts[1].try_into().unwrap(),
-            false,
-        );
+        self.token0()
+            .adjust_allowance(&self.request_handler_addr, amounts[0].try_into().unwrap());
+        self.token1()
+            .adjust_allowance(&self.request_handler_addr, amounts[1].try_into().unwrap());
 
         self.user_print_balances(user);
 
@@ -203,21 +207,21 @@ impl Ctx {
         let lp = self.lp();
 
         // Return all my LP tokens to the swap-pair contract
-        let return_amt = lp.get_balance();
-        lp.transfer(&self.request_handler_addr, return_amt);
+        let return_amt = from_token(lp.get_balance());
+        lp.transfer(&self.request_handler_addr, to_token(return_amt));
         println!("> {} redeemed {:.3} LP", user.name, decimalized(return_amt));
 
         // I should have zero LP tokens now
-        assert_eq!(lp.get_balance(), 0);
+        assert_eq!(from_token(lp.get_balance()), 0);
     }
 
     // Prepare to transfer LP allowances to the request handler
     pub fn user_redeem_prepare(&self, user: &User) -> i128 {
-        let return_amt = self.lp().get_balance().try_into().unwrap();
+        let return_amt = from_token(self.lp().get_balance()).try_into().unwrap();
 
         // Give the request handler access to all my LP tokens
         self.lp()
-            .adjust_allowance(&self.request_handler_addr, return_amt, false);
+            .adjust_allowance(&self.request_handler_addr, return_amt);
 
         return_amt
     }

@@ -214,7 +214,7 @@ impl Handler {
 
         for i in 0..=1 {
             if amounts[i] > 0 {
-                tokens[i].transfer_from(owner, &to, amounts[i]);
+                tokens[i].transfer_from(owner, &to, swap_pair::to_token(amounts[i]));
             }
         }
     }
@@ -223,7 +223,7 @@ impl Handler {
         // Transfer `amount` of the owner's LP tokens to the pair
         self.pair
             .lp()
-            .transfer_from(owner, &get_current_address(), amount);
+            .transfer_from(owner, &get_current_address(), swap_pair::to_token(amount));
     }
 }
 

@@ -133,10 +133,10 @@ impl Etx {
         exec_tx(&self.env, &TEST_ADDR, || {
             (
                 [
-                    ctx.token0().get_balance_of(&ctx.pair_addr),
-                    ctx.token1().get_balance_of(&ctx.pair_addr),
+                    from_token(ctx.token0().get_balance_of(&ctx.pair_addr)),
+                    from_token(ctx.token1().get_balance_of(&ctx.pair_addr)),
                 ],
-                ctx.lp().get_balance_of(&ctx.pair_addr),
+                from_token(ctx.lp().get_balance_of(&ctx.pair_addr)),
             )
         })
     }
@@ -146,8 +146,8 @@ impl Etx {
         let ctx = &self.ctx;
         exec_tx(&self.env, &TEST_ADDR, || {
             [
-                ctx.token0().allowance(user.addr, &ctx.pair_addr),
-                ctx.token1().allowance(user.addr, &ctx.pair_addr),
+                from_token(ctx.token0().allowance(user.addr, &ctx.pair_addr)),
+                from_token(ctx.token1().allowance(user.addr, &ctx.pair_addr)),
             ]
         })
     }

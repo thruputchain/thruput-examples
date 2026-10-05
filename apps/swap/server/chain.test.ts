@@ -405,7 +405,7 @@ describe("GroundhogRegistrySource", () => {
 
   it.each([
     new ContractDecodeError("malformed view return"),
-    new ContractViewError({ kind: "fault", height: 8n, events: [] }),
+    new ContractViewError({ kind: "fault", height: 8n, gasUsed: 0n, events: [] }),
   ])(
     "classifies generated factory failure $name as integrity",
     async (error) => {
@@ -518,7 +518,7 @@ function pool() {
 }
 
 function view<T>(value: T, height: bigint) {
-  return { value, height, events: [] };
+  return { value, height, gasUsed: 0n, events: [] };
 }
 
 function eventPage(

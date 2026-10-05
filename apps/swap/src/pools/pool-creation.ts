@@ -272,7 +272,7 @@ function checkedTriple(value: bigint): bigint {
 }
 
 function emptyView(height: bigint): ContractView<bigint> {
-  return { value: 0n, height, events: [] };
+  return { value: 0n, height, gasUsed: 0n, events: [] };
 }
 
 function creationToken(

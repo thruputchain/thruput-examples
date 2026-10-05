@@ -1,5 +1,7 @@
-// Generated from standard_token.spec.xdr - ERC20 interface v0.1.42
-// Generated from standard_token.spec.xdr - ERC20Metadata interface v0.1.42
+// Generated from standard_token.spec.xdr - ERC20 interface v0.1.44
+// Generated from standard_token.spec.xdr - ERC20Burn interface v0.1.44
+// Generated from standard_token.spec.xdr - ERC20Clawback interface v0.1.44
+// Generated from standard_token.spec.xdr - ERC20Metadata interface v0.1.44
 // Generated from standard_token.spec.xdr - StandardTokenInitializer interface v0.1.0
 // DO NOT EDIT. Re-run codegen to update.
 
@@ -19,14 +21,11 @@ const __gh_entrypoints = {
       allowance: __gh_protocol.contractEntrypointID(
         __gh_protocol_utils.fromHex("d296058ebcf260cb"),
       ),
-      burn: __gh_protocol.contractEntrypointID(
-        __gh_protocol_utils.fromHex("54adb8f6a487253b"),
+      deleteAllowance: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("dafe89d86eaf8ddf"),
       ),
-      clearAllowance: __gh_protocol.contractEntrypointID(
-        __gh_protocol_utils.fromHex("83cfc31e87b29961"),
-      ),
-      clearBalance: __gh_protocol.contractEntrypointID(
-        __gh_protocol_utils.fromHex("8358b61cae8129ad"),
+      deleteBalance: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("2924d916f07d51aa"),
       ),
       getBalance: __gh_protocol.contractEntrypointID(
         __gh_protocol_utils.fromHex("b921b642d31d7dac"),
@@ -48,6 +47,23 @@ const __gh_entrypoints = {
       ),
       transferFrom: __gh_protocol.contractEntrypointID(
         __gh_protocol_utils.fromHex("695be60513fcc294"),
+      ),
+    },
+  },
+  ERC20Burn: {
+    v0_1: {
+      burn: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("e440b57ed93d3854"),
+      ),
+      burnFrom: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("2f6333dcfa5fbe37"),
+      ),
+    },
+  },
+  ERC20Clawback: {
+    v0_1: {
+      clawback: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("6612b164088dea77"),
       ),
     },
   },
@@ -76,10 +92,30 @@ const __gh_entrypoints = {
   },
 } as const;
 
+export namespace groundhog_erc20_controls_if {
+  export namespace v0_1 {
+    export namespace error {
+      export type ERC20ControlsError = 1n | 2n | 3n | 4n | 5n;
+    }
+
+    export namespace events {
+      export interface ClawbackEvent extends __gh_client_contract.DecodedContractEvent<
+        "ClawbackEvent",
+        { from: __gh_protocol.ContractAddress },
+        { amount: bigint }
+      > {}
+
+      export interface ClawbackEventFilter {
+        from?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
+      }
+    }
+  }
+}
+
 export namespace groundhog_erc20_if {
   export namespace v0_1 {
     export namespace error {
-      export type ERC20Error = 1n | 2n | 3n | 4n | 100n;
+      export type ERC20Error = 1n | 2n | 3n | 4n | 5n | 100n;
     }
 
     export namespace events {
@@ -93,6 +129,20 @@ export namespace groundhog_erc20_if {
       > {}
 
       export interface AllowanceChangeEventFilter {
+        owner?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
+        spender?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
+      }
+
+      export interface AllowanceDeleteEvent extends __gh_client_contract.DecodedContractEvent<
+        "AllowanceDeleteEvent",
+        {
+          owner: __gh_protocol.ContractAddress;
+          spender: __gh_protocol.ContractAddress;
+        },
+        { removed: bigint }
+      > {}
+
+      export interface AllowanceDeleteEventFilter {
         owner?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
         spender?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
       }
@@ -139,7 +189,6 @@ export namespace ERC20 {
     export interface AdjustAllowanceArgs {
       spender: __gh_protocol.ContractAddress;
       difference: bigint;
-      exclusive: boolean;
     }
     export type AdjustAllowanceResult = void;
 
@@ -149,19 +198,13 @@ export namespace ERC20 {
     }
     export type AllowanceResult = bigint;
 
-    export interface BurnArgs {
-      owner: __gh_protocol.ContractAddress;
-      amount: bigint;
-    }
-    export type BurnResult = void;
-
-    export interface ClearAllowanceArgs {
+    export interface DeleteAllowanceArgs {
       spender: __gh_protocol.ContractAddress;
     }
-    export type ClearAllowanceResult = void;
+    export type DeleteAllowanceResult = void;
 
-    export type ClearBalanceArgs = void;
-    export type ClearBalanceResult = void;
+    export type DeleteBalanceArgs = void;
+    export type DeleteBalanceResult = void;
 
     export type GetBalanceArgs = void;
     export type GetBalanceResult = bigint;
@@ -204,6 +247,63 @@ export namespace ERC20 {
       selector: 0xb19947acb2fa14ffn;
       value: __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error;
     };
+    export type Exception =
+      __gh_client_contract.ContractException<DeclaredException>;
+  }
+}
+
+export namespace ERC20Burn {
+  export namespace v0_1 {
+    export interface BurnArgs {
+      amount: bigint;
+    }
+    export type BurnResult = void;
+
+    export interface BurnFromArgs {
+      owner: __gh_protocol.ContractAddress;
+      amount: bigint;
+    }
+    export type BurnFromResult = void;
+
+    export type DeclaredException =
+      | {
+          kind: "declared";
+          name: "ERC20ControlsError";
+          selector: 0x5feff273f7e2dbben;
+          value: __gh_codegen.groundhog_erc20_controls_if$v0_1$error$ERC20ControlsError;
+        }
+      | {
+          kind: "declared";
+          name: "ERC20Error";
+          selector: 0xb19947acb2fa14ffn;
+          value: __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error;
+        };
+    export type Exception =
+      __gh_client_contract.ContractException<DeclaredException>;
+  }
+}
+
+export namespace ERC20Clawback {
+  export namespace v0_1 {
+    export interface ClawbackArgs {
+      from: __gh_protocol.ContractAddress;
+      amount: bigint;
+    }
+    export type ClawbackResult = void;
+
+    export type DeclaredException =
+      | {
+          kind: "declared";
+          name: "ERC20ControlsError";
+          selector: 0x5feff273f7e2dbben;
+          value: __gh_codegen.groundhog_erc20_controls_if$v0_1$error$ERC20ControlsError;
+        }
+      | {
+          kind: "declared";
+          name: "ERC20Error";
+          selector: 0xb19947acb2fa14ffn;
+          value: __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error;
+        };
     export type Exception =
       __gh_client_contract.ContractException<DeclaredException>;
   }
@@ -261,7 +361,7 @@ export const spec: __gh_client_contract.ContractSpec = {
   interfaces: [
     {
       name: __gh_s("ERC20"),
-      vers: __gh_s("0.1.42"),
+      vers: __gh_s("0.1.44"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -288,10 +388,6 @@ export const spec: __gh_client_contract.ContractSpec = {
               name: __gh_s("difference"),
               ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
             },
-            {
-              name: __gh_s("exclusive"),
-              ty: { v: __gh_contract_spec.ContractTypeKind.Bool },
-            },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
         },
@@ -307,24 +403,10 @@ export const spec: __gh_client_contract.ContractSpec = {
               ty: { v: __gh_contract_spec.ContractTypeKind.Address },
             },
           ],
-          return_type: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
         },
         {
-          name: __gh_s("burn"),
-          args: [
-            {
-              name: __gh_s("owner"),
-              ty: { v: __gh_contract_spec.ContractTypeKind.Address },
-            },
-            {
-              name: __gh_s("amount"),
-              ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
-            },
-          ],
-          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-        },
-        {
-          name: __gh_s("clear_allowance"),
+          name: __gh_s("delete_allowance"),
           args: [
             {
               name: __gh_s("spender"),
@@ -334,14 +416,14 @@ export const spec: __gh_client_contract.ContractSpec = {
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
         },
         {
-          name: __gh_s("clear_balance"),
+          name: __gh_s("delete_balance"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
         },
         {
           name: __gh_s("get_balance"),
           args: [],
-          return_type: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
         },
         {
           name: __gh_s("get_balance_of"),
@@ -351,7 +433,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               ty: { v: __gh_contract_spec.ContractTypeKind.Address },
             },
           ],
-          return_type: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
         },
         {
           name: __gh_s("initialize"),
@@ -372,7 +454,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
             {
               name: __gh_s("amount"),
-              ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+              ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
@@ -380,7 +462,7 @@ export const spec: __gh_client_contract.ContractSpec = {
         {
           name: __gh_s("total_supply"),
           args: [],
-          return_type: { v: __gh_contract_spec.ContractTypeKind.U128 },
+          return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
         },
         {
           name: __gh_s("transfer"),
@@ -391,7 +473,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
             {
               name: __gh_s("amount"),
-              ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+              ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
@@ -409,7 +491,109 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
             {
               name: __gh_s("amount"),
-              ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+              ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
+            },
+          ],
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+        },
+      ],
+    },
+    {
+      name: __gh_s("ERC20Burn"),
+      vers: __gh_s("0.1.44"),
+      throws: [
+        {
+          selector: 0x5feff273f7e2dbben,
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("groundhog-erc20-controls-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("groundhog_erc20_controls_if::error"),
+              declared: __gh_s("ERC20ControlsError"),
+            },
+          },
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("groundhog-erc20-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("groundhog_erc20_if::error"),
+              declared: __gh_s("ERC20Error"),
+            },
+          },
+        },
+      ],
+      methods: [
+        {
+          name: __gh_s("burn"),
+          args: [
+            {
+              name: __gh_s("amount"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
+            },
+          ],
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+        },
+        {
+          name: __gh_s("burn_from"),
+          args: [
+            {
+              name: __gh_s("owner"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+            },
+            {
+              name: __gh_s("amount"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
+            },
+          ],
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+        },
+      ],
+    },
+    {
+      name: __gh_s("ERC20Clawback"),
+      vers: __gh_s("0.1.44"),
+      throws: [
+        {
+          selector: 0x5feff273f7e2dbben,
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("groundhog-erc20-controls-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("groundhog_erc20_controls_if::error"),
+              declared: __gh_s("ERC20ControlsError"),
+            },
+          },
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("groundhog-erc20-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("groundhog_erc20_if::error"),
+              declared: __gh_s("ERC20Error"),
+            },
+          },
+        },
+      ],
+      methods: [
+        {
+          name: __gh_s("clawback"),
+          args: [
+            {
+              name: __gh_s("from"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+            },
+            {
+              name: __gh_s("amount"),
+              ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
@@ -418,7 +602,7 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
     {
       name: __gh_s("ERC20Metadata"),
-      vers: __gh_s("0.1.42"),
+      vers: __gh_s("0.1.44"),
       throws: [],
       methods: [
         {
@@ -530,7 +714,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
             {
               name: __gh_s("initial_supply"),
-              ty: { v: __gh_contract_spec.ContractTypeKind.U128 },
+              ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
@@ -539,6 +723,24 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
   ],
   type_defs: [
+    {
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
+      enum_def: {
+        name: {
+          crate_name: __gh_s("groundhog-erc20-controls-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("groundhog_erc20_controls_if::error"),
+          declared: __gh_s("ERC20ControlsError"),
+        },
+        variants: [
+          { name: __gh_s("NotInitialized"), value: 1n },
+          { name: __gh_s("Unauthorized"), value: 2n },
+          { name: __gh_s("HolderNotAuthorized"), value: 3n },
+          { name: __gh_s("OperationDisabled"), value: 4n },
+          { name: __gh_s("InvalidPolicy"), value: 5n },
+        ],
+      },
+    },
     {
       v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
@@ -553,12 +755,38 @@ export const spec: __gh_client_contract.ContractSpec = {
           { name: __gh_s("MustBeContractOwner"), value: 2n },
           { name: __gh_s("TooLarge"), value: 3n },
           { name: __gh_s("BalanceNotZero"), value: 4n },
+          { name: __gh_s("NegativeAmount"), value: 5n },
           { name: __gh_s("Internal"), value: 100n },
         ],
       },
     },
   ],
   events: [
+    {
+      name: {
+        crate_name: __gh_s("groundhog-erc20-controls-if"),
+        major: __gh_s("0.1"),
+        module_path: __gh_s("groundhog_erc20_controls_if::events"),
+        declared: __gh_s("ClawbackEvent"),
+      },
+      signature: __gh_protocol.topic(
+        __gh_protocol_utils.fromHex(
+          "17b1dd13f502e5544a993aa41b810a3309fa6444ca1e407151e0aad66c352fca",
+        ),
+      ),
+      topics: [
+        {
+          name: __gh_s("from"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+        },
+      ],
+      fields: [
+        {
+          name: __gh_s("amount"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
+        },
+      ],
+    },
     {
       name: {
         crate_name: __gh_s("groundhog-erc20-if"),
@@ -584,6 +812,35 @@ export const spec: __gh_client_contract.ContractSpec = {
       fields: [
         {
           name: __gh_s("difference"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
+        },
+      ],
+    },
+    {
+      name: {
+        crate_name: __gh_s("groundhog-erc20-if"),
+        major: __gh_s("0.1"),
+        module_path: __gh_s("groundhog_erc20_if::events"),
+        declared: __gh_s("AllowanceDeleteEvent"),
+      },
+      signature: __gh_protocol.topic(
+        __gh_protocol_utils.fromHex(
+          "a772908a2b54d41264c01ed43b3e7c45cc58a0adce069df7c9c427158c2efb75",
+        ),
+      ),
+      topics: [
+        {
+          name: __gh_s("owner"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+        },
+        {
+          name: __gh_s("spender"),
+          ty: { v: __gh_contract_spec.ContractTypeKind.Address },
+        },
+      ],
+      fields: [
+        {
+          name: __gh_s("removed"),
           ty: { v: __gh_contract_spec.ContractTypeKind.I128 },
         },
       ],
@@ -682,7 +939,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "adjust_allowance",
       publicName: "adjustAllowance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.adjustAllowance,
@@ -696,11 +953,6 @@ export const ERC20 = {
           abiName: "difference",
           publicName: "difference",
           type: spec.interfaces[0]!.methods[0]!.args[1]!.ty,
-        },
-        {
-          abiName: "exclusive",
-          publicName: "exclusive",
-          type: spec.interfaces[0]!.methods[0]!.args[2]!.ty,
         },
       ],
       returnType: spec.interfaces[0]!.methods[0]!.return_type,
@@ -719,7 +971,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "allowance",
       publicName: "allowance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.allowance,
@@ -745,26 +997,21 @@ export const ERC20 = {
       ],
       codecs: __gh_codecs,
     }),
-    burn: __gh_client_contract.defineContractMethod<
-      ERC20.v0_1.BurnArgs,
-      ERC20.v0_1.BurnResult,
+    deleteAllowance: __gh_client_contract.defineContractMethod<
+      ERC20.v0_1.DeleteAllowanceArgs,
+      ERC20.v0_1.DeleteAllowanceResult,
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
-      abiName: "burn",
-      publicName: "burn",
-      entrypoint: __gh_entrypoints.ERC20.v0_1.burn,
+      interfaceVersion: "0.1.44",
+      abiName: "delete_allowance",
+      publicName: "deleteAllowance",
+      entrypoint: __gh_entrypoints.ERC20.v0_1.deleteAllowance,
       args: [
         {
-          abiName: "owner",
-          publicName: "owner",
+          abiName: "spender",
+          publicName: "spender",
           type: spec.interfaces[0]!.methods[2]!.args[0]!.ty,
-        },
-        {
-          abiName: "amount",
-          publicName: "amount",
-          type: spec.interfaces[0]!.methods[2]!.args[1]!.ty,
         },
       ],
       returnType: spec.interfaces[0]!.methods[2]!.return_type,
@@ -777,45 +1024,18 @@ export const ERC20 = {
       ],
       codecs: __gh_codecs,
     }),
-    clearAllowance: __gh_client_contract.defineContractMethod<
-      ERC20.v0_1.ClearAllowanceArgs,
-      ERC20.v0_1.ClearAllowanceResult,
+    deleteBalance: __gh_client_contract.defineContractMethod<
+      ERC20.v0_1.DeleteBalanceArgs,
+      ERC20.v0_1.DeleteBalanceResult,
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
-      abiName: "clear_allowance",
-      publicName: "clearAllowance",
-      entrypoint: __gh_entrypoints.ERC20.v0_1.clearAllowance,
-      args: [
-        {
-          abiName: "spender",
-          publicName: "spender",
-          type: spec.interfaces[0]!.methods[3]!.args[0]!.ty,
-        },
-      ],
-      returnType: spec.interfaces[0]!.methods[3]!.return_type,
-      throws: [
-        {
-          selector: 0xb19947acb2fa14ffn,
-          name: "ERC20Error",
-          type: spec.interfaces[0]!.throws[0]!.ty,
-        },
-      ],
-      codecs: __gh_codecs,
-    }),
-    clearBalance: __gh_client_contract.defineContractMethod<
-      ERC20.v0_1.ClearBalanceArgs,
-      ERC20.v0_1.ClearBalanceResult,
-      ERC20.v0_1.DeclaredException
-    >({
-      interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
-      abiName: "clear_balance",
-      publicName: "clearBalance",
-      entrypoint: __gh_entrypoints.ERC20.v0_1.clearBalance,
+      interfaceVersion: "0.1.44",
+      abiName: "delete_balance",
+      publicName: "deleteBalance",
+      entrypoint: __gh_entrypoints.ERC20.v0_1.deleteBalance,
       args: [],
-      returnType: spec.interfaces[0]!.methods[4]!.return_type,
+      returnType: spec.interfaces[0]!.methods[3]!.return_type,
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -831,12 +1051,12 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "get_balance",
       publicName: "getBalance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.getBalance,
       args: [],
-      returnType: spec.interfaces[0]!.methods[5]!.return_type,
+      returnType: spec.interfaces[0]!.methods[4]!.return_type,
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -852,7 +1072,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "get_balance_of",
       publicName: "getBalanceOf",
       entrypoint: __gh_entrypoints.ERC20.v0_1.getBalanceOf,
@@ -860,10 +1080,10 @@ export const ERC20 = {
         {
           abiName: "addr",
           publicName: "addr",
-          type: spec.interfaces[0]!.methods[6]!.args[0]!.ty,
+          type: spec.interfaces[0]!.methods[5]!.args[0]!.ty,
         },
       ],
-      returnType: spec.interfaces[0]!.methods[6]!.return_type,
+      returnType: spec.interfaces[0]!.methods[5]!.return_type,
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -879,7 +1099,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.ERC20.v0_1.initialize,
@@ -887,10 +1107,10 @@ export const ERC20 = {
         {
           abiName: "administrator",
           publicName: "administrator",
-          type: spec.interfaces[0]!.methods[7]!.args[0]!.ty,
+          type: spec.interfaces[0]!.methods[6]!.args[0]!.ty,
         },
       ],
-      returnType: spec.interfaces[0]!.methods[7]!.return_type,
+      returnType: spec.interfaces[0]!.methods[6]!.return_type,
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -906,7 +1126,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "mint",
       publicName: "mint",
       entrypoint: __gh_entrypoints.ERC20.v0_1.mint,
@@ -914,15 +1134,15 @@ export const ERC20 = {
         {
           abiName: "receiver",
           publicName: "receiver",
-          type: spec.interfaces[0]!.methods[8]!.args[0]!.ty,
+          type: spec.interfaces[0]!.methods[7]!.args[0]!.ty,
         },
         {
           abiName: "amount",
           publicName: "amount",
-          type: spec.interfaces[0]!.methods[8]!.args[1]!.ty,
+          type: spec.interfaces[0]!.methods[7]!.args[1]!.ty,
         },
       ],
-      returnType: spec.interfaces[0]!.methods[8]!.return_type,
+      returnType: spec.interfaces[0]!.methods[7]!.return_type,
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -938,12 +1158,12 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "total_supply",
       publicName: "totalSupply",
       entrypoint: __gh_entrypoints.ERC20.v0_1.totalSupply,
       args: [],
-      returnType: spec.interfaces[0]!.methods[9]!.return_type,
+      returnType: spec.interfaces[0]!.methods[8]!.return_type,
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -959,7 +1179,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "transfer",
       publicName: "transfer",
       entrypoint: __gh_entrypoints.ERC20.v0_1.transfer,
@@ -967,15 +1187,15 @@ export const ERC20 = {
         {
           abiName: "receiver",
           publicName: "receiver",
-          type: spec.interfaces[0]!.methods[10]!.args[0]!.ty,
+          type: spec.interfaces[0]!.methods[9]!.args[0]!.ty,
         },
         {
           abiName: "amount",
           publicName: "amount",
-          type: spec.interfaces[0]!.methods[10]!.args[1]!.ty,
+          type: spec.interfaces[0]!.methods[9]!.args[1]!.ty,
         },
       ],
-      returnType: spec.interfaces[0]!.methods[10]!.return_type,
+      returnType: spec.interfaces[0]!.methods[9]!.return_type,
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -991,7 +1211,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "transfer_from",
       publicName: "transferFrom",
       entrypoint: __gh_entrypoints.ERC20.v0_1.transferFrom,
@@ -999,25 +1219,141 @@ export const ERC20 = {
         {
           abiName: "owner",
           publicName: "owner",
-          type: spec.interfaces[0]!.methods[11]!.args[0]!.ty,
+          type: spec.interfaces[0]!.methods[10]!.args[0]!.ty,
         },
         {
           abiName: "receiver",
           publicName: "receiver",
-          type: spec.interfaces[0]!.methods[11]!.args[1]!.ty,
+          type: spec.interfaces[0]!.methods[10]!.args[1]!.ty,
         },
         {
           abiName: "amount",
           publicName: "amount",
-          type: spec.interfaces[0]!.methods[11]!.args[2]!.ty,
+          type: spec.interfaces[0]!.methods[10]!.args[2]!.ty,
         },
       ],
-      returnType: spec.interfaces[0]!.methods[11]!.return_type,
+      returnType: spec.interfaces[0]!.methods[10]!.return_type,
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+  },
+} as const;
+
+export const ERC20Burn = {
+  v0_1: {
+    burn: __gh_client_contract.defineContractMethod<
+      ERC20Burn.v0_1.BurnArgs,
+      ERC20Burn.v0_1.BurnResult,
+      ERC20Burn.v0_1.DeclaredException
+    >({
+      interfaceName: "ERC20Burn",
+      interfaceVersion: "0.1.44",
+      abiName: "burn",
+      publicName: "burn",
+      entrypoint: __gh_entrypoints.ERC20Burn.v0_1.burn,
+      args: [
+        {
+          abiName: "amount",
+          publicName: "amount",
+          type: spec.interfaces[1]!.methods[0]!.args[0]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[1]!.methods[0]!.return_type,
+      throws: [
+        {
+          selector: 0x5feff273f7e2dbben,
+          name: "ERC20ControlsError",
+          type: spec.interfaces[1]!.throws[0]!.ty,
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[1]!.throws[1]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    burnFrom: __gh_client_contract.defineContractMethod<
+      ERC20Burn.v0_1.BurnFromArgs,
+      ERC20Burn.v0_1.BurnFromResult,
+      ERC20Burn.v0_1.DeclaredException
+    >({
+      interfaceName: "ERC20Burn",
+      interfaceVersion: "0.1.44",
+      abiName: "burn_from",
+      publicName: "burnFrom",
+      entrypoint: __gh_entrypoints.ERC20Burn.v0_1.burnFrom,
+      args: [
+        {
+          abiName: "owner",
+          publicName: "owner",
+          type: spec.interfaces[1]!.methods[1]!.args[0]!.ty,
+        },
+        {
+          abiName: "amount",
+          publicName: "amount",
+          type: spec.interfaces[1]!.methods[1]!.args[1]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[1]!.methods[1]!.return_type,
+      throws: [
+        {
+          selector: 0x5feff273f7e2dbben,
+          name: "ERC20ControlsError",
+          type: spec.interfaces[1]!.throws[0]!.ty,
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[1]!.throws[1]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+  },
+} as const;
+
+export const ERC20Clawback = {
+  v0_1: {
+    clawback: __gh_client_contract.defineContractMethod<
+      ERC20Clawback.v0_1.ClawbackArgs,
+      ERC20Clawback.v0_1.ClawbackResult,
+      ERC20Clawback.v0_1.DeclaredException
+    >({
+      interfaceName: "ERC20Clawback",
+      interfaceVersion: "0.1.44",
+      abiName: "clawback",
+      publicName: "clawback",
+      entrypoint: __gh_entrypoints.ERC20Clawback.v0_1.clawback,
+      args: [
+        {
+          abiName: "from",
+          publicName: "from",
+          type: spec.interfaces[2]!.methods[0]!.args[0]!.ty,
+        },
+        {
+          abiName: "amount",
+          publicName: "amount",
+          type: spec.interfaces[2]!.methods[0]!.args[1]!.ty,
+        },
+      ],
+      returnType: spec.interfaces[2]!.methods[0]!.return_type,
+      throws: [
+        {
+          selector: 0x5feff273f7e2dbben,
+          name: "ERC20ControlsError",
+          type: spec.interfaces[2]!.throws[0]!.ty,
+        },
+        {
+          selector: 0xb19947acb2fa14ffn,
+          name: "ERC20Error",
+          type: spec.interfaces[2]!.throws[1]!.ty,
         },
       ],
       codecs: __gh_codecs,
@@ -1033,12 +1369,12 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "decimals",
       publicName: "decimals",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.decimals,
       args: [],
-      returnType: spec.interfaces[1]!.methods[0]!.return_type,
+      returnType: spec.interfaces[3]!.methods[0]!.return_type,
       throws: [],
       codecs: __gh_codecs,
     }),
@@ -1048,7 +1384,7 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.initialize,
@@ -1056,25 +1392,25 @@ export const ERC20Metadata = {
         {
           abiName: "administrator",
           publicName: "administrator",
-          type: spec.interfaces[1]!.methods[1]!.args[0]!.ty,
+          type: spec.interfaces[3]!.methods[1]!.args[0]!.ty,
         },
         {
           abiName: "name",
           publicName: "name",
-          type: spec.interfaces[1]!.methods[1]!.args[1]!.ty,
+          type: spec.interfaces[3]!.methods[1]!.args[1]!.ty,
         },
         {
           abiName: "symbol",
           publicName: "symbol",
-          type: spec.interfaces[1]!.methods[1]!.args[2]!.ty,
+          type: spec.interfaces[3]!.methods[1]!.args[2]!.ty,
         },
         {
           abiName: "decimals",
           publicName: "decimals",
-          type: spec.interfaces[1]!.methods[1]!.args[3]!.ty,
+          type: spec.interfaces[3]!.methods[1]!.args[3]!.ty,
         },
       ],
-      returnType: spec.interfaces[1]!.methods[1]!.return_type,
+      returnType: spec.interfaces[3]!.methods[1]!.return_type,
       throws: [],
       codecs: __gh_codecs,
     }),
@@ -1084,12 +1420,12 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "name",
       publicName: "name",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.name,
       args: [],
-      returnType: spec.interfaces[1]!.methods[2]!.return_type,
+      returnType: spec.interfaces[3]!.methods[2]!.return_type,
       throws: [],
       codecs: __gh_codecs,
     }),
@@ -1099,12 +1435,12 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.42",
+      interfaceVersion: "0.1.44",
       abiName: "symbol",
       publicName: "symbol",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.symbol,
       args: [],
-      returnType: spec.interfaces[1]!.methods[3]!.return_type,
+      returnType: spec.interfaces[3]!.methods[3]!.return_type,
       throws: [],
       codecs: __gh_codecs,
     }),
@@ -1128,44 +1464,78 @@ export const StandardTokenInitializer = {
         {
           abiName: "administrator",
           publicName: "administrator",
-          type: spec.interfaces[2]!.methods[0]!.args[0]!.ty,
+          type: spec.interfaces[4]!.methods[0]!.args[0]!.ty,
         },
         {
           abiName: "name",
           publicName: "name",
-          type: spec.interfaces[2]!.methods[0]!.args[1]!.ty,
+          type: spec.interfaces[4]!.methods[0]!.args[1]!.ty,
         },
         {
           abiName: "symbol",
           publicName: "symbol",
-          type: spec.interfaces[2]!.methods[0]!.args[2]!.ty,
+          type: spec.interfaces[4]!.methods[0]!.args[2]!.ty,
         },
         {
           abiName: "decimals",
           publicName: "decimals",
-          type: spec.interfaces[2]!.methods[0]!.args[3]!.ty,
+          type: spec.interfaces[4]!.methods[0]!.args[3]!.ty,
         },
         {
           abiName: "initial_holder",
           publicName: "initialHolder",
-          type: spec.interfaces[2]!.methods[0]!.args[4]!.ty,
+          type: spec.interfaces[4]!.methods[0]!.args[4]!.ty,
         },
         {
           abiName: "initial_supply",
           publicName: "initialSupply",
-          type: spec.interfaces[2]!.methods[0]!.args[5]!.ty,
+          type: spec.interfaces[4]!.methods[0]!.args[5]!.ty,
         },
       ],
-      returnType: spec.interfaces[2]!.methods[0]!.return_type,
+      returnType: spec.interfaces[4]!.methods[0]!.return_type,
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
           name: "ERC20Error",
-          type: spec.interfaces[2]!.throws[0]!.ty,
+          type: spec.interfaces[4]!.throws[0]!.ty,
         },
       ],
       codecs: __gh_codecs,
     }),
+  },
+} as const;
+
+export const groundhog_erc20_controls_if = {
+  v0_1: {
+    error: {
+      ERC20ControlsError: {
+        NotInitialized: 1n,
+        Unauthorized: 2n,
+        HolderNotAuthorized: 3n,
+        OperationDisabled: 4n,
+        InvalidPolicy: 5n,
+      },
+    },
+    events: {
+      ClawbackEvent: __gh_client_contract.defineContractEvent<
+        "ClawbackEvent",
+        groundhog_erc20_controls_if.v0_1.events.ClawbackEvent["topics"],
+        groundhog_erc20_controls_if.v0_1.events.ClawbackEvent["fields"],
+        groundhog_erc20_controls_if.v0_1.events.ClawbackEventFilter
+      >({
+        name: "ClawbackEvent",
+        signature: spec.events[0]!.signature,
+        topics: [
+          {
+            name: "from",
+            type: spec.events[0]!.topics[0]!.ty,
+            representation: "address",
+          },
+        ],
+        fields: [{ name: "amount", type: spec.events[0]!.fields[0]!.ty }],
+        codecs: __gh_codecs,
+      }),
+    },
   },
 } as const;
 
@@ -1177,6 +1547,7 @@ export const groundhog_erc20_if = {
         MustBeContractOwner: 2n,
         TooLarge: 3n,
         BalanceNotZero: 4n,
+        NegativeAmount: 5n,
         Internal: 100n,
       },
     },
@@ -1188,20 +1559,43 @@ export const groundhog_erc20_if = {
         groundhog_erc20_if.v0_1.events.AllowanceChangeEventFilter
       >({
         name: "AllowanceChangeEvent",
-        signature: spec.events[0]!.signature,
+        signature: spec.events[1]!.signature,
         topics: [
           {
             name: "owner",
-            type: spec.events[0]!.topics[0]!.ty,
+            type: spec.events[1]!.topics[0]!.ty,
             representation: "address",
           },
           {
             name: "spender",
-            type: spec.events[0]!.topics[1]!.ty,
+            type: spec.events[1]!.topics[1]!.ty,
             representation: "address",
           },
         ],
-        fields: [{ name: "difference", type: spec.events[0]!.fields[0]!.ty }],
+        fields: [{ name: "difference", type: spec.events[1]!.fields[0]!.ty }],
+        codecs: __gh_codecs,
+      }),
+      AllowanceDeleteEvent: __gh_client_contract.defineContractEvent<
+        "AllowanceDeleteEvent",
+        groundhog_erc20_if.v0_1.events.AllowanceDeleteEvent["topics"],
+        groundhog_erc20_if.v0_1.events.AllowanceDeleteEvent["fields"],
+        groundhog_erc20_if.v0_1.events.AllowanceDeleteEventFilter
+      >({
+        name: "AllowanceDeleteEvent",
+        signature: spec.events[2]!.signature,
+        topics: [
+          {
+            name: "owner",
+            type: spec.events[2]!.topics[0]!.ty,
+            representation: "address",
+          },
+          {
+            name: "spender",
+            type: spec.events[2]!.topics[1]!.ty,
+            representation: "address",
+          },
+        ],
+        fields: [{ name: "removed", type: spec.events[2]!.fields[0]!.ty }],
         codecs: __gh_codecs,
       }),
       BurnEvent: __gh_client_contract.defineContractEvent<
@@ -1211,15 +1605,15 @@ export const groundhog_erc20_if = {
         groundhog_erc20_if.v0_1.events.BurnEventFilter
       >({
         name: "BurnEvent",
-        signature: spec.events[1]!.signature,
+        signature: spec.events[3]!.signature,
         topics: [
           {
             name: "from",
-            type: spec.events[1]!.topics[0]!.ty,
+            type: spec.events[3]!.topics[0]!.ty,
             representation: "address",
           },
         ],
-        fields: [{ name: "amount", type: spec.events[1]!.fields[0]!.ty }],
+        fields: [{ name: "amount", type: spec.events[3]!.fields[0]!.ty }],
         codecs: __gh_codecs,
       }),
       MintEvent: __gh_client_contract.defineContractEvent<
@@ -1229,15 +1623,15 @@ export const groundhog_erc20_if = {
         groundhog_erc20_if.v0_1.events.MintEventFilter
       >({
         name: "MintEvent",
-        signature: spec.events[2]!.signature,
+        signature: spec.events[4]!.signature,
         topics: [
           {
             name: "to",
-            type: spec.events[2]!.topics[0]!.ty,
+            type: spec.events[4]!.topics[0]!.ty,
             representation: "address",
           },
         ],
-        fields: [{ name: "amount", type: spec.events[2]!.fields[0]!.ty }],
+        fields: [{ name: "amount", type: spec.events[4]!.fields[0]!.ty }],
         codecs: __gh_codecs,
       }),
       TransferEvent: __gh_client_contract.defineContractEvent<
@@ -1247,20 +1641,20 @@ export const groundhog_erc20_if = {
         groundhog_erc20_if.v0_1.events.TransferEventFilter
       >({
         name: "TransferEvent",
-        signature: spec.events[3]!.signature,
+        signature: spec.events[5]!.signature,
         topics: [
           {
             name: "from",
-            type: spec.events[3]!.topics[0]!.ty,
+            type: spec.events[5]!.topics[0]!.ty,
             representation: "address",
           },
           {
             name: "to",
-            type: spec.events[3]!.topics[1]!.ty,
+            type: spec.events[5]!.topics[1]!.ty,
             representation: "address",
           },
         ],
-        fields: [{ name: "amount", type: spec.events[3]!.fields[0]!.ty }],
+        fields: [{ name: "amount", type: spec.events[5]!.fields[0]!.ty }],
         codecs: __gh_codecs,
       }),
     },
@@ -1268,7 +1662,9 @@ export const groundhog_erc20_if = {
 } as const;
 
 export type ERC20Event =
+  | groundhog_erc20_controls_if.v0_1.events.ClawbackEvent
   | groundhog_erc20_if.v0_1.events.AllowanceChangeEvent
+  | groundhog_erc20_if.v0_1.events.AllowanceDeleteEvent
   | groundhog_erc20_if.v0_1.events.BurnEvent
   | groundhog_erc20_if.v0_1.events.MintEvent
   | groundhog_erc20_if.v0_1.events.TransferEvent;
@@ -1278,7 +1674,9 @@ export function decodeEvent(__gh_event: {
   data: globalThis.Uint8Array;
 }): ERC20Event | null {
   return (
+    groundhog_erc20_controls_if.v0_1.events.ClawbackEvent.decode(__gh_event) ??
     groundhog_erc20_if.v0_1.events.AllowanceChangeEvent.decode(__gh_event) ??
+    groundhog_erc20_if.v0_1.events.AllowanceDeleteEvent.decode(__gh_event) ??
     groundhog_erc20_if.v0_1.events.BurnEvent.decode(__gh_event) ??
     groundhog_erc20_if.v0_1.events.MintEvent.decode(__gh_event) ??
     groundhog_erc20_if.v0_1.events.TransferEvent.decode(__gh_event)
@@ -1287,6 +1685,8 @@ export function decodeEvent(__gh_event: {
 
 // The types the namespaces above refer to, under names no declaration can capture.
 export namespace __gh_codegen {
+  export type groundhog_erc20_controls_if$v0_1$error$ERC20ControlsError =
+    groundhog_erc20_controls_if.v0_1.error.ERC20ControlsError;
   export type groundhog_erc20_if$v0_1$error$ERC20Error =
     groundhog_erc20_if.v0_1.error.ERC20Error;
 }

@@ -549,7 +549,6 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       ERC20.v0_1.adjustAllowance.invocation(HOG_ADDRESS, GAS, {
         spender: swapFactory,
         difference: funding.recommended * 3n,
-        exclusive: false,
       }),
     );
     await execute(
@@ -579,7 +578,6 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         ERC20.v0_1.adjustAllowance.invocation(token, GAS, {
           spender: pool.handler,
           difference: LIQUIDITY,
-          exclusive: false,
         }),
       );
     }

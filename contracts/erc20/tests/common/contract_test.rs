@@ -1,4 +1,5 @@
 use crate::model::Model;
+use erc20::{ERC20BurnClient, ERC20ClawbackClient};
 use groundhog_erc20_if::*;
 use sdk::*;
 
@@ -30,6 +31,8 @@ pub fn erc20_test(deployed_addr: &ContractAddress) -> Model {
     m.initialize(&owner);
 
     let client = ERC20Client::new(deployed_addr);
+    let burn_client = ERC20BurnClient::new(deployed_addr);
+    let clawback_client = ERC20ClawbackClient::new(deployed_addr);
 
     #[cfg(feature = "metadata")]
     {
@@ -59,17 +62,23 @@ pub fn erc20_test(deployed_addr: &ContractAddress) -> Model {
     client.mint(&owner, amt);
     m.mint(&owner, amt);
 
-    // Burn
+    // A negative amount is refused before anything else is checked
+    assert_eq!(
+        client.try_mint(&owner, -1).unwrap_err().try_as(),
+        Some(ERC20Error::NegativeAmount)
+    );
+
+    // Burn our own tokens
     let amt = 50;
-    client.burn(&owner, amt);
-    m.burn(&owner, amt);
+    burn_client.burn(amt);
+    m.clawback(&owner, amt);
 
     {
         // Burn too much
         let amt = 60;
         assert!(m.balances[&owner] < amt);
         assert_eq!(
-            client.try_burn(&owner, amt).unwrap_err().try_as(),
+            burn_client.try_burn(amt).unwrap_err().try_as(),
             Some(ERC20Error::TooLarge)
         );
     }
@@ -88,20 +97,20 @@ pub fn erc20_test(deployed_addr: &ContractAddress) -> Model {
         );
     }
 
-    // Burn from other address
+    // Force a burn from another address: the administrator's clawback
     let amt = 5;
-    client.burn(other, amt);
-    m.burn(other, amt);
+    clawback_client.clawback(other, amt);
+    m.clawback(other, amt);
 
     // Approve spending by "other"
     let amt = 17;
-    client.adjust_allowance(other, amt, false);
+    client.adjust_allowance(other, amt);
     m.adjust_allowance(other, amt);
 
     // Withdraw too much approval
     assert_eq!(
         client
-            .try_adjust_allowance(other, -20, false)
+            .try_adjust_allowance(other, -20)
             .unwrap_err()
             .try_as(),
         Some(ERC20Error::TooLarge)
@@ -109,31 +118,31 @@ pub fn erc20_test(deployed_addr: &ContractAddress) -> Model {
 
     // Withdraw some approval
     let amt = 10;
-    client.adjust_allowance(other, -amt, false);
+    client.adjust_allowance(other, -amt);
     m.adjust_allowance(other, -amt);
 
-    // Grant exclusively: the same change, with the pair locked for the block
+    // Grant some more
     let amt = 3;
-    client.adjust_allowance(other, amt, true);
+    client.adjust_allowance(other, amt);
     m.adjust_allowance(other, amt);
 
-    // Revoke the allowance entirely; the change reported is the remainder
-    client.clear_allowance(other);
-    m.clear_allowance(other);
+    // Revoke the allowance entirely; the amount removed is reported
+    client.delete_allowance(other);
+    m.delete_allowance(other);
     assert_eq!(client.allowance(&owner, other), 0);
 
-    // A nonzero balance can't be cleared ...
+    // A nonzero balance can't be deleted ...
     let balance = m.balances[&owner];
     assert!(balance > 0);
     assert_eq!(
-        client.try_clear_balance().unwrap_err().try_as(),
+        client.try_delete_balance().unwrap_err().try_as(),
         Some(ERC20Error::BalanceNotZero)
     );
 
     // ... but an emptied one can, and reads as zero afterwards
     client.transfer(other, balance);
     m.transfer(other, balance);
-    client.clear_balance();
+    client.delete_balance();
     assert_eq!(client.get_balance(), 0);
 
     // Check client state against the model

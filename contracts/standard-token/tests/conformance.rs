@@ -105,7 +105,7 @@ fn regular_erc20_lifecycle_preserves_balances_supply_allowances_and_authority() 
         &env,
         env.transact(|tx| {
             tx.call(&ADMIN)
-                .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 200, false))
+                .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 200))
         }),
     );
     commit(
@@ -119,7 +119,7 @@ fn regular_erc20_lifecycle_preserves_balances_supply_allowances_and_authority() 
         &env,
         env.transact(|tx| {
             tx.call(&ADMIN)
-                .run(|| ERC20Client::new(&token).burn(&RECEIVER, 50))
+                .run(|| ERC20ClawbackClient::new(&token).clawback(&RECEIVER, 50))
         }),
     );
 
@@ -137,7 +137,7 @@ fn regular_erc20_lifecycle_preserves_balances_supply_allowances_and_authority() 
     });
     state.assert_success();
     assert_eq!(
-        state.assert_return_as::<(u128, u128, u128, u128, u128)>(),
+        state.assert_return_as::<(i128, i128, i128, i128, i128)>(),
         (625, 200, 125, 75, 950)
     );
 
@@ -146,11 +146,44 @@ fn regular_erc20_lifecycle_preserves_balances_supply_allowances_and_authority() 
             .run(|| ERC20Client::new(&token).mint(&OUTSIDER, 1))
     });
     assert_erc20_error(&unauthorized_mint, ERC20Error::MustBeContractOwner);
-    let unauthorized_burn = env.transact(|tx| {
+    let unauthorized_clawback = env.transact(|tx| {
         tx.call(&OUTSIDER)
-            .run(|| ERC20Client::new(&token).burn(&ADMIN, 1))
+            .run(|| ERC20ClawbackClient::new(&token).clawback(&ADMIN, 1))
     });
-    assert_erc20_error(&unauthorized_burn, ERC20Error::MustBeContractOwner);
+    assert_erc20_error(&unauthorized_clawback, ERC20Error::MustBeContractOwner);
+
+    // Holders burn their own tokens without any authority; a holder with an
+    // allowance burns the owner's through it.
+    commit(
+        &env,
+        env.transact(|tx| {
+            tx.call(&RECEIVER)
+                .run(|| ERC20BurnClient::new(&token).burn(100))
+        }),
+    );
+    commit(
+        &env,
+        env.transact(|tx| {
+            tx.call(&SPENDER)
+                .run(|| ERC20BurnClient::new(&token).burn_from(&ADMIN, 25))
+        }),
+    );
+    let state = env.transact(|tx| {
+        tx.call(&ADMIN).run(|| {
+            let client = ERC20Client::new(&token);
+            (
+                client.get_balance(),
+                client.get_balance_of(&RECEIVER),
+                client.allowance(&ADMIN, &SPENDER),
+                client.total_supply(),
+            )
+        })
+    });
+    state.assert_success();
+    assert_eq!(
+        state.assert_return_as::<(i128, i128, i128, i128)>(),
+        (600, 100, 50, 825)
+    );
 }
 
 #[test]
@@ -167,7 +200,7 @@ fn mint_overflow_throws_too_large_before_state_or_events() {
         &env,
         env.transact(|tx| {
             tx.call(&ADMIN)
-                .run(|| ERC20Client::new(&token).mint(&ADMIN, i128::MAX as u128))
+                .run(|| ERC20Client::new(&token).mint(&ADMIN, i128::MAX))
         }),
     );
 
@@ -188,8 +221,8 @@ fn mint_overflow_throws_too_large_before_state_or_events() {
         })
     });
     assert_eq!(
-        state.assert_return_as::<(u128, u128, u128)>(),
-        (i128::MAX as u128, 0, i128::MAX as u128)
+        state.assert_return_as::<(i128, i128, i128)>(),
+        (i128::MAX, 0, i128::MAX)
     );
 }
 
@@ -220,12 +253,12 @@ fn overdrafts_and_allowance_overflow_throw_without_events() {
         &env,
         env.transact(|tx| {
             tx.call(&ADMIN)
-                .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, i128::MAX, false))
+                .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, i128::MAX))
         }),
     );
     let allowance_overflow = env.transact(|tx| {
         tx.call(&ADMIN)
-            .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 1, false))
+            .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 1))
     });
     assert_erc20_error(&allowance_overflow, ERC20Error::TooLarge);
 
@@ -233,7 +266,7 @@ fn overdrafts_and_allowance_overflow_throw_without_events() {
         tx.call(&OUTSIDER)
             .run(|| ERC20Client::new(&token).allowance(&ADMIN, &SPENDER))
     });
-    assert_eq!(allowance.assert_return_as::<u128>(), i128::MAX as u128);
+    assert_eq!(allowance.assert_return_as::<i128>(), i128::MAX);
 }
 
 #[test]
@@ -261,7 +294,7 @@ fn zero_operations_emit_canonical_transfer_and_approval_events() {
 
     let approval = env.transact(|tx| {
         tx.call(&ADMIN)
-            .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 0, false))
+            .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 0))
     });
     approval.assert_success();
     approval.assert_event_count(1);
@@ -344,7 +377,7 @@ fn factory_initializer_accepts_none_short_and_maximum_metadata() {
         });
         views.assert_success();
         assert_eq!(
-            views.assert_return_as::<(u128, u128, Option<Name>, Option<Symbol>, Option<u32>)>(),
+            views.assert_return_as::<(i128, i128, Option<Name>, Option<Symbol>, Option<u32>)>(),
             (321, 321, token_name, token_symbol, decimals)
         );
     }
@@ -372,8 +405,8 @@ fn zero_factory_supply_materializes_a_zero_nnint_holder_row() {
 }
 
 #[test]
-fn factory_supply_bound_accepts_max_and_rejects_max_plus_one_before_writes() {
-    let max = i128::MAX as u128;
+fn factory_supply_bound_accepts_max_and_rejects_negative_before_writes() {
+    let max = i128::MAX;
     let (env, token) = setup();
     let accepted = factory_initialize(
         &env, &token, &DEPLOYER, &ADMIN, None, None, None, &HOLDER, max,
@@ -387,7 +420,7 @@ fn factory_supply_bound_accepts_max_and_rejects_max_plus_one_before_writes() {
             (client.get_balance_of(&HOLDER), client.total_supply())
         })
     });
-    assert_eq!(state.assert_return_as::<(u128, u128)>(), (max, max));
+    assert_eq!(state.assert_return_as::<(i128, i128)>(), (max, max));
 
     let (env, token) = setup();
     let rejected = factory_initialize(
@@ -399,9 +432,9 @@ fn factory_supply_bound_accepts_max_and_rejects_max_plus_one_before_writes() {
         None,
         None,
         &HOLDER,
-        max + 1,
+        -1,
     );
-    assert_erc20_error(&rejected, ERC20Error::TooLarge);
+    assert_erc20_error(&rejected, ERC20Error::NegativeAmount);
     commit(
         &env,
         env.transact(|tx| {
@@ -497,7 +530,7 @@ fn identical_same_block_factory_initializations_commit_exactly_once() {
         })
     });
     state.assert_success();
-    assert_eq!(state.assert_return_as::<(u128, u128)>(), (500, 500));
+    assert_eq!(state.assert_return_as::<(i128, i128)>(), (500, 500));
 }
 
 #[test]
@@ -508,9 +541,8 @@ fn factory_initial_mint_event_is_canonical_and_zero_supply_emits_none() {
     );
     minted.assert_success();
     minted.assert_event_count(1);
-    minted.assert_event::<TransferEvent<'_>>(0, |event| {
-        assert_eq!(event.topic(1).unwrap(), CONTRACT_ADDR_ZERO.as_ref());
-        assert_eq!(event.topic(2).unwrap(), HOLDER.as_ref());
+    minted.assert_event::<MintEvent<'_>>(0, |event| {
+        assert_eq!(event.topic(1).unwrap(), HOLDER.as_ref());
         assert_eq!(event.payload().amount, 42);
     });
 
@@ -546,17 +578,62 @@ fn factory_caller_has_no_implicit_mint_authority() {
 
 #[test]
 fn erc20_identity_comes_from_the_pinned_interface_crates() {
-    assert_eq!(ERC20Client::INTERFACE_VERSION, "0.1.42");
-    assert_eq!(ERC20MetadataClient::INTERFACE_VERSION, "0.1.42");
+    assert_eq!(ERC20Client::INTERFACE_VERSION, "0.1.44");
+    assert_eq!(ERC20MetadataClient::INTERFACE_VERSION, "0.1.44");
     assert_eq!(
         TransferEvent::SIGNATURE,
         groundhog_erc20_if::TransferEvent::SIGNATURE
     );
-    let amount: Amount = i128::MAX as u128;
-    let difference: Difference = amount as i128;
+    let amount: Amount = i128::MAX;
+    let difference: Difference = amount;
     assert_eq!(difference, i128::MAX);
     assert_eq!(
         ERC20Error::TooLarge,
         groundhog_erc20_if::ERC20Error::TooLarge
     );
+}
+
+#[test]
+fn zero_allowance_adjustment_emits_but_writes_no_storage_row() {
+    let (env, token) = setup();
+    commit(
+        &env,
+        env.transact(|tx| {
+            tx.call(&ADMIN)
+                .run(|| ERC20Client::new(&token).initialize(&ADMIN))
+        }),
+    );
+
+    let key_result = env.transact(|tx| {
+        tx.call(&token)
+            .run(|| allowance_storage_key(&ADMIN, &SPENDER))
+    });
+    key_result.assert_success();
+    let key = key_result.assert_return_as();
+
+    // A zero change is reported but recorded nowhere: no allowance row exists
+    // for the pair afterwards, so the owner pays nothing for it.
+    let zero = env.transact(|tx| {
+        tx.call(&ADMIN)
+            .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 0))
+    });
+    zero.assert_success();
+    zero.assert_event_count(1);
+    env.advance_block();
+    assert!(env.get_snapshot_storage_item(&token, &key).is_none());
+
+    // A real grant materializes the row.
+    commit(
+        &env,
+        env.transact(|tx| {
+            tx.call(&ADMIN)
+                .run(|| ERC20Client::new(&token).adjust_allowance(&SPENDER, 5))
+        }),
+    );
+    match env.get_snapshot_storage_item(&token, &key) {
+        Some(WireStorageItem::kItemTypeNonnegativeInt { nnint }) => {
+            assert_eq!(i128::from(nnint), 5);
+        }
+        other => panic!("expected an allowance row after a nonzero grant, got {other:?}"),
+    }
 }

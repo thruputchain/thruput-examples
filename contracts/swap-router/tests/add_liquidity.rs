@@ -52,7 +52,7 @@ fn add_liquidity_credits_a_recipient_other_than_the_purchaser() {
     etx.advance_block();
 
     let lp_of = |u: User| {
-        etx.exec_user_tx(u, |_| ctx.lp().get_balance_of(u.addr))
+        etx.exec_user_tx(u, |_| from_token(ctx.lp().get_balance_of(u.addr)))
             .expect("lp balance")
     };
     let (alice_before, bob_before) = (lp_of(ALICE), lp_of(BOB));

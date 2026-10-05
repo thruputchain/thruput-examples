@@ -124,5 +124,5 @@ function tokenAdapter(native: boolean): Erc20ReadAdapter {
 }
 
 function view<T>(value: T) {
-  return { value, height: 10n, events: [] };
+  return { value, height: 10n, gasUsed: 0n, events: [] };
 }

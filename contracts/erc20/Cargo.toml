@@ -16,6 +16,7 @@ entrypoints = ["metadata", "permit"]
 dev = [
     "sdk/dev",
     "groundhog-erc20-if/dev",
+    "groundhog-erc20-controls-if/dev",
     "metadata",
     "groundhog-erc20-metadata-if/dev",
     "permit",
@@ -41,6 +42,7 @@ bench = false
 [dependencies]
 sdk = { workspace = true }
 groundhog-erc20-if = { workspace = true }
+groundhog-erc20-controls-if = { workspace = true }
 groundhog-erc20-metadata-if = { workspace = true, optional = true }
 groundhog-erc20-permit-if = { workspace = true, optional = true }
 

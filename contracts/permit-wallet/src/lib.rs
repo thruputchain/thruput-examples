@@ -26,7 +26,7 @@
 sdk::declare_mock_contract!();
 
 use groundhog_erc20_permit_if::{
-    ClearAllowanceGrant, ClearAllowanceRequest, PermitGrant, PermitRequest,
+    DeleteAllowanceGrant, DeleteAllowanceRequest, PermitGrant, PermitRequest,
 };
 use groundhog_signed_op::{Operation, SignedOp, SignedOpReplayCache};
 use sdk::mintable::{AuthTokenPreimage, MintableType};
@@ -39,15 +39,15 @@ use sdk::*;
 /// What goes into a grant mint: `#[contract_type]` generates a preimage mirror
 /// of every mintable type, and these name them.
 type PermitGrantPreimage = <PermitGrant as MintableType>::Preimage;
-type ClearAllowanceGrantPreimage = <ClearAllowanceGrant as MintableType>::Preimage;
+type DeleteAllowanceGrantPreimage = <DeleteAllowanceGrant as MintableType>::Preimage;
 
 /// The body the owner signs: which grant the wallet should mint.
 #[contract_type]
 pub enum WalletRequest {
     /// Mint a [`PermitGrant`]: a transfer or allowance of up to `amount`.
     Permit(PermitRequest) = 0,
-    /// Mint a [`ClearAllowanceGrant`] revoking the spender's allowance.
-    ClearAllowance(ClearAllowanceRequest) = 1,
+    /// Mint a [`DeleteAllowanceGrant`] revoking the spender's allowance.
+    DeleteAllowance(DeleteAllowanceRequest) = 1,
 }
 
 /// Why the wallet refused, as distinct from why an operation failed
@@ -130,7 +130,7 @@ impl PermitWallet {
     }
 }
 
-#[contract(version = "0.1.0")]
+#[contract]
 impl SignedOp for PermitWallet {
     fn execute_signed_op(&mut self, op: Operation, signature: &Ed25519Signature) -> Signed<Opaque> {
         // Expiry, replay, body decode and signature under the current owner
@@ -154,10 +154,10 @@ impl SignedOp for PermitWallet {
                     },
                 })
             }
-            WalletRequest::ClearAllowance(request) => {
-                sdk::mintable::build_auth_token_node::<ClearAllowanceGrant>(AuthTokenPreimage {
+            WalletRequest::DeleteAllowance(request) => {
+                sdk::mintable::build_auth_token_node::<DeleteAllowanceGrant>(AuthTokenPreimage {
                     consumer: request.token,
-                    data: ClearAllowanceGrantPreimage {
+                    data: DeleteAllowanceGrantPreimage {
                         spender: request.spender,
                     },
                 })

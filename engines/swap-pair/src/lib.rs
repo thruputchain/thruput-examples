@@ -19,7 +19,7 @@ extern crate alloc;
 
 mod pair;
 
-pub use pair::Pair;
+pub use pair::{Pair, from_token, to_token};
 
 pub(crate) mod reserves;
 

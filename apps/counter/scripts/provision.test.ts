@@ -85,11 +85,11 @@ it("creates a fresh counter and signer on each run and writes only an environmen
   expect(mocks.executeAndWait).toHaveBeenCalledTimes(4);
   const gas = gasAmount(10_000_000n);
   for (const [index, config] of [first, second].entries()) {
-    const [deployment, gasLimit, wait] =
+    const [deployment, deployOptions, wait] =
       mocks.deployContractAndWait.mock.calls[index]!;
     expect(toHex0x(deployment.address)).toBe(config.counterAddress);
     expect(toHex0x(deployment.deployer)).toBe(config.signerAddress);
-    expect(gasLimit).toBe(gas);
+    expect(deployOptions).toEqual({ gasLimit: gas, amount: 0n });
     expect(wait).toEqual({ timeoutMs: 60_000 });
     expect(mocks.executeAndWait.mock.calls[index * 2]).toEqual([
       {

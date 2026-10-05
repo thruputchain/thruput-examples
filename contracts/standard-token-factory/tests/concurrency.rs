@@ -1,6 +1,6 @@
 mod support;
 
-use groundhog_erc20_if::{AllowanceChangeEvent, ERC20Error, TransferEvent};
+use groundhog_erc20_if::{AllowanceChangeEvent, ERC20Error, MintEvent, TransferEvent};
 use sdk::call::RawCallError;
 use sdk::*;
 use standard_token_factory::{
@@ -27,7 +27,7 @@ fn assert_fee_events(result: &TransactResult, setup: &Setup) {
     assert_eq!(transfers.len(), 1);
     assert_eq!(transfers[0].topic(1).unwrap(), setup.wallet.as_ref());
     assert_eq!(transfers[0].topic(2).unwrap(), TREASURY.as_ref());
-    assert_eq!(transfers[0].payload().amount, FEE as i128);
+    assert_eq!(transfers[0].payload().amount, FEE);
 }
 
 #[test]
@@ -50,7 +50,7 @@ fn fee_configuration_rejects_missing_or_zero_treasury() {
             0 => (FEE, None),
             1 => (FEE, Some(*groundhog_erc20_if::CONTRACT_ADDR_ZERO)),
             2 => (FEE, Some(factory)),
-            3 => (i128::MAX as u128 + 1, Some(TREASURY)),
+            3 => (-1, Some(TREASURY)),
             _ => unreachable!(),
         };
 
@@ -88,7 +88,7 @@ fn fee_configuration_rejects_missing_or_zero_treasury() {
                 token_code_hash: token_hash,
                 required_token_funding: REQUIRED_FUNDING,
                 native_token,
-                creation_fee: i128::MAX as u128,
+                creation_fee: i128::MAX,
                 fee_recipient: Some(TREASURY),
             })
         })
@@ -106,7 +106,7 @@ fn optional_fee_matrix_preserves_balances_allowance_and_direct_payment() {
         };
         let predicted = predict(&setup, &creation);
         fund(&setup, &predicted, REQUIRED_FUNDING);
-        adjust_allowance(&setup, allowance as i128);
+        adjust_allowance(&setup, allowance);
         let before = native_state(&setup, &predicted);
 
         let result = create(&setup, &creation);
@@ -134,7 +134,7 @@ fn optional_fee_matrix_preserves_balances_allowance_and_direct_payment() {
     };
     let predicted = predict(&fee_setup, &creation);
     fund(&fee_setup, &predicted, REQUIRED_FUNDING);
-    adjust_allowance(&fee_setup, FEE as i128 - 1);
+    adjust_allowance(&fee_setup, FEE - 1);
     let before = native_state(&fee_setup, &predicted);
 
     let rejected = create(&fee_setup, &creation);
@@ -172,7 +172,7 @@ fn duplicate_same_block_creation_commits_once() {
     let creation = Creation::default();
     let predicted = predict(&setup, &creation);
     fund(&setup, &predicted, REQUIRED_FUNDING);
-    adjust_allowance(&setup, (FEE * 2) as i128);
+    adjust_allowance(&setup, FEE * 2);
 
     let factory = setup.factory;
     let wallet = setup.wallet;
@@ -201,9 +201,7 @@ fn duplicate_same_block_creation_commits_once() {
     ));
     assert_eq!(committed.filter_events::<TokenCreated>(&factory).len(), 1);
     assert_eq!(
-        committed
-            .filter_events::<TransferEvent<'_>>(&predicted)
-            .len(),
+        committed.filter_events::<MintEvent<'_>>(&predicted).len(),
         1
     );
     let changes = committed.filter_events::<AllowanceChangeEvent<'_>>(&setup.native_token);
@@ -211,7 +209,7 @@ fn duplicate_same_block_creation_commits_once() {
     assert!(changes.is_empty());
     assert_eq!(transfers.len(), 1);
     assert_eq!(transfers[0].topic(2).unwrap(), TREASURY.as_ref());
-    assert_eq!(transfers[0].payload().amount, FEE as i128);
+    assert_eq!(transfers[0].payload().amount, FEE);
     drop(first);
     drop(duplicate);
     setup.env.advance_block();

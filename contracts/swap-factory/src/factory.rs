@@ -1,6 +1,6 @@
 //! The factory contract implementation.
 
-use groundhog_erc20_if::ERC20Client;
+use groundhog_erc20_if::{ERC20Client, ERC20Error};
 use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use sdk::storage::*;
 use sdk::*;
@@ -126,6 +126,9 @@ impl SwapFactory for Factory {
         let hashes = self.hashes.get();
         let payer = get_caller();
         let hog = ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN);
+        // This interface counts HOG in `u128`; the token's amounts are `i128`,
+        // and no balance can cover anything above `i128::MAX`.
+        let funding = i128::try_from(funding).unwrap_or_else(|_| throw(ERC20Error::TooLarge));
 
         let deploy_funded = |role: Role, hash: &SHA256Hash| -> Address {
             let nonce = tokens.nonce_for(role);

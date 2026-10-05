@@ -131,10 +131,10 @@ impl Etx {
         exec_tx(&self.env, &TEST_ADDR, || {
             (
                 [
-                    ctx.token0().get_balance_of(&ctx.request_handler_addr),
-                    ctx.token1().get_balance_of(&ctx.request_handler_addr),
+                    from_token(ctx.token0().get_balance_of(&ctx.request_handler_addr)),
+                    from_token(ctx.token1().get_balance_of(&ctx.request_handler_addr)),
                 ],
-                ctx.lp().get_balance_of(&ctx.request_handler_addr),
+                from_token(ctx.lp().get_balance_of(&ctx.request_handler_addr)),
             )
         })
     }
@@ -145,8 +145,8 @@ impl Etx {
         let ctx = &self.ctx;
         exec_tx(&self.env, &TEST_ADDR, || {
             [
-                ctx.token0().allowance(user.addr, &ctx.request_handler_addr),
-                ctx.token1().allowance(user.addr, &ctx.request_handler_addr),
+                from_token(ctx.token0().allowance(user.addr, &ctx.request_handler_addr)),
+                from_token(ctx.token1().allowance(user.addr, &ctx.request_handler_addr)),
             ]
         })
     }
@@ -275,12 +275,10 @@ impl Etx {
             ctx.token0().adjust_allowance(
                 &ctx.request_handler_addr,
                 amounts_allowed[0].try_into().unwrap(),
-                false,
             );
             ctx.token1().adjust_allowance(
                 &ctx.request_handler_addr,
                 amounts_allowed[1].try_into().unwrap(),
-                false,
             );
         })
     }
@@ -290,11 +288,8 @@ impl Etx {
         let ctx = &self.ctx;
 
         self.exec_user_tx(user, |_| {
-            ctx.lp().adjust_allowance(
-                &ctx.request_handler_addr,
-                liquidity.try_into().unwrap(),
-                false,
-            );
+            ctx.lp()
+                .adjust_allowance(&ctx.request_handler_addr, liquidity.try_into().unwrap());
         })
     }
 
