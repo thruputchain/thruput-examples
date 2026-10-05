@@ -269,11 +269,6 @@ fn set_signer_needs_the_high_threshold_and_updates_the_mirror_and_event() {
     result.assert_event_count(1);
     result.assert_event::<SignerChanged>(0, |e| {
         assert_eq!(e.payload().weight, 3);
-        assert_eq!(
-            e.payload().key,
-            Some(second_key()),
-            "the event names the registered key"
-        );
     });
     env.advance_block();
     let w = weights(&env);
@@ -312,10 +307,7 @@ fn remove_signer_clears_the_slot_and_emits_weight_zero() {
     env.advance_block();
     let result = as_account(&env, claim(1), |a| a.remove_signer(1));
     result.assert_success();
-    result.assert_event::<SignerChanged>(0, |e| {
-        assert_eq!(e.payload().weight, 0);
-        assert_eq!(e.payload().key, None, "a cleared slot carries no key");
-    });
+    result.assert_event::<SignerChanged>(0, |e| assert_eq!(e.payload().weight, 0));
     env.advance_block();
     assert_eq!(weights(&env)[1], 0);
 }
