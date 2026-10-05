@@ -161,8 +161,10 @@ High threshold:
   (`InvalidSlot`, `ZeroWeight`). Registers or replaces the key at `slot`, updates the mirror, runs
   the guard. Slot 0 is refused: the master key cannot be replaced. The master key itself is refused
   in any other slot (`InvalidSlot`): it already owns slot 0, and a second slot would count its
-  weight twice. Duplicate non-master keys across slots are not detected (the account cannot read
-  other slots' keys back) and would count twice. Emits `SignerChanged { slot, weight }`.
+  weight twice. The chain refuses any registration that would place one key in two slots of an
+  address (hogd `DuplicateSigner` conflict), so such a transaction fails to commit; the account
+  cannot read other slots' keys back, so this guarantee is provided by the chain, not the contract.
+  Emits `SignerChanged { slot, weight }`.
 - `remove_signer(slot: u32)`: `1 <= slot < 21` (`InvalidSlot`). Deregisters, zeros the mirror
   entry, runs the guard. Emits `SignerChanged { slot, weight: 0 }`.
 - `set_master_weight(weight: u32)`: Stellar's master weight. `weight >= 1` re-registers the stored

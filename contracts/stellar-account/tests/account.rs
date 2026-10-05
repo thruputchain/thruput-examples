@@ -660,6 +660,27 @@ fn set_signer_refuses_the_master_key_in_another_slot() {
     assert_eq!(weights(&env)[1], 0, "nothing was written");
 }
 
+/// The chain refuses a transaction that would put one key in two slots:
+/// hogd `DuplicateSigner` conflict at commit time. The contract cannot see
+/// this: the in-frame registration succeeds, but the block does not commit.
+/// The account additionally guards the master key in-frame (`InvalidSlot`).
+///
+/// Probe result (2026-10-04): the second registration committed
+/// (`ExecResult(0)`) — the published `libtest_ffi` does not yet carry hogd
+/// #4302 (`DuplicateSigner`). The assertion is correct for the future build.
+#[test]
+#[ignore = "needs the libtest_ffi build that includes hogd #4302 (DuplicateSigner)"]
+fn duplicate_non_master_key_in_two_slots_is_refused_at_commit() {
+    let env = setup();
+    // Slot 1 now holds second_key().
+    add_second_signer(&env, 1).assert_success();
+    env.advance_block();
+    // A new transaction attempts to register the same key at slot 2.
+    // hogd should refuse the commit with DuplicateSigner.
+    let result = as_account(&env, claim(1), |a| a.set_signer(2, &second_key(), 1));
+    result.assert_commit_failed();
+}
+
 /// `set_master_weight(0)` when slot 0 is already empty has nothing to remove.
 #[test]
 fn master_weight_zero_on_an_empty_slot_zero_is_refused() {
