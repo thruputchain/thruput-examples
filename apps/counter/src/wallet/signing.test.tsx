@@ -27,7 +27,7 @@ async function setup(withSigner = true) {
   const config: AppConfig = { networkId: `0x${network}`, counterAddress: `0x${"22".repeat(32)}`, signerAddress: withSigner ? `0x${"33".repeat(32)}` : null, explorerUrl: null };
   const client = await createGroundhogClient({ cluster: defineCluster({ networkHash: networkHash(sha256Hash(new Uint8Array(32))), capabilities: [] }), transport: new MockTransport() });
   const writer = new CxsWriter(); writer.writeUint64(10n);
-  vi.spyOn(client, "view").mockResolvedValue({ height: 1n, output: { result: "return", returnData: writer.finish() }, events: [] });
+  vi.spyOn(client, "view").mockResolvedValue({ height: 1n, output: { result: "return", returnData: writer.finish() }, events: [], gasUsed: 1n });
   let session: WalletSession = { networkHash: network, accounts: [] };
   const listeners = new Set<(session: WalletSession) => void>();
   const change = (next: WalletSession) => { session = next; listeners.forEach(listener => listener(next)); };

@@ -82,7 +82,7 @@ try {
     ),
     gasLimit: gasAmount(2_000_000n),
   });
-  await wallet.deployContractAndWait(plan, gasAmount(10_000_000n));
+  await wallet.deployContractAndWait(plan, { gasLimit: gasAmount(10_000_000n), amount: 0n });
   await wallet.executeAndWait({
     invocation: Counter.v0_1.initialize.invocation(
       plan.address,
