@@ -108,7 +108,7 @@ jobs:
 
       - name: Run `test_r32` tests
         run: |
-          for p in erc20 counter speedex; do
+          for p in erc20 counter speedex sep41-token; do
               groundhog test -p "$p"
           done
 
