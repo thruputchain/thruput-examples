@@ -2821,6 +2821,55 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "stellar-account"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek 3.0.0",
+ "erc20",
+ "groundhog-domain-separator",
+ "groundhog-erc20-if",
+ "groundhog-json-rpc-client",
+ "groundhog-json-rpc-types",
+ "groundhog-signing",
+ "groundhog-testkit",
+ "groundhog-xdr",
+ "hex",
+ "sdk",
+ "serde_json",
+ "stellar-account",
+ "stellar-account-factory",
+ "stellar-account-factory-if",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
+name = "stellar-account-factory"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek 3.0.0",
+ "erc20",
+ "groundhog-erc20-if",
+ "groundhog-signing",
+ "sdk",
+ "stellar-account",
+ "stellar-account-factory",
+ "stellar-account-factory-if",
+]
+
+[[package]]
+name = "stellar-account-factory-if"
+version = "0.1.0"
+dependencies = [
+ "groundhog-erc20-if",
+ "groundhog-signing",
+ "sdk",
+ "sha2 0.11.0",
+ "stellar-account-factory-if",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "stellar-strkey"
 version = "0.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"

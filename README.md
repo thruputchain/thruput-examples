@@ -33,6 +33,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](contracts/swap-router/README.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
 | [`speedex`](contracts/speedex/) | A [SPEEDEX](https://www.usenix.org/conference/nsdi23/presentation/ramseyer)-style batch exchange over several assets: offers aggregate into a commutative histogram, one transaction per batch computes clearing prices by tâtonnement, and settlement is per offer and order-free |
+| [`stellar-account`](contracts/stellar-account/), [`stellar-account-factory`](contracts/stellar-account-factory/), [`stellar-account-factory-if`](interfaces/stellar-account-factory-if/) | Stellar classic's account model on the protocol's native weighted keys: a fixed master key, 20 weighted signers, low/medium/high thresholds enforced through the transaction's claimed weight, `payment`, `create_account`, and a factory that derives the account address from the `G` key |
 
 ### Simulation fixtures
 
@@ -234,6 +235,9 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`standard-token`](contracts/standard-token/) | ✅ | — | — |
 | [`standard-token-factory`](contracts/standard-token-factory/) | ✅ | — | — |
 | [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | ✅ | — | — |
+| [`stellar-account`](contracts/stellar-account/) | ✅ | — | — |
+| [`stellar-account-factory`](contracts/stellar-account-factory/) | ✅ | — | — |
+| [`stellar-account-factory-if`](interfaces/stellar-account-factory-if/) | — | — | — |
 | [`swap-handler`](contracts/swap-handler/) | — | — | — |
 | [`swap-driver`](contracts/swap-driver/) | ✅ | — | — |
 | [`swap-router`](contracts/swap-router/) | ✅ | — | — |

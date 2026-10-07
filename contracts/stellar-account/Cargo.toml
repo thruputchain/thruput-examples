@@ -1,0 +1,59 @@
+[package]
+name = "stellar-account"
+description = "A Stellar-classic account: master key, weighted signers, and operation thresholds on Groundhog's native auth"
+version = "0.1.0"
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+edition.workspace = true
+
+[features]
+entrypoints = []
+dev = [
+    "sdk/dev",
+    "dep:thiserror",
+    "groundhog-erc20-if/dev",
+    "stellar-account-factory-if/dev",
+]
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "stellar_account"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+# `alloc`: `invoke` returns the child's bytes as a `BytesM`.
+sdk = { workspace = true, features = ["alloc"] }
+groundhog-erc20-if = { workspace = true }
+stellar-account-factory-if = { path = "../../interfaces/stellar-account-factory-if", version = "=0.1.0" }
+thiserror = { workspace = true, optional = true }
+
+[dev-dependencies]
+stellar-account = { path = ".", features = ["dev"] }
+erc20 = { path = "../erc20", features = ["dev"] }
+stellar-account-factory = { path = "../stellar-account-factory", features = ["dev"] }
+groundhog-xdr = { workspace = true }
+ed25519-dalek = { workspace = true }
+groundhog-signing = { workspace = true }
+# The live flow on a devnode (`tests/testkit_account.rs`, `#[ignore]`d).
+groundhog-testkit = { workspace = true }
+groundhog-json-rpc-client = { workspace = true }
+groundhog-json-rpc-types = { workspace = true }
+groundhog-domain-separator = { workspace = true, features = ["std"] }
+serde_json = { workspace = true }
+hex = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+clippy.result_large_err = "allow"
