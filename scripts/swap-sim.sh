@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Requires `groundhog` (the cli) in PATH and an environment var:
-#   GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode
+# Requires the `groundhog` CLI in PATH
 
 set -euo pipefail
 
