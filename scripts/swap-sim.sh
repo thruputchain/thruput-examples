@@ -22,6 +22,6 @@ fi
 export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$(realpath target/groundhog)"
 
 cargo test -p swap-router \
-    --test testkit_sim \
+    --test sim_liquidity \
     -- \
     --ignored --no-capture
