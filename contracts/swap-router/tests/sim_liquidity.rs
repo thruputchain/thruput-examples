@@ -20,7 +20,7 @@
 //! for c in erc20 swap-handler swap-driver swap-router swap-factory; do groundhog build -p "$c"; done
 //! RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
 //! GROUNDHOG_TESTKIT_ARTIFACT_ROOT=/path/to/target/groundhog \
-//!     cargo test -p swap-router --test testkit_sim -- --ignored --no-capture
+//!     cargo test -p swap-router --test sim_liquidity -- --ignored --no-capture
 //! ```
 
 use std::path::PathBuf;
