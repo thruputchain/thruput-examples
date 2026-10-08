@@ -57,3 +57,7 @@ xdrs = { workspace = true }
 
 [lints]
 clippy.result_large_err = "allow"
+
+[[test]]
+name = "calibration"
+required-features = ["calibration"]

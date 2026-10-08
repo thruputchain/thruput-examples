@@ -258,9 +258,9 @@ Beyond the tests in the table, there are two specially-handled kinds of test:
   binaries — run them with `cargo test -p <crate> -F guest_test`, which is what
   [`scripts/swap-test-guest.sh`](scripts/swap-test-guest.sh) does.
 - **Testkit simulation.**
-  [`swap-router/tests/testkit_sim.rs`](contracts/swap-router/tests/testkit_sim.rs)
+  [`swap-router/tests/sim_liquidity.rs`](contracts/swap-router/tests/sim_liquidity.rs)
   drives the swap contracts on a live "devnode" via `groundhog-testkit`. It is
-  `#[ignore]`d and needs a devnode binary; run it with
+  `#[ignore]`d and needs guest builds of the swap contracts; run it with
   [`scripts/swap-sim.sh`](scripts/swap-sim.sh).
   [`permit-wallet/tests/testkit_permit.rs`](contracts/permit-wallet/tests/testkit_permit.rs)
   does the same for the permit flow: the test signs a permit off-chain with

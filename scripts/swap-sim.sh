@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Requires `groundhog` (the cli) in PATH and an environment var:
-#   GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode
+# Requires the `groundhog` CLI in PATH
 
 set -euo pipefail
 
@@ -23,6 +22,6 @@ fi
 export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$(realpath target/groundhog)"
 
 cargo test -p swap-router \
-    --test testkit_sim \
+    --test sim_liquidity \
     -- \
     --ignored --no-capture
