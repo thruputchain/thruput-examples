@@ -272,6 +272,7 @@ impl Harness {
                 calldata: HexBytes(calldata),
                 caller: Some(Hex0x(self.wallet)),
                 gas_limit: None,
+                min_height: None,
             })
             .await
             .map_err(|e| rpc_error("view", e, None))
@@ -299,7 +300,7 @@ impl Harness {
         height: groundhog_json_rpc_types::BlockHeight,
     ) -> Result<Option<BlockInfo>, SubmissionError> {
         self.client()?
-            .get_block_by_number(height)
+            .get_block_by_number(height.into())
             .await
             .map_err(|e| rpc_error("getBlockByNumber", e, None))
     }
@@ -563,7 +564,7 @@ fn wallet_address(manifest: &RuntimeManifest, index: u32) -> ContractAddress {
     manifest
         .bootstrap_accounts
         .iter()
-        .find(|account| account.index == index)
+        .find(|account| account.index == Some(index))
         .unwrap_or_else(|| panic!("runtime manifest has no bootstrap account dev-{index}"))
         .wallet_address
         .0
