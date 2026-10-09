@@ -1,9 +1,9 @@
 //! RPC integration test for the `counter` contract.
 //!
 //! The common machinery — signing and submitting transactions through the
-//! bootstrapped `dev-0` wallet, polling for receipts, and failure diagnostics —
-//! lives in the `integration-test` crate. This file only describes the
-//! contract-specific calls and the lifecycle they exercise.
+//! funded native account of the test's key, polling for receipts, and failure
+//! diagnostics — lives in the `integration-test` crate. This file only
+//! describes the contract-specific calls and the lifecycle they exercise.
 //!
 //! Run it with:
 //!

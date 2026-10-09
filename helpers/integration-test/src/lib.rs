@@ -8,20 +8,22 @@
 //!     groundhog test --integration
 //! ```
 //!
-//! `groundhog test --integration` builds the contract to a guest binary, starts
-//! an ephemeral hog-devnode, deploys the contract with `dev-0`, and then runs
-//! the test with the following environment set:
+//! `groundhog test --integration` builds the contract to a guest binary,
+//! generates a temporary `integration` key, starts an ephemeral hog-devnode
+//! that funds that key's native account at genesis, deploys the contract from
+//! it, and then runs the test with the following environment set:
 //!
 //!   - `GROUNDHOG_RPC_URL`          — JSON-RPC endpoint of the ephemeral node
 //!   - `GROUNDHOG_CONTRACT_ADDRESS` — address the contract was deployed to
-//!   - `GROUNDHOG_DEFAULT_KEY`      — `dev-0`
+//!   - `GROUNDHOG_DEFAULT_KEY`      — `integration`, the key's name
 //!   - `GROUNDHOG_RUNTIME_MANIFEST` — path to the node's runtime manifest
+//!   - `XDG_CONFIG_HOME`            — a temporary directory holding the key
 //!
 //! [`Harness`] holds everything needed to exercise a contract the way a client
-//! would: it signs and submits transactions through the bootstrapped `dev-0`
-//! native account, then hands back each transaction's receipt. The
-//! contract-specific method calls and return decoding live in each contract's
-//! own test.
+//! would: it signs and submits transactions through that key's native account
+//! (the protocol's default wallet at the key's nonce-zero address), then hands
+//! back each transaction's receipt. The contract-specific method calls and
+//! return decoding live in each contract's own test.
 
 use groundhog_contract_util::{NormalizedMethodSignature, contract_entrypoint_id};
 use groundhog_json_rpc_client::{GroundhogApiClient, HttpClient, HttpClientBuilder};
@@ -29,8 +31,8 @@ use groundhog_json_rpc_types::block::{BlockInfo, ChainTip};
 use groundhog_json_rpc_types::events::{EventPage, EventQuery};
 use groundhog_json_rpc_types::hex::{Hex0x, HexBytes};
 use groundhog_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
-use groundhog_json_rpc_types::runtime_manifest::{RuntimeManifest, parse_runtime_manifest};
-use groundhog_json_rpc_types::transaction::{TransactionStatus, TxHash};
+use groundhog_json_rpc_types::runtime_manifest::parse_runtime_manifest;
+use groundhog_json_rpc_types::transaction::{SchedulerTransactionError, TransactionStatus, TxHash};
 use groundhog_json_rpc_types::view::{RootInvocationOutput, ViewRequest, ViewResponse};
 use groundhog_signing::default_wallet::{
     BuildDefaultWalletCallTransaction, DEFAULT_WALLET_EXECUTE_ENTRYPOINT,
@@ -38,8 +40,7 @@ use groundhog_signing::default_wallet::{
 };
 use groundhog_signing::{
     DEFAULT_PUBKEY_ACCOUNT_NONCE, DEFAULT_TX_GAS_LIMIT, LocalSigner, PubkeyAccount,
-    SignTransactionParams, Signer, derive_default_dev_account_signer,
-    sign_and_encode_transaction_hex,
+    SignTransactionParams, Signer, sign_and_encode_transaction_hex,
 };
 use groundhog_xdr::contract::ContractEntrypointID;
 use groundhog_xdr::types::{ContractAddress, NetworkHash};
@@ -100,6 +101,18 @@ pub enum SubmissionOutcome {
     Expired { tx_hash: TxHash },
     /// The scheduler rejected the transaction.
     Invalid { tx_hash: TxHash, reason: String },
+    /// Scheduler processing failed and the transaction will not run unless it
+    /// is resubmitted, which may succeed.
+    Retry {
+        tx_hash: TxHash,
+        error: SchedulerTransactionError,
+    },
+    /// Scheduler processing failed permanently; the transaction must change
+    /// before it can be resubmitted.
+    Dropped {
+        tx_hash: TxHash,
+        error: SchedulerTransactionError,
+    },
 }
 
 /// Failure to build, submit, or query an invocation.
@@ -150,12 +163,11 @@ pub struct Harness {
     interface: &'static str,
     version: &'static str,
     signer: LocalSigner,
-    /// dev-0's native account: the transaction caller. Its address is the
-    /// nonce-zero pubkey account of the signer, as the manifest confirms.
+    /// The signer's native account: the transaction caller. Its address is
+    /// the nonce-zero pubkey account of the signer, which the node funded at
+    /// genesis, as the manifest confirms.
     account: PubkeyAccount,
     wallet: ContractAddress,
-    /// Runtime manifest, retained to resolve additional bootstrap accounts.
-    manifest: RuntimeManifest,
     network_hash: NetworkHash,
     /// Monotonic transaction nonce.
     nonce: AtomicU64,
@@ -178,19 +190,21 @@ impl Harness {
         let manifest = parse_runtime_manifest(&manifest_json)
             .unwrap_or_else(|e| panic!("parsing runtime manifest {manifest_path}: {e}"));
 
-        // `dev-0`'s signing key is derived deterministically from the well-known
-        // seed. Its native account is the nonce-zero pubkey account of that
-        // key; the manifest's bootstrap entry must agree, or the node was
-        // bootstrapped from a different seed than this harness derives from.
-        let signer = derive_default_dev_account_signer(0);
+        // The key that deployed the contract. Its native account is the
+        // nonce-zero pubkey account of that key, which the node must have
+        // funded at genesis -- or this is not the node the key was made for.
+        let key_name = env("GROUNDHOG_DEFAULT_KEY");
+        let signer = load_key(&key_name);
         let account = PubkeyAccount::new(signer.public_key(), DEFAULT_PUBKEY_ACCOUNT_NONCE);
         let wallet = account.address();
-        let advertised = wallet_address(&manifest, 0);
-        assert_eq!(
-            wallet,
-            advertised,
-            "runtime manifest's dev-0 address {} is not the nonce-zero native account {} of the default dev-0 key",
-            format_contract_address(&advertised),
+        let public_key = signer.verifying_key_bytes();
+        assert!(
+            manifest
+                .bootstrap_accounts
+                .iter()
+                .any(|funded| funded.wallet_address.0 == wallet
+                    && funded.public_key.0 == public_key.into()),
+            "runtime manifest {manifest_path} funds no native account {} for key `{key_name}`",
             format_contract_address(&wallet),
         );
         let network_hash = manifest.network_hash.to_network_hash();
@@ -211,7 +225,6 @@ impl Harness {
             signer,
             account,
             wallet,
-            manifest,
             network_hash,
             nonce: AtomicU64::new(seed),
         }
@@ -242,8 +255,8 @@ impl Harness {
             .map_err(|message| SubmissionError::BuildClient(message.clone()))
     }
 
-    /// dev-0's native account address — the caller of every transaction this
-    /// harness submits.
+    /// The signer's native account address — the caller of every transaction
+    /// this harness submits.
     pub fn wallet(&self) -> ContractAddress {
         self.wallet
     }
@@ -251,12 +264,6 @@ impl Harness {
     /// Address of the deployed contract this harness targets.
     pub fn contract(&self) -> ContractAddress {
         self.contract
-    }
-
-    /// Resolve the native account address for `dev-{index}` from the runtime
-    /// manifest.
-    pub fn dev_wallet(&self, index: u32) -> ContractAddress {
-        wallet_address(&self.manifest, index)
     }
 
     /// Execute a read-only contract call against the latest committed snapshot.
@@ -330,6 +337,12 @@ impl Harness {
             SubmissionOutcome::Expired { .. } => panic!("`{method}` expired before committing"),
             SubmissionOutcome::Invalid { reason, .. } => {
                 panic!("`{method}` was rejected by the scheduler: {reason}")
+            }
+            SubmissionOutcome::Retry { error, .. } => {
+                panic!("`{method}` failed in the scheduler and needs resubmitting: {error:?}")
+            }
+            SubmissionOutcome::Dropped { error, .. } => {
+                panic!("`{method}` was dropped by the scheduler: {error:?}")
             }
         }
     }
@@ -485,6 +498,8 @@ fn unresolved_outcome(
             Some(SubmissionOutcome::Pending { tx_hash })
         }
         TransactionStatus::Committed { .. } => None,
+        TransactionStatus::Retry { error } => Some(SubmissionOutcome::Retry { tx_hash, error }),
+        TransactionStatus::Dropped { error } => Some(SubmissionOutcome::Dropped { tx_hash, error }),
         _ if expired => Some(SubmissionOutcome::Expired { tx_hash }),
         _ if timed_out => Some(SubmissionOutcome::Pending { tx_hash }),
         _ => None,
@@ -559,15 +574,45 @@ fn format_hex_bytes(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
 }
 
-/// Resolve the native account address for `dev-{index}` from the runtime manifest.
-fn wallet_address(manifest: &RuntimeManifest, index: u32) -> ContractAddress {
-    manifest
-        .bootstrap_accounts
-        .iter()
-        .find(|account| account.index == Some(index))
-        .unwrap_or_else(|| panic!("runtime manifest has no bootstrap account dev-{index}"))
-        .wallet_address
-        .0
+/// The native account of another key: its nonce-zero pubkey account, served
+/// by the protocol's default wallet. Distinct `index`es give distinct accounts,
+/// and the same `index` the same account on every run.
+///
+/// Nothing funds these accounts and the harness never signs for them; they are
+/// for receiving tokens, holding allowances and the like.
+pub fn native_account(index: u32) -> ContractAddress {
+    let mut secret = [0u8; 32];
+    secret[..20].copy_from_slice(b"integration-account:");
+    secret[28..].copy_from_slice(&index.to_be_bytes());
+    let signer = LocalSigner::from_secret_key(secret);
+    PubkeyAccount::new(signer.public_key(), DEFAULT_PUBKEY_ACCOUNT_NONCE).address()
+}
+
+/// Load the named key from the CLI's key store, which `groundhog test
+/// --integration` points `XDG_CONFIG_HOME` at.
+fn load_key(name: &str) -> LocalSigner {
+    let config_home = std::env::var_os("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::home_dir().map(|home| home.join(".config")))
+        .expect("neither XDG_CONFIG_HOME nor HOME is set");
+    let path = config_home.join(format!("groundhog/keys/{name}.json"));
+    let contents = std::fs::read(&path)
+        .unwrap_or_else(|e| panic!("reading key `{name}` from {}: {e}", path.display()));
+    let key: serde_json::Value = serde_json::from_slice(&contents)
+        .unwrap_or_else(|e| panic!("parsing key file {}: {e}", path.display()));
+    assert_eq!(
+        key["scheme"],
+        "ed25519",
+        "key file {} is not an ed25519 key",
+        path.display()
+    );
+    let keypair: [u8; 64] = key["keypair_hex"]
+        .as_str()
+        .and_then(|hex_str| hex::decode(hex_str).ok())
+        .and_then(|bytes| bytes.try_into().ok())
+        .unwrap_or_else(|| panic!("key file {} has no 64-byte keypair_hex", path.display()));
+    LocalSigner::from_keypair_bytes(keypair)
+        .unwrap_or_else(|e| panic!("key file {} holds an invalid keypair: {e}", path.display()))
 }
 
 fn parse_address(hex_str: &str) -> ContractAddress {
@@ -598,10 +643,10 @@ mod tests {
     fn receipt(status: serde_json::Value) -> TransactionReceipt {
         serde_json::from_value(serde_json::json!({
             "txHash": format!("0x{}", "00".repeat(32)),
-            "height": 10,
+            "height": "10",
             "status": status,
             "events": [],
-            "gasUsed": 0
+            "gasUsed": "0"
         }))
         .expect("test receipt should deserialize")
     }
@@ -652,7 +697,7 @@ mod tests {
     fn recent_failure_remains_pending_while_unexpired() {
         let status: TransactionStatus = serde_json::from_value(serde_json::json!({
             "status": "recentFailure",
-            "attemptHeight": 9,
+            "attemptHeight": "9",
             "cause": {
                 "kind": "dbConflict",
                 "conflict": {
@@ -676,6 +721,26 @@ mod tests {
         assert!(matches!(
             unresolved_outcome(TransactionStatus::Unknown, tx_hash(), true, false),
             Some(SubmissionOutcome::Expired { .. })
+        ));
+    }
+
+    #[test]
+    fn scheduler_failures_are_terminal() {
+        let error = || serde_json::json!({ "source": "executor", "code": 3 });
+        let retry: TransactionStatus =
+            serde_json::from_value(serde_json::json!({ "status": "retry", "error": error() }))
+                .expect("test retry status should deserialize");
+        let dropped: TransactionStatus =
+            serde_json::from_value(serde_json::json!({ "status": "dropped", "error": error() }))
+                .expect("test dropped status should deserialize");
+
+        assert!(matches!(
+            unresolved_outcome(retry, tx_hash(), false, false),
+            Some(SubmissionOutcome::Retry { error, .. }) if error.code == 3
+        ));
+        assert!(matches!(
+            unresolved_outcome(dropped, tx_hash(), false, false),
+            Some(SubmissionOutcome::Dropped { error, .. }) if error.code == 3
         ));
     }
 
