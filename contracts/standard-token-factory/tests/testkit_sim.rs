@@ -29,8 +29,8 @@ const REQUIRED_FACTORY_FUNDING: i128 = 1_000_000;
 // Exactly what creating a token through the factory costs its new address
 // under the devnode's default cost model: the deployment (base plus the
 // artifact's bytes), the config and holder rows, and the holder's native
-// balance item. Pinned to the artifact size and the devnode's storage prices,
-// so it moves when either does.
+// balance item. Measured on hog-devnode 0.1.30-rc.6, so it moves with the
+// token artifact and with the devnode's storage accounting.
 const REQUIRED_TOKEN_FUNDING: i128 = 365_690;
 // What to send the predicted address so that, after its own balance item is
 // paid for, exactly `REQUIRED_TOKEN_FUNDING` arrives.

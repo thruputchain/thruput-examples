@@ -1,6 +1,7 @@
 import { once } from "node:events";
-import { readFile, rm } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { randomBytes } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import {
@@ -11,22 +12,21 @@ import {
 
 import {
   HttpTransport,
-  createSourceAddressAccount,
+  PrivateKeySigner,
   createGroundhogClient,
+  createPubkeyAccount,
   createWalletClient,
-  devWalletAdapter,
   localnet,
+  toHex0x,
   type ConnectedGroundhogClient,
   type ExecutableWalletClient,
-  type SourceAddressAccount,
+  type PubkeyAccount,
 } from "@groundhogchain/client";
-import { bitMap, weight, type ContractAddress } from "@groundhogchain/protocol";
-import { loadLocalDevAccount } from "@groundhogchain/client/local-dev";
+import type { ContractAddress } from "@groundhogchain/protocol";
 
-const expectedProducer = {
-  binary: "hog-devnode",
-  version: "0.1.25-rc.1",
-} as const;
+/** Raw HOG each harness account starts with (100 HOG). */
+const initialAccountTokens = 1_000_000_000n;
+const accountCount = 2;
 
 interface StartupData {
   rpc_url: string;
@@ -43,13 +43,14 @@ interface RuntimeManifestJson {
   kind: string;
   chainState: string;
   protocol: string;
-  producer: typeof expectedProducer & { commitHash: string };
-  bootstrapAccountDerivation: { scheme: string; seed: string };
+  producer: { binary: string; version: string; commitHash: string };
+  bootstrapAccounts: {
+    role: string;
+    publicKey: string;
+    walletAddress: string;
+    initialStorageTokens: string;
+  }[];
   bootstrap: {
-    devWallet: {
-      deployEntrypoint: string;
-      doActionEntrypoint: string;
-    };
     storageCostModel: {
       hash: string;
       baseDataItemCost: string;
@@ -64,9 +65,10 @@ interface RuntimeManifestJson {
   };
 }
 
+/** A key the harness owns and the native account (its default wallet) it controls. */
 export interface LocalAccount {
   address: ContractAddress;
-  wallet: ExecutableWalletClient<ConnectedGroundhogClient, SourceAddressAccount>;
+  wallet: ExecutableWalletClient<ConnectedGroundhogClient, PubkeyAccount>;
 }
 
 export interface LocalNode {
@@ -79,21 +81,41 @@ export interface LocalNode {
 export async function startLocalNode(): Promise<LocalNode> {
   const groundhog =
     process.env["GROUNDHOG_NODE"] ?? process.env["GROUNDHOG"] ?? "groundhog";
+  const repository = resolve(import.meta.dirname, "../../..");
   const version = execFileSync(groundhog, ["--version"], {
     encoding: "utf8",
   }).trim();
-  if (version !== "groundhog 0.10.4") {
-    throw new Error(`Expected groundhog node supervisor 0.10.4, received ${version}`);
-  }
+  execFileSync(
+    "bash",
+    [join(repository, "scripts/check-groundhog-version.sh"), version],
+    { stdio: "inherit" },
+  );
   const devnode =
     process.env["GROUNDHOG_DEVNODE_BINARY"] ??
-    join(homedir(), ".local/share/groundhog/hog-devnode/hog-devnode");
+    execFileSync(groundhog, ["toolchain", "which"], { encoding: "utf8" }).trim();
   const stateRoot = resolve(
     tmpdir(),
     `groundhog-token-factory-ts-${process.pid}-${Date.now()}`,
   );
-  const configHome = join(stateRoot, "config");
-  const cacheHome = join(stateRoot, "cache");
+  await mkdir(stateRoot, { recursive: true });
+
+  // The node funds exactly these keys' native accounts at genesis, and no
+  // others; the harness holds the only copies of the private keys.
+  const signers = Array.from(
+    { length: accountCount },
+    () => new PrivateKeySigner(randomBytes(32)),
+  );
+  const allocations = join(stateRoot, "bootstrap-accounts.json");
+  await writeFile(
+    allocations,
+    JSON.stringify(
+      signers.map((signer) => ({
+        publicKey: toHex0x(signer.publicKey.ed25519),
+        initialStorageTokens: initialAccountTokens.toString(),
+      })),
+    ),
+  );
+
   const child = spawn(
     groundhog,
     [
@@ -102,16 +124,16 @@ export async function startLocalNode(): Promise<LocalNode> {
       "--verbose",
       "--port",
       "0",
-      "--dev-account-count",
-      "2",
+      "--bootstrap-accounts",
+      allocations,
       "--hog-devnode-binary",
       devnode,
     ],
     {
       env: {
         ...process.env,
-        XDG_CONFIG_HOME: configHome,
-        XDG_CACHE_HOME: cacheHome,
+        XDG_CONFIG_HOME: join(stateRoot, "config"),
+        XDG_DATA_HOME: join(stateRoot, "data"),
       },
       stdio: ["pipe", "pipe", "pipe"],
     },
@@ -129,15 +151,18 @@ export async function startLocalNode(): Promise<LocalNode> {
       await readFile(startup.data.runtime_manifest.path, "utf8"),
     ) as RuntimeManifestJson;
     assertManifest(manifest);
-    const client = await connect(startup.data.rpc_url);
-    const accountEnv = {
-      ...process.env,
-      GROUNDHOG_RUNTIME_MANIFEST: startup.data.runtime_manifest.path,
-    };
-    const accounts = await Promise.all([
-      loadAccount(startup.data.rpc_url, accountEnv, 0),
-      loadAccount(startup.data.rpc_url, accountEnv, 1),
-    ]);
+    const rpcUrl = startup.data.rpc_url;
+    const client = await connect(rpcUrl);
+    const accounts = await Promise.all(
+      signers.map(async (signer) => {
+        const account = createPubkeyAccount({ signer });
+        assertFunded(manifest, toHex0x(signer.publicKey.ed25519), toHex0x(account.address));
+        return {
+          address: account.address,
+          wallet: createWalletClient({ client: await connect(rpcUrl), account }),
+        };
+      }),
+    );
 
     return {
       client,
@@ -186,17 +211,15 @@ async function readStartup(
   return startup;
 }
 
+// The test's exact funding figures assume this storage cost model.
 function assertManifest(manifest: RuntimeManifestJson): void {
   const costs = manifest.bootstrap.storageCostModel;
   if (
-    manifest.schemaVersion !== 2 ||
+    manifest.schemaVersion !== 4 ||
     manifest.kind !== "hogd-dev-runtime" ||
     manifest.chainState !== "fresh" ||
-    manifest.producer.binary !== expectedProducer.binary ||
-    manifest.producer.version !== expectedProducer.version ||
+    manifest.producer.binary !== "hog-devnode" ||
     manifest.producer.commitHash.length === 0 ||
-    manifest.bootstrapAccountDerivation.scheme !==
-      "groundhog-bootstrap-account-v1" ||
     costs.hash !==
       "0x7fcd5d27353800caf9f8f3a73a030be49a1dcd9db4616792e7887746bea713ce" ||
     costs.baseDataItemCost !== "12000" ||
@@ -212,6 +235,25 @@ function assertManifest(manifest: RuntimeManifestJson): void {
   }
 }
 
+function assertFunded(
+  manifest: RuntimeManifestJson,
+  publicKey: string,
+  walletAddress: string,
+): void {
+  const funded = manifest.bootstrapAccounts.some(
+    (account) =>
+      account.role === "local_user" &&
+      account.publicKey.toLowerCase() === publicKey &&
+      account.walletAddress.toLowerCase() === walletAddress &&
+      account.initialStorageTokens === initialAccountTokens.toString(),
+  );
+  if (!funded) {
+    throw new Error(
+      `Runtime manifest funds no native account ${walletAddress} for key ${publicKey}`,
+    );
+  }
+}
+
 async function connect(
   rpcUrl: string,
 ): Promise<ConnectedGroundhogClient<ReturnType<typeof localnet>>> {
@@ -219,28 +261,6 @@ async function connect(
     cluster: localnet({ rpcUrl }),
     transport: new HttpTransport(rpcUrl, { timeoutMs: 10_000 }),
   });
-}
-
-async function loadAccount(
-  rpcUrl: string,
-  env: Readonly<Record<string, string | undefined>>,
-  roleOffset: number,
-): Promise<LocalAccount> {
-  const local = await loadLocalDevAccount({ roleOffset, env });
-  const account = createSourceAddressAccount({
-    address: local.address,
-    signers: [{ signer: local.signer, publicKeyId: 0n }],
-    allowedKeys: bitMap(1n),
-    requiredWeight: weight(1n),
-  });
-  return {
-    address: account.address,
-    wallet: createWalletClient({
-      client: await connect(rpcUrl),
-      account,
-      invocationAdapter: devWalletAdapter,
-    }),
-  };
 }
 
 async function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
