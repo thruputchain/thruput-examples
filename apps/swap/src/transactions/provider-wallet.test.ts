@@ -1,6 +1,7 @@
 import {
   addressFromHex,
   hashFromHex,
+  TransactionProcessingError,
   TransactionRejectedError,
   TransactionReceiptTimeoutError,
   type GroundhogClient,
@@ -235,6 +236,31 @@ describe("provider write boundary", () => {
       reason: "timeout",
     });
   });
+
+  it.each(["retry", "dropped"] as const)(
+    "makes a %s outcome resubmittable on every path, keeping the hash",
+    async (status) => {
+      const { boundary, wallet, client } = fixture();
+      const processing = () =>
+        new TransactionProcessingError(receipt.txHash, status, {
+          source: "executor",
+          code: 3,
+        });
+      const expected = {
+        kind: "invalid",
+        hash,
+        reason: expect.stringContaining("executor error 3"),
+      };
+      wallet.executeAndWait.mockRejectedValueOnce(
+        new TransactionObservationError(receipt.txHash, processing()),
+      );
+      expect(await boundary.execute(target)).toEqual(expected);
+      client.waitForTransactionReceipt.mockRejectedValueOnce(processing());
+      expect(await boundary.executeBatch!([target, target])).toEqual(expected);
+      client.waitForTransactionReceipt.mockRejectedValueOnce(processing());
+      expect(await boundary.observe!(hash)).toEqual(expected);
+    },
+  );
 
   it("recovers through public RPC while disconnected, pinned to the original network", async () => {
     const { client } = fixture();
