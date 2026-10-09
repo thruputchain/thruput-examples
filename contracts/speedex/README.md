@@ -184,9 +184,9 @@ A real `clear_batch`, a `submit_offer` and a `settle_offer` are measured from th
 Three things about the node's tooling shape the benchmark, and `scripts/speedex-bench.sh` handles
 them: the artifact is built declaring 256 KiB of guest memory and the devnode is started admitting
 it; the clearings are signed by the benchmark itself as calls from the agent's key-pair account
-through the node's default wallet, since the testkit's transactions carry 10M gas and pass through
-a dev wallet that takes 4 KiB of calldata; and each asset count runs on a devnode of its own,
-since an account may have 8,000 transactions at one expiry height. What the run in `bench/` says:
+through the node's default wallet, since the testkit gives each call it sends 10M gas; and each
+asset count runs on a devnode of its own, since an account may have 8,000 transactions at one
+expiry height. What the run in `bench/` says:
 
 - Reading the histogram dominates for few assets: about 30k to 39k gas per occupied cell, almost
   all of it the storage read itself (a cold database load is 37,300 in hogd's gas table; a warm

@@ -121,8 +121,8 @@ dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
 Live checks need a compatible CLI/devnode pair, built contracts, and matching
-generated bindings: CLI `0.22.1` or newer with the hog-devnode it manages
-(`0.1.30-rc.1`). Rebuild contracts from the current checkout
+generated bindings: CLI `0.26.0` or newer with the hog-devnode it manages
+(`0.1.30-rc.6`). Rebuild contracts from the current checkout
 before running them. Use a separate checkout if you need to preserve the bindings
 for the recorded Devnet deployment. From the repository root:
 
@@ -170,7 +170,7 @@ transaction or remote deployment. Wallet unit tests run independently through
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI, **version 0.22.1 or newer** (it must match the SDK the
+- The `groundhog` CLI, **version 0.26.0 or newer** (it must match the SDK the
   contracts build against):
 
   ```sh

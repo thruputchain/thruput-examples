@@ -11,7 +11,7 @@ Use Node.js 22.13 or newer and run `npm ci` from the repository root with the
 [npm registry authentication](../../README.md#install-swap-and-launchpad-dependencies)
 configured.
 
-Use **Groundhog CLI 0.22.1** and **hog-devnode 0.1.30-rc.1** for local checks.
+Use **Groundhog CLI 0.26.0** and **hog-devnode 0.1.30-rc.6** for local checks.
 Use compatible CLI/devnode builds: a newer CLI can
 require a runtime manifest that an older devnode does not provide.
 
@@ -20,7 +20,7 @@ Start the compatible node in a separate terminal:
 ```sh
 export GROUNDHOG_CLI=/absolute/path/to/groundhog
 export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
-"$GROUNDHOG_CLI" node --port 9545 --dev-account-count 0 \
+"$GROUNDHOG_CLI" node --port 9545 \
   --hog-devnode-binary "$GROUNDHOG_DEVNODE_BINARY" --json
 ```
 
@@ -119,7 +119,7 @@ file while using that deployment; run setup again when you want a fresh demo.
 
 ## SDK integration
 
-Counter uses the published client 0.14.0 and bindings generated with CLI 0.22.1.
+Counter uses the published client 0.17.0 and bindings generated with CLI 0.26.0.
 `src/groundhog/client.ts` binds the Counter address and public client once with
 `getContract`, then refreshes with `counter.get.view({ caller: signerAddress })`.
 Counter and signer-balance reads run concurrently within each scheduled refresh.

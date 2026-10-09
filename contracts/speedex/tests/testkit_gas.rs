@@ -82,10 +82,9 @@ const ASSETS: [usize; 4] = [3, 4, 6, 8];
 const OFFERS: [usize; 6] = [8, 32, 128, 512, 2048, 4096];
 const ROUND_CAPS: [u32; 9] = [1, 2, 4, 8, 16, 32, 64, 128, 256];
 
-/// Gas a clearing transaction is sent with. The testkit sends every transaction with 10M
-/// through the default wallet, which also takes at most 4 KiB of calldata; a clearing of thousands
-/// of cells exceeds both, so the clearings are signed here as direct calls from the agent's
-/// key-pair account, funded for the purpose, with this limit.
+/// Gas a clearing transaction is sent with. The testkit gives every call it sends 10M; a clearing
+/// of thousands of cells exceeds that, so the clearings are signed here as direct calls from the
+/// agent's key-pair account, funded for the purpose, with this limit.
 const CLEARING_GAS: u64 = 1_000_000_000;
 /// Native tokens moved to the key-pair account to pay for the clearings.
 const CLEARING_FUNDING: u128 = 500_000_000_000;
