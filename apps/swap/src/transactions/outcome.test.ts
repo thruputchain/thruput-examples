@@ -40,6 +40,24 @@ describe("transaction outcomes", () => {
     },
   );
 
+  it("keeps committed without an indexed height non-resubmittable", () => {
+    expect(outcomeFromStatus({ status: "committed" })).toEqual({
+      kind: "awaitingReceipt",
+    });
+  });
+
+  it.each(["retry", "dropped"] as const)(
+    "allows resubmission after a %s scheduler outcome",
+    (status) => {
+      expect(
+        outcomeFromStatus({ status, error: { source: "executor", code: 3 } }),
+      ).toMatchObject({
+        kind: "invalid",
+        reason: expect.stringContaining("executor error 3"),
+      });
+    },
+  );
+
   it("allows retry after authoritative invalid status", () => {
     expect(outcomeFromStatus({ status: "invalid", reason: "expired" })).toEqual({
       kind: "invalid",

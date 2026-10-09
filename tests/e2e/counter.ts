@@ -1,6 +1,6 @@
 // Explicit live check: npm run test:counter (build apps/counter first).
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +16,10 @@ import { TransactionEngine } from "../../apps/counter/src/transactions/engine.ts
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp(join(tmpdir(), "groundhog-counter-"));
+// The node funds no accounts beyond its own faucet; the test makes and funds its
+// own. Without an explicit (empty) list it would fund the user's default key.
+const noBootstrapAccounts = join(work, "no-bootstrap-accounts.json");
+await writeFile(noBootstrapAccounts, "[]");
 const groups = new OwnedProcessGroups();
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 let server: ReturnType<typeof createCounterServer> | undefined;
@@ -53,8 +57,8 @@ try {
       "--json",
       "--port",
       "0",
-      "--dev-account-count",
-      "0",
+      "--bootstrap-accounts",
+      noBootstrapAccounts,
       "--hog-devnode-binary",
       process.env.GROUNDHOG_DEVNODE_BINARY ??
         join(homedir(), ".local/share/groundhog/hog-devnode/hog-devnode"),

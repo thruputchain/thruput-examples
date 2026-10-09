@@ -415,6 +415,22 @@ describe("production HTTP server", () => {
     expect(response.status).toBe(status);
   });
 
+  it.each([1, "01", "-1", "9223372036854775808"])(
+    "rejects a non-canonical event anchor height %j",
+    async (height) => {
+      const response = await fetch(
+        `${origin}/groundhog-rpc`,
+        rpcRequest({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "groundhog_getEvents",
+          params: [{ ...eventQuery(), anchor: { kind: "atHeight", height } }],
+        }),
+      );
+      expect(response.status).toBe(400);
+    },
+  );
+
   it("sanitizes upstream HTTP, body, and transport failures", async () => {
     const failures: Array<Response | Error> = [
       new Response("private upstream", { status: 401 }),
@@ -877,7 +893,7 @@ function eventQuery() {
       },
     ],
     order: "ascending",
-    anchor: { kind: "atHeight", height: 1 },
+    anchor: { kind: "atHeight", height: "1" },
     cursor: "0x",
     limit: 500,
   };

@@ -310,6 +310,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               len: 32n,
             },
           },
+          effect: null,
         },
         {
           name: __gh_s("initialize"),
@@ -320,6 +321,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("remove_liquidity"),
@@ -358,6 +360,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               len: 32n,
             },
           },
+          effect: null,
         },
         {
           name: __gh_s("swap_exact_tokens_for_tokens"),
@@ -390,6 +393,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               len: 32n,
             },
           },
+          effect: null,
         },
         {
           name: __gh_s("swap_tokens_for_exact_tokens"),
@@ -422,6 +426,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               len: 32n,
             },
           },
+          effect: null,
         },
       ],
     },
@@ -666,6 +671,7 @@ export const SwapRouter = {
       abiName: "add_liquidity",
       publicName: "addLiquidity",
       entrypoint: __gh_entrypoints.SwapRouter.v0_1.addLiquidity,
+      effect: spec.interfaces[0]!.methods[0]!.effect,
       args: [
         {
           abiName: "token_a",
@@ -743,6 +749,7 @@ export const SwapRouter = {
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.SwapRouter.v0_1.initialize,
+      effect: spec.interfaces[0]!.methods[1]!.effect,
       args: [
         {
           abiName: "factory",
@@ -800,6 +807,7 @@ export const SwapRouter = {
       abiName: "remove_liquidity",
       publicName: "removeLiquidity",
       entrypoint: __gh_entrypoints.SwapRouter.v0_1.removeLiquidity,
+      effect: spec.interfaces[0]!.methods[2]!.effect,
       args: [
         {
           abiName: "token_a",
@@ -877,6 +885,7 @@ export const SwapRouter = {
       abiName: "swap_exact_tokens_for_tokens",
       publicName: "swapExactTokensForTokens",
       entrypoint: __gh_entrypoints.SwapRouter.v0_1.swapExactTokensForTokens,
+      effect: spec.interfaces[0]!.methods[3]!.effect,
       args: [
         {
           abiName: "amount_in",
@@ -954,6 +963,7 @@ export const SwapRouter = {
       abiName: "swap_tokens_for_exact_tokens",
       publicName: "swapTokensForExactTokens",
       entrypoint: __gh_entrypoints.SwapRouter.v0_1.swapTokensForExactTokens,
+      effect: spec.interfaces[0]!.methods[4]!.effect,
       args: [
         {
           abiName: "amount_out",

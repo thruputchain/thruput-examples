@@ -1,9 +1,11 @@
 import {
   hashFromHex,
   toHex0x,
+  TransactionProcessingError,
   TransactionReceiptTimeoutError,
   TransactionRejectedError,
   type CoreGroundhogClient,
+  type SchedulerTransactionError,
   type TransactionReceipt,
 } from "@groundhogchain/client";
 import {
@@ -26,9 +28,27 @@ export function receiptResult(receipt: TransactionReceipt): WriteResult {
   };
 }
 
+// Scheduler processing ended without a receipt. The node keeps no copy to try
+// again, and this app never resubmits, so the transaction cannot commit.
+export function processingFailureReason(
+  status: "retry" | "dropped",
+  error: SchedulerTransactionError,
+): string {
+  const detail = `${error.source} error ${error.code}`;
+  return status === "retry"
+    ? `The network could not process the transaction (${detail}); it was not applied and may be submitted again`
+    : `The network dropped the transaction (${detail}); it was not applied`;
+}
+
 export function observationFailure(hash: string, error: unknown): WriteResult {
   if (error instanceof TransactionRejectedError)
     return { kind: "invalid", hash, reason: error.reason };
+  if (error instanceof TransactionProcessingError)
+    return {
+      kind: "invalid",
+      hash,
+      reason: processingFailureReason(error.status, error.error),
+    };
   if (error instanceof TransactionReceiptTimeoutError) {
     const status = error.lastStatus?.status;
     return {

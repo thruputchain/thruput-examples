@@ -1,8 +1,8 @@
-// Generated from erc20.spec.xdr - ERC20 interface v0.1.44
-// Generated from erc20.spec.xdr - ERC20Burn interface v0.1.44
-// Generated from erc20.spec.xdr - ERC20Clawback interface v0.1.44
-// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.44
-// Generated from erc20.spec.xdr - ERC20Permit interface v0.1.44
+// Generated from erc20.spec.xdr - ERC20 interface v0.1.51
+// Generated from erc20.spec.xdr - ERC20Burn interface v0.1.51
+// Generated from erc20.spec.xdr - ERC20Clawback interface v0.1.51
+// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.51
+// Generated from erc20.spec.xdr - ERC20Permit interface v0.1.51
 // DO NOT EDIT. Re-run codegen to update.
 
 import * as __gh_protocol from "@groundhogchain/protocol";
@@ -398,7 +398,7 @@ export const spec: __gh_client_contract.ContractSpec = {
   interfaces: [
     {
       name: __gh_s("ERC20"),
-      vers: __gh_s("0.1.44"),
+      vers: __gh_s("0.1.51"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -427,6 +427,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("allowance"),
@@ -441,6 +442,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
+          effect: null,
         },
         {
           name: __gh_s("delete_allowance"),
@@ -451,16 +453,19 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("delete_balance"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("get_balance"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
+          effect: null,
         },
         {
           name: __gh_s("get_balance_of"),
@@ -471,6 +476,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
+          effect: null,
         },
         {
           name: __gh_s("initialize"),
@@ -481,6 +487,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("mint"),
@@ -495,11 +502,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("total_supply"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
+          effect: null,
         },
         {
           name: __gh_s("transfer"),
@@ -514,6 +523,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("transfer_from"),
@@ -532,12 +542,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
       ],
     },
     {
       name: __gh_s("ERC20Burn"),
-      vers: __gh_s("0.1.44"),
+      vers: __gh_s("0.1.51"),
       throws: [
         {
           selector: 0x5feff273f7e2dbben,
@@ -574,6 +585,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("burn_from"),
@@ -588,12 +600,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
       ],
     },
     {
       name: __gh_s("ERC20Clawback"),
-      vers: __gh_s("0.1.44"),
+      vers: __gh_s("0.1.51"),
       throws: [
         {
           selector: 0x5feff273f7e2dbben,
@@ -634,12 +647,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
       ],
     },
     {
       name: __gh_s("ERC20Metadata"),
-      vers: __gh_s("0.1.44"),
+      vers: __gh_s("0.1.51"),
       throws: [],
       methods: [
         {
@@ -649,6 +663,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             v: __gh_contract_spec.ContractTypeKind.Option,
             option_inner: { v: __gh_contract_spec.ContractTypeKind.U32 },
           },
+          effect: null,
         },
         {
           name: __gh_s("initialize"),
@@ -680,6 +695,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("name"),
@@ -688,6 +704,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             v: __gh_contract_spec.ContractTypeKind.Option,
             option_inner: { v: __gh_contract_spec.ContractTypeKind.String },
           },
+          effect: null,
         },
         {
           name: __gh_s("symbol"),
@@ -696,12 +713,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             v: __gh_contract_spec.ContractTypeKind.Option,
             option_inner: { v: __gh_contract_spec.ContractTypeKind.String },
           },
+          effect: null,
         },
       ],
     },
     {
       name: __gh_s("ERC20Permit"),
-      vers: __gh_s("0.1.44"),
+      vers: __gh_s("0.1.51"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
@@ -751,6 +769,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("increase_allowance_signed"),
@@ -774,6 +793,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("transfer_from_signed"),
@@ -805,6 +825,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
       ],
     },
@@ -1079,10 +1100,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "adjust_allowance",
       publicName: "adjustAllowance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.adjustAllowance,
+      effect: spec.interfaces[0]!.methods[0]!.effect,
       args: [
         {
           abiName: "spender",
@@ -1111,10 +1133,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "allowance",
       publicName: "allowance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.allowance,
+      effect: spec.interfaces[0]!.methods[1]!.effect,
       args: [
         {
           abiName: "owner",
@@ -1143,10 +1166,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "delete_allowance",
       publicName: "deleteAllowance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.deleteAllowance,
+      effect: spec.interfaces[0]!.methods[2]!.effect,
       args: [
         {
           abiName: "spender",
@@ -1170,10 +1194,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "delete_balance",
       publicName: "deleteBalance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.deleteBalance,
+      effect: spec.interfaces[0]!.methods[3]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[3]!.return_type,
       throws: [
@@ -1191,10 +1216,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "get_balance",
       publicName: "getBalance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.getBalance,
+      effect: spec.interfaces[0]!.methods[4]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[4]!.return_type,
       throws: [
@@ -1212,10 +1238,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "get_balance_of",
       publicName: "getBalanceOf",
       entrypoint: __gh_entrypoints.ERC20.v0_1.getBalanceOf,
+      effect: spec.interfaces[0]!.methods[5]!.effect,
       args: [
         {
           abiName: "addr",
@@ -1239,10 +1266,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.ERC20.v0_1.initialize,
+      effect: spec.interfaces[0]!.methods[6]!.effect,
       args: [
         {
           abiName: "administrator",
@@ -1266,10 +1294,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "mint",
       publicName: "mint",
       entrypoint: __gh_entrypoints.ERC20.v0_1.mint,
+      effect: spec.interfaces[0]!.methods[7]!.effect,
       args: [
         {
           abiName: "receiver",
@@ -1298,10 +1327,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "total_supply",
       publicName: "totalSupply",
       entrypoint: __gh_entrypoints.ERC20.v0_1.totalSupply,
+      effect: spec.interfaces[0]!.methods[8]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[8]!.return_type,
       throws: [
@@ -1319,10 +1349,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "transfer",
       publicName: "transfer",
       entrypoint: __gh_entrypoints.ERC20.v0_1.transfer,
+      effect: spec.interfaces[0]!.methods[9]!.effect,
       args: [
         {
           abiName: "receiver",
@@ -1351,10 +1382,11 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "transfer_from",
       publicName: "transferFrom",
       entrypoint: __gh_entrypoints.ERC20.v0_1.transferFrom,
+      effect: spec.interfaces[0]!.methods[10]!.effect,
       args: [
         {
           abiName: "owner",
@@ -1393,10 +1425,11 @@ export const ERC20Burn = {
       ERC20Burn.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Burn",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "burn",
       publicName: "burn",
       entrypoint: __gh_entrypoints.ERC20Burn.v0_1.burn,
+      effect: spec.interfaces[1]!.methods[0]!.effect,
       args: [
         {
           abiName: "amount",
@@ -1425,10 +1458,11 @@ export const ERC20Burn = {
       ERC20Burn.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Burn",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "burn_from",
       publicName: "burnFrom",
       entrypoint: __gh_entrypoints.ERC20Burn.v0_1.burnFrom,
+      effect: spec.interfaces[1]!.methods[1]!.effect,
       args: [
         {
           abiName: "owner",
@@ -1467,10 +1501,11 @@ export const ERC20Clawback = {
       ERC20Clawback.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Clawback",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "clawback",
       publicName: "clawback",
       entrypoint: __gh_entrypoints.ERC20Clawback.v0_1.clawback,
+      effect: spec.interfaces[2]!.methods[0]!.effect,
       args: [
         {
           abiName: "from",
@@ -1509,10 +1544,11 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "decimals",
       publicName: "decimals",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.decimals,
+      effect: spec.interfaces[3]!.methods[0]!.effect,
       args: [],
       returnType: spec.interfaces[3]!.methods[0]!.return_type,
       throws: [],
@@ -1524,10 +1560,11 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.initialize,
+      effect: spec.interfaces[3]!.methods[1]!.effect,
       args: [
         {
           abiName: "administrator",
@@ -1560,10 +1597,11 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "name",
       publicName: "name",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.name,
+      effect: spec.interfaces[3]!.methods[2]!.effect,
       args: [],
       returnType: spec.interfaces[3]!.methods[2]!.return_type,
       throws: [],
@@ -1575,10 +1613,11 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "symbol",
       publicName: "symbol",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.symbol,
+      effect: spec.interfaces[3]!.methods[3]!.effect,
       args: [],
       returnType: spec.interfaces[3]!.methods[3]!.return_type,
       throws: [],
@@ -1595,10 +1634,11 @@ export const ERC20Permit = {
       ERC20Permit.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Permit",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "delete_allowance_signed",
       publicName: "deleteAllowanceSigned",
       entrypoint: __gh_entrypoints.ERC20Permit.v0_1.deleteAllowanceSigned,
+      effect: spec.interfaces[4]!.methods[0]!.effect,
       args: [
         {
           abiName: "grant",
@@ -1627,10 +1667,11 @@ export const ERC20Permit = {
       ERC20Permit.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Permit",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "increase_allowance_signed",
       publicName: "increaseAllowanceSigned",
       entrypoint: __gh_entrypoints.ERC20Permit.v0_1.increaseAllowanceSigned,
+      effect: spec.interfaces[4]!.methods[1]!.effect,
       args: [
         {
           abiName: "grant",
@@ -1659,10 +1700,11 @@ export const ERC20Permit = {
       ERC20Permit.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Permit",
-      interfaceVersion: "0.1.44",
+      interfaceVersion: "0.1.51",
       abiName: "transfer_from_signed",
       publicName: "transferFromSigned",
       entrypoint: __gh_entrypoints.ERC20Permit.v0_1.transferFromSigned,
+      effect: spec.interfaces[4]!.methods[2]!.effect,
       args: [
         {
           abiName: "grant",

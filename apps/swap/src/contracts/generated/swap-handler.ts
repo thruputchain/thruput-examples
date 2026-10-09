@@ -333,6 +333,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("initialize"),
@@ -359,6 +360,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("pool_state"),
@@ -372,6 +374,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               declared: __gh_s("PoolState"),
             },
           },
+          effect: null,
         },
         {
           name: __gh_s("skim"),
@@ -382,11 +385,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("sync"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
       ],
     },
@@ -1063,6 +1068,7 @@ export const SwapHandler = {
       abiName: "handle_request",
       publicName: "handleRequest",
       entrypoint: __gh_entrypoints.SwapHandler.v0_1.handleRequest,
+      effect: spec.interfaces[0]!.methods[0]!.effect,
       args: [
         {
           abiName: "request",
@@ -1105,6 +1111,7 @@ export const SwapHandler = {
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.SwapHandler.v0_1.initialize,
+      effect: spec.interfaces[0]!.methods[1]!.effect,
       args: [
         {
           abiName: "factory",
@@ -1167,6 +1174,7 @@ export const SwapHandler = {
       abiName: "pool_state",
       publicName: "poolState",
       entrypoint: __gh_entrypoints.SwapHandler.v0_1.poolState,
+      effect: spec.interfaces[0]!.methods[2]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[2]!.return_type,
       throws: [
@@ -1203,6 +1211,7 @@ export const SwapHandler = {
       abiName: "skim",
       publicName: "skim",
       entrypoint: __gh_entrypoints.SwapHandler.v0_1.skim,
+      effect: spec.interfaces[0]!.methods[3]!.effect,
       args: [
         {
           abiName: "to",
@@ -1245,6 +1254,7 @@ export const SwapHandler = {
       abiName: "sync",
       publicName: "sync",
       entrypoint: __gh_entrypoints.SwapHandler.v0_1.sync,
+      effect: spec.interfaces[0]!.methods[4]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[4]!.return_type,
       throws: [

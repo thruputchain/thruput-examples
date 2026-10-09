@@ -40,6 +40,7 @@ const MAX_VIEW_CALLDATA_BYTES = 64 * 1_024;
 const MAX_EVENT_FILTERS = 10;
 const MAX_EVENT_VALUES_PER_FILTER = 20;
 const MAX_EVENT_CURSOR_CHARACTERS = 4_096;
+const MAX_BLOCK_HEIGHT = 9_223_372_036_854_775_807n;
 const RPC_TIMEOUT_MS = 10_000;
 export const DEFAULT_MAXIMUM_RPC_CONCURRENCY = 128;
 const ALLOWED_POOL_PARAMETERS = new Set([
@@ -683,8 +684,16 @@ function validEventAnchor(value: unknown): boolean {
   return (
     value.kind === "atHeight" &&
     isExactRecord(value, ["kind", "height"]) &&
-    Number.isSafeInteger(value.height) &&
-    (value.height as number) >= 0
+    isBlockHeight(value.height)
+  );
+}
+
+// Block heights travel as canonical decimal strings within the i64 range.
+function isBlockHeight(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    /^(?:0|[1-9]\d{0,18})$/u.test(value) &&
+    BigInt(value) <= MAX_BLOCK_HEIGHT
   );
 }
 

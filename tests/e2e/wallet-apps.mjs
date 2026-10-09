@@ -32,6 +32,10 @@ try {
   ({ chromium } = createRequire(`${swap}/package.json`)("playwright-core"));
 }
 const work = await mkdtemp(`${tmpdir()}/groundhog-wallet-apps-`);
+// The node funds no accounts beyond its own faucet; the test makes and funds its
+// own. Without an explicit (empty) list it would fund the user's default key.
+const noBootstrapAccounts = `${work}/no-bootstrap-accounts.json`;
+await writeFile(noBootstrapAccounts, "[]");
 await mkdir(`${work}/evidence`, { mode: 0o700 });
 const env = Object.fromEntries(
   Object.entries(process.env).filter(([key]) =>
@@ -50,6 +54,7 @@ const devnode =
   `${homedir()}/.local/share/groundhog/hog-devnode/hog-devnode`;
 const processGroups = new OwnedProcessGroups(),
   logs = new Map(),
+  stdouts = new Map(),
   secrets = [randomBytes(24).toString("hex")];
 const evidence = {
   batching: process.env.WALLET_ACCEPTANCE_LEGACY !== "1",
@@ -88,14 +93,19 @@ function start(command, args, cwd = root, extra = {}, exactEnv = false) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
+  let stdout = "";
   for (const stream of [child.stdout, child.stderr])
     stream.on("data", (b) => {
       output = (output + b).slice(-200000);
     });
+  child.stdout.on("data", (b) => {
+    stdout = (stdout + b).slice(-200000);
+  });
   child.on("error", (e) => {
     output += e.message;
   });
   logs.set(child, () => output);
+  stdouts.set(child, () => stdout);
   return child;
 }
 async function until(check, description, timeout = 120000) {
@@ -370,8 +380,8 @@ try {
     "--json",
     "--port",
     "0",
-    "--dev-account-count",
-    "0",
+    "--bootstrap-accounts",
+    noBootstrapAccounts,
     "--hog-devnode-binary",
     devnode,
     ...(process.env.GROUNDHOG_E2E_HOGD_PROTOCOL
@@ -382,7 +392,8 @@ try {
   await until(() => {
     assert.equal(node.exitCode, null, redact(logs.get(node)()));
     try {
-      const text = logs.get(node)();
+      // The JSON document is on stdout; stderr carries devnode logs.
+      const text = stdouts.get(node)();
       startup = JSON.parse(text.slice(text.indexOf("{")));
     } catch {
       return false;
@@ -396,8 +407,6 @@ try {
   const manifest = JSON.parse(
     await readFile(env.GROUNDHOG_RUNTIME_MANIFEST, "utf8"),
   );
-  if (manifest.bootstrapAccountDerivation?.seed)
-    secrets.push(manifest.bootstrapAccountDerivation.seed);
   evidence.network = `0x${manifest.networkHash.replace(/^0x/, "")}`;
   evidence.rpc = env.GROUNDHOG_RPC_URL;
   evidence.runtimeCosts = manifest.bootstrap?.storageCostModel;

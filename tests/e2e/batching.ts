@@ -1,7 +1,7 @@
 // Explicit live-node probe for the proposed wallet batch boundaries.
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,6 +42,10 @@ type RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp(join(tmpdir(), "groundhog-batching-"));
+// The node funds no accounts beyond its own faucet; the test makes and funds its
+// own. Without an explicit (empty) list it would fund the user's default key.
+const noBootstrapAccounts = join(work, "no-bootstrap-accounts.json");
+await writeFile(noBootstrapAccounts, "[]");
 const groups = new OwnedProcessGroups();
 let interrupted = false;
 function interrupt() {
@@ -70,13 +74,15 @@ function spawn(command: string, args: string[], extra = {}) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
+  let stdout = "";
   child.stdout!.on("data", (data: Buffer) => {
     output += data.toString();
+    stdout += data.toString();
   });
   child.stderr!.on("data", (data: Buffer) => {
     output += data.toString();
   });
-  return { child, output: () => output };
+  return { child, output: () => output, stdout: () => stdout };
 }
 async function until(check: () => boolean) {
   const deadline = Date.now() + 120_000;
@@ -94,8 +100,8 @@ try {
       "--json",
       "--port",
       "0",
-      "--dev-account-count",
-      "0",
+      "--bootstrap-accounts",
+      noBootstrapAccounts,
       "--hog-devnode-binary",
       process.env.GROUNDHOG_DEVNODE_BINARY ??
         join(homedir(), ".local/share/groundhog/hog-devnode/hog-devnode"),
@@ -110,7 +116,8 @@ try {
   await until(() => {
     assert.equal(node.child.exitCode, null, node.output());
     try {
-      startup = JSON.parse(node.output().slice(node.output().indexOf("{")));
+      // The JSON document is on stdout; stderr carries devnode logs.
+      startup = JSON.parse(node.stdout().slice(node.stdout().indexOf("{")));
     } catch {
       return false;
     }
@@ -207,7 +214,7 @@ try {
     })
   ).value;
   const rejected = await batch(
-    "Rollback funding when token initialization fails",
+    "Rollback funding when token creation fails",
     [
       ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: rollbackAddress,
@@ -218,7 +225,8 @@ try {
         name: "Invalid",
         symbol: "INVALID",
         decimals: 6n,
-        initialSupply: 1n << 127n,
+        // Negative supply: the factory rejects the creation on-chain, reverting the batch.
+        initialSupply: -1n,
         administrator: account.address,
         initialHolder: account.address,
       }),

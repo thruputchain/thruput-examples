@@ -3,10 +3,11 @@ import type {
   TransactionStatus,
 } from "@groundhogchain/client";
 import { ExecResult } from "@groundhogchain/protocol";
+import { processingFailureReason } from "./transaction-observation";
 
 export type TransactionOutcome =
   | { kind: "pending" }
-  | { kind: "awaitingReceipt"; height: bigint }
+  | { kind: "awaitingReceipt"; height?: bigint }
   | { kind: "invalid"; reason: string }
   | {
       kind: "committedSuccess";
@@ -26,12 +27,17 @@ export function outcomeFromStatus(status: TransactionStatus): TransactionOutcome
     case "pending":
       return { kind: "pending" };
     case "committed":
-      return {
-        kind: "awaitingReceipt",
-        height: status.height,
-      };
+      return status.height === undefined
+        ? { kind: "awaitingReceipt" }
+        : { kind: "awaitingReceipt", height: status.height };
     case "invalid":
       return { kind: "invalid", reason: status.reason };
+    case "retry":
+    case "dropped":
+      return {
+        kind: "invalid",
+        reason: processingFailureReason(status.status, status.error),
+      };
     case "recentFailure":
       return {
         kind: "indeterminate",
