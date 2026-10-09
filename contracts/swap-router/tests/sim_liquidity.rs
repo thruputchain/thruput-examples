@@ -25,9 +25,8 @@
 
 use std::path::PathBuf;
 
-use groundhog_erc20_if::Amount;
 use groundhog_testkit::xdr::types::ContractAddress;
-use groundhog_testkit::{Agent, Contract, LocalNetworkConfig, NetworkConfig, Scenario};
+use groundhog_testkit::{Agent, LocalNetworkConfig, NetworkConfig, Scenario};
 
 // An alias to match the contracts' `Address` type.
 pub type Address = ContractAddress;
@@ -57,29 +56,24 @@ fn liquidity_provider(name: &str) -> Agent {
             .await
             .expect("bug: admin closed before sending addresses")?
             .body;
-        let token0 = erc20(cfg.token0);
-        let token1 = erc20(cfg.token1);
-        let router = Contract::new(cfg.router, ROUTER.0, ROUTER.1);
-        let lp = erc20(cfg.lp);
+        let token0 = ERC20Client::new(&ctx, cfg.token0);
+        let token1 = ERC20Client::new(&ctx, cfg.token1);
+        let router = SwapRouterClient::new(&ctx, cfg.router);
+        let lp = ERC20Client::new(&ctx, cfg.lp);
 
         // Allow the request handler to pull our A/B tokens when the request runs.
         token0
-            .call(&mut ctx, "adjust_allowance", &(cfg.handler, USER_LIQUIDITY))
+            .adjust_allowance(&cfg.handler, USER_LIQUIDITY)
             .await?;
         token1
-            .call(&mut ctx, "adjust_allowance", &(cfg.handler, USER_LIQUIDITY))
+            .adjust_allowance(&cfg.handler, USER_LIQUIDITY)
             .await?;
 
         // Submit an add-liquidity request (executed below, by the driver),
         // purchasing LP tokens with our A/B tokens.
-        let desired: [Amount; 2] = [USER_LIQUIDITY, USER_LIQUIDITY];
-        let min: [Amount; 2] = [0, 0];
+        let desired = [swap_amount(USER_LIQUIDITY); 2];
         router
-            .call(
-                &mut ctx,
-                "add_liquidity",
-                &(cfg.token0, cfg.token1, desired, min, me),
-            )
+            .add_liquidity(&cfg.token0, &cfg.token1, desired, [0, 0], &me)
             .await?;
 
         // Tell the admin our request is queued, then wait for confirmation that
@@ -90,7 +84,7 @@ fn liquidity_provider(name: &str) -> Agent {
             .expect("bug: admin closed before driving requests")?;
 
         // Check that we received LP.
-        let lp_balance: Amount = lp.view(&ctx, "get_balance_of", &me, None).await?;
+        let lp_balance = lp.get_balance_of(&me).await?;
         assert!(
             lp_balance > 0,
             "add_liquidity should mint LP to the provider"
@@ -105,9 +99,9 @@ fn liquidity_provider(name: &str) -> Agent {
 // * Operates the request queue for the providers
 fn admin() -> Agent {
     Agent::new("admin", |mut ctx| async move {
-        let native = native_token();
-        let s = deploy_and_init(&mut ctx, &native, None).await?;
-        prime_pool(&mut ctx, &s).await?;
+        let native = native_token(&ctx);
+        let s = deploy_and_init(&ctx, &native, None).await?;
+        prime_pool(&ctx, &s).await?;
 
         // Learn the providers' wallet addresses from their greetings.
         let mut providers: Vec<(String, Address)> = Vec::new();
@@ -122,12 +116,8 @@ fn admin() -> Agent {
         // Airdrop A/B tokens to each provider, then send the contract addresses.
         let config = LPConfig::of(&s);
         for (name, addr) in &providers {
-            s.token0
-                .call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY))
-                .await?;
-            s.token1
-                .call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY))
-                .await?;
+            s.token0.mint(addr, USER_LIQUIDITY).await?;
+            s.token1.mint(addr, USER_LIQUIDITY).await?;
             ctx.send(name, &config)?;
         }
 
@@ -139,10 +129,7 @@ fn admin() -> Agent {
         }
 
         // Drive the queue, processing the providers' add-liquidity requests
-        let (processed, failed): (u32, u32) = s
-            .driver
-            .call_returning(&mut ctx, "process_requests", &())
-            .await?;
+        let (processed, failed) = s.driver.process_requests().await?;
         assert_eq!(
             (processed, failed),
             (PROVIDERS.len() as u32, 0),
