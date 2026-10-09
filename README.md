@@ -30,6 +30,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 | [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and optional `metadata` and `permit` features |
 | [`permit-wallet`](contracts/permit-wallet/) | Off-chain authorization: an owner's wallet implementing `SignedOp`, turning an ed25519 signature made off-chain into a `PermitGrant` auth token the `erc20` consumes; the owner never submits a transaction |
 | [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit or allowance clear from the wallet to the token in one frame, routing by the signed request, so anyone can submit it |
+| [`auth-payment-*`](contracts/auth-payment-service/README.md) | Explicit auth across an opaque forwarder: the inner service resolves its payer from state and consumes a nested wallet/ERC20 grant; tests cover payer changes, tampering and replay |
 | [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
 | [`swap-*`](contracts/swap-router/README.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
 | [`speedex`](contracts/speedex/) | A [SPEEDEX](https://www.usenix.org/conference/nsdi23/presentation/ramseyer)-style batch exchange over several assets: offers aggregate into a commutative histogram, one transaction per batch computes clearing prices by tâtonnement, and settlement is per offer and order-free |
@@ -232,6 +233,8 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | [`erc20`](contracts/erc20/) | ✅ | ✅ | ✅ |
 | [`permit-wallet`](contracts/permit-wallet/) | ✅ | — | — |
 | [`permit-relayer`](contracts/permit-relayer/) | — | — | — |
+| [`auth-payment-wallet`](contracts/auth-payment-wallet/) | ✅ | — | — |
+| [`auth-payment-service`](contracts/auth-payment-service/), [`auth-payment-forwarder`](contracts/auth-payment-forwarder/) | — | — | — |
 | [`standard-token`](contracts/standard-token/) | ✅ | — | — |
 | [`standard-token-factory`](contracts/standard-token-factory/) | ✅ | — | — |
 | [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | ✅ | — | — |

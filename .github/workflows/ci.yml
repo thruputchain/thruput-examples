@@ -14,6 +14,7 @@ jobs:
       contents: read
     uses: groundhogchain/actions/.github/workflows/rust-dependency-policy.yml@v1
     with:
+      toolchain: nightly-2026-07-01
       registry-name: groundhog
       # The workspace manifest opts into the nightly-only `trim-paths` cargo
       # feature, so the stable cargo the reusable workflow defaults to cannot
