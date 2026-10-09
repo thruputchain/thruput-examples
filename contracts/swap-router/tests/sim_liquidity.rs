@@ -171,9 +171,9 @@ async fn swap_liquidity_multi_agent() {
     let artifact = |file: &str| PathBuf::from(&root).join(file);
 
     let mut config = LocalNetworkConfig::default();
-    // The admin funds every contract it deploys (see CONTRACT_FUNDING), so give its dev account
+    // The admin funds every contract it deploys (see CONTRACT_FUNDING), so give its native account
     // plenty of native tokens to distribute.
-    config.dev_account_tokens = 100_000_000_000;
+    config.initial_account_tokens = 100_000_000_000;
     // Optional override
     if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
@@ -183,7 +183,6 @@ async fn swap_liquidity_multi_agent() {
     }
 
     let scenario = Scenario::builder("swap-sim")
-        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
         .artifact("swap_handler", artifact("swap_handler.rv32a"))

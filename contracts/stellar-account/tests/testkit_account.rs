@@ -41,7 +41,7 @@ type Address = ContractAddress;
 
 const ACCOUNT_IF: (&str, &str) = ("StellarAccount", "0.1.0");
 const FACTORY_IF: (&str, &str) = ("StellarAccountFactory", "0.1.0");
-const ERC20: (&str, &str) = ("ERC20", "0.1.44");
+const ERC20: (&str, &str) = ("ERC20", "0.1.51");
 
 const MASTER_SEED: [u8; 32] = [0x11; 32];
 const SECOND_SEED: [u8; 32] = [0x22; 32];
@@ -326,7 +326,7 @@ async fn two_signer_threshold_change_on_a_live_node() {
     let artifact = |file: &str| PathBuf::from(&root).join(file);
 
     let mut config = LocalNetworkConfig::default();
-    config.dev_account_tokens = 100_000_000_000;
+    config.initial_account_tokens = 100_000_000_000;
     if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
     }

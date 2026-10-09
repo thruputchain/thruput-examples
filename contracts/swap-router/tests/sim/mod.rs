@@ -10,7 +10,7 @@ use swap_if::{Pool, SwapHashes};
 type Address = ContractAddress;
 
 // Interface identities (name, version)
-pub const ERC20: (&str, &str) = ("ERC20", "0.1.44");
+pub const ERC20: (&str, &str) = ("ERC20", "0.1.51");
 pub const HANDLER: (&str, &str) = ("SwapHandler", "0.1.0");
 pub const DRIVER: (&str, &str) = ("SwapDriver", "0.1.0");
 pub const ROUTER: (&str, &str) = ("SwapRouter", "0.1.0");

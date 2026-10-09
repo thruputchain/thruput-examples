@@ -51,7 +51,7 @@ use speedex::max_clear_cells_in;
 use synthetic::{Rng, Shape};
 
 /// Interface identities the artifacts stamp; `entrypoint_id` derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.44");
+const ERC20: (&str, &str) = ("ERC20", "0.1.51");
 const SPEEDEX: (&str, &str) = ("Speedex", "0.1.0");
 /// The node's default wallet, which serves every key-pair account: `execute` runs a list of
 /// calls from the account, and takes calldata of any length.
@@ -72,6 +72,8 @@ const GRID: Grid = Grid {
     octaves: 2,
     level_bits: 12,
 };
+/// The scenario seed, from which the testkit derives each agent's key.
+const SCENARIO_SEED: &str = "speedex-gas";
 /// The round cap the exchanges are configured with, which the real `clear_batch` runs at.
 const ROUNDS: u32 = 64;
 
@@ -81,7 +83,7 @@ const OFFERS: [usize; 6] = [8, 32, 128, 512, 2048, 4096];
 const ROUND_CAPS: [u32; 9] = [1, 2, 4, 8, 16, 32, 64, 128, 256];
 
 /// Gas a clearing transaction is sent with. The testkit sends every transaction with 10M
-/// through the dev wallet, which also takes at most 4 KiB of calldata; a clearing of thousands
+/// through the default wallet, which also takes at most 4 KiB of calldata; a clearing of thousands
 /// of cells exceeds both, so the clearings are signed here as direct calls from the agent's
 /// key-pair account, funded for the purpose, with this limit.
 const CLEARING_GAS: u64 = 1_000_000_000;
@@ -201,9 +203,9 @@ fn status_of(receipt: &TransactionReceipt) -> String {
     }
 }
 
-/// The bench agent's key-pair account, for the clearing transactions: the testkit's signer (from
-/// the node's runtime manifest) signing direct calls, outside the dev wallet the testkit routes
-/// everything through, with a nonce sequence of its own.
+/// The bench agent's native account, for the clearing transactions: the agent's own key signing
+/// `DefaultWallet.execute` directly, rather than through the testkit's call helpers, with a nonce
+/// sequence of its own.
 struct Account {
     account: PubkeyAccount,
     signer: LocalSigner,
@@ -214,14 +216,22 @@ struct Account {
 impl Account {
     fn of(ctx: &AgentContext) -> Result<Self> {
         let manifest = runtime_manifest()?;
+        // The testkit derives each agent's key from the scenario seed this way, but does not
+        // expose it; the address check catches the derivation drifting from the testkit's.
         let signer = derive_dev_account_signer(
-            &manifest.bootstrap_account_derivation.seed,
+            &format!("groundhog-testkit:{SCENARIO_SEED}"),
             ctx.account_index() as usize,
         );
         let account = PubkeyAccount::from_public_key_bytes(
             signer.verifying_key_bytes(),
             DEFAULT_PUBKEY_ACCOUNT_NONCE,
         );
+        if account.address() != ctx.address() {
+            return Err(signing_error(format!(
+                "the key derived for account {} is not the agent's native account",
+                ctx.account_index()
+            )));
+        }
         Ok(Account {
             account,
             signer,
@@ -603,7 +613,7 @@ async fn clearing_gas() {
         });
 
     let mut config = LocalNetworkConfig::default();
-    config.dev_account_tokens = 1_000_000_000_000;
+    config.initial_account_tokens = 1_000_000_000_000;
     config.block_driver = BlockDriverConfig::manual();
     if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
@@ -611,8 +621,7 @@ async fn clearing_gas() {
 
     let rows = Arc::new(Mutex::new(Vec::new()));
     for &n in &ASSETS {
-        let scenario = Scenario::builder("speedex-gas")
-            .bootstrap_accounts()
+        let scenario = Scenario::builder(SCENARIO_SEED)
             .network(NetworkConfig::local(config.clone()))
             .artifact("erc20", artifact("erc20.rv32a"))
             .artifact("speedex", artifact("speedex.rv32a"))

@@ -43,7 +43,7 @@ type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as
 // recorded in each `*.spec.json`; the testkit derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.44");
+const ERC20: (&str, &str) = ("ERC20", "0.1.51");
 const WALLET: (&str, &str) = ("PermitWallet", "0.1.0");
 const RELAYER: (&str, &str) = ("PermitRelayer", "0.1.0");
 
@@ -342,7 +342,7 @@ async fn permit_signed_off_chain_relayed_on_chain() {
 
     let mut config = LocalNetworkConfig::default();
     // The admin funds the contracts it deploys (see CONTRACT_FUNDING).
-    config.dev_account_tokens = 100_000_000_000;
+    config.initial_account_tokens = 100_000_000_000;
     if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
     }
@@ -351,7 +351,6 @@ async fn permit_signed_off_chain_relayed_on_chain() {
     }
 
     let scenario = Scenario::builder("permit-live")
-        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
         .artifact("permit_wallet", artifact("permit_wallet.rv32a"))

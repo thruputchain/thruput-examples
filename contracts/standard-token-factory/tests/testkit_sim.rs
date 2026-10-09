@@ -17,22 +17,24 @@ use groundhog_testkit::{
 };
 use sdk::Event as _;
 use sdk::exn::{LibraryExn, RawException};
+use sdk::types::sys::{SyscallErrorCode, SyscallNo};
 use standard_token::ClawbackEvent;
 use standard_token::Config;
 use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
 
-const ERC20: (&str, &str) = ("ERC20", "0.1.44");
-const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.44");
+const ERC20: (&str, &str) = ("ERC20", "0.1.51");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.51");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
 const REQUIRED_FACTORY_FUNDING: i128 = 1_000_000;
 // Exactly what creating a token through the factory costs its new address
 // under the devnode's default cost model: the deployment (base plus the
 // artifact's bytes), the config and holder rows, and the holder's native
-// balance item. Pinned to the artifact size, so it moves when the token does.
-const REQUIRED_TOKEN_FUNDING: i128 = 363_450;
+// balance item. Pinned to the artifact size and the devnode's storage prices,
+// so it moves when either does.
+const REQUIRED_TOKEN_FUNDING: i128 = 365_690;
 // What to send the predicted address so that, after its own balance item is
 // paid for, exactly `REQUIRED_TOKEN_FUNDING` arrives.
-const TOKEN_SOURCE_FUNDING: i128 = 364_684;
+const TOKEN_SOURCE_FUNDING: i128 = 366_924;
 const ROW_FUNDING: i128 = 12_000;
 const NATIVE_TOKEN_FUNDING: i128 = 1_000_000;
 const CREATION_FEE: i128 = 25;
@@ -130,20 +132,16 @@ async fn reserve(ctx: &AgentContext, native: &Contract, address: ContractAddress
     balance(ctx, native, address).await
 }
 
-/// A call that aborted inside the account's default wallet. The wallet made
-/// the call on the account's behalf and reports the abort as its own
-/// `WalletError::CallAborted` (variant 5); the callee's exception, such as the
-/// factory's `TokenFactoryError`, is not forwarded through it.
-fn assert_wallet_call_aborted(receipt: &TransactionReceipt) {
+/// The exception a call aborted with. The account's default wallet forwards
+/// the callee's exception unchanged, so this is what the factory (or the SDK
+/// on its behalf) threw.
+fn aborted_exception(receipt: &TransactionReceipt) -> RawException {
     assert!(matches!(receipt.status, ExecStatus::Reverted { .. }));
     let abort = receipt
         .abort_data
         .as_ref()
-        .expect("an aborted call carries the wallet's exception");
-    let exception = RawException::from_abort_buf(&abort.0).expect("decode the wallet's exception");
-    assert!(exception.try_as::<LibraryExn>().is_none());
-    assert!(exception.try_as::<TokenFactoryError>().is_none());
-    assert_eq!(exception.payload(), [5]);
+        .expect("an aborted call carries the callee's exception");
+    RawException::from_abort_buf(&abort.0).expect("decode the callee's exception")
 }
 
 fn assert_transfer(
@@ -562,7 +560,15 @@ fn creator_agent() -> Agent {
             ExecStatus::Reverted { .. }
         ));
         assert!(unavailable_receipt.events.is_empty());
-        assert_wallet_call_aborted(&unavailable_receipt);
+        // No code is registered under the configured hash, so the factory's
+        // deployment syscall rejects it.
+        match aborted_exception(&unavailable_receipt).try_as::<LibraryExn>() {
+            Some(LibraryExn::Syscall(exn)) => assert!(exn.is(
+                SyscallNo::kDeployContract,
+                SyscallErrorCode::kSyscallErrorCodeInvalidSyscallInput,
+            )),
+            other => panic!("expected the deployment syscall to fail, got {other:?}"),
+        }
         assert_eq!(
             reserve(&ctx, &native, unavailable_address).await?,
             unavailable_reserve
@@ -608,7 +614,10 @@ fn creator_agent() -> Agent {
             ExecStatus::Reverted { .. }
         ));
         assert!(underfunded_receipt.events.is_empty());
-        assert_wallet_call_aborted(&underfunded_receipt);
+        assert_eq!(
+            aborted_exception(&underfunded_receipt).try_as::<TokenFactoryError>(),
+            Some(TokenFactoryError::InsufficientTokenFunding)
+        );
         assert!(
             indexed_created_events(&ctx, factory.address(), underfunded_receipt.height)
                 .await?
@@ -873,10 +882,9 @@ async fn real_artifact_rpc_lifecycle() {
         .expect("set GROUNDHOG_DEVNODE_BINARY");
     let mut config = LocalNetworkConfig::default();
     config.hog_devnode_binary = Some(binary);
-    config.dev_account_tokens = 100_000_000_000;
+    config.initial_account_tokens = 100_000_000_000;
 
     let scenario = Scenario::builder("standard-token-phase-6")
-        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("standard_token", root.join("standard_token.rv32a"))
         .artifact(
