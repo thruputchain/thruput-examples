@@ -185,12 +185,18 @@ transaction or remote deployment. Wallet unit tests run independently through
 
 - Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`).
 - `jq`, used by [`scripts/build-guest.sh`](scripts/build-guest.sh).
-- For RPC-based tests, `groundhog-cli` must be able to find a "devnode" binary
-  from the *same client release*.
-  [`scripts/integration-tests.sh`](scripts/integration-tests.sh) takes the
-  `hog-devnode` sitting beside the CLI on `PATH`, which is the matching one
-  when both come from a client bundle, and checks the two releases agree before
-  starting anything. `GROUNDHOG_DEVNODE_BINARY` overrides the choice.
+- RPC integration tests use the `thruput` CLI, version **0.27.0 or newer**,
+  and a compatible `hog-devnode`. Configure the same registry access token
+  through `CARGO_REGISTRIES_THRUPUT_TOKEN` or a credential provider for the
+  `thruput` registry alias. Install the CLI with:
+
+  ```sh
+  export CARGO_REGISTRIES_THRUPUT_INDEX="sparse+https://crates.thruput.network/api/v1/crates/"
+  cargo install --locked --registry thruput --version 0.27.0 thruput-cli
+  ```
+
+  Set `THRUPUT_DEVNODE_BINARY=/absolute/path/to/hog-devnode` to select the
+  runtime, then run [`scripts/integration-tests.sh`](scripts/integration-tests.sh).
 
 ## Building
 
@@ -212,7 +218,7 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 |------|---------|-----------|
 | **native** | `cargo test -p <crate>` | Contract compiled natively and run against the SDK's mock environment (the `dev` feature). Fast; panics unwind, so error paths are catchable. |
 | **rv32** | `groundhog test -p <crate>` | Contract compiled to RV32 and run by the mock executor — the same path as on-chain, where a fault is a real abort. Marked `#[ignore]` so plain `cargo test` skips it. |
-| **rpc** | `groundhog test --integration -p <crate>` | Real transactions signed and submitted over JSON-RPC to a local devnode. |
+| **rpc** | `thruput test --integration -p <crate>` | Real transactions signed and submitted over JSON-RPC to a local devnode. |
 
 ### What is valid to run on each contract
 

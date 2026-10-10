@@ -4,18 +4,18 @@
 //! They are driven by:
 //!
 //! ```bash
-//! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
-//!     groundhog test --integration
+//! THRUPUT_DEVNODE_BINARY=/path/to/hog-devnode \
+//!     thruput test --integration
 //! ```
 //!
-//! `groundhog test --integration` builds the contract to a guest binary, starts
+//! `thruput test --integration` builds the contract to a guest binary, starts
 //! an ephemeral hog-devnode, deploys the contract with `dev-0`, and then runs
 //! the test with the following environment set:
 //!
-//!   - `GROUNDHOG_RPC_URL`          — JSON-RPC endpoint of the ephemeral node
-//!   - `GROUNDHOG_CONTRACT_ADDRESS` — address the contract was deployed to
-//!   - `GROUNDHOG_DEFAULT_KEY`      — `dev-0`
-//!   - `GROUNDHOG_RUNTIME_MANIFEST` — path to the node's runtime manifest
+//!   - `THRUPUT_RPC_URL`          — JSON-RPC endpoint of the ephemeral node
+//!   - `THRUPUT_CONTRACT_ADDRESS` — address the contract was deployed to
+//!   - `THRUPUT_DEFAULT_KEY`      — `dev-0`
+//!   - `THRUPUT_RUNTIME_MANIFEST` — path to the node's runtime manifest
 //!
 //! [`Harness`] holds everything needed to exercise a contract the way a client
 //! would: it signs and submits transactions through the bootstrapped `dev-0`
@@ -162,17 +162,17 @@ pub struct Harness {
 }
 
 impl Harness {
-    /// Build a harness from the environment `groundhog test --integration` sets,
+    /// Build a harness from the environment `thruput test --integration` sets,
     /// bound to the given contract `interface` name and `version` (used to
     /// derive the entrypoint ID of each method under test).
     pub fn from_env(interface: &'static str, version: &'static str) -> Self {
-        let rpc_url = env("GROUNDHOG_RPC_URL");
+        let rpc_url = env("THRUPUT_RPC_URL");
         let client = HttpClientBuilder::default()
             .build(&rpc_url)
             .map_err(|e| format!("{rpc_url}: {e}"));
-        let contract = parse_address(&env("GROUNDHOG_CONTRACT_ADDRESS"));
+        let contract = parse_address(&env("THRUPUT_CONTRACT_ADDRESS"));
 
-        let manifest_path = env("GROUNDHOG_RUNTIME_MANIFEST");
+        let manifest_path = env("THRUPUT_RUNTIME_MANIFEST");
         let manifest_json = std::fs::read(&manifest_path)
             .unwrap_or_else(|e| panic!("reading runtime manifest {manifest_path}: {e}"));
         let manifest = parse_runtime_manifest(&manifest_json)
@@ -219,7 +219,7 @@ impl Harness {
 
     /// Point this harness at a different contract.
     ///
-    /// `from_env` binds to the contract `groundhog test --integration` deployed,
+    /// `from_env` binds to the contract `thruput test --integration` deployed,
     /// which is the only one most tests want.  A system contract -- the native
     /// token, say -- lives at a fixed address that no test deploys, so reaching
     /// it means naming it, along with the interface and version its entrypoint
@@ -581,7 +581,7 @@ fn parse_address(hex_str: &str) -> ContractAddress {
 
 fn env(key: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| {
-        panic!("{key} must be set (run this test via `groundhog test --integration`)")
+        panic!("{key} must be set (run this test via `thruput test --integration`)")
     })
 }
 

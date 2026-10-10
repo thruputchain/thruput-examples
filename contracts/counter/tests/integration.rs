@@ -8,8 +8,8 @@
 //! Run it with:
 //!
 //! ```bash
-//! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
-//!     groundhog test --integration
+//! THRUPUT_DEVNODE_BINARY=/path/to/hog-devnode \
+//!     thruput test --integration
 //! ```
 
 use integration_test::{Harness, decode_return, encode};

@@ -10,7 +10,7 @@
 //! hold a storage reserve. See
 //! [`native_hog_allowance_needs_a_storage_reserve`].
 //!
-//! Run it with `groundhog test --integration`.
+//! Run it with `thruput test --integration`.
 
 use std::time::Duration;
 

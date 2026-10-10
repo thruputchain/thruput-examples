@@ -35,4 +35,4 @@ tokio = { workspace = true }
 
 [[test]]
 name = "integration"
-test = false  # use `groundhog test --integration`
+test = false  # use `thruput test --integration`
