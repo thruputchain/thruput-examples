@@ -40,6 +40,8 @@ allow = [
     "Unicode-3.0",
     # dual-licensed Unlicense OR MIT (byteorder, memchr, walkdir)
     "Unlicense",
+    # foldhash, through the CLI terminal UI used by integration-test
+    "Zlib",
 ]
 # NOTE: r-efi is "MIT OR Apache-2.0 OR LGPL-2.1-or-later"
 
