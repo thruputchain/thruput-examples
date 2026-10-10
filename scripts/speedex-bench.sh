@@ -10,7 +10,7 @@
 # `hog-devnode` and reads the receipts. Both write CSVs into `target/`, and
 # `speedex-plot.py` draws them into `target/speedex-bench/`.
 #
-# Needs the devnode toolchain (`groundhog toolchain install`) for the gas half;
+# Needs the devnode toolchain (`thruput toolchain install`) for the gas half;
 # without it, only the quality half and its figure are produced. NO_BUILD skips
 # the artifact builds; NO_GAS skips the devnode.
 
@@ -26,7 +26,7 @@ cargo test -p speedex --release --test quality -- --ignored --nocapture
 
 if [ ! -v NO_GAS ]; then
     if [ ! -v NO_BUILD ]; then
-        groundhog build -p erc20 -- -F metadata
+        thruput build -p erc20 -- -F metadata
         # The guest memory an artifact declares lives in its manifest and bounds the batches it
         # can clear (`max_clear_cells`); the committed manifest keeps the protocol's 64 KiB, which
         # the mock RV32 tests need, so the benchmark's artifact is built from a copy that
@@ -34,13 +34,13 @@ if [ ! -v NO_GAS ]; then
         manifest=contracts/speedex/Cargo.toml
         cp "$manifest" "$manifest.bench-orig"
         trap 'mv "$manifest.bench-orig" "$manifest"' EXIT
-        printf '\n[package.metadata.groundhog]\ninitial_memory_bytes = %s\n' \
+        printf '\n[package.metadata.thruput]\ninitial_memory_bytes = %s\n' \
             "$SPEEDEX_GUEST_MEMORY" >> "$manifest"
-        groundhog build -p speedex
+        thruput build -p speedex
         mv "$manifest.bench-orig" "$manifest"
         trap - EXIT
     fi
-    if devnode="$(groundhog toolchain which 2>/dev/null)"; then
+    if devnode="$(thruput toolchain which 2>/dev/null)"; then
         echo "== gas (devnode $devnode) =="
         # The exchange declares more guest memory than the protocol's default, which the chain
         # must admit; the testkit cannot pass genesis overrides, so the devnode goes through a
@@ -50,12 +50,12 @@ if [ ! -v NO_GAS ]; then
             "$devnode" "$SPEEDEX_GUEST_MEMORY" > "$wrapper"
         chmod +x "$wrapper"
         SPEEDEX_GUEST_MEMORY="$SPEEDEX_GUEST_MEMORY" \
-        GROUNDHOG_DEVNODE_BINARY="$wrapper" \
-        GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$(realpath target/groundhog)" \
+        THRUPUT_DEVNODE_BINARY="$wrapper" \
+        THRUPUT_TESTKIT_ARTIFACT_ROOT="$(realpath target/thruput)" \
             cargo test -p speedex --test testkit_gas -- --ignored --nocapture
         rm -f "$wrapper"
     else
-        echo "no devnode installed (groundhog toolchain install); skipping the gas measurements"
+        echo "no devnode installed (thruput toolchain install); skipping the gas measurements"
     fi
 fi
 

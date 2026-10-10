@@ -15,9 +15,9 @@
 //!
 //! ```text
 //! cd groundhog-examples
-//! for c in erc20 permit-wallet permit-relayer; do groundhog build -p "$c"; done
-//! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
-//! GROUNDHOG_TESTKIT_ARTIFACT_ROOT=/path/to/target/groundhog \
+//! for c in erc20 permit-wallet permit-relayer; do thruput build -p "$c"; done
+//! THRUPUT_DEVNODE_BINARY=/path/to/hog-devnode \
+//! THRUPUT_TESTKIT_ARTIFACT_ROOT=/path/to/target/thruput \
 //!     cargo test -p permit-wallet --test testkit_permit -- --ignored --nocapture
 //! ```
 
@@ -43,7 +43,7 @@ type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as
 // recorded in each `*.spec.json`; the testkit derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.44");
+const ERC20: (&str, &str) = ("ERC20", "0.1.52");
 const WALLET: (&str, &str) = ("PermitWallet", "0.1.0");
 const RELAYER: (&str, &str) = ("PermitRelayer", "0.1.0");
 
@@ -329,11 +329,11 @@ fn spender() -> Agent {
 }
 
 #[tokio::test]
-#[ignore = "needs GROUNDHOG_DEVNODE_BINARY and built erc20/permit_wallet/permit_relayer artifacts in GROUNDHOG_TESTKIT_ARTIFACT_ROOT"]
+#[ignore = "needs THRUPUT_DEVNODE_BINARY and built erc20/permit_wallet/permit_relayer artifacts in THRUPUT_TESTKIT_ARTIFACT_ROOT"]
 async fn permit_signed_off_chain_relayed_on_chain() {
-    let Ok(root) = std::env::var("GROUNDHOG_TESTKIT_ARTIFACT_ROOT") else {
+    let Ok(root) = std::env::var("THRUPUT_TESTKIT_ARTIFACT_ROOT") else {
         eprintln!(
-            "skipping: set GROUNDHOG_TESTKIT_ARTIFACT_ROOT to a directory with the built \
+            "skipping: set THRUPUT_TESTKIT_ARTIFACT_ROOT to a directory with the built \
              erc20/permit_wallet/permit_relayer artifacts (see module docs)"
         );
         return;
@@ -342,8 +342,8 @@ async fn permit_signed_off_chain_relayed_on_chain() {
 
     let mut config = LocalNetworkConfig::default();
     // The admin funds the contracts it deploys (see CONTRACT_FUNDING).
-    config.dev_account_tokens = 100_000_000_000;
-    if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
+    config.initial_account_tokens = 100_000_000_000;
+    if let Ok(bin) = std::env::var("THRUPUT_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
     }
     if std::env::var("RUST_LOG").is_ok() {

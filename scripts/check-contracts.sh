@@ -24,7 +24,7 @@ cargo test --all
 
 # Run `test_r32` tests
 for p in erc20 counter speedex; do
-    groundhog test -p "$p"
+    thruput test -p "$p"
 done
 
 # Run tests for contracts implementing the `guest_test` feature

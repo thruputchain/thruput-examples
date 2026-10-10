@@ -21,8 +21,8 @@ use standard_token::ClawbackEvent;
 use standard_token::Config;
 use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
 
-const ERC20: (&str, &str) = ("ERC20", "0.1.44");
-const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.44");
+const ERC20: (&str, &str) = ("ERC20", "0.1.52");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.52");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
 const REQUIRED_FACTORY_FUNDING: i128 = 1_000_000;
 // Exactly what creating a token through the factory costs its new address
@@ -864,16 +864,15 @@ fn creator_agent() -> Agent {
 #[ignore = "requires hog-devnode and built RV32 artifacts"]
 async fn real_artifact_rpc_lifecycle() {
     let root = PathBuf::from(
-        std::env::var("GROUNDHOG_TESTKIT_ARTIFACT_ROOT")
-            .expect("set GROUNDHOG_TESTKIT_ARTIFACT_ROOT"),
+        std::env::var("THRUPUT_TESTKIT_ARTIFACT_ROOT").expect("set THRUPUT_TESTKIT_ARTIFACT_ROOT"),
     );
     assert_generated_specs(&root);
-    let binary = std::env::var("GROUNDHOG_DEVNODE_BINARY")
+    let binary = std::env::var("THRUPUT_DEVNODE_BINARY")
         .map(PathBuf::from)
-        .expect("set GROUNDHOG_DEVNODE_BINARY");
+        .expect("set THRUPUT_DEVNODE_BINARY");
     let mut config = LocalNetworkConfig::default();
     config.hog_devnode_binary = Some(binary);
-    config.dev_account_tokens = 100_000_000_000;
+    config.initial_account_tokens = 100_000_000_000;
 
     let scenario = Scenario::builder("standard-token-phase-6")
         .bootstrap_accounts()

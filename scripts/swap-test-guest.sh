@@ -6,11 +6,11 @@
 set -xeuo pipefail
 
 # Build guest binaries for use below
-groundhog build -p erc20 -- -F metadata
-groundhog build -p swap-driver
-groundhog build -p swap-router
-groundhog build -p swap-handler
-groundhog build -p swap-factory
+thruput build -p erc20 -- -F metadata
+thruput build -p swap-driver
+thruput build -p swap-router
+thruput build -p swap-handler
+thruput build -p swap-factory
 
 cargo test -p swap-driver -F guest_test
 cargo test -p swap-router -F guest_test

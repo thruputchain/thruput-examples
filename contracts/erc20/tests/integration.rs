@@ -1,7 +1,7 @@
 //! RPC integration test for the `erc20` contract.
 //!
 //! The common machinery — signing and submitting transactions through the
-//! bootstrapped `dev-0` wallet, polling for receipts, and failure diagnostics —
+//! temporary integration wallet, polling for receipts, and failure diagnostics —
 //! lives in the `integration-test` crate. This file only describes the
 //! contract-specific calls and the lifecycle they exercise.
 //!
@@ -10,7 +10,7 @@
 //! hold a storage reserve. See
 //! [`native_hog_allowance_needs_a_storage_reserve`].
 //!
-//! Run it with `groundhog test --integration`.
+//! Run it with `thruput test --integration`.
 
 use std::time::Duration;
 
@@ -18,16 +18,16 @@ use groundhog_xdr::types::ContractAddress;
 use integration_test::{Harness, InvocationOptions, SubmissionOutcome, decode_return, encode};
 
 const INTERFACE: &str = "ERC20";
-const VERSION: &str = "0.1.44";
+const VERSION: &str = "0.1.52";
 
 #[tokio::test]
 async fn erc20_lifecycle_over_rpc() {
     let token = Erc20::from_env();
 
-    // The bootstrapped dev-0 wallet is the caller of every transaction below,
+    // The temporary integration wallet is the caller of every transaction below,
     // so it becomes the token administrator and the source of transfers.
     let admin = token.0.wallet();
-    let recipient = token.0.dev_wallet(1);
+    let recipient = token.0.recipient(1);
 
     // Fresh deploy: total supply starts at zero (this also confirms the
     // contract is reachable before we initialize it).
@@ -130,11 +130,15 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
     let (interface, version) = NATIVE_INTERFACE;
     let hog = Harness::from_env(interface, version).retarget(native_hog(), interface, version);
 
-    // The control.  Moving HOG writes balances that already exist and commits,
+    // The control.  Moving HOG funds a new recipient and commits,
     // so the account, signing, entrypoint IDs and node are all in order.
-    let spender = hog.dev_wallet(1);
+    let spender = hog.recipient(1);
     let transfer = hog
-        .submit("transfer", encode(&(spender, 1i128)), options())
+        .submit(
+            "transfer",
+            encode(&(spender, NATIVE_STORAGE_RESERVE)),
+            options(),
+        )
         .await
         .expect("submitting transfer");
     assert!(
@@ -176,7 +180,7 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
     // *new* allowance row: the attempt above is still in the mempool and may
     // commit at any point, which would leave the first spender's row already
     // made.
-    let fresh_spender = hog.dev_wallet(2);
+    let fresh_spender = hog.recipient(2);
     let after = hog
         .submit(
             "adjust_allowance",
@@ -198,6 +202,7 @@ fn describe(outcome: &SubmissionOutcome) -> String {
         SubmissionOutcome::Failed(receipt) => format!("committed but failed: {:?}", receipt.status),
         SubmissionOutcome::Pending { .. } => "still pending when the timeout elapsed".to_owned(),
         SubmissionOutcome::Expired { .. } => "expired before committing".to_owned(),
+        SubmissionOutcome::Dropped { error, .. } => format!("dropped by the scheduler: {error:?}"),
         SubmissionOutcome::Invalid { reason, .. } => format!("rejected by the scheduler: {reason}"),
     }
 }

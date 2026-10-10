@@ -214,15 +214,15 @@ async fn calibrate_crank_gas() {
 }
 
 async fn run_calibration(fee_enabled: bool) {
-    let Ok(root) = std::env::var("GROUNDHOG_TESTKIT_ARTIFACT_ROOT") else {
-        eprintln!("skipping: set GROUNDHOG_TESTKIT_ARTIFACT_ROOT (see module docs)");
+    let Ok(root) = std::env::var("THRUPUT_TESTKIT_ARTIFACT_ROOT") else {
+        eprintln!("skipping: set THRUPUT_TESTKIT_ARTIFACT_ROOT (see module docs)");
         return;
     };
     let artifact = |file: &str| PathBuf::from(&root).join(file);
 
     let mut config = LocalNetworkConfig::default();
-    config.dev_account_tokens = 100_000_000_000;
-    if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
+    config.initial_account_tokens = 100_000_000_000;
+    if let Ok(bin) = std::env::var("THRUPUT_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
     }
 

@@ -34,7 +34,7 @@ pub fn setup_etx_native() -> Result<Etx> {
 #[cfg(feature = "guest_test")]
 pub fn setup_etx_guest() -> Result<Etx> {
     let guest_path =
-        |name: &str, arch: &str| -> String { format!("../../target/groundhog/{name}.{arch}") };
+        |name: &str, arch: &str| -> String { format!("../../target/thruput/{name}.{arch}") };
     let load = |name: &str| load_rv32_contract(guest_path(name, "rv32a"));
 
     let token_contract = load("erc20");

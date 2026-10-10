@@ -14,9 +14,9 @@
 //!
 //! ```text
 //! cd groundhog-examples
-//! for c in stellar-account stellar-account-factory; do groundhog build -p "$c"; done
-//! GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode \
-//! GROUNDHOG_TESTKIT_ARTIFACT_ROOT=/path/to/target/groundhog \
+//! for c in stellar-account stellar-account-factory; do thruput build -p "$c"; done
+//! THRUPUT_DEVNODE_BINARY=/path/to/hog-devnode \
+//! THRUPUT_TESTKIT_ARTIFACT_ROOT=/path/to/target/thruput \
 //!     cargo test -p stellar-account --test testkit_account -- --ignored --nocapture
 //! ```
 
@@ -41,7 +41,7 @@ type Address = ContractAddress;
 
 const ACCOUNT_IF: (&str, &str) = ("StellarAccount", "0.1.0");
 const FACTORY_IF: (&str, &str) = ("StellarAccountFactory", "0.1.0");
-const ERC20: (&str, &str) = ("ERC20", "0.1.44");
+const ERC20: (&str, &str) = ("ERC20", "0.1.52");
 
 const MASTER_SEED: [u8; 32] = [0x11; 32];
 const SECOND_SEED: [u8; 32] = [0x22; 32];
@@ -317,17 +317,17 @@ fn admin() -> Agent {
 }
 
 #[tokio::test]
-#[ignore = "needs GROUNDHOG_DEVNODE_BINARY and built stellar_account/stellar_account_factory artifacts in GROUNDHOG_TESTKIT_ARTIFACT_ROOT"]
+#[ignore = "needs THRUPUT_DEVNODE_BINARY and built stellar_account/stellar_account_factory artifacts in THRUPUT_TESTKIT_ARTIFACT_ROOT"]
 async fn two_signer_threshold_change_on_a_live_node() {
-    let Ok(root) = std::env::var("GROUNDHOG_TESTKIT_ARTIFACT_ROOT") else {
-        eprintln!("skipping: set GROUNDHOG_TESTKIT_ARTIFACT_ROOT (see module docs)");
+    let Ok(root) = std::env::var("THRUPUT_TESTKIT_ARTIFACT_ROOT") else {
+        eprintln!("skipping: set THRUPUT_TESTKIT_ARTIFACT_ROOT (see module docs)");
         return;
     };
     let artifact = |file: &str| PathBuf::from(&root).join(file);
 
     let mut config = LocalNetworkConfig::default();
-    config.dev_account_tokens = 100_000_000_000;
-    if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
+    config.initial_account_tokens = 100_000_000_000;
+    if let Ok(bin) = std::env::var("THRUPUT_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
     }
 

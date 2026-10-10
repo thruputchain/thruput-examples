@@ -50,7 +50,7 @@ groundhog-erc20-permit-if = { workspace = true, optional = true }
 erc20 = { path = ".", features = ["dev"] }
 sha2.workspace = true
 
-# RPC integration test (tests/integration.rs), run via `groundhog test --integration`.
+# RPC integration test (tests/integration.rs), run via `thruput test --integration`.
 integration-test = { path = "../../helpers/integration-test" }
 groundhog-xdr = { workspace = true }
 tokio = { workspace = true }
@@ -58,4 +58,4 @@ tokio = { workspace = true }
 [[test]]
 name = "integration"
 test = false
-# test usage: GROUNDHOG_DEVNODE_BINARY=/path/to/hog-devnode groundhog test --integration
+# test usage: THRUPUT_DEVNODE_BINARY=/path/to/hog-devnode thruput test --integration

@@ -2,15 +2,16 @@
 
 # Run integration (RPC-targeted) tests.
 #
-# Requires the groundhog-cli and devnode.
+# Requires thruput-cli 0.27.0 or newer and a compatible hog-devnode.
 
 set -euo pipefail
 
 itest_contracts=(counter erc20)
 
 for pkg in "${itest_contracts[@]}"; do
-    echo "::group::groundhog test --integration -p $pkg"
-    groundhog test --integration -p "$pkg" || {
+    echo "::group::thruput test --integration -p $pkg"
+    # Tests share one funded signing account and mutable native-token reserves.
+    thruput test --integration -p "$pkg" -- --test-threads=1 || {
         printf "Integration test failed for contract %s\n" "$pkg"
         exit 1
     }

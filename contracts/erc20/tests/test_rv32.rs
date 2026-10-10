@@ -12,12 +12,12 @@ extern crate alloc;
 /// not a caught Rust panic.
 ///
 /// Use `cargo test` for fast iteration and error-path
-/// testing. Use `groundhog test` to verify the contract
+/// testing. Use `thruput test` to verify the contract
 /// behaves correctly under real execution semantics.
 #[test]
-#[ignore = "requires RV32 build — run via `groundhog test`"]
+#[ignore = "requires RV32 build — run via `thruput test`"]
 fn erc20_test_rv32() {
-    let contract = sdk::load_rv32_contract("../../target/groundhog/erc20.rv32a");
+    let contract = sdk::load_rv32_contract("../../target/thruput/erc20.rv32a");
     let env = sdk::TestEnvironment::no_cost();
     let contract_hash = env.setup_create_contract(&contract);
 

@@ -74,7 +74,7 @@ fn register_contracts(env: &TestEnvironmentHandle) -> (SwapHashes, SHA256Hash) {
 
 #[cfg(feature = "guest_test")]
 fn register_contracts(env: &TestEnvironmentHandle) -> (SwapHashes, SHA256Hash) {
-    let load = |name: &str| load_rv32_contract(format!("../../target/groundhog/{name}.rv32a"));
+    let load = |name: &str| load_rv32_contract(format!("../../target/thruput/{name}.rv32a"));
 
     (
         SwapHashes {
