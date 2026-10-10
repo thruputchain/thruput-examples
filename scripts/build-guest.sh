@@ -6,9 +6,9 @@
 
 set -euo pipefail
 
-groundhog_build() {
-    echo "::group::groundhog build ${@}" &&
-    groundhog build "${@}" &&
+thruput_build() {
+    echo "::group::thruput build ${@}" &&
+    thruput build "${@}" &&
     echo "::endgroup::"
 }
 
@@ -31,7 +31,7 @@ for pkg in ${contract_packages} ; do
         extra="-- ${cargo_args[*]}"
     fi
 
-    groundhog_build -p "$pkg" $extra || {
+    thruput_build -p "$pkg" $extra || {
         printf "Build failed for contract %s\n" "$pkg"
         exit 1
     }

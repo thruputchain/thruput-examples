@@ -38,6 +38,7 @@ speedex = { path = ".", features = ["dev"] }
 erc20 = { path = "../erc20", features = ["dev"] }
 # `tests/testkit_gas.rs` measures the contract on a devnode.
 groundhog-testkit = { workspace = true }
+groundhog-json-rpc-client = { workspace = true }
 groundhog-signing = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 

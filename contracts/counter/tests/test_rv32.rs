@@ -12,12 +12,12 @@ static NONCE: SHA256Hash = sdk::sha256_static!("COUNTER_RV32_NONCE");
 /// not a caught Rust panic.
 ///
 /// Use `cargo test` for fast iteration and error-path
-/// testing. Use `groundhog test` to verify the contract
+/// testing. Use `thruput test` to verify the contract
 /// behaves correctly under real execution semantics.
 #[test]
-#[ignore = "requires RV32 build — run via `groundhog test`"]
+#[ignore = "requires RV32 build — run via `thruput test`"]
 fn test_counter_rv32() {
-    let contract = load_rv32_contract("../../target/groundhog/counter.rv32a");
+    let contract = load_rv32_contract("../../target/thruput/counter.rv32a");
     let env = TestEnvironment::no_cost();
     let contract_hash = env.setup_create_contract(&contract);
     let call_addr = ContractAddress::named("counter_rv32");

@@ -1,13 +1,13 @@
 # groundhog-examples
 
-Example smart contracts and applications for the [Groundhog SDK](https://github.com/groundhogchain/sdk_rs). Each
+Example smart contracts and applications for the [Thruput SDK](https://github.com/groundhogchain/sdk_rs). Each
 crate in this Cargo workspace demonstrates a specific SDK feature, from a minimal stateless contract
 up to cross-contract calls, error handling, and event emission.
 
-New to Groundhog? Start with [Getting Started](https://docs.groundhog.dev/start/getting-started/)
+New to Thruput? Start with [Getting Started](https://docs.thruput.network/start/getting-started/)
 on the developer docs site, which walks through installing the CLI and scaffolding a project with
-`groundhog new`. The [Build a Counter](https://docs.groundhog.dev/tutorials/build-a-counter/) and
-[Build a Token](https://docs.groundhog.dev/tutorials/build-a-token/) tutorials cover the `counter`
+`thruput new`. The [Build a Counter](https://docs.thruput.network/tutorials/build-a-counter/) and
+[Build a Token](https://docs.thruput.network/tutorials/build-a-token/) tutorials cover the `counter`
 and `erc20` crates here line by line.
 
 ## Examples
@@ -16,7 +16,7 @@ A suggested reading order for newcomers is `fibonacci` → `cross-call` → `eve
 
 | Crate | Demonstrates |
 |-------|--------------|
-| [`counter`](contracts/counter/) | Storage (`NNInt`), an event, and a contract error in one small contract; the same contract `groundhog new` generates |
+| [`counter`](contracts/counter/) | Storage (`NNInt`), an event, and a contract error in one small contract; the same contract `thruput new` generates |
 | [`fibonacci`](contracts/fibonacci/) | Minimal stateless contract: one method, one error type, one event |
 | [`cross-call`](contracts/cross-call/) | Cross-contract call patterns via a generated client (`call`, `try_*`, error forwarding); calls `fibonacci` |
 | [`events`](contracts/events/) | `#[derive(Event)]` with the full range of topic and payload patterns: payload-only, address topics, hashed topics, topics-only, multi-emit |
@@ -170,43 +170,41 @@ transaction or remote deployment. Wallet unit tests run independently through
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `groundhog` CLI, **version 0.22.1 or newer** (it must match the SDK the
-  contracts build against):
-
-  ```sh
-  export CARGO_REGISTRIES_GROUNDHOG_INDEX="sparse+https://crates.thruput.network/api/v1/crates/"
-  cargo install --locked --registry groundhog groundhog-cli
-  ```
-
-  (`cargo install` is global, so it does not see this repo's
-  `.cargo/config.toml`; the environment variable supplies the registry index.)
-  Individual applications may require a newer release than the contracts do;
-  each app's README states its own minimum.
-
-- Access to the `groundhog` crate registry. The registry index is configured in [`.cargo/config.toml`](.cargo/config.toml); credentials come from your cargo credential provider (e.g. `CARGO_REGISTRIES_GROUNDHOG_TOKEN`).
-- `jq`, used by [`scripts/build-guest.sh`](scripts/build-guest.sh).
-- RPC integration tests use the `thruput` CLI, version **0.27.0 or newer**,
-  and a compatible `hog-devnode`. Configure the same registry access token
-  through `CARGO_REGISTRIES_THRUPUT_TOKEN` or a credential provider for the
-  `thruput` registry alias. Install the CLI with:
+- The `thruput` CLI, version **0.27.0**, matching this workspace's RPC and testkit dependencies:
 
   ```sh
   export CARGO_REGISTRIES_THRUPUT_INDEX="sparse+https://crates.thruput.network/api/v1/crates/"
   cargo install --locked --registry thruput --version 0.27.0 thruput-cli
   ```
 
-  Set `THRUPUT_DEVNODE_BINARY=/absolute/path/to/hog-devnode` to select the
-  runtime, then run [`scripts/integration-tests.sh`](scripts/integration-tests.sh).
+- Access to the `thruput` crate registry. The index is configured in
+  [`.cargo/config.toml`](.cargo/config.toml); credentials come from your Cargo
+  credential provider, for example `CARGO_REGISTRIES_THRUPUT_TOKEN`.
+- A local build profile. Add `thruput.toml` at the workspace root:
+
+  ```toml
+  default_profile = "local"
+  [profile.local]
+  network = "local"
+  ```
+
+- `jq`, used by [`scripts/build-guest.sh`](scripts/build-guest.sh).
+- RPC integration tests need a compatible `hog-devnode`. Run
+  `thruput toolchain install`, then set
+  `THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"` and run
+  [`scripts/integration-tests.sh`](scripts/integration-tests.sh).
+
+Individual application READMEs describe their separate CLI and client requirements.
 
 ## Building
 
 Build a contract to a deployable guest binary (also generates the contract spec):
 
 ```sh
-groundhog build -p fibonacci
+thruput build -p fibonacci
 ```
 
-Artifacts land in `target/groundhog/` as `<crate>.rv32a` and `<crate>.spec.xdr`.
+Artifacts land in `target/thruput/` as `<crate>.rv32a` and `<crate>.spec.xdr`.
 
 ## Testing
 
@@ -217,7 +215,7 @@ Tests come in three main kinds, distinguished by how the contract under test is 
 | Kind | Command | Execution |
 |------|---------|-----------|
 | **native** | `cargo test -p <crate>` | Contract compiled natively and run against the SDK's mock environment (the `dev` feature). Fast; panics unwind, so error paths are catchable. |
-| **rv32** | `groundhog test -p <crate>` | Contract compiled to RV32 and run by the mock executor — the same path as on-chain, where a fault is a real abort. Marked `#[ignore]` so plain `cargo test` skips it. |
+| **rv32** | `thruput test -p <crate>` | Contract compiled to RV32 and run by the mock executor — the same path as on-chain, where a fault is a real abort. Marked `#[ignore]` so plain `cargo test` skips it. |
 | **rpc** | `thruput test --integration -p <crate>` | Real transactions signed and submitted over JSON-RPC to a local devnode. |
 
 ### What is valid to run on each contract

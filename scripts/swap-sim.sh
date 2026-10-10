@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# Requires the `groundhog` CLI in PATH
+# Requires the `thruput` CLI in PATH
 
 set -euo pipefail
 
 # Build guest binaries for use below
 build() {
-    groundhog build -p erc20 -- -F metadata
+    thruput build -p erc20 -- -F metadata
 
-    groundhog build -p swap-driver
-    groundhog build -p swap-router
-    groundhog build -p swap-handler
-    groundhog build -p swap-factory
+    thruput build -p swap-driver
+    thruput build -p swap-router
+    thruput build -p swap-handler
+    thruput build -p swap-factory
 }
 
 if [ ! -v NO_BUILD ]; then
@@ -19,7 +19,7 @@ if [ ! -v NO_BUILD ]; then
 fi
 
 # export RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info"
-export GROUNDHOG_TESTKIT_ARTIFACT_ROOT="$(realpath target/groundhog)"
+export THRUPUT_TESTKIT_ARTIFACT_ROOT="$(realpath target/thruput)"
 
 cargo test -p swap-router \
     --test sim_liquidity \

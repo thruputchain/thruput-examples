@@ -11,10 +11,10 @@
 //! `scripts/speedex-bench.sh` wires both up. Roughly:
 //!
 //! ```text
-//! groundhog build -p erc20 -- -F metadata
-//! groundhog build -p speedex
-//! GROUNDHOG_DEVNODE_BINARY="$(groundhog toolchain which)" \
-//! GROUNDHOG_TESTKIT_ARTIFACT_ROOT=target/groundhog \
+//! thruput build -p erc20 -- -F metadata
+//! thruput build -p speedex
+//! THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)" \
+//! THRUPUT_TESTKIT_ARTIFACT_ROOT=target/thruput \
 //!     cargo test -p speedex --test testkit_gas -- --ignored --nocapture
 //! ```
 //!
@@ -33,13 +33,13 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use groundhog_json_rpc_client::GroundhogApiClient;
 use groundhog_signing::{
     BuildCallTransaction, DEFAULT_PUBKEY_ACCOUNT_NONCE, LocalSigner, PubkeyAccount,
-    SignTransactionParams, build_call_transaction, derive_dev_account_signer,
-    sign_and_encode_transaction_hex,
+    SignTransactionParams, build_call_transaction, sign_and_encode_transaction_hex,
 };
+use groundhog_testkit::rpc_types::decimal::Decimal;
 use groundhog_testkit::rpc_types::receipt::TransactionReceipt;
-use groundhog_testkit::rpc_types::runtime_manifest::{RuntimeManifest, parse_runtime_manifest};
 use groundhog_testkit::xdr::types::{ContractAddress, NetworkHash};
 use groundhog_testkit::xdrs::{self, ReadXDR, WriteXDR};
 use groundhog_testkit::{
@@ -51,7 +51,7 @@ use speedex::max_clear_cells_in;
 use synthetic::{Rng, Shape};
 
 /// Interface identities the artifacts stamp; `entrypoint_id` derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.44");
+const ERC20: (&str, &str) = ("ERC20", "0.1.52");
 const SPEEDEX: (&str, &str) = ("Speedex", "0.1.0");
 /// The node's default wallet, which serves every key-pair account: `execute` runs a list of
 /// calls from the account, and takes calldata of any length.
@@ -201,9 +201,7 @@ fn status_of(receipt: &TransactionReceipt) -> String {
     }
 }
 
-/// The bench agent's key-pair account, for the clearing transactions: the testkit's signer (from
-/// the node's runtime manifest) signing direct calls, outside the dev wallet the testkit routes
-/// everything through, with a nonce sequence of its own.
+/// A separately funded test account for clearing transactions with custom gas limits.
 struct Account {
     account: PubkeyAccount,
     signer: LocalSigner,
@@ -212,12 +210,25 @@ struct Account {
 }
 
 impl Account {
-    fn of(ctx: &AgentContext) -> Result<Self> {
-        let manifest = runtime_manifest()?;
-        let signer = derive_dev_account_signer(
-            &manifest.bootstrap_account_derivation.seed,
-            ctx.account_index() as usize,
-        );
+    async fn of(ctx: &AgentContext) -> Result<Self> {
+        // A separate test-only account permits custom gas limits without accessing
+        // the testkit's private agent key. The scenario funds it explicitly.
+        let signer = LocalSigner::from_secret_key([0x5b; 32]);
+        let tip = ctx.network().chain_tip().await?;
+        let client = ctx.network().client().ok_or(TestkitError::Offline {
+            operation: "getBlockByNumber",
+        })?;
+        let block = client
+            .get_block_by_number(Decimal(tip.height))
+            .await
+            .map_err(|e| TestkitError::Manifest {
+                field: "networkHash",
+                detail: e.to_string(),
+            })?
+            .ok_or(TestkitError::Manifest {
+                field: "networkHash",
+                detail: "tip block is unavailable".to_owned(),
+            })?;
         let account = PubkeyAccount::from_public_key_bytes(
             signer.verifying_key_bytes(),
             DEFAULT_PUBKEY_ACCOUNT_NONCE,
@@ -225,7 +236,7 @@ impl Account {
         Ok(Account {
             account,
             signer,
-            network_hash: manifest.network_hash.to_network_hash(),
+            network_hash: NetworkHash::from(block.network_hash.0),
             sequence: 0,
         })
     }
@@ -283,44 +294,6 @@ fn signing_error(e: impl std::fmt::Display) -> TestkitError {
     }
 }
 
-/// The runtime manifest the devnode wrote for this run: the newest `runtime-manifest.json`
-/// under the temporary directory.
-fn runtime_manifest() -> Result<RuntimeManifest> {
-    fn walk(dir: &std::path::Path, depth: usize, found: &mut Vec<PathBuf>) {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() && depth > 0 {
-                walk(&path, depth - 1, found);
-            } else if path
-                .file_name()
-                .is_some_and(|n| n == "runtime-manifest.json")
-            {
-                found.push(path);
-            }
-        }
-    }
-    let mut found = Vec::new();
-    walk(&std::env::temp_dir(), 5, &mut found);
-    let newest = found
-        .into_iter()
-        .max_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
-        .ok_or(TestkitError::Manifest {
-            field: "runtime-manifest.json",
-            detail: "no runtime manifest found under the temporary directory".to_owned(),
-        })?;
-    let bytes = std::fs::read(&newest).map_err(|e| TestkitError::Manifest {
-        field: "runtime-manifest.json",
-        detail: e.to_string(),
-    })?;
-    parse_runtime_manifest(&bytes).map_err(|e| TestkitError::Manifest {
-        field: "runtime-manifest.json",
-        detail: e.to_string(),
-    })
-}
-
 /// Call a method that must succeed, in a block of its own.
 async fn call<A: WriteXDR + ?Sized>(
     ctx: &mut AgentContext,
@@ -371,7 +344,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
     Agent::new("bench", move |mut ctx| async move {
         let me = ctx.address();
         let zero = ContractAddress::from([0u8; 32]);
-        let mut wallet = Account::of(&ctx)?;
+        let mut wallet = Account::of(&ctx).await?;
         fund(&mut ctx, wallet.address(), CLEARING_FUNDING).await?;
         // The guest memory the artifact under test declares, which bounds a batch.
         let memory: usize = std::env::var("SPEEDEX_GUEST_MEMORY")
@@ -589,10 +562,10 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
 }
 
 #[tokio::test]
-#[ignore = "needs GROUNDHOG_DEVNODE_BINARY and built erc20 and speedex artifacts"]
+#[ignore = "needs THRUPUT_DEVNODE_BINARY and built erc20 and speedex artifacts"]
 async fn clearing_gas() {
-    let Ok(root) = std::env::var("GROUNDHOG_TESTKIT_ARTIFACT_ROOT") else {
-        eprintln!("skipping: set GROUNDHOG_TESTKIT_ARTIFACT_ROOT (see module docs)");
+    let Ok(root) = std::env::var("THRUPUT_TESTKIT_ARTIFACT_ROOT") else {
+        eprintln!("skipping: set THRUPUT_TESTKIT_ARTIFACT_ROOT (see module docs)");
         return;
     };
     let artifact = |file: &str| PathBuf::from(&root).join(file);
@@ -603,9 +576,9 @@ async fn clearing_gas() {
         });
 
     let mut config = LocalNetworkConfig::default();
-    config.dev_account_tokens = 1_000_000_000_000;
+    config.initial_account_tokens = 1_000_000_000_000;
     config.block_driver = BlockDriverConfig::manual();
-    if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
+    if let Ok(bin) = std::env::var("THRUPUT_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
     }
 

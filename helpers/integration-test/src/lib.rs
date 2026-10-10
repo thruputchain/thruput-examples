@@ -9,16 +9,16 @@
 //! ```
 //!
 //! `thruput test --integration` builds the contract to a guest binary, starts
-//! an ephemeral hog-devnode, deploys the contract with `dev-0`, and then runs
+//! an ephemeral hog-devnode, deploys the contract with a temporary integration key, and then runs
 //! the test with the following environment set:
 //!
 //!   - `THRUPUT_RPC_URL`          — JSON-RPC endpoint of the ephemeral node
 //!   - `THRUPUT_CONTRACT_ADDRESS` — address the contract was deployed to
-//!   - `THRUPUT_DEFAULT_KEY`      — `dev-0`
+//!   - `THRUPUT_DEFAULT_KEY`      — name of the temporary stored key
 //!   - `THRUPUT_RUNTIME_MANIFEST` — path to the node's runtime manifest
 //!
 //! [`Harness`] holds everything needed to exercise a contract the way a client
-//! would: it signs and submits transactions through the bootstrapped `dev-0`
+//! would: it signs and submits transactions through the bootstrapped integration
 //! native account, then hands back each transaction's receipt. The
 //! contract-specific method calls and return decoding live in each contract's
 //! own test.
@@ -29,8 +29,8 @@ use groundhog_json_rpc_types::block::{BlockInfo, ChainTip};
 use groundhog_json_rpc_types::events::{EventPage, EventQuery};
 use groundhog_json_rpc_types::hex::{Hex0x, HexBytes};
 use groundhog_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
-use groundhog_json_rpc_types::runtime_manifest::{RuntimeManifest, parse_runtime_manifest};
-use groundhog_json_rpc_types::transaction::{TransactionStatus, TxHash};
+use groundhog_json_rpc_types::runtime_manifest::parse_runtime_manifest;
+use groundhog_json_rpc_types::transaction::{SchedulerTransactionError, TransactionStatus, TxHash};
 use groundhog_json_rpc_types::view::{RootInvocationOutput, ViewRequest, ViewResponse};
 use groundhog_signing::default_wallet::{
     BuildDefaultWalletCallTransaction, DEFAULT_WALLET_EXECUTE_ENTRYPOINT,
@@ -98,6 +98,11 @@ pub enum SubmissionOutcome {
     Pending { tx_hash: TxHash },
     /// The transaction did not commit before its expiry height.
     Expired { tx_hash: TxHash },
+    /// The scheduler permanently dropped the transaction.
+    Dropped {
+        tx_hash: TxHash,
+        error: SchedulerTransactionError,
+    },
     /// The scheduler rejected the transaction.
     Invalid { tx_hash: TxHash, reason: String },
 }
@@ -150,12 +155,10 @@ pub struct Harness {
     interface: &'static str,
     version: &'static str,
     signer: LocalSigner,
-    /// dev-0's native account: the transaction caller. Its address is the
+    /// The integration key's native account: the transaction caller. Its address is the
     /// nonce-zero pubkey account of the signer, as the manifest confirms.
     account: PubkeyAccount,
     wallet: ContractAddress,
-    /// Runtime manifest, retained to resolve additional bootstrap accounts.
-    manifest: RuntimeManifest,
     network_hash: NetworkHash,
     /// Monotonic transaction nonce.
     nonce: AtomicU64,
@@ -178,20 +181,22 @@ impl Harness {
         let manifest = parse_runtime_manifest(&manifest_json)
             .unwrap_or_else(|e| panic!("parsing runtime manifest {manifest_path}: {e}"));
 
-        // `dev-0`'s signing key is derived deterministically from the well-known
-        // seed. Its native account is the nonce-zero pubkey account of that
-        // key; the manifest's bootstrap entry must agree, or the node was
-        // bootstrapped from a different seed than this harness derives from.
-        let signer = derive_default_dev_account_signer(0);
+        let key_name = env("THRUPUT_DEFAULT_KEY");
+        let signer = thruput_cli::keys::load_local_signer(&key_name)
+            .unwrap_or_else(|e| panic!("loading integration key {key_name}: {e}"));
         let account = PubkeyAccount::new(signer.public_key(), DEFAULT_PUBKEY_ACCOUNT_NONCE);
         let wallet = account.address();
-        let advertised = wallet_address(&manifest, 0);
+        let public_key = signer.verifying_key_bytes().into();
+        let advertised = manifest
+            .bootstrap_accounts
+            .iter()
+            .find(|entry| entry.public_key.0 == public_key)
+            .unwrap_or_else(|| {
+                panic!("runtime manifest has no bootstrap allocation for the integration key")
+            });
         assert_eq!(
-            wallet,
-            advertised,
-            "runtime manifest's dev-0 address {} is not the nonce-zero native account {} of the default dev-0 key",
-            format_contract_address(&advertised),
-            format_contract_address(&wallet),
+            wallet, advertised.wallet_address.0,
+            "runtime manifest bootstrap address differs from the integration key's native account"
         );
         let network_hash = manifest.network_hash.to_network_hash();
 
@@ -211,7 +216,6 @@ impl Harness {
             signer,
             account,
             wallet,
-            manifest,
             network_hash,
             nonce: AtomicU64::new(seed),
         }
@@ -242,7 +246,7 @@ impl Harness {
             .map_err(|message| SubmissionError::BuildClient(message.clone()))
     }
 
-    /// dev-0's native account address — the caller of every transaction this
+    /// The integration key's native account address — the caller of every transaction this
     /// harness submits.
     pub fn wallet(&self) -> ContractAddress {
         self.wallet
@@ -253,10 +257,10 @@ impl Harness {
         self.contract
     }
 
-    /// Resolve the native account address for `dev-{index}` from the runtime
-    /// manifest.
-    pub fn dev_wallet(&self, index: u32) -> ContractAddress {
-        wallet_address(&self.manifest, index)
+    /// Deterministic recipient address for a test. It has no bootstrap funding.
+    pub fn recipient(&self, index: usize) -> ContractAddress {
+        let signer = derive_default_dev_account_signer(index);
+        PubkeyAccount::new(signer.public_key(), DEFAULT_PUBKEY_ACCOUNT_NONCE).address()
     }
 
     /// Execute a read-only contract call against the latest committed snapshot.
@@ -272,6 +276,7 @@ impl Harness {
                 calldata: HexBytes(calldata),
                 caller: Some(Hex0x(self.wallet)),
                 gas_limit: None,
+                min_height: None,
             })
             .await
             .map_err(|e| rpc_error("view", e, None))
@@ -299,7 +304,7 @@ impl Harness {
         height: groundhog_json_rpc_types::BlockHeight,
     ) -> Result<Option<BlockInfo>, SubmissionError> {
         self.client()?
-            .get_block_by_number(height)
+            .get_block_by_number(groundhog_json_rpc_types::decimal::Decimal(height))
             .await
             .map_err(|e| rpc_error("getBlockByNumber", e, None))
     }
@@ -327,6 +332,7 @@ impl Harness {
                 panic!("`{method}` receipt did not arrive within 30s")
             }
             SubmissionOutcome::Expired { .. } => panic!("`{method}` expired before committing"),
+            SubmissionOutcome::Dropped { error, .. } => panic!("`{method}` was dropped: {error:?}"),
             SubmissionOutcome::Invalid { reason, .. } => {
                 panic!("`{method}` was rejected by the scheduler: {reason}")
             }
@@ -393,9 +399,6 @@ impl Harness {
                 .get_transaction_status(tx_hash)
                 .await
                 .map_err(|e| rpc_error("getTransactionStatus", e, Some(tx_hash)))?;
-            if let TransactionStatus::Invalid { reason } = status {
-                return Ok(SubmissionOutcome::Invalid { tx_hash, reason });
-            }
 
             let tip = client
                 .chain_tip()
@@ -403,7 +406,11 @@ impl Harness {
                 .map_err(|e| rpc_error("chainTip", e, Some(tx_hash)))?;
             let expired = *tip.height >= block_expiry_height;
             let timed_out = deadline.is_some_and(|deadline| Instant::now() >= deadline);
-            if expired
+            if (expired
+                || matches!(
+                    status,
+                    TransactionStatus::Dropped { .. } | TransactionStatus::Invalid { .. }
+                ))
                 && let Some(receipt) = client
                     .get_transaction_receipt(tx_hash)
                     .await
@@ -431,7 +438,7 @@ impl Harness {
     }
 
     /// Render the call context a failed call needs for debugging, mirroring the
-    /// diagnostics the `groundhog call` CLI prints: the native account and the
+    /// diagnostics the `thruput call` CLI prints: the native account and the
     /// default-wallet entrypoint it executes through, the target
     /// contract/method/entrypoint, and the receipt's status and abort payload.
     /// The receipt we already hold is our stand-in for the CLI's
@@ -477,6 +484,7 @@ fn unresolved_outcome(
     timed_out: bool,
 ) -> Option<SubmissionOutcome> {
     match status {
+        TransactionStatus::Dropped { error } => Some(SubmissionOutcome::Dropped { tx_hash, error }),
         TransactionStatus::Invalid { reason } => {
             Some(SubmissionOutcome::Invalid { tx_hash, reason })
         }
@@ -558,17 +566,6 @@ fn format_hex_bytes(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
 }
 
-/// Resolve the native account address for `dev-{index}` from the runtime manifest.
-fn wallet_address(manifest: &RuntimeManifest, index: u32) -> ContractAddress {
-    manifest
-        .bootstrap_accounts
-        .iter()
-        .find(|account| account.index == index)
-        .unwrap_or_else(|| panic!("runtime manifest has no bootstrap account dev-{index}"))
-        .wallet_address
-        .0
-}
-
 fn parse_address(hex_str: &str) -> ContractAddress {
     let stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
     let bytes = hex::decode(stripped)
@@ -597,10 +594,10 @@ mod tests {
     fn receipt(status: serde_json::Value) -> TransactionReceipt {
         serde_json::from_value(serde_json::json!({
             "txHash": format!("0x{}", "00".repeat(32)),
-            "height": 10,
+            "height": "10",
             "status": status,
             "events": [],
-            "gasUsed": 0
+            "gasUsed": "0"
         }))
         .expect("test receipt should deserialize")
     }
@@ -651,7 +648,7 @@ mod tests {
     fn recent_failure_remains_pending_while_unexpired() {
         let status: TransactionStatus = serde_json::from_value(serde_json::json!({
             "status": "recentFailure",
-            "attemptHeight": 9,
+            "attemptHeight": "9",
             "cause": {
                 "kind": "dbConflict",
                 "conflict": {
@@ -692,6 +689,32 @@ mod tests {
         assert!(matches!(
             outcome,
             Some(SubmissionOutcome::Invalid { reason, .. }) if reason == "bad nonce"
+        ));
+    }
+    #[test]
+    fn dropped_is_terminal_and_retry_can_remain_pending() {
+        let error = SchedulerTransactionError::new(
+            groundhog_json_rpc_types::transaction::SchedulerTransactionErrorSource::Scheduler,
+            7,
+        );
+        assert!(
+            matches!(unresolved_outcome(TransactionStatus::Dropped { error: error.clone() }, tx_hash(), false, false),
+            Some(SubmissionOutcome::Dropped { error: observed, .. }) if observed == error)
+        );
+        assert!(
+            unresolved_outcome(
+                TransactionStatus::Retry {
+                    error: error.clone()
+                },
+                tx_hash(),
+                false,
+                false
+            )
+            .is_none()
+        );
+        assert!(matches!(
+            unresolved_outcome(TransactionStatus::Retry { error }, tx_hash(), false, true),
+            Some(SubmissionOutcome::Pending { .. })
         ));
     }
 }

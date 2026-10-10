@@ -17,9 +17,9 @@
 //!
 //! ```shell
 //! cd groundhog-examples
-//! for c in erc20 swap-handler swap-driver swap-router swap-factory; do groundhog build -p "$c"; done
+//! for c in erc20 swap-handler swap-driver swap-router swap-factory; do thruput build -p "$c"; done
 //! RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
-//! GROUNDHOG_TESTKIT_ARTIFACT_ROOT=/path/to/target/groundhog \
+//! THRUPUT_TESTKIT_ARTIFACT_ROOT=/path/to/target/thruput \
 //!     cargo test -p swap-router --test sim_liquidity -- --ignored --no-capture
 //! ```
 
@@ -159,11 +159,11 @@ fn admin() -> Agent {
 
 // Run a scenario with the admin and liquidity providers
 #[tokio::test]
-#[ignore = "needs built swap fixtures in GROUNDHOG_TESTKIT_ARTIFACT_ROOT"]
+#[ignore = "needs built swap fixtures in THRUPUT_TESTKIT_ARTIFACT_ROOT"]
 async fn swap_liquidity_multi_agent() {
-    let Ok(root) = std::env::var("GROUNDHOG_TESTKIT_ARTIFACT_ROOT") else {
+    let Ok(root) = std::env::var("THRUPUT_TESTKIT_ARTIFACT_ROOT") else {
         eprintln!(
-            "skipping: set GROUNDHOG_TESTKIT_ARTIFACT_ROOT to a directory with the built \
+            "skipping: set THRUPUT_TESTKIT_ARTIFACT_ROOT to a directory with the built \
              erc20/swap/swap_handler/swap_driver/swap_router/swap_factory artifacts (see module docs)"
         );
         return;
@@ -173,9 +173,9 @@ async fn swap_liquidity_multi_agent() {
     let mut config = LocalNetworkConfig::default();
     // The admin funds every contract it deploys (see CONTRACT_FUNDING), so give its dev account
     // plenty of native tokens to distribute.
-    config.dev_account_tokens = 100_000_000_000;
+    config.initial_account_tokens = 100_000_000_000;
     // Optional override
-    if let Ok(bin) = std::env::var("GROUNDHOG_DEVNODE_BINARY") {
+    if let Ok(bin) = std::env::var("THRUPUT_DEVNODE_BINARY") {
         config.hog_devnode_binary = Some(bin.into());
     }
     if std::env::var("RUST_LOG").is_ok() {

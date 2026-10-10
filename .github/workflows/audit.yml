@@ -15,7 +15,7 @@ jobs:
     uses: groundhogchain/actions/.github/workflows/rust-dependency-policy.yml@v1
     with:
       checks: advisories
-      registry-name: groundhog
+      registry-name: thruput
       # Same reason as ci.yml: the manifest needs nightly cargo to parse. Must
       # match rust-toolchain.toml; CI's quality-checks verifies that.
       toolchain: nightly-2026-07-01

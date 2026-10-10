@@ -1,8 +1,8 @@
 //! The exchange compiled to RV32 and run by the mock executor -- the same path as on chain.
 //!
-//! `cargo test` runs the contract natively; this runs the artifact `groundhog build` produced, so a
+//! `cargo test` runs the contract natively; this runs the artifact `thruput build` produced, so a
 //! fault in the clearing arithmetic (an overflow, a panic) is a real abort here. Run via
-//! `groundhog test -p speedex`, after building `speedex` and `erc20`.
+//! `thruput test -p speedex`, after building `speedex` and `erc20`.
 
 use groundhog_erc20_if::ERC20Client;
 use sdk::*;
@@ -35,13 +35,13 @@ fn run<T>(env: &TestEnvironmentHandle, who: &ContractAddress, f: impl Fn() -> T)
 }
 
 #[test]
-#[ignore = "requires RV32 build — run via `groundhog test`"]
+#[ignore = "requires RV32 build — run via `thruput test`"]
 fn ring_trade_rv32() {
     let env = TestEnvironment::no_cost();
     let token_hash =
-        env.setup_create_contract(&load_rv32_contract("../../target/groundhog/erc20.rv32a"));
+        env.setup_create_contract(&load_rv32_contract("../../target/thruput/erc20.rv32a"));
     let exchange_hash =
-        env.setup_create_contract(&load_rv32_contract("../../target/groundhog/speedex.rv32a"));
+        env.setup_create_contract(&load_rv32_contract("../../target/thruput/speedex.rv32a"));
 
     let (exchange, tokens) = run(&env, &TEST, || {
         let tokens = [
@@ -121,13 +121,13 @@ fn ring_trade_rv32() {
 /// assets, 256 to 288 with six). The mock verifies artifacts under the protocol defaults, so
 /// this can only run the 64 KiB build; the devnode benchmark runs the larger one.
 #[test]
-#[ignore = "requires RV32 build — run via `groundhog test`"]
+#[ignore = "requires RV32 build — run via `thruput test`"]
 fn largest_clearing_fits_the_guest_rv32() {
     let env = TestEnvironment::no_cost();
     let token_hash =
-        env.setup_create_contract(&load_rv32_contract("../../target/groundhog/erc20.rv32a"));
+        env.setup_create_contract(&load_rv32_contract("../../target/thruput/erc20.rv32a"));
     let exchange_hash =
-        env.setup_create_contract(&load_rv32_contract("../../target/groundhog/speedex.rv32a"));
+        env.setup_create_contract(&load_rv32_contract("../../target/thruput/speedex.rv32a"));
     let grid = Grid {
         octaves: 2,
         level_bits: 12,

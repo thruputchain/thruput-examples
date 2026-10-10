@@ -10,7 +10,7 @@ one set of valuation prices per batch, and every offer in the batch trading at t
 - [`contract`](src/contract.rs): the exchange -- escrow, the per-batch histogram, the clearing
   record, and settlement -- tested end to end against the `erc20` example in
   [`tests/batch.rs`](tests/batch.rs), and on the RV32 artifact in
-  [`tests/test_rv32.rs`](tests/test_rv32.rs) (`groundhog test -p speedex`).
+  [`tests/test_rv32.rs`](tests/test_rv32.rs) (`thruput test -p speedex`).
 
 ## What SPEEDEX is
 
@@ -210,10 +210,10 @@ since an account may have 8,000 transactions at one expiry height. What the run 
 
 ```sh
 cargo test -p speedex                        # engine and contract tests, natively
-groundhog build -p erc20 -- -F metadata      # the RV32 artifacts the next line loads
-groundhog build -p speedex
-groundhog test -p speedex                    # the ring trade, and the largest clearing, on RV32
-scripts/speedex-bench.sh                     # the benchmarks above (devnode: groundhog toolchain install)
+thruput build -p erc20 -- -F metadata      # the RV32 artifacts the next line loads
+thruput build -p speedex
+thruput test -p speedex                    # the ring trade, and the largest clearing, on RV32
+scripts/speedex-bench.sh                     # the benchmarks above (devnode: thruput toolchain install)
 ```
 
 [SPEEDEX]: https://www.usenix.org/conference/nsdi23/presentation/ramseyer

@@ -29,7 +29,7 @@ rustflags = [
     # compile straight to the trap instruction instead of routing through the
     # SDK panic handler, stripping the panic-formatting machinery by
     # construction. Requires unstable-options, and `-Zbuild-std` so `core` is
-    # rebuilt with the same panic strategy — `groundhog build` supplies that
+    # rebuilt with the same panic strategy — `thruput build` supplies that
     # through the `.cargo/contract.toml` overlay.
     "-Z", "unstable-options",
     "-C", "panic=immediate-abort",
@@ -64,7 +64,7 @@ lto = true
 codegen-units = 1
 
 [registries]
-groundhog = { index = "sparse+https://crates.thruput.network/api/v1/crates/" }
+thruput = { index = "sparse+https://crates.thruput.network/api/v1/crates/" }
 
 [source]
-groundhog = { registry = "sparse+https://crates.thruput.network/api/v1/crates/" }
+thruput = { registry = "sparse+https://crates.thruput.network/api/v1/crates/" }

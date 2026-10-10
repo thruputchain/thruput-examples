@@ -14,7 +14,7 @@ jobs:
       contents: read
     uses: groundhogchain/actions/.github/workflows/rust-dependency-policy.yml@v1
     with:
-      registry-name: groundhog
+      registry-name: thruput
       # The workspace manifest opts into the nightly-only `trim-paths` cargo
       # feature, so the stable cargo the reusable workflow defaults to cannot
       # parse it. Must match rust-toolchain.toml; quality-checks verifies that.
@@ -68,8 +68,8 @@ jobs:
         runner: [namespace-profile-hogd-linux-2604, namespace-profile-hogd-arm64-macos]
     runs-on: ${{ matrix.runner }}
     env:
-      CARGO_REGISTRIES_GROUNDHOG_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
-      CARGO_REGISTRIES_GROUNDHOG_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
+      CARGO_REGISTRIES_THRUPUT_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
+      CARGO_REGISTRIES_THRUPUT_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
       CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -90,18 +90,27 @@ jobs:
       - name: Run native tests
         run: cargo test --all --locked
 
-      - name: Cache groundhog-cli
-        id: cache-groundhog
+      - name: Cache thruput-cli
+        id: cache-thruput
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
-            ~/.cargo/bin/groundhog
+            ~/.cargo/bin/thruput
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
-          key: groundhog-cli-${{ runner.os }}-${{ runner.arch }}-0.22.1
+          key: thruput-cli-${{ runner.os }}-${{ runner.arch }}-0.27.0
 
-      - name: Install groundhog-cli
-        run: cargo install --registry groundhog --version 0.22.1 --locked groundhog-cli
+      - name: Install thruput-cli
+        run: cargo install --registry thruput --version 0.27.0 --locked thruput-cli
+
+      - name: Configure local build profile
+        run: |
+          printf 'default_profile = "local"\n[profile.local]\nnetwork = "local"\n' > thruput.toml
+
+      - name: Run RPC integration tests
+        run: |
+          thruput toolchain install
+          THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)" ./scripts/integration-tests.sh
 
       - name: Build guest contracts
         run: ./scripts/build-guest.sh
@@ -109,7 +118,7 @@ jobs:
       - name: Run `test_r32` tests
         run: |
           for p in erc20 counter speedex; do
-              groundhog test -p "$p"
+              thruput test -p "$p"
           done
 
       - name: Run `guest_test` tests
@@ -124,8 +133,8 @@ jobs:
       contents: read
     runs-on: namespace-profile-hogd-linux-2604
     env:
-      CARGO_REGISTRIES_GROUNDHOG_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
-      CARGO_REGISTRIES_GROUNDHOG_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
+      CARGO_REGISTRIES_THRUPUT_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
+      CARGO_REGISTRIES_THRUPUT_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
       CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
