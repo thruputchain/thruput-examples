@@ -23,6 +23,11 @@ import { RegistryStore } from "../../apps/token-launchpad/server/store.ts";
 import { RegistryIndexer } from "../../apps/token-launchpad/server/indexer.ts";
 import { createRegistryHttpServer } from "../../apps/token-launchpad/server/http.ts";
 
+assert.ok(
+  process.env.THRUPUT_DEVNODE_BINARY,
+  "Set THRUPUT_DEVNODE_BINARY to a compatible hog-devnode executable",
+);
+
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp(join(tmpdir(), "groundhog-seed-"));
 const env: NodeJS.ProcessEnv = Object.fromEntries(
@@ -49,24 +54,29 @@ function start(command: string, args: string[], extra: NodeJS.ProcessEnv = {}) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
+  let stdout = "";
   child.on("error", (error: Error) => {
     output += error.message;
   });
   child.stdout!.on("data", (data: Buffer) => {
+    stdout += data.toString();
     output += data.toString();
   });
   child.stderr!.on("data", (data: Buffer) => {
     output += data.toString();
   });
-  return { child, output: () => output };
+  return { child, output: () => output, stdout: () => stdout };
 }
-async function until(check: () => boolean | Promise<boolean>) {
+async function until(
+  check: () => boolean | Promise<boolean>,
+  diagnostics: () => string = () => "",
+) {
   const deadline = Date.now() + 120_000;
   while (!(await check())) {
     assert.ok(!interrupted, "Seed test interrupted");
     assert.ok(
       Date.now() < deadline,
-      "Timed out waiting for isolated test process",
+      `Timed out waiting for isolated test process: ${diagnostics()}`,
     );
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
@@ -128,21 +138,19 @@ function interrupt() {
 const watchdog = setTimeout(interrupt, 15 * 60_000);
 process.once("SIGINT", interrupt);
 process.once("SIGTERM", interrupt);
+
 try {
   const node = start(
-    process.env.GROUNDHOG_CLI ?? join(homedir(), ".cargo/bin/groundhog"),
+    process.env.THRUPUT_CLI ?? join(homedir(), ".cargo/bin/thruput"),
     [
       "node",
       "--json",
       "--port",
       "0",
-      "--dev-account-count",
-      "0",
       "--hog-devnode-binary",
-      process.env.GROUNDHOG_DEVNODE_BINARY ??
-        join(homedir(), ".local/share/groundhog/hog-devnode/hog-devnode"),
-      ...(process.env.GROUNDHOG_E2E_HOGD_PROTOCOL
-        ? ["--hogd-protocol", process.env.GROUNDHOG_E2E_HOGD_PROTOCOL]
+      process.env.THRUPUT_DEVNODE_BINARY,
+      ...(process.env.THRUPUT_E2E_HOGD_PROTOCOL
+        ? ["--hogd-protocol", process.env.THRUPUT_E2E_HOGD_PROTOCOL]
         : []),
     ],
   );
@@ -159,13 +167,13 @@ try {
       `Isolated node exited during startup: ${node.output().replace(/(?:0x)?[0-9a-fA-F]{64}/g, "[hex32]")}`,
     );
     try {
-      const text = node.output();
+      const text = node.stdout();
       startup = JSON.parse(text.slice(text.indexOf("{")));
     } catch {
       return false;
     }
     return startup?.ok === true;
-  });
+  }, () => node.output().replace(/(?:0x)?[0-9a-fA-F]{64}/g, "[hex32]"));
   Object.assign(env, {
     GROUNDHOG_RPC_URL: startup!.data.rpc_url,
     GROUNDHOG_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
@@ -177,7 +185,7 @@ try {
   ]) {
     Object.assign(env, {
       [`${prefix}_ARTIFACT_ROOT`]:
-        process.env.SEED_TEST_ARTIFACT_ROOT ?? join(root, "target/groundhog"),
+        process.env.SEED_TEST_ARTIFACT_ROOT ?? join(root, "target/thruput"),
       [`${prefix}_APP_ENV`]: join(work, `${prefix}.env`),
       [`${prefix}_APP_PUBLIC_DIR`]: join(work, `${prefix}/public`),
     });

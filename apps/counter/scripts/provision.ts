@@ -58,7 +58,7 @@ export async function provisionCounter(options: {
   const contract = await readFile(
     resolve(
       repositoryRoot,
-      options.artifact || "target/groundhog/counter.rv32a",
+      options.artifact || "target/thruput/counter.rv32a",
     ),
   );
   const key = randomBytes(32);

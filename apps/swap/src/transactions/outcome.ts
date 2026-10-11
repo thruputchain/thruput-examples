@@ -6,7 +6,7 @@ import { ExecResult } from "@groundhogchain/protocol";
 
 export type TransactionOutcome =
   | { kind: "pending" }
-  | { kind: "awaitingReceipt"; height: bigint }
+  | { kind: "awaitingReceipt"; height?: bigint }
   | { kind: "invalid"; reason: string }
   | {
       kind: "committedSuccess";
@@ -18,20 +18,31 @@ export type TransactionOutcome =
     }
   | {
       kind: "indeterminate";
-      reason: "recentFailure" | "unknown" | "other" | "timeout" | "disconnect";
+      reason:
+        | "recentFailure"
+        | "unknown"
+        | "other"
+        | "timeout"
+        | "disconnect"
+        | "dropped";
     };
 
-export function outcomeFromStatus(status: TransactionStatus): TransactionOutcome {
+export function outcomeFromStatus(
+  status: TransactionStatus,
+): TransactionOutcome {
   switch (status.status) {
+    case "retry":
     case "pending":
       return { kind: "pending" };
     case "committed":
       return {
         kind: "awaitingReceipt",
-        height: status.height,
+        ...(status.height === undefined ? {} : { height: status.height }),
       };
     case "invalid":
       return { kind: "invalid", reason: status.reason };
+    case "dropped":
+      return { kind: "indeterminate", reason: "dropped" };
     case "recentFailure":
       return {
         kind: "indeterminate",

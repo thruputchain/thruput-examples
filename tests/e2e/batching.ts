@@ -27,18 +27,24 @@ import {
   type Contract,
   type Invocation,
 } from "@groundhogchain/protocol";
-import {
-  StandardTokenFactory,
-} from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
+import { StandardTokenFactory } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
 import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20.ts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapRouter } from "../../apps/swap/src/contracts/generated/swap-router.ts";
-import { SwapDriver, batch_driver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
+import {
+  SwapDriver,
+  batch_driver,
+} from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { CRANK_FRAME_GAS } from "../../apps/swap/src/contracts/driver-target.ts";
 import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
 
 const RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
 type RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
+
+assert.ok(
+  process.env.THRUPUT_DEVNODE_BINARY,
+  "Set THRUPUT_DEVNODE_BINARY to a compatible hog-devnode executable",
+);
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp(join(tmpdir(), "groundhog-batching-"));
@@ -61,7 +67,7 @@ const env = {
 };
 const gas = gasAmount(10_000_000n);
 const artifacts =
-  process.env.BATCH_TEST_ARTIFACT_ROOT ?? join(root, "target/groundhog");
+  process.env.BATCH_TEST_ARTIFACT_ROOT ?? join(root, "target/thruput");
 function spawn(command: string, args: string[], extra = {}) {
   assert.ok(!interrupted, "Batch test interrupted");
   const child = groups.spawn(command, args, {
@@ -70,13 +76,15 @@ function spawn(command: string, args: string[], extra = {}) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
+  let stdout = "";
   child.stdout!.on("data", (data: Buffer) => {
+    stdout += data.toString();
     output += data.toString();
   });
   child.stderr!.on("data", (data: Buffer) => {
     output += data.toString();
   });
-  return { child, output: () => output };
+  return { child, output: () => output, stdout: () => stdout };
 }
 async function until(check: () => boolean) {
   const deadline = Date.now() + 120_000;
@@ -86,19 +94,17 @@ async function until(check: () => boolean) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
+
 try {
   const node = spawn(
-    process.env.GROUNDHOG_CLI ?? join(homedir(), ".cargo/bin/groundhog"),
+    process.env.THRUPUT_CLI ?? join(homedir(), ".cargo/bin/thruput"),
     [
       "node",
       "--json",
       "--port",
       "0",
-      "--dev-account-count",
-      "0",
       "--hog-devnode-binary",
-      process.env.GROUNDHOG_DEVNODE_BINARY ??
-        join(homedir(), ".local/share/groundhog/hog-devnode/hog-devnode"),
+      process.env.THRUPUT_DEVNODE_BINARY,
     ],
   );
   let startup:
@@ -110,7 +116,7 @@ try {
   await until(() => {
     assert.equal(node.child.exitCode, null, node.output());
     try {
-      startup = JSON.parse(node.output().slice(node.output().indexOf("{")));
+      startup = JSON.parse(node.stdout());
     } catch {
       return false;
     }
@@ -207,7 +213,7 @@ try {
     })
   ).value;
   const rejected = await batch(
-    "Rollback funding when token initialization fails",
+    "Rollback funding when token creation fails",
     [
       ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: rollbackAddress,
@@ -218,7 +224,7 @@ try {
         name: "Invalid",
         symbol: "INVALID",
         decimals: 6n,
-        initialSupply: 1n << 127n,
+        initialSupply: -1n,
         administrator: account.address,
         initialHolder: account.address,
       }),

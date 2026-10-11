@@ -20,6 +20,8 @@ import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
+assert.ok(process.env.THRUPUT_DEVNODE_BINARY, "Set THRUPUT_DEVNODE_BINARY to a compatible hog-devnode executable");
+
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const swap = `${root}/apps/swap`,
   launchpad = `${root}/apps/token-launchpad`;
@@ -44,12 +46,11 @@ Object.assign(env, {
   XDG_DATA_HOME: `${work}/data`,
   TMPDIR: work,
 });
-const cli = process.env.GROUNDHOG_CLI || `${homedir()}/.cargo/bin/groundhog`;
-const devnode =
-  process.env.GROUNDHOG_DEVNODE_BINARY ||
-  `${homedir()}/.local/share/groundhog/hog-devnode/hog-devnode`;
+const cli = process.env.THRUPUT_CLI || `${homedir()}/.cargo/bin/thruput`;
+const devnode = process.env.THRUPUT_DEVNODE_BINARY;
 const processGroups = new OwnedProcessGroups(),
   logs = new Map(),
+  stdoutLogs = new Map(),
   secrets = [randomBytes(24).toString("hex")];
 const evidence = {
   batching: process.env.WALLET_ACCEPTANCE_LEGACY !== "1",
@@ -88,6 +89,10 @@ function start(command, args, cwd = root, extra = {}, exactEnv = false) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
+  let stdout = "";
+  child.stdout.on("data", (b) => {
+    stdout = (stdout + b).slice(-200000);
+  });
   for (const stream of [child.stdout, child.stderr])
     stream.on("data", (b) => {
       output = (output + b).slice(-200000);
@@ -96,6 +101,7 @@ function start(command, args, cwd = root, extra = {}, exactEnv = false) {
     output += e.message;
   });
   logs.set(child, () => output);
+  stdoutLogs.set(child, () => stdout);
   return child;
 }
 async function until(check, description, timeout = 120000) {
@@ -370,19 +376,17 @@ try {
     "--json",
     "--port",
     "0",
-    "--dev-account-count",
-    "0",
     "--hog-devnode-binary",
     devnode,
-    ...(process.env.GROUNDHOG_E2E_HOGD_PROTOCOL
-      ? ["--hogd-protocol", process.env.GROUNDHOG_E2E_HOGD_PROTOCOL]
+    ...(process.env.THRUPUT_E2E_HOGD_PROTOCOL
+      ? ["--hogd-protocol", process.env.THRUPUT_E2E_HOGD_PROTOCOL]
       : []),
   ]);
   let startup;
   await until(() => {
     assert.equal(node.exitCode, null, redact(logs.get(node)()));
     try {
-      const text = logs.get(node)();
+      const text = stdoutLogs.get(node)();
       startup = JSON.parse(text.slice(text.indexOf("{")));
     } catch {
       return false;
@@ -417,7 +421,7 @@ try {
       {
         [`${prefix}_ARTIFACT_ROOT`]:
           process.env.WALLET_ACCEPTANCE_ARTIFACT_ROOT ||
-          `${root}/target/groundhog`,
+          `${root}/target/thruput`,
         [`${prefix}_APP_ENV`]: `${work}/${prefix}.env`,
         [`${prefix}_APP_PUBLIC_DIR`]: `${work}/${prefix}/public`,
       },

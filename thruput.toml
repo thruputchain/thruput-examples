@@ -1,10 +1,10 @@
-# Project-local Groundhog config.
+# Project-local Thruput config.
 #
-# User-level defaults live in ~/.config/groundhog/config.toml. Profiles here
+# User-level defaults live in ~/.config/thruput/config.toml. Profiles here
 # merge with global profiles of the same name, and project aliases override
 # global aliases.
 #
-# `groundhog build` needs an active profile, so this file is what lets the
+# `thruput build` needs an active profile, so this file is what lets the
 # build scripts run on a machine with no global config -- CI, or a fresh
 # clone. Without it every build fails with "no active profile selected".
 

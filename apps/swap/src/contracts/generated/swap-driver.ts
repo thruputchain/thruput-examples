@@ -319,6 +319,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("process_requests"),
@@ -330,6 +331,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               { v: __gh_contract_spec.ContractTypeKind.U32 },
             ],
           },
+          effect: null,
         },
         {
           name: __gh_s("request"),
@@ -354,6 +356,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               len: 32n,
             },
           },
+          effect: null,
         },
       ],
     },
@@ -952,6 +955,7 @@ export const SwapDriver = {
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.SwapDriver.v0_1.initialize,
+      effect: spec.interfaces[0]!.methods[0]!.effect,
       args: [
         {
           abiName: "handler",
@@ -1014,6 +1018,7 @@ export const SwapDriver = {
       abiName: "process_requests",
       publicName: "processRequests",
       entrypoint: __gh_entrypoints.SwapDriver.v0_1.processRequests,
+      effect: spec.interfaces[0]!.methods[1]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[1]!.return_type,
       throws: [
@@ -1055,6 +1060,7 @@ export const SwapDriver = {
       abiName: "request",
       publicName: "request",
       entrypoint: __gh_entrypoints.SwapDriver.v0_1.request,
+      effect: spec.interfaces[0]!.methods[2]!.effect,
       args: [
         {
           abiName: "request",

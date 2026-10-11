@@ -119,16 +119,19 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("error"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.U64 },
+          effect: null,
         },
         {
           name: __gh_s("get"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.U64 },
+          effect: null,
         },
         {
           name: __gh_s("increment"),
@@ -139,6 +142,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("initialize"),
@@ -149,6 +153,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("ping"),
@@ -159,6 +164,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
       ],
     },
@@ -217,6 +223,7 @@ export const Counter = {
       abiName: "decrement",
       publicName: "decrement",
       entrypoint: __gh_entrypoints.Counter.v0_1.decrement,
+      effect: spec.interfaces[0]!.methods[0]!.effect,
       args: [
         {
           abiName: "amount",
@@ -244,6 +251,7 @@ export const Counter = {
       abiName: "error",
       publicName: "error",
       entrypoint: __gh_entrypoints.Counter.v0_1.error,
+      effect: spec.interfaces[0]!.methods[1]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[1]!.return_type,
       throws: [
@@ -265,6 +273,7 @@ export const Counter = {
       abiName: "get",
       publicName: "get",
       entrypoint: __gh_entrypoints.Counter.v0_1.get,
+      effect: spec.interfaces[0]!.methods[2]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[2]!.return_type,
       throws: [
@@ -286,6 +295,7 @@ export const Counter = {
       abiName: "increment",
       publicName: "increment",
       entrypoint: __gh_entrypoints.Counter.v0_1.increment,
+      effect: spec.interfaces[0]!.methods[3]!.effect,
       args: [
         {
           abiName: "amount",
@@ -313,6 +323,7 @@ export const Counter = {
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.Counter.v0_1.initialize,
+      effect: spec.interfaces[0]!.methods[4]!.effect,
       args: [
         {
           abiName: "initial_value",
@@ -340,6 +351,7 @@ export const Counter = {
       abiName: "ping",
       publicName: "ping",
       entrypoint: __gh_entrypoints.Counter.v0_1.ping,
+      effect: spec.interfaces[0]!.methods[5]!.effect,
       args: [
         {
           abiName: "tag",

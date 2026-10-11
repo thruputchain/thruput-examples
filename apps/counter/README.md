@@ -11,23 +11,23 @@ Use Node.js 22.13 or newer and run `npm ci` from the repository root with the
 [npm registry authentication](../../README.md#install-swap-and-launchpad-dependencies)
 configured.
 
-Use **Groundhog CLI 0.22.1** and **hog-devnode 0.1.30-rc.1** for local checks.
+Use **Thruput CLI 0.27.0** and **hog-devnode 0.1.31-rc.2** for local checks.
 Use compatible CLI/devnode builds: a newer CLI can
 require a runtime manifest that an older devnode does not provide.
 
 Start the compatible node in a separate terminal:
 
 ```sh
-export GROUNDHOG_CLI=/absolute/path/to/groundhog
-export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
-"$GROUNDHOG_CLI" node --port 9545 --dev-account-count 0 \
-  --hog-devnode-binary "$GROUNDHOG_DEVNODE_BINARY" --json
+export THRUPUT_CLI=/absolute/path/to/thruput
+export THRUPUT_DEVNODE_BINARY=/absolute/path/to/hog-devnode
+"$THRUPUT_CLI" node --port 9545 \
+  --hog-devnode-binary "$THRUPUT_DEVNODE_BINARY" --json
 ```
 
 Use the runtime-manifest path printed by that node:
 
 ```sh
-export GROUNDHOG_CLI=/absolute/path/to/groundhog
+export THRUPUT_CLI=/absolute/path/to/thruput
 export GROUNDHOG_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
 npm run setup:local --workspace apps/counter
 npm run dev --workspace apps/counter
@@ -46,7 +46,7 @@ Relative paths are resolved from the repository root.
 
 - `GROUNDHOG_RPC_URL`: loopback HTTP endpoint, default `http://127.0.0.1:9545`.
 - `COUNTER_APP_ENV`: output path, default `apps/counter/.env.local`.
-- `COUNTER_ARTIFACT`: compiled artifact path, default `target/groundhog/counter.rv32a`.
+- `COUNTER_ARTIFACT`: compiled artifact path, default `target/thruput/counter.rv32a`.
 
 ## Devnet
 
@@ -68,7 +68,7 @@ Both setup commands build the counter and regenerate bindings before running
 their TypeScript setup script. To create a fresh Devnet demo:
 
 ```sh
-export GROUNDHOG_CLI=/absolute/path/to/groundhog
+export THRUPUT_CLI=/absolute/path/to/thruput
 export GROUNDHOG_RPC_URL=https://rpc.thruput.network
 export GROUNDHOG_NETWORK_ID=0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f
 npm run setup:devnet --workspace apps/counter
@@ -119,7 +119,7 @@ file while using that deployment; run setup again when you want a fresh demo.
 
 ## SDK integration
 
-Counter uses the published client 0.14.0 and bindings generated with CLI 0.22.1.
+Counter uses the published client 0.17.0 and bindings generated with CLI 0.27.0.
 `src/groundhog/client.ts` binds the Counter address and public client once with
 `getContract`, then refreshes with `counter.get.view({ caller: signerAddress })`.
 Counter and signer-balance reads run concurrently within each scheduled refresh.
@@ -192,8 +192,8 @@ the browser separately checks the network, counter, and development balance.
 After building the counter artifact and app:
 
 ```sh
-export GROUNDHOG_CLI=/absolute/path/to/groundhog
-export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
+export THRUPUT_CLI=/absolute/path/to/thruput
+export THRUPUT_DEVNODE_BINARY=/absolute/path/to/hog-devnode
 npm run build --workspace apps/counter
 npm run test:counter
 ```

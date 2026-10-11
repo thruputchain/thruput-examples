@@ -177,6 +177,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               declared: __gh_s("FactoryConfig"),
             },
           },
+          effect: null,
         },
         {
           name: __gh_s("create_token"),
@@ -226,11 +227,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Address },
+          effect: null,
         },
         {
           name: __gh_s("creation_fee"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
+          effect: null,
         },
         {
           name: __gh_s("initialize"),
@@ -249,6 +252,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("predict_token"),
@@ -269,11 +273,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Address },
+          effect: null,
         },
         {
           name: __gh_s("required_token_funding"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
+          effect: null,
         },
       ],
     },
@@ -446,6 +452,7 @@ export const StandardTokenFactory = {
       abiName: "config",
       publicName: "config",
       entrypoint: __gh_entrypoints.StandardTokenFactory.v0_1.config,
+      effect: spec.interfaces[0]!.methods[0]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[0]!.return_type,
       throws: [
@@ -472,6 +479,7 @@ export const StandardTokenFactory = {
       abiName: "create_token",
       publicName: "createToken",
       entrypoint: __gh_entrypoints.StandardTokenFactory.v0_1.createToken,
+      effect: spec.interfaces[0]!.methods[1]!.effect,
       args: [
         {
           abiName: "nonce",
@@ -534,6 +542,7 @@ export const StandardTokenFactory = {
       abiName: "creation_fee",
       publicName: "creationFee",
       entrypoint: __gh_entrypoints.StandardTokenFactory.v0_1.creationFee,
+      effect: spec.interfaces[0]!.methods[2]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[2]!.return_type,
       throws: [
@@ -560,6 +569,7 @@ export const StandardTokenFactory = {
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.StandardTokenFactory.v0_1.initialize,
+      effect: spec.interfaces[0]!.methods[3]!.effect,
       args: [
         {
           abiName: "config",
@@ -592,6 +602,7 @@ export const StandardTokenFactory = {
       abiName: "predict_token",
       publicName: "predictToken",
       entrypoint: __gh_entrypoints.StandardTokenFactory.v0_1.predictToken,
+      effect: spec.interfaces[0]!.methods[4]!.effect,
       args: [
         {
           abiName: "creator",
@@ -630,6 +641,7 @@ export const StandardTokenFactory = {
       publicName: "requiredTokenFunding",
       entrypoint:
         __gh_entrypoints.StandardTokenFactory.v0_1.requiredTokenFunding,
+      effect: spec.interfaces[0]!.methods[5]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[5]!.return_type,
       throws: [

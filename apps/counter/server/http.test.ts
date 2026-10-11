@@ -99,7 +99,7 @@ function rpcMock() {
       body.method === "groundhog_networkInfo"
         ? { networkHash: config.app.networkId }
         : body.method === "groundhog_chainTip"
-          ? { height: 10, blockHash: `0x${"00".repeat(32)}` }
+          ? { height: "10", blockHash: `0x${"00".repeat(32)}` }
           : body.method === "groundhog_sendRawTransaction"
             ? toHex0x(
                 hashSignedTransaction(
@@ -112,7 +112,7 @@ function rpcMock() {
                   recipient: config.app.signerAddress,
                   rawAmount: "100000000",
                   txHash: `0x${"44".repeat(32)}`,
-                  height: 10,
+                  height: "10",
                   status: { result: "ok" },
                 }
               : null;
@@ -276,7 +276,7 @@ describe("counter signing boundary", () => {
               recipient: config.app.signerAddress,
               rawAmount: "100000000",
               txHash: `0x${"44".repeat(32)}`,
-              height: 10,
+              height: "10",
               status: { result: "reverted" },
             },
           });
