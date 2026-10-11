@@ -64,7 +64,7 @@ lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflif
 ### Install Swap and Launchpad dependencies
 
 Use Node.js **22.13 or newer** and npm. The apps install the published
-`@groundhogchain/client@0.11.0` package, including wallet capability discovery and
+`@groundhogchain/client@0.17.0` package, including wallet capability discovery and
 atomic batching, from GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
 with `read:packages` and access to the Groundhog packages in your npm user config:
 
@@ -116,19 +116,19 @@ Run from the repository root:
 
 Set `CHROMIUM_PATH` to your Chromium binary if needed. Browser fixtures default
 to `/usr/bin/chromium`; the live wallet test defaults to `/usr/lib/chromium/chromium`.
-Both live runners use Linux process groups and `/proc`. Install the wallet's
+Install the wallet's
 dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
-Live checks need a compatible CLI/devnode pair, built contracts, and matching
-generated bindings: CLI `0.22.1` or newer with the hog-devnode it manages
-(`0.1.30-rc.1`). Rebuild contracts from the current checkout
+Live checks require Linux process groups and `/proc`, a compatible CLI/devnode
+pair, built contracts, and matching generated bindings: CLI `0.27.0` or newer with the hog-devnode it manages
+(`0.1.31-rc.2` for CLI `0.27.0`). Rebuild contracts from the current checkout
 before running them. Use a separate checkout if you need to preserve the bindings
 for the recorded Devnet deployment. From the repository root:
 
 ```sh
-export GROUNDHOG_CLI=/absolute/path/to/groundhog
-export GROUNDHOG_DEVNODE_BINARY=/absolute/path/to/hog-devnode
+export THRUPUT_CLI=/absolute/path/to/thruput
+export THRUPUT_DEVNODE_BINARY=/absolute/path/to/hog-devnode
 npm run generate:contracts --workspace apps/counter
 npm run generate:contracts --workspace apps/token-launchpad
 npm run generate:contracts --workspace apps/swap
@@ -143,7 +143,7 @@ npm run test:counter
 
 The CLI and devnode must agree on the runtime-manifest schema, including
 `endpoints.schedulerGateway` when required by the CLI. A protocol override cannot
-repair a schema mismatch. `GROUNDHOG_E2E_HOGD_PROTOCOL` selects an explicitly
+repair a schema mismatch. `THRUPUT_E2E_HOGD_PROTOCOL` selects an explicitly
 compatible protocol build. `WALLET_ACCEPTANCE_ARTIFACT_ROOT` and
 `SEED_TEST_ARTIFACT_ROOT` override the respective artifact roots. Use
 `BATCH_TEST_ARTIFACT_ROOT` for the batching probe.

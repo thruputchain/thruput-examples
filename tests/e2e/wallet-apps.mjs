@@ -20,6 +20,8 @@ import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
+assert.ok(process.env.THRUPUT_DEVNODE_BINARY, "Set THRUPUT_DEVNODE_BINARY to a compatible hog-devnode executable");
+
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const swap = `${root}/apps/swap`,
   launchpad = `${root}/apps/token-launchpad`;
@@ -44,10 +46,8 @@ Object.assign(env, {
   XDG_DATA_HOME: `${work}/data`,
   TMPDIR: work,
 });
-const cli = process.env.GROUNDHOG_CLI || `${homedir()}/.cargo/bin/groundhog`;
-const devnode =
-  process.env.GROUNDHOG_DEVNODE_BINARY ||
-  `${homedir()}/.local/share/groundhog/hog-devnode/hog-devnode`;
+const cli = process.env.THRUPUT_CLI || `${homedir()}/.cargo/bin/thruput`;
+const devnode = process.env.THRUPUT_DEVNODE_BINARY;
 const processGroups = new OwnedProcessGroups(),
   logs = new Map(),
   secrets = [randomBytes(24).toString("hex")];
@@ -374,8 +374,8 @@ try {
     "0",
     "--hog-devnode-binary",
     devnode,
-    ...(process.env.GROUNDHOG_E2E_HOGD_PROTOCOL
-      ? ["--hogd-protocol", process.env.GROUNDHOG_E2E_HOGD_PROTOCOL]
+    ...(process.env.THRUPUT_E2E_HOGD_PROTOCOL
+      ? ["--hogd-protocol", process.env.THRUPUT_E2E_HOGD_PROTOCOL]
       : []),
   ]);
   let startup;
@@ -417,7 +417,7 @@ try {
       {
         [`${prefix}_ARTIFACT_ROOT`]:
           process.env.WALLET_ACCEPTANCE_ARTIFACT_ROOT ||
-          `${root}/target/groundhog`,
+          `${root}/target/thruput`,
         [`${prefix}_APP_ENV`]: `${work}/${prefix}.env`,
         [`${prefix}_APP_PUBLIC_DIR`]: `${work}/${prefix}/public`,
       },

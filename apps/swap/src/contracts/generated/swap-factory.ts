@@ -274,6 +274,7 @@ export const spec: __gh_client_contract.ContractSpec = {
           name: __gh_s("all_pairs_length"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.U32 },
+          effect: null,
         },
         {
           name: __gh_s("create_pair"),
@@ -300,6 +301,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               declared: __gh_s("Pool"),
             },
           },
+          effect: null,
         },
         {
           name: __gh_s("fee_to"),
@@ -308,6 +310,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             v: __gh_contract_spec.ContractTypeKind.Option,
             option_inner: { v: __gh_contract_spec.ContractTypeKind.Address },
           },
+          effect: null,
         },
         {
           name: __gh_s("get_pair"),
@@ -325,6 +328,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             v: __gh_contract_spec.ContractTypeKind.Option,
             option_inner: { v: __gh_contract_spec.ContractTypeKind.Address },
           },
+          effect: null,
         },
         {
           name: __gh_s("initialize"),
@@ -356,6 +360,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
         },
         {
           name: __gh_s("pair_at"),
@@ -375,6 +380,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               },
             },
           },
+          effect: null,
         },
         {
           name: __gh_s("pool_addresses"),
@@ -397,6 +403,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               declared: __gh_s("Pool"),
             },
           },
+          effect: null,
         },
         {
           name: __gh_s("pool_funding"),
@@ -410,6 +417,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               declared: __gh_s("PoolFunding"),
             },
           },
+          effect: null,
         },
       ],
     },
@@ -753,6 +761,7 @@ export const SwapFactory = {
       abiName: "all_pairs_length",
       publicName: "allPairsLength",
       entrypoint: __gh_entrypoints.SwapFactory.v0_1.allPairsLength,
+      effect: spec.interfaces[0]!.methods[0]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[0]!.return_type,
       throws: [
@@ -794,6 +803,7 @@ export const SwapFactory = {
       abiName: "create_pair",
       publicName: "createPair",
       entrypoint: __gh_entrypoints.SwapFactory.v0_1.createPair,
+      effect: spec.interfaces[0]!.methods[1]!.effect,
       args: [
         {
           abiName: "token_a",
@@ -851,6 +861,7 @@ export const SwapFactory = {
       abiName: "fee_to",
       publicName: "feeTo",
       entrypoint: __gh_entrypoints.SwapFactory.v0_1.feeTo,
+      effect: spec.interfaces[0]!.methods[2]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[2]!.return_type,
       throws: [
@@ -892,6 +903,7 @@ export const SwapFactory = {
       abiName: "get_pair",
       publicName: "getPair",
       entrypoint: __gh_entrypoints.SwapFactory.v0_1.getPair,
+      effect: spec.interfaces[0]!.methods[3]!.effect,
       args: [
         {
           abiName: "token_a",
@@ -944,6 +956,7 @@ export const SwapFactory = {
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.SwapFactory.v0_1.initialize,
+      effect: spec.interfaces[0]!.methods[4]!.effect,
       args: [
         {
           abiName: "hashes",
@@ -1001,6 +1014,7 @@ export const SwapFactory = {
       abiName: "pair_at",
       publicName: "pairAt",
       entrypoint: __gh_entrypoints.SwapFactory.v0_1.pairAt,
+      effect: spec.interfaces[0]!.methods[5]!.effect,
       args: [
         {
           abiName: "index",
@@ -1048,6 +1062,7 @@ export const SwapFactory = {
       abiName: "pool_addresses",
       publicName: "poolAddresses",
       entrypoint: __gh_entrypoints.SwapFactory.v0_1.poolAddresses,
+      effect: spec.interfaces[0]!.methods[6]!.effect,
       args: [
         {
           abiName: "token_a",
@@ -1100,6 +1115,7 @@ export const SwapFactory = {
       abiName: "pool_funding",
       publicName: "poolFunding",
       entrypoint: __gh_entrypoints.SwapFactory.v0_1.poolFunding,
+      effect: spec.interfaces[0]!.methods[7]!.effect,
       args: [],
       returnType: spec.interfaces[0]!.methods[7]!.return_type,
       throws: [

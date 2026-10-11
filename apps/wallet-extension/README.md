@@ -5,7 +5,7 @@ An experimental Chrome Manifest V3 wallet for Groundhog localnet and devnet. Use
 ## Build and Load
 
 Requires Node 22.12+ and GitHub Packages read access. This extension installs
-`@groundhogchain/client@0.9.0`, which includes wallet capability discovery and
+`@groundhogchain/client@0.17.0`, which includes wallet capability discovery and
 atomic batching through the `/provider` and `/wallet` exports.
 Follow the [registry authentication instructions](../../README.md#install-swap-and-launchpad-dependencies)
 before installing dependencies.

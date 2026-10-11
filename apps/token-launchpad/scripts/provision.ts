@@ -55,7 +55,7 @@ export async function provisionLaunchpad(options: {
 }): Promise<void> {
   const artifactRoot = resolve(
     repositoryRoot,
-    options.artifactRoot || "target/groundhog",
+    options.artifactRoot || "target/thruput",
   );
   const environmentPath = resolve(repositoryRoot, options.output);
   const artifactDirectory = join(

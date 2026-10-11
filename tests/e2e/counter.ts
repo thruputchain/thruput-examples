@@ -14,6 +14,11 @@ import { createCounterServer } from "../../apps/counter/server/main.ts";
 import { createCounterConnection } from "../../apps/counter/src/groundhog/client.ts";
 import { TransactionEngine } from "../../apps/counter/src/transactions/engine.ts";
 
+assert.ok(
+  process.env.THRUPUT_DEVNODE_BINARY,
+  "Set THRUPUT_DEVNODE_BINARY to a compatible hog-devnode executable",
+);
+
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp(join(tmpdir(), "groundhog-counter-"));
 const groups = new OwnedProcessGroups();
@@ -45,9 +50,10 @@ async function until(
   }
 }
 
+
 try {
   const child = groups.spawn(
-    process.env.GROUNDHOG_CLI ?? join(homedir(), ".cargo/bin/groundhog"),
+    process.env.THRUPUT_CLI ?? join(homedir(), ".cargo/bin/thruput"),
     [
       "node",
       "--json",
@@ -56,10 +62,9 @@ try {
       "--dev-account-count",
       "0",
       "--hog-devnode-binary",
-      process.env.GROUNDHOG_DEVNODE_BINARY ??
-        join(homedir(), ".local/share/groundhog/hog-devnode/hog-devnode"),
-      ...(process.env.GROUNDHOG_E2E_HOGD_PROTOCOL
-        ? ["--hogd-protocol", process.env.GROUNDHOG_E2E_HOGD_PROTOCOL]
+      process.env.THRUPUT_DEVNODE_BINARY,
+      ...(process.env.THRUPUT_E2E_HOGD_PROTOCOL
+        ? ["--hogd-protocol", process.env.THRUPUT_E2E_HOGD_PROTOCOL]
         : []),
     ],
     {

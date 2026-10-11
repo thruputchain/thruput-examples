@@ -23,6 +23,11 @@ import { RegistryStore } from "../../apps/token-launchpad/server/store.ts";
 import { RegistryIndexer } from "../../apps/token-launchpad/server/indexer.ts";
 import { createRegistryHttpServer } from "../../apps/token-launchpad/server/http.ts";
 
+assert.ok(
+  process.env.THRUPUT_DEVNODE_BINARY,
+  "Set THRUPUT_DEVNODE_BINARY to a compatible hog-devnode executable",
+);
+
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp(join(tmpdir(), "groundhog-seed-"));
 const env: NodeJS.ProcessEnv = Object.fromEntries(
@@ -128,9 +133,10 @@ function interrupt() {
 const watchdog = setTimeout(interrupt, 15 * 60_000);
 process.once("SIGINT", interrupt);
 process.once("SIGTERM", interrupt);
+
 try {
   const node = start(
-    process.env.GROUNDHOG_CLI ?? join(homedir(), ".cargo/bin/groundhog"),
+    process.env.THRUPUT_CLI ?? join(homedir(), ".cargo/bin/thruput"),
     [
       "node",
       "--json",
@@ -139,10 +145,9 @@ try {
       "--dev-account-count",
       "0",
       "--hog-devnode-binary",
-      process.env.GROUNDHOG_DEVNODE_BINARY ??
-        join(homedir(), ".local/share/groundhog/hog-devnode/hog-devnode"),
-      ...(process.env.GROUNDHOG_E2E_HOGD_PROTOCOL
-        ? ["--hogd-protocol", process.env.GROUNDHOG_E2E_HOGD_PROTOCOL]
+      process.env.THRUPUT_DEVNODE_BINARY,
+      ...(process.env.THRUPUT_E2E_HOGD_PROTOCOL
+        ? ["--hogd-protocol", process.env.THRUPUT_E2E_HOGD_PROTOCOL]
         : []),
     ],
   );
@@ -177,7 +182,7 @@ try {
   ]) {
     Object.assign(env, {
       [`${prefix}_ARTIFACT_ROOT`]:
-        process.env.SEED_TEST_ARTIFACT_ROOT ?? join(root, "target/groundhog"),
+        process.env.SEED_TEST_ARTIFACT_ROOT ?? join(root, "target/thruput"),
       [`${prefix}_APP_ENV`]: join(work, `${prefix}.env`),
       [`${prefix}_APP_PUBLIC_DIR`]: join(work, `${prefix}/public`),
     });

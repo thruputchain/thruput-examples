@@ -27,18 +27,24 @@ import {
   type Contract,
   type Invocation,
 } from "@groundhogchain/protocol";
-import {
-  StandardTokenFactory,
-} from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
+import { StandardTokenFactory } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
 import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20.ts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapRouter } from "../../apps/swap/src/contracts/generated/swap-router.ts";
-import { SwapDriver, batch_driver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
+import {
+  SwapDriver,
+  batch_driver,
+} from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { CRANK_FRAME_GAS } from "../../apps/swap/src/contracts/driver-target.ts";
 import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
 
 const RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
 type RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
+
+assert.ok(
+  process.env.THRUPUT_DEVNODE_BINARY,
+  "Set THRUPUT_DEVNODE_BINARY to a compatible hog-devnode executable",
+);
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp(join(tmpdir(), "groundhog-batching-"));
@@ -61,7 +67,7 @@ const env = {
 };
 const gas = gasAmount(10_000_000n);
 const artifacts =
-  process.env.BATCH_TEST_ARTIFACT_ROOT ?? join(root, "target/groundhog");
+  process.env.BATCH_TEST_ARTIFACT_ROOT ?? join(root, "target/thruput");
 function spawn(command: string, args: string[], extra = {}) {
   assert.ok(!interrupted, "Batch test interrupted");
   const child = groups.spawn(command, args, {
@@ -86,9 +92,10 @@ async function until(check: () => boolean) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
+
 try {
   const node = spawn(
-    process.env.GROUNDHOG_CLI ?? join(homedir(), ".cargo/bin/groundhog"),
+    process.env.THRUPUT_CLI ?? join(homedir(), ".cargo/bin/thruput"),
     [
       "node",
       "--json",
@@ -97,8 +104,7 @@ try {
       "--dev-account-count",
       "0",
       "--hog-devnode-binary",
-      process.env.GROUNDHOG_DEVNODE_BINARY ??
-        join(homedir(), ".local/share/groundhog/hog-devnode/hog-devnode"),
+      process.env.THRUPUT_DEVNODE_BINARY,
     ],
   );
   let startup:
