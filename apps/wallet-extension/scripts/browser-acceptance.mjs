@@ -76,7 +76,7 @@ const bundle = await build({
     window.adapter = createProviderWalletClient({provider:window.provider, account:window.session.accounts[0], networkHash:window.session.networkHash, client});
     if (window.prepareImmediately) {
       const receiver = contractAddress(Uint8Array.from(window.session.accounts[0].address.slice(2).match(/../g), b => parseInt(b,16)));
-      await window.adapter.prepareExecution({gasLimit:gasAmount(1000000n),blockExpiryHeight:blockHeight(100n),invocation:ERC20.transfer.invocation(receiver,gasAmount(500000n),{receiver,amount:1n})});
+      await window.adapter.prepareExecution({gasLimit:gasAmount(1000000n),blockExpiryHeight:blockHeight(100n),invocation:ERC20.v0_1.transfer.invocation(receiver,gasAmount(500000n),{receiver,amount:1n})});
       window.providerEvents.push('prepared');
     }
     return window.session;
@@ -85,7 +85,7 @@ const bundle = await build({
     const account = window.session.accounts[0];
     const receiver = contractAddress(Uint8Array.from(account.address.slice(2).match(/../g), b => parseInt(b,16)));
     const hog = contractAddress(Uint8Array.from([...new Uint8Array(31),1]));
-    const tx = await window.adapter.prepareExecution({gasLimit:gasAmount(1000000n), blockExpiryHeight:blockHeight(BigInt(height)+100n), invocation:ERC20.transfer.invocation(hog,gasAmount(500000n),{receiver,amount:1n})});
+    const tx = await window.adapter.prepareExecution({gasLimit:gasAmount(1000000n), blockExpiryHeight:blockHeight(BigInt(height)+100n), invocation:ERC20.v0_1.transfer.invocation(hog,gasAmount(500000n),{receiver,amount:1n})});
     const signed = await window.adapter.signTransaction(tx);
     localStorage.setItem('signed-transfer', JSON.stringify(signed));
     return signed;
@@ -126,7 +126,7 @@ const server = createServer(async (req, res) => {
                   : {
                       address: rpc.params[0],
                       rawBalance: "1234567890",
-                      height: 1,
+                      height: "1",
                     },
               }
             : {
