@@ -50,7 +50,7 @@ Run from the repository root. Start a disposable node in a separate terminal:
 
 ```sh
 export THRUPUT_CLI=/absolute/path/to/thruput
-"$THRUPUT_CLI" node --port 9545 --dev-account-count 0 --json
+"$THRUPUT_CLI" node --port 9545 --json
 ```
 
 Keep that process running, or reuse the node already started for Launchpad. Use

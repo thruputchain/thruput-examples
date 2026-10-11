@@ -101,8 +101,6 @@ try {
       "--json",
       "--port",
       "0",
-      "--dev-account-count",
-      "0",
       "--hog-devnode-binary",
       process.env.THRUPUT_DEVNODE_BINARY,
     ],

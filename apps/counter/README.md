@@ -20,7 +20,7 @@ Start the compatible node in a separate terminal:
 ```sh
 export THRUPUT_CLI=/absolute/path/to/thruput
 export THRUPUT_DEVNODE_BINARY=/absolute/path/to/hog-devnode
-"$THRUPUT_CLI" node --port 9545 --dev-account-count 0 \
+"$THRUPUT_CLI" node --port 9545 \
   --hog-devnode-binary "$THRUPUT_DEVNODE_BINARY" --json
 ```
 

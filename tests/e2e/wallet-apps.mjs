@@ -370,8 +370,6 @@ try {
     "--json",
     "--port",
     "0",
-    "--dev-account-count",
-    "0",
     "--hog-devnode-binary",
     devnode,
     ...(process.env.THRUPUT_E2E_HOGD_PROTOCOL
