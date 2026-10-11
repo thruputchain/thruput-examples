@@ -213,7 +213,7 @@ try {
     })
   ).value;
   const rejected = await batch(
-    "Rollback funding when token initialization fails",
+    "Rollback funding when token creation fails",
     [
       ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: rollbackAddress,
@@ -224,7 +224,7 @@ try {
         name: "Invalid",
         symbol: "INVALID",
         decimals: 6n,
-        initialSupply: 1n << 127n,
+        initialSupply: -1n,
         administrator: account.address,
         initialHolder: account.address,
       }),
