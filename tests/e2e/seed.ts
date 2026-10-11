@@ -54,24 +54,29 @@ function start(command: string, args: string[], extra: NodeJS.ProcessEnv = {}) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
+  let stdout = "";
   child.on("error", (error: Error) => {
     output += error.message;
   });
   child.stdout!.on("data", (data: Buffer) => {
+    stdout += data.toString();
     output += data.toString();
   });
   child.stderr!.on("data", (data: Buffer) => {
     output += data.toString();
   });
-  return { child, output: () => output };
+  return { child, output: () => output, stdout: () => stdout };
 }
-async function until(check: () => boolean | Promise<boolean>) {
+async function until(
+  check: () => boolean | Promise<boolean>,
+  diagnostics: () => string = () => "",
+) {
   const deadline = Date.now() + 120_000;
   while (!(await check())) {
     assert.ok(!interrupted, "Seed test interrupted");
     assert.ok(
       Date.now() < deadline,
-      "Timed out waiting for isolated test process",
+      `Timed out waiting for isolated test process: ${diagnostics()}`,
     );
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
@@ -162,13 +167,13 @@ try {
       `Isolated node exited during startup: ${node.output().replace(/(?:0x)?[0-9a-fA-F]{64}/g, "[hex32]")}`,
     );
     try {
-      const text = node.output();
+      const text = node.stdout();
       startup = JSON.parse(text.slice(text.indexOf("{")));
     } catch {
       return false;
     }
     return startup?.ok === true;
-  });
+  }, () => node.output().replace(/(?:0x)?[0-9a-fA-F]{64}/g, "[hex32]"));
   Object.assign(env, {
     GROUNDHOG_RPC_URL: startup!.data.rpc_url,
     GROUNDHOG_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,

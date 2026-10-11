@@ -76,13 +76,15 @@ function spawn(command: string, args: string[], extra = {}) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
+  let stdout = "";
   child.stdout!.on("data", (data: Buffer) => {
+    stdout += data.toString();
     output += data.toString();
   });
   child.stderr!.on("data", (data: Buffer) => {
     output += data.toString();
   });
-  return { child, output: () => output };
+  return { child, output: () => output, stdout: () => stdout };
 }
 async function until(check: () => boolean) {
   const deadline = Date.now() + 120_000;
@@ -114,7 +116,7 @@ try {
   await until(() => {
     assert.equal(node.child.exitCode, null, node.output());
     try {
-      startup = JSON.parse(node.output().slice(node.output().indexOf("{")));
+      startup = JSON.parse(node.stdout());
     } catch {
       return false;
     }

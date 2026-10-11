@@ -50,6 +50,7 @@ const cli = process.env.THRUPUT_CLI || `${homedir()}/.cargo/bin/thruput`;
 const devnode = process.env.THRUPUT_DEVNODE_BINARY;
 const processGroups = new OwnedProcessGroups(),
   logs = new Map(),
+  stdoutLogs = new Map(),
   secrets = [randomBytes(24).toString("hex")];
 const evidence = {
   batching: process.env.WALLET_ACCEPTANCE_LEGACY !== "1",
@@ -88,6 +89,10 @@ function start(command, args, cwd = root, extra = {}, exactEnv = false) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
+  let stdout = "";
+  child.stdout.on("data", (b) => {
+    stdout = (stdout + b).slice(-200000);
+  });
   for (const stream of [child.stdout, child.stderr])
     stream.on("data", (b) => {
       output = (output + b).slice(-200000);
@@ -96,6 +101,7 @@ function start(command, args, cwd = root, extra = {}, exactEnv = false) {
     output += e.message;
   });
   logs.set(child, () => output);
+  stdoutLogs.set(child, () => stdout);
   return child;
 }
 async function until(check, description, timeout = 120000) {
@@ -380,7 +386,7 @@ try {
   await until(() => {
     assert.equal(node.exitCode, null, redact(logs.get(node)()));
     try {
-      const text = logs.get(node)();
+      const text = stdoutLogs.get(node)();
       startup = JSON.parse(text.slice(text.indexOf("{")));
     } catch {
       return false;
