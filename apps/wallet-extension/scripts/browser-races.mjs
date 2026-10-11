@@ -223,7 +223,7 @@ async function checkAirdropRefresh(worker, ui, uiUrl) {
         result = {
           address: rpc.params[0],
           rawBalance: rpc.params[0] === first ? "1110000000" : "2220000000",
-          height: 1,
+          height: "1",
         };
       } else if (rpc.method === "groundhog_requestAirdrop") {
         await new Promise((resolve) => {
@@ -234,7 +234,7 @@ async function checkAirdropRefresh(worker, ui, uiUrl) {
           recipient: rpc.params[0].recipient,
           rawAmount: "1",
           txHash: `0x${"33".repeat(32)}`,
-          height: 1,
+          height: "1",
           status: { result: "ok" },
         };
       } else return original(...args);
