@@ -1,0 +1,41 @@
+name: Qualify historical package access
+
+on:
+  push:
+    branches: [qualification/legacy-package-reads-gh470]
+
+permissions:
+  packages: read
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "24"
+          registry-url: https://npm.pkg.github.com
+          scope: '@groundhogchain'
+      - name: Download retained private packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          export npm_config_cache="$RUNNER_TEMP/empty-package-cache"
+          for PACKAGE in @groundhogchain/react@0.4.0; do
+            npm pack "$PACKAGE" --ignore-scripts --json > packed.json
+            node - "$PACKAGE" <<'JS'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const spec = process.argv[2];
+          const separator = spec.lastIndexOf('@');
+          const [pack] = JSON.parse(fs.readFileSync('packed.json', 'utf8'));
+          assert.equal(pack.name, spec.slice(0, separator));
+          assert.equal(pack.version, spec.slice(separator + 1));
+          assert.ok(pack.integrity.startsWith('sha512-'));
+          assert.ok(fs.statSync(pack.filename).size > 0);
+          console.log(`${pack.name}@${pack.version}: tarball downloaded and integrity verified`);
+          JS
+          done
