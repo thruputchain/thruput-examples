@@ -1,7 +1,7 @@
 import { addressFromHex, fromHex0x } from "@groundhogchain/client";
 import type { ContractAddress } from "@groundhogchain/protocol";
 
-import { PINNED_NATIVE_BALANCE_ITEM_COST } from "./groundhog/storage-cost";
+import { PINNED_NATIVE_BALANCE_ITEM_COST } from "./thruput/storage-cost";
 import { loadSwapAppUrl } from "./launch/swap-config.ts";
 import { parseExplorerUrl } from "./lib/explorer-url.ts";
 
@@ -33,7 +33,7 @@ export async function loadRuntimeConfig(): Promise<AppConfig> {
     throw new Error("Invalid application configuration");
   return loadConfig({
     ...value,
-    VITE_GROUNDHOG_RPC_URL: new URL("/groundhog-rpc", window.location.origin)
+    VITE_THRUPUT_RPC_URL: new URL("/thruput-rpc", window.location.origin)
       .href,
   });
 }
@@ -46,24 +46,24 @@ export class ConfigurationError extends Error {
 }
 
 export function loadConfig(environment: Environment): AppConfig {
-  const network = required(environment, "VITE_GROUNDHOG_NETWORK_ID");
+  const network = required(environment, "VITE_THRUPUT_NETWORK_ID");
   const hash = required(environment, "VITE_STANDARD_TOKEN_HASH");
   if (!HASH.test(network))
     throw new ConfigurationError(
-      "VITE_GROUNDHOG_NETWORK_ID must be a 32-byte hexadecimal value",
+      "VITE_THRUPUT_NETWORK_ID must be a 32-byte hexadecimal value",
     );
   if (!HASH.test(hash))
     throw new ConfigurationError(
       "VITE_STANDARD_TOKEN_HASH must be a 32-byte hexadecimal value",
     );
-  const rpcUrl = new URL(required(environment, "VITE_GROUNDHOG_RPC_URL"));
+  const rpcUrl = new URL(required(environment, "VITE_THRUPUT_RPC_URL"));
   if (
     !["http:", "https:"].includes(rpcUrl.protocol) ||
     rpcUrl.username ||
     rpcUrl.password
   ) {
     throw new ConfigurationError(
-      "VITE_GROUNDHOG_RPC_URL must be an HTTP URL without credentials",
+      "VITE_THRUPUT_RPC_URL must be an HTTP URL without credentials",
     );
   }
   const nativeBalanceItemCost = unsigned(

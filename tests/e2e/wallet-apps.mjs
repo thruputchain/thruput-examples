@@ -204,7 +204,7 @@ async function scanBuild(directory) {
     if (entry.isDirectory()) await scanBuild(path);
     else {
       const bytes = await readFile(path);
-      for (const secret of [...secrets, env.GROUNDHOG_RPC_URL])
+      for (const secret of [...secrets, env.THRUPUT_RPC_URL])
         assert.ok(
           !bytes.includes(Buffer.from(secret)),
           `Secret or raw upstream URL in production asset ${entry.name}`,
@@ -245,7 +245,7 @@ async function productionSmoke(app, prefix, settings, context) {
   // Positive build runs the app's production artifact validators.
   const publicBuildEnv = Object.fromEntries(
     Object.entries({ ...env, ...buildEnv }).filter(
-      ([key]) => !key.startsWith("GROUNDHOG_"),
+      ([key]) => !key.startsWith("THRUPUT_"),
     ),
   );
   await run(process.execPath, buildArgs, app, publicBuildEnv, true);
@@ -257,7 +257,7 @@ async function productionSmoke(app, prefix, settings, context) {
   const entrypoint = [`${directory}/server/main.ts`];
   const serverEnv = Object.fromEntries(
     Object.entries({ ...env, ...runtime }).filter(
-      ([key]) => !key.startsWith("GROUNDHOG_"),
+      ([key]) => !key.startsWith("THRUPUT_"),
     ),
   );
   for (const key of Object.keys(serverEnv))
@@ -313,7 +313,7 @@ async function productionSmoke(app, prefix, settings, context) {
     "groundhog_sendRawTransaction",
     "groundhog_requestAirdrop",
   ]) {
-    const reply = await fetch(`${origin}/groundhog-rpc`, {
+    const reply = await fetch(`${origin}/thruput-rpc`, {
       method: "POST",
       signal: AbortSignal.timeout(10000),
       headers: { origin, "content-type": "application/json" },
@@ -394,16 +394,16 @@ try {
     return startup.ok;
   }, "node manifest");
   Object.assign(env, {
-    GROUNDHOG_RPC_URL: startup.data.rpc_url,
-    GROUNDHOG_RUNTIME_MANIFEST: startup.data.runtime_manifest.path,
+    THRUPUT_RPC_URL: startup.data.rpc_url,
+    THRUPUT_RUNTIME_MANIFEST: startup.data.runtime_manifest.path,
   });
   const manifest = JSON.parse(
-    await readFile(env.GROUNDHOG_RUNTIME_MANIFEST, "utf8"),
+    await readFile(env.THRUPUT_RUNTIME_MANIFEST, "utf8"),
   );
   if (manifest.bootstrapAccountDerivation?.seed)
     secrets.push(manifest.bootstrapAccountDerivation.seed);
   evidence.network = `0x${manifest.networkHash.replace(/^0x/, "")}`;
-  evidence.rpc = env.GROUNDHOG_RPC_URL;
+  evidence.rpc = env.THRUPUT_RPC_URL;
   evidence.runtimeCosts = manifest.bootstrap?.storageCostModel;
   assert.ok(
     evidence.runtimeCosts,
@@ -473,7 +473,7 @@ try {
       url.origin === "http://localhost:9545"
     ) {
       evidence.extensionRpcRequests++;
-      url = new URL(env.GROUNDHOG_RPC_URL);
+      url = new URL(env.THRUPUT_RPC_URL);
     } else if (
       !browserOrigins.has(url.origin) &&
       !(devnetAllowed && url.origin === devnetRpc)
@@ -498,7 +498,8 @@ try {
             const error = JSON.parse(diagnostic).error;
             if (
               error &&
-              (url.origin === new URL(env.GROUNDHOG_RPC_URL).origin ||
+              (browserOrigins.has(url.origin) ||
+                url.origin === new URL(env.THRUPUT_RPC_URL).origin ||
                 url.origin === devnetRpc)
             ) {
               evidence.rpcErrors ??= [];
@@ -902,7 +903,7 @@ try {
     "second unfunded derived account and original account switch without chain writes",
   );
   for (const origin of [lo, so]) {
-    const response = await fetch(`${origin}/groundhog-rpc`, {
+    const response = await fetch(`${origin}/thruput-rpc`, {
       method: "POST",
       signal: AbortSignal.timeout(10000),
       headers: { origin, "content-type": "application/json" },
@@ -1043,7 +1044,7 @@ try {
     }));
     evidence.walletTransferObserved = await snapshot(other);
     if (/^0x[0-9a-f]{64}$/.test(evidence.walletTransferUI.hash ?? "")) {
-      evidence.walletTransferStatus = await fetch(env.GROUNDHOG_RPC_URL, {
+      evidence.walletTransferStatus = await fetch(env.THRUPUT_RPC_URL, {
         method: "POST",
         signal: AbortSignal.timeout(10000),
         headers: { "content-type": "application/json" },
@@ -1216,6 +1217,40 @@ try {
         `${work}/evidence/workflows.json`,
         JSON.stringify(workflows, null, 2),
         { mode: 0o600 },
+      );
+      const hashes = new Set();
+      for (const [, value] of workflows) {
+        try {
+          JSON.parse(value, (key, entry) => {
+            if (
+              (key === "transactionHash" || key === "hash") &&
+              typeof entry === "string" &&
+              /^0x[0-9a-f]{64}$/.test(entry)
+            )
+              hashes.add(entry);
+            return entry;
+          });
+        } catch {}
+      }
+      evidence.transactionStatuses = await Promise.all(
+        [...hashes].map(async (hash) => {
+          try {
+            const response = await fetch(env.THRUPUT_RPC_URL, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: 1,
+                method: "groundhog_getTransactionStatus",
+                params: [hash],
+              }),
+              signal: AbortSignal.timeout(5_000),
+            });
+            return { hash, status: JSON.parse(redact(await response.text())) };
+          } catch (error) {
+            return { hash, error: redact(String(error)) };
+          }
+        }),
       );
     }
   process.exitCode = 1;

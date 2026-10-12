@@ -303,7 +303,7 @@ describe("production HTTP server", () => {
   it("never falls back API, RPC, or missing asset paths", async () => {
     for (const target of [
       "/api/unknown",
-      "/groundhog-rpc/extra",
+      "/thruput-rpc/extra",
       "/assets/missing.js",
       `/contract-artifacts/${address(9)}.json`,
       "/missing.css",
@@ -339,7 +339,7 @@ describe("production HTTP server", () => {
   ])(
     "proxies exact read-only %s requests without caller headers",
     async (method, params) => {
-      const response = await fetch(`${origin}/groundhog-rpc`, {
+      const response = await fetch(`${origin}/thruput-rpc`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -411,7 +411,7 @@ describe("production HTTP server", () => {
       400,
     ],
   ])("rejects malformed or write RPC envelope %#", async (body, status) => {
-    const response = await fetch(`${origin}/groundhog-rpc`, rpcRequest(body));
+    const response = await fetch(`${origin}/thruput-rpc`, rpcRequest(body));
     expect(response.status).toBe(status);
   });
 
@@ -430,7 +430,7 @@ describe("production HTTP server", () => {
       if (failure instanceof Response) upstream.mockResolvedValueOnce(failure);
       else upstream.mockRejectedValueOnce(failure);
       const response = await fetch(
-        `${origin}/groundhog-rpc`,
+        `${origin}/thruput-rpc`,
         rpcRequest({
           jsonrpc: "2.0",
           id: 1,
@@ -469,13 +469,13 @@ describe("production HTTP server", () => {
       },
     );
     origin = await listen(server);
-    const first = fetch(`${origin}/groundhog-rpc`, rpcRequest(chainTip()));
+    const first = fetch(`${origin}/thruput-rpc`, rpcRequest(chainTip()));
     await vi.waitFor(() => expect(upstream).toHaveBeenCalledTimes(1));
-    const busy = await fetch(`${origin}/groundhog-rpc`, rpcRequest(chainTip()));
+    const busy = await fetch(`${origin}/thruput-rpc`, rpcRequest(chainTip()));
     expect(busy.status).toBe(503);
     release();
     expect((await first).status).toBe(200);
-    const limited = await fetch(`${origin}/groundhog-rpc`, {
+    const limited = await fetch(`${origin}/thruput-rpc`, {
       ...rpcRequest(chainTip()),
       headers: {
         "content-type": "application/json",
@@ -511,8 +511,8 @@ describe("production HTTP server", () => {
     );
     origin = await listen(server);
     const requests = [
-      fetch(`${origin}/groundhog-rpc`, rpcRequest(chainTip())),
-      fetch(`${origin}/groundhog-rpc`, rpcRequest(chainTip())),
+      fetch(`${origin}/thruput-rpc`, rpcRequest(chainTip())),
+      fetch(`${origin}/thruput-rpc`, rpcRequest(chainTip())),
     ];
     const busy = await Promise.race(requests);
     expect(busy.status).toBe(503);
@@ -561,7 +561,7 @@ describe("production HTTP server", () => {
     );
     await vi.waitFor(async () => {
       const response = await fetch(
-        `${origin}/groundhog-rpc`,
+        `${origin}/thruput-rpc`,
         rpcRequest(chainTip()),
       );
       expect(response.status).toBe(200);
@@ -583,7 +583,7 @@ describe("production HTTP server", () => {
       }),
     );
     const response = await fetch(
-      `${origin}/groundhog-rpc`,
+      `${origin}/thruput-rpc`,
       rpcRequest(chainTip()),
     );
     expect(response.status).toBe(502);
@@ -612,7 +612,7 @@ describe("production HTTP server", () => {
     );
 
     const response = await fetch(
-      `${origin}/groundhog-rpc`,
+      `${origin}/thruput-rpc`,
       rpcRequest({ ...chainTip(), id: "sdk-request-7" }),
     );
     const body = await response.text();
@@ -647,7 +647,7 @@ describe("production HTTP server", () => {
     );
 
     const response = await fetch(
-      `${origin}/groundhog-rpc`,
+      `${origin}/thruput-rpc`,
       rpcRequest({ ...chainTip(), id }),
     );
     const body = await response.text();
@@ -667,7 +667,7 @@ describe("production HTTP server", () => {
     );
 
     const response = await fetch(
-      `${origin}/groundhog-rpc`,
+      `${origin}/thruput-rpc`,
       rpcRequest(chainTip()),
     );
 
@@ -698,6 +698,25 @@ describe("production RPC validation", () => {
         params: [eventQuery()],
       }),
     ).toBe(true);
+  });
+
+  it.each([
+    ["0", true],
+    ["9007199254740993", true],
+    ["9223372036854775807", true],
+    ["9223372036854775808", false],
+    [1, false],
+    ["01", false],
+    ["-1", false],
+    ["1.0", false],
+    ["1\n", false],
+  ])("validates decimal-string event height %j", (height, accepted) => {
+    expect(isAllowedProductionRpcRequest({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "groundhog_getEvents",
+      params: [{ ...eventQuery(), anchor: { kind: "atHeight", height } }],
+    })).toBe(accepted);
   });
 
   it("validates exact success and error response envelopes", () => {
@@ -877,7 +896,7 @@ function eventQuery() {
       },
     ],
     order: "ascending",
-    anchor: { kind: "atHeight", height: 1 },
+    anchor: { kind: "atHeight", height: "1" },
     cursor: "0x",
     limit: 500,
   };
@@ -905,7 +924,7 @@ function startRpcRequest(origin: string, body: unknown) {
   const request = httpRequest({
     hostname: url.hostname,
     port: url.port,
-    path: "/groundhog-rpc",
+    path: "/thruput-rpc",
     method: "POST",
     headers: { "content-type": "application/json" },
   });

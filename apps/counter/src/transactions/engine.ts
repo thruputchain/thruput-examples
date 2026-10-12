@@ -28,7 +28,7 @@ export interface Snapshot {
 }
 export const initialSnapshot: Snapshot = {
   ready: false,
-  message: "Connecting to Groundhog…",
+  message: "Connecting to Thruput…",
   value: null,
   signerBalance: null,
   updatedAt: null,

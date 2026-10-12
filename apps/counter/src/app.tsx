@@ -36,7 +36,7 @@ export function CounterPage({
               Every key counts
             </h1>
             <p className="max-w-[56ch] text-base text-muted-foreground">
-              A shared counter. Real transactions. See Groundhog keep up.
+              A shared counter. Real transactions. See Thruput keep up.
             </p>
           </div>
           {!snapshot.ready ? (
@@ -45,7 +45,7 @@ export function CounterPage({
               className="flex flex-col gap-3 rounded-md border bg-card p-4 text-base sm:text-sm"
             >
               <p>{snapshot.message}</p>
-              {snapshot.message !== "Connecting to Groundhog…" ? (
+              {snapshot.message !== "Connecting to Thruput…" ? (
                 <p className="text-muted-foreground">
                   Node connections retry automatically. After changing
                   configuration,{" "}

@@ -11,7 +11,7 @@ import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
 import { setup } from "../../apps/counter/scripts/setup-local.ts";
 import { loadServerConfig } from "../../apps/counter/server/config.ts";
 import { createCounterServer } from "../../apps/counter/server/main.ts";
-import { createCounterConnection } from "../../apps/counter/src/groundhog/client.ts";
+import { createCounterConnection } from "../../apps/counter/src/thruput/client.ts";
 import { TransactionEngine } from "../../apps/counter/src/transactions/engine.ts";
 
 assert.ok(
@@ -104,8 +104,8 @@ try {
     }
   }, "node startup");
   const environment = {
-    GROUNDHOG_RPC_URL: startup!.data.rpc_url,
-    GROUNDHOG_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
+    THRUPUT_RPC_URL: startup!.data.rpc_url,
+    THRUPUT_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
     COUNTER_APP_ENV: join(work, ".env.local"),
   };
   await setup(environment);
@@ -138,7 +138,7 @@ try {
   );
   const connection = await createCounterConnection(
     config.app,
-    `${origin}/groundhog-rpc`,
+    `${origin}/thruput-rpc`,
   );
   engine = new TransactionEngine(connection);
   timer = setInterval(() => engine!.tick(), 25);

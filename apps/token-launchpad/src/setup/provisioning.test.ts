@@ -73,7 +73,7 @@ const contract = (name: string) => ({
 });
 const config = {
   token_code_hash: fixedBytes(hashContract(contract("standard_token")), 32),
-  required_token_funding: 370_000n,
+  required_token_funding: 1_000_000n,
   native_token: HOG_ADDRESS,
   creation_fee: 0n,
   fee_recipient: null,
@@ -138,13 +138,13 @@ beforeEach(async () => {
   vi.stubEnv("LAUNCHPAD_ARTIFACT_ROOT", root);
   vi.stubEnv("LAUNCHPAD_APP_ENV", output);
   vi.stubEnv("LAUNCHPAD_APP_PUBLIC_DIR", join(root, "public"));
-  vi.stubEnv("GROUNDHOG_RPC_URL", "http://127.0.0.1:9545");
+  vi.stubEnv("THRUPUT_RPC_URL", "http://127.0.0.1:9545");
   await writeFile(
     join(root, "runtime.json"),
     JSON.stringify(manifestContents()),
   );
-  vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", join(root, "runtime.json"));
-  vi.stubEnv("GROUNDHOG_NETWORK_ID", `0x${"00".repeat(32)}`);
+  vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", join(root, "runtime.json"));
+  vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"00".repeat(32)}`);
   phases = [];
   mocks.getVersion.mockResolvedValue({ wireFormat: "4.0.0" });
   mocks.deriveContractAddress.mockReturnValue(factory);
@@ -176,9 +176,9 @@ afterEach(async () => {
 
 describe("infrastructure-only launchpad provisioning", () => {
   it("provisions Devnet without a local manifest and verifies native balance bookkeeping", async () => {
-    vi.stubEnv("GROUNDHOG_RPC_URL", undefined);
-    vi.stubEnv("GROUNDHOG_NETWORK_ID", `0x${"11".repeat(32)}`);
-    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", "/unused-local-manifest.json");
+    vi.stubEnv("THRUPUT_RPC_URL", undefined);
+    vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"11".repeat(32)}`);
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "/unused-local-manifest.json");
     mocks.getBalance
       .mockResolvedValueOnce({ rawBalance: 1_000_000_000n })
       .mockResolvedValueOnce({ rawBalance: 10_000_000n - 1_234n });
@@ -198,7 +198,7 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(mocks.getBalance).toHaveBeenLastCalledWith(factory);
     const env = await readFile(output, "utf8");
     expect(env).toContain(
-      "VITE_GROUNDHOG_RPC_URL=https://rpc.thruput.network/\n",
+      "VITE_THRUPUT_RPC_URL=https://rpc.thruput.network/\n",
     );
     expect(env).toContain(
       "VITE_EXPLORER_URL=https://explorer.thruput.network\n",
@@ -214,7 +214,7 @@ describe("infrastructure-only launchpad provisioning", () => {
     await expect(
       setupDevnet({
         ...process.env,
-        GROUNDHOG_RPC_URL: "https://rpc.example.com",
+        THRUPUT_RPC_URL: "https://rpc.example.com",
       }),
     ).rejects.toThrow(/balance bookkeeping cost/);
     expect(mocks.deployContractAndWait).not.toHaveBeenCalled();
@@ -229,23 +229,23 @@ describe("infrastructure-only launchpad provisioning", () => {
       "https://rpc.example.com#fragment",
     ]) {
       await expect(
-        setupDevnet({ ...process.env, GROUNDHOG_RPC_URL: rpcUrl }),
+        setupDevnet({ ...process.env, THRUPUT_RPC_URL: rpcUrl }),
       ).rejects.toThrow(/HTTPS RPC URL/);
     }
     await expect(
       setupDevnet({
         ...process.env,
-        GROUNDHOG_RPC_URL: "https://rpc.example.com",
-        GROUNDHOG_NETWORK_ID: undefined,
+        THRUPUT_RPC_URL: "https://rpc.example.com",
+        THRUPUT_NETWORK_ID: undefined,
       }),
-    ).rejects.toThrow(/GROUNDHOG_NETWORK_ID/);
+    ).rejects.toThrow(/THRUPUT_NETWORK_ID/);
     expect(createGroundhogClient).not.toHaveBeenCalled();
   });
   it("supplies the RPC default and resolves relative overrides from the repository root", async () => {
     const repositoryRoot = fileURLToPath(
       new URL("../../../../", import.meta.url),
     );
-    vi.stubEnv("GROUNDHOG_RPC_URL", undefined);
+    vi.stubEnv("THRUPUT_RPC_URL", undefined);
     vi.stubEnv("LAUNCHPAD_ARTIFACT_ROOT", relative(repositoryRoot, root));
     vi.stubEnv("LAUNCHPAD_APP_ENV", relative(repositoryRoot, output));
     vi.stubEnv(
@@ -253,12 +253,12 @@ describe("infrastructure-only launchpad provisioning", () => {
       relative(repositoryRoot, join(root, "public")),
     );
     vi.stubEnv(
-      "GROUNDHOG_RUNTIME_MANIFEST",
+      "THRUPUT_RUNTIME_MANIFEST",
       relative(repositoryRoot, join(root, "runtime.json")),
     );
     await main();
     expect(await readFile(output, "utf8")).toContain(
-      "VITE_GROUNDHOG_RPC_URL=http://127.0.0.1:9545/\n",
+      "VITE_THRUPUT_RPC_URL=http://127.0.0.1:9545/\n",
     );
     expect(JSON.parse(await readFile(assetPath, "utf8")).hash).toBe(
       toHex0x(hashContract(contract("standard_token"))),
@@ -319,9 +319,9 @@ describe("infrastructure-only launchpad provisioning", () => {
   );
 
   it("requires a runtime manifest and storage cost model", async () => {
-    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", "");
-    await expect(main()).rejects.toThrow(/GROUNDHOG_RUNTIME_MANIFEST/);
-    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", join(root, "runtime.json"));
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "");
+    await expect(main()).rejects.toThrow(/THRUPUT_RUNTIME_MANIFEST/);
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", join(root, "runtime.json"));
     await writeFile(
       join(root, "runtime.json"),
       JSON.stringify({ networkHash: "00".repeat(32) }),
@@ -376,8 +376,8 @@ describe("infrastructure-only launchpad provisioning", () => {
         .split("\n")
         .map((line) => line.split("=")[0]),
     ).toEqual([
-      "VITE_GROUNDHOG_RPC_URL",
-      "VITE_GROUNDHOG_NETWORK_ID",
+      "VITE_THRUPUT_RPC_URL",
+      "VITE_THRUPUT_NETWORK_ID",
       "VITE_NATIVE_HOG_ADDRESS",
       "VITE_NATIVE_BALANCE_ITEM_COST",
       "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
@@ -474,7 +474,7 @@ describe("infrastructure-only launchpad provisioning", () => {
   it("accepts a cost-profile manifest without bootstrap users or faucet", async () => {
     const manifest = join(root, "runtime.json");
     await writeFile(manifest, JSON.stringify(manifestContents()));
-    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", manifest);
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await main();
     expect(mocks.deployContractAndWait).toHaveBeenCalledTimes(1);
   });
@@ -484,11 +484,11 @@ describe("infrastructure-only launchpad provisioning", () => {
     async (recorded) => {
       const manifest = join(root, "runtime.json");
       await writeFile(manifest, JSON.stringify(manifestContents(recorded)));
-      vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", manifest);
-      vi.stubEnv("GROUNDHOG_NETWORK_ID", "AB".repeat(32));
+      vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
+      vi.stubEnv("THRUPUT_NETWORK_ID", "AB".repeat(32));
       await main();
       expect(await readFile(output, "utf8")).toContain(
-        `VITE_GROUNDHOG_NETWORK_ID=0x${"ab".repeat(32)}\n`,
+        `VITE_THRUPUT_NETWORK_ID=0x${"ab".repeat(32)}\n`,
       );
     },
   );
@@ -502,15 +502,15 @@ describe("infrastructure-only launchpad provisioning", () => {
         bootstrap: { storageCostModel: { ...costs, balanceCost: "1235" } },
       }),
     );
-    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", manifest);
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await expect(main()).rejects.toThrow(/balanceCost/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });
 
   it("rejects invalid networks and old wire formats before funding", async () => {
-    vi.stubEnv("GROUNDHOG_NETWORK_ID", "invalid");
+    vi.stubEnv("THRUPUT_NETWORK_ID", "invalid");
     await expect(main()).rejects.toThrow(/network hash/);
-    vi.stubEnv("GROUNDHOG_NETWORK_ID", `0x${"00".repeat(32)}`);
+    vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"00".repeat(32)}`);
     mocks.getVersion.mockResolvedValueOnce({ wireFormat: "3.0.0" });
     await expect(main()).rejects.toThrow(/wire format/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();

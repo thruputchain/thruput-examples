@@ -5,7 +5,7 @@ import { loadTokenDiscoveryServerConfig } from "./token-discovery-config.ts";
 
 const env = {
   VITE_TOKEN_DISCOVERY_ENABLED: "true",
-  VITE_GROUNDHOG_NETWORK_ID: `0x${"AB".repeat(32)}`,
+  VITE_THRUPUT_NETWORK_ID: `0x${"AB".repeat(32)}`,
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"CD".repeat(32)}`,
   VITE_STANDARD_TOKEN_HASH: "EF".repeat(32),
   TOKEN_DISCOVERY_UPSTREAM_ORIGIN: "https://REGISTRY.example.test:443/",
@@ -43,7 +43,7 @@ describe("token discovery configuration", () => {
     });
   });
   it.each([
-    "VITE_GROUNDHOG_NETWORK_ID",
+    "VITE_THRUPUT_NETWORK_ID",
     "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
     "VITE_STANDARD_TOKEN_HASH",
     "TOKEN_DISCOVERY_UPSTREAM_ORIGIN",
@@ -73,7 +73,7 @@ describe("token discovery configuration", () => {
   });
 
   it.each([
-    "VITE_GROUNDHOG_NETWORK_ID",
+    "VITE_THRUPUT_NETWORK_ID",
     "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
     "VITE_STANDARD_TOKEN_HASH",
   ] as const)("rejects trailing whitespace in %s", (key) => {

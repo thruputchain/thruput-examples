@@ -68,7 +68,7 @@ export function createApiHandler(
         "/api/config",
         "/api/prepare",
         "/api/topup",
-        "/groundhog-rpc",
+        "/thruput-rpc",
         "/healthz",
       ].includes(path ?? "")
     )
@@ -222,7 +222,7 @@ export function createApiHandler(
       json(response, 200, result);
     } catch {
       // Never retry a signed transaction here: the upstream may have accepted it.
-      json(response, 502, { error: "Groundhog RPC is unavailable." });
+      json(response, 502, { error: "Thruput RPC is unavailable." });
     }
     return true;
   };

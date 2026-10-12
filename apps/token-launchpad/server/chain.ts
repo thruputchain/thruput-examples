@@ -136,7 +136,7 @@ export class GroundhogRegistrySource implements RegistrySource {
     signal.throwIfAborted();
     if (toHex0x(observed.networkHash).slice(2) !== this.#scope.networkId) {
       throw new RegistryScopeVerificationError(
-        "The RPC endpoint belongs to a different Groundhog network",
+        "The RPC endpoint belongs to a different Thruput network",
       );
     }
   }

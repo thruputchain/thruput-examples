@@ -122,8 +122,8 @@ export async function provisionCounter(options: {
     await writeFile(
       temporary,
       [
-        `VITE_GROUNDHOG_RPC_URL=${options.rpcUrl}`,
-        `VITE_GROUNDHOG_NETWORK_ID=${config.networkId}`,
+        `VITE_THRUPUT_RPC_URL=${options.rpcUrl}`,
+        `VITE_THRUPUT_NETWORK_ID=${config.networkId}`,
         `VITE_COUNTER_ADDRESS=${config.counterAddress}`,
         `COUNTER_SIGNING_PRIVATE_KEY=${toHex0x(key)}`,
         `VITE_EXPLORER_URL=${config.explorerUrl ?? ""}`,

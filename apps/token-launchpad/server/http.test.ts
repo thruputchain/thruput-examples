@@ -96,7 +96,7 @@ describe("registry HTTP API", () => {
   it("exposes the integrity fault through the existing discovery status contract", async () => {
     store.updateStatus({
       syncState: "integrityFault",
-      lastError: "The RPC endpoint belongs to a different Groundhog network",
+      lastError: "The RPC endpoint belongs to a different Thruput network",
     });
     const response = await fetch(`${origin}/api/registry/status`);
     expect(response.status).toBe(200);
@@ -252,7 +252,7 @@ describe("production HTTP serving", () => {
       {
         staticDirectory: directory,
         rpcUrl: "http://rpc.example.test/fixed",
-        publicConfig: { VITE_GROUNDHOG_NETWORK_ID: "11".repeat(32) },
+        publicConfig: { VITE_THRUPUT_NETWORK_ID: "11".repeat(32) },
         fetch: upstreamFetch,
       },
     );
@@ -325,14 +325,14 @@ describe("production HTTP serving", () => {
       "application/json; charset=utf-8",
     );
     expect(response.headers.get("cache-control")).toContain("no-store");
-    expect(await response.json()).toEqual({ VITE_GROUNDHOG_NETWORK_ID: "11".repeat(32) });
+    expect(await response.json()).toEqual({ VITE_THRUPUT_NETWORK_ID: "11".repeat(32) });
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
   it("never falls back API, RPC, or missing asset requests", async () => {
     for (const target of [
       "/api/unknown",
-      "/groundhog-rpc/extra",
+      "/thruput-rpc/extra",
       "/assets/missing.js",
       "/missing.css",
     ]) {
@@ -359,8 +359,8 @@ describe("production HTTP serving", () => {
     "/%00",
     "/api%2ftokens",
     "/api%2Ftokens",
-    "/groundhog-rpc%2fextra",
-    "/groundhog-rpc%2Fextra",
+    "/thruput-rpc%2fextra",
+    "/thruput-rpc%2Fextra",
     `/${"a".repeat(2_049)}`,
   ])("rejects unsafe raw path %s", async (target) => {
     const response = await rawRequest(origin, target);
@@ -386,7 +386,7 @@ describe("production HTTP serving", () => {
     "groundhog_getTransactionStatus",
     "groundhog_view",
   ])("proxies the read-only RPC method %s", async (method) => {
-    const response = await fetch(`${origin}/groundhog-rpc`, {
+    const response = await fetch(`${origin}/thruput-rpc`, {
       method: "POST",
       headers: {
         "content-type": "application/json; charset=utf-8",
@@ -415,7 +415,7 @@ describe("production HTTP serving", () => {
   it("rejects writes, batches, malformed envelopes, queries, and wrong media types", async () => {
     const requests: Array<[string, RequestInit, number]> = [
       [
-        "/groundhog-rpc",
+        "/thruput-rpc",
         rpcRequest({
           jsonrpc: "2.0",
           id: 1,
@@ -424,13 +424,13 @@ describe("production HTTP serving", () => {
         403,
       ],
       [
-        "/groundhog-rpc",
+        "/thruput-rpc",
         rpcRequest([{ jsonrpc: "2.0", id: 1, method: "groundhog_view" }]),
         400,
       ],
-      ["/groundhog-rpc", rpcRequest({ id: 1, method: "groundhog_view" }), 400],
+      ["/thruput-rpc", rpcRequest({ id: 1, method: "groundhog_view" }), 400],
       [
-        "/groundhog-rpc",
+        "/thruput-rpc",
         rpcRequest({
           jsonrpc: "2.0",
           id: true,
@@ -439,7 +439,7 @@ describe("production HTTP serving", () => {
         400,
       ],
       [
-        "/groundhog-rpc",
+        "/thruput-rpc",
         rpcRequest({
           jsonrpc: "2.0",
           id: 1,
@@ -449,7 +449,7 @@ describe("production HTTP serving", () => {
         400,
       ],
       [
-        "/groundhog-rpc",
+        "/thruput-rpc",
         rpcRequest({
           jsonrpc: "2.0",
           id: 1,
@@ -458,9 +458,9 @@ describe("production HTTP serving", () => {
         }),
         400,
       ],
-      ["/groundhog-rpc?debug=1", rpcRequest({}), 400],
+      ["/thruput-rpc?debug=1", rpcRequest({}), 400],
       [
-        "/groundhog-rpc",
+        "/thruput-rpc",
         {
           method: "POST",
           headers: { "content-type": "text/plain" },
@@ -477,11 +477,11 @@ describe("production HTTP serving", () => {
   });
 
   it("enforces RPC method and body limits", async () => {
-    const method = await fetch(`${origin}/groundhog-rpc`);
+    const method = await fetch(`${origin}/thruput-rpc`);
     expect(method.status).toBe(405);
     expect(method.headers.get("allow")).toBe("POST");
 
-    const oversized = await fetch(`${origin}/groundhog-rpc`, {
+    const oversized = await fetch(`${origin}/thruput-rpc`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "x".repeat(1_000_001),
@@ -505,7 +505,7 @@ describe("production HTTP serving", () => {
     async (upstream) => {
       upstreamFetch.mockResolvedValueOnce(upstream);
       const response = await fetch(
-        `${origin}/groundhog-rpc`,
+        `${origin}/thruput-rpc`,
         rpcRequest({ jsonrpc: "2.0", id: 1, method: "groundhog_view" }),
       );
       const body = await response.text();
@@ -520,7 +520,7 @@ describe("production HTTP serving", () => {
       new Error(`secret-${"x".repeat(2_000)}`),
     );
     const response = await fetch(
-      `${origin}/groundhog-rpc`,
+      `${origin}/thruput-rpc`,
       rpcRequest({ jsonrpc: "2.0", id: 1, method: "groundhog_view" }),
     );
     const body = await response.text();
@@ -541,7 +541,7 @@ describe("production HTTP serving", () => {
   ])("discards non-success RPC responses", async (upstream) => {
     upstreamFetch.mockResolvedValueOnce(upstream);
     const response = await fetch(
-      `${origin}/groundhog-rpc`,
+      `${origin}/thruput-rpc`,
       rpcRequest({ jsonrpc: "2.0", id: 1, method: "groundhog_view" }),
     );
     const body = await response.text();

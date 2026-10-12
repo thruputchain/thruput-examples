@@ -1,6 +1,6 @@
 # Thruput Wallet
 
-An experimental Chrome Manifest V3 wallet for Groundhog localnet and devnet. Use test funds only. This MVP has not received an independent security audit.
+An experimental Chrome Manifest V3 wallet for Thruput localnet and devnet. Use test funds only. This MVP has not received an independent security audit.
 
 ## Build and Load
 

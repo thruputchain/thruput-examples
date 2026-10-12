@@ -22,14 +22,14 @@ export function loadDiscoveryConfig(environment: Environment): DiscoveryConfig {
   const tokenCodeHash = optionalHash("VITE_STANDARD_TOKEN_HASH", false);
   let scope: DiscoveryScope | null = null;
   if (enabled) {
-    const network = environment.VITE_GROUNDHOG_NETWORK_ID;
+    const network = environment.VITE_THRUPUT_NETWORK_ID;
     if (
       typeof network !== "string" ||
       !/^(?:0x)?[0-9a-fA-F]{64}$/.test(network) ||
       network.trim() !== network
     ) {
       throw new Error(
-        "VITE_GROUNDHOG_NETWORK_ID must be a 32-byte hexadecimal value",
+        "VITE_THRUPUT_NETWORK_ID must be a 32-byte hexadecimal value",
       );
     }
     if (!factoryAddress || !tokenCodeHash) {

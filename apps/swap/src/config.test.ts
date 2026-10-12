@@ -14,8 +14,8 @@ const OTHER_ADDRESS = `0x${"22".repeat(32)}`;
 
 function environment(overrides: Environment = {}): Environment {
   return {
-    VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
-    VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
+    VITE_THRUPUT_RPC_URL: "http://127.0.0.1:9545",
+    VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
     VITE_POOL_TOKEN_HASH: ADDRESS,
     VITE_NATIVE_HOG_ADDRESS: ADDRESS,
     VITE_SWAP_FACTORY_ADDRESS: ADDRESS,
@@ -57,15 +57,15 @@ describe("loadGlobalConfig", () => {
     expect(config.factoryAddress).toBeDefined();
     expect(config.accountAddress).toEqual(READ_ONLY_CALLER);
     expect(config.poolTokenHash).toBe(ADDRESS);
-    expect(loadGlobalConfig(environment({ VITE_GROUNDHOG_WALLET_ADDRESS: OTHER_ADDRESS })).accountAddress).toEqual(READ_ONLY_CALLER);
+    expect(loadGlobalConfig(environment({ VITE_THRUPUT_WALLET_ADDRESS: OTHER_ADDRESS })).accountAddress).toEqual(READ_ONLY_CALLER);
   });
 
   it("rejects malformed network identities and RPC credentials", () => {
     expect(() => loadGlobalConfig(environment({
-      VITE_GROUNDHOG_NETWORK_ID: "local",
+      VITE_THRUPUT_NETWORK_ID: "local",
     }))).toThrow("32-byte");
     expect(() => loadGlobalConfig(environment({
-      VITE_GROUNDHOG_RPC_URL: "http://operator:secret@127.0.0.1:9545",
+      VITE_THRUPUT_RPC_URL: "http://operator:secret@127.0.0.1:9545",
     }))).toThrow("must not contain credentials");
   });
 

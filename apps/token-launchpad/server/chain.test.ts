@@ -102,7 +102,7 @@ describe("GroundhogRegistrySource", () => {
           tokenCount: 0,
           lastSuccessfulSyncAt: null,
           lastError:
-            "The RPC endpoint belongs to a different Groundhog network",
+            "The RPC endpoint belongs to a different Thruput network",
         });
         expect(client.getEvents).toHaveBeenCalledTimes(
           timing === "before scan" ? 0 : 1,

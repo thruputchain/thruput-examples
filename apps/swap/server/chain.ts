@@ -127,7 +127,7 @@ export class GroundhogRegistrySource implements RegistrySource {
     );
     if (toHex0x(observed.networkHash).slice(2) !== this.#scope.networkId) {
       throw new RegistryScopeVerificationError(
-        "The RPC endpoint belongs to a different Groundhog network",
+        "The RPC endpoint belongs to a different Thruput network",
       );
     }
   }
@@ -158,7 +158,7 @@ export class GroundhogRegistrySource implements RegistrySource {
         error instanceof JsonRpcError &&
         error.code === GroundhogRpcErrorCode.InvalidParams
       ) {
-        // Groundhog has no cursor-specific code; every other continuation input is local and validated.
+        // Thruput has no cursor-specific code; every other continuation input is local and validated.
         throw new RegistryCursorRejectedError({ cause: error });
       }
       throw error;

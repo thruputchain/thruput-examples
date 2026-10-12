@@ -124,9 +124,9 @@ beforeEach(async () => {
   vi.stubEnv("SWAP_ARTIFACT_ROOT", root);
   vi.stubEnv("SWAP_APP_ENV", output);
   vi.stubEnv("SWAP_APP_PUBLIC_DIR", join(root, "public"));
-  vi.stubEnv("GROUNDHOG_RPC_URL", "http://127.0.0.1:9545");
-  vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", "");
-  vi.stubEnv("GROUNDHOG_NETWORK_ID", `0x${"00".repeat(32)}`);
+  vi.stubEnv("THRUPUT_RPC_URL", "http://127.0.0.1:9545");
+  vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "");
+  vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"00".repeat(32)}`);
   phases = [];
   mocks.getVersion.mockResolvedValue({ wireFormat: "4.0.0" });
   mocks.requestAirdrop.mockImplementation(async () => {
@@ -166,9 +166,9 @@ afterEach(async () => {
 
 describe("infrastructure-only swap provisioning", () => {
   it("provisions Devnet with an explicit network pin and no local manifest or exported signer", async () => {
-    vi.stubEnv("GROUNDHOG_RPC_URL", undefined);
-    vi.stubEnv("GROUNDHOG_NETWORK_ID", `0x${"11".repeat(32)}`);
-    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", "/unused-local-manifest.json");
+    vi.stubEnv("THRUPUT_RPC_URL", undefined);
+    vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"11".repeat(32)}`);
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "/unused-local-manifest.json");
     await setupDevnet();
     expect(createGroundhogClient).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -181,9 +181,9 @@ describe("infrastructure-only swap provisioning", () => {
     );
     const env = await readFile(output, "utf8");
     expect(env).toContain(
-      "VITE_GROUNDHOG_RPC_URL=https://rpc.thruput.network/\n",
+      "VITE_THRUPUT_RPC_URL=https://rpc.thruput.network/\n",
     );
-    expect(env).toContain(`VITE_GROUNDHOG_NETWORK_ID=0x${"11".repeat(32)}\n`);
+    expect(env).toContain(`VITE_THRUPUT_NETWORK_ID=0x${"11".repeat(32)}\n`);
     expect(env).toContain("VITE_TOKEN_DISCOVERY_ENABLED=false\n");
     expect(env).toContain(
       "VITE_EXPLORER_URL=https://explorer.thruput.network\n",
@@ -200,23 +200,23 @@ describe("infrastructure-only swap provisioning", () => {
       "https://rpc.example.com#fragment",
     ]) {
       await expect(
-        setupDevnet({ ...process.env, GROUNDHOG_RPC_URL: rpcUrl }),
+        setupDevnet({ ...process.env, THRUPUT_RPC_URL: rpcUrl }),
       ).rejects.toThrow(/HTTPS RPC URL/);
     }
     await expect(
       setupDevnet({
         ...process.env,
-        GROUNDHOG_RPC_URL: "https://rpc.example.com",
-        GROUNDHOG_NETWORK_ID: undefined,
+        THRUPUT_RPC_URL: "https://rpc.example.com",
+        THRUPUT_NETWORK_ID: undefined,
       }),
-    ).rejects.toThrow(/GROUNDHOG_NETWORK_ID/);
+    ).rejects.toThrow(/THRUPUT_NETWORK_ID/);
     expect(createGroundhogClient).not.toHaveBeenCalled();
   });
   it("supplies the RPC default and resolves relative overrides from the repository root", async () => {
     const repositoryRoot = fileURLToPath(
       new URL("../../../../", import.meta.url),
     );
-    vi.stubEnv("GROUNDHOG_RPC_URL", undefined);
+    vi.stubEnv("THRUPUT_RPC_URL", undefined);
     vi.stubEnv("SWAP_ARTIFACT_ROOT", relative(repositoryRoot, root));
     vi.stubEnv("SWAP_APP_ENV", relative(repositoryRoot, output));
     vi.stubEnv(
@@ -225,7 +225,7 @@ describe("infrastructure-only swap provisioning", () => {
     );
     await main();
     expect(await readFile(output, "utf8")).toContain(
-      "VITE_GROUNDHOG_RPC_URL=http://127.0.0.1:9545/\n",
+      "VITE_THRUPUT_RPC_URL=http://127.0.0.1:9545/\n",
     );
     expect(JSON.parse(await readFile(assetPath, "utf8")).hash).toBe(
       toHex0x(hashContract(contract("erc20"))),
@@ -329,8 +329,8 @@ describe("infrastructure-only swap provisioning", () => {
         .split("\n")
         .map((line) => line.split("=")[0]),
     ).toEqual([
-      "VITE_GROUNDHOG_RPC_URL",
-      "VITE_GROUNDHOG_NETWORK_ID",
+      "VITE_THRUPUT_RPC_URL",
+      "VITE_THRUPUT_NETWORK_ID",
       "VITE_NATIVE_HOG_ADDRESS",
       "VITE_SWAP_FACTORY_ADDRESS",
       "VITE_SWAP_ROUTER_ADDRESS",
@@ -434,7 +434,7 @@ describe("infrastructure-only swap provisioning", () => {
       manifest,
       JSON.stringify({ networkHash: `0x${"00".repeat(32)}` }),
     );
-    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", manifest);
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await main();
     expect(createGroundhogClient).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -448,11 +448,11 @@ describe("infrastructure-only swap provisioning", () => {
     async (recorded) => {
       const manifest = join(root, "runtime.json");
       await writeFile(manifest, JSON.stringify({ networkHash: recorded }));
-      vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", manifest);
-      vi.stubEnv("GROUNDHOG_NETWORK_ID", "AB".repeat(32));
+      vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
+      vi.stubEnv("THRUPUT_NETWORK_ID", "AB".repeat(32));
       await main();
       expect(await readFile(output, "utf8")).toContain(
-        `VITE_GROUNDHOG_NETWORK_ID=0x${"ab".repeat(32)}\n`,
+        `VITE_THRUPUT_NETWORK_ID=0x${"ab".repeat(32)}\n`,
       );
     },
   );
@@ -463,9 +463,9 @@ describe("infrastructure-only swap provisioning", () => {
       manifest,
       JSON.stringify({ networkHash: `0x${"11".repeat(32)}` }),
     );
-    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", manifest);
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await expect(main()).rejects.toThrow(/disagree/);
-    vi.stubEnv("GROUNDHOG_RUNTIME_MANIFEST", "");
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "");
     mocks.getVersion.mockResolvedValueOnce({ wireFormat: "3.0.0" });
     await expect(main()).rejects.toThrow(/wire format/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();

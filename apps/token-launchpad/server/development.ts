@@ -39,7 +39,7 @@ export function developmentRegistry(
       stop = () => (stopping ??= indexer.stop().finally(() => store.close()));
       const api = createRegistryHttpServer(store, indexer, { rpcUrl: config.rpcUrl, publicConfig: browserConfig });
       vite.middlewares.use((request, response, next) => {
-        if (request.url?.startsWith("/api/") || request.url?.startsWith("/groundhog-rpc") || request.url === "/healthz")
+        if (request.url?.startsWith("/api/") || request.url?.startsWith("/thruput-rpc") || request.url === "/healthz")
           api.emit("request", request, response);
         else next();
       });

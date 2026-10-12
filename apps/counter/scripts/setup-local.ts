@@ -7,22 +7,22 @@ import { provisionCounter } from "./provision";
 export async function setup(
   env: Record<string, string | undefined> = process.env,
 ): Promise<void> {
-  const url = parseHttpUrl(env.GROUNDHOG_RPC_URL || "http://127.0.0.1:9545");
+  const url = parseHttpUrl(env.THRUPUT_RPC_URL || "http://127.0.0.1:9545");
   if (
     url.protocol !== "http:" ||
     !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)
   ) {
     throw new Error("Local setup requires a loopback HTTP RPC URL.");
   }
-  if (!env.GROUNDHOG_RUNTIME_MANIFEST)
+  if (!env.THRUPUT_RUNTIME_MANIFEST)
     throw new Error(
-      "Set GROUNDHOG_RUNTIME_MANIFEST to the node's runtime manifest.",
+      "Set THRUPUT_RUNTIME_MANIFEST to the node's runtime manifest.",
     );
   const manifest: { networkHash?: unknown } = JSON.parse(
     await readFile(
       resolve(
         fileURLToPath(new URL("../../../", import.meta.url)),
-        env.GROUNDHOG_RUNTIME_MANIFEST,
+        env.THRUPUT_RUNTIME_MANIFEST,
       ),
       "utf8",
     ),

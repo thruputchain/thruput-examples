@@ -6,7 +6,7 @@ import { ERC20, ERC20Metadata, groundhog_erc20_if } from "@/contracts/generated/
 import { standard_token_factory_if } from "@/contracts/generated/standard-token-factory";
 import type { LaunchWorkflow } from "@/launch/workflow";
 
-type DecodedTransferEvent = groundhog_erc20_if.v0_1.events.TransferEvent;
+type DecodedMintEvent = groundhog_erc20_if.v0_1.events.MintEvent;
 type DecodedTokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 
 export interface TokenStateSnapshot {
@@ -87,10 +87,6 @@ export function assessTokenState(
   };
 }
 
-function isZeroAddress(address: ContractAddress): boolean {
-  return bytesEqual(address, new Uint8Array(32));
-}
-
 export function validateCreationEvidence(input: {
   created: ContractAddress;
   predicted: ContractAddress;
@@ -98,7 +94,7 @@ export function validateCreationEvidence(input: {
   expectedTokenHash: Uint8Array;
   workflow: LaunchWorkflow;
   createdEvent: DecodedTokenCreated;
-  mintEvents: DecodedTransferEvent[];
+  mintEvents: DecodedMintEvent[];
 }): void {
   const event = input.createdEvent;
   if (!bytesEqual(input.created, input.predicted)) {
@@ -128,7 +124,6 @@ export function validateCreationEvidence(input: {
     (expectedSupply > 0n &&
       (input.mintEvents.length !== 1 ||
         !bytesEqual(input.mintEvents[0]!.topics.to, input.creator) ||
-        !isZeroAddress(input.mintEvents[0]!.topics.from) ||
         input.mintEvents[0]!.fields.amount !== expectedSupply))
   ) {
     throw new Error("The initial mint event does not match this launch");

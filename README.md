@@ -1,4 +1,4 @@
-# groundhog-examples
+# Thruput examples
 
 Example smart contracts and applications for the [Thruput SDK](https://github.com/groundhogchain/sdk_rs). Each
 crate in this Cargo workspace demonstrates a specific SDK feature, from a minimal stateless contract
@@ -66,7 +66,7 @@ lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflif
 Use Node.js **22.13 or newer** and npm. The apps install the published
 `@groundhogchain/client@0.17.0` package, including wallet capability discovery and
 atomic batching, from GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
-with `read:packages` and access to the Groundhog packages in your npm user config:
+with `read:packages` and access to the `@groundhogchain` packages in your npm user config:
 
 ```ini
 //npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
@@ -77,6 +77,19 @@ Set `GITHUB_PACKAGES_TOKEN` in your environment, then install from the repositor
 ```sh
 npm ci
 ```
+
+Run `npm ci` after pulling dependency changes. A stale `node_modules` directory
+can contain an older SDK even when `package.json` specifies the current release.
+Use `npm ls @groundhogchain/client @groundhogchain/react` to check the installed
+versions. Client `0.17.0` includes decimal-string RPC decoding. Keep its protocol,
+XDR, and contract-spec dependencies aligned at `0.13.0`; the package-scope move
+to `@thruputchain` is a separate upgrade.
+
+Application configuration now uses `THRUPUT_*` and `VITE_THRUPUT_*`. Rename the
+corresponding `GROUNDHOG_*` keys in existing environment files and deployment
+settings, then restart the apps. The browser proxy is `/thruput-rpc`. SDK imports,
+RPC method names, wallet discovery events, and saved wallet/workflow identifiers
+keep their current names for compatibility.
 
 Railway needs the same package-read authentication during dependency installation.
 Provide the PAT through the build environment and npm auth configuration; never

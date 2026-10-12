@@ -7,8 +7,8 @@ import { loadServerConfig, ServerConfigurationError } from "./config.ts";
 const environment = {
   PORT: "3000",
   TOKEN_REGISTRY_DB_PATH: "/data/registry.sqlite",
-  VITE_GROUNDHOG_RPC_URL: "https://rpc.example.test/path",
-  VITE_GROUNDHOG_NETWORK_ID: `0x${"AA".repeat(32)}`,
+  VITE_THRUPUT_RPC_URL: "https://rpc.example.test/path",
+  VITE_THRUPUT_NETWORK_ID: `0x${"AA".repeat(32)}`,
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"BB".repeat(32)}`,
   VITE_STANDARD_TOKEN_HASH: "cc".repeat(32),
 };
@@ -46,7 +46,7 @@ describe("loadServerConfig", () => {
   it("accepts credential-free remote HTTP for the documented devnet", () => {
     const config = loadServerConfig({
       ...environment,
-      VITE_GROUNDHOG_RPC_URL: "http://devnet.example.test/rpc",
+      VITE_THRUPUT_RPC_URL: "http://devnet.example.test/rpc",
     });
     expect(config.rpcUrl.href).toBe("http://devnet.example.test/rpc");
   });
@@ -56,13 +56,13 @@ describe("loadServerConfig", () => {
     ["PORT", "1.5"],
     ["TOKEN_REGISTRY_SYNC_INTERVAL_MS", "999"],
     ["TOKEN_REGISTRY_PAGE_SIZE", "501"],
-    ["VITE_GROUNDHOG_NETWORK_ID", "abc"],
+    ["VITE_THRUPUT_NETWORK_ID", "abc"],
     ["VITE_STANDARD_TOKEN_FACTORY_ADDRESS", "11".repeat(32)],
     ["VITE_STANDARD_TOKEN_HASH", "zz".repeat(32)],
-    ["VITE_GROUNDHOG_RPC_URL", "ftp://rpc.example.test"],
-    ["VITE_GROUNDHOG_RPC_URL", "https://user:secret@rpc.example.test"],
-    ["VITE_GROUNDHOG_RPC_URL", "https://rpc.example.test?token=secret"],
-    ["VITE_GROUNDHOG_RPC_URL", "https://rpc.example.test#secret"],
+    ["VITE_THRUPUT_RPC_URL", "ftp://rpc.example.test"],
+    ["VITE_THRUPUT_RPC_URL", "https://user:secret@rpc.example.test"],
+    ["VITE_THRUPUT_RPC_URL", "https://rpc.example.test?token=secret"],
+    ["VITE_THRUPUT_RPC_URL", "https://rpc.example.test#secret"],
   ])("rejects invalid %s", (key, value) => {
     expect(() => loadServerConfig({ ...environment, [key]: value })).toThrow(
       ServerConfigurationError,

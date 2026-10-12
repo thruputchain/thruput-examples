@@ -9,13 +9,13 @@ export async function main(
   env: Record<string, string | undefined> = process.env,
 ): Promise<void> {
   let expected =
-    env.GROUNDHOG_NETWORK_ID === undefined
+    env.THRUPUT_NETWORK_ID === undefined
       ? undefined
-      : normalizeNetworkHash(env.GROUNDHOG_NETWORK_ID);
-  if (env.GROUNDHOG_RUNTIME_MANIFEST) {
+      : normalizeNetworkHash(env.THRUPUT_NETWORK_ID);
+  if (env.THRUPUT_RUNTIME_MANIFEST) {
     const manifest: { networkHash?: unknown } = JSON.parse(
       await readFile(
-        resolve(repositoryRoot, env.GROUNDHOG_RUNTIME_MANIFEST),
+        resolve(repositoryRoot, env.THRUPUT_RUNTIME_MANIFEST),
         "utf8",
       ),
     );
@@ -23,13 +23,13 @@ export async function main(
       throw new Error("Runtime manifest is missing networkHash");
     const recorded = normalizeNetworkHash(manifest.networkHash);
     if (expected !== undefined && expected !== recorded)
-      throw new Error("Runtime manifest and GROUNDHOG_NETWORK_ID disagree");
+      throw new Error("Runtime manifest and THRUPUT_NETWORK_ID disagree");
     expected = recorded;
   }
   await provisionSwap({
     network: "local",
     rpcUrl: validateLocalRpcUrl(
-      env.GROUNDHOG_RPC_URL || "http://127.0.0.1:9545",
+      env.THRUPUT_RPC_URL || "http://127.0.0.1:9545",
     ),
     networkId: expected ?? `0x${"00".repeat(32)}`,
     output: env.SWAP_APP_ENV || "apps/swap/.env.local",

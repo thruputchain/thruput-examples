@@ -8,7 +8,7 @@ import type { AppConfig } from "@/config";
 import type { PoolSnapshot } from "@/swap/snapshot";
 import { AllowanceCleanupCard } from "./allowance-cleanup-card";
 
-vi.mock("@/groundhog/client", async (original) => ({
+vi.mock("@/thruput/client", async (original) => ({
   ...await original<object>(),
   createReadClient: vi.fn(async () => ({
     getNetworkInfo: async () => ({ networkHash: new Uint8Array(32) }),

@@ -16,8 +16,8 @@ const scope = {
 };
 Object.assign(process.env, {
   VITE_EXPLORER_URL: "https://explorer.example.test",
-  VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:1",
-  VITE_GROUNDHOG_NETWORK_ID: scope.networkId,
+  VITE_THRUPUT_RPC_URL: "http://127.0.0.1:1",
+  VITE_THRUPUT_NETWORK_ID: scope.networkId,
   VITE_POOL_TOKEN_HASH: hex("09"),
   VITE_SWAP_FACTORY_ADDRESS: hex("03"),
   VITE_SWAP_ROUTER_ADDRESS: hex("04"),
@@ -93,7 +93,7 @@ try {
       firstConfigRequest = false;
       return route.fulfill({ status: 503, json: { error: "temporarily unavailable" } });
     }
-    return route.fulfill({ json: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("VITE_") && key !== "VITE_GROUNDHOG_RPC_URL")) });
+    return route.fulfill({ json: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("VITE_") && key !== "VITE_THRUPUT_RPC_URL")) });
   });
   await context.route("https://explorer.example.test/**", (route) =>
     route.fulfill({ body: "Explorer fixture" }),
@@ -104,7 +104,7 @@ try {
   let networkReads = 0;
   let checkingCreation = false;
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.route("**/groundhog-rpc", async (route) => {
+  await page.route("**/thruput-rpc", async (route) => {
     const request = route.request().postDataJSON();
     if (!checkingCreation && request.method === "groundhog_view") {
       await route.fulfill({
@@ -330,7 +330,7 @@ try {
     await launchpad.listen();
     const launchOrigin = `http://127.0.0.1:${launchpad.httpServer.address().port}`;
     const launch = await context.newPage();
-    await launch.route("**/groundhog-rpc", (route) => {
+    await launch.route("**/thruput-rpc", (route) => {
       const body = route.request().postDataJSON();
       return route.fulfill({
         contentType: "application/json",

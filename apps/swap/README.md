@@ -17,7 +17,7 @@ src/routes.tsx         Select feature routes and apply wallet/workflow policy
 ```
 
 Both apps keep app-wide UI in `src/components/`, wallet UI in `src/wallet/`,
-client integration in `src/groundhog/`, general helpers in `src/lib/`, browser
+client integration in `src/thruput/`, general helpers in `src/lib/`, browser
 registry access in `src/registry/`, and transaction execution/recovery in
 `src/transactions/`. `src/contracts/` contains bindings, `src/setup/` contains
 setup support, and `src/test/` contains shared test helpers. Module tests live
@@ -58,7 +58,7 @@ its printed runtime-manifest path in the setup terminal:
 
 ```sh
 export THRUPUT_CLI=/absolute/path/to/thruput
-export GROUNDHOG_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
+export THRUPUT_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
 npm run setup:local --workspace apps/swap
 npm run dev --workspace apps/swap
 ```
@@ -73,15 +73,15 @@ setup script. Path overrides are resolved from the repository root.
 
 Setup deploys infrastructure only. Connect Thruput Wallet, request test HOG,
 create tokens in Launchpad, and create a pool. Setup writes `.env.local` and the
-matching public contract artifact. Set `GROUNDHOG_RPC_URL` for another loopback
+matching public contract artifact. Set `THRUPUT_RPC_URL` for another loopback
 HTTP endpoint; the extension uses localnet at `http://127.0.0.1:9545`.
 
 ## Devnet setup
 
 ```sh
 export THRUPUT_CLI=/absolute/path/to/thruput
-export GROUNDHOG_RPC_URL=https://rpc.thruput.network
-export GROUNDHOG_NETWORK_ID=0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f
+export THRUPUT_RPC_URL=https://rpc.thruput.network
+export THRUPUT_NETWORK_ID=0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f
 npm run setup:devnet --workspace apps/swap
 ```
 
@@ -218,7 +218,7 @@ Setup publishes `.env.local` or `.env.devnet` and immutable `public/contract-art
 `VITE_POOL_TOKEN_HASH` identifies the LP token implementation attached to pool
 creation. Server startup validates the served artifact against this hash before
 opening deployment state. The browser loads public settings from `/api/config`
-and always calls `/groundhog-rpc`; upstream URLs stay server-side. Configuration
+and always calls `/thruput-rpc`; upstream URLs stay server-side. Configuration
 changes require a server restart and page reload, not a frontend rebuild. Keep
 the deployed artifacts and generated bindings paired when changing contract code.
 

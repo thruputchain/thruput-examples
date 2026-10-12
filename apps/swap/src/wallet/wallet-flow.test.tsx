@@ -48,7 +48,7 @@ vi.mock("@/pools/pool-create-page", () => ({
   },
 }));
 const config: GlobalConfig = {
-  rpcUrl: new URL("http://localhost/groundhog-rpc"),
+  rpcUrl: new URL("http://localhost/thruput-rpc"),
   networkIdHex: "00".repeat(32),
   accountAddress: READ_ONLY_CALLER,
   factoryAddress: addressFromHex(`0x${"03".repeat(32)}`),

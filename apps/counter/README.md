@@ -28,7 +28,7 @@ Use the runtime-manifest path printed by that node:
 
 ```sh
 export THRUPUT_CLI=/absolute/path/to/thruput
-export GROUNDHOG_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
+export THRUPUT_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
 npm run setup:local --workspace apps/counter
 npm run dev --workspace apps/counter
 ```
@@ -44,7 +44,7 @@ Setup overrides:
 
 Relative paths are resolved from the repository root.
 
-- `GROUNDHOG_RPC_URL`: loopback HTTP endpoint, default `http://127.0.0.1:9545`.
+- `THRUPUT_RPC_URL`: loopback HTTP endpoint, default `http://127.0.0.1:9545`.
 - `COUNTER_APP_ENV`: output path, default `apps/counter/.env.local`.
 - `COUNTER_ARTIFACT`: compiled artifact path, default `target/thruput/counter.rv32a`.
 
@@ -69,8 +69,8 @@ their TypeScript setup script. To create a fresh Devnet demo:
 
 ```sh
 export THRUPUT_CLI=/absolute/path/to/thruput
-export GROUNDHOG_RPC_URL=https://rpc.thruput.network
-export GROUNDHOG_NETWORK_ID=0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f
+export THRUPUT_RPC_URL=https://rpc.thruput.network
+export THRUPUT_NETWORK_ID=0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f
 npm run setup:devnet --workspace apps/counter
 ```
 
@@ -120,7 +120,7 @@ file while using that deployment; run setup again when you want a fresh demo.
 ## SDK integration
 
 Counter uses the published client 0.17.0 and bindings generated with CLI 0.27.0.
-`src/groundhog/client.ts` binds the Counter address and public client once with
+`src/thruput/client.ts` binds the Counter address and public client once with
 `getContract`, then refreshes with `counter.get.view({ caller: signerAddress })`.
 Counter and signer-balance reads run concurrently within each scheduled refresh.
 
@@ -179,7 +179,7 @@ Cross-origin browser requests are rejected. The cooldown is in memory and
 resets on restart; use one replica for this demo. The faucet remains responsible
 for network-wide limits.
 
-`/groundhog-rpc` forwards counter reads, account balance, receipt/status checks,
+`/thruput-rpc` forwards counter reads, account balance, receipt/status checks,
 and signed-transaction submissions to the configured upstream. Before forwarding
 a submission, it checks the wallet root, authorization claim, counter target,
 entrypoint, amount, and gas limits against the two allowed calls. Multiple calls
@@ -211,7 +211,7 @@ Set `CHROMIUM_PATH` if Chromium is not at `/usr/bin/chromium`.
 
 - `src/app.tsx`, `src/components/`, `src/styles.css`: screen and Thruput theme.
 - `src/transactions/`: bounded engine, worker, and React lifecycle.
-- `src/groundhog/client.ts`: signing requests, submission, reads, and receipt observation.
+- `src/thruput/client.ts`: signing requests, submission, reads, and receipt observation.
 - `src/contracts/generated/`: generated ABI; do not edit by hand.
 - `server/`: private signing, submission policy, runtime configuration, RPC forwarding, and production static server.
 - `scripts/`: contract generation, network-specific setup entrypoints, and shared Counter provisioning.

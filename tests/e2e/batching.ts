@@ -133,8 +133,8 @@ try {
       join(root, "node_modules/.bin/tsx"),
       [`apps/${app}/scripts/setup-local.ts`],
       {
-        GROUNDHOG_RPC_URL: rpcUrl,
-        GROUNDHOG_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
+        THRUPUT_RPC_URL: rpcUrl,
+        THRUPUT_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
         [`${prefix}_ARTIFACT_ROOT`]: artifacts,
         [`${prefix}_APP_ENV`]: output,
         [`${prefix}_APP_PUBLIC_DIR`]: join(work, app!),

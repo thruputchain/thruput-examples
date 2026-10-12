@@ -2,7 +2,7 @@ import { loadGlobalConfig } from "../src/config.ts";
 
 /** Upstream URLs and server settings are deliberately absent. */
 const KEYS = [
-  "VITE_GROUNDHOG_NETWORK_ID",
+  "VITE_THRUPUT_NETWORK_ID",
   "VITE_NATIVE_HOG_ADDRESS",
   "VITE_POOL_TOKEN_HASH",
   "VITE_SWAP_FACTORY_ADDRESS",

@@ -159,7 +159,7 @@ describe("validateCreationEvidence", () => {
         mintEvents: [
           {
             ...mintEvent(),
-            topics: { from: creator, to: creator },
+            topics: { to: zero },
           },
         ],
       }),
@@ -221,8 +221,8 @@ describe("validateCreationEvidence", () => {
 
   function mintEvent() {
     return {
-      name: "TransferEvent" as const,
-      topics: { from: zero, to: creator },
+      name: "MintEvent" as const,
+      topics: { to: creator },
       fields: { amount: 12n },
     };
   }

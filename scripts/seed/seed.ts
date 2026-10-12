@@ -107,7 +107,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     "read public setup environments (run this app's setup:local command first)";
   let lock: string | undefined;
   try {
-    const common = ["VITE_GROUNDHOG_RPC_URL", "VITE_GROUNDHOG_NETWORK_ID"];
+    const common = ["VITE_THRUPUT_RPC_URL", "VITE_THRUPUT_NETWORK_ID"];
     const launch = await readSeedEnvironment(
       resolve(
         process.env.LAUNCHPAD_APP_ENV ??
@@ -134,13 +134,13 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
           )
         : undefined;
     const hex = (value: string) => toHex0x(sha256Hash(fromHex0x(value)));
-    const network = hex(launch.VITE_GROUNDHOG_NETWORK_ID!);
-    if (swap) assertScope(hex(swap.VITE_GROUNDHOG_NETWORK_ID!), network);
+    const network = hex(launch.VITE_THRUPUT_NETWORK_ID!);
+    if (swap) assertScope(hex(swap.VITE_THRUPUT_NETWORK_ID!), network);
     const rpcUrl = validateLocalRpcUrl(
-      process.env.GROUNDHOG_RPC_URL ?? launch.VITE_GROUNDHOG_RPC_URL!,
+      process.env.THRUPUT_RPC_URL ?? launch.VITE_THRUPUT_RPC_URL!,
     );
-    if (swap && !process.env.GROUNDHOG_RPC_URL)
-      assertScope(validateLocalRpcUrl(swap.VITE_GROUNDHOG_RPC_URL!), rpcUrl);
+    if (swap && !process.env.THRUPUT_RPC_URL)
+      assertScope(validateLocalRpcUrl(swap.VITE_THRUPUT_RPC_URL!), rpcUrl);
     const factory = addressFromHex(launch.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!);
     const tokenHash = hex(launch.VITE_STANDARD_TOKEN_HASH!);
     const tokenScope = {

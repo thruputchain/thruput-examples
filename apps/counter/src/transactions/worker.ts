@@ -1,6 +1,6 @@
 import type { AppConfig } from "../config";
 import { errorMessage } from "../config";
-import { createCounterConnection } from "../groundhog/client";
+import { createCounterConnection } from "../thruput/client";
 import {
   initialSnapshot,
   TransactionEngine,

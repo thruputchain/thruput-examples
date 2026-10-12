@@ -5,7 +5,7 @@ import type { GlobalConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 import {
   NetworkMismatchError,
-} from "@/groundhog/client";
+} from "@/thruput/client";
 import { readTokenPreview, useTokenPreview } from "./token-preview";
 import { testClient, TestProviders } from "@/test/render";
 

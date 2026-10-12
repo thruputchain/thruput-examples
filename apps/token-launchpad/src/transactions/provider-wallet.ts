@@ -9,7 +9,7 @@ import type { AppConfig } from "@/config";
 import { StandardTokenFactory } from "@/contracts/generated/standard-token-factory";
 import { loadStandardTokenArtifact } from "@/contracts/token-artifact";
 import { userErrorMessage } from "@/lib/errors";
-import { assertExpectedNetwork } from "@/groundhog/client";
+import { assertExpectedNetwork } from "@/thruput/client";
 import {
   createTransactionObserver,
   executionFailure,

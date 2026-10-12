@@ -35,8 +35,7 @@ import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 
 const TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 type TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
-const TransferEvent = groundhog_erc20_if.v0_1.events.TransferEvent;
-type TransferEvent = groundhog_erc20_if.v0_1.events.TransferEvent;
+const MintEvent = groundhog_erc20_if.v0_1.events.MintEvent;
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 
@@ -221,7 +220,7 @@ export async function advanceWorkflow(input: {
         const event = TokenCreated.singleFromReceipt(result.receipt, {
           contractAddress: input.config.factoryAddress,
         });
-        const mintEvents = TransferEvent.allFromReceipt(result.receipt, {
+        const mintEvents = MintEvent.allFromReceipt(result.receipt, {
           contractAddress: created,
         });
         validateCreationEvidence({

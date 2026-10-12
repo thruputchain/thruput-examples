@@ -518,7 +518,7 @@ function App() {
               <details>
                 <summary>Technical details</summary>
                 <p className="hint">
-                  For Groundhog localnet and devnet. Testnet derivation:
+                  For Thruput localnet and devnet. Testnet derivation:
                   m/44'/1'/index', Ed25519 SLIP-0010, address nonce 0.
                   No BIP39 passphrase.
                 </p>

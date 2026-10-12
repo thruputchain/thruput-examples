@@ -43,7 +43,7 @@ export function useCounter() {
       worker.postMessage({
         type: "start",
         config: loaded,
-        rpcUrl: new URL("/groundhog-rpc", window.location.origin).href,
+        rpcUrl: new URL("/thruput-rpc", window.location.origin).href,
       } satisfies WorkerCommand);
     })().catch((error: unknown) => {
       if (!controller.signal.aborted)

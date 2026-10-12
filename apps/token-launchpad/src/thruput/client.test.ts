@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createReadClient } from "@/groundhog/client";
+import { createReadClient } from "@/thruput/client";
 import { configuration } from "@/test/fixtures";
 
 describe("network-bound read client", () => {

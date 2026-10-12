@@ -37,10 +37,10 @@ import { createCounterServer } from "./main";
 
 const key = "22".repeat(32);
 const environment = {
-  VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
+  VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
   VITE_COUNTER_ADDRESS: "11".repeat(32),
   COUNTER_SIGNING_PRIVATE_KEY: key,
-  VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
+  VITE_THRUPUT_RPC_URL: "http://127.0.0.1:9545",
 };
 const config = loadServerConfig(environment);
 const account = createPubkeyAccount({
@@ -141,7 +141,7 @@ async function fixture(upstream = rpcMock()) {
     upstream,
     post,
     send: (params: unknown) =>
-      post("/groundhog-rpc", {
+      post("/thruput-rpc", {
         jsonrpc: "2.0",
         id: 1,
         method: "groundhog_sendRawTransaction",
@@ -521,7 +521,7 @@ describe("counter signing boundary", () => {
       }),
     ]) {
       expect(
-        (await fetch(`${origin}/groundhog-rpc`, { method: "POST", body }))
+        (await fetch(`${origin}/thruput-rpc`, { method: "POST", body }))
           .status,
       ).toBeGreaterThanOrEqual(400);
     }

@@ -17,7 +17,7 @@ src/routes.tsx         Select feature routes and apply wallet/workflow policy
 ```
 
 Both apps keep app-wide UI in `src/components/`, wallet UI in `src/wallet/`,
-client integration in `src/groundhog/`, general helpers in `src/lib/`, browser
+client integration in `src/thruput/`, general helpers in `src/lib/`, browser
 registry access in `src/registry/`, and transaction execution/recovery in
 `src/transactions/`. `src/contracts/` contains bindings, `src/setup/` contains
 setup support, and `src/test/` contains shared test helpers. Module tests live
@@ -30,7 +30,7 @@ Launchpad's feature directories are `src/tokens/` and `src/launch/`; Swap uses
 `src/domain/` for rules shared across several trading/liquidity features.
 Launchpad's swap handoff configuration belongs in `src/launch/`, URL validation
 and error formatting in `src/lib/`, pinned chain storage costs in
-`src/groundhog/`, and the amount limit used by both browser and server in
+`src/thruput/`, and the amount limit used by both browser and server in
 `shared/amount.ts`.
 
 Start with `app.tsx` and `app-layout.tsx`, then follow `routes.tsx` into
@@ -60,7 +60,7 @@ the setup terminal:
 
 ```sh
 export THRUPUT_CLI=/absolute/path/to/thruput
-export GROUNDHOG_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
+export THRUPUT_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
 npm run setup:local --workspace apps/token-launchpad
 npm run dev --workspace apps/token-launchpad
 ```
@@ -73,9 +73,12 @@ can override the file. Use only one writer per database.
 `setup:local` builds contracts, regenerates bindings, and runs the TypeScript
 setup script. Path overrides are resolved from the repository root.
 
-Setup uses the manifest's storage costs and deploys an empty token factory. It
+Setup uses the manifest's storage costs and deploys an empty token factory. Local
+tokens receive a 1,000,000-raw-unit reserve (0.1 HOG), including headroom for
+allowance and recipient storage after initialization. The contract's conservative
+deployment/initialization budget remains capped at 370,000 raw units. Setup
 writes `.env.local` and the matching public contract artifact. Set
-`GROUNDHOG_RPC_URL` if the node uses another loopback HTTP endpoint. The extension
+`THRUPUT_RPC_URL` if the node uses another loopback HTTP endpoint. The extension
 uses localnet at `http://127.0.0.1:9545`.
 
 Load the wallet extension, create or import a test wallet, select Localnet, and
@@ -86,8 +89,8 @@ tooling accounts; they do not import keys into the browser.
 
 ```sh
 export THRUPUT_CLI=/absolute/path/to/thruput
-export GROUNDHOG_RPC_URL=https://rpc.thruput.network
-export GROUNDHOG_NETWORK_ID=0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f
+export THRUPUT_RPC_URL=https://rpc.thruput.network
+export THRUPUT_NETWORK_ID=0xabb9cdbc56285d0e71c9845273ca06211fedf7ee2f58c43cfac6060f9402aa0f
 npm run setup:devnet --workspace apps/token-launchpad
 ```
 
@@ -179,7 +182,7 @@ deleting seed state can create additional tokens on the same ledger.
 | `LAUNCHPAD_APP_ENV` | `apps/token-launchpad/.env.local` |
 | `LAUNCHPAD_APP_PUBLIC_DIR` | `apps/token-launchpad/public` |
 | `LAUNCHPAD_REGISTRY_URL` | `http://127.0.0.1:5173` |
-| `GROUNDHOG_RPC_URL` | RPC URL from Launchpad setup |
+| `THRUPUT_RPC_URL` | RPC URL from Launchpad setup |
 
 RPC and registry endpoints must use loopback HTTP and reject redirects. Seeding
 validates the live network and registry scope before submitting transactions.
@@ -220,7 +223,7 @@ Setup publishes `.env.local` or `.env.devnet` and immutable `public/contract-art
 `VITE_STANDARD_TOKEN_HASH` identifies the implementation attached to token
 creation. Server startup validates the served artifact against this hash before
 opening deployment state. The browser loads public settings from `/api/config`
-and always calls `/groundhog-rpc`; upstream URLs stay server-side. Configuration
+and always calls `/thruput-rpc`; upstream URLs stay server-side. Configuration
 changes require a server restart and page reload, not a frontend rebuild. Keep
 the deployed artifacts and generated bindings paired when changing contract code.
 

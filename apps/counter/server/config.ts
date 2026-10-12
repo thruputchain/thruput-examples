@@ -28,12 +28,12 @@ export function loadServerConfig(
   });
   return {
     app: parseConfig({
-      networkId: env.VITE_GROUNDHOG_NETWORK_ID,
+      networkId: env.VITE_THRUPUT_NETWORK_ID,
       counterAddress: env.VITE_COUNTER_ADDRESS,
       signerAddress: toHex0x(account.address),
       explorerUrl: env.VITE_EXPLORER_URL,
     }),
-    rpcUrl: parseHttpUrl(env.VITE_GROUNDHOG_RPC_URL ?? "http://127.0.0.1:9545")
+    rpcUrl: parseHttpUrl(env.VITE_THRUPUT_RPC_URL ?? "http://127.0.0.1:9545")
       .href,
     signingPrivateKey,
   };

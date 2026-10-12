@@ -114,8 +114,8 @@ export function createRegistryHttpServer(
       }
 
       if (
-        url.pathname === "/groundhog-rpc" ||
-        url.pathname.startsWith("/groundhog-rpc/")
+        url.pathname === "/thruput-rpc" ||
+        url.pathname.startsWith("/thruput-rpc/")
       ) {
         if (productionContext === undefined) {
           return rejectBeforeBody(
@@ -126,7 +126,7 @@ export function createRegistryHttpServer(
             "Route not found",
           );
         }
-        if (url.pathname !== "/groundhog-rpc") {
+        if (url.pathname !== "/thruput-rpc") {
           return rejectBeforeBody(
             request,
             response,

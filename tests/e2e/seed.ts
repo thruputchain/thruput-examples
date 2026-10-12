@@ -175,8 +175,8 @@ try {
     return startup?.ok === true;
   }, () => node.output().replace(/(?:0x)?[0-9a-fA-F]{64}/g, "[hex32]"));
   Object.assign(env, {
-    GROUNDHOG_RPC_URL: startup!.data.rpc_url,
-    GROUNDHOG_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
+    THRUPUT_RPC_URL: startup!.data.rpc_url,
+    THRUPUT_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
   });
   stage = "infrastructure setup";
   for (const [app, prefix] of [
@@ -194,12 +194,12 @@ try {
   const launch = parseEnv(await readFile(env.LAUNCHPAD_APP_ENV!, "utf8"));
   const swap = parseEnv(await readFile(env.SWAP_APP_ENV!, "utf8"));
   const scope = {
-    networkId: launch.VITE_GROUNDHOG_NETWORK_ID!.slice(2),
+    networkId: launch.VITE_THRUPUT_NETWORK_ID!.slice(2),
     factoryAddress: launch.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!,
     tokenCodeHash: launch.VITE_STANDARD_TOKEN_HASH!,
   };
   const source = await createGroundhogRegistrySource({
-    rpcUrl: new URL(env.GROUNDHOG_RPC_URL!),
+    rpcUrl: new URL(env.THRUPUT_RPC_URL!),
     scope,
   });
   async function startRegistry() {
@@ -223,12 +223,12 @@ try {
   await startRegistry();
   const client = await createGroundhogClient({
     cluster: localnet({
-      rpcUrl: env.GROUNDHOG_RPC_URL!,
+      rpcUrl: env.THRUPUT_RPC_URL!,
       networkHash: networkHash(
-        sha256Hash(fromHex0x(launch.VITE_GROUNDHOG_NETWORK_ID!)),
+        sha256Hash(fromHex0x(launch.VITE_THRUPUT_NETWORK_ID!)),
       ),
     }),
-    transport: new HttpTransport(env.GROUNDHOG_RPC_URL!),
+    transport: new HttpTransport(env.THRUPUT_RPC_URL!),
   });
   const factory = addressFromHex(swap.VITE_SWAP_FACTORY_ADDRESS!);
   const count = async () =>
@@ -317,7 +317,7 @@ try {
   stage = "restart and rerun";
   for (const overrides of [
     { SEED_RECIPIENT: `0x${"43".repeat(32)}` },
-    { VITE_GROUNDHOG_NETWORK_ID: `0x${"43".repeat(32)}` },
+    { VITE_THRUPUT_NETWORK_ID: `0x${"43".repeat(32)}` },
     { VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"43".repeat(32)}` },
   ])
     await run("token-launchpad", "seed-tokens", overrides, 1);

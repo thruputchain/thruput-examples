@@ -44,11 +44,11 @@ export function loadServerConfig(environment: ServerEnvironment): ServerConfig {
       tokenDiscovery: loadTokenDiscoveryServerConfig(environment),
       port: boundedInteger(required(environment, "PORT"), "PORT", 1, 65_535),
       databasePath,
-      rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),
+      rpcUrl: parseRpcUrl(required(environment, "VITE_THRUPUT_RPC_URL")),
       scope: {
         networkId: canonicalNetworkId(
-          required(environment, "VITE_GROUNDHOG_NETWORK_ID"),
-          "VITE_GROUNDHOG_NETWORK_ID",
+          required(environment, "VITE_THRUPUT_NETWORK_ID"),
+          "VITE_THRUPUT_NETWORK_ID",
         ),
         factoryAddress: canonicalAddress(
           required(environment, "VITE_SWAP_FACTORY_ADDRESS"),
@@ -104,7 +104,7 @@ function parseRpcUrl(value: string): URL {
   try {
     url = new URL(value);
   } catch {
-    throw new ValidationError("VITE_GROUNDHOG_RPC_URL must be a valid URL");
+    throw new ValidationError("VITE_THRUPUT_RPC_URL must be a valid URL");
   }
   if (
     (url.protocol !== "http:" && url.protocol !== "https:") ||
@@ -114,7 +114,7 @@ function parseRpcUrl(value: string): URL {
     url.hash !== ""
   ) {
     throw new ValidationError(
-      "VITE_GROUNDHOG_RPC_URL must be an HTTP URL without credentials, a query string, or a fragment",
+      "VITE_THRUPUT_RPC_URL must be an HTTP URL without credentials, a query string, or a fragment",
     );
   }
   return url;

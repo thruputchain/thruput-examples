@@ -151,12 +151,12 @@ export function createRegistryHttpServer(
         );
       }
       if (
-        url.pathname === "/groundhog-rpc" ||
-        url.pathname.startsWith("/groundhog-rpc/")
+        url.pathname === "/thruput-rpc" ||
+        url.pathname.startsWith("/thruput-rpc/")
       ) {
         if (
           productionContext === undefined ||
-          url.pathname !== "/groundhog-rpc"
+          url.pathname !== "/thruput-rpc"
         ) {
           return rejectBeforeBody(
             request,
@@ -683,8 +683,9 @@ function validEventAnchor(value: unknown): boolean {
   return (
     value.kind === "atHeight" &&
     isExactRecord(value, ["kind", "height"]) &&
-    Number.isSafeInteger(value.height) &&
-    (value.height as number) >= 0
+    typeof value.height === "string" &&
+    /^(0|[1-9][0-9]{0,18})(?![\s\S])/u.test(value.height) &&
+    BigInt(value.height) <= 0x7fff_ffff_ffff_ffffn
   );
 }
 

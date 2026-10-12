@@ -12,7 +12,7 @@ const require = createRequire(
 const { addressFromHex, createGroundhogClient, HttpTransport, toHex0x } =
   await import(pathToFileURL(require.resolve("@groundhogchain/client")).href);
 const client = await createGroundhogClient({
-  transport: new HttpTransport(process.env.VITE_GROUNDHOG_RPC_URL!),
+  transport: new HttpTransport(process.env.VITE_THRUPUT_RPC_URL!),
 });
 const factory = addressFromHex(process.env.VITE_SWAP_FACTORY_ADDRESS!);
 const count = (
