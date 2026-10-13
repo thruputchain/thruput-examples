@@ -5,10 +5,13 @@ area. Each captured keydown sends a random +1 or −1 transaction. Holding a key
 repeats; Escape stops capture. The server signs with a funded development key
 that stays on the server.
 
+New to the repository? Follow [Getting started](../../docs/getting-started.md)
+first. For the smaller contract-only example, see [Counter](../../contracts/counter/README.md).
+
 ## Local setup
 
 Use Node.js 22.13 or newer and run `npm ci` from the repository root with the
-[npm registry authentication](../../README.md#install-swap-and-launchpad-dependencies)
+[npm registry authentication](../../docs/getting-started.md#3-install-typescript-dependencies)
 configured.
 
 Use **Thruput CLI 0.29.0** and **hog-devnode 0.1.31-rc.3** for local checks.

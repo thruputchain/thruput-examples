@@ -4,6 +4,10 @@ Create standard tokens through an external wallet and browse factory launches.
 The directory uses the token registry; balances and creation verification use
 live chain reads. The app never receives wallet private keys.
 
+New to the repository? Start with [Getting started](../../docs/getting-started.md)
+or jump to [Local setup](#local-setup). The [small client examples](../../examples/typescript/README.md)
+teach individual SDK operations before this full app.
+
 ## Application structure
 
 Token Launchpad and Swap follow the same application skeleton:
@@ -42,7 +46,7 @@ the creation workflow without remounting the shell or public directory.
 
 ## Requirements
 
-- Node.js 22.13 or newer and the [shared SDK/npm install](../../README.md#install-swap-and-launchpad-dependencies).
+- Node.js 22.13 or newer and the [shared SDK/npm install](../../docs/getting-started.md#3-install-typescript-dependencies).
 - A compatible Thruput CLI/devnode pair and the node's full runtime manifest.
 - [Thruput Freighter](https://github.com/thruputchain/freighter) for browser transactions.
 
@@ -268,7 +272,7 @@ npm run test --workspace apps/token-launchpad
 Root `npm test` also runs shared seed and process-cleanup regressions.
 `npm run test:browser` checks fixture-based browser interactions. Live
 `npm run test:batching` and `npm run test:seed` use a fresh node. Their prerequisites,
-platform requirements, and coverage are in [Application checks](../../README.md#application-checks).
+platform requirements, and coverage are in [Development checks](../../docs/development.md#live-client-and-app-checks).
 ## React integration
 
 The app uses the published `@thruputchain/react` wallet provider and balance

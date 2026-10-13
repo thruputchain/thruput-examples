@@ -4,6 +4,10 @@ Create pools, swap tokens, and manage liquidity through an external wallet.
 The directory uses the pool registry; balances, reserves, and transaction
 verification use live chain reads. The app never receives wallet private keys.
 
+New to the repository? Start with [Getting started](../../docs/getting-started.md)
+or jump to [Local setup](#local-setup). The [small client examples](../../examples/typescript/README.md)
+teach individual SDK operations before this full app.
+
 ## Application structure
 
 Swap and Token Launchpad follow the same application skeleton:
@@ -40,7 +44,7 @@ processing mode across routes.
 
 ## Requirements
 
-- Node.js 22.13 or newer and the [shared SDK/npm install](../../README.md#install-swap-and-launchpad-dependencies).
+- Node.js 22.13 or newer and the [shared SDK/npm install](../../docs/getting-started.md#3-install-typescript-dependencies).
 - A compatible Thruput CLI/devnode pair and the node's full runtime manifest.
 - [Thruput Freighter](https://github.com/thruputchain/freighter) for browser transactions.
 
@@ -272,7 +276,7 @@ npm run test --workspace apps/swap
 Root `npm test` also runs shared seed and process-cleanup regressions.
 `npm run test:browser` checks fixture-based browser interactions. Live
 `npm run test:batching` and `npm run test:seed` use a fresh node. Their prerequisites,
-platform requirements, and coverage are in [Application checks](../../README.md#application-checks).
+platform requirements, and coverage are in [Development checks](../../docs/development.md#live-client-and-app-checks).
 ## React integration
 
 `src/main.tsx` initializes runtime config and a stable, network-validated client

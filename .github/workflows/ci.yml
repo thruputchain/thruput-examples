@@ -90,15 +90,19 @@ jobs:
           echo "THRUPUT_CLI=$(command -v thruput)" >> "$GITHUB_ENV"
           echo "THRUPUT_DEVNODE_BINARY=$(thruput toolchain which)" >> "$GITHUB_ENV"
       - name: Generate fresh contract bindings
-        run: npm run generate:contracts --workspaces
+        run: |
+          npm run generate:contracts --workspaces
+          npm run examples:generate
+          git diff --exit-code -- examples/typescript/generated
       - run: npm run build --workspaces
       - name: Install the live-test browser
         run: |
           npx --no-install playwright-core install --with-deps chromium
           CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')"
           echo "CHROMIUM_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
-      - name: Qualify the counter, seeding, and batched transactions
+      - name: Qualify the client examples, counter, seeding, and batched transactions
         run: |
+          npm run test:examples
           npm run test:counter
           npm run test:seed
           npm run test:batching

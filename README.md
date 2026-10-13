@@ -1,339 +1,122 @@
 # Thruput examples
 
-Example smart contracts and applications for the [Thruput SDK](https://github.com/thruputchain/thruput-sdk-rs). Each
-crate in this Cargo workspace demonstrates a specific SDK feature, from a minimal stateless contract
-up to cross-contract calls, error handling, and event emission.
+Learn Thruput with small Rust contracts and TypeScript scripts, then explore
+complete applications. Start with one example; you do not need to build or run
+the whole repository.
 
-New to Thruput? Start with [Getting Started](https://docs.thruput.network/start/getting-started/)
-on the developer docs site, which walks through installing the CLI and scaffolding a project with
-`thruput new`. The [Build a Counter](https://docs.thruput.network/tutorials/build-a-counter/) and
-[Build a Token](https://docs.thruput.network/tutorials/build-a-token/) tutorials cover the `counter`
-and `erc20` crates here line by line.
+## Start here
 
-## Examples
+| I want to… | Start with | What I need |
+| --- | --- | --- |
+| Write a contract | [Counter](contracts/counter/README.md) | Rust and Cargo registry access; no running node |
+| Use the TypeScript SDK | [Client examples](examples/typescript/README.md) | Node.js, npm package access, and a local node |
+| Try an application | [Counter app](apps/counter/README.md) | Rust, Node.js, CLI, and a local node |
+| Explore a full wallet app | [Token Launchpad](apps/token-launchpad/README.md), then [Swap](apps/swap/README.md) | The app toolchain and [Thruput Freighter](https://github.com/thruputchain/freighter) |
 
-A suggested reading order for newcomers is `fibonacci` → `cross-call` → `events`, then the error-handling pair, then `cross-trait-throws` for catching an error across interface boundaries.
+Follow [Getting started](docs/getting-started.md) for registry access, toolchain
+installation, and the local node. The [developer tutorials](https://docs.thruput.network/start/getting-started/)
+explain the platform and creating your own project with `thruput new`.
 
-| Crate | Demonstrates |
-|-------|--------------|
-| [`counter`](contracts/counter/) | Storage (`NNInt`), an event, and a contract error in one small contract; the same contract `thruput new` generates |
-| [`fibonacci`](contracts/fibonacci/) | Minimal stateless contract: one method, one error type, one event |
-| [`cross-call`](contracts/cross-call/) | Cross-contract call patterns via a generated client (`call`, `try_*`, error forwarding); calls `fibonacci` |
-| [`events`](contracts/events/) | `#[derive(Event)]` with the full range of topic and payload patterns: payload-only, address topics, hashed topics, topics-only, multi-emit |
-| [`error-handling-callee`](contracts/error-handling-callee/) | Producing error conditions (declared throws, undeclared errors, panics/faults) for callers to handle |
-| [`error-handling-caller`](contracts/error-handling-caller/) | Catching, wrapping, and forwarding errors from a callee contract |
-| [`multi-throws`](contracts/multi-throws/) | Declaring multiple error types with `throws(A, B)` |
-| [`multi-impl-if`](interfaces/multi-impl-if/) | Defining contract interfaces as traits in a standalone crate |
-| [`multi-impl`](contracts/multi-impl/) | One contract implementing multiple traits from a separate crate |
-| [`mixed-impl`](contracts/mixed-impl/) | One contract exposing both an inherent (`notrait`) `#[contract]` impl and a trait `#[contract]` impl |
-| [`cross-trait-throws`](contracts/cross-trait-throws/) | One contract implementing two traits with different `throws` types; a client on one catching the peer trait's error with `match_exn!` |
-| [`erc20`](contracts/erc20/) | A fuller, realistic contract: an ERC20 token implementing an external interface trait, with `Map`/`NNInt` storage and optional `metadata` and `permit` features |
-| [`permit-wallet`](contracts/permit-wallet/) | Off-chain authorization: an owner's wallet implementing `SignedOp`, turning an ed25519 signature made off-chain into a `PermitGrant` auth token the `erc20` consumes; the owner never submits a transaction |
-| [`permit-relayer`](contracts/permit-relayer/) | Auth-token composition: a stateless contract that carries a signed permit or allowance clear from the wallet to the token in one frame, routing by the signed request, so anyone can submit it |
-| [`standard-token`](contracts/standard-token/), [`standard-token-factory`](contracts/standard-token-factory/), [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | A fixed standard-token implementation, its factory, and the factory interface crate, with a [local launchpad](apps/token-launchpad/README.md) |
-| [`swap-*`](contracts/swap-router/README.md) | A Uniswap V2-style pair with router, request queue, handler, lifecycle events, and a [local frontend](apps/swap/README.md) |
-| [`speedex`](contracts/speedex/) | A [SPEEDEX](https://www.usenix.org/conference/nsdi23/presentation/ramseyer)-style batch exchange over several assets: offers aggregate into a commutative histogram, one transaction per batch computes clearing prices by tâtonnement, and settlement is per offer and order-free |
-| [`stellar-account`](contracts/stellar-account/), [`stellar-account-factory`](contracts/stellar-account-factory/), [`stellar-account-factory-if`](interfaces/stellar-account-factory-if/) | Stellar classic's account model on the protocol's native weighted keys: a fixed master key, 20 weighted signers, low/medium/high thresholds enforced through the transaction's claimed weight, `payment`, `create_account`, and a factory that derives the account address from the `G` key |
+### Your first contract test
 
-### Simulation fixtures
+After configuring Rust registry access, run from the repository root:
 
-The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples — they are contracts with specific workload shapes used as fixtures for testing the transaction simulator:
+```sh
+cargo test -p counter --locked --test test
+```
 
-| Crate | Workload |
-|-------|----------|
-| [`caller-counter`](sim-fixtures/caller-counter/) | Per-caller counter exercising read-after-write storage patterns |
-| [`calldata`](sim-fixtures/calldata/) | Calldata-heavy entry points |
-| [`nnint-stress`](sim-fixtures/nnint-stress/) | NNInt-heavy writes with refund capping |
+Expected: **2 tests pass**. The first initializes the counter to 10, adds 5,
+subtracts 3, and reads 12. The second checks that decrementing below zero fails.
+No npm install, wallet, or node is needed for these native tests.
+
+Read [the contract](contracts/counter/src/implementation.rs), then
+[the test](contracts/counter/tests/test.rs). Change the increment from 5 to 7
+and update the expected values. Run the same command again.
+
+With the CLI installed, build the deployable contract:
+
+```sh
+thruput build -p counter
+```
+
+The artifact is `target/thruput/counter.rv32a`. Next, use the
+[TypeScript examples](examples/typescript/README.md) to deploy it, call it,
+read events, and submit a batch.
+
+## Small contract examples
+
+Each README includes a test command, expected result, and an exercise.
+Suggested order: **Counter → Fibonacci → Events → Cross-call → error handling**.
+
+| Example | What you learn |
+| --- | --- |
+| [Counter](contracts/counter/README.md) | Store and update a non-negative counter |
+| [Fibonacci](contracts/fibonacci/README.md) | A stateless method, a declared error, and an event |
+| [Events](contracts/events/README.md) | Event payloads and indexed topics |
+| [Cross-call](contracts/cross-call/README.md) | Call another contract through its generated client |
+| [Error-handling callee](contracts/error-handling-callee/README.md) and [caller](contracts/error-handling-caller/README.md) | Distinguish declared errors, faults, and failed calls |
+| [Multi-throws](contracts/multi-throws/README.md) | Handle more than one declared error type |
+| [Multi-impl](contracts/multi-impl/README.md) | Implement separate interface traits at one address |
+| [Mixed-impl](contracts/mixed-impl/README.md) | Combine inherent methods and a trait implementation |
+| [Cross-trait throws](contracts/cross-trait-throws/README.md) | Catch errors across interface boundaries |
+
+## Larger reference examples
+
+These combine several concepts. Read a small example first.
+
+| Example | Purpose |
+| --- | --- |
+| [ERC20](contracts/erc20/README.md) | Token balances, allowances, metadata, and optional permits |
+| [Permit wallet](contracts/permit-wallet/) and [relayer](contracts/permit-relayer/) | Off-chain authorization and auth-token composition; run with `scripts/permit-live.sh` |
+| [Standard token](contracts/standard-token/) and [factory](contracts/standard-token-factory/) | Factory-created tokens, used by Launchpad |
+| [Swap contracts](contracts/swap-router/README.md) | Pools, routing, queued requests, and liquidity |
+| [Speedex](contracts/speedex/README.md) | Multi-asset batch exchange and clearing |
+| [Stellar account](contracts/stellar-account/README.md) | Weighted signers and operation thresholds |
 
 ## Applications
 
 | App | Purpose |
 | --- | --- |
-| [Counter](apps/counter/README.md) | Send concurrent counter transactions with buttons or keyboard input; uses a development signer |
-| [Token Launchpad](apps/token-launchpad/README.md) | Create standard tokens and browse launches |
+| [Counter](apps/counter/README.md) | Concurrent transactions from buttons and keyboard input; a development signer and Web Worker |
+| [Token Launchpad](apps/token-launchpad/README.md) | Create tokens with an external wallet and browse indexed launches |
 | [Swap](apps/swap/README.md) | Create pools, swap tokens, and manage liquidity |
 
-Each app README contains its setup, configuration, and testing instructions.
-Counter, Swap, and Launchpad share one npm workspace and root lockfile.
+The Counter **contract** is introductory; the Counter **app** demonstrates
+concurrency and transaction observation. Launchpad and Swap include registry
+servers and transaction recovery, so they are full application references.
 
-Game of Life (atomic and async worlds, frontend, indexer, and test fixtures) now
-lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflife).
+All apps share the root npm install. Each app has its own setup instructions.
+Local setup creates fresh infrastructure; app seeding adds demo tokens and
+liquidity. Use the same node and RPC endpoint in both apps and Freighter.
 
-### Install Swap and Launchpad dependencies
+## Examples versus tools
 
-Use Node.js **22.13 or newer** and npm. The apps install the published
-`@thruputchain/client@0.18.0` package, including wallet capability discovery and
-atomic batching, from GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
-with `read:packages` and access to the `@thruputchain` packages in your npm user config:
-
-```ini
-//npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
-```
-
-Set `GITHUB_PACKAGES_TOKEN` in your environment, then install from the repository root:
-
-```sh
-npm ci
-```
-
-Run `npm ci` after pulling dependency changes. A stale `node_modules` directory
-can contain an older SDK even when `package.json` specifies the current release.
-Use `npm ls @thruputchain/client @thruputchain/react` to check the installed
-versions. Client `0.18.0` uses protocol, XDR, and contract-spec `0.15.0`;
-Swap and Launchpad use React integration `0.5.0`. The source repositories are
-[thruput-sdk-ts](https://github.com/thruputchain/thruput-sdk-ts) and
-[thruput-protocol-ts](https://github.com/thruputchain/thruput-protocol-ts).
-
-Application configuration now uses `THRUPUT_*` and `VITE_THRUPUT_*`. Rename the
-corresponding `GROUNDHOG_*` keys in existing environment files and deployment
-settings, then restart the apps. The browser proxy is `/thruput-rpc`. RPC method
-names, wallet discovery events, and saved wallet/workflow identifiers keep their
-current names for compatibility. The separately installed historical
-`tests/token-factory-ts` harness retains its original package and toolchain pins.
-
-GitHub Actions also needs read access to the new packages. Grant this repository
-Actions access in each package's settings, or configure `NPM_TOKEN` with access
-to the `thruputchain` packages.
-
-Railway needs the same package-read authentication during dependency installation.
-Provide the PAT through the build environment and npm auth configuration; never
-commit its value. The deployment context needs only this repository.
-
-Both apps expose `dev`, `build`, `start`, `typecheck`, `test`, `setup:local`,
-`seed`, and `generate:contracts`. Select an app with
-`npm run <command> --workspace apps/<app>`. Each dev server includes its registry
-API and indexer. Setup creates empty infrastructure; seeding adds example assets.
-
-For browser transactions, use [Thruput Freighter](https://github.com/thruputchain/freighter)
-and follow its setup instructions. App RPC proxies are read-only;
-the wallet signs and submits. These examples use test funds.
-
-Counter uses the same dependency install, with a local development signer and
-its own submission-capable RPC proxy. See its [setup guide](apps/counter/README.md)
-for keyboard controls and the compatible CLI/devnode pairing.
-
-All three apps use the same `setup:local` flow: `generate:contracts`, then
-`tsx scripts/setup-local.ts`. All three also provide `setup:devnet`, which writes
-`.env.devnet` for a fresh deployment on a pinned network.
-
-### Application checks
-
-Run from the repository root:
-
-| Command | Coverage and requirements |
+| Location | Audience and purpose |
 | --- | --- |
-| `npm run typecheck` | All workspace apps and shared seeding TypeScript |
-| `npm test` | App and seed unit/integration tests, plus Linux process-cleanup regressions |
-| `npm run test:browser` | Chromium fixture checks for wallet controls, token selection, network guards, and page layout; no live node |
-| `npm run test:batching` | Fresh-node atomic batches, rollback, token nonce retry, pool creation, LP ownership, and queued swaps |
-| `npm run test:seed` | Fresh-node seeding, indexed tokens, balances, liquidity, and repeatability |
-| `npm run test:counter` | Fresh-node counter setup, concurrent transactions, and real browser keyboard input; requires a built counter artifact and app |
+| `examples/typescript/` | Small scripts to read, run, and modify while learning the published SDK |
+| `contracts/` | Rust contracts and their focused tests |
+| `apps/*/scripts/` | Setup, binding generation, and seed entrypoints for that app |
+| `scripts/seed/` | Shared app-seeding implementation; not an introductory SDK example |
+| `scripts/` | Maintainer builds, checks, live scenarios, and benchmarks; see the [script index](scripts/README.md) |
+| `interfaces/`, `engines/`, `helpers/` | Supporting Rust interfaces and implementations |
+| `sim-fixtures/` | Workloads for simulator testing, not tutorials |
+| `tests/browser/`, `tests/e2e/` | Browser fixtures and live acceptance tests |
 
-Set `CHROMIUM_PATH` to your Chromium binary if needed. Browser fixtures default
-to `/usr/bin/chromium`.
+The older `tests/token-factory-ts/` harness uses historical package/toolchain
+pins and is outside the current root checks. It is not a recommended starting
+point. Its future is tracked in [the repository review](REPOSITORY_REVIEW.md).
 
-Live checks require Linux process groups and `/proc`, a compatible CLI/devnode
-pair, built contracts, and matching generated bindings: CLI `0.29.0` or newer with the hog-devnode it manages
-(`0.1.31-rc.3` for CLI `0.29.0`). Rebuild contracts from the current checkout
-before running them. Use a separate checkout if you need to preserve the bindings
-for the recorded Devnet deployment. From the repository root:
+## Development and verification
 
-```sh
-export THRUPUT_CLI=/absolute/path/to/thruput
-export THRUPUT_DEVNODE_BINARY=/absolute/path/to/hog-devnode
-npm run generate:contracts --workspace apps/counter
-npm run generate:contracts --workspace apps/token-launchpad
-npm run generate:contracts --workspace apps/swap
-npm run build --workspace apps/counter
-npm run test:batching
-npm run test:seed
-npm run test:counter
-```
+- [Getting started](docs/getting-started.md): credentials, install, node, and common setup errors.
+- [Development checks](docs/development.md): native, guest, RPC, browser, and live tests.
+- [Script index](scripts/README.md): purpose, requirements, and side effects.
+- [AGENTS.md](AGENTS.md): repository instructions for coding agents.
 
-The CLI and devnode must agree on the runtime-manifest schema, including
-`endpoints.schedulerGateway` when required by the CLI. A protocol override cannot
-repair a schema mismatch. `THRUPUT_E2E_HOGD_PROTOCOL` selects an explicitly
-compatible protocol build. `SEED_TEST_ARTIFACT_ROOT` overrides the seed artifact root. Use
-`BATCH_TEST_ARTIFACT_ROOT` for the batching probe.
-
-Live tests create separate node state, app environments, databases, and browser
-profiles under the system temporary directory. They print their evidence paths.
-The seed runner retains its isolated state for diagnosis. Live tests do not replace
-the developer's app environments.
-Set `SEED_TEST_DEFAULT_OWNER=1` to check tool-account ownership instead of the
-seed test's explicit recipient.
-
-CI checks Rust contracts and frontend types, tests, builds, and browser fixtures.
-Run the live application checks above locally.
-
-Fixture tests do not prove live transaction execution. Browser approval flows
-with Thruput Freighter require separate acceptance testing.
-
-## Prerequisites
-
-- Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
-  picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
-  target).
-- The `thruput` CLI, version **0.29.0**, for app builds and TypeScript bindings:
-
-  ```sh
-  export CARGO_REGISTRIES_THRUPUT_INDEX="sparse+https://crates.thruput.network/api/v1/crates/"
-  cargo install --locked --registry thruput --version 0.29.0 thruput-cli
-  ```
-
-- Access to the `thruput` crate registry. The index is configured in
-  [`.cargo/config.toml`](.cargo/config.toml); credentials come from your Cargo
-  credential provider, for example `CARGO_REGISTRIES_THRUPUT_TOKEN`.
-- A local build profile. Add `thruput.toml` at the workspace root:
-
-  ```toml
-  default_profile = "local"
-  [profile.local]
-  network = "local"
-  ```
-
-- `jq`, used by [`scripts/build-guest.sh`](scripts/build-guest.sh).
-- RPC integration tests need a compatible `hog-devnode`. Run
-  `thruput toolchain install`, then set
-  `THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"` and run
-  [`scripts/integration-tests.sh`](scripts/integration-tests.sh).
-
-The workspace pins Rust SDK `0.51.0`, interface crates `0.1.55`, protocol crates
-`0.54.0`, and CLI/RPC/testkit `0.29.0`. Both native and frontend CI use this
-release family. Application READMEs describe their setup.
-
-After upgrading from the older runtime, start a fresh CLI `0.29.0` node and run
-each app's `setup:local` again. The rebuilt contracts and generated bindings
-belong together; an npm install does not upgrade deployed contracts. Keep the
-earlier checkout and artifacts for historical deployments or unresolved activity.
-
-## Building
-
-Build a contract to a deployable guest binary (also generates the contract spec):
-
-```sh
-thruput build -p fibonacci
-```
-
-Artifacts land in `target/thruput/` as `<crate>.rv32a` and `<crate>.spec.xdr`.
-
-## Testing
-
-Tests come in three main kinds, distinguished by how the contract under test is executed.
-(The contract crates set `test = false` on their `[lib]`, so all of their tests live in
-`tests/` directories rather than in `src/`.)
-
-| Kind | Command | Execution |
-|------|---------|-----------|
-| **native** | `cargo test -p <crate>` | Contract compiled natively and run against the SDK's mock environment (the `dev` feature). Fast; panics unwind, so error paths are catchable. |
-| **rv32** | `thruput test -p <crate>` | Contract compiled to RV32 and run by the mock executor — the same path as on-chain, where a fault is a real abort. Marked `#[ignore]` so plain `cargo test` skips it. |
-| **rpc** | `thruput test --integration -p <crate>` | Real transactions signed and submitted over JSON-RPC to a local devnode. |
-
-### What is valid to run on each contract
-
-| Contract | native | rv32 | rpc |
-|-------|:------:|:----:|:---:|
-| [`fibonacci`](contracts/fibonacci/) | ✅ | — | — |
-| [`counter`](contracts/counter/) | ✅ | ✅ | ✅ |
-| [`cross-call`](contracts/cross-call/) | ✅ | — | — |
-| [`events`](contracts/events/) | ✅ | — | — |
-| [`error-handling-callee`](contracts/error-handling-callee/) | ✅ | — | — |
-| [`error-handling-caller`](contracts/error-handling-caller/) | ✅ | — | — |
-| [`multi-throws`](contracts/multi-throws/) | ✅ | — | — |
-| [`multi-impl-if`](interfaces/multi-impl-if/) | — | — | — |
-| [`multi-impl`](contracts/multi-impl/) | ✅ | — | — |
-| [`mixed-impl`](contracts/mixed-impl/) | ✅ | — | — |
-| [`cross-trait-throws`](contracts/cross-trait-throws/) | ✅ | — | — |
-| [`erc20`](contracts/erc20/) | ✅ | ✅ | ✅ |
-| [`permit-wallet`](contracts/permit-wallet/) | ✅ | — | — |
-| [`permit-relayer`](contracts/permit-relayer/) | — | — | — |
-| [`standard-token`](contracts/standard-token/) | ✅ | — | — |
-| [`standard-token-factory`](contracts/standard-token-factory/) | ✅ | — | — |
-| [`standard-token-factory-if`](interfaces/standard-token-factory-if/) | ✅ | — | — |
-| [`stellar-account`](contracts/stellar-account/) | ✅ | — | — |
-| [`stellar-account-factory`](contracts/stellar-account-factory/) | ✅ | — | — |
-| [`stellar-account-factory-if`](interfaces/stellar-account-factory-if/) | — | — | — |
-| [`swap-handler`](contracts/swap-handler/) | — | — | — |
-| [`swap-driver`](contracts/swap-driver/) | ✅ | — | — |
-| [`swap-router`](contracts/swap-router/) | ✅ | — | — |
-| [`swap-factory`](contracts/swap-factory/) | ✅ | — | — |
-| [`calldata`](sim-fixtures/calldata/) | ✅ | — | — |
-| [`nnint-stress`](sim-fixtures/nnint-stress/) | ✅ | — | — |
-| [`caller-counter`](sim-fixtures/caller-counter/) | — | — | — |
-
-A `—` means the contract has no tests of that kind, or its behaviour is already
-covered by the tests of the contracts that depend on it.
-
-### Special cases
-
-Beyond the tests in the table, there are two specially-handled kinds of test:
-
-- **Guest tests.** `swap-driver`, `swap-router` and `swap-factory` have a `guest_test` feature
-  that swaps their natively-linked collaborator contracts for built guest
-  binaries — run them with `cargo test -p <crate> -F guest_test`, which is what
-  [`scripts/swap-test-guest.sh`](scripts/swap-test-guest.sh) does.
-- **Testkit simulation.**
-  [`swap-router/tests/sim_liquidity.rs`](contracts/swap-router/tests/sim_liquidity.rs)
-  drives the swap contracts on a live "devnode" via `groundhog-testkit`. It is
-  `#[ignore]`d and needs guest builds of the swap contracts; run it with
-  [`scripts/swap-sim.sh`](scripts/swap-sim.sh).
-  [`permit-wallet/tests/testkit_permit.rs`](contracts/permit-wallet/tests/testkit_permit.rs)
-  does the same for the permit flow: the test signs a permit off-chain with
-  a key the chain never sees, relays it through `permit-relayer`, draws on
-  the allowance, and checks that a replay is refused. Run it with
-  [`scripts/permit-live.sh`](scripts/permit-live.sh). The native version of
-  the same flow, `permit-wallet/tests/permit.rs`, runs under plain
-  `cargo test` and also covers `transfer_from_signed` and key rotation.
-  [`speedex/tests/testkit_gas.rs`](contracts/speedex/tests/testkit_gas.rs)
-  measures what the batch exchange's clearing costs on a devnode, by batch
-  size and tâtonnement round cap; with the native execution-quality
-  benchmark in `speedex/tests/quality.rs`, it is what
-  [`scripts/speedex-bench.sh`](scripts/speedex-bench.sh) runs and graphs.
-
-### Non-contract crates
-
-The crates under [`helpers/`](helpers/), [`engines/`](engines/) and
-[`interfaces/`](interfaces/) are library code rather than contracts, so they
-have only native tests -- and [`swap-if`](interfaces/swap-if/), which is
-declarations alone, has none.
-[`swap-pair`](engines/swap-pair/) is the pair implementation the swap handler
-runs in its own invocation, rather than a contract of its own.
-[`batch-driver`](helpers/batch-driver/) is the reusable core of the
-request-batching driver pattern.  It builds on
-[`unique-ids`](helpers/unique-ids/), which mints ids distinct across
-everything a contract accepts and stands on its own.
-
-### Running tests
-
-`cargo test --all` runs every **native** test in the workspace and skips the rest (rv32 tests
-are `#[ignore]`d; guest tests need a feature flag; rpc tests are `test = false`):
-
-```sh
-cargo test --all
-```
-
-The other kinds need guest artifacts, so build them first:
-
-```sh
-./scripts/build-guest.sh
-./scripts/swap-test-guest.sh     # guest tests for swap-driver, swap-router and swap-factory
-./scripts/integration-tests.sh   # rpc tests
-```
-
-[`scripts/check-contracts.sh`](scripts/check-contracts.sh) runs native contract
-tests, builds the guest binaries, runs the guest tests and integration
-tests, and finishes with clippy and rustfmt. Live Swap and permit simulations
-remain separate commands listed above; application checks are listed under
-[Application checks](#application-checks).
-
-## Repository structure
-
-- `apps/`: applications, each with its own README and setup scripts.
-- `contracts/`, `engines/`, `helpers/`, `interfaces/`: contracts and supporting Rust code.
-- `scripts/`: contract build/check commands and shared `seed/` tooling.
-- `tests/browser/`, `tests/e2e/`: browser fixtures and cross-app live tests.
-- `tests/token-factory-ts/`: TypeScript contract tests.
-- `docs/specs/`, `docs/superpowers/`: design specifications and AI-assisted development records.
+The `docs/specs/` and `docs/superpowers/` directories contain historical design
+and implementation records. Use the guides above and app READMEs for current
+commands. [REPOSITORY_REVIEW.md](REPOSITORY_REVIEW.md) records the October 2026
+review and deferred discussion topics.
 
 ## License
 
