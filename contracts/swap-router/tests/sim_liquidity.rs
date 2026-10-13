@@ -183,7 +183,6 @@ async fn swap_liquidity_multi_agent() {
     }
 
     let scenario = Scenario::builder("swap-sim")
-        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
         .artifact("swap_handler", artifact("swap_handler.rv32a"))

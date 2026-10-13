@@ -863,7 +863,6 @@ async fn real_artifact_rpc_lifecycle() {
     config.initial_account_tokens = 100_000_000_000;
 
     let scenario = Scenario::builder("standard-token-phase-6")
-        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("standard_token", root.join("standard_token.rv32a"))
         .artifact(
