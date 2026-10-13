@@ -15,8 +15,10 @@ import {
   hashContract,
   HttpTransport,
   localnet,
+  prepareContractDeployment,
   PrivateKeySigner,
   toHex0x,
+  TransactionProcessingError,
 } from "@thruputchain/client";
 import { DefaultWallet } from "@thruputchain/client/contracts";
 import {
@@ -28,6 +30,7 @@ import {
   type Invocation,
 } from "@thruputchain/protocol";
 import { StandardTokenFactory } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
+import { StandardTokenInitializer } from "../../apps/token-launchpad/src/contracts/generated/standard-token.ts";
 import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20.ts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapRouter } from "../../apps/swap/src/contracts/generated/swap-router.ts";
@@ -124,7 +127,7 @@ try {
     return startup?.ok === true;
   });
   const rpcUrl = startup!.data.rpc_url;
-  const configs: Record<string, Record<string, string>> = {};
+  const configs: Record<string, Record<string, string | undefined>> = {};
   for (const [app, prefix] of [
     ["token-launchpad", "LAUNCHPAD"],
     ["swap", "SWAP"],
@@ -336,18 +339,130 @@ try {
         minHeight,
       }),
     );
-  const topup = ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
-    receiver: token0!,
-    amount: 100_000n,
+  // Measure the cost of this exact token shape, then deploy an identical token
+  // with no spare reserve. The factory's normal funding floor is intentionally
+  // generous, so a factory-created token cannot prove that a top-up is needed.
+  async function deployReserveToken(amount: bigint) {
+    const deployment = prepareContractDeployment({
+      deployer: account.address,
+      contract: tokenCode,
+    });
+    return wallet.deployContractAndWait(
+      deployment,
+      {
+        amount,
+        gasLimit: gas,
+        initializer:
+          StandardTokenInitializer.v0_1.initializeFromFactory.invocation(
+            deployment.address,
+            gas,
+            {
+              administrator: account.address,
+              initialHolder: account.address,
+              initialSupply: 10n,
+              name: "Reserve test",
+              symbol: "RES",
+              decimals: 6n,
+            },
+          ),
+      },
+      { timeoutMs: 60_000 },
+    );
+  }
+  const calibrationFunding = 1_000_000n;
+  const calibration = await deployReserveToken(calibrationFunding);
+  const spare = (
+    await readBalance(
+      HOG_ADDRESS,
+      calibration.address,
+      calibration.receipt.height,
+    )
+  ).value;
+  const initializationCost = calibrationFunding - spare;
+  assert.ok(initializationCost > 0n && initializationCost < calibrationFunding);
+  const depleted = await deployReserveToken(initializationCost);
+  const reserveToken = depleted.address;
+  assert.equal(
+    (await readBalance(HOG_ADDRESS, reserveToken, depleted.receipt.height))
+      .value,
+    0n,
+  );
+  assert.equal(
+    (await readBalance(reserveToken, account.address, depleted.receipt.height))
+      .value,
+    10n,
+  );
+  const transfer = ERC20.v0_1.transfer.invocation(reserveToken, gas, {
+    receiver,
+    amount: 1n,
   });
-  const reserveBefore = await readBalance(HOG_ADDRESS, token0!, 0n);
+  const unfunded = await wallet.prepareExecution({
+    invocation: transfer,
+    gasLimit: gas,
+    expiryBlocks: 1n,
+  });
+  const unfundedHash = await wallet.sendTransaction(
+    await wallet.signTransaction(unfunded),
+  );
+  await assert.rejects(
+    wallet.waitForTransactionReceipt(unfundedHash, { timeoutMs: 60_000 }),
+    (error: unknown) =>
+      error instanceof TransactionProcessingError &&
+      error.status === "retry" &&
+      error.error.source === "executor" &&
+      error.error.code === 3,
+  );
+  console.log(
+    "Transfer alone cannot commit with zero storage reserve",
+    toHex0x(unfundedHash),
+  );
+  // This is a scheduler retry, not a committed revert. Expire it while the
+  // reserve is still zero so it cannot execute later using the batch's top-up.
+  for (
+    let blocks = 0;
+    (await client.getChainTip()).height <=
+    unfunded.uniquifier.block_expiry_height;
+    blocks++
+  ) {
+    assert.ok(
+      blocks < 3,
+      "The unfunded control must expire before adding reserve",
+    );
+    assert.equal(
+      (
+        await batch("Advance beyond the unfunded control's expiry", [
+          ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+            receiver: account.address,
+            amount: 0n,
+          }),
+        ])
+      ).execResult,
+      ExecResult.ExecResultOK,
+    );
+  }
+  assert.equal(await client.getTransactionReceipt(unfundedHash), null);
+  const controlHeight = (await client.getChainTip()).height;
+  assert.equal(
+    (await readBalance(reserveToken, receiver, controlHeight)).value,
+    0n,
+  );
+  assert.equal(
+    (await readBalance(reserveToken, account.address, controlHeight)).value,
+    10n,
+  );
+
+  const topupAmount = 100_000n;
+  const topup = ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+    receiver: reserveToken,
+    amount: topupAmount,
+  });
   const failedTransfer = await batch(
     "Roll back reserve top-up when transfer fails",
     [
       topup,
-      ERC20.v0_1.transfer.invocation(token0!, gas, {
+      ERC20.v0_1.transfer.invocation(reserveToken, gas, {
         receiver,
-        amount: 2_000_000_000_000n,
+        amount: 11n,
       }),
     ],
   );
@@ -356,24 +471,33 @@ try {
     ExecResult.ExecResultTxRootFrameReverted,
   );
   assert.equal(
-    (await readBalance(HOG_ADDRESS, token0!, failedTransfer.height)).value,
-    reserveBefore.value,
+    (await readBalance(HOG_ADDRESS, reserveToken, failedTransfer.height)).value,
+    0n,
   );
   assert.equal(
-    (await readBalance(token0!, receiver, failedTransfer.height)).value,
+    (await readBalance(reserveToken, receiver, failedTransfer.height)).value,
     0n,
   );
   const fundedTransfer = await batch(
     "Top up storage and transfer to a new holder",
-    [
-      topup,
-      ERC20.v0_1.transfer.invocation(token0!, gas, { receiver, amount: 1n }),
-    ],
+    [topup, transfer],
   );
   assert.equal(fundedTransfer.execResult, ExecResult.ExecResultOK);
   assert.equal(
-    (await readBalance(token0!, receiver, fundedTransfer.height)).value,
+    (await readBalance(reserveToken, receiver, fundedTransfer.height)).value,
     1n,
+  );
+  assert.equal(
+    (await readBalance(reserveToken, account.address, fundedTransfer.height))
+      .value,
+    9n,
+  );
+  const reserveAfter = (
+    await readBalance(HOG_ADDRESS, reserveToken, fundedTransfer.height)
+  ).value;
+  assert.ok(
+    reserveAfter >= 0n && reserveAfter < topupAmount,
+    "The new holder row must spend reserve added by this batch",
   );
   const pool = (
     await SwapFactory.v0_1.poolAddresses.view({
