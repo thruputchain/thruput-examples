@@ -101,14 +101,13 @@ it("uses an error toast and permits a new attempt", async () => {
   );
 });
 
-it("blocks top-up requests until configuration is available", () => {
+it("hides development top-ups when that signer is unavailable or inactive", () => {
   const fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
   render(<AppHeader ready={false} canTopup={false} signerBalance={null} />);
-  const button = screen.getByRole("button", {
+  const button = screen.queryByRole("button", {
     name: /^Top up Signer/,
-  }) as HTMLButtonElement;
-  fireEvent.click(button);
-  expect(button.disabled).toBe(true);
+  });
+  expect(button).toBeNull();
   expect(fetchMock).not.toHaveBeenCalled();
 });

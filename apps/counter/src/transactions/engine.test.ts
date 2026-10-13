@@ -20,7 +20,7 @@ async function fixture() {
   let nonce = 0;
   const submit = vi.fn(async () => {});
   const connection = {
-    read: vi.fn(async () => ({
+    read: vi.fn<CounterConnection["read"]>(async () => ({
       value: 1_000_000n,
       signerBalance: 100_000_000n,
     })),
@@ -42,6 +42,37 @@ async function fixture() {
 }
 
 describe("transaction engine", () => {
+  it("pauses unsent work while continuing to observe submitted hashes", async () => {
+    const { engine, connection, submit } = await fixture();
+    engine.enqueue("increment");
+    await flush();
+    engine.setAccepting(false);
+    expect(engine.enqueue("decrement")).toBe(false);
+    connection.observe.mockResolvedValue({ state: "confirmed", message: null });
+    engine.tick();
+    await flush();
+    expect(engine.snapshot().confirmed).toBe(1);
+    expect(submit).toHaveBeenCalledTimes(1);
+    engine.setAccepting(true);
+    expect(engine.enqueue("increment")).toBe(true);
+  });
+
+  it("discards preparations from before a pause even after switching back", async () => {
+    const { engine, connection, submit } = await fixture();
+    const preparing = deferred<{ hash: string; submit: typeof submit }>();
+    connection.prepare.mockImplementation(() => preparing.promise);
+    for (let i = 0; i < 20; i++) engine.enqueue("increment");
+    engine.setAccepting(false);
+    engine.setAccepting(true);
+    preparing.resolve({ hash: "old", submit });
+    await flush();
+    expect(submit).not.toHaveBeenCalled();
+    expect(engine.snapshot()).toMatchObject({
+      failed: 20,
+      submitted: 0,
+      pending: 0,
+    });
+  });
   it("publishes the live signer balance and pauses writes at zero", async () => {
     const { engine, connection, advance } = await fixture();
     expect(engine.snapshot().signerBalance).toBe(100_000_000n);

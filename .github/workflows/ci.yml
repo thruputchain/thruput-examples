@@ -104,6 +104,7 @@ jobs:
         run: |
           npm run test:examples
           npm run test:counter
+          npm run test:counter-wallet
           npm run test:seed
           npm run test:batching
       # Keep the seed run's working directory for diagnosis. Local dev keys, the

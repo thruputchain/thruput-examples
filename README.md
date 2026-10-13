@@ -130,7 +130,7 @@ These combine several concepts. Read a small example first.
 
 | App | Purpose |
 | --- | --- |
-| [Counter](apps/counter/README.md) | Concurrent transactions from buttons and keyboard input; a development signer and Web Worker |
+| [Counter](apps/counter/README.md) | Development-signed concurrent updates or wallet-approved button updates, with reload recovery |
 | [Token Launchpad](apps/token-launchpad/README.md) | Create tokens with an external wallet and browse indexed launches |
 | [Swap](apps/swap/README.md) | Create pools, swap tokens, and manage liquidity |
 

@@ -119,8 +119,8 @@ function rpcMock() {
     return Response.json({ jsonrpc: "2.0", id: body.id, result });
   });
 }
-async function fixture(upstream = rpcMock()) {
-  const handler = createApiHandler(config, upstream);
+async function fixture(upstream = rpcMock(), serverConfig = config) {
+  const handler = createApiHandler(serverConfig, upstream);
   const origin = await listen(
     createServer((req, res) => {
       void handler(req, res);
@@ -291,7 +291,7 @@ describe("counter signing boundary", () => {
     );
   });
 
-  it("publishes only public identity and requires the server-only signing key", async () => {
+  it("publishes only public identity and rejects malformed signing keys", async () => {
     const origin = await listen(createCounterServer(config));
     const response = await fetch(`${origin}/api/config`);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -306,9 +306,37 @@ describe("counter signing boundary", () => {
     expect(() =>
       loadServerConfig({
         ...environment,
-        COUNTER_SIGNING_PRIVATE_KEY: undefined,
+        COUNTER_SIGNING_PRIVATE_KEY: "invalid",
       }),
     ).toThrow("Server signing key");
+  });
+
+  it("serves public reads without a development key and blocks development writes", async () => {
+    const readonly = loadServerConfig({
+      ...environment,
+      COUNTER_SIGNING_PRIVATE_KEY: undefined,
+    });
+    expect(readonly.app.signerAddress).toBeNull();
+    const { origin, post, send, upstream } = await fixture(rpcMock(), readonly);
+    expect(
+      (await (await fetch(`${origin}/api/config`)).json()).signerAddress,
+    ).toBeNull();
+    expect(
+      (
+        await post("/thruput-rpc", {
+          jsonrpc: "2.0",
+          id: 1,
+          method: "groundhog_networkInfo",
+          params: [],
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await post("/api/prepare", { direction: "increment" })).status,
+    ).toBe(503);
+    expect((await post("/api/topup", {})).status).toBe(503);
+    expect((await send([await sign()])).status).toBe(403);
+    expect(upstream).toHaveBeenCalledOnce();
   });
 
   it.each(["increment", "decrement"] as const)(
@@ -444,9 +472,13 @@ describe("counter signing boundary", () => {
       },
       {
         ...valid,
-        invocation: DefaultWallet.v0_1.execute.invocation(account.address, gas, {
-          calls: [...calls, ...calls],
-        }),
+        invocation: DefaultWallet.v0_1.execute.invocation(
+          account.address,
+          gas,
+          {
+            calls: [...calls, ...calls],
+          },
+        ),
       },
       {
         ...valid,
@@ -521,8 +553,7 @@ describe("counter signing boundary", () => {
       }),
     ]) {
       expect(
-        (await fetch(`${origin}/thruput-rpc`, { method: "POST", body }))
-          .status,
+        (await fetch(`${origin}/thruput-rpc`, { method: "POST", body })).status,
       ).toBeGreaterThanOrEqual(400);
     }
     for (const path of [

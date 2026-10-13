@@ -50,7 +50,7 @@ export type Observation =
   | { state: "pending" }
   | { state: "confirmed" | "failed"; message: string | null };
 export interface CounterConnection {
-  read(): Promise<{ value: bigint; signerBalance: bigint }>;
+  read(): Promise<{ value: bigint | null; signerBalance: bigint }>;
   prepare(direction: Direction): Promise<PreparedTransaction>;
   observe(hash: string): Promise<Observation>;
   dispose(): void;
@@ -78,6 +78,8 @@ export class TransactionEngine {
   private reading = false;
   private nextRead = 0;
   private stopped = false;
+  private accepting = true;
+  private acceptanceRevision = 0;
 
   constructor(
     private connection: CounterConnection,
@@ -85,7 +87,7 @@ export class TransactionEngine {
   ) {}
 
   enqueue(direction: Direction): boolean {
-    if (this.stopped) return false;
+    if (this.stopped || !this.accepting) return false;
     if (!this.state.ready || this.outstanding.size >= CAPACITY) {
       this.state.skipped++;
       return false;
@@ -162,6 +164,21 @@ export class TransactionEngine {
     this.connection.dispose();
   }
 
+  // Pause new work without abandoning hashes that may already be on chain.
+  setAccepting(accepting: boolean): void {
+    if (this.accepting && !accepting) this.acceptanceRevision++;
+    this.accepting = accepting;
+    if (!accepting) {
+      for (const transaction of this.outstanding.values()) {
+        if (transaction.state === "queued") {
+          this.finish(transaction, "failed", "Not sent: signing mode changed.");
+        }
+      }
+    } else {
+      this.pump();
+    }
+  }
+
   private async refresh(): Promise<void> {
     this.reading = true;
     try {
@@ -195,7 +212,7 @@ export class TransactionEngine {
   }
 
   private pump(): void {
-    if (this.stopped || !this.state.ready) return;
+    if (this.stopped || !this.accepting || !this.state.ready) return;
     for (const transaction of this.outstanding.values()) {
       if (this.submitting >= SUBMISSIONS) break;
       if (transaction.state === "queued") void this.submit(transaction);
@@ -203,11 +220,16 @@ export class TransactionEngine {
   }
 
   private async submit(transaction: TrackedTransaction): Promise<void> {
+    const revision = this.acceptanceRevision;
     transaction.state = "signing";
     this.submitting++;
     try {
       const prepared = await this.connection.prepare(transaction.direction);
       if (this.stopped) return;
+      if (!this.accepting || revision !== this.acceptanceRevision) {
+        this.finish(transaction, "failed", "Not sent: signing mode changed.");
+        return;
+      }
       if (!this.state.ready) {
         this.finish(transaction, "failed", "Not sent: connection unavailable.");
         return;

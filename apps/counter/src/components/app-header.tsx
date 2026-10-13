@@ -36,9 +36,11 @@ export function AppHeader({
           />
           <span>{ready ? "Connected" : "Not ready"}</span>
         </div>
-        <div className="col-span-2 min-w-0 max-w-full justify-self-end sm:col-span-1">
-          <TopupSigner disabled={!canTopup} balance={signerBalance} />
-        </div>
+        {canTopup ? (
+          <div className="col-span-2 min-w-0 max-w-full justify-self-end sm:col-span-1">
+            <TopupSigner disabled={false} balance={signerBalance} />
+          </div>
+        ) : null}
       </div>
     </header>
   );
