@@ -216,7 +216,7 @@ npm run build --workspaces
 npm run test:browser
 ```
 
-Use the existing production wallet acceptance harness (`npm run test:wallet`) when its local node/extension prerequisites are available, particularly for navigation and wallet handoffs. Record any environment limitation separately from passing component/browser tests.
+Check navigation and wallet handoffs with Thruput Freighter. Record any environment limitation separately from passing component/browser tests.
 
 The pass is complete when both apps have the same application skeleton and infrastructure organization, pages no longer own global headers, provider and workflow lifetimes remain correct, tests/builds pass, and remaining differences in the directory trees reflect the apps' domains rather than inconsistent conventions.
 
@@ -253,4 +253,3 @@ No cross-app runtime framework or compatibility exports were added. Provider-dep
 - All 1,328 Vitest tests passed: counter 47, swap 880, launchpad 362, seed scripts 39. The three process-cleanup tests also passed.
 - All three production builds passed.
 - Browser acceptance passed in Chromium 152 at desktop and 320px widths, including startup retry, wallet controls, registry browsing, token discovery, and handoff guards.
-- `npm run test:wallet` was attempted, but the local node failed before application startup: the supervisor requested `hogp/a6913f07a5a7`, while the installed runtime advertised `hogp/63c9284d8d5727e`. The harness cleaned up successfully. No live signing/transaction acceptance is claimed for this pass.

@@ -42,7 +42,7 @@ processing mode across routes.
 
 - Node.js 22.13 or newer and the [shared SDK/npm install](../../README.md#install-swap-and-launchpad-dependencies).
 - A compatible Thruput CLI/devnode pair and the node's full runtime manifest.
-- [Thruput Wallet](../wallet-extension/README.md) for browser transactions.
+- [Thruput Freighter](https://github.com/thruputchain/freighter) for browser transactions.
 
 ## Local setup
 
@@ -71,10 +71,10 @@ override the file. Use only one writer per database.
 `setup:local` builds contracts, regenerates bindings, and runs the TypeScript
 setup script. Path overrides are resolved from the repository root.
 
-Setup deploys infrastructure only. Connect Thruput Wallet, request test HOG,
+Setup deploys infrastructure only. Connect Thruput Freighter, request test HOG,
 create tokens in Launchpad, and create a pool. Setup writes `.env.local` and the
 matching public contract artifact. Set `THRUPUT_RPC_URL` for another loopback
-HTTP endpoint; the extension uses localnet at `http://127.0.0.1:9545`.
+HTTP endpoint; configure the same endpoint in Thruput Freighter.
 
 ## Devnet setup
 
@@ -271,7 +271,7 @@ npm run test --workspace apps/swap
 
 Root `npm test` also runs shared seed and process-cleanup regressions.
 `npm run test:browser` checks fixture-based browser interactions. Live
-`npm run test:wallet` and `npm run test:seed` use a fresh node. Their prerequisites,
+`npm run test:batching` and `npm run test:seed` use a fresh node. Their prerequisites,
 platform requirements, and coverage are in [Application checks](../../README.md#application-checks).
 ## React integration
 

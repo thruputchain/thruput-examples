@@ -52,11 +52,9 @@ The crates under [`sim-fixtures/`](sim-fixtures/) are not pedagogical examples â
 | [Counter](apps/counter/README.md) | Send concurrent counter transactions with buttons or keyboard input; uses a development signer |
 | [Token Launchpad](apps/token-launchpad/README.md) | Create standard tokens and browse launches |
 | [Swap](apps/swap/README.md) | Create pools, swap tokens, and manage liquidity |
-| [Thruput Wallet](apps/wallet-extension/README.md) | Chrome wallet for localnet and devnet |
 
 Each app README contains its setup, configuration, and testing instructions.
-Counter, Swap, and Launchpad share one npm workspace and root lockfile. The wallet has an
-independent install.
+Counter, Swap, and Launchpad share one npm workspace and root lockfile.
 
 Game of Life (atomic and async worlds, frontend, indexer, and test fixtures) now
 lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflife).
@@ -95,7 +93,7 @@ current names for compatibility. The separately installed historical
 
 GitHub Actions also needs read access to the new packages. Grant this repository
 Actions access in each package's settings, or configure `NPM_TOKEN` with access
-to the `thruputchain` packages. The wallet download workflow uses the same access.
+to the `thruputchain` packages.
 
 Railway needs the same package-read authentication during dependency installation.
 Provide the PAT through the build environment and npm auth configuration; never
@@ -106,8 +104,8 @@ Both apps expose `dev`, `build`, `start`, `typecheck`, `test`, `setup:local`,
 `npm run <command> --workspace apps/<app>`. Each dev server includes its registry
 API and indexer. Setup creates empty infrastructure; seeding adds example assets.
 
-For browser transactions, build and load [Thruput Wallet](apps/wallet-extension/README.md),
-create or import a test wallet, and request test HOG. App RPC proxies are read-only;
+For browser transactions, use [Thruput Freighter](https://github.com/thruputchain/freighter)
+and follow its setup instructions. App RPC proxies are read-only;
 the wallet signs and submits. These examples use test funds.
 
 Counter uses the same dependency install, with a local development signer and
@@ -127,17 +125,12 @@ Run from the repository root:
 | `npm run typecheck` | All workspace apps and shared seeding TypeScript |
 | `npm test` | App and seed unit/integration tests, plus Linux process-cleanup regressions |
 | `npm run test:browser` | Chromium fixture checks for wallet controls, token selection, network guards, and page layout; no live node |
-| `npm run test:wallet` | Real extension approvals through token launch, pool creation, swap, liquidity, transfer, and production-server checks on a fresh node |
-| `WALLET_ACCEPTANCE_LEGACY=1 npm run test:wallet` | The same live journey through the legacy provider surface, with individual transaction approvals |
 | `npm run test:batching` | Fresh-node atomic batches, rollback, token nonce retry, pool creation, LP ownership, and queued swaps |
 | `npm run test:seed` | Fresh-node seeding, indexed tokens, balances, liquidity, and repeatability |
 | `npm run test:counter` | Fresh-node counter setup, concurrent transactions, and real browser keyboard input; requires a built counter artifact and app |
 
 Set `CHROMIUM_PATH` to your Chromium binary if needed. Browser fixtures default
-to `/usr/bin/chromium`; the live wallet test defaults to `/usr/lib/chromium/chromium`.
-Install the wallet's
-dependencies separately before running it; the command builds its source into a
-temporary directory, so an existing extension `dist` is not required.
+to `/usr/bin/chromium`.
 
 Live checks require Linux process groups and `/proc`, a compatible CLI/devnode
 pair, built contracts, and matching generated bindings: CLI `0.29.0` or newer with the hog-devnode it manages
@@ -152,10 +145,7 @@ npm run generate:contracts --workspace apps/counter
 npm run generate:contracts --workspace apps/token-launchpad
 npm run generate:contracts --workspace apps/swap
 npm run build --workspace apps/counter
-npm --prefix apps/wallet-extension ci
 npm run test:batching
-npm run test:wallet
-WALLET_ACCEPTANCE_LEGACY=1 npm run test:wallet
 npm run test:seed
 npm run test:counter
 ```
@@ -163,26 +153,21 @@ npm run test:counter
 The CLI and devnode must agree on the runtime-manifest schema, including
 `endpoints.schedulerGateway` when required by the CLI. A protocol override cannot
 repair a schema mismatch. `THRUPUT_E2E_HOGD_PROTOCOL` selects an explicitly
-compatible protocol build. `WALLET_ACCEPTANCE_ARTIFACT_ROOT` and
-`SEED_TEST_ARTIFACT_ROOT` override the respective artifact roots. Use
+compatible protocol build. `SEED_TEST_ARTIFACT_ROOT` overrides the seed artifact root. Use
 `BATCH_TEST_ARTIFACT_ROOT` for the batching probe.
 
 Live tests create separate node state, app environments, databases, and browser
 profiles under the system temporary directory. They print their evidence paths.
-The wallet runner removes temporary runtime state after verified cleanup; the
-seed runner retains its isolated state for diagnosis. Neither replaces the
-developer's app environments. Add `-- --devnet` to `test:wallet` only to request
-the optional external identity/airdrop check; its result is reported separately.
+The seed runner retains its isolated state for diagnosis. Live tests do not replace
+the developer's app environments.
 Set `SEED_TEST_DEFAULT_OWNER=1` to check tool-account ownership instead of the
 seed test's explicit recipient.
 
 CI checks Rust contracts and frontend types, tests, builds, and browser fixtures.
 Run the live application checks above locally.
 
-Fixture tests do not prove live transaction execution. The live journey checks
-completed-state reloads; it does not cover full browser restart with an unresolved
-transaction or remote deployment. Wallet unit tests run independently through
-`npm --prefix apps/wallet-extension test`.
+Fixture tests do not prove live transaction execution. Browser approval flows
+with Thruput Freighter require separate acceptance testing.
 
 ## Prerequisites
 

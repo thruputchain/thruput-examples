@@ -54,7 +54,6 @@ npm run typecheck
 npm test
 npm run build --workspaces
 npm run test:browser
-npm run test:wallet
 git diff --check
 ```
 
@@ -78,7 +77,6 @@ Completed on `feat/published-sdk-app-integration`.
 ### Issues found during verification
 
 - Updated Rust test expectations for direct integer topics and interface version 0.1.33.
-- The production acceptance harness omitted the new `shared/` directory from #105. It now copies that directory with the isolated production app.
 - Faster receipt observation exposed stale views during sequential launches. Launchpad now retries only proven stale funding views with a bounded delay; a fresh shortfall still stops immediately and funding is never resent.
 - Swap's creation review treated mismatched factory view heights as inconsistent addresses. It now retries the coherent read; different addresses at the same height still fail. Both cases have regression coverage.
 
@@ -89,9 +87,6 @@ Completed on `feat/published-sdk-app-integration`.
 - All three production builds passed; browser fixtures passed at desktop and 320px widths in Chromium 152.
 - `cargo test --all --locked`, workspace Clippy with warnings denied, and `cargo fmt --check` passed. Tests explicitly marked as requiring separate live/guest harnesses remain ignored in the native suite.
 - Repeated Swap/Launchpad generation produced no binding diff; the CLI version-check suite passed all 23 cases.
-- Live atomic wallet acceptance passed all 20 checks with CLI 0.18.0 and hog-devnode 0.1.27-rc.7. Evidence: `/tmp/groundhog-wallet-apps-rb1jvA/evidence`.
-- Live sequential fallback acceptance passed all 20 checks with the same tools. Evidence: `/tmp/groundhog-wallet-apps-xSIpku/evidence`.
-- Both live runs covered two token launches, pool creation, independent balances/reserves/LP evidence, rejection, swap/add/remove, reconnect, wallet transfer, and real production server startup. No external Devnet writes were requested. Harness cleanup verified owned processes exited and user app environments were unchanged.
 
 ### Simplification measurements
 

@@ -44,7 +44,7 @@ the creation workflow without remounting the shell or public directory.
 
 - Node.js 22.13 or newer and the [shared SDK/npm install](../../README.md#install-swap-and-launchpad-dependencies).
 - A compatible Thruput CLI/devnode pair and the node's full runtime manifest.
-- [Thruput Wallet](../wallet-extension/README.md) for browser transactions.
+- [Thruput Freighter](https://github.com/thruputchain/freighter) for browser transactions.
 
 ## Local setup
 
@@ -78,10 +78,10 @@ tokens receive a 1,000,000-raw-unit reserve (0.1 HOG), including headroom for
 allowance and recipient storage after initialization. The contract's conservative
 deployment/initialization budget remains capped at 370,000 raw units. Setup
 writes `.env.local` and the matching public contract artifact. Set
-`THRUPUT_RPC_URL` if the node uses another loopback HTTP endpoint. The extension
-uses localnet at `http://127.0.0.1:9545`.
+`THRUPUT_RPC_URL` if the node uses another loopback HTTP endpoint. Configure
+the same endpoint in Thruput Freighter.
 
-Load the wallet extension, create or import a test wallet, select Localnet, and
+Set up Thruput Freighter, create or import a test wallet, select Localnet, and
 request test HOG. Connect to Launchpad to create a token. Setup and seeding use
 tooling accounts; they do not import keys into the browser.
 
@@ -267,7 +267,7 @@ npm run test --workspace apps/token-launchpad
 
 Root `npm test` also runs shared seed and process-cleanup regressions.
 `npm run test:browser` checks fixture-based browser interactions. Live
-`npm run test:wallet` and `npm run test:seed` use a fresh node. Their prerequisites,
+`npm run test:batching` and `npm run test:seed` use a fresh node. Their prerequisites,
 platform requirements, and coverage are in [Application checks](../../README.md#application-checks).
 ## React integration
 
