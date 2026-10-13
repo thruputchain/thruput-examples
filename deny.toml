@@ -7,7 +7,12 @@
 all-features = true
 
 [advisories]
-ignore = []
+ignore = [
+    # unsafe-libyaml is unmaintained (no fix). It arrives only through
+    # serde_yaml in the groundhog-xdr-macros 0.51.0 proc-macro. Remove when
+    # Examples moves to protocol-rs 0.54.1+ (serde-saphyr). Added 2026-10-13.
+    { id = "RUSTSEC-2024-0449", reason = "unmaintained unsafe-libyaml via groundhog-xdr-macros (serde_yaml); removed by the protocol-rs 0.54.1 migration" },
+]
 # Informational advisories (unsound, unmaintained) default to workspace-direct
 # dependencies only.
 unsound = "all"
