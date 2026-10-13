@@ -7,12 +7,12 @@ import { notifyManager, focusManager } from "@tanstack/react-query";
 import { afterEach } from "vitest";
 import { AppProviders } from "@/app-providers";
 import {
-  createGroundhogClient,
+  createThruputClient,
   localnet,
   MockTransport,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 
-const client = await createGroundhogClient({
+const client = await createThruputClient({
   cluster: localnet(),
   transport: new MockTransport(),
 });

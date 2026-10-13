@@ -1,10 +1,10 @@
 //! The factory contract implementation.
 
-use groundhog_erc20_if::{ERC20Client, ERC20Error};
 use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use sdk::storage::*;
 use sdk::*;
 use swap_if::*;
+use thruput_erc20_if::{ERC20Client, ERC20Error};
 
 /// State for the factory contract
 #[storage]

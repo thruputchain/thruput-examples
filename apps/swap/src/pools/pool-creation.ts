@@ -1,5 +1,5 @@
-import { addressFromHex, bytesEqual, toHex0x, type ContractView, type GroundhogClient } from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
+import { addressFromHex, bytesEqual, toHex0x, type ContractView, type ThruputClient } from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
 
 import type { GlobalConfig } from "@/config";
 import {
@@ -77,7 +77,7 @@ export class PoolCreationValidationError extends Error {
 }
 
 export interface PoolCreationDependencies {
-  client: Pick<GroundhogClient, "view" | "getNetworkInfo">;
+  client: Pick<ThruputClient, "view" | "getNetworkInfo">;
   factory?: SwapFactoryReadAdapter;
   token?: (address: ContractAddress) => Erc20ReadAdapter;
   requiredNativeHog?: bigint;

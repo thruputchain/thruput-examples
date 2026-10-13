@@ -10,10 +10,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { toHex0x } from "@groundhogchain/client";
-import { ERC20 } from "@groundhogchain/client/contracts";
-import type { ContractDeployment } from "@groundhogchain/client/wallet";
-import { gasAmount, HOG_ADDRESS } from "@groundhogchain/protocol";
+import { toHex0x } from "@thruputchain/client";
+import { ERC20 } from "@thruputchain/client/contracts";
+import type { ContractDeployment } from "@thruputchain/client/wallet";
+import { gasAmount, HOG_ADDRESS } from "@thruputchain/protocol";
 import { loadServerConfig } from "../server/config";
 import { Counter } from "../src/contracts/generated/counter";
 import { provisionCounter } from "./provision";
@@ -23,11 +23,11 @@ const mocks = vi.hoisted(() => ({
   executeAndWait: vi.fn(),
   deployContractAndWait: vi.fn(),
 }));
-vi.mock("@groundhogchain/client", async (original) => {
-  const sdk = await original<typeof import("@groundhogchain/client")>();
+vi.mock("@thruputchain/client", async (original) => {
+  const sdk = await original<typeof import("@thruputchain/client")>();
   return {
     ...sdk,
-    createGroundhogClient: vi.fn(async () => ({
+    createThruputClient: vi.fn(async () => ({
       getVersion: async () => ({ wireFormat: "5.0.0" }),
     })),
     createWalletClient: vi.fn(() => mocks),

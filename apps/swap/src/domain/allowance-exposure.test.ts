@@ -1,4 +1,4 @@
-import { contractAddress } from "@groundhogchain/protocol";
+import { contractAddress } from "@thruputchain/protocol";
 import { describe, expect, it } from "vitest";
 
 import type { AppConfig } from "@/config";

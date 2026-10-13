@@ -1,7 +1,7 @@
-use groundhog_xdr::storage_item::WireStorageItem;
 use sdk::call::RawCallError;
 use sdk::*;
 use standard_token::*;
+use thruput_xdr::storage_item::WireStorageItem;
 
 const DEPLOYER: ContractAddress = ContractAddress::new([0x10; 32]);
 const ADMIN: ContractAddress = ContractAddress::new([0x20; 32]);
@@ -578,19 +578,16 @@ fn factory_caller_has_no_implicit_mint_authority() {
 
 #[test]
 fn erc20_identity_comes_from_the_pinned_interface_crates() {
-    assert_eq!(ERC20Client::INTERFACE_VERSION, "0.1.52");
-    assert_eq!(ERC20MetadataClient::INTERFACE_VERSION, "0.1.52");
+    assert_eq!(ERC20Client::INTERFACE_VERSION, "0.1.55");
+    assert_eq!(ERC20MetadataClient::INTERFACE_VERSION, "0.1.55");
     assert_eq!(
         TransferEvent::SIGNATURE,
-        groundhog_erc20_if::TransferEvent::SIGNATURE
+        thruput_erc20_if::TransferEvent::SIGNATURE
     );
     let amount: Amount = i128::MAX;
     let difference: Difference = amount;
     assert_eq!(difference, i128::MAX);
-    assert_eq!(
-        ERC20Error::TooLarge,
-        groundhog_erc20_if::ERC20Error::TooLarge
-    );
+    assert_eq!(ERC20Error::TooLarge, thruput_erc20_if::ERC20Error::TooLarge);
 }
 
 #[test]

@@ -9,16 +9,16 @@ import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import {
   addressFromHex,
-  createGroundhogClient,
+  createThruputClient,
   HttpTransport,
   localnet,
   fromHex0x,
-} from "@groundhogchain/client";
-import { networkHash, sha256Hash } from "@groundhogchain/protocol";
-import { ERC20 } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client";
+import { networkHash, sha256Hash } from "@thruputchain/protocol";
+import { ERC20 } from "@thruputchain/client/contracts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapHandler } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
-import { createGroundhogRegistrySource } from "../../apps/token-launchpad/server/chain.ts";
+import { createThruputRegistrySource } from "../../apps/token-launchpad/server/chain.ts";
 import { RegistryStore } from "../../apps/token-launchpad/server/store.ts";
 import { RegistryIndexer } from "../../apps/token-launchpad/server/indexer.ts";
 import { createRegistryHttpServer } from "../../apps/token-launchpad/server/http.ts";
@@ -198,7 +198,7 @@ try {
     factoryAddress: launch.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!,
     tokenCodeHash: launch.VITE_STANDARD_TOKEN_HASH!,
   };
-  const source = await createGroundhogRegistrySource({
+  const source = await createThruputRegistrySource({
     rpcUrl: new URL(env.THRUPUT_RPC_URL!),
     scope,
   });
@@ -221,7 +221,7 @@ try {
     assert.equal(store.getStatus().lastError, null);
   }
   await startRegistry();
-  const client = await createGroundhogClient({
+  const client = await createThruputClient({
     cluster: localnet({
       rpcUrl: env.THRUPUT_RPC_URL!,
       networkHash: networkHash(

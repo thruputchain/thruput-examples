@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { Plugin } from "vite";
 import { loadServerConfig } from "./config.ts";
-import { createGroundhogRegistrySource } from "./chain.ts";
+import { createThruputRegistrySource } from "./chain.ts";
 import { createRegistryHttpServer } from "./http.ts";
 import { RegistryIndexer } from "./indexer.ts";
 import { RegistryStore } from "./store.ts";
@@ -28,7 +28,7 @@ export function developmentRegistry(
             `${environment.VITE_STANDARD_TOKEN_FACTORY_ADDRESS}.sqlite`,
           ),
       });
-      const source = await createGroundhogRegistrySource(config);
+      const source = await createThruputRegistrySource(config);
       await mkdir(path.dirname(config.databasePath), { recursive: true });
       const store = new RegistryStore(config.databasePath, config.scope);
       const indexer = new RegistryIndexer(store, source, {

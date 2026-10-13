@@ -1,6 +1,6 @@
-import type { GroundhogClient } from "@groundhogchain/client";
-import { contractAddress, sha256Hash } from "@groundhogchain/protocol";
-import { CxsWriter } from "@groundhogchain/xdr";
+import type { ThruputClient } from "@thruputchain/client";
+import { contractAddress, sha256Hash } from "@thruputchain/protocol";
+import { CxsWriter } from "@thruputchain/xdr";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
@@ -112,8 +112,8 @@ describe("liquidity observer", () => {
 });
 
 function rpcClient(
-  getEvents: Pick<GroundhogClient, "getEvents">["getEvents"],
-): Pick<GroundhogClient, "getEvents"> {
+  getEvents: Pick<ThruputClient, "getEvents">["getEvents"],
+): Pick<ThruputClient, "getEvents"> {
   return { getEvents };
 }
 

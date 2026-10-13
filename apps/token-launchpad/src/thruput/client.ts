@@ -1,26 +1,26 @@
 import {
-  createGroundhogClient,
+  createThruputClient,
   defineCluster,
   getNetworkInfo,
   hashFromHex,
   HttpTransport,
   toHex0x,
-  type GroundhogClient,
-  type ConnectedGroundhogClient,
-} from "@groundhogchain/client";
-import { networkHash } from "@groundhogchain/protocol";
+  type ThruputClient,
+  type ConnectedThruputClient,
+} from "@thruputchain/client";
+import { networkHash } from "@thruputchain/protocol";
 
 import type { AppConfig } from "@/config";
 
 export function createReadClient(
   config: Pick<AppConfig, "rpcUrl" | "networkIdHex">,
-): Promise<ConnectedGroundhogClient> {
+): Promise<ConnectedThruputClient> {
   const target = config.rpcUrl.href;
   const transport = new HttpTransport(target, {
     fetch: (...args) => globalThis.fetch(...args),
     timeoutMs: 10_000,
   });
-  return createGroundhogClient({
+  return createThruputClient({
     cluster: defineCluster({
       name: "launchpad",
       rpcUrl: target,
@@ -43,7 +43,7 @@ export function createReadClient(
 }
 
 export async function assertExpectedNetwork(
-  client: Pick<GroundhogClient, "getNetworkInfo">,
+  client: Pick<ThruputClient, "getNetworkInfo">,
   expectedNetworkIdHex: string,
 ): Promise<void> {
   const network = await client.getNetworkInfo();

@@ -23,28 +23,28 @@
 //! contract-specific method calls and return decoding live in each contract's
 //! own test.
 
-use groundhog_contract_util::{NormalizedMethodSignature, contract_entrypoint_id};
-use groundhog_json_rpc_client::{GroundhogApiClient, HttpClient, HttpClientBuilder};
-use groundhog_json_rpc_types::block::{BlockInfo, ChainTip};
-use groundhog_json_rpc_types::events::{EventPage, EventQuery};
-use groundhog_json_rpc_types::hex::{Hex0x, HexBytes};
-use groundhog_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
-use groundhog_json_rpc_types::runtime_manifest::parse_runtime_manifest;
-use groundhog_json_rpc_types::transaction::{SchedulerTransactionError, TransactionStatus, TxHash};
-use groundhog_json_rpc_types::view::{RootInvocationOutput, ViewRequest, ViewResponse};
-use groundhog_signing::default_wallet::{
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
+use thruput_contract_util::{NormalizedMethodSignature, contract_entrypoint_id};
+use thruput_json_rpc_client::{GroundhogApiClient, HttpClient, HttpClientBuilder};
+use thruput_json_rpc_types::block::{BlockInfo, ChainTip};
+use thruput_json_rpc_types::events::{EventPage, EventQuery};
+use thruput_json_rpc_types::hex::{Hex0x, HexBytes};
+use thruput_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
+use thruput_json_rpc_types::runtime_manifest::parse_runtime_manifest;
+use thruput_json_rpc_types::transaction::{SchedulerTransactionError, TransactionStatus, TxHash};
+use thruput_json_rpc_types::view::{RootInvocationOutput, ViewRequest, ViewResponse};
+use thruput_signing::default_wallet::{
     BuildDefaultWalletCallTransaction, DEFAULT_WALLET_EXECUTE_ENTRYPOINT,
     build_default_wallet_call_transaction, decode_default_wallet_call_return,
 };
-use groundhog_signing::{
+use thruput_signing::{
     DEFAULT_PUBKEY_ACCOUNT_NONCE, DEFAULT_TX_GAS_LIMIT, LocalSigner, PubkeyAccount,
     SignTransactionParams, Signer, derive_default_dev_account_signer,
     sign_and_encode_transaction_hex,
 };
-use groundhog_xdr::contract::ContractEntrypointID;
-use groundhog_xdr::types::{ContractAddress, NetworkHash};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use thruput_xdr::contract::ContractEntrypointID;
+use thruput_xdr::types::{ContractAddress, NetworkHash};
 
 /// Default transaction expiry and receipt polling configuration.
 const DEFAULT_EXPIRY_OFFSET: i64 = 1_000;
@@ -275,6 +275,7 @@ impl Harness {
                 entrypoint: HexBytes(self.entrypoint_id(method).into_inner().to_vec()),
                 calldata: HexBytes(calldata),
                 caller: Some(Hex0x(self.wallet)),
+                auth_claim: None,
                 gas_limit: None,
                 min_height: None,
             })
@@ -301,10 +302,10 @@ impl Harness {
     /// Read one committed block when the selected backend implements historical lookup.
     pub async fn block(
         &self,
-        height: groundhog_json_rpc_types::BlockHeight,
+        height: thruput_json_rpc_types::BlockHeight,
     ) -> Result<Option<BlockInfo>, SubmissionError> {
         self.client()?
-            .get_block_by_number(groundhog_json_rpc_types::decimal::Decimal(height))
+            .get_block_by_number(thruput_json_rpc_types::decimal::Decimal(height))
             .await
             .map_err(|e| rpc_error("getBlockByNumber", e, None))
     }
@@ -694,7 +695,7 @@ mod tests {
     #[test]
     fn dropped_is_terminal_and_retry_can_remain_pending() {
         let error = SchedulerTransactionError::new(
-            groundhog_json_rpc_types::transaction::SchedulerTransactionErrorSource::Scheduler,
+            thruput_json_rpc_types::transaction::SchedulerTransactionErrorSource::Scheduler,
             7,
         );
         assert!(

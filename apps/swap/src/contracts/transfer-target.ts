@@ -1,4 +1,4 @@
-import { gasAmount, type ContractAddress, type Invocation } from "@groundhogchain/protocol";
+import { gasAmount, type ContractAddress, type Invocation } from "@thruputchain/protocol";
 
 import { ERC20 } from "@/contracts/generated/erc20";
 

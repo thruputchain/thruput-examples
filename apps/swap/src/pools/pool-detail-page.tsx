@@ -1,7 +1,7 @@
 import { AlertCircleIcon } from "lucide-react";
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import { useState } from "react";
-import { useClient } from "@groundhogchain/react";
+import { useClient } from "@thruputchain/react";
 import { Link } from "react-router-dom";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

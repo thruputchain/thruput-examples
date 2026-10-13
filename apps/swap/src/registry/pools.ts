@@ -1,8 +1,8 @@
 import {
   addressFromHex,
   toHex0x,
-  type CoreGroundhogClient,
-} from "@groundhogchain/client";
+  type CoreThruputClient,
+} from "@thruputchain/client";
 
 import type { GlobalConfig } from "@/config";
 import type { PoolDirectoryEntry } from "@/pools/pool-directory";
@@ -37,7 +37,7 @@ export function registryPoolsToEntries(
 export async function enrichRegistryPools(
   config: GlobalConfig,
   entries: readonly RegistryPoolEntry[],
-  client: Pick<CoreGroundhogClient, "view">,
+  client: Pick<CoreThruputClient, "view">,
   signal?: AbortSignal,
   readPool?: PoolReader,
 ): Promise<RegistryPoolEntry[]> {
@@ -77,7 +77,7 @@ export async function enrichRegistryPools(
 async function defaultPoolReader(
   config: GlobalConfig,
   pool: RegistryPool,
-  client: Pick<CoreGroundhogClient, "view">,
+  client: Pick<CoreThruputClient, "view">,
 ): Promise<PoolDirectoryEntry> {
   const poolConfig = await resolvePoolConfig({
     config,

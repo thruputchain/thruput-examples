@@ -3,10 +3,10 @@ import {
   bytesEqual,
   fixedBytes,
   fromHex0x,
-  type CoreGroundhogClient,
-} from "@groundhogchain/client";
-import { ExecResult, gasAmount, sha256Hash } from "@groundhogchain/protocol";
-import { decodeExecution } from "@groundhogchain/client/wallet";
+  type CoreThruputClient,
+} from "@thruputchain/client";
+import { ExecResult, gasAmount, sha256Hash } from "@thruputchain/protocol";
+import { decodeExecution } from "@thruputchain/client/wallet";
 
 import type { AppConfig } from "@/config";
 import { userErrorMessage } from "@/lib/errors";
@@ -14,7 +14,7 @@ import {
   StandardTokenFactory,
   standard_token_factory_if,
 } from "@/contracts/generated/standard-token-factory";
-import { ERC20, groundhog_erc20_if } from "@/contracts/generated/standard-token";
+import { ERC20, thruput_erc20_if } from "@/contracts/generated/standard-token";
 import { reviewFactory } from "@/contracts/launchpad-client";
 import {
   assertWorkflowScope,
@@ -35,13 +35,13 @@ import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 
 const TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 type TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
-const MintEvent = groundhog_erc20_if.v0_1.events.MintEvent;
+const MintEvent = thruput_erc20_if.v0_1.events.MintEvent;
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 
 export async function advanceWorkflow(input: {
   config: AppConfig;
-  client: CoreGroundhogClient;
+  client: CoreThruputClient;
   writer: WriteBoundary;
   workflowId: string;
   workflowRevision: number;

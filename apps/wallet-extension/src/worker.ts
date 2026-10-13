@@ -1,14 +1,14 @@
 import type {
   ProviderRequest,
   WalletSession,
-} from "@groundhogchain/client/provider";
+} from "@thruputchain/client/provider";
 import {
   addressFromHex,
   hashFromHex,
   deserializeSignedTransaction,
   toHex0x,
-} from "@groundhogchain/client";
-import { ExecResult } from "@groundhogchain/protocol";
+} from "@thruputchain/client";
+import { ExecResult } from "@thruputchain/protocol";
 import {
   decryptVault,
   encryptVault,

@@ -12,20 +12,20 @@ import { basename, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  createGroundhogClient,
+  createThruputClient,
   createWalletClient,
   fixedBytes,
   fromHex0x,
   hashContract,
   toHex0x,
-} from "@groundhogchain/client";
-import { ERC20 } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client";
+import { ERC20 } from "@thruputchain/client/contracts";
 import {
   ContractType,
   contractAddress,
   gasAmount,
   HOG_ADDRESS,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { SwapFactory } from "../contracts/generated/swap-factory";
 import { SwapRouter } from "../contracts/generated/swap-router";
 import { main, validateLocalRpcUrl } from "../../scripts/setup-local";
@@ -47,8 +47,8 @@ vi.mock("node:fs/promises", async (original) => ({
   rename: mocks.rename,
   link: mocks.link,
 }));
-vi.mock("@groundhogchain/client/wallet", async (original) => {
-  const sdk = await original<typeof import("@groundhogchain/client/wallet")>();
+vi.mock("@thruputchain/client/wallet", async (original) => {
+  const sdk = await original<typeof import("@thruputchain/client/wallet")>();
   return {
     ...sdk,
     prepareContractDeployment: (
@@ -59,9 +59,9 @@ vi.mock("@groundhogchain/client/wallet", async (original) => {
     }),
   };
 });
-vi.mock("@groundhogchain/client", async (original) => ({
-  ...(await original<typeof import("@groundhogchain/client")>()),
-  createGroundhogClient: vi.fn(async () => ({ getVersion: mocks.getVersion })),
+vi.mock("@thruputchain/client", async (original) => ({
+  ...(await original<typeof import("@thruputchain/client")>()),
+  createThruputClient: vi.fn(async () => ({ getVersion: mocks.getVersion })),
   createWalletClient: vi.fn(() => mocks),
 }));
 
@@ -170,7 +170,7 @@ describe("infrastructure-only swap provisioning", () => {
     vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"11".repeat(32)}`);
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "/unused-local-manifest.json");
     await setupDevnet();
-    expect(createGroundhogClient).toHaveBeenCalledWith(
+    expect(createThruputClient).toHaveBeenCalledWith(
       expect.objectContaining({
         cluster: expect.objectContaining({
           name: "devnet",
@@ -210,7 +210,7 @@ describe("infrastructure-only swap provisioning", () => {
         THRUPUT_NETWORK_ID: undefined,
       }),
     ).rejects.toThrow(/THRUPUT_NETWORK_ID/);
-    expect(createGroundhogClient).not.toHaveBeenCalled();
+    expect(createThruputClient).not.toHaveBeenCalled();
   });
   it("supplies the RPC default and resolves relative overrides from the repository root", async () => {
     const repositoryRoot = fileURLToPath(
@@ -436,7 +436,7 @@ describe("infrastructure-only swap provisioning", () => {
     );
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await main();
-    expect(createGroundhogClient).toHaveBeenCalledWith(
+    expect(createThruputClient).toHaveBeenCalledWith(
       expect.objectContaining({
         cluster: expect.objectContaining({ networkHash: new Uint8Array(32) }),
       }),

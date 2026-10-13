@@ -21,9 +21,9 @@
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },
   "dependencies": {
-    "@groundhogchain/client": "0.17.0",
-    "@groundhogchain/protocol": "0.13.0",
-    "@groundhogchain/xdr": "0.13.0"
+    "@thruputchain/client": "0.18.0",
+    "@thruputchain/protocol": "0.15.0",
+    "@thruputchain/xdr": "0.15.0"
   },
   "devDependencies": {
     "@types/node": "25.9.1",

@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { addressFromHex } from "@groundhogchain/client";
+import { addressFromHex } from "@thruputchain/client";
 import { TestProviders } from "@/test/render";
 const address = addressFromHex(`0x${"01".repeat(32)}`);
 const config = { rpcUrl: new URL("http://localhost"), networkIdHex: "00".repeat(32), accountAddress: address, factoryAddress: address, routerAddress: address, nativeHogAddress: address, handlerAddress: address, driverAddress: address, liquidityTokenAddress: address, tokenAAddress: address, tokenBAddress: address, tokenASymbol: "A", tokenBSymbol: "B", tokenADecimals: 7, tokenBDecimals: 7 };

@@ -8,7 +8,7 @@ import { developmentRegistry } from "./development";
 import { RegistryStore } from "./store";
 
 vi.mock("./chain", () => ({
-  createGroundhogRegistrySource: async () => ({
+  createThruputRegistrySource: async () => ({
     verifyNetworkIdentity: async () => {},
     getPage: async () => ({
       tokens: [],

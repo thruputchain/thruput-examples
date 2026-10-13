@@ -1,5 +1,5 @@
-import type { TransactionReceipt } from "@groundhogchain/client";
-import type { ContractCall } from "@groundhogchain/client/contract";
+import type { TransactionReceipt } from "@thruputchain/client";
+import type { ContractCall } from "@thruputchain/client/contract";
 
 export type WriteResult =
   | { kind: "preSubmissionFailure"; hash: null; message: string }

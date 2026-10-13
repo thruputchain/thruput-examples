@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import {
   addressFromHex,
-  createGroundhogClient,
+  createThruputClient,
   createPubkeyAccount,
   createWalletClient,
   fixedBytes,
@@ -17,8 +17,8 @@ import {
   localnet,
   PrivateKeySigner,
   toHex0x,
-} from "@groundhogchain/client";
-import { DefaultWallet } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client";
+import { DefaultWallet } from "@thruputchain/client/contracts";
 import {
   ContractType,
   ExecResult,
@@ -26,7 +26,7 @@ import {
   HOG_ADDRESS,
   type Contract,
   type Invocation,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { StandardTokenFactory } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
 import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20.ts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
@@ -146,7 +146,7 @@ try {
     assert.equal(setup.child.exitCode, 0, setup.output());
     configs[app!] = parseEnv(await readFile(output, "utf8"));
   }
-  const client = await createGroundhogClient({
+  const client = await createThruputClient({
     cluster: localnet({ rpcUrl }),
     transport: new HttpTransport(rpcUrl),
   });
@@ -159,6 +159,12 @@ try {
   const tokenFactory = addressFromHex(
     configs["token-launchpad"]!.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!,
   );
+  const tokenFunding = (
+    await StandardTokenFactory.v0_1.requiredTokenFunding.view({
+      client,
+      contract: tokenFactory,
+    })
+  ).value + BigInt(configs["token-launchpad"]!.VITE_NATIVE_BALANCE_ITEM_COST!);
   const swapFactory = addressFromHex(configs.swap!.VITE_SWAP_FACTORY_ADDRESS!);
   const router = addressFromHex(configs.swap!.VITE_SWAP_ROUTER_ADDRESS!);
   async function code(name: string): Promise<Contract> {
@@ -217,7 +223,7 @@ try {
     [
       ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: rollbackAddress,
-        amount: 1_000_000n,
+        amount: tokenFunding,
       }),
       StandardTokenFactory.v0_1.createToken.invocation(tokenFactory, gas, {
         nonce: invalidNonce,
@@ -239,7 +245,7 @@ try {
     [
       ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: rollbackAddress,
-        amount: 1_000_000n,
+        amount: tokenFunding,
       }),
       StandardTokenFactory.v0_1.createToken.invocation(tokenFactory, gas, {
         nonce: invalidNonce,
@@ -276,7 +282,7 @@ try {
     ).value;
     const funding = ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
       receiver: predicted,
-      amount: 1_000_000n,
+      amount: tokenFunding,
     });
     const creation = StandardTokenFactory.v0_1.createToken.invocation(
       tokenFactory,

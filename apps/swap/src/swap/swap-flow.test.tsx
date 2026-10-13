@@ -1,4 +1,4 @@
-import { contractAddress, ExecResult, sha256Hash } from "@groundhogchain/protocol";
+import { contractAddress, ExecResult, sha256Hash } from "@thruputchain/protocol";
 import { act, render, screen, waitFor, within } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";

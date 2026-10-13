@@ -1,6 +1,6 @@
 [target.riscv32im-unknown-none-elf]
 rustflags = [
-    # The Groundhog rv32 VM permits unaligned data loads/stores, so let LLVM
+    # The Thruput rv32 VM permits unaligned data loads/stores, so let LLVM
     # emit them directly instead of byte-wise expansions. `relax` emits
     # R_RISCV_RELAX relocations so lld folds auipc+jalr call pairs into single
     # `jal` (smaller code and one fewer executed instruction per relaxed
@@ -25,7 +25,7 @@ rustflags = [
     # anchor. lld needs this explicit opt-in (GNU ld relaxes gp by default;
     # lld deliberately does not).
     "-C", "link-arg=--relax-gp",
-    # The Groundhog rv32 VM admits the canonical `unimp` trap, so panic sites
+    # The Thruput rv32 VM admits the canonical `unimp` trap, so panic sites
     # compile straight to the trap instruction instead of routing through the
     # SDK panic handler, stripping the panic-formatting machinery by
     # construction. Requires unstable-options, and `-Zbuild-std` so `core` is
@@ -35,7 +35,7 @@ rustflags = [
     "-C", "panic=immediate-abort",
     "-C", "relocation-model=static",
     # LLVM pads unreachable code (after Return/Exit/Abort -> ! syscalls) with
-    # `unimp` (= csrrw x0, cycle, x0), a CSR op the Groundhog RV32IM profile
+    # `unimp` (= csrrw x0, cycle, x0), a CSR op the Thruput RV32IM profile
     # rejects, so artifact validation would reject every such call site.
     # Disable the safety pad.
     "-Z", "trap-unreachable=false",

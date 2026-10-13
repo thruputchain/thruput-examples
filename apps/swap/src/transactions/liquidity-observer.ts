@@ -2,9 +2,9 @@ import {
   bytesEqual,
   toHex0x,
   type EventPage,
-  type GroundhogClient,
+  type ThruputClient,
   type IdentifiedEvent,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 
 import type { AppConfig } from "@/config";
 import { batch_driver } from "@/contracts/generated/swap-driver";
@@ -23,7 +23,7 @@ export interface LiquidityObserver {
 
 export function createLiquidityObserver(
   config: AppConfig,
-  client: Pick<GroundhogClient, "getEvents">,
+  client: Pick<ThruputClient, "getEvents">,
 ): LiquidityObserver {
   return {
     async scan(operation) {

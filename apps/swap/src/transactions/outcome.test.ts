@@ -1,5 +1,5 @@
-import type { TransactionStatus } from "@groundhogchain/client";
-import { ExecResult, sha256Hash } from "@groundhogchain/protocol";
+import type { TransactionStatus } from "@thruputchain/client";
+import { ExecResult, sha256Hash } from "@thruputchain/protocol";
 import { describe, expect, it } from "vitest";
 
 import { outcomeFromReceipt, outcomeFromStatus } from "./outcome";

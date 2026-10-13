@@ -6,10 +6,10 @@ import {
   toHex0x,
   type EventPage,
   type FixedBytes,
-  type GroundhogClient,
+  type ThruputClient,
   type IdentifiedEvent,
   type TransactionReceipt,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 
 import type { AppConfig } from "@/config";
 import { requestFailureMessage } from "@/contracts/failure-message";
@@ -67,7 +67,7 @@ export interface RequestObservationBatch {
 
 export function createRequestObserver(
   config: AppConfig,
-  client: Pick<GroundhogClient, "getEvents">,
+  client: Pick<ThruputClient, "getEvents">,
 ): RequestObserver {
   const scanAll = async (
     requests: readonly RequestRecord[],

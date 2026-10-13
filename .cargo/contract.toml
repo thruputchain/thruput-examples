@@ -1,4 +1,4 @@
-# CLI-only overlay. `groundhog build` passes this as
+# CLI-only overlay. `thruput build` passes this as
 # `cargo --config .cargo/contract.toml` for rv32 builds.
 #
 # DO NOT add [target.*] rustflags here. Cargo JOINS target-rustflags arrays

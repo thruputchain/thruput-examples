@@ -1,5 +1,5 @@
-import type { TransactionReceipt } from "@groundhogchain/client";
-import type { Invocation } from "@groundhogchain/protocol";
+import type { TransactionReceipt } from "@thruputchain/client";
+import type { Invocation } from "@thruputchain/protocol";
 
 export type WriteResult =
   | { kind: "preSubmissionFailure"; hash: null; message: string }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { contractAddress } from "@groundhogchain/protocol";
+import { contractAddress } from "@thruputchain/protocol";
 import { createReadClient, NetworkMismatchError, verifyReadNetwork } from "./client";
 
 afterEach(() => vi.restoreAllMocks());

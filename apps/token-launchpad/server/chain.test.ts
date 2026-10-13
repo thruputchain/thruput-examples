@@ -3,14 +3,14 @@
 import {
   addressFromHex,
   fixedBytes,
-  GroundhogRpcErrorCode,
+  ThruputRpcErrorCode,
   hashFromHex,
   JsonRpcError,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  GroundhogRegistrySource,
+  ThruputRegistrySource,
   RegistryCursorRejectedError,
   RegistryIntegrityError,
   RegistryScopeVerificationError,
@@ -42,7 +42,7 @@ beforeEach(() => {
 
 afterEach(() => vi.restoreAllMocks());
 
-describe("GroundhogRegistrySource", () => {
+describe("ThruputRegistrySource", () => {
   it.each(["before scan", "during page", "empty page", "no new blocks"])(
     "halts without committing when the network changes: %s",
     async (timing) => {
@@ -65,7 +65,7 @@ describe("GroundhogRegistrySource", () => {
           token_code_hash: factoryConfig(0x33).token_code_hash,
         },
       });
-      const source = new GroundhogRegistrySource(client, scope);
+      const source = new ThruputRegistrySource(client, scope);
       await source.verifyNetworkIdentity(new AbortController().signal);
       await source.verifyScope();
       const switchNetwork = () =>
@@ -149,7 +149,7 @@ describe("GroundhogRegistrySource", () => {
       });
       const indexer = new RegistryIndexer(
         store,
-        new GroundhogRegistrySource(client, scope),
+        new ThruputRegistrySource(client, scope),
         {
           pageSize: 20,
           syncIntervalMs: 60_000,
@@ -181,7 +181,7 @@ describe("GroundhogRegistrySource", () => {
     });
 
     await expect(
-      new GroundhogRegistrySource(client, scope).verifyScope(),
+      new ThruputRegistrySource(client, scope).verifyScope(),
     ).resolves.toBeUndefined();
   });
 
@@ -194,7 +194,7 @@ describe("GroundhogRegistrySource", () => {
     });
 
     await expect(
-      new GroundhogRegistrySource(client, scope).verifyScope(),
+      new ThruputRegistrySource(client, scope).verifyScope(),
     ).rejects.toBeInstanceOf(RegistryScopeVerificationError);
   });
 
@@ -226,7 +226,7 @@ describe("GroundhogRegistrySource", () => {
     });
 
     await expect(
-      new GroundhogRegistrySource(client, scope).getPage({
+      new ThruputRegistrySource(client, scope).getPage({
         anchorBlock: "1",
         cursor: null,
         limit: 20,
@@ -259,7 +259,7 @@ describe("GroundhogRegistrySource", () => {
       oldestBlock: 2n,
     });
 
-    const result = await new GroundhogRegistrySource(client, scope).getPage({
+    const result = await new ThruputRegistrySource(client, scope).getPage({
       anchorBlock: "2",
       cursor: null,
       limit: 20,
@@ -291,9 +291,9 @@ describe("GroundhogRegistrySource", () => {
 
   it("classifies only invalid supplied cursors as cursor rejection", async () => {
     client.getEvents.mockRejectedValueOnce(
-      new JsonRpcError(GroundhogRpcErrorCode.InvalidParams, "invalid cursor"),
+      new JsonRpcError(ThruputRpcErrorCode.InvalidParams, "invalid cursor"),
     );
-    const source = new GroundhogRegistrySource(client, scope);
+    const source = new ThruputRegistrySource(client, scope);
 
     await expect(
       source.getPage({
@@ -318,7 +318,7 @@ describe("GroundhogRegistrySource", () => {
   it("passes the request abort signal to the event requester", async () => {
     const controller = new AbortController();
     const getEvents = vi.fn().mockRejectedValue(new Error("aborted"));
-    const source = new GroundhogRegistrySource(client, scope, getEvents);
+    const source = new ThruputRegistrySource(client, scope, getEvents);
 
     await source
       .getPage({

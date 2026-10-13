@@ -1,11 +1,11 @@
-import { contractAddress } from "@groundhogchain/protocol";
+import { contractAddress } from "@thruputchain/protocol";
 import {
   CxsWriter,
   OptionCodec,
   Uint128Codec,
   Uint32Codec,
   type XdrCodec,
-} from "@groundhogchain/xdr";
+} from "@thruputchain/xdr";
 import { describe, expect, it, vi } from "vitest";
 
 import { createErc20ReadAdapter } from "./erc20-adapter";

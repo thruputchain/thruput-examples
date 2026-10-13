@@ -1,4 +1,4 @@
-import { fixedBytes } from "@groundhogchain/client";
+import { fixedBytes } from "@thruputchain/client";
 import { AppProviders } from "@/app-providers";
 import { testClient } from "@/test/wallet";
 import { act, fireEvent, render, screen, waitFor, within } from "@/test/render";

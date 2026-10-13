@@ -11,7 +11,6 @@
 
 sdk::declare_mock_contract!();
 
-use groundhog_erc20_if::{CONTRACT_ADDR_ZERO, ERC20Client};
 use sdk::storage::Value;
 use sdk::*;
 pub use stellar_account_factory_if::{
@@ -19,6 +18,7 @@ pub use stellar_account_factory_if::{
     StellarAccountFactoryClient, StellarAccountInitializerClient, account_address,
     deployment_nonce,
 };
+use thruput_erc20_if::{CONTRACT_ADDR_ZERO, ERC20Client};
 
 #[sdk::storage]
 pub struct StellarAccountFactoryContract {

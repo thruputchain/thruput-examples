@@ -1,4 +1,4 @@
-import { bytesEqual, fromHex0x } from "@groundhogchain/client";
+import { bytesEqual, fromHex0x } from "@thruputchain/client";
 import { swap_if } from "./generated/swap-handler";
 
 const BaseMint = swap_if.v0_1.events.LiquidityMintEvent;

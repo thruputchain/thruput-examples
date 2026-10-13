@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { createServer } from "vite";
-import { PrivateKeySigner, toHex0x } from "@groundhogchain/client";
-import { createPubkeyAccount } from "@groundhogchain/client/wallet";
+import { PrivateKeySigner, toHex0x } from "@thruputchain/client";
+import { createPubkeyAccount } from "@thruputchain/client/wallet";
 
 // UI-only fixtures: no ledger, wallet credentials, upstream service, or signing.
 const hex = (byte) => `0x${byte.repeat(32)}`;

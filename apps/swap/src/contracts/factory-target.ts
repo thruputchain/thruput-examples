@@ -1,4 +1,4 @@
-import { gasAmount, type ContractAddress, type Invocation } from "@groundhogchain/protocol";
+import { gasAmount, type ContractAddress, type Invocation } from "@thruputchain/protocol";
 
 import { SwapFactory } from "@/contracts/generated/swap-factory";
 

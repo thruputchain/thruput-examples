@@ -1,6 +1,5 @@
 //! The account contract: storage, authorization preamble, entry points.
 
-use groundhog_erc20_if::{Amount, ERC20Client};
 use sdk::call::{CallOutcome, ReturnBuf, contract_call};
 use sdk::storage::Value;
 use sdk::sys::{SyscallErrorCode, SyscallNo};
@@ -8,6 +7,7 @@ use sdk::*;
 use stellar_account_factory_if::{
     AccountInitError, StellarAccountFactoryClient, StellarAccountInitializer, account_address,
 };
+use thruput_erc20_if::{Amount, ERC20Client};
 
 // `AccountError` is imported because the `throws = AccountError` macro attribute references it by
 // name in generated code; `SignerChanged`/`ThresholdsChanged` are imported because the `log_event`

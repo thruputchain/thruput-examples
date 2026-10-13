@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import type { CreatedToken } from "@/registry/tokens";
 import { formatUnits } from "@/launch/form";
-import { useTokenBalance } from "@groundhogchain/react";
+import { useTokenBalance } from "@thruputchain/react";
 
 export function TokenCards({
   tokens,

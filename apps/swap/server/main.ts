@@ -2,7 +2,7 @@ import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createGroundhogRegistrySource } from "./chain.ts";
+import { createThruputRegistrySource } from "./chain.ts";
 import { loadServerConfig, ServerConfigurationError } from "./config.ts";
 import { createRegistryHttpServer } from "./http.ts";
 import { RegistryIndexer } from "./indexer.ts";
@@ -34,7 +34,7 @@ export async function start(
   }
 
   // Verify the configured source before creating or opening deployment state.
-  const source = await createGroundhogRegistrySource(config);
+  const source = await createThruputRegistrySource(config);
   const browserConfig = publicConfig(process.env);
   await mkdir(path.dirname(config.databasePath), { recursive: true });
   const store = new RegistryStore(config.databasePath, config.scope);

@@ -1,6 +1,6 @@
-import { fromHex0x } from "@groundhogchain/client";
-import { contractAddress } from "@groundhogchain/protocol";
-import { CxsWriter, Uint128Codec } from "@groundhogchain/xdr";
+import { fromHex0x } from "@thruputchain/client";
+import { contractAddress } from "@thruputchain/protocol";
+import { CxsWriter, Uint128Codec } from "@thruputchain/xdr";
 import { describe, expect, it } from "vitest";
 import { LiquidityMintEvent, LiquidityBurnEvent } from "./liquidity-events";
 

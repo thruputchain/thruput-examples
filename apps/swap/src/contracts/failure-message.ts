@@ -1,5 +1,5 @@
-import type { TransactionReceipt } from "@groundhogchain/client";
-import { CxsWriter, Uint64Codec } from "@groundhogchain/xdr";
+import type { TransactionReceipt } from "@thruputchain/client";
+import { CxsWriter, Uint64Codec } from "@thruputchain/xdr";
 
 import { ERC20 } from "@/contracts/generated/erc20";
 import { SwapDriver, batch_driver } from "@/contracts/generated/swap-driver";

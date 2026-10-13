@@ -1,14 +1,14 @@
 import {
-  createGroundhogClient,
+  createThruputClient,
   HttpTransport,
   addressFromHex,
   defaultWalletAdapter,
   prepareTransaction,
   serializeTransaction,
   toHex0x,
-} from "@groundhogchain/client";
-import { ERC20, ERC20Metadata } from "@groundhogchain/client/contracts";
-import { gasAmount } from "@groundhogchain/protocol";
+} from "@thruputchain/client";
+import { ERC20, ERC20Metadata } from "@thruputchain/client/contracts";
+import { gasAmount } from "@thruputchain/protocol";
 import { accountOf, type SecretAccount } from "./vault";
 export const NETWORKS = {
   localnet: "http://127.0.0.1:9545",
@@ -27,7 +27,7 @@ export interface Token {
 }
 export const nativeToken: Token = { address: HOG, symbol: "HOG", decimals: 7 };
 export function clientFor(network: Network) {
-  return createGroundhogClient({
+  return createThruputClient({
     transport: new HttpTransport(NETWORKS[network], { timeoutMs: 15000 }),
   });
 }

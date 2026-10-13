@@ -1,7 +1,6 @@
 //! Tests for the swap factory: one-transaction pool bring-up, the pair registry, and the protocol
 //! fee flowing to the factory's `fee_to`.
 
-use groundhog_erc20_if::{Difference, ERC20Client};
 use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use sdk::storage::Node;
 use sdk::*;
@@ -10,6 +9,7 @@ use swap_handler::SwapHandlerClient;
 use swap_if::SwapHashes;
 use swap_pair::Pair;
 use swap_pair::u256::U256;
+use thruput_erc20_if::{Difference, ERC20Client};
 
 hash_ident! { pub static DEPLOYER: ContractAddress; }
 hash_ident! { pub static FEE_ADDR: ContractAddress; }

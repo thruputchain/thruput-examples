@@ -9,13 +9,13 @@ import {
   PrivateKeySigner,
   toHex0x,
   type TransactionReceipt,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   createTransaction,
   serializeSignedTransaction,
   signTransaction,
-} from "@groundhogchain/client/transaction";
-import { ERC20 } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client/transaction";
+import { ERC20 } from "@thruputchain/client/contracts";
 import {
   blockHeight,
   ExecResult,
@@ -23,7 +23,7 @@ import {
   HOG_ADDRESS,
   networkHash,
   sha256Hash,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { executeStep, saveJson, type SeedJournal } from "./seed-journal.ts";
 import { assertScope, readSeedEnvironment } from "./seed.ts";
 

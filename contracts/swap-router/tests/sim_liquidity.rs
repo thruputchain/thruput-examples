@@ -2,7 +2,7 @@
 //!
 //! Unlike the native `test_transaction!` tests (which run against the SDK's
 //! in-process executor), this drives the real contracts on a live local
-//! `hog-devnode` using `groundhog-testkit`.
+//! `hog-devnode` using `thruput-testkit`.
 //!
 //! An `admin` agent deploys the factory and router, has the factory create the
 //! pool and then primes it through the router with `add_liquidity`. The admin
@@ -18,16 +18,16 @@
 //! ```shell
 //! cd groundhog-examples
 //! for c in erc20 swap-handler swap-driver swap-router swap-factory; do thruput build -p "$c"; done
-//! RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
+//! RUST_LOG="thruput_node_supervisor=info,hogd_dev=info" \
 //! THRUPUT_TESTKIT_ARTIFACT_ROOT=/path/to/target/thruput \
 //!     cargo test -p swap-router --test sim_liquidity -- --ignored --no-capture
 //! ```
 
 use std::path::PathBuf;
 
-use groundhog_erc20_if::Amount;
-use groundhog_testkit::xdr::types::ContractAddress;
-use groundhog_testkit::{Agent, Contract, LocalNetworkConfig, NetworkConfig, Scenario};
+use thruput_erc20_if::Amount;
+use thruput_testkit::xdr::types::ContractAddress;
+use thruput_testkit::{Agent, Contract, LocalNetworkConfig, NetworkConfig, Scenario};
 
 // An alias to match the contracts' `Address` type.
 pub type Address = ContractAddress;
@@ -64,10 +64,10 @@ fn liquidity_provider(name: &str) -> Agent {
 
         // Allow the request handler to pull our A/B tokens when the request runs.
         token0
-            .call(&mut ctx, "adjust_allowance", &(cfg.handler, USER_LIQUIDITY))
+            .call(&ctx, "adjust_allowance", &(cfg.handler, USER_LIQUIDITY))
             .await?;
         token1
-            .call(&mut ctx, "adjust_allowance", &(cfg.handler, USER_LIQUIDITY))
+            .call(&ctx, "adjust_allowance", &(cfg.handler, USER_LIQUIDITY))
             .await?;
 
         // Submit an add-liquidity request (executed below, by the driver),
@@ -76,7 +76,7 @@ fn liquidity_provider(name: &str) -> Agent {
         let min: [Amount; 2] = [0, 0];
         router
             .call(
-                &mut ctx,
+                &ctx,
                 "add_liquidity",
                 &(cfg.token0, cfg.token1, desired, min, me),
             )
@@ -123,10 +123,10 @@ fn admin() -> Agent {
         let config = LPConfig::of(&s);
         for (name, addr) in &providers {
             s.token0
-                .call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY))
+                .call(&ctx, "mint", &(*addr, USER_LIQUIDITY))
                 .await?;
             s.token1
-                .call(&mut ctx, "mint", &(*addr, USER_LIQUIDITY))
+                .call(&ctx, "mint", &(*addr, USER_LIQUIDITY))
                 .await?;
             ctx.send(name, &config)?;
         }
@@ -141,7 +141,7 @@ fn admin() -> Agent {
         // Drive the queue, processing the providers' add-liquidity requests
         let (processed, failed): (u32, u32) = s
             .driver
-            .call_returning(&mut ctx, "process_requests", &())
+            .call_returning(&ctx, "process_requests", &())
             .await?;
         assert_eq!(
             (processed, failed),
@@ -179,7 +179,7 @@ async fn swap_liquidity_multi_agent() {
         config.hog_devnode_binary = Some(bin.into());
     }
     if std::env::var("RUST_LOG").is_ok() {
-        config.log_level = Some(groundhog_testkit::LogLevel::Info);
+        config.log_level = Some(thruput_testkit::LogLevel::Info);
     }
 
     let scenario = Scenario::builder("swap-sim")

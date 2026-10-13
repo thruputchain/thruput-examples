@@ -7,7 +7,7 @@ import { parseEnv } from "node:util";
 import {
   addressFromHex,
   bytesEqual,
-  createGroundhogClient,
+  createThruputClient,
   createPubkeyAccount,
   createWalletClient,
   fixedBytes,
@@ -16,7 +16,7 @@ import {
   localnet,
   PrivateKeySigner,
   toHex0x,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   codec,
   serialize,
@@ -28,7 +28,7 @@ import {
   type Contract,
   type ContractAddress,
   type Invocation,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import {
   StandardTokenFactory,
 } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
@@ -151,7 +151,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     const scope = JSON.stringify(tokenScope);
     context =
       "verify live network and launchpad registry; start the registry for this setup before seeding";
-    const client = await createGroundhogClient({
+    const client = await createThruputClient({
       cluster: localnet({
         rpcUrl,
         networkHash: networkHash(sha256Hash(fromHex0x(network))),

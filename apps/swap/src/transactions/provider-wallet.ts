@@ -1,18 +1,18 @@
 import {
   hashFromHex,
   toHex0x,
-  type CoreGroundhogClient,
-} from "@groundhogchain/client";
+  type CoreThruputClient,
+} from "@thruputchain/client";
 import {
   submitAndObserve,
   walletGasLimit,
   type ProviderWalletClient,
-} from "@groundhogchain/client/wallet";
+} from "@thruputchain/client/wallet";
 import {
   gasAmount,
   networkHash,
   type Invocation,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import type { GlobalConfig } from "@/config";
 import { verifyReadNetwork } from "@/thruput/client";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
@@ -32,7 +32,7 @@ const WALLET_OVERHEAD_GAS = 5_000_000n;
 
 export function createProviderWriteBoundary(
   config: GlobalConfig,
-  client: CoreGroundhogClient,
+  client: CoreThruputClient,
   wallet?: ProviderWalletClient,
   options: {
     loadArtifact?: typeof fetchPoolTokenArtifact;

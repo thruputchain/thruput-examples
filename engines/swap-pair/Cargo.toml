@@ -16,8 +16,8 @@ test = false # suppress output from our zero unit-tests
 
 [dependencies]
 sdk = { workspace = true }
-groundhog-erc20-if = { workspace = true }
-groundhog-erc20-controls-if = { workspace = true }
+thruput-erc20-if = { workspace = true }
+thruput-erc20-controls-if = { workspace = true }
 swap-if = { path = "../../interfaces/swap-if" }
 heapless = { workspace = true }
 

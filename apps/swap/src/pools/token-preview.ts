@@ -1,11 +1,11 @@
 import {
   addressFromHex,
   toHex0x,
-  type CoreGroundhogClient,
-  type ConnectedGroundhogClient,
-} from "@groundhogchain/client";
+  type CoreThruputClient,
+  type ConnectedThruputClient,
+} from "@thruputchain/client";
 import { useQuery, skipToken } from "@tanstack/react-query";
-import { getClientQueryKey } from "@groundhogchain/react";
+import { getClientQueryKey } from "@thruputchain/react";
 
 import type { GlobalConfig } from "@/config";
 import {
@@ -22,7 +22,7 @@ export async function readTokenPreview(
   config: GlobalConfig,
   address: string,
   signal: AbortSignal,
-  client: Pick<CoreGroundhogClient, "view" | "getNetworkInfo">,
+  client: Pick<CoreThruputClient, "view" | "getNetworkInfo">,
 ): Promise<TokenMetadata> {
   await verifyReadNetwork(client, config);
   signal.throwIfAborted();
@@ -47,7 +47,7 @@ type Preview =
 export function useTokenPreview(
   config: GlobalConfig,
   value: string,
-  client: ConnectedGroundhogClient,
+  client: ConnectedThruputClient,
 ) {
   const address = tokenAddress(value);
   const result = useQuery({

@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { createRoot } from "react-dom/client";
-import type { WalletAccount } from "@groundhogchain/client/provider";
+import type { WalletAccount } from "@thruputchain/client/provider";
 import type { TransactionReview } from "./transactions";
 import type { Network, Token } from "./network";
 import {

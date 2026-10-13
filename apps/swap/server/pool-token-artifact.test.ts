@@ -10,8 +10,8 @@ import {
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { hashContract, toHex0x } from "@groundhogchain/client";
-import { ContractType } from "@groundhogchain/protocol";
+import { hashContract, toHex0x } from "@thruputchain/client";
+import { ContractType } from "@thruputchain/protocol";
 import { build } from "vite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import viteConfig from "../vite.config.ts";

@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   publish:
-    if: github.repository == 'groundhogchain/groundhog-examples' && github.ref == 'refs/heads/main'
+    if: github.repository == 'thruputchain/thruput-examples' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -39,7 +39,7 @@ jobs:
         with:
           node-version: '22'
           registry-url: https://npm.pkg.github.com
-          scope: '@groundhogchain'
+          scope: '@thruputchain'
           cache: npm
           cache-dependency-path: apps/wallet-extension/package-lock.json
       - name: Install dependencies

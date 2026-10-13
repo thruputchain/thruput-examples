@@ -1,5 +1,5 @@
-import { addressFromHex, toHex0x } from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
+import { addressFromHex, toHex0x } from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
 
 import { orderTokens } from "@/domain/tokens";
 

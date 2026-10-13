@@ -3,7 +3,7 @@ import {
   fromHex0x,
   PrivateKeySigner,
   toHex0x,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   hex32,
   parseConfig,

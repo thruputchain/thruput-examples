@@ -2,23 +2,43 @@
 
 ## Current implementation scope
 
-The package-scope migration below is deferred until the upstream releases are
-published. The examples now use the published `@groundhogchain/client@0.17.0`
-and React `0.4.0`, with the client's matching protocol family at `0.13.0`.
-The decimal-string fix was already released in client `0.17.0` on October 9;
-the local failure came from stale client `0.10.0` files in `node_modules`.
-A clean `npm ci` resolved that mismatch.
+The app and wallet package-scope migration now uses the published
+`@thruputchain/client@0.18.0`, `@thruputchain/react@0.5.0`, and protocol,
+XDR, and contract-spec `0.15.0`. CLI `0.29.0` regenerates the bindings with
+the new imports and manages hog-devnode `0.1.31-rc.3` for live app checks.
+The Rust workspace uses SDK `0.51.0`, interface crates `0.1.55`, protocol
+crates `0.54.0`, and CLI/RPC/testkit `0.29.0`. Rebuilt contracts pass seeding
+and batching against rc.3; the older SDK-built contracts failed token creation
+on that runtime. The client source is now in `thruputchain/thruput-sdk-ts`, protocol sources
+are in `thruputchain/thruput-protocol-ts`, and this repository is
+`thruputchain/thruput-examples`.
+
+The original decimal-string failure came from stale client `0.10.0` files
+in `node_modules`; that fix was already published in client `0.17.0`.
 
 The current changes rename application configuration to `THRUPUT_*` and
 `VITE_THRUPUT_*`, the browser proxy to `/thruput-rpc`, SDK integration folders to
 `src/thruput/`, and app package names and visible copy. Existing wallet vaults,
-workflow keys, SDK symbols, and wire identifiers retain their current names.
+workflow keys and wire identifiers retain their current names. SDK factories,
+types, and error symbols use the new Thruput names.
 The historical `tests/token-factory-ts` harness retains its separately pinned
 CLI, runtime, and artifact hashes; its modernization remains separate work.
 
-Live checks also identified and fixed initial-mint event verification, insufficient
-local token storage headroom, and numeric-only event-height validation in the
-Swap proxy. The real wallet journey passes all 20 local/production checks.
+The first implementation pass also fixed initial-mint event verification,
+insufficient local token storage headroom, and numeric-only event-height
+validation in the Swap proxy. Its wallet journey passed all 20 local/production
+checks. The migrated stack also passes all 20 wallet local/production checks,
+native Rust tests, guest contract builds, RPC integration tests, seeding,
+batching, and live Counter tests.
+
+Remaining external configuration: package Actions access for the moved examples
+repository, existing CI secrets and runner access, and the wallet download AWS
+role's OIDC trust subject. The SDK still ships `groundhog-rv32.ld`, so that linker
+filename remains unchanged. Dependency policy is blocked by the upstream
+`unsafe-libyaml` advisory RUSTSEC-2024-0449 through `thruput-xdr-macros@0.54.0`;
+no advisory exception has been added.
+
+The sections below preserve the original review and migration plan from October 12.
 
 ## Goal
 
@@ -26,7 +46,7 @@ Upgrade the examples to the published `@thruputchain/*` packages, support the cu
 
 Deliver the migration in reviewable stages. Start with a verified dependency and toolchain set, then update consumers, persistent state, Rust integration, and documentation. A global text replacement alone would break several runtime interfaces.
 
-## Review findings
+## Original review findings
 
 - The root npm workspace contains Counter, Swap, and Token Launchpad. It currently pins client `0.17.0`, protocol/XDR/contract-spec `0.13.0` where used, and React integration `0.4.0` in Swap and Launchpad.
 - The wallet extension has a separate install and lockfile. `tests/token-factory-ts` is another separate install, with much older client `0.4.0` and protocol-family `0.8.0` dependencies. Root workspace commands do not cover these packages.
@@ -38,7 +58,7 @@ Deliver the migration in reviewable stages. Start with a verified dependency and
 - Rust dependencies include many `groundhog-*` crates. The workspace pins SDK `0.49.0`, CLI/RPC/testkit `0.27.0`, and protocol crates `0.51.0`. The linker configuration names `groundhog-rv32.ld`.
 - CI references the old GitHub organization, a `GROUNDHOG_REGISTRY_TOKEN` secret, an old repository identity, and an existing release bucket. These are external resources, not just labels.
 
-### Package verification is still open
+### Package access at the time of the original review
 
 During this review, `npm view @thruputchain/client` returned 404 from both GitHub Packages and npmjs. The GitHub CLI also returned 403 when listing organization packages because its token lacks `read:packages`. The sibling local client checkout still describes the old package.
 

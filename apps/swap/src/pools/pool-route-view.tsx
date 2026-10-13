@@ -1,5 +1,5 @@
-import { toHex0x } from "@groundhogchain/client";
-import { getClientQueryKey, useClient } from "@groundhogchain/react";
+import { toHex0x } from "@thruputchain/client";
+import { getClientQueryKey, useClient } from "@thruputchain/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 

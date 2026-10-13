@@ -1,4 +1,4 @@
-import { fixedBytes } from "@groundhogchain/client";
+import { fixedBytes } from "@thruputchain/client";
 import { describe, expect, it } from "vitest";
 
 import { standard_token_factory_if } from "@/contracts/generated/standard-token-factory";

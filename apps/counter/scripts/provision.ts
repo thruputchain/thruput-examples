@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  createGroundhogClient,
+  createThruputClient,
   createPubkeyAccount,
   createWalletClient,
   defineCluster,
@@ -11,15 +11,15 @@ import {
   HttpTransport,
   PrivateKeySigner,
   toHex0x,
-} from "@groundhogchain/client";
-import { ERC20 } from "@groundhogchain/client/contracts";
-import { prepareContractDeployment } from "@groundhogchain/client/wallet";
+} from "@thruputchain/client";
+import { ERC20 } from "@thruputchain/client/contracts";
+import { prepareContractDeployment } from "@thruputchain/client/wallet";
 import {
   gasAmount,
   networkHash,
   HOG_ADDRESS,
   type Invocation,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { parseConfig } from "../src/config";
 import { Counter } from "../src/contracts/generated/counter";
 
@@ -36,7 +36,7 @@ export async function provisionCounter(options: {
   artifact?: string | undefined;
   explorerUrl?: string | undefined;
 }): Promise<void> {
-  const client = await createGroundhogClient({
+  const client = await createThruputClient({
     cluster: defineCluster({
       name: options.network,
       rpcUrl: options.rpcUrl,

@@ -1,4 +1,4 @@
-import { fixedBytes } from "@groundhogchain/client";
+import { fixedBytes } from "@thruputchain/client";
 import {
   act,
   fireEvent,

@@ -9,7 +9,7 @@ publish = false
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "groundhog-erc20-if/dev"]
+dev = ["sdk/dev", "thruput-erc20-if/dev"]
 
 [lib]
 crate-type = ["rlib"]
@@ -25,7 +25,7 @@ bench = false
 
 [dependencies]
 sdk = { workspace = true }
-groundhog-erc20-if = { workspace = true }
+thruput-erc20-if = { workspace = true }
 
 [dev-dependencies]
 token-factory-test-wallet = { path = ".", features = ["dev"] }

@@ -7,20 +7,20 @@ import {
   transactionSignaturePreimage,
   hashSignedTransaction,
   toHex0x,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   DefaultWallet,
   DefaultWalletSpec,
   ERC20,
   ERC20Spec,
-} from "@groundhogchain/client/contracts";
+} from "@thruputchain/client/contracts";
 import {
   codec,
   serialize,
   networkHash,
   sha256Hash,
-} from "@groundhogchain/protocol";
-import type { Transaction } from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
+import type { Transaction } from "@thruputchain/protocol";
 import { accountOf, hex, unhex, type SecretAccount } from "./vault";
 import { fail, WalletError, MAX_UNSIGNED_HEX, MAX_SIGNED_HEX } from "./policy";
 

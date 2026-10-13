@@ -1,8 +1,8 @@
 //! Exercise the CLI environment handoff in fresh processes, without mutating
 //! the test runner's environment or requiring a live node.
-use groundhog_signing::{LocalSigner, PubkeyAccount};
 use integration_test::Harness;
 use std::process::Command;
+use thruput_signing::{LocalSigner, PubkeyAccount};
 
 const INPUTS: [&str; 3] = [
     "THRUPUT_RPC_URL",

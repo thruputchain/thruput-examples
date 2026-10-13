@@ -1,12 +1,12 @@
-import { bytesEqual, type CoreGroundhogClient } from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
-import { getContract } from "@groundhogchain/client/contract";
+import { bytesEqual, type CoreThruputClient } from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
+import { getContract } from "@thruputchain/client/contract";
 
-import { ERC20, ERC20Metadata, groundhog_erc20_if } from "@/contracts/generated/standard-token";
+import { ERC20, ERC20Metadata, thruput_erc20_if } from "@/contracts/generated/standard-token";
 import { standard_token_factory_if } from "@/contracts/generated/standard-token-factory";
 import type { LaunchWorkflow } from "@/launch/workflow";
 
-type DecodedMintEvent = groundhog_erc20_if.v0_1.events.MintEvent;
+type DecodedMintEvent = thruput_erc20_if.v0_1.events.MintEvent;
 type DecodedTokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 
 export interface TokenStateSnapshot {
@@ -18,7 +18,7 @@ export interface TokenStateSnapshot {
 }
 
 export async function readAndAssessTokenState(input: {
-  client: CoreGroundhogClient;
+  client: CoreThruputClient;
   token: ContractAddress;
   caller: ContractAddress;
   workflow: LaunchWorkflow;

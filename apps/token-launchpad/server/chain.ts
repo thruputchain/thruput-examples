@@ -1,23 +1,23 @@
 import {
   addressFromHex,
   bytesEqual,
-  createGroundhogClient,
+  createThruputClient,
   defineCluster,
   fixedBytes,
   fromHex0x,
   hashFromHex,
   HttpTransport,
   JsonRpcError,
-  GroundhogRpcErrorCode,
+  ThruputRpcErrorCode,
   toHex0x,
   type EventPage,
   type EventQuery,
-  type GroundhogClient,
+  type ThruputClient,
   type IdentifiedEvent,
   type Transport,
   type TransportRequestOptions,
-} from "@groundhogchain/client";
-import { networkHash } from "@groundhogchain/protocol";
+} from "@thruputchain/client";
+import { networkHash } from "@thruputchain/protocol";
 
 import {
   StandardTokenFactory,
@@ -69,9 +69,9 @@ export class RegistryCursorRejectedError extends Error {
   }
 }
 
-export async function createGroundhogRegistrySource(
+export async function createThruputRegistrySource(
   config: Pick<ServerConfig, "rpcUrl" | "scope">,
-): Promise<GroundhogRegistrySource> {
+): Promise<ThruputRegistrySource> {
   const cluster = defineCluster({
     name: "token-registry",
     rpcUrl: config.rpcUrl.href,
@@ -81,11 +81,11 @@ export async function createGroundhogRegistrySource(
   const transport = new SignalTransport(
     new HttpTransport(config.rpcUrl.href, { timeoutMs: 10_000 }),
   );
-  const client = await createGroundhogClient({
+  const client = await createThruputClient({
     cluster,
     transport,
   });
-  const source = new GroundhogRegistrySource(
+  const source = new ThruputRegistrySource(
     client,
     config.scope,
     (query, signal) =>
@@ -97,14 +97,14 @@ export async function createGroundhogRegistrySource(
   return source;
 }
 
-export class GroundhogRegistrySource implements RegistrySource {
+export class ThruputRegistrySource implements RegistrySource {
   readonly #client: Pick<
-    GroundhogClient,
+    ThruputClient,
     "getEvents" | "view" | "getNetworkInfo"
   >;
   readonly #getNetworkInfo: (
     signal: AbortSignal,
-  ) => ReturnType<GroundhogClient["getNetworkInfo"]>;
+  ) => ReturnType<ThruputClient["getNetworkInfo"]>;
   readonly #getEvents: (
     query: EventQuery,
     signal: AbortSignal,
@@ -114,7 +114,7 @@ export class GroundhogRegistrySource implements RegistrySource {
   readonly #expectedTokenHash;
 
   constructor(
-    client: Pick<GroundhogClient, "getEvents" | "view" | "getNetworkInfo">,
+    client: Pick<ThruputClient, "getEvents" | "view" | "getNetworkInfo">,
     scope: RegistryScope,
     getEvents = (query: EventQuery, signal: AbortSignal) =>
       abortable(client.getEvents(query), signal),
@@ -187,7 +187,7 @@ export class GroundhogRegistrySource implements RegistrySource {
       if (
         request.cursor !== null &&
         error instanceof JsonRpcError &&
-        error.code === GroundhogRpcErrorCode.InvalidParams
+        error.code === ThruputRpcErrorCode.InvalidParams
       ) {
         throw new RegistryCursorRejectedError({ cause: error });
       }

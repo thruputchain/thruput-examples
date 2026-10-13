@@ -6,12 +6,12 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 check="$script_dir/check-thruput-version.sh"
 
 for version in \
-  'thruput 0.27.0 (commit unavailable)' \
-  'thruput 0.27.0+build.1' \
-  'thruput 0.27.1' \
-  'thruput 0.27.1-rc.1' \
-  'thruput 0.27.1-rc.1+build.42 (commit abc123)' \
-  'thruput 0.28.0-pre.1' \
+  'thruput 0.29.0 (commit unavailable)' \
+  'thruput 0.29.0+build.1' \
+  'thruput 0.29.1' \
+  'thruput 0.29.1-rc.1' \
+  'thruput 0.29.1-rc.1+build.42 (commit abc123)' \
+  'thruput 0.30.0-pre.1' \
   'thruput 1.0.0-rc.1' \
   'thruput 1.0.0' \
   'thruput 2.0.0'; do
@@ -27,11 +27,13 @@ for version in \
   'thruput 0.21.3' \
   'thruput 0.22.0' \
   'thruput 0.22.0-rc.1' \
-  'thruput 0.27.0-pre.1' \
-  'thruput 0.27.0-pre.2' \
-  'thruput 0.27.0-pre.2+build.1' \
-  'thruput 0.27.0-rc.1' \
-  'thruput 0.27.0-alpha.9' \
+  'thruput 0.27.0' \
+  'thruput 0.28.0' \
+  'thruput 0.29.0-pre.1' \
+  'thruput 0.29.0-pre.2' \
+  'thruput 0.29.0-pre.2+build.1' \
+  'thruput 0.29.0-rc.1' \
+  'thruput 0.29.0-alpha.9' \
   'thruput 0.22.0-rc.1+build.1' \
   'thruput 0.16' \
   'thruput 0.16.0rc.1' \
@@ -46,7 +48,7 @@ for version in \
     printf 'Expected rejection: %s\n' "$version" >&2
     exit 1
   fi
-  [[ "$output" == "Thruput CLI 0.27.0 or newer is required; found $version." ]]
+  [[ "$output" == "Thruput CLI 0.29.0 or newer is required; found $version." ]]
 done
 
-printf 'Thruput CLI version checks passed (29 cases).\n'
+printf 'Thruput CLI version checks passed (31 cases).\n'

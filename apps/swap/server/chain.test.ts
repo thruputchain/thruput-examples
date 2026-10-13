@@ -4,17 +4,17 @@ import {
   addressFromHex,
   ContractDecodeError,
   ContractViewError,
-  GroundhogRpcErrorCode,
+  ThruputRpcErrorCode,
   hashFromHex,
   JsonRpcError,
-  type GroundhogClient,
-} from "@groundhogchain/client";
-import { networkHash } from "@groundhogchain/protocol";
+  type ThruputClient,
+} from "@thruputchain/client";
+import { networkHash } from "@thruputchain/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SwapFactory, swap_if } from "../src/contracts/generated/swap-factory.ts";
 import {
-  GroundhogRegistrySource,
+  ThruputRegistrySource,
   RegistryCursorRejectedError,
   RegistryIntegrityError,
   RegistryScopeVerificationError,
@@ -31,7 +31,7 @@ const scope: RegistryScope = {
 
 afterEach(() => vi.restoreAllMocks());
 
-describe("GroundhogRegistrySource", () => {
+describe("ThruputRegistrySource", () => {
   it("uses the generated factory filter and maps verified PoolCreated evidence", async () => {
     const client = mockClient();
     vi.spyOn(PoolCreated, "decode").mockReturnValue(decoded());
@@ -39,7 +39,7 @@ describe("GroundhogRegistrySource", () => {
     client.getEvents.mockResolvedValue(
       eventPage({ cursor: Uint8Array.of(1, 2, 3) }),
     );
-    const source = new GroundhogRegistrySource(typedClient(client), scope);
+    const source = new ThruputRegistrySource(typedClient(client), scope);
 
     const result = await source.getPage(request());
 
@@ -83,7 +83,7 @@ describe("GroundhogRegistrySource", () => {
   it("rejects endpoint drift before events and immediately before returning a page", async () => {
     const before = mockClient({ networkIds: [0x99] });
     await expect(
-      new GroundhogRegistrySource(typedClient(before), scope).getPage(
+      new ThruputRegistrySource(typedClient(before), scope).getPage(
         request(),
       ),
     ).rejects.toBeInstanceOf(RegistryScopeVerificationError);
@@ -94,7 +94,7 @@ describe("GroundhogRegistrySource", () => {
     mockCoherentFactoryViews();
     after.getEvents.mockResolvedValue(eventPage());
     await expect(
-      new GroundhogRegistrySource(typedClient(after), scope).getPage(request()),
+      new ThruputRegistrySource(typedClient(after), scope).getPage(request()),
     ).rejects.toBeInstanceOf(RegistryScopeVerificationError);
   });
 
@@ -103,7 +103,7 @@ describe("GroundhogRegistrySource", () => {
     client.getNetworkInfo.mockRejectedValueOnce(new Error("temporary outage"));
 
     await expect(
-      new GroundhogRegistrySource(typedClient(client), scope).getPage(
+      new ThruputRegistrySource(typedClient(client), scope).getPage(
         request(),
       ),
     ).rejects.toThrow("temporary outage");
@@ -115,7 +115,7 @@ describe("GroundhogRegistrySource", () => {
       eventPage({ event: identifiedEvent({ emitter: 0x23 }) }),
     );
     await expect(
-      new GroundhogRegistrySource(typedClient(wrongEmitter), scope).getPage(
+      new ThruputRegistrySource(typedClient(wrongEmitter), scope).getPage(
         request(),
       ),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
@@ -126,7 +126,7 @@ describe("GroundhogRegistrySource", () => {
       decoded({ token0: address(2), token1: address(1) }),
     );
     await expect(
-      new GroundhogRegistrySource(typedClient(unordered), scope).getPage(
+      new ThruputRegistrySource(typedClient(unordered), scope).getPage(
         request(),
       ),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
@@ -137,7 +137,7 @@ describe("GroundhogRegistrySource", () => {
     zeroCount.getEvents.mockResolvedValue(eventPage());
     vi.spyOn(PoolCreated, "decode").mockReturnValue(decoded({ pairCount: 0n }));
     await expect(
-      new GroundhogRegistrySource(typedClient(zeroCount), scope).getPage(
+      new ThruputRegistrySource(typedClient(zeroCount), scope).getPage(
         request(),
       ),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
@@ -149,7 +149,7 @@ describe("GroundhogRegistrySource", () => {
       decoded({ pairCount: 1 as unknown as bigint }),
     );
     await expect(
-      new GroundhogRegistrySource(typedClient(malformedCount), scope).getPage(
+      new ThruputRegistrySource(typedClient(malformedCount), scope).getPage(
         request(),
       ),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
@@ -161,7 +161,7 @@ describe("GroundhogRegistrySource", () => {
       }),
     );
     await expect(
-      new GroundhogRegistrySource(typedClient(oversizedSequence), scope).getPage(
+      new ThruputRegistrySource(typedClient(oversizedSequence), scope).getPage(
         request(),
       ),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
@@ -182,7 +182,7 @@ describe("GroundhogRegistrySource", () => {
       .mockResolvedValueOnce(view([address(1), address(2)] as const, 9n));
 
     await expect(
-      new GroundhogRegistrySource(typedClient(client), scope).getPage(
+      new ThruputRegistrySource(typedClient(client), scope).getPage(
         request(),
       ),
     ).resolves.toMatchObject({ pools: [{ handlerAddress: addressHex(4) }] });
@@ -195,7 +195,7 @@ describe("GroundhogRegistrySource", () => {
     vi.spyOn(PoolCreated, "decode").mockReturnValue(decoded());
     mockCoherentFactoryViews({ handler: address(9) });
     await expect(
-      new GroundhogRegistrySource(typedClient(contradictory), scope).getPage(
+      new ThruputRegistrySource(typedClient(contradictory), scope).getPage(
         request(),
       ),
     ).rejects.toThrow("contradicts live factory state");
@@ -214,7 +214,7 @@ describe("GroundhogRegistrySource", () => {
       view([address(1), address(2)] as const, 8n),
     );
     await expect(
-      new GroundhogRegistrySource(typedClient(incoherent), scope).getPage(
+      new ThruputRegistrySource(typedClient(incoherent), scope).getPage(
         request(),
       ),
     ).rejects.toThrow("one coherent block");
@@ -224,10 +224,10 @@ describe("GroundhogRegistrySource", () => {
   it("classifies only invalid supplied cursors and preserves the abort signal", async () => {
     const client = mockClient();
     client.getEvents.mockRejectedValue(
-      new JsonRpcError(GroundhogRpcErrorCode.InvalidParams, "invalid cursor"),
+      new JsonRpcError(ThruputRpcErrorCode.InvalidParams, "invalid cursor"),
     );
     const signals: AbortSignal[] = [];
-    const source = new GroundhogRegistrySource(
+    const source = new ThruputRegistrySource(
       typedClient(client),
       scope,
       (action, signal) => {
@@ -250,12 +250,12 @@ describe("GroundhogRegistrySource", () => {
   it("does not classify InvalidParams without a supplied cursor", async () => {
     const client = mockClient();
     const invalidParams = new JsonRpcError(
-      GroundhogRpcErrorCode.InvalidParams,
+      ThruputRpcErrorCode.InvalidParams,
       "invalid parameters",
     );
     client.getEvents.mockRejectedValue(invalidParams);
 
-    const error = await new GroundhogRegistrySource(typedClient(client), scope)
+    const error = await new ThruputRegistrySource(typedClient(client), scope)
       .getPage(request())
       .catch((caught: unknown) => caught);
 
@@ -269,7 +269,7 @@ describe("GroundhogRegistrySource", () => {
     controller.abort(new Error("stopped"));
 
     await expect(
-      new GroundhogRegistrySource(typedClient(client), scope).getPage({
+      new ThruputRegistrySource(typedClient(client), scope).getPage({
         ...request(),
         signal: controller.signal,
       }),
@@ -284,7 +284,7 @@ describe("GroundhogRegistrySource", () => {
       eventPage({ events: [identifiedEvent(), identifiedEvent()] }),
     );
     await expect(
-      new GroundhogRegistrySource(typedClient(oversizedPage), scope).getPage({
+      new ThruputRegistrySource(typedClient(oversizedPage), scope).getPage({
         ...request(),
         limit: 1,
       }),
@@ -295,7 +295,7 @@ describe("GroundhogRegistrySource", () => {
       eventPage({ events: [], cursor: new Uint8Array(3_073) }),
     );
     await expect(
-      new GroundhogRegistrySource(typedClient(oversizedCursor), scope).getPage(
+      new ThruputRegistrySource(typedClient(oversizedCursor), scope).getPage(
         request(),
       ),
     ).rejects.toThrow("oversized event cursor");
@@ -314,7 +314,7 @@ describe("GroundhogRegistrySource", () => {
     client.getEvents.mockResolvedValue(eventPage({ ...metadata, events: [] }));
 
     await expect(
-      new GroundhogRegistrySource(typedClient(client), scope).getPage(
+      new ThruputRegistrySource(typedClient(client), scope).getPage(
         request(),
       ),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
@@ -332,7 +332,7 @@ describe("GroundhogRegistrySource", () => {
     );
 
     await expect(
-      new GroundhogRegistrySource(typedClient(client), scope).getPage({
+      new ThruputRegistrySource(typedClient(client), scope).getPage({
         ...request(),
         anchorBlock,
       }),
@@ -350,7 +350,7 @@ describe("GroundhogRegistrySource", () => {
       }),
     );
     await expect(
-      new GroundhogRegistrySource(typedClient(descending), scope).getPage(
+      new ThruputRegistrySource(typedClient(descending), scope).getPage(
         request(),
       ),
     ).rejects.toThrow("Malformed registry event page metadata");
@@ -361,7 +361,7 @@ describe("GroundhogRegistrySource", () => {
       eventPage({ events: [event, event] }),
     );
     await expect(
-      new GroundhogRegistrySource(typedClient(duplicate), scope).getPage(
+      new ThruputRegistrySource(typedClient(duplicate), scope).getPage(
         request(),
       ),
     ).rejects.toThrow("Malformed registry event page metadata");
@@ -377,7 +377,7 @@ describe("GroundhogRegistrySource", () => {
     );
 
     await expect(
-      new GroundhogRegistrySource(typedClient(client), scope).getPage(
+      new ThruputRegistrySource(typedClient(client), scope).getPage(
         request(),
       ),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
@@ -397,7 +397,7 @@ describe("GroundhogRegistrySource", () => {
     mockCoherentFactoryViews();
 
     await expect(
-      new GroundhogRegistrySource(typedClient(client), scope).getPage(
+      new ThruputRegistrySource(typedClient(client), scope).getPage(
         request(),
       ),
     ).rejects.toThrow("duplicated or out of order");
@@ -415,7 +415,7 @@ describe("GroundhogRegistrySource", () => {
       mockCoherentFactoryViews();
       vi.mocked(SwapFactory.v0_1.getPair.view).mockRejectedValue(error);
 
-      const caught = await new GroundhogRegistrySource(
+      const caught = await new ThruputRegistrySource(
         typedClient(client),
         scope,
       )
@@ -435,7 +435,7 @@ describe("GroundhogRegistrySource", () => {
     const transportFailure = new Error("transport unavailable");
     vi.mocked(SwapFactory.v0_1.getPair.view).mockRejectedValue(transportFailure);
 
-    const caught = await new GroundhogRegistrySource(typedClient(client), scope)
+    const caught = await new ThruputRegistrySource(typedClient(client), scope)
       .getPage(request())
       .catch((value: unknown) => value);
 
@@ -459,7 +459,7 @@ function mockClient(options: { networkIds?: number[] } = {}) {
 
 function typedClient(client: ReturnType<typeof mockClient>) {
   return client as unknown as Pick<
-    GroundhogClient,
+    ThruputClient,
     "getEvents" | "getNetworkInfo" | "view"
   >;
 }

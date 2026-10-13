@@ -5,7 +5,7 @@ An experimental Chrome Manifest V3 wallet for Thruput localnet and devnet. Use t
 ## Build and Load
 
 Requires Node 22.12+ and GitHub Packages read access. This extension installs
-`@groundhogchain/client@0.17.0`, which includes wallet capability discovery and
+`@thruputchain/client@0.18.0`, which includes wallet capability discovery and
 atomic batching through the `/provider` and `/wallet` exports.
 Follow the [registry authentication instructions](../../README.md#install-swap-and-launchpad-dependencies)
 before installing dependencies.
@@ -22,7 +22,7 @@ npm run build
 npm audit
 ```
 
-The local `.npmrc` selects GitHub Packages for `@groundhogchain/*`. Supply registry
+The local `.npmrc` selects GitHub Packages for `@thruputchain/*`. Supply registry
 authentication through your user environment; do not commit credentials.
 
 Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this application's `dist` directory. Pin **Thruput Wallet** in the Chrome toolbar. After rebuilding, reload the extension and refresh dapp tabs. Stable entrypoints are `dist/manifest.json`, `worker.js`, `content.js`, `inpage.js`, and `index.html`.
@@ -39,7 +39,7 @@ The [Publish wallet download workflow](../../.github/workflows/publish-wallet.ym
 
 One-time infrastructure setup:
 
-- Add repository secret `AWS_WALLET_ARTIFACT_ROLE_ARN`. The role must trust GitHub OIDC for `repo:groundhogchain/groundhog-examples:ref:refs/heads/main` with audience `sts.amazonaws.com`.
+- Add repository secret `AWS_WALLET_ARTIFACT_ROLE_ARN`. The role must trust GitHub OIDC for `repo:thruputchain/thruput-examples:ref:refs/heads/main` with audience `sts.amazonaws.com`. Update the role's trust policy after moving the repository.
 - Allow that role to write only `wallet/*` in bucket `groundhog-public-release-artifacts-017820684264` (region `us-west-2`). The bucket must allow anonymous reads of that prefix, as it does for public CLI downloads. No object ACLs or AWS access keys are used.
 - Grant this repository's Actions token read access to the private SDK packages, or provide a read-packages token as repository secret `NPM_TOKEN`.
 
@@ -130,7 +130,7 @@ This is an advanced Chrome repair for this unpacked extension. Do not use `chrom
 
 ## Dapp Provider
 
-The in-page provider is announced as the `CustomEvent.detail` of `groundhog:announceProvider`, initially and in response to `groundhog:requestProvider`. It coexists with other providers; no global singleton is overwritten. Use `discoverWalletProviders` from `@groundhogchain/client/provider` in the dapp.
+The in-page provider is announced as the `CustomEvent.detail` of `groundhog:announceProvider`, initially and in response to `groundhog:requestProvider`. It coexists with other providers; no global singleton is overwritten. Use `discoverWalletProviders` from `@thruputchain/client/provider` in the dapp.
 
 Provider identity: `dev.groundhog.wallet`, name `Thruput Wallet`, contract version `1.0.0`. The display-name change does not change provider IDs, storage or vault keys, or messaging protocols.
 

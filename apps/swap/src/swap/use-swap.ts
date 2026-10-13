@@ -1,4 +1,4 @@
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import { useEffect, useId, useReducer, useRef, useState } from "react";
 
 import { useProcessingMode } from "@/components/processing-mode";

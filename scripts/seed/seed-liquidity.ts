@@ -4,14 +4,14 @@ import {
   fromHex0x,
   toHex0x,
   type EmittedEvent,
-  type GroundhogClient,
+  type ThruputClient,
   type TransactionReceipt,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   ExecResult,
   sha256Hash,
   type ContractAddress,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { batch_driver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { swap_if } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
 import { SeedError, type SeedJournal } from "./seed-journal.ts";
@@ -42,7 +42,7 @@ interface LiquidityState extends SeedJournal {
 export async function completeSeedLiquidity(options: {
   state: LiquidityState;
   save: () => Promise<void>;
-  client: Pick<GroundhogClient, "getEvents" | "getTransactionReceipt">;
+  client: Pick<ThruputClient, "getEvents" | "getTransactionReceipt">;
   queued: TransactionReceipt;
   requestId: Uint8Array;
   handler: ContractAddress;

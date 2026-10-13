@@ -15,14 +15,14 @@
 #![allow(dead_code)]
 
 use ed25519_dalek::{Signer, SigningKey};
-use groundhog_domain_separator::transaction_signature_preimage;
-use groundhog_signing::{BuildCallTransaction, build_call_transaction};
-use groundhog_xdr::auth_claim::{AuthClaim_source_address_claim, AuthVerifyErrorCode};
-use groundhog_xdr::transaction::{DecoratedSignature, SignedTransaction};
 use sdk::call::RawCallError;
 use sdk::*;
 use stellar_account::{AccountError, MAX_SIGNERS, StellarAccount};
 use stellar_account_factory_if::StellarAccountInitializerClient;
+use thruput_domain_separator::transaction_signature_preimage;
+use thruput_signing::{BuildCallTransaction, build_call_transaction};
+use thruput_xdr::auth_claim::{AuthClaim_source_address_claim, AuthVerifyErrorCode};
+use thruput_xdr::transaction::{DecoratedSignature, SignedTransaction};
 
 pub const ROOT: ContractAddress = ContractAddress::new([0x10; 32]);
 pub const ACCOUNT: ContractAddress = ContractAddress::new([0x20; 32]);

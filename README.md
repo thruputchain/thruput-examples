@@ -1,6 +1,6 @@
 # Thruput examples
 
-Example smart contracts and applications for the [Thruput SDK](https://github.com/groundhogchain/sdk_rs). Each
+Example smart contracts and applications for the [Thruput SDK](https://github.com/thruputchain/thruput-sdk-rs). Each
 crate in this Cargo workspace demonstrates a specific SDK feature, from a minimal stateless contract
 up to cross-contract calls, error handling, and event emission.
 
@@ -64,9 +64,9 @@ lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflif
 ### Install Swap and Launchpad dependencies
 
 Use Node.js **22.13 or newer** and npm. The apps install the published
-`@groundhogchain/client@0.17.0` package, including wallet capability discovery and
+`@thruputchain/client@0.18.0` package, including wallet capability discovery and
 atomic batching, from GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
-with `read:packages` and access to the `@groundhogchain` packages in your npm user config:
+with `read:packages` and access to the `@thruputchain` packages in your npm user config:
 
 ```ini
 //npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
@@ -80,16 +80,22 @@ npm ci
 
 Run `npm ci` after pulling dependency changes. A stale `node_modules` directory
 can contain an older SDK even when `package.json` specifies the current release.
-Use `npm ls @groundhogchain/client @groundhogchain/react` to check the installed
-versions. Client `0.17.0` includes decimal-string RPC decoding. Keep its protocol,
-XDR, and contract-spec dependencies aligned at `0.13.0`; the package-scope move
-to `@thruputchain` is a separate upgrade.
+Use `npm ls @thruputchain/client @thruputchain/react` to check the installed
+versions. Client `0.18.0` uses protocol, XDR, and contract-spec `0.15.0`;
+Swap and Launchpad use React integration `0.5.0`. The source repositories are
+[thruput-sdk-ts](https://github.com/thruputchain/thruput-sdk-ts) and
+[thruput-protocol-ts](https://github.com/thruputchain/thruput-protocol-ts).
 
 Application configuration now uses `THRUPUT_*` and `VITE_THRUPUT_*`. Rename the
 corresponding `GROUNDHOG_*` keys in existing environment files and deployment
-settings, then restart the apps. The browser proxy is `/thruput-rpc`. SDK imports,
-RPC method names, wallet discovery events, and saved wallet/workflow identifiers
-keep their current names for compatibility.
+settings, then restart the apps. The browser proxy is `/thruput-rpc`. RPC method
+names, wallet discovery events, and saved wallet/workflow identifiers keep their
+current names for compatibility. The separately installed historical
+`tests/token-factory-ts` harness retains its original package and toolchain pins.
+
+GitHub Actions also needs read access to the new packages. Grant this repository
+Actions access in each package's settings, or configure `NPM_TOKEN` with access
+to the `thruputchain` packages. The wallet download workflow uses the same access.
 
 Railway needs the same package-read authentication during dependency installation.
 Provide the PAT through the build environment and npm auth configuration; never
@@ -134,8 +140,8 @@ dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
 Live checks require Linux process groups and `/proc`, a compatible CLI/devnode
-pair, built contracts, and matching generated bindings: CLI `0.27.0` or newer with the hog-devnode it manages
-(`0.1.31-rc.2` for CLI `0.27.0`). Rebuild contracts from the current checkout
+pair, built contracts, and matching generated bindings: CLI `0.29.0` or newer with the hog-devnode it manages
+(`0.1.31-rc.3` for CLI `0.29.0`). Rebuild contracts from the current checkout
 before running them. Use a separate checkout if you need to preserve the bindings
 for the recorded Devnet deployment. From the repository root:
 
@@ -183,11 +189,11 @@ transaction or remote deployment. Wallet unit tests run independently through
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `thruput` CLI, version **0.27.0**, matching this workspace's RPC and testkit dependencies:
+- The `thruput` CLI, version **0.29.0**, for app builds and TypeScript bindings:
 
   ```sh
   export CARGO_REGISTRIES_THRUPUT_INDEX="sparse+https://crates.thruput.network/api/v1/crates/"
-  cargo install --locked --registry thruput --version 0.27.0 thruput-cli
+  cargo install --locked --registry thruput --version 0.29.0 thruput-cli
   ```
 
 - Access to the `thruput` crate registry. The index is configured in
@@ -207,7 +213,14 @@ transaction or remote deployment. Wallet unit tests run independently through
   `THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"` and run
   [`scripts/integration-tests.sh`](scripts/integration-tests.sh).
 
-Individual application READMEs describe their separate CLI and client requirements.
+The workspace pins Rust SDK `0.51.0`, interface crates `0.1.55`, protocol crates
+`0.54.0`, and CLI/RPC/testkit `0.29.0`. Both native and frontend CI use this
+release family. Application READMEs describe their setup.
+
+After upgrading from the older runtime, start a fresh CLI `0.29.0` node and run
+each app's `setup:local` again. The rebuilt contracts and generated bindings
+belong together; an npm install does not upgrade deployed contracts. Keep the
+earlier checkout and artifacts for historical deployments or unresolved activity.
 
 ## Building
 
