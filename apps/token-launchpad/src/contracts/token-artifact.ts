@@ -3,8 +3,8 @@ import {
   fromHex0x,
   hashContract,
   toHex0x,
-} from "@groundhogchain/client";
-import { ContractType, type Contract } from "@groundhogchain/protocol";
+} from "@thruputchain/client";
+import { ContractType, type Contract } from "@thruputchain/protocol";
 
 export const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 

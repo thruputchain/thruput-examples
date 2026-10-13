@@ -1,6 +1,6 @@
-import { toHex0x, type TransactionReceipt } from "@groundhogchain/client";
-import type { Invocation } from "@groundhogchain/protocol";
-import { DefaultWallet } from "@groundhogchain/client/contracts";
+import { toHex0x, type TransactionReceipt } from "@thruputchain/client";
+import type { Invocation } from "@thruputchain/protocol";
+import { DefaultWallet } from "@thruputchain/client/contracts";
 
 import type { AppConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";

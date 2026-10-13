@@ -1,7 +1,7 @@
 import {
   addressFromHex,
   bytesEqual,
-  createGroundhogClient,
+  createThruputClient,
   defineCluster,
   deserializeSignedTransaction,
   fromHex0x,
@@ -9,9 +9,9 @@ import {
   hashFromHex,
   HttpTransport,
   toHex0x,
-} from "@groundhogchain/client";
-import { getContract } from "@groundhogchain/client/contract";
-import { ExecResult, networkHash } from "@groundhogchain/protocol";
+} from "@thruputchain/client";
+import { getContract } from "@thruputchain/client/contract";
+import { ExecResult, networkHash } from "@thruputchain/protocol";
 import type { AppConfig } from "../config";
 import { Counter } from "../contracts/generated/counter";
 import type { CounterConnection } from "../transactions/engine";
@@ -22,7 +22,7 @@ export async function createCounterConnection(
 ): Promise<CounterConnection> {
   const controller = new AbortController();
   const expected = networkHash(hashFromHex(config.networkId));
-  const client = await createGroundhogClient({
+  const client = await createThruputClient({
     cluster: defineCluster({
       name: "counter",
       rpcUrl,

@@ -1,5 +1,5 @@
-import { addressFromHex, fromHex0x } from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
+import { addressFromHex, fromHex0x } from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
 
 import { PINNED_NATIVE_BALANCE_ITEM_COST } from "./groundhog/storage-cost";
 import { loadSwapAppUrl } from "./launch/swap-config.ts";

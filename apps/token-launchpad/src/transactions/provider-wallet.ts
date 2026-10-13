@@ -1,10 +1,10 @@
-import { bytesEqual, type CoreGroundhogClient } from "@groundhogchain/client";
+import { bytesEqual, type CoreThruputClient } from "@thruputchain/client";
 import {
   walletGasLimit,
   type ProviderWalletClient,
-} from "@groundhogchain/client/wallet";
-import type { ContractCall } from "@groundhogchain/client/contract";
-import { gasAmount } from "@groundhogchain/protocol";
+} from "@thruputchain/client/wallet";
+import type { ContractCall } from "@thruputchain/client/contract";
+import { gasAmount } from "@thruputchain/protocol";
 import type { AppConfig } from "@/config";
 import { StandardTokenFactory } from "@/contracts/generated/standard-token-factory";
 import { loadStandardTokenArtifact } from "@/contracts/token-artifact";
@@ -20,7 +20,7 @@ import { walletFailure } from "./wallet-error";
 
 export function createProviderWriteBoundary(
   config: AppConfig,
-  client: CoreGroundhogClient,
+  client: CoreThruputClient,
   wallet?: ProviderWalletClient,
 ): WriteBoundary {
   const observe = createTransactionObserver(config, client);

@@ -1,4 +1,4 @@
-import { contractAddress } from "@groundhogchain/protocol";
+import { contractAddress } from "@thruputchain/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GlobalConfig } from "@/config";

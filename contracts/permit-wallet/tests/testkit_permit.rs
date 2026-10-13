@@ -1,4 +1,4 @@
-//! The permit flow on a live `hog-devnode`, driven by `groundhog-testkit`.
+//! The permit flow on a live `hog-devnode`, driven by `thruput-testkit`.
 //!
 //! The same three contracts as `permit.rs`, exercised with real transactions.
 //! An `admin` agent deploys the token, Alice's wallet and the relayer, funds
@@ -24,26 +24,26 @@
 use std::path::PathBuf;
 
 use ed25519_dalek::{Signer, SigningKey};
-use groundhog_domain_separator::SignedOp as SignedOpPreimage;
-use groundhog_erc20_permit_if::{DeleteAllowanceRequest, PermitRequest};
-use groundhog_json_rpc_client::GroundhogApiClient;
-use groundhog_signed_op_if::Operation;
-use groundhog_testkit::xdr::types::ContractAddress;
-use groundhog_testkit::{
-    Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Result,
-    Scenario, TestkitError, xdrs,
-};
 use permit_wallet::WalletRequest;
 use sdk::types::transaction::Uniquifier;
 use sdk::types::{Ed25519PublicKey, Ed25519Signature};
 use sdk::xdr::BytesM;
+use thruput_domain_separator::SignedOp as SignedOpPreimage;
+use thruput_erc20_permit_if::{DeleteAllowanceRequest, PermitRequest};
+use thruput_json_rpc_client::GroundhogApiClient;
+use thruput_signed_op_if::Operation;
+use thruput_testkit::xdr::types::ContractAddress;
+use thruput_testkit::{
+    Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Result,
+    Scenario, TestkitError, xdrs,
+};
 
 /// An alias to match the contracts' `Address` type.
 type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as
 // recorded in each `*.spec.json`; the testkit derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.52");
+const ERC20: (&str, &str) = ("ERC20", "0.1.55");
 const WALLET: (&str, &str) = ("PermitWallet", "0.1.0");
 const RELAYER: (&str, &str) = ("PermitRelayer", "0.1.0");
 
@@ -76,7 +76,7 @@ fn alice_public_key() -> Ed25519PublicKey {
 
 /// The addresses the spender needs, sent to it over the mailbox.
 #[derive(Debug, Clone, xdrs::WriteXDR, xdrs::ReadXDR)]
-#[xdr(crate = "groundhog_testkit::xdrs")]
+#[xdr(crate = "thruput_testkit::xdrs")]
 struct PermitConfig {
     token: Address,
     wallet: Address,
@@ -251,7 +251,7 @@ fn spender() -> Agent {
         // Relay it: the wallet verifies and mints, the token records the
         // allowance, all in the relayer's one frame.
         relayer
-            .call(&mut ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
+            .call(&ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
             .await?;
         let allowance: i128 = token
             .view(&ctx, "allowance", &(cfg.wallet, me), None)
@@ -263,7 +263,7 @@ fn spender() -> Agent {
 
         // Draw on it from our own account, as any spender would.
         token
-            .call(&mut ctx, "transfer_from", &(cfg.wallet, me, GRANTED))
+            .call(&ctx, "transfer_from", &(cfg.wallet, me, GRANTED))
             .await?;
         let balance: i128 = token.view(&ctx, "get_balance_of", &me, None).await?;
         assert_eq!(balance, GRANTED, "transfer_from moved the granted amount");
@@ -273,7 +273,7 @@ fn spender() -> Agent {
         // allowance does not grow.
         let (op, signature) = sign_request(&network, &cfg.wallet, NONCE, expiry, &request);
         match relayer
-            .call(&mut ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
+            .call(&ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
             .await
         {
             Err(TestkitError::Reverted { .. }) => {}
@@ -288,7 +288,7 @@ fn spender() -> Agent {
         // relayer routes it by its body to `increase_allowance_signed`.
         let (op, signature) = sign_request(&network, &cfg.wallet, NONCE + 1, expiry, &request);
         relayer
-            .call(&mut ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
+            .call(&ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
             .await?;
         let allowance: i128 = token
             .view(&ctx, "allowance", &(cfg.wallet, me), None)
@@ -306,14 +306,14 @@ fn spender() -> Agent {
         });
         let (op, signature) = sign_request(&network, &cfg.wallet, NONCE + 2, expiry, &clear);
         relayer
-            .call(&mut ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
+            .call(&ctx, "relay", &(cfg.wallet, cfg.token, op, signature))
             .await?;
         let allowance: i128 = token
             .view(&ctx, "allowance", &(cfg.wallet, me), None)
             .await?;
         assert_eq!(allowance, 0, "the relayed clear revoked the allowance");
         match token
-            .call(&mut ctx, "transfer_from", &(cfg.wallet, me, 1i128))
+            .call(&ctx, "transfer_from", &(cfg.wallet, me, 1i128))
             .await
         {
             Err(TestkitError::Reverted { .. }) => {}
@@ -347,11 +347,10 @@ async fn permit_signed_off_chain_relayed_on_chain() {
         config.hog_devnode_binary = Some(bin.into());
     }
     if std::env::var("RUST_LOG").is_ok() {
-        config.log_level = Some(groundhog_testkit::LogLevel::Info);
+        config.log_level = Some(thruput_testkit::LogLevel::Info);
     }
 
     let scenario = Scenario::builder("permit-live")
-        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
         .artifact("permit_wallet", artifact("permit_wallet.rv32a"))

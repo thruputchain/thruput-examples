@@ -22,12 +22,12 @@
 
 sdk::declare_mock_contract!();
 
-use groundhog_erc20_permit_if::{DeleteAllowanceGrant, ERC20PermitClient, PermitGrant};
-use groundhog_signed_op_if::{Operation, SignedOpClient};
 use permit_wallet::WalletRequest;
 use sdk::signer::Signed;
 use sdk::types::Ed25519Signature;
 use sdk::*;
+use thruput_erc20_permit_if::{DeleteAllowanceGrant, ERC20PermitClient, PermitGrant};
+use thruput_signed_op_if::{Operation, SignedOpClient};
 
 /// Why the relayer refused, before anything reached the wallet.
 #[contract_exception]

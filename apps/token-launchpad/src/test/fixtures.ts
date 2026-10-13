@@ -1,4 +1,4 @@
-import { contractAddress } from "@groundhogchain/protocol";
+import { contractAddress } from "@thruputchain/protocol";
 import type { AppConfig } from "@/config";
 
 export class MemoryStorage implements Pick<Storage, "getItem" | "setItem"> {

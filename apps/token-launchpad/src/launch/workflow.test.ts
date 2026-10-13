@@ -1,5 +1,5 @@
-import { fixedBytes } from "@groundhogchain/client";
-import { contractAddress } from "@groundhogchain/protocol";
+import { fixedBytes } from "@thruputchain/client";
+import { contractAddress } from "@thruputchain/protocol";
 import { describe, expect, it } from "vitest";
 
 import { configuration, MemoryStorage } from "@/test/fixtures";

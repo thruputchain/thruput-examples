@@ -7,7 +7,14 @@
 all-features = true
 
 [advisories]
-ignore = []
+ignore = [
+    # unsafe-libyaml is unmaintained (no fix). It arrives only through
+    # serde_yaml in the thruput-xdr-macros 0.54.0 proc-macro. protocol-rs 0.54.0
+    # is the family hog-devnode 0.1.31-rc.3 accepts (protocol id hogp/cfcaf86).
+    # Remove when Examples moves to protocol-rs 0.54.1+ (serde-saphyr) with a
+    # matching devnode. Added 2026-10-13.
+    { id = "RUSTSEC-2024-0449", reason = "unmaintained unsafe-libyaml via thruput-xdr-macros 0.54.0 (serde_yaml); remove with protocol-rs >=0.54.1 and a matching devnode" },
+]
 # Informational advisories (unsound, unmaintained) default to workspace-direct
 # dependencies only.
 unsound = "all"

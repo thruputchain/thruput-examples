@@ -1,10 +1,10 @@
-import type { TransactionReceipt } from "@groundhogchain/client";
+import type { TransactionReceipt } from "@thruputchain/client";
 import {
   contractAddress,
   ExecResult,
   sha256Hash,
-} from "@groundhogchain/protocol";
-import { CxsWriter } from "@groundhogchain/xdr";
+} from "@thruputchain/protocol";
+import { CxsWriter } from "@thruputchain/xdr";
 import { describe, expect, it } from "vitest";
 
 import { batch_driver } from "./generated/swap-driver";

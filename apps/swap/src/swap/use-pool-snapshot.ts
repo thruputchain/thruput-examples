@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { toHex0x } from "@groundhogchain/client";
-import { getClientQueryKey, useClient } from "@groundhogchain/react";
+import { toHex0x } from "@thruputchain/client";
+import { getClientQueryKey, useClient } from "@thruputchain/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppConfig } from "@/config";
 import type { PoolSnapshot, SnapshotReader } from "./snapshot";

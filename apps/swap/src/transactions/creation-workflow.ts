@@ -1,4 +1,4 @@
-import { addressFromHex, toHex0x } from "@groundhogchain/client";
+import { addressFromHex, toHex0x } from "@thruputchain/client";
 
 import type { GlobalConfig } from "@/config";
 import type { PoolCreationReview } from "@/pools/pool-creation";

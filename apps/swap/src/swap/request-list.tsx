@@ -1,5 +1,5 @@
 import { AlertCircleIcon, ArrowRightIcon, InfoIcon, XIcon } from "lucide-react";
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

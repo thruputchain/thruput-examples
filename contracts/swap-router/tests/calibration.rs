@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use groundhog_erc20_if::Amount;
-use groundhog_testkit::xdr::types::ContractAddress;
-use groundhog_testkit::{Agent, AgentContext, LocalNetworkConfig, NetworkConfig, Result, Scenario};
+use thruput_erc20_if::Amount;
+use thruput_testkit::xdr::types::ContractAddress;
+use thruput_testkit::{Agent, AgentContext, LocalNetworkConfig, NetworkConfig, Result, Scenario};
 
 // An alias to match the contracts' `Address` type.
 pub type Address = ContractAddress;
@@ -14,8 +14,8 @@ use batch_driver::GasReport;
 
 /// Read the `GasReport` a `calibration` build's crank emits, from the receipt
 /// of the transaction that cranked.
-fn gas_report(receipt: &groundhog_json_rpc_types::receipt::TransactionReceipt) -> GasReport {
-    use groundhog_event::Event;
+fn gas_report(receipt: &thruput_json_rpc_types::receipt::TransactionReceipt) -> GasReport {
+    use thruput_event::Event;
 
     let signature = <GasReport as Event>::signature().expect("GasReport has a signature");
     let event = receipt
@@ -187,7 +187,7 @@ async fn crank_and_report(ctx: &mut AgentContext, s: &Swap) -> Result<GasReport>
         .return_data
         .as_ref()
         .map(|d| {
-            groundhog_signing::default_wallet::decode_default_wallet_call_return(d.0.as_slice())
+            thruput_signing::default_wallet::decode_default_wallet_call_return(d.0.as_slice())
                 .expect("unwrapping the wallet's return")
         })
         .expect("process_requests returns counts");
@@ -227,7 +227,6 @@ async fn run_calibration(fee_enabled: bool) {
     }
 
     let scenario = Scenario::builder("swap-gas-calibration")
-        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
         .artifact("swap_handler", artifact("swap_handler.rv32a"))

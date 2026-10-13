@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import {
   bytesEqual,
   HttpTransport,
-  type GroundhogClient,
-} from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
-import { serializeCxs, Uint32Codec, VarOpaqueCodec } from "@groundhogchain/xdr";
+  type ThruputClient,
+} from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
+import { serializeCxs, Uint32Codec, VarOpaqueCodec } from "@thruputchain/xdr";
 import { SeedError } from "./seed-journal.ts";
 import { validateLocalRpcUrl } from "../../apps/token-launchpad/scripts/setup-local.ts";
 
@@ -28,7 +28,7 @@ export function seedStorageKey(domain: string, slot: number): Uint8Array {
 }
 
 export async function verifySwapRelationship(
-  client: Pick<GroundhogClient, "getStorageAt">,
+  client: Pick<ThruputClient, "getStorageAt">,
   factory: ContractAddress,
   router: ContractAddress,
 ): Promise<void> {

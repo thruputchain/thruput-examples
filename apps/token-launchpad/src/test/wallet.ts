@@ -1,23 +1,23 @@
 import {
-  createGroundhogClient,
+  createThruputClient,
   defineCluster,
   hashFromHex,
   MockTransport,
   PrivateKeySigner,
   toHex0x,
-} from "@groundhogchain/client";
-import { createPubkeyAccount } from "@groundhogchain/client/wallet";
+} from "@thruputchain/client";
+import { createPubkeyAccount } from "@thruputchain/client/wallet";
 import {
   registerWalletProvider,
   type WalletProvider,
   type WalletSession,
-} from "@groundhogchain/client/provider";
-import { networkHash } from "@groundhogchain/protocol";
+} from "@thruputchain/client/provider";
+import { networkHash } from "@thruputchain/protocol";
 import { vi } from "vitest";
 
 export function testClient(networkIdHex: string) {
   const transport = new MockTransport();
-  return createGroundhogClient({
+  return createThruputClient({
     cluster: defineCluster({
       networkHash: networkHash(hashFromHex(`0x${networkIdHex}`)),
       capabilities: [] as const,

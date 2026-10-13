@@ -6,11 +6,11 @@ import { join, resolve } from "node:path";
 import { build } from "esbuild";
 import { chromium } from "playwright-core";
 import {
-  createGroundhogClient,
+  createThruputClient,
   HttpTransport,
   hashFromHex,
-} from "@groundhogchain/client";
-import { ExecResult } from "@groundhogchain/protocol";
+} from "@thruputchain/client";
+import { ExecResult } from "@thruputchain/protocol";
 import { checkPopupStability } from "./popup-stability.mjs";
 
 // This test spends only newly airdropped localnet HOG, sending one base unit
@@ -46,7 +46,7 @@ async function capture(page, name) {
   }
   await page.setViewportSize(viewport);
 }
-const client = await createGroundhogClient({
+const client = await createThruputClient({
   transport: new HttpTransport("http://127.0.0.1:9545"),
 });
 if (!connectOnly) {
@@ -60,17 +60,17 @@ const bundle = await build({
   stdin: {
     resolveDir: process.cwd(),
     contents: `
-  import {createGroundhogClient, HttpTransport, createProviderWalletClient} from '@groundhogchain/client';
-  import {discoverWalletProviders} from '@groundhogchain/client/provider';
-  import {ERC20} from '@groundhogchain/client/contracts';
-  import {contractAddress, gasAmount, blockHeight} from '@groundhogchain/protocol';
+  import {createThruputClient, HttpTransport, createProviderWalletClient} from '@thruputchain/client';
+  import {discoverWalletProviders} from '@thruputchain/client/provider';
+  import {ERC20} from '@thruputchain/client/contracts';
+  import {contractAddress, gasAmount, blockHeight} from '@thruputchain/protocol';
   window.providerEvents = [];
   discoverWalletProviders(provider => {
     window.provider = provider;
     provider.on('change', () => window.providerEvents.push('change'));
   });
   window.connect = async () => {
-    const client = await createGroundhogClient({transport:new HttpTransport('http://127.0.0.1:9545')});
+    const client = await createThruputClient({transport:new HttpTransport('http://127.0.0.1:9545')});
     window.session = await window.provider.request({method:'connect'});
     window.providerEvents.push('connect resolved');
     window.adapter = createProviderWalletClient({provider:window.provider, account:window.session.accounts[0], networkHash:window.session.networkHash, client});

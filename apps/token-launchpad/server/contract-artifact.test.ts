@@ -2,8 +2,8 @@
 import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { hashContract, toHex0x } from "@groundhogchain/client";
-import { ContractType } from "@groundhogchain/protocol";
+import { hashContract, toHex0x } from "@thruputchain/client";
+import { ContractType } from "@thruputchain/protocol";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { validateStandardTokenArtifact } from "./contract-artifact";
 

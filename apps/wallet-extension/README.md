@@ -5,7 +5,7 @@ An experimental Chrome Manifest V3 wallet for Groundhog localnet and devnet. Use
 ## Build and Load
 
 Requires Node 22.12+ and GitHub Packages read access. This extension installs
-`@groundhogchain/client@0.17.0`, which includes wallet capability discovery and
+`@thruputchain/client@0.18.0`, which includes wallet capability discovery and
 atomic batching through the `/provider` and `/wallet` exports.
 Follow the [registry authentication instructions](../../README.md#install-swap-and-launchpad-dependencies)
 before installing dependencies.
@@ -22,7 +22,7 @@ npm run build
 npm audit
 ```
 
-The local `.npmrc` selects GitHub Packages for `@groundhogchain/*`. Supply registry
+The local `.npmrc` selects GitHub Packages for `@thruputchain/*`. Supply registry
 authentication through your user environment; do not commit credentials.
 
 Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this application's `dist` directory. Pin **Thruput Wallet** in the Chrome toolbar. After rebuilding, reload the extension and refresh dapp tabs. Stable entrypoints are `dist/manifest.json`, `worker.js`, `content.js`, `inpage.js`, and `index.html`.
@@ -130,7 +130,7 @@ This is an advanced Chrome repair for this unpacked extension. Do not use `chrom
 
 ## Dapp Provider
 
-The in-page provider is announced as the `CustomEvent.detail` of `groundhog:announceProvider`, initially and in response to `groundhog:requestProvider`. It coexists with other providers; no global singleton is overwritten. Use `discoverWalletProviders` from `@groundhogchain/client/provider` in the dapp.
+The in-page provider is announced as the `CustomEvent.detail` of `groundhog:announceProvider`, initially and in response to `groundhog:requestProvider`. It coexists with other providers; no global singleton is overwritten. Use `discoverWalletProviders` from `@thruputchain/client/provider` in the dapp.
 
 Provider identity: `dev.groundhog.wallet`, name `Thruput Wallet`, contract version `1.0.0`. The display-name change does not change provider IDs, storage or vault keys, or messaging protocols.
 

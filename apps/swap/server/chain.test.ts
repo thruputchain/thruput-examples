@@ -4,12 +4,12 @@ import {
   addressFromHex,
   ContractDecodeError,
   ContractViewError,
-  GroundhogRpcErrorCode,
+  ThruputRpcErrorCode,
   hashFromHex,
   JsonRpcError,
-  type GroundhogClient,
-} from "@groundhogchain/client";
-import { networkHash } from "@groundhogchain/protocol";
+  type ThruputClient,
+} from "@thruputchain/client";
+import { networkHash } from "@thruputchain/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SwapFactory, swap_if } from "../src/contracts/generated/swap-factory.ts";
@@ -224,7 +224,7 @@ describe("GroundhogRegistrySource", () => {
   it("classifies only invalid supplied cursors and preserves the abort signal", async () => {
     const client = mockClient();
     client.getEvents.mockRejectedValue(
-      new JsonRpcError(GroundhogRpcErrorCode.InvalidParams, "invalid cursor"),
+      new JsonRpcError(ThruputRpcErrorCode.InvalidParams, "invalid cursor"),
     );
     const signals: AbortSignal[] = [];
     const source = new GroundhogRegistrySource(
@@ -250,7 +250,7 @@ describe("GroundhogRegistrySource", () => {
   it("does not classify InvalidParams without a supplied cursor", async () => {
     const client = mockClient();
     const invalidParams = new JsonRpcError(
-      GroundhogRpcErrorCode.InvalidParams,
+      ThruputRpcErrorCode.InvalidParams,
       "invalid parameters",
     );
     client.getEvents.mockRejectedValue(invalidParams);
@@ -459,7 +459,7 @@ function mockClient(options: { networkIds?: number[] } = {}) {
 
 function typedClient(client: ReturnType<typeof mockClient>) {
   return client as unknown as Pick<
-    GroundhogClient,
+    ThruputClient,
     "getEvents" | "getNetworkInfo" | "view"
   >;
 }

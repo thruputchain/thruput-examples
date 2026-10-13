@@ -6,10 +6,10 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { WalletProvider, useWallet } from "@groundhogchain/react";
+import { WalletProvider, useWallet } from "@thruputchain/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { CxsWriter } from "@groundhogchain/protocol";
-import { toHex0x } from "@groundhogchain/client";
+import { CxsWriter } from "@thruputchain/protocol";
+import { toHex0x } from "@thruputchain/client";
 import { testAccount, testClient, testWallet } from "@/test/wallet";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TokenCards } from "./token-cards";

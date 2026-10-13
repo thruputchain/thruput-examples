@@ -3,10 +3,10 @@ import {
   bytesEqual,
   toHex0x,
   type EventPage,
-  type GroundhogClient,
+  type ThruputClient,
   type IdentifiedEvent,
   type TransactionReceipt,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 
 import type { GlobalConfig } from "@/config";
 import { batch_driver } from "@/contracts/generated/swap-driver";
@@ -22,7 +22,7 @@ export interface CreationObserver {
 
 export function createCreationObserver(
   config: GlobalConfig,
-  client: Pick<GroundhogClient, "getEvents">,
+  client: Pick<ThruputClient, "getEvents">,
 ): CreationObserver {
   return {
     async scan(workflow) {

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { useWallet } from "@groundhogchain/react";
+import { useWallet } from "@thruputchain/react";
 import { AppHeader } from "@/components/app-header";
 import { WalletControls, WalletInstallBanner } from "@/wallet/wallet-controls";
 

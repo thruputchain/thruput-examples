@@ -1,8 +1,8 @@
 //! Factory-specific standard token initialization.
 
-use groundhog_erc20_if::{Amount, ERC20Error};
-use groundhog_erc20_metadata_if::{Name, Symbol};
 use sdk::{ContractAddress, contract};
+use thruput_erc20_if::{Amount, ERC20Error};
+use thruput_erc20_metadata_if::{Name, Symbol};
 
 /// Initialization entrypoint used by a standard token factory immediately
 /// after child deployment.

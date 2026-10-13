@@ -1,23 +1,23 @@
 import {
-  createGroundhogClient,
+  createThruputClient,
   defineCluster,
   hashFromHex,
   HttpTransport,
   NetworkMismatchError as ClientNetworkMismatchError,
   toHex0x,
-  type GroundhogClient,
-  type ConnectedGroundhogClient,
-} from "@groundhogchain/client";
-import { networkHash } from "@groundhogchain/protocol";
+  type ThruputClient,
+  type ConnectedThruputClient,
+} from "@thruputchain/client";
+import { networkHash } from "@thruputchain/protocol";
 
 import type { GlobalConfig } from "@/config";
 
 export async function createReadClient(
   config: Pick<GlobalConfig, "rpcUrl" | "networkIdHex">,
   signal?: AbortSignal,
-): Promise<ConnectedGroundhogClient> {
+): Promise<ConnectedThruputClient> {
   try {
-    return await createGroundhogClient({
+    return await createThruputClient({
       cluster: defineCluster({
         name: "swap-read",
         rpcUrl: config.rpcUrl.href,
@@ -61,7 +61,7 @@ export class NetworkMismatchError extends Error {
 }
 
 export async function verifyReadNetwork(
-  client: Pick<GroundhogClient, "getNetworkInfo">,
+  client: Pick<ThruputClient, "getNetworkInfo">,
   config: Pick<GlobalConfig, "networkIdHex">,
 ): Promise<void> {
   const observed = await client.getNetworkInfo();

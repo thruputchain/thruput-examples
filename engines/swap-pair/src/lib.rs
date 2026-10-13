@@ -38,4 +38,4 @@ pub mod u256 {
 
 // Re-export the ERC20 trait for `dyn ERC20` in tests
 #[cfg(feature = "dev")]
-pub use groundhog_erc20_if::ERC20;
+pub use thruput_erc20_if::ERC20;

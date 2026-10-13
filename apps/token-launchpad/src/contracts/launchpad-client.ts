@@ -2,10 +2,10 @@ import {
   bytesEqual,
   fixedBytes,
   toHex0x,
-  type CoreGroundhogClient,
-} from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
-import { getContract } from "@groundhogchain/client/contract";
+  type CoreThruputClient,
+} from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
+import { getContract } from "@thruputchain/client/contract";
 
 import type { AppConfig } from "@/config";
 import {
@@ -68,7 +68,7 @@ export function safeDisplayDecimals(value: bigint | null): number | null {
 }
 
 export async function reviewFactory(
-  client: CoreGroundhogClient,
+  client: CoreThruputClient,
   config: AppConfig,
   nonce: Uint8Array,
   options: { balanceItemKnown?: boolean } = {},

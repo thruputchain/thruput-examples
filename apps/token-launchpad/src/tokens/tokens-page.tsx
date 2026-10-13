@@ -1,5 +1,5 @@
 import { AlertCircleIcon, LoaderCircleIcon, RocketIcon } from "lucide-react";
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import { Link } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";

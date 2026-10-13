@@ -11,7 +11,7 @@
 //! address.
 //!
 //! Verification, replay protection and the signed-message format all come
-//! from `groundhog-signed-op`: the wallet embeds a [`SignedOpReplayCache`],
+//! from `thruput-signed-op`: the wallet embeds a [`SignedOpReplayCache`],
 //! hands [`consume`](SignedOpReplayCache::consume) the key it holds, and
 //! mints from whatever decodes. The operation names no key, so a submitter
 //! cannot pick what the signature is checked against.
@@ -25,16 +25,16 @@
 
 sdk::declare_mock_contract!();
 
-use groundhog_erc20_permit_if::{
-    DeleteAllowanceGrant, DeleteAllowanceRequest, PermitGrant, PermitRequest,
-};
-use groundhog_signed_op::{Operation, SignedOp, SignedOpReplayCache};
 use sdk::mintable::{AuthTokenPreimage, MintableType};
 use sdk::signer::{Opaque, Signed};
 use sdk::storage::Value;
 use sdk::types::transaction::Uniquifier;
 use sdk::types::{Ed25519PublicKey, Ed25519Signature};
 use sdk::*;
+use thruput_erc20_permit_if::{
+    DeleteAllowanceGrant, DeleteAllowanceRequest, PermitGrant, PermitRequest,
+};
+use thruput_signed_op::{Operation, SignedOp, SignedOpReplayCache};
 
 /// What goes into a grant mint: `#[contract_type]` generates a preimage mirror
 /// of every mintable type, and these name them.
@@ -52,7 +52,7 @@ pub enum WalletRequest {
 
 /// Why the wallet refused, as distinct from why an operation failed
 /// verification — those are
-/// [`SignedOpError`](groundhog_signed_op::SignedOpError).
+/// [`SignedOpError`](thruput_signed_op::SignedOpError).
 #[contract_exception]
 #[non_exhaustive]
 #[cfg_attr(feature = "dev", derive(thiserror::Error))]

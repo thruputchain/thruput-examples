@@ -1,4 +1,4 @@
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import type { GlobalConfig } from "@/config";
 
 export async function withAccountLock<T>(

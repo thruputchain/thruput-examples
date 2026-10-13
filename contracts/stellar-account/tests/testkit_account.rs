@@ -22,26 +22,26 @@
 
 use std::path::PathBuf;
 
-use groundhog_domain_separator::transaction_signature_preimage;
-use groundhog_json_rpc_client::GroundhogApiClient;
-use groundhog_signing::{
+use stellar_account_factory_if::FactoryConfig;
+use thruput_domain_separator::transaction_signature_preimage;
+use thruput_json_rpc_client::GroundhogApiClient;
+use thruput_signing::{
     BuildCallTransaction, LocalSigner, Signer, build_call_transaction,
     encode_signed_transaction_xdr,
 };
-use groundhog_testkit::xdr::auth_claim::{AuthClaim, AuthClaim_source_address_claim};
-use groundhog_testkit::xdr::transaction::{DecoratedSignature, SignedTransaction};
-use groundhog_testkit::xdr::types::{ContractAddress, Ed25519PublicKey, NetworkHash, SHA256Hash};
-use groundhog_testkit::{
+use thruput_testkit::xdr::auth_claim::{AuthClaim, AuthClaim_source_address_claim};
+use thruput_testkit::xdr::transaction::{DecoratedSignature, SignedTransaction};
+use thruput_testkit::xdr::types::{ContractAddress, Ed25519PublicKey, NetworkHash, SHA256Hash};
+use thruput_testkit::{
     Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Scenario,
     entrypoint_id, xdrs,
 };
-use stellar_account_factory_if::FactoryConfig;
 
 type Address = ContractAddress;
 
 const ACCOUNT_IF: (&str, &str) = ("StellarAccount", "0.1.0");
 const FACTORY_IF: (&str, &str) = ("StellarAccountFactory", "0.1.0");
-const ERC20: (&str, &str) = ("ERC20", "0.1.52");
+const ERC20: (&str, &str) = ("ERC20", "0.1.55");
 
 const MASTER_SEED: [u8; 32] = [0x11; 32];
 const SECOND_SEED: [u8; 32] = [0x22; 32];
@@ -140,7 +140,7 @@ async fn submit_ok(ctx: &AgentContext, tx_hex: String) {
     assert!(
         matches!(
             receipt.status,
-            groundhog_json_rpc_types::receipt::ExecStatus::Ok
+            thruput_json_rpc_types::receipt::ExecStatus::Ok
         ),
         "execution ok, got {:?}",
         receipt.status
@@ -173,7 +173,7 @@ fn admin() -> Agent {
         );
         factory
             .call(
-                &mut ctx,
+                &ctx,
                 "initialize",
                 &FactoryConfig {
                     account_code_hash: account_hash,
@@ -187,10 +187,10 @@ fn admin() -> Agent {
         let master_pk = public_key(&MASTER_SEED);
         let predicted: Address = factory.view(&ctx, "address_of", &master_pk, None).await?;
         native
-            .call(&mut ctx, "transfer", &(predicted, STARTING_BALANCE))
+            .call(&ctx, "transfer", &(predicted, STARTING_BALANCE))
             .await?;
         let account: Address = factory
-            .call_returning(&mut ctx, "create_account", &master_pk)
+            .call_returning(&ctx, "create_account", &master_pk)
             .await?;
         assert_eq!(account, predicted, "created where predicted");
         let account_c = Contract::new(account, ACCOUNT_IF.0, ACCOUNT_IF.1);
@@ -249,7 +249,7 @@ fn admin() -> Agent {
                     receipt.is_err()
                         || !matches!(
                             receipt.unwrap().status,
-                            groundhog_json_rpc_types::receipt::ExecStatus::Ok
+                            thruput_json_rpc_types::receipt::ExecStatus::Ok
                         ),
                     "an under-weight transaction must not execute"
                 );
@@ -277,7 +277,7 @@ fn admin() -> Agent {
         assert!(
             !matches!(
                 receipt.status,
-                groundhog_json_rpc_types::receipt::ExecStatus::Ok
+                thruput_json_rpc_types::receipt::ExecStatus::Ok
             ),
             "InsufficientAuthWeight"
         );

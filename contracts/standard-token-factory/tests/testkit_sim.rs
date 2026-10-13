@@ -3,26 +3,26 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use groundhog_erc20_if::{AllowanceChangeEvent, BurnEvent, MintEvent, TransferEvent};
-use groundhog_json_rpc_types::events::{
-    BlockAnchor, ContractAddressList, EventFilter, EventFilterList, EventQuery, EventTopicFilter,
-    IdentifiedEvent, IterationOrder, PaginationCursor, TopicList,
-};
-use groundhog_json_rpc_types::hex::{Hex0x, Topic};
-use groundhog_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
-use groundhog_testkit::xdr::types::{ContractAddress, SHA256Hash};
-use groundhog_testkit::{
-    Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Result,
-    Scenario, xdrs,
-};
 use sdk::Event as _;
 use sdk::exn::{LibraryExn, RawException};
 use standard_token::ClawbackEvent;
 use standard_token::Config;
 use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
+use thruput_erc20_if::{AllowanceChangeEvent, BurnEvent, MintEvent, TransferEvent};
+use thruput_json_rpc_types::events::{
+    BlockAnchor, ContractAddressList, EventFilter, EventFilterList, EventQuery, EventTopicFilter,
+    IdentifiedEvent, IterationOrder, PaginationCursor, TopicList,
+};
+use thruput_json_rpc_types::hex::{Hex0x, Topic};
+use thruput_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
+use thruput_testkit::xdr::types::{ContractAddress, SHA256Hash};
+use thruput_testkit::{
+    Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Result,
+    Scenario, xdrs,
+};
 
-const ERC20: (&str, &str) = ("ERC20", "0.1.52");
-const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.52");
+const ERC20: (&str, &str) = ("ERC20", "0.1.55");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.55");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
 const REQUIRED_FACTORY_FUNDING: i128 = 1_000_000;
 // Exactly what creating a token through the factory costs its new address
@@ -38,7 +38,7 @@ const NATIVE_TOKEN_FUNDING: i128 = 1_000_000;
 const CREATION_FEE: i128 = 25;
 
 #[derive(Debug, Clone, xdrs::WriteXDR, xdrs::ReadXDR)]
-#[xdr(crate = "groundhog_testkit::xdrs")]
+#[xdr(crate = "thruput_testkit::xdrs")]
 struct SpendRequest {
     token: ContractAddress,
     owner: ContractAddress,
@@ -104,7 +104,7 @@ async fn create(
     config: &Config,
     initial_holder: ContractAddress,
     initial_supply: i128,
-) -> Result<groundhog_testkit::SubmittedContractCall> {
+) -> Result<thruput_testkit::SubmittedContractCall> {
     factory
         .submit_call(
             ctx,
@@ -256,7 +256,7 @@ fn assert_created(
 
 fn event_query(
     factory: ContractAddress,
-    height: groundhog_json_rpc_types::BlockHeight,
+    height: thruput_json_rpc_types::BlockHeight,
 ) -> EventQuery {
     EventQuery {
         filters: EventFilterList(
@@ -289,7 +289,7 @@ fn event_query(
 async fn indexed_created_events(
     ctx: &AgentContext,
     factory: ContractAddress,
-    height: groundhog_json_rpc_types::BlockHeight,
+    height: thruput_json_rpc_types::BlockHeight,
 ) -> Result<Vec<IdentifiedEvent>> {
     for _ in 0..40 {
         let page = ctx
@@ -484,11 +484,7 @@ fn spender_agent() -> Agent {
             .body;
         let token = token(request.token);
         let receipt = token
-            .call(
-                &mut ctx,
-                "transfer_from",
-                &(request.owner, me, request.amount),
-            )
+            .call(&ctx, "transfer_from", &(request.owner, me, request.amount))
             .await?;
         // Spending an allowance emits only the transfer it pays for.
         assert_eq!(receipt.events.len(), 1);
@@ -540,7 +536,7 @@ fn creator_agent() -> Agent {
         let unavailable_address = predict(&ctx, &unavailable_factory, unavailable_nonce).await?;
         native
             .call(
-                &mut ctx,
+                &ctx,
                 "transfer",
                 &(unavailable_address, TOKEN_SOURCE_FUNDING),
             )
@@ -594,7 +590,7 @@ fn creator_agent() -> Agent {
         let underfunded_address = predict(&ctx, &factory, underfunded_nonce).await?;
         native
             .call(
-                &mut ctx,
+                &ctx,
                 "transfer",
                 &(underfunded_address, TOKEN_SOURCE_FUNDING - 1),
             )
@@ -618,14 +614,14 @@ fn creator_agent() -> Agent {
         let nonce = SHA256Hash::from([0x61; 32]);
         let predicted = predict(&ctx, &factory, nonce).await?;
         native
-            .call(&mut ctx, "transfer", &(predicted, TOKEN_SOURCE_FUNDING))
+            .call(&ctx, "transfer", &(predicted, TOKEN_SOURCE_FUNDING))
             .await?;
         let submitted = create(&mut ctx, &factory, nonce, &config, creator, 1_000).await?;
         let creation_receipt = submitted.await_receipt().await?;
         assert_eq!(creation_receipt.events.len(), 2);
         // The account's default wallet ran the call and returns one buffer per
         // call it made; unwrap that envelope before decoding the address.
-        let returned = groundhog_signing::default_wallet::decode_default_wallet_call_return(
+        let returned = thruput_signing::default_wallet::decode_default_wallet_call_return(
             &creation_receipt
                 .return_data
                 .as_ref()
@@ -688,7 +684,7 @@ fn creator_agent() -> Agent {
         );
         assert_eq!(reserve(&ctx, &native, created).await?, 0);
 
-        let mint = token.call(&mut ctx, "mint", &(creator, 100_i128)).await?;
+        let mint = token.call(&ctx, "mint", &(creator, 100_i128)).await?;
         assert_eq!(mint.events.len(), 1);
         assert_mint(&mint, 0, created, creator, 100);
         assert_eq!(balance(&ctx, &token, creator).await?, 1_100);
@@ -701,11 +697,9 @@ fn creator_agent() -> Agent {
         assert_eq!(reserve(&ctx, &native, created).await?, 0);
 
         native
-            .call(&mut ctx, "transfer", &(created, ROW_FUNDING))
+            .call(&ctx, "transfer", &(created, ROW_FUNDING))
             .await?;
-        let transfer = token
-            .call(&mut ctx, "transfer", &(spender, 200_i128))
-            .await?;
+        let transfer = token.call(&ctx, "transfer", &(spender, 200_i128)).await?;
         assert_eq!(transfer.events.len(), 1);
         assert_transfer(&transfer, 0, created, creator, spender, 200);
         assert_eq!(balance(&ctx, &token, creator).await?, 900);
@@ -713,10 +707,10 @@ fn creator_agent() -> Agent {
         assert_eq!(reserve(&ctx, &native, created).await?, 0);
 
         native
-            .call(&mut ctx, "transfer", &(created, ROW_FUNDING))
+            .call(&ctx, "transfer", &(created, ROW_FUNDING))
             .await?;
         let approval = token
-            .call(&mut ctx, "adjust_allowance", &(spender, 150_i128))
+            .call(&ctx, "adjust_allowance", &(spender, 150_i128))
             .await?;
         assert_eq!(approval.events.len(), 1);
         assert_allowance_change(&approval, 0, created, creator, spender, 150);
@@ -752,9 +746,7 @@ fn creator_agent() -> Agent {
         assert_eq!(reserve(&ctx, &native, created).await?, 0);
 
         let clawback = Contract::new(created, "ERC20Clawback", ERC20.1);
-        let burn = clawback
-            .call(&mut ctx, "clawback", &(spender, 25_i128))
-            .await?;
+        let burn = clawback.call(&ctx, "clawback", &(spender, 25_i128)).await?;
         assert_eq!(burn.events.len(), 2);
         assert_clawback(&burn, 0, created, spender, 25);
         assert_eq!(balance(&ctx, &token, spender).await?, 250);
@@ -768,9 +760,9 @@ fn creator_agent() -> Agent {
 
         let unseen = ContractAddress::from([0x44; 32]);
         native
-            .call(&mut ctx, "transfer", &(created, ROW_FUNDING))
+            .call(&ctx, "transfer", &(created, ROW_FUNDING))
             .await?;
-        let unseen_transfer = token.call(&mut ctx, "transfer", &(unseen, 1_i128)).await?;
+        let unseen_transfer = token.call(&ctx, "transfer", &(unseen, 1_i128)).await?;
         assert_eq!(unseen_transfer.events.len(), 1);
         assert_transfer(&unseen_transfer, 0, created, creator, unseen, 1);
         assert_eq!(balance(&ctx, &token, creator).await?, 824);
@@ -791,18 +783,14 @@ fn creator_agent() -> Agent {
         let fee_nonce = SHA256Hash::from([0x62; 32]);
         let fee_token = predict(&ctx, &fee_factory, fee_nonce).await?;
         native
-            .call(&mut ctx, "transfer", &(fee_token, TOKEN_SOURCE_FUNDING))
+            .call(&ctx, "transfer", &(fee_token, TOKEN_SOURCE_FUNDING))
+            .await?;
+        native
+            .call(&ctx, "transfer", &(native.address(), NATIVE_TOKEN_FUNDING))
             .await?;
         native
             .call(
-                &mut ctx,
-                "transfer",
-                &(native.address(), NATIVE_TOKEN_FUNDING),
-            )
-            .await?;
-        native
-            .call(
-                &mut ctx,
+                &ctx,
                 "adjust_allowance",
                 &(fee_factory.address(), CREATION_FEE),
             )
@@ -875,7 +863,6 @@ async fn real_artifact_rpc_lifecycle() {
     config.initial_account_tokens = 100_000_000_000;
 
     let scenario = Scenario::builder("standard-token-phase-6")
-        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("standard_token", root.join("standard_token.rv32a"))
         .artifact(

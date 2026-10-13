@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@/test/render";
 import { MemoryRouter } from "react-router-dom";
 import { expect, it, vi } from "vitest";
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import { configuration } from "@/test/fixtures";
 import { TokensPage } from "./tokens-page";
 import type { RegistryStatus } from "@/registry/client";

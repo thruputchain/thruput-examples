@@ -1,12 +1,12 @@
 mod support;
 
-use groundhog_erc20_if::{AllowanceChangeEvent, ERC20Error, MintEvent, TransferEvent};
 use sdk::call::RawCallError;
 use sdk::*;
 use standard_token_factory::{
     FactoryConfig, StandardTokenFactoryClient, TokenCreated, TokenFactoryError,
 };
 use support::*;
+use thruput_erc20_if::{AllowanceChangeEvent, ERC20Error, MintEvent, TransferEvent};
 
 fn assert_erc20_error(result: &TransactResult, expected: ERC20Error) {
     result.assert_abort();
@@ -48,7 +48,7 @@ fn fee_configuration_rejects_missing_or_zero_treasury() {
         env.advance_block();
         let (fee, recipient) = match index {
             0 => (FEE, None),
-            1 => (FEE, Some(*groundhog_erc20_if::CONTRACT_ADDR_ZERO)),
+            1 => (FEE, Some(*thruput_erc20_if::CONTRACT_ADDR_ZERO)),
             2 => (FEE, Some(factory)),
             3 => (-1, Some(TREASURY)),
             _ => unreachable!(),

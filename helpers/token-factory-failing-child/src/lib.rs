@@ -2,10 +2,10 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use groundhog_erc20_if::ERC20Error;
 use sdk::storage::Value;
 use sdk::*;
 use standard_token_factory_if::{Amount, Name, StandardTokenInitializer, Symbol};
+use thruput_erc20_if::ERC20Error;
 
 sdk::declare_mock_contract!();
 

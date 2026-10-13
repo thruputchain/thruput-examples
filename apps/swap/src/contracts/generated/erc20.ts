@@ -1,14 +1,14 @@
-// Generated from erc20.spec.xdr - ERC20 interface v0.1.52
-// Generated from erc20.spec.xdr - ERC20Burn interface v0.1.52
-// Generated from erc20.spec.xdr - ERC20Clawback interface v0.1.52
-// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.52
-// Generated from erc20.spec.xdr - ERC20Permit interface v0.1.52
+// Generated from erc20.spec.xdr - ERC20 interface v0.1.55
+// Generated from erc20.spec.xdr - ERC20Burn interface v0.1.55
+// Generated from erc20.spec.xdr - ERC20Clawback interface v0.1.55
+// Generated from erc20.spec.xdr - ERC20Metadata interface v0.1.55
+// Generated from erc20.spec.xdr - ERC20Permit interface v0.1.55
 // DO NOT EDIT. Re-run codegen to update.
 
-import * as __gh_protocol from "@groundhogchain/protocol";
-import * as __gh_protocol_utils from "@groundhogchain/protocol/utils";
-import * as __gh_contract_spec from "@groundhogchain/contract-spec";
-import * as __gh_client_contract from "@groundhogchain/client/contract";
+import * as __gh_protocol from "@thruputchain/protocol";
+import * as __gh_protocol_utils from "@thruputchain/protocol/utils";
+import * as __gh_contract_spec from "@thruputchain/contract-spec";
+import * as __gh_client_contract from "@thruputchain/client/contract";
 
 const __gh_s = __gh_contract_spec.contractSpecString;
 
@@ -98,7 +98,7 @@ const __gh_entrypoints = {
   },
 } as const;
 
-export namespace groundhog_erc20_controls_if {
+export namespace thruput_erc20_controls_if {
   export namespace v0_1 {
     export namespace error {
       export type ERC20ControlsError = 1n | 2n | 3n | 4n | 5n;
@@ -118,7 +118,7 @@ export namespace groundhog_erc20_controls_if {
   }
 }
 
-export namespace groundhog_erc20_if {
+export namespace thruput_erc20_if {
   export namespace v0_1 {
     export namespace error {
       export type ERC20Error = 1n | 2n | 3n | 4n | 5n | 100n;
@@ -190,7 +190,7 @@ export namespace groundhog_erc20_if {
   }
 }
 
-export namespace groundhog_erc20_permit_if {
+export namespace thruput_erc20_permit_if {
   export namespace v0_1 {
     export interface DeleteAllowanceGrant {
       spender: __gh_protocol.ContractAddress;
@@ -268,7 +268,7 @@ export namespace ERC20 {
       kind: "declared";
       name: "ERC20Error";
       selector: 0xb19947acb2fa14ffn;
-      value: __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error;
+      value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
     };
     export type Exception =
       __gh_client_contract.ContractException<DeclaredException>;
@@ -292,14 +292,14 @@ export namespace ERC20Burn {
       | {
           kind: "declared";
           name: "ERC20ControlsError";
-          selector: 0x5feff273f7e2dbben;
-          value: __gh_codegen.groundhog_erc20_controls_if$v0_1$error$ERC20ControlsError;
+          selector: 0x1c4de7b2473e7555n;
+          value: __gh_codegen.thruput_erc20_controls_if$v0_1$error$ERC20ControlsError;
         }
       | {
           kind: "declared";
           name: "ERC20Error";
           selector: 0xb19947acb2fa14ffn;
-          value: __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error;
+          value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
         };
     export type Exception =
       __gh_client_contract.ContractException<DeclaredException>;
@@ -318,14 +318,14 @@ export namespace ERC20Clawback {
       | {
           kind: "declared";
           name: "ERC20ControlsError";
-          selector: 0x5feff273f7e2dbben;
-          value: __gh_codegen.groundhog_erc20_controls_if$v0_1$error$ERC20ControlsError;
+          selector: 0x1c4de7b2473e7555n;
+          value: __gh_codegen.thruput_erc20_controls_if$v0_1$error$ERC20ControlsError;
         }
       | {
           kind: "declared";
           name: "ERC20Error";
           selector: 0xb19947acb2fa14ffn;
-          value: __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error;
+          value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
         };
     export type Exception =
       __gh_client_contract.ContractException<DeclaredException>;
@@ -360,17 +360,17 @@ export namespace ERC20Metadata {
 export namespace ERC20Permit {
   export namespace v0_1 {
     export interface DeleteAllowanceSignedArgs {
-      grant: __gh_client_contract.SignedToken<__gh_codegen.groundhog_erc20_permit_if$v0_1$DeleteAllowanceGrant>;
+      grant: __gh_client_contract.SignedToken<__gh_codegen.thruput_erc20_permit_if$v0_1$DeleteAllowanceGrant>;
     }
     export type DeleteAllowanceSignedResult = void;
 
     export interface IncreaseAllowanceSignedArgs {
-      grant: __gh_client_contract.SignedToken<__gh_codegen.groundhog_erc20_permit_if$v0_1$PermitGrant>;
+      grant: __gh_client_contract.SignedToken<__gh_codegen.thruput_erc20_permit_if$v0_1$PermitGrant>;
     }
     export type IncreaseAllowanceSignedResult = void;
 
     export interface TransferFromSignedArgs {
-      grant: __gh_client_contract.SignedToken<__gh_codegen.groundhog_erc20_permit_if$v0_1$PermitGrant>;
+      grant: __gh_client_contract.SignedToken<__gh_codegen.thruput_erc20_permit_if$v0_1$PermitGrant>;
       receiver: __gh_protocol.ContractAddress;
       amount: bigint;
     }
@@ -381,13 +381,13 @@ export namespace ERC20Permit {
           kind: "declared";
           name: "ERC20Error";
           selector: 0xb19947acb2fa14ffn;
-          value: __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error;
+          value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
         }
       | {
           kind: "declared";
           name: "ERC20PermitError";
           selector: 0xe8abb072f5171148n;
-          value: __gh_codegen.groundhog_erc20_permit_if$v0_1$error$ERC20PermitError;
+          value: __gh_codegen.thruput_erc20_permit_if$v0_1$error$ERC20PermitError;
         };
     export type Exception =
       __gh_client_contract.ContractException<DeclaredException>;
@@ -398,16 +398,16 @@ export const spec: __gh_client_contract.ContractSpec = {
   interfaces: [
     {
       name: __gh_s("ERC20"),
-      vers: __gh_s("0.1.52"),
+      vers: __gh_s("0.1.55"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
             named: {
-              crate_name: __gh_s("groundhog-erc20-if"),
+              crate_name: __gh_s("thruput-erc20-if"),
               major: __gh_s("0.1"),
-              module_path: __gh_s("groundhog_erc20_if::error"),
+              module_path: __gh_s("thruput_erc20_if::error"),
               declared: __gh_s("ERC20Error"),
             },
           },
@@ -548,16 +548,16 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
     {
       name: __gh_s("ERC20Burn"),
-      vers: __gh_s("0.1.52"),
+      vers: __gh_s("0.1.55"),
       throws: [
         {
-          selector: 0x5feff273f7e2dbben,
+          selector: 0x1c4de7b2473e7555n,
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
             named: {
-              crate_name: __gh_s("groundhog-erc20-controls-if"),
+              crate_name: __gh_s("thruput-erc20-controls-if"),
               major: __gh_s("0.1"),
-              module_path: __gh_s("groundhog_erc20_controls_if::error"),
+              module_path: __gh_s("thruput_erc20_controls_if::error"),
               declared: __gh_s("ERC20ControlsError"),
             },
           },
@@ -567,9 +567,9 @@ export const spec: __gh_client_contract.ContractSpec = {
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
             named: {
-              crate_name: __gh_s("groundhog-erc20-if"),
+              crate_name: __gh_s("thruput-erc20-if"),
               major: __gh_s("0.1"),
-              module_path: __gh_s("groundhog_erc20_if::error"),
+              module_path: __gh_s("thruput_erc20_if::error"),
               declared: __gh_s("ERC20Error"),
             },
           },
@@ -606,16 +606,16 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
     {
       name: __gh_s("ERC20Clawback"),
-      vers: __gh_s("0.1.52"),
+      vers: __gh_s("0.1.55"),
       throws: [
         {
-          selector: 0x5feff273f7e2dbben,
+          selector: 0x1c4de7b2473e7555n,
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
             named: {
-              crate_name: __gh_s("groundhog-erc20-controls-if"),
+              crate_name: __gh_s("thruput-erc20-controls-if"),
               major: __gh_s("0.1"),
-              module_path: __gh_s("groundhog_erc20_controls_if::error"),
+              module_path: __gh_s("thruput_erc20_controls_if::error"),
               declared: __gh_s("ERC20ControlsError"),
             },
           },
@@ -625,9 +625,9 @@ export const spec: __gh_client_contract.ContractSpec = {
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
             named: {
-              crate_name: __gh_s("groundhog-erc20-if"),
+              crate_name: __gh_s("thruput-erc20-if"),
               major: __gh_s("0.1"),
-              module_path: __gh_s("groundhog_erc20_if::error"),
+              module_path: __gh_s("thruput_erc20_if::error"),
               declared: __gh_s("ERC20Error"),
             },
           },
@@ -653,7 +653,7 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
     {
       name: __gh_s("ERC20Metadata"),
-      vers: __gh_s("0.1.52"),
+      vers: __gh_s("0.1.55"),
       throws: [],
       methods: [
         {
@@ -719,16 +719,16 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
     {
       name: __gh_s("ERC20Permit"),
-      vers: __gh_s("0.1.52"),
+      vers: __gh_s("0.1.55"),
       throws: [
         {
           selector: 0xb19947acb2fa14ffn,
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
             named: {
-              crate_name: __gh_s("groundhog-erc20-if"),
+              crate_name: __gh_s("thruput-erc20-if"),
               major: __gh_s("0.1"),
-              module_path: __gh_s("groundhog_erc20_if::error"),
+              module_path: __gh_s("thruput_erc20_if::error"),
               declared: __gh_s("ERC20Error"),
             },
           },
@@ -738,9 +738,9 @@ export const spec: __gh_client_contract.ContractSpec = {
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
             named: {
-              crate_name: __gh_s("groundhog-erc20-permit-if"),
+              crate_name: __gh_s("thruput-erc20-permit-if"),
               major: __gh_s("0.1"),
-              module_path: __gh_s("groundhog_erc20_permit_if::error"),
+              module_path: __gh_s("thruput_erc20_permit_if::error"),
               declared: __gh_s("ERC20PermitError"),
             },
           },
@@ -758,9 +758,9 @@ export const spec: __gh_client_contract.ContractSpec = {
                   preimage_type: {
                     v: __gh_contract_spec.ContractTypeKind.Named,
                     named: {
-                      crate_name: __gh_s("groundhog-erc20-permit-if"),
+                      crate_name: __gh_s("thruput-erc20-permit-if"),
                       major: __gh_s("0.1"),
-                      module_path: __gh_s("groundhog_erc20_permit_if"),
+                      module_path: __gh_s("thruput_erc20_permit_if"),
                       declared: __gh_s("DeleteAllowanceGrant"),
                     },
                   },
@@ -782,9 +782,9 @@ export const spec: __gh_client_contract.ContractSpec = {
                   preimage_type: {
                     v: __gh_contract_spec.ContractTypeKind.Named,
                     named: {
-                      crate_name: __gh_s("groundhog-erc20-permit-if"),
+                      crate_name: __gh_s("thruput-erc20-permit-if"),
                       major: __gh_s("0.1"),
-                      module_path: __gh_s("groundhog_erc20_permit_if"),
+                      module_path: __gh_s("thruput_erc20_permit_if"),
                       declared: __gh_s("PermitGrant"),
                     },
                   },
@@ -806,9 +806,9 @@ export const spec: __gh_client_contract.ContractSpec = {
                   preimage_type: {
                     v: __gh_contract_spec.ContractTypeKind.Named,
                     named: {
-                      crate_name: __gh_s("groundhog-erc20-permit-if"),
+                      crate_name: __gh_s("thruput-erc20-permit-if"),
                       major: __gh_s("0.1"),
-                      module_path: __gh_s("groundhog_erc20_permit_if"),
+                      module_path: __gh_s("thruput_erc20_permit_if"),
                       declared: __gh_s("PermitGrant"),
                     },
                   },
@@ -835,9 +835,9 @@ export const spec: __gh_client_contract.ContractSpec = {
       v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
         name: {
-          crate_name: __gh_s("groundhog-erc20-controls-if"),
+          crate_name: __gh_s("thruput-erc20-controls-if"),
           major: __gh_s("0.1"),
-          module_path: __gh_s("groundhog_erc20_controls_if::error"),
+          module_path: __gh_s("thruput_erc20_controls_if::error"),
           declared: __gh_s("ERC20ControlsError"),
         },
         variants: [
@@ -853,9 +853,9 @@ export const spec: __gh_client_contract.ContractSpec = {
       v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
         name: {
-          crate_name: __gh_s("groundhog-erc20-if"),
+          crate_name: __gh_s("thruput-erc20-if"),
           major: __gh_s("0.1"),
-          module_path: __gh_s("groundhog_erc20_if::error"),
+          module_path: __gh_s("thruput_erc20_if::error"),
           declared: __gh_s("ERC20Error"),
         },
         variants: [
@@ -872,9 +872,9 @@ export const spec: __gh_client_contract.ContractSpec = {
       v: __gh_contract_spec.ContractTypeDefKind.TypeDefStruct,
       struct_def: {
         name: {
-          crate_name: __gh_s("groundhog-erc20-permit-if"),
+          crate_name: __gh_s("thruput-erc20-permit-if"),
           major: __gh_s("0.1"),
-          module_path: __gh_s("groundhog_erc20_permit_if"),
+          module_path: __gh_s("thruput_erc20_permit_if"),
           declared: __gh_s("DeleteAllowanceGrant"),
         },
         fields: [
@@ -889,9 +889,9 @@ export const spec: __gh_client_contract.ContractSpec = {
       v: __gh_contract_spec.ContractTypeDefKind.TypeDefStruct,
       struct_def: {
         name: {
-          crate_name: __gh_s("groundhog-erc20-permit-if"),
+          crate_name: __gh_s("thruput-erc20-permit-if"),
           major: __gh_s("0.1"),
-          module_path: __gh_s("groundhog_erc20_permit_if"),
+          module_path: __gh_s("thruput_erc20_permit_if"),
           declared: __gh_s("PermitGrant"),
         },
         fields: [
@@ -910,9 +910,9 @@ export const spec: __gh_client_contract.ContractSpec = {
       v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
       enum_def: {
         name: {
-          crate_name: __gh_s("groundhog-erc20-permit-if"),
+          crate_name: __gh_s("thruput-erc20-permit-if"),
           major: __gh_s("0.1"),
-          module_path: __gh_s("groundhog_erc20_permit_if::error"),
+          module_path: __gh_s("thruput_erc20_permit_if::error"),
           declared: __gh_s("ERC20PermitError"),
         },
         variants: [
@@ -925,14 +925,14 @@ export const spec: __gh_client_contract.ContractSpec = {
   events: [
     {
       name: {
-        crate_name: __gh_s("groundhog-erc20-controls-if"),
+        crate_name: __gh_s("thruput-erc20-controls-if"),
         major: __gh_s("0.1"),
-        module_path: __gh_s("groundhog_erc20_controls_if::events"),
+        module_path: __gh_s("thruput_erc20_controls_if::events"),
         declared: __gh_s("ClawbackEvent"),
       },
       signature: __gh_protocol.topic(
         __gh_protocol_utils.fromHex(
-          "17b1dd13f502e5544a993aa41b810a3309fa6444ca1e407151e0aad66c352fca",
+          "bcbb2dc705e6515989340faac550a4f8115a9b024bcf5dfb7c1529b5b1020543",
         ),
       ),
       topics: [
@@ -950,9 +950,9 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
     {
       name: {
-        crate_name: __gh_s("groundhog-erc20-if"),
+        crate_name: __gh_s("thruput-erc20-if"),
         major: __gh_s("0.1"),
-        module_path: __gh_s("groundhog_erc20_if::events"),
+        module_path: __gh_s("thruput_erc20_if::events"),
         declared: __gh_s("AllowanceChangeEvent"),
       },
       signature: __gh_protocol.topic(
@@ -979,9 +979,9 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
     {
       name: {
-        crate_name: __gh_s("groundhog-erc20-if"),
+        crate_name: __gh_s("thruput-erc20-if"),
         major: __gh_s("0.1"),
-        module_path: __gh_s("groundhog_erc20_if::events"),
+        module_path: __gh_s("thruput_erc20_if::events"),
         declared: __gh_s("AllowanceDeleteEvent"),
       },
       signature: __gh_protocol.topic(
@@ -1008,9 +1008,9 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
     {
       name: {
-        crate_name: __gh_s("groundhog-erc20-if"),
+        crate_name: __gh_s("thruput-erc20-if"),
         major: __gh_s("0.1"),
-        module_path: __gh_s("groundhog_erc20_if::events"),
+        module_path: __gh_s("thruput_erc20_if::events"),
         declared: __gh_s("BurnEvent"),
       },
       signature: __gh_protocol.topic(
@@ -1033,9 +1033,9 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
     {
       name: {
-        crate_name: __gh_s("groundhog-erc20-if"),
+        crate_name: __gh_s("thruput-erc20-if"),
         major: __gh_s("0.1"),
-        module_path: __gh_s("groundhog_erc20_if::events"),
+        module_path: __gh_s("thruput_erc20_if::events"),
         declared: __gh_s("MintEvent"),
       },
       signature: __gh_protocol.topic(
@@ -1058,9 +1058,9 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
     {
       name: {
-        crate_name: __gh_s("groundhog-erc20-if"),
+        crate_name: __gh_s("thruput-erc20-if"),
         major: __gh_s("0.1"),
-        module_path: __gh_s("groundhog_erc20_if::events"),
+        module_path: __gh_s("thruput_erc20_if::events"),
         declared: __gh_s("TransferEvent"),
       },
       signature: __gh_protocol.topic(
@@ -1100,7 +1100,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "adjust_allowance",
       publicName: "adjustAllowance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.adjustAllowance,
@@ -1133,7 +1133,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "allowance",
       publicName: "allowance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.allowance,
@@ -1166,7 +1166,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "delete_allowance",
       publicName: "deleteAllowance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.deleteAllowance,
@@ -1194,7 +1194,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "delete_balance",
       publicName: "deleteBalance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.deleteBalance,
@@ -1216,7 +1216,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "get_balance",
       publicName: "getBalance",
       entrypoint: __gh_entrypoints.ERC20.v0_1.getBalance,
@@ -1238,7 +1238,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "get_balance_of",
       publicName: "getBalanceOf",
       entrypoint: __gh_entrypoints.ERC20.v0_1.getBalanceOf,
@@ -1266,7 +1266,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.ERC20.v0_1.initialize,
@@ -1294,7 +1294,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "mint",
       publicName: "mint",
       entrypoint: __gh_entrypoints.ERC20.v0_1.mint,
@@ -1327,7 +1327,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "total_supply",
       publicName: "totalSupply",
       entrypoint: __gh_entrypoints.ERC20.v0_1.totalSupply,
@@ -1349,7 +1349,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "transfer",
       publicName: "transfer",
       entrypoint: __gh_entrypoints.ERC20.v0_1.transfer,
@@ -1382,7 +1382,7 @@ export const ERC20 = {
       ERC20.v0_1.DeclaredException
     >({
       interfaceName: "ERC20",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "transfer_from",
       publicName: "transferFrom",
       entrypoint: __gh_entrypoints.ERC20.v0_1.transferFrom,
@@ -1425,7 +1425,7 @@ export const ERC20Burn = {
       ERC20Burn.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Burn",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "burn",
       publicName: "burn",
       entrypoint: __gh_entrypoints.ERC20Burn.v0_1.burn,
@@ -1440,7 +1440,7 @@ export const ERC20Burn = {
       returnType: spec.interfaces[1]!.methods[0]!.return_type,
       throws: [
         {
-          selector: 0x5feff273f7e2dbben,
+          selector: 0x1c4de7b2473e7555n,
           name: "ERC20ControlsError",
           type: spec.interfaces[1]!.throws[0]!.ty,
         },
@@ -1458,7 +1458,7 @@ export const ERC20Burn = {
       ERC20Burn.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Burn",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "burn_from",
       publicName: "burnFrom",
       entrypoint: __gh_entrypoints.ERC20Burn.v0_1.burnFrom,
@@ -1478,7 +1478,7 @@ export const ERC20Burn = {
       returnType: spec.interfaces[1]!.methods[1]!.return_type,
       throws: [
         {
-          selector: 0x5feff273f7e2dbben,
+          selector: 0x1c4de7b2473e7555n,
           name: "ERC20ControlsError",
           type: spec.interfaces[1]!.throws[0]!.ty,
         },
@@ -1501,7 +1501,7 @@ export const ERC20Clawback = {
       ERC20Clawback.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Clawback",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "clawback",
       publicName: "clawback",
       entrypoint: __gh_entrypoints.ERC20Clawback.v0_1.clawback,
@@ -1521,7 +1521,7 @@ export const ERC20Clawback = {
       returnType: spec.interfaces[2]!.methods[0]!.return_type,
       throws: [
         {
-          selector: 0x5feff273f7e2dbben,
+          selector: 0x1c4de7b2473e7555n,
           name: "ERC20ControlsError",
           type: spec.interfaces[2]!.throws[0]!.ty,
         },
@@ -1544,7 +1544,7 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "decimals",
       publicName: "decimals",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.decimals,
@@ -1560,7 +1560,7 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "initialize",
       publicName: "initialize",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.initialize,
@@ -1597,7 +1597,7 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "name",
       publicName: "name",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.name,
@@ -1613,7 +1613,7 @@ export const ERC20Metadata = {
       ERC20Metadata.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Metadata",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "symbol",
       publicName: "symbol",
       entrypoint: __gh_entrypoints.ERC20Metadata.v0_1.symbol,
@@ -1634,7 +1634,7 @@ export const ERC20Permit = {
       ERC20Permit.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Permit",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "delete_allowance_signed",
       publicName: "deleteAllowanceSigned",
       entrypoint: __gh_entrypoints.ERC20Permit.v0_1.deleteAllowanceSigned,
@@ -1667,7 +1667,7 @@ export const ERC20Permit = {
       ERC20Permit.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Permit",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "increase_allowance_signed",
       publicName: "increaseAllowanceSigned",
       entrypoint: __gh_entrypoints.ERC20Permit.v0_1.increaseAllowanceSigned,
@@ -1700,7 +1700,7 @@ export const ERC20Permit = {
       ERC20Permit.v0_1.DeclaredException
     >({
       interfaceName: "ERC20Permit",
-      interfaceVersion: "0.1.52",
+      interfaceVersion: "0.1.55",
       abiName: "transfer_from_signed",
       publicName: "transferFromSigned",
       entrypoint: __gh_entrypoints.ERC20Permit.v0_1.transferFromSigned,
@@ -1740,7 +1740,7 @@ export const ERC20Permit = {
   },
 } as const;
 
-export const groundhog_erc20_controls_if = {
+export const thruput_erc20_controls_if = {
   v0_1: {
     error: {
       ERC20ControlsError: {
@@ -1754,9 +1754,9 @@ export const groundhog_erc20_controls_if = {
     events: {
       ClawbackEvent: __gh_client_contract.defineContractEvent<
         "ClawbackEvent",
-        groundhog_erc20_controls_if.v0_1.events.ClawbackEvent["topics"],
-        groundhog_erc20_controls_if.v0_1.events.ClawbackEvent["fields"],
-        groundhog_erc20_controls_if.v0_1.events.ClawbackEventFilter
+        thruput_erc20_controls_if.v0_1.events.ClawbackEvent["topics"],
+        thruput_erc20_controls_if.v0_1.events.ClawbackEvent["fields"],
+        thruput_erc20_controls_if.v0_1.events.ClawbackEventFilter
       >({
         name: "ClawbackEvent",
         signature: spec.events[0]!.signature,
@@ -1774,7 +1774,7 @@ export const groundhog_erc20_controls_if = {
   },
 } as const;
 
-export const groundhog_erc20_if = {
+export const thruput_erc20_if = {
   v0_1: {
     error: {
       ERC20Error: {
@@ -1789,9 +1789,9 @@ export const groundhog_erc20_if = {
     events: {
       AllowanceChangeEvent: __gh_client_contract.defineContractEvent<
         "AllowanceChangeEvent",
-        groundhog_erc20_if.v0_1.events.AllowanceChangeEvent["topics"],
-        groundhog_erc20_if.v0_1.events.AllowanceChangeEvent["fields"],
-        groundhog_erc20_if.v0_1.events.AllowanceChangeEventFilter
+        thruput_erc20_if.v0_1.events.AllowanceChangeEvent["topics"],
+        thruput_erc20_if.v0_1.events.AllowanceChangeEvent["fields"],
+        thruput_erc20_if.v0_1.events.AllowanceChangeEventFilter
       >({
         name: "AllowanceChangeEvent",
         signature: spec.events[1]!.signature,
@@ -1812,9 +1812,9 @@ export const groundhog_erc20_if = {
       }),
       AllowanceDeleteEvent: __gh_client_contract.defineContractEvent<
         "AllowanceDeleteEvent",
-        groundhog_erc20_if.v0_1.events.AllowanceDeleteEvent["topics"],
-        groundhog_erc20_if.v0_1.events.AllowanceDeleteEvent["fields"],
-        groundhog_erc20_if.v0_1.events.AllowanceDeleteEventFilter
+        thruput_erc20_if.v0_1.events.AllowanceDeleteEvent["topics"],
+        thruput_erc20_if.v0_1.events.AllowanceDeleteEvent["fields"],
+        thruput_erc20_if.v0_1.events.AllowanceDeleteEventFilter
       >({
         name: "AllowanceDeleteEvent",
         signature: spec.events[2]!.signature,
@@ -1835,9 +1835,9 @@ export const groundhog_erc20_if = {
       }),
       BurnEvent: __gh_client_contract.defineContractEvent<
         "BurnEvent",
-        groundhog_erc20_if.v0_1.events.BurnEvent["topics"],
-        groundhog_erc20_if.v0_1.events.BurnEvent["fields"],
-        groundhog_erc20_if.v0_1.events.BurnEventFilter
+        thruput_erc20_if.v0_1.events.BurnEvent["topics"],
+        thruput_erc20_if.v0_1.events.BurnEvent["fields"],
+        thruput_erc20_if.v0_1.events.BurnEventFilter
       >({
         name: "BurnEvent",
         signature: spec.events[3]!.signature,
@@ -1853,9 +1853,9 @@ export const groundhog_erc20_if = {
       }),
       MintEvent: __gh_client_contract.defineContractEvent<
         "MintEvent",
-        groundhog_erc20_if.v0_1.events.MintEvent["topics"],
-        groundhog_erc20_if.v0_1.events.MintEvent["fields"],
-        groundhog_erc20_if.v0_1.events.MintEventFilter
+        thruput_erc20_if.v0_1.events.MintEvent["topics"],
+        thruput_erc20_if.v0_1.events.MintEvent["fields"],
+        thruput_erc20_if.v0_1.events.MintEventFilter
       >({
         name: "MintEvent",
         signature: spec.events[4]!.signature,
@@ -1871,9 +1871,9 @@ export const groundhog_erc20_if = {
       }),
       TransferEvent: __gh_client_contract.defineContractEvent<
         "TransferEvent",
-        groundhog_erc20_if.v0_1.events.TransferEvent["topics"],
-        groundhog_erc20_if.v0_1.events.TransferEvent["fields"],
-        groundhog_erc20_if.v0_1.events.TransferEventFilter
+        thruput_erc20_if.v0_1.events.TransferEvent["topics"],
+        thruput_erc20_if.v0_1.events.TransferEvent["fields"],
+        thruput_erc20_if.v0_1.events.TransferEventFilter
       >({
         name: "TransferEvent",
         signature: spec.events[5]!.signature,
@@ -1896,7 +1896,7 @@ export const groundhog_erc20_if = {
   },
 } as const;
 
-export const groundhog_erc20_permit_if = {
+export const thruput_erc20_permit_if = {
   v0_1: {
     error: {
       ERC20PermitError: {
@@ -1908,37 +1908,37 @@ export const groundhog_erc20_permit_if = {
 } as const;
 
 export type ERC20Event =
-  | groundhog_erc20_controls_if.v0_1.events.ClawbackEvent
-  | groundhog_erc20_if.v0_1.events.AllowanceChangeEvent
-  | groundhog_erc20_if.v0_1.events.AllowanceDeleteEvent
-  | groundhog_erc20_if.v0_1.events.BurnEvent
-  | groundhog_erc20_if.v0_1.events.MintEvent
-  | groundhog_erc20_if.v0_1.events.TransferEvent;
+  | thruput_erc20_controls_if.v0_1.events.ClawbackEvent
+  | thruput_erc20_if.v0_1.events.AllowanceChangeEvent
+  | thruput_erc20_if.v0_1.events.AllowanceDeleteEvent
+  | thruput_erc20_if.v0_1.events.BurnEvent
+  | thruput_erc20_if.v0_1.events.MintEvent
+  | thruput_erc20_if.v0_1.events.TransferEvent;
 
 export function decodeEvent(__gh_event: {
   topics: globalThis.Uint8Array[];
   data: globalThis.Uint8Array;
 }): ERC20Event | null {
   return (
-    groundhog_erc20_controls_if.v0_1.events.ClawbackEvent.decode(__gh_event) ??
-    groundhog_erc20_if.v0_1.events.AllowanceChangeEvent.decode(__gh_event) ??
-    groundhog_erc20_if.v0_1.events.AllowanceDeleteEvent.decode(__gh_event) ??
-    groundhog_erc20_if.v0_1.events.BurnEvent.decode(__gh_event) ??
-    groundhog_erc20_if.v0_1.events.MintEvent.decode(__gh_event) ??
-    groundhog_erc20_if.v0_1.events.TransferEvent.decode(__gh_event)
+    thruput_erc20_controls_if.v0_1.events.ClawbackEvent.decode(__gh_event) ??
+    thruput_erc20_if.v0_1.events.AllowanceChangeEvent.decode(__gh_event) ??
+    thruput_erc20_if.v0_1.events.AllowanceDeleteEvent.decode(__gh_event) ??
+    thruput_erc20_if.v0_1.events.BurnEvent.decode(__gh_event) ??
+    thruput_erc20_if.v0_1.events.MintEvent.decode(__gh_event) ??
+    thruput_erc20_if.v0_1.events.TransferEvent.decode(__gh_event)
   );
 }
 
 // The types the namespaces above refer to, under names no declaration can capture.
 export namespace __gh_codegen {
-  export type groundhog_erc20_controls_if$v0_1$error$ERC20ControlsError =
-    groundhog_erc20_controls_if.v0_1.error.ERC20ControlsError;
-  export type groundhog_erc20_if$v0_1$error$ERC20Error =
-    groundhog_erc20_if.v0_1.error.ERC20Error;
-  export type groundhog_erc20_permit_if$v0_1$DeleteAllowanceGrant =
-    groundhog_erc20_permit_if.v0_1.DeleteAllowanceGrant;
-  export type groundhog_erc20_permit_if$v0_1$PermitGrant =
-    groundhog_erc20_permit_if.v0_1.PermitGrant;
-  export type groundhog_erc20_permit_if$v0_1$error$ERC20PermitError =
-    groundhog_erc20_permit_if.v0_1.error.ERC20PermitError;
+  export type thruput_erc20_controls_if$v0_1$error$ERC20ControlsError =
+    thruput_erc20_controls_if.v0_1.error.ERC20ControlsError;
+  export type thruput_erc20_if$v0_1$error$ERC20Error =
+    thruput_erc20_if.v0_1.error.ERC20Error;
+  export type thruput_erc20_permit_if$v0_1$DeleteAllowanceGrant =
+    thruput_erc20_permit_if.v0_1.DeleteAllowanceGrant;
+  export type thruput_erc20_permit_if$v0_1$PermitGrant =
+    thruput_erc20_permit_if.v0_1.PermitGrant;
+  export type thruput_erc20_permit_if$v0_1$error$ERC20PermitError =
+    thruput_erc20_permit_if.v0_1.error.ERC20PermitError;
 }

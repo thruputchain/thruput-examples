@@ -1,8 +1,8 @@
 //! Standard token factory events.
 
-use groundhog_erc20_if::Amount;
-use groundhog_erc20_metadata_if::{Name, Symbol};
 use sdk::{ContractAddress, Event, SHA256Hash};
+use thruput_erc20_if::Amount;
+use thruput_erc20_metadata_if::{Name, Symbol};
 
 /// Canonical discovery and provenance record for a factory-created token.
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]

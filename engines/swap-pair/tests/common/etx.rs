@@ -162,8 +162,8 @@ impl Deref for Etx {
 }
 
 fn event_handler(e: &sdk::types::event::TxEmittedEvent) {
-    use groundhog_erc20_if as erc20;
     use swap_pair::events::*;
+    use thruput_erc20_if as erc20;
 
     let e: EmittedEvent = e.into();
 

@@ -4,10 +4,10 @@
 //! fault in the clearing arithmetic (an overflow, a panic) is a real abort here. Run via
 //! `thruput test -p speedex`, after building `speedex` and `erc20`.
 
-use groundhog_erc20_if::ERC20Client;
 use sdk::*;
 use speedex::engine::{self, Grid, PRICE_ONE};
 use speedex::*;
+use thruput_erc20_if::ERC20Client;
 
 hash_ident! { static TEST: ContractAddress; }
 hash_ident! { static ALICE: ContractAddress; }

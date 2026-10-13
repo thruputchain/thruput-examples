@@ -9,7 +9,7 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-pub use groundhog_erc20_if::ERC20Error;
+pub use thruput_erc20_if::ERC20Error;
 
 /// A contract address.
 pub type Address = sdk::ContractAddress;

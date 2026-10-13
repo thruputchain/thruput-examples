@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { contractAddress } from "@groundhogchain/protocol";
-import type { StorageItemRead } from "@groundhogchain/client";
+import { contractAddress } from "@thruputchain/protocol";
+import type { StorageItemRead } from "@thruputchain/client";
 import {
   seedStorageKey,
   seedTransport,

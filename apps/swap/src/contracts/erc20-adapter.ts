@@ -1,6 +1,6 @@
-import type { ContractView, GroundhogClient } from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
-import { getContract } from "@groundhogchain/client/contract";
+import type { ContractView, ThruputClient } from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
+import { getContract } from "@thruputchain/client/contract";
 
 import { ERC20, ERC20Metadata } from "@/contracts/generated/erc20";
 
@@ -26,7 +26,7 @@ export interface Erc20ReadAdapter {
 }
 
 export function createErc20ReadAdapter(params: {
-  client: Pick<GroundhogClient, "view">;
+  client: Pick<ThruputClient, "view">;
   contract: ContractAddress;
   caller: ContractAddress;
 }): Erc20ReadAdapter {

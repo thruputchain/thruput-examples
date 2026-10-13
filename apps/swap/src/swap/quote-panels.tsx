@@ -1,4 +1,4 @@
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import { ChevronDownIcon } from "lucide-react";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { Badge } from "@/components/ui/badge";

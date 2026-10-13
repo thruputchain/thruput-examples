@@ -1,8 +1,8 @@
-import { addressFromHex, toHex0x } from "@groundhogchain/client";
+import { addressFromHex, toHex0x } from "@thruputchain/client";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
-import type { ContractAddress } from "@groundhogchain/protocol";
+import type { ContractAddress } from "@thruputchain/protocol";
 import { useEffect, useState } from "react";
-import { useClient } from "@groundhogchain/react";
+import { useClient } from "@thruputchain/react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";

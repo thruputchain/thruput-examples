@@ -13,20 +13,20 @@ import { basename, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  createGroundhogClient,
+  createThruputClient,
   createWalletClient,
   fixedBytes,
   fromHex0x,
   hashContract,
   toHex0x,
-} from "@groundhogchain/client";
-import { ERC20 } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client";
+import { ERC20 } from "@thruputchain/client/contracts";
 import {
   ContractType,
   contractAddress,
   gasAmount,
   HOG_ADDRESS,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { StandardTokenFactory } from "../contracts/generated/standard-token-factory";
 import { main, validateLocalRpcUrl } from "../../scripts/setup-local";
 import { publishArtifact, validateTokenFunding } from "../../scripts/provision";
@@ -47,8 +47,8 @@ vi.mock("node:fs/promises", async (original) => ({
   rename: mocks.rename,
   link: mocks.link,
 }));
-vi.mock("@groundhogchain/client/wallet", async (original) => {
-  const sdk = await original<typeof import("@groundhogchain/client/wallet")>();
+vi.mock("@thruputchain/client/wallet", async (original) => {
+  const sdk = await original<typeof import("@thruputchain/client/wallet")>();
   return {
     ...sdk,
     prepareContractDeployment: (
@@ -59,9 +59,9 @@ vi.mock("@groundhogchain/client/wallet", async (original) => {
     }),
   };
 });
-vi.mock("@groundhogchain/client", async (original) => ({
-  ...(await original<typeof import("@groundhogchain/client")>()),
-  createGroundhogClient: vi.fn(async () => ({ getVersion: mocks.getVersion })),
+vi.mock("@thruputchain/client", async (original) => ({
+  ...(await original<typeof import("@thruputchain/client")>()),
+  createThruputClient: vi.fn(async () => ({ getVersion: mocks.getVersion })),
   createWalletClient: vi.fn(() => mocks),
 }));
 
@@ -186,7 +186,7 @@ describe("infrastructure-only launchpad provisioning", () => {
       value: { ...config, required_token_funding: 10_000_000n },
     } as never);
     await setupDevnet();
-    expect(createGroundhogClient).toHaveBeenCalledWith(
+    expect(createThruputClient).toHaveBeenCalledWith(
       expect.objectContaining({
         cluster: expect.objectContaining({
           name: "devnet",
@@ -239,7 +239,7 @@ describe("infrastructure-only launchpad provisioning", () => {
         GROUNDHOG_NETWORK_ID: undefined,
       }),
     ).rejects.toThrow(/GROUNDHOG_NETWORK_ID/);
-    expect(createGroundhogClient).not.toHaveBeenCalled();
+    expect(createThruputClient).not.toHaveBeenCalled();
   });
   it("supplies the RPC default and resolves relative overrides from the repository root", async () => {
     const repositoryRoot = fileURLToPath(

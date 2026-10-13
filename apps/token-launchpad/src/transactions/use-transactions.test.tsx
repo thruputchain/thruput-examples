@@ -1,30 +1,30 @@
 import {
-  createGroundhogClient,
+  createThruputClient,
   localnet,
   MockTransport,
   toHex0x,
   hashFromHex,
   TransactionReceiptTimeoutError,
   type TransactionReceipt,
-} from "@groundhogchain/client";
-import { useClient } from "@groundhogchain/react";
+} from "@thruputchain/client";
+import { useClient } from "@thruputchain/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
-import { blockHeight, ExecResult } from "@groundhogchain/protocol";
+import { blockHeight, ExecResult } from "@thruputchain/protocol";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { configuration } from "@/test/fixtures";
 import { useTransactions } from "./use-transactions";
 
-vi.mock("@groundhogchain/react", async (original) => ({
-  ...(await original<typeof import("@groundhogchain/react")>()),
+vi.mock("@thruputchain/react", async (original) => ({
+  ...(await original<typeof import("@thruputchain/react")>()),
   useClient: vi.fn(),
   useWalletClient: () => null,
 }));
 afterEach(() => vi.restoreAllMocks());
 
 it("shares committed recovery across observers without wallet permission and retries only on explicit recovery", async () => {
-  const client = await createGroundhogClient({
+  const client = await createThruputClient({
     cluster: localnet(),
     transport: new MockTransport(),
   });

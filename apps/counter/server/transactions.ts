@@ -1,7 +1,7 @@
 import {
   addressFromHex,
   bytesEqual,
-  createGroundhogClient,
+  createThruputClient,
   createPubkeyAccount,
   createWalletClient,
   defaultWalletAdapter,
@@ -13,14 +13,14 @@ import {
   PrivateKeySigner,
   serializeSignedTransaction,
   toHex0x,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   blockHeight,
   codec,
   gasAmount,
   networkHash,
   serialize,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { Counter } from "../src/contracts/generated/counter";
 import type { Direction } from "../src/transactions/engine";
 import type { ServerConfig } from "./config";
@@ -79,7 +79,7 @@ export function createCounterTransactions(
   const authClaim = serialize(account.authClaim, codec.AuthClaim);
 
   async function connect() {
-    const client = await createGroundhogClient({
+    const client = await createThruputClient({
       cluster: defineCluster({
         name: "counter-signer",
         rpcUrl: config.rpcUrl,

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useClient } from "@groundhogchain/react";
+import { useClient } from "@thruputchain/react";
 import type { AppConfig } from "@/config";
 import { createSnapshotReader, type SnapshotReader } from "./snapshot";
 import { SwapPage } from "./swap-page";

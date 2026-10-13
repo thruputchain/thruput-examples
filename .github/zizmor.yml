@@ -9,4 +9,4 @@ rules:
   unpinned-uses:
     config:
       policies:
-        groundhogchain/*: ref-pin
+        thruputchain/*: ref-pin

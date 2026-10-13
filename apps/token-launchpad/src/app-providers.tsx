@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
-import type { ConnectedGroundhogClient } from "@groundhogchain/client";
-import { WalletProvider } from "@groundhogchain/react";
+import type { ConnectedThruputClient } from "@thruputchain/client";
+import { WalletProvider } from "@thruputchain/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ExplorerProvider } from "@/components/explorer-context";
 import {
@@ -25,7 +25,7 @@ export function AppProviders({
   explorerUrl,
   children,
 }: {
-  client: ConnectedGroundhogClient;
+  client: ConnectedThruputClient;
   explorerUrl?: string | null | undefined;
   children: ReactNode;
 }) {

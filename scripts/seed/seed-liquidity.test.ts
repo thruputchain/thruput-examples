@@ -9,11 +9,11 @@ import {
   type EventPage,
   type EventQuery,
   type TransactionReceipt,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   createTransaction,
   signTransaction,
-} from "@groundhogchain/client/transaction";
+} from "@thruputchain/client/transaction";
 import {
   blockHeight,
   contractAddress,
@@ -21,8 +21,8 @@ import {
   gasAmount,
   networkHash,
   sha256Hash,
-} from "@groundhogchain/protocol";
-import { CxsWriter, Uint128Codec } from "@groundhogchain/xdr";
+} from "@thruputchain/protocol";
+import { CxsWriter, Uint128Codec } from "@thruputchain/xdr";
 import { SwapDriver } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { requestFailedEvent } from "../../apps/swap/src/test/request-failed.ts";
 import { swap_if } from "../../apps/swap/src/contracts/generated/swap-handler.ts";

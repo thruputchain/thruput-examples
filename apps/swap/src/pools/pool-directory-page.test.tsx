@@ -1,5 +1,5 @@
-import { toHex0x } from "@groundhogchain/client";
-import { contractAddress } from "@groundhogchain/protocol";
+import { toHex0x } from "@thruputchain/client";
+import { contractAddress } from "@thruputchain/protocol";
 import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";

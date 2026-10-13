@@ -15,13 +15,13 @@ import {
   serializeSignedTransaction,
   signTransaction,
   toHex0x,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   DefaultWallet,
   DefaultWalletSpec,
   ERC20,
   type default_wallet,
-} from "@groundhogchain/client/contracts";
+} from "@thruputchain/client/contracts";
 import {
   blockHeight,
   ContractType,
@@ -29,7 +29,7 @@ import {
   HOG_ADDRESS,
   networkHash,
   type Invocation,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { Counter, spec } from "../src/contracts/generated/counter";
 import { loadServerConfig } from "./config";
 import { createApiHandler } from "./http";

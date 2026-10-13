@@ -1,11 +1,11 @@
 import {
   type TransactionReceipt,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   gasAmount,
   type ContractAddress,
   type Invocation,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 
 import { SwapDriver, batch_driver } from "@/contracts/generated/swap-driver";
 

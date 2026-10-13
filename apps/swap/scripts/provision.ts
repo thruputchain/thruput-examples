@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   bytesEqual,
-  createGroundhogClient,
+  createThruputClient,
   createPubkeyAccount,
   createWalletClient,
   defineCluster,
@@ -15,9 +15,9 @@ import {
   HttpTransport,
   PrivateKeySigner,
   toHex0x,
-} from "@groundhogchain/client";
-import { prepareContractDeployment } from "@groundhogchain/client/wallet";
-import { ERC20 } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client";
+import { prepareContractDeployment } from "@thruputchain/client/wallet";
+import { ERC20 } from "@thruputchain/client/contracts";
 import {
   ContractType,
   gasAmount,
@@ -27,7 +27,7 @@ import {
   type Contract,
   type ContractAddress,
   type Invocation,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 
 import { SwapFactory } from "../src/contracts/generated/swap-factory";
 import { SwapRouter } from "../src/contracts/generated/swap-router";
@@ -62,7 +62,7 @@ export async function provisionSwap(options: {
   const rpcUrl = options.rpcUrl;
   const expectedNetwork = networkHash(sha256Hash(fromHex0x(options.networkId)));
   const explorerUrl = parseExplorerUrl(options.explorerUrl);
-  const client = await createGroundhogClient({
+  const client = await createThruputClient({
     cluster: defineCluster({
       name: options.network,
       rpcUrl,

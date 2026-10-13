@@ -2,8 +2,8 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use groundhog_erc20_if::{Amount, ERC20Client, ERC20Error};
 use sdk::*;
+use thruput_erc20_if::{Amount, ERC20Client, ERC20Error};
 
 sdk::declare_mock_contract!();
 

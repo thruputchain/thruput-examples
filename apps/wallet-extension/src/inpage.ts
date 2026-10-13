@@ -2,7 +2,7 @@ import type {
   WalletProvider,
   WalletSession,
   ProviderRequest,
-} from "@groundhogchain/client/provider";
+} from "@thruputchain/client/provider";
 if (window === window.top && ["http:", "https:"].includes(location.protocol)) {
   const listeners = new Set<(session: WalletSession) => void>();
   const pending = new Map<

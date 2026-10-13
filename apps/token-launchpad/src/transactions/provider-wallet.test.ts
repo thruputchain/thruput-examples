@@ -6,20 +6,20 @@ import {
   toHex0x,
   TransactionReceiptTimeoutError,
   TransactionRejectedError,
-  type GroundhogClient,
+  type ThruputClient,
   type TransactionReceipt,
-} from "@groundhogchain/client";
-import { DefaultWallet } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client";
+import { DefaultWallet } from "@thruputchain/client/contracts";
 import {
   parseTransactionHex,
   type ProviderRequest,
   type WalletProvider,
   type WalletSession,
-} from "@groundhogchain/client/provider";
+} from "@thruputchain/client/provider";
 import {
   createPubkeyAccount,
   createProviderWalletClient,
-} from "@groundhogchain/client/wallet";
+} from "@thruputchain/client/wallet";
 import {
   blockHeight,
   calldata,
@@ -32,14 +32,14 @@ import {
   networkHash,
   serialize,
   sha256Hash,
-} from "@groundhogchain/protocol";
-import { CxsWriter } from "@groundhogchain/xdr";
+} from "@thruputchain/protocol";
+import { CxsWriter } from "@thruputchain/xdr";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "@/config";
 import { StandardTokenFactory } from "@/contracts/generated/standard-token-factory";
 import { createProviderWriteBoundary } from "./provider-wallet";
 import { createTransactionObserver } from "./transaction-observation";
-import { hashContract } from "@groundhogchain/client";
+import { hashContract } from "@thruputchain/client";
 
 const config = loadConfig({
   VITE_GROUNDHOG_RPC_URL: "http://localhost:9545",
@@ -133,7 +133,7 @@ function setup() {
     sendTransaction: vi.fn(),
   };
   const wallet = createProviderWalletClient({
-    client: client as unknown as GroundhogClient,
+    client: client as unknown as ThruputClient,
     provider,
     account,
     networkHash: config.networkIdHex,
@@ -141,7 +141,7 @@ function setup() {
   const boundary = {
     ...createProviderWriteBoundary(
       config,
-      client as unknown as GroundhogClient,
+      client as unknown as ThruputClient,
       wallet,
     ),
     dispose: () => wallet.dispose(),
@@ -388,14 +388,14 @@ describe("provider write boundary with the real SDK", () => {
     );
     vi.stubGlobal("fetch", fetch);
     const wallet = createProviderWalletClient({
-      client: client as unknown as GroundhogClient,
+      client: client as unknown as ThruputClient,
       provider,
       account,
       networkHash: config.networkIdHex,
     });
     const writer = createProviderWriteBoundary(
       { ...config, expectedTokenHash: hash },
-      client as unknown as GroundhogClient,
+      client as unknown as ThruputClient,
       wallet,
     );
     await writer.execute(target, { onSigned() {} });
@@ -455,7 +455,7 @@ describe("provider write boundary with the real SDK", () => {
       );
       const observe = createTransactionObserver(
         config,
-        client as unknown as GroundhogClient,
+        client as unknown as ThruputClient,
       );
       expect(await observe(`0x${"01".repeat(32)}`)).toMatchObject(
         status === "invalid"

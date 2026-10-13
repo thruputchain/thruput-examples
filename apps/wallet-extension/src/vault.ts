@@ -10,7 +10,7 @@ import {
   createPubkeyAccount,
   PrivateKeySigner,
   toHex0x,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 
 export const ITERATIONS = 900_000;
 export const DERIVATION = "slip10-ed25519-testnet-v1:m/44'/1'/index':nonce=0";

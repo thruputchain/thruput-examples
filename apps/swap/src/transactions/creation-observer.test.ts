@@ -1,10 +1,10 @@
-import type { GroundhogClient } from "@groundhogchain/client";
+import type { ThruputClient } from "@thruputchain/client";
 import {
   contractAddress,
   ExecResult,
   sha256Hash,
-} from "@groundhogchain/protocol";
-import { CxsWriter } from "@groundhogchain/xdr";
+} from "@thruputchain/protocol";
+import { CxsWriter } from "@thruputchain/xdr";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GlobalConfig } from "@/config";
@@ -144,7 +144,7 @@ function mintEvent(requestId: Uint8Array) {
 }
 
 function rpcClient(
-  getEvents: Pick<GroundhogClient, "getEvents">["getEvents"],
-): Pick<GroundhogClient, "getEvents"> {
+  getEvents: Pick<ThruputClient, "getEvents">["getEvents"],
+): Pick<ThruputClient, "getEvents"> {
   return { getEvents };
 }

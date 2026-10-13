@@ -2,9 +2,9 @@
 
 use core::fmt;
 
-use groundhog_erc20_if::{Amount, ERC20Error};
-use groundhog_erc20_metadata_if::{Name, Symbol};
 use sdk::*;
+use thruput_erc20_if::{Amount, ERC20Error};
+use thruput_erc20_metadata_if::{Name, Symbol};
 
 use crate::TokenCreated;
 

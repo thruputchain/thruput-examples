@@ -1,10 +1,10 @@
 import { useMemo } from "react";
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import {
   transactionReceiptQueryOptions,
   useClient,
   useWalletClient,
-} from "@groundhogchain/react";
+} from "@thruputchain/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { GlobalConfig } from "@/config";
 import { createProviderWriteBoundary } from "./provider-wallet";

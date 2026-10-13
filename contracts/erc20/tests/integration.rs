@@ -14,11 +14,11 @@
 
 use std::time::Duration;
 
-use groundhog_xdr::types::ContractAddress;
 use integration_test::{Harness, InvocationOptions, SubmissionOutcome, decode_return, encode};
+use thruput_xdr::types::ContractAddress;
 
 const INTERFACE: &str = "ERC20";
-const VERSION: &str = "0.1.52";
+const VERSION: &str = "0.1.55";
 
 #[tokio::test]
 async fn erc20_lifecycle_over_rpc() {

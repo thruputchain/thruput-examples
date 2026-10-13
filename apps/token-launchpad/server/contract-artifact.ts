@@ -1,6 +1,6 @@
 import { open, realpath } from "node:fs/promises";
 import path from "node:path";
-import { fromHex0x } from "@groundhogchain/client";
+import { fromHex0x } from "@thruputchain/client";
 import {
   MAX_ARTIFACT_BYTES,
   parseStandardTokenArtifact,

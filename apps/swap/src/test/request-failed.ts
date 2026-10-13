@@ -1,12 +1,12 @@
-import type { EmittedEvent } from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
+import type { EmittedEvent } from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
 import {
   CxsWriter,
   Int32Codec,
   Uint32Codec,
   Uint64Codec,
   VarOpaqueCodec,
-} from "@groundhogchain/xdr";
+} from "@thruputchain/xdr";
 import { batch_driver } from "../contracts/generated/swap-driver";
 
 const Cause = batch_driver.v0_1.events.Cause;

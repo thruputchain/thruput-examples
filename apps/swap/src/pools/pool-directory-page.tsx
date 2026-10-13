@@ -1,4 +1,4 @@
-import { addressFromHex, toHex0x } from "@groundhogchain/client";
+import { addressFromHex, toHex0x } from "@thruputchain/client";
 import {
   AlertCircleIcon,
   DropletsIcon,

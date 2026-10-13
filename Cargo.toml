@@ -16,35 +16,35 @@ edition = "2024"
 license = "Apache-2.0"
 authors = ["Groundhog Team"]
 publish = false
-repository = "https://github.com/groundhogchain/groundhog-examples.git"
-homepage = "https://github.com/groundhogchain/groundhog-examples"
+repository = "https://github.com/thruputchain/thruput-examples"
+homepage = "https://github.com/thruputchain/thruput-examples"
 keywords = ["groundhog"]
 categories = ["blockchain"]
 
 [workspace.dependencies]
-# from sdk_rs repo:
-sdk = { registry = "thruput", version = "=0.49.0" }
-groundhog-contract-util = { registry = "thruput", version = "=0.49.0" }
-groundhog-u256 = { registry = "thruput", version = "=0.49.0", default-features = false }
-groundhog-domain-separator = { registry = "thruput", version = "=0.49.0", default-features = false }
-groundhog-event = { registry = "thruput", version = "=0.49.0" }
-groundhog-erc20-if = { registry = "thruput", version = "=0.1.52" }
-groundhog-erc20-metadata-if = { registry = "thruput", version = "=0.1.52" }
-groundhog-erc20-controls-if = { registry = "thruput", version = "=0.1.52" }
-groundhog-erc20-permit-if = { registry = "thruput", version = "=0.1.52" }
-groundhog-signed-op-if = { registry = "thruput", version = "=0.1.52" }
-groundhog-signed-op = { registry = "thruput", version = "=0.1.52" }
+# from thruput-sdk-rs:
+sdk = { registry = "thruput", version = "=0.51.0" }
+thruput-contract-util = { registry = "thruput", version = "=0.51.0" }
+thruput-u256 = { registry = "thruput", version = "=0.51.0", default-features = false }
+thruput-domain-separator = { registry = "thruput", version = "=0.51.0", default-features = false }
+thruput-event = { registry = "thruput", version = "=0.51.0" }
+thruput-erc20-if = { registry = "thruput", version = "=0.1.55" }
+thruput-erc20-metadata-if = { registry = "thruput", version = "=0.1.55" }
+thruput-erc20-controls-if = { registry = "thruput", version = "=0.1.55" }
+thruput-erc20-permit-if = { registry = "thruput", version = "=0.1.55" }
+thruput-signed-op-if = { registry = "thruput", version = "=0.1.55" }
+thruput-signed-op = { registry = "thruput", version = "=0.1.55" }
 
-# from groundhog-rpc repo:
-groundhog-json-rpc-client = { registry = "thruput", version = "=0.27.0" }
-groundhog-json-rpc-types = { registry = "thruput", version = "=0.27.0" }
-thruput-cli = { registry = "thruput", version = "=0.27.0" }
-groundhog-signing = { registry = "thruput", version = "=0.27.0" }
-groundhog-testkit = { registry = "thruput", version = "=0.27.0" }
+# from thruput-tools:
+thruput-json-rpc-client = { registry = "thruput", version = "=0.29.0" }
+thruput-json-rpc-types = { registry = "thruput", version = "=0.29.0" }
+thruput-cli = { registry = "thruput", version = "=0.29.0" }
+thruput-signing = { registry = "thruput", version = "=0.29.0" }
+thruput-testkit = { registry = "thruput", version = "=0.29.0" }
 
-# from other groundhog crates:
-groundhog-xdr = { registry = "thruput", version = "=0.51.0", features = ["serde", "xdrs"] }
-groundhog-trace = { registry = "thruput", version = "=0.51.0" }
+# from thruput-protocol-rs:
+thruput-xdr = { registry = "thruput", version = "=0.54.0", features = ["serde", "xdrs"] }
+thruput-trace = { registry = "thruput", version = "=0.54.0" }
 xdrs = { registry = "thruput", version = "=0.10.4", features = ["alloc"] }
 
 # from crates.io:

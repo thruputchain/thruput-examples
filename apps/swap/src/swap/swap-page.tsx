@@ -1,4 +1,4 @@
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import { useEffect, useRef } from "react";
 import { RefreshCwIcon } from "lucide-react";
 import { AllowanceCleanupCard } from "@/components/allowance-cleanup-card";

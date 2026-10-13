@@ -1,5 +1,5 @@
-import type { TransactionReceipt } from "@groundhogchain/client";
-import { contractAddress } from "@groundhogchain/protocol";
+import type { TransactionReceipt } from "@thruputchain/client";
+import { contractAddress } from "@thruputchain/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
