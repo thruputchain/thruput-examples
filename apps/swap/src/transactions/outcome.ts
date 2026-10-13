@@ -1,8 +1,8 @@
 import type {
   TransactionReceipt,
   TransactionStatus,
-} from "@groundhogchain/client";
-import { ExecResult } from "@groundhogchain/protocol";
+} from "@thruputchain/client";
+import { ExecResult } from "@thruputchain/protocol";
 
 export type TransactionOutcome =
   | { kind: "pending" }

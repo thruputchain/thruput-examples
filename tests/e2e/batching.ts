@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import {
   addressFromHex,
-  createGroundhogClient,
+  createThruputClient,
   createPubkeyAccount,
   createWalletClient,
   fixedBytes,
@@ -17,8 +17,8 @@ import {
   localnet,
   PrivateKeySigner,
   toHex0x,
-} from "@groundhogchain/client";
-import { DefaultWallet } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client";
+import { DefaultWallet } from "@thruputchain/client/contracts";
 import {
   ContractType,
   ExecResult,
@@ -26,7 +26,7 @@ import {
   HOG_ADDRESS,
   type Contract,
   type Invocation,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { StandardTokenFactory } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
 import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20.ts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
@@ -146,7 +146,7 @@ try {
     assert.equal(setup.child.exitCode, 0, setup.output());
     configs[app!] = parseEnv(await readFile(output, "utf8"));
   }
-  const client = await createGroundhogClient({
+  const client = await createThruputClient({
     cluster: localnet({ rpcUrl }),
     transport: new HttpTransport(rpcUrl),
   });

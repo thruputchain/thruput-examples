@@ -1,7 +1,7 @@
 import { LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useWallet } from "@groundhogchain/react";
-import { WalletProviderError } from "@groundhogchain/client/provider";
+import { useWallet } from "@thruputchain/react";
+import { WalletProviderError } from "@thruputchain/client/provider";
 
 export function WalletInstallBanner() {
   const { providers } = useWallet();

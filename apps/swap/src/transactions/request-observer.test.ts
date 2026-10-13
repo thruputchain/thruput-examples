@@ -3,9 +3,9 @@ import {
   ExecResult,
   sha256Hash,
   type ContractAddress,
-} from "@groundhogchain/protocol";
-import { CxsWriter, FixedArrayCodec, Uint128Codec } from "@groundhogchain/xdr";
-import type { GroundhogClient } from "@groundhogchain/client";
+} from "@thruputchain/protocol";
+import { CxsWriter, FixedArrayCodec, Uint128Codec } from "@thruputchain/xdr";
+import type { ThruputClient } from "@thruputchain/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "@/config";
@@ -73,8 +73,8 @@ const request: OutstandingRequest = {
 };
 
 function rpcClient(
-  getEvents: Pick<GroundhogClient, "getEvents">["getEvents"],
-): Pick<GroundhogClient, "getEvents"> {
+  getEvents: Pick<ThruputClient, "getEvents">["getEvents"],
+): Pick<ThruputClient, "getEvents"> {
   return { getEvents };
 }
 

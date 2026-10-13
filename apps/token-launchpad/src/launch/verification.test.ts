@@ -1,5 +1,5 @@
-import { fixedBytes } from "@groundhogchain/client";
-import { contractAddress } from "@groundhogchain/protocol";
+import { fixedBytes } from "@thruputchain/client";
+import { contractAddress } from "@thruputchain/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ERC20, ERC20Metadata } from "@/contracts/generated/standard-token";

@@ -1,5 +1,9 @@
 # groundhog-examples
 
+This branch uses private `@thruputchain` npm packages. Regenerating bindings
+requires the updated Thruput CLI generator, which is pending release. Published
+CLI 0.27.0 and 0.28.0 generate the previous namespace.
+
 Example smart contracts and applications for the [Thruput SDK](https://github.com/groundhogchain/sdk_rs). Each
 crate in this Cargo workspace demonstrates a specific SDK feature, from a minimal stateless contract
 up to cross-contract calls, error handling, and event emission.
@@ -64,7 +68,7 @@ lives in [groundhogchain/gameoflife](https://github.com/groundhogchain/gameoflif
 ### Install Swap and Launchpad dependencies
 
 Use Node.js **22.13 or newer** and npm. The apps install the published
-`@groundhogchain/client@0.17.0` package, including wallet capability discovery and
+`@thruputchain/client@0.18.0` package, including wallet capability discovery and
 atomic batching, from GitHub Packages. The repository `.npmrc` selects the registry. Configure a PAT
 with `read:packages` and access to the Groundhog packages in your npm user config:
 

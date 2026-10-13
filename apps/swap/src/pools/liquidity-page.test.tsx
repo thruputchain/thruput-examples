@@ -1,4 +1,4 @@
-import { contractAddress } from "@groundhogchain/protocol";
+import { contractAddress } from "@thruputchain/protocol";
 import { render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";

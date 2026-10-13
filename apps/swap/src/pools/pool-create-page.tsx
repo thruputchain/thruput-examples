@@ -1,6 +1,6 @@
 import { AlertCircleIcon, CheckCircle2Icon, CircleIcon, LoaderCircleIcon } from "lucide-react";
-import { addressFromHex, toHex0x, type CoreGroundhogClient } from "@groundhogchain/client";
-import { useClient } from "@groundhogchain/react";
+import { addressFromHex, toHex0x, type CoreThruputClient } from "@thruputchain/client";
+import { useClient } from "@thruputchain/react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -1033,7 +1033,7 @@ function describeError(error: unknown): string {
 
 async function readFactoryAllowance(
   config: GlobalConfig,
-  client: CoreGroundhogClient,
+  client: CoreThruputClient,
 ): Promise<{ value: bigint; height: bigint }> {
   const token = createErc20ReadAdapter({
     client,

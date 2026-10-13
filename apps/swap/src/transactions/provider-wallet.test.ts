@@ -3,15 +3,15 @@ import {
   hashFromHex,
   TransactionRejectedError,
   TransactionReceiptTimeoutError,
-  type GroundhogClient,
+  type ThruputClient,
   type TransactionReceipt,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   TransactionExecutionError,
   TransactionObservationError,
   type ProviderWalletClient,
   type ProviderExecutionOptions,
-} from "@groundhogchain/client/wallet";
+} from "@thruputchain/client/wallet";
 import {
   calldata,
   contractEntrypointID,
@@ -20,7 +20,7 @@ import {
   gasAmount,
   blockHeight,
   type Transaction,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { describe, expect, it, vi } from "vitest";
 import type { GlobalConfig } from "@/config";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
@@ -93,7 +93,7 @@ function fixture() {
   const loadArtifact = vi.fn().mockResolvedValue(artifact);
   const boundary = createProviderWriteBoundary(
     config,
-    client as unknown as GroundhogClient,
+    client as unknown as ThruputClient,
     wallet,
     { loadArtifact },
   );
@@ -240,7 +240,7 @@ describe("provider write boundary", () => {
     const { client } = fixture();
     const boundary = createProviderWriteBoundary(
       config,
-      client as unknown as GroundhogClient,
+      client as unknown as ThruputClient,
     );
     expect((await boundary.execute(target)).kind).toBe("preSubmissionFailure");
     expect(await boundary.observe!(hash)).toMatchObject({

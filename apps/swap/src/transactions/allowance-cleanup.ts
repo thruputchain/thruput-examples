@@ -1,5 +1,5 @@
-import { toHex0x, type CoreGroundhogClient } from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
+import { toHex0x, type CoreThruputClient } from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
 
 import type { GlobalConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
@@ -53,7 +53,7 @@ class AllowanceCleanupRecoveryError extends Error {
 }
 
 export interface AllowanceCleanupDependencies {
-  client: Pick<CoreGroundhogClient, "getNetworkInfo">;
+  client: Pick<CoreThruputClient, "getNetworkInfo">;
   writeBoundary: WriteBoundary;
   readAllowance: (
     token: ContractAddress,

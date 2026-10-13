@@ -1,5 +1,5 @@
-import type { GroundhogClient } from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
+import type { ThruputClient } from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
 
 import type { AppConfig, GlobalConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
@@ -32,7 +32,7 @@ export async function resolvePoolConfig({
   config: GlobalConfig;
   token0: ContractAddress;
   token1: ContractAddress;
-  client: Pick<GroundhogClient, "view">;
+  client: Pick<ThruputClient, "view">;
   factory?: SwapFactoryReadAdapter;
 }): Promise<AppConfig> {
   const factory =

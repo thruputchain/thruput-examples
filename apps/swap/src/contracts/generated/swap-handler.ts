@@ -1,10 +1,10 @@
 // Generated from swap_handler.spec.xdr - SwapHandler interface v0.1.0
 // DO NOT EDIT. Re-run codegen to update.
 
-import * as __gh_protocol from "@groundhogchain/protocol";
-import * as __gh_protocol_utils from "@groundhogchain/protocol/utils";
-import * as __gh_contract_spec from "@groundhogchain/contract-spec";
-import * as __gh_client_contract from "@groundhogchain/client/contract";
+import * as __gh_protocol from "@thruputchain/protocol";
+import * as __gh_protocol_utils from "@thruputchain/protocol/utils";
+import * as __gh_contract_spec from "@thruputchain/contract-spec";
+import * as __gh_client_contract from "@thruputchain/client/contract";
 
 const __gh_s = __gh_contract_spec.contractSpecString;
 

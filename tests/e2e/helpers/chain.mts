@@ -9,9 +9,9 @@ import { createSwapHandlerReadAdapter } from "../../../apps/swap/src/contracts/h
 const require = createRequire(
   new URL("../../../apps/swap/package.json", import.meta.url),
 );
-const { addressFromHex, createGroundhogClient, HttpTransport, toHex0x } =
-  await import(pathToFileURL(require.resolve("@groundhogchain/client")).href);
-const client = await createGroundhogClient({
+const { addressFromHex, createThruputClient, HttpTransport, toHex0x } =
+  await import(pathToFileURL(require.resolve("@thruputchain/client")).href);
+const client = await createThruputClient({
   transport: new HttpTransport(process.env.VITE_GROUNDHOG_RPC_URL!),
 });
 const factory = addressFromHex(process.env.VITE_SWAP_FACTORY_ADDRESS!);

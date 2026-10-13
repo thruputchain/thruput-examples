@@ -3,10 +3,10 @@ import {
   bytesEqual,
   toHex0x,
   type TransactionReceipt,
-  type CoreGroundhogClient,
-} from "@groundhogchain/client";
-import type { Invocation } from "@groundhogchain/protocol";
-import { DefaultWallet } from "@groundhogchain/client/contracts";
+  type CoreThruputClient,
+} from "@thruputchain/client";
+import type { Invocation } from "@thruputchain/protocol";
+import { DefaultWallet } from "@thruputchain/client/contracts";
 
 import type { AppConfig, GlobalConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
@@ -85,7 +85,7 @@ type PoolCreated = swap_if.v0_1.events.PoolCreated;
 const MAX_EXECUTION_EXPOSURE = 10;
 
 export interface CreationExecutorDependencies extends PoolCreationDependencies {
-  client: Pick<CoreGroundhogClient, "view" | "getNetworkInfo" | "getEvents">;
+  client: Pick<CoreThruputClient, "view" | "getNetworkInfo" | "getEvents">;
   writeBoundary: WriteBoundary;
   automaticProcessing?: boolean;
   observeQueued?: (workflow: CreationWorkflow) => Promise<CreationWorkflow>;

@@ -6,15 +6,15 @@ import {
   toHex0x,
   hashSignedTransaction,
   createProviderWalletClient,
-  createGroundhogClient,
+  createThruputClient,
   MockTransport,
-} from "@groundhogchain/client";
-import { ERC20 } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client";
+import { ERC20 } from "@thruputchain/client/contracts";
 import {
   blockHeight,
   contractAddress,
   gasAmount,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import {
   accountOf,
   deriveKey,
@@ -27,7 +27,7 @@ import type {
   WalletSession,
   ProviderRequest,
   SignTransactionResult,
-} from "@groundhogchain/client/provider";
+} from "@thruputchain/client/provider";
 import { PENDING_TRANSFER_ADVISORY, type OutgoingTransfer } from "./lifecycle";
 
 const mock = vi.hoisted(() => ({
@@ -830,7 +830,7 @@ describe("worker lifecycle and authorization", () => {
       provider,
       account: session.accounts[0]!,
       networkHash: session.networkHash,
-      client: await createGroundhogClient({ transport: new MockTransport() }),
+      client: await createThruputClient({ transport: new MockTransport() }),
     });
     await expect(
       adapter.prepareExecution({
@@ -1397,7 +1397,7 @@ describe("worker lifecycle and authorization", () => {
       provider,
       account: publicAccount(secret),
       networkHash: "00".repeat(32),
-      client: await createGroundhogClient({ transport: new MockTransport() }),
+      client: await createThruputClient({ transport: new MockTransport() }),
     });
     const signing = adapter.signTransaction(await transaction());
     await decideNext();

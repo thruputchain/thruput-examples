@@ -1,4 +1,4 @@
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { configuration } from "@/test/fixtures";

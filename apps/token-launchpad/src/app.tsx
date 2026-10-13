@@ -1,7 +1,7 @@
 import { BrowserRouter } from "react-router-dom";
 import type { AppConfig } from "@/config";
 import { AppProviders } from "@/app-providers";
-import type { ConnectedGroundhogClient } from "@groundhogchain/client";
+import type { ConnectedThruputClient } from "@thruputchain/client";
 import { AppLayout } from "./app-layout";
 import { AppRoutes } from "./routes";
 
@@ -10,7 +10,7 @@ export function App({
   client,
 }: {
   config: AppConfig;
-  client: ConnectedGroundhogClient;
+  client: ConnectedThruputClient;
 }) {
   return (
     <AppProviders client={client} explorerUrl={config.explorerUrl}>

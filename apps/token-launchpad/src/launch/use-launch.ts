@@ -5,7 +5,7 @@ import {
   type FactoryReview,
 } from "@/contracts/launchpad-client";
 import { userErrorMessage } from "@/lib/errors";
-import type { CoreGroundhogClient } from "@groundhogchain/client";
+import type { CoreThruputClient } from "@thruputchain/client";
 import { requestRegistrySync } from "@/registry/client";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 import { runWorkflow } from "./executor";
@@ -32,7 +32,7 @@ const initialDraft: TokenDraft = {
 
 export interface LaunchOptions {
   config: AppConfig;
-  client: CoreGroundhogClient;
+  client: CoreThruputClient;
   onCommitted?: () => void;
   writer: WriteBoundary;
   requestSync?: typeof requestRegistrySync;

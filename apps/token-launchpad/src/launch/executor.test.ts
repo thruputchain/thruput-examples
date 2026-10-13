@@ -1,11 +1,11 @@
 import {
   fixedBytes,
   fromHex0x,
-  type GroundhogClient,
+  type ThruputClient,
   type TransactionReceipt,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import { describe, expect, it, vi } from "vitest";
-import { ExecResult } from "@groundhogchain/protocol";
+import { ExecResult } from "@thruputchain/protocol";
 
 import type { FactoryReview } from "@/contracts/launchpad-client";
 import { createReadClient } from "@/groundhog/client";
@@ -58,7 +58,7 @@ describe("advanceWorkflow", () => {
     };
     const input = {
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer,
       storage,
       locks,
@@ -104,7 +104,7 @@ describe("advanceWorkflow", () => {
     };
     const input = {
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer,
       storage,
       locks,
@@ -146,7 +146,7 @@ describe("advanceWorkflow", () => {
     };
     const input = {
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer,
       storage,
       locks,
@@ -195,7 +195,7 @@ describe("advanceWorkflow", () => {
       };
       const input = {
         config,
-        client: {} as GroundhogClient,
+        client: {} as ThruputClient,
         writer,
         workflowId: workflow.id,
         workflowRevision: workflow.revision,
@@ -261,7 +261,7 @@ describe("advanceWorkflow", () => {
           height: 10n,
           execResult: ExecResult.ExecResultOK,
         }),
-      } as unknown as GroundhogClient;
+      } as unknown as ThruputClient;
       const writer = {
         execute: vi.fn().mockResolvedValue({
           kind: "preSubmissionFailure",
@@ -429,7 +429,7 @@ describe("advanceWorkflow", () => {
       } as unknown as LockManager;
       const result = await runWorkflow({
         config,
-        client: {} as GroundhogClient,
+        client: {} as ThruputClient,
         writer,
         workflowId: workflow.id,
         workflowRevision: workflow.revision,
@@ -504,7 +504,7 @@ describe("advanceWorkflow", () => {
     };
     const result = await advanceWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
@@ -567,7 +567,7 @@ describe("advanceWorkflow", () => {
 
     const automaticRun = runWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
@@ -607,7 +607,7 @@ describe("advanceWorkflow", () => {
     const writer = { execute: vi.fn(), observe: vi.fn() };
     const result = await advanceWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer: writer as unknown as WriteBoundary,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
@@ -645,7 +645,7 @@ describe("advanceWorkflow", () => {
     };
     workflow = await advanceWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer: writer as unknown as WriteBoundary,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
@@ -656,7 +656,7 @@ describe("advanceWorkflow", () => {
     });
     workflow = await advanceWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer: writer as unknown as WriteBoundary,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
@@ -694,7 +694,7 @@ describe("advanceWorkflow", () => {
     };
     const result = await advanceWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer: writer as unknown as WriteBoundary,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
@@ -741,7 +741,7 @@ describe("advanceWorkflow", () => {
     };
     const result = await advanceWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
@@ -787,7 +787,7 @@ describe("advanceWorkflow", () => {
     const writer = { execute: vi.fn(), observe: vi.fn() };
     const result = await advanceWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer: writer as unknown as WriteBoundary,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
@@ -816,7 +816,7 @@ describe("advanceWorkflow", () => {
     await expect(
       advanceWorkflow({
         config,
-        client: {} as GroundhogClient,
+        client: {} as ThruputClient,
         writer: writer as unknown as WriteBoundary,
         workflowId: workflow.id,
         workflowRevision: workflow.revision,
@@ -846,7 +846,7 @@ describe("advanceWorkflow", () => {
     const secret = `0x${"ab".repeat(64)}`;
     const result = await advanceWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer: {
         execute: async () => ({
           kind: "invalid",
@@ -898,7 +898,7 @@ describe("advanceWorkflow", () => {
     };
     const result = await advanceWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
@@ -928,7 +928,7 @@ describe("advanceWorkflow", () => {
     await expect(
       advanceWorkflow({
         config,
-        client: {} as GroundhogClient,
+        client: {} as ThruputClient,
         writer: {} as WriteBoundary,
         workflowId: "stale",
         workflowRevision: workflow.revision,
@@ -956,7 +956,7 @@ describe("advanceWorkflow", () => {
     await expect(
       advanceWorkflow({
         config,
-        client: {} as GroundhogClient,
+        client: {} as ThruputClient,
         writer: {} as WriteBoundary,
         workflowId: workflow.id,
         workflowRevision: 0,
@@ -994,7 +994,7 @@ describe("advanceWorkflow", () => {
       await expect(
         advanceWorkflow({
           config,
-          client: {} as GroundhogClient,
+          client: {} as ThruputClient,
           writer: writer as unknown as WriteBoundary,
           workflowId: workflow.id,
           workflowRevision: workflow.revision,
@@ -1025,7 +1025,7 @@ describe("advanceWorkflow", () => {
     await expect(
       advanceWorkflow({
         config,
-        client: {} as GroundhogClient,
+        client: {} as ThruputClient,
         writer: writer as unknown as WriteBoundary,
         workflowId: workflow.id,
         workflowRevision: workflow.revision,
@@ -1058,7 +1058,7 @@ describe("advanceWorkflow", () => {
     } as unknown as WriteBoundary;
     const input = {
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,
@@ -1104,7 +1104,7 @@ describe("advanceWorkflow", () => {
     } as unknown as WriteBoundary;
     const recovered = await runWorkflow({
       config,
-      client: {} as GroundhogClient,
+      client: {} as ThruputClient,
       writer,
       workflowId: workflow.id,
       workflowRevision: workflow.revision,

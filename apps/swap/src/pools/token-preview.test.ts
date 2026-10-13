@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { contractAddress } from "@groundhogchain/protocol";
+import { contractAddress } from "@thruputchain/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GlobalConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";

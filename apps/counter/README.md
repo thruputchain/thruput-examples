@@ -11,7 +11,10 @@ Use Node.js 22.13 or newer and run `npm ci` from the repository root with the
 [npm registry authentication](../../README.md#install-swap-and-launchpad-dependencies)
 configured.
 
-Use **Thruput CLI 0.27.0** and **hog-devnode 0.1.31-rc.2** for local checks.
+Use a **Thruput CLI that generates `@thruputchain` bindings** and
+**hog-devnode 0.1.31-rc.2** for local checks. Published CLI 0.27.0 and
+0.28.0 still generate the previous npm namespace; a matching CLI release is
+required before running the setup commands on this branch.
 Use compatible CLI/devnode builds: a newer CLI can
 require a runtime manifest that an older devnode does not provide.
 
@@ -119,7 +122,7 @@ file while using that deployment; run setup again when you want a fresh demo.
 
 ## SDK integration
 
-Counter uses the published client 0.17.0 and bindings generated with CLI 0.27.0.
+Counter uses the published client 0.18.0 and `@thruputchain` contract bindings.
 `src/groundhog/client.ts` binds the Counter address and public client once with
 `getContract`, then refreshes with `counter.get.view({ caller: signerAddress })`.
 Counter and signer-balance reads run concurrently within each scheduled refresh.

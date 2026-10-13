@@ -3,10 +3,10 @@
 import {
   addressFromHex,
   fixedBytes,
-  GroundhogRpcErrorCode,
+  ThruputRpcErrorCode,
   hashFromHex,
   JsonRpcError,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -291,7 +291,7 @@ describe("GroundhogRegistrySource", () => {
 
   it("classifies only invalid supplied cursors as cursor rejection", async () => {
     client.getEvents.mockRejectedValueOnce(
-      new JsonRpcError(GroundhogRpcErrorCode.InvalidParams, "invalid cursor"),
+      new JsonRpcError(ThruputRpcErrorCode.InvalidParams, "invalid cursor"),
     );
     const source = new GroundhogRegistrySource(client, scope);
 

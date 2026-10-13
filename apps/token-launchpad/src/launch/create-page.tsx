@@ -23,7 +23,7 @@ import { ReviewCard } from "./review-card";
 import { LaunchSuccessActions } from "./launch-success-actions";
 import { createAmmPoolLink } from "./swap-link";
 import { useLaunch, type LaunchOptions } from "./use-launch";
-import { useWallet } from "@groundhogchain/react";
+import { useWallet } from "@thruputchain/react";
 
 export function CreatePage(props: LaunchOptions) {
   const launch = useLaunch(props);

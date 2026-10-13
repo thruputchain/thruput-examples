@@ -1,5 +1,5 @@
-import { contractAddress } from "@groundhogchain/protocol";
-import { CxsWriter, Uint256Codec } from "@groundhogchain/xdr";
+import { contractAddress } from "@thruputchain/protocol";
+import { CxsWriter, Uint256Codec } from "@thruputchain/xdr";
 import { describe, expect, it, vi } from "vitest";
 
 import { createSwapHandlerReadAdapter } from "./handler-adapter";

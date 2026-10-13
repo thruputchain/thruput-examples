@@ -3,16 +3,16 @@ import {
   toHex0x,
   TransactionReceiptTimeoutError,
   TransactionRejectedError,
-  type CoreGroundhogClient,
+  type CoreThruputClient,
   type TransactionReceipt,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   ExecutionDecodeError,
   ExecutionReturnUnavailableError,
   TransactionExecutionError,
   TransactionObservationError,
-} from "@groundhogchain/client/wallet";
-import { ExecResult, networkHash } from "@groundhogchain/protocol";
+} from "@thruputchain/client/wallet";
+import { ExecResult, networkHash } from "@thruputchain/protocol";
 import type { WriteResult } from "./write-boundary";
 
 export function receiptResult(receipt: TransactionReceipt): WriteResult {
@@ -65,7 +65,7 @@ export function executionFailure(error: unknown): WriteResult | undefined {
 // Public observation remains available after the signing wallet is disposed.
 export function createTransactionObserver(
   config: { networkIdHex: string },
-  client: Pick<CoreGroundhogClient, "waitForTransactionReceipt">,
+  client: Pick<CoreThruputClient, "waitForTransactionReceipt">,
 ): (hash: string) => Promise<WriteResult> {
   return async (hash) => {
     if (!/^0x[0-9a-f]{64}$/.test(hash))

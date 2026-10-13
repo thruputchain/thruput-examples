@@ -1,22 +1,22 @@
 import {
   addressFromHex,
-  createGroundhogClient,
+  createThruputClient,
   localnet,
   MockTransport,
   PrivateKeySigner,
   toHex0x,
-} from "@groundhogchain/client";
-import { createPubkeyAccount } from "@groundhogchain/client/wallet";
+} from "@thruputchain/client";
+import { createPubkeyAccount } from "@thruputchain/client/wallet";
 import {
   registerWalletProvider,
   type WalletProvider,
   type WalletSession,
-} from "@groundhogchain/client/provider";
+} from "@thruputchain/client/provider";
 import {
   calldata,
   contractEntrypointID,
   gasAmount,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Link } from "react-router-dom";
@@ -91,7 +91,7 @@ it("preserves public filters, resets write forms on rebinding, and invalidates o
       },
     }),
   );
-  const client = await createGroundhogClient({
+  const client = await createThruputClient({
     cluster: localnet(),
     transport: new MockTransport(),
   });

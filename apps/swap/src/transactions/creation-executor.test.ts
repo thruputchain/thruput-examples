@@ -1,5 +1,5 @@
-import { contractAddress, ExecResult, sha256Hash } from "@groundhogchain/protocol";
-import { CxsWriter } from "@groundhogchain/xdr";
+import { contractAddress, ExecResult, sha256Hash } from "@thruputchain/protocol";
+import { CxsWriter } from "@thruputchain/xdr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig, GlobalConfig } from "@/config";

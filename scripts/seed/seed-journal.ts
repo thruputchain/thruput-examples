@@ -7,18 +7,18 @@ import {
   fromHex0x,
   hashSignedTransaction,
   toHex0x,
-  type GroundhogClient,
+  type ThruputClient,
   type TransactionReceipt,
-} from "@groundhogchain/client";
+} from "@thruputchain/client";
 import {
   deserializeSignedTransaction,
   serializeSignedTransaction,
-} from "@groundhogchain/client/transaction";
+} from "@thruputchain/client/transaction";
 import {
   ExecResult,
   sha256Hash,
   type SignedTransaction,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 
 export interface Attempt {
   hash: string;
@@ -86,7 +86,7 @@ export async function executeStep(options: {
   journal: SeedJournal;
   save: () => Promise<void>;
   client: Pick<
-    GroundhogClient,
+    ThruputClient,
     | "getTransactionReceipt"
     | "getTransactionStatus"
     | "getChainTip"

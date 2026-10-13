@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { hashContract, toHex0x } from "@groundhogchain/client";
-import { ContractType } from "@groundhogchain/protocol";
+import { hashContract, toHex0x } from "@thruputchain/client";
+import { ContractType } from "@thruputchain/protocol";
 import { createGroundhogRegistrySource } from "./chain.ts";
 
 import { ServerConfigurationError } from "./config.ts";

@@ -268,7 +268,7 @@ Root `npm test` also runs shared seed and process-cleanup regressions.
 platform requirements, and coverage are in [Application checks](../../README.md#application-checks).
 ## React integration
 
-The app uses the published `@groundhogchain/react` wallet provider and balance
+The app uses the published `@thruputchain/react` wallet provider and balance
 hooks. `src/main.tsx` initializes public configuration and a stable, validated
 client with retryable startup feedback. `src/app-providers.tsx` composes the
 official providers; routes build the transaction adapter using their client hooks.
@@ -284,7 +284,7 @@ approved transaction evidence before broadcasting.
 
 ### Reading and writing contracts
 
-Both apps use client 0.17.0, React 0.4.0, and the same
+Both apps use client 0.18.0, React 0.5.0, and the same
 `src/transactions/use-transactions.ts` entry point. It combines the current wallet
 with public receipt queries from `transactionReceiptQueryOptions`. Recovery
 shares committed receipts, works without wallet permission, and only retries

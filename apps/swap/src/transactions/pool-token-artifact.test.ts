@@ -1,5 +1,5 @@
-import { hashContract, toHex0x } from "@groundhogchain/client";
-import { ContractType } from "@groundhogchain/protocol";
+import { hashContract, toHex0x } from "@thruputchain/client";
+import { ContractType } from "@thruputchain/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchPoolTokenArtifact } from "./pool-token-artifact";
 

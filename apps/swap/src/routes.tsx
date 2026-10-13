@@ -1,6 +1,6 @@
-import { addressFromHex } from "@groundhogchain/client";
+import { addressFromHex } from "@thruputchain/client";
 import { useMemo, useState } from "react";
-import { useWallet, useWalletClient } from "@groundhogchain/react";
+import { useWallet, useWalletClient } from "@thruputchain/react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { type GlobalConfig, READ_ONLY_CALLER } from "@/config";
 import { PoolCreatePage } from "@/pools/pool-create-page";

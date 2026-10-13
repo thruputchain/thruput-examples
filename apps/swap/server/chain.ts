@@ -2,21 +2,21 @@ import {
   addressFromHex,
   ContractDecodeError,
   ContractViewError,
-  createGroundhogClient,
+  createThruputClient,
   defineCluster,
   hashFromHex,
   HttpTransport,
   JsonRpcError,
-  GroundhogRpcErrorCode,
+  ThruputRpcErrorCode,
   toHex0x,
   type EventPage,
   type EventQuery,
-  type GroundhogClient,
+  type ThruputClient,
   type IdentifiedEvent,
   type Transport,
   type TransportRequestOptions,
-} from "@groundhogchain/client";
-import { networkHash } from "@groundhogchain/protocol";
+} from "@thruputchain/client";
+import { networkHash } from "@thruputchain/protocol";
 
 import { SwapFactory, swap_if } from "../src/contracts/generated/swap-factory.ts";
 import type { ServerConfig } from "./config.ts";
@@ -81,7 +81,7 @@ export async function createGroundhogRegistrySource(
   const transport = new SignalTransport(
     new HttpTransport(config.rpcUrl.href, { timeoutMs: 10_000 }),
   );
-  const client = await createGroundhogClient({ cluster, transport });
+  const client = await createThruputClient({ cluster, transport });
   const source = new GroundhogRegistrySource(
     client,
     config.scope,
@@ -92,7 +92,7 @@ export async function createGroundhogRegistrySource(
 }
 
 type RegistryClient = Pick<
-  GroundhogClient,
+  ThruputClient,
   "getEvents" | "getNetworkInfo" | "view"
 >;
 type RpcRunner = <T>(
@@ -156,7 +156,7 @@ export class GroundhogRegistrySource implements RegistrySource {
       if (
         request.cursor !== null &&
         error instanceof JsonRpcError &&
-        error.code === GroundhogRpcErrorCode.InvalidParams
+        error.code === ThruputRpcErrorCode.InvalidParams
       ) {
         // Groundhog has no cursor-specific code; every other continuation input is local and validated.
         throw new RegistryCursorRejectedError({ cause: error });

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { addressFromHex, toHex0x } from "@groundhogchain/client";
-import { useClient, getClientQueryKey, useWallet } from "@groundhogchain/react";
+import { addressFromHex, toHex0x } from "@thruputchain/client";
+import { useClient, getClientQueryKey, useWallet } from "@thruputchain/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useTransactions } from "@/transactions/use-transactions";

@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@/test/render";
 import { afterEach, expect, it, vi } from "vitest";
-import { toHex0x } from "@groundhogchain/client";
+import { toHex0x } from "@thruputchain/client";
 import { configuration } from "@/test/fixtures";
 import type { RegistryStatus, RegistryTokenPage } from "@/registry/client";
 import { useTokenDirectory } from "./use-token-directory";

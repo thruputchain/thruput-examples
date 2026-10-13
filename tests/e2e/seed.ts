@@ -9,13 +9,13 @@ import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import {
   addressFromHex,
-  createGroundhogClient,
+  createThruputClient,
   HttpTransport,
   localnet,
   fromHex0x,
-} from "@groundhogchain/client";
-import { networkHash, sha256Hash } from "@groundhogchain/protocol";
-import { ERC20 } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client";
+import { networkHash, sha256Hash } from "@thruputchain/protocol";
+import { ERC20 } from "@thruputchain/client/contracts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapHandler } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
 import { createGroundhogRegistrySource } from "../../apps/token-launchpad/server/chain.ts";
@@ -221,7 +221,7 @@ try {
     assert.equal(store.getStatus().lastError, null);
   }
   await startRegistry();
-  const client = await createGroundhogClient({
+  const client = await createThruputClient({
     cluster: localnet({
       rpcUrl: env.GROUNDHOG_RPC_URL!,
       networkHash: networkHash(

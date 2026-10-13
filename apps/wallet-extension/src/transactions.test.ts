@@ -7,8 +7,8 @@ import {
   toHex0x,
   hashSignedTransaction,
   transactionSignaturePreimage,
-} from "@groundhogchain/client";
-import { ERC20, DefaultWallet } from "@groundhogchain/client/contracts";
+} from "@thruputchain/client";
+import { ERC20, DefaultWallet } from "@thruputchain/client/contracts";
 import {
   blockHeight,
   contractAddress,
@@ -16,7 +16,7 @@ import {
   networkHash,
   sha256Hash,
   fixedBytes,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 import { verifyAsync } from "@noble/ed25519";
 import { accountOf, newVault, unhex } from "./vault";
 import { inspectTransaction, signApproved } from "./transactions";

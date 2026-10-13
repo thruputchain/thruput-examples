@@ -2,7 +2,7 @@ import {
   gasAmount,
   type ContractAddress,
   type Invocation,
-} from "@groundhogchain/protocol";
+} from "@thruputchain/protocol";
 
 import { SwapRouter } from "@/contracts/generated/swap-router";
 

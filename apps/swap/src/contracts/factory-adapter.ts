@@ -1,5 +1,5 @@
-import type { ContractView, GroundhogClient } from "@groundhogchain/client";
-import type { ContractAddress } from "@groundhogchain/protocol";
+import type { ContractView, ThruputClient } from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
 
 import { SwapFactory } from "@/contracts/generated/swap-factory";
 
@@ -30,7 +30,7 @@ export interface SwapFactoryReadAdapter {
 }
 
 export function createSwapFactoryReadAdapter(params: {
-  client: Pick<GroundhogClient, "view">;
+  client: Pick<ThruputClient, "view">;
   contract: ContractAddress;
   caller: ContractAddress;
 }): SwapFactoryReadAdapter {

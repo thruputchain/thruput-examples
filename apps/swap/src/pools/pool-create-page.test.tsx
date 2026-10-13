@@ -1,5 +1,5 @@
-import { contractAddress } from "@groundhogchain/protocol";
-import type { TransactionReceipt } from "@groundhogchain/client";
+import { contractAddress } from "@thruputchain/protocol";
+import type { TransactionReceipt } from "@thruputchain/client";
 import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { Link, MemoryRouter, useLocation } from "react-router-dom";

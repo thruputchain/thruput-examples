@@ -1,4 +1,4 @@
-import type { ProviderRequest } from "@groundhogchain/client/provider";
+import type { ProviderRequest } from "@thruputchain/client/provider";
 export const MAX_SIGNED_BYTES = 1_048_576;
 // One Ed25519 DecoratedSignature plus the signature vector length.
 export const MAX_UNSIGNED_BYTES = MAX_SIGNED_BYTES - 76;

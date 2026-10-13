@@ -12,7 +12,7 @@ jobs:
   dependency-policy:
     permissions:
       contents: read
-    uses: groundhogchain/actions/.github/workflows/rust-dependency-policy.yml@v1
+    uses: thruputchain/actions/.github/workflows/rust-dependency-policy.yml@v1
     with:
       registry-name: thruput
       # The workspace manifest opts into the nightly-only `trim-paths` cargo
@@ -25,7 +25,7 @@ jobs:
   workflow-lint:
     permissions:
       contents: read
-    uses: groundhogchain/actions/.github/workflows/workflow-lint.yml@v1
+    uses: thruputchain/actions/.github/workflows/workflow-lint.yml@v1
 
   # Not gated on dependency-policy: that job checks the cargo graph, and this
   # one builds only the npm workspace.
@@ -43,11 +43,11 @@ jobs:
         with:
           node-version: '22'
           registry-url: https://npm.pkg.github.com
-          scope: '@groundhogchain'
+          scope: '@thruputchain'
           cache: npm
       - run: npm ci
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || github.token }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
       - run: npm run typecheck
       - run: npm test
       # Public settings arrive at runtime; production bundles need no deployment env.
@@ -78,11 +78,11 @@ jobs:
         with:
           node-version: '22'
           registry-url: https://npm.pkg.github.com
-          scope: '@groundhogchain'
+          scope: '@thruputchain'
           cache: npm
       - run: npm ci
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || github.token }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
       - name: Install the published Thruput CLI and runtime
         run: |
           cargo install --registry thruput --version 0.27.0 --locked thruput-cli
