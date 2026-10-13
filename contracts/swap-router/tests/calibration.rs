@@ -227,7 +227,6 @@ async fn run_calibration(fee_enabled: bool) {
     }
 
     let scenario = Scenario::builder("swap-gas-calibration")
-        .bootstrap_accounts()
         .network(NetworkConfig::local(config))
         .artifact("erc20", artifact("erc20.rv32a"))
         .artifact("swap_handler", artifact("swap_handler.rv32a"))

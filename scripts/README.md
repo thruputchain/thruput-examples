@@ -112,6 +112,6 @@ checks atomic rollback, storage top-ups, and pool operations. Freighter browser
 approval flows require separate acceptance testing.
 
 CI runs these checks with registry credentials. Grant repository Actions access
-to the npm packages or set `NPM_TOKEN`. The Cargo registry secret is named
+to the npm packages; npm jobs use `github.token`. The Cargo registry secret is named
 `GROUNDHOG_REGISTRY_TOKEN`. Rebuild artifacts and bindings together; installing
 packages does not upgrade contracts already deployed to a node.

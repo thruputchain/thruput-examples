@@ -581,7 +581,6 @@ async fn clearing_gas() {
     let rows = Arc::new(Mutex::new(Vec::new()));
     for &n in &ASSETS {
         let scenario = Scenario::builder("speedex-gas")
-            .bootstrap_accounts()
             .network(NetworkConfig::local(config.clone()))
             .artifact("erc20", artifact("erc20.rv32a"))
             .artifact("speedex", artifact("speedex.rv32a"))

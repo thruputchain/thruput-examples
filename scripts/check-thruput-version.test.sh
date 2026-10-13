@@ -22,13 +22,14 @@ for version in \
 done
 
 for version in \
+  'thruput 0.27.0' \
+  'thruput 0.28.0' \
+  'thruput 0.28.9' \
   'thruput 0.14.0' \
   'thruput 0.19.0' \
   'thruput 0.21.3' \
   'thruput 0.22.0' \
   'thruput 0.22.0-rc.1' \
-  'thruput 0.27.0' \
-  'thruput 0.28.0' \
   'thruput 0.29.0-pre.1' \
   'thruput 0.29.0-pre.2' \
   'thruput 0.29.0-pre.2+build.1' \
@@ -41,7 +42,7 @@ for version in \
   'thruput 0.16.0+' \
   'thruput 0.16.0-rc..1' \
   'thruput 0.016.0' \
-  'groundhog 0.27.0' \
+  'groundhog 0.29.0' \
   'another-cli 0.16.0' \
   'invalid'; do
   if output="$(bash "$check" "$version" 2>&1)"; then
@@ -51,4 +52,4 @@ for version in \
   [[ "$output" == "Thruput CLI 0.29.0 or newer is required; found $version." ]]
 done
 
-printf 'Thruput CLI version checks passed (31 cases).\n'
+printf 'Thruput CLI version checks passed.\n'

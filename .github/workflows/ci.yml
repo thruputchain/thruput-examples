@@ -12,7 +12,7 @@ jobs:
   dependency-policy:
     permissions:
       contents: read
-    uses: groundhogchain/actions/.github/workflows/rust-dependency-policy.yml@v1
+    uses: thruputchain/actions/.github/workflows/rust-dependency-policy.yml@v1
     with:
       registry-name: thruput
       # The workspace manifest opts into the nightly-only `trim-paths` cargo
@@ -25,7 +25,7 @@ jobs:
   workflow-lint:
     permissions:
       contents: read
-    uses: groundhogchain/actions/.github/workflows/workflow-lint.yml@v1
+    uses: thruputchain/actions/.github/workflows/workflow-lint.yml@v1
 
   # Not gated on dependency-policy: that job checks the cargo graph, and this
   # one builds only the npm workspace.
@@ -47,7 +47,7 @@ jobs:
           cache: npm
       - run: npm ci
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || github.token }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
       - run: npm run typecheck
       - run: npm test
       # Public settings arrive at runtime; production bundles need no deployment env.
@@ -82,7 +82,7 @@ jobs:
           cache: npm
       - run: npm ci
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || github.token }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
       - name: Install the published Thruput CLI and runtime
         run: |
           cargo install --registry thruput --version 0.29.0 --locked thruput-cli
@@ -106,6 +106,21 @@ jobs:
           npm run test:counter
           npm run test:seed
           npm run test:batching
+      # Keep the seed run's working directory for diagnosis. Local dev keys, the
+      # seed signer key and the cached devnode bundle are left out.
+      - name: Upload seed evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: groundhog-seed-evidence
+          path: |
+            /tmp/groundhog-seed-*
+            !/tmp/groundhog-seed-*/config/thruput/keys
+            !/tmp/groundhog-seed-*/seed/**/signer.key
+            !/tmp/groundhog-seed-*/cache
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 3
 
   build-and-test:
     needs: dependency-policy # inspect dependencies before anything builds them
