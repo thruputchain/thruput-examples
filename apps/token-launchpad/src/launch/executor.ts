@@ -14,7 +14,7 @@ import {
   StandardTokenFactory,
   standard_token_factory_if,
 } from "@/contracts/generated/standard-token-factory";
-import { ERC20, groundhog_erc20_if } from "@/contracts/generated/standard-token";
+import { ERC20, thruput_erc20_if } from "@/contracts/generated/standard-token";
 import { reviewFactory } from "@/contracts/launchpad-client";
 import {
   assertWorkflowScope,
@@ -35,8 +35,8 @@ import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 
 const TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 type TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
-const TransferEvent = groundhog_erc20_if.v0_1.events.TransferEvent;
-type TransferEvent = groundhog_erc20_if.v0_1.events.TransferEvent;
+const TransferEvent = thruput_erc20_if.v0_1.events.TransferEvent;
+type TransferEvent = thruput_erc20_if.v0_1.events.TransferEvent;
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 

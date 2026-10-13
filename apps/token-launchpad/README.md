@@ -302,7 +302,7 @@ Provisioning follows the same pattern in both apps: `prepareContractDeployment`,
 prefund its predicted address, then `wallet.deployContractAndWait`. The SDK
 verifies the returned address and committed execution result.
 
-Bindings use the `@thruputchain` namespace emitted by CLI 0.29.0. The contract specs were built with Rust SDK 0.49.0.
+Bindings use the `@thruputchain` namespace emitted by CLI 0.29.0. The contract specs were built with Rust SDK 0.51.0.
 Run setup to deploy matching rebuilt contracts. Supported scalar event topics
 now encode values directly; string and byte-slice topics remain hashes. Keep the
 original bindings for historical deployments and unresolved activity; updating

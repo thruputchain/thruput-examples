@@ -69,14 +69,6 @@ export namespace batch_driver {
   }
 }
 
-export namespace groundhog_erc20_if {
-  export namespace v0_1 {
-    export namespace error {
-      export type ERC20Error = 1n | 2n | 3n | 4n | 5n | 100n;
-    }
-  }
-}
-
 export namespace swap_if {
   export namespace v0_1 {
     export namespace driver {
@@ -106,7 +98,7 @@ export namespace swap_if {
         | {
             case: "LPTokenFailure";
             value: readonly [
-              __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error,
+              __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error,
             ];
           };
     }
@@ -176,6 +168,14 @@ export namespace swap_if {
   }
 }
 
+export namespace thruput_erc20_if {
+  export namespace v0_1 {
+    export namespace error {
+      export type ERC20Error = 1n | 2n | 3n | 4n | 5n | 100n;
+    }
+  }
+}
+
 export namespace SwapDriver {
   export namespace v0_1 {
     export interface InitializeArgs {
@@ -217,7 +217,7 @@ export namespace SwapDriver {
           kind: "declared";
           name: "ERC20Error";
           selector: 0xb19947acb2fa14ffn;
-          value: __gh_codegen.groundhog_erc20_if$v0_1$error$ERC20Error;
+          value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
         }
       | {
           kind: "declared";
@@ -277,9 +277,9 @@ export const spec: __gh_client_contract.ContractSpec = {
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
             named: {
-              crate_name: __gh_s("groundhog-erc20-if"),
+              crate_name: __gh_s("thruput-erc20-if"),
               major: __gh_s("0.1"),
-              module_path: __gh_s("groundhog_erc20_if::error"),
+              module_path: __gh_s("thruput_erc20_if::error"),
               declared: __gh_s("ERC20Error"),
             },
           },
@@ -376,25 +376,6 @@ export const spec: __gh_client_contract.ContractSpec = {
           { name: __gh_s("Fault"), value: 2n },
           { name: __gh_s("Rejected"), value: 3n },
           { name: __gh_s("Malformed"), value: 4n },
-        ],
-      },
-    },
-    {
-      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
-      enum_def: {
-        name: {
-          crate_name: __gh_s("groundhog-erc20-if"),
-          major: __gh_s("0.1"),
-          module_path: __gh_s("groundhog_erc20_if::error"),
-          declared: __gh_s("ERC20Error"),
-        },
-        variants: [
-          { name: __gh_s("AlreadyInitialized"), value: 1n },
-          { name: __gh_s("MustBeContractOwner"), value: 2n },
-          { name: __gh_s("TooLarge"), value: 3n },
-          { name: __gh_s("BalanceNotZero"), value: 4n },
-          { name: __gh_s("NegativeAmount"), value: 5n },
-          { name: __gh_s("Internal"), value: 100n },
         ],
       },
     },
@@ -553,9 +534,9 @@ export const spec: __gh_client_contract.ContractSpec = {
                 {
                   v: __gh_contract_spec.ContractTypeKind.Named,
                   named: {
-                    crate_name: __gh_s("groundhog-erc20-if"),
+                    crate_name: __gh_s("thruput-erc20-if"),
                     major: __gh_s("0.1"),
-                    module_path: __gh_s("groundhog_erc20_if::error"),
+                    module_path: __gh_s("thruput_erc20_if::error"),
                     declared: __gh_s("ERC20Error"),
                   },
                 },
@@ -824,6 +805,25 @@ export const spec: __gh_client_contract.ContractSpec = {
               },
             },
           },
+        ],
+      },
+    },
+    {
+      v: __gh_contract_spec.ContractTypeDefKind.TypeDefEnum,
+      enum_def: {
+        name: {
+          crate_name: __gh_s("thruput-erc20-if"),
+          major: __gh_s("0.1"),
+          module_path: __gh_s("thruput_erc20_if::error"),
+          declared: __gh_s("ERC20Error"),
+        },
+        variants: [
+          { name: __gh_s("AlreadyInitialized"), value: 1n },
+          { name: __gh_s("MustBeContractOwner"), value: 2n },
+          { name: __gh_s("TooLarge"), value: 3n },
+          { name: __gh_s("BalanceNotZero"), value: 4n },
+          { name: __gh_s("NegativeAmount"), value: 5n },
+          { name: __gh_s("Internal"), value: 100n },
         ],
       },
     },
@@ -1170,21 +1170,6 @@ export const batch_driver = {
   },
 } as const;
 
-export const groundhog_erc20_if = {
-  v0_1: {
-    error: {
-      ERC20Error: {
-        AlreadyInitialized: 1n,
-        MustBeContractOwner: 2n,
-        TooLarge: 3n,
-        BalanceNotZero: 4n,
-        NegativeAmount: 5n,
-        Internal: 100n,
-      },
-    },
-  },
-} as const;
-
 export const swap_if = {
   v0_1: {
     driver: {
@@ -1213,6 +1198,21 @@ export const swap_if = {
   },
 } as const;
 
+export const thruput_erc20_if = {
+  v0_1: {
+    error: {
+      ERC20Error: {
+        AlreadyInitialized: 1n,
+        MustBeContractOwner: 2n,
+        TooLarge: 3n,
+        BalanceNotZero: 4n,
+        NegativeAmount: 5n,
+        Internal: 100n,
+      },
+    },
+  },
+} as const;
+
 export type SwapDriverEvent =
   | batch_driver.v0_1.events.RequestAccepted
   | batch_driver.v0_1.events.RequestFailed
@@ -1232,8 +1232,6 @@ export function decodeEvent(__gh_event: {
 // The types the namespaces above refer to, under names no declaration can capture.
 export namespace __gh_codegen {
   export type batch_driver$v0_1$events$Cause = batch_driver.v0_1.events.Cause;
-  export type groundhog_erc20_if$v0_1$error$ERC20Error =
-    groundhog_erc20_if.v0_1.error.ERC20Error;
   export type swap_if$v0_1$driver$SwapDriverError =
     swap_if.v0_1.driver.SwapDriverError;
   export type swap_if$v0_1$handler$SwapLibraryError =
@@ -1252,4 +1250,6 @@ export namespace __gh_codegen {
   export type swap_if$v0_1$request$SwapOp = swap_if.v0_1.request.SwapOp;
   export type swap_if$v0_1$request$SwapRequest =
     swap_if.v0_1.request.SwapRequest;
+  export type thruput_erc20_if$v0_1$error$ERC20Error =
+    thruput_erc20_if.v0_1.error.ERC20Error;
 }

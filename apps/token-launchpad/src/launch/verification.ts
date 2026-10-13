@@ -2,11 +2,11 @@ import { bytesEqual, type CoreThruputClient } from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
 import { getContract } from "@thruputchain/client/contract";
 
-import { ERC20, ERC20Metadata, groundhog_erc20_if } from "@/contracts/generated/standard-token";
+import { ERC20, ERC20Metadata, thruput_erc20_if } from "@/contracts/generated/standard-token";
 import { standard_token_factory_if } from "@/contracts/generated/standard-token-factory";
 import type { LaunchWorkflow } from "@/launch/workflow";
 
-type DecodedTransferEvent = groundhog_erc20_if.v0_1.events.TransferEvent;
+type DecodedTransferEvent = thruput_erc20_if.v0_1.events.TransferEvent;
 type DecodedTokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 
 export interface TokenStateSnapshot {
