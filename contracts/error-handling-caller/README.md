@@ -5,7 +5,7 @@ call to the wrong target. The companion callee deliberately produces failures.
 
 ## Run
 
-Complete the [Rust setup](../../docs/getting-started.md#1-rust-and-registry-access)
+Complete the [Rust setup](../../README.md#rust-and-cli)
 and read [the callee](../error-handling-callee/README.md). From the repo root:
 
 ```sh
@@ -21,7 +21,7 @@ cases. The tests register their dependencies; no running node is needed.
 2. [Tests](tests/test.rs): which outcomes are caught and how they are asserted.
 
 Native tests unwind panics. Guest execution has abort semantics; do not infer
-all guest behavior from native tests alone. See [test categories](../../docs/development.md#rust-test-categories).
+all guest behavior from native tests alone. See [test categories](../../scripts/README.md#checks).
 
 ## Try a change
 

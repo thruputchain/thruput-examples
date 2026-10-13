@@ -13,8 +13,8 @@ the whole repository.
 | Try an application | [Counter app](apps/counter/README.md) | Rust, Node.js, CLI, and a local node |
 | Explore a full wallet app | [Token Launchpad](apps/token-launchpad/README.md), then [Swap](apps/swap/README.md) | The app toolchain and [Thruput Freighter](https://github.com/thruputchain/freighter) |
 
-Follow [Getting started](docs/getting-started.md) for registry access, toolchain
-installation, and the local node. The [developer tutorials](https://docs.thruput.network/start/getting-started/)
+Follow [Setup](#setup) for registry access, toolchain installation, and the local
+node. The [developer tutorials](https://docs.thruput.network/start/getting-started/)
 explain the platform and creating your own project with `thruput new`.
 
 ### Your first contract test
@@ -42,6 +42,59 @@ thruput build -p counter
 The artifact is `target/thruput/counter.rv32a`. Next, use the
 [TypeScript examples](examples/typescript/README.md) to deploy it, call it,
 read events, and submit a batch.
+
+## Setup
+
+Run commands from the repository root. Use Node.js **22.13+**, npm, and
+[rustup](https://rustup.rs/). The checked-in `rust-toolchain.toml` selects Rust.
+
+### Rust and CLI
+
+The repo configures the private `thruput` Cargo registry. You need access and a
+credential provider. Save your token at Cargo's prompt:
+
+```sh
+export CARGO_REGISTRIES_THRUPUT_CREDENTIAL_PROVIDER=cargo:token
+cargo login --registry thruput
+rustup show
+cargo install --locked --registry thruput --version 0.29.0 thruput-cli
+thruput toolchain install
+```
+
+CLI **0.29.0** manages runtime **0.1.31-rc.3**. Native tests need Rust and registry
+access but no CLI or node. For contract builds, add this local profile to
+`thruput.toml` if it is not already configured:
+
+```toml
+default_profile = "local"
+[profile.local]
+network = "local"
+```
+
+### npm
+
+The published `@thruputchain/*` packages use GitHub Packages. Add this to your
+user `~/.npmrc`, then set `GITHUB_PACKAGES_TOKEN` to a PAT with `read:packages`
+and access to the packages:
+
+```ini
+//npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
+```
+
+Run `npm ci` at the root. This installs dependencies for all apps and client
+examples. Keep credentials outside the repository.
+
+### Local node
+
+In a separate terminal, run `thruput node --port 9545 --json` and leave it running.
+For client scripts, set `THRUPUT_RPC_URL=http://127.0.0.1:9545`. App setup also
+needs `THRUPUT_CLI` (the CLI executable) and `THRUPUT_RUNTIME_MANIFEST` (the path
+printed by that node). Use the new manifest after restarting the node.
+
+Run `npm run example:chain-tip` for a first read. Continue with the
+[client examples](examples/typescript/README.md) or an app README.
+If authentication fails, check registry/package access. If the CLI rejects a
+runtime manifest, use its matching managed runtime rather than a protocol override.
 
 ## Small contract examples
 
@@ -86,8 +139,9 @@ concurrency and transaction observation. Launchpad and Swap include registry
 servers and transaction recovery, so they are full application references.
 
 All apps share the root npm install. Each app has its own setup instructions.
-Local setup creates fresh infrastructure; app seeding adds demo tokens and
-liquidity. Use the same node and RPC endpoint in both apps and Freighter.
+Local setup creates fresh infrastructure. Seeding requires `SEED_RECIPIENT` and
+creates new demo tokens and optional liquidity on every run, without saving
+keys or recovery state. Use the same node and RPC endpoint in both apps and Freighter.
 
 ## Examples versus tools
 
@@ -102,21 +156,11 @@ liquidity. Use the same node and RPC endpoint in both apps and Freighter.
 | `sim-fixtures/` | Workloads for simulator testing, not tutorials |
 | `tests/browser/`, `tests/e2e/` | Browser fixtures and live acceptance tests |
 
-The older `tests/token-factory-ts/` harness uses historical package/toolchain
-pins and is outside the current root checks. It is not a recommended starting
-point. Its future is tracked in [the repository review](REPOSITORY_REVIEW.md).
-
 ## Development and verification
 
-- [Getting started](docs/getting-started.md): credentials, install, node, and common setup errors.
-- [Development checks](docs/development.md): native, guest, RPC, browser, and live tests.
-- [Script index](scripts/README.md): purpose, requirements, and side effects.
+- [Setup](#setup): credentials, install, and node.
+- [Script index and checks](scripts/README.md): tests, requirements, and side effects.
 - [AGENTS.md](AGENTS.md): repository instructions for coding agents.
-
-The `docs/specs/` and `docs/superpowers/` directories contain historical design
-and implementation records. Use the guides above and app READMEs for current
-commands. [REPOSITORY_REVIEW.md](REPOSITORY_REVIEW.md) records the October 2026
-review and deferred discussion topics.
 
 ## License
 

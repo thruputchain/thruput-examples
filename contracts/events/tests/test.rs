@@ -66,7 +66,7 @@ fn test_transfer_event_with_address_topics() {
     });
 }
 
-// ── Hashed topics (non-32-byte types, XDR-encoded + SHA-256) ─────────────
+// ── Hashed string and scalar integer topics ────────────────────────────
 
 #[test]
 fn test_tagged_action_with_hashed_category_and_scalar_code() {

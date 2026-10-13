@@ -6,7 +6,7 @@ metadata and signed permits. Start with [Counter](../counter/README.md) and
 
 ## Run native tests
 
-Complete the [Rust setup](../../docs/getting-started.md#1-rust-and-registry-access).
+Complete the [Rust setup](../../README.md#rust-and-cli).
 From the repository root:
 
 ```sh
@@ -31,7 +31,7 @@ transfer, see [the TypeScript examples](../../examples/typescript/README.md).
 
 After CLI/runtime setup, `thruput test -p erc20` exercises the guest binary and
 `thruput test --integration -p erc20 -- --test-threads=1` exercises RPC calls.
-See [Development checks](../../docs/development.md) for the distinction.
+See [Development checks](../../scripts/README.md#checks) for the distinction.
 
 Next: [Token Launchpad](../../apps/token-launchpad/README.md) for a full app,
 or [permit-wallet](../permit-wallet/src/lib.rs) for signed authorization.

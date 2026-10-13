@@ -5,7 +5,7 @@ single contract. `MathContract` implements addition and multiplication interface
 
 ## Run
 
-Complete the [Rust setup](../../docs/getting-started.md#1-rust-and-registry-access).
+Complete the [Rust setup](../../README.md#rust-and-cli).
 From the repo root, with no node:
 
 ```sh

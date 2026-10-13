@@ -6,7 +6,7 @@ operation can encounter a pause error.
 
 ## Run
 
-Complete the [Rust setup](../../docs/getting-started.md#1-rust-and-registry-access),
+Complete the [Rust setup](../../README.md#rust-and-cli),
 then read [Multi-throws](../multi-throws/README.md) and
 [Multi-impl](../multi-impl/README.md). From the repo root:
 

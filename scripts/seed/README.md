@@ -1,30 +1,34 @@
-# Shared app seeding
+# Fresh local demo assets
 
-This directory implements demo-data setup for Token Launchpad and Swap. It is
-advanced app support code, not a small TypeScript SDK example. For the latter,
-see [client examples](../../examples/typescript/README.md).
+Set up Launchpad first. For a pool, also set up Swap on the same local node.
+App servers do not need to be running. From the repository root:
 
-Run the public entrypoints from the repository root:
+```sh
+export SEED_RECIPIENT=0x<your-public-wallet-address>
+npm run seed --workspace apps/token-launchpad
+# Or create a separate token pair and pool in one run:
+npm run seed --workspace apps/swap
+```
 
-1. Follow [Launchpad setup and seeding](../../apps/token-launchpad/README.md#seeding).
-2. Follow [Swap seeding](../../apps/swap/README.md#seeding) on the same node.
+- Launchpad: two new tokens, 1,000,000 units each, delivered to the recipient.
+- Swap: two new tokens, a new pool with 1,000 units of each, and LP tokens plus
+  the remaining 999,000 units of each delivered to the recipient.
+- Both: recipient is token administrator; tokens have six decimals.
 
-Launchpad seeding creates and indexes two tokens. Swap seeding uses those tokens
-to create a pool and add liquidity. Set `SEED_RECIPIENT` before the first seed if
-the assets should belong to your browser wallet rather than the tool account.
+Every invocation creates new assets with a fresh in-memory signer. There is no
+saved key, journal, lock, or resume mode. Only loopback HTTP localnet is accepted.
+Configuration and artifact checks happen before funding or deployment.
 
-## Code map
+The tool prints each transaction hash before submission and confirms completed
+steps. An error stops the run without retrying writes. Partial assets may remain
+and balances held by the discarded signer cannot be recovered. Inspect the
+printed hashes; start a fresh node if you want to discard a partial demo.
 
-- `seed.ts`: orchestrates token and pool setup through the published SDK.
-- `seed-preflight.ts`: checks RPC access and the live factory/router relationship.
-- `seed-scope.ts`: binds local state to the selected deployments and recipient.
-- `seed-journal.ts`: preserves signed transaction evidence and handles resumption.
-- `seed-liquidity.ts`: follows queued liquidity through its terminal event.
+Path overrides: `LAUNCHPAD_APP_ENV`, `LAUNCHPAD_APP_PUBLIC_DIR`, `SWAP_APP_ENV`,
+`SWAP_APP_PUBLIC_DIR`. Paths resolve from the repo root. `THRUPUT_RPC_URL`
+overrides the local endpoint. Configure Freighter for the same node to use the
+assets. Existing recovery files from older runs are not read or deleted.
 
-The tool writes `.local/seed/` and sends transactions. Reruns recover recorded
-work rather than assuming an unknown transaction failed. Keep signer and journal
-files until the outcome is resolved. See the Launchpad README for recovery
-options; do not delete the state to bypass a scope mismatch.
-
-Root `npm test` covers the unit tests here. `npm run test:seed` checks the live
-flow and repeatability on an isolated node.
+`npm test` checks failure boundaries. `npm run test:seed` checks the real flow
+and verifies that reruns create distinct assets. For smaller SDK examples, see
+[examples/typescript](../../examples/typescript/README.md).

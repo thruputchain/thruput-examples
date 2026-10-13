@@ -17,7 +17,7 @@ to remove a few repeated lines. Larger apps are reference implementations.
 
 ## Setup
 
-Follow `docs/getting-started.md`. Use npm and the root `package-lock.json`.
+Follow the root README's Setup section. Use npm and the root `package-lock.json`.
 Node must be at least 22.13. Rust is pinned in `rust-toolchain.toml`.
 Use CLI 0.29.0 and its managed runtime 0.1.31-rc.3 with this release set.
 
@@ -83,16 +83,15 @@ cargo clippy --workspace --all-targets --no-deps --locked -- -D warnings
 `npm run test:browser` needs Chromium. `npm run test:examples` starts an isolated
 node and runs the client scripts; set `THRUPUT_CLI` and
 `THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"` first and generate the
-Counter artifact/binding. More live/guest commands are in `docs/development.md`.
+Counter artifact/binding. More live/guest commands are in `scripts/README.md`.
 Report tests actually run and separate environment failures from passing checks.
 
 ## Scope and documentation
 
-Root/app READMEs and `docs/getting-started.md` are current usage guides.
-`docs/specs/` and `docs/superpowers/` are historical records, not standing
-instructions to implement their plans. `REPOSITORY_REVIEW.md` records deferred
-discussion topics. `tests/token-factory-ts` is a historical harness outside
-the active npm workspace; do not use its pins for new examples.
+Use root, example, app, and script READMEs as the current usage guides.
+Keep explanations close to the code; do not accumulate historical plans or
+duplicate guides. Seeding creates fresh local assets on every invocation,
+requires `SEED_RECIPIENT`, and never saves a key or retries an uncertain write.
 
 Keep changes scoped. Avoid shared app frameworks, speculative abstractions, or
 rewriting transaction recovery during documentation work. Commit or push only

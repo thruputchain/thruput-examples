@@ -2,12 +2,33 @@ import { createHash } from "node:crypto";
 import {
   bytesEqual,
   HttpTransport,
+  JsonRpcError,
+  ThruputRpcErrorCode,
   type ThruputClient,
 } from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
 import { serializeCxs, Uint32Codec, VarOpaqueCodec } from "@thruputchain/xdr";
-import { SeedError } from "./seed-journal.ts";
 import { validateLocalRpcUrl } from "../../apps/token-launchpad/scripts/setup-local.ts";
+
+export class SeedError extends Error {}
+
+/** Retry only an explicitly lagging read snapshot, never a write. */
+export async function waitForView<T>(read: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + 15_000;
+  for (;;) {
+    try {
+      return await read();
+    } catch (error) {
+      if (
+        !(error instanceof JsonRpcError) ||
+        error.code !== ThruputRpcErrorCode.ViewHeightUnavailable ||
+        Date.now() >= deadline
+      )
+        throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+}
 
 export function seedTransport(url: string): HttpTransport {
   const fetch = globalThis.fetch.bind(globalThis);

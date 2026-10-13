@@ -1,4 +1,4 @@
-import { toHex0x } from "@thruputchain/client";
+import { formatUnits, toHex0x } from "@thruputchain/client";
 import {
   AlertCircleIcon,
   ArrowRightIcon,
@@ -19,7 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatUnits, parseTokenDraft, type TokenDraft } from "./form";
+import { parseTokenDraft, type TokenDraft } from "./form";
 import {
   actionLabel,
   canDiscardWorkflow,

@@ -13,10 +13,7 @@ import {
   swapFailureMessage,
 } from "@/contracts/failure-message";
 import { batch_driver } from "@/contracts/generated/swap-driver";
-import {
-  LiquidityBurnEvent as BurnEvent,
-  LiquidityMintEvent as MintEvent,
-} from "@/contracts/liquidity-events";
+import { swap_if } from "@/contracts/generated/swap-handler";
 import {
   buildAddLiquidityTarget,
   buildRemoveLiquidityTarget,
@@ -67,6 +64,8 @@ import type { SnapshotReader } from "@/swap/snapshot";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 
 const RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
+const { LiquidityBurnEvent: BurnEvent, LiquidityMintEvent: MintEvent } =
+  swap_if.v0_1.events;
 type RequestAccepted = batch_driver.v0_1.events.RequestAccepted;
 const RequestFailed = batch_driver.v0_1.events.RequestFailed;
 type RequestFailed = batch_driver.v0_1.events.RequestFailed;

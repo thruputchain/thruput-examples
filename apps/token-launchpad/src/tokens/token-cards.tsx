@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { CreatedToken } from "@/registry/tokens";
-import { formatUnits } from "@/launch/form";
+import { formatUnits } from "@thruputchain/client";
 import { useTokenBalance } from "@thruputchain/react";
 
 export function TokenCards({

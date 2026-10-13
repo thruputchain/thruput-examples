@@ -6,7 +6,7 @@ reset interface share storage but have distinct interface/error declarations.
 
 ## Run
 
-Complete the [Rust setup](../../docs/getting-started.md#1-rust-and-registry-access)
+Complete the [Rust setup](../../README.md#rust-and-cli)
 and read [Multi-impl](../multi-impl/README.md). From the repo root:
 
 ```sh

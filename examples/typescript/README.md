@@ -7,7 +7,7 @@ the packages installed by this repository.
 
 ## Setup
 
-Follow [Getting started](../../docs/getting-started.md) for package access and
+Follow [Setup](../../README.md#setup) for package access and
 CLI installation. Run everything here from the repository root.
 
 In terminal A:
@@ -166,7 +166,7 @@ Investigate the original hash instead of repeating a write on that assumption.
 
 `npm run typecheck` includes these scripts. For maintainers, `npm run test:examples`
 runs them against a fresh isolated node and checks the results. See
-[Development checks](../../docs/development.md#live-client-and-app-checks).
+[Development checks](../../scripts/README.md#checks).
 
 Next: [Counter app](../../apps/counter/README.md) for concurrent requests, or
 [Launchpad](../../apps/token-launchpad/README.md) for browser-wallet integration.

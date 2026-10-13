@@ -37,6 +37,7 @@ import {
 } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { CRANK_FRAME_GAS } from "../../apps/swap/src/contracts/driver-target.ts";
 import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
+import { waitForView } from "../../examples/typescript/wait-for-view.ts";
 
 const RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
 type RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
@@ -159,12 +160,14 @@ try {
   const tokenFactory = addressFromHex(
     configs["token-launchpad"]!.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!,
   );
-  const tokenFunding = (
-    await StandardTokenFactory.v0_1.requiredTokenFunding.view({
-      client,
-      contract: tokenFactory,
-    })
-  ).value + BigInt(configs["token-launchpad"]!.VITE_NATIVE_BALANCE_ITEM_COST!);
+  const tokenFunding =
+    (
+      await StandardTokenFactory.v0_1.requiredTokenFunding.view({
+        client,
+        contract: tokenFactory,
+      })
+    ).value +
+    BigInt(configs["token-launchpad"]!.VITE_NATIVE_BALANCE_ITEM_COST!);
   const swapFactory = addressFromHex(configs.swap!.VITE_SWAP_FACTORY_ADDRESS!);
   const router = addressFromHex(configs.swap!.VITE_SWAP_ROUTER_ADDRESS!);
   async function code(name: string): Promise<Contract> {
@@ -317,6 +320,60 @@ try {
   }
   const [token0, token1] = tokens.sort((a, b) =>
     toHex0x(a).localeCompare(toHex0x(b)),
+  );
+  // Native wallet batching covers reserve top-up + transfer without a custom test wallet.
+  const receiver = addressFromHex(`0x${"44".repeat(32)}`);
+  const readBalance = (
+    token: typeof receiver,
+    owner: typeof receiver,
+    minHeight: bigint,
+  ) =>
+    waitForView(() =>
+      ERC20.v0_1.getBalanceOf.view({
+        client,
+        contract: token,
+        args: { addr: owner },
+        minHeight,
+      }),
+    );
+  const topup = ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+    receiver: token0!,
+    amount: 100_000n,
+  });
+  const reserveBefore = await readBalance(HOG_ADDRESS, token0!, 0n);
+  const failedTransfer = await batch(
+    "Roll back reserve top-up when transfer fails",
+    [
+      topup,
+      ERC20.v0_1.transfer.invocation(token0!, gas, {
+        receiver,
+        amount: 2_000_000_000_000n,
+      }),
+    ],
+  );
+  assert.equal(
+    failedTransfer.execResult,
+    ExecResult.ExecResultTxRootFrameReverted,
+  );
+  assert.equal(
+    (await readBalance(HOG_ADDRESS, token0!, failedTransfer.height)).value,
+    reserveBefore.value,
+  );
+  assert.equal(
+    (await readBalance(token0!, receiver, failedTransfer.height)).value,
+    0n,
+  );
+  const fundedTransfer = await batch(
+    "Top up storage and transfer to a new holder",
+    [
+      topup,
+      ERC20.v0_1.transfer.invocation(token0!, gas, { receiver, amount: 1n }),
+    ],
+  );
+  assert.equal(fundedTransfer.execResult, ExecResult.ExecResultOK);
+  assert.equal(
+    (await readBalance(token0!, receiver, fundedTransfer.height)).value,
+    1n,
   );
   const pool = (
     await SwapFactory.v0_1.poolAddresses.view({

@@ -6,7 +6,7 @@ and library exceptions from faults.
 
 ## Run
 
-Complete the [Rust setup](../../docs/getting-started.md#1-rust-and-registry-access)
+Complete the [Rust setup](../../README.md#rust-and-cli)
 and the [error-handling examples](../error-handling-caller/README.md). From the root:
 
 ```sh

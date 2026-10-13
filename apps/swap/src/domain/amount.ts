@@ -1,3 +1,5 @@
+import { formatUnits, parseUnits } from "@thruputchain/client";
+
 const DECIMAL_PATTERN = /^(?:\d+\.?\d*|\.\d+)$/;
 export const U128_MAX = (1n << 128n) - 1n;
 
@@ -22,9 +24,11 @@ export function parseAmount(input: string, decimals: number): AmountParseResult 
     return { ok: false, error: "precision" };
   }
 
-  const scale = 10n ** BigInt(decimals);
-  const paddedFraction = fraction.padEnd(decimals, "0");
-  const value = BigInt(whole || "0") * scale + BigInt(paddedFraction || "0");
+  // Keep the form's .5 and 1. shorthand; the SDK accepts canonical decimals.
+  const value = parseUnits(
+    `${whole || "0"}${fraction ? `.${fraction}` : ""}`,
+    decimals,
+  );
   if (value > U128_MAX) {
     return { ok: false, error: "bounds" };
   }
@@ -48,17 +52,8 @@ export function formatAmount(
     throw new RangeError("Maximum fraction digits must be between zero and decimals");
   }
 
-  const scale = 10n ** BigInt(decimals);
-  const whole = value / scale;
-  if (maximumFractionDigits === 0) {
-    return whole.toString();
-  }
-
-  const fullFraction = (value % scale).toString().padStart(decimals, "0");
-  const fraction = fullFraction
-    .slice(0, maximumFractionDigits)
-    .replace(/0+$/, "");
-  return fraction.length === 0 ? whole.toString() : `${whole}.${fraction}`;
+  const truncated = value / 10n ** BigInt(decimals - maximumFractionDigits);
+  return formatUnits(truncated, maximumFractionDigits);
 }
 
 function assertDecimals(decimals: number): void {

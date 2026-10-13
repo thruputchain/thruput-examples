@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,7 +21,6 @@ import { SwapHandler } from "../../apps/swap/src/contracts/generated/swap-handle
 import { createThruputRegistrySource } from "../../apps/token-launchpad/server/chain.ts";
 import { RegistryStore } from "../../apps/token-launchpad/server/store.ts";
 import { RegistryIndexer } from "../../apps/token-launchpad/server/indexer.ts";
-import { createRegistryHttpServer } from "../../apps/token-launchpad/server/http.ts";
 
 assert.ok(
   process.env.THRUPUT_DEVNODE_BINARY,
@@ -40,9 +39,7 @@ Object.assign(env, {
   XDG_DATA_HOME: join(work, "data"),
   XDG_CACHE_HOME: join(work, "cache"),
   SEED_STATE_DIR: join(work, "seed"),
-  ...(process.env.SEED_TEST_DEFAULT_OWNER === "1"
-    ? {}
-    : { SEED_RECIPIENT: `0x${"42".repeat(32)}` }),
+  SEED_RECIPIENT: `0x${"42".repeat(32)}`,
 });
 const processGroups = new OwnedProcessGroups();
 let interrupted = false;
@@ -109,6 +106,7 @@ async function run(
     expectedExit,
     `${script} unexpected exit`,
   );
+  return process.output();
 }
 const protectedPaths = ["swap", "token-launchpad"].map((app) =>
   join(root, `apps/${app}/.env.local`),
@@ -126,7 +124,6 @@ const fingerprint = async (path: string) => {
 const before = await Promise.all(protectedPaths.map(fingerprint));
 let store: RegistryStore | undefined;
 let indexer: RegistryIndexer | undefined;
-let server: ReturnType<typeof createRegistryHttpServer> | undefined;
 let stage = "isolated node startup";
 function interrupt() {
   interrupted = true;
@@ -160,20 +157,23 @@ try {
         data: { rpc_url: string; runtime_manifest: { path: string } };
       }
     | undefined;
-  await until(() => {
-    assert.equal(
-      node.child.exitCode,
-      null,
-      `Isolated node exited during startup: ${node.output().replace(/(?:0x)?[0-9a-fA-F]{64}/g, "[hex32]")}`,
-    );
-    try {
-      const text = node.stdout();
-      startup = JSON.parse(text.slice(text.indexOf("{")));
-    } catch {
-      return false;
-    }
-    return startup?.ok === true;
-  }, () => node.output().replace(/(?:0x)?[0-9a-fA-F]{64}/g, "[hex32]"));
+  await until(
+    () => {
+      assert.equal(
+        node.child.exitCode,
+        null,
+        `Isolated node exited during startup: ${node.output().replace(/(?:0x)?[0-9a-fA-F]{64}/g, "[hex32]")}`,
+      );
+      try {
+        const text = node.stdout();
+        startup = JSON.parse(text.slice(text.indexOf("{")));
+      } catch {
+        return false;
+      }
+      return startup?.ok === true;
+    },
+    () => node.output().replace(/(?:0x)?[0-9a-fA-F]{64}/g, "[hex32]"),
+  );
   Object.assign(env, {
     THRUPUT_RPC_URL: startup!.data.rpc_url,
     THRUPUT_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
@@ -208,13 +208,6 @@ try {
       pageSize: 200,
       syncIntervalMs: 1_000,
     });
-    server = createRegistryHttpServer(store, indexer);
-    await new Promise<void>((resolve) =>
-      server!.listen(0, "127.0.0.1", resolve),
-    );
-    const address = server.address();
-    assert.ok(address && typeof address !== "string");
-    env.LAUNCHPAD_REGISTRY_URL = `http://127.0.0.1:${address.port}`;
     indexer.start();
     await indexer.sync();
     assert.equal(store.getStatus().syncState, "idle");
@@ -250,52 +243,50 @@ try {
   await assert.rejects(readdir(env.SEED_STATE_DIR!), { code: "ENOENT" });
   assert.equal(await count(), 0n);
   assert.equal(store!.getStatus().tokenCount, 0);
-  stage = "token and pool seed commands";
+  stage = "fresh token and pool seed commands";
   // Token seeding must not read Swap configuration or require its contracts.
-  await run("token-launchpad", "seed-tokens", {
+  const tokensOutput = await run("token-launchpad", "seed-tokens", {
     SWAP_APP_ENV: join(work, "absent-swap.env"),
   });
-  await run("swap", "seed-pools");
-  const [scopeDirectory] = await readdir(env.SEED_STATE_DIR!);
-  const manifestPath = join(
-    env.SEED_STATE_DIR!,
-    scopeDirectory!,
-    "manifest.json",
-  );
-  const original = await readFile(manifestPath, "utf8");
-  const manifest = JSON.parse(original) as {
-    signer: string;
+  interface SeedResult {
     recipient: string;
-    tokens: { address: string }[];
-    pool: { handler: string; liquidityToken: string };
-  };
-  assert.equal(
-    (await stat(join(env.SEED_STATE_DIR!, scopeDirectory!, "signer.key")))
-      .mode & 0o777,
-    0o600,
-  );
-  assert.equal(store!.getStatus().tokenCount, 2);
+    tokens: string[];
+    pool?: { handler: string; liquidityToken: string };
+  }
+  function result(output: string): SeedResult {
+    const json = output.match(/^Seed result: (.+)$/m)?.[1];
+    assert.ok(json, "Seed must report public results");
+    return JSON.parse(json) as SeedResult;
+  }
+  const tokens = result(tokensOutput);
+  for (const token of tokens.tokens) {
+    assert.equal(
+      (
+        await ERC20.v0_1.getBalanceOf.view({
+          client,
+          contract: addressFromHex(token),
+          args: { addr: addressFromHex(tokens.recipient) },
+        })
+      ).value,
+      1_000_000n * 1_000_000n,
+    );
+  }
+  // Swap seed creates its own tokens; no saved signer or running registry is needed.
+  await indexer!.stop();
+  const manifest = result(await run("swap", "seed-pools"));
+  assert.ok(manifest.pool);
+  assert.ok(manifest.tokens.every((token) => !tokens.tokens.includes(token)));
   assert.equal(await count(), 1n);
   for (const token of manifest.tokens) {
     assert.equal(
       (
         await ERC20.v0_1.getBalanceOf.view({
           client,
-          contract: addressFromHex(token.address),
+          contract: addressFromHex(token),
           args: { addr: addressFromHex(manifest.recipient) },
         })
       ).value,
       999_000n * 1_000_000n,
-    );
-    assert.equal(
-      (
-        await ERC20.v0_1.getBalanceOf.view({
-          client,
-          contract: addressFromHex(token.address),
-          args: { addr: addressFromHex(manifest.signer) },
-        })
-      ).value,
-      manifest.recipient === manifest.signer ? 999_000n * 1_000_000n : 0n,
     );
   }
   const pool = (
@@ -314,25 +305,29 @@ try {
       })
     ).value > 0n,
   );
-  stage = "restart and rerun";
+  stage = "validate inputs without writes, then create a fresh second pool";
   for (const overrides of [
-    { SEED_RECIPIENT: `0x${"43".repeat(32)}` },
+    { SEED_RECIPIENT: "" },
+    { SEED_RECIPIENT: `0x${"00".repeat(32)}` },
     { VITE_THRUPUT_NETWORK_ID: `0x${"43".repeat(32)}` },
     { VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"43".repeat(32)}` },
-  ])
+  ]) {
+    const tip = (await client.getChainTip()).height;
     await run("token-launchpad", "seed-tokens", overrides, 1);
-  assert.equal(await readFile(manifestPath, "utf8"), original);
-  await indexer!.stop();
-  await new Promise<void>((resolve) => server!.close(() => resolve()));
+    assert.equal((await client.getChainTip()).height, tip);
+  }
+  const second = result(await run("swap", "seed-pools"));
+  assert.ok(second.pool);
+  assert.notEqual(second.pool.handler, manifest.pool.handler);
+  assert.ok(second.tokens.every((token) => !manifest.tokens.includes(token)));
+  assert.equal(await count(), 2n);
+  await assert.rejects(readdir(env.SEED_STATE_DIR!), { code: "ENOENT" });
   store!.close();
   await startRegistry();
-  await run("token-launchpad", "seed-tokens");
-  await run("swap", "seed-pools");
-  assert.equal(await readFile(manifestPath, "utf8"), original);
-  assert.equal(await count(), 1n);
-  assert.equal(store!.getStatus().tokenCount, 2);
+  await until(() => store!.getStatus().tokenCount === 6);
+  assert.equal(store!.getStatus().tokenCount, 6);
   console.log(
-    `PASS: canonical indexing, recipient balances/LP, exact reserves, rerun without new transactions. Evidence: ${work}`,
+    `PASS: fresh assets on rerun, no saved signer/journal, recipient balances/LP, reserves and indexing. Evidence: ${work}`,
   );
 } catch (error) {
   console.error(
@@ -344,8 +339,6 @@ try {
   process.off("SIGINT", interrupt);
   process.off("SIGTERM", interrupt);
   await indexer?.stop();
-  if (server)
-    await new Promise<void>((resolve) => server!.close(() => resolve()));
   store?.close();
   await processGroups.stopAll();
   assert.deepEqual(

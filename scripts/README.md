@@ -4,7 +4,7 @@ These scripts support development and verification. For small runnable SDK
 examples, start at [examples/typescript](../examples/typescript/README.md).
 
 Run all commands below from the repository root. Install the toolchain with
-[Getting started](../docs/getting-started.md). Shell tools use `thruput` on
+[Setup](../README.md#setup). Shell tools use `thruput` on
 `PATH`; app setup accepts `THRUPUT_CLI`. Set both to the same CLI release.
 
 ## Contract builds and checks
@@ -22,7 +22,7 @@ platform example. `build-guest.sh` and `check-contracts.sh` support `CARGO_UNLOC
 for deliberate lockfile updates; normally leave it unset.
 
 For a quick check, prefer `cargo test -p fibonacci --locked` over the full suite.
-See [Development checks](../docs/development.md) for the test categories.
+See [Checks](#checks) below for the test categories.
 
 ## Advanced live scenarios and benchmarks
 
@@ -66,6 +66,52 @@ npm run seed --workspace apps/token-launchpad
 npm run seed --workspace apps/swap
 ```
 
-Both apps must use the same local node. Launchpad's registry must be running.
-Seeding writes on-chain state and a local recovery journal. Preserve that
-journal while transactions are unresolved.
+Both apps must use the same local node. Set `SEED_RECIPIENT` to your public
+wallet address. Each command creates new tokens; Swap also creates a new pool.
+No app server, saved signer, or recovery journal is needed. A failed run stops
+and prints its progress and transaction hashes; another run creates new assets.
+
+## Checks
+
+Run focused checks first:
+
+```sh
+cargo test -p counter --locked --test test
+npm run typecheck
+npm test
+npm run build --workspaces
+```
+
+Native Rust tests run without a node. `thruput test -p counter` runs the guest
+artifact; `thruput test --integration -p counter` runs RPC tests on an ephemeral
+node. Use `cargo test --workspace --locked`, `cargo fmt --check`, and
+`cargo clippy --workspace --all-targets --no-deps --locked -- -D warnings` for
+workspace-wide Rust checks. Ignored live/guest tests need their own commands.
+
+`npm run test:browser` uses Chromium fixtures without signing. Set
+`CHROMIUM_PATH` if it is not at `/usr/bin/chromium`, or install it with
+`npx --no-install playwright-core install chromium` and use the installed path.
+
+For live checks on Linux (process groups and `/proc` are required):
+
+```sh
+export THRUPUT_CLI="$(command -v thruput)"
+export THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"
+npm run examples:generate
+npm run test:examples
+npm run generate:contracts --workspaces
+npm run build --workspaces
+npm run test:counter
+npm run test:seed
+npm run test:batching
+```
+
+These use isolated nodes and temporary state. Counter requires Chromium.
+Seeding checks fresh assets on rerun, balances, reserves, and indexing. Batching
+checks atomic rollback, storage top-ups, and pool operations. Freighter browser
+approval flows require separate acceptance testing.
+
+CI runs these checks with registry credentials. Grant repository Actions access
+to the npm packages or set `NPM_TOKEN`. The Cargo registry secret is named
+`GROUNDHOG_REGISTRY_TOKEN`. Rebuild artifacts and bindings together; installing
+packages does not upgrade contracts already deployed to a node.

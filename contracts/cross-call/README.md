@@ -6,7 +6,7 @@ wrapped errors.
 
 ## Run
 
-Complete the [Rust setup](../../docs/getting-started.md#1-rust-and-registry-access)
+Complete the [Rust setup](../../README.md#rust-and-cli)
 and read [Fibonacci](../fibonacci/README.md). From the repo root:
 
 ```sh
