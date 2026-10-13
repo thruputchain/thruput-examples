@@ -1,11 +1,11 @@
 use crate::model::Model;
 use erc20::{ERC20BurnClient, ERC20ClawbackClient};
-use groundhog_erc20_if::*;
 use sdk::*;
+use thruput_erc20_if::*;
 
 #[cfg(feature = "metadata")]
 mod metadata {
-    pub use groundhog_erc20_metadata_if::*;
+    pub use thruput_erc20_metadata_if::*;
 
     pub const TOKEN_NAME: &str = "Test Token";
     pub const TOKEN_SYMBOL: &str = "TEST-TOK";

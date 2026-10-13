@@ -244,10 +244,10 @@ fn the_master_key_formats_as_a_stellar_g_strkey() {
     let got: Ed25519PublicKey = got.assert_return_as();
     let mut bytes = [0u8; 32];
     bytes.copy_from_slice(got.as_ref());
-    let g = groundhog_signing::strkey::format_public_key(&bytes);
+    let g = thruput_signing::strkey::format_public_key(&bytes);
     assert!(g.starts_with('G'), "{g}");
     assert_eq!(
-        groundhog_signing::strkey::parse_public_key(&g).unwrap(),
+        thruput_signing::strkey::parse_public_key(&g).unwrap(),
         bytes
     );
 }

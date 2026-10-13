@@ -13,7 +13,7 @@ use support::*;
 /// `ERC20Entrypoints` is not generated for a trait impl (only for inherent
 /// impls). Computed here with the same formula as the `#[contract]` macro:
 /// sha256(INTERFACE_NAME ++ "::" ++ MAJOR_VERSION ++ "::" ++ METHOD_NAME)[0..8].
-/// For groundhog-erc20-if 0.1.42: interface = "ERC20", major = "0.1",
+/// For thruput-erc20-if 0.1.42: interface = "ERC20", major = "0.1",
 /// method = "transfer".  The `sdk::hash_to_array!` proc-macro hashes
 /// "ERC20::0.1::transfer" with sha256 at compile time.
 fn erc20_transfer_entrypoint() -> ContractEntrypointID {

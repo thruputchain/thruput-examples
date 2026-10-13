@@ -1,4 +1,4 @@
-//! What a clearing costs, measured on a live local `hog-devnode` through `groundhog-testkit`.
+//! What a clearing costs, measured on a live local `hog-devnode` through `thruput-testkit`.
 //!
 //! The mock environment the other tests use does not meter gas the way a node does, so this drives
 //! the real RV32 artifact: for every size in the sweep it deploys an exchange, submits a synthetic
@@ -33,25 +33,25 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use groundhog_json_rpc_client::GroundhogApiClient;
-use groundhog_signing::{
-    BuildCallTransaction, DEFAULT_PUBKEY_ACCOUNT_NONCE, LocalSigner, PubkeyAccount,
-    SignTransactionParams, build_call_transaction, sign_and_encode_transaction_hex,
-};
-use groundhog_testkit::rpc_types::decimal::Decimal;
-use groundhog_testkit::rpc_types::receipt::TransactionReceipt;
-use groundhog_testkit::xdr::types::{ContractAddress, NetworkHash};
-use groundhog_testkit::xdrs::{self, ReadXDR, WriteXDR};
-use groundhog_testkit::{
-    Agent, AgentContext, BlockDriverConfig, Contract, DeployOptions, LocalNetworkConfig,
-    NetworkConfig, Result, Scenario, TestkitError, entrypoint_id,
-};
 use speedex::engine::{Grid, MAX_ASSETS};
 use speedex::max_clear_cells_in;
 use synthetic::{Rng, Shape};
+use thruput_json_rpc_client::GroundhogApiClient;
+use thruput_signing::{
+    BuildCallTransaction, DEFAULT_PUBKEY_ACCOUNT_NONCE, LocalSigner, PubkeyAccount,
+    SignTransactionParams, build_call_transaction, sign_and_encode_transaction_hex,
+};
+use thruput_testkit::rpc_types::decimal::Decimal;
+use thruput_testkit::rpc_types::receipt::TransactionReceipt;
+use thruput_testkit::xdr::types::{ContractAddress, NetworkHash};
+use thruput_testkit::xdrs::{self, ReadXDR, WriteXDR};
+use thruput_testkit::{
+    Agent, AgentContext, BlockDriverConfig, Contract, DeployOptions, LocalNetworkConfig,
+    NetworkConfig, Result, Scenario, TestkitError, entrypoint_id,
+};
 
 /// Interface identities the artifacts stamp; `entrypoint_id` derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.52");
+const ERC20: (&str, &str) = ("ERC20", "0.1.55");
 const SPEEDEX: (&str, &str) = ("Speedex", "0.1.0");
 /// The node's default wallet, which serves every key-pair account: `execute` runs a list of
 /// calls from the account, and takes calldata of any length.
@@ -59,7 +59,7 @@ const DEFAULT_WALLET: (&str, &str) = ("DefaultWallet", "0.1.0");
 
 /// One call of the default wallet's `execute`.
 #[derive(Debug, Clone, xdrs::WriteXDR, xdrs::ReadXDR)]
-#[xdr(crate = "groundhog_testkit::xdrs")]
+#[xdr(crate = "thruput_testkit::xdrs")]
 struct WalletCall {
     target: ContractAddress,
     entrypoint: [u8; 8],
@@ -104,7 +104,7 @@ const SUPPLY: u128 = 1 << 80;
 
 /// `Clearing`, as the contract returns it.
 #[derive(Debug, Clone, Copy, xdrs::WriteXDR, xdrs::ReadXDR)]
-#[xdr(crate = "groundhog_testkit::xdrs")]
+#[xdr(crate = "thruput_testkit::xdrs")]
 struct Clearing {
     prices: [u64; MAX_ASSETS],
     rounds: u32,
@@ -115,7 +115,7 @@ struct Clearing {
 
 /// `GasReport`, as `measure_clearing` returns it.
 #[derive(Debug, Clone, Copy, xdrs::WriteXDR, xdrs::ReadXDR)]
-#[xdr(crate = "groundhog_testkit::xdrs")]
+#[xdr(crate = "thruput_testkit::xdrs")]
 struct GasReport {
     cells: u32,
     read: u64,
@@ -126,7 +126,7 @@ struct GasReport {
 
 /// `Offer`, as the `offer` view returns it.
 #[derive(Debug, Clone, Copy, xdrs::WriteXDR, xdrs::ReadXDR)]
-#[xdr(crate = "groundhog_testkit::xdrs")]
+#[xdr(crate = "thruput_testkit::xdrs")]
 struct Offer {
     owner: ContractAddress,
     batch: u64,
@@ -190,7 +190,7 @@ fn native_token() -> Contract {
 }
 
 fn status_of(receipt: &TransactionReceipt) -> String {
-    use groundhog_testkit::rpc_types::receipt::ExecStatus;
+    use thruput_testkit::rpc_types::receipt::ExecStatus;
     match &receipt.status {
         ExecStatus::Ok => "ok".to_owned(),
         ExecStatus::Reverted { message } => {
@@ -416,11 +416,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
                     let mut submitted = Vec::with_capacity(chunk.len());
                     for o in chunk {
                         let args = (o.sell as u32, o.buy as u32, o.amount, o.min_price);
-                        submitted.push(
-                            exchange
-                                .submit_call(&mut ctx, "submit_offer", &args)
-                                .await?,
-                        );
+                        submitted.push(exchange.submit_call(&ctx, "submit_offer", &args).await?);
                     }
                     for s in &submitted {
                         s.await_pending().await?;

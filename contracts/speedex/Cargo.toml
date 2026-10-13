@@ -30,16 +30,16 @@ dev = ["sdk/dev", "unique-ids/dev"]
 
 [dependencies]
 sdk = { workspace = true }
-groundhog-erc20-if = { workspace = true }
+thruput-erc20-if = { workspace = true }
 unique-ids = { path = "../../helpers/unique-ids" }
 
 [dev-dependencies]
 speedex = { path = ".", features = ["dev"] }
 erc20 = { path = "../erc20", features = ["dev"] }
 # `tests/testkit_gas.rs` measures the contract on a devnode.
-groundhog-testkit = { workspace = true }
-groundhog-json-rpc-client = { workspace = true }
-groundhog-signing = { workspace = true }
+thruput-testkit = { workspace = true }
+thruput-json-rpc-client = { workspace = true }
+thruput-signing = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [lints]

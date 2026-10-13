@@ -11,7 +11,7 @@ publish = false
 entrypoints = []
 dev = [
     "sdk/dev",
-    "groundhog-erc20-if/dev",
+    "thruput-erc20-if/dev",
     "standard-token-factory-if/dev",
 ]
 
@@ -21,7 +21,7 @@ test = false
 
 [dependencies]
 sdk = { workspace = true }
-groundhog-erc20-if = { workspace = true }
+thruput-erc20-if = { workspace = true }
 standard-token-factory-if = { path = "../../interfaces/standard-token-factory-if" }
 
 [dev-dependencies]

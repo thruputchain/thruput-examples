@@ -19,14 +19,14 @@ pub fn test_erc20_contract(env: TestEnvironmentHandle, test_contract_hash: &SHA2
     print_events(&result);
 
     // Check that the event log matches the model
-    let expected: Vec<groundhog_erc20_if::StdERC20Event> = result.assert_return_as();
+    let expected: Vec<thruput_erc20_if::StdERC20Event> = result.assert_return_as();
     model::check_events(&expected, result.events());
 }
 
 // Print out a transaction's event log
 fn print_events(result: &sdk::TransactResult) {
-    use groundhog_erc20_if::*;
     use sdk::EmittedEvent;
+    use thruput_erc20_if::*;
 
     for (i, event) in result.events().iter().enumerate() {
         let event: EmittedEvent = event.into();

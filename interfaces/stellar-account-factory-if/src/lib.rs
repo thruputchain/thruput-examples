@@ -6,9 +6,9 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-pub use groundhog_erc20_if::Amount;
 use sdk::*;
 pub use sdk::{ContractAddress, Ed25519PublicKey, SHA256Hash};
+pub use thruput_erc20_if::Amount;
 
 /// Immutable configuration for one account factory deployment.
 #[contract_type]
@@ -110,7 +110,7 @@ pub fn account_address(
 /// [`account_address`] without a host: the same `deployment_nonce`
 /// (computed here with the same CXS encoding and an in-process sha256, since
 /// the SDK's hash is a syscall) and the same deployment-address preimage as
-/// `groundhog_signing::derive_deploy_address`. For clients and tests that
+/// `thruput_signing::derive_deploy_address`. For clients and tests that
 /// have no contract context.
 #[cfg(feature = "dev")]
 pub fn account_address_offchain(
@@ -122,6 +122,6 @@ pub fn account_address_offchain(
     let nonce_preimage = sdk::xdr::cxs::encode(&(DEPLOYMENT_DOMAIN, master_key))
         .expect("encoding the nonce preimage");
     let nonce: [u8; 32] = Sha256::digest(nonce_preimage).into();
-    groundhog_signing::derive_deploy_address(factory, &SHA256Hash::new(nonce), account_code_hash)
+    thruput_signing::derive_deploy_address(factory, &SHA256Hash::new(nonce), account_code_hash)
         .expect("encoding the deployment preimage")
 }

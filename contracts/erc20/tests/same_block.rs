@@ -11,9 +11,9 @@
 //! block that grants it.
 
 use erc20::ERC20Client;
-use groundhog_erc20_if::ERC20Error;
 use sdk::call::RawCallError;
 use sdk::*;
+use thruput_erc20_if::ERC20Error;
 
 fn token() -> ContractAddress {
     ContractAddress::named("token")

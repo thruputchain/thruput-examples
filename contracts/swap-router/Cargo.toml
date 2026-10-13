@@ -24,7 +24,7 @@ bench = false
 
 [dependencies]
 sdk = { workspace = true }
-groundhog-erc20-if = { workspace = true }
+thruput-erc20-if = { workspace = true }
 thiserror = { workspace = true }
 swap-if = { path = "../../interfaces/swap-if" }
 swap-pair = { path = "../../engines/swap-pair" }
@@ -33,26 +33,26 @@ swap-handler = { path = "../swap-handler" }
 
 # Optional, for native tests
 erc20 = { path = "../erc20", features = ["dev"], optional = true }
-groundhog-erc20-metadata-if = { workspace = true, features = ["dev"], optional = true }
+thruput-erc20-metadata-if = { workspace = true, features = ["dev"], optional = true }
 
 [features]
 calibration = ["batch-driver/calibration"]
 entrypoints = ["sdk/alloc"]
-erc20_metadata = ["erc20?/metadata", "dep:groundhog-erc20-metadata-if"]
+erc20_metadata = ["erc20?/metadata", "dep:thruput-erc20-metadata-if"]
 dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-if/dev", "swap-pair/dev", "swap-driver/dev", "swap-handler/dev"]
 guest_test = [] # Test contracts compiled to guest binaries (instead of compiling natively)
 
 [dev-dependencies]
 swap-router = { path = ".", features = ["dev"] }
 swap-factory = { path = "../swap-factory", features = ["dev"] }
-groundhog-testkit = { workspace = true }
-groundhog-signing = { workspace = true }
-groundhog-xdr = { workspace = true }
+thruput-testkit = { workspace = true }
+thruput-signing = { workspace = true }
+thruput-xdr = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uint = { version = "0.10.0", default-features = false }
 batch-driver = { path = "../../helpers/batch-driver" }
-groundhog-event = { workspace = true }
-groundhog-json-rpc-types = { workspace = true }
+thruput-event = { workspace = true }
+thruput-json-rpc-types = { workspace = true }
 xdrs = { workspace = true }
 
 [lints]

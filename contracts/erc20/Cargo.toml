@@ -15,17 +15,17 @@ edition.workspace = true
 entrypoints = ["metadata", "permit"]
 dev = [
     "sdk/dev",
-    "groundhog-erc20-if/dev",
-    "groundhog-erc20-controls-if/dev",
+    "thruput-erc20-if/dev",
+    "thruput-erc20-controls-if/dev",
     "metadata",
-    "groundhog-erc20-metadata-if/dev",
+    "thruput-erc20-metadata-if/dev",
     "permit",
-    "groundhog-erc20-permit-if/dev",
+    "thruput-erc20-permit-if/dev",
     ]
-metadata = ["dep:groundhog-erc20-metadata-if"]
+metadata = ["dep:thruput-erc20-metadata-if"]
 # Off-chain approvals: `ERC20Permit`, consuming the `PermitGrant` auth tokens a
 # `SignedOp` wallet mints (see `permit-wallet`).
-permit = ["dep:groundhog-erc20-permit-if"]
+permit = ["dep:thruput-erc20-permit-if"]
 
 [lib]
 crate-type = ["rlib"]
@@ -41,10 +41,10 @@ bench = false
 
 [dependencies]
 sdk = { workspace = true }
-groundhog-erc20-if = { workspace = true }
-groundhog-erc20-controls-if = { workspace = true }
-groundhog-erc20-metadata-if = { workspace = true, optional = true }
-groundhog-erc20-permit-if = { workspace = true, optional = true }
+thruput-erc20-if = { workspace = true }
+thruput-erc20-controls-if = { workspace = true }
+thruput-erc20-metadata-if = { workspace = true, optional = true }
+thruput-erc20-permit-if = { workspace = true, optional = true }
 
 [dev-dependencies]
 erc20 = { path = ".", features = ["dev"] }
@@ -52,7 +52,7 @@ sha2.workspace = true
 
 # RPC integration test (tests/integration.rs), run via `thruput test --integration`.
 integration-test = { path = "../../helpers/integration-test" }
-groundhog-xdr = { workspace = true }
+thruput-xdr = { workspace = true }
 tokio = { workspace = true }
 
 [[test]]

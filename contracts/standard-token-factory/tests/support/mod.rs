@@ -1,9 +1,9 @@
 // Each integration-test crate imports this shared fixture but uses a different subset.
 #![allow(dead_code)]
 
-use groundhog_erc20_if::ERC20Client;
 use sdk::*;
 use standard_token_factory::{Amount, FactoryConfig, Name, StandardTokenFactoryClient, Symbol};
+use thruput_erc20_if::ERC20Client;
 
 pub const ROOT: ContractAddress = ContractAddress::new([0x10; 32]);
 pub const ADMIN: ContractAddress = ContractAddress::new([0x20; 32]);

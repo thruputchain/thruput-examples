@@ -5,11 +5,11 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-pub use groundhog_erc20_if::{
+pub use sdk::{ContractAddress, SHA256Hash};
+pub use thruput_erc20_if::{
     AllowanceChangeEvent, Amount, Difference, ERC20, ERC20Client, ERC20Error, TransferEvent,
 };
-pub use groundhog_erc20_metadata_if::{ERC20Metadata, ERC20MetadataClient, Name, Symbol};
-pub use sdk::{ContractAddress, SHA256Hash};
+pub use thruput_erc20_metadata_if::{ERC20Metadata, ERC20MetadataClient, Name, Symbol};
 
 mod events;
 pub use events::TokenCreated;

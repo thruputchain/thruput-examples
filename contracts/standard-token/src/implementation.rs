@@ -1,10 +1,10 @@
-use groundhog_erc20_controls_if::{ClawbackEvent, ERC20Burn, ERC20Clawback};
-use groundhog_erc20_if::*;
-use groundhog_erc20_metadata_if::*;
 use sdk::storage::deletable::Deletable;
 use sdk::storage::{Balance, Map, NNInt, Value};
 use sdk::*;
 use standard_token_factory_if::StandardTokenInitializer;
+use thruput_erc20_controls_if::{ClawbackEvent, ERC20Burn, ERC20Clawback};
+use thruput_erc20_if::*;
+use thruput_erc20_metadata_if::*;
 
 /// An allowance is a non-negative amount like a balance: a missing entry
 /// reads as zero, a zero change touches no storage, and the checked

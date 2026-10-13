@@ -20,8 +20,6 @@ use erc20::{
     DeleteAllowanceGrant, DeleteAllowanceRequest, ERC20Client, ERC20Error, ERC20PermitClient,
     ERC20PermitError, PermitGrant, PermitRequest,
 };
-use groundhog_domain_separator::SignedOp as SignedOpPreimage;
-use groundhog_signed_op_if::{Operation, SignedOpClient, SignedOpError};
 use permit_relayer::PermitRelayerClient;
 use permit_wallet::{PermitWalletClient, WalletRequest};
 use sdk::signer::Signed;
@@ -29,6 +27,8 @@ use sdk::types::transaction::Uniquifier;
 use sdk::types::{Ed25519PublicKey, Ed25519Signature};
 use sdk::xdr::BytesM;
 use sdk::*;
+use thruput_domain_separator::SignedOp as SignedOpPreimage;
+use thruput_signed_op_if::{Operation, SignedOpClient, SignedOpError};
 
 const ALICE_SEED: [u8; 32] = [0x11; 32];
 const MALLORY_SEED: [u8; 32] = [0x22; 32];

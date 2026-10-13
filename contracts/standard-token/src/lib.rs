@@ -14,16 +14,16 @@ sdk::declare_mock_contract!();
 
 mod implementation;
 
-pub use groundhog_erc20_controls_if::{
+pub use implementation::{Config, TokenContract};
+pub use standard_token_factory_if::{StandardTokenInitializer, StandardTokenInitializerClient};
+pub use thruput_erc20_controls_if::{
     ClawbackEvent, ERC20Burn, ERC20BurnClient, ERC20Clawback, ERC20ClawbackClient,
 };
-pub use groundhog_erc20_if::{
+pub use thruput_erc20_if::{
     AllowanceChangeEvent, AllowanceDeleteEvent, Amount, BurnEvent, CONTRACT_ADDR_ZERO, Difference,
     ERC20, ERC20Client, ERC20Error, MintEvent, TransferEvent,
 };
-pub use groundhog_erc20_metadata_if::{ERC20Metadata, ERC20MetadataClient, Name, Symbol};
-pub use implementation::{Config, TokenContract};
-pub use standard_token_factory_if::{StandardTokenInitializer, StandardTokenInitializerClient};
+pub use thruput_erc20_metadata_if::{ERC20Metadata, ERC20MetadataClient, Name, Symbol};
 
 #[cfg(feature = "dev")]
 pub use implementation::{allowance_storage_key, balance_storage_key};

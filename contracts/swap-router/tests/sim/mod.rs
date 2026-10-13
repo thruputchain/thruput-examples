@@ -1,16 +1,16 @@
 #![allow(unused)]
 
-use groundhog_erc20_if::Amount;
-use groundhog_testkit::xdr::types::ContractAddress;
-use groundhog_testkit::{AgentContext, Contract, DeployOptions, Result, xdrs};
 use swap_factory::POOL_FUNDING;
 use swap_if::{Pool, SwapHashes};
+use thruput_erc20_if::Amount;
+use thruput_testkit::xdr::types::ContractAddress;
+use thruput_testkit::{AgentContext, Contract, DeployOptions, Result, xdrs};
 
 // An alias to match the contracts' `Address` type.
 type Address = ContractAddress;
 
 // Interface identities (name, version)
-pub const ERC20: (&str, &str) = ("ERC20", "0.1.52");
+pub const ERC20: (&str, &str) = ("ERC20", "0.1.55");
 pub const HANDLER: (&str, &str) = ("SwapHandler", "0.1.0");
 pub const DRIVER: (&str, &str) = ("SwapDriver", "0.1.0");
 pub const ROUTER: (&str, &str) = ("SwapRouter", "0.1.0");
@@ -52,7 +52,7 @@ pub fn erc20(address: Address) -> Contract {
 // The native-token contract.
 //
 // It lives at the genesis precompile address and speaks the ERC20 interface, vendored at
-// `groundhog-erc20-if` 0.1.3.
+// `thruput-erc20-if` 0.1.3.
 pub fn native_token() -> Contract {
     Contract::new(
         sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN,
@@ -73,7 +73,7 @@ async fn fund(ctx: &mut AgentContext, native: &Contract, target: Address) -> Res
 #[derive(Debug, Clone, xdrs::WriteXDR, xdrs::ReadXDR)]
 // `xdrs` reaches us re-exported through the testkit, not as a direct crate, so point the derives'
 // generated code at that path.
-#[xdr(crate = "groundhog_testkit::xdrs")]
+#[xdr(crate = "thruput_testkit::xdrs")]
 pub struct LPConfig {
     pub token0: Address,
     pub token1: Address,
