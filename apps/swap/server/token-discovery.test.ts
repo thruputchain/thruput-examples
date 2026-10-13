@@ -536,7 +536,7 @@ describe("fixed token discovery boundary", () => {
     expect((await fetch(`${origin}/healthz`)).status).toBe(200);
     expect(
       (
-        await fetch(`${origin}/groundhog-rpc`, {
+        await fetch(`${origin}/thruput-rpc`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({

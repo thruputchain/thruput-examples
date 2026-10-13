@@ -112,15 +112,15 @@ describe("browser configuration", () => {
   it("loads runtime settings and always uses the same-origin RPC endpoint", async () => {
     const body = {
       VITE_EXPLORER_URL: "https://Explorer.test/",
-      VITE_GROUNDHOG_RPC_URL: "https://ignored-upstream.test",
-      VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
+      VITE_THRUPUT_RPC_URL: "https://ignored-upstream.test",
+      VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
       VITE_NATIVE_HOG_ADDRESS: `0x${"02".repeat(32)}`,
       VITE_SWAP_FACTORY_ADDRESS: `0x${"03".repeat(32)}`,
       VITE_SWAP_ROUTER_ADDRESS: `0x${"04".repeat(32)}`,
     };
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify(body)));
     const config = await loadRuntimeConfig();
-    expect(config.rpcUrl.href).toBe("http://localhost/groundhog-rpc");
+    expect(config.rpcUrl.href).toBe("http://localhost/thruput-rpc");
     expect(config.explorerUrl).toBe("https://explorer.test");
     body.VITE_EXPLORER_URL = "https://explorer.test/path";
     await expect(loadRuntimeConfig()).rejects.toThrow("VITE_EXPLORER_URL");

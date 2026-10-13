@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ExecResult } from "@thruputchain/protocol";
 
 import type { FactoryReview } from "@/contracts/launchpad-client";
-import { createReadClient } from "@/groundhog/client";
+import { createReadClient } from "@/thruput/client";
 import { advanceWorkflow, runWorkflow } from "@/launch/executor";
 import {
   createWorkflow,

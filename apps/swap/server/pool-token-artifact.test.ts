@@ -93,8 +93,8 @@ describe("production assets", () => {
       const environment = {
         VITE_POOL_TOKEN_HASH: hash,
         VITE_EXPLORER_URL: "",
-        VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:9545",
-        VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
+        VITE_THRUPUT_RPC_URL: "http://127.0.0.1:9545",
+        VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
         VITE_TOKEN_DISCOVERY_ENABLED: "false",
         VITE_STANDARD_TOKEN_FACTORY_ADDRESS: "",
         VITE_STANDARD_TOKEN_HASH: "",

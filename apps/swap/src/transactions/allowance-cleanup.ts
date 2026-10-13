@@ -4,7 +4,7 @@ import type { ContractAddress } from "@thruputchain/protocol";
 import type { GlobalConfig } from "@/config";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { allowanceDifference } from "@/domain/allowance";
-import { verifyReadNetwork } from "@/groundhog/client";
+import { verifyReadNetwork } from "@/thruput/client";
 import {
   loadCleanupAllowanceRequirement,
 } from "@/transactions/account-allowance";

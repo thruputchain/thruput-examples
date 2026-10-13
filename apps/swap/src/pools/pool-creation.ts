@@ -15,7 +15,7 @@ import {
 } from "@/contracts/factory-adapter";
 import { parseAmount } from "@/domain/amount";
 import { orderTokens } from "@/domain/tokens";
-import { NetworkMismatchError, verifyReadNetwork } from "@/groundhog/client";
+import { NetworkMismatchError, verifyReadNetwork } from "@/thruput/client";
 
 const MINIMUM_LIQUIDITY = 1_000n;
 const MAX_COHERENCE_ATTEMPTS = 3;

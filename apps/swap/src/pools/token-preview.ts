@@ -15,7 +15,7 @@ import {
 import {
   NetworkMismatchError,
   verifyReadNetwork,
-} from "@/groundhog/client";
+} from "@/thruput/client";
 import { tokenAddress } from "./creation-presets";
 
 export async function readTokenPreview(

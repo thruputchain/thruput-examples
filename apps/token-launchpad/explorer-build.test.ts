@@ -4,7 +4,7 @@ import { expect, it, vi } from "vitest";
 
 it("builds without deployment configuration and does not embed environment values", async () => {
   vi.stubEnv("VITE_EXPLORER_URL", "https://private-build-value.test");
-  vi.stubEnv("VITE_GROUNDHOG_RPC_URL", "https://private-upstream.test");
+  vi.stubEnv("VITE_THRUPUT_RPC_URL", "https://private-upstream.test");
   try {
     const result = await build({ mode: "production", publicDir: false, logLevel: "silent", build: { write: false } });
     if (!("output" in result)) throw new Error("Expected one bundle");

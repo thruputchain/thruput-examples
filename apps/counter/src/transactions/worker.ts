@@ -1,6 +1,6 @@
 import type { AppConfig } from "../config";
 import { errorMessage } from "../config";
-import { createCounterConnection } from "../groundhog/client";
+import { createCounterConnection } from "../thruput/client";
 import {
   initialSnapshot,
   TransactionEngine,
@@ -9,8 +9,9 @@ import {
 } from "./engine";
 
 export type WorkerCommand =
-  | { type: "start"; config: AppConfig; rpcUrl: string }
-  | { type: "input"; direction: Direction };
+  | { type: "start"; config: AppConfig; rpcUrl: string; accepting: boolean }
+  | { type: "input"; direction: Direction }
+  | { type: "accepting"; value: boolean };
 export type WorkerEvent = { type: "snapshot"; snapshot: Snapshot };
 
 let engine: TransactionEngine | null = null;
@@ -19,17 +20,22 @@ let startupError: string | null = null;
 let startup: Extract<WorkerCommand, { type: "start" }> | null = null;
 let nextAttempt = 0;
 let nextPublish = 0;
+let accepting = true;
 function publish(snapshot: Snapshot) {
   postMessage({ type: "snapshot", snapshot } satisfies WorkerEvent);
 }
 
 self.onmessage = (event: MessageEvent<WorkerCommand>) => {
   const command = event.data;
-  if (command.type === "input") {
+  if (command.type === "accepting") {
+    accepting = command.value;
+    engine?.setAccepting(accepting);
+  } else if (command.type === "input") {
     engine?.enqueue(command.direction);
     nextPublish = 0;
   } else if (!startup) {
     startup = command;
+    accepting = command.accepting;
   }
 };
 
@@ -39,6 +45,7 @@ function connect() {
   void createCounterConnection(startup.config, startup.rpcUrl)
     .then((connection) => {
       engine = new TransactionEngine(connection);
+      engine.setAccepting(accepting);
     })
     .catch((error: unknown) => {
       startupError = errorMessage(error);

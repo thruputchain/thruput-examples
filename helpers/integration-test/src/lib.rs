@@ -271,11 +271,11 @@ impl Harness {
     ) -> Result<ViewResponse, SubmissionError> {
         self.client()?
             .view(ViewRequest {
-                auth_claim: None,
                 contract: Hex0x(self.contract),
                 entrypoint: HexBytes(self.entrypoint_id(method).into_inner().to_vec()),
                 calldata: HexBytes(calldata),
                 caller: Some(Hex0x(self.wallet)),
+                auth_claim: None,
                 gas_limit: None,
                 min_height: None,
             })

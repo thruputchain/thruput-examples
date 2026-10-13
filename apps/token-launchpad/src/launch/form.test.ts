@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatUnits, parseTokenDraft } from "@/launch/form";
+import { parseTokenDraft } from "@/launch/form";
 
 describe("parseTokenDraft", () => {
   it("trims metadata and converts decimal supply to base units", () => {
@@ -98,13 +98,5 @@ describe("parseTokenDraft", () => {
       expect(result.errors.symbol).toBeDefined();
       expect(result.errors.decimals).toBeDefined();
     }
-  });
-});
-
-describe("formatUnits", () => {
-  it("formats fractional and whole values without trailing zeroes", () => {
-    expect(formatUnits(12_040n, 3)).toBe("12.04");
-    expect(formatUnits(1_000n, 3)).toBe("1");
-    expect(formatUnits(7n, 0)).toBe("7");
   });
 });

@@ -78,7 +78,7 @@ export async function provisionSwap(options: {
     )
   ) {
     throw new Error(
-      `Groundhog wire format >=4.0.0 is required; found ${version.wireFormat}`,
+      `Thruput wire format >=4.0.0 is required; found ${version.wireFormat}`,
     );
   }
   const [erc20, factoryContract, routerContract, handler, driver] =
@@ -244,8 +244,8 @@ function renderEnvironment(
   },
 ): string {
   return [
-    `VITE_GROUNDHOG_RPC_URL=${rpcUrl}`,
-    `VITE_GROUNDHOG_NETWORK_ID=${network}`,
+    `VITE_THRUPUT_RPC_URL=${rpcUrl}`,
+    `VITE_THRUPUT_NETWORK_ID=${network}`,
     `VITE_NATIVE_HOG_ADDRESS=${toHex0x(HOG_ADDRESS)}`,
     `VITE_SWAP_FACTORY_ADDRESS=${toHex0x(deployment.factory)}`,
     `VITE_SWAP_ROUTER_ADDRESS=${toHex0x(deployment.router)}`,

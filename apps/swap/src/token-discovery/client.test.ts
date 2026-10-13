@@ -7,7 +7,7 @@ import { validateDiscoveryResponse } from "./wire.ts";
 const address = (n: number) => `0x${n.toString(16).padStart(64, "0")}`;
 const config = loadDiscoveryConfig({
   VITE_TOKEN_DISCOVERY_ENABLED: "true",
-  VITE_GROUNDHOG_NETWORK_ID: "ab".repeat(32),
+  VITE_THRUPUT_NETWORK_ID: "ab".repeat(32),
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: address(1),
   VITE_STANDARD_TOKEN_HASH: address(2),
 });

@@ -7,7 +7,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { hashContract, toHex0x } from "@thruputchain/client";
 import { ContractType } from "@thruputchain/protocol";
-import { createGroundhogRegistrySource } from "./chain.ts";
+import { createThruputRegistrySource } from "./chain.ts";
 
 import { ServerConfigurationError } from "./config.ts";
 import {
@@ -18,11 +18,11 @@ import {
   start,
 } from "./main.ts";
 
-vi.mock("./chain.ts", () => ({ createGroundhogRegistrySource: vi.fn() }));
+vi.mock("./chain.ts", () => ({ createThruputRegistrySource: vi.fn() }));
 
 const environment = {
-  VITE_GROUNDHOG_RPC_URL: "https://rpc.example.test/groundhog",
-  VITE_GROUNDHOG_NETWORK_ID: `0x${"11".repeat(32)}`,
+  VITE_THRUPUT_RPC_URL: "https://rpc.example.test/thruput",
+  VITE_THRUPUT_NETWORK_ID: `0x${"11".repeat(32)}`,
   VITE_POOL_TOKEN_HASH: `0x${"22".repeat(32)}`,
   VITE_NATIVE_HOG_ADDRESS: `0x${"44".repeat(32)}`,
   VITE_SWAP_FACTORY_ADDRESS: `0x${"66".repeat(32)}`,
@@ -34,7 +34,7 @@ describe("production startup reporting", () => {
 
   afterEach(async () => {
     vi.unstubAllEnvs();
-    vi.mocked(createGroundhogRegistrySource).mockReset();
+    vi.mocked(createThruputRegistrySource).mockReset();
     if (directory !== undefined) {
       await rm(directory, { recursive: true, force: true });
       directory = undefined;
@@ -89,15 +89,15 @@ describe("production startup reporting", () => {
       const stopBeforeNetwork = new Error(
         "Validated assets; stop before network access",
       );
-      vi.mocked(createGroundhogRegistrySource).mockRejectedValue(
+      vi.mocked(createThruputRegistrySource).mockRejectedValue(
         stopBeforeNetwork,
       );
       if (state === "valid") {
         await expect(start(directory)).rejects.toBe(stopBeforeNetwork);
-        expect(createGroundhogRegistrySource).toHaveBeenCalledOnce();
+        expect(createThruputRegistrySource).toHaveBeenCalledOnce();
       } else {
         await expect(start(directory)).rejects.toThrow(/artifact/);
-        expect(createGroundhogRegistrySource).not.toHaveBeenCalled();
+        expect(createThruputRegistrySource).not.toHaveBeenCalled();
       }
       await expect(access(settings.POOL_REGISTRY_DB_PATH)).rejects.toThrow();
     },

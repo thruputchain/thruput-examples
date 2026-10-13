@@ -50,7 +50,7 @@ describe("RegistryIndexer", () => {
         .mockResolvedValueOnce(undefined)
         .mockRejectedValueOnce(
           new RegistryScopeVerificationError(
-            "The RPC endpoint belongs to a different Groundhog network",
+            "The RPC endpoint belongs to a different Thruput network",
           ),
         );
       await createIndexer(store, source).sync();

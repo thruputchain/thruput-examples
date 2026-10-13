@@ -1,4 +1,10 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["vite.config.ts", "server/**/*.ts", "scripts/**/*.ts"]
+  "compilerOptions": { "allowJs": true },
+  "include": [
+    "vite.config.ts",
+    "server/**/*.ts",
+    "scripts/**/*.ts",
+    "../../tests/e2e/counter*.ts"
+  ]
 }

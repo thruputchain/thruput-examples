@@ -8,7 +8,7 @@ import { developmentRegistry } from "./development";
 import { RegistryStore } from "./store";
 
 vi.mock("./chain", () => ({
-  createGroundhogRegistrySource: async () => ({
+  createThruputRegistrySource: async () => ({
     verifyNetworkIdentity: async () => {},
     getPage: async () => ({
       pools: [],
@@ -30,8 +30,8 @@ it("serves the real pool registry API from the development server", async () => 
       developmentRegistry({
         VITE_NATIVE_HOG_ADDRESS: `0x${"03".repeat(32)}`,
         VITE_SWAP_ROUTER_ADDRESS: `0x${"04".repeat(32)}`,
-        VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:1",
-        VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
+        VITE_THRUPUT_RPC_URL: "http://127.0.0.1:1",
+        VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
         VITE_SWAP_FACTORY_ADDRESS: `0x${"01".repeat(32)}`,
         POOL_REGISTRY_DB_PATH: path.join(root, "registry.sqlite"),
       }),
@@ -46,7 +46,7 @@ it("serves the real pool registry API from the development server", async () => 
     const pools = await fetch(`${origin}/api/pools`);
     const runtime = await (await fetch(`${origin}/api/config`)).json();
     expect(runtime.VITE_SWAP_ROUTER_ADDRESS).toBe(`0x${"04".repeat(32)}`);
-    expect(runtime.VITE_GROUNDHOG_RPC_URL).toBeUndefined();
+    expect(runtime.VITE_THRUPUT_RPC_URL).toBeUndefined();
     expect(pools.status).toBe(200);
     expect(await pools.json()).toMatchObject({ pools: [], total: 0 });
     const sync = await fetch(`${origin}/api/registry/sync`, { method: "POST" });
@@ -69,8 +69,8 @@ it("closes its store when Vite shuts down in middleware mode", async () => {
       developmentRegistry({
         VITE_NATIVE_HOG_ADDRESS: `0x${"03".repeat(32)}`,
         VITE_SWAP_ROUTER_ADDRESS: `0x${"04".repeat(32)}`,
-        VITE_GROUNDHOG_RPC_URL: "http://127.0.0.1:1",
-        VITE_GROUNDHOG_NETWORK_ID: "00".repeat(32),
+        VITE_THRUPUT_RPC_URL: "http://127.0.0.1:1",
+        VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
         VITE_SWAP_FACTORY_ADDRESS: `0x${"01".repeat(32)}`,
       }),
     ],

@@ -8,14 +8,14 @@ const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 export async function main(
   env: Record<string, string | undefined> = process.env,
 ): Promise<void> {
-  if (!env.GROUNDHOG_RUNTIME_MANIFEST)
-    throw new Error("GROUNDHOG_RUNTIME_MANIFEST is required");
+  if (!env.THRUPUT_RUNTIME_MANIFEST)
+    throw new Error("THRUPUT_RUNTIME_MANIFEST is required");
   const manifest: {
     networkHash?: unknown;
     bootstrap?: { storageCostModel?: unknown };
   } = JSON.parse(
     await readFile(
-      resolve(repositoryRoot, env.GROUNDHOG_RUNTIME_MANIFEST),
+      resolve(repositoryRoot, env.THRUPUT_RUNTIME_MANIFEST),
       "utf8",
     ),
   );
@@ -23,16 +23,16 @@ export async function main(
     throw new Error("Runtime manifest is missing networkHash");
   const networkId = normalizeNetworkHash(manifest.networkHash);
   if (
-    env.GROUNDHOG_NETWORK_ID !== undefined &&
-    normalizeNetworkHash(env.GROUNDHOG_NETWORK_ID) !== networkId
+    env.THRUPUT_NETWORK_ID !== undefined &&
+    normalizeNetworkHash(env.THRUPUT_NETWORK_ID) !== networkId
   ) {
-    throw new Error("Runtime manifest and GROUNDHOG_NETWORK_ID disagree");
+    throw new Error("Runtime manifest and THRUPUT_NETWORK_ID disagree");
   }
   await provisionLaunchpad({
     network: "local",
     networkId,
     rpcUrl: validateLocalRpcUrl(
-      env.GROUNDHOG_RPC_URL || "http://127.0.0.1:9545",
+      env.THRUPUT_RPC_URL || "http://127.0.0.1:9545",
     ),
     output: env.LAUNCHPAD_APP_ENV || "apps/token-launchpad/.env.local",
     storageCosts: manifest.bootstrap?.storageCostModel,

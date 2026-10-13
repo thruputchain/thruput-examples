@@ -33,14 +33,16 @@ import {
   StandardTokenFactory,
   standard_token_factory_if,
 } from "../src/contracts/generated/standard-token-factory";
-import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../src/groundhog/storage-cost";
+import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../src/thruput/storage-cost";
 import { parseExplorerUrl } from "../src/lib/explorer-url";
 
 type FactoryConfig = standard_token_factory_if.v0_1.factory.FactoryConfig;
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 const CONTRACT_FUNDING = 10_000_000n;
-const REQUIRED_TOKEN_FUNDING = 370_000n;
+const TOKEN_INITIALIZATION_BUDGET = 370_000n;
+// Leave storage reserve for allowance and recipient rows after initialization.
+const REQUIRED_TOKEN_FUNDING = 1_000_000n;
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
 export async function provisionLaunchpad(options: {
@@ -87,7 +89,7 @@ export async function provisionLaunchpad(options: {
     )
   ) {
     throw new Error(
-      `Groundhog wire format >=4.0.0 is required; found ${version.wireFormat}`,
+      `Thruput wire format >=4.0.0 is required; found ${version.wireFormat}`,
     );
   }
   const [tokenContract, factoryContract] = await Promise.all(
@@ -245,8 +247,8 @@ function renderEnvironment(input: {
   tokenHash: Uint8Array;
 }): string {
   return [
-    `VITE_GROUNDHOG_RPC_URL=${input.rpcUrl}`,
-    `VITE_GROUNDHOG_NETWORK_ID=${input.networkHash}`,
+    `VITE_THRUPUT_RPC_URL=${input.rpcUrl}`,
+    `VITE_THRUPUT_NETWORK_ID=${input.networkHash}`,
     `VITE_NATIVE_HOG_ADDRESS=${toHex0x(HOG_ADDRESS)}`,
     `VITE_NATIVE_BALANCE_ITEM_COST=${PINNED_NATIVE_BALANCE_ITEM_COST}`,
     `VITE_STANDARD_TOKEN_FACTORY_ADDRESS=${toHex0x(input.factoryAddress)}`,
@@ -293,9 +295,9 @@ export function validateTokenFunding(
     168n * 10n +
     2n * 12_000n +
     PINNED_NATIVE_BALANCE_ITEM_COST;
-  if (maximumCost > REQUIRED_TOKEN_FUNDING) {
+  if (maximumCost > TOKEN_INITIALIZATION_BUDGET) {
     throw new Error(
-      `Token artifact exceeds the ${REQUIRED_TOKEN_FUNDING} deployment/initialization funding budget`,
+      `Token artifact exceeds the ${TOKEN_INITIALIZATION_BUDGET} deployment/initialization funding budget`,
     );
   }
 }

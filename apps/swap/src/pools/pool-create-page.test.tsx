@@ -19,10 +19,10 @@ import {
 import { unavailableWriteBoundary } from "@/transactions/write-boundary";
 import { allowanceCleanupKey, loadAllowanceCleanup } from "@/transactions/allowance-cleanup";
 import { PoolCreatePage } from "./pool-create-page";
-import { createReadClient, verifyReadNetwork, NetworkMismatchError } from "@/groundhog/client";
+import { createReadClient, verifyReadNetwork, NetworkMismatchError } from "@/thruput/client";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
 
-vi.mock("@/groundhog/client", async (original) => ({ ...await original<object>(), createReadClient: vi.fn(), verifyReadNetwork: vi.fn() }));
+vi.mock("@/thruput/client", async (original) => ({ ...await original<object>(), createReadClient: vi.fn(), verifyReadNetwork: vi.fn() }));
 vi.mock("@/contracts/erc20-adapter", () => ({ createErc20ReadAdapter: vi.fn() }));
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));

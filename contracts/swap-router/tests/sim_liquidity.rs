@@ -18,7 +18,7 @@
 //! ```shell
 //! cd groundhog-examples
 //! for c in erc20 swap-handler swap-driver swap-router swap-factory; do thruput build -p "$c"; done
-//! RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info" \
+//! RUST_LOG="thruput_node_supervisor=info,hogd_dev=info" \
 //! THRUPUT_TESTKIT_ARTIFACT_ROOT=/path/to/target/thruput \
 //!     cargo test -p swap-router --test sim_liquidity -- --ignored --no-capture
 //! ```

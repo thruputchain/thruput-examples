@@ -1,3 +1,4 @@
+import { parseUnits } from "@thruputchain/client";
 import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
 
 const encoder = new TextEncoder();
@@ -34,13 +35,11 @@ export function parseTokenDraft(draft: TokenDraft): {
   if (!/^\d+(?:\.\d+)?$/.test(draft.supply))
     errors.supply = "Use a non-negative decimal amount.";
   else if (!errors.decimals) {
-    const [whole = "0", fraction = ""] = draft.supply.split(".");
+    const fraction = draft.supply.split(".")[1] ?? "";
     if (fraction.length > decimals)
       errors.supply = `Use no more than ${decimals} decimal places.`;
     else {
-      initialSupply =
-        BigInt(whole) * 10n ** BigInt(decimals) +
-        BigInt(fraction.padEnd(decimals, "0") || "0");
+      initialSupply = parseUnits(draft.supply, decimals);
       if (initialSupply > MAX_SIGNED_AMOUNT)
         errors.supply = "The supply exceeds the signed 128-bit limit.";
     }
@@ -48,11 +47,4 @@ export function parseTokenDraft(draft: TokenDraft): {
   return Object.keys(errors).length
     ? { errors }
     : { value: { name, symbol, decimals, initialSupply }, errors };
-}
-
-export function formatUnits(value: bigint, decimals: number): string {
-  if (decimals === 0) return value.toString();
-  const padded = value.toString().padStart(decimals + 1, "0");
-  const result = `${padded.slice(0, -decimals)}.${padded.slice(-decimals)}`;
-  return result.replace(/\.0+$|(?<=\.[0-9]*?)0+$/g, "");
 }

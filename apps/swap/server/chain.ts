@@ -69,9 +69,9 @@ export class RegistryCursorRejectedError extends Error {
   }
 }
 
-export async function createGroundhogRegistrySource(
+export async function createThruputRegistrySource(
   config: Pick<ServerConfig, "rpcUrl" | "scope">,
-): Promise<GroundhogRegistrySource> {
+): Promise<ThruputRegistrySource> {
   const cluster = defineCluster({
     name: "swap-pool-registry",
     rpcUrl: config.rpcUrl.href,
@@ -82,7 +82,7 @@ export async function createGroundhogRegistrySource(
     new HttpTransport(config.rpcUrl.href, { timeoutMs: 10_000 }),
   );
   const client = await createThruputClient({ cluster, transport });
-  const source = new GroundhogRegistrySource(
+  const source = new ThruputRegistrySource(
     client,
     config.scope,
     (action, signal) => transport.withSignal(signal, action),
@@ -100,7 +100,7 @@ type RpcRunner = <T>(
   signal: AbortSignal,
 ) => Promise<T>;
 
-export class GroundhogRegistrySource implements RegistrySource {
+export class ThruputRegistrySource implements RegistrySource {
   readonly #client: RegistryClient;
   readonly #scope: RegistryScope;
   readonly #factoryAddress;
@@ -127,7 +127,7 @@ export class GroundhogRegistrySource implements RegistrySource {
     );
     if (toHex0x(observed.networkHash).slice(2) !== this.#scope.networkId) {
       throw new RegistryScopeVerificationError(
-        "The RPC endpoint belongs to a different Groundhog network",
+        "The RPC endpoint belongs to a different Thruput network",
       );
     }
   }
@@ -158,7 +158,7 @@ export class GroundhogRegistrySource implements RegistrySource {
         error instanceof JsonRpcError &&
         error.code === ThruputRpcErrorCode.InvalidParams
       ) {
-        // Groundhog has no cursor-specific code; every other continuation input is local and validated.
+        // Thruput has no cursor-specific code; every other continuation input is local and validated.
         throw new RegistryCursorRejectedError({ cause: error });
       }
       throw error;

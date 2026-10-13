@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { expect, it, vi } from "vitest";
 import { validateStandardTokenArtifact } from "./contract-artifact";
-import { createGroundhogRegistrySource } from "./chain";
+import { createThruputRegistrySource } from "./chain";
 
 vi.mock("./config.ts", () => ({
   loadServerConfig: () => ({
@@ -13,12 +13,12 @@ vi.mock("./contract-artifact.ts", () => ({
     .fn()
     .mockRejectedValue(new Error("Required artifact is missing")),
 }));
-vi.mock("./chain.ts", () => ({ createGroundhogRegistrySource: vi.fn() }));
+vi.mock("./chain.ts", () => ({ createThruputRegistrySource: vi.fn() }));
 it("validates dist before connecting to RPC or opening the database", async () => {
   await expect(import("./main")).rejects.toThrow(/artifact is missing/);
   expect(validateStandardTokenArtifact).toHaveBeenCalledWith(
     expect.stringMatching(/token-launchpad\/dist$/),
     `0x${"11".repeat(32)}`,
   );
-  expect(createGroundhogRegistrySource).not.toHaveBeenCalled();
+  expect(createThruputRegistrySource).not.toHaveBeenCalled();
 });

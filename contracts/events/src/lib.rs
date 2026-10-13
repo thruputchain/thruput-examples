@@ -26,8 +26,7 @@ pub struct Transfer<'a> {
     pub memo: &'a [u8],
 }
 
-/// Event with hashed topics for non-32-byte types.
-/// The SDK hashes these via XDR-encode + SHA-256.
+/// Event with a hashed string topic and a padded big-endian integer topic.
 #[derive(Event)]
 pub struct TaggedAction<'a> {
     #[topic]
@@ -73,7 +72,7 @@ impl Events {
         });
     }
 
-    /// Emit a tagged action event with hashed topics.
+    /// Emit a tagged action with string and integer topics.
     pub fn tag_action(category: &[u8], code: u32, detail: &[u8]) {
         let cat = core::str::from_utf8(category).unwrap_or("unknown");
         log_event(&TaggedAction {

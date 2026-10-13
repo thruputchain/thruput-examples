@@ -42,8 +42,8 @@ import { createTransactionObserver } from "./transaction-observation";
 import { hashContract } from "@thruputchain/client";
 
 const config = loadConfig({
-  VITE_GROUNDHOG_RPC_URL: "http://localhost:9545",
-  VITE_GROUNDHOG_NETWORK_ID: "ab".repeat(32),
+  VITE_THRUPUT_RPC_URL: "http://localhost:9545",
+  VITE_THRUPUT_NETWORK_ID: "ab".repeat(32),
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"04".repeat(32)}`,
   VITE_NATIVE_HOG_ADDRESS: `0x${"05".repeat(32)}`,
   VITE_STANDARD_TOKEN_HASH: `0x${"06".repeat(32)}`,

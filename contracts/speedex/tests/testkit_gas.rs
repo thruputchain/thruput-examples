@@ -182,7 +182,7 @@ impl Row {
 }
 
 /// The devnode's native token contract, at the genesis precompile address `0x00…01`, which speaks
-/// the ERC20 interface (vendored at `groundhog-erc20-if` 0.1.3).
+/// the ERC20 interface (vendored at `thruput-erc20-if` 0.1.3).
 fn native_token() -> Contract {
     let mut bytes = [0u8; 32];
     bytes[31] = 1;

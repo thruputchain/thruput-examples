@@ -15,8 +15,10 @@ import {
   hashContract,
   HttpTransport,
   localnet,
+  prepareContractDeployment,
   PrivateKeySigner,
   toHex0x,
+  TransactionProcessingError,
 } from "@thruputchain/client";
 import { DefaultWallet } from "@thruputchain/client/contracts";
 import {
@@ -28,6 +30,7 @@ import {
   type Invocation,
 } from "@thruputchain/protocol";
 import { StandardTokenFactory } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory.ts";
+import { StandardTokenInitializer } from "../../apps/token-launchpad/src/contracts/generated/standard-token.ts";
 import { ERC20 } from "../../apps/swap/src/contracts/generated/erc20.ts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapRouter } from "../../apps/swap/src/contracts/generated/swap-router.ts";
@@ -37,6 +40,7 @@ import {
 } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { CRANK_FRAME_GAS } from "../../apps/swap/src/contracts/driver-target.ts";
 import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
+import { waitForView } from "../../examples/typescript/wait-for-view.ts";
 
 const RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
 type RequestsProcessed = batch_driver.v0_1.events.RequestsProcessed;
@@ -123,7 +127,7 @@ try {
     return startup?.ok === true;
   });
   const rpcUrl = startup!.data.rpc_url;
-  const configs: Record<string, Record<string, string>> = {};
+  const configs: Record<string, Record<string, string | undefined>> = {};
   for (const [app, prefix] of [
     ["token-launchpad", "LAUNCHPAD"],
     ["swap", "SWAP"],
@@ -133,8 +137,8 @@ try {
       join(root, "node_modules/.bin/tsx"),
       [`apps/${app}/scripts/setup-local.ts`],
       {
-        GROUNDHOG_RPC_URL: rpcUrl,
-        GROUNDHOG_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
+        THRUPUT_RPC_URL: rpcUrl,
+        THRUPUT_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
         [`${prefix}_ARTIFACT_ROOT`]: artifacts,
         [`${prefix}_APP_ENV`]: output,
         [`${prefix}_APP_PUBLIC_DIR`]: join(work, app!),
@@ -159,6 +163,14 @@ try {
   const tokenFactory = addressFromHex(
     configs["token-launchpad"]!.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!,
   );
+  const tokenFunding =
+    (
+      await StandardTokenFactory.v0_1.requiredTokenFunding.view({
+        client,
+        contract: tokenFactory,
+      })
+    ).value +
+    BigInt(configs["token-launchpad"]!.VITE_NATIVE_BALANCE_ITEM_COST!);
   const swapFactory = addressFromHex(configs.swap!.VITE_SWAP_FACTORY_ADDRESS!);
   const router = addressFromHex(configs.swap!.VITE_SWAP_ROUTER_ADDRESS!);
   async function code(name: string): Promise<Contract> {
@@ -217,7 +229,7 @@ try {
     [
       ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: rollbackAddress,
-        amount: 1_000_000n,
+        amount: tokenFunding,
       }),
       StandardTokenFactory.v0_1.createToken.invocation(tokenFactory, gas, {
         nonce: invalidNonce,
@@ -239,7 +251,7 @@ try {
     [
       ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
         receiver: rollbackAddress,
-        amount: 1_000_000n,
+        amount: tokenFunding,
       }),
       StandardTokenFactory.v0_1.createToken.invocation(tokenFactory, gas, {
         nonce: invalidNonce,
@@ -276,7 +288,7 @@ try {
     ).value;
     const funding = ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
       receiver: predicted,
-      amount: 1_000_000n,
+      amount: tokenFunding,
     });
     const creation = StandardTokenFactory.v0_1.createToken.invocation(
       tokenFactory,
@@ -311,6 +323,181 @@ try {
   }
   const [token0, token1] = tokens.sort((a, b) =>
     toHex0x(a).localeCompare(toHex0x(b)),
+  );
+  // Native wallet batching covers reserve top-up + transfer without a custom test wallet.
+  const receiver = addressFromHex(`0x${"44".repeat(32)}`);
+  const readBalance = (
+    token: typeof receiver,
+    owner: typeof receiver,
+    minHeight: bigint,
+  ) =>
+    waitForView(() =>
+      ERC20.v0_1.getBalanceOf.view({
+        client,
+        contract: token,
+        args: { addr: owner },
+        minHeight,
+      }),
+    );
+  // Measure the cost of this exact token shape, then deploy an identical token
+  // with no spare reserve. The factory's normal funding floor is intentionally
+  // generous, so a factory-created token cannot prove that a top-up is needed.
+  async function deployReserveToken(amount: bigint) {
+    const deployment = prepareContractDeployment({
+      deployer: account.address,
+      contract: tokenCode,
+    });
+    return wallet.deployContractAndWait(
+      deployment,
+      {
+        amount,
+        gasLimit: gas,
+        initializer:
+          StandardTokenInitializer.v0_1.initializeFromFactory.invocation(
+            deployment.address,
+            gas,
+            {
+              administrator: account.address,
+              initialHolder: account.address,
+              initialSupply: 10n,
+              name: "Reserve test",
+              symbol: "RES",
+              decimals: 6n,
+            },
+          ),
+      },
+      { timeoutMs: 60_000 },
+    );
+  }
+  const calibrationFunding = 1_000_000n;
+  const calibration = await deployReserveToken(calibrationFunding);
+  const spare = (
+    await readBalance(
+      HOG_ADDRESS,
+      calibration.address,
+      calibration.receipt.height,
+    )
+  ).value;
+  const initializationCost = calibrationFunding - spare;
+  assert.ok(initializationCost > 0n && initializationCost < calibrationFunding);
+  const depleted = await deployReserveToken(initializationCost);
+  const reserveToken = depleted.address;
+  assert.equal(
+    (await readBalance(HOG_ADDRESS, reserveToken, depleted.receipt.height))
+      .value,
+    0n,
+  );
+  assert.equal(
+    (await readBalance(reserveToken, account.address, depleted.receipt.height))
+      .value,
+    10n,
+  );
+  const transfer = ERC20.v0_1.transfer.invocation(reserveToken, gas, {
+    receiver,
+    amount: 1n,
+  });
+  const unfunded = await wallet.prepareExecution({
+    invocation: transfer,
+    gasLimit: gas,
+    expiryBlocks: 1n,
+  });
+  const unfundedHash = await wallet.sendTransaction(
+    await wallet.signTransaction(unfunded),
+  );
+  await assert.rejects(
+    wallet.waitForTransactionReceipt(unfundedHash, { timeoutMs: 60_000 }),
+    (error: unknown) =>
+      error instanceof TransactionProcessingError &&
+      error.status === "retry" &&
+      error.error.source === "executor" &&
+      error.error.code === 3,
+  );
+  console.log(
+    "Transfer alone cannot commit with zero storage reserve",
+    toHex0x(unfundedHash),
+  );
+  // This is a scheduler retry, not a committed revert. Expire it while the
+  // reserve is still zero so it cannot execute later using the batch's top-up.
+  for (
+    let blocks = 0;
+    (await client.getChainTip()).height <=
+    unfunded.uniquifier.block_expiry_height;
+    blocks++
+  ) {
+    assert.ok(
+      blocks < 3,
+      "The unfunded control must expire before adding reserve",
+    );
+    assert.equal(
+      (
+        await batch("Advance beyond the unfunded control's expiry", [
+          ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+            receiver: account.address,
+            amount: 0n,
+          }),
+        ])
+      ).execResult,
+      ExecResult.ExecResultOK,
+    );
+  }
+  assert.equal(await client.getTransactionReceipt(unfundedHash), null);
+  const controlHeight = (await client.getChainTip()).height;
+  assert.equal(
+    (await readBalance(reserveToken, receiver, controlHeight)).value,
+    0n,
+  );
+  assert.equal(
+    (await readBalance(reserveToken, account.address, controlHeight)).value,
+    10n,
+  );
+
+  const topupAmount = 100_000n;
+  const topup = ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+    receiver: reserveToken,
+    amount: topupAmount,
+  });
+  const failedTransfer = await batch(
+    "Roll back reserve top-up when transfer fails",
+    [
+      topup,
+      ERC20.v0_1.transfer.invocation(reserveToken, gas, {
+        receiver,
+        amount: 11n,
+      }),
+    ],
+  );
+  assert.equal(
+    failedTransfer.execResult,
+    ExecResult.ExecResultTxRootFrameReverted,
+  );
+  assert.equal(
+    (await readBalance(HOG_ADDRESS, reserveToken, failedTransfer.height)).value,
+    0n,
+  );
+  assert.equal(
+    (await readBalance(reserveToken, receiver, failedTransfer.height)).value,
+    0n,
+  );
+  const fundedTransfer = await batch(
+    "Top up storage and transfer to a new holder",
+    [topup, transfer],
+  );
+  assert.equal(fundedTransfer.execResult, ExecResult.ExecResultOK);
+  assert.equal(
+    (await readBalance(reserveToken, receiver, fundedTransfer.height)).value,
+    1n,
+  );
+  assert.equal(
+    (await readBalance(reserveToken, account.address, fundedTransfer.height))
+      .value,
+    9n,
+  );
+  const reserveAfter = (
+    await readBalance(HOG_ADDRESS, reserveToken, fundedTransfer.height)
+  ).value;
+  assert.ok(
+    reserveAfter >= 0n && reserveAfter < topupAmount,
+    "The new holder row must spend reserve added by this batch",
   );
   const pool = (
     await SwapFactory.v0_1.poolAddresses.view({

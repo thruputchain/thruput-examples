@@ -69,9 +69,9 @@ export class RegistryCursorRejectedError extends Error {
   }
 }
 
-export async function createGroundhogRegistrySource(
+export async function createThruputRegistrySource(
   config: Pick<ServerConfig, "rpcUrl" | "scope">,
-): Promise<GroundhogRegistrySource> {
+): Promise<ThruputRegistrySource> {
   const cluster = defineCluster({
     name: "token-registry",
     rpcUrl: config.rpcUrl.href,
@@ -85,7 +85,7 @@ export async function createGroundhogRegistrySource(
     cluster,
     transport,
   });
-  const source = new GroundhogRegistrySource(
+  const source = new ThruputRegistrySource(
     client,
     config.scope,
     (query, signal) =>
@@ -97,7 +97,7 @@ export async function createGroundhogRegistrySource(
   return source;
 }
 
-export class GroundhogRegistrySource implements RegistrySource {
+export class ThruputRegistrySource implements RegistrySource {
   readonly #client: Pick<
     ThruputClient,
     "getEvents" | "view" | "getNetworkInfo"
@@ -136,7 +136,7 @@ export class GroundhogRegistrySource implements RegistrySource {
     signal.throwIfAborted();
     if (toHex0x(observed.networkHash).slice(2) !== this.#scope.networkId) {
       throw new RegistryScopeVerificationError(
-        "The RPC endpoint belongs to a different Groundhog network",
+        "The RPC endpoint belongs to a different Thruput network",
       );
     }
   }

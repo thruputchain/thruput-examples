@@ -51,22 +51,22 @@ export async function loadRuntimeConfig(): Promise<GlobalConfig> {
     throw new Error("Invalid application configuration");
   return loadGlobalConfig({
     ...value,
-    VITE_GROUNDHOG_RPC_URL: new URL("/groundhog-rpc", window.location.origin)
+    VITE_THRUPUT_RPC_URL: new URL("/thruput-rpc", window.location.origin)
       .href,
   });
 }
 
 export function loadGlobalConfig(environment: Environment): GlobalConfig {
-  const networkIdHex = required(environment, "VITE_GROUNDHOG_NETWORK_ID");
+  const networkIdHex = required(environment, "VITE_THRUPUT_NETWORK_ID");
   if (!NETWORK_ID_PATTERN.test(networkIdHex)) {
     throw new ConfigurationError(
-      "VITE_GROUNDHOG_NETWORK_ID must be a 32-byte hexadecimal value",
+      "VITE_THRUPUT_NETWORK_ID must be a 32-byte hexadecimal value",
     );
   }
 
   return {
     explorerUrl: parseExplorerUrl(environment.VITE_EXPLORER_URL),
-    rpcUrl: parseRpcUrl(required(environment, "VITE_GROUNDHOG_RPC_URL")),
+    rpcUrl: parseRpcUrl(required(environment, "VITE_THRUPUT_RPC_URL")),
     tokenDiscovery: loadDiscoveryConfig(environment),
     networkIdHex: networkIdHex.replace(/^0x/, "").toLowerCase(),
     accountAddress: READ_ONLY_CALLER,
@@ -115,16 +115,16 @@ function parseRpcUrl(value: string): URL {
   try {
     url = new URL(value);
   } catch {
-    throw new ConfigurationError("VITE_GROUNDHOG_RPC_URL must be a valid URL");
+    throw new ConfigurationError("VITE_THRUPUT_RPC_URL must be a valid URL");
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new ConfigurationError(
-      "VITE_GROUNDHOG_RPC_URL must use HTTP or HTTPS",
+      "VITE_THRUPUT_RPC_URL must use HTTP or HTTPS",
     );
   }
   if (url.username !== "" || url.password !== "") {
     throw new ConfigurationError(
-      "VITE_GROUNDHOG_RPC_URL must not contain credentials",
+      "VITE_THRUPUT_RPC_URL must not contain credentials",
     );
   }
   return url;

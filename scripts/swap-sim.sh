@@ -18,7 +18,7 @@ if [ ! -v NO_BUILD ]; then
     build
 fi
 
-# export RUST_LOG="groundhog_node_supervisor=info,hogd_dev=info"
+# export RUST_LOG="thruput_node_supervisor=info,hogd_dev=info"
 export THRUPUT_TESTKIT_ARTIFACT_ROOT="$(realpath target/thruput)"
 
 cargo test -p swap-router \

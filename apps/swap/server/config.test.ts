@@ -7,8 +7,8 @@ import { loadServerConfig, ServerConfigurationError } from "./config.ts";
 const environment = {
   PORT: "3000",
   POOL_REGISTRY_DB_PATH: "/data/pools.sqlite",
-  VITE_GROUNDHOG_RPC_URL: "https://rpc.example.test/path",
-  VITE_GROUNDHOG_NETWORK_ID: `0x${"AA".repeat(32)}`,
+  VITE_THRUPUT_RPC_URL: "https://rpc.example.test/path",
+  VITE_THRUPUT_NETWORK_ID: `0x${"AA".repeat(32)}`,
   VITE_SWAP_FACTORY_ADDRESS: `0x${"BB".repeat(32)}`,
 };
 
@@ -35,7 +35,7 @@ describe("loadServerConfig", () => {
       PORT: "65535",
       POOL_REGISTRY_SYNC_INTERVAL_MS: "1000",
       POOL_REGISTRY_PAGE_SIZE: "500",
-      VITE_GROUNDHOG_RPC_URL: "http://devnet.example.test/rpc",
+      VITE_THRUPUT_RPC_URL: "http://devnet.example.test/rpc",
     });
     expect(config.port).toBe(65_535);
     expect(config.syncIntervalMs).toBe(1_000);
@@ -48,12 +48,12 @@ describe("loadServerConfig", () => {
     ["PORT", "1.5"],
     ["POOL_REGISTRY_SYNC_INTERVAL_MS", "999"],
     ["POOL_REGISTRY_PAGE_SIZE", "501"],
-    ["VITE_GROUNDHOG_NETWORK_ID", "abc"],
+    ["VITE_THRUPUT_NETWORK_ID", "abc"],
     ["VITE_SWAP_FACTORY_ADDRESS", "11".repeat(32)],
-    ["VITE_GROUNDHOG_RPC_URL", "ftp://rpc.example.test"],
-    ["VITE_GROUNDHOG_RPC_URL", "https://user:secret@rpc.example.test"],
-    ["VITE_GROUNDHOG_RPC_URL", "https://rpc.example.test?token=secret"],
-    ["VITE_GROUNDHOG_RPC_URL", "https://rpc.example.test#secret"],
+    ["VITE_THRUPUT_RPC_URL", "ftp://rpc.example.test"],
+    ["VITE_THRUPUT_RPC_URL", "https://user:secret@rpc.example.test"],
+    ["VITE_THRUPUT_RPC_URL", "https://rpc.example.test?token=secret"],
+    ["VITE_THRUPUT_RPC_URL", "https://rpc.example.test#secret"],
     ["POOL_REGISTRY_DB_PATH", "/data/"],
     ["POOL_REGISTRY_DB_PATH", ":memory:"],
     ["POOL_REGISTRY_DB_PATH", "bad\0path"],

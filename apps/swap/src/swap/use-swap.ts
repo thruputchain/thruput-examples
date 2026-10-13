@@ -10,7 +10,8 @@ import {
 } from "@/contracts/driver-target";
 import { batch_driver } from "@/contracts/generated/swap-driver";
 import { swapFailureMessage } from "@/contracts/failure-message";
-import { buildExactInputSwapTarget } from "@/contracts/router-target";
+import { SwapRouter } from "@/contracts/generated/swap-router";
+import { gasAmount } from "@thruputchain/protocol";
 import { formatAmount } from "@/domain/amount";
 import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import {
@@ -1129,13 +1130,17 @@ export function useSwap({
           });
         }
 
-        const swapTarget = buildExactInputSwapTarget(config.routerAddress, {
-          amountIn: freshQuote.amountIn,
-          amountOutMin: reviewedIntent.amountOutMin,
-          tokenIn: submissionTokens.input.address,
-          tokenOut: submissionTokens.output.address,
-          recipient: config.accountAddress,
-        });
+        const swapTarget = SwapRouter.v0_1.swapExactTokensForTokens.invocation(
+          config.routerAddress,
+          gasAmount(10_000_000n),
+          {
+            amountIn: freshQuote.amountIn,
+            amountOutMin: reviewedIntent.amountOutMin,
+            tokenIn: submissionTokens.input.address,
+            tokenOut: submissionTokens.output.address,
+            recipient: config.accountAddress,
+          },
+        );
         const signingObserver = {
           onSigned: (hash: string) => {
             submittingRequest = {

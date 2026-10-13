@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "@/app";
 import { loadRuntimeConfig } from "@/config";
-import { createReadClient } from "@/groundhog/client";
+import { createReadClient } from "@/thruput/client";
 import { Button } from "@/components/ui/button";
 import "@/styles.css";
 

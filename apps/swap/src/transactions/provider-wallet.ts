@@ -14,7 +14,7 @@ import {
   type Invocation,
 } from "@thruputchain/protocol";
 import type { GlobalConfig } from "@/config";
-import { verifyReadNetwork } from "@/groundhog/client";
+import { verifyReadNetwork } from "@/thruput/client";
 import { SwapFactory } from "@/contracts/generated/swap-factory";
 import { SwapDriver } from "@/contracts/generated/swap-driver";
 import { CRANK_FRAME_GAS } from "@/contracts/driver-target";

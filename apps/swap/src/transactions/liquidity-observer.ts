@@ -8,13 +8,12 @@ import {
 
 import type { AppConfig } from "@/config";
 import { batch_driver } from "@/contracts/generated/swap-driver";
-import {
-  LiquidityBurnEvent as BurnEvent,
-  LiquidityMintEvent as MintEvent,
-} from "@/contracts/liquidity-events";
+import { swap_if } from "@/contracts/generated/swap-handler";
 import type { LiquidityOperation } from "@/transactions/liquidity-operation";
 
 const RequestFailed = batch_driver.v0_1.events.RequestFailed;
+const { LiquidityBurnEvent: BurnEvent, LiquidityMintEvent: MintEvent } =
+  swap_if.v0_1.events;
 type RequestFailed = batch_driver.v0_1.events.RequestFailed;
 
 export interface LiquidityObserver {

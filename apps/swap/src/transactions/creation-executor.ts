@@ -23,7 +23,7 @@ import { buildAddLiquidityTarget } from "@/contracts/router-target";
 import { requiredAllowanceFor } from "@/domain/allowance-exposure";
 import { formatAmount } from "@/domain/amount";
 import { reservedInputForToken } from "@/domain/reservations";
-import { NetworkMismatchError, verifyReadNetwork } from "@/groundhog/client";
+import { NetworkMismatchError, verifyReadNetwork } from "@/thruput/client";
 import {
   PoolCreationNetworkError,
   PoolCreationValidationError,

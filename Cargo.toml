@@ -14,11 +14,11 @@ members = [
 [workspace.package]
 edition = "2024"
 license = "Apache-2.0"
-authors = ["Groundhog Team"]
+authors = ["Thruput Team"]
 publish = false
-repository = "https://github.com/thruputchain/thruput-examples"
+repository = "https://github.com/thruputchain/thruput-examples.git"
 homepage = "https://github.com/thruputchain/thruput-examples"
-keywords = ["groundhog"]
+keywords = ["thruput"]
 categories = ["blockchain"]
 
 [workspace.dependencies]

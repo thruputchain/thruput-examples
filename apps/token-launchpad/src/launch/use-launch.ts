@@ -5,11 +5,11 @@ import {
   type FactoryReview,
 } from "@/contracts/launchpad-client";
 import { userErrorMessage } from "@/lib/errors";
-import type { CoreThruputClient } from "@thruputchain/client";
+import { formatUnits, type CoreThruputClient } from "@thruputchain/client";
 import { requestRegistrySync } from "@/registry/client";
 import type { WriteBoundary } from "@/transactions/write-boundary";
 import { runWorkflow } from "./executor";
-import { formatUnits, parseTokenDraft, type TokenDraft } from "./form";
+import { parseTokenDraft, type TokenDraft } from "./form";
 import { actionLabel, canDiscardWorkflow } from "./presentation";
 import {
   canDiscardInvalidStoredWorkflow,

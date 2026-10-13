@@ -8,14 +8,6 @@ import { SwapRouter } from "@/contracts/generated/swap-router";
 
 const TARGET_GAS = gasAmount(10_000_000n);
 
-export interface ExactInputSwapRequest {
-  amountIn: bigint;
-  amountOutMin: bigint;
-  tokenIn: ContractAddress;
-  tokenOut: ContractAddress;
-  recipient: ContractAddress;
-}
-
 export interface AddLiquidityRequest {
   token0: ContractAddress;
   token1: ContractAddress;
@@ -67,15 +59,4 @@ export function buildRemoveLiquidityTarget(
     amountsMin: request.amountsMin,
     recipient: request.recipient,
   });
-}
-
-export function buildExactInputSwapTarget(
-  router: ContractAddress,
-  request: ExactInputSwapRequest,
-): Invocation {
-  return SwapRouter.v0_1.swapExactTokensForTokens.invocation(
-    router,
-    TARGET_GAS,
-    request,
-  );
 }

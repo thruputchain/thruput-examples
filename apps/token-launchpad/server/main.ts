@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadServerConfig } from "./config.ts";
-import { createGroundhogRegistrySource } from "./chain.ts";
+import { createThruputRegistrySource } from "./chain.ts";
 import { createRegistryHttpServer } from "./http.ts";
 import { RegistryIndexer } from "./indexer.ts";
 import { publicConfig } from "./public-config.ts";
@@ -21,7 +21,7 @@ await validateStandardTokenArtifact(
 );
 const indexStat = await stat(path.join(staticDirectory, "index.html"));
 if (!indexStat.isFile()) throw new Error("Production index.html is missing");
-const source = await createGroundhogRegistrySource(config);
+const source = await createThruputRegistrySource(config);
 const browserConfig = publicConfig(process.env);
 await mkdir(path.dirname(config.databasePath), { recursive: true });
 

@@ -58,6 +58,8 @@ export function createCounterTransactions(
   config: ServerConfig,
   fetchRpc: typeof fetch = fetch,
 ) {
+  if (!config.signingPrivateKey)
+    throw new CounterPolicyError("Development signer is not configured.");
   const account = createPubkeyAccount({
     signer: new PrivateKeySigner(fromHex0x(config.signingPrivateKey)),
   });

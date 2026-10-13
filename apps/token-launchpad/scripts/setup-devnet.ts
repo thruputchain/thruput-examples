@@ -7,14 +7,14 @@ export async function setupDevnet(
   env: Record<string, string | undefined> = process.env,
 ): Promise<void> {
   const rpcUrl = validateDevnetRpcUrl(
-    env.GROUNDHOG_RPC_URL || "https://rpc.thruput.network",
+    env.THRUPUT_RPC_URL || "https://rpc.thruput.network",
   );
   await provisionLaunchpad({
     network: "devnet",
     rpcUrl,
     networkId: canonicalHash(
-      env.GROUNDHOG_NETWORK_ID ?? "",
-      "GROUNDHOG_NETWORK_ID",
+      env.THRUPUT_NETWORK_ID ?? "",
+      "THRUPUT_NETWORK_ID",
     ),
     output: env.LAUNCHPAD_APP_ENV || "apps/token-launchpad/.env.devnet",
     artifactRoot: env.LAUNCHPAD_ARTIFACT_ROOT,

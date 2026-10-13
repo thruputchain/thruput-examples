@@ -34,15 +34,15 @@ export function loadServerConfig(environment: ServerEnvironment): ServerConfig {
       throw new ValidationError("TOKEN_REGISTRY_DB_PATH must be a file path");
     }
 
-    const rpcUrl = parseUrl(required(environment, "VITE_GROUNDHOG_RPC_URL"));
+    const rpcUrl = parseUrl(required(environment, "VITE_THRUPUT_RPC_URL"));
     return {
       port: boundedInteger(required(environment, "PORT"), "PORT", 1, 65_535),
       databasePath,
       rpcUrl,
       scope: {
         networkId: canonicalNetworkId(
-          required(environment, "VITE_GROUNDHOG_NETWORK_ID"),
-          "VITE_GROUNDHOG_NETWORK_ID",
+          required(environment, "VITE_THRUPUT_NETWORK_ID"),
+          "VITE_THRUPUT_NETWORK_ID",
         ),
         factoryAddress: canonicalAddress(
           required(environment, "VITE_STANDARD_TOKEN_FACTORY_ADDRESS"),
@@ -102,7 +102,7 @@ function parseUrl(value: string): URL {
   try {
     url = new URL(value);
   } catch {
-    throw new ValidationError("VITE_GROUNDHOG_RPC_URL must be a valid URL");
+    throw new ValidationError("VITE_THRUPUT_RPC_URL must be a valid URL");
   }
   if (
     (url.protocol !== "http:" && url.protocol !== "https:") ||
@@ -112,7 +112,7 @@ function parseUrl(value: string): URL {
     url.hash !== ""
   ) {
     throw new ValidationError(
-      "VITE_GROUNDHOG_RPC_URL must be an HTTP URL without credentials, a query string, or a fragment",
+      "VITE_THRUPUT_RPC_URL must be an HTTP URL without credentials, a query string, or a fragment",
     );
   }
   return url;

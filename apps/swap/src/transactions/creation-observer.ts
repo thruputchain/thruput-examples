@@ -10,10 +10,11 @@ import {
 
 import type { GlobalConfig } from "@/config";
 import { batch_driver } from "@/contracts/generated/swap-driver";
-import { LiquidityMintEvent as MintEvent } from "@/contracts/liquidity-events";
+import { swap_if } from "@/contracts/generated/swap-handler";
 import type { CreationWorkflow } from "@/transactions/creation-workflow";
 
 const RequestFailed = batch_driver.v0_1.events.RequestFailed;
+const MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
 type RequestFailed = batch_driver.v0_1.events.RequestFailed;
 
 export interface CreationObserver {

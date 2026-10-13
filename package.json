@@ -1,5 +1,5 @@
 {
-  "name": "groundhog-example-apps",
+  "name": "thruput-example-apps",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -12,16 +12,25 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "test": "npm run test --workspaces && vitest run scripts/seed --environment node && node --test tests/e2e/helpers/process-groups.test.mjs",
-    "typecheck": "npm run typecheck --workspaces && tsc -p scripts/seed/tsconfig.json",
-    "test:wallet": "node tests/e2e/wallet-apps.mjs --build-extension",
+    "test": "npm run test --workspaces && vitest run scripts/seed tests/examples --environment node && node --test tests/e2e/helpers/process-groups.test.mjs",
+    "typecheck": "npm run typecheck --workspaces && tsc -p scripts/seed/tsconfig.json && tsc -p examples/typescript/tsconfig.json",
+    "examples:generate": "bash examples/typescript/generate.sh",
+    "example:chain-tip": "tsx examples/typescript/chain-tip.ts",
+    "example:view-hog-balance": "tsx examples/typescript/view-hog-balance.ts",
+    "example:transfer-hog": "tsx examples/typescript/transfer-hog.ts",
+    "example:deploy-counter": "tsx examples/typescript/deploy-counter.ts",
+    "example:read-events": "tsx examples/typescript/read-events.ts",
+    "example:batch-counter": "tsx examples/typescript/batch-counter.ts",
+    "test:examples": "node tests/e2e/typescript-examples.mjs",
     "test:browser": "node tests/browser/apps.mjs",
     "test:counter": "tsx tests/e2e/counter.ts",
+    "test:counter-wallet": "tsx tests/e2e/counter-wallet.ts",
     "test:seed": "tsx tests/e2e/seed.ts",
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },
   "dependencies": {
     "@thruputchain/client": "0.18.0",
+    "@thruputchain/contract-spec": "0.15.0",
     "@thruputchain/protocol": "0.15.0",
     "@thruputchain/xdr": "0.15.0"
   },
