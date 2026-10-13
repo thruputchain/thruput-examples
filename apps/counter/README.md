@@ -11,10 +11,9 @@ Use Node.js 22.13 or newer and run `npm ci` from the repository root with the
 [npm registry authentication](../../README.md#install-swap-and-launchpad-dependencies)
 configured.
 
-Use a **Thruput CLI that generates `@thruputchain` bindings** and
+Use **Thruput CLI 0.29.0 or newer** and
 **hog-devnode 0.1.31-rc.2** for local checks. Published CLI 0.27.0 and
-0.28.0 still generate the previous npm namespace; a matching CLI release is
-required before running the setup commands on this branch.
+0.28.0 still generate the previous npm namespace.
 Use compatible CLI/devnode builds: a newer CLI can
 require a runtime manifest that an older devnode does not provide.
 

@@ -1,7 +1,7 @@
 # groundhog-examples
 
 This branch uses private `@thruputchain` npm packages. Regenerating bindings
-requires the updated Thruput CLI generator, which is pending release. Published
+requires Thruput CLI 0.29.0 or newer, which imports this namespace. Published
 CLI 0.27.0 and 0.28.0 generate the previous namespace.
 
 Example smart contracts and applications for the [Thruput SDK](https://github.com/groundhogchain/sdk_rs). Each
@@ -125,8 +125,7 @@ dependencies separately before running it; the command builds its source into a
 temporary directory, so an existing extension `dist` is not required.
 
 Live checks require Linux process groups and `/proc`, a compatible CLI/devnode
-pair, built contracts, and matching generated bindings: CLI `0.27.0` or newer with the hog-devnode it manages
-(`0.1.31-rc.2` for CLI `0.27.0`). Rebuild contracts from the current checkout
+pair, built contracts, and matching generated bindings: CLI `0.29.0` or newer with the hog-devnode it manages. Rebuild contracts from the current checkout
 before running them. Use a separate checkout if you need to preserve the bindings
 for the recorded Devnet deployment. From the repository root:
 
@@ -174,11 +173,11 @@ transaction or remote deployment. Wallet unit tests run independently through
 - Rust (the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) is
   picked up automatically by rustup, including the `riscv32im-unknown-none-elf`
   target).
-- The `thruput` CLI, version **0.27.0**, matching this workspace's RPC and testkit dependencies:
+- The `thruput` CLI, version **0.29.0** or newer, for the `@thruputchain` binding generator:
 
   ```sh
   export CARGO_REGISTRIES_THRUPUT_INDEX="sparse+https://crates.thruput.network/api/v1/crates/"
-  cargo install --locked --registry thruput --version 0.27.0 thruput-cli
+  cargo install --locked --registry thruput --version 0.29.0 thruput-cli
   ```
 
 - Access to the `thruput` crate registry. The index is configured in
