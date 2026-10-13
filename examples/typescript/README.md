@@ -99,6 +99,9 @@ Funding and initialization share the deployment transaction. It then emits a
 `PingEvent` with tag **7** for the next example.
 
 Expected: `value: "47"`, a public `contractAddress`, and transaction hashes.
+Each known transaction hash is also printed to stderr immediately after its
+SDK call returns, before the next step. Earlier hashes remain available if a
+later write or readback fails; stdout keeps the final JSON result.
 Each run deploys a new Counter. Copy `contractAddress` into:
 
 ```sh

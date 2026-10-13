@@ -23,6 +23,7 @@ const account = createPubkeyAccount({
 });
 const wallet = createWalletClient({ client, account });
 const funding = await wallet.requestAirdrop();
+console.error(`Airdrop transaction: ${toHex0x(funding.txHash)}`);
 assert.equal(funding.status.result, "ok", "Airdrop failed");
 
 const deployment = prepareContractDeployment({
@@ -44,6 +45,7 @@ const { address, txHash: deployHash } = await wallet.deployContractAndWait(
   },
   { timeoutMs: 60_000 },
 );
+console.error(`Deploy transaction: ${toHex0x(deployHash)}`);
 
 const { txHash: incrementHash, receipt } = await wallet.executeAndWait(
   {
@@ -54,6 +56,7 @@ const { txHash: incrementHash, receipt } = await wallet.executeAndWait(
   },
   { timeoutMs: 60_000 },
 );
+console.error(`Increment transaction: ${toHex0x(incrementHash)}`);
 const view = await waitForView(() =>
   Counter.v0_1.get.view({
     client,
@@ -72,6 +75,7 @@ const { txHash: eventHash } = await wallet.executeAndWait(
   },
   { timeoutMs: 60_000 },
 );
+console.error(`Ping transaction: ${toHex0x(eventHash)}`);
 
 console.log(
   JSON.stringify(
