@@ -13,7 +13,7 @@
 //! `#[ignore]`d because it needs a devnode binary and built artifacts:
 //!
 //! ```text
-//! cd groundhog-examples
+//! cd thruput-examples
 //! for c in stellar-account stellar-account-factory; do thruput build -p "$c"; done
 //! THRUPUT_DEVNODE_BINARY=/path/to/hog-devnode \
 //! THRUPUT_TESTKIT_ARTIFACT_ROOT=/path/to/target/thruput \

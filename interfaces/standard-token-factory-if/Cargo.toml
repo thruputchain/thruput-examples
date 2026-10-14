@@ -1,6 +1,6 @@
 [package]
 name = "standard-token-factory-if"
-description = "Shared interfaces for the Groundhog standard token factory"
+description = "Shared interfaces for the Thruput standard token factory"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true

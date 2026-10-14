@@ -1,6 +1,6 @@
 # Speedex
 
-An example port (not for production) of [SPEEDEX], a batch exchange, to Groundhog: several assets,
+An example port (not for production) of [SPEEDEX], a batch exchange, to Thruput: several assets,
 one set of valuation prices per batch, and every offer in the batch trading at those prices.
 
 - [`engine`](src/engine.rs): the arithmetic -- the limit-price grid, tâtonnement over aggregate
@@ -35,9 +35,9 @@ clearing, a final pass makes the trades exactly feasible, so that the exchange n
 of an asset than it took in. SPEEDEX uses a linear program for that pass; see below for what this
 example does instead.
 
-## How it is laid out on Groundhog
+## How it is laid out on Thruput
 
-Groundhog executes a block's transactions against the state the block began with and then merges
+Thruput executes a block's transactions against the state the block began with and then merges
 their writes, so a contract runs in parallel exactly to the extent that its writes are *blind
 deltas* -- an `NNInt` increment, a fresh key -- rather than values one transaction must read after
 another wrote. SPEEDEX's structure maps onto that almost directly, because the price computation
@@ -174,7 +174,7 @@ sit from the truth. Reading the run in `bench/`:
 ![Quality against batch size](bench/quality-vs-size.png)
 
 [`tests/testkit_gas.rs`](tests/testkit_gas.rs) measures the contract itself, on a local devnode
-through `groundhog-testkit`, because the mock environment does not meter gas as a node does. For
+through `thruput-testkit`, because the mock environment does not meter gas as a node does. For
 3 to 8 assets and 8 to 4,096 offers it submits a synthetic batch (a thousand offers to a block,
 within one epoch), closes it, and has the contract run the clearing at each round cap through
 `measure_clearing` -- an entry point that does everything `clear_batch` does but record the

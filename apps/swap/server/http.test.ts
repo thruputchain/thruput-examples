@@ -734,7 +734,7 @@ describe("production RPC validation", () => {
           error: {
             code: -32602,
             message: "Invalid params",
-            data: { groundhog: ["arbitrary", 1] },
+            data: { thruput: ["arbitrary", 1] },
           },
         },
         1,

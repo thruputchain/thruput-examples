@@ -1,6 +1,6 @@
 [package]
 name = "standard-token-factory"
-description = "Factory for deterministic Groundhog standard token deployments"
+description = "Factory for deterministic Thruput standard token deployments"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true

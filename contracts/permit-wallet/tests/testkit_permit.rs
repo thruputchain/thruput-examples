@@ -14,7 +14,7 @@
 //! `scripts/permit-live.sh` wires up both. Roughly:
 //!
 //! ```text
-//! cd groundhog-examples
+//! cd thruput-examples
 //! for c in erc20 permit-wallet permit-relayer; do thruput build -p "$c"; done
 //! THRUPUT_DEVNODE_BINARY=/path/to/hog-devnode \
 //! THRUPUT_TESTKIT_ARTIFACT_ROOT=/path/to/target/thruput \

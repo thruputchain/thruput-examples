@@ -51,7 +51,7 @@ assert.ok(
 );
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
-const work = await mkdtemp(join(tmpdir(), "groundhog-batching-"));
+const work = await mkdtemp(join(tmpdir(), "thruput-batching-"));
 const groups = new OwnedProcessGroups();
 let interrupted = false;
 function interrupt() {

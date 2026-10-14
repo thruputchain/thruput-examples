@@ -1,4 +1,4 @@
-//! The token under Groundhog's block-level concurrency.
+//! The token under Thruput's block-level concurrency.
 //!
 //! Every transaction in a block executes against the state the previous block
 //! committed -- none sees another's writes -- and the block's writes are then

@@ -59,7 +59,7 @@ function pool(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
   return {
     tokenA: {
       address: config.tokenAAddress,
-      name: "Groundhog USD",
+      name: "Thruput USD",
       symbol: "gUSD",
       decimals: 6,
       balance: 12_000_000n,
@@ -67,7 +67,7 @@ function pool(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
     },
     tokenB: {
       address: config.tokenBAddress,
-      name: "Groundhog EUR",
+      name: "Thruput EUR",
       symbol: "gEUR",
       decimals: 6,
       balance: 34_000_000n,

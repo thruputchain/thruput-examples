@@ -1,6 +1,6 @@
 [package]
 name = "stellar-account"
-description = "A Stellar-classic account: master key, weighted signers, and operation thresholds on Groundhog's native auth"
+description = "A Stellar-classic account: master key, weighted signers, and operation thresholds on Thruput's native auth"
 version = "0.1.0"
 authors.workspace = true
 license.workspace = true

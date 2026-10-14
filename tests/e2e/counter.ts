@@ -23,7 +23,7 @@ assert.ok(
 );
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
-const work = await mkdtemp(join(tmpdir(), "groundhog-counter-"));
+const work = await mkdtemp(join(tmpdir(), "thruput-counter-"));
 const groups = new OwnedProcessGroups();
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 let server: ReturnType<typeof createCounterServer> | undefined;

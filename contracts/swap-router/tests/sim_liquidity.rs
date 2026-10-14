@@ -12,11 +12,11 @@
 //! `add_liquidity` request through the router, and (once the admin has driven
 //! the queue) confirm they were minted LP.
 //!
-//! It is `#[ignore]`d because it needs the groundhog CLI and built artifacts.
+//! It is `#[ignore]`d because it needs the thruput CLI and built artifacts.
 //! `scripts/swap-sim.sh` wires up both. Roughly:
 //!
 //! ```shell
-//! cd groundhog-examples
+//! cd thruput-examples
 //! for c in erc20 swap-handler swap-driver swap-router swap-factory; do thruput build -p "$c"; done
 //! RUST_LOG="thruput_node_supervisor=info,hogd_dev=info" \
 //! THRUPUT_TESTKIT_ARTIFACT_ROOT=/path/to/target/thruput \

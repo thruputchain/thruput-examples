@@ -39,7 +39,7 @@ describe("createErc20ReadAdapter", () => {
     const view = vi
       .fn()
       .mockResolvedValueOnce(response(encode(Uint128Codec, 7n)))
-      .mockResolvedValueOnce(response(encodeOptionalString("Groundhog")))
+      .mockResolvedValueOnce(response(encodeOptionalString("Thruput")))
       .mockResolvedValueOnce(response(encodeOptionalString("HOG")))
       .mockResolvedValueOnce(response(encode(OptionCodec(Uint32Codec), 6n)));
     const adapter = createErc20ReadAdapter({
@@ -54,7 +54,7 @@ describe("createErc20ReadAdapter", () => {
       events: [],
     });
     await expect(adapter.metadata()).resolves.toEqual({
-      name: { value: "Groundhog", height: 1n, events: [] },
+      name: { value: "Thruput", height: 1n, events: [] },
       symbol: { value: "HOG", height: 1n, events: [] },
       decimals: { value: 6, height: 1n, events: [] },
     });
