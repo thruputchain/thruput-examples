@@ -1,7 +1,7 @@
 import {
   bytesEqual,
   hashSignedTransaction,
-  toHex0x,
+  toBase58,
   type ThruputClient,
 } from "@thruputchain/client";
 import type { ExecutableWalletClient } from "@thruputchain/client/wallet";
@@ -26,7 +26,7 @@ export async function submitSeedTransaction(
     await wallet.prepareExecution(request),
   );
   const hash = hashSignedTransaction(signed);
-  console.log(`Submitting ${name}: ${toHex0x(hash)}`);
+  console.log(`Submitting ${name}: ${toBase58(hash)}`);
   const returned = await wallet.sendTransaction(signed);
   if (!bytesEqual(returned, hash))
     throw new SeedError("Submission hash mismatch");
@@ -38,6 +38,6 @@ export async function submitSeedTransaction(
     receipt.execResult !== ExecResult.ExecResultOK
   )
     throw new SeedError("Transaction failed or receipt hash mismatched");
-  console.log(`Completed ${name}: ${toHex0x(hash)}`);
+  console.log(`Completed ${name}: ${toBase58(hash)}`);
   return receipt;
 }

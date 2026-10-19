@@ -39,9 +39,9 @@
 
 use crate::engine::{self, BookFill, Clearing, Grid, Price, Prices};
 use alloc::vec::Vec;
-use sdk::storage::*;
-use sdk::*;
 use thruput_erc20_if::{ERC20Client, ERC20Error};
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 use unique_ids::UniqueIds;
 
 pub use crate::engine::MAX_ASSETS;
@@ -487,7 +487,7 @@ impl Speedex {
     /// clearable: this is how a clearer learns what [`clear_batch`](Self::clear_batch) will cost
     /// before paying it, and how `tests/testkit_gas.rs` measures the engine.
     pub fn measure_clearing(&mut self, batch: BatchId, cells: &[u8], rounds: u32) -> GasReport {
-        use sdk::stats::gas_remaining;
+        use thruput_sdk::stats::gas_remaining;
         let start = gas_remaining();
         let cfg = self.cfg();
         let (buckets, _) = self.read_batch(&cfg, batch, cells);

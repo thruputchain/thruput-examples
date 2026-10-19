@@ -1,15 +1,16 @@
+import { toBase58 } from "@thruputchain/client";
 import { describe, expect, it } from "vitest";
 
 import { ConfigurationError, loadConfig } from "@/config";
 
-const address = `0x${"11".repeat(32)}`;
+const address = toBase58(new Uint8Array(32).fill(0x11));
 const environment = {
   VITE_THRUPUT_RPC_URL: "http://127.0.0.1:9545",
-  VITE_THRUPUT_NETWORK_ID: "22".repeat(32),
+  VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0x22)),
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: address,
   VITE_NATIVE_HOG_ADDRESS: address,
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
-  VITE_STANDARD_TOKEN_HASH: `0x${"33".repeat(32)}`,
+  VITE_STANDARD_TOKEN_HASH: toBase58(new Uint8Array(32).fill(0x33)),
 };
 
 describe("loadConfig", () => {
@@ -35,7 +36,7 @@ describe("loadConfig", () => {
     const config = loadConfig(environment);
     expect(config.swapAppUrl).toBeNull();
     expect(config.nativeBalanceItemCost).toBe(1234n);
-    expect(config.networkIdHex).toBe("22".repeat(32));
+    expect(config.networkId).toBe(toBase58(new Uint8Array(32).fill(0x22)));
     expect(config.accountAddress).toEqual(new Uint8Array(32));
     expect(
       loadConfig({

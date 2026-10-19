@@ -13,8 +13,8 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::storage::*;
-use sdk::*;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 /// A source of ids distinct across everything a contract accepts.
 ///

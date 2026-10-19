@@ -11,7 +11,7 @@
 //! payload, and this test is what makes that show up here rather than in a batch.
 
 use batch_driver::{Cause, EXCEPTION_PAYLOAD_MAX, RequestFailed};
-use sdk::*;
+use thruput_sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([7u8; 32]);
 

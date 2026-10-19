@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
 import type { ContractDeployment } from "@thruputchain/client/wallet";
 import { gasAmount, HOG_ADDRESS } from "@thruputchain/protocol";
@@ -28,7 +28,7 @@ vi.mock("@thruputchain/client", async (original) => {
   return {
     ...sdk,
     createThruputClient: vi.fn(async () => ({
-      getVersion: async () => ({ wireFormat: "5.0.0" }),
+      getVersion: async () => ({ wireFormat: "13.0.0" }),
     })),
     createWalletClient: vi.fn(() => mocks),
   };
@@ -42,7 +42,7 @@ beforeEach(async () => {
   options = {
     network: "local",
     rpcUrl: "http://127.0.0.1:9545",
-    networkId: `0x${"00".repeat(32)}`,
+    networkId: toBase58(new Uint8Array(32)),
     output: join(directory, ".env.local"),
     artifact: join(directory, "counter.rv32a"),
   };
@@ -87,8 +87,8 @@ it("creates a fresh counter and signer on each run and writes only an environmen
   for (const [index, config] of [first, second].entries()) {
     const [deployment, deployOptions, wait] =
       mocks.deployContractAndWait.mock.calls[index]!;
-    expect(toHex0x(deployment.address)).toBe(config.counterAddress);
-    expect(toHex0x(deployment.deployer)).toBe(config.signerAddress);
+    expect(toBase58(deployment.address)).toBe(config.counterAddress);
+    expect(toBase58(deployment.deployer)).toBe(config.signerAddress);
     expect(deployOptions).toEqual({ gasLimit: gas, amount: 0n });
     expect(wait).toEqual({ timeoutMs: 60_000 });
     expect(mocks.executeAndWait.mock.calls[index * 2]).toEqual([
@@ -103,9 +103,13 @@ it("creates a fresh counter and signer on each run and writes only an environmen
     ]);
     expect(mocks.executeAndWait.mock.calls[index * 2 + 1]).toEqual([
       {
-        invocation: Counter.v0_1.initialize.invocation(deployment.address, gas, {
-          initialValue: 1_000_000n,
-        }),
+        invocation: Counter.v0_1.initialize.invocation(
+          deployment.address,
+          gas,
+          {
+            initialValue: 1_000_000n,
+          },
+        ),
         gasLimit: gas,
       },
       { timeoutMs: 60_000 },

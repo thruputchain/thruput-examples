@@ -1,3 +1,4 @@
+import { fixedFromBase58, toBase58 } from "@thruputchain/client";
 import { ExternalLinkIcon } from "lucide-react";
 import { useExplorerUrl } from "@/components/explorer-context";
 
@@ -17,11 +18,7 @@ export function BlockchainIdentifier({
   kind: IdentifierKind;
 }) {
   const origin = useExplorerUrl();
-  const canonical =
-    (value.length === 64 || value.length === 66) &&
-    /^(?:0x)?[0-9a-fA-F]{64}$/.test(value)
-      ? `0x${value.replace(/^0x/, "").toLowerCase()}`
-      : null;
+  const canonical = isCanonicalBase58(value) ? value : null;
   const href =
     origin && canonical && kind !== "identifier"
       ? `${origin}/${kind === "transaction" ? "tx" : "address"}/${canonical}`
@@ -55,4 +52,13 @@ export function BlockchainIdentifier({
       </TooltipContent>
     </Tooltip>
   );
+}
+
+// Addresses and transaction hashes are 32 bytes of case-sensitive base58.
+function isCanonicalBase58(value: string): boolean {
+  try {
+    return toBase58(fixedFromBase58(value, 32)) === value;
+  } catch {
+    return false;
+  }
 }

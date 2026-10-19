@@ -8,7 +8,7 @@ publish.workspace = true
 
 [features]
 entrypoints = []
-dev = ["sdk/dev"]
+dev = ["thruput-sdk/dev"]
 
 [lib]
 crate-type = ["rlib"]
@@ -23,7 +23,7 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 
 [dev-dependencies]
 calldata = { path = ".", features = ["dev"] }

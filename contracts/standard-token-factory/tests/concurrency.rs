@@ -1,12 +1,12 @@
 mod support;
 
-use sdk::call::RawCallError;
-use sdk::*;
 use standard_token_factory::{
     FactoryConfig, StandardTokenFactoryClient, TokenCreated, TokenFactoryError,
 };
 use support::*;
 use thruput_erc20_if::{AllowanceChangeEvent, ERC20Error, MintEvent, TransferEvent};
+use thruput_sdk::call::RawCallError;
+use thruput_sdk::*;
 
 fn assert_erc20_error(result: &TransactResult, expected: ERC20Error) {
     result.assert_abort();

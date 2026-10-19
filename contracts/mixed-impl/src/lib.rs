@@ -22,10 +22,10 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::storage::Value;
-use sdk::*;
+use thruput_sdk::storage::Value;
+use thruput_sdk::*;
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
 /// Largest value the vault will accept.
 const MAX_VALUE: u64 = 1_000_000;
@@ -52,7 +52,7 @@ pub trait Resettable {
 }
 
 /// Shared state behind both surfaces.
-#[sdk::storage]
+#[thruput_sdk::storage]
 pub struct Vault {
     value: Value<u64>,
 }

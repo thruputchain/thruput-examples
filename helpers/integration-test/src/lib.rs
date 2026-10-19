@@ -27,9 +27,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use thruput_contract_util::{NormalizedMethodSignature, contract_entrypoint_id};
 use thruput_json_rpc_client::{GroundhogApiClient, HttpClient, HttpClientBuilder};
+use thruput_json_rpc_types::base58::Base58;
 use thruput_json_rpc_types::block::{BlockInfo, ChainTip};
 use thruput_json_rpc_types::events::{EventPage, EventQuery};
-use thruput_json_rpc_types::hex::{Hex0x, HexBytes};
+use thruput_json_rpc_types::hex::HexBytes;
 use thruput_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
 use thruput_json_rpc_types::runtime_manifest::parse_runtime_manifest;
 use thruput_json_rpc_types::transaction::{SchedulerTransactionError, TransactionStatus, TxHash};
@@ -39,12 +40,12 @@ use thruput_signing::default_wallet::{
     build_default_wallet_call_transaction, decode_default_wallet_call_return,
 };
 use thruput_signing::{
-    DEFAULT_PUBKEY_ACCOUNT_NONCE, DEFAULT_TX_GAS_LIMIT, LocalSigner, PubkeyAccount,
+    DEFAULT_PUBKEY_ACCOUNT_NONCE, DEFAULT_TX_GAS_LIMIT, PubkeyAccount, SchemeSigner,
     SignTransactionParams, Signer, derive_default_dev_account_signer,
     sign_and_encode_transaction_hex,
 };
 use thruput_xdr::contract::ContractEntrypointID;
-use thruput_xdr::types::{ContractAddress, NetworkHash};
+use thruput_xdr::types::{ContractAddress, NetworkHash, PublicKey};
 
 /// Default transaction expiry and receipt polling configuration.
 const DEFAULT_EXPIRY_OFFSET: i64 = 1_000;
@@ -154,7 +155,7 @@ pub struct Harness {
     /// entrypoint IDs for the methods under test.
     interface: &'static str,
     version: &'static str,
-    signer: LocalSigner,
+    signer: SchemeSigner,
     /// The integration key's native account: the transaction caller. Its address is the
     /// nonce-zero pubkey account of the signer, as the manifest confirms.
     account: PubkeyAccount,
@@ -186,11 +187,16 @@ impl Harness {
             .unwrap_or_else(|e| panic!("loading integration key {key_name}: {e}"));
         let account = PubkeyAccount::new(signer.public_key(), DEFAULT_PUBKEY_ACCOUNT_NONCE);
         let wallet = account.address();
-        let public_key = signer.verifying_key_bytes().into();
+        let public_key = signer.public_key();
         let advertised = manifest
             .bootstrap_accounts
             .iter()
-            .find(|entry| entry.public_key.0 == public_key)
+            .find(|entry| {
+                public_key
+                    == PublicKey::Ed25519 {
+                        ed25519: entry.public_key.0,
+                    }
+            })
             .unwrap_or_else(|| {
                 panic!("runtime manifest has no bootstrap allocation for the integration key")
             });
@@ -271,10 +277,10 @@ impl Harness {
     ) -> Result<ViewResponse, SubmissionError> {
         self.client()?
             .view(ViewRequest {
-                contract: Hex0x(self.contract),
+                contract: Base58(self.contract),
                 entrypoint: HexBytes(self.entrypoint_id(method).into_inner().to_vec()),
                 calldata: HexBytes(calldata),
-                caller: Some(Hex0x(self.wallet)),
+                caller: Some(Base58(self.wallet)),
                 auth_claim: None,
                 gas_limit: None,
                 min_height: None,
@@ -560,21 +566,17 @@ fn format_entrypoint_id(entrypoint: ContractEntrypointID) -> String {
 }
 
 fn format_contract_address(address: &ContractAddress) -> String {
-    format!("0x{}", hex::encode(address.as_ref()))
+    Base58(*address).to_string()
 }
 
 fn format_hex_bytes(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
 }
 
-fn parse_address(hex_str: &str) -> ContractAddress {
-    let stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-    let bytes = hex::decode(stripped)
-        .unwrap_or_else(|e| panic!("contract address `{hex_str}` is not valid hex: {e}"));
-    let bytes: [u8; 32] = bytes
-        .try_into()
-        .unwrap_or_else(|_| panic!("contract address `{hex_str}` is not 32 bytes"));
-    ContractAddress::from(bytes)
+fn parse_address(text: &str) -> ContractAddress {
+    serde_json::from_value::<Base58<ContractAddress>>(serde_json::Value::String(text.to_owned()))
+        .unwrap_or_else(|e| panic!("contract address `{text}` is not a base58 address: {e}"))
+        .0
 }
 
 fn env(key: &str) -> String {
@@ -588,13 +590,12 @@ mod tests {
     use super::*;
 
     fn tx_hash() -> TxHash {
-        serde_json::from_str(&format!(r#""0x{}""#, "00".repeat(32)))
-            .expect("test transaction hash should deserialize")
+        TxHash(Base58([0; 32].into()))
     }
 
     fn receipt(status: serde_json::Value) -> TransactionReceipt {
         serde_json::from_value(serde_json::json!({
-            "txHash": format!("0x{}", "00".repeat(32)),
+            "txHash": tx_hash(),
             "height": "10",
             "status": status,
             "events": [],
@@ -653,7 +654,7 @@ mod tests {
             "cause": {
                 "kind": "dbConflict",
                 "conflict": {
-                    "address": format!("0x{}", "00".repeat(32)),
+                    "address": Base58(ContractAddress::from([0; 32])),
                     "key": "0x",
                     "code": "exclusiveLock"
                 }

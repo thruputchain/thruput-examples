@@ -11,8 +11,8 @@
 //! full collection: it is excluded from its block and returned to the mempool, rather than reverted
 //! and lost.
 
-use sdk::storage::*;
-use sdk::*;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([3u8; 32]);
 

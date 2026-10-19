@@ -1,7 +1,7 @@
 use counter::{CounterClient, register_mock_contract};
-use sdk::*;
+use thruput_sdk::*;
 
-static NONCE: SHA256Hash = sdk::sha256_static!("COUNTER_NONCE");
+static NONCE: SHA256Hash = thruput_sdk::sha256_static!("COUNTER_NONCE");
 
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
     let env = TestEnvironment::no_cost();

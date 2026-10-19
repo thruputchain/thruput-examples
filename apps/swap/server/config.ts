@@ -3,9 +3,8 @@ import { loadTokenDiscoveryServerConfig } from "./token-discovery-config.ts";
 
 import type { RegistryScope } from "../shared/registry.ts";
 import {
+  base58Identifier,
   boundedInteger,
-  canonicalAddress,
-  canonicalNetworkId,
   ValidationError,
 } from "./validation.ts";
 
@@ -46,11 +45,11 @@ export function loadServerConfig(environment: ServerEnvironment): ServerConfig {
       databasePath,
       rpcUrl: parseRpcUrl(required(environment, "VITE_THRUPUT_RPC_URL")),
       scope: {
-        networkId: canonicalNetworkId(
+        networkId: base58Identifier(
           required(environment, "VITE_THRUPUT_NETWORK_ID"),
           "VITE_THRUPUT_NETWORK_ID",
-        ),
-        factoryAddress: canonicalAddress(
+        ).slice(2),
+        factoryAddress: base58Identifier(
           required(environment, "VITE_SWAP_FACTORY_ADDRESS"),
           "VITE_SWAP_FACTORY_ADDRESS",
         ),

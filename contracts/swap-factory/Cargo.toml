@@ -23,13 +23,13 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 swap-if = { path = "../../interfaces/swap-if" }
 
 [features]
-entrypoints = ["sdk/alloc"]
-dev = ["sdk/dev", "swap-if/dev"]
+entrypoints = ["thruput-sdk/alloc"]
+dev = ["thruput-sdk/dev", "swap-if/dev"]
 guest_test = []
 
 [dev-dependencies]

@@ -1,12 +1,12 @@
 mod support;
 
-use sdk::*;
 use stellar_account::{
     AccountError, AccountInitError, MAX_SIGNERS, SignerChanged, StellarAccountClient, Thresholds,
     ThresholdsChanged,
 };
 use stellar_account_factory_if::StellarAccountInitializerClient;
 use support::*;
+use thruput_sdk::*;
 
 /// The ERC20 `transfer` entrypoint ID.
 ///
@@ -14,17 +14,17 @@ use support::*;
 /// impls). Computed here with the same formula as the `#[contract]` macro:
 /// sha256(INTERFACE_NAME ++ "::" ++ MAJOR_VERSION ++ "::" ++ METHOD_NAME)[0..8].
 /// For thruput-erc20-if 0.1.42: interface = "ERC20", major = "0.1",
-/// method = "transfer".  The `sdk::hash_to_array!` proc-macro hashes
+/// method = "transfer".  The `thruput_sdk::hash_to_array!` proc-macro hashes
 /// "ERC20::0.1::transfer" with sha256 at compile time.
 fn erc20_transfer_entrypoint() -> ContractEntrypointID {
-    let h: [u8; 32] = sdk::hash_to_array!("ERC20::0.1::transfer");
+    let h: [u8; 32] = thruput_sdk::hash_to_array!("ERC20::0.1::transfer");
     ContractEntrypointID::from([h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]])
 }
 
 #[test]
 fn invoke_forwards_opaque_calldata_and_returns_the_child_bytes() {
     let env = setup();
-    let calldata = sdk::xdr::cxs::encode(&(RECEIVER, 100i128)).unwrap();
+    let calldata = thruput_sdk::xdr::cxs::encode(&(RECEIVER, 100i128)).unwrap();
     let result = as_account(&env, claim(1), |a| {
         a.invoke(&TOKEN, erc20_transfer_entrypoint(), u64::MAX, &calldata)
     });
@@ -40,13 +40,13 @@ fn invoke_forwards_opaque_calldata_and_returns_the_child_bytes() {
 #[test]
 fn invoke_re_raises_the_child_abort_verbatim() {
     let env = setup();
-    let calldata = sdk::xdr::cxs::encode(&(RECEIVER, MINTED + 1)).unwrap();
+    let calldata = thruput_sdk::xdr::cxs::encode(&(RECEIVER, MINTED + 1)).unwrap();
     let result = as_account(&env, claim(1), |a| {
         a.invoke(&TOKEN, erc20_transfer_entrypoint(), u64::MAX, &calldata)
     });
     result.assert_abort();
     match into_root_call_result::<BytesM>(&result) {
-        Err(sdk::call::RawCallError::Exception(error)) => {
+        Err(thruput_sdk::call::RawCallError::Exception(error)) => {
             assert!(
                 error.try_as::<erc20::ERC20Error>().is_some(),
                 "the token's own error, got {error:?}"
@@ -63,7 +63,7 @@ fn invoke_re_raises_the_child_abort_verbatim() {
 /// For stellar-account 0.1.0 (inherent impl, interface name = "StellarAccount"):
 /// interface = "StellarAccount", major = "0.1", method = "master_key".
 fn stellar_account_master_key_entrypoint() -> ContractEntrypointID {
-    let h: [u8; 32] = sdk::hash_to_array!("StellarAccount::0.1::master_key");
+    let h: [u8; 32] = thruput_sdk::hash_to_array!("StellarAccount::0.1::master_key");
     ContractEntrypointID::from([h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]])
 }
 
@@ -79,10 +79,10 @@ fn invoke_of_an_unknown_entrypoint_re_raises_the_targets_unknown_method_abort() 
     });
     result.assert_abort();
     match into_root_call_result::<BytesM>(&result) {
-        Err(sdk::call::RawCallError::Exception(error)) => {
+        Err(thruput_sdk::call::RawCallError::Exception(error)) => {
             assert_eq!(
-                error.try_as::<sdk::exn::LibraryExn>(),
-                Some(sdk::exn::LibraryExn::UnknownMethod)
+                error.try_as::<thruput_sdk::exn::LibraryExn>(),
+                Some(thruput_sdk::exn::LibraryExn::UnknownMethod)
             );
         }
         other => panic!("expected the target's UnknownMethod abort, got {other:?}"),
@@ -205,7 +205,7 @@ fn payment_beyond_the_balance_surfaces_the_token_error() {
     let result = as_account(&env, claim(1), |a| a.payment(&TOKEN, &RECEIVER, MINTED + 1));
     result.assert_abort();
     match into_root_call_result::<()>(&result) {
-        Err(sdk::call::RawCallError::Exception(error)) => {
+        Err(thruput_sdk::call::RawCallError::Exception(error)) => {
             assert!(
                 error.try_as::<erc20::ERC20Error>().is_some(),
                 "an ERC20 error, got {error:?}"
@@ -221,7 +221,7 @@ fn payment_with_a_negative_amount_surfaces_the_erc20_error() {
     let result = as_account(&env, claim(1), |a| a.payment(&TOKEN, &RECEIVER, -1));
     result.assert_abort();
     match into_root_call_result::<()>(&result) {
-        Err(sdk::call::RawCallError::Exception(error)) => {
+        Err(thruput_sdk::call::RawCallError::Exception(error)) => {
             assert!(
                 error.try_as::<erc20::ERC20Error>().is_some(),
                 "an ERC20 error, got {error:?}"
@@ -445,7 +445,7 @@ fn create_account_with_too_small_a_starting_balance_fails_whole() {
     });
     result.assert_abort();
     match into_root_call_result::<ContractAddress>(&result) {
-        Err(sdk::call::RawCallError::Exception(e)) => {
+        Err(thruput_sdk::call::RawCallError::Exception(e)) => {
             assert_eq!(
                 e.try_as::<stellar_account::AccountFactoryError>(),
                 Some(stellar_account::AccountFactoryError::InsufficientFunding),

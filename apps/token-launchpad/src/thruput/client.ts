@@ -2,9 +2,9 @@ import {
   createThruputClient,
   defineCluster,
   getNetworkInfo,
-  hashFromHex,
+  hashFromBase58,
   HttpTransport,
-  toHex0x,
+  toBase58,
   type ThruputClient,
   type ConnectedThruputClient,
 } from "@thruputchain/client";
@@ -13,7 +13,7 @@ import { networkHash } from "@thruputchain/protocol";
 import type { AppConfig } from "@/config";
 
 export function createReadClient(
-  config: Pick<AppConfig, "rpcUrl" | "networkIdHex">,
+  config: Pick<AppConfig, "rpcUrl" | "networkId">,
 ): Promise<ConnectedThruputClient> {
   const target = config.rpcUrl.href;
   const transport = new HttpTransport(target, {
@@ -24,7 +24,7 @@ export function createReadClient(
     cluster: defineCluster({
       name: "launchpad",
       rpcUrl: target,
-      networkHash: networkHash(hashFromHex(`0x${config.networkIdHex}`)),
+      networkHash: networkHash(hashFromBase58(config.networkId)),
       capabilities: [] as const,
     }),
     transport: {
@@ -33,7 +33,7 @@ export function createReadClient(
         if (method !== "groundhog_networkInfo") {
           await assertExpectedNetwork(
             { getNetworkInfo: () => getNetworkInfo(transport) },
-            config.networkIdHex,
+            config.networkId,
           );
         }
         return transport.request(method, params, options);
@@ -44,10 +44,10 @@ export function createReadClient(
 
 export async function assertExpectedNetwork(
   client: Pick<ThruputClient, "getNetworkInfo">,
-  expectedNetworkIdHex: string,
+  expectedNetworkId: string,
 ): Promise<void> {
   const network = await client.getNetworkInfo();
-  if (toHex0x(network.networkHash) !== `0x${expectedNetworkIdHex}`) {
+  if (toBase58(network.networkHash) !== expectedNetworkId) {
     throw new Error(
       "The RPC network does not match the configured launchpad network.",
     );

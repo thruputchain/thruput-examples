@@ -12,8 +12,8 @@
 //! needs a real node, where the hashes actually differ. It is worth knowing before reading a
 //! passing run as proof of more than it shows.
 
-use sdk::storage::*;
-use sdk::*;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 use unique_ids::UniqueIds;
 
 const ADDR: ContractAddress = ContractAddress::new([5u8; 32]);

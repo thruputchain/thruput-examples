@@ -23,16 +23,16 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 swap-if = { path = "../../interfaces/swap-if" }
 swap-pair = { path = "../../engines/swap-pair" }
 
 [features]
 # `entrypoints` builds the deployable handler contract (its exported methods).
-entrypoints = ["implementation", "sdk/alloc"]
+entrypoints = ["implementation", "thruput-sdk/alloc"]
 implementation = []
-dev = ["sdk/dev", "swap-if/dev", "swap-pair/dev", "implementation"]
+dev = ["thruput-sdk/dev", "swap-if/dev", "swap-pair/dev", "implementation"]
 
 [dev-dependencies]
 swap-handler = { path = ".", features = ["dev"] }

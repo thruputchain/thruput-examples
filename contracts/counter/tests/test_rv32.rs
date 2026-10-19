@@ -1,7 +1,7 @@
 use counter::CounterClient;
-use sdk::*;
+use thruput_sdk::*;
 
-static NONCE: SHA256Hash = sdk::sha256_static!("COUNTER_RV32_NONCE");
+static NONCE: SHA256Hash = thruput_sdk::sha256_static!("COUNTER_RV32_NONCE");
 
 /// Test the contract running as RV32 in the executor.
 ///

@@ -1,17 +1,20 @@
-import { addressFromHex, fromHex0x } from "@thruputchain/client";
+import {
+  addressFromBase58,
+  addressFromHex,
+  hashFromBase58,
+  toBase58,
+} from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
 
 import { PINNED_NATIVE_BALANCE_ITEM_COST } from "./thruput/storage-cost";
 import { loadSwapAppUrl } from "./launch/swap-config.ts";
 import { parseExplorerUrl } from "./lib/explorer-url.ts";
 
-const HASH = /^(?:0x)?[0-9a-fA-F]{64}$/;
-
 export interface AppConfig {
   rpcUrl: URL;
   swapAppUrl?: string | null;
   explorerUrl?: string | null;
-  networkIdHex: string;
+  networkId: string;
   accountAddress: ContractAddress;
   factoryAddress: ContractAddress;
   nativeHogAddress: ContractAddress;
@@ -33,8 +36,7 @@ export async function loadRuntimeConfig(): Promise<AppConfig> {
     throw new Error("Invalid application configuration");
   return loadConfig({
     ...value,
-    VITE_THRUPUT_RPC_URL: new URL("/thruput-rpc", window.location.origin)
-      .href,
+    VITE_THRUPUT_RPC_URL: new URL("/thruput-rpc", window.location.origin).href,
   });
 }
 
@@ -46,16 +48,8 @@ export class ConfigurationError extends Error {
 }
 
 export function loadConfig(environment: Environment): AppConfig {
-  const network = required(environment, "VITE_THRUPUT_NETWORK_ID");
-  const hash = required(environment, "VITE_STANDARD_TOKEN_HASH");
-  if (!HASH.test(network))
-    throw new ConfigurationError(
-      "VITE_THRUPUT_NETWORK_ID must be a 32-byte hexadecimal value",
-    );
-  if (!HASH.test(hash))
-    throw new ConfigurationError(
-      "VITE_STANDARD_TOKEN_HASH must be a 32-byte hexadecimal value",
-    );
+  const network = hash(environment, "VITE_THRUPUT_NETWORK_ID");
+  const tokenHash = hash(environment, "VITE_STANDARD_TOKEN_HASH");
   const rpcUrl = new URL(required(environment, "VITE_THRUPUT_RPC_URL"));
   if (
     !["http:", "https:"].includes(rpcUrl.protocol) ||
@@ -79,13 +73,13 @@ export function loadConfig(environment: Environment): AppConfig {
     rpcUrl,
     swapAppUrl: loadSwapAppUrl(environment.VITE_SWAP_APP_URL),
     explorerUrl: parseExplorerUrl(environment.VITE_EXPLORER_URL),
-    networkIdHex: network.replace(/^0x/, "").toLowerCase(),
+    networkId: network,
     // Public views need a caller, not a connected wallet identity.
     accountAddress: addressFromHex(`0x${"00".repeat(32)}`),
     factoryAddress: address(environment, "VITE_STANDARD_TOKEN_FACTORY_ADDRESS"),
     nativeHogAddress: address(environment, "VITE_NATIVE_HOG_ADDRESS"),
     nativeBalanceItemCost,
-    expectedTokenHash: fromHex0x(hash.startsWith("0x") ? hash : `0x${hash}`),
+    expectedTokenHash: hashFromBase58(tokenHash),
   };
 }
 
@@ -98,12 +92,21 @@ function required(environment: Environment, key: string): string {
 
 function address(environment: Environment, key: string): ContractAddress {
   try {
-    return addressFromHex(required(environment, key));
+    return addressFromBase58(required(environment, key));
   } catch {
-    throw new ConfigurationError(
-      `${key} must be a 32-byte 0x-prefixed address`,
-    );
+    throw new ConfigurationError(`${key} must be a 32-byte base58 address`);
   }
+}
+
+// Kept as the exact text the chain reports, so string comparisons hold.
+function hash(environment: Environment, key: string): string {
+  const value = required(environment, key);
+  try {
+    if (toBase58(hashFromBase58(value)) === value) return value;
+  } catch {
+    // Reported below.
+  }
+  throw new ConfigurationError(`${key} must be a 32-byte base58 hash`);
 }
 
 function unsigned(value: string, key: string): bigint {

@@ -1,4 +1,5 @@
 // Execute the actual example with failed later steps; earlier write evidence must survive.
+import { toBase58 } from "@thruputchain/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const calls = vi.hoisted(() => ({
@@ -34,7 +35,7 @@ vi.mock("../../examples/typescript/generated/counter.ts", () => ({
   },
 }));
 
-const hex = (byte: string) => `0x${byte.repeat(32)}`;
+const hash = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
@@ -58,7 +59,7 @@ afterEach(() => vi.restoreAllMocks());
 it("prints deployment evidence before a failed increment", async () => {
   calls.execute.mockReset().mockImplementation(async () => {
     expect(console.error).toHaveBeenCalledWith(
-      `Deploy transaction: ${hex("02")}`,
+      `Deploy transaction: ${hash(2)}`,
     );
     throw new Error("increment failed");
   });
@@ -71,7 +72,7 @@ it("prints deployment evidence before a failed increment", async () => {
 it("prints increment evidence before a failed readback", async () => {
   calls.view.mockImplementation(async () => {
     expect(console.error).toHaveBeenCalledWith(
-      `Increment transaction: ${hex("03")}`,
+      `Increment transaction: ${hash(3)}`,
     );
     throw new Error("view failed");
   });
@@ -88,7 +89,7 @@ it("keeps increment evidence when the value assertion fails", async () => {
     import("../../examples/typescript/deploy-counter.ts"),
   ).rejects.toThrow("Counter should be 42 + 5");
   expect(console.error).toHaveBeenCalledWith(
-    `Increment transaction: ${hex("03")}`,
+    `Increment transaction: ${hash(3)}`,
   );
   expect(calls.execute).toHaveBeenCalledOnce();
   expect(console.log).not.toHaveBeenCalled();
@@ -105,11 +106,9 @@ it("keeps earlier hashes if ping fails", async () => {
   await expect(
     import("../../examples/typescript/deploy-counter.ts"),
   ).rejects.toThrow("ping failed");
+  expect(console.error).toHaveBeenCalledWith(`Deploy transaction: ${hash(2)}`);
   expect(console.error).toHaveBeenCalledWith(
-    `Deploy transaction: ${hex("02")}`,
-  );
-  expect(console.error).toHaveBeenCalledWith(
-    `Increment transaction: ${hex("03")}`,
+    `Increment transaction: ${hash(3)}`,
   );
   expect(console.log).not.toHaveBeenCalled();
 });
@@ -119,16 +118,16 @@ it("retains the final JSON result and logs each known hash on success", async ()
   expect(
     vi.mocked(console.error).mock.calls.map(([message]) => message),
   ).toEqual([
-    `Airdrop transaction: ${hex("01")}`,
-    `Deploy transaction: ${hex("02")}`,
-    `Increment transaction: ${hex("03")}`,
-    `Ping transaction: ${hex("04")}`,
+    `Airdrop transaction: ${hash(1)}`,
+    `Deploy transaction: ${hash(2)}`,
+    `Increment transaction: ${hash(3)}`,
+    `Ping transaction: ${hash(4)}`,
   ]);
   expect(console.log).toHaveBeenCalledOnce();
   expect(JSON.parse(vi.mocked(console.log).mock.calls[0]![0])).toMatchObject({
-    deployHash: hex("02"),
-    incrementHash: hex("03"),
-    eventHash: hex("04"),
+    deployHash: hash(2),
+    incrementHash: hash(3),
+    eventHash: hash(4),
     value: "47",
   });
 });

@@ -15,7 +15,7 @@
 //! That caller does not need a special case for it. A Thruput exception is
 //! self-describing on the wire — `[CXS(selector)][payload]` — and the
 //! selector identifies the type independently of any interface's `throws`
-//! list, so [`match_exn!`](sdk::match_exn) matches the declared error and the
+//! list, so [`match_exn!`](thruput_sdk::match_exn) matches the declared error and the
 //! peer interface's error side by side, as peers:
 //!
 //! ```ignore
@@ -40,10 +40,10 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::storage::{Balance, Map, Value};
-use sdk::*;
+use thruput_sdk::storage::{Balance, Map, Value};
+use thruput_sdk::*;
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
 // ── The Ledger interface ─────────────────────────────────────────────────
 
@@ -116,7 +116,7 @@ pub trait Pausable {
 /// `set` — because read-the-total-then-write-it-back serializes every holder
 /// against every other and loses concurrent updates. Adjusting by a delta
 /// merges instead. A missing cell reads as zero.
-#[sdk::storage]
+#[thruput_sdk::storage]
 #[cfg_attr(feature = "dev", derive(Debug))]
 pub struct PausableLedger {
     operator: Value<ContractAddress>,

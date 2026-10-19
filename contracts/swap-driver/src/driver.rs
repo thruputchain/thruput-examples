@@ -6,9 +6,9 @@
 
 use crate::cfg::*;
 use batch_driver::{CrankPolicy, Queue};
-use sdk::storage::*;
-use sdk::*;
 use swap_if::*;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 /// State for the driver contract
 #[storage]

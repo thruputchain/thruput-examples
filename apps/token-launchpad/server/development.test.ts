@@ -1,4 +1,6 @@
 // @vitest-environment node
+
+import { toBase58 } from "@thruputchain/client";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -28,12 +30,14 @@ it("serves the real token registry API from the development server", async () =>
     server: { host: "127.0.0.1", port: 0 },
     plugins: [
       developmentRegistry({
-        VITE_NATIVE_HOG_ADDRESS: `0x${"03".repeat(32)}`,
+        VITE_NATIVE_HOG_ADDRESS: toBase58(new Uint8Array(32).fill(0x03)),
         VITE_NATIVE_BALANCE_ITEM_COST: "1234",
         VITE_THRUPUT_RPC_URL: "http://127.0.0.1:1",
-        VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
-        VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"01".repeat(32)}`,
-        VITE_STANDARD_TOKEN_HASH: `0x${"02".repeat(32)}`,
+        VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0x00)),
+        VITE_STANDARD_TOKEN_FACTORY_ADDRESS: toBase58(
+          new Uint8Array(32).fill(0x01),
+        ),
+        VITE_STANDARD_TOKEN_HASH: toBase58(new Uint8Array(32).fill(0x02)),
         TOKEN_REGISTRY_DB_PATH: path.join(root, "registry.sqlite"),
       }),
     ],
@@ -46,7 +50,9 @@ it("serves the real token registry API from the development server", async () =>
     const origin = `http://127.0.0.1:${address.port}`;
     const tokens = await fetch(`${origin}/api/tokens`);
     const runtime = await (await fetch(`${origin}/api/config`)).json();
-    expect(runtime.VITE_STANDARD_TOKEN_HASH).toBe(`0x${"02".repeat(32)}`);
+    expect(runtime.VITE_STANDARD_TOKEN_HASH).toBe(
+      toBase58(new Uint8Array(32).fill(0x02)),
+    );
     expect(runtime.VITE_THRUPUT_RPC_URL).toBeUndefined();
     expect(tokens.status).toBe(200);
     expect(await tokens.json()).toMatchObject({ tokens: [], total: 0 });
@@ -68,12 +74,14 @@ it("closes its store when Vite shuts down in middleware mode", async () => {
     server: { middlewareMode: true },
     plugins: [
       developmentRegistry({
-        VITE_NATIVE_HOG_ADDRESS: `0x${"03".repeat(32)}`,
+        VITE_NATIVE_HOG_ADDRESS: toBase58(new Uint8Array(32).fill(0x03)),
         VITE_NATIVE_BALANCE_ITEM_COST: "1234",
         VITE_THRUPUT_RPC_URL: "http://127.0.0.1:1",
-        VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
-        VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"01".repeat(32)}`,
-        VITE_STANDARD_TOKEN_HASH: `0x${"02".repeat(32)}`,
+        VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0x00)),
+        VITE_STANDARD_TOKEN_FACTORY_ADDRESS: toBase58(
+          new Uint8Array(32).fill(0x01),
+        ),
+        VITE_STANDARD_TOKEN_HASH: toBase58(new Uint8Array(32).fill(0x02)),
       }),
     ],
   });

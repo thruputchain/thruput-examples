@@ -1,13 +1,16 @@
 // @vitest-environment node
+import { toBase58 } from "@thruputchain/client";
 import { describe, expect, it } from "vitest";
 import { loadDiscoveryConfig } from "../src/token-discovery/config.ts";
 import { loadTokenDiscoveryServerConfig } from "./token-discovery-config.ts";
 
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
+
 const env = {
   VITE_TOKEN_DISCOVERY_ENABLED: "true",
-  VITE_THRUPUT_NETWORK_ID: `0x${"AB".repeat(32)}`,
-  VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"CD".repeat(32)}`,
-  VITE_STANDARD_TOKEN_HASH: "EF".repeat(32),
+  VITE_THRUPUT_NETWORK_ID: b58(0xab),
+  VITE_STANDARD_TOKEN_FACTORY_ADDRESS: b58(0xcd),
+  VITE_STANDARD_TOKEN_HASH: b58(0xef),
   TOKEN_DISCOVERY_UPSTREAM_ORIGIN: "https://REGISTRY.example.test:443/",
 };
 
@@ -31,14 +34,14 @@ describe("token discovery configuration", () => {
     expect(
       loadTokenDiscoveryServerConfig({
         ...env,
-        VITE_SWAP_FACTORY_ADDRESS: `0x${"12".repeat(32)}`,
+        VITE_SWAP_FACTORY_ADDRESS: b58(0x12),
       }),
     ).toEqual({
       origin: "https://registry.example.test",
       scope: {
-        networkId: "ab".repeat(32),
-        factoryAddress: `0x${"cd".repeat(32)}`,
-        tokenCodeHash: `0x${"ef".repeat(32)}`,
+        networkId: b58(0xab),
+        factoryAddress: b58(0xcd),
+        tokenCodeHash: b58(0xef),
       },
     });
   });
@@ -67,7 +70,7 @@ describe("token discovery configuration", () => {
     expect(() =>
       loadDiscoveryConfig({
         ...env,
-        VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"00".repeat(32)}`,
+        VITE_STANDARD_TOKEN_FACTORY_ADDRESS: b58(0x00),
       }),
     ).toThrow(/nonzero/);
   });

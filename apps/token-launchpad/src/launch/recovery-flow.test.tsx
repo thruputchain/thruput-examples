@@ -1,4 +1,4 @@
-import { fixedBytes } from "@thruputchain/client";
+import { fixedBytes, toBase58 } from "@thruputchain/client";
 import { AppProviders } from "@/app-providers";
 import { testClient } from "@/test/wallet";
 import { act, fireEvent, render, screen, waitFor, within } from "@/test/render";
@@ -23,7 +23,7 @@ afterEach(() => {
 
 const config = configuration();
 const client = {} as never;
-const hash = `0x${"06".repeat(32)}`;
+const hash = toBase58(new Uint8Array(32).fill(0x06));
 function setup(funded = false) {
   Object.defineProperty(navigator, "locks", {
     configurable: true,
@@ -38,7 +38,6 @@ function setup(funded = false) {
       fee_recipient: null,
     },
     predictedAddress: config.factoryAddress,
-    predictedAddressHex: `0x${"03".repeat(32)}`,
     currentReserve: funded ? 100n : 0n,
     reserveHeight: 0n,
     fundingAmount: funded ? 0n : 110n,
@@ -108,7 +107,7 @@ it.each([false, true])(
 it("offers completed launch actions above the form and in the review, and resets from the top", async () => {
   const { workflow, writer } = setup(true);
   workflow.creation = { status: "committed", hash };
-  workflow.createdAddressHex = workflow.predictedAddressHex;
+  workflow.createdAddress = workflow.predictedAddress;
   workflow.creationBlock = "1";
   workflow.verification = {
     status: "complete",
@@ -145,7 +144,7 @@ it("offers completed launch actions above the form and in the review, and resets
       within(group).getByRole("link", { name: "Create AMM Pool" }),
     ).toHaveAttribute(
       "href",
-      `https://swap.example.com/pools/new?tokenA=${workflow.createdAddressHex}`,
+      `https://swap.example.com/pools/new?tokenA=${workflow.createdAddress}`,
     );
   }
   fireEvent.click(
@@ -195,7 +194,7 @@ it("starts over only before funding and clears the token form", async () => {
 });
 
 it("preserves an in-flight launch through disconnect and permits retry after reconnect", async () => {
-  const publicClient = await testClient(config.networkIdHex);
+  const publicClient = await testClient(config.networkId);
   const { workflow, writer, page } = setup();
   let resolve!: (result: WriteResult) => void;
   writer.execute.mockImplementationOnce(

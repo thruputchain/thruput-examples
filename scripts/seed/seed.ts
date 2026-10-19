@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import {
-  addressFromHex,
+  addressFromBase58,
   bytesEqual,
   createThruputClient,
   createPubkeyAccount,
@@ -12,8 +12,11 @@ import {
   fixedBytes,
   fromHex0x,
   hashContract,
+  hashFromBase58,
   localnet,
+  parseAddress,
   PrivateKeySigner,
+  toBase58,
   toHex0x,
 } from "@thruputchain/client";
 import {
@@ -78,7 +81,7 @@ async function artifact(directory: string, hash: string): Promise<Contract> {
   if (
     value.contractType !== "rv32" ||
     value.hash !== hash ||
-    toHex0x(hashContract(contract)) !== hash
+    toBase58(hashContract(contract)) !== hash
   )
     throw new SeedError("Setup artifact hash mismatch");
   return contract;
@@ -90,7 +93,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
   try {
     if (!process.env.SEED_RECIPIENT)
       throw new SeedError("Set SEED_RECIPIENT to your wallet's public address");
-    const recipient = addressFromHex(process.env.SEED_RECIPIENT);
+    const recipient = parseAddress(process.env.SEED_RECIPIENT);
     if (recipient.every((byte) => byte === 0))
       throw new SeedError("SEED_RECIPIENT must not be the zero address");
     const launch = await environment(
@@ -107,10 +110,10 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       cluster: localnet({ rpcUrl }),
       transport: seedTransport(rpcUrl),
     });
-    const network = toHex0x(client.network.networkHash);
+    const network = toBase58(client.network.networkHash);
     for (const config of [launch, ...(swap ? [swap] : [])]) {
       if (
-        toHex0x(fromHex0x(config.VITE_THRUPUT_NETWORK_ID!)) !== network ||
+        toBase58(hashFromBase58(config.VITE_THRUPUT_NETWORK_ID!)) !== network ||
         (!process.env.THRUPUT_RPC_URL &&
           validateLocalRpcUrl(config.VITE_THRUPUT_RPC_URL!) !== rpcUrl)
       )
@@ -118,13 +121,17 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
           "App network or RPC endpoint does not match this local node",
         );
     }
-    const factory = addressFromHex(launch.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!);
-    const tokenHash = toHex0x(fromHex0x(launch.VITE_STANDARD_TOKEN_HASH!));
+    const factory = addressFromBase58(
+      launch.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!,
+    );
+    const tokenHash = toBase58(
+      hashFromBase58(launch.VITE_STANDARD_TOKEN_HASH!),
+    );
     const config = (
       await StandardTokenFactory.v0_1.config.view({ client, contract: factory })
     ).value;
     if (
-      toHex0x(config.token_code_hash) !== tokenHash ||
+      toBase58(config.token_code_hash) !== tokenHash ||
       !bytesEqual(config.native_token, HOG_ADDRESS) ||
       config.creation_fee !== 0n ||
       config.fee_recipient !== null ||
@@ -137,16 +144,16 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     );
     const poolConfig = swap
       ? {
-          factory: addressFromHex(swap.VITE_SWAP_FACTORY_ADDRESS!),
-          router: addressFromHex(swap.VITE_SWAP_ROUTER_ADDRESS!),
+          factory: addressFromBase58(swap.VITE_SWAP_FACTORY_ADDRESS!),
+          router: addressFromBase58(swap.VITE_SWAP_ROUTER_ADDRESS!),
           code: await artifact(
             process.env.SWAP_APP_PUBLIC_DIR ?? "apps/swap/public",
-            toHex0x(fromHex0x(swap.VITE_POOL_TOKEN_HASH!)),
+            toBase58(hashFromBase58(swap.VITE_POOL_TOKEN_HASH!)),
           ),
           funding: (
             await SwapFactory.v0_1.poolFunding.view({
               client,
-              contract: addressFromHex(swap.VITE_SWAP_FACTORY_ADDRESS!),
+              contract: addressFromBase58(swap.VITE_SWAP_FACTORY_ADDRESS!),
             })
           ).value,
         }
@@ -169,7 +176,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     });
     const wallet = createWalletClient({ client, account });
     console.log(
-      `Fresh ${phase} seed. Recipient: ${toHex0x(recipient)}. Tool account: ${toHex0x(account.address)}`,
+      `Fresh ${phase} seed. Recipient: ${toBase58(recipient)}. Tool account: ${toBase58(account.address)}`,
     );
     let height = 0n;
     async function execute(
@@ -183,7 +190,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         RESERVE * 10n + (poolConfig?.funding.recommended ?? 0n) * 3n
       ) {
         const funding = await wallet.requestAirdrop();
-        console.log(`Airdrop: ${toHex0x(funding.txHash)}`);
+        console.log(`Airdrop: ${toBase58(funding.txHash)}`);
         if (funding.status.result !== "ok")
           throw new SeedError("Tool account airdrop failed");
       }
@@ -264,7 +271,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       )
         throw new SeedError("Token state mismatch");
       tokens.push(address);
-      console.log(`${symbol}: ${toHex0x(address)}`);
+      console.log(`${symbol}: ${toBase58(address)}`);
     }
     const [tokenA, tokenB] = tokens as [ContractAddress, ContractAddress];
     let pool;
@@ -361,13 +368,13 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     }
     console.log(
       `Seed result: ${JSON.stringify({
-        recipient: toHex0x(recipient),
-        tokens: tokens.map(toHex0x),
+        recipient: toBase58(recipient),
+        tokens: tokens.map(toBase58),
         ...(pool
           ? {
               pool: {
-                handler: toHex0x(pool.handler),
-                liquidityToken: toHex0x(pool.liquidity_token),
+                handler: toBase58(pool.handler),
+                liquidityToken: toBase58(pool.liquidity_token),
               },
             }
           : {}),

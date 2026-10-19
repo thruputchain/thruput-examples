@@ -17,8 +17,8 @@ extern crate alloc;
 #[test]
 #[ignore = "requires RV32 build — run via `thruput test`"]
 fn erc20_test_rv32() {
-    let contract = sdk::load_rv32_contract("../../target/thruput/erc20.rv32a");
-    let env = sdk::TestEnvironment::no_cost();
+    let contract = thruput_sdk::load_rv32_contract("../../target/thruput/erc20.rv32a");
+    let env = thruput_sdk::TestEnvironment::no_cost();
     let contract_hash = env.setup_create_contract(&contract);
 
     env::test_erc20_contract(env, &contract_hash);

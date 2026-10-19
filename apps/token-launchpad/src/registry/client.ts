@@ -1,4 +1,8 @@
-import { toHex0x } from "@thruputchain/client";
+import {
+  addressFromBase58,
+  hashFromBase58,
+  toBase58,
+} from "@thruputchain/client";
 
 import type { AppConfig } from "@/config";
 import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
@@ -21,16 +25,13 @@ export type {
 };
 export type RegistryTokenQuery = Omit<TokenQuery, "tokenAddress">;
 
-const ADDRESS = /^0x[0-9a-f]{64}$/;
-const HASH = /^0x[0-9a-f]{64}$/;
-const NETWORK_ID = /^[0-9a-f]{64}$/;
 const DECIMAL = /^(?:0|[1-9]\d*)$/;
 const MAX_RESPONSE_BYTES = 256_000;
 const MAX_DECIMAL_DIGITS = 100;
 
 type RegistryConfig = Pick<
   AppConfig,
-  "networkIdHex" | "factoryAddress" | "expectedTokenHash"
+  "networkId" | "factoryAddress" | "expectedTokenHash"
 >;
 type Fetcher = typeof globalThis.fetch;
 
@@ -219,9 +220,9 @@ function validateToken(
   );
   const tokenCodeHash = hash(record.tokenCodeHash, `${name}.tokenCodeHash`);
   if (
-    networkId !== config.networkIdHex ||
-    factoryAddress !== toHex0x(config.factoryAddress) ||
-    tokenCodeHash !== toHex0x(config.expectedTokenHash)
+    networkId !== config.networkId ||
+    factoryAddress !== toBase58(config.factoryAddress) ||
+    tokenCodeHash !== toBase58(config.expectedTokenHash)
   ) {
     throw new RegistryClientError(
       "Registry response has a different chain scope",
@@ -274,8 +275,8 @@ function validateStatus(
   const networkId = network(record.networkId, "networkId");
   const factoryAddress = address(record.factoryAddress, "factoryAddress");
   if (
-    networkId !== config.networkIdHex ||
-    factoryAddress !== toHex0x(config.factoryAddress)
+    networkId !== config.networkId ||
+    factoryAddress !== toBase58(config.factoryAddress)
   ) {
     throw new RegistryClientError(
       "Registry response has a different chain scope",
@@ -332,18 +333,30 @@ function object(value: unknown, name: string): Record<string, unknown> {
 }
 
 function address(value: unknown, name: string): string {
-  if (typeof value !== "string" || !ADDRESS.test(value)) invalid(name);
+  if (!isBase58(value, addressFromBase58)) invalid(name);
   return value;
 }
 
 function hash(value: unknown, name: string): string {
-  if (typeof value !== "string" || !HASH.test(value)) invalid(name);
+  if (!isBase58(value, hashFromBase58)) invalid(name);
   return value;
 }
 
 function network(value: unknown, name: string): string {
-  if (typeof value !== "string" || !NETWORK_ID.test(value)) invalid(name);
-  return value;
+  return hash(value, name);
+}
+
+// Identifiers are compared as text, so accept only the canonical encoding.
+function isBase58(
+  value: unknown,
+  decode: (text: string) => Uint8Array,
+): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    return toBase58(decode(value)) === value;
+  } catch {
+    return false;
+  }
 }
 
 function decimal(value: unknown, name: string): string {

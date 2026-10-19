@@ -1,7 +1,7 @@
 //! What a driver's queue reports: one event as a request is accepted, one for each that fails, and
 //! one summarizing the batch.
 
-use sdk::*;
+use thruput_sdk::*;
 
 /// How much of a failed request's exception payload [`RequestFailed`] carries.
 ///

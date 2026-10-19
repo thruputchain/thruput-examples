@@ -4,7 +4,7 @@ use crate::{
     Address, Amount, Amounts, ERC20Error, LiquidityBurnEvent, LiquidityMintEvent, SwapEvent,
     SwapPairError, SwapRequest, SyncEvent, U256,
 };
-use sdk::*;
+use thruput_sdk::*;
 
 /// Everything a pool will tell you about itself, in one call.
 ///

@@ -1,7 +1,7 @@
 //! Events emitted by the swap contracts.
 
 use crate::{Address, Amount, Amounts, RequestId};
-use sdk::*;
+use thruput_sdk::*;
 
 /// Emitted by the pair when liquidity is added (`mint_lp`).
 #[derive(Event, Clone, Debug, PartialEq, Eq, Hash)]

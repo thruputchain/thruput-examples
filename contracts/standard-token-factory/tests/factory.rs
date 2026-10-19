@@ -1,10 +1,10 @@
-use sdk::call::RawCallError;
-use sdk::*;
 use standard_token::ERC20ClawbackClient;
 use standard_token::ERC20MetadataClient;
 use standard_token_factory::*;
 use standard_token_factory_if::predicted_token;
 use thruput_erc20_if::{CONTRACT_ADDR_ZERO, ERC20Client, ERC20Error, MintEvent};
+use thruput_sdk::call::RawCallError;
+use thruput_sdk::*;
 
 const ROOT: ContractAddress = ContractAddress::new([0x10; 32]);
 const ADMIN: ContractAddress = ContractAddress::new([0x20; 32]);

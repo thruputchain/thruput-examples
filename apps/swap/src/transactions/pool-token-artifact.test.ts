@@ -1,4 +1,4 @@
-import { hashContract, toHex0x } from "@thruputchain/client";
+import { hashContract, toBase58 } from "@thruputchain/client";
 import { ContractType } from "@thruputchain/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchPoolTokenArtifact } from "./pool-token-artifact";
@@ -7,7 +7,7 @@ const contract = {
   contract_type: ContractType.kRv32,
   rv32_contract: { data: new Uint8Array([1, 2, 3]) },
 } as const;
-const hash = toHex0x(hashContract(contract));
+const hash = toBase58(hashContract(contract));
 const artifact = { contractType: "rv32", data: "0x010203", hash };
 afterEach(() => vi.unstubAllGlobals());
 
@@ -28,7 +28,7 @@ describe("pool token artifact", () => {
     );
   });
 
-  it.each([undefined, "https://evil.test/token.json", "0x01"])(
+  it.each([undefined, "https://evil.test/token.json", "0x01", `0x${"11".repeat(32)}`])(
     "rejects missing or invalid configured hash %s before fetch",
     async (expected) => {
       const fetch = vi.fn();
@@ -46,7 +46,7 @@ describe("pool token artifact", () => {
     { ...artifact, contractType: "other" },
     { ...artifact, data: "0x1" },
     { ...artifact, data: "0x010204" },
-    { ...artifact, hash: `0x${"00".repeat(32)}` },
+    { ...artifact, hash: toBase58(new Uint8Array(32)) },
     null,
   ])("rejects malformed or tampered artifact %#", async (value) => {
     vi.stubGlobal(

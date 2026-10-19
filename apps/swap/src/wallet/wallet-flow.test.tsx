@@ -4,7 +4,7 @@ import {
   localnet,
   MockTransport,
   PrivateKeySigner,
-  toHex0x,
+  toBase58,
 } from "@thruputchain/client";
 import { createPubkeyAccount } from "@thruputchain/client/wallet";
 import {
@@ -58,11 +58,11 @@ const config: GlobalConfig = {
 const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
 const local = createPubkeyAccount({ signer });
 const session: WalletSession = {
-  networkHash: config.networkIdHex,
+  networkHash: toBase58(new Uint8Array(32)),
   accounts: [
     {
-      address: toHex0x(local.address),
-      publicKey: toHex0x(signer.publicKey.ed25519),
+      address: toBase58(local.address),
+      publicKey: toBase58(signer.publicKey.ed25519),
       nonce: "0",
     },
   ],
@@ -80,7 +80,7 @@ it("preserves public filters, resets write forms on rebinding, and invalidates o
   });
   cleanups.push(
     registerWalletProvider({
-      info: { id: "test", name: "Test Wallet", version: "1.0.0" },
+      info: { id: "test", name: "Test Wallet", version: "2.0.0" },
       supportedMethods: ["getCapabilities"],
       request,
       on(_event, listener) {

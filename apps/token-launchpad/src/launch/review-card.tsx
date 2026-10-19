@@ -1,4 +1,4 @@
-import { formatUnits, toHex0x } from "@thruputchain/client";
+import { formatUnits, toBase58 } from "@thruputchain/client";
 import {
   AlertCircleIcon,
   ArrowRightIcon,
@@ -64,8 +64,9 @@ export function ReviewCard({
       ),
     };
   const parsed = parseTokenDraft(draft).value;
-  const predicted =
-    review?.predictedAddressHex ?? workflow?.predictedAddressHex;
+  const predicted = review
+    ? toBase58(review.predictedAddress)
+    : workflow?.predictedAddress;
   const ammPoolLink = createAmmPoolLink(config.swapAppUrl, workflow);
   const label = workflow ? actionLabel(workflow, manualProcessing) : "";
   return (
@@ -90,7 +91,7 @@ export function ReviewCard({
             value={
               <BlockchainIdentifier
                 kind="address"
-                value={toHex0x(config.accountAddress)}
+                value={toBase58(config.accountAddress)}
               />
             }
           />
@@ -99,7 +100,7 @@ export function ReviewCard({
             value={
               <BlockchainIdentifier
                 kind="address"
-                value={toHex0x(config.accountAddress)}
+                value={toBase58(config.accountAddress)}
               />
             }
           />
@@ -155,12 +156,12 @@ export function ReviewCard({
               />
               <IdentifierDetail
                 label="Implementation hash"
-                value={workflow.reviewedTokenCodeHashHex}
+                value={workflow.reviewedTokenCodeHash}
               />
               <IdentifierDetail
                 label="Native token"
                 kind="address"
-                value={workflow.reviewedNativeTokenHex}
+                value={workflow.reviewedNativeToken}
               />
               {workflow.funding.hash && workflow.executionMode !== "batch" ? (
                 <IdentifierDetail
@@ -201,11 +202,11 @@ export function ReviewCard({
                   )}
                 />
               ) : null}
-              {workflow.createdAddressHex ? (
+              {workflow.createdAddress ? (
                 <IdentifierDetail
                   label="Token contract"
                   kind="address"
-                  value={workflow.createdAddressHex}
+                  value={workflow.createdAddress}
                 />
               ) : null}
               <div className="space-y-3" aria-live="polite">

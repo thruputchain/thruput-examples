@@ -18,7 +18,7 @@ use integration_test::{Harness, InvocationOptions, SubmissionOutcome, decode_ret
 use thruput_xdr::types::ContractAddress;
 
 const INTERFACE: &str = "ERC20";
-const VERSION: &str = "0.1.55";
+const VERSION: &str = "0.1.60";
 
 #[tokio::test]
 async fn erc20_lifecycle_over_rpc() {

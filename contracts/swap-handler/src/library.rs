@@ -3,8 +3,8 @@
 //! In UniswapV2, these are run when a request is *made*; here they run when a request is *handled*,
 //! against the reserves live at that moment.
 
-use sdk::*;
 use swap_if::{Amount, Amounts, SwapLibraryError, U256};
+use thruput_sdk::*;
 
 use SwapLibraryError::*;
 

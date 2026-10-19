@@ -1,17 +1,17 @@
-use sdk::storage::deletable::Deletable;
-use sdk::storage::{Balance, Map, NNInt, Value};
-use sdk::*;
 use standard_token_factory_if::StandardTokenInitializer;
 use thruput_erc20_controls_if::{ClawbackEvent, ERC20Burn, ERC20Clawback};
 use thruput_erc20_if::*;
 use thruput_erc20_metadata_if::*;
+use thruput_sdk::storage::deletable::Deletable;
+use thruput_sdk::storage::{Balance, Map, NNInt, Value};
+use thruput_sdk::*;
 
 /// An allowance is a non-negative amount like a balance: a missing entry
 /// reads as zero, a zero change touches no storage, and the checked
 /// operations refuse to cross zero or `i128::MAX`.
 type Allowance = Balance;
 
-#[sdk::storage]
+#[thruput_sdk::storage]
 #[cfg_attr(feature = "dev", derive(Debug))]
 pub struct TokenContract {
     config: Value<Config>,
@@ -337,13 +337,13 @@ impl StandardTokenInitializer for TokenContract {
 
 #[cfg(feature = "dev")]
 pub fn balance_storage_key(owner: &ContractAddress) -> StorageKey {
-    let state = sdk::storage::contract_state_root::<TokenContract>();
+    let state = thruput_sdk::storage::contract_state_root::<TokenContract>();
     state.balances.keypath().child(owner).generate_key()
 }
 
 #[cfg(feature = "dev")]
 pub fn allowance_storage_key(owner: &ContractAddress, spender: &ContractAddress) -> StorageKey {
-    let state = sdk::storage::contract_state_root::<TokenContract>();
+    let state = thruput_sdk::storage::contract_state_root::<TokenContract>();
     state
         .allowances
         .keypath()

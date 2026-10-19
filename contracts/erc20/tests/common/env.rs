@@ -1,6 +1,6 @@
 use super::contract_test::{erc20_test, erc20_test_setup};
 use super::model;
-use sdk::{ContractAddress, Named, SHA256Hash, TestEnvironmentHandle};
+use thruput_sdk::{ContractAddress, Named, SHA256Hash, TestEnvironmentHandle};
 
 pub fn test_erc20_contract(env: TestEnvironmentHandle, test_contract_hash: &SHA256Hash) {
     let test_contract_hash = *test_contract_hash;
@@ -24,9 +24,9 @@ pub fn test_erc20_contract(env: TestEnvironmentHandle, test_contract_hash: &SHA2
 }
 
 // Print out a transaction's event log
-fn print_events(result: &sdk::TransactResult) {
-    use sdk::EmittedEvent;
+fn print_events(result: &thruput_sdk::TransactResult) {
     use thruput_erc20_if::*;
+    use thruput_sdk::EmittedEvent;
 
     for (i, event) in result.events().iter().enumerate() {
         let event: EmittedEvent = event.into();

@@ -1,4 +1,4 @@
-import { hashContract, toHex0x } from "@thruputchain/client";
+import { hashContract, toBase58 } from "@thruputchain/client";
 import { ContractType } from "@thruputchain/protocol";
 import { afterEach, expect, it, vi } from "vitest";
 import { loadStandardTokenArtifact } from "./token-artifact";
@@ -11,7 +11,7 @@ const hash = hashContract(contract);
 const artifact = {
   contractType: "rv32",
   data: "0x010203",
-  hash: toHex0x(hash),
+  hash: toBase58(hash),
 };
 afterEach(() => vi.unstubAllGlobals());
 it("fetches a fixed same-origin asset with a timeout and redirect rejection", async () => {
@@ -20,7 +20,7 @@ it("fetches a fixed same-origin asset with a timeout and redirect rejection", as
   expect(await loadStandardTokenArtifact(hash)).toEqual(contract);
   expect(fetch).toHaveBeenCalledWith(
     new URL(
-      `/contract-artifacts/${toHex0x(hash)}.json`,
+      `/contract-artifacts/${toBase58(hash)}.json`,
       window.location.origin,
     ),
     expect.objectContaining({
@@ -34,7 +34,7 @@ it.each([
   { ...artifact, contractType: "wasm" },
   { ...artifact, data: "0x01z" },
   { ...artifact, data: "0x010204" },
-  { ...artifact, hash: `0x${"00".repeat(32)}` },
+  { ...artifact, hash: toBase58(new Uint8Array(32).fill(0x00)) },
   null,
 ])("rejects malformed or mismatched code %j", async (value) => {
   vi.stubGlobal(

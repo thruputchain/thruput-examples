@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress, ExecResult, sha256Hash } from "@thruputchain/protocol";
 import { act, render, screen, waitFor, within } from "@/test/render";
 import userEvent from "@testing-library/user-event";
@@ -199,6 +200,8 @@ function committedSuccess(
   };
 }
 
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
+
 describe("read-only swap experience", () => {
   it.each([
     undefined,
@@ -221,12 +224,12 @@ describe("read-only swap experience", () => {
     );
     await screen.findByLabelText("YOU PAY");
     expect(screen.getByRole("link", { name: /Token A address:/ })).toHaveAttribute(
-      "href", `https://explorer.test/address/0x${"01".repeat(32)}`,
+      "href", `https://explorer.test/address/${b58(0x01)}`,
     );
 
     page.rerender(<App {...props} config={{ ...config, explorerUrl }} />);
     expect(screen.queryByRole("link", { name: /Token A address:/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: `Token A address: 0x${"01".repeat(32)}` })).toBeVisible();
+    expect(screen.getByRole("button", { name: `Token A address: ${b58(0x01)}` })).toBeVisible();
   });
 
   it("loads the local snapshot and derives an exact-input preview", async () => {
@@ -1655,9 +1658,9 @@ describe("local swap submission", () => {
     const executedItem = screen.getByRole("article", { name: "gEUR gUSD" });
     expect(
       within(executedItem).getByLabelText(
-        `Execution transaction hash: 0x${"ef".repeat(32)}`,
+        `Execution transaction hash: ${b58(0xef)}`,
       ),
-    ).toHaveTextContent("0xefefef…efef");
+    ).toHaveTextContent(`${b58(0xef).slice(0, 8)}…${b58(0xef).slice(-4)}`);
     await user.click(
       within(executedItem).getByRole("button", { name: "Dismiss from history" }),
     );

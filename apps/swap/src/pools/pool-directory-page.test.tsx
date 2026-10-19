@@ -1,4 +1,4 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
@@ -280,7 +280,7 @@ describe("PoolDirectoryPage", () => {
     expect(screen.getByText("2")).toBeVisible();
     expect(
       screen.getByRole("button", {
-        name: `Handler address: ${toHex0x(poolConfig.handlerAddress)}`,
+        name: `Handler address: ${toBase58(poolConfig.handlerAddress)}`,
       }),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "View pool" })).toBeVisible();
@@ -333,7 +333,7 @@ describe("PoolDirectoryPage", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "0x050505…0505 / 0x060606…0606" }),
+      await screen.findByRole("heading", { name: poolHeading(5, 6) }),
     ).toBeVisible();
     expect(
       await screen.findByText("Some pools could not be loaded"),
@@ -552,12 +552,12 @@ describe("PoolDirectoryPage", () => {
     await user.type(screen.getByLabelText("Search addresses"), "20");
     await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(2));
     expect(
-      await screen.findByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
+      await screen.findByRole("heading", { name: poolHeading(0x14, 0x15) }),
     ).toBeVisible();
     resolveFirst?.(firstPage);
     await act(async () => {});
     expect(
-      screen.getByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
+      screen.getByRole("heading", { name: poolHeading(0x14, 0x15) }),
     ).toBeVisible();
   });
 
@@ -593,17 +593,17 @@ describe("PoolDirectoryPage", () => {
       },
     );
     expect(
-      await screen.findByRole("heading", { name: "0x050505…0505 / 0x060606…0606" }),
+      await screen.findByRole("heading", { name: poolHeading(5, 6) }),
     ).toBeVisible();
 
     await user.type(screen.getByLabelText("Search addresses"), "20");
     expect(
-      await screen.findByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
+      await screen.findByRole("heading", { name: poolHeading(0x14, 0x15) }),
     ).toBeVisible();
     resolveFirst?.(registryPoolsToEntries(firstPage.pools));
     await act(async () => {});
     expect(
-      screen.getByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
+      screen.getByRole("heading", { name: poolHeading(0x14, 0x15) }),
     ).toBeVisible();
   });
 });
@@ -679,4 +679,13 @@ function status(overrides: Partial<RegistryStatus> = {}): RegistryStatus {
     lastError: null,
     ...overrides,
   };
+}
+
+/** Untitled pools are named by their abbreviated base58 token addresses. */
+function poolHeading(token0: number, token1: number): string {
+  const short = (byte: number) => {
+    const value = toBase58(new Uint8Array(32).fill(byte));
+    return `${value.slice(0, 8)}…${value.slice(-4)}`;
+  };
+  return `${short(token0)} / ${short(token1)}`;
 }

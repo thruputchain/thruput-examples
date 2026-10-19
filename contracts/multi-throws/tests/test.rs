@@ -1,8 +1,8 @@
 use multi_throws::*;
-use sdk::*;
+use thruput_sdk::*;
 
-static NONCE_1: SHA256Hash = sdk::sha256_static!("MULTI_THROWS_1");
-static NONCE_2: SHA256Hash = sdk::sha256_static!("MULTI_THROWS_2");
+static NONCE_1: SHA256Hash = thruput_sdk::sha256_static!("MULTI_THROWS_1");
+static NONCE_2: SHA256Hash = thruput_sdk::sha256_static!("MULTI_THROWS_2");
 
 /// Helper: register the contract and return the environment and hash.
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {

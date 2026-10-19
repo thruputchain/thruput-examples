@@ -6,9 +6,9 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::*;
-pub use sdk::{ContractAddress, Ed25519PublicKey, SHA256Hash};
 pub use thruput_erc20_if::Amount;
+use thruput_sdk::*;
+pub use thruput_sdk::{ContractAddress, Ed25519PublicKey, SHA256Hash};
 
 /// Immutable configuration for one account factory deployment.
 #[contract_type]
@@ -119,7 +119,7 @@ pub fn account_address_offchain(
     master_key: &Ed25519PublicKey,
 ) -> ContractAddress {
     use sha2::{Digest, Sha256};
-    let nonce_preimage = sdk::xdr::cxs::encode(&(DEPLOYMENT_DOMAIN, master_key))
+    let nonce_preimage = thruput_sdk::xdr::cxs::encode(&(DEPLOYMENT_DOMAIN, master_key))
         .expect("encoding the nonce preimage");
     let nonce: [u8; 32] = Sha256::digest(nonce_preimage).into();
     thruput_signing::derive_deploy_address(factory, &SHA256Hash::new(nonce), account_code_hash)

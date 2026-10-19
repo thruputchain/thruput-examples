@@ -1,10 +1,10 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
 use multi_impl_if::*;
-use sdk::*;
+use thruput_sdk::*;
 
 /// A single contract that implements both the Adder and Multiplier traits.
-#[sdk::storage]
+#[thruput_sdk::storage]
 pub struct MathContract;
 
 #[contract]

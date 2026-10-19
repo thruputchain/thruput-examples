@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { describe, expect, it } from "vitest";
 
 import { configuration } from "@/test/fixtures";
@@ -17,21 +18,23 @@ describe("registry token adaptation", () => {
   });
 });
 
-function token(address = `0x${"04".repeat(32)}`): RegistryToken {
+function token(
+  address = toBase58(new Uint8Array(32).fill(0x04)),
+): RegistryToken {
   const config = configuration();
   return {
-    networkId: config.networkIdHex,
-    factoryAddress: `0x${"03".repeat(32)}`,
+    networkId: config.networkId,
+    factoryAddress: toBase58(new Uint8Array(32).fill(0x03)),
     tokenAddress: address,
-    creatorAddress: `0x${"02".repeat(32)}`,
-    administratorAddress: `0x${"05".repeat(32)}`,
-    initialHolderAddress: `0x${"06".repeat(32)}`,
+    creatorAddress: toBase58(new Uint8Array(32).fill(0x02)),
+    administratorAddress: toBase58(new Uint8Array(32).fill(0x05)),
+    initialHolderAddress: toBase58(new Uint8Array(32).fill(0x06)),
     initialSupply: "170141183460469231731687303715884105727",
     name: null,
     symbol: null,
     decimals: 19,
-    tokenCodeHash: `0x${"00".repeat(32)}`,
-    transactionHash: `0x${"07".repeat(32)}`,
+    tokenCodeHash: toBase58(new Uint8Array(32).fill(0x00)),
+    transactionHash: toBase58(new Uint8Array(32).fill(0x07)),
     eventSequence: 0,
     blockHeight: "900719925474099300000",
     indexedAt: "2026-09-05T00:00:00.000Z",

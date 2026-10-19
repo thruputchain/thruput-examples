@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { toBase58 } from "@thruputchain/client";
 import { toast } from "sonner";
 import { AppHeader } from "./app-header";
 
@@ -51,7 +52,10 @@ it("shows the current balance, prevents duplicate clicks, and updates one toast 
   );
   expect(toast.loading).toHaveBeenCalledWith("Requesting signer airdrop…");
   resolve(
-    Response.json({ hash: `0x${"44".repeat(32)}`, rawAmount: "100000000" }),
+    Response.json({
+      hash: toBase58(new Uint8Array(32).fill(0x44)),
+      rawAmount: "100000000",
+    }),
   );
   await waitFor(() =>
     expect(toast.success).toHaveBeenCalledWith("Signer received 10 HOG.", {
@@ -77,7 +81,10 @@ it("uses an error toast and permits a new attempt", async () => {
         ),
       )
       .mockResolvedValueOnce(
-        Response.json({ hash: `0x${"44".repeat(32)}`, rawAmount: "10000001" }),
+        Response.json({
+          hash: toBase58(new Uint8Array(32).fill(0x44)),
+          rawAmount: "10000001",
+        }),
       ),
   );
   render(<AppHeader ready canTopup signerBalance={189_986_486n} />);

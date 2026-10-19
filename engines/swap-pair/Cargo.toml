@@ -15,7 +15,7 @@ doctest = false
 test = false # suppress output from our zero unit-tests
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 thruput-erc20-controls-if = { workspace = true }
 swap-if = { path = "../../interfaces/swap-if" }
@@ -25,7 +25,7 @@ heapless = { workspace = true }
 erc20 = { path = "../../contracts/erc20", features = ["dev"], optional = true }
 
 [features]
-dev = ["sdk/dev", "dep:erc20", "swap-if/dev"]
+dev = ["thruput-sdk/dev", "dep:erc20", "swap-if/dev"]
 
 [dev-dependencies]
 swap-pair = { path = ".", features = ["dev"] }

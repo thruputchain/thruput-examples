@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { expect, it } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
@@ -17,7 +18,7 @@ function Navigation() {
 }
 
 it("keeps one shell through route changes and closes navigation on history changes", async () => {
-  const client = await testClient("00".repeat(32));
+  const client = await testClient(toBase58(new Uint8Array(32).fill(0x00)));
   render(
     <AppProviders client={client}>
       <MemoryRouter initialEntries={["/tokens"]}>

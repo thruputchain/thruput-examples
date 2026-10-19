@@ -1,11 +1,5 @@
-import { fixedBytes } from "@thruputchain/client";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@/test/render";
+import { fixedBytes, toBase58 } from "@thruputchain/client";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
@@ -32,7 +26,6 @@ function reviewed(): FactoryReview {
       fee_recipient: null,
     },
     predictedAddress: config.factoryAddress,
-    predictedAddressHex: `0x${"03".repeat(32)}`,
     currentReserve: 0n,
     reserveHeight: 0n,
     fundingAmount: 110n,
@@ -50,7 +43,10 @@ it("checks recovered funding without creating a token until the next explicit ac
       new Uint8Array(32).fill(5),
       reviewed(),
     ),
-    funding: { status: "uncertain" as const, hash: `0x${"06".repeat(32)}` },
+    funding: {
+      status: "uncertain" as const,
+      hash: toBase58(new Uint8Array(32).fill(0x06)),
+    },
   };
   const recovered = {
     ...workflow,

@@ -15,7 +15,7 @@ categories.workspace = true
 doctest = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 thiserror = { workspace = true, optional = true }
 # `dev`-only off-chain address derivation (`account_address_offchain`).
@@ -26,4 +26,4 @@ sha2 = { workspace = true, optional = true }
 stellar-account-factory-if = { path = ".", features = ["dev"] }
 
 [features]
-dev = ["sdk/dev", "thruput-erc20-if/dev", "dep:thiserror", "dep:thruput-signing", "dep:sha2"]
+dev = ["thruput-sdk/dev", "thruput-erc20-if/dev", "dep:thiserror", "dep:thruput-signing", "dep:sha2"]

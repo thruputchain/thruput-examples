@@ -3,26 +3,27 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use sdk::Event as _;
-use sdk::exn::{LibraryExn, RawException};
 use standard_token::ClawbackEvent;
 use standard_token::Config;
 use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
 use thruput_erc20_if::{AllowanceChangeEvent, BurnEvent, MintEvent, TransferEvent};
+use thruput_json_rpc_types::base58::Base58;
 use thruput_json_rpc_types::events::{
     BlockAnchor, ContractAddressList, EventFilter, EventFilterList, EventQuery, EventTopicFilter,
     IdentifiedEvent, IterationOrder, PaginationCursor, TopicList,
 };
-use thruput_json_rpc_types::hex::{Hex0x, Topic};
+use thruput_json_rpc_types::hex::Topic;
 use thruput_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
+use thruput_sdk::Event as _;
+use thruput_sdk::exn::{LibraryExn, RawException};
 use thruput_testkit::xdr::types::{ContractAddress, SHA256Hash};
 use thruput_testkit::{
     Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Result,
     Scenario, xdrs,
 };
 
-const ERC20: (&str, &str) = ("ERC20", "0.1.55");
-const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.55");
+const ERC20: (&str, &str) = ("ERC20", "0.1.60");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.60");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
 const REQUIRED_FACTORY_FUNDING: i128 = 1_000_000;
 // Exactly what creating a token through the factory costs its new address
@@ -262,7 +263,7 @@ fn event_query(
         filters: EventFilterList(
             vec![EventFilter {
                 contract_addresses: ContractAddressList(
-                    vec![Hex0x(factory)]
+                    vec![Base58(factory)]
                         .try_into()
                         .expect("one contract filter"),
                 ),

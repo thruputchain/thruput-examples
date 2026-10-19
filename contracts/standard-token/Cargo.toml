@@ -14,7 +14,7 @@ edition.workspace = true
 [features]
 entrypoints = []
 dev = [
-    "sdk/dev",
+    "thruput-sdk/dev",
     "thruput-erc20-if/dev",
     "thruput-erc20-controls-if/dev",
     "standard-token-factory-if/dev",
@@ -33,7 +33,7 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 thruput-erc20-controls-if = { workspace = true }
 thruput-erc20-metadata-if = { workspace = true }

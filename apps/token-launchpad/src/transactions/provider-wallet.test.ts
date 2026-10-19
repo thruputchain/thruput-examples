@@ -1,5 +1,5 @@
 import {
-  fromHex0x,
+  hashFromBase58,
   hashSignedTransaction,
   PrivateKeySigner,
   signTransaction,
@@ -8,6 +8,7 @@ import {
   TransactionRejectedError,
   type ThruputClient,
   type TransactionReceipt,
+  toBase58,
 } from "@thruputchain/client";
 import { DefaultWallet } from "@thruputchain/client/contracts";
 import {
@@ -43,10 +44,10 @@ import { hashContract } from "@thruputchain/client";
 
 const config = loadConfig({
   VITE_THRUPUT_RPC_URL: "http://localhost:9545",
-  VITE_THRUPUT_NETWORK_ID: "ab".repeat(32),
-  VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"04".repeat(32)}`,
-  VITE_NATIVE_HOG_ADDRESS: `0x${"05".repeat(32)}`,
-  VITE_STANDARD_TOKEN_HASH: `0x${"06".repeat(32)}`,
+  VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0xab)),
+  VITE_STANDARD_TOKEN_FACTORY_ADDRESS: toBase58(new Uint8Array(32).fill(0x04)),
+  VITE_NATIVE_HOG_ADDRESS: toBase58(new Uint8Array(32).fill(0x05)),
+  VITE_STANDARD_TOKEN_HASH: toBase58(new Uint8Array(32).fill(0x06)),
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
 });
 const target = {
@@ -61,13 +62,11 @@ const target = {
 const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
 const localAccount = createPubkeyAccount({ signer, nonce: 7n });
 const account = {
-  address: toHex0x(localAccount.address),
-  publicKey: toHex0x(signer.publicKey.ed25519),
+  address: toBase58(localAccount.address),
+  publicKey: toBase58(signer.publicKey.ed25519),
   nonce: "7",
 };
-const signingNetwork = networkHash(
-  sha256Hash(fromHex0x(`0x${config.networkIdHex}`)),
-);
+const signingNetwork = networkHash(hashFromBase58(config.networkId));
 const childReturn = new Uint8Array(32).fill(8);
 const returnWriter = new CxsWriter();
 returnWriter.writeUint32(1n);
@@ -76,7 +75,7 @@ const wrappedReturn = returnWriter.finish();
 
 function setup() {
   let session: WalletSession = {
-    networkHash: config.networkIdHex,
+    networkHash: config.networkId,
     accounts: [account],
   };
   const listeners = new Set<(session: WalletSession) => void>();
@@ -96,7 +95,7 @@ function setup() {
         localAccount.signers,
         signingNetwork,
       );
-      canonicalHash = toHex0x(hashSignedTransaction(signed));
+      canonicalHash = toBase58(hashSignedTransaction(signed));
       return {
         signedTransaction: toHex0x(serialize(signed, codec.SignedTransaction)),
         hash: canonicalHash,
@@ -106,7 +105,7 @@ function setup() {
     return null;
   });
   const provider: WalletProvider = {
-    info: { id: "test", name: "Test Wallet", version: "1.0.0" },
+    info: { id: "test", name: "Test Wallet", version: "2.0.0" },
     request,
     on(_event, listener) {
       listeners.add(listener);
@@ -136,7 +135,7 @@ function setup() {
     client: client as unknown as ThruputClient,
     provider,
     account,
-    networkHash: config.networkIdHex,
+    networkHash: config.networkId,
   });
   const boundary = {
     ...createProviderWriteBoundary(
@@ -270,7 +269,7 @@ describe("provider write boundary with the real SDK", () => {
     if (result.kind !== "committedSuccess") throw new Error("Expected commit");
     expect(result.hash).toBe(onSigned.mock.calls[0]![0]);
     expect(result.receipt.returnData).toEqual(wrappedReturn);
-    expect(toHex0x(result.receipt.txHash)).toBe(result.hash);
+    expect(toBase58(result.receipt.txHash)).toBe(result.hash);
     expect(result.receipt.events).toEqual([]);
     expect(client.sendTransaction).not.toHaveBeenCalled();
     boundary.dispose();
@@ -331,7 +330,7 @@ describe("provider write boundary with the real SDK", () => {
     const original = request.getMockImplementation()!;
     request.mockImplementation(async (input) =>
       input.method === "submitTransaction"
-        ? { hash: `0x${"ff".repeat(32)}` }
+        ? { hash: toBase58(new Uint8Array(32).fill(0xff)) }
         : original(input),
     );
     const onSigned = vi.fn();
@@ -342,7 +341,7 @@ describe("provider write boundary with the real SDK", () => {
         hash: onSigned.mock.calls[0]![0],
       });
       expect(client.waitForTransactionReceipt).toHaveBeenCalledWith(
-        fromHex0x(onSigned.mock.calls[0]![0]),
+        hashFromBase58(onSigned.mock.calls[0]![0]),
         expect.objectContaining({ expectedNetworkHash: signingNetwork }),
       );
     } finally {
@@ -354,7 +353,7 @@ describe("provider write boundary with the real SDK", () => {
     const { boundary, change, request } = setup();
     const result = await boundary.execute(target, {
       onSigned() {
-        change({ networkHash: config.networkIdHex, accounts: [] });
+        change({ networkHash: config.networkId, accounts: [] });
       },
     });
     expect(result.kind).toBe("preSubmissionFailure");
@@ -382,7 +381,7 @@ describe("provider write boundary with the real SDK", () => {
           JSON.stringify({
             contractType: "rv32",
             data: "0x010203",
-            hash: toHex0x(hash),
+            hash: toBase58(hash),
           }),
         ),
     );
@@ -391,7 +390,7 @@ describe("provider write boundary with the real SDK", () => {
       client: client as unknown as ThruputClient,
       provider,
       account,
-      networkHash: config.networkIdHex,
+      networkHash: config.networkId,
     });
     const writer = createProviderWriteBoundary(
       { ...config, expectedTokenHash: hash },
@@ -457,7 +456,9 @@ describe("provider write boundary with the real SDK", () => {
         config,
         client as unknown as ThruputClient,
       );
-      expect(await observe(`0x${"01".repeat(32)}`)).toMatchObject(
+      expect(
+        await observe(toBase58(new Uint8Array(32).fill(0x01))),
+      ).toMatchObject(
         status === "invalid"
           ? { kind: "invalid", reason: "Rejected" }
           : { kind: "indeterminate", reason: status },

@@ -1,23 +1,27 @@
+import { toBase58 } from "@thruputchain/client";
 import { describe, expect, it } from "vitest";
 
 import { createAmmPoolLink } from "@/launch/swap-link";
 import type { LaunchWorkflow, StepStatus } from "@/launch/workflow";
 
 const origin = "https://swap.example.test";
-const createdAddressHex = `0x${"aB".repeat(32)}`;
+const createdAddress = toBase58(new Uint8Array(32).fill(0xab));
 const verified = {
-  creation: { status: "committed", hash: `0x${"07".repeat(32)}` },
+  creation: {
+    status: "committed",
+    hash: toBase58(new Uint8Array(32).fill(0x07)),
+  },
   verification: {
     status: "complete",
     message: null,
     totalSupply: "12",
     holderBalance: "12",
   },
-  createdAddressHex,
-  predictedAddressHex: `0x${"03".repeat(32)}`,
+  createdAddress,
+  predictedAddress: toBase58(new Uint8Array(32).fill(0x03)),
 } satisfies Pick<
   LaunchWorkflow,
-  "creation" | "verification" | "createdAddressHex" | "predictedAddressHex"
+  "creation" | "verification" | "createdAddress" | "predictedAddress"
 >;
 
 describe("verified launch Swap link", () => {
@@ -56,22 +60,22 @@ describe("verified launch Swap link", () => {
   it.each([
     null,
     "",
-    `0x${"00".repeat(32)}`,
+    toBase58(new Uint8Array(32).fill(0x00)),
     "not-an-address",
-    `0x${"ab".repeat(31)}`,
-    `0x${"ab".repeat(33)}`,
-    `0x${"gg".repeat(32)}`,
-    `0X${"ab".repeat(32)}`,
+    toBase58(new Uint8Array(31).fill(0xab)),
+    toBase58(new Uint8Array(33).fill(0xab)),
+    `0${createdAddress.slice(1)}`,
+    `0x${"ab".repeat(32)}`,
     "ab".repeat(32),
-    ` ${createdAddressHex}`,
-    `${createdAddressHex}\n`,
+    ` ${createdAddress}`,
+    `${createdAddress}\n`,
   ])(
     "rejects invalid verified address %j without using the prediction",
     (address) => {
       expect(
         createAmmPoolLink(origin, {
           ...verified,
-          createdAddressHex: address,
+          createdAddress: address,
         }),
       ).toBeNull();
     },
@@ -81,7 +85,7 @@ describe("verified launch Swap link", () => {
     "links only the canonical actual address at %s",
     (destination) => {
       expect(createAmmPoolLink(destination, verified)).toBe(
-        `${destination}/pools/new?tokenA=${createdAddressHex.toLowerCase()}`,
+        `${destination}/pools/new?tokenA=${createdAddress}`,
       );
     },
   );

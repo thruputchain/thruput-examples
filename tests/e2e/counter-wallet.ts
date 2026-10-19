@@ -13,6 +13,7 @@ import {
   createWalletClient,
   localnet,
   PrivateKeySigner,
+  toBase58,
   toHex0x,
   signTransaction,
   hashSignedTransaction,
@@ -138,12 +139,13 @@ try {
     }).requestAirdrop();
     assert.equal(result.status.result, "ok");
     accounts.push({
-      address: toHex0x(account.address),
-      publicKey: toHex0x(signer.publicKey.ed25519),
+      address: toBase58(account.address),
+      publicKey: toBase58(signer.publicKey.ed25519),
       nonce: "0",
     });
   }
-  const network = toHex0x(client.network.networkHash).slice(2);
+  const network = toBase58(client.network.networkHash);
+  const otherNetwork = toBase58(new Uint8Array(32).fill(0x11));
   server = createCounterServer(config);
   await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
   const socket = server.address();
@@ -181,7 +183,7 @@ try {
         [{ signer: signers[index]!, publicKeyId: 0n }],
         client.network.networkHash,
       );
-      const hash = toHex0x(hashSignedTransaction(signed));
+      const hash = toBase58(hashSignedTransaction(signed));
       signatures.push(hash);
       return {
         signedTransaction: toHex0x(serializeSignedTransaction(signed)),
@@ -192,21 +194,22 @@ try {
       const signed = parseSignedTransactionHex(
         request.params.signedTransaction,
       );
-      submissions.push(toHex0x(hashSignedTransaction(signed)));
-      return { hash: toHex0x(await client.sendTransaction(signed)) };
+      submissions.push(toBase58(hashSignedTransaction(signed)));
+      return { hash: toBase58(await client.sendTransaction(signed)) };
     }
     throw new Error("Unexpected provider bridge request");
   });
   await page.addInitScript({
     content: `(() => {
     const network = ${JSON.stringify(network)};
+    const otherNetwork = ${JSON.stringify(otherNetwork)};
     const accounts = ${JSON.stringify(accounts)};
     let session = { networkHash: network, accounts: [] };
     const listeners = new Set();
     const change = next => { session = next; listeners.forEach(listener => listener(session)); };
-    window.counterWalletTest = { reject: false, failSubmit: false, wrongNetwork: () => change({ networkHash: "11".repeat(32), accounts }) };
+    window.counterWalletTest = { reject: false, failSubmit: false, wrongNetwork: () => change({ networkHash: otherNetwork, accounts }) };
     const provider = {
-      info: { id: "counter-live-test", name: "Counter live test wallet", version: "1.0.0" },
+      info: { id: "counter-live-test", name: "Counter live test wallet", version: "2.0.0" },
       on(_event, listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
       async request(request) {
         if (request.method === "connect") { change({ networkHash: network, accounts }); return session; }

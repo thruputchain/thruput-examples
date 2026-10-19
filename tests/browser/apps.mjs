@@ -2,26 +2,26 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { createServer } from "vite";
-import { PrivateKeySigner, toHex0x } from "@thruputchain/client";
+import { PrivateKeySigner, toBase58 } from "@thruputchain/client";
 import { createPubkeyAccount } from "@thruputchain/client/wallet";
 
 // UI-only fixtures: no ledger, wallet credentials, upstream service, or signing.
-const hex = (byte) => `0x${byte.repeat(32)}`;
-const a = hex("01");
-const b = hex("02");
+const id = (byte) => toBase58(new Uint8Array(32).fill(byte));
+const a = id(0x01);
+const b = id(0x02);
 const scope = {
-  networkId: "00".repeat(32),
-  factoryAddress: hex("07"),
-  tokenCodeHash: hex("08"),
+  networkId: id(0x00),
+  factoryAddress: id(0x07),
+  tokenCodeHash: id(0x08),
 };
 Object.assign(process.env, {
   VITE_EXPLORER_URL: "https://explorer.example.test",
   VITE_THRUPUT_RPC_URL: "http://127.0.0.1:1",
   VITE_THRUPUT_NETWORK_ID: scope.networkId,
-  VITE_POOL_TOKEN_HASH: hex("09"),
-  VITE_SWAP_FACTORY_ADDRESS: hex("03"),
-  VITE_SWAP_ROUTER_ADDRESS: hex("04"),
-  VITE_NATIVE_HOG_ADDRESS: hex("05"),
+  VITE_POOL_TOKEN_HASH: id(0x09),
+  VITE_SWAP_FACTORY_ADDRESS: id(0x03),
+  VITE_SWAP_ROUTER_ADDRESS: id(0x04),
+  VITE_NATIVE_HOG_ADDRESS: id(0x05),
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
   VITE_TOKEN_DISCOVERY_ENABLED: "true",
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: scope.factoryAddress,
@@ -54,7 +54,7 @@ try {
         info: {
           id: "ui.fixture",
           name: "UI fixture (cannot sign)",
-          version: "1.0.0",
+          version: "2.0.0",
         },
         async request(request) {
           if (request.method === "connect" || request.method === "getSession")
@@ -79,8 +79,8 @@ try {
       networkHash: scope.networkId,
       accounts: [
         {
-          address: toHex0x(account.address),
-          publicKey: toHex0x(signer.publicKey.ed25519),
+          address: toBase58(account.address),
+          publicKey: toBase58(signer.publicKey.ed25519),
           nonce: "0",
         },
       ],
@@ -129,7 +129,7 @@ try {
       json: {
         jsonrpc: "2.0",
         id: request.id,
-        result: { networkHash: checkingCreation ? hex("ff") : `0x${scope.networkId}` },
+        result: { networkHash: checkingCreation ? id(0xff) : scope.networkId },
       },
     });
   });
@@ -302,14 +302,14 @@ try {
 
   unavailable = true;
   await trigger.click();
-  await search.fill(hex("0a"));
+  await search.fill(id(0x0a));
   await page
     .getByText("Token discovery is unavailable. Try again or use an address.")
     .waitFor();
   await page
-    .getByRole("option", { name: `Use address ${hex("0a")}`, exact: true })
+    .getByRole("option", { name: `Use address ${id(0x0a)}`, exact: true })
     .tap();
-  assert.equal(await addresses.nth(1).inputValue(), hex("0a"));
+  assert.equal(await addresses.nth(1).inputValue(), id(0x0a));
   assert.equal(page.url(), url);
   await page.setViewportSize({ width: 1280, height: 900 });
   await trigger.click();
@@ -337,7 +337,7 @@ try {
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: body.id,
-          result: { networkHash: `0x${scope.networkId}` },
+          result: { networkHash: scope.networkId },
         }),
       });
     });

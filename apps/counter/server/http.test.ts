@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  addressFromHex,
+  addressFromBase58,
   buildNamedCodecs,
   createPubkeyAccount,
   createTransaction,
@@ -9,11 +9,12 @@ import {
   defaultWalletAdapter,
   deserializeSignedTransaction,
   fromHex0x,
-  hashFromHex,
+  hashFromBase58,
   hashSignedTransaction,
   PrivateKeySigner,
   serializeSignedTransaction,
   signTransaction,
+  toBase58,
   toHex0x,
 } from "@thruputchain/client";
 import {
@@ -36,9 +37,10 @@ import { createApiHandler } from "./http";
 import { createCounterServer } from "./main";
 
 const key = "22".repeat(32);
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const environment = {
-  VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
-  VITE_COUNTER_ADDRESS: "11".repeat(32),
+  VITE_THRUPUT_NETWORK_ID: b58(0x00),
+  VITE_COUNTER_ADDRESS: b58(0x11),
   COUNTER_SIGNING_PRIVATE_KEY: key,
   VITE_THRUPUT_RPC_URL: "http://127.0.0.1:9545",
 };
@@ -46,8 +48,8 @@ const config = loadServerConfig(environment);
 const account = createPubkeyAccount({
   signer: new PrivateKeySigner(fromHex0x(`0x${key}`)),
 });
-const expectedNetwork = networkHash(hashFromHex(config.app.networkId));
-const contract = addressFromHex(config.app.counterAddress);
+const expectedNetwork = networkHash(hashFromBase58(config.app.networkId));
+const contract = addressFromBase58(config.app.counterAddress);
 const gas = gasAmount(1_000_000n);
 const wrap = (invocation: Invocation) =>
   defaultWalletAdapter.createRootInvocation(account.address, {
@@ -99,9 +101,9 @@ function rpcMock() {
       body.method === "groundhog_networkInfo"
         ? { networkHash: config.app.networkId }
         : body.method === "groundhog_chainTip"
-          ? { height: "10", blockHash: `0x${"00".repeat(32)}` }
+          ? { height: "10", blockHash: b58(0x00) }
           : body.method === "groundhog_sendRawTransaction"
-            ? toHex0x(
+            ? toBase58(
                 hashSignedTransaction(
                   deserializeSignedTransaction(fromHex0x(body.params[0]!)),
                 ),
@@ -111,7 +113,7 @@ function rpcMock() {
                   attemptStatus: "succeeded",
                   recipient: config.app.signerAddress,
                   rawAmount: "100000000",
-                  txHash: `0x${"44".repeat(32)}`,
+                  txHash: b58(0x44),
                   height: "10",
                   status: { result: "ok" },
                 }
@@ -156,7 +158,7 @@ describe("counter signing boundary", () => {
     const response = await post("/api/topup", {});
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      hash: `0x${"44".repeat(32)}`,
+      hash: b58(0x44),
       rawAmount: "100000000",
     });
     const calls = upstream.mock.calls
@@ -171,7 +173,7 @@ describe("counter signing boundary", () => {
     for (const body of [
       null,
       [],
-      { recipient: `0x${"33".repeat(32)}` },
+      { recipient: b58(0x33) },
       { amount: "1000" },
       { direction: "increment" },
     ]) {
@@ -275,7 +277,7 @@ describe("counter signing boundary", () => {
               attemptStatus: "succeeded",
               recipient: config.app.signerAddress,
               rawAmount: "100000000",
-              txHash: `0x${"44".repeat(32)}`,
+              txHash: b58(0x44),
               height: "10",
               status: { result: "reverted" },
             },
@@ -300,7 +302,7 @@ describe("counter signing boundary", () => {
     expect(JSON.parse(body)).toEqual({
       networkId: config.app.networkId,
       counterAddress: config.app.counterAddress,
-      signerAddress: toHex0x(account.address),
+      signerAddress: toBase58(account.address),
       explorerUrl: null,
     });
     expect(() =>
@@ -406,7 +408,7 @@ describe("counter signing boundary", () => {
       Response.json({
         jsonrpc: "2.0",
         id: JSON.parse(String(init?.body)).id,
-        result: { networkHash: `0x${"ff".repeat(32)}` },
+        result: { networkHash: b58(0xff) },
       }),
     );
     const { post } = await fixture(upstream);
@@ -429,11 +431,9 @@ describe("counter signing boundary", () => {
         receiver: contract,
         amount: 10n,
       }),
-      Counter.v0_1.increment.invocation(
-        addressFromHex(`0x${"33".repeat(32)}`),
-        gas,
-        { amount: 1n },
-      ),
+      Counter.v0_1.increment.invocation(addressFromBase58(b58(0x33)), gas, {
+        amount: 1n,
+      }),
       Counter.v0_1.initialize.invocation(contract, gas, { initialValue: 1n }),
       Counter.v0_1.ping.invocation(contract, gas, { tag: 1n }),
       Counter.v0_1.error.invocation(contract, gas),

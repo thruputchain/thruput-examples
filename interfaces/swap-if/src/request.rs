@@ -3,7 +3,7 @@
 #![allow(clippy::new_ret_no_self)]
 
 use crate::{Address, Amount, Amounts, RequestId};
-use sdk::*;
+use thruput_sdk::*;
 
 /// A high-level swap request, tagged with the [`RequestId`] that tracks it across its lifecycle.
 ///

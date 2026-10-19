@@ -1,3 +1,4 @@
+import { addressFromBase58, toHex0x } from "@thruputchain/client";
 import type { DiscoveryConfig } from "./config.ts";
 import {
   discoveryQuery,
@@ -32,10 +33,19 @@ export async function getDiscoveryTokens(
         signal: combined,
       },
     );
-    return validateDiscoveryResponse(
+    const page = validateDiscoveryResponse(
       await readDiscoveryJson(response, combined),
       config.scope,
     );
+    // Token form state is 0x hex; the registry wire is base58.
+    return {
+      ...page,
+      tokens: page.tokens.map((token) => ({
+        ...token,
+        tokenAddress: toHex0x(addressFromBase58(token.tokenAddress)),
+        creatorAddress: toHex0x(addressFromBase58(token.creatorAddress)),
+      })),
+    };
   } catch {
     combined.throwIfAborted();
     throw new Error(

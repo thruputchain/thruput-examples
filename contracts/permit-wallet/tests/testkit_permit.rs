@@ -25,12 +25,12 @@ use std::path::PathBuf;
 
 use ed25519_dalek::{Signer, SigningKey};
 use permit_wallet::WalletRequest;
-use sdk::types::transaction::Uniquifier;
-use sdk::types::{Ed25519PublicKey, Ed25519Signature};
-use sdk::xdr::BytesM;
 use thruput_domain_separator::SignedOp as SignedOpPreimage;
 use thruput_erc20_permit_if::{DeleteAllowanceRequest, PermitRequest};
 use thruput_json_rpc_client::GroundhogApiClient;
+use thruput_sdk::types::transaction::Uniquifier;
+use thruput_sdk::types::{Ed25519PublicKey, Ed25519Signature};
+use thruput_sdk::xdr::BytesM;
 use thruput_signed_op_if::Operation;
 use thruput_testkit::xdr::types::ContractAddress;
 use thruput_testkit::{
@@ -43,7 +43,7 @@ type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as
 // recorded in each `*.spec.json`; the testkit derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.55");
+const ERC20: (&str, &str) = ("ERC20", "0.1.60");
 const WALLET: (&str, &str) = ("PermitWallet", "0.1.0");
 const RELAYER: (&str, &str) = ("PermitRelayer", "0.1.0");
 
@@ -85,14 +85,14 @@ struct PermitConfig {
 
 /// The SDK's view of an address: the testkit and the SDK each re-export the
 /// protocol's `ContractAddress`, so this is a copy of the same 32 bytes.
-fn sdk_address(address: &Address) -> sdk::ContractAddress {
+fn sdk_address(address: &Address) -> thruput_sdk::ContractAddress {
     let mut bytes = [0u8; 32];
     bytes.copy_from_slice(address.as_ref());
-    sdk::ContractAddress::from(bytes)
+    thruput_sdk::ContractAddress::from(bytes)
 }
 
 /// The network hash the node binds into every signature, read over RPC.
-async fn network_hash(ctx: &AgentContext) -> sdk::types::NetworkHash {
+async fn network_hash(ctx: &AgentContext) -> thruput_sdk::types::NetworkHash {
     let client = ctx
         .network()
         .client()
@@ -101,12 +101,7 @@ async fn network_hash(ctx: &AgentContext) -> sdk::types::NetworkHash {
         .network_info()
         .await
         .expect("networkInfo answers on a live node");
-    let hex = serde_json::to_value(info.network_hash).expect("network hash serializes");
-    let hex = hex.as_str().expect("network hash is a hex string");
-    let mut bytes = [0u8; 32];
-    hex::decode_to_slice(hex.trim_start_matches("0x"), &mut bytes)
-        .expect("network hash is 32 bytes of hex");
-    sdk::types::NetworkHash::new(sdk::types::SHA256Hash::new(bytes))
+    thruput_sdk::types::NetworkHash::new(info.network_hash.0)
 }
 
 /// What Alice does off-chain: build the preimage from the network, her
@@ -114,14 +109,14 @@ async fn network_hash(ctx: &AgentContext) -> sdk::types::NetworkHash {
 /// sign it. Deterministic, so the same inputs reproduce the same bytes. The
 /// body is the wallet's own request type, naming the grant it should mint.
 fn sign_request(
-    network: &sdk::types::NetworkHash,
+    network: &thruput_sdk::types::NetworkHash,
     wallet: &Address,
     nonce: u64,
     expiry: i64,
     body: &WalletRequest,
 ) -> (Operation, Ed25519Signature) {
     let key = SigningKey::from_bytes(&ALICE_SEED);
-    let expiry = sdk::BlockHeight::from(expiry);
+    let expiry = thruput_sdk::BlockHeight::from(expiry);
     let preimage = SignedOpPreimage {
         network: network.clone(),
         verifying_contract: sdk_address(wallet),
@@ -137,7 +132,7 @@ fn sign_request(
     let op = Operation {
         block_expiry_height: expiry,
         nonce,
-        body: BytesM(sdk::xdr::cxs::encode(body).expect("encoding the body")),
+        body: BytesM(thruput_sdk::xdr::cxs::encode(body).expect("encoding the body")),
     };
     (op, Ed25519Signature::from(key.sign(&preimage).to_bytes()))
 }

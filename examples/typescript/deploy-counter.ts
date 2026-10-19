@@ -6,7 +6,7 @@ import {
   createWalletClient,
   prepareContractDeployment,
   PrivateKeySigner,
-  toHex0x,
+  toBase58,
 } from "@thruputchain/client";
 import { gasAmount } from "@thruputchain/protocol";
 import { Counter } from "./generated/counter.ts";
@@ -23,7 +23,7 @@ const account = createPubkeyAccount({
 });
 const wallet = createWalletClient({ client, account });
 const funding = await wallet.requestAirdrop();
-console.error(`Airdrop transaction: ${toHex0x(funding.txHash)}`);
+console.error(`Airdrop transaction: ${toBase58(funding.txHash)}`);
 assert.equal(funding.status.result, "ok", "Airdrop failed");
 
 const deployment = prepareContractDeployment({
@@ -45,7 +45,7 @@ const { address, txHash: deployHash } = await wallet.deployContractAndWait(
   },
   { timeoutMs: 60_000 },
 );
-console.error(`Deploy transaction: ${toHex0x(deployHash)}`);
+console.error(`Deploy transaction: ${toBase58(deployHash)}`);
 
 const { txHash: incrementHash, receipt } = await wallet.executeAndWait(
   {
@@ -56,7 +56,7 @@ const { txHash: incrementHash, receipt } = await wallet.executeAndWait(
   },
   { timeoutMs: 60_000 },
 );
-console.error(`Increment transaction: ${toHex0x(incrementHash)}`);
+console.error(`Increment transaction: ${toBase58(incrementHash)}`);
 const view = await waitForView(() =>
   Counter.v0_1.get.view({
     client,
@@ -75,16 +75,16 @@ const { txHash: eventHash } = await wallet.executeAndWait(
   },
   { timeoutMs: 60_000 },
 );
-console.error(`Ping transaction: ${toHex0x(eventHash)}`);
+console.error(`Ping transaction: ${toBase58(eventHash)}`);
 
 console.log(
   JSON.stringify(
     {
-      account: toHex0x(account.address),
-      contractAddress: toHex0x(address),
-      deployHash: toHex0x(deployHash),
-      incrementHash: toHex0x(incrementHash),
-      eventHash: toHex0x(eventHash),
+      account: toBase58(account.address),
+      contractAddress: toBase58(address),
+      deployHash: toBase58(deployHash),
+      incrementHash: toBase58(incrementHash),
+      eventHash: toBase58(eventHash),
       value: view.value.toString(),
     },
     null,

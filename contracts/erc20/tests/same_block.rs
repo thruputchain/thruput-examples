@@ -11,9 +11,9 @@
 //! block that grants it.
 
 use erc20::ERC20Client;
-use sdk::call::RawCallError;
-use sdk::*;
 use thruput_erc20_if::ERC20Error;
+use thruput_sdk::call::RawCallError;
+use thruput_sdk::*;
 
 fn token() -> ContractAddress {
     ContractAddress::named("token")

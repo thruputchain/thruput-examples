@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -18,8 +19,8 @@ afterEach(() => {
   localStorage.clear();
 });
 async function setup() {
-  const client = await testClient(config.networkIdHex);
-  const wallet = testWallet(config.networkIdHex);
+  const client = await testClient(config.networkId);
+  const wallet = testWallet(config.networkId);
   cleanups.push(wallet.unregister);
   render(
     <AppProviders client={client}>
@@ -47,7 +48,7 @@ it("preserves public filters and disconnected launch drafts while isolating acco
   expect(screen.getByLabelText("Token name")).toHaveValue("Acorn");
   await act(async () =>
     wallet.change({
-      networkHash: config.networkIdHex,
+      networkHash: config.networkId,
       accounts: [testAccount(2n)],
     }),
   );
@@ -63,7 +64,10 @@ it("handles popup cancellation quietly and makes wrong-network sessions read-onl
   expect(screen.queryByRole("alert")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
   await act(async () =>
-    wallet.change({ networkHash: "cd".repeat(32), accounts: [testAccount()] }),
+    wallet.change({
+      networkHash: toBase58(new Uint8Array(32).fill(0xcd)),
+      accounts: [testAccount()],
+    }),
   );
   expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
   expect(screen.getByRole("alert")).toHaveTextContent("network");

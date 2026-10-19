@@ -1,14 +1,14 @@
 import {
-  addressFromHex,
+  addressFromBase58,
   bytesEqual,
   createThruputClient,
   defineCluster,
   deserializeSignedTransaction,
   fromHex0x,
   hashSignedTransaction,
-  hashFromHex,
+  hashFromBase58,
   HttpTransport,
-  toHex0x,
+  toBase58,
 } from "@thruputchain/client";
 import { ExecResult, networkHash } from "@thruputchain/protocol";
 import type { AppConfig } from "../config";
@@ -21,7 +21,7 @@ export async function createCounterConnection(
   if (!config.signerAddress)
     throw new Error("Development signer is not configured.");
   const controller = new AbortController();
-  const expected = networkHash(hashFromHex(config.networkId));
+  const expected = networkHash(hashFromBase58(config.networkId));
   const client = await createThruputClient({
     cluster: defineCluster({
       name: "counter",
@@ -40,7 +40,7 @@ export async function createCounterConnection(
         }),
     }),
   });
-  const signerAddress = addressFromHex(config.signerAddress);
+  const signerAddress = addressFromBase58(config.signerAddress);
 
   return {
     async read() {
@@ -76,7 +76,7 @@ export async function createCounterConnection(
       const signed = deserializeSignedTransaction(fromHex0x(body.transaction));
       const hash = hashSignedTransaction(signed);
       return {
-        hash: toHex0x(hash),
+        hash: toBase58(hash),
         async submit() {
           const received = await client.sendTransaction(signed);
           if (!bytesEqual(received, hash))
@@ -86,8 +86,8 @@ export async function createCounterConnection(
         },
       };
     },
-    async observe(hashHex) {
-      const hash = hashFromHex(hashHex);
+    async observe(hashText) {
+      const hash = hashFromBase58(hashText);
       const receipt = await client.getTransactionReceipt(hash);
       if (receipt) {
         if (!bytesEqual(receipt.txHash, hash))

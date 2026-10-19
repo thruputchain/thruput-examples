@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { toHex0x } from "@thruputchain/client";
+import { toBase58, toHex0x } from "@thruputchain/client";
 import {
   transactionReceiptQueryOptions,
   useClient,
@@ -26,7 +26,7 @@ export function useTransactions(config: GlobalConfig) {
           return queries.fetchQuery(
             transactionReceiptQueryOptions({
               client,
-              hash: toHex0x(hash),
+              hash: toBase58(hash),
               wait: { timeoutMs: 20_000, pollingIntervalMs: 500 },
             }),
           );

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { hashFromBase58, toBase58 } from "@thruputchain/client";
 import { provisionSwap } from "./provision";
 
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -31,7 +32,7 @@ export async function main(
     rpcUrl: validateLocalRpcUrl(
       env.THRUPUT_RPC_URL || "http://127.0.0.1:9545",
     ),
-    networkId: expected ?? `0x${"00".repeat(32)}`,
+    networkId: expected ?? toBase58(new Uint8Array(32)),
     output: env.SWAP_APP_ENV || "apps/swap/.env.local",
     artifactRoot: env.SWAP_ARTIFACT_ROOT,
     publicDirectory: env.SWAP_APP_PUBLIC_DIR,
@@ -54,9 +55,13 @@ export function validateLocalRpcUrl(value: string): string {
 }
 
 function normalizeNetworkHash(value: string): string {
-  const match = /^(?:0x)?([0-9a-f]{64})$/i.exec(value);
-  if (!match) throw new Error("Invalid local network hash");
-  return `0x${match[1]!.toLowerCase()}`;
+  try {
+    const canonical = toBase58(hashFromBase58(value));
+    if (canonical === value) return canonical;
+  } catch {
+    // Reported below.
+  }
+  throw new Error("Invalid local network hash: expected base58");
 }
 
 if (

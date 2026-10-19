@@ -5,6 +5,7 @@ import { request as httpRequest, type Server } from "node:http";
 import os from "node:os";
 import path from "node:path";
 
+import { toBase58 } from "@thruputchain/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RegistryPool, RegistryScope } from "../shared/registry.ts";
@@ -290,7 +291,7 @@ describe("production HTTP server", () => {
   });
 
   it("serves the LP contract artifact as same-origin JSON without an RPC call", async () => {
-    const artifact = { contractType: "rv32", data: "0x010203", hash: address(9) };
+    const artifact = { contractType: "rv32", data: "0x010203", hash: wireId(9) };
     await mkdir(path.join(directory, "contract-artifacts"));
     await writeFile(path.join(directory, "contract-artifacts", `${artifact.hash}.json`), JSON.stringify(artifact));
     const response = await fetch(`${origin}/contract-artifacts/${artifact.hash}.json`);
@@ -305,7 +306,7 @@ describe("production HTTP server", () => {
       "/api/unknown",
       "/thruput-rpc/extra",
       "/assets/missing.js",
-      `/contract-artifacts/${address(9)}.json`,
+      `/contract-artifacts/${wireId(9)}.json`,
       "/missing.css",
     ]) {
       const response = await fetch(`${origin}${target}`);
@@ -332,8 +333,8 @@ describe("production HTTP server", () => {
   it.each([
     ["groundhog_networkInfo", []],
     ["groundhog_chainTip", []],
-    ["groundhog_getTransactionReceipt", [hash(1)]],
-    ["groundhog_getTransactionStatus", [hash(2)]],
+    ["groundhog_getTransactionReceipt", [wireId(1)]],
+    ["groundhog_getTransactionStatus", [wireId(2)]],
     ["groundhog_view", [viewRequest()]],
     ["groundhog_getEvents", [eventQuery()]],
   ])(
@@ -388,7 +389,7 @@ describe("production HTTP server", () => {
         jsonrpc: "2.0",
         id: 1,
         method: "groundhog_getTransactionStatus",
-        params: [hash(1).toUpperCase()],
+        params: [hash(1)],
       },
       400,
     ],
@@ -874,16 +875,21 @@ function address(value: number): string {
   return `0x${value.toString(16).padStart(64, "0")}`;
 }
 
+/** RPC addresses and transaction hashes are base58 on the wire. */
+function wireId(value: number): string {
+  return toBase58(new Uint8Array(32).fill(value));
+}
+
 function hash(value: number): string {
   return `0x${value.toString(16).padStart(64, "0")}`;
 }
 
 function viewRequest() {
   return {
-    contract: address(1),
+    contract: wireId(1),
     entrypoint: `0x${"12".repeat(8)}`,
     calldata: "0x",
-    caller: address(2),
+    caller: wireId(2),
   };
 }
 
@@ -891,7 +897,7 @@ function eventQuery() {
   return {
     filters: [
       {
-        contractAddresses: [address(1)],
+        contractAddresses: [wireId(1)],
         topics: { topic0: [hash(2)], topic1: [], topic2: [] },
       },
     ],

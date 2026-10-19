@@ -1,4 +1,9 @@
-import { toHex0x } from "@thruputchain/client";
+import {
+  addressFromBase58,
+  hashFromBase58,
+  toBase58,
+  toHex0x,
+} from "@thruputchain/client";
 
 import type { AppConfig } from "@/config";
 import type { FactoryReview } from "@/contracts/launchpad-client";
@@ -6,9 +11,9 @@ import { userErrorMessage } from "@/lib/errors";
 import type { ParsedToken } from "@/launch/form";
 import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
 
-const WORKFLOW_VERSION = 3 as const;
+const WORKFLOW_VERSION = 4 as const;
 const LEGACY_WORKFLOW_VERSION = 1;
-const HASH = /^0x[0-9a-f]{64}$/;
+const NONCE = /^0x[0-9a-f]{64}$/;
 
 export type StepStatus =
   "idle" | "signing" | "pending" | "committed" | "failed" | "uncertain";
@@ -23,9 +28,9 @@ export interface LaunchWorkflow {
   version: typeof WORKFLOW_VERSION;
   id: string;
   revision: number;
-  networkIdHex: string;
-  factoryAddressHex: string;
-  creatorAddressHex: string;
+  networkId: string;
+  factoryAddress: string;
+  creatorAddress: string;
   nonceHex: string;
   token: {
     name: string;
@@ -33,12 +38,12 @@ export interface LaunchWorkflow {
     decimals: number;
     initialSupply: string;
   };
-  predictedAddressHex: string;
-  reviewedNativeTokenHex: string;
-  reviewedTokenCodeHashHex: string;
+  predictedAddress: string;
+  reviewedNativeToken: string;
+  reviewedTokenCodeHash: string;
   requiredTokenFunding: string;
   reviewedCreationFee: string;
-  reviewedFeeRecipientHex: string | null;
+  reviewedFeeRecipient: string | null;
   reviewedFundingAmount: string;
   reviewedReserve: string;
   plannedFundingAmount: string;
@@ -51,7 +56,7 @@ export interface LaunchWorkflow {
     totalSupply: string | null;
     holderBalance: string | null;
   };
-  createdAddressHex: string | null;
+  createdAddress: string | null;
   creationBlock: string | null;
   error: string | null;
 }
@@ -66,25 +71,25 @@ export class WorkflowStorageError extends Error {
 export function workflowStorageKey(config: AppConfig): string {
   return [
     "groundhog-token-launchpad:workflow:v1",
-    config.networkIdHex,
-    toHex0x(config.factoryAddress),
-    toHex0x(config.accountAddress),
+    config.networkId,
+    toBase58(config.factoryAddress),
+    toBase58(config.accountAddress),
   ].join(":");
 }
 
 export function workflowLockName(config: AppConfig): string {
   return [
     "groundhog-token-launchpad:write:v1",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
   ].join(":");
 }
 
 export function workflowSessionLockName(config: AppConfig): string {
   return [
     "groundhog-token-launchpad:write-session:v1",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
   ].join(":");
 }
 
@@ -99,9 +104,9 @@ export function createWorkflow(
     executionMode: "auto",
     id: crypto.randomUUID(),
     revision: 0,
-    networkIdHex: config.networkIdHex,
-    factoryAddressHex: toHex0x(config.factoryAddress),
-    creatorAddressHex: toHex0x(config.accountAddress),
+    networkId: config.networkId,
+    factoryAddress: toBase58(config.factoryAddress),
+    creatorAddress: toBase58(config.accountAddress),
     nonceHex: toHex0x(nonce),
     token: {
       name: token.name,
@@ -109,15 +114,15 @@ export function createWorkflow(
       decimals: token.decimals,
       initialSupply: token.initialSupply.toString(),
     },
-    predictedAddressHex: review.predictedAddressHex,
-    reviewedNativeTokenHex: toHex0x(review.config.native_token),
-    reviewedTokenCodeHashHex: toHex0x(review.config.token_code_hash),
+    predictedAddress: toBase58(review.predictedAddress),
+    reviewedNativeToken: toBase58(review.config.native_token),
+    reviewedTokenCodeHash: toBase58(review.config.token_code_hash),
     requiredTokenFunding: review.config.required_token_funding.toString(),
     reviewedCreationFee: review.config.creation_fee.toString(),
-    reviewedFeeRecipientHex:
+    reviewedFeeRecipient:
       review.config.fee_recipient === null
         ? null
-        : toHex0x(review.config.fee_recipient),
+        : toBase58(review.config.fee_recipient),
     reviewedFundingAmount: review.fundingAmount.toString(),
     reviewedReserve: review.currentReserve.toString(),
     plannedFundingAmount: review.fundingAmount.toString(),
@@ -130,7 +135,7 @@ export function createWorkflow(
       totalSupply: null,
       holderBalance: null,
     },
-    createdAddressHex: null,
+    createdAddress: null,
     creationBlock: null,
     error: null,
   };
@@ -209,7 +214,7 @@ export function canDiscardInvalidStoredWorkflow(
   return (
     isPristineStep(value.funding) &&
     isPristineStep(value.creation) &&
-    value.createdAddressHex === null &&
+    value.createdAddress === null &&
     value.creationBlock === null &&
     isPristineVerification(value.verification)
   );
@@ -220,9 +225,9 @@ export function assertWorkflowScope(
   config: AppConfig,
 ): void {
   if (
-    workflow.networkIdHex !== config.networkIdHex ||
-    workflow.factoryAddressHex !== toHex0x(config.factoryAddress) ||
-    workflow.creatorAddressHex !== toHex0x(config.accountAddress)
+    workflow.networkId !== config.networkId ||
+    workflow.factoryAddress !== toBase58(config.factoryAddress) ||
+    workflow.creatorAddress !== toBase58(config.accountAddress)
   ) {
     throw new WorkflowStorageError(
       "The saved launch workflow belongs to another account or network",
@@ -232,27 +237,27 @@ export function assertWorkflowScope(
 
 export function workflowIntent(workflow: LaunchWorkflow): string {
   return JSON.stringify([
-    workflow.networkIdHex,
-    workflow.factoryAddressHex,
-    workflow.creatorAddressHex,
+    workflow.networkId,
+    workflow.factoryAddress,
+    workflow.creatorAddress,
     workflow.nonceHex,
     workflow.token.name,
     workflow.token.symbol,
     workflow.token.decimals,
     workflow.token.initialSupply,
-    workflow.predictedAddressHex,
-    workflow.reviewedNativeTokenHex,
-    workflow.reviewedTokenCodeHashHex,
+    workflow.predictedAddress,
+    workflow.reviewedNativeToken,
+    workflow.reviewedTokenCodeHash,
     workflow.requiredTokenFunding,
     workflow.reviewedCreationFee,
-    workflow.reviewedFeeRecipientHex,
+    workflow.reviewedFeeRecipient,
     workflow.plannedFundingAmount,
     workflow.plannedReserve,
   ]);
 }
 
 function parseWorkflow(value: unknown): LaunchWorkflow {
-  if (!isRecord(value) || (value.version !== WORKFLOW_VERSION && value.version !== 2)) {
+  if (!isRecord(value) || value.version !== WORKFLOW_VERSION) {
     throw new WorkflowStorageError(
       "The saved launch workflow version is unsupported",
     );
@@ -262,37 +267,40 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
     version: WORKFLOW_VERSION,
     id: string(value.id),
     revision: integer(value.revision, 0, Number.MAX_SAFE_INTEGER),
-    networkIdHex: networkHex(value.networkIdHex),
-    factoryAddressHex: hex(value.factoryAddressHex),
-    creatorAddressHex: hex(value.creatorAddressHex),
-    nonceHex: hex(value.nonceHex),
+    networkId: hash(value.networkId),
+    factoryAddress: address(value.factoryAddress),
+    creatorAddress: address(value.creatorAddress),
+    nonceHex: nonceHex(value.nonceHex),
     token: {
       name: stringField(token, "name"),
       symbol: stringField(token, "symbol"),
       decimals: integerField(token, "decimals", 0, 18),
       initialSupply: signedAmountField(token, "initialSupply"),
     },
-    predictedAddressHex: hex(value.predictedAddressHex),
-    reviewedNativeTokenHex: hex(value.reviewedNativeTokenHex),
-    reviewedTokenCodeHashHex: hex(value.reviewedTokenCodeHashHex),
+    predictedAddress: address(value.predictedAddress),
+    reviewedNativeToken: address(value.reviewedNativeToken),
+    reviewedTokenCodeHash: hash(value.reviewedTokenCodeHash),
     requiredTokenFunding: signedAmount(value.requiredTokenFunding),
     reviewedCreationFee: signedAmount(value.reviewedCreationFee),
-    reviewedFeeRecipientHex:
-      value.reviewedFeeRecipientHex === null
+    reviewedFeeRecipient:
+      value.reviewedFeeRecipient === null
         ? null
-        : hex(value.reviewedFeeRecipientHex),
+        : address(value.reviewedFeeRecipient),
     reviewedFundingAmount: signedAmount(value.reviewedFundingAmount),
     reviewedReserve: unsigned(value.reviewedReserve),
     plannedFundingAmount: signedAmount(
       value.plannedFundingAmount ?? value.reviewedFundingAmount,
     ),
     plannedReserve: unsigned(value.plannedReserve ?? value.reviewedReserve),
-    executionMode: value.version === 2 || value.executionMode === undefined ? "single" : executionMode(value.executionMode),
+    executionMode:
+      value.executionMode === undefined
+        ? "single"
+        : executionMode(value.executionMode),
     funding: step(value.funding),
     creation: step(value.creation),
     verification: verification(value.verification),
-    createdAddressHex:
-      value.createdAddressHex === null ? null : hex(value.createdAddressHex),
+    createdAddress:
+      value.createdAddress === null ? null : address(value.createdAddress),
     creationBlock:
       value.creationBlock === null ? null : unsigned(value.creationBlock),
     error:
@@ -319,7 +327,7 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
     throw new WorkflowStorageError();
   }
   const hasCreationEvidence =
-    workflow.createdAddressHex !== null && workflow.creationBlock !== null;
+    workflow.createdAddress !== null && workflow.creationBlock !== null;
   if (
     (workflow.executionMode === "batch" &&
       (workflow.funding.status !== workflow.creation.status ||
@@ -327,8 +335,8 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
     (workflow.creation.status === "committed") !== hasCreationEvidence ||
     (workflow.creation.status === "committed" &&
       workflow.funding.status !== "committed") ||
-    (workflow.createdAddressHex !== null &&
-      workflow.createdAddressHex !== workflow.predictedAddressHex) ||
+    (workflow.createdAddress !== null &&
+      workflow.createdAddress !== workflow.predictedAddress) ||
     (workflow.creation.status === "committed" &&
       workflow.verification.status === "pending") ||
     (workflow.creation.status !== "committed" &&
@@ -362,7 +370,10 @@ function step(value: unknown): WorkflowStep {
     throw new WorkflowStorageError();
   }
   const hash = value.hash;
-  if (hash !== null && (typeof hash !== "string" || !HASH.test(hash))) {
+  if (
+    hash !== null &&
+    (typeof hash !== "string" || !isBase58(hash, hashFromBase58))
+  ) {
     throw new WorkflowStorageError();
   }
   if (
@@ -414,16 +425,31 @@ function verification(value: unknown): LaunchWorkflow["verification"] {
   };
 }
 
-function hex(value: unknown): string {
+function nonceHex(value: unknown): string {
   const parsed = string(value);
-  if (!HASH.test(parsed)) throw new WorkflowStorageError();
+  if (!NONCE.test(parsed)) throw new WorkflowStorageError();
   return parsed;
 }
 
-function networkHex(value: unknown): string {
+function address(value: unknown): string {
   const parsed = string(value);
-  if (!/^[0-9a-f]{64}$/.test(parsed)) throw new WorkflowStorageError();
+  if (!isBase58(parsed, addressFromBase58)) throw new WorkflowStorageError();
   return parsed;
+}
+
+function hash(value: unknown): string {
+  const parsed = string(value);
+  if (!isBase58(parsed, hashFromBase58)) throw new WorkflowStorageError();
+  return parsed;
+}
+
+// Identifiers are compared as text, so accept only the canonical encoding.
+function isBase58(value: string, decode: (text: string) => Uint8Array) {
+  try {
+    return toBase58(decode(value)) === value;
+  } catch {
+    return false;
+  }
 }
 
 function unsigned(value: unknown): string {

@@ -7,9 +7,10 @@ import {
   createPubkeyAccount,
   createWalletClient,
   defineCluster,
-  hashFromHex,
+  hashFromBase58,
   HttpTransport,
   PrivateKeySigner,
+  toBase58,
   toHex0x,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
@@ -40,26 +41,23 @@ export async function provisionCounter(options: {
     cluster: defineCluster({
       name: options.network,
       rpcUrl: options.rpcUrl,
-      networkHash: networkHash(hashFromHex(options.networkId)),
+      networkHash: networkHash(hashFromBase58(options.networkId)),
       capabilities: ["airdrop"] as const,
     }),
     transport: new HttpTransport(options.rpcUrl, { timeoutMs: 15_000 }),
   });
   const version = await client.getVersion();
   if (
-    !/^(?:[4-9]|[1-9]\d+)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(
+    !/^(?:1[3-9]|[2-9]\d|[1-9]\d{2,})\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(
       version.wireFormat,
     )
   ) {
     throw new Error(
-      `RPC wire format >=4.0.0 is required; found ${version.wireFormat}`,
+      `RPC wire format >=13.0.0 is required; found ${version.wireFormat}`,
     );
   }
   const contract = await readFile(
-    resolve(
-      repositoryRoot,
-      options.artifact || "target/thruput/counter.rv32a",
-    ),
+    resolve(repositoryRoot, options.artifact || "target/thruput/counter.rv32a"),
   );
   const key = randomBytes(32);
   const account = createPubkeyAccount({ signer: new PrivateKeySigner(key) });
@@ -71,8 +69,8 @@ export async function provisionCounter(options: {
   const address = deployment.address;
   const config = parseConfig({
     networkId: options.networkId,
-    counterAddress: toHex0x(address),
-    signerAddress: toHex0x(account.address),
+    counterAddress: toBase58(address),
+    signerAddress: toBase58(account.address),
     explorerUrl: options.explorerUrl,
   });
   const execute = async (name: string, invocation: Invocation) => {
@@ -80,7 +78,7 @@ export async function provisionCounter(options: {
       { invocation, gasLimit: GAS },
       { timeoutMs: 60_000 },
     );
-    console.log(`${name}: ${toHex0x(txHash)}`);
+    console.log(`${name}: ${toBase58(txHash)}`);
   };
   const output = resolve(repositoryRoot, options.output);
   await mkdir(dirname(output), { recursive: true });
@@ -98,10 +96,14 @@ export async function provisionCounter(options: {
         amount: 10_000_000n,
       }),
     );
-    const { txHash } = await wallet.deployContractAndWait(deployment, { gasLimit: GAS, amount: 0n }, {
-      timeoutMs: 60_000,
-    });
-    console.log(`Deploy counter: ${toHex0x(txHash)}`);
+    const { txHash } = await wallet.deployContractAndWait(
+      deployment,
+      { gasLimit: GAS, amount: 0n },
+      {
+        timeoutMs: 60_000,
+      },
+    );
+    console.log(`Deploy counter: ${toBase58(txHash)}`);
     await execute(
       "Initialize counter",
       Counter.v0_1.initialize.invocation(address, GAS, {

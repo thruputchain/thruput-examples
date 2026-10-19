@@ -4,14 +4,14 @@
 use crate::BatchRequest;
 use crate::drain::{budget_for_batch, process};
 use crate::events::{RequestAccepted, RequestFailed, RequestsProcessed};
-use sdk::stats::gas_remaining;
-use sdk::storage::*;
-use sdk::*;
+use thruput_sdk::stats::gas_remaining;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 use unique_ids::UniqueIds;
 
 /// How deep a driver's queue may get, and how much of that depth a single crank must process.
 #[derive(Clone, Copy, ReadXDR, WriteXDR)]
-#[xdrs(crate = "::sdk::__xdrs")]
+#[xdrs(crate = "::thruput_sdk::__xdrs")]
 pub struct CrankPolicy {
     /// The most entries the queue will hold. This is what bounds the storage deposit the queue can
     /// lock out of the driver's balance.

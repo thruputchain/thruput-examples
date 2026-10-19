@@ -2,9 +2,9 @@
 
 use core::fmt;
 
-use sdk::*;
 use thruput_erc20_if::{Amount, ERC20Error};
 use thruput_erc20_metadata_if::{Name, Symbol};
+use thruput_sdk::*;
 
 use crate::TokenCreated;
 

@@ -23,7 +23,7 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 uint = { version = "0.10.0", default-features = false }
 heapless = { workspace = true }
@@ -38,9 +38,9 @@ erc20 = { path = "../erc20", features = ["dev"], optional = true }
 thruput-erc20-metadata-if = { workspace = true, features = ["dev"], optional = true }
 
 [features]
-entrypoints = ["sdk/alloc"]
+entrypoints = ["thruput-sdk/alloc"]
 erc20_metadata = ["erc20?/metadata", "dep:thruput-erc20-metadata-if"]
-dev = ["sdk/dev", "dep:erc20", "erc20_metadata", "swap-if/dev", "swap-pair/dev", "swap-handler/dev", "batch-driver/dev"]
+dev = ["thruput-sdk/dev", "dep:erc20", "erc20_metadata", "swap-if/dev", "swap-pair/dev", "swap-handler/dev", "batch-driver/dev"]
 guest_test = []
 calibration = ["batch-driver/calibration"]
 

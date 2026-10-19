@@ -2,17 +2,17 @@
 
 use crate::interface::*;
 #[cfg(feature = "permit")]
-use sdk::signer::Signed;
-use sdk::storage::deletable::Deletable;
-use sdk::storage::{Balance, Map, Value};
-use sdk::*;
+use thruput_sdk::signer::Signed;
+use thruput_sdk::storage::deletable::Deletable;
+use thruput_sdk::storage::{Balance, Map, Value};
+use thruput_sdk::*;
 
 /// An allowance is a non-negative amount like a balance: a missing entry
 /// reads as zero, a zero change touches no storage, and the checked
 /// operations refuse to cross zero or `i128::MAX`.
 type Allowance = Balance;
 
-#[sdk::storage]
+#[thruput_sdk::storage]
 #[cfg_attr(feature = "dev", derive(Debug))]
 pub struct TokenContract {
     config: Value<Config>,

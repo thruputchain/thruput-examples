@@ -1,4 +1,4 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { configuration } from "@/test/fixtures";
@@ -9,7 +9,7 @@ import {
   requestRegistrySync,
 } from "@/registry/client";
 
-const tokenAddress = `0x${"04".repeat(32)}`;
+const tokenAddress = toBase58(new Uint8Array(32).fill(0x04));
 
 describe("registry client", () => {
   it("builds a same-origin list request and validates its scope", async () => {
@@ -30,7 +30,7 @@ describe("registry client", () => {
       config,
       {
         q: " Acorn ",
-        creator: toHex0x(config.accountAddress),
+        creator: toBase58(config.accountAddress),
         sort: "name",
         limit: 20,
         offset: 0,
@@ -42,7 +42,7 @@ describe("registry client", () => {
       "170141183460469231731687303715884105727",
     );
     expect(fetcher).toHaveBeenCalledWith(
-      `/api/tokens?sort=name&limit=20&offset=0&q=Acorn&creator=${encodeURIComponent(toHex0x(config.accountAddress))}`,
+      `/api/tokens?sort=name&limit=20&offset=0&q=Acorn&creator=${encodeURIComponent(toBase58(config.accountAddress))}`,
       { method: "GET", signal: controller.signal },
     );
   });
@@ -65,11 +65,12 @@ describe("registry client", () => {
       getRegistryStatus(
         config,
         undefined,
-        vi
-          .fn()
-          .mockResolvedValue(
-            jsonResponse({ ...status(config), networkId: "ff".repeat(32) }),
-          ),
+        vi.fn().mockResolvedValue(
+          jsonResponse({
+            ...status(config),
+            networkId: toBase58(new Uint8Array(32).fill(0xff)),
+          }),
+        ),
       ),
     ).rejects.toThrow(/different chain scope/);
     await expect(
@@ -147,7 +148,7 @@ describe("registry client", () => {
 
   it("rejects creator-filter violations and duplicate token addresses", async () => {
     const config = configuration();
-    const creator = toHex0x(config.accountAddress);
+    const creator = toBase58(config.accountAddress);
     const page = {
       tokens: [token(config)],
       total: 1,
@@ -166,7 +167,10 @@ describe("registry client", () => {
           jsonResponse({
             ...page,
             tokens: [
-              { ...token(config), creatorAddress: `0x${"09".repeat(32)}` },
+              {
+                ...token(config),
+                creatorAddress: toBase58(new Uint8Array(32).fill(0x09)),
+              },
             ],
           }),
         ),
@@ -191,18 +195,18 @@ describe("registry client", () => {
 
 function token(config = configuration()) {
   return {
-    networkId: config.networkIdHex,
-    factoryAddress: toHex0x(config.factoryAddress),
+    networkId: config.networkId,
+    factoryAddress: toBase58(config.factoryAddress),
     tokenAddress,
-    creatorAddress: toHex0x(config.accountAddress),
-    administratorAddress: `0x${"05".repeat(32)}`,
-    initialHolderAddress: `0x${"06".repeat(32)}`,
+    creatorAddress: toBase58(config.accountAddress),
+    administratorAddress: toBase58(new Uint8Array(32).fill(0x05)),
+    initialHolderAddress: toBase58(new Uint8Array(32).fill(0x06)),
     initialSupply: "170141183460469231731687303715884105727",
     name: "Acorn",
     symbol: "NUT",
     decimals: 18,
-    tokenCodeHash: toHex0x(config.expectedTokenHash),
-    transactionHash: `0x${"07".repeat(32)}`,
+    tokenCodeHash: toBase58(config.expectedTokenHash),
+    transactionHash: toBase58(new Uint8Array(32).fill(0x07)),
     eventSequence: 0,
     blockHeight: "12",
     indexedAt: "2026-09-05T00:00:00.000Z",
@@ -211,8 +215,8 @@ function token(config = configuration()) {
 
 function status(config = configuration()) {
   return {
-    networkId: config.networkIdHex,
-    factoryAddress: toHex0x(config.factoryAddress),
+    networkId: config.networkId,
+    factoryAddress: toBase58(config.factoryAddress),
     indexedThroughBlock: "12",
     tokenCount: 1,
     historyLimited: false,

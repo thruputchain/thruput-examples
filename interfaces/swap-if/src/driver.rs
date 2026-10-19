@@ -3,7 +3,7 @@
 use crate::{
     Address, ERC20Error, RequestId, SwapLibraryError, SwapPairError, SwapRequest, SwapRequestError,
 };
-use sdk::*;
+use thruput_sdk::*;
 
 /// Errors from the driver itself, as opposed to the requests it carries.
 #[contract_exception]

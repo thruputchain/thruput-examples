@@ -1,13 +1,17 @@
 // @vitest-environment node
+import { fromHex0x, toBase58 } from "@thruputchain/client";
 import { describe, expect, it, vi } from "vitest";
 import { getDiscoveryTokens } from "./client.ts";
 import { loadDiscoveryConfig } from "./config.ts";
 import { validateDiscoveryResponse } from "./wire.ts";
 
-const address = (n: number) => `0x${n.toString(16).padStart(64, "0")}`;
+// The registry API and environment use base58; the browser client hands
+// token form state 0x hex.
+const hex = (n: number) => `0x${n.toString(16).padStart(64, "0")}`;
+const address = (n: number) => toBase58(fromHex0x(hex(n)));
 const config = loadDiscoveryConfig({
   VITE_TOKEN_DISCOVERY_ENABLED: "true",
-  VITE_THRUPUT_NETWORK_ID: "ab".repeat(32),
+  VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0xab)),
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: address(1),
   VITE_STANDARD_TOKEN_HASH: address(2),
 });
@@ -33,7 +37,10 @@ describe("browser token discovery client", () => {
       .mockResolvedValue(Response.json(response));
     expect(
       await getDiscoveryTokens(config, " creator ", undefined, fetcher),
-    ).toEqual(response);
+    ).toEqual({
+      ...response,
+      tokens: [{ ...token, tokenAddress: hex(3), creatorAddress: hex(4) }],
+    });
     expect(fetcher).toHaveBeenCalledWith(
       "/api/token-discovery?q=creator",
       expect.objectContaining({
@@ -57,7 +64,8 @@ describe("browser token discovery client", () => {
   it.each([
     { ...response, extra: "private" },
     { ...response, scope: { ...config.scope, extra: "private" } },
-    { ...response, scope: { ...config.scope, networkId: "cd".repeat(32) } },
+    { ...response, scope: { ...config.scope, networkId: address(0xcd) } },
+    { ...response, tokens: [{ ...token, tokenAddress: hex(3) }] },
     { ...response, scope: { ...config.scope, factoryAddress: address(99) } },
     { ...response, scope: { ...config.scope, tokenCodeHash: address(99) } },
     { ...response, tokens: [{ ...token, blockHeight: "1" }] },

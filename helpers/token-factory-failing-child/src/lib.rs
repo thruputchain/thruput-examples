@@ -2,12 +2,12 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::storage::Value;
-use sdk::*;
 use standard_token_factory_if::{Amount, Name, StandardTokenInitializer, Symbol};
 use thruput_erc20_if::ERC20Error;
+use thruput_sdk::storage::Value;
+use thruput_sdk::*;
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
 #[derive(Event)]
 struct TentativeWrite {

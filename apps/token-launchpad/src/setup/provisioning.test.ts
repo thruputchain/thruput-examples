@@ -18,6 +18,7 @@ import {
   fixedBytes,
   fromHex0x,
   hashContract,
+  toBase58,
   toHex0x,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
@@ -79,7 +80,7 @@ const config = {
   fee_recipient: null,
 };
 const costs = {
-  hash: "0x7fcd5d27353800caf9f8f3a73a030be49a1dcd9db4616792e7887746bea713ce",
+  hash: "9btQLv5PdVwzgrgXKD2Vq5EbWzoNmpwK2jnNg3Mi9FRP",
   baseDataItemCost: "12000",
   bytestringCostPerByte: "10",
   baseContractDeploymentCost: "12000",
@@ -89,7 +90,8 @@ const costs = {
   replayCacheCostPerEntry: "7",
   balanceCost: "1234",
 };
-const manifestContents = (networkHash = `0x${"00".repeat(32)}`) => ({
+const zeroNetwork = toBase58(new Uint8Array(32));
+const manifestContents = (networkHash = zeroNetwork) => ({
   networkHash,
   bootstrap: { storageCostModel: costs },
 });
@@ -106,7 +108,7 @@ beforeEach(async () => {
   assetPath = join(
     root,
     "public/contract-artifacts",
-    `${toHex0x(hashContract(contract("standard_token")))}.json`,
+    `${toBase58(hashContract(contract("standard_token")))}.json`,
   );
   oldAssetPath = join(
     root,
@@ -144,9 +146,9 @@ beforeEach(async () => {
     JSON.stringify(manifestContents()),
   );
   vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", join(root, "runtime.json"));
-  vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"00".repeat(32)}`);
+  vi.stubEnv("THRUPUT_NETWORK_ID", zeroNetwork);
   phases = [];
-  mocks.getVersion.mockResolvedValue({ wireFormat: "4.0.0" });
+  mocks.getVersion.mockResolvedValue({ wireFormat: "13.0.0" });
   mocks.deriveContractAddress.mockReturnValue(factory);
   mocks.requestAirdrop.mockImplementation(async () => {
     phases.push("airdrop");
@@ -177,7 +179,7 @@ afterEach(async () => {
 describe("infrastructure-only launchpad provisioning", () => {
   it("provisions Devnet without a local manifest and verifies native balance bookkeeping", async () => {
     vi.stubEnv("THRUPUT_RPC_URL", undefined);
-    vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"11".repeat(32)}`);
+    vi.stubEnv("THRUPUT_NETWORK_ID", toBase58(new Uint8Array(32).fill(0x11)));
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "/unused-local-manifest.json");
     mocks.getBalance
       .mockResolvedValueOnce({ rawBalance: 1_000_000_000n })
@@ -261,13 +263,13 @@ describe("infrastructure-only launchpad provisioning", () => {
       "VITE_THRUPUT_RPC_URL=http://127.0.0.1:9545/\n",
     );
     expect(JSON.parse(await readFile(assetPath, "utf8")).hash).toBe(
-      toHex0x(hashContract(contract("standard_token"))),
+      toBase58(hashContract(contract("standard_token"))),
     );
   });
   it("publishes concurrent different hashes without overwriting existing assets", async () => {
     const publications = await Promise.all(
       ["first code", "second code"].map(async (code, index) => {
-        const hash = toHex0x(hashContract(contract(code)));
+        const hash = toBase58(hashContract(contract(code)));
         const destination = join(
           root,
           "public/contract-artifacts",
@@ -324,7 +326,7 @@ describe("infrastructure-only launchpad provisioning", () => {
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", join(root, "runtime.json"));
     await writeFile(
       join(root, "runtime.json"),
-      JSON.stringify({ networkHash: "00".repeat(32) }),
+      JSON.stringify({ networkHash: zeroNetwork }),
     );
     await expect(main()).rejects.toThrow(/storageCostModel/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
@@ -387,15 +389,15 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(env).not.toMatch(
       /PRIVATE|PERSONA|WALLET|ENTRYPOINT|POOL|alice|bob|carol/i,
     );
-    expect(env).not.toContain(toHex0x(account.address));
+    expect(env).not.toContain(toBase58(account.address));
     const asset = JSON.parse(await readFile(assetPath, "utf8"));
     expect(asset).toEqual({
       contractType: "rv32",
       data: toHex0x(Buffer.from("standard_token")),
-      hash: toHex0x(hashContract(contract("standard_token"))),
+      hash: toBase58(hashContract(contract("standard_token"))),
     });
     expect(asset.hash).toBe(
-      toHex0x(
+      toBase58(
         hashContract({
           contract_type: ContractType.kRv32,
           rv32_contract: { data: fromHex0x(asset.data) },
@@ -454,7 +456,7 @@ describe("infrastructure-only launchpad provisioning", () => {
       expect(await readFile(output, "utf8")).toBe("previous environment\n");
       if (destination === output) {
         expect(JSON.parse(await readFile(assetPath, "utf8")).hash).toBe(
-          toHex0x(hashContract(contract("standard_token"))),
+          toBase58(hashContract(contract("standard_token"))),
         );
         throw new Error("Cannot publish environment");
       }
@@ -479,17 +481,26 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(mocks.deployContractAndWait).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["ab".repeat(32), `0x${"AB".repeat(32)}`, `0X${"ab".repeat(32)}`])(
-    "normalizes manifest network hash %s",
+  it("records the manifest network hash exactly", async () => {
+    const recorded = toBase58(new Uint8Array(32).fill(0xab));
+    const manifest = join(root, "runtime.json");
+    await writeFile(manifest, JSON.stringify(manifestContents(recorded)));
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
+    vi.stubEnv("THRUPUT_NETWORK_ID", recorded);
+    await main();
+    expect(await readFile(output, "utf8")).toContain(
+      `VITE_THRUPUT_NETWORK_ID=${recorded}\n`,
+    );
+  });
+
+  it.each([`0x${"00".repeat(32)}`, "00".repeat(32)])(
+    "rejects legacy hex manifest network hash %s",
     async (recorded) => {
       const manifest = join(root, "runtime.json");
       await writeFile(manifest, JSON.stringify(manifestContents(recorded)));
       vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
-      vi.stubEnv("THRUPUT_NETWORK_ID", "AB".repeat(32));
-      await main();
-      expect(await readFile(output, "utf8")).toContain(
-        `VITE_THRUPUT_NETWORK_ID=0x${"ab".repeat(32)}\n`,
-      );
+      await expect(main()).rejects.toThrow(/base58/);
+      expect(mocks.requestAirdrop).not.toHaveBeenCalled();
     },
   );
 
@@ -498,7 +509,7 @@ describe("infrastructure-only launchpad provisioning", () => {
     await writeFile(
       manifest,
       JSON.stringify({
-        networkHash: `0x${"00".repeat(32)}`,
+        networkHash: zeroNetwork,
         bootstrap: { storageCostModel: { ...costs, balanceCost: "1235" } },
       }),
     );
@@ -509,9 +520,9 @@ describe("infrastructure-only launchpad provisioning", () => {
 
   it("rejects invalid networks and old wire formats before funding", async () => {
     vi.stubEnv("THRUPUT_NETWORK_ID", "invalid");
-    await expect(main()).rejects.toThrow(/network hash/);
-    vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"00".repeat(32)}`);
-    mocks.getVersion.mockResolvedValueOnce({ wireFormat: "3.0.0" });
+    await expect(main()).rejects.toThrow(/THRUPUT_NETWORK_ID/);
+    vi.stubEnv("THRUPUT_NETWORK_ID", zeroNetwork);
+    mocks.getVersion.mockResolvedValueOnce({ wireFormat: "12.0.0" });
     await expect(main()).rejects.toThrow(/wire format/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });

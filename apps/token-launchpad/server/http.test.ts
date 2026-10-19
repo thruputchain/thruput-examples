@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { toBase58 } from "@thruputchain/client";
 
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import {
@@ -29,9 +30,9 @@ import {
 import { RegistryStore } from "./store.ts";
 
 const scope: RegistryScope = {
-  networkId: "11".repeat(32),
-  factoryAddress: `0x${"22".repeat(32)}`,
-  tokenCodeHash: `0x${"33".repeat(32)}`,
+  networkId: toBase58(new Uint8Array(32).fill(0x11)),
+  factoryAddress: toBase58(new Uint8Array(32).fill(0x22)),
+  tokenCodeHash: toBase58(new Uint8Array(32).fill(0x33)),
 };
 
 describe("registry HTTP API", () => {
@@ -252,7 +253,9 @@ describe("production HTTP serving", () => {
       {
         staticDirectory: directory,
         rpcUrl: "http://rpc.example.test/fixed",
-        publicConfig: { VITE_THRUPUT_NETWORK_ID: "11".repeat(32) },
+        publicConfig: {
+          VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0x11)),
+        },
         fetch: upstreamFetch,
       },
     );
@@ -293,7 +296,7 @@ describe("production HTTP serving", () => {
     const artifact = {
       contractType: "rv32",
       data: "0x010203",
-      hash: `0x${"06".repeat(32)}`,
+      hash: toBase58(new Uint8Array(32).fill(0x06)),
     };
     await writeFile(
       path.join(directory, `contract-artifacts/${artifact.hash}.json`),
@@ -317,15 +320,15 @@ describe("production HTTP serving", () => {
   });
 
   it("serves runtime public configuration without exposing the upstream", async () => {
-    const response = await fetch(
-      `${origin}/api/config`,
-    );
+    const response = await fetch(`${origin}/api/config`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(
       "application/json; charset=utf-8",
     );
     expect(response.headers.get("cache-control")).toContain("no-store");
-    expect(await response.json()).toEqual({ VITE_THRUPUT_NETWORK_ID: "11".repeat(32) });
+    expect(await response.json()).toEqual({
+      VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0x11)),
+    });
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
@@ -567,7 +570,7 @@ describe("production HTTP serving", () => {
 
 describe("parseTokenQuery", () => {
   it("trims search and parses all supported values", () => {
-    const creator = `0x${"AA".repeat(32)}`;
+    const creator = toBase58(new Uint8Array(32).fill(0xaa));
     expect(
       parseTokenQuery(
         new URL(
@@ -576,7 +579,7 @@ describe("parseTokenQuery", () => {
       ),
     ).toEqual({
       q: "Token",
-      creator: creator.toLowerCase(),
+      creator,
       sort: "symbol",
       limit: 100,
       offset: 10_000,
@@ -721,10 +724,10 @@ async function unfinishedChunkedRequest(
 function token(): RegistryToken {
   return {
     ...scope,
-    tokenAddress: `0x${"44".repeat(32)}`,
-    creatorAddress: `0x${"55".repeat(32)}`,
-    administratorAddress: `0x${"66".repeat(32)}`,
-    initialHolderAddress: `0x${"77".repeat(32)}`,
+    tokenAddress: toBase58(new Uint8Array(32).fill(0x44)),
+    creatorAddress: toBase58(new Uint8Array(32).fill(0x55)),
+    administratorAddress: toBase58(new Uint8Array(32).fill(0x66)),
+    initialHolderAddress: toBase58(new Uint8Array(32).fill(0x77)),
     initialSupply: "100000000000000000000",
     name: "Acorn",
     symbol: "NUT",

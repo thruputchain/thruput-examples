@@ -1,9 +1,9 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 #![allow(clippy::too_many_arguments)]
 
-use sdk::*;
+use thruput_sdk::*;
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
 pub struct Calldata;
 

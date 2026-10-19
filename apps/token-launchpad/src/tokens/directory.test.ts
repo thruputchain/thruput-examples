@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@/test/render";
 import { afterEach, expect, it, vi } from "vitest";
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { configuration } from "@/test/fixtures";
 import type { RegistryStatus, RegistryTokenPage } from "@/registry/client";
 import { useTokenDirectory } from "./use-token-directory";
@@ -16,8 +16,8 @@ const page = (asOfBlock = "12"): RegistryTokenPage => ({
   historyLimited: false,
 });
 const status: RegistryStatus = {
-  networkId: config.networkIdHex,
-  factoryAddress: toHex0x(config.factoryAddress),
+  networkId: config.networkId,
+  factoryAddress: toBase58(config.factoryAddress),
   indexedThroughBlock: "12",
   tokenCount: 0,
   historyLimited: false,
@@ -45,7 +45,7 @@ it("filters by creator, retains pagination snapshot, and ignores superseded page
   );
   await waitFor(() => expect(result.current.loading).toBe(false));
   expect(read.mock.calls[0]?.[1]).toMatchObject({
-    creator: toHex0x(config.accountAddress),
+    creator: toBase58(config.accountAddress),
     offset: 0,
   });
   let old!: (page: RegistryTokenPage) => void;

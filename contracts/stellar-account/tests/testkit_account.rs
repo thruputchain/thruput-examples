@@ -31,7 +31,7 @@ use thruput_signing::{
 };
 use thruput_testkit::xdr::auth_claim::{AuthClaim, AuthClaim_source_address_claim};
 use thruput_testkit::xdr::transaction::{DecoratedSignature, SignedTransaction};
-use thruput_testkit::xdr::types::{ContractAddress, Ed25519PublicKey, NetworkHash, SHA256Hash};
+use thruput_testkit::xdr::types::{ContractAddress, Ed25519PublicKey, NetworkHash};
 use thruput_testkit::{
     Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Scenario,
     entrypoint_id, xdrs,
@@ -41,7 +41,7 @@ type Address = ContractAddress;
 
 const ACCOUNT_IF: (&str, &str) = ("StellarAccount", "0.1.0");
 const FACTORY_IF: (&str, &str) = ("StellarAccountFactory", "0.1.0");
-const ERC20: (&str, &str) = ("ERC20", "0.1.55");
+const ERC20: (&str, &str) = ("ERC20", "0.1.60");
 
 const MASTER_SEED: [u8; 32] = [0x11; 32];
 const SECOND_SEED: [u8; 32] = [0x22; 32];
@@ -81,11 +81,7 @@ async fn network_hash(ctx: &AgentContext) -> NetworkHash {
         .client()
         .expect("a local network has an RPC client");
     let info = client.network_info().await.expect("networkInfo answers");
-    let hex = serde_json::to_value(info.network_hash).expect("serializes");
-    let hex = hex.as_str().expect("hex string");
-    let mut bytes = [0u8; 32];
-    hex::decode_to_slice(hex.trim_start_matches("0x"), &mut bytes).expect("32 bytes");
-    NetworkHash::new(SHA256Hash::new(bytes))
+    NetworkHash::new(info.network_hash.0)
 }
 
 /// Build a transaction invoking `method` on `account`, claim `required_weight`,
@@ -123,6 +119,7 @@ async fn account_tx<A: xdrs::WriteXDR>(
     let stx = SignedTransaction {
         tx,
         signatures: signatures.try_into().expect("fits"),
+        pubkey_claim_key: None,
     };
     format!(
         "0x{}",

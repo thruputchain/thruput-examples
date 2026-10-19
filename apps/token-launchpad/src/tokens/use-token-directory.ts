@@ -1,4 +1,4 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   keepPreviousData,
@@ -43,9 +43,9 @@ export function useTokenDirectory({
   const prefix = useMemo(
     () => [
       "token-registry",
-      config.networkIdHex,
-      toHex0x(config.factoryAddress),
-      toHex0x(config.expectedTokenHash),
+      config.networkId,
+      toBase58(config.factoryAddress),
+      toBase58(config.expectedTokenHash),
     ],
     [config],
   );
@@ -54,7 +54,7 @@ export function useTokenDirectory({
     () => [
       ...prefix,
       "page",
-      scope === "mine" ? toHex0x(config.accountAddress) : null,
+      scope === "mine" ? toBase58(config.accountAddress) : null,
       query,
       sort,
       pagination,
@@ -79,7 +79,7 @@ export function useTokenDirectory({
         {
           ...(query ? { q: query } : {}),
           ...(scope === "mine"
-            ? { creator: toHex0x(config.accountAddress) }
+            ? { creator: toBase58(config.accountAddress) }
             : {}),
           sort,
           limit: 20,

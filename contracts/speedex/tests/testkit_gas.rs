@@ -51,7 +51,7 @@ use thruput_testkit::{
 };
 
 /// Interface identities the artifacts stamp; `entrypoint_id` derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.55");
+const ERC20: (&str, &str) = ("ERC20", "0.1.60");
 const SPEEDEX: (&str, &str) = ("Speedex", "0.1.0");
 /// The node's default wallet, which serves every key-pair account: `execute` runs a list of
 /// calls from the account, and takes calldata of any length.

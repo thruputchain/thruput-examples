@@ -1,3 +1,9 @@
+import {
+  addressFromBase58,
+  hashFromBase58,
+  toBase58,
+} from "@thruputchain/client";
+
 export interface AppConfig {
   networkId: string;
   counterAddress: string;
@@ -10,6 +16,24 @@ export function hex32(value: unknown, name: string): string {
     throw new Error(`${name} must contain 32 bytes in hex. Run setup:local.`);
   }
   return `0x${value.replace(/^0x/i, "").toLowerCase()}`;
+}
+
+/** Validate a base58 32-byte hash, such as a network hash. */
+export function hash58(value: unknown, name: string): string {
+  try {
+    return toBase58(hashFromBase58(String(value ?? "")));
+  } catch {
+    throw new Error(`${name} must be a base58 hash. Run setup:local.`);
+  }
+}
+
+/** Validate a base58 contract or account address. */
+export function address58(value: unknown, name: string): string {
+  try {
+    return toBase58(addressFromBase58(String(value ?? "")));
+  } catch {
+    throw new Error(`${name} must be a base58 address. Run setup:local.`);
+  }
 }
 
 export function parseHttpUrl(value: string): URL {
@@ -41,12 +65,12 @@ export function parseConfig(value: unknown): AppConfig {
     explorerUrl = url.origin;
   }
   return {
-    networkId: hex32(config.networkId, "Network ID"),
-    counterAddress: hex32(config.counterAddress, "Counter address"),
+    networkId: hash58(config.networkId, "Network ID"),
+    counterAddress: address58(config.counterAddress, "Counter address"),
     signerAddress:
       config.signerAddress == null
         ? null
-        : hex32(config.signerAddress, "Signer address"),
+        : address58(config.signerAddress, "Signer address"),
     explorerUrl,
   };
 }

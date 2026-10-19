@@ -8,13 +8,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import {
-  addressFromHex,
+  addressFromBase58,
   createThruputClient,
+  hashFromBase58,
   HttpTransport,
   localnet,
-  fromHex0x,
+  toBase58,
 } from "@thruputchain/client";
-import { networkHash, sha256Hash } from "@thruputchain/protocol";
+import { networkHash } from "@thruputchain/protocol";
 import { ERC20 } from "@thruputchain/client/contracts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapHandler } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
@@ -39,7 +40,7 @@ Object.assign(env, {
   XDG_DATA_HOME: join(work, "data"),
   XDG_CACHE_HOME: join(work, "cache"),
   SEED_STATE_DIR: join(work, "seed"),
-  SEED_RECIPIENT: `0x${"42".repeat(32)}`,
+  SEED_RECIPIENT: toBase58(new Uint8Array(32).fill(0x42)),
 });
 const processGroups = new OwnedProcessGroups();
 let interrupted = false;
@@ -194,7 +195,7 @@ try {
   const launch = parseEnv(await readFile(env.LAUNCHPAD_APP_ENV!, "utf8"));
   const swap = parseEnv(await readFile(env.SWAP_APP_ENV!, "utf8"));
   const scope = {
-    networkId: launch.VITE_THRUPUT_NETWORK_ID!.slice(2),
+    networkId: launch.VITE_THRUPUT_NETWORK_ID!,
     factoryAddress: launch.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!,
     tokenCodeHash: launch.VITE_STANDARD_TOKEN_HASH!,
   };
@@ -217,13 +218,11 @@ try {
   const client = await createThruputClient({
     cluster: localnet({
       rpcUrl: env.THRUPUT_RPC_URL!,
-      networkHash: networkHash(
-        sha256Hash(fromHex0x(launch.VITE_THRUPUT_NETWORK_ID!)),
-      ),
+      networkHash: networkHash(hashFromBase58(launch.VITE_THRUPUT_NETWORK_ID!)),
     }),
     transport: new HttpTransport(env.THRUPUT_RPC_URL!),
   });
-  const factory = addressFromHex(swap.VITE_SWAP_FACTORY_ADDRESS!);
+  const factory = addressFromBase58(swap.VITE_SWAP_FACTORY_ADDRESS!);
   const count = async () =>
     (await SwapFactory.v0_1.allPairsLength.view({ client, contract: factory }))
       .value;
@@ -264,8 +263,8 @@ try {
       (
         await ERC20.v0_1.getBalanceOf.view({
           client,
-          contract: addressFromHex(token),
-          args: { addr: addressFromHex(tokens.recipient) },
+          contract: addressFromBase58(token),
+          args: { addr: addressFromBase58(tokens.recipient) },
         })
       ).value,
       1_000_000n * 1_000_000n,
@@ -282,8 +281,8 @@ try {
       (
         await ERC20.v0_1.getBalanceOf.view({
           client,
-          contract: addressFromHex(token),
-          args: { addr: addressFromHex(manifest.recipient) },
+          contract: addressFromBase58(token),
+          args: { addr: addressFromBase58(manifest.recipient) },
         })
       ).value,
       999_000n * 1_000_000n,
@@ -292,7 +291,7 @@ try {
   const pool = (
     await SwapHandler.v0_1.poolState.view({
       client,
-      contract: addressFromHex(manifest.pool.handler),
+      contract: addressFromBase58(manifest.pool.handler),
     })
   ).value;
   assert.deepEqual(pool.reserves, [1_000_000_000n, 1_000_000_000n]);
@@ -300,17 +299,21 @@ try {
     (
       await ERC20.v0_1.getBalanceOf.view({
         client,
-        contract: addressFromHex(manifest.pool.liquidityToken),
-        args: { addr: addressFromHex(manifest.recipient) },
+        contract: addressFromBase58(manifest.pool.liquidityToken),
+        args: { addr: addressFromBase58(manifest.recipient) },
       })
     ).value > 0n,
   );
   stage = "validate inputs without writes, then create a fresh second pool";
   for (const overrides of [
     { SEED_RECIPIENT: "" },
-    { SEED_RECIPIENT: `0x${"00".repeat(32)}` },
-    { VITE_THRUPUT_NETWORK_ID: `0x${"43".repeat(32)}` },
-    { VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"43".repeat(32)}` },
+    { SEED_RECIPIENT: toBase58(new Uint8Array(32)) },
+    { VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0x43)) },
+    {
+      VITE_STANDARD_TOKEN_FACTORY_ADDRESS: toBase58(
+        new Uint8Array(32).fill(0x43),
+      ),
+    },
   ]) {
     const tip = (await client.getChainTip()).height;
     await run("token-launchpad", "seed-tokens", overrides, 1);

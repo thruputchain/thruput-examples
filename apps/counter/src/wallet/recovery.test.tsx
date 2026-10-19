@@ -9,7 +9,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
-  addressFromHex,
+  addressFromBase58,
   createPubkeyAccount,
   createTransaction,
   defaultWalletAdapter,
@@ -17,6 +17,7 @@ import {
   PrivateKeySigner,
   serializeSignedTransaction,
   signTransaction,
+  toBase58,
   toHex0x,
   type TransactionReceipt,
 } from "@thruputchain/client";
@@ -39,7 +40,8 @@ const calls = vi.hoisted(() => ({
   getReceipt: vi.fn(),
   wait: vi.fn(),
   tip: vi.fn(),
-  session: { address: "", session: { networkHash: "00".repeat(32) } },
+  // Base58 of 32 zero bytes, matching `network` in the mocked client below.
+  session: { address: "", session: { networkHash: "1".repeat(32) } },
 }));
 vi.mock("@thruputchain/react", () => ({
   useClient: () => ({
@@ -70,8 +72,9 @@ vi.mock("@thruputchain/react", () => ({
   contractViewQueryOptions: () => ({ queryKey: ["counter"] }),
 }));
 
-const address = `0x${"22".repeat(32)}`;
-const key = pendingKey("00".repeat(32), address);
+const zero58 = toBase58(new Uint8Array(32));
+const address = toBase58(new Uint8Array(32).fill(0x22));
+const key = pendingKey(zero58, address);
 let query: QueryClient;
 let fixture: Awaited<ReturnType<typeof signedUpdate>>;
 async function signedUpdate() {
@@ -80,7 +83,7 @@ async function signedUpdate() {
   const tx = createTransaction({
     invocation: defaultWalletAdapter.createRootInvocation(account.address, {
       invocation: Counter.v0_1.increment.invocation(
-        addressFromHex(address),
+        addressFromBase58(address),
         gasAmount(500_000n),
         { amount: 1n },
       ),
@@ -98,13 +101,13 @@ async function signedUpdate() {
   const hash = hashSignedTransaction(signed);
   const record = {
     signedTransaction: toHex0x(serializeSignedTransaction(signed)),
-    hash: toHex0x(hash),
+    hash: toBase58(hash),
     account: {
-      address: toHex0x(account.address),
-      publicKey: toHex0x(signer.publicKey.ed25519),
+      address: toBase58(account.address),
+      publicKey: toBase58(signer.publicKey.ed25519),
       nonce: "0",
     },
-    networkHash: "00".repeat(32),
+    networkHash: zero58,
   };
   const receipt: TransactionReceipt = {
     txHash: hash,
@@ -204,7 +207,7 @@ it("recovers a failed submission without preparing a replacement transaction", a
 
 it("refuses another account, changed approval bytes, and expired transactions", async () => {
   mount();
-  calls.session.address = `0x${"33".repeat(32)}`;
+  calls.session.address = toBase58(new Uint8Array(32).fill(0x33));
   fireEvent.click(
     screen.getByRole("button", { name: "Retry same transaction" }),
   );
@@ -311,7 +314,7 @@ it("blocks a saved record whose hash does not match", async () => {
     JSON.stringify({
       version: 1,
       ...fixture.record,
-      hash: `0x${"ff".repeat(32)}`,
+      hash: toBase58(new Uint8Array(32).fill(0xff)),
     }),
   );
   mount(false);

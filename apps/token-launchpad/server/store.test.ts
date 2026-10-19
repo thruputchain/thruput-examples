@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { toBase58 } from "@thruputchain/client";
 
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,9 +16,9 @@ import {
 } from "./store.ts";
 
 const scope: RegistryScope = {
-  networkId: "11".repeat(32),
-  factoryAddress: `0x${"22".repeat(32)}`,
-  tokenCodeHash: `0x${"33".repeat(32)}`,
+  networkId: toBase58(new Uint8Array(32).fill(0x11)),
+  factoryAddress: toBase58(new Uint8Array(32).fill(0x22)),
+  tokenCodeHash: toBase58(new Uint8Array(32).fill(0x33)),
 };
 const temporaryDirectories: string[] = [];
 
@@ -61,7 +62,7 @@ describe("RegistryStore schema and scope", () => {
       () =>
         new RegistryStore(databasePath, {
           ...scope,
-          factoryAddress: `0x${"99".repeat(32)}`,
+          factoryAddress: toBase58(new Uint8Array(32).fill(0x99)),
         }),
     ).toThrow(RegistryScopeMismatchError);
   });
@@ -307,11 +308,17 @@ function id(value: RegistryToken): string {
 }
 
 function address(value: number): string {
-  return `0x${value.toString(16).padStart(64, "0")}`;
+  return toBase58(bigEndian(value));
 }
 
 function hash(value: number): string {
-  return `0x${(value + 100).toString(16).padStart(64, "0")}`;
+  return toBase58(bigEndian(value + 100));
+}
+
+function bigEndian(value: number): Uint8Array {
+  const bytes = new Uint8Array(32);
+  new DataView(bytes.buffer).setUint32(28, value);
+  return bytes;
 }
 
 async function temporaryDatabasePath(): Promise<string> {

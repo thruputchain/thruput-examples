@@ -1,8 +1,8 @@
 use cross_trait_throws::*;
-use sdk::*;
+use thruput_sdk::*;
 
-static LEDGER_NONCE: SHA256Hash = sdk::sha256_static!("CROSS_TRAIT_THROWS_LEDGER");
-static CALLER_NONCE: SHA256Hash = sdk::sha256_static!("CROSS_TRAIT_THROWS_CALLER");
+static LEDGER_NONCE: SHA256Hash = thruput_sdk::sha256_static!("CROSS_TRAIT_THROWS_LEDGER");
+static CALLER_NONCE: SHA256Hash = thruput_sdk::sha256_static!("CROSS_TRAIT_THROWS_CALLER");
 
 hash_ident! { static OPERATOR: ContractAddress; }
 

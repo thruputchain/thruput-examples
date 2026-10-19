@@ -15,12 +15,12 @@
 #![allow(dead_code)]
 
 use ed25519_dalek::{Signer, SigningKey};
-use sdk::call::RawCallError;
-use sdk::*;
 use stellar_account::{AccountError, MAX_SIGNERS, StellarAccount};
 use stellar_account_factory_if::StellarAccountInitializerClient;
 use thruput_domain_separator::transaction_signature_preimage;
-use thruput_signing::{BuildCallTransaction, build_call_transaction};
+use thruput_sdk::call::RawCallError;
+use thruput_sdk::*;
+use thruput_signing::{BuildCallTransaction, build_call_transaction, public_key_hash};
 use thruput_xdr::auth_claim::{AuthClaim_source_address_claim, AuthVerifyErrorCode};
 use thruput_xdr::transaction::{DecoratedSignature, SignedTransaction};
 
@@ -63,9 +63,9 @@ pub fn claim(weight: u32) -> AuthClaim {
 pub fn pubkey_claim() -> AuthClaim {
     AuthClaim::kPubkeySignature {
         pubkey_preimage: PubkeyAccountPreimage {
-            pubkey: PublicKey::Ed25519 {
+            pubkey_hash: public_key_hash(&PublicKey::Ed25519 {
                 ed25519: master_key(),
-            },
+            }),
             nonce: 0,
         },
     }
@@ -84,7 +84,7 @@ where
 {
     env.transaction().with_auth_claim(claim).transact(|tx| {
         tx.call(&ACCOUNT).run(std::panic::AssertUnwindSafe(move || {
-            let mut state = sdk::storage::contract_state_root::<StellarAccount>();
+            let mut state = thruput_sdk::storage::contract_state_root::<StellarAccount>();
             op(&mut state)
         }))
     })
@@ -164,7 +164,7 @@ pub fn chain_accepts(
         nonce: 1,
         auth_claim: claim(required_weight),
     });
-    let preimage = transaction_signature_preimage(&sdk::test_network_hash(), &tx)
+    let preimage = transaction_signature_preimage(&thruput_sdk::test_network_hash(), &tx)
         .expect("encoding the signature preimage");
     let signatures: Vec<DecoratedSignature> = signers
         .iter()
@@ -180,6 +180,7 @@ pub fn chain_accepts(
     let stx = SignedTransaction {
         tx,
         signatures: signatures.try_into().expect("fits"),
+        pubkey_claim_key: None,
     };
     // The from-database path reports the mempool's pass/fail code: 0 is
     // admitted, anything else is refused.

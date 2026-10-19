@@ -14,7 +14,7 @@ categories.workspace = true
 [features]
 entrypoints = []
 dev = [
-    "sdk/dev",
+    "thruput-sdk/dev",
     "thruput-erc20-if/dev",
     "standard-token-factory-if/dev",
 ]
@@ -32,7 +32,7 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 standard-token-factory-if = { path = "../../interfaces/standard-token-factory-if", version = "=0.1.0" }
 

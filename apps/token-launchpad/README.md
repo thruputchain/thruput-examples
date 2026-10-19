@@ -31,7 +31,7 @@ setup. Existing deployments need their matching artifacts and bindings.
 App servers do not need to run for seeding:
 
 ```sh
-export SEED_RECIPIENT=0x<your-public-wallet-address>
+export SEED_RECIPIENT=<your-base58-wallet-address>
 npm run seed --workspace apps/token-launchpad
 ```
 
@@ -58,7 +58,8 @@ runtime manifest. The registry defaults to factory-scoped SQLite under `.local/`
 `TOKEN_REGISTRY_DB_PATH` overrides it. Use one writer per database.
 
 For `setup:devnet`, supply an HTTPS `THRUPUT_RPC_URL` and verified live
-`THRUPUT_NETWORK_ID`. It creates a fresh deployment and writes `.env.devnet`.
+`THRUPUT_NETWORK_ID` (unprefixed base58). It creates a fresh deployment and
+writes `.env.devnet`.
 Use `dev -- --mode devnet` to select it locally. For hosting, supply environment
 values to `start` (`PORT` defaults to 3000). Railway uses
 `apps/token-launchpad/railway.json` and the root npm install.

@@ -2,7 +2,7 @@ import {
   createPubkeyAccount,
   fromHex0x,
   PrivateKeySigner,
-  toHex0x,
+  toBase58,
 } from "@thruputchain/client";
 import {
   hex32,
@@ -31,7 +31,7 @@ export function loadServerConfig(
     app: parseConfig({
       networkId: env.VITE_THRUPUT_NETWORK_ID,
       counterAddress: env.VITE_COUNTER_ADDRESS,
-      signerAddress: account ? toHex0x(account.address) : null,
+      signerAddress: account ? toBase58(account.address) : null,
       explorerUrl: env.VITE_EXPLORER_URL,
     }),
     rpcUrl: parseHttpUrl(env.VITE_THRUPUT_RPC_URL ?? "http://127.0.0.1:9545")

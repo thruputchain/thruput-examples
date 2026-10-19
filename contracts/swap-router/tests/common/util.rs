@@ -1,7 +1,7 @@
 // General debugging utilities
 
 use super::*;
-use sdk::*;
+use thruput_sdk::*;
 
 pub type Result<T, E = TransactResult> = core::result::Result<T, E>;
 

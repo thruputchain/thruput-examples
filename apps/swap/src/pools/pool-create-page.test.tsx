@@ -1,5 +1,6 @@
 import { contractAddress } from "@thruputchain/protocol";
 import type { TransactionReceipt } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { Link, MemoryRouter, useLocation } from "react-router-dom";
@@ -27,6 +28,7 @@ vi.mock("@/contracts/erc20-adapter", () => ({ createErc20ReadAdapter: vi.fn() })
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config: GlobalConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkIdHex: "00".repeat(32),
@@ -72,16 +74,16 @@ describe("PoolCreatePage", () => {
     const page = renderPage({ prepare: vi.fn().mockResolvedValue(missing) }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`, "https://explorer.test");
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     await screen.findByRole("button", { name: "Create pool" });
-    expect(screen.getAllByRole("link", { name: `Token address: ${hex(1)} (opens explorer in a new tab)` })).toHaveLength(2);
-    expect(screen.getAllByRole("link", { name: `Token address: ${hex(2)} (opens explorer in a new tab)` })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: `Token address: ${b58(1)} (opens explorer in a new tab)` })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: `Token address: ${b58(2)} (opens explorer in a new tab)` })).toHaveLength(2);
     page.unmount();
     const workflow = createCreationWorkflow(config, missing);
     workflow.steps.approveFunding.transactionHash = hex(42);
     workflow.steps.approveFunding.status = "indeterminate";
     saveCreationWorkflow(config, workflow);
     renderPage({}, "", "https://explorer.test");
-    expect(screen.getByRole("link", { name: `Token address: ${hex(1)} (opens explorer in a new tab)` })).toHaveAttribute("href", `https://explorer.test/address/${hex(1)}`);
-    expect(screen.getByRole("link", { name: /transaction hash:/ })).toHaveAttribute("href", `https://explorer.test/tx/${hex(42)}`);
+    expect(screen.getByRole("link", { name: `Token address: ${b58(1)} (opens explorer in a new tab)` })).toHaveAttribute("href", `https://explorer.test/address/${b58(1)}`);
+    expect(screen.getByRole("link", { name: /transaction hash:/ })).toHaveAttribute("href", `https://explorer.test/tx/${b58(42)}`);
   });
 
   it.each([false, true])("freezes queued execution and cancels on unmount: %s", async (unmount) => {
@@ -472,7 +474,7 @@ describe("PoolCreatePage", () => {
     const push = vi.spyOn(window.history, "pushState");
     const replace = vi.spyOn(window.history, "replaceState");
     renderPage({ prepare, run }, `?tokenA=${hex(2)}&tokenB=${hex(1)}&amountA=9&autoSubmit=true`);
-    expect(screen.getAllByLabelText("Contract address").map((el) => (el as HTMLInputElement).value)).toEqual([hex(2), hex(1)]);
+    expect(screen.getAllByLabelText("Contract address").map((el) => (el as HTMLInputElement).value)).toEqual([b58(2), b58(1)]);
     expect(screen.getAllByLabelText("Initial amount").every((el) => (el as HTMLInputElement).value === "")).toBe(true);
     await waitFor(() => expect(screen.getAllByText("Live name: Live token")).toHaveLength(2));
     expect(verifyReadNetwork).toHaveBeenCalledTimes(2);
@@ -527,6 +529,14 @@ describe("PoolCreatePage", () => {
     await act(async () => resolve(review()));
     expect(screen.queryByRole("button", { name: "Create pool" })).not.toBeInTheDocument();
     expect(screen.getAllByLabelText("Contract address")[0]).toHaveValue("0x");
+  });
+
+  it("keeps a typed base58 address in the input", () => {
+    renderPage({});
+    fireEvent.change(screen.getAllByLabelText("Contract address")[0]!, { target: { value: b58(7) } });
+    expect(screen.getAllByLabelText("Contract address")[0]).toHaveValue(b58(7));
+    fireEvent.change(screen.getAllByLabelText("Contract address")[1]!, { target: { value: hex(8) } });
+    expect(screen.getAllByLabelText("Contract address")[1]).toHaveValue(b58(8));
   });
 
   it("does not reapply link presets when the query changes on the same mount", async () => {

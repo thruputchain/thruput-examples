@@ -25,7 +25,7 @@ export function TokenCards({
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {tokens.map((token) => (
-        <Card key={token.addressHex}>
+        <Card key={token.address}>
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -56,18 +56,18 @@ export function TokenCards({
               value={
                 <BlockchainIdentifier
                   kind="address"
-                  value={token.administratorHex}
+                  value={token.administrator}
                 />
               }
             />
             <div className="flex items-center gap-2 rounded-lg bg-muted p-3 font-mono text-xs">
               <span className="min-w-0 flex-1">
-                <BlockchainIdentifier kind="address" value={token.addressHex} />
+                <BlockchainIdentifier kind="address" value={token.address} />
               </span>
               <CopyIdentifierButton
                 variant="ghost"
                 label="Copy token address"
-                value={token.addressHex}
+                value={token.address}
               />
             </div>
           </CardContent>
@@ -79,7 +79,7 @@ export function TokenCards({
 
 function TokenBalance({ token }: { token: CreatedToken }) {
   const balance = useTokenBalance({
-    token: token.addressHex,
+    token: token.address,
     query: { staleTime: 10_000, refetchInterval: 15_000, retry: 1 },
   });
   return (

@@ -5,7 +5,7 @@ use crate::{
     SwapRequestError,
 };
 use core::fmt;
-use sdk::*;
+use thruput_sdk::*;
 
 #[contract_exception]
 #[non_exhaustive]

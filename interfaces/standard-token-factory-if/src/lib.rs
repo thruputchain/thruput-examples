@@ -5,11 +5,11 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-pub use sdk::{ContractAddress, SHA256Hash};
 pub use thruput_erc20_if::{
     AllowanceChangeEvent, Amount, Difference, ERC20, ERC20Client, ERC20Error, TransferEvent,
 };
 pub use thruput_erc20_metadata_if::{ERC20Metadata, ERC20MetadataClient, Name, Symbol};
+pub use thruput_sdk::{ContractAddress, SHA256Hash};
 
 mod events;
 pub use events::TokenCreated;
@@ -22,7 +22,7 @@ pub use factory::{
 mod token;
 pub use token::{StandardTokenInitializer, StandardTokenInitializerClient};
 
-use sdk::{Hash, get_deploy_address_for_other};
+use thruput_sdk::{Hash, get_deploy_address_for_other};
 
 const DEPLOYMENT_DOMAIN: &str = "groundhog-standard-token-factory-v1";
 

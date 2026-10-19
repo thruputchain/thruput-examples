@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import {
-  addressFromHex,
+  parseAddress,
   createPubkeyAccount,
   createWalletClient,
   fixedBytes,
   PrivateKeySigner,
-  toHex0x,
+  toBase58,
 } from "@thruputchain/client";
 import { DefaultWallet } from "@thruputchain/client/contracts";
 import { ExecResult, gasAmount, type Invocation } from "@thruputchain/protocol";
@@ -14,12 +14,12 @@ import { Counter } from "./generated/counter.ts";
 import { createLocalClient } from "./local-client.ts";
 import { waitForView } from "./wait-for-view.ts";
 
-const addressHex = process.env.THRUPUT_COUNTER_ADDRESS;
-if (!addressHex)
+const addressText = process.env.THRUPUT_COUNTER_ADDRESS;
+if (!addressText)
   throw new Error(
     "Set THRUPUT_COUNTER_ADDRESS to the deployed Counter address",
   );
-const address = addressFromHex(addressHex);
+const address = parseAddress(addressText);
 const client = await createLocalClient();
 const account = createPubkeyAccount({
   signer: new PrivateKeySigner(randomBytes(32)),
@@ -46,7 +46,7 @@ async function batch(calls: Invocation[]) {
     ),
   });
   // Print the hash before waiting so a timeout can be investigated without resending.
-  console.error(`Submitted batch: ${toHex0x(hash)}`);
+  console.error(`Submitted batch: ${toBase58(hash)}`);
   return wallet.waitForTransactionReceipt(hash, { timeoutMs: 60_000 });
 }
 const before = await Counter.v0_1.get.view({
@@ -94,8 +94,8 @@ console.log(
       before: before.value.toString(),
       after: after.value.toString(),
       afterRollback: final.value.toString(),
-      successHash: toHex0x(success.txHash),
-      revertedHash: toHex0x(reverted.txHash),
+      successHash: toBase58(success.txHash),
+      revertedHash: toBase58(reverted.txHash),
     },
     null,
     2,

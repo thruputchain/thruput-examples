@@ -1,15 +1,18 @@
 // @vitest-environment node
 
+import { toBase58 } from "@thruputchain/client";
 import { describe, expect, it } from "vitest";
 
 import { loadServerConfig, ServerConfigurationError } from "./config.ts";
+
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 
 const environment = {
   PORT: "3000",
   POOL_REGISTRY_DB_PATH: "/data/pools.sqlite",
   VITE_THRUPUT_RPC_URL: "https://rpc.example.test/path",
-  VITE_THRUPUT_NETWORK_ID: `0x${"AA".repeat(32)}`,
-  VITE_SWAP_FACTORY_ADDRESS: `0x${"BB".repeat(32)}`,
+  VITE_THRUPUT_NETWORK_ID: b58(0xaa),
+  VITE_SWAP_FACTORY_ADDRESS: b58(0xbb),
 };
 
 describe("loadServerConfig", () => {

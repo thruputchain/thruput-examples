@@ -1,7 +1,19 @@
+import { addressFromBase58, toBase58, toHex0x } from "@thruputchain/client";
+
+/** Accept a base58 address (or a legacy 0x hex one) as the app's 0x hex form. */
 export function tokenAddress(value: string): string | null {
-  return /^0x[0-9a-fA-F]{64}$/.test(value) && !/^0x0{64}$/.test(value)
-    ? value.toLowerCase()
-    : null;
+  let hex: string | null = null;
+  if (/^0x[0-9a-fA-F]{64}$/.test(value)) {
+    hex = value.toLowerCase();
+  } else {
+    try {
+      const address = addressFromBase58(value);
+      if (toBase58(address) === value) hex = toHex0x(address);
+    } catch {
+      hex = null;
+    }
+  }
+  return hex !== null && !/^0x0{64}$/.test(hex) ? hex : null;
 }
 
 export function readCreationPresets(search: string) {

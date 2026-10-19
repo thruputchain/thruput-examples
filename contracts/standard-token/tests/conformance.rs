@@ -1,6 +1,6 @@
-use sdk::call::RawCallError;
-use sdk::*;
 use standard_token::*;
+use thruput_sdk::call::RawCallError;
+use thruput_sdk::*;
 use thruput_xdr::storage_item::WireStorageItem;
 
 const DEPLOYER: ContractAddress = ContractAddress::new([0x10; 32]);
@@ -578,8 +578,8 @@ fn factory_caller_has_no_implicit_mint_authority() {
 
 #[test]
 fn erc20_identity_comes_from_the_pinned_interface_crates() {
-    assert_eq!(ERC20Client::INTERFACE_VERSION, "0.1.55");
-    assert_eq!(ERC20MetadataClient::INTERFACE_VERSION, "0.1.55");
+    assert_eq!(ERC20Client::INTERFACE_VERSION, "0.1.60");
+    assert_eq!(ERC20MetadataClient::INTERFACE_VERSION, "0.1.60");
     assert_eq!(
         TransferEvent::SIGNATURE,
         thruput_erc20_if::TransferEvent::SIGNATURE

@@ -1,8 +1,8 @@
 use multi_impl::*;
 use multi_impl_if::*;
-use sdk::*;
+use thruput_sdk::*;
 
-static CONTRACT_NONCE: SHA256Hash = sdk::sha256_static!("MULTI_IMPL");
+static CONTRACT_NONCE: SHA256Hash = thruput_sdk::sha256_static!("MULTI_IMPL");
 
 /// Helper: register both trait implementations on a single contract.
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {

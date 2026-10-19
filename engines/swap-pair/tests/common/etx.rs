@@ -161,7 +161,7 @@ impl Deref for Etx {
     }
 }
 
-fn event_handler(e: &sdk::types::event::TxEmittedEvent) {
+fn event_handler(e: &thruput_sdk::types::event::TxEmittedEvent) {
     use swap_pair::events::*;
     use thruput_erc20_if as erc20;
 

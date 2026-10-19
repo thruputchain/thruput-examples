@@ -10,10 +10,11 @@ import {
   createWalletClient,
   defineCluster,
   fixedBytes,
-  fromHex0x,
   hashContract,
+  hashFromBase58,
   HttpTransport,
   PrivateKeySigner,
+  toBase58,
   toHex0x,
 } from "@thruputchain/client";
 import { prepareContractDeployment } from "@thruputchain/client/wallet";
@@ -23,7 +24,6 @@ import {
   gasAmount,
   HOG_ADDRESS,
   networkHash,
-  sha256Hash,
   type Contract,
   type ContractAddress,
   type Invocation,
@@ -69,7 +69,7 @@ export async function provisionLaunchpad(options: {
     "contract-artifacts",
   );
   const rpcUrl = options.rpcUrl;
-  const expectedNetwork = networkHash(sha256Hash(fromHex0x(options.networkId)));
+  const expectedNetwork = networkHash(hashFromBase58(options.networkId));
   const explorerUrl = parseExplorerUrl(options.explorerUrl);
   const requiredTokenFunding =
     options.network === "devnet" ? CONTRACT_FUNDING : REQUIRED_TOKEN_FUNDING;
@@ -84,12 +84,12 @@ export async function provisionLaunchpad(options: {
   });
   const version = await client.getVersion();
   if (
-    !/^(?:[4-9]|[1-9]\d+)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(
+    !/^(?:1[3-9]|[2-9]\d|[1-9]\d{2,})\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(
       version.wireFormat,
     )
   ) {
     throw new Error(
-      `Thruput wire format >=4.0.0 is required; found ${version.wireFormat}`,
+      `Thruput wire format >=13.0.0 is required; found ${version.wireFormat}`,
     );
   }
   const [tokenContract, factoryContract] = await Promise.all(
@@ -103,7 +103,7 @@ export async function provisionLaunchpad(options: {
     ),
   );
   const tokenHash = hashContract(tokenContract!);
-  const artifactPath = join(artifactDirectory, `${toHex0x(tokenHash)}.json`);
+  const artifactPath = join(artifactDirectory, `${toBase58(tokenHash)}.json`);
   if (tokenContract?.contract_type !== ContractType.kRv32)
     throw new Error("Expected an RV32 token artifact");
   if (options.network === "local")
@@ -111,7 +111,7 @@ export async function provisionLaunchpad(options: {
       options.storageCosts,
       tokenContract.rv32_contract.data.length,
     );
-  const artifactContents = `${JSON.stringify({ contractType: "rv32", data: toHex0x(tokenContract.rv32_contract.data), hash: toHex0x(tokenHash) })}\n`;
+  const artifactContents = `${JSON.stringify({ contractType: "rv32", data: toHex0x(tokenContract.rv32_contract.data), hash: toBase58(tokenHash) })}\n`;
 
   // Tool-only deployer: never export the key or account to browser configuration.
   const account = createPubkeyAccount({
@@ -123,7 +123,7 @@ export async function provisionLaunchpad(options: {
       { invocation, gasLimit: GAS_LIMIT },
       { timeoutMs: 60_000 },
     );
-    console.log(`Setup transaction: ${toHex0x(txHash)}`);
+    console.log(`Setup transaction: ${toBase58(txHash)}`);
   };
 
   await mkdir(dirname(environmentPath), { recursive: true });
@@ -174,10 +174,14 @@ export async function provisionLaunchpad(options: {
       }
     }
     const { txHash, address: factoryAddress } =
-      await wallet.deployContractAndWait(deployment, { gasLimit: GAS_LIMIT, amount: 0n }, {
-        timeoutMs: 60_000,
-      });
-    console.log(`Deploy token factory: ${toHex0x(txHash)}`);
+      await wallet.deployContractAndWait(
+        deployment,
+        { gasLimit: GAS_LIMIT, amount: 0n },
+        {
+          timeoutMs: 60_000,
+        },
+      );
+    console.log(`Deploy token factory: ${toBase58(txHash)}`);
     const expectedConfig: FactoryConfig = {
       token_code_hash: fixedBytes(tokenHash, 32),
       required_token_funding: requiredTokenFunding,
@@ -186,9 +190,13 @@ export async function provisionLaunchpad(options: {
       fee_recipient: null,
     };
     await execute(
-      StandardTokenFactory.v0_1.initialize.invocation(factoryAddress, GAS_LIMIT, {
-        config: expectedConfig,
-      }),
+      StandardTokenFactory.v0_1.initialize.invocation(
+        factoryAddress,
+        GAS_LIMIT,
+        {
+          config: expectedConfig,
+        },
+      ),
     );
     const observed = (
       await StandardTokenFactory.v0_1.config.view({
@@ -212,7 +220,7 @@ export async function provisionLaunchpad(options: {
       temporary,
       renderEnvironment({
         rpcUrl,
-        networkHash: toHex0x(expectedNetwork),
+        networkHash: toBase58(expectedNetwork),
         factoryAddress,
         tokenHash,
       }) +
@@ -229,7 +237,7 @@ export async function provisionLaunchpad(options: {
     await publishArtifact(temporaryArtifact, artifactPath);
     await rename(temporary, environmentPath);
     console.log(
-      `Launchpad ${options.network} infrastructure ready\nApp environment: ${environmentPath}\nFactory: ${toHex0x(factoryAddress)}\nToken code: ${toHex0x(tokenHash)}\nRequired token funding: ${requiredTokenFunding}`,
+      `Launchpad ${options.network} infrastructure ready\nApp environment: ${environmentPath}\nFactory: ${toBase58(factoryAddress)}\nToken code: ${toBase58(tokenHash)}\nRequired token funding: ${requiredTokenFunding}`,
     );
     console.warn(
       `No tokens were created. First token creation can attach the code asset at ${artifactPath}.`,
@@ -249,10 +257,10 @@ function renderEnvironment(input: {
   return [
     `VITE_THRUPUT_RPC_URL=${input.rpcUrl}`,
     `VITE_THRUPUT_NETWORK_ID=${input.networkHash}`,
-    `VITE_NATIVE_HOG_ADDRESS=${toHex0x(HOG_ADDRESS)}`,
+    `VITE_NATIVE_HOG_ADDRESS=${toBase58(HOG_ADDRESS)}`,
     `VITE_NATIVE_BALANCE_ITEM_COST=${PINNED_NATIVE_BALANCE_ITEM_COST}`,
-    `VITE_STANDARD_TOKEN_FACTORY_ADDRESS=${toHex0x(input.factoryAddress)}`,
-    `VITE_STANDARD_TOKEN_HASH=${toHex0x(input.tokenHash)}`,
+    `VITE_STANDARD_TOKEN_FACTORY_ADDRESS=${toBase58(input.factoryAddress)}`,
+    `VITE_STANDARD_TOKEN_HASH=${toBase58(input.tokenHash)}`,
     "",
   ].join("\n");
 }
@@ -264,7 +272,7 @@ export function validateTokenFunding(
   // Same storage profile as the legacy local-environment validator, without
   // any bootstrap-account or persona requirements.
   const profile = {
-    hash: "0x7fcd5d27353800caf9f8f3a73a030be49a1dcd9db4616792e7887746bea713ce",
+    hash: "9btQLv5PdVwzgrgXKD2Vq5EbWzoNmpwK2jnNg3Mi9FRP",
     baseDataItemCost: "12000",
     bytestringCostPerByte: "10",
     baseContractDeploymentCost: "12000",

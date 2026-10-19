@@ -8,7 +8,7 @@ publish.workspace = true
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "error-handling-callee/dev", "fibonacci/dev"]
+dev = ["thruput-sdk/dev", "error-handling-callee/dev", "fibonacci/dev"]
 
 [lib]
 crate-type = ["rlib"]
@@ -23,7 +23,7 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 error-handling-callee = { path = "../error-handling-callee" }
 fibonacci = { path = "../fibonacci" }
 

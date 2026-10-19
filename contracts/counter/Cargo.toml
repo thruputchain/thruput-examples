@@ -21,10 +21,10 @@ bench = false
 [features]
 entrypoints = []
 default = ["dev"]
-dev = ["sdk/dev"]
+dev = ["thruput-sdk/dev"]
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 
 [dev-dependencies]
 counter = { path = ".", features = ["dev"] }

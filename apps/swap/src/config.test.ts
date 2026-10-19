@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,13 +10,13 @@ import {
 } from "./config";
 import { ConfigurationError } from "./lib/errors";
 
-const ADDRESS = `0x${"11".repeat(32)}`;
-const OTHER_ADDRESS = `0x${"22".repeat(32)}`;
+const ADDRESS = toBase58(new Uint8Array(32).fill(0x11));
+const OTHER_ADDRESS = toBase58(new Uint8Array(32).fill(0x22));
 
 function environment(overrides: Environment = {}): Environment {
   return {
     VITE_THRUPUT_RPC_URL: "http://127.0.0.1:9545",
-    VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
+    VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32)),
     VITE_POOL_TOKEN_HASH: ADDRESS,
     VITE_NATIVE_HOG_ADDRESS: ADDRESS,
     VITE_SWAP_FACTORY_ADDRESS: ADDRESS,

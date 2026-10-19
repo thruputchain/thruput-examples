@@ -1,3 +1,5 @@
+import { fixedFromBase58, toBase58, toHex0x } from "@thruputchain/client";
+
 const HASH = /^(?:0x)?[0-9a-fA-F]{64}$/;
 const ADDRESS = /^0x[0-9a-fA-F]{64}$/;
 const DECIMAL = /^(?:0|[1-9]\d*)$/;
@@ -25,6 +27,26 @@ export function canonicalAddress(value: string, name: string): string {
     throw new ValidationError(`${name} must be a 32-byte 0x-prefixed address`);
   }
   return value.toLowerCase();
+}
+
+/** Read a canonical base58 32-byte identifier as the store's 0x hex form. */
+export function base58Identifier(value: string, name: string): string {
+  try {
+    const bytes = fixedFromBase58(value, 32);
+    if (toBase58(bytes) === value) return toHex0x(bytes);
+  } catch {
+    // Reported below.
+  }
+  throw new ValidationError(`${name} must be a base58 32-byte value`);
+}
+
+export function isBase58Identifier(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    return toBase58(fixedFromBase58(value, 32)) === value;
+  } catch {
+    return false;
+  }
 }
 
 export function canonicalDecimal(value: string, name: string): string {

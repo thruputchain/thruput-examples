@@ -9,7 +9,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { WalletProvider, useWallet } from "@thruputchain/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CxsWriter } from "@thruputchain/protocol";
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { testAccount, testClient, testWallet } from "@/test/wallet";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TokenCards } from "./token-cards";
@@ -17,7 +17,7 @@ import { TokenCards } from "./token-cards";
 afterEach(() => vi.restoreAllMocks());
 
 it("loads all visible balances concurrently and isolates account changes and failures", async () => {
-  const network = "00".repeat(32);
+  const network = toBase58(new Uint8Array(32).fill(0x00));
   const client = await testClient(network);
   const wallet = testWallet(network);
   const queries = new QueryClient();
@@ -30,7 +30,7 @@ it("loads all visible balances concurrently and isolates account changes and fai
     if (request.contract[31] === 2) throw new Error("Token unavailable");
     const data = new CxsWriter();
     data.writeUint128(
-      request.caller && toHex0x(request.caller) === testAccount().address
+      request.caller && toBase58(request.caller) === testAccount().address
         ? 100n
         : 200n,
     );
@@ -42,15 +42,17 @@ it("loads all visible balances concurrently and isolates account changes and fai
     };
   });
   const tokens = Array.from({ length: 20 }, (_, i) => ({
-    addressHex: `0x${(i + 1).toString(16).padStart(64, "0")}`,
+    address: toBase58(
+      Uint8Array.from({ length: 32 }, (_, j) => (j === 31 ? i + 1 : 0)),
+    ),
     name: `Token ${i}`,
     symbol: `T${i}`,
     decimals: 0,
     initialSupply: 1000n,
-    administratorHex: testAccount().address,
-    holderHex: testAccount().address,
+    administrator: testAccount().address,
+    holder: testAccount().address,
     block: 1n,
-    transactionHash: `0x${"01".repeat(32)}`,
+    transactionHash: toBase58(new Uint8Array(32).fill(0x01)),
   }));
   function Cards() {
     const wallet = useWallet();

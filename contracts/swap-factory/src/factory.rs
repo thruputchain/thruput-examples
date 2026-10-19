@@ -1,10 +1,10 @@
 //! The factory contract implementation.
 
-use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
-use sdk::storage::*;
-use sdk::*;
 use swap_if::*;
 use thruput_erc20_if::{ERC20Client, ERC20Error};
+use thruput_sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 /// State for the factory contract
 #[storage]
@@ -259,7 +259,7 @@ impl TokenPair {
 
 // Deploy-nonce roles, distinguishing the pool's contracts for a token pair.
 #[derive(ReadXDR, WriteXDR)]
-#[xdr(crate = "sdk::xdr")]
+#[xdr(crate = "thruput_sdk::xdr")]
 #[repr(i32)]
 enum Role {
     LP = 0,

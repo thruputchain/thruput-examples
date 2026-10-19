@@ -1,7 +1,7 @@
 use calldata::*;
-use sdk::*;
+use thruput_sdk::*;
 
-static CALLDATA_NONCE: SHA256Hash = sdk::sha256_static!("CALLDATA_TEST_NONCE");
+static CALLDATA_NONCE: SHA256Hash = thruput_sdk::sha256_static!("CALLDATA_TEST_NONCE");
 
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
     let env = TestEnvironment::no_cost();

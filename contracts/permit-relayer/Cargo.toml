@@ -13,7 +13,7 @@ edition.workspace = true
 
 [features]
 entrypoints = []
-dev = ["sdk/dev", "dep:thiserror", "permit-wallet/dev"]
+dev = ["thruput-sdk/dev", "dep:thiserror", "permit-wallet/dev"]
 
 [lib]
 crate-type = ["rlib"]
@@ -28,7 +28,7 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-signed-op-if = { workspace = true }
 thruput-erc20-permit-if = { workspace = true }
 # The wallet's signed body type, so the relayer can tell which grant the wallet

@@ -21,7 +21,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use alloc::vec::Vec;
-use sdk::{U256, checked_mul_div_u128};
+use thruput_sdk::{U256, checked_mul_div_u128};
 
 /// The most assets one exchange can value. Arrays are sized by this; a batch uses the first `n`.
 pub const MAX_ASSETS: usize = 8;
@@ -111,7 +111,7 @@ pub struct Bucket {
 }
 
 /// What clearing a batch decided about prices; what each orderbook trades is its [`BookFill`].
-#[sdk::contract_type]
+#[thruput_sdk::contract_type]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Clearing {
     /// The valuation prices, normalized.
@@ -136,7 +136,7 @@ pub struct Clearing {
 /// The remainder is kept as an integer floor and ceiling because it is a rational -- a value flow
 /// divided by a price -- and [`fill`] needs to round the sold side up from it and the bought side
 /// down, so that a book's offers together give up at least the flow and receive at most it.
-#[sdk::contract_type]
+#[thruput_sdk::contract_type]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct BookFill {
     /// Levels below this filled in full.

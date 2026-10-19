@@ -16,6 +16,7 @@ import {
 import { parseAmount } from "@/domain/amount";
 import { orderTokens } from "@/domain/tokens";
 import { NetworkMismatchError, verifyReadNetwork } from "@/thruput/client";
+import { tokenAddress } from "@/pools/creation-presets";
 
 const MINIMUM_LIQUIDITY = 1_000n;
 const MAX_COHERENCE_ATTEMPTS = 3;
@@ -300,8 +301,8 @@ function parseTokenAddresses(tokenA: string, tokenB: string): readonly [Contract
   let parsedA: ContractAddress;
   let parsedB: ContractAddress;
   try {
-    parsedA = addressFromHex(tokenA);
-    parsedB = addressFromHex(tokenB);
+    parsedA = addressFromHex(tokenAddress(tokenA) ?? tokenA);
+    parsedB = addressFromHex(tokenAddress(tokenB) ?? tokenB);
   } catch {
     throw new PoolCreationValidationError("tokenAddress", "Enter two valid 32-byte token contract addresses");
   }
