@@ -1,4 +1,5 @@
 import {
+  hashFromBase58,
   hashFromHex,
   toHex0x,
   type CoreThruputClient,
@@ -108,7 +109,11 @@ export function createProviderWriteBoundary(
       if (!batched) {
         const result = await wallet.executeAndWait(
           { ...preparation, invocation: invocations[0]! },
-          { onSigned: ({ hash }) => observer?.onSigned(hash), wait },
+          {
+            onSigned: ({ hash }) =>
+              observer?.onSigned(toHex0x(hashFromBase58(hash))),
+            wait,
+          },
         );
         return receiptResult(result.receipt);
       }
@@ -118,10 +123,12 @@ export function createProviderWriteBoundary(
         invocations,
       });
       const signed = await wallet.signTransaction(transaction);
-      await observer?.onSigned(signed.hash);
+      // Providers return base58 hashes; Swap's saved evidence uses 0x hex.
+      const hash = hashFromBase58(signed.hash);
+      await observer?.onSigned(toHex0x(hash));
       const result = await submitAndObserve(
         client,
-        hashFromHex(signed.hash),
+        hash,
         () => wallet.submitTransaction(signed),
         wait,
       );

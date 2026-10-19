@@ -1,6 +1,7 @@
 import {
   addressFromHex,
   hashFromHex,
+  toBase58,
   TransactionRejectedError,
   TransactionReceiptTimeoutError,
   type ThruputClient,
@@ -29,6 +30,8 @@ import { createProviderWriteBoundary } from "./provider-wallet";
 
 const hex = (byte: string) => `0x${byte.repeat(32)}`;
 const hash = hex("ab");
+// A v2 provider reports identifiers in base58; Swap keeps hashes as 0x hex.
+const base58 = (value: string) => toBase58(hashFromHex(value));
 const config: GlobalConfig = {
   rpcUrl: new URL("http://localhost:9545"),
   networkIdHex: "00".repeat(32),
@@ -56,10 +59,14 @@ const receipt: TransactionReceipt = {
 
 function fixture() {
   const pending = {
-    hash,
+    hash: base58(hash),
     signedTransaction: "0x00",
-    networkHash: config.networkIdHex,
-    account: { address: hex("01"), publicKey: hex("02"), nonce: "0" },
+    networkHash: base58(`0x${config.networkIdHex}`),
+    account: {
+      address: base58(hex("01")),
+      publicKey: base58(hex("02")),
+      nonce: "0",
+    },
   };
   const wallet = {
     prepareDeployment: vi.fn(),
@@ -77,7 +84,7 @@ function fixture() {
     prepareBatchExecution: vi.fn().mockResolvedValue({} as Transaction),
     prepareExecution: vi.fn(),
     signTransaction: vi.fn().mockResolvedValue(pending),
-    submitTransaction: vi.fn().mockResolvedValue({ hash }),
+    submitTransaction: vi.fn().mockResolvedValue({ hash: base58(hash) }),
     dispose: vi.fn(),
   } satisfies ProviderWalletClient;
   const client = {
