@@ -16,11 +16,16 @@ async function checkBrand(page) {
         overflow: document.documentElement.scrollWidth > innerWidth,
         background: getComputedStyle(document.body).backgroundColor,
         sans: [...document.fonts].some((font) => font.family.includes("Inter Variable") && font.status === "loaded"),
+        mono: [...document.fonts].some((font) => font.family.includes("Inconsolata Variable") && font.status === "loaded"),
+        monoApplied: [...document.querySelectorAll(".font-mono")].some((element) =>
+          element.checkVisibility() && getComputedStyle(element).fontFamily.includes("Inconsolata Variable")),
       }));
       assert.deepEqual(state, {
         overflow: false,
         background: colorScheme === "dark" ? "rgb(10, 10, 10)" : "rgb(245, 245, 240)",
         sans: true,
+        mono: true,
+        monoApplied: true,
       });
     }
   }
