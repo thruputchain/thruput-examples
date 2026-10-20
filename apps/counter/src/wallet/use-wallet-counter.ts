@@ -58,6 +58,8 @@ export function useWalletCounter(address: string) {
     if (!pending.record || !pending.direction) return;
     const transaction: Transaction = {
       id: ++nextId.current,
+      // Saved records predate this session and do not contain a timestamp.
+      createdAt: 0,
       direction: pending.direction,
       hash: pending.record.hash,
       state: "pending",
@@ -169,6 +171,7 @@ export function useWalletCounter(address: string) {
           onSigned: async (record) => {
             const transaction: Transaction = {
               id: ++nextId.current,
+              createdAt: Date.now(),
               direction,
               hash: record.hash,
               state: "pending",

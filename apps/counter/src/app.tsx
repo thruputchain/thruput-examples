@@ -8,6 +8,7 @@ import { KeyboardPad } from "./components/keyboard-pad";
 import { SessionActivity } from "./components/session-activity";
 import { errorMessage, parseConfig, type AppConfig } from "./config";
 import type { Direction, Snapshot } from "./transactions/engine";
+import { mergeHistory } from "./transactions/history";
 import { useCounter } from "./transactions/use-counter";
 import { createPublicClient } from "./thruput/public-client";
 import { useCounterValue } from "./thruput/use-counter-value";
@@ -106,13 +107,7 @@ export function ConnectedCounter({ config }: { config: AppConfig }) {
     value: counter.data?.value ?? null,
     ready: Boolean(counter.data) && !counter.error && canSend,
     atCapacity: !walletMode && development.snapshot.atCapacity,
-    recent: [
-      ...activity.recent.map((transaction) => ({
-        ...transaction,
-        id: -transaction.id,
-      })),
-      ...development.snapshot.recent,
-    ],
+    recent: mergeHistory(activity.recent, development.snapshot.recent),
     message,
   };
   return (
