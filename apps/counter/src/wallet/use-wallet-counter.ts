@@ -7,7 +7,7 @@ import {
   type TransactionReceipt,
 } from "@thruputchain/client";
 import { parseSignedTransactionHex } from "@thruputchain/client/provider";
-import { gasAmount } from "@thruputchain/protocol";
+import { ExecResult, gasAmount } from "@thruputchain/protocol";
 import {
   contractViewQueryOptions,
   transactionReceiptQueryOptions,
@@ -19,7 +19,7 @@ import {
 } from "@thruputchain/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Counter } from "../contracts/generated/counter";
-import type { Direction } from "../transactions/engine";
+import type { Direction, Transaction } from "../transactions/engine";
 import {
   loadPending,
   pendingKey,
@@ -36,6 +36,8 @@ export function useWalletCounter(address: string) {
   const lock = useRef(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [recent, setRecent] = useState<Transaction[]>([]);
+  const nextId = useRef(0);
   const network = toBase58(client.network.networkHash);
   const key = pendingKey(network, address);
   function readSaved(): PendingState {
@@ -53,6 +55,45 @@ export function useWalletCounter(address: string) {
     busy || execution.isPending || Boolean(pending.record || pending.error);
 
   useEffect(() => {
+    if (!pending.record || !pending.direction) return;
+    const transaction: Transaction = {
+      id: ++nextId.current,
+      // Saved records predate this session and do not contain a timestamp.
+      createdAt: 0,
+      direction: pending.direction,
+      hash: pending.record.hash,
+      state: "pending",
+      message: null,
+    };
+    setRecent((transactions) =>
+      transactions.some((entry) => entry.hash === transaction.hash)
+        ? transactions
+        : [transaction, ...transactions].slice(0, 20),
+    );
+  }, [pending.record, pending.direction]);
+
+  useEffect(() => {
+    if (receipt.data) recordReceipt(receipt.data);
+  }, [receipt.data, pending.record]);
+
+  function recordReceipt(value: TransactionReceipt) {
+    const hash = toBase58(value.txHash);
+    setRecent((transactions) =>
+      transactions.map((transaction) =>
+        transaction.hash === hash
+          ? {
+              ...transaction,
+              state:
+                value.execResult === ExecResult.ExecResultOK
+                  ? "confirmed"
+                  : "failed",
+            }
+          : transaction,
+      ),
+    );
+  }
+
+  useEffect(() => {
     const changed = (event: StorageEvent) => {
       if ((event.key === key || event.key === null) && !lock.current)
         setPending(readSaved());
@@ -62,6 +103,7 @@ export function useWalletCounter(address: string) {
   }, [key]);
 
   function committed(value: TransactionReceipt) {
+    recordReceipt(value);
     queries.setQueryData(
       transactionReceiptQueryOptions({ client, hash: toBase58(value.txHash) })
         .queryKey,
@@ -127,6 +169,17 @@ export function useWalletCounter(address: string) {
         options: {
           wait: { timeoutMs: 20_000, pollingIntervalMs: 500 },
           onSigned: async (record) => {
+            const transaction: Transaction = {
+              id: ++nextId.current,
+              createdAt: Date.now(),
+              direction,
+              hash: record.hash,
+              state: "pending",
+              message: null,
+            };
+            setRecent((transactions) =>
+              [transaction, ...transactions].slice(0, 20),
+            );
             setPending({ record, error: null });
             try {
               savePending(localStorage, key, record);
@@ -229,5 +282,6 @@ export function useWalletCounter(address: string) {
     receipt,
     execution,
     message,
+    recent,
   };
 }

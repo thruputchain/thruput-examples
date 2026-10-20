@@ -34,9 +34,7 @@ it("shows the current balance, prevents duplicate clicks, and updates one toast 
       }),
   );
   vi.stubGlobal("fetch", fetchMock);
-  const { rerender } = render(
-    <AppHeader ready={false} canTopup signerBalance={0n} />,
-  );
+  const { rerender } = render(<AppHeader canTopup signerBalance={0n} />);
   const button = screen.getByRole("button", {
     name: "Top up Signer (curr 0 HOG)",
   }) as HTMLButtonElement;
@@ -63,7 +61,7 @@ it("shows the current balance, prevents duplicate clicks, and updates one toast 
     }),
   );
   expect(button.disabled).toBe(false);
-  rerender(<AppHeader ready canTopup signerBalance={100_000_000n} />);
+  rerender(<AppHeader canTopup signerBalance={100_000_000n} />);
   expect(
     screen.getByRole("button", { name: "Top up Signer (curr 10 HOG)" }),
   ).toBe(button);
@@ -87,7 +85,7 @@ it("uses an error toast and permits a new attempt", async () => {
         }),
       ),
   );
-  render(<AppHeader ready canTopup signerBalance={189_986_486n} />);
+  render(<AppHeader canTopup signerBalance={189_986_486n} />);
   const button = screen.getByRole("button", {
     name: "Top up Signer (curr 18.998 HOG)",
   }) as HTMLButtonElement;
@@ -111,7 +109,7 @@ it("uses an error toast and permits a new attempt", async () => {
 it("hides development top-ups when that signer is unavailable or inactive", () => {
   const fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
-  render(<AppHeader ready={false} canTopup={false} signerBalance={null} />);
+  render(<AppHeader canTopup={false} signerBalance={null} />);
   const button = screen.queryByRole("button", {
     name: /^Top up Signer/,
   });

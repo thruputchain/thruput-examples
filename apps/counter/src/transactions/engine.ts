@@ -5,6 +5,7 @@ type TransactionState =
   "queued" | "signing" | "pending" | "confirmed" | "failed" | "unknown";
 export interface Transaction {
   id: number;
+  createdAt: number;
   direction: Direction;
   state: TransactionState;
   hash: string | null;
@@ -94,6 +95,7 @@ export class TransactionEngine {
     }
     const transaction: TrackedTransaction = {
       id: ++this.nextId,
+      createdAt: this.now(),
       direction,
       state: "queued",
       hash: null,
@@ -149,13 +151,16 @@ export class TransactionEngine {
       unknown,
       atCapacity: this.outstanding.size >= CAPACITY,
       rate: this.completions.length / 5,
-      recent: this.recent.map(({ id, direction, state, hash, message }) => ({
-        id,
-        direction,
-        state,
-        hash,
-        message,
-      })),
+      recent: this.recent.map(
+        ({ id, createdAt, direction, state, hash, message }) => ({
+          id,
+          createdAt,
+          direction,
+          state,
+          hash,
+          message,
+        }),
+      ),
     };
   }
 

@@ -5,6 +5,39 @@ import { createServer } from "vite";
 import { PrivateKeySigner, toBase58 } from "@thruputchain/client";
 import { createPubkeyAccount } from "@thruputchain/client/wallet";
 
+async function checkBrand(page) {
+  for (const colorScheme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme });
+    for (const width of [320, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForFunction(() => [...document.querySelectorAll("header img")].every((img) => img.complete && img.naturalWidth > 0));
+      const state = await page.evaluate(() => ({
+        overflow: document.documentElement.scrollWidth > innerWidth,
+        background: getComputedStyle(document.body).backgroundColor,
+        sans: [...document.fonts].some((font) => font.family.includes("Inter Variable") && font.status === "loaded"),
+        mono: [...document.fonts].some((font) => font.family.includes("Inconsolata Variable") && font.status === "loaded"),
+        monoApplied: [...document.querySelectorAll(".font-mono")].some((element) =>
+          element.checkVisibility() && getComputedStyle(element).fontFamily.includes("Inconsolata Variable")),
+      }));
+      assert.deepEqual(state, {
+        overflow: false,
+        background: colorScheme === "dark" ? "rgb(10, 10, 10)" : "rgb(245, 245, 240)",
+        sans: true,
+        mono: true,
+        monoApplied: true,
+      });
+      const lockup = await page.locator('header a[aria-label$="homepage"]').evaluate((link) => {
+        const image = link.querySelector("img").getBoundingClientRect();
+        const name = link.querySelector("span");
+        const bounds = name.getBoundingClientRect();
+        return { fontSize: getComputedStyle(name).fontSize, aligned: Math.abs(image.y + image.height / 2 - bounds.y - bounds.height / 2) < 1 };
+      });
+      assert.deepEqual(lockup, { fontSize: width === 320 ? "17px" : "20px", aligned: true });
+    }
+  }
+}
+
 // UI-only fixtures: no ledger, wallet credentials, upstream service, or signing.
 const id = (byte) => toBase58(new Uint8Array(32).fill(byte));
 const a = id(0x01);
@@ -170,6 +203,9 @@ try {
     "Launchpad handoff must survive a disconnected visit",
   );
   checkingCreation = true;
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Create Pool" }).getAttribute("href"), "/pools/new");
+  await page.getByRole("button", { name: "Close navigation" }).click();
   networkReads = 0;
   await page
     .getByRole("button", {
@@ -321,6 +357,8 @@ try {
     true,
   );
   assert.deepEqual(errors, []);
+  await page.keyboard.press("Escape");
+  await checkBrand(page);
   const launchpad = await createServer({
     mode: "browser-test",
     root: fileURLToPath(new URL("../../apps/token-launchpad", import.meta.url)),
@@ -403,6 +441,7 @@ try {
         true,
       );
     }
+    await checkBrand(launch);
     await launch.close();
   } finally {
     await launchpad.close();

@@ -247,7 +247,10 @@ try {
   await page
     .getByRole("button", { name: "Connect wallet", exact: true })
     .click();
-  await page.getByText(/Using connected wallet/).waitFor();
+  await page
+    .locator("header")
+    .getByRole("button", { name: "Disconnect wallet", exact: true })
+    .waitFor();
   await increment.click();
   await page.getByText("Counter update committed.", { exact: true }).waitFor();
   await expectValue(1_000_002);
@@ -256,6 +259,11 @@ try {
   assert.equal(signatures.length, 1);
   assert.equal(submissions.length, 1);
   await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await page
+    .getByRole("region", { name: "Transaction activity" })
+    .getByText("Confirmed", { exact: true })
+    .last()
+    .waitFor();
   await page
     .getByRole("button", { name: "Connect wallet", exact: true })
     .click();
@@ -297,6 +305,10 @@ try {
   assert.equal(submissions.at(-1), original);
   await expectValue(1_000_003);
   await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await page
+    .getByRole("region", { name: "Transaction activity" })
+    .getByText("Confirmed", { exact: true })
+    .waitFor();
   await page.evaluate(() => {
     window.counterWalletTest.reject = true;
   });
@@ -319,7 +331,14 @@ try {
   await page
     .getByRole("button", { name: "Disconnect wallet", exact: true })
     .click();
-  await page.getByText(/Using development signer/).waitFor();
+  await page
+    .locator("header")
+    .getByRole("button", { name: "Connect wallet", exact: true })
+    .waitFor();
+  await page
+    .locator("header")
+    .getByRole("button", { name: /^Top up Signer/ })
+    .waitFor();
   await increment.click();
   await expectValue(1_000_004);
   assert.equal(developmentRequests, 2);

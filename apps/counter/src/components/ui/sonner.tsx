@@ -8,11 +8,11 @@ import {
 import type { CSSProperties } from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
-// shadcn/ui Sonner wrapper using the app's fixed dark theme.
+// Follow the system theme, like the app's CSS tokens.
 export function Toaster(props: ToasterProps) {
   return (
     <Sonner
-      theme="dark"
+      theme="system"
       className="toaster group"
       closeButton
       icons={{

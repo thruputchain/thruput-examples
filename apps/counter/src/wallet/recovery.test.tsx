@@ -156,6 +156,10 @@ function Page() {
         New update
       </button>
       <WalletActivity activity={activity} explorerUrl={null} />
+      <button onClick={activity.clearRecord}>Clear completed record</button>
+      <output aria-label="Recent wallet transactions">
+        {JSON.stringify(activity.recent)}
+      </output>
     </>
   );
 }
@@ -174,6 +178,17 @@ function mount(saved = true) {
 
 it("reloads observation-only and resubmits the original bytes only after explicit reapproval", async () => {
   mount();
+  const recent = () =>
+    JSON.parse(
+      screen.getByLabelText("Recent wallet transactions").textContent!,
+    );
+  expect(recent()).toEqual([
+    expect.objectContaining({
+      hash: fixture.record.hash,
+      direction: "increment",
+      state: "pending",
+    }),
+  ]);
   expect(calls.execute).not.toHaveBeenCalled();
   expect(calls.sign).not.toHaveBeenCalled();
   expect(calls.submit).not.toHaveBeenCalled();
@@ -187,6 +202,21 @@ it("reloads observation-only and resubmits the original bytes only after explici
     version: 1,
     ...fixture.record,
   });
+  await waitFor(() =>
+    expect(recent()).toEqual([
+      expect.objectContaining({
+        hash: fixture.record.hash,
+        state: "confirmed",
+      }),
+    ]),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Clear completed record" }),
+  );
+  await waitFor(() => expect(localStorage.getItem(key)).toBeNull());
+  expect(recent()).toEqual([
+    expect.objectContaining({ hash: fixture.record.hash, state: "confirmed" }),
+  ]);
 });
 
 it("recovers a failed submission without preparing a replacement transaction", async () => {
@@ -197,12 +227,36 @@ it("recovers a failed submission without preparing a replacement transaction", a
   mount(false);
   fireEvent.click(screen.getByRole("button", { name: "New update" }));
   await screen.findByText("Submission response lost");
+  expect(
+    JSON.parse(
+      screen.getByLabelText("Recent wallet transactions").textContent!,
+    ),
+  ).toEqual([
+    expect.objectContaining({
+      hash: fixture.record.hash,
+      direction: "increment",
+      state: "pending",
+    }),
+  ]);
   fireEvent.click(
     screen.getByRole("button", { name: "Retry same transaction" }),
   );
   await waitFor(() => expect(calls.submit).toHaveBeenCalledOnce());
   expect(calls.execute).toHaveBeenCalledOnce();
   expect(calls.submit).toHaveBeenCalledWith(fixture.record);
+  await waitFor(() =>
+    expect(
+      JSON.parse(
+        screen.getByLabelText("Recent wallet transactions").textContent!,
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        hash: fixture.record.hash,
+        direction: "increment",
+        state: "confirmed",
+      }),
+    ]),
+  );
 });
 
 it("refuses another account, changed approval bytes, and expired transactions", async () => {

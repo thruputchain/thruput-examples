@@ -1,4 +1,4 @@
-import { MenuIcon, XIcon, ZapIcon } from "lucide-react";
+import { MenuIcon, XIcon } from "lucide-react";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { Link, useInRouterContext } from "react-router-dom";
 
@@ -31,18 +31,24 @@ export function AppHeader({
     "aria-label": `Thruput ${product} homepage`,
     className: "flex min-h-12 shrink-0 items-center gap-2.5",
     children: (
-      <>
-        <ZapIcon
-          className="size-6 shrink-0 fill-primary text-primary"
-          aria-hidden="true"
-        />
-        <div className="flex flex-col gap-0.5 lg:flex-row lg:items-center lg:gap-3">
-          <div className="text-xl font-medium tracking-tight">THRUPUT</div>
-          <div className="font-mono text-xs text-muted-foreground lg:border-l lg:pl-3">
-            {product}
-          </div>
-        </div>
-      </>
+      <div className="flex items-center gap-2 whitespace-nowrap text-[17px] font-medium min-[384px]:gap-3 min-[384px]:text-xl">
+        <picture className="shrink-0">
+          <source
+            srcSet="/brand/stellar-dark.svg"
+            media="(prefers-color-scheme: dark)"
+          />
+          <img
+            src="/brand/stellar.svg"
+            width="100"
+            height="25"
+            alt="Stellar"
+            className="w-20 min-[384px]:w-25"
+          />
+        </picture>
+        <span className="border-l pl-2 min-[384px]:pl-3">
+          Thruput {product}
+        </span>
+      </div>
     ),
   };
 
