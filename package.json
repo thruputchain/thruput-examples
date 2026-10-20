@@ -21,6 +21,7 @@
     "example:deploy-counter": "tsx examples/typescript/deploy-counter.ts",
     "example:read-events": "tsx examples/typescript/read-events.ts",
     "example:batch-counter": "tsx examples/typescript/batch-counter.ts",
+    "example:consume-firehose": "tsx examples/typescript/consume-firehose.ts",
     "test:examples": "node tests/e2e/typescript-examples.mjs",
     "test:browser": "node tests/browser/apps.mjs",
     "test:counter": "tsx tests/e2e/counter.ts",
