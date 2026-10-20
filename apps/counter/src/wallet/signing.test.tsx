@@ -149,13 +149,14 @@ async function setup(withSigner = true) {
   };
 }
 
-it("defaults to development, switches on connection, and returns only on explicit disconnect", async () => {
+it("uses the header wallet when connected and falls back after disconnection", async () => {
   const s = await setup();
   fireEvent.click(screen.getByRole("button", { name: "Increment" }));
   expect(sendDevelopment).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("button", { name: "Connect wallet" }));
   await waitFor(() => expect(s.binding).not.toBeNull());
-  await screen.findByText(/Using connected wallet/);
+  await screen.findByRole("button", { name: "Disconnect wallet" });
+  expect(screen.queryByRole("button", { name: /^Top up Signer/ })).toBeNull();
   expect(worker).toHaveBeenLastCalledWith(s.config, false);
   const execute = vi
     .spyOn(s.binding!, "executeAndWait")
@@ -165,14 +166,11 @@ it("defaults to development, switches on connection, and returns only on explici
   expect(execute).toHaveBeenCalledTimes(1);
   expect(sendDevelopment).toHaveBeenCalledTimes(1);
   act(() => s.change({ networkHash: s.network, accounts: [] }));
-  expect(
-    (screen.getByRole("button", { name: "Increment" }) as HTMLButtonElement)
-      .disabled,
-  ).toBe(true);
-  expect(worker).toHaveBeenLastCalledWith(s.config, false);
-  fireEvent.click(screen.getByRole("button", { name: "Disconnect wallet" }));
-  await screen.findByText(/Using development signer/);
   await waitFor(() => expect(worker).toHaveBeenLastCalledWith(s.config, true));
+  expect(screen.getByRole("button", { name: /^Top up Signer/ })).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Connect wallet" }).closest("header"),
+  ).not.toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Increment" }));
   expect(sendDevelopment).toHaveBeenCalledTimes(2);
 });

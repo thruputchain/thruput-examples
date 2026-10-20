@@ -27,6 +27,13 @@ async function checkBrand(page) {
         mono: true,
         monoApplied: true,
       });
+      const lockup = await page.locator('header a[aria-label$="homepage"]').evaluate((link) => {
+        const image = link.querySelector("img").getBoundingClientRect();
+        const name = link.querySelector("span");
+        const bounds = name.getBoundingClientRect();
+        return { fontSize: getComputedStyle(name).fontSize, aligned: Math.abs(image.y + image.height / 2 - bounds.y - bounds.height / 2) < 1 };
+      });
+      assert.deepEqual(lockup, { fontSize: width === 320 ? "17px" : "20px", aligned: true });
     }
   }
 }
@@ -196,6 +203,9 @@ try {
     "Launchpad handoff must survive a disconnected visit",
   );
   checkingCreation = true;
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Create Pool" }).getAttribute("href"), "/pools/new");
+  await page.getByRole("button", { name: "Close navigation" }).click();
   networkReads = 0;
   await page
     .getByRole("button", {

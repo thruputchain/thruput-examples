@@ -12,7 +12,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     <div className="isolate min-h-svh bg-background text-foreground antialiased">
       <WalletInstallBanner />
       <AppHeader
-        product="Token Launchpad"
+        product="Launchpad"
         navigationKey={location.key}
         homeHref={readOnly ? "/tokens" : "/create"}
         navigation={

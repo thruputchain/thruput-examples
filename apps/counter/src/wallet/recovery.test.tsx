@@ -156,6 +156,9 @@ function Page() {
         New update
       </button>
       <WalletActivity activity={activity} explorerUrl={null} />
+      <output aria-label="Recent wallet transactions">
+        {JSON.stringify(activity.recent)}
+      </output>
     </>
   );
 }
@@ -197,12 +200,36 @@ it("recovers a failed submission without preparing a replacement transaction", a
   mount(false);
   fireEvent.click(screen.getByRole("button", { name: "New update" }));
   await screen.findByText("Submission response lost");
+  expect(
+    JSON.parse(
+      screen.getByLabelText("Recent wallet transactions").textContent!,
+    ),
+  ).toEqual([
+    expect.objectContaining({
+      hash: fixture.record.hash,
+      direction: "increment",
+      state: "pending",
+    }),
+  ]);
   fireEvent.click(
     screen.getByRole("button", { name: "Retry same transaction" }),
   );
   await waitFor(() => expect(calls.submit).toHaveBeenCalledOnce());
   expect(calls.execute).toHaveBeenCalledOnce();
   expect(calls.submit).toHaveBeenCalledWith(fixture.record);
+  await waitFor(() =>
+    expect(
+      JSON.parse(
+        screen.getByLabelText("Recent wallet transactions").textContent!,
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        hash: fixture.record.hash,
+        direction: "increment",
+        state: "confirmed",
+      }),
+    ]),
+  );
 });
 
 it("refuses another account, changed approval bytes, and expired transactions", async () => {
