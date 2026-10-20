@@ -461,6 +461,41 @@ describe("PoolDirectoryPage", () => {
     expect(readRegistry.mock.calls[1]?.[1]).toMatchObject({ q: fragment });
   });
 
+  it("searches a pasted StrKey address as base58 and rejects hex", async () => {
+    const user = userEvent.setup();
+    const readRegistry = vi.fn().mockResolvedValue(page());
+    renderPage(globalConfig, {
+      readRegistry,
+      requestSync: vi.fn().mockResolvedValue(status()),
+      readStatus: vi.fn().mockResolvedValue(status()),
+      enrich: vi.fn(async (_config, entries) => entries),
+    });
+    await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(1));
+    const search = screen.getByLabelText("Search addresses");
+
+    await user.click(search);
+    await user.paste(addressToStrkey(addressFromBase58(id(6))));
+    await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(2));
+    expect(readRegistry.mock.calls[1]?.[1]).toMatchObject({ q: id(6) });
+    expect(search).not.toHaveAttribute("aria-invalid", "true");
+
+    const calls = readRegistry.mock.calls.length;
+    await user.clear(search);
+    await user.paste(`0x${"05".repeat(32)}`);
+    expect(
+      await screen.findByText(
+        "Search with base58 address text. 0x hex addresses are not accepted.",
+      ),
+    ).toBeInTheDocument();
+    expect(search).toHaveAttribute("aria-invalid", "true");
+    await act(() => new Promise((resolve) => setTimeout(resolve, 400)));
+    expect(
+      readRegistry.mock.calls
+        .slice(calls)
+        .some(([, query]) => String(query.q).startsWith("0x")),
+    ).toBe(false);
+  });
+
   it.each(["search", "token", "sort", "page"])(
     "clears displayed results while a replacement %s request is pending",
     async (change) => {

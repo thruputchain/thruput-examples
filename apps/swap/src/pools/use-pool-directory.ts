@@ -70,6 +70,15 @@ export function usePoolDirectory({
         ? "Enter the base58 token address. 0x hex addresses are not accepted."
         : "Enter a complete base58 token address."
       : null;
+  // Search matches address substrings. A whole address (base58 or C StrKey)
+  // is searched as base58; base58 has no "0", so 0x hex can never match.
+  const searchText = filters.search.trim();
+  const searchQuery = searchText
+    ? (typedAddress(searchText) ?? searchText)
+    : null;
+  const searchError = /^0x/i.test(search.trim())
+    ? "Search with base58 address text. 0x hex addresses are not accepted."
+    : null;
   useEffect(() => {
     if (search === filters.search && token === filters.token) return;
     const timer = setTimeout(() => {
@@ -84,7 +93,7 @@ export function usePoolDirectory({
       read(
         registry,
         {
-          ...(filters.search.trim() ? { q: filters.search } : {}),
+          ...(searchQuery === null ? {} : { q: searchQuery }),
           ...(tokenFilter === null ? {} : { token: tokenFilter }),
           sort,
           limit: 20,
@@ -92,7 +101,9 @@ export function usePoolDirectory({
         },
         AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
       ),
-    enabled: !filters.token.trim() || tokenFilter !== null,
+    enabled:
+      (!filters.token.trim() || tokenFilter !== null) &&
+      !/^0x/i.test(searchText),
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -205,6 +216,7 @@ export function usePoolDirectory({
   return {
     search,
     setSearch,
+    searchError,
     token,
     setToken,
     tokenError,

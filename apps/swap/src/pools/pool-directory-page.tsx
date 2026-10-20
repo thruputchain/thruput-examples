@@ -95,22 +95,27 @@ function RegistryPoolDirectoryPage({
   enrich: typeof enrichRegistryPools;
   readOnly: boolean;
 }) {
-  const { search, setSearch, token, setToken, tokenError, sort, setSort, offset, page, entries, status, statusError, error, loading, hasFilters, refresh, changePage, resetSnapshot } = usePoolDirectory({ config, read, readStatus, requestSync, enrich });
+  const { search, setSearch, searchError, token, setToken, tokenError, sort, setSort, offset, page, entries, status, statusError, error, loading, hasFilters, refresh, changePage, resetSnapshot } = usePoolDirectory({ config, read, readStatus, requestSync, enrich });
 
   const failedReads = entries.filter(({ readError }) => readError).length;
 
   return (
     <DirectoryLayout>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem]">
-        <Field>
+        <Field data-invalid={Boolean(searchError)}>
           <FieldLabel htmlFor="pool-search">Search addresses</FieldLabel>
           <Input
             id="pool-search"
             type="search"
             value={search}
             placeholder="Token, LP, handler, or driver"
+            aria-invalid={Boolean(searchError)}
+            aria-describedby={searchError ? "pool-search-error" : undefined}
             onChange={(event) => setSearch(event.target.value)}
           />
+          {searchError ? (
+            <FieldDescription id="pool-search-error">{searchError}</FieldDescription>
+          ) : null}
         </Field>
         <Field data-invalid={Boolean(tokenError)}>
           <FieldLabel htmlFor="pool-token">Contains token</FieldLabel>
