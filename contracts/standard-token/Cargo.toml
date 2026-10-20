@@ -1,6 +1,6 @@
 [package]
 name = "standard-token"
-description = "Metadata-enabled standard token deployed by the Groundhog token factory"
+description = "Metadata-enabled standard token deployed by the Thruput token factory"
 version = "0.1.0"
 authors.workspace = true
 license.workspace = true

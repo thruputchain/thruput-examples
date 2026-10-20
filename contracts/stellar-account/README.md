@@ -1,8 +1,8 @@
 # Stellar-classic account
 
-An example (not for production) of Stellar classic's account model on Groundhog: a master key,
+An example (not for production) of Stellar classic's account model on Thruput: a master key,
 up to 20 additional weighted signers, low/medium/high operation thresholds, and a few iconic
-operations. The point is that Groundhog's protocol already carries this model at the address
+operations. The point is that Thruput's protocol already carries this model at the address
 level, so the contract adds the thresholds and nothing else.
 
 - [`stellar-account`](src/account.rs): the account. Tested on the native executor in
@@ -13,7 +13,7 @@ level, so the contract adds the thresholds and nothing else.
 - [`stellar-account-factory-if`](../../interfaces/stellar-account-factory-if/): the factory and
   initializer traits, and the address derivation.
 
-## Stellar to Groundhog
+## Stellar to Thruput
 
 | Stellar | Here |
 |---|---|
@@ -44,7 +44,7 @@ transaction sharing a block with the change is judged against the old set.
 
 No sequence numbers (the transaction uniquifier covers replay). No trustlines or non-native
 assets beyond ERC20 addresses. No data entries, flags, home domain, sponsorship, pre-auth or
-hash-x signers. No Stellar XDR envelopes: transactions are Groundhog transactions signed by the
+hash-x signers. No Stellar XDR envelopes: transactions are Thruput transactions signed by the
 registered keys. The master key cannot take a second slot (refused in-frame, `InvalidSlot`). The
 chain refuses any registration that would place one key in two slots of an address (hogd
 `DuplicateSigner` conflict), so such a transaction fails to commit; the account cannot read other

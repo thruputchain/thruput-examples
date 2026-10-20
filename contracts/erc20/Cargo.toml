@@ -1,6 +1,6 @@
 [package]
 name = "erc20"
-description = "Example ERC20 contract for the Groundhog blockchain"
+description = "Example ERC20 contract for the Thruput blockchain"
 version = "0.1.0"
 authors.workspace = true
 license.workspace = true

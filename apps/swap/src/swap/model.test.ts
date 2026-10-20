@@ -20,7 +20,7 @@ function snapshot(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
   return {
     tokenA: {
       address: address(1),
-      name: "Groundhog USD",
+      name: "Thruput USD",
       symbol: "gUSD",
       decimals: 6,
       balance: 100_000_000n,
@@ -28,7 +28,7 @@ function snapshot(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
     },
     tokenB: {
       address: address(2),
-      name: "Groundhog EUR",
+      name: "Thruput EUR",
       symbol: "gEUR",
       decimals: 6,
       balance: 50_000_000n,

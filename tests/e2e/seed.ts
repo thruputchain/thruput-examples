@@ -28,7 +28,7 @@ assert.ok(
 );
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
-const work = await mkdtemp(join(tmpdir(), "groundhog-seed-"));
+const work = await mkdtemp(join(tmpdir(), "thruput-seed-"));
 const env: NodeJS.ProcessEnv = Object.fromEntries(
   Object.entries(process.env).filter(([key]) =>
     ["PATH", "HOME", "LANG", "LD_LIBRARY_PATH"].includes(key),

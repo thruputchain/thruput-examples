@@ -113,12 +113,12 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: groundhog-seed-evidence
+          name: thruput-seed-evidence
           path: |
-            /tmp/groundhog-seed-*
-            !/tmp/groundhog-seed-*/config/thruput/keys
-            !/tmp/groundhog-seed-*/seed/**/signer.key
-            !/tmp/groundhog-seed-*/cache
+            /tmp/thruput-seed-*
+            !/tmp/thruput-seed-*/config/thruput/keys
+            !/tmp/thruput-seed-*/seed/**/signer.key
+            !/tmp/thruput-seed-*/cache
           if-no-files-found: ignore
           include-hidden-files: true
           retention-days: 3

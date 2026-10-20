@@ -12,7 +12,7 @@
 //! `Ledger`. A caller holding a `LedgerClient` therefore meets an error that
 //! the interface it called never declared.
 //!
-//! That caller does not need a special case for it. A Groundhog exception is
+//! That caller does not need a special case for it. A Thruput exception is
 //! self-describing on the wire — `[CXS(selector)][payload]` — and the
 //! selector identifies the type independently of any interface's `throws`
 //! list, so [`match_exn!`](sdk::match_exn) matches the declared error and the

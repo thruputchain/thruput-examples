@@ -1,8 +1,8 @@
-//! A Stellar-classic account on Groundhog.
+//! A Stellar-classic account on Thruput.
 //!
 //! Stellar classic authorizes an operation when the weights of the keys that
 //! signed it reach the account's threshold for that operation's category:
-//! low, medium, or high. Groundhog's protocol has the same shape at the
+//! low, medium, or high. Thruput's protocol has the same shape at the
 //! address level: every address carries up to 21 weighted keys and one
 //! required weight, and hogd admits a transaction only when its signers'
 //! weights reach the larger of that stored weight and the weight the

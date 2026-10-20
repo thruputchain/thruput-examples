@@ -340,7 +340,7 @@ describe("infrastructure-only swap provisioning", () => {
       /PRIVATE|PERSONA|WALLET|ENTRYPOINT|POOL_ADDRESS|LIQUIDITY|DRIVER|alice|bob|carol/i,
     );
     expect(env).not.toContain(toHex0x(account.address));
-    expect(await readdir(root)).not.toContain("groundhog");
+    expect(await readdir(root)).not.toContain("thruput");
     const asset = JSON.parse(await readFile(assetPath, "utf8"));
     expect(asset).toEqual({
       contractType: "rv32",

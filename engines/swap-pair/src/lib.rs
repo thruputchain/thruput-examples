@@ -1,4 +1,4 @@
-//! A port of UniswapV2 from Solidity to groundhog
+//! A port of UniswapV2 from Solidity to Thruput
 //!
 //! N.B.: This contract suite is for example purposes only; it has not been
 //! audited thoroughly for production use.
@@ -8,7 +8,7 @@
 //! [whitepaper]: https://docs.uniswap.org/whitepaper.pdf
 //! [v2-core]: https://github.com/Uniswap/v2-core
 
-//! This is not a contract.  In groundhog, each pair operation is enqueued as a
+//! This is not a contract.  In Thruput, each pair operation is enqueued as a
 //! request to `swap-driver`, and performed inside a handler of `swap-handler`;
 //! this allows executing a batch of them in one transaction and thus
 //! multiplies how many swap-pair operations can be performed in each block.

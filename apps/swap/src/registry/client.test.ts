@@ -314,7 +314,7 @@ describe("pool registry client", () => {
     ).rejects.toThrow(/pools/);
   });
 
-  it("accepts the maximum Groundhog u32 event sequence", async () => {
+  it("accepts the maximum Thruput u32 event sequence", async () => {
     const value = page();
     value.pools[0]!.eventSequence = "4294967295";
     await expect(readPage(value)).resolves.toMatchObject({
