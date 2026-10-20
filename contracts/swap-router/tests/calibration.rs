@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use thruput_erc20_if::Amount;
 use thruput_testkit::xdr::types::ContractAddress;
-use thruput_testkit::{Agent, AgentContext, LocalNetworkConfig, NetworkConfig, Result, Scenario};
+use thruput_testkit::{Agent, LocalNetworkConfig, NetworkConfig, Result, Scenario};
 
 // An alias to match the contracts' `Address` type.
 pub type Address = ContractAddress;
@@ -39,7 +39,7 @@ fn gas_report(receipt: &thruput_json_rpc_types::receipt::TransactionReceipt) -> 
 /// charged. This informs the gas constants in `swap-if` and `batch-driver`.
 fn calibrator(fee_enabled: bool) -> Agent {
     Agent::new("calibrator", move |mut ctx| async move {
-        let native = native_token();
+        let native = native_token(&ctx);
         let me = ctx.address();
         // The protocol fee goes wherever; what matters is whether one is set,
         // because that is what makes the pair's `mint_fee` do real work.
@@ -48,71 +48,57 @@ fn calibrator(fee_enabled: bool) -> Agent {
 
         // Priming is an add_liquidity of its own, and records the `k` that a
         // later liquidity event compares against.
-        prime_pool(&mut ctx, &s).await?;
+        prime_pool(&ctx, &s).await?;
 
         // Priming deposited everything the admin held, so mint a fresh supply to
         // trade and deposit with.
-        s.token0.call(&mut ctx, "mint", &(me, SUPPLY)).await?;
-        s.token1.call(&mut ctx, "mint", &(me, SUPPLY)).await?;
+        s.token0.mint(&me, SUPPLY).await?;
+        s.token1.mint(&me, SUPPLY).await?;
 
         let mut measured: Vec<(&str, GasReport)> = Vec::new();
 
         // A swap, which also grows `k` through the fee it charges -- so the
         // liquidity event after it finds a grown `k` and mints the protocol fee.
-        swap_a_little(&mut ctx, &s, me).await?;
-        measured.push(("swap_exact_in", crank_and_report(&mut ctx, &s).await?));
+        swap_a_little(&s, me).await?;
+        measured.push(("swap_exact_in", crank_and_report(&s).await?));
 
         // The other swap: an exact-out solves for the input rather than being
         // handed it, so it is the one that decides `SWAP_GAS` if either does.
-        swap_a_little_exact_out(&mut ctx, &s, me).await?;
-        measured.push(("swap_exact_out", crank_and_report(&mut ctx, &s).await?));
+        swap_a_little_exact_out(&s, me).await?;
+        measured.push(("swap_exact_out", crank_and_report(&s).await?));
 
         // A liquidity deposit, against a grown `k`.
         let add: Amount = SUPPLY / 1_000;
-        let add_i = add;
-        s.token0
-            .call(&mut ctx, "adjust_allowance", &(s.handler.address(), add_i))
-            .await?;
-        s.token1
-            .call(&mut ctx, "adjust_allowance", &(s.handler.address(), add_i))
-            .await?;
+        s.token0.adjust_allowance(&s.handler, add).await?;
+        s.token1.adjust_allowance(&s.handler, add).await?;
         s.router
-            .call(
-                &mut ctx,
-                "add_liquidity",
-                &(
-                    s.token0.address(),
-                    s.token1.address(),
-                    [add, add],
-                    [0u128, 0u128],
-                    me,
-                ),
+            .add_liquidity(
+                &s.token0.address(),
+                &s.token1.address(),
+                [swap_amount(add); 2],
+                [0, 0],
+                &me,
             )
             .await?;
-        measured.push(("add_liquidity", crank_and_report(&mut ctx, &s).await?));
+        measured.push(("add_liquidity", crank_and_report(&s).await?));
 
         // `mint_fee` just reset `k_last`, so grow it again before the redemption.
-        swap_a_little(&mut ctx, &s, me).await?;
-        s.driver.call(&mut ctx, "process_requests", &()).await?;
+        swap_a_little(&s, me).await?;
+        s.driver.process_requests().await?;
 
-        let lp_balance: Amount = s.lp.view(&ctx, "get_balance_of", &me, None).await?;
+        let lp_balance = s.lp.get_balance_of(&me).await?;
         let redeem = lp_balance / 10;
-        s.lp.call(&mut ctx, "adjust_allowance", &(s.handler.address(), redeem))
-            .await?;
+        s.lp.adjust_allowance(&s.handler, redeem).await?;
         s.router
-            .call(
-                &mut ctx,
-                "remove_liquidity",
-                &(
-                    s.token0.address(),
-                    s.token1.address(),
-                    redeem,
-                    [0u128, 0u128],
-                    me,
-                ),
+            .remove_liquidity(
+                &s.token0.address(),
+                &s.token1.address(),
+                swap_amount(redeem),
+                [0, 0],
+                &me,
             )
             .await?;
-        measured.push(("remove_liquidity", crank_and_report(&mut ctx, &s).await?));
+        measured.push(("remove_liquidity", crank_and_report(&s).await?));
 
         let fee = if fee_enabled { "on" } else { "off" };
         println!("\n=== measured on this node (protocol fee {fee}) ===");
@@ -132,67 +118,45 @@ fn calibrator(fee_enabled: bool) -> Agent {
 }
 
 /// A small swap, to move the reserves (and so grow `k`).
-async fn swap_a_little(ctx: &mut AgentContext, s: &Swap, me: Address) -> Result<()> {
+async fn swap_a_little(s: &Swap, me: Address) -> Result<()> {
     let amount_in: Amount = SUPPLY / 1_000;
-    s.token0
-        .call(ctx, "adjust_allowance", &(s.handler.address(), amount_in))
-        .await?;
+    s.token0.adjust_allowance(&s.handler, amount_in).await?;
     s.router
-        .call(
-            ctx,
-            "swap_exact_tokens_for_tokens",
-            &(amount_in, 0u128, s.token0.address(), s.token1.address(), me),
+        .swap_exact_tokens_for_tokens(
+            swap_amount(amount_in),
+            0,
+            &s.token0.address(),
+            &s.token1.address(),
+            &me,
         )
         .await?;
     Ok(())
 }
 
 /// A small exact-out swap, naming the output and capping the input.
-async fn swap_a_little_exact_out(ctx: &mut AgentContext, s: &Swap, me: Address) -> Result<()> {
+async fn swap_a_little_exact_out(s: &Swap, me: Address) -> Result<()> {
     let amount_out: Amount = SUPPLY / 1_000;
     // The handler pulls whatever the curve says the output costs, which it
     // learns only at execution; the allowance has to cover the cap we set.
     let amount_in_max: Amount = SUPPLY / 100;
-    s.token0
-        .call(
-            ctx,
-            "adjust_allowance",
-            &(s.handler.address(), amount_in_max),
-        )
-        .await?;
+    s.token0.adjust_allowance(&s.handler, amount_in_max).await?;
     s.router
-        .call(
-            ctx,
-            "swap_tokens_for_exact_tokens",
-            &(
-                amount_out,
-                amount_in_max,
-                s.token0.address(),
-                s.token1.address(),
-                me,
-            ),
+        .swap_tokens_for_exact_tokens(
+            swap_amount(amount_out),
+            swap_amount(amount_in_max),
+            &s.token0.address(),
+            &s.token1.address(),
+            &me,
         )
         .await?;
     Ok(())
 }
 
-async fn crank_and_report(ctx: &mut AgentContext, s: &Swap) -> Result<GasReport> {
-    let receipt = s.driver.call(ctx, "process_requests", &()).await?;
+async fn crank_and_report(s: &Swap) -> Result<GasReport> {
+    let (counts, receipt) = s.driver.process_requests().with_receipt().await?;
 
     // A failed request still costs gas, so measuring one would quietly report
     // the cost of the failure path instead of the work.
-    // The account's default wallet ran the call and returns one buffer per
-    // call it made; unwrap that envelope before decoding the counts.
-    let returned = receipt
-        .return_data
-        .as_ref()
-        .map(|d| {
-            thruput_signing::default_wallet::decode_default_wallet_call_return(d.0.as_slice())
-                .expect("unwrapping the wallet's return")
-        })
-        .expect("process_requests returns counts");
-    let counts: (u32, u32) =
-        xdrs::cxs::decode(returned.as_slice()).expect("decoding (processed, failed)");
     assert_eq!(
         counts,
         (1, 0),
