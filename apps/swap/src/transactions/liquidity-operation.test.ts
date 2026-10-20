@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -17,9 +18,10 @@ import {
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
@@ -38,14 +40,12 @@ const config = {
 describe("liquidity operation storage", () => {
   beforeEach(() => window.localStorage.clear());
 
-  it("migrates version-two collections without regrouping pending transactions", () => {
+  it.each([2, 3])("rejects version-%i collections, which stored 0x hex identifiers", (version) => {
     const operation = createRemoveLiquidityOperation(config, { liquidity: 4n, amountsMin: [3n, 6n] });
-    operation.steps.approveLiquidity = { ...operation.steps.approveLiquidity, status: "indeterminate", transactionHash: hex(40) };
-    window.localStorage.setItem(liquidityOperationKey(config), JSON.stringify({ version: 2,
-      operations: [{ ...operation, version: 2, executionMode: undefined }] }));
-    const expected = { ...operation, version: 3, executionMode: "single" };
-    expect(loadLiquidityOperations(config)).toEqual([expected]);
-    expect(loadAccountLiquidityOperations(config)).toEqual([expected]);
+    window.localStorage.setItem(liquidityOperationKey(config), JSON.stringify({ version,
+      operations: [{ ...operation, version }] }));
+    expect(() => loadLiquidityOperations(config)).toThrow(LiquidityOperationError);
+    expect(() => loadAccountLiquidityOperations(config)).toThrow(LiquidityOperationError);
   });
 
   it("round trips add and remove intents", () => {
@@ -80,9 +80,9 @@ describe("liquidity operation storage", () => {
       amountsMin: [3n, 6n],
     });
 
-    expect(reservedLiquidityTokenAmount([add, remove], hex(1))).toBe(10n);
-    expect(reservedLiquidityTokenAmount([add, remove], hex(2))).toBe(20n);
-    expect(reservedLiquidityTokenAmount([add, remove], hex(11))).toBe(4n);
+    expect(reservedLiquidityTokenAmount([add, remove], id(1))).toBe(10n);
+    expect(reservedLiquidityTokenAmount([add, remove], id(2))).toBe(20n);
+    expect(reservedLiquidityTokenAmount([add, remove], id(11))).toBe(4n);
   });
 
   it("identifies blocking signing and execution exposure", () => {
@@ -98,7 +98,7 @@ describe("liquidity operation storage", () => {
     expect(hasLiquidityExecutionExposure(add)).toBe(false);
 
     add.steps.approveToken0.status = "committed";
-    add.steps.approveToken0.transactionHash = hex(40);
+    add.steps.approveToken0.transactionHash = id(40);
     add.steps.enqueue.status = "indeterminate";
     expect(hasLiquidityExecutionExposure(add)).toBe(true);
   });
@@ -113,7 +113,7 @@ describe("liquidity operation storage", () => {
     });
     saveLiquidityOperations(config, [add]);
     const stored = JSON.parse(window.localStorage.getItem(liquidityOperationKey(config))!);
-    stored.operations[0].handlerAddress = hex(99);
+    stored.operations[0].handlerAddress = id(99);
     window.localStorage.setItem(liquidityOperationKey(config), JSON.stringify(stored));
 
     expect(() => loadLiquidityOperations(config)).toThrow(LiquidityOperationError);
@@ -139,7 +139,7 @@ describe("liquidity operation storage", () => {
     stored.operations[0].requestId = hex(30);
     stored.operations[0].receiptBlock = "8";
     stored.operations[0].steps.enqueue.status = "committed";
-    stored.operations[0].steps.enqueue.transactionHash = hex(31);
+    stored.operations[0].steps.enqueue.transactionHash = id(31);
     window.localStorage.setItem(key, JSON.stringify(stored));
     expect(() => loadLiquidityOperations(config)).toThrow(LiquidityOperationError);
   });
@@ -162,7 +162,7 @@ describe("liquidity operation storage", () => {
       operation.receiptBlock = "8";
       operation.steps.enqueue = {
         status: "committed",
-        transactionHash: hex(index + 101),
+        transactionHash: id(index + 101),
         message: null,
         updatedAt: index + 2,
       };

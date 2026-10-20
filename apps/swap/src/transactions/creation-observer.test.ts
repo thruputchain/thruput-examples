@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import type { ThruputClient } from "@thruputchain/client";
 import {
   contractAddress,
@@ -24,9 +25,10 @@ const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) =>
   `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
@@ -95,9 +97,9 @@ function queuedWorkflow() {
   const workflow = createCreationWorkflow(config, review(), 1);
   workflow.status = "queued";
   workflow.pool = {
-    liquidityToken: hex(21),
-    handler: hex(22),
-    driver: hex(23),
+    liquidityToken: id(21),
+    handler: id(22),
+    driver: id(23),
   };
   workflow.requestId = hex(30);
   workflow.enqueueReceiptBlock = "8";
@@ -107,7 +109,7 @@ function queuedWorkflow() {
 function review(): PoolCreationReview {
   const token = (byte: number) => ({
     address: address(byte),
-    addressHex: hex(byte),
+    addressBase58: id(byte),
     name: `Token ${byte}`,
     symbol: `T${byte}`,
     decimals: 0,

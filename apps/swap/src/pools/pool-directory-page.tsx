@@ -1,4 +1,4 @@
-import { addressFromHex, toHex0x } from "@thruputchain/client";
+import { addressFromBase58, toBase58 } from "@thruputchain/client";
 import {
   AlertCircleIcon,
   DropletsIcon,
@@ -28,7 +28,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { GlobalConfig } from "@/config";
@@ -95,7 +95,7 @@ function RegistryPoolDirectoryPage({
   enrich: typeof enrichRegistryPools;
   readOnly: boolean;
 }) {
-  const { search, setSearch, token, setToken, sort, setSort, offset, page, entries, status, statusError, error, loading, hasFilters, refresh, changePage, resetSnapshot } = usePoolDirectory({ config, read, readStatus, requestSync, enrich });
+  const { search, setSearch, token, setToken, tokenError, sort, setSort, offset, page, entries, status, statusError, error, loading, hasFilters, refresh, changePage, resetSnapshot } = usePoolDirectory({ config, read, readStatus, requestSync, enrich });
 
   const failedReads = entries.filter(({ readError }) => readError).length;
 
@@ -112,15 +112,20 @@ function RegistryPoolDirectoryPage({
             onChange={(event) => setSearch(event.target.value)}
           />
         </Field>
-        <Field>
+        <Field data-invalid={Boolean(tokenError)}>
           <FieldLabel htmlFor="pool-token">Contains token</FieldLabel>
           <Input
             id="pool-token"
             className="font-mono"
             value={token}
-            placeholder="Exact 0x address"
+            placeholder="Exact token address"
+            aria-invalid={Boolean(tokenError)}
+            aria-describedby={tokenError ? "pool-token-error" : undefined}
             onChange={(event) => setToken(event.target.value)}
           />
+          {tokenError ? (
+            <FieldDescription id="pool-token-error">{tokenError}</FieldDescription>
+          ) : null}
         </Field>
         <Field>
           <FieldLabel htmlFor="pool-sort">Sort by</FieldLabel>
@@ -375,8 +380,8 @@ function PoolCard({
   readOnly?: boolean;
 }) {
   const path = poolPath(
-    addressFromHex(token0Address),
-    addressFromHex(token1Address),
+    addressFromBase58(token0Address),
+    addressFromBase58(token1Address),
   );
   return (
     <Card>
@@ -438,7 +443,7 @@ function PoolCard({
               <span className="mr-2 text-muted-foreground">Pool</span>
               <BlockchainIdentifier
                 kind="address"
-                value={toHex0x(live.config.handlerAddress)}
+                value={toBase58(live.config.handlerAddress)}
                 label="Handler address"
               />
             </div>

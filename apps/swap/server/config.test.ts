@@ -25,8 +25,8 @@ describe("loadServerConfig", () => {
       syncIntervalMs: 5_000,
       pageSize: 200,
       scope: {
-        networkId: "aa".repeat(32),
-        factoryAddress: `0x${"bb".repeat(32)}`,
+        networkId: b58(0xaa),
+        factoryAddress: b58(0xbb),
       },
     });
     expect(config.rpcUrl.href).toBe("https://rpc.example.test/path");

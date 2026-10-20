@@ -1,4 +1,4 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { getClientQueryKey, useClient } from "@thruputchain/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
@@ -27,7 +27,10 @@ export function ReadOnlyPoolRedirect() {
   return parsed.kind === "invalid" ? (
     <Navigate to="/pools" replace />
   ) : (
-    <Navigate to={`/pools/${parsed.token0Hex}/${parsed.token1Hex}`} replace />
+    <Navigate
+      to={`/pools/${parsed.token0Base58}/${parsed.token1Base58}`}
+      replace
+    />
   );
 }
 
@@ -74,7 +77,7 @@ export function PoolRoute({
     return (
       <Navigate
         replace
-        to={`/pools/${parsed.token0Hex}/${parsed.token1Hex}${suffix}${location.search}`}
+        to={`/pools/${parsed.token0Base58}/${parsed.token1Base58}${suffix}${location.search}`}
       />
     );
   }
@@ -127,15 +130,15 @@ export function PoolRoute({
 
 function poolRequestKey(
   config: GlobalConfig,
-  token0Hex: string,
-  token1Hex: string,
+  token0Base58: string,
+  token1Base58: string,
 ): string {
   return [
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
-    toHex0x(config.factoryAddress),
-    token0Hex,
-    token1Hex,
+    config.networkId,
+    toBase58(config.accountAddress),
+    toBase58(config.factoryAddress),
+    token0Base58,
+    token1Base58,
   ].join(":");
 }
 
@@ -143,11 +146,11 @@ function poolRuntimeKey(config: AppConfig): string {
   return [
     poolRequestKey(
       config,
-      toHex0x(config.tokenAAddress),
-      toHex0x(config.tokenBAddress),
+      toBase58(config.tokenAAddress),
+      toBase58(config.tokenBAddress),
     ),
-    toHex0x(config.handlerAddress),
-    toHex0x(config.driverAddress),
+    toBase58(config.handlerAddress),
+    toBase58(config.driverAddress),
   ].join(":");
 }
 

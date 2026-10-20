@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import type { ThruputClient } from "@thruputchain/client";
 import { contractAddress, sha256Hash } from "@thruputchain/protocol";
 import { CxsWriter } from "@thruputchain/xdr";
@@ -21,9 +22,10 @@ const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) =>
   `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
@@ -68,7 +70,7 @@ describe("liquidity observer", () => {
       terminalBlock: "10",
       observedThroughBlock: "11",
       result: {
-        transactionHash: hex(40),
+        transactionHash: id(40),
         blockHeight: "10",
         liquidityMinted: "10",
       },

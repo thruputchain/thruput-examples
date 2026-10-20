@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { base58Identifier } from "../server/validation";
+import { canonicalNetworkId } from "../server/validation";
 import { provisionSwap } from "./provision";
 
 export async function setupDevnet(
@@ -21,8 +21,7 @@ export async function setupDevnet(
 }
 
 function validateNetworkId(value: string): string {
-  base58Identifier(value, "THRUPUT_NETWORK_ID");
-  return value;
+  return canonicalNetworkId(value, "THRUPUT_NETWORK_ID");
 }
 
 export function validateDevnetRpcUrl(value: string): string {

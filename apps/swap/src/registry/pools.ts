@@ -1,7 +1,7 @@
 import {
-  addressFromHex,
-  toHex0x,
+  addressFromBase58,
   type CoreThruputClient,
+  toBase58,
 } from "@thruputchain/client";
 
 import type { GlobalConfig } from "@/config";
@@ -53,11 +53,11 @@ export async function enrichRegistryPools(
               : defaultPoolReader(config, entry.record, client));
             throwIfAborted(signal);
             if (
-              toHex0x(live.config.liquidityTokenAddress) !==
+              toBase58(live.config.liquidityTokenAddress) !==
                 entry.record.liquidityTokenAddress ||
-              toHex0x(live.config.handlerAddress) !==
+              toBase58(live.config.handlerAddress) !==
                 entry.record.handlerAddress ||
-              toHex0x(live.config.driverAddress) !== entry.record.driverAddress
+              toBase58(live.config.driverAddress) !== entry.record.driverAddress
             )
               throw new Error(
                 "Registry pool identity does not match factory state",
@@ -82,8 +82,8 @@ async function defaultPoolReader(
   const poolConfig = await resolvePoolConfig({
     config,
     client,
-    token0: addressFromHex(pool.token0Address),
-    token1: addressFromHex(pool.token1Address),
+    token0: addressFromBase58(pool.token0Address),
+    token1: addressFromBase58(pool.token1Address),
   });
   return {
     config: poolConfig,

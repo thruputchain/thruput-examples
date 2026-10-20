@@ -1,8 +1,8 @@
 import {
-  addressFromHex,
-  toHex0x,
-  type CoreThruputClient,
+  addressFromBase58,
   type ConnectedThruputClient,
+  type CoreThruputClient,
+  toBase58,
 } from "@thruputchain/client";
 import { useQuery, skipToken } from "@tanstack/react-query";
 import { getClientQueryKey } from "@thruputchain/react";
@@ -28,7 +28,7 @@ export async function readTokenPreview(
   signal.throwIfAborted();
   const metadata = await createErc20ReadAdapter({
     client,
-    contract: addressFromHex(address),
+    contract: addressFromBase58(address),
     caller: config.accountAddress,
   }).metadata();
   signal.throwIfAborted();
@@ -54,8 +54,8 @@ export function useTokenPreview(
     queryKey: [
       ...getClientQueryKey(client),
       "token-preview",
-      config.networkIdHex,
-      toHex0x(config.accountAddress),
+      config.networkId,
+      toBase58(config.accountAddress),
       address,
     ],
     queryFn:

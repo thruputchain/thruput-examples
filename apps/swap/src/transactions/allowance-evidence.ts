@@ -1,9 +1,10 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 
 import type { GlobalConfig } from "@/config";
+import { isBase58Identifier } from "@/lib/address";
 
-const STORAGE_VERSION = 2;
-const ADDRESS_PATTERN = /^0x[0-9a-f]{64}$/;
+// Version 3 stores addresses as base58.
+const STORAGE_VERSION = 3;
 
 interface AllowanceEvidenceEntry {
   tokenAddress: string;
@@ -16,7 +17,7 @@ interface StoredAllowanceEvidence {
   entries: AllowanceEvidenceEntry[];
 }
 
-type AllowanceEvidenceScope = Pick<GlobalConfig, "networkIdHex" | "accountAddress">;
+type AllowanceEvidenceScope = Pick<GlobalConfig, "networkId" | "accountAddress">;
 
 export function recordAllowanceTerminalEvidence(
   config: AllowanceEvidenceScope,
@@ -61,8 +62,8 @@ export function loadAllowanceTerminalHeight(
 function allowanceEvidenceKey(config: AllowanceEvidenceScope): string {
   return [
     "groundhog-swap:allowance-evidence:v2",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
   ].join(":");
 }
 
@@ -92,10 +93,8 @@ function isStoredAllowanceEvidence(
   return value.entries.every((entry) => {
     if (!isRecord(entry)) return false;
     if (
-      typeof entry.tokenAddress !== "string"
-      || !ADDRESS_PATTERN.test(entry.tokenAddress)
-      || typeof entry.spenderAddress !== "string"
-      || !ADDRESS_PATTERN.test(entry.spenderAddress)
+      !isBase58Identifier(entry.tokenAddress)
+      || !isBase58Identifier(entry.spenderAddress)
       || typeof entry.terminalBlock !== "string"
       || !/^(?:0|[1-9]\d*)$/.test(entry.terminalBlock)
     ) return false;

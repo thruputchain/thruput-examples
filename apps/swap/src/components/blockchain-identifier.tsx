@@ -1,4 +1,3 @@
-import { fromHex0x, toBase58 } from "@thruputchain/client";
 import { cn } from "@/lib/utils";
 import { useExplorerUrl } from "./explorer-context";
 import {
@@ -6,7 +5,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { abbreviateIdentifier } from "@/lib/address";
+import { abbreviateIdentifier, isBase58Identifier } from "@/lib/address";
 
 export function BlockchainIdentifier({
   value,
@@ -22,12 +21,14 @@ export function BlockchainIdentifier({
   nonInteractive?: boolean;
 }) {
   const explorerUrl = useExplorerUrl();
-  // The app keeps 32-byte identifiers as 0x hex; people see the base58 form.
-  const identifier = /^0x[0-9a-fA-F]{64}$/.test(value);
-  const shown = identifier ? toBase58(fromHex0x(value)) : value;
+  // Addresses and transaction hashes are canonical base58; only those link out.
+  const shown = value;
   const href =
-    !nonInteractive && explorerUrl && kind !== "identifier" && identifier
-      ? `${explorerUrl}/${kind === "transaction" ? "tx" : "address"}/${shown}`
+    !nonInteractive &&
+    explorerUrl &&
+    kind !== "identifier" &&
+    isBase58Identifier(value)
+      ? `${explorerUrl}/${kind === "transaction" ? "tx" : "address"}/${value}`
       : undefined;
   const props = {
     "aria-label": `${label}: ${shown}${href ? " (opens explorer in a new tab)" : ""}`,

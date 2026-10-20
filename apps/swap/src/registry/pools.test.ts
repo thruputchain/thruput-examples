@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { describe, expect, it, vi } from "vitest";
 
@@ -8,11 +9,10 @@ import type { PoolSnapshot } from "@/swap/snapshot";
 
 const address = (value: number) =>
   contractAddress(new Uint8Array(32).fill(value));
-const hex = (value: number) =>
-  `0x${value.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (value: number) => toBase58(new Uint8Array(32).fill(value));
 const config: GlobalConfig = {
   rpcUrl: new URL("http://localhost"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(3),
@@ -101,19 +101,19 @@ describe("registry pool enrichment", () => {
   });
 });
 
-function pool(id: number): RegistryPool {
+function pool(index: number): RegistryPool {
   return {
-    networkId: config.networkIdHex,
-    factoryAddress: hex(3),
-    token0Address: hex(id * 10),
-    token1Address: hex(id * 10 + 1),
-    liquidityTokenAddress: hex(id * 10 + 2),
-    handlerAddress: hex(id * 10 + 3),
-    driverAddress: hex(id * 10 + 4),
-    pairCount: String(id),
-    transactionHash: hex(id * 10 + 5),
-    eventSequence: String(id - 1),
-    createdBlock: String(id),
+    networkId: config.networkId,
+    factoryAddress: id(3),
+    token0Address: id(index * 10),
+    token1Address: id(index * 10 + 1),
+    liquidityTokenAddress: id(index * 10 + 2),
+    handlerAddress: id(index * 10 + 3),
+    driverAddress: id(index * 10 + 4),
+    pairCount: String(index),
+    transactionHash: id(index * 10 + 5),
+    eventSequence: String(index - 1),
+    createdBlock: String(index),
     indexedAt: "2026-09-05T00:00:00.000Z",
   };
 }

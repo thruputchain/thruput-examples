@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { toBase58 } from "@thruputchain/client";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { PoolQuery, RegistryPool, RegistryScope } from "../shared/registry.ts";
@@ -16,7 +17,7 @@ import {
 } from "./store.ts";
 
 const scope: RegistryScope = {
-  networkId: "11".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x11)),
   factoryAddress: address(200),
 };
 const temporaryDirectories: string[] = [];
@@ -30,7 +31,7 @@ afterEach(async () => {
 });
 
 describe("RegistryStore schema and scope", () => {
-  it("creates schema version 1 and reopens persisted state", async () => {
+  it("creates schema version 2 and reopens persisted state", async () => {
     const databasePath = await temporaryDatabasePath();
     const store = new RegistryStore(databasePath, scope);
     store.updateStatus({ historyLimited: true });
@@ -38,7 +39,7 @@ describe("RegistryStore schema and scope", () => {
 
     const database = new DatabaseSync(databasePath);
     expect(database.prepare("PRAGMA user_version").get()).toMatchObject({
-      user_version: 1,
+      user_version: 2,
     });
     expect(database.prepare("PRAGMA journal_mode").get()).toMatchObject({
       journal_mode: "wal",
@@ -59,11 +60,22 @@ describe("RegistryStore schema and scope", () => {
   it("rejects unsupported newer schema versions", async () => {
     const databasePath = await temporaryDatabasePath();
     const database = new DatabaseSync(databasePath);
-    database.exec("PRAGMA user_version=2");
+    database.exec("PRAGMA user_version=3");
     database.close();
 
     expect(() => new RegistryStore(databasePath, scope)).toThrow(
-      /Unsupported registry schema version 2/,
+      /Unsupported registry schema version 3/,
+    );
+  });
+
+  it("rejects a version-1 database, which stored 0x hex identifiers", async () => {
+    const databasePath = await temporaryDatabasePath();
+    const database = new DatabaseSync(databasePath);
+    database.exec("PRAGMA user_version=1");
+    database.close();
+
+    expect(() => new RegistryStore(databasePath, scope)).toThrow(
+      /Unsupported registry schema version 1/,
     );
   });
 
@@ -98,7 +110,7 @@ describe("RegistryStore schema and scope", () => {
 
   it.each([
     `UPDATE registry_scope SET network_id = '0x${"11".repeat(32)}'`,
-    `UPDATE registry_scope SET factory_address = '0x${"AB".repeat(32)}'`,
+    `UPDATE registry_scope SET factory_address = '0x${"ab".repeat(32)}'`,
   ])("rejects noncanonical persisted scope", async (sql) => {
     const databasePath = await validDatabasePath();
     mutateDatabase(databasePath, sql);
@@ -107,10 +119,10 @@ describe("RegistryStore schema and scope", () => {
     );
   });
 
-  it("rejects a counterfeit version-1 database", async () => {
+  it("rejects a counterfeit version-2 database", async () => {
     const databasePath = await temporaryDatabasePath();
     const database = new DatabaseSync(databasePath);
-    database.exec("PRAGMA user_version=1");
+    database.exec("PRAGMA user_version=2");
     database.close();
     expect(() => new RegistryStore(databasePath, scope)).toThrow();
   });
@@ -159,8 +171,8 @@ describe("RegistryStore schema and scope", () => {
   });
 
   it.each([
-    `UPDATE pools SET transaction_hash = '0x${"AB".repeat(32)}'`,
-    `UPDATE pools SET network_id = '${"22".repeat(32)}'`,
+    `UPDATE pools SET transaction_hash = '0x${"ab".repeat(32)}'`,
+    `UPDATE pools SET network_id = '${toBase58(new Uint8Array(32).fill(0x22))}'`,
     "UPDATE pools SET pair_count = '4294967296'",
     "UPDATE pools SET created_block = '11'",
   ])("rejects malformed persisted pool evidence", async (sql) => {
@@ -516,7 +528,7 @@ describe("RegistryStore ingestion", () => {
     { createdBlock: "-1" },
     { transactionHash: "0x12" },
     { indexedAt: "yesterday" },
-    { networkId: "22".repeat(32) },
+    { networkId: toBase58(new Uint8Array(32).fill(0x22)) },
   ])("validates canonical evidence at the store boundary", (overrides) => {
     const store = new RegistryStore(":memory:", scope);
     store.beginScan("1", "10");
@@ -617,13 +629,28 @@ describe("RegistryStore queries", () => {
     store.close();
   });
 
-  it("searches all addresses with NFKC normalization and literal wildcards", () => {
-    const first = pool(1, { handlerAddress: addressWithSuffix("abc") });
+  it("searches base58 address substrings exactly, after NFKC normalization", () => {
+    const first = pool(1);
     const second = pool(2);
     const store = completedStore([first, second]);
-    expect(store.queryPools(query({ q: "ＡＢＣ" })).pools.map(id)).toEqual([
+    const fragment = first.handlerAddress.slice(-6);
+    // Fullwidth characters normalize to the ASCII base58 text.
+    const fullwidth = [...fragment]
+      .map((character) => String.fromCodePoint(character.codePointAt(0)! + 0xfee0))
+      .join("");
+    expect(store.queryPools(query({ q: fullwidth })).pools.map(id)).toEqual([
       "1",
     ]);
+    // Base58 is case-sensitive, so a case-swapped fragment does not match.
+    const swapped = [...fragment]
+      .map((character) =>
+        character === character.toLowerCase()
+          ? character.toUpperCase()
+          : character.toLowerCase(),
+      )
+      .join("");
+    expect(swapped).not.toBe(fragment);
+    expect(store.queryPools(query({ q: swapped })).pools).toEqual([]);
     expect(store.queryPools(query({ q: "%_\\" })).pools).toEqual([]);
     expect(
       store
@@ -652,15 +679,18 @@ describe("RegistryStore queries", () => {
     expect(
       store.queryPools(query({ token: sharedToken })).pools.map(id),
     ).toEqual(["3", "1"]);
+    // Display sorts follow the base58 text people see, not address bytes:
+    // address(90) is "…12" plus more digits, so it sorts before address(3) ("…14").
     expect(store.queryPools(query({ sort: "token0" })).pools.map(id)).toEqual([
       "1",
-      "2",
       "3",
-    ]);
-    expect(store.queryPools(query({ sort: "token1" })).pools.map(id)).toEqual([
       "2",
+    ]);
+    // Likewise address(50) is a single digit after the 1s, after "…12…".
+    expect(store.queryPools(query({ sort: "token1" })).pools.map(id)).toEqual([
       "1",
       "3",
+      "2",
     ]);
     store.close();
   });
@@ -736,15 +766,13 @@ function id(value: RegistryPool): string {
 }
 
 function address(value: number): string {
-  return `0x${value.toString(16).padStart(64, "0")}`;
-}
-
-function addressWithSuffix(suffix: string): string {
-  return `0x${"a".repeat(64 - suffix.length)}${suffix}`;
+  const bytes = new Uint8Array(32);
+  new DataView(bytes.buffer).setUint32(28, value);
+  return toBase58(bytes);
 }
 
 function hash(value: number): string {
-  return `0x${(value + 1_000).toString(16).padStart(64, "0")}`;
+  return address(value + 1_000);
 }
 
 async function temporaryDatabasePath(): Promise<string> {

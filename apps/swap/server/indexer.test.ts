@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { toBase58 } from "@thruputchain/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -17,7 +18,7 @@ import { RegistryIndexer } from "./indexer.ts";
 import { RegistryStore } from "./store.ts";
 
 const scope: RegistryScope = {
-  networkId: "11".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x11)),
   factoryAddress: address(200),
 };
 const temporaryDirectories: string[] = [];
@@ -542,7 +543,7 @@ function pool(pairCount: number, createdBlock: string): RegistryPool {
 }
 
 function address(byte: number): string {
-  return `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+  return toBase58(new Uint8Array(32).fill(byte));
 }
 
 async function temporaryDatabasePath(): Promise<string> {

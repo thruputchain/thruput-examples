@@ -20,14 +20,6 @@ import {
 import { getDiscoveryTokens } from "@/token-discovery/client";
 import type { DiscoveryConfig } from "@/token-discovery/config";
 import { tokenAddress } from "./creation-presets";
-import { addressFromHex, toBase58 } from "@thruputchain/client";
-
-// Form state holds 0x hex; people only see the base58 form.
-function shown(value: string): string {
-  return /^0x[0-9a-f]{64}$/.test(value)
-    ? toBase58(addressFromHex(value))
-    : value;
-}
 
 export function TokenAddressCombobox({
   label,
@@ -53,7 +45,9 @@ export function TokenAddressCombobox({
   const manual = tokenAddress(query.trim());
   const error =
     value && selected === null
-      ? "Enter a nonzero 32-byte contract address."
+      ? /^0x/i.test(value.trim())
+        ? "Enter the base58 contract address. 0x hex addresses are not accepted."
+        : "Enter a nonzero base58 contract address."
       : selected !== null && selected === other
         ? "Choose a different contract from the other token."
         : null;
@@ -88,7 +82,7 @@ export function TokenAddressCombobox({
         autoComplete="off"
         spellCheck={false}
         className="min-w-0 font-mono"
-        value={shown(value)}
+        value={value}
         aria-invalid={Boolean(error)}
         aria-describedby={`${id}-help`}
         onChange={(event) =>
@@ -173,7 +167,7 @@ export function TokenAddressCombobox({
               {manual ? (
                 <CommandGroup heading="Manual address">
                   <CommandItem
-                    aria-label={`Use address ${shown(manual)}${manual === other ? " (already selected for the other token)" : ""}`}
+                    aria-label={`Use address ${manual}${manual === other ? " (already selected for the other token)" : ""}`}
                     value={`manual:${manual}`}
                     disabled={manual === other}
                     onSelect={() => choose(manual)}
@@ -198,7 +192,7 @@ export function TokenAddressCombobox({
                 <CommandGroup heading="Indexed tokens">
                   {current.data.tokens.map((token) => (
                     <CommandItem
-                      aria-label={`${token.name || "Unnamed token"} / ${token.symbol || "No symbol"} ${shown(token.tokenAddress)}${selected === token.tokenAddress ? " (selected)" : ""}${other === token.tokenAddress ? " (already selected for the other token)" : ""}`}
+                      aria-label={`${token.name || "Unnamed token"} / ${token.symbol || "No symbol"} ${token.tokenAddress}${selected === token.tokenAddress ? " (selected)" : ""}${other === token.tokenAddress ? " (already selected for the other token)" : ""}`}
                       key={token.tokenAddress}
                       value={token.tokenAddress}
                       data-checked={selected === token.tokenAddress}

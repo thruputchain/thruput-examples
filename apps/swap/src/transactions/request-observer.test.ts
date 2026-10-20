@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import {
   contractAddress,
   ExecResult,
@@ -36,9 +37,10 @@ const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) =>
   `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config: AppConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(10),
@@ -57,18 +59,18 @@ const request: OutstandingRequest = {
   status: "queued",
   phase: "swap",
   intent: { amountIn: 10n, amountOutMin: 18n },
-  transactionHash: hex(0xaa),
+  transactionHash: id(0xaa),
   receiptBlock: 8n,
   requestId: hex(0xcc),
   visibleObservationMs: 0,
   observationBaseline: null,
   criteria: {
-    handlerAddress: hex(6),
-    driverAddress: hex(5),
-    sender: hex(9),
-    recipient: hex(9),
-    tokenIn: hex(1),
-    tokenOut: hex(2),
+    handlerAddress: id(6),
+    driverAddress: id(5),
+    sender: id(9),
+    recipient: id(9),
+    tokenIn: id(1),
+    tokenOut: id(2),
   },
 };
 
@@ -96,7 +98,7 @@ describe("request observer", () => {
     ).resolves.toEqual({
       kind: "executionObserved",
       requestId: request.requestId,
-      transactionHash: hex(0xdd),
+      transactionHash: id(0xdd),
       blockHeight: 10n,
       amountIn: 10n,
       amountOut: 19n,
@@ -257,7 +259,7 @@ describe("request observer", () => {
     ).resolves.toEqual({
       kind: "executionObserved",
       requestId: request.requestId,
-      transactionHash: hex(0xdd),
+      transactionHash: id(0xdd),
       blockHeight: 8n,
       amountIn: 10n,
       amountOut: 19n,
@@ -306,7 +308,7 @@ describe("request observer", () => {
     const second = record(
       {
         ...request,
-        transactionHash: hex(0xbb),
+        transactionHash: id(0xbb),
         receiptBlock: 9n,
         requestId: hex(0xee),
       },
@@ -331,7 +333,7 @@ describe("request observer", () => {
         {
           kind: "executionObserved",
           requestId: first.requestId,
-          transactionHash: hex(0xdd),
+          transactionHash: id(0xdd),
           blockHeight: 10n,
           amountIn: 10n,
           amountOut: 19n,
@@ -339,7 +341,7 @@ describe("request observer", () => {
         {
           kind: "executionFailed",
           requestId: second.requestId,
-          transactionHash: hex(0xdd),
+          transactionHash: id(0xdd),
           blockHeight: 10n,
         },
       ],
@@ -398,7 +400,7 @@ describe("request observer", () => {
         {
           kind: "executionObserved" as const,
           requestId: first.requestId!,
-          transactionHash: hex(0xdd),
+          transactionHash: id(0xdd),
           blockHeight: 10n,
           amountIn: 10n,
           amountOut: 19n,

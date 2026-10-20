@@ -1,9 +1,10 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 
 import type { AppConfig } from "@/config";
+import { isBase58Identifier } from "@/lib/address";
 
-const STORAGE_VERSION = 1;
-const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
+// Version 2 stores the driver address and transaction hash as base58.
+const STORAGE_VERSION = 2;
 
 export type CrankAttemptStatus =
   | "signing"
@@ -35,26 +36,26 @@ export class CrankAttemptError extends Error {
 export function crankAttemptKey(config: AppConfig): string {
   return [
     "groundhog-swap:crank:v3",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
-    toHex0x(config.factoryAddress),
-    toHex0x(config.driverAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
+    toBase58(config.factoryAddress),
+    toBase58(config.driverAddress),
   ].join(":");
 }
 
 function accountCrankAttemptPrefix(
-  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: Pick<AppConfig, "networkId" | "accountAddress">,
 ): string {
   return [
     "groundhog-swap:crank:v3",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
     "",
   ].join(":");
 }
 
 export function isAccountCrankAttemptKey(
-  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: Pick<AppConfig, "networkId" | "accountAddress">,
   key: string | null,
 ): boolean {
   if (key === null) return false;
@@ -62,7 +63,7 @@ export function isAccountCrankAttemptKey(
 }
 
 export function loadAccountCrankAttempts(
-  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: Pick<AppConfig, "networkId" | "accountAddress">,
 ): CrankAttempt[] {
   if (typeof window === "undefined") return [];
   const attempts: CrankAttempt[] = [];
@@ -93,7 +94,7 @@ export function createCrankAttempt(
     transactionHash: null,
     createdAt: now,
     updatedAt: now,
-    driverAddress: toHex0x(config.driverAddress),
+    driverAddress: toBase58(config.driverAddress),
     message: null,
   };
 }
@@ -115,7 +116,7 @@ export function saveCrankAttempt(
   const stored: StoredCrankAttempt = {
     ...attempt,
     version: STORAGE_VERSION,
-    driverAddress: toHex0x(config.driverAddress),
+    driverAddress: toBase58(config.driverAddress),
   };
   if (!isStoredCrankAttempt(stored, config)) throw new CrankAttemptError();
   window.localStorage.setItem(crankAttemptKey(config), JSON.stringify(stored));
@@ -139,14 +140,13 @@ function isStoredCrankAttempt(
     || attempt.id.length === 0
     || !isStatus(attempt.status)
     || (attempt.transactionHash !== null
-      && (typeof attempt.transactionHash !== "string"
-        || !HASH_PATTERN.test(attempt.transactionHash)))
+      && !isBase58Identifier(attempt.transactionHash))
     || !validTime(attempt.createdAt)
     || !validTime(attempt.updatedAt)
     || attempt.updatedAt! < attempt.createdAt!
-    || !HASH_PATTERN.test(String(attempt.driverAddress))
+    || !isBase58Identifier(attempt.driverAddress)
     || (config !== undefined
-      && attempt.driverAddress !== toHex0x(config.driverAddress))
+      && attempt.driverAddress !== toBase58(config.driverAddress))
     || (attempt.message !== null && typeof attempt.message !== "string")
   ) return false;
   return attempt.status !== "committed" || attempt.transactionHash !== null;

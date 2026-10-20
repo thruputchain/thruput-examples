@@ -1,4 +1,5 @@
-import { fixedFromBase58, toBase58 } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
+import { isBase58Identifier } from "../lib/address.ts";
 
 export const MAX_DISCOVERY_RESPONSE_BYTES = 256_000;
 
@@ -199,14 +200,7 @@ export async function readDiscoveryJson(
   }
 }
 
-export function canonicalIdentifier(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  try {
-    return toBase58(fixedFromBase58(value, 32)) === value;
-  } catch {
-    return false;
-  }
-}
+export const canonicalIdentifier = isBase58Identifier;
 
 function nullableText(value: unknown, maximum: number): value is string | null {
   return (

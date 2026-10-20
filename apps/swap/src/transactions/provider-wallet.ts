@@ -1,8 +1,8 @@
 import {
-  hashFromBase58,
-  hashFromHex,
-  toHex0x,
   type CoreThruputClient,
+  hashFromBase58,
+  toBase58,
+  toHex0x,
 } from "@thruputchain/client";
 import {
   submitAndObserve,
@@ -68,8 +68,8 @@ export function createProviderWriteBoundary(
       await verifyReadNetwork(client, config);
       const isCreation = invocations.some(
         (invocation) =>
-          toHex0x(invocation.invoked_address) ===
-            toHex0x(config.factoryAddress) &&
+          toBase58(invocation.invoked_address) ===
+            toBase58(config.factoryAddress) &&
           toHex0x(invocation.entrypoint) ===
             toHex0x(SwapFactory.v0_1.createPair.entrypoint),
       );
@@ -100,20 +100,14 @@ export function createProviderWriteBoundary(
         ...(contractsToDeploy ? { contractsToDeploy } : {}),
       };
       const wait = {
-        expectedNetworkHash: networkHash(
-          hashFromHex(`0x${config.networkIdHex}`),
-        ),
+        expectedNetworkHash: networkHash(hashFromBase58(config.networkId)),
         timeoutMs: 20_000,
         pollingIntervalMs: 500,
       };
       if (!batched) {
         const result = await wallet.executeAndWait(
           { ...preparation, invocation: invocations[0]! },
-          {
-            onSigned: ({ hash }) =>
-              observer?.onSigned(toHex0x(hashFromBase58(hash))),
-            wait,
-          },
+          { onSigned: ({ hash }) => observer?.onSigned(hash), wait },
         );
         return receiptResult(result.receipt);
       }
@@ -123,12 +117,10 @@ export function createProviderWriteBoundary(
         invocations,
       });
       const signed = await wallet.signTransaction(transaction);
-      // Providers return base58 hashes; Swap's saved evidence uses 0x hex.
-      const hash = hashFromBase58(signed.hash);
-      await observer?.onSigned(toHex0x(hash));
+      await observer?.onSigned(signed.hash);
       const result = await submitAndObserve(
         client,
-        hash,
+        hashFromBase58(signed.hash),
         () => wallet.submitTransaction(signed),
         wait,
       );

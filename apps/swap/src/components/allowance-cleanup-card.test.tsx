@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import type { TransactionReceipt } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { render, screen } from "@/test/render";
@@ -16,10 +17,10 @@ vi.mock("@/thruput/client", async (original) => ({
 }));
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
-const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
@@ -72,10 +73,10 @@ describe("AllowanceCleanupCard", () => {
     const onRefresh = vi.fn();
     const execute = vi.fn(async (target, observer) => {
       expect(target.invoked_address).toEqual(config.tokenAAddress);
-      observer?.onSigned(hex(40));
+      observer?.onSigned(id(40));
       return {
         kind: "committedSuccess" as const,
-        hash: hex(40),
+        hash: id(40),
         receipt: {} as TransactionReceipt,
       };
     });

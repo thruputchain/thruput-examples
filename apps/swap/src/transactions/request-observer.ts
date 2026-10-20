@@ -1,13 +1,14 @@
 import {
-  addressFromHex,
+  addressFromBase58,
   bytesEqual,
-  fixedBytes,
-  fromHex0x,
-  toHex0x,
   type EventPage,
   type FixedBytes,
-  type ThruputClient,
+  fixedBytes,
+  fromHex0x,
   type IdentifiedEvent,
+  type ThruputClient,
+  toBase58,
+  toHex0x,
   type TransactionReceipt,
 } from "@thruputchain/client";
 
@@ -128,7 +129,7 @@ export function createRequestObserver(
         : oldestRetainedBlock;
 
       for (const event of page.events) {
-        const key = `${toHex0x(event.txHash)}:${event.sequenceNumber}`;
+        const key = `${toBase58(event.txHash)}:${event.sequenceNumber}`;
         if (seenEvents.has(key)) continue;
         seenEvents.add(key);
 
@@ -352,8 +353,8 @@ function matchTerminalEvent(
 ): RequestObservation | null {
   if (identified.blockHeight < request.receiptBlock!) return null;
   const event = identified.event;
-  const handlerAddress = addressFromHex(request.criteria.handlerAddress);
-  const driverAddress = addressFromHex(request.criteria.driverAddress);
+  const handlerAddress = addressFromBase58(request.criteria.handlerAddress);
+  const driverAddress = addressFromBase58(request.criteria.driverAddress);
 
   if (bytesEqual(event.contractAddress, driverAddress)) {
     const failed = RequestFailed.decode(event);
@@ -399,7 +400,7 @@ function matchFailedEvent(
     kind: "executionFailed",
     ...(failureMessage === null ? {} : { failureMessage }),
     requestId: request.requestId!,
-    transactionHash: toHex0x(txHash),
+    transactionHash: toBase58(txHash),
     blockHeight,
   };
 }
@@ -412,8 +413,8 @@ function matchSwapEvent(
   blockHeight: bigint,
 ): RequestObservation | null {
   if (blockHeight < request.receiptBlock!) return null;
-  const sender = addressFromHex(request.criteria.sender);
-  const recipient = addressFromHex(request.criteria.recipient);
+  const sender = addressFromBase58(request.criteria.sender);
+  const recipient = addressFromBase58(request.criteria.recipient);
   if (
     swap.fields.request_id === null ||
     !bytesEqual(swap.fields.request_id, requestId) ||
@@ -423,8 +424,8 @@ function matchSwapEvent(
     return null;
 
   const inputIndex = orderTokens(
-    addressFromHex(request.criteria.tokenIn),
-    addressFromHex(request.criteria.tokenOut),
+    addressFromBase58(request.criteria.tokenIn),
+    addressFromBase58(request.criteria.tokenOut),
   ).inputIndex;
   const outputIndex = inputIndex === 0 ? 1 : 0;
   if (
@@ -439,7 +440,7 @@ function matchSwapEvent(
   return {
     kind: "executionObserved",
     requestId: request.requestId!,
-    transactionHash: toHex0x(txHash),
+    transactionHash: toBase58(txHash),
     blockHeight,
     amountIn: swap.fields.amounts_in[inputIndex],
     amountOut: swap.fields.amounts_out[outputIndex],

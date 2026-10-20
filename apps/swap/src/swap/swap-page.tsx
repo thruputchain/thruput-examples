@@ -1,4 +1,4 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { useEffect, useRef } from "react";
 import { RefreshCwIcon } from "lucide-react";
 import { AllowanceCleanupCard } from "@/components/allowance-cleanup-card";
@@ -65,12 +65,12 @@ export function SwapPage({
       <div className="flex flex-wrap gap-3 text-sm">
         <BlockchainIdentifier
           kind="address"
-          value={toHex0x(config.tokenAAddress)}
+          value={toBase58(config.tokenAAddress)}
           label="Token A address"
         />
         <BlockchainIdentifier
           kind="address"
-          value={toHex0x(config.tokenBAddress)}
+          value={toBase58(config.tokenBAddress)}
           label="Token B address"
         />
       </div>

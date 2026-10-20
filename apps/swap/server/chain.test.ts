@@ -1,13 +1,14 @@
 // @vitest-environment node
 
 import {
-  addressFromHex,
+  addressFromBase58,
   ContractDecodeError,
   ContractViewError,
-  ThruputRpcErrorCode,
-  hashFromHex,
+  hashFromBase58,
   JsonRpcError,
   type ThruputClient,
+  ThruputRpcErrorCode,
+  toBase58,
 } from "@thruputchain/client";
 import { networkHash } from "@thruputchain/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -25,8 +26,8 @@ const PoolCreated = swap_if.v0_1.events.PoolCreated;
 type PoolCreated = swap_if.v0_1.events.PoolCreated;
 
 const scope: RegistryScope = {
-  networkId: "11".repeat(32),
-  factoryAddress: addressHex(0x22),
+  networkId: addressBase58(0x11),
+  factoryAddress: addressBase58(0x22),
 };
 
 afterEach(() => vi.restoreAllMocks());
@@ -50,13 +51,13 @@ describe("ThruputRegistrySource", () => {
       pools: [
         {
           ...scope,
-          token0Address: addressHex(1),
-          token1Address: addressHex(2),
-          liquidityTokenAddress: addressHex(3),
-          handlerAddress: addressHex(4),
-          driverAddress: addressHex(5),
+          token0Address: addressBase58(1),
+          token1Address: addressBase58(2),
+          liquidityTokenAddress: addressBase58(3),
+          handlerAddress: addressBase58(4),
+          driverAddress: addressBase58(5),
           pairCount: "1",
-          transactionHash: `0x${"88".repeat(32)}`,
+          transactionHash: toBase58(new Uint8Array(32).fill(0x88)),
           eventSequence: "7",
           createdBlock: "8",
         },
@@ -185,7 +186,7 @@ describe("ThruputRegistrySource", () => {
       new ThruputRegistrySource(typedClient(client), scope).getPage(
         request(),
       ),
-    ).resolves.toMatchObject({ pools: [{ handlerAddress: addressHex(4) }] });
+    ).resolves.toMatchObject({ pools: [{ handlerAddress: addressBase58(4) }] });
     expect(SwapFactory.v0_1.getPair.view).toHaveBeenCalledTimes(2);
   });
 
@@ -451,7 +452,7 @@ function mockClient(options: { networkIds?: number[] } = {}) {
     getEvents: vi.fn(),
     getNetworkInfo: vi.fn(async () => ({
       networkHash: networkHash(
-        hashFromHex(`0x${byteHex(networkIds.shift() ?? 0x11)}`),
+        hashFromBase58(addressBase58(networkIds.shift() ?? 0x11)),
       ),
     })),
   };
@@ -547,9 +548,7 @@ function identifiedEvent(
   } = {},
 ) {
   return {
-    txHash: hashFromHex(
-      `0x${(overrides.txHashByte ?? 0x88).toString(16).padStart(2, "0").repeat(32)}`,
-    ),
+    txHash: hashFromBase58(addressBase58(overrides.txHashByte ?? 0x88)),
     blockHeight: overrides.blockHeight ?? 8n,
     sequenceNumber: overrides.sequenceNumber ?? 7,
     event: {
@@ -561,13 +560,9 @@ function identifiedEvent(
 }
 
 function address(byte: number) {
-  return addressFromHex(addressHex(byte));
+  return addressFromBase58(addressBase58(byte));
 }
 
-function addressHex(byte: number) {
-  return `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
-}
-
-function byteHex(byte: number) {
-  return byte.toString(16).padStart(2, "0").repeat(32);
+function addressBase58(byte: number) {
+  return toBase58(new Uint8Array(32).fill(byte));
 }

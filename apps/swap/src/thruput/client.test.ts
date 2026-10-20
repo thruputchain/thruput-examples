@@ -21,7 +21,7 @@ describe("client initialization", () => {
       });
     });
     const pending = createReadClient(
-      { rpcUrl: new URL("http://127.0.0.1:9545"), networkIdHex: "00".repeat(32) },
+      { rpcUrl: new URL("http://127.0.0.1:9545"), networkId: toBase58(new Uint8Array(32).fill(0x00)) },
       controller.signal,
     );
     await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
@@ -36,7 +36,7 @@ describe("client initialization", () => {
 describe("network-bound creation reads", () => {
   const address = contractAddress(new Uint8Array(32).fill(1));
   const config = {
-    rpcUrl: new URL("http://127.0.0.1:9545"), networkIdHex: "00".repeat(32),
+    rpcUrl: new URL("http://127.0.0.1:9545"), networkId: toBase58(new Uint8Array(32).fill(0x00)),
     accountAddress: address, factoryAddress: address, routerAddress: address, nativeHogAddress: address,
   };
 

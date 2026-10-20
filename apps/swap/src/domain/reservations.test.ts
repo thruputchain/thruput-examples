@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,8 +10,8 @@ import {
 } from "./reservations";
 import type { RequestRecord } from "@/transactions/request-collection";
 
-const tokenA = `0x${"01".repeat(32)}`;
-const tokenB = `0x${"02".repeat(32)}`;
+const tokenA = toBase58(new Uint8Array(32).fill(0x01));
+const tokenB = toBase58(new Uint8Array(32).fill(0x02));
 
 describe("request reservations", () => {
   it.each([
@@ -72,7 +73,7 @@ function request(
   tokenIn: string,
   amountIn: bigint,
 ): RequestRecord {
-  const account = `0x${"09".repeat(32)}`;
+  const account = toBase58(new Uint8Array(32).fill(0x09));
   return {
     localId: `${status}-${phase}-${tokenIn}-${amountIn}`,
     status,

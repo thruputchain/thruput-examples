@@ -1,10 +1,10 @@
 import {
   createThruputClient,
   defineCluster,
-  hashFromHex,
+  hashFromBase58,
   HttpTransport,
   NetworkMismatchError as ClientNetworkMismatchError,
-  toHex0x,
+  toBase58,
   type ThruputClient,
   type ConnectedThruputClient,
 } from "@thruputchain/client";
@@ -13,7 +13,7 @@ import { networkHash } from "@thruputchain/protocol";
 import type { GlobalConfig } from "@/config";
 
 export async function createReadClient(
-  config: Pick<GlobalConfig, "rpcUrl" | "networkIdHex">,
+  config: Pick<GlobalConfig, "rpcUrl" | "networkId">,
   signal?: AbortSignal,
 ): Promise<ConnectedThruputClient> {
   try {
@@ -21,7 +21,7 @@ export async function createReadClient(
       cluster: defineCluster({
         name: "swap-read",
         rpcUrl: config.rpcUrl.href,
-        networkHash: networkHash(hashFromHex(`0x${config.networkIdHex}`)),
+        networkHash: networkHash(hashFromBase58(config.networkId)),
         capabilities: [] as const,
       }),
       transport: readTransport(config, signal),
@@ -62,10 +62,10 @@ export class NetworkMismatchError extends Error {
 
 export async function verifyReadNetwork(
   client: Pick<ThruputClient, "getNetworkInfo">,
-  config: Pick<GlobalConfig, "networkIdHex">,
+  config: Pick<GlobalConfig, "networkId">,
 ): Promise<void> {
   const observed = await client.getNetworkInfo();
-  if (toHex0x(observed.networkHash).slice(2) !== config.networkIdHex) {
+  if (toBase58(observed.networkHash) !== config.networkId) {
     throw new NetworkMismatchError();
   }
 }

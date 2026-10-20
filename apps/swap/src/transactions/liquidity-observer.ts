@@ -1,9 +1,10 @@
 import {
   bytesEqual,
-  toHex0x,
   type EventPage,
-  type ThruputClient,
   type IdentifiedEvent,
+  type ThruputClient,
+  toBase58,
+  toHex0x,
 } from "@thruputchain/client";
 
 import type { AppConfig } from "@/config";
@@ -63,7 +64,7 @@ export function createLiquidityObserver(
           oldestRetained = page.oldestBlock;
         }
         for (const identified of page.events) {
-          const eventKey = `${toHex0x(identified.txHash)}:${identified.sequenceNumber}`;
+          const eventKey = `${toBase58(identified.txHash)}:${identified.sequenceNumber}`;
           if (seenEvents.has(eventKey)) continue;
           seenEvents.add(eventKey);
           const matched = matchTerminal(config, operation, identified);
@@ -137,7 +138,7 @@ function matchTerminal(
       status: "executed",
       terminalBlock: identified.blockHeight.toString(),
       result: {
-        transactionHash: toHex0x(identified.txHash),
+        transactionHash: toBase58(identified.txHash),
         blockHeight: identified.blockHeight.toString(),
         liquidityMinted: minted.fields.amount_minted.toString(),
         recipientVerified: true,
@@ -165,7 +166,7 @@ function matchTerminal(
     status: "executed",
     terminalBlock: identified.blockHeight.toString(),
     result: {
-      transactionHash: toHex0x(identified.txHash),
+      transactionHash: toBase58(identified.txHash),
       blockHeight: identified.blockHeight.toString(),
       amountsRedeemed: burned.fields.amounts_redeemed.map(String) as unknown as readonly [string, string],
     },

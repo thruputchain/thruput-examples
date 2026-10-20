@@ -1,12 +1,12 @@
 import {
+  addressFromBase58,
   createThruputClient,
+  hashFromBase58,
   localnet,
   MockTransport,
-  toHex0x,
-  addressFromHex,
-  hashFromHex,
-  TransactionReceiptTimeoutError,
+  toBase58,
   type TransactionReceipt,
+  TransactionReceiptTimeoutError,
 } from "@thruputchain/client";
 import { useClient } from "@thruputchain/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -29,18 +29,18 @@ it("shares committed recovery across observers without wallet permission and ret
     transport: new MockTransport(),
   });
   vi.mocked(useClient).mockReturnValue(client);
-  const address = addressFromHex(`0x${"01".repeat(32)}`);
+  const address = addressFromBase58(toBase58(new Uint8Array(32).fill(0x01)));
   const config = {
     rpcUrl: new URL("http://localhost:9545"),
-    networkIdHex: toHex0x(client.network.networkHash).slice(2),
+    networkId: toBase58(client.network.networkHash),
     accountAddress: address,
     factoryAddress: address,
     routerAddress: address,
     nativeHogAddress: address,
   };
-  const hash = `0x${"02".repeat(32)}`;
+  const hash = toBase58(new Uint8Array(32).fill(0x02));
   const receipt: TransactionReceipt = {
-    txHash: hashFromHex(hash),
+    txHash: hashFromBase58(hash),
     height: blockHeight(1n),
     execResult: ExecResult.ExecResultTxRootFrameReverted,
     gasUsed: 0n,
@@ -56,8 +56,8 @@ it("shares committed recovery across observers without wallet permission and ret
     <QueryClientProvider client={queries}>{children}</QueryClientProvider>
   );
   const { result, rerender, unmount } = renderHook(
-    ({ networkIdHex }) => useTransactions({ ...config, networkIdHex }),
-    { wrapper, initialProps: { networkIdHex: config.networkIdHex } },
+    ({ networkId }) => useTransactions({ ...config, networkId }),
+    { wrapper, initialProps: { networkId: config.networkId } },
   );
   try {
     const outcomes = await Promise.all([
@@ -86,7 +86,7 @@ it("shares committed recovery across observers without wallet permission and ret
     expect(wait).toHaveBeenCalledTimes(2);
     expect((await result.current.observe(hash)).kind).toBe("committedFailure");
     expect(wait).toHaveBeenCalledTimes(3);
-    rerender({ networkIdHex: "ff".repeat(32) });
+    rerender({ networkId: toBase58(new Uint8Array(32).fill(0xff)) });
     expect((await result.current.observe(hash)).kind).toBe("indeterminate");
     expect(wait).toHaveBeenCalledTimes(3);
   } finally {

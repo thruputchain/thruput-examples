@@ -505,10 +505,9 @@ describe("fixed token discovery boundary", () => {
       path.join(directory, "index.html"),
       "<!doctype html><p>Swap</p>",
     );
-    // The swap pool registry is separate and stores 0x hex identifiers.
     const store = new RegistryStore(":memory:", {
-      networkId: "ab".repeat(32),
-      factoryAddress: `0x${(50).toString(16).padStart(64, "0")}`,
+      networkId: network(0xab),
+      factoryAddress: network(50),
     });
     cleanup.push(() => store.close());
     const fetcher = vi

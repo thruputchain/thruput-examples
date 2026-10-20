@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { getClientQueryKey, useClient } from "@thruputchain/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppConfig } from "@/config";
@@ -35,7 +35,7 @@ export function usePoolSnapshot(
         config.liquidityTokenAddress,
         config.tokenAAddress,
         config.tokenBAddress,
-      ].map(toHex0x),
+      ].map(toBase58),
       symbols: [config.tokenASymbol, config.tokenBSymbol],
       decimals: [config.tokenADecimals, config.tokenBDecimals],
     },

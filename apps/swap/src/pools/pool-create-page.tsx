@@ -1,5 +1,5 @@
 import { AlertCircleIcon, CheckCircle2Icon, CircleIcon, LoaderCircleIcon } from "lucide-react";
-import { addressFromHex, toHex0x, type CoreThruputClient } from "@thruputchain/client";
+import { addressFromBase58, type CoreThruputClient, toBase58 } from "@thruputchain/client";
 import { useClient } from "@thruputchain/react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -107,9 +107,9 @@ export function PoolCreatePage({
   dependencies?: PoolCreatePageDependencies;
 }) {
   const scope = JSON.stringify([
-    config.networkIdHex, config.rpcUrl.href,
-    toHex0x(config.accountAddress), toHex0x(config.factoryAddress),
-    toHex0x(config.routerAddress), toHex0x(config.nativeHogAddress),
+    config.networkId, config.rpcUrl.href,
+    toBase58(config.accountAddress), toBase58(config.factoryAddress),
+    toBase58(config.routerAddress), toBase58(config.nativeHogAddress),
   ]);
   return <CreationPage key={scope} config={config} {...props} />;
 }
@@ -175,7 +175,7 @@ function CreationPage({
   const run = dependencies.run ?? runCreationWorkflow;
   const requestRegistrySync = dependencies.requestRegistrySync
     ?? requestPoolRegistrySync;
-  const currentFactory = toHex0x(config.factoryAddress);
+  const currentFactory = toBase58(config.factoryAddress);
   const recoverable = accountWorkflows.filter((candidate) =>
     isRecoverableCreationWorkflow(candidate, currentFactory)
   );
@@ -201,19 +201,19 @@ function CreationPage({
     setError(null);
     try {
       const accountWorkflows = loadAccountCreationWorkflows(config);
-      const nativeHogHex = toHex0x(config.nativeHogAddress);
+      const nativeHogBase58 = toBase58(config.nativeHogAddress);
       const next = await prepare(
         config,
         input,
         reservedCreationHog(accountWorkflows)
-          + reservedCreationToken(accountWorkflows, nativeHogHex)
+          + reservedCreationToken(accountWorkflows, nativeHogBase58)
           + reservedInputForToken(
             loadAccountRequestRecords(config),
-            nativeHogHex,
+            nativeHogBase58,
           )
           + reservedLiquidityTokenAmount(
             loadAccountLiquidityOperations(config),
-            nativeHogHex,
+            nativeHogBase58,
           ),
         { client },
       );
@@ -289,8 +289,8 @@ function CreationPage({
           if (review === null) throw new Error("Review the pool before creating it");
           const existing = loadAccountCreationWorkflows(config).find((candidate) =>
             isRecoverableCreationWorkflow(candidate, currentFactory)
-            && candidate.token0.address === review.token0.addressHex
-            && candidate.token1.address === review.token1.addressHex
+            && candidate.token0.address === review.token0.addressBase58
+            && candidate.token1.address === review.token1.addressBase58
           );
           if (existing !== undefined) {
             applyWorkflow(existing);
@@ -357,8 +357,8 @@ function CreationPage({
           await dependencies.verifyResult(result);
         } else {
           if (result.pool === null) throw new Error("The created pool is unavailable");
-          const token0 = addressFromHex(result.token0.address);
-          const token1 = addressFromHex(result.token1.address);
+          const token0 = addressFromBase58(result.token0.address);
+          const token1 = addressFromBase58(result.token1.address);
           const poolConfig = await resolvePoolConfig({ config, token0, token1, client });
           const snapshot = await createSnapshotReader(poolConfig, client)();
           if (
@@ -782,20 +782,20 @@ function CreationReviewCard({
       <CardContent className="grid gap-6 lg:grid-cols-2">
         <dl className="grid gap-3 text-sm">
           <ReviewRow
-            label={<TokenSymbol symbol={review.token0.symbol} address={review.token0.addressHex} />}
+            label={<TokenSymbol symbol={review.token0.symbol} address={review.token0.addressBase58} />}
             value={formatAmount(review.token0.amount, review.token0.decimals)}
           />
           <ReviewRow
-            label={<TokenSymbol symbol={review.token1.symbol} address={review.token1.addressHex} />}
+            label={<TokenSymbol symbol={review.token1.symbol} address={review.token1.addressBase58} />}
             value={formatAmount(review.token1.amount, review.token1.decimals)}
           />
           <ReviewRow label="Initial ratio" value={<>{formatAmount(
             review.token0.amount,
             review.token0.decimals,
-          )} <TokenSymbol symbol={review.token0.symbol} address={review.token0.addressHex} /> : {formatAmount(
+          )} <TokenSymbol symbol={review.token0.symbol} address={review.token0.addressBase58} /> : {formatAmount(
             review.token1.amount,
             review.token1.decimals,
-          )} <TokenSymbol symbol={review.token1.symbol} address={review.token1.addressHex} /></>} />
+          )} <TokenSymbol symbol={review.token1.symbol} address={review.token1.addressBase58} /></>} />
           <ReviewRow
             label="Estimated LP before lock"
             value={`${review.initialLiquidity} base units`}
@@ -999,7 +999,7 @@ function readCreationState(config: GlobalConfig): {
     const current = workflows
       .filter((workflow) => isRecoverableCreationWorkflow(
         workflow,
-        toHex0x(config.factoryAddress),
+        toBase58(config.factoryAddress),
       ))
       .sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
     return { workflows, current, cleanup: loadAllowanceCleanup(config), error: null };

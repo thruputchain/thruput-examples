@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { contractAddress } from "@thruputchain/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,10 +14,10 @@ vi.mock("@/contracts/erc20-adapter", () => ({
   createErc20ReadAdapter: vi.fn(),
 }));
 const address = (n: number) => contractAddress(new Uint8Array(32).fill(n));
-const hex = (n: number) => `0x${n.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (n: number) => toBase58(new Uint8Array(32).fill(n));
 const config: GlobalConfig = {
   rpcUrl: new URL("http://localhost:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(1),
   factoryAddress: address(2),
   routerAddress: address(3),
@@ -46,7 +47,7 @@ beforeEach(() => {
 describe("live token previews", () => {
   it("checks the actual network before metadata and uses the configured caller", async () => {
     const signal = new AbortController().signal;
-    await expect(readTokenPreview(config, hex(8), signal, client)).resolves.toEqual({
+    await expect(readTokenPreview(config, id(8), signal, client)).resolves.toEqual({
       name: "Live Name",
       symbol: "LIVE",
       decimals: 6,
@@ -65,7 +66,7 @@ describe("live token previews", () => {
   it("fails closed on network mismatch, without metadata reads", async () => {
     network.mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) });
     await expect(
-      readTokenPreview(config, hex(8), new AbortController().signal, client),
+      readTokenPreview(config, id(8), new AbortController().signal, client),
     ).rejects.toBeInstanceOf(NetworkMismatchError);
     expect(read).not.toHaveBeenCalled();
   });
@@ -77,7 +78,7 @@ describe("live token previews", () => {
       decimals: view(null),
     });
     await expect(
-      readTokenPreview(config, hex(8), new AbortController().signal, client),
+      readTokenPreview(config, id(8), new AbortController().signal, client),
     ).resolves.toEqual({ name: null, symbol: null, decimals: null });
   });
 
@@ -91,10 +92,10 @@ describe("live token previews", () => {
     );
     const { result, rerender, unmount } = renderHook(
       ({ value }) => useTokenPreview(config, value, client),
-      { initialProps: { value: hex(8) }, wrapper: TestProviders },
+      { initialProps: { value: id(8) }, wrapper: TestProviders },
     );
     await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
-    rerender({ value: hex(9) });
+    rerender({ value: id(9) });
     expect(result.current.preview).toEqual({ status: "pending" });
     await waitFor(() => expect(result.current.preview?.status).toBe("ready"));
     await act(async () => resolveOld({ ...metadata, name: view("OLD") }));
@@ -111,7 +112,7 @@ describe("live token previews", () => {
   it("rechecks network on retry and on caller/network changes", async () => {
     network.mockRejectedValueOnce(new NetworkMismatchError());
     const { result, rerender } = renderHook(
-      ({ current }) => useTokenPreview(current, hex(8), client),
+      ({ current }) => useTokenPreview(current, id(8), client),
       { initialProps: { current: config }, wrapper: TestProviders },
     );
     await waitFor(() =>
@@ -127,7 +128,7 @@ describe("live token previews", () => {
     expect(result.current.preview?.status).toBe("pending");
     await waitFor(() => expect(network).toHaveBeenCalledTimes(3));
     network.mockResolvedValue({ networkHash: new Uint8Array(32).fill(5) });
-    rerender({ current: { ...config, networkIdHex: "05".repeat(32) } });
+    rerender({ current: { ...config, networkId: toBase58(new Uint8Array(32).fill(0x05)) } });
     await waitFor(() => expect(network).toHaveBeenCalledTimes(4));
     await waitFor(() => expect(result.current.preview?.status).toBe("ready"));
   });
@@ -135,14 +136,14 @@ describe("live token previews", () => {
   it("keeps independent slot results when a second token is loaded", async () => {
     const { result, rerender } = renderHook(
       ({ b }) => ({
-        a: useTokenPreview(config, hex(8), client),
+        a: useTokenPreview(config, id(8), client),
         b: useTokenPreview(config, b, client),
       }),
       { initialProps: { b: "" }, wrapper: TestProviders },
     );
     await waitFor(() => expect(result.current.a.preview?.status).toBe("ready"));
     read.mockRejectedValueOnce(new Error("offline"));
-    rerender({ b: hex(9) });
+    rerender({ b: id(9) });
     await waitFor(() =>
       expect(result.current.b.preview?.status).toBe("unavailable"),
     );

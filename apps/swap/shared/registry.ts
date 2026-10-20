@@ -1,3 +1,22 @@
+import { addressFromBase58, toBase58 } from "@thruputchain/client";
+
+/** The all-zero address in canonical base58. */
+export const ZERO_ADDRESS = toBase58(new Uint8Array(32));
+
+/**
+ * Pools order their tokens by address bytes: token0 sorts below token1. Base58
+ * text order differs (a leading zero byte shortens the text), so decode first.
+ */
+export function inCanonicalTokenOrder(token0: string, token1: string): boolean {
+  const left = addressFromBase58(token0);
+  const right = addressFromBase58(token1);
+  for (let index = 0; index < left.length; index += 1) {
+    const difference = left[index]! - right[index]!;
+    if (difference !== 0) return difference < 0;
+  }
+  return false;
+}
+
 export const REGISTRY_SORTS = ["newest", "oldest", "token0", "token1"] as const;
 
 export type RegistrySort = (typeof REGISTRY_SORTS)[number];

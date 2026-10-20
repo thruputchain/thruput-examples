@@ -1,6 +1,6 @@
 import {
-  hashFromHex,
-  toHex0x,
+  hashFromBase58,
+  toBase58,
   TransactionReceiptTimeoutError,
   TransactionRejectedError,
   type CoreThruputClient,
@@ -11,6 +11,7 @@ import {
   TransactionObservationError,
 } from "@thruputchain/client/wallet";
 import { ExecResult, networkHash } from "@thruputchain/protocol";
+import { isBase58Identifier } from "@/lib/address";
 import type { WriteResult } from "./write-boundary";
 
 export function receiptResult(receipt: TransactionReceipt): WriteResult {
@@ -19,7 +20,7 @@ export function receiptResult(receipt: TransactionReceipt): WriteResult {
       receipt.execResult === ExecResult.ExecResultOK
         ? "committedSuccess"
         : "committedFailure",
-    hash: toHex0x(receipt.txHash),
+    hash: toBase58(receipt.txHash),
     receipt,
   };
 }
@@ -53,16 +54,16 @@ export function executionFailure(error: unknown): WriteResult | undefined {
   if (error instanceof TransactionExecutionError)
     return receiptResult(error.receipt);
   if (error instanceof TransactionObservationError)
-    return observationFailure(toHex0x(error.txHash), error.cause);
+    return observationFailure(toBase58(error.txHash), error.cause);
 }
 
 // Public observation remains available after the signing wallet is disposed.
 export function createTransactionObserver(
-  config: { networkIdHex: string },
+  config: { networkId: string },
   client: Pick<CoreThruputClient, "waitForTransactionReceipt">,
 ): (hash: string) => Promise<WriteResult> {
   return async (hash) => {
-    if (!/^0x[0-9a-f]{64}$/.test(hash))
+    if (!isBase58Identifier(hash))
       return {
         kind: "preSubmissionFailure",
         hash: null,
@@ -70,10 +71,8 @@ export function createTransactionObserver(
       };
     try {
       return receiptResult(
-        await client.waitForTransactionReceipt(hashFromHex(hash), {
-          expectedNetworkHash: networkHash(
-            hashFromHex(`0x${config.networkIdHex}`),
-          ),
+        await client.waitForTransactionReceipt(hashFromBase58(hash), {
+          expectedNetworkHash: networkHash(hashFromBase58(config.networkId)),
           timeoutMs: 20_000,
           pollingIntervalMs: 500,
         }),

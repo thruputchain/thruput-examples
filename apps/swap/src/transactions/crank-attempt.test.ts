@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -15,7 +16,7 @@ import {
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(3),
@@ -39,7 +40,7 @@ describe("crank attempt", () => {
     const indeterminate = saveCrankAttempt(config, {
       ...signing,
       status: "indeterminate",
-      transactionHash: `0x${"ab".repeat(32)}`,
+      transactionHash: toBase58(new Uint8Array(32).fill(0xab)),
       updatedAt: 11,
       message: "Outcome uncertain",
     });
@@ -57,7 +58,7 @@ describe("crank attempt", () => {
   });
 
   it("ignores retired namespaces without deleting them", () => {
-    const legacy = `groundhog-swap:crank:v2:${config.networkIdHex}:old`;
+    const legacy = `groundhog-swap:crank:v2:${config.networkId}:old`;
     window.localStorage.setItem(legacy, "not-json");
     expect(loadAccountCrankAttempts(config)).toEqual([]);
     expect(window.localStorage.getItem(legacy)).toBe("not-json");

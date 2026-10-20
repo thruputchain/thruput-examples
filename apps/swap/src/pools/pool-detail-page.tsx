@@ -1,5 +1,5 @@
 import { AlertCircleIcon } from "lucide-react";
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { useState } from "react";
 import { useClient } from "@thruputchain/react";
 import { Link } from "react-router-dom";
@@ -239,7 +239,7 @@ function Address({
       <dd className="mt-1 min-w-0">
         <BlockchainIdentifier
           kind="address"
-          value={toHex0x(value)}
+          value={toBase58(value)}
           label={`${label} address`}
         />
       </dd>

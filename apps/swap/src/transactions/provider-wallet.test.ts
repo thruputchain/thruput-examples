@@ -1,11 +1,11 @@
 import {
-  addressFromHex,
-  hashFromHex,
-  toBase58,
-  TransactionRejectedError,
-  TransactionReceiptTimeoutError,
+  addressFromBase58,
+  hashFromBase58,
   type ThruputClient,
+  toBase58,
   type TransactionReceipt,
+  TransactionReceiptTimeoutError,
+  TransactionRejectedError,
 } from "@thruputchain/client";
 import {
   TransactionExecutionError,
@@ -28,18 +28,17 @@ import { SwapFactory } from "@/contracts/generated/swap-factory";
 import { buildProcessRequestsTarget } from "@/contracts/driver-target";
 import { createProviderWriteBoundary } from "./provider-wallet";
 
-const hex = (byte: string) => `0x${byte.repeat(32)}`;
-const hash = hex("ab");
-// A v2 provider reports identifiers in base58; Swap keeps hashes as 0x hex.
-const base58 = (value: string) => toBase58(hashFromHex(value));
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
+// A v2 provider reports identifiers in base58, the form Swap stores.
+const hash = id(0xab);
 const config: GlobalConfig = {
   rpcUrl: new URL("http://localhost:9545"),
-  networkIdHex: "00".repeat(32),
-  accountAddress: addressFromHex(hex("01")),
-  factoryAddress: addressFromHex(hex("02")),
-  routerAddress: addressFromHex(hex("03")),
-  nativeHogAddress: addressFromHex(hex("04")),
-  poolTokenHash: hex("05"),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
+  accountAddress: addressFromBase58(id(0x01)),
+  factoryAddress: addressFromBase58(id(0x02)),
+  routerAddress: addressFromBase58(id(0x03)),
+  nativeHogAddress: addressFromBase58(id(0x04)),
+  poolTokenHash: id(0x05),
 };
 const target = {
   invoked_address: config.routerAddress,
@@ -48,7 +47,7 @@ const target = {
   calldata: calldata(new Uint8Array()),
 };
 const receipt: TransactionReceipt = {
-  txHash: hashFromHex(hash),
+  txHash: hashFromBase58(hash),
   height: blockHeight(11n),
   execResult: ExecResult.ExecResultOK,
   gasUsed: 0n,
@@ -59,14 +58,10 @@ const receipt: TransactionReceipt = {
 
 function fixture() {
   const pending = {
-    hash: base58(hash),
+    hash,
     signedTransaction: "0x00",
-    networkHash: base58(`0x${config.networkIdHex}`),
-    account: {
-      address: base58(hex("01")),
-      publicKey: base58(hex("02")),
-      nonce: "0",
-    },
+    networkHash: config.networkId,
+    account: { address: id(0x01), publicKey: id(0x02), nonce: "0" },
   };
   const wallet = {
     prepareDeployment: vi.fn(),
@@ -84,7 +79,7 @@ function fixture() {
     prepareBatchExecution: vi.fn().mockResolvedValue({} as Transaction),
     prepareExecution: vi.fn(),
     signTransaction: vi.fn().mockResolvedValue(pending),
-    submitTransaction: vi.fn().mockResolvedValue({ hash: base58(hash) }),
+    submitTransaction: vi.fn().mockResolvedValue({ hash }),
     dispose: vi.fn(),
   } satisfies ProviderWalletClient;
   const client = {
@@ -110,7 +105,7 @@ function fixture() {
 describe("provider write boundary", () => {
   it("keeps the calibrated crank frame and enclosing wallet budget", async () => {
     const { boundary, wallet } = fixture();
-    const invocation = buildProcessRequestsTarget(addressFromHex(hex("06")));
+    const invocation = buildProcessRequestsTarget(addressFromBase58(id(0x06)));
     expect(invocation.gas_limit).toBeGreaterThan(200_000n + 8n * 1_500_000n);
     expect((await boundary.execute(invocation)).kind).toBe("committedSuccess");
     expect(wallet.executeAndWait).toHaveBeenCalledWith(

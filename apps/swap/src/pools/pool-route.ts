@@ -1,17 +1,18 @@
-import { addressFromHex, toHex0x } from "@thruputchain/client";
+import { addressFromBase58, toBase58 } from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
 
 import { orderTokens } from "@/domain/tokens";
+import { typedAddress } from "@/lib/address";
 
 export type ParsedPoolRoute =
   | {
       kind: "canonical";
       token0: ContractAddress;
       token1: ContractAddress;
-      token0Hex: string;
-      token1Hex: string;
+      token0Base58: string;
+      token1Base58: string;
     }
-  | { kind: "redirect"; token0Hex: string; token1Hex: string }
+  | { kind: "redirect"; token0Base58: string; token1Base58: string }
   | { kind: "invalid" };
 
 export function parsePoolRoute(
@@ -21,14 +22,12 @@ export function parsePoolRoute(
   if (token0Value === undefined || token1Value === undefined) {
     return { kind: "invalid" };
   }
-  let token0: ContractAddress;
-  let token1: ContractAddress;
-  try {
-    token0 = addressFromHex(token0Value);
-    token1 = addressFromHex(token1Value);
-  } catch {
-    return { kind: "invalid" };
-  }
+  // Route segments may be base58 or C StrKey; links always use base58.
+  const text0 = typedAddress(token0Value);
+  const text1 = typedAddress(token1Value);
+  if (text0 === null || text1 === null) return { kind: "invalid" };
+  const token0 = addressFromBase58(text0);
+  const token1 = addressFromBase58(text1);
   if (isZero(token0) || isZero(token1)) return { kind: "invalid" };
   let ordered: ReturnType<typeof orderTokens>;
   try {
@@ -37,17 +36,21 @@ export function parsePoolRoute(
     return { kind: "invalid" };
   }
   if (ordered.inputIndex !== 0) return { kind: "invalid" };
-  const canonical0 = toHex0x(ordered.token0);
-  const canonical1 = toHex0x(ordered.token1);
+  const canonical0 = toBase58(ordered.token0);
+  const canonical1 = toBase58(ordered.token1);
   if (token0Value !== canonical0 || token1Value !== canonical1) {
-    return { kind: "redirect", token0Hex: canonical0, token1Hex: canonical1 };
+    return {
+      kind: "redirect",
+      token0Base58: canonical0,
+      token1Base58: canonical1,
+    };
   }
   return {
     kind: "canonical",
     token0: ordered.token0,
     token1: ordered.token1,
-    token0Hex: canonical0,
-    token1Hex: canonical1,
+    token0Base58: canonical0,
+    token1Base58: canonical1,
   };
 }
 
@@ -57,7 +60,7 @@ export function poolPath(
   suffix = "",
 ): string {
   const ordered = orderTokens(token0, token1);
-  return `/pools/${toHex0x(ordered.token0)}/${toHex0x(ordered.token1)}${suffix}`;
+  return `/pools/${toBase58(ordered.token0)}/${toBase58(ordered.token1)}${suffix}`;
 }
 
 function isZero(address: ContractAddress): boolean {

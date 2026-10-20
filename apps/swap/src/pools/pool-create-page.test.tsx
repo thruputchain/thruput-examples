@@ -28,10 +28,11 @@ vi.mock("@/contracts/erc20-adapter", () => ({ createErc20ReadAdapter: vi.fn() })
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config: GlobalConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
@@ -49,7 +50,7 @@ describe("PoolCreatePage", () => {
   it.each(["amount", "funding"])("loads a concurrent %s intent without executing it", async (intent) => {
     const user = userEvent.setup();
     const run = vi.fn();
-    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${id(1)}&tokenB=${id(2)}`);
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     await screen.findByRole("button", { name: "Create pool" });
     const saved = createCreationWorkflow(config, review());
@@ -62,23 +63,23 @@ describe("PoolCreatePage", () => {
     await user.click(screen.getByRole("button", { name: "Create pool" }));
     expect(await screen.findByText(/saved creation appeared in another tab/)).toBeVisible();
     expect(run).not.toHaveBeenCalled();
-    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(saved);
+    expect(loadCreationWorkflow(config, id(1), id(2))).toEqual(saved);
     expect(screen.getByRole("button", { name: "Continue creation" })).toBeEnabled();
   });
 
   it("renders review and persisted progress fallback symbols with full explorer identity", async () => {
     const user = userEvent.setup();
     const missing = review();
-    missing.token0.symbol = `${hex(1).slice(0, 8)}...`;
-    missing.token1.symbol = hex(2);
-    const page = renderPage({ prepare: vi.fn().mockResolvedValue(missing) }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`, "https://explorer.test");
+    missing.token0.symbol = `${id(1).slice(0, 8)}...`;
+    missing.token1.symbol = id(2);
+    const page = renderPage({ prepare: vi.fn().mockResolvedValue(missing) }, `?tokenA=${id(1)}&tokenB=${id(2)}`, "https://explorer.test");
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     await screen.findByRole("button", { name: "Create pool" });
     expect(screen.getAllByRole("link", { name: `Token address: ${b58(1)} (opens explorer in a new tab)` })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: `Token address: ${b58(2)} (opens explorer in a new tab)` })).toHaveLength(2);
     page.unmount();
     const workflow = createCreationWorkflow(config, missing);
-    workflow.steps.approveFunding.transactionHash = hex(42);
+    workflow.steps.approveFunding.transactionHash = id(42);
     workflow.steps.approveFunding.status = "indeterminate";
     saveCreationWorkflow(config, workflow);
     renderPage({}, "", "https://explorer.test");
@@ -89,7 +90,7 @@ describe("PoolCreatePage", () => {
   it.each([false, true])("freezes queued execution and cancels on unmount: %s", async (unmount) => {
     const user = userEvent.setup();
     const run = vi.fn(async (_config, current) => current);
-    const page = renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    const page = renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${id(1)}&tokenB=${id(2)}`);
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     await screen.findByRole("button", { name: "Create pool" });
     let release!: () => void;
@@ -107,15 +108,15 @@ describe("PoolCreatePage", () => {
     if (unmount) page.unmount();
     await act(async () => release());
     expect(run).toHaveBeenCalledTimes(unmount ? 0 : 1);
-    expect(loadCreationWorkflow(config, hex(1), hex(2)) === null).toBe(unmount);
+    expect(loadCreationWorkflow(config, id(1), id(2)) === null).toBe(unmount);
     lock.mockRestore();
   });
 
-  it.each([null, hex(42)])("recovers account cleanup without clearing hash evidence: %s", async (transactionHash) => {
+  it.each([null, id(42)])("recovers account cleanup without clearing hash evidence: %s", async (transactionHash) => {
     const user = userEvent.setup();
     const record = {
-      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
-      tokenAddress: hex(6), spenderAddress: hex(7), status: "signing",
+      version: 3, networkId: config.networkId, accountAddress: id(9),
+      tokenAddress: id(6), spenderAddress: id(7), status: "signing",
       transactionHash, difference: "-300", updatedAt: 10,
     };
     window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify(record));
@@ -143,9 +144,9 @@ describe("PoolCreatePage", () => {
 
     const addresses = screen.getAllByLabelText("Contract address");
     const amounts = screen.getAllByLabelText("Initial amount");
-    await user.type(addresses[0]!, hex(2));
+    await user.type(addresses[0]!, id(2));
     await user.type(amounts[0]!, "3");
-    await user.type(addresses[1]!, hex(1));
+    await user.type(addresses[1]!, id(1));
     await user.type(amounts[1]!, "2");
     await user.click(screen.getByRole("button", { name: "Review pool" }));
 
@@ -163,23 +164,23 @@ describe("PoolCreatePage", () => {
       expect.any(Object),
       expect.objectContaining({ automaticProcessing: false }),
     );
-    expect(loadCreationWorkflow(config, hex(1), hex(2))).not.toBeNull();
+    expect(loadCreationWorkflow(config, id(1), id(2))).not.toBeNull();
     expect(await screen.findByText("race")).toBeVisible();
   });
 
   it("does not let stale cleanup confirmation erase a hash added in another tab", async () => {
     const user = userEvent.setup();
     const record = {
-      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
-      tokenAddress: hex(6), spenderAddress: hex(7), status: "signing",
+      version: 3, networkId: config.networkId, accountAddress: id(9),
+      tokenAddress: id(6), spenderAddress: id(7), status: "signing",
       transactionHash: null, difference: "-300", updatedAt: 10,
     };
     window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify(record));
     renderPage({});
-    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify({ ...record, transactionHash: hex(42) }));
+    window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify({ ...record, transactionHash: id(42) }));
     await user.click(screen.getByRole("button", { name: "Confirm allowance cleanup was not signed" }));
     expect(await screen.findByText("The allowance cleanup has a transaction hash and must be observed")).toBeVisible();
-    expect(loadAllowanceCleanup(config)?.transactionHash).toBe(hex(42));
+    expect(loadAllowanceCleanup(config)?.transactionHash).toBe(id(42));
     expect(screen.queryByRole("button", { name: "Confirm allowance cleanup was not signed" })).toBeNull();
   });
 
@@ -188,7 +189,7 @@ describe("PoolCreatePage", () => {
     const workflow = createCreationWorkflow(config, review());
     workflow.status = "failed";
     workflow.steps.approveFunding = {
-      ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "11",
+      ...workflow.steps.approveFunding, status: "committed", transactionHash: id(40), receiptBlock: "11",
     };
     workflow.steps.createPool.status = "failed";
     saveCreationWorkflow(config, workflow);
@@ -198,11 +199,11 @@ describe("PoolCreatePage", () => {
     vi.mocked(verifyReadNetwork).mockRejectedValueOnce(new NetworkMismatchError());
     await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
     expect(await screen.findByText(/different Thruput network/)).toBeVisible();
-    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+    expect(loadCreationWorkflow(config, id(1), id(2))).toEqual(workflow);
     expect(readFactoryAllowance).not.toHaveBeenCalled();
     expect(execute).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
-    await waitFor(() => expect(loadCreationWorkflow(config, hex(1), hex(2))?.status).toBe("archived"));
+    await waitFor(() => expect(loadCreationWorkflow(config, id(1), id(2))?.status).toBe("archived"));
     expect(screen.getByRole("button", { name: "Start another pool" })).toBeVisible();
   });
 
@@ -211,21 +212,21 @@ describe("PoolCreatePage", () => {
     const workflow = createCreationWorkflow(config, review());
     workflow.status = "failed";
     workflow.steps.approveFunding = {
-      ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "11",
+      ...workflow.steps.approveFunding, status: "committed", transactionHash: id(40), receiptBlock: "11",
     };
     workflow.steps.createPool.status = "failed";
     saveCreationWorkflow(config, workflow);
     window.localStorage.setItem(allowanceCleanupKey(config), JSON.stringify({
-      version: 2, networkIdHex: config.networkIdHex, accountAddress: hex(9),
-      tokenAddress: hex(6), spenderAddress: hex(7), status: "signing",
-      transactionHash: hex(42), difference: "-300", updatedAt: 10,
+      version: 3, networkId: config.networkId, accountAddress: id(9),
+      tokenAddress: id(6), spenderAddress: id(7), status: "signing",
+      transactionHash: id(42), difference: "-300", updatedAt: 10,
     }));
     const execute = vi.fn();
-    const observe = vi.fn().mockResolvedValue({ kind: "committedSuccess", hash: hex(42), receipt: {} });
+    const observe = vi.fn().mockResolvedValue({ kind: "committedSuccess", hash: id(42), receipt: {} });
     renderPage({ writer: { execute, observe } });
     await user.click(screen.getByRole("button", { name: "Remove factory funding allowance" }));
-    await waitFor(() => expect(loadCreationWorkflow(config, hex(1), hex(2))?.status).toBe("archived"));
-    expect(observe).toHaveBeenCalledWith(hex(42));
+    await waitFor(() => expect(loadCreationWorkflow(config, id(1), id(2))?.status).toBe("archived"));
+    expect(observe).toHaveBeenCalledWith(id(42));
     expect(execute).not.toHaveBeenCalled();
     expect(loadAllowanceCleanup(config)).toBeNull();
     expect(screen.queryByText("Pending allowance cleanup")).toBeNull();
@@ -244,7 +245,7 @@ describe("PoolCreatePage", () => {
     await user.click(confirm);
 
     await waitFor(() => expect(
-       loadCreationWorkflow(config, hex(1), hex(2))?.steps.approveFunding,
+       loadCreationWorkflow(config, id(1), id(2))?.steps.approveFunding,
     ).toMatchObject({ status: "pending", transactionHash: null }));
     expect(screen.getByRole("button", { name: "Continue creation" })).toBeEnabled();
   });
@@ -262,7 +263,7 @@ describe("PoolCreatePage", () => {
         ...workflow.steps,
         approveFunding: {
           status: "committed",
-          transactionHash: hex(50),
+          transactionHash: id(50),
           receiptBlock: "11",
           message: null,
           updatedAt: 11,
@@ -282,9 +283,9 @@ describe("PoolCreatePage", () => {
     }));
 
     await waitFor(() => expect(
-      loadCreationWorkflow(config, hex(1), hex(2))?.steps.approveFunding,
-    ).toMatchObject({ status: "committed", transactionHash: hex(50) }));
-    expect(loadCreationWorkflow(config, hex(1), hex(2))?.steps.createPool)
+      loadCreationWorkflow(config, id(1), id(2))?.steps.approveFunding,
+    ).toMatchObject({ status: "committed", transactionHash: id(50) }));
+    expect(loadCreationWorkflow(config, id(1), id(2))?.steps.createPool)
       .toMatchObject({ status: "signing", transactionHash: null });
   });
 
@@ -294,7 +295,7 @@ describe("PoolCreatePage", () => {
     for (const name of Object.keys(workflow.steps) as Array<keyof typeof workflow.steps>) {
       workflow.steps[name] = {
         status: "committed",
-        transactionHash: hex(50),
+        transactionHash: id(50),
         receiptBlock: "11",
         message: null,
         updatedAt: 11,
@@ -304,9 +305,9 @@ describe("PoolCreatePage", () => {
     workflow.requestId = hex(60);
     workflow.enqueueReceiptBlock = "11";
     workflow.pool = {
-      liquidityToken: hex(21),
-      handler: hex(22),
-      driver: hex(23),
+      liquidityToken: id(21),
+      handler: id(22),
+      driver: id(23),
     };
     workflow.updatedAt = 11;
     saveCreationWorkflow(config, workflow);
@@ -324,7 +325,7 @@ describe("PoolCreatePage", () => {
       expect.objectContaining({ status: "executed" }),
       expect.objectContaining({ automaticProcessing: true }),
     ));
-    expect(loadCreationWorkflow(config, hex(1), hex(2))?.status).toBe("executed");
+    expect(loadCreationWorkflow(config, id(1), id(2))?.status).toBe("executed");
   });
 
   it("removes an unused factory allowance before continuing after a race", async () => {
@@ -332,20 +333,20 @@ describe("PoolCreatePage", () => {
     const workflow = createCreationWorkflow(config, review(), 10);
     workflow.status = "race";
     workflow.pool = {
-      liquidityToken: hex(21),
-      handler: hex(22),
-      driver: hex(23),
+      liquidityToken: id(21),
+      handler: id(22),
+      driver: id(23),
     };
     workflow.steps.approveFunding = {
       status: "committed",
-      transactionHash: hex(40),
+      transactionHash: id(40),
       receiptBlock: "11",
       message: null,
       updatedAt: 11,
     };
     workflow.steps.createPool = {
       status: "failed",
-      transactionHash: hex(41),
+      transactionHash: id(41),
       receiptBlock: null,
       message: "Another account created this pool.",
       updatedAt: 11,
@@ -353,10 +354,10 @@ describe("PoolCreatePage", () => {
     workflow.updatedAt = 11;
     saveCreationWorkflow(config, workflow);
     const execute = vi.fn(async (_target, observer) => {
-      observer?.onSigned(hex(42));
+      observer?.onSigned(id(42));
       return {
         kind: "committedSuccess" as const,
-        hash: hex(42),
+        hash: id(42),
         receipt: {} as TransactionReceipt,
       };
     });
@@ -392,13 +393,13 @@ describe("PoolCreatePage", () => {
       createCreationWorkflow(otherConfig, review(), 10),
     );
     const run = vi.fn(async (_config: GlobalConfig, current: CreationWorkflow) => current);
-    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${id(1)}&tokenB=${id(2)}`);
 
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     await user.click(await screen.findByRole("button", { name: "Create pool" }));
 
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
-    expect(run.mock.calls[0]![1]).toMatchObject({ factoryAddress: hex(7) });
+    expect(run.mock.calls[0]![1]).toMatchObject({ factoryAddress: id(7) });
     expect(run.mock.calls[0]![1].id).not.toBe(obsolete.id);
   });
 
@@ -407,15 +408,15 @@ describe("PoolCreatePage", () => {
     const failed = createCreationWorkflow(config, review(), 10);
     failed.status = "failed";
     failed.pool = {
-      liquidityToken: hex(21),
-      handler: hex(22),
-      driver: hex(23),
+      liquidityToken: id(21),
+      handler: id(22),
+      driver: id(23),
     };
     failed.requestId = hex(30);
     failed.enqueueReceiptBlock = "12";
     failed.steps.approveFunding = {
       status: "committed",
-      transactionHash: hex(40),
+      transactionHash: id(40),
       receiptBlock: "10",
       message: null,
       updatedAt: 10,
@@ -423,14 +424,14 @@ describe("PoolCreatePage", () => {
     failed.steps.createPool.status = "skipped";
     failed.steps.enqueue = {
       status: "committed",
-      transactionHash: hex(41),
+      transactionHash: id(41),
       receiptBlock: "12",
       message: null,
       updatedAt: 12,
     };
     saveCreationWorkflow(config, failed);
     const run = vi.fn(async (_config: GlobalConfig, current: CreationWorkflow) => current);
-    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run }, `?tokenA=${id(1)}&tokenB=${id(2)}`);
 
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     await user.click(await screen.findByRole("button", { name: "Create pool" }));
@@ -458,7 +459,7 @@ describe("PoolCreatePage", () => {
       dependencies.onUpdate?.(next);
       return next;
     });
-    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run, requestRegistrySync }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    renderPage({ prepare: vi.fn().mockResolvedValue(review()), run, requestRegistrySync }, `?tokenA=${id(1)}&tokenB=${id(2)}`);
 
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     await user.click(await screen.findByRole("button", { name: "Create pool" }));
@@ -473,7 +474,7 @@ describe("PoolCreatePage", () => {
     const run = vi.fn();
     const push = vi.spyOn(window.history, "pushState");
     const replace = vi.spyOn(window.history, "replaceState");
-    renderPage({ prepare, run }, `?tokenA=${hex(2)}&tokenB=${hex(1)}&amountA=9&autoSubmit=true`);
+    renderPage({ prepare, run }, `?tokenA=${id(2)}&tokenB=${id(1)}&amountA=9&autoSubmit=true`);
     expect(screen.getAllByLabelText("Contract address").map((el) => (el as HTMLInputElement).value)).toEqual([b58(2), b58(1)]);
     expect(screen.getAllByLabelText("Initial amount").every((el) => (el as HTMLInputElement).value === "")).toBe(true);
     await waitFor(() => expect(screen.getAllByText("Live name: Live token")).toHaveLength(2));
@@ -488,7 +489,7 @@ describe("PoolCreatePage", () => {
   });
 
   it("warns on invalid presets and reads only the independently valid slot", async () => {
-    renderPage({}, `?tokenA=bad&tokenB=${hex(2)}`);
+    renderPage({}, `?tokenA=bad&tokenB=${id(2)}`);
     expect(screen.getByText(/tokenA preset was ignored/)).toBeVisible();
     expect(screen.getAllByLabelText("Contract address")[0]).toHaveValue("");
     await waitFor(() => expect(verifyReadNetwork).toHaveBeenCalledTimes(1));
@@ -499,7 +500,7 @@ describe("PoolCreatePage", () => {
     const workflow = createCreationWorkflow(config, review(), 10);
     workflow.status = "race";
     saveCreationWorkflow(config, workflow);
-    renderPage({}, `?tokenA=${hex(4)}&tokenB=${hex(5)}`);
+    renderPage({}, `?tokenA=${id(4)}&tokenB=${id(5)}`);
     expect(screen.getByText(/saved creation is being recovered/)).toBeVisible();
     expect(createReadClient).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Start another pool" }));
@@ -510,7 +511,7 @@ describe("PoolCreatePage", () => {
   it("does not use presets or enable review when storage cannot be read safely", () => {
     saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
     const get = vi.spyOn(window.localStorage, "getItem").mockImplementation(() => { throw new Error("denied"); });
-    renderPage({}, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    renderPage({}, `?tokenA=${id(1)}&tokenB=${id(2)}`);
     expect(screen.getByText(/could not be loaded safely/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Review pool" })).toBeDisabled();
     expect(createReadClient).not.toHaveBeenCalled();
@@ -521,7 +522,7 @@ describe("PoolCreatePage", () => {
     const user = userEvent.setup();
     let resolve!: (value: PoolCreationReview) => void;
     const prepare = vi.fn(() => new Promise<PoolCreationReview>((done) => { resolve = done; }));
-    renderPage({ prepare }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    renderPage({ prepare }, `?tokenA=${id(1)}&tokenB=${id(2)}`);
     fireEvent.change(screen.getAllByLabelText("Initial amount")[0]!, { target: { value: "2" } });
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     fireEvent.change(screen.getAllByLabelText("Contract address")[0]!, { target: { value: "0x" } });
@@ -535,17 +536,17 @@ describe("PoolCreatePage", () => {
     renderPage({});
     fireEvent.change(screen.getAllByLabelText("Contract address")[0]!, { target: { value: b58(7) } });
     expect(screen.getAllByLabelText("Contract address")[0]).toHaveValue(b58(7));
-    fireEvent.change(screen.getAllByLabelText("Contract address")[1]!, { target: { value: hex(8) } });
+    fireEvent.change(screen.getAllByLabelText("Contract address")[1]!, { target: { value: id(8) } });
     expect(screen.getAllByLabelText("Contract address")[1]).toHaveValue(b58(8));
   });
 
   it("does not reapply link presets when the query changes on the same mount", async () => {
     const user = userEvent.setup();
-    renderPage({}, `?tokenA=${hex(1)}`);
+    renderPage({}, `?tokenA=${id(1)}`);
     await waitFor(() => expect(verifyReadNetwork).toHaveBeenCalledTimes(1));
     fireEvent.change(screen.getAllByLabelText("Contract address")[0]!, { target: { value: "0x" } });
     await user.click(screen.getByRole("link", { name: "Change test query" }));
-    expect(screen.getByTestId("search")).toHaveTextContent(`?tokenB=${hex(4)}`);
+    expect(screen.getByTestId("search")).toHaveTextContent(`?tokenB=${id(4)}`);
     expect(screen.getAllByLabelText("Contract address")[0]).toHaveValue("0x");
     expect(screen.getAllByLabelText("Contract address")[1]).toHaveValue("");
     expect(verifyReadNetwork).toHaveBeenCalledTimes(1);
@@ -555,7 +556,7 @@ describe("PoolCreatePage", () => {
     const user = userEvent.setup();
     let reject!: (error: Error) => void;
     const prepare = vi.fn().mockResolvedValueOnce(review()).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
-    renderPage({ prepare }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    renderPage({ prepare }, `?tokenA=${id(1)}&tokenB=${id(2)}`);
     await user.click(screen.getByRole("button", { name: "Review pool" }));
     expect(await screen.findByRole("button", { name: "Create pool" })).toBeVisible();
     fireEvent.change(screen.getAllByLabelText("Initial amount")[1]!, { target: { value: "5" } });
@@ -570,7 +571,7 @@ describe("PoolCreatePage", () => {
     const user = userEvent.setup();
     vi.mocked(verifyReadNetwork).mockRejectedValueOnce(new NetworkMismatchError()).mockRejectedValueOnce(new Error("offline"));
     const prepare = vi.fn().mockResolvedValue(review());
-    renderPage({ prepare }, `?tokenA=${hex(1)}&tokenB=${hex(2)}`);
+    renderPage({ prepare }, `?tokenA=${id(1)}&tokenB=${id(2)}`);
     await screen.findByText(/RPC network mismatch/);
     expect(screen.getByRole("button", { name: "Review pool" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Retry Token A metadata" }));
@@ -586,7 +587,7 @@ describe("PoolCreatePage", () => {
     let resolve!: (value: PoolCreationReview) => void;
     const prepare = vi.fn(() => new Promise<PoolCreationReview>((done) => { resolve = done; }));
     const tree = (current: GlobalConfig) => (
-      <MemoryRouter initialEntries={[`/pools/new?tokenA=${hex(1)}&tokenB=${hex(2)}`]}>
+      <MemoryRouter initialEntries={[`/pools/new?tokenA=${id(1)}&tokenB=${id(2)}`]}>
         <ProcessingModeProvider>
           <PoolCreatePage config={current} dependencies={{ prepare, writer: unavailableWriteBoundary }} />
         </ProcessingModeProvider>
@@ -615,7 +616,7 @@ function renderPage(
             writer: unavailableWriteBoundary,
             ...dependencies,
           }} />
-          <Link to={`?tokenB=${hex(4)}`}>Change test query</Link>
+          <Link to={`?tokenB=${id(4)}`}>Change test query</Link>
           <SearchLocation />
         </ProcessingModeProvider>
         </ExplorerProvider>
@@ -632,7 +633,7 @@ function review(): PoolCreationReview {
   return {
     token0: {
       address: address(1),
-      addressHex: hex(1),
+      addressBase58: id(1),
       name: "Token 1",
       symbol: "T1",
       decimals: 3,
@@ -643,7 +644,7 @@ function review(): PoolCreationReview {
     },
     token1: {
       address: address(2),
-      addressHex: hex(2),
+      addressBase58: id(2),
       name: "Token 2",
       symbol: "T2",
       decimals: 3,

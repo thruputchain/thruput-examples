@@ -1,19 +1,10 @@
-import { addressFromBase58, toBase58, toHex0x } from "@thruputchain/client";
+import { typedAddress } from "@/lib/address";
+import { ZERO_ADDRESS } from "../../shared/registry";
 
-/** Accept a base58 address (or a legacy 0x hex one) as the app's 0x hex form. */
+/** Read a nonzero base58 or C StrKey address as canonical base58. */
 export function tokenAddress(value: string): string | null {
-  let hex: string | null = null;
-  if (/^0x[0-9a-fA-F]{64}$/.test(value)) {
-    hex = value.toLowerCase();
-  } else {
-    try {
-      const address = addressFromBase58(value);
-      if (toBase58(address) === value) hex = toHex0x(address);
-    } catch {
-      hex = null;
-    }
-  }
-  return hex !== null && !/^0x0{64}$/.test(hex) ? hex : null;
+  const address = typedAddress(value);
+  return address !== null && address !== ZERO_ADDRESS ? address : null;
 }
 
 export function readCreationPresets(search: string) {
@@ -25,7 +16,7 @@ export function readCreationPresets(search: string) {
     const address = values.length === 1 ? tokenAddress(values[0]!) : null;
     if (address !== null) return address;
     warnings.push(
-      `${key} preset was ignored: provide one nonzero 32-byte contract address.`,
+      `${key} preset was ignored: provide one nonzero base58 contract address.`,
     );
     return "";
   };

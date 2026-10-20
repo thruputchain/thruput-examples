@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress, ExecResult, sha256Hash } from "@thruputchain/protocol";
 import { CxsWriter } from "@thruputchain/xdr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -30,6 +31,7 @@ type PoolCreated = swap_if.v0_1.events.PoolCreated;
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const view = <T>(value: T) => ({ value, height: 100n, gasUsed: 0n, events: [] });
 const pool: PoolAddresses = {
   liquidityToken: address(21),
@@ -38,7 +40,7 @@ const pool: PoolAddresses = {
 };
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
@@ -111,7 +113,7 @@ describe("creation executor", () => {
     })).rejects.toThrow("Capabilities unavailable");
     expect(writer.execute).not.toHaveBeenCalled();
     expect(writer.executeBatch).not.toHaveBeenCalled();
-    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+    expect(loadCreationWorkflow(config, id(1), id(2))).toEqual(workflow);
   });
 
   it.each([
@@ -169,7 +171,7 @@ describe("creation executor", () => {
       executeBatch: vi.fn<NonNullable<WriteBoundary["executeBatch"]>>(async (calls, observer) => {
         expect(calls).toHaveLength(3);
         await observer?.onSigned(result.hash);
-        const stored = loadCreationWorkflow(config, hex(1), hex(2))!;
+        const stored = loadCreationWorkflow(config, id(1), id(2))!;
         expect(stored.steps.createPool.transactionHash).toBe(result.hash);
         expect(stored.steps.enqueue.transactionHash).toBe(result.hash);
         state.created = true;
@@ -233,9 +235,9 @@ describe("creation executor", () => {
     expect(execute).toHaveBeenCalledTimes(3);
     expect(result.status).toBe("queued");
     expect(result.pool).toEqual({
-      liquidityToken: hex(21),
-      handler: hex(22),
-      driver: hex(23),
+      liquidityToken: id(21),
+      handler: id(22),
+      driver: id(23),
     });
     expect(result.requestId).toBe(hex(60));
     expect(result.steps.approveFunding.status).toBe("committed");
@@ -249,16 +251,16 @@ describe("creation executor", () => {
     const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
     const writer: WriteBoundary = {
       execute: vi.fn(async (_target, observer) => {
-        observer?.onSigned(hex(40));
+        observer?.onSigned(id(40));
         return {
           kind: "indeterminate",
-          hash: hex(40),
+          hash: id(40),
           reason: "timeout",
         } satisfies WriteResult;
       }),
       observe: vi.fn(async () => ({
         kind: "invalid",
-        hash: hex(40),
+        hash: id(40),
         reason: "expired",
       } satisfies WriteResult)),
     };
@@ -269,7 +271,7 @@ describe("creation executor", () => {
     });
     expect(blocked.steps.approveFunding).toMatchObject({
       status: "indeterminate",
-      transactionHash: hex(40),
+      transactionHash: id(40),
     });
     expect(hasBlockingCreationTransaction(blocked)).toBe(true);
 
@@ -277,7 +279,7 @@ describe("creation executor", () => {
       ...dependencies({ created: false, fundingAllowance: 0n }),
       writeBoundary: writer,
     });
-    expect(writer.observe).toHaveBeenCalledWith(hex(40));
+    expect(writer.observe).toHaveBeenCalledWith(id(40));
     expect(recovered.steps.approveFunding.status).toBe("failed");
   });
 
@@ -288,7 +290,7 @@ describe("creation executor", () => {
 
     const reset = confirmCreationStepWasNotSigned(config, workflow, "approveFunding");
     expect(reset.steps.approveFunding.status).toBe("pending");
-    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(reset);
+    expect(loadCreationWorkflow(config, id(1), id(2))).toEqual(reset);
   });
 
   it.each(["amount", "funding"])("rejects a changed persisted %s intent before signing", async (intent) => {
@@ -306,26 +308,26 @@ describe("creation executor", () => {
       writeBoundary: { execute },
     })).rejects.toThrow("saved creation intent changed");
     expect(execute).not.toHaveBeenCalled();
-    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(saved);
+    expect(loadCreationWorkflow(config, id(1), id(2))).toEqual(saved);
   });
 
   it.each(["observation", "crank", "crankAfterScan", "funded"])("preserves %s recovery on a network mismatch", async (phase) => {
     const workflow = createCreationWorkflow(config, review());
     if (phase === "observation") {
       workflow.steps.approveFunding.status = "indeterminate";
-      workflow.steps.approveFunding.transactionHash = hex(40);
+      workflow.steps.approveFunding.transactionHash = id(40);
     } else if (phase === "funded") {
       workflow.steps.approveFunding = {
-        ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "7",
+        ...workflow.steps.approveFunding, status: "committed", transactionHash: id(40), receiptBlock: "7",
       };
     } else {
-      workflow.pool = { liquidityToken: hex(21), handler: hex(22), driver: hex(23) };
+      workflow.pool = { liquidityToken: id(21), handler: id(22), driver: id(23) };
       workflow.status = "queued";
       workflow.requestId = hex(60);
       workflow.enqueueReceiptBlock = "7";
       for (const name of ["approveFunding", "createPool", "approveToken0", "approveToken1", "enqueue"] as const) {
         workflow.steps[name] = {
-          ...workflow.steps[name], status: "committed", transactionHash: hex(40), receiptBlock: "7",
+          ...workflow.steps[name], status: "committed", transactionHash: id(40), receiptBlock: "7",
         };
       }
     }
@@ -346,14 +348,14 @@ describe("creation executor", () => {
     expect(execute).not.toHaveBeenCalled();
     expect(observe).not.toHaveBeenCalled();
     expect(observeQueued).toHaveBeenCalledTimes(phase === "crankAfterScan" ? 1 : 0);
-    expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+    expect(loadCreationWorkflow(config, id(1), id(2))).toEqual(workflow);
   });
 
   it("blocks creation while any account crank is unresolved", async () => {
     saveCrankAttempt(poolConfig, {
       ...createCrankAttempt(poolConfig),
       status: "indeterminate",
-      transactionHash: hex(40),
+      transactionHash: id(40),
     });
     const workflow = saveCreationWorkflow(config, createCreationWorkflow(config, review(), 10));
     const execute = vi.fn();
@@ -372,7 +374,7 @@ describe("creation executor", () => {
       workflow.steps.approveFunding = {
         ...workflow.steps.approveFunding,
         status: "committed",
-        transactionHash: hex(40),
+        transactionHash: id(40),
         receiptBlock: "7",
       };
       saveCreationWorkflow(config, workflow);
@@ -399,7 +401,7 @@ describe("creation executor", () => {
       expect(execute).not.toHaveBeenCalled();
       expect(onUpdate).not.toHaveBeenCalled();
       expect(deps.factory.poolFunding).not.toHaveBeenCalled();
-      expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+      expect(loadCreationWorkflow(config, id(1), id(2))).toEqual(workflow);
 
       const recovered = await runCreationWorkflow(config, workflow, options);
       expect(recovered.status).toBe("queued");
@@ -416,7 +418,7 @@ describe("creation executor", () => {
   ])("preserves funded recovery when network verification rejects with %s", async (failure) => {
     const workflow = createCreationWorkflow(config, review(), 10);
     workflow.steps.approveFunding = {
-      ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "7",
+      ...workflow.steps.approveFunding, status: "committed", transactionHash: id(40), receiptBlock: "7",
     };
     saveCreationWorkflow(config, workflow);
     const deps = dependencies({ created: false, fundingAllowance: 300n });
@@ -427,7 +429,7 @@ describe("creation executor", () => {
         ...deps, writeBoundary: { execute },
       })).rejects.toThrow();
       expect(execute).not.toHaveBeenCalled();
-      expect(loadCreationWorkflow(config, hex(1), hex(2))).toEqual(workflow);
+      expect(loadCreationWorkflow(config, id(1), id(2))).toEqual(workflow);
     } finally {
       connect.mockRestore();
     }
@@ -443,16 +445,16 @@ describe("creation executor", () => {
 
     expect(execute).not.toHaveBeenCalled();
     expect(result.status).toBe("race");
-    expect(result.pool?.handler).toBe(hex(22));
+    expect(result.pool?.handler).toBe(id(22));
   });
 
   it("skips an unsubmitted funding approval when continuing an early race", () => {
     const workflow = createCreationWorkflow(config, review(), 10);
     workflow.status = "race";
     workflow.pool = {
-      liquidityToken: hex(21),
-      handler: hex(22),
-      driver: hex(23),
+      liquidityToken: id(21),
+      handler: id(22),
+      driver: id(23),
     };
     workflow.steps.approveFunding.status = "failed";
     workflow.steps.approveFunding.message = "Pool already exists";
@@ -484,7 +486,7 @@ describe("creation executor", () => {
       automaticProcessing: false,
     });
 
-    expect(result.pool?.handler).toBe(hex(22));
+    expect(result.pool?.handler).toBe(id(22));
     expect(result.steps.createPool.status).toBe("committed");
     expect(result.steps.enqueue.status).toBe("failed");
   });
@@ -515,7 +517,7 @@ describe("creation executor", () => {
   it("does not reclassify contract-read errors as network verification failures", async () => {
     const workflow = createCreationWorkflow(config, review(), 10);
     workflow.steps.approveFunding = {
-      ...workflow.steps.approveFunding, status: "committed", transactionHash: hex(40), receiptBlock: "7",
+      ...workflow.steps.approveFunding, status: "committed", transactionHash: id(40), receiptBlock: "7",
     };
     saveCreationWorkflow(config, workflow);
     const deps = dependencies({ created: false, fundingAllowance: 300n });
@@ -560,7 +562,7 @@ function dependencies(state: { created: boolean; fundingAllowance: bigint }): {
 function review(): PoolCreationReview {
   const token = (byte: number, amount: bigint) => ({
     address: address(byte),
-    addressHex: hex(byte),
+    addressBase58: id(byte),
     name: `Token ${byte}`,
     symbol: `T${byte}`,
     decimals: 3,
@@ -590,7 +592,7 @@ function committed(
 ): Extract<WriteResult, { kind: "committedSuccess" }> {
   return {
     kind: "committedSuccess",
-    hash: hex(41),
+    hash: id(41),
     receipt: {
       txHash: sha256Hash(new Uint8Array(32).fill(41)),
       height,

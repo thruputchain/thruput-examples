@@ -1,14 +1,14 @@
 import {
-  addressFromHex,
+  addressFromBase58,
   ContractDecodeError,
   ContractViewError,
   createThruputClient,
   defineCluster,
-  hashFromHex,
+  hashFromBase58,
   HttpTransport,
   JsonRpcError,
   ThruputRpcErrorCode,
-  toHex0x,
+  toBase58,
   type EventPage,
   type EventQuery,
   type ThruputClient,
@@ -20,14 +20,18 @@ import { networkHash } from "@thruputchain/protocol";
 
 import { SwapFactory, swap_if } from "../src/contracts/generated/swap-factory.ts";
 import type { ServerConfig } from "./config.ts";
-import type { RegistryPool, RegistryScope } from "../shared/registry.ts";
+import {
+  inCanonicalTokenOrder,
+  ZERO_ADDRESS,
+  type RegistryPool,
+  type RegistryScope,
+} from "../shared/registry.ts";
 
 const PoolCreated = swap_if.v0_1.events.PoolCreated;
 type PoolCreated = swap_if.v0_1.events.PoolCreated;
 
 const MAX_CURSOR_CHARACTERS = 4_096;
 const FACTORY_VERIFICATION_ATTEMPTS = 3;
-const ZERO_ADDRESS = `0x${"0".repeat(64)}`;
 
 export interface RegistrySourceRequest {
   anchorBlock: string;
@@ -75,7 +79,7 @@ export async function createThruputRegistrySource(
   const cluster = defineCluster({
     name: "swap-pool-registry",
     rpcUrl: config.rpcUrl.href,
-    networkHash: networkHash(hashFromHex(`0x${config.scope.networkId}`)),
+    networkHash: networkHash(hashFromBase58(config.scope.networkId)),
     capabilities: [] as const,
   });
   const transport = new SignalTransport(
@@ -116,7 +120,7 @@ export class ThruputRegistrySource implements RegistrySource {
   ) {
     this.#client = client;
     this.#scope = scope;
-    this.#factoryAddress = addressFromHex(scope.factoryAddress);
+    this.#factoryAddress = addressFromBase58(scope.factoryAddress);
     this.#runRpc = runRpc;
   }
 
@@ -125,7 +129,7 @@ export class ThruputRegistrySource implements RegistrySource {
       () => this.#client.getNetworkInfo(),
       signal,
     );
-    if (toHex0x(observed.networkHash).slice(2) !== this.#scope.networkId) {
+    if (toBase58(observed.networkHash) !== this.#scope.networkId) {
       throw new RegistryScopeVerificationError(
         "The RPC endpoint belongs to a different Thruput network",
       );
@@ -206,7 +210,7 @@ export class ThruputRegistrySource implements RegistrySource {
     let eventSequence: string;
     try {
       eventSequence = sequenceDecimal(event.sequenceNumber);
-      if (toHex0x(event.event.contractAddress) !== this.#scope.factoryAddress) {
+      if (toBase58(event.event.contractAddress) !== this.#scope.factoryAddress) {
         throw new Error("event emitter does not match the configured factory");
       }
       decoded = PoolCreated.decode(event.event);
@@ -223,24 +227,24 @@ export class ThruputRegistrySource implements RegistrySource {
 
     const evidence = (() => {
       try {
-        const token0Address = toHex0x(decoded.topics.token0);
-        const token1Address = toHex0x(decoded.topics.token1);
-        const liquidityTokenAddress = toHex0x(decoded.fields.liquidity_token);
-        const handlerAddress = toHex0x(decoded.fields.handler);
-        const driverAddress = toHex0x(decoded.fields.driver);
+        const token0Address = toBase58(decoded.topics.token0);
+        const token1Address = toBase58(decoded.topics.token1);
+        const liquidityTokenAddress = toBase58(decoded.fields.liquidity_token);
+        const handlerAddress = toBase58(decoded.fields.handler);
+        const driverAddress = toBase58(decoded.fields.driver);
         const pairCount = unsignedDecimal(
           decoded.fields.pair_count,
           "pair count",
         );
         const createdBlock = unsignedDecimal(event.blockHeight, "event block");
-        const transactionHash = toHex0x(event.txHash);
+        const transactionHash = toBase58(event.txHash);
         if (
           token0Address === ZERO_ADDRESS ||
           token1Address === ZERO_ADDRESS ||
           liquidityTokenAddress === ZERO_ADDRESS ||
           handlerAddress === ZERO_ADDRESS ||
           driverAddress === ZERO_ADDRESS ||
-          token0Address >= token1Address ||
+          !inCanonicalTokenOrder(token0Address, token1Address) ||
           pairCount === "0" ||
           BigInt(pairCount) > 0xffff_ffffn
         ) {
@@ -320,14 +324,14 @@ export class ThruputRegistrySource implements RegistrySource {
       }
       if (
         pair.value === null ||
-        toHex0x(pair.value) !== evidence.handlerAddress ||
-        toHex0x(addresses.value.liquidity_token) !==
+        toBase58(pair.value) !== evidence.handlerAddress ||
+        toBase58(addresses.value.liquidity_token) !==
           evidence.liquidityTokenAddress ||
-        toHex0x(addresses.value.handler) !== evidence.handlerAddress ||
-        toHex0x(addresses.value.driver) !== evidence.driverAddress ||
+        toBase58(addresses.value.handler) !== evidence.handlerAddress ||
+        toBase58(addresses.value.driver) !== evidence.driverAddress ||
         indexedPair.value === null ||
-        toHex0x(indexedPair.value[0]) !== evidence.token0Address ||
-        toHex0x(indexedPair.value[1]) !== evidence.token1Address
+        toBase58(indexedPair.value[0]) !== evidence.token0Address ||
+        toBase58(indexedPair.value[1]) !== evidence.token1Address
       ) {
         throw new RegistryIntegrityError(
           "PoolCreated event contradicts live factory state",
@@ -463,7 +467,7 @@ function validatePageMetadata(
         throw new Error("event blocks are out of order");
       }
       previousHeight = event.blockHeight;
-      const identity = `${toHex0x(event.txHash)}:${sequence}`;
+      const identity = `${toBase58(event.txHash)}:${sequence}`;
       if (identities.has(identity)) {
         throw new Error("duplicate event identity");
       }

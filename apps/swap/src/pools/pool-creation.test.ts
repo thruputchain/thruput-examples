@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { describe, expect, it, vi } from "vitest";
 
@@ -13,15 +14,15 @@ import {
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(3),
   nativeHogAddress: address(4),
 } satisfies GlobalConfig;
 const input = {
-  tokenA: `0x${"05".repeat(32)}`,
-  tokenB: `0x${"06".repeat(32)}`,
+  tokenA: toBase58(new Uint8Array(32).fill(0x05)),
+  tokenB: toBase58(new Uint8Array(32).fill(0x06)),
   amountA: "2",
   amountB: "8",
 };

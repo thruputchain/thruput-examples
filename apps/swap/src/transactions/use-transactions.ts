@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { toBase58, toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import {
   transactionReceiptQueryOptions,
   useClient,
@@ -19,9 +19,7 @@ export function useTransactions(config: GlobalConfig) {
       ...createProviderWriteBoundary(config, client, wallet ?? undefined),
       observe: createTransactionObserver(config, {
         waitForTransactionReceipt: (hash) => {
-          if (
-            toHex0x(client.network.networkHash) !== `0x${config.networkIdHex}`
-          )
+          if (toBase58(client.network.networkHash) !== config.networkId)
             throw new Error("The saved transaction belongs to another network");
           return queries.fetchQuery(
             transactionReceiptQueryOptions({

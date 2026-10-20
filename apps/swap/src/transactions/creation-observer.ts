@@ -1,10 +1,11 @@
 import {
-  addressFromHex,
+  addressFromBase58,
   bytesEqual,
-  toHex0x,
   type EventPage,
-  type ThruputClient,
   type IdentifiedEvent,
+  type ThruputClient,
+  toBase58,
+  toHex0x,
   type TransactionReceipt,
 } from "@thruputchain/client";
 
@@ -50,10 +51,10 @@ export function createCreationObserver(
         const page: EventPage = await client.getEvents({
           filters: [
             MintEvent.filter({
-              contractAddresses: [addressFromHex(workflow.pool.handler)],
+              contractAddresses: [addressFromBase58(workflow.pool.handler)],
             }),
             RequestFailed.filter({
-              contractAddresses: [addressFromHex(workflow.pool.driver)],
+              contractAddresses: [addressFromBase58(workflow.pool.driver)],
             }),
           ],
           order: "ascending",
@@ -66,7 +67,7 @@ export function createCreationObserver(
           oldestRetained = page.oldestBlock;
         }
         for (const identified of page.events) {
-          const key = `${toHex0x(identified.txHash)}:${identified.sequenceNumber}`;
+          const key = `${toBase58(identified.txHash)}:${identified.sequenceNumber}`;
           if (seenEvents.has(key)) continue;
           seenEvents.add(key);
           const matched = matchTerminal(config, workflow, identified);
@@ -108,14 +109,14 @@ export function applyCreationReceipt(
     return workflow;
   }
   const minted = MintEvent.allFromReceipt(receipt, {
-    contractAddress: addressFromHex(workflow.pool.handler),
+    contractAddress: addressFromBase58(workflow.pool.handler),
   }).filter((event) => event.fields.request_id !== null
     && toHex0x(event.fields.request_id) === workflow.requestId
-    && toHex0x(event.topics.sender) === workflow.accountAddress
-    && toHex0x(event.topics.recipient) === workflow.accountAddress
+    && toBase58(event.topics.sender) === workflow.accountAddress
+    && toBase58(event.topics.recipient) === workflow.accountAddress
     && event.fields.amount_minted > 0n);
   const failed = RequestFailed.allFromReceipt(receipt, {
-    contractAddress: addressFromHex(workflow.pool.driver),
+    contractAddress: addressFromBase58(workflow.pool.driver),
   }).filter((event) => toHex0x(event.topics.request_id) === workflow.requestId);
   if (minted.length > 1 || failed.length > 1 || (minted.length > 0 && failed.length > 0)) {
     throw new Error("Queue receipt contains conflicting terminal creation events");
@@ -146,7 +147,7 @@ function matchTerminal(
 ): CreationWorkflow | null {
   if (identified.blockHeight < BigInt(workflow.enqueueReceiptBlock!)) return null;
   const event = identified.event;
-  if (bytesEqual(event.contractAddress, addressFromHex(workflow.pool!.driver))) {
+  if (bytesEqual(event.contractAddress, addressFromBase58(workflow.pool!.driver))) {
     const failed = RequestFailed.decode(event);
     if (failed === null || toHex0x(failed.topics.request_id) !== workflow.requestId) {
       return null;
@@ -158,7 +159,7 @@ function matchTerminal(
       updatedAt: Date.now(),
     };
   }
-  if (!bytesEqual(event.contractAddress, addressFromHex(workflow.pool!.handler))) {
+  if (!bytesEqual(event.contractAddress, addressFromBase58(workflow.pool!.handler))) {
     return null;
   }
   const minted = MintEvent.decode(event);

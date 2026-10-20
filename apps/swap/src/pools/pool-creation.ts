@@ -1,4 +1,10 @@
-import { addressFromHex, bytesEqual, toHex0x, type ContractView, type ThruputClient } from "@thruputchain/client";
+import {
+  addressFromBase58,
+  bytesEqual,
+  type ContractView,
+  type ThruputClient,
+  toBase58,
+} from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
 
 import type { GlobalConfig } from "@/config";
@@ -24,7 +30,7 @@ const U128_MAX = (1n << 128n) - 1n;
 
 export interface PoolCreationToken {
   address: ContractAddress;
-  addressHex: string;
+  addressBase58: string;
   name: string;
   symbol: string;
   decimals: number;
@@ -187,9 +193,9 @@ export async function preparePoolCreation(
       );
     }
     const requiredNativeHog = dependencies.requiredNativeHog ?? totalFunding;
-    const nativeHogHex = toHex0x(config.nativeHogAddress);
-    const nativeLiquidity = (details0.addressHex === nativeHogHex ? amount0 : 0n)
-      + (details1.addressHex === nativeHogHex ? amount1 : 0n);
+    const nativeHogBase58 = toBase58(config.nativeHogAddress);
+    const nativeLiquidity = (details0.addressBase58 === nativeHogBase58 ? amount0 : 0n)
+      + (details1.addressBase58 === nativeHogBase58 ? amount1 : 0n);
     if (
       reservedNativeHog < 0n
       || requiredNativeHog < 0n
@@ -277,7 +283,7 @@ function emptyView(height: bigint): ContractView<bigint> {
 }
 
 function creationToken(
-  details: Pick<PoolCreationToken, "address" | "addressHex" | "name" | "symbol" | "decimals">,
+  details: Pick<PoolCreationToken, "address" | "addressBase58" | "name" | "symbol" | "decimals">,
   balance: bigint,
   allowance: bigint,
   amount: bigint,
@@ -301,8 +307,8 @@ function parseTokenAddresses(tokenA: string, tokenB: string): readonly [Contract
   let parsedA: ContractAddress;
   let parsedB: ContractAddress;
   try {
-    parsedA = addressFromHex(tokenAddress(tokenA) ?? tokenA);
-    parsedB = addressFromHex(tokenAddress(tokenB) ?? tokenB);
+    parsedA = addressFromBase58(tokenAddress(tokenA) ?? tokenA);
+    parsedB = addressFromBase58(tokenAddress(tokenB) ?? tokenB);
   } catch {
     throw new PoolCreationValidationError("tokenAddress", "Enter two valid 32-byte token contract addresses");
   }
@@ -320,16 +326,16 @@ function parseTokenAddresses(tokenA: string, tokenB: string): readonly [Contract
 function tokenDetails(
   metadata: TokenMetadataViews,
   address: ContractAddress,
-): Pick<PoolCreationToken, "address" | "addressHex" | "name" | "symbol" | "decimals"> {
+): Pick<PoolCreationToken, "address" | "addressBase58" | "name" | "symbol" | "decimals"> {
   if (metadata.decimals.value === null) {
     throw new PoolCreationValidationError("metadata", "Both tokens must expose their decimal precision");
   }
-  const addressHex = toHex0x(address);
+  const addressBase58 = toBase58(address);
   return {
     address,
-    addressHex,
-    name: metadata.name.value?.trim() || addressHex,
-    symbol: metadata.symbol.value?.trim() || `${addressHex.slice(0, 8)}...`,
+    addressBase58,
+    name: metadata.name.value?.trim() || addressBase58,
+    symbol: metadata.symbol.value?.trim() || `${addressBase58.slice(0, 8)}...`,
     decimals: metadata.decimals.value,
   };
 }

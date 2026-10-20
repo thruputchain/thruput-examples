@@ -1,4 +1,4 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58, toHex0x } from "@thruputchain/client";
 import { useEffect, useId, useReducer, useRef, useState } from "react";
 
 import { useProcessingMode } from "@/components/processing-mode";
@@ -188,15 +188,15 @@ export function useSwap({
   const reservedInput =
     reservedInputForToken(
       accountSafety.requests,
-      toHex0x(tokens.input.address),
+      toBase58(tokens.input.address),
     ) +
     reservedCreationToken(
       accountSafety.creationWorkflows,
-      toHex0x(tokens.input.address),
+      toBase58(tokens.input.address),
     ) +
     reservedLiquidityTokenAmount(
       accountSafety.liquidityOperations,
-      toHex0x(tokens.input.address),
+      toBase58(tokens.input.address),
     );
   const poolReservedInput = requiredAllowanceFor(
     {
@@ -204,8 +204,8 @@ export function useSwap({
       liquidityOperations: accountSafety.liquidityOperations,
       creationWorkflows: accountSafety.creationWorkflows,
     },
-    toHex0x(tokens.input.address),
-    toHex0x(config.handlerAddress),
+    toBase58(tokens.input.address),
+    toBase58(config.handlerAddress),
   );
   const slippageResult = parseSlippagePercent(slippage);
   const quote = deriveSwapQuote(
@@ -228,12 +228,12 @@ export function useSwap({
   const crossPoolRequestBlocked = accountSafety.requests.some(
     (request) =>
       isBlockingRequest(request) &&
-      request.criteria.handlerAddress !== toHex0x(config.handlerAddress),
+      request.criteria.handlerAddress !== toBase58(config.handlerAddress),
   );
   const crossPoolCrankBlocked = accountSafety.crankAttempts.some(
     (attempt) =>
       isBlockingCrankAttempt(attempt) &&
-      (attempt.driverAddress !== toHex0x(config.driverAddress) ||
+      (attempt.driverAddress !== toBase58(config.driverAddress) ||
         crankAttempt === null ||
         attempt.id !== crankAttempt.id),
   );
@@ -835,7 +835,7 @@ export function useSwap({
         if (blocking !== undefined) {
           setRequests(current);
           if (
-            blocking.criteria.handlerAddress === toHex0x(config.handlerAddress)
+            blocking.criteria.handlerAddress === toBase58(config.handlerAddress)
           ) {
             setOutstanding(blocking);
             setIsRecoveryRecord(true);
@@ -854,7 +854,7 @@ export function useSwap({
 
         const initialSnapshot = await readSnapshot();
         const initialTokens = tokensForDirection(initialSnapshot, direction);
-        const tokenIn = toHex0x(initialTokens.input.address);
+        const tokenIn = toBase58(initialTokens.input.address);
         const initialReserved =
           reservedInputForToken(accountRequests, tokenIn) +
           reservedCreationToken(creationWorkflows, tokenIn) +
@@ -866,7 +866,7 @@ export function useSwap({
             creationWorkflows,
           },
           tokenIn,
-          toHex0x(config.handlerAddress),
+          toBase58(config.handlerAddress),
         );
         const initialQuote = deriveSwapQuote(
           initialSnapshot,
@@ -1029,7 +1029,7 @@ export function useSwap({
           submissionSnapshot,
           direction,
         );
-        const submissionTokenIn = toHex0x(submissionTokens.input.address);
+        const submissionTokenIn = toBase58(submissionTokens.input.address);
         const submissionReserved =
           reservedInputForToken(submissionAccountRequests, submissionTokenIn) +
           reservedCreationToken(
@@ -1047,7 +1047,7 @@ export function useSwap({
             creationWorkflows: submissionCreationWorkflows,
           },
           submissionTokenIn,
-          toHex0x(config.handlerAddress),
+          toBase58(config.handlerAddress),
         );
         const freshQuote = deriveSwapQuote(
           submissionSnapshot,
@@ -1796,12 +1796,12 @@ function requestCriteria(
   tokens: { input: TokenSnapshot; output: TokenSnapshot },
 ): RequestRecord["criteria"] {
   return {
-    handlerAddress: toHex0x(config.handlerAddress),
-    driverAddress: toHex0x(config.driverAddress),
-    sender: toHex0x(config.accountAddress),
-    recipient: toHex0x(config.accountAddress),
-    tokenIn: toHex0x(tokens.input.address),
-    tokenOut: toHex0x(tokens.output.address),
+    handlerAddress: toBase58(config.handlerAddress),
+    driverAddress: toBase58(config.driverAddress),
+    sender: toBase58(config.accountAddress),
+    recipient: toBase58(config.accountAddress),
+    tokenIn: toBase58(tokens.input.address),
+    tokenOut: toBase58(tokens.output.address),
   };
 }
 
@@ -2111,12 +2111,12 @@ async function observeAggregateAllowance(
       }
       const snapshot = await readSnapshot();
       const target =
-        loadRequiredAllowance(config, tokenIn, toHex0x(config.handlerAddress)) +
+        loadRequiredAllowance(config, tokenIn, toBase58(config.handlerAddress)) +
         amountIn;
       const inputToken =
-        tokenIn === toHex0x(snapshot.tokenA.address)
+        tokenIn === toBase58(snapshot.tokenA.address)
           ? snapshot.tokenA
-          : tokenIn === toHex0x(snapshot.tokenB.address)
+          : tokenIn === toBase58(snapshot.tokenB.address)
             ? snapshot.tokenB
             : null;
       if (
