@@ -43,6 +43,23 @@ The artifact is `target/thruput/counter.rv32a`. Next, use the
 [TypeScript examples](examples/typescript/README.md) to deploy it, call it,
 read events, and submit a batch.
 
+## App visual identity
+
+Counter, Swap, and Token Launchpad use the Stellar Thruput identity and follow
+the system's light or dark theme. Each app keeps its tokens in `src/styles.css`.
+Inter Variable is used for headings, body text, and UI actions. Inconsolata
+Variable is used for code, numbers, balances, and system labels. Both are
+self-hosted through Fontsource.
+
+The `signal` token stays yellow (`#FDDA24`) for filled actions. `primary` is a
+theme-aware accent for readable links and focus indicators. Keep these roles
+separate when adding controls.
+
+The SVGs in each app's `public/brand/` and its favicon use the official Stellar
+Logo Press Kit 2026 vector paths. See [GH-533](https://linear.app/grndhg/issue/GH-533)
+for marketing references and the [shared brand conventions](https://github.com/thruputchain/thruput-docs/blob/main/public/brand/README.md)
+for asset provenance and palette values.
+
 ## Setup
 
 Run commands from the repository root. Use Node.js **22.13+**, npm, and

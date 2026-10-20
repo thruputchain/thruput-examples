@@ -1,4 +1,3 @@
-import { ZapIcon } from "lucide-react";
 import { TopupSigner } from "./topup-signer";
 
 export function AppHeader({
@@ -12,19 +11,21 @@ export function AppHeader({
 }) {
   return (
     <header className="border-b bg-background">
-      <div className="mx-auto grid min-h-20 max-w-5xl grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:px-6 lg:min-h-22">
+      <div className="mx-auto flex min-h-20 max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:min-h-22">
         <a
           href="/"
           aria-label="Thruput Counter homepage"
           className="flex min-h-12 items-center gap-2.5 justify-self-start"
         >
-          <ZapIcon
-            className="size-6 shrink-0 fill-primary stroke-primary"
-            aria-hidden="true"
-          />
-          <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-3">
-            <div className="text-xl font-medium tracking-tight">THRUPUT</div>
-            <div className="font-mono text-xs text-muted-foreground sm:border-l sm:pl-3">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3 text-sm font-medium">
+              <picture className="shrink-0">
+                <source srcSet="/brand/stellar-dark.svg" media="(prefers-color-scheme: dark)" />
+                <img src="/brand/stellar.svg" width="100" height="25" alt="Stellar" />
+              </picture>
+              <span className="border-l pl-3">Thruput</span>
+            </div>
+            <div className="font-mono text-xs text-muted-foreground">
               Counter
             </div>
           </div>
@@ -37,7 +38,7 @@ export function AppHeader({
           <span>{ready ? "Connected" : "Not ready"}</span>
         </div>
         {canTopup ? (
-          <div className="col-span-2 min-w-0 max-w-full justify-self-end sm:col-span-1">
+          <div className="flex min-w-0 max-w-full justify-end">
             <TopupSigner disabled={false} balance={signerBalance} />
           </div>
         ) : null}

@@ -22,7 +22,7 @@ export function CounterControls({
       </button>
       <button
         type="button"
-        className="counter-button border-primary bg-primary text-primary-foreground hover:bg-primary-hover"
+        className="counter-button border-signal bg-signal text-primary-foreground hover:bg-primary-hover"
         disabled={disabled}
         onClick={() => send("increment")}
       >

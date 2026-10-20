@@ -5,6 +5,27 @@ import { createServer } from "vite";
 import { PrivateKeySigner, toBase58 } from "@thruputchain/client";
 import { createPubkeyAccount } from "@thruputchain/client/wallet";
 
+async function checkBrand(page) {
+  for (const colorScheme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme });
+    for (const width of [320, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForFunction(() => [...document.querySelectorAll("header img")].every((img) => img.complete && img.naturalWidth > 0));
+      const state = await page.evaluate(() => ({
+        overflow: document.documentElement.scrollWidth > innerWidth,
+        background: getComputedStyle(document.body).backgroundColor,
+        sans: [...document.fonts].some((font) => font.family.includes("Inter Variable") && font.status === "loaded"),
+      }));
+      assert.deepEqual(state, {
+        overflow: false,
+        background: colorScheme === "dark" ? "rgb(10, 10, 10)" : "rgb(245, 245, 240)",
+        sans: true,
+      });
+    }
+  }
+}
+
 // UI-only fixtures: no ledger, wallet credentials, upstream service, or signing.
 const id = (byte) => toBase58(new Uint8Array(32).fill(byte));
 const a = id(0x01);
@@ -321,6 +342,8 @@ try {
     true,
   );
   assert.deepEqual(errors, []);
+  await page.keyboard.press("Escape");
+  await checkBrand(page);
   const launchpad = await createServer({
     mode: "browser-test",
     root: fileURLToPath(new URL("../../apps/token-launchpad", import.meta.url)),
@@ -403,6 +426,7 @@ try {
         true,
       );
     }
+    await checkBrand(launch);
     await launch.close();
   } finally {
     await launchpad.close();
