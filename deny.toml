@@ -7,7 +7,12 @@
 all-features = true
 
 [advisories]
-ignore = []
+# 0.26.11 only re-exports webpki-root-certs 1.x; Cargo.lock selects fixed 1.0.10.
+# Remove this exception when jsonrpsee updates rustls-platform-verifier or the
+# advisory recognizes the wrapper. The bans below still reject affected bundles.
+ignore = [
+    { id = "RUSTSEC-2026-0383", reason = "webpki-root-certs 0.26.11 only re-exports 1.x; bans require the patched bundle" },
+]
 # Informational advisories (unsound, unmaintained) default to workspace-direct
 # dependencies only.
 unsound = "all"
@@ -46,6 +51,12 @@ allow = [
 # NOTE: r-efi is "MIT OR Apache-2.0 OR LGPL-2.1-or-later"
 
 [bans]
+# Permit only the verified 0.26.11 wrapper and patched bundles (>=1.0.10).
+# Keep these restrictions while RUSTSEC-2026-0383 is ignored above.
+deny = [
+    { name = "webpki-root-certs", version = "<0.26.11" },
+    { name = "webpki-root-certs", version = ">0.26.11, <1.0.10" },
+]
 multiple-versions = "warn"
 wildcards = "deny"
 # Internal path dependencies carry no version requirement. Registry wildcards
