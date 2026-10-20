@@ -1,7 +1,10 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 
 import type { GlobalConfig } from "@/config";
+import { isBase58Identifier } from "@/lib/address";
 import {
+  inCanonicalTokenOrder,
+  ZERO_ADDRESS,
   REGISTRY_SORTS as SORTS,
   REGISTRY_SYNC_STATES as SYNC_STATES,
   type RegistrySort,
@@ -20,16 +23,12 @@ export type {
   RegistryPoolQuery,
 };
 
-const ADDRESS = /^0x[0-9a-f]{64}$/;
-const HASH = /^0x[0-9a-f]{64}$/;
-const NETWORK_ID = /^[0-9a-f]{64}$/;
 const DECIMAL = /^(?:0|[1-9]\d*)$/;
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_DECIMAL_DIGITS = 100;
 const U32_MAX = 0xffff_ffffn;
-const ZERO_ADDRESS = `0x${"00".repeat(32)}`;
 
-type RegistryConfig = Pick<GlobalConfig, "networkIdHex" | "factoryAddress">;
+type RegistryConfig = Pick<GlobalConfig, "networkId" | "factoryAddress">;
 type Fetcher = typeof globalThis.fetch;
 
 export class RegistryClientError extends Error {
@@ -203,7 +202,8 @@ function validatePoolPage(
   )
     invalid("token filter");
   if (query.q !== undefined) {
-    const search = query.q.toLowerCase();
+    // Matches the server: NFKC-normalized, exact (base58 is case-sensitive).
+    const search = query.q.normalize("NFKC").trim();
     if (
       pools.some(
         (pool) =>
@@ -288,7 +288,8 @@ function validatePool(
     record.token1Address,
     `${name}.token1Address`,
   );
-  if (token0Address >= token1Address) invalid(`${name}.token pair`);
+  if (!inCanonicalTokenOrder(token0Address, token1Address))
+    invalid(`${name}.token pair`);
   const liquidityTokenAddress = nonzeroAddress(
     record.liquidityTokenAddress,
     `${name}.liquidityTokenAddress`,
@@ -387,8 +388,8 @@ function validateScope(
     `${name}.factoryAddress`,
   );
   if (
-    networkId !== config.networkIdHex ||
-    factoryAddress !== toHex0x(config.factoryAddress)
+    networkId !== config.networkId ||
+    factoryAddress !== toBase58(config.factoryAddress)
   ) {
     throw new RegistryClientError(
       "Registry response has a different chain scope",
@@ -473,7 +474,7 @@ function exactKeys(
 }
 
 function address(value: unknown, name: string): string {
-  if (typeof value !== "string" || !ADDRESS.test(value)) invalid(name);
+  if (!isBase58Identifier(value)) invalid(name);
   return value;
 }
 
@@ -484,12 +485,12 @@ function nonzeroAddress(value: unknown, name: string): string {
 }
 
 function hash(value: unknown, name: string): string {
-  if (typeof value !== "string" || !HASH.test(value)) invalid(name);
+  if (!isBase58Identifier(value)) invalid(name);
   return value;
 }
 
 function network(value: unknown, name: string): string {
-  if (typeof value !== "string" || !NETWORK_ID.test(value)) invalid(name);
+  if (!isBase58Identifier(value)) invalid(name);
   return value;
 }
 
@@ -566,6 +567,8 @@ function compareDecimal(left: string, right: string): number {
     : left.length - right.length;
 }
 
+// Display sorts order addresses by their base58 text, as the server's SQLite
+// does. Pool token pairs are ordered by address bytes instead.
 function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }

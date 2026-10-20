@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { createReadClient } from "@/thruput/client";
@@ -5,7 +6,7 @@ import { configuration } from "@/test/fixtures";
 
 describe("network-bound read client", () => {
   it.each([
-    { networkHash: `0x${"99".repeat(32)}` },
+    { networkHash: toBase58(new Uint8Array(32).fill(0x99)) },
     { networkHash: "broken" },
     null,
   ])(
@@ -31,7 +32,7 @@ describe("network-bound read client", () => {
       try {
         await expect(createReadClient(config)).rejects.toThrow();
         expect(methods).toEqual(["groundhog_networkInfo"]);
-        response = { networkHash: `0x${config.networkIdHex}` };
+        response = { networkHash: config.networkId };
         const client = await createReadClient(config);
         await expect(client.getNetworkInfo()).resolves.toHaveProperty(
           "networkHash",

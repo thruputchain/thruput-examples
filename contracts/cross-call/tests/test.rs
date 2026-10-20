@@ -1,9 +1,9 @@
 use cross_call::*;
 use fibonacci::*;
-use sdk::*;
+use thruput_sdk::*;
 
-static FIB_NONCE: SHA256Hash = sdk::sha256_static!("CROSS_CALL_FIB_NONCE");
-static CROSS_NONCE: SHA256Hash = sdk::sha256_static!("CROSS_CALL_NONCE");
+static FIB_NONCE: SHA256Hash = thruput_sdk::sha256_static!("CROSS_CALL_FIB_NONCE");
+static CROSS_NONCE: SHA256Hash = thruput_sdk::sha256_static!("CROSS_CALL_NONCE");
 
 /// Set up both contracts in a test environment.
 /// Returns (env, fib_hash, cross_call_hash).
@@ -190,7 +190,7 @@ fn test_multiple_cross_calls_emit_ordered_events() {
 fn test_client_test_shorthand() {
     // Demonstrates the simpler client_test API for quick single-contract tests.
     // This doesn't give TransactResult (no event access), but is more concise.
-    sdk::client_test(
+    thruput_sdk::client_test(
         |env| env.register_mock(Fibonacci::__mock),
         |client: &FibonacciClient| {
             assert_eq!(client.compute(10), 55);

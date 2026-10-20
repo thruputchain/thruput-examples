@@ -1,5 +1,5 @@
 import { AlertCircleIcon, ArrowRightIcon, InfoIcon, XIcon } from "lucide-react";
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -485,7 +485,7 @@ function requestTokens(
   tokenA: TokenSnapshot,
   tokenB: TokenSnapshot,
 ): { input: TokenSnapshot; output: TokenSnapshot } {
-  return request.criteria.tokenIn === toHex0x(tokenA.address)
+  return request.criteria.tokenIn === toBase58(tokenA.address)
     ? { input: tokenA, output: tokenB }
     : { input: tokenB, output: tokenA };
 }

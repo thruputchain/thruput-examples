@@ -13,7 +13,7 @@ import {
   createPubkeyAccount,
   defineCluster,
   PrivateKeySigner,
-  toHex0x,
+  toBase58,
 } from "@thruputchain/client";
 import { MockTransport } from "@thruputchain/client/transport";
 import {
@@ -61,19 +61,19 @@ async function setup(withSigner = true) {
     snapshot: { ...initialSnapshot, ready: true, signerBalance: 10_000_000n },
     send: sendDevelopment,
   }));
-  const network = "00".repeat(32);
+  const network = toBase58(new Uint8Array(32));
   const accounts = [1, 2].map((seed) => {
     const signer = new PrivateKeySigner(new Uint8Array(32).fill(seed));
     return {
-      address: toHex0x(createPubkeyAccount({ signer }).address),
-      publicKey: toHex0x(signer.publicKey.ed25519),
+      address: toBase58(createPubkeyAccount({ signer }).address),
+      publicKey: toBase58(signer.publicKey.ed25519),
       nonce: "0",
     };
   });
   const config: AppConfig = {
-    networkId: `0x${network}`,
-    counterAddress: `0x${"22".repeat(32)}`,
-    signerAddress: withSigner ? `0x${"33".repeat(32)}` : null,
+    networkId: network,
+    counterAddress: toBase58(new Uint8Array(32).fill(0x22)),
+    signerAddress: withSigner ? toBase58(new Uint8Array(32).fill(0x33)) : null,
     explorerUrl: null,
   };
   const client = await createThruputClient({
@@ -98,7 +98,7 @@ async function setup(withSigner = true) {
     listeners.forEach((listener) => listener(next));
   };
   const provider: Provider = {
-    info: { id: "test-wallet", name: "Test wallet", version: "1.0.0" },
+    info: { id: "test-wallet", name: "Test wallet", version: "2.0.0" },
     on(_event, listener) {
       listeners.add(listener);
       return () => {
@@ -181,7 +181,12 @@ it("does not fall back to the development signer after a wallet network change",
   const s = await setup();
   fireEvent.click(screen.getByRole("button", { name: "Connect wallet" }));
   await waitFor(() => expect(s.binding).not.toBeNull());
-  act(() => s.change({ networkHash: "11".repeat(32), accounts: s.accounts }));
+  act(() =>
+    s.change({
+      networkHash: toBase58(new Uint8Array(32).fill(0x11)),
+      accounts: s.accounts,
+    }),
+  );
   await screen.findByText("Select the application's network in your wallet.");
   expect(
     (screen.getByRole("button", { name: "Increment" }) as HTMLButtonElement)

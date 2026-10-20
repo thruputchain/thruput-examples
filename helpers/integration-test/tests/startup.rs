@@ -2,7 +2,10 @@
 //! the test runner's environment or requiring a live node.
 use integration_test::Harness;
 use std::process::Command;
+use thruput_json_rpc_types::NetworkHashText;
+use thruput_json_rpc_types::base58::Base58;
 use thruput_signing::{LocalSigner, PubkeyAccount};
+use thruput_xdr::types::{ContractAddress, Ed25519PublicKey, SHA256Hash};
 
 const INPUTS: [&str; 3] = [
     "THRUPUT_RPC_URL",
@@ -43,12 +46,12 @@ fn renamed_environment_and_stored_key_start_the_harness() {
     }
     let manifest = fixture.path().join("runtime-manifest.json");
     let value = serde_json::json!({
-        "schemaVersion": 4, "kind": "hogd-dev-runtime", "chainState": "fresh",
-        "networkHash": "42".repeat(32), "protocol": "hogp/test00000000000",
+        "schemaVersion": 5, "kind": "hogd-dev-runtime", "chainState": "fresh",
+        "networkHash": NetworkHashText::from([0x42; 32]), "protocol": "hogp/test00000000000",
         "producer": {"binary": "hogd-dev", "version": "0.1.0", "commitHash": "test"},
         "endpoints": {"scheduler": "127.0.0.1:1000", "schedulerGateway": "127.0.0.1:1010", "indexer": "127.0.0.1:1001", "dbGateway": "127.0.0.1:1002", "viewGateway": "127.0.0.1:1003"},
-        "bootstrapAccounts": [{"role": "allocation", "publicKey": format!("0x{}", hex::encode(signer.verifying_key_bytes())), "walletAddress": format!("0x{}", hex::encode(wallet.as_ref())), "initialStorageTokens": "10000000000000"}],
-        "bootstrap": {"storageCostModel": {"hash": format!("0x{}", "53".repeat(32)), "baseDataItemCost": "12000", "bytestringCostPerByte": "10", "baseContractDeploymentCost": "12000", "contractDeploymentCostPerByte": "10", "authPerKeyCost": "1111", "rcqCostPerEntry": "8", "replayCacheCostPerEntry": "7", "balanceCost": "1234"}}
+        "bootstrapAccounts": [{"role": "local_user", "publicKey": Base58(Ed25519PublicKey::from(signer.verifying_key_bytes())), "walletAddress": Base58(wallet), "initialStorageTokens": "10000000000000"}],
+        "bootstrap": {"storageCostModel": {"hash": Base58(SHA256Hash::from([0x53; 32])), "baseDataItemCost": "12000", "bytestringCostPerByte": "10", "baseContractDeploymentCost": "12000", "contractDeploymentCostPerByte": "10", "authPerKeyCost": "1111", "rcqCostPerEntry": "8", "replayCacheCostPerEntry": "7", "balanceCost": "1234"}}
     });
     std::fs::write(
         &manifest,
@@ -57,7 +60,7 @@ fn renamed_environment_and_stored_key_start_the_harness() {
     .expect("fixture manifest");
     let values = [
         "http://127.0.0.1:1".to_owned(),
-        format!("0x{}", "00".repeat(32)),
+        Base58(ContractAddress::from([0; 32])).to_string(),
         manifest.display().to_string(),
     ];
     let run = |missing: Option<&str>, legacy_only: bool| {

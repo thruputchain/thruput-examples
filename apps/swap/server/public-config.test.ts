@@ -1,13 +1,16 @@
 // @vitest-environment node
+import { toBase58 } from "@thruputchain/client";
 import { expect, it } from "vitest";
 import { publicConfig } from "./public-config";
 import { loadGlobalConfig } from "../src/config";
 
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
+
 it("projects validated public settings without exposing server environment", () => {
-  const address = `0x${"11".repeat(32)}`;
+  const address = b58(0x11);
   const published = publicConfig({
     VITE_THRUPUT_RPC_URL: "https://private-upstream.test/rpc",
-    VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
+    VITE_THRUPUT_NETWORK_ID: b58(0x00),
     VITE_POOL_TOKEN_HASH: address,
     VITE_NATIVE_HOG_ADDRESS: address,
     VITE_SWAP_FACTORY_ADDRESS: address,

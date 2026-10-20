@@ -1,8 +1,8 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import type { GlobalConfig } from "@/config";
 
 export async function withAccountLock<T>(
-  config: Pick<GlobalConfig, "networkIdHex" | "accountAddress">,
+  config: Pick<GlobalConfig, "networkId" | "accountAddress">,
   action: () => Promise<T> | T,
 ): Promise<T> {
   if (typeof window === "undefined" || window.navigator.locks === undefined) {
@@ -12,8 +12,8 @@ export async function withAccountLock<T>(
   }
   const name = [
     "groundhog-swap:account-lock:v1",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
   ].join(":");
   return window.navigator.locks.request(name, { mode: "exclusive" }, action);
 }

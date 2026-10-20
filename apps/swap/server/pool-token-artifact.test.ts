@@ -10,16 +10,18 @@ import {
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { hashContract, toHex0x } from "@thruputchain/client";
+import { hashContract, toBase58, toHex0x } from "@thruputchain/client";
 import { ContractType } from "@thruputchain/protocol";
 import { build } from "vite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import viteConfig from "../vite.config.ts";
 import { verifyPoolTokenArtifact } from "./pool-token-artifact.ts";
 
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
+
 // Serialization/integrity fixture, not proof that a contract executes on a ledger.
 const data = new Uint8Array([1, 2, 3]);
-const hash = toHex0x(
+const hash = toBase58(
   hashContract({ contract_type: ContractType.kRv32, rv32_contract: { data } }),
 );
 const artifact = { contractType: "rv32", data: toHex0x(data), hash };
@@ -63,7 +65,7 @@ describe("served LP artifact validation", () => {
     "not JSON",
     JSON.stringify({ ...artifact, extra: 1 }),
     JSON.stringify({ ...artifact, data: "0x010204" }),
-    JSON.stringify({ ...artifact, hash: `0x${"00".repeat(32)}` }),
+    JSON.stringify({ ...artifact, hash: b58(0x00) }),
     JSON.stringify({ data: artifact.data, hash }),
   ])("rejects invalid schema, JSON or hash %#", async (contents) => {
     await writeFile(path.join(publicDir, relativePath), contents);
@@ -89,12 +91,12 @@ describe("production assets", () => {
   it(
     "builds the app and copies artifacts without baking in deployment settings",
     async () => {
-      const address = `0x${"11".repeat(32)}`;
+      const address = b58(0x11);
       const environment = {
         VITE_POOL_TOKEN_HASH: hash,
         VITE_EXPLORER_URL: "",
         VITE_THRUPUT_RPC_URL: "http://127.0.0.1:9545",
-        VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
+        VITE_THRUPUT_NETWORK_ID: b58(0x00),
         VITE_TOKEN_DISCOVERY_ENABLED: "false",
         VITE_STANDARD_TOKEN_FACTORY_ADDRESS: "",
         VITE_STANDARD_TOKEN_HASH: "",

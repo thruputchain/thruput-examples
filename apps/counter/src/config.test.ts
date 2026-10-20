@@ -1,25 +1,28 @@
 import { describe, expect, it } from "vitest";
+import { toBase58 } from "@thruputchain/client";
 import { parseConfig } from "./config";
 
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const valid = {
-  networkId: "00".repeat(32),
-  counterAddress: "11".repeat(32),
-  signerAddress: "22".repeat(32),
+  networkId: b58(0x00),
+  counterAddress: b58(0x11),
+  signerAddress: b58(0x22),
 };
 describe("configuration", () => {
-  it("normalizes network, contract, and signer bytes", () => {
+  it("accepts base58 network, contract, and signer identifiers", () => {
     expect(parseConfig(valid)).toMatchObject({
-      networkId: `0x${valid.networkId}`,
-      counterAddress: `0x${valid.counterAddress}`,
+      ...valid,
       explorerUrl: null,
     });
   });
-  it("normalizes uppercase prefixes and hex digits", () => {
-    expect(
-      parseConfig({ ...valid, counterAddress: `0X${"AB".repeat(32)}` })
-        .counterAddress,
-    ).toBe(`0x${"ab".repeat(32)}`);
-  });
+  it.each(["networkId", "counterAddress", "signerAddress"])(
+    "rejects hex %s from older setups",
+    (field) => {
+      expect(() =>
+        parseConfig({ ...valid, [field]: `0x${"11".repeat(32)}` }),
+      ).toThrow();
+    },
+  );
   it.each(["networkId", "counterAddress", "signerAddress"])(
     "rejects malformed %s",
     (field) => {

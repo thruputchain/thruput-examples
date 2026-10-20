@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  addressFromHex,
-  hashFromHex,
-  toHex0x,
+  addressFromBase58,
+  hashFromBase58,
+  toBase58,
   TransactionExecutionError,
   type TransactionReceipt,
 } from "@thruputchain/client";
@@ -36,7 +36,7 @@ export function useWalletCounter(address: string) {
   const lock = useRef(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const network = toHex0x(client.network.networkHash).slice(2);
+  const network = toBase58(client.network.networkHash);
   const key = pendingKey(network, address);
   function readSaved(): PendingState {
     try {
@@ -63,7 +63,7 @@ export function useWalletCounter(address: string) {
 
   function committed(value: TransactionReceipt) {
     queries.setQueryData(
-      transactionReceiptQueryOptions({ client, hash: toHex0x(value.txHash) })
+      transactionReceiptQueryOptions({ client, hash: toBase58(value.txHash) })
         .queryKey,
       value,
     );
@@ -71,7 +71,7 @@ export function useWalletCounter(address: string) {
       queryKey: contractViewQueryOptions({
         client,
         method: Counter.v0_1.get,
-        contract: addressFromHex(address),
+        contract: addressFromBase58(address),
       }).queryKey,
     });
   }
@@ -118,7 +118,7 @@ export function useWalletCounter(address: string) {
       const result = await execution.mutateAsync({
         request: {
           invocation: Counter.v0_1[direction].invocation(
-            addressFromHex(address),
+            addressFromBase58(address),
             gasAmount(500_000n),
             { amount: 1n },
           ),
@@ -165,10 +165,10 @@ export function useWalletCounter(address: string) {
           "Saved state changed. Retry storage before continuing.",
         );
       const existing = await client.getTransactionReceipt(
-        hashFromHex(record.hash),
+        hashFromBase58(record.hash),
       );
       if (existing) {
-        if (toHex0x(existing.txHash) !== record.hash)
+        if (toBase58(existing.txHash) !== record.hash)
           throw new Error("Receipt hash does not match the saved transaction.");
         committed(existing);
         return;
@@ -190,7 +190,7 @@ export function useWalletCounter(address: string) {
         throw new Error("Wallet reapproval changed the original transaction.");
       await wallet.submitTransaction(approved);
       committed(
-        await client.waitForTransactionReceipt(hashFromHex(record.hash), {
+        await client.waitForTransactionReceipt(hashFromBase58(record.hash), {
           timeoutMs: 20_000,
         }),
       );

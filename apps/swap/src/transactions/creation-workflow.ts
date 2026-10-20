@@ -1,11 +1,15 @@
-import { addressFromHex, toHex0x } from "@thruputchain/client";
+import { addressFromBase58, toBase58 } from "@thruputchain/client";
 
 import type { GlobalConfig } from "@/config";
 import type { PoolCreationReview } from "@/pools/pool-creation";
+import { isBase58Identifier } from "@/lib/address";
 import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
+import { inCanonicalTokenOrder } from "../../shared/registry";
 
-const STORAGE_VERSION = 3;
-const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
+// Version 4 stores addresses and transaction hashes as base58. The request ID
+// is event topic bytes and stays 0x hex.
+const STORAGE_VERSION = 4;
+const REQUEST_ID_PATTERN = /^0x[0-9a-f]{64}$/;
 
 export const creationStepOrder = [
   "approveFunding",
@@ -45,7 +49,7 @@ export interface CreationWorkflow {
   batchPool?: CreationPool;
   version: typeof STORAGE_VERSION;
   id: string;
-  networkIdHex: string;
+  networkId: string;
   accountAddress: string;
   factoryAddress: string;
   routerAddress: string;
@@ -88,9 +92,9 @@ function creationWorkflowKey(
 ): string {
   return [
     "groundhog-swap:pool-creation:v2",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
-    toHex0x(config.factoryAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
+    toBase58(config.factoryAddress),
     token0Address,
     token1Address,
   ].join(":");
@@ -123,11 +127,11 @@ export function createCreationWorkflow(
     version: STORAGE_VERSION,
     executionMode: "auto",
     id: crypto.randomUUID(),
-    networkIdHex: config.networkIdHex,
-    accountAddress: toHex0x(config.accountAddress),
-    factoryAddress: toHex0x(config.factoryAddress),
-    routerAddress: toHex0x(config.routerAddress),
-    nativeHogAddress: toHex0x(config.nativeHogAddress),
+    networkId: config.networkId,
+    accountAddress: toBase58(config.accountAddress),
+    factoryAddress: toBase58(config.factoryAddress),
+    routerAddress: toBase58(config.routerAddress),
+    nativeHogAddress: toBase58(config.nativeHogAddress),
     token0: tokenIntent(review.token0),
     token1: tokenIntent(review.token1),
     pool: null,
@@ -161,7 +165,7 @@ export function saveCreationWorkflow(
 
 export function sameCreationIntent(left: CreationWorkflow, right: CreationWorkflow): boolean {
   return ([
-    "networkIdHex", "accountAddress", "factoryAddress", "routerAddress", "nativeHogAddress",
+    "networkId", "accountAddress", "factoryAddress", "routerAddress", "nativeHogAddress",
     "fundingMinimum", "fundingPerContract", "totalFunding",
   ] as const).every((key) => left[key] === right[key])
     && (["token0", "token1"] as const).every((token) =>
@@ -181,7 +185,7 @@ export function loadCreationWorkflow(
   const stored = window.localStorage.getItem(key);
   if (stored === null) return null;
   try {
-    const parsed: unknown = migrateWorkflow(JSON.parse(stored));
+    const parsed: unknown = JSON.parse(stored);
     if (!isCreationWorkflow(parsed, config) || workflowStorageKey(parsed) !== key) {
       throw new Error("invalid workflow");
     }
@@ -200,7 +204,7 @@ export function loadAccountCreationWorkflows(config: GlobalConfig): CreationWork
     const stored = window.localStorage.getItem(key!);
     if (stored === null) continue;
     try {
-      const parsed: unknown = migrateWorkflow(JSON.parse(stored));
+      const parsed: unknown = JSON.parse(stored);
       if (!isCreationWorkflow(parsed, config, "account") || workflowStorageKey(parsed) !== key) {
         throw new Error("invalid workflow");
       }
@@ -222,8 +226,8 @@ export function archiveCreationWorkflow(
   }
   return saveCreationWorkflow({
     ...config,
-    factoryAddress: addressFromHex(stored.factoryAddress),
-    routerAddress: addressFromHex(stored.routerAddress),
+    factoryAddress: addressFromBase58(stored.factoryAddress),
+    routerAddress: addressFromBase58(stored.routerAddress),
   }, {
     ...stored,
     status: "archived",
@@ -280,7 +284,7 @@ export function hasCreationExecutionExposure(workflow: CreationWorkflow): boolea
 
 function tokenIntent(token: PoolCreationReview["token0"]): CreationTokenIntent {
   return {
-    address: token.addressHex,
+    address: token.addressBase58,
     name: token.name,
     symbol: token.symbol,
     decimals: token.decimals,
@@ -291,8 +295,8 @@ function tokenIntent(token: PoolCreationReview["token0"]): CreationTokenIntent {
 function accountCreationWorkflowPrefix(config: GlobalConfig): string {
   return [
     "groundhog-swap:pool-creation:v2",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
     "",
   ].join(":");
 }
@@ -307,16 +311,16 @@ function isCreationWorkflow(
     typeof value.id !== "string"
     || (value.executionMode !== undefined && !["auto", "single", "batch"].includes(String(value.executionMode)))
     || value.id.length === 0
-    || value.networkIdHex !== config.networkIdHex
-    || value.accountAddress !== toHex0x(config.accountAddress)
+    || value.networkId !== config.networkId
+    || value.accountAddress !== toBase58(config.accountAddress)
     || !isHash(value.factoryAddress)
     || !isHash(value.routerAddress)
-    || value.nativeHogAddress !== toHex0x(config.nativeHogAddress)
-    || (scope === "factory" && value.factoryAddress !== toHex0x(config.factoryAddress))
-    || (scope === "factory" && value.routerAddress !== toHex0x(config.routerAddress))
+    || value.nativeHogAddress !== toBase58(config.nativeHogAddress)
+    || (scope === "factory" && value.factoryAddress !== toBase58(config.factoryAddress))
+    || (scope === "factory" && value.routerAddress !== toBase58(config.routerAddress))
     || !isTokenIntent(value.token0)
     || !isTokenIntent(value.token1)
-    || value.token0.address >= value.token1.address
+    || !inCanonicalTokenOrder(value.token0.address, value.token1.address)
     || !(value.pool === null || isPool(value.pool))
     || !isPositiveInteger(value.fundingMinimum)
     || !isPositiveInteger(value.fundingPerContract)
@@ -324,7 +328,8 @@ function isCreationWorkflow(
     || BigInt(value.fundingPerContract) < BigInt(value.fundingMinimum)
     || BigInt(value.totalFunding) !== BigInt(value.fundingPerContract) * 3n
     || !["active", "queued", "executed", "failed", "race", "archived"].includes(String(value.status))
-    || !(value.requestId === null || isHash(value.requestId))
+    || !(value.requestId === null
+      || (typeof value.requestId === "string" && REQUEST_ID_PATTERN.test(value.requestId)))
     || !(value.enqueueReceiptBlock === null || isPositiveInteger(value.enqueueReceiptBlock))
     || !(value.observedThroughBlock === null || isPositiveInteger(value.observedThroughBlock))
     || !(value.terminalBlock === null || isPositiveInteger(value.terminalBlock))
@@ -353,12 +358,6 @@ function isCreationWorkflow(
     if (BigInt(value.terminalBlock) < BigInt(value.enqueueReceiptBlock)) return false;
   }
   return true;
-}
-
-function migrateWorkflow(value: unknown): unknown {
-  return isRecord(value) && value.version === 2
-    ? { ...value, version: STORAGE_VERSION, executionMode: "single" }
-    : value;
 }
 
 function isPool(value: unknown): value is CreationPool {
@@ -400,7 +399,7 @@ function isStep(value: unknown): value is CreationStep {
 function workflowStorageKey(workflow: CreationWorkflow): string {
   return [
     "groundhog-swap:pool-creation:v2",
-    workflow.networkIdHex,
+    workflow.networkId,
     workflow.accountAddress,
     workflow.factoryAddress,
     workflow.token0.address,
@@ -409,7 +408,7 @@ function workflowStorageKey(workflow: CreationWorkflow): string {
 }
 
 function isHash(value: unknown): value is string {
-  return typeof value === "string" && HASH_PATTERN.test(value);
+  return isBase58Identifier(value);
 }
 
 function isPositiveInteger(value: unknown): value is string {

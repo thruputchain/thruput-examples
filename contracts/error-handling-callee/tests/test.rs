@@ -1,7 +1,7 @@
 use error_handling_callee::*;
-use sdk::*;
+use thruput_sdk::*;
 
-static CALLEE_NONCE: SHA256Hash = sdk::sha256_static!("CALLEE_TEST_NONCE");
+static CALLEE_NONCE: SHA256Hash = thruput_sdk::sha256_static!("CALLEE_TEST_NONCE");
 
 /// Helper: set up the callee contract in a test environment.
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {

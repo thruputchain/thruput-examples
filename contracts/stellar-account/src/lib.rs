@@ -25,9 +25,9 @@
 
 extern crate alloc;
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
-use sdk::*;
+use thruput_sdk::*;
 
 mod account;
 

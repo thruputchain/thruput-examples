@@ -1,7 +1,9 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
 import {
+  inCanonicalTokenOrder,
   REGISTRY_SORTS,
+  ZERO_ADDRESS,
   type CommitPageOptions,
   type PoolQuery,
   type PoolQueryResult,
@@ -17,17 +19,15 @@ import {
   canonicalHash,
   canonicalNetworkId,
   compareDecimal,
-  escapeLike,
-  normalizedSearch,
   ValidationError,
 } from "./validation.ts";
 
-const SCHEMA_VERSION = 1;
+// Version 2 stores identifiers as base58; version 1 held 0x hex.
+const SCHEMA_VERSION = 2;
 const MAX_CURSOR_CHARACTERS = 4_096;
 const MAX_ERROR_BYTES = 500;
 const MAX_PAIR_COUNT = 0xffff_ffffn;
 const MAX_EVENT_SEQUENCE = 0xffff_ffffn;
-const ZERO_ADDRESS = `0x${"0".repeat(64)}`;
 const STATE_KEYS = new Set([
   "indexed_through_block",
   "history_limited",
@@ -310,11 +310,11 @@ export class RegistryStore {
     }
     const search = query.q?.normalize("NFKC").trim();
     if (search !== undefined && search !== "") {
-      const pattern = `%${escapeLike(normalizedSearch(search))}%`;
+      // Base58 is case-sensitive, so match exact substrings rather than LIKE.
       conditions.push(
-        "(token0_address LIKE ? ESCAPE '\\' OR token1_address LIKE ? ESCAPE '\\' OR liquidity_token_address LIKE ? ESCAPE '\\' OR handler_address LIKE ? ESCAPE '\\' OR driver_address LIKE ? ESCAPE '\\')",
+        "(instr(token0_address, ?) > 0 OR instr(token1_address, ?) > 0 OR instr(liquidity_token_address, ?) > 0 OR instr(handler_address, ?) > 0 OR instr(driver_address, ?) > 0)",
       );
-      parameters.push(pattern, pattern, pattern, pattern, pattern);
+      parameters.push(search, search, search, search, search);
     }
     const where = conditions.join(" AND ");
     const count = integerColumn(
@@ -352,7 +352,7 @@ export class RegistryStore {
       this.#database.prepare("PRAGMA user_version").get(),
       "user_version",
     );
-    if (version > SCHEMA_VERSION) {
+    if (version !== 0 && version !== SCHEMA_VERSION) {
       throw new RegistryStoreError(
         `Unsupported registry schema version ${version}`,
       );
@@ -395,7 +395,7 @@ export class RegistryStore {
         );
         CREATE INDEX pools_created ON pools(length(created_block), created_block);
         CREATE INDEX pools_token1 ON pools(token1_address, token0_address);
-        PRAGMA user_version=1;
+        PRAGMA user_version=${SCHEMA_VERSION};
       `);
       this.#setState("indexed_through_block", "0");
       this.#setState("history_limited", "false");
@@ -800,7 +800,7 @@ function normalizePool(
   ) {
     throw new ValidationError("pool addresses must be nonzero");
   }
-  if (pool.token0Address >= pool.token1Address) {
+  if (!inCanonicalTokenOrder(pool.token0Address, pool.token1Address)) {
     throw new ValidationError(
       "pool token addresses must be canonically ordered",
     );
@@ -877,6 +877,8 @@ function sameStoredPool(left: RegistryPool, right: RegistryPool): boolean {
   return sameEvidence(left, right) && left.indexedAt === right.indexedAt;
 }
 
+// Display sorts order addresses by the base58 text people see. SQLite compares
+// this ASCII text bytewise, the same order as the client's `<` comparison.
 function sortSql(sort: PoolQuery["sort"]): string {
   const creationAscending =
     "length(created_block) ASC, created_block ASC, length(event_sequence) ASC, event_sequence ASC, token0_address ASC, token1_address ASC";
@@ -891,6 +893,7 @@ function sortSql(sort: PoolQuery["sort"]): string {
       return `token1_address ASC, token0_address ASC, ${creationAscending}`;
   }
 }
+
 
 function decimalLessThanOrEqualSql(column: string): string {
   return `(length(${column}) < length(?) OR (length(${column}) = length(?) AND ${column} <= ?))`;

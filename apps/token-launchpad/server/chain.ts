@@ -1,15 +1,14 @@
 import {
-  addressFromHex,
+  addressFromBase58,
   bytesEqual,
   createThruputClient,
   defineCluster,
   fixedBytes,
-  fromHex0x,
-  hashFromHex,
+  hashFromBase58,
   HttpTransport,
   JsonRpcError,
   ThruputRpcErrorCode,
-  toHex0x,
+  toBase58,
   type EventPage,
   type EventQuery,
   type ThruputClient,
@@ -75,7 +74,7 @@ export async function createThruputRegistrySource(
   const cluster = defineCluster({
     name: "token-registry",
     rpcUrl: config.rpcUrl.href,
-    networkHash: networkHash(hashFromHex(`0x${config.scope.networkId}`)),
+    networkHash: networkHash(hashFromBase58(config.scope.networkId)),
     capabilities: [] as const,
   });
   const transport = new SignalTransport(
@@ -127,14 +126,17 @@ export class ThruputRegistrySource implements RegistrySource {
     this.#getEvents = getEvents;
     this.#getNetworkInfo = getNetworkInfo;
     this.#scope = scope;
-    this.#factoryAddress = addressFromHex(scope.factoryAddress);
-    this.#expectedTokenHash = fixedBytes(fromHex0x(scope.tokenCodeHash), 32);
+    this.#factoryAddress = addressFromBase58(scope.factoryAddress);
+    this.#expectedTokenHash = fixedBytes(
+      hashFromBase58(scope.tokenCodeHash),
+      32,
+    );
   }
 
   async verifyNetworkIdentity(signal: AbortSignal): Promise<void> {
     const observed = await this.#getNetworkInfo(signal);
     signal.throwIfAborted();
-    if (toHex0x(observed.networkHash).slice(2) !== this.#scope.networkId) {
+    if (toBase58(observed.networkHash) !== this.#scope.networkId) {
       throw new RegistryScopeVerificationError(
         "The RPC endpoint belongs to a different Thruput network",
       );
@@ -209,13 +211,15 @@ export class ThruputRegistrySource implements RegistrySource {
 
   #decodeEvent(event: IdentifiedEvent, indexedAt: string): RegistryToken {
     try {
-      if (toHex0x(event.event.contractAddress) !== this.#scope.factoryAddress) {
+      if (
+        toBase58(event.event.contractAddress) !== this.#scope.factoryAddress
+      ) {
         throw new Error("event emitter does not match the configured factory");
       }
       const decoded = TokenCreated.decode(event.event);
       if (decoded === null)
         throw new Error("event does not decode as TokenCreated");
-      const tokenCodeHash = toHex0x(decoded.fields.token_code_hash);
+      const tokenCodeHash = toBase58(decoded.fields.token_code_hash);
       if (tokenCodeHash !== this.#scope.tokenCodeHash) {
         throw new Error("event token implementation hash does not match scope");
       }
@@ -226,10 +230,10 @@ export class ThruputRegistrySource implements RegistrySource {
       return {
         networkId: this.#scope.networkId,
         factoryAddress: this.#scope.factoryAddress,
-        tokenAddress: toHex0x(decoded.topics.token),
-        creatorAddress: toHex0x(decoded.topics.creator),
-        administratorAddress: toHex0x(decoded.fields.administrator),
-        initialHolderAddress: toHex0x(decoded.fields.initial_holder),
+        tokenAddress: toBase58(decoded.topics.token),
+        creatorAddress: toBase58(decoded.topics.creator),
+        administratorAddress: toBase58(decoded.fields.administrator),
+        initialHolderAddress: toBase58(decoded.fields.initial_holder),
         initialSupply: unsignedDecimal(
           decoded.fields.initial_supply,
           "initial supply",
@@ -238,7 +242,7 @@ export class ThruputRegistrySource implements RegistrySource {
         symbol: decoded.fields.symbol,
         decimals: decimals === null ? null : Number(decimals),
         tokenCodeHash,
-        transactionHash: toHex0x(event.txHash),
+        transactionHash: toBase58(event.txHash),
         eventSequence: event.sequenceNumber,
         blockHeight: unsignedDecimal(event.blockHeight, "block height"),
         indexedAt,

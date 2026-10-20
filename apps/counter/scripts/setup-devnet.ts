@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { errorMessage, hex32, parseHttpUrl } from "../src/config";
+import { errorMessage, hash58, parseHttpUrl } from "../src/config";
 import { provisionCounter } from "./provision";
 
 export async function setupDevnet(
@@ -14,7 +14,7 @@ export async function setupDevnet(
   await provisionCounter({
     network: "devnet",
     rpcUrl: url.href,
-    networkId: hex32(env.THRUPUT_NETWORK_ID, "THRUPUT_NETWORK_ID"),
+    networkId: hash58(env.THRUPUT_NETWORK_ID, "THRUPUT_NETWORK_ID"),
     output:
       env.COUNTER_APP_ENV ||
       fileURLToPath(new URL("../.env.devnet", import.meta.url)),

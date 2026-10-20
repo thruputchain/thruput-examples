@@ -2,12 +2,12 @@
 import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { hashContract, toHex0x } from "@thruputchain/client";
+import { hashContract, toBase58 } from "@thruputchain/client";
 import { ContractType } from "@thruputchain/protocol";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { validateStandardTokenArtifact } from "./contract-artifact";
 
-const hash = toHex0x(
+const hash = toBase58(
   hashContract({
     contract_type: ContractType.kRv32,
     rv32_contract: { data: new Uint8Array([1, 2, 3]) },
@@ -44,7 +44,10 @@ it.each([
   "{}",
   JSON.stringify({ ...artifact, extra: true }),
   JSON.stringify({ ...artifact, data: "0x040506" }),
-  JSON.stringify({ ...artifact, hash: `0x${"11".repeat(32)}` }),
+  JSON.stringify({
+    ...artifact,
+    hash: toBase58(new Uint8Array(32).fill(0x11)),
+  }),
 ])("rejects invalid bytes or schema %s", async (contents) => {
   await writeFile(filename, contents);
   await expect(

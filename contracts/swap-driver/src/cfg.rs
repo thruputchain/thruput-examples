@@ -1,8 +1,8 @@
-use sdk::*;
 use swap_if::SwapHandlerClient;
+use thruput_sdk::*;
 
 #[derive(ReadXDR, WriteXDR)]
-#[xdrs(crate = "::sdk::__xdrs")]
+#[xdrs(crate = "::thruput_sdk::__xdrs")]
 pub struct Cfg {
     // The contract that handles dequeued requests.
     pub handler: ContractAddress,

@@ -1,8 +1,8 @@
 //! Factory-specific standard token initialization.
 
-use sdk::{ContractAddress, contract};
 use thruput_erc20_if::{Amount, ERC20Error};
 use thruput_erc20_metadata_if::{Name, Symbol};
+use thruput_sdk::{ContractAddress, contract};
 
 /// Initialization entrypoint used by a standard token factory immediately
 /// after child deployment.

@@ -1,10 +1,10 @@
 //! The contract implementing SwapRequestHandler
 
 use crate::library::*;
-use sdk::storage::*;
-use sdk::*;
 use swap_if::*;
 use swap_pair::Pair;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 use SwapRequestError::*;
 
@@ -232,7 +232,7 @@ impl Handler {
 /// For tests that drive the pair directly, in a frame at the handler's own address.
 #[cfg(feature = "dev")]
 pub fn pair_state() -> Node<Pair> {
-    use sdk::storage::{Keypath, StorageDomain};
+    use thruput_sdk::storage::{Keypath, StorageDomain};
 
     // The same root the contract's own state is built from: a `#[storage]` struct is rooted at a
     // domain derived from its name.

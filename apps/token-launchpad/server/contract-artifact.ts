@@ -1,6 +1,6 @@
 import { open, realpath } from "node:fs/promises";
 import path from "node:path";
-import { fromHex0x } from "@thruputchain/client";
+import { hashFromBase58, toBase58 } from "@thruputchain/client";
 import {
   MAX_ARTIFACT_BYTES,
   parseStandardTokenArtifact,
@@ -11,15 +11,17 @@ export async function validateStandardTokenArtifact(
   directory: string,
   hash: string | undefined,
 ): Promise<void> {
-  if (!hash || !/^0x[0-9a-fA-F]{64}$/.test(hash))
-    throw new Error(
-      "VITE_STANDARD_TOKEN_HASH must be a 32-byte 0x-prefixed hash",
-    );
+  let expectedHash: Uint8Array;
+  try {
+    expectedHash = hashFromBase58(hash ?? "");
+  } catch {
+    throw new Error("VITE_STANDARD_TOKEN_HASH must be a 32-byte base58 hash");
+  }
   const root = await realpath(directory);
   let filename: string;
   try {
     filename = await realpath(
-      path.join(root, "contract-artifacts", `${hash.toLowerCase()}.json`),
+      path.join(root, "contract-artifacts", `${toBase58(expectedHash)}.json`),
     );
   } catch {
     throw new Error("Required standard token deployment artifact is missing");
@@ -55,7 +57,7 @@ export async function validateStandardTokenArtifact(
           bytes.subarray(0, length),
         ),
       ),
-      fromHex0x(hash),
+      expectedHash,
     );
   } finally {
     await file.close();

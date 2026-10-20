@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { canonicalHash } from "../server/validation";
+import { canonicalNetworkId } from "../server/validation";
 import { provisionSwap } from "./provision";
 
 export async function setupDevnet(
@@ -12,15 +12,16 @@ export async function setupDevnet(
   await provisionSwap({
     network: "devnet",
     rpcUrl,
-    networkId: canonicalHash(
-      env.THRUPUT_NETWORK_ID ?? "",
-      "THRUPUT_NETWORK_ID",
-    ),
+    networkId: validateNetworkId(env.THRUPUT_NETWORK_ID ?? ""),
     output: env.SWAP_APP_ENV || "apps/swap/.env.devnet",
     artifactRoot: env.SWAP_ARTIFACT_ROOT,
     publicDirectory: env.SWAP_APP_PUBLIC_DIR,
     explorerUrl: env.VITE_EXPLORER_URL ?? "https://explorer.thruput.network",
   });
+}
+
+function validateNetworkId(value: string): string {
+  return canonicalNetworkId(value, "THRUPUT_NETWORK_ID");
 }
 
 export function validateDevnetRpcUrl(value: string): string {

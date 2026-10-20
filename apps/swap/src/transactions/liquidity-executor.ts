@@ -1,4 +1,4 @@
-import { toHex0x, type TransactionReceipt } from "@thruputchain/client";
+import { toBase58, toHex0x, type TransactionReceipt } from "@thruputchain/client";
 import type { Invocation } from "@thruputchain/protocol";
 import { DefaultWallet } from "@thruputchain/client/contracts";
 
@@ -182,7 +182,7 @@ export async function runLiquidityOperation(
   }
   const otherBlockingCrank = loadAccountCrankAttempts(config).find((attempt) =>
     isBlockingCrankAttempt(attempt)
-    && attempt.driverAddress !== toHex0x(config.driverAddress)
+    && attempt.driverAddress !== toBase58(config.driverAddress)
   );
   if (otherBlockingCrank !== undefined) {
     throw new Error("Resolve the account's queue-processing transaction for another pool first");
@@ -441,7 +441,7 @@ async function reconcileCrankReceipt(
   const queuedRequests = requests.filter((request) =>
     needsQueueProcessing(request)
     && request.requestId !== null
-    && request.criteria.driverAddress === toHex0x(config.driverAddress)
+    && request.criteria.driverAddress === toBase58(config.driverAddress)
   );
   if (queuedRequests.length > 0) {
     saveRequestCollection(
@@ -500,8 +500,8 @@ export function applyLiquidityReceipt(
     if (operation === undefined) continue;
     if (
       operation.kind !== "add"
-      || toHex0x(event.topics.sender) !== operation.accountAddress
-      || toHex0x(event.topics.recipient) !== operation.recipient
+      || toBase58(event.topics.sender) !== operation.accountAddress
+      || toBase58(event.topics.recipient) !== operation.recipient
       || event.fields.amount_minted <= 0n
     ) throw new Error("Queue receipt contains invalid terminal mint evidence");
     record(requestId, {
@@ -510,7 +510,7 @@ export function applyLiquidityReceipt(
       terminalBlock: receipt.height.toString(),
       updatedAt: Date.now(),
       result: {
-        transactionHash: toHex0x(receipt.txHash),
+        transactionHash: toBase58(receipt.txHash),
         blockHeight: receipt.height.toString(),
         liquidityMinted: event.fields.amount_minted.toString(),
         amountsDeposited: null,
@@ -527,8 +527,8 @@ export function applyLiquidityReceipt(
     if (operation === undefined) continue;
     if (
       operation.kind !== "remove"
-      || toHex0x(event.topics.sender) !== operation.accountAddress
-      || toHex0x(event.topics.recipient) !== operation.recipient
+      || toBase58(event.topics.sender) !== operation.accountAddress
+      || toBase58(event.topics.recipient) !== operation.recipient
       || event.fields.amounts_redeemed.some((amount, index) =>
         amount < BigInt(operation.intent.amountsMin[index]!)
       )
@@ -539,7 +539,7 @@ export function applyLiquidityReceipt(
       terminalBlock: receipt.height.toString(),
       updatedAt: Date.now(),
       result: {
-        transactionHash: toHex0x(receipt.txHash),
+        transactionHash: toBase58(receipt.txHash),
         blockHeight: receipt.height.toString(),
         amountsRedeemed: [
           event.fields.amounts_redeemed[0].toString(),
@@ -585,10 +585,10 @@ function targetForStep(
     assertAddStillValid(snapshot, desired, minimums);
     const tokens = [snapshot.tokenA, snapshot.tokenB] as const;
     const balanceReserved = tokens.map((token) => {
-      const tokenHex = toHex0x(token.address);
-      return reservedInputForToken(requests, tokenHex)
-        + reservedCreationToken(creations, tokenHex)
-        + reservedLiquidityTokenAmount(otherOperations, tokenHex);
+      const tokenBase58 = toBase58(token.address);
+      return reservedInputForToken(requests, tokenBase58)
+        + reservedCreationToken(creations, tokenBase58)
+        + reservedLiquidityTokenAmount(otherOperations, tokenBase58);
     });
     if (tokens.some((token, index) =>
       token.balance < desired[index]! + balanceReserved[index]!
@@ -598,7 +598,7 @@ function targetForStep(
         requests,
         liquidityOperations: otherOperations,
         creationWorkflows: creations,
-      }, toHex0x(token.address), toHex0x(config.handlerAddress))
+      }, toBase58(token.address), toBase58(config.handlerAddress))
     );
     if (name === "approveToken0" || name === "approveToken1") {
       const index = name === "approveToken0" ? 0 : 1;
@@ -623,10 +623,10 @@ function targetForStep(
     }
   } else {
     const liquidity = BigInt(operation.intent.liquidity);
-    const liquidityHex = toHex0x(config.liquidityTokenAddress);
-    const balanceReserved = reservedLiquidityTokenAmount(otherOperations, liquidityHex)
-      + reservedInputForToken(requests, liquidityHex)
-      + reservedCreationToken(creations, liquidityHex);
+    const liquidityBase58 = toBase58(config.liquidityTokenAddress);
+    const balanceReserved = reservedLiquidityTokenAmount(otherOperations, liquidityBase58)
+      + reservedInputForToken(requests, liquidityBase58)
+      + reservedCreationToken(creations, liquidityBase58);
     if (snapshot.liquidityBalance < liquidity + balanceReserved) {
       throw new Error("The unreserved LP balance is insufficient");
     }
@@ -634,7 +634,7 @@ function targetForStep(
       requests,
       liquidityOperations: otherOperations,
       creationWorkflows: creations,
-    }, liquidityHex, toHex0x(config.handlerAddress));
+    }, liquidityBase58, toBase58(config.handlerAddress));
     if (name === "approveLiquidity") {
       const required = liquidity + allowanceReserved;
       return snapshot.liquidityAllowance >= required
@@ -704,7 +704,7 @@ function applyCommittedRouterStep(
 ): LiquidityOperation {
   let next = updateStep(operation, name, {
     status: "committed",
-    transactionHash: toHex0x(receipt.txHash),
+    transactionHash: toBase58(receipt.txHash),
     receiptBlock: receipt.height.toString(),
     message: null,
   });

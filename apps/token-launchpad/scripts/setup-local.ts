@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { canonicalHash } from "../server/validation";
 import { provisionLaunchpad } from "./provision";
 
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -21,19 +22,20 @@ export async function main(
   );
   if (typeof manifest.networkHash !== "string")
     throw new Error("Runtime manifest is missing networkHash");
-  const networkId = normalizeNetworkHash(manifest.networkHash);
+  const networkId = canonicalHash(
+    manifest.networkHash,
+    "Runtime manifest networkHash",
+  );
   if (
     env.THRUPUT_NETWORK_ID !== undefined &&
-    normalizeNetworkHash(env.THRUPUT_NETWORK_ID) !== networkId
+    canonicalHash(env.THRUPUT_NETWORK_ID, "THRUPUT_NETWORK_ID") !== networkId
   ) {
     throw new Error("Runtime manifest and THRUPUT_NETWORK_ID disagree");
   }
   await provisionLaunchpad({
     network: "local",
     networkId,
-    rpcUrl: validateLocalRpcUrl(
-      env.THRUPUT_RPC_URL || "http://127.0.0.1:9545",
-    ),
+    rpcUrl: validateLocalRpcUrl(env.THRUPUT_RPC_URL || "http://127.0.0.1:9545"),
     output: env.LAUNCHPAD_APP_ENV || "apps/token-launchpad/.env.local",
     storageCosts: manifest.bootstrap?.storageCostModel,
     artifactRoot: env.LAUNCHPAD_ARTIFACT_ROOT,
@@ -54,12 +56,6 @@ export function validateLocalRpcUrl(value: string): string {
     throw new Error("Local setup requires a loopback HTTP RPC URL");
   }
   return url.href;
-}
-
-function normalizeNetworkHash(value: string): string {
-  const match = /^(?:0x)?([0-9a-f]{64})$/i.exec(value);
-  if (!match) throw new Error("Invalid local network hash");
-  return `0x${match[1]!.toLowerCase()}`;
 }
 
 if (

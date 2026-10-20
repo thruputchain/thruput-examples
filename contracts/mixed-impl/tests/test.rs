@@ -2,9 +2,9 @@
 //! macro generates for each.
 
 use mixed_impl::*;
-use sdk::*;
+use thruput_sdk::*;
 
-static CONTRACT_NONCE: SHA256Hash = sdk::sha256_static!("MIXED_IMPL");
+static CONTRACT_NONCE: SHA256Hash = thruput_sdk::sha256_static!("MIXED_IMPL");
 
 /// Helper: register the contract. `register_mock_contract` picks up every
 /// `#[contract]` export in the crate, so one call covers both the inherent

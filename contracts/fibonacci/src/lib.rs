@@ -1,11 +1,11 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::*;
+use thruput_sdk::*;
 
 /// Maximum input to prevent excessive computation.
 const MAX_FIB_INPUT: u64 = 30;
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
 /// Error type for the Fibonacci contract.
 #[contract_exception]

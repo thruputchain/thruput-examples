@@ -57,7 +57,7 @@ pub fn setup_etx() -> Result<Etx> {
 }
 
 pub fn setup_etx_native() -> Result<Etx> {
-    let env = sdk::TestEnvironment::new(None); // use default cost model
+    let env = thruput_sdk::TestEnvironment::new(None); // use default cost model
 
     // Register the token contract
     let token_contract = erc20::register_mock_contract(&env);
@@ -86,7 +86,7 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let router_contract = load("swap_router");
     let factory_contract = load("swap_factory");
 
-    let env = sdk::TestEnvironment::new(None); // use default cost model
+    let env = thruput_sdk::TestEnvironment::new(None); // use default cost model
 
     let token_hash = env.setup_create_contract(&token_contract);
     let handler_hash = env.setup_create_contract(&handler_contract);

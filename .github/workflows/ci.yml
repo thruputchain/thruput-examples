@@ -85,7 +85,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ github.token }}
       - name: Install the published Thruput CLI and runtime
         run: |
-          cargo install --registry thruput --version 0.29.0 --locked thruput-cli
+          cargo install --registry thruput --version 0.32.1 --locked thruput-cli
           thruput toolchain install
           echo "THRUPUT_CLI=$(command -v thruput)" >> "$GITHUB_ENV"
           echo "THRUPUT_DEVNODE_BINARY=$(thruput toolchain which)" >> "$GITHUB_ENV"
@@ -162,10 +162,10 @@ jobs:
             ~/.cargo/bin/thruput
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
-          key: thruput-cli-${{ runner.os }}-${{ runner.arch }}-0.29.0
+          key: thruput-cli-${{ runner.os }}-${{ runner.arch }}-0.32.1
 
       - name: Install thruput-cli
-        run: cargo install --registry thruput --version 0.29.0 --locked thruput-cli
+        run: cargo install --registry thruput --version 0.32.1 --locked thruput-cli
 
       - name: Configure local build profile
         run: |

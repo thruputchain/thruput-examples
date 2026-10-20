@@ -9,8 +9,8 @@
 //!   taken out of the queue and then dropped for want of gas to handle it.
 
 use batch_driver::{BatchRequest, CrankPolicy, EPILOGUE_GAS, Queue, gas_for_batch};
-use sdk::storage::*;
-use sdk::*;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([2u8; 32]);
 
@@ -20,7 +20,7 @@ const CAPACITY: u32 = 32;
 
 /// An ordinary request, cheap enough that a default frame can drain many.
 #[derive(ReadXDR, WriteXDR, Clone, Copy, Debug, PartialEq, Eq)]
-#[xdrs(crate = "::sdk::__xdrs")]
+#[xdrs(crate = "::thruput_sdk::__xdrs")]
 struct Request {
     id: u32,
 }
@@ -41,7 +41,7 @@ impl BatchRequest for Request {
 /// needing to shrink the frame around it. Its encoding matches `Request`, so the two read each
 /// other's entries.
 #[derive(ReadXDR, WriteXDR, Clone, Copy, Debug, PartialEq, Eq)]
-#[xdrs(crate = "::sdk::__xdrs")]
+#[xdrs(crate = "::thruput_sdk::__xdrs")]
 struct Unaffordable {
     id: u32,
 }

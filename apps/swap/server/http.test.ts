@@ -5,6 +5,7 @@ import { request as httpRequest, type Server } from "node:http";
 import os from "node:os";
 import path from "node:path";
 
+import { toBase58 } from "@thruputchain/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RegistryPool, RegistryScope } from "../shared/registry.ts";
@@ -21,7 +22,7 @@ import {
 import { RegistryStore } from "./store.ts";
 
 const scope: RegistryScope = {
-  networkId: "11".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x11)),
   factoryAddress: address(200),
 };
 
@@ -210,7 +211,12 @@ describe("registry HTTP API", () => {
 
 describe("parsePoolQuery", () => {
   it("parses and canonicalizes every supported value", () => {
-    const token = `0x${"AA".repeat(32)}`;
+    const token = address(0xaa);
+    expect(() =>
+      parsePoolQuery(
+        new URL(`http://registry.test/api/pools?token=0x${"aa".repeat(32)}`),
+      ),
+    ).toThrow(/base58/);
     expect(
       parsePoolQuery(
         new URL(
@@ -219,7 +225,7 @@ describe("parsePoolQuery", () => {
       ),
     ).toEqual({
       q: "Pool",
-      token: token.toLowerCase(),
+      token,
       sort: "token1",
       limit: 100,
       offset: 10_000,
@@ -290,7 +296,7 @@ describe("production HTTP server", () => {
   });
 
   it("serves the LP contract artifact as same-origin JSON without an RPC call", async () => {
-    const artifact = { contractType: "rv32", data: "0x010203", hash: address(9) };
+    const artifact = { contractType: "rv32", data: "0x010203", hash: wireId(9) };
     await mkdir(path.join(directory, "contract-artifacts"));
     await writeFile(path.join(directory, "contract-artifacts", `${artifact.hash}.json`), JSON.stringify(artifact));
     const response = await fetch(`${origin}/contract-artifacts/${artifact.hash}.json`);
@@ -305,7 +311,7 @@ describe("production HTTP server", () => {
       "/api/unknown",
       "/thruput-rpc/extra",
       "/assets/missing.js",
-      `/contract-artifacts/${address(9)}.json`,
+      `/contract-artifacts/${wireId(9)}.json`,
       "/missing.css",
     ]) {
       const response = await fetch(`${origin}${target}`);
@@ -332,8 +338,8 @@ describe("production HTTP server", () => {
   it.each([
     ["groundhog_networkInfo", []],
     ["groundhog_chainTip", []],
-    ["groundhog_getTransactionReceipt", [hash(1)]],
-    ["groundhog_getTransactionStatus", [hash(2)]],
+    ["groundhog_getTransactionReceipt", [wireId(1)]],
+    ["groundhog_getTransactionStatus", [wireId(2)]],
     ["groundhog_view", [viewRequest()]],
     ["groundhog_getEvents", [eventQuery()]],
   ])(
@@ -388,7 +394,8 @@ describe("production HTTP server", () => {
         jsonrpc: "2.0",
         id: 1,
         method: "groundhog_getTransactionStatus",
-        params: [hash(1).toUpperCase()],
+        // Transaction hashes are base58 on the wire; 0x hex is rejected.
+        params: [`0x${"01".repeat(32)}`],
       },
       400,
     ],
@@ -863,7 +870,7 @@ function pool(): RegistryPool {
     handlerAddress: address(4),
     driverAddress: address(5),
     pairCount: "1",
-    transactionHash: `0x${"ab".repeat(32)}`,
+    transactionHash: toBase58(new Uint8Array(32).fill(0xab)),
     eventSequence: "4294967295",
     createdBlock: "12",
     indexedAt: "2026-09-05T00:00:00.000Z",
@@ -871,19 +878,26 @@ function pool(): RegistryPool {
 }
 
 function address(value: number): string {
-  return `0x${value.toString(16).padStart(64, "0")}`;
+  const bytes = new Uint8Array(32);
+  new DataView(bytes.buffer).setUint32(28, value);
+  return toBase58(bytes);
+}
+
+/** RPC addresses and transaction hashes are base58 on the wire. */
+function wireId(value: number): string {
+  return toBase58(new Uint8Array(32).fill(value));
 }
 
 function hash(value: number): string {
-  return `0x${value.toString(16).padStart(64, "0")}`;
+  return address(value + 1_000);
 }
 
 function viewRequest() {
   return {
-    contract: address(1),
+    contract: wireId(1),
     entrypoint: `0x${"12".repeat(8)}`,
     calldata: "0x",
-    caller: address(2),
+    caller: wireId(2),
   };
 }
 
@@ -891,8 +905,9 @@ function eventQuery() {
   return {
     filters: [
       {
-        contractAddresses: [address(1)],
-        topics: { topic0: [hash(2)], topic1: [], topic2: [] },
+        contractAddresses: [wireId(1)],
+        // Event topics are opaque 32-byte values and stay 0x hex.
+        topics: { topic0: [`0x${"02".repeat(32)}`], topic1: [], topic2: [] },
       },
     ],
     order: "ascending",

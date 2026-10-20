@@ -2,7 +2,8 @@ import {
   bytesEqual,
   fromHex0x,
   hashContract,
-  toHex0x,
+  hashFromBase58,
+  toBase58,
 } from "@thruputchain/client";
 import { ContractType, type Contract } from "@thruputchain/protocol";
 
@@ -14,7 +15,7 @@ export async function loadStandardTokenArtifact(
 ): Promise<Contract> {
   const response = await fetch(
     new URL(
-      `/contract-artifacts/${toHex0x(expectedHash)}.json`,
+      `/contract-artifacts/${toBase58(expectedHash)}.json`,
       window.location.origin,
     ),
     {
@@ -68,7 +69,7 @@ export function parseStandardTokenArtifact(
     !/^0x(?:[0-9a-fA-F]{2})+$/.test(value.data) ||
     !("hash" in value) ||
     typeof value.hash !== "string" ||
-    !/^0x[0-9a-fA-F]{64}$/.test(value.hash)
+    value.hash !== toBase58(expectedHash)
   ) {
     throw new Error("Standard token deployment artifact is invalid");
   }
@@ -78,7 +79,7 @@ export function parseStandardTokenArtifact(
   };
   if (
     !bytesEqual(hashContract(contract), expectedHash) ||
-    !bytesEqual(fromHex0x(value.hash), expectedHash)
+    !bytesEqual(hashFromBase58(value.hash), expectedHash)
   )
     throw new Error(
       "Standard token deployment artifact hash does not match configuration",

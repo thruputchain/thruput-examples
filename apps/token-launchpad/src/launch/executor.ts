@@ -1,11 +1,13 @@
 import {
-  addressFromHex,
+  addressFromBase58,
   bytesEqual,
   fixedBytes,
   fromHex0x,
+  hashFromBase58,
+  toBase58,
   type CoreThruputClient,
 } from "@thruputchain/client";
-import { ExecResult, gasAmount, sha256Hash } from "@thruputchain/protocol";
+import { ExecResult, gasAmount } from "@thruputchain/protocol";
 import { decodeExecution } from "@thruputchain/client/wallet";
 
 import type { AppConfig } from "@/config";
@@ -84,7 +86,7 @@ export async function advanceWorkflow(input: {
           workflow.creation.status === "failed") &&
         review.fundingAmount > 0n
       ) {
-        const hash = sha256Hash(fromHex0x(workflow.funding.hash));
+        const hash = hashFromBase58(workflow.funding.hash);
         const receipt = await input.client.getTransactionReceipt(hash);
         if (
           !receipt ||
@@ -120,18 +122,18 @@ export async function advanceWorkflow(input: {
           }
         }
       }
-      const reviewedFeeRecipient = workflow.reviewedFeeRecipientHex
-        ? addressFromHex(workflow.reviewedFeeRecipientHex)
+      const reviewedFeeRecipient = workflow.reviewedFeeRecipient
+        ? addressFromBase58(workflow.reviewedFeeRecipient)
         : null;
       if (
-        review.predictedAddressHex !== workflow.predictedAddressHex ||
+        toBase58(review.predictedAddress) !== workflow.predictedAddress ||
         !bytesEqual(
           review.config.native_token,
-          addressFromHex(workflow.reviewedNativeTokenHex),
+          addressFromBase58(workflow.reviewedNativeToken),
         ) ||
         !bytesEqual(
           review.config.token_code_hash,
-          fromHex0x(workflow.reviewedTokenCodeHashHex),
+          hashFromBase58(workflow.reviewedTokenCodeHash),
         ) ||
         review.config.required_token_funding.toString() !==
           workflow.requiredTokenFunding ||
@@ -225,7 +227,7 @@ export async function advanceWorkflow(input: {
         });
         validateCreationEvidence({
           created,
-          predicted: addressFromHex(current.predictedAddressHex),
+          predicted: addressFromBase58(current.predictedAddress),
           creator: input.config.accountAddress,
           expectedTokenHash: input.config.expectedTokenHash,
           workflow: current,
@@ -234,7 +236,7 @@ export async function advanceWorkflow(input: {
         });
         return {
           ...current,
-          createdAddressHex: current.predictedAddressHex,
+          createdAddress: current.predictedAddress,
           creationBlock: result.receipt.height.toString(),
           verification: await readAndAssessTokenState({
             client: input.client,
@@ -300,7 +302,7 @@ export async function advanceWorkflow(input: {
 
       if (workflow.creation.status === "committed") {
         if (workflow.verification.status === "complete") return workflow;
-        const created = addressFromHex(workflow.createdAddressHex!);
+        const created = addressFromBase58(workflow.createdAddress!);
         workflow = {
           ...workflow,
           revision: workflow.revision + 1,

@@ -1,7 +1,7 @@
 use nnint_stress::*;
-use sdk::*;
+use thruput_sdk::*;
 
-static NNINT_STRESS_NONCE: SHA256Hash = sdk::sha256_static!("NNINT_STRESS_TEST_NONCE");
+static NNINT_STRESS_NONCE: SHA256Hash = thruput_sdk::sha256_static!("NNINT_STRESS_TEST_NONCE");
 
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {
     let env = TestEnvironment::no_cost();

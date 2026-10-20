@@ -1,7 +1,7 @@
 use crate::model::Model;
 use erc20::{ERC20BurnClient, ERC20ClawbackClient};
-use sdk::*;
 use thruput_erc20_if::*;
+use thruput_sdk::*;
 
 #[cfg(feature = "metadata")]
 mod metadata {

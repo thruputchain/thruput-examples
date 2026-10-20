@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { describe, expect, it, vi } from "vitest";
 
@@ -10,11 +11,10 @@ import {
   type RegistryPool,
 } from "@/registry/client";
 
-const hex = (value: number) =>
-  `0x${value.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (value: number) => toBase58(new Uint8Array(32).fill(value));
 const config: GlobalConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "ab".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0xab)),
   accountAddress: contractAddress(new Uint8Array(32).fill(1)),
   routerAddress: contractAddress(new Uint8Array(32).fill(2)),
   factoryAddress: contractAddress(new Uint8Array(32).fill(3)),
@@ -30,7 +30,7 @@ describe("pool registry client", () => {
       config,
       {
         q: "  Ａ  ",
-        token: hex(10),
+        token: id(10),
         sort: "oldest",
         limit: 20,
         offset: 0,
@@ -41,7 +41,7 @@ describe("pool registry client", () => {
     );
 
     expect(fetcher).toHaveBeenCalledWith(
-      `/api/pools?sort=oldest&limit=20&offset=0&q=A&token=${encodeURIComponent(hex(10))}&asOfBlock=12`,
+      `/api/pools?sort=oldest&limit=20&offset=0&q=A&token=${encodeURIComponent(id(10))}&asOfBlock=12`,
       { method: "GET", signal },
     );
   });
@@ -114,25 +114,25 @@ describe("pool registry client", () => {
     [
       "page network scope",
       (value: ReturnType<typeof page>) => {
-        value.networkId = "ff".repeat(32);
+        value.networkId = toBase58(new Uint8Array(32).fill(0xff));
       },
     ],
     [
       "page factory scope",
       (value: ReturnType<typeof page>) => {
-        value.factoryAddress = hex(99);
+        value.factoryAddress = id(99);
       },
     ],
     [
       "record network scope",
       (value: ReturnType<typeof page>) => {
-        value.pools[0]!.networkId = "ff".repeat(32);
+        value.pools[0]!.networkId = toBase58(new Uint8Array(32).fill(0xff));
       },
     ],
     [
       "record factory scope",
       (value: ReturnType<typeof page>) => {
-        value.pools[0]!.factoryAddress = hex(99);
+        value.pools[0]!.factoryAddress = id(99);
       },
     ],
   ])("rejects a mismatched %s", async (_name, mutate) => {
@@ -151,7 +151,7 @@ describe("pool registry client", () => {
     [
       "zero token",
       (pool: RegistryPool) => {
-        pool.token0Address = hex(0);
+        pool.token0Address = id(0);
       },
     ],
     [
@@ -172,7 +172,7 @@ describe("pool registry client", () => {
     [
       "zero child",
       (pool: RegistryPool) => {
-        pool.handlerAddress = hex(0);
+        pool.handlerAddress = id(0);
       },
     ],
     [
@@ -297,12 +297,57 @@ describe("pool registry client", () => {
     ];
     for (const value of cases)
       await expect(readPage(value)).rejects.toThrow(RegistryClientError);
-    await expect(readPage(page(), { token: hex(9) })).rejects.toThrow(
+    await expect(readPage(page(), { token: id(9) })).rejects.toThrow(
       /token filter/,
     );
     await expect(readPage(page(), { q: "not-present" })).rejects.toThrow(
       /search result/,
     );
+  });
+
+  it("accepts case-sensitive base58 search results and text-ordered token sorts", async () => {
+    const value = page();
+    const fragment = value.pools[0]!.handlerAddress.slice(-10);
+    expect(fragment).not.toBe(fragment.toLowerCase());
+    await expect(readPage(value, { q: fragment })).resolves.toMatchObject({
+      pools: [{ handlerAddress: value.pools[0]!.handlerAddress }],
+    });
+    await expect(
+      readPage(value, { q: fragment.toLowerCase() }),
+    ).rejects.toThrow(/search result/);
+
+    // 31 zero bytes then 57 is "1…1z"; then 58 is "1…121". Byte order puts 57
+    // first, but display sorts follow the base58 text, which puts 58 first.
+    const low = (last: number) => {
+      const bytes = new Uint8Array(32);
+      bytes[31] = last;
+      return toBase58(bytes);
+    };
+    const first = {
+      ...pool(1),
+      token0Address: low(57),
+      token1Address: id(200),
+    };
+    const second = {
+      ...pool(2),
+      token0Address: low(58),
+      token1Address: id(201),
+    };
+    const sorted = (pools: ReturnType<typeof pool>[]) =>
+      getRegistryPools(
+        config,
+        { sort: "token0", limit: 20, offset: 0, asOfBlock: "12" },
+        undefined,
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse({ ...page(pools), total: pools.length }),
+          ),
+      );
+    await expect(sorted([second, first])).resolves.toMatchObject({
+      pools: [{ token0Address: low(58) }, { token0Address: low(57) }],
+    });
+    await expect(sorted([first, second])).rejects.toThrow(RegistryClientError);
   });
 
   it("requires every expected page slot to be present", async () => {
@@ -363,27 +408,27 @@ function readPage(
   );
 }
 
-function pool(id = 1): RegistryPool {
+function pool(index = 1): RegistryPool {
   return {
-    networkId: config.networkIdHex,
-    factoryAddress: hex(3),
-    token0Address: hex(id * 10),
-    token1Address: hex(id * 10 + 1),
-    liquidityTokenAddress: hex(id * 10 + 2),
-    handlerAddress: hex(id * 10 + 3),
-    driverAddress: hex(id * 10 + 4),
-    pairCount: String(id),
-    transactionHash: hex(id * 10 + 5),
-    eventSequence: String(id - 1),
-    createdBlock: String(10 + id),
+    networkId: config.networkId,
+    factoryAddress: id(3),
+    token0Address: id(index * 10),
+    token1Address: id(index * 10 + 1),
+    liquidityTokenAddress: id(index * 10 + 2),
+    handlerAddress: id(index * 10 + 3),
+    driverAddress: id(index * 10 + 4),
+    pairCount: String(index),
+    transactionHash: id(index * 10 + 5),
+    eventSequence: String(index - 1),
+    createdBlock: String(10 + index),
     indexedAt: "2026-09-05T00:00:00.000Z",
   };
 }
 
 function page(pools = [pool()]) {
   return {
-    networkId: config.networkIdHex,
-    factoryAddress: hex(3),
+    networkId: config.networkId,
+    factoryAddress: id(3),
     pools,
     total: pools.length,
     limit: 20,
@@ -396,8 +441,8 @@ function page(pools = [pool()]) {
 
 function status() {
   return {
-    networkId: config.networkIdHex,
-    factoryAddress: hex(3),
+    networkId: config.networkId,
+    factoryAddress: id(3),
     indexedThroughBlock: "12",
     poolCount: 1,
     historyLimited: false,

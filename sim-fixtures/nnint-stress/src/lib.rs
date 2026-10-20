@@ -1,16 +1,16 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::storage::{Map, NNInt};
-use sdk::*;
+use thruput_sdk::storage::{Map, NNInt};
+use thruput_sdk::*;
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
 /// Simulator fixture for NNInt-heavy positive writes.
 ///
 /// This crate is intentionally a simulator fixture rather than a user-facing
 /// example contract. The `churn` method exercises strict increments, commuting
 /// increments, bounded decrements, and per-caller map entries in one call.
-#[sdk::storage]
+#[thruput_sdk::storage]
 pub struct NnintStress {
     total: NNInt,
     by_caller: Map<ContractAddress, NNInt>,

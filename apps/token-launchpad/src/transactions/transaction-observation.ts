@@ -1,6 +1,6 @@
 import {
-  hashFromHex,
-  toHex0x,
+  hashFromBase58,
+  toBase58,
   TransactionReceiptTimeoutError,
   TransactionRejectedError,
   type CoreThruputClient,
@@ -21,7 +21,7 @@ export function receiptResult(receipt: TransactionReceipt): WriteResult {
       receipt.execResult === ExecResult.ExecResultOK
         ? "committedSuccess"
         : "committedFailure",
-    hash: toHex0x(receipt.txHash),
+    hash: toBase58(receipt.txHash),
     receipt,
   };
 }
@@ -59,16 +59,22 @@ export function executionFailure(error: unknown): WriteResult | undefined {
   )
     return receiptResult(error.receipt);
   if (error instanceof TransactionObservationError)
-    return observationFailure(toHex0x(error.txHash), error.cause);
+    return observationFailure(toBase58(error.txHash), error.cause);
 }
 
 // Public observation remains available after the signing wallet is disposed.
 export function createTransactionObserver(
-  config: { networkIdHex: string },
+  config: { networkId: string },
   client: Pick<CoreThruputClient, "waitForTransactionReceipt">,
 ): (hash: string) => Promise<WriteResult> {
   return async (hash) => {
-    if (!/^0x[0-9a-f]{64}$/.test(hash))
+    let txHash: ReturnType<typeof hashFromBase58> | null = null;
+    try {
+      txHash = hashFromBase58(hash);
+    } catch {
+      // Reported below.
+    }
+    if (txHash === null || toBase58(txHash) !== hash)
       return {
         kind: "preSubmissionFailure",
         hash: null,
@@ -76,10 +82,8 @@ export function createTransactionObserver(
       };
     try {
       return receiptResult(
-        await client.waitForTransactionReceipt(hashFromHex(hash), {
-          expectedNetworkHash: networkHash(
-            hashFromHex(`0x${config.networkIdHex}`),
-          ),
+        await client.waitForTransactionReceipt(txHash, {
+          expectedNetworkHash: networkHash(hashFromBase58(config.networkId)),
           timeoutMs: 20_000,
           pollingIntervalMs: 500,
         }),

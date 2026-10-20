@@ -6,7 +6,7 @@
 
 use crate::ERC20Error;
 use core::fmt;
-use sdk::*;
+use thruput_sdk::*;
 
 #[contract_exception]
 #[non_exhaustive]

@@ -10,15 +10,15 @@
 //! observes a queue that another transaction drained out from under it in the same block, and it
 //! only no-ops when the queue was genuinely empty at the block snapshot.
 
-use sdk::storage::*;
-use sdk::*;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([1u8; 32]);
 
 // The queue's entries. These tests never drain through the helper, so this needs no `BatchRequest`
 // impl -- only the encoding that lets it sit in an `RCQ`.
 #[derive(ReadXDR, WriteXDR, Clone, Copy, Debug, PartialEq, Eq)]
-#[xdrs(crate = "::sdk::__xdrs")]
+#[xdrs(crate = "::thruput_sdk::__xdrs")]
 struct Request {
     id: u32,
 }

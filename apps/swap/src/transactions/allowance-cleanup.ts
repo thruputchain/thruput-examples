@@ -1,7 +1,8 @@
-import { toHex0x, type CoreThruputClient } from "@thruputchain/client";
+import { type CoreThruputClient, toBase58 } from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
 
 import type { GlobalConfig } from "@/config";
+import { isBase58Identifier } from "@/lib/address";
 import { buildApprovalTarget } from "@/contracts/approval-target";
 import { allowanceDifference } from "@/domain/allowance";
 import { verifyReadNetwork } from "@/thruput/client";
@@ -24,12 +25,12 @@ import { withAccountLock } from "@/transactions/account-lock";
 import { loadAccountRequestRecords } from "@/transactions/request-collection";
 import type { WriteBoundary, WriteResult } from "@/transactions/write-boundary";
 
-const STORAGE_VERSION = 2;
-const ADDRESS_PATTERN = /^0x[0-9a-f]{64}$/;
+// Version 3 stores addresses and the transaction hash as base58.
+const STORAGE_VERSION = 3;
 
 export interface AllowanceCleanupRecord {
   version: typeof STORAGE_VERSION;
-  networkIdHex: string;
+  networkId: string;
   accountAddress: string;
   tokenAddress: string;
   spenderAddress: string;
@@ -63,13 +64,13 @@ export interface AllowanceCleanupDependencies {
   assertCurrent?: () => void;
 }
 
-type AllowanceCleanupScope = Pick<GlobalConfig, "networkIdHex" | "accountAddress">;
+type AllowanceCleanupScope = Pick<GlobalConfig, "networkId" | "accountAddress">;
 
 export function allowanceCleanupKey(config: AllowanceCleanupScope): string {
   return [
     "groundhog-swap:allowance-cleanup:v2",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
   ].join(":");
 }
 
@@ -114,8 +115,8 @@ export async function runAllowanceCleanup(
     dependencies.assertCurrent?.();
     const client = dependencies.client;
     await verifyReadNetwork(client, config);
-    const tokenAddress = toHex0x(token);
-    const spenderAddress = toHex0x(spender);
+    const tokenAddress = toBase58(token);
+    const spenderAddress = toBase58(spender);
     const existing = loadAllowanceCleanup(config);
     if (
       existing !== null
@@ -164,8 +165,8 @@ export async function runAllowanceCleanup(
     const now = dependencies.now ?? Date.now;
     let record: AllowanceCleanupRecord = {
       version: STORAGE_VERSION,
-      networkIdHex: config.networkIdHex,
-      accountAddress: toHex0x(config.accountAddress),
+      networkId: config.networkId,
+      accountAddress: toBase58(config.accountAddress),
       tokenAddress,
       spenderAddress,
       status: "signing",
@@ -258,16 +259,13 @@ function isCleanupRecord(
 ): value is AllowanceCleanupRecord {
   if (!isRecord(value)) return false;
   return value.version === STORAGE_VERSION
-    && value.networkIdHex === config.networkIdHex
-    && value.accountAddress === toHex0x(config.accountAddress)
-    && typeof value.tokenAddress === "string"
-    && ADDRESS_PATTERN.test(value.tokenAddress)
-    && typeof value.spenderAddress === "string"
-    && ADDRESS_PATTERN.test(value.spenderAddress)
+    && value.networkId === config.networkId
+    && value.accountAddress === toBase58(config.accountAddress)
+    && isBase58Identifier(value.tokenAddress)
+    && isBase58Identifier(value.spenderAddress)
     && (value.status === "signing" || value.status === "indeterminate")
     && (value.transactionHash === null
-      || (typeof value.transactionHash === "string"
-        && ADDRESS_PATTERN.test(value.transactionHash)))
+      || isBase58Identifier(value.transactionHash))
     && typeof value.difference === "string"
     && /^-\d+$/.test(value.difference)
     && BigInt(value.difference) < 0n

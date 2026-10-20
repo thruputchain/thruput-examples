@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import {
+  addressFromBase58,
   addressFromHex,
   createThruputClient,
   createPubkeyAccount,
@@ -17,6 +18,7 @@ import {
   localnet,
   prepareContractDeployment,
   PrivateKeySigner,
+  toBase58,
   toHex0x,
   TransactionProcessingError,
 } from "@thruputchain/client";
@@ -160,7 +162,7 @@ try {
   });
   const wallet = createWalletClient({ client, account });
   await wallet.requestAirdrop();
-  const tokenFactory = addressFromHex(
+  const tokenFactory = addressFromBase58(
     configs["token-launchpad"]!.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!,
   );
   const tokenFunding =
@@ -171,8 +173,10 @@ try {
       })
     ).value +
     BigInt(configs["token-launchpad"]!.VITE_NATIVE_BALANCE_ITEM_COST!);
-  const swapFactory = addressFromHex(configs.swap!.VITE_SWAP_FACTORY_ADDRESS!);
-  const router = addressFromHex(configs.swap!.VITE_SWAP_ROUTER_ADDRESS!);
+  const swapFactory = addressFromBase58(
+    configs.swap!.VITE_SWAP_FACTORY_ADDRESS!,
+  );
+  const router = addressFromBase58(configs.swap!.VITE_SWAP_ROUTER_ADDRESS!);
   async function code(name: string): Promise<Contract> {
     return {
       contract_type: ContractType.kRv32,
@@ -182,7 +186,7 @@ try {
   const tokenCode = await code("standard_token");
   const lpCode = await code("erc20");
   assert.equal(
-    toHex0x(hashContract(tokenCode)),
+    toBase58(hashContract(tokenCode)),
     configs["token-launchpad"]!.VITE_STANDARD_TOKEN_HASH,
   );
   async function batch(
@@ -213,7 +217,7 @@ try {
     const receipt = await wallet.waitForTransactionReceipt(hash, {
       timeoutMs: 60_000,
     });
-    console.log(label, toHex0x(hash), ExecResult[receipt.execResult]);
+    console.log(label, toBase58(hash), ExecResult[receipt.execResult]);
     return receipt;
   }
   const invalidNonce = fixedBytes(randomBytes(32), 32);
@@ -414,7 +418,7 @@ try {
   );
   console.log(
     "Transfer alone cannot commit with zero storage reserve",
-    toHex0x(unfundedHash),
+    toBase58(unfundedHash),
   );
   // This is a scheduler retry, not a committed revert. Expire it while the
   // reserve is still zero so it cannot execute later using the batch's top-up.

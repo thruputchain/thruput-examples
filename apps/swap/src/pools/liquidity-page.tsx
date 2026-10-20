@@ -1,5 +1,5 @@
 import { AlertCircleIcon } from "lucide-react";
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { useState } from "react";
 import { useClient } from "@thruputchain/react";
 
@@ -266,8 +266,8 @@ export function LiquidityPage({
       description={`${config.tokenASymbol} / ${config.tokenBSymbol} deposits and redemptions.`}
     >
       <div className="flex flex-wrap gap-3 text-sm">
-        <BlockchainIdentifier kind="address" value={toHex0x(config.tokenAAddress)} label="Token A address" />
-        <BlockchainIdentifier kind="address" value={toHex0x(config.tokenBAddress)} label="Token B address" />
+        <BlockchainIdentifier kind="address" value={toBase58(config.tokenAAddress)} label="Token A address" />
+        <BlockchainIdentifier kind="address" value={toBase58(config.tokenBAddress)} label="Token B address" />
       </div>
       {displayError === null ? null : (
         <Alert variant="destructive">
@@ -819,17 +819,17 @@ function readAccountReservations(
   const creations = loadAccountCreationWorkflows(config);
   const liquidity = loadAccountLiquidityOperations(config)
     .filter(({ id }) => id !== excludeOperationId);
-  const tokens = [toHex0x(config.tokenAAddress), toHex0x(config.tokenBAddress)] as const;
+  const tokens = [toBase58(config.tokenAAddress), toBase58(config.tokenBAddress)] as const;
   const balanceReservations = tokens.map((token) =>
     reservedInputForToken(requests, token)
       + reservedCreationToken(creations, token)
       + reservedLiquidityTokenAmount(liquidity, token)
   ) as unknown as readonly [bigint, bigint];
   const localRequests = requests.filter(({ criteria }) =>
-    criteria.handlerAddress === toHex0x(config.handlerAddress)
+    criteria.handlerAddress === toBase58(config.handlerAddress)
   );
   const localLiquidity = liquidity.filter(({ handlerAddress }) =>
-    handlerAddress === toHex0x(config.handlerAddress)
+    handlerAddress === toBase58(config.handlerAddress)
   );
   return {
     balanceReservations,
@@ -838,17 +838,17 @@ function readAccountReservations(
         requests: localRequests,
         liquidityOperations: localLiquidity,
         creationWorkflows: creations,
-      }, token, toHex0x(config.handlerAddress))
+      }, token, toBase58(config.handlerAddress))
     ) as unknown as readonly [bigint, bigint],
     liquidityReservation:
-      reservedInputForToken(requests, toHex0x(config.liquidityTokenAddress))
-      + reservedCreationToken(creations, toHex0x(config.liquidityTokenAddress))
-      + reservedLiquidityTokenAmount(liquidity, toHex0x(config.liquidityTokenAddress)),
+      reservedInputForToken(requests, toBase58(config.liquidityTokenAddress))
+      + reservedCreationToken(creations, toBase58(config.liquidityTokenAddress))
+      + reservedLiquidityTokenAmount(liquidity, toBase58(config.liquidityTokenAddress)),
     liquidityAllowanceReservation: requiredAllowanceFor({
       requests: localRequests,
       liquidityOperations: localLiquidity,
       creationWorkflows: creations,
-    }, toHex0x(config.liquidityTokenAddress), toHex0x(config.handlerAddress)),
+    }, toBase58(config.liquidityTokenAddress), toBase58(config.handlerAddress)),
   };
 }
 

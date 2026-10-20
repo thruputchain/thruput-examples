@@ -4,7 +4,7 @@ import {
   createPubkeyAccount,
   hashSignedTransaction,
   PrivateKeySigner,
-  toHex0x,
+  toBase58,
   type TransactionReceipt,
 } from "@thruputchain/client";
 import {
@@ -73,7 +73,7 @@ it("prints the canonical hash before submission and confirms the receipt", async
   const f = await fixture();
   f.wallet.sendTransaction.mockImplementation(async () => {
     expect(f.log).toHaveBeenCalledWith(
-      `Submitting transfer: ${toHex0x(f.hash)}`,
+      `Submitting transfer: ${toBase58(f.hash)}`,
     );
     return f.hash;
   });

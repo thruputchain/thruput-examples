@@ -1,5 +1,5 @@
 import { AlertCircleIcon, LoaderCircleIcon, RocketIcon } from "lucide-react";
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { Link } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,9 +22,9 @@ import {
 
 export function TokensPage(props: DirectoryOptions) {
   const key = [
-    props.config.networkIdHex,
-    toHex0x(props.config.factoryAddress),
-    toHex0x(props.config.accountAddress),
+    props.config.networkId,
+    toBase58(props.config.factoryAddress),
+    toBase58(props.config.accountAddress),
     props.scope,
   ].join(":");
   return <TokenDirectory key={key} {...props} />;

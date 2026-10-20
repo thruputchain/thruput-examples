@@ -15,7 +15,7 @@ categories.workspace = true
 doctest = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 thruput-erc20-metadata-if = { workspace = true }
 
@@ -25,7 +25,7 @@ serde_json = { workspace = true }
 hex = { workspace = true }
 
 [features]
-dev = ["sdk/dev", "thruput-erc20-if/dev"]
+dev = ["thruput-sdk/dev", "thruput-erc20-if/dev"]
 
 [lints]
 # The contract macro generates methods from the specification-fixed create_token ABI.

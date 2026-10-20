@@ -1,6 +1,7 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 
 import type { AppConfig } from "@/config";
+import { isBase58Identifier } from "@/lib/address";
 import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
 import { withAccountLock } from "./account-lock";
 import type { SwapIntent } from "@/swap/workflow";
@@ -31,9 +32,11 @@ export interface OutstandingRequest {
   };
 }
 
-const STORAGE_VERSION = 3;
+// Version 4 stores addresses and transaction hashes as base58. Request IDs are
+// event topic bytes and stay 0x hex.
+const STORAGE_VERSION = 4;
 const TERMINAL_HISTORY_LIMIT = 50;
-const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
+const REQUEST_ID_PATTERN = /^0x[0-9a-f]{64}$/;
 const I128_MAX = (1n << 127n) - 1n;
 const U128_MAX = (1n << 128n) - 1n;
 
@@ -119,26 +122,26 @@ interface StoredRequest {
 export function requestCollectionKey(config: AppConfig): string {
   return [
     "groundhog-swap:requests:v4",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
-    toHex0x(config.factoryAddress),
-    toHex0x(config.handlerAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
+    toBase58(config.factoryAddress),
+    toBase58(config.handlerAddress),
   ].join(":");
 }
 
 function accountRequestCollectionPrefix(
-  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: Pick<AppConfig, "networkId" | "accountAddress">,
 ): string {
   return [
     "groundhog-swap:requests:v4",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
     "",
   ].join(":");
 }
 
 export function isAccountRequestCollectionKey(
-  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: Pick<AppConfig, "networkId" | "accountAddress">,
   key: string | null,
 ): boolean {
   if (key === null) return false;
@@ -146,7 +149,7 @@ export function isAccountRequestCollectionKey(
 }
 
 export function loadAccountRequestRecords(
-  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: Pick<AppConfig, "networkId" | "accountAddress">,
 ): RequestRecord[] {
   if (typeof window === "undefined") return [];
   const records: RequestRecord[] = [];
@@ -428,7 +431,7 @@ function fromStoredRequest(request: StoredRequest): RequestRecord {
 
 function isStoredCollection(
   value: unknown,
-  config: AppConfig | Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: AppConfig | Pick<AppConfig, "networkId" | "accountAddress">,
   scope: "pool" | "account" = "pool",
 ): value is StoredCollection {
   if (!isRecord(value) || value.version !== STORAGE_VERSION) return false;
@@ -452,7 +455,7 @@ function isStoredCollection(
 
 function isStoredRequest(
   value: unknown,
-  config: AppConfig | Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: AppConfig | Pick<AppConfig, "networkId" | "accountAddress">,
   scope: "pool" | "account" = "pool",
 ): value is StoredRequest {
   if (!isRecord(value)) return false;
@@ -466,7 +469,8 @@ function isStoredRequest(
     || !isPositiveIntegerAtMost(value.amountOutMin, U128_MAX)
     || !isNullableHash(value.transactionHash)
     || !(value.receiptBlock === null || isUnsignedInteger(value.receiptBlock))
-    || !isNullableHash(value.requestId)
+    || !(value.requestId === null
+      || (typeof value.requestId === "string" && REQUEST_ID_PATTERN.test(value.requestId)))
     || !isObservationTime(value.visibleObservationMs)
     || !isObservationBaseline(value.observationBaseline)
     || !isCriteria(value.criteria, config, scope)
@@ -527,7 +531,7 @@ function isStoredRequest(
 
 function isExecution(value: unknown): value is StoredRequest["execution"] {
   if (value === null) return true;
-  if (!isRecord(value) || !HASH_PATTERN.test(String(value.transactionHash))) {
+  if (!isRecord(value) || !isBase58Identifier(value.transactionHash)) {
     return false;
   }
   if (!isUnsignedInteger(value.blockHeight)) return false;
@@ -561,25 +565,25 @@ function isObservationBaseline(
 
 function isCriteria(
   value: unknown,
-  config: AppConfig | Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: AppConfig | Pick<AppConfig, "networkId" | "accountAddress">,
   scope: "pool" | "account" = "pool",
 ): value is RequestRecord["criteria"] {
   if (!isRecord(value)) return false;
   if (
     !["handlerAddress", "driverAddress", "sender", "recipient", "tokenIn", "tokenOut"]
-      .every((key) => HASH_PATTERN.test(String(value[key])))
+      .every((key) => isBase58Identifier(value[key]))
   ) return false;
 
-  if (value.sender !== toHex0x(config.accountAddress)) return false;
+  if (value.sender !== toBase58(config.accountAddress)) return false;
   if (scope === "account") {
     return value.tokenIn !== value.tokenOut;
   }
   const poolConfig = config as AppConfig;
-  const tokenA = toHex0x(poolConfig.tokenAAddress);
-  const tokenB = toHex0x(poolConfig.tokenBAddress);
-  return value.handlerAddress === toHex0x(poolConfig.handlerAddress)
-    && value.driverAddress === toHex0x(poolConfig.driverAddress)
-    && value.recipient === toHex0x(config.accountAddress)
+  const tokenA = toBase58(poolConfig.tokenAAddress);
+  const tokenB = toBase58(poolConfig.tokenBAddress);
+  return value.handlerAddress === toBase58(poolConfig.handlerAddress)
+    && value.driverAddress === toBase58(poolConfig.driverAddress)
+    && value.recipient === toBase58(config.accountAddress)
     && ((value.tokenIn === tokenA && value.tokenOut === tokenB)
       || (value.tokenIn === tokenB && value.tokenOut === tokenA));
 }
@@ -599,7 +603,7 @@ function isRequestStatus(value: unknown): value is RequestStatus {
 }
 
 function isNullableHash(value: unknown): value is string | null {
-  return value === null || (typeof value === "string" && HASH_PATTERN.test(value));
+  return value === null || isBase58Identifier(value);
 }
 
 function isUnsignedInteger(value: unknown): value is string {

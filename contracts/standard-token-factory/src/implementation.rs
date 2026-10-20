@@ -1,12 +1,12 @@
-use sdk::storage::Value;
-use sdk::*;
 use standard_token_factory_if::{
     Amount, FactoryConfig, Name, StandardTokenFactory, StandardTokenInitializerClient, Symbol,
     TokenCreated, TokenFactoryError, deployment_nonce, predicted_token,
 };
 use thruput_erc20_if::{CONTRACT_ADDR_ZERO, ERC20Client};
+use thruput_sdk::storage::Value;
+use thruput_sdk::*;
 
-#[sdk::storage]
+#[thruput_sdk::storage]
 #[cfg_attr(feature = "dev", derive(Debug))]
 pub struct StandardTokenFactoryContract {
     config: Value<FactoryConfig>,

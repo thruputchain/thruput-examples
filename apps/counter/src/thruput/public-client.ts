@@ -2,9 +2,9 @@ import {
   createThruputClient,
   defineCluster,
   getNetworkInfo,
-  hashFromHex,
+  hashFromBase58,
   HttpTransport,
-  toHex0x,
+  toBase58,
 } from "@thruputchain/client";
 import { networkHash } from "@thruputchain/protocol";
 import type { AppConfig } from "../config";
@@ -15,14 +15,14 @@ export function createPublicClient(config: AppConfig, rpcUrl: string) {
     cluster: defineCluster({
       name: "counter",
       rpcUrl,
-      networkHash: networkHash(hashFromHex(config.networkId)),
+      networkHash: networkHash(hashFromBase58(config.networkId)),
       capabilities: [],
     }),
     transport: {
       async request(method, params, options) {
         if (
           method !== "groundhog_networkInfo" &&
-          toHex0x((await getNetworkInfo(transport)).networkHash) !==
+          toBase58((await getNetworkInfo(transport)).networkHash) !==
             config.networkId
         )
           throw new Error("The RPC network no longer matches this Counter.");

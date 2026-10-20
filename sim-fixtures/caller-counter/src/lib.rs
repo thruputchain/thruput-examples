@@ -1,9 +1,9 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::storage::{Map, NNInt};
-use sdk::*;
+use thruput_sdk::storage::{Map, NNInt};
+use thruput_sdk::*;
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
 /// Per-caller counter.
 ///
@@ -12,7 +12,7 @@ sdk::declare_mock_contract!();
 /// fixture: `bump()` is the write and `get()` is the write-dependent read-back,
 /// and a caller's value advances by exactly one per `bump()` regardless of other
 /// callers.
-#[sdk::storage]
+#[thruput_sdk::storage]
 pub struct CallerCounter {
     counts: Map<ContractAddress, NNInt>,
 }

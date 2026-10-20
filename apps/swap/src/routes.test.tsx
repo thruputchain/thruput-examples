@@ -1,4 +1,5 @@
 import { contractAddress } from "@thruputchain/protocol";
+import { toBase58 } from "@thruputchain/client";
 import { render, screen } from "@/test/render";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +8,8 @@ import { PoolRoutes } from "@/routes";
 import { loadRuntimeConfig } from "@/config";
 import { ProcessingModeProvider } from "@/components/processing-mode";
 import type { GlobalConfig } from "@/config";
+
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 
 vi.mock("@/pools/pool-directory-page", () => ({
   PoolDirectoryPage: () => <h1>Pools</h1>,
@@ -20,7 +23,7 @@ const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
 const config: GlobalConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(3),
@@ -79,8 +82,8 @@ describe("PoolRoutes", () => {
   it.each(["swap", "liquidity"])(
     "redirects the %s route to pool detail when read-only",
     async (view) => {
-      const token0 = `0x${"05".repeat(32)}`;
-      const token1 = `0x${"06".repeat(32)}`;
+      const token0 = toBase58(new Uint8Array(32).fill(0x05));
+      const token1 = toBase58(new Uint8Array(32).fill(0x06));
       render(
         <MemoryRouter initialEntries={[`/pools/${token0}/${token1}/${view}`]}>
           <ProcessingModeProvider>
@@ -113,10 +116,10 @@ describe("browser configuration", () => {
     const body = {
       VITE_EXPLORER_URL: "https://Explorer.test/",
       VITE_THRUPUT_RPC_URL: "https://ignored-upstream.test",
-      VITE_THRUPUT_NETWORK_ID: "00".repeat(32),
-      VITE_NATIVE_HOG_ADDRESS: `0x${"02".repeat(32)}`,
-      VITE_SWAP_FACTORY_ADDRESS: `0x${"03".repeat(32)}`,
-      VITE_SWAP_ROUTER_ADDRESS: `0x${"04".repeat(32)}`,
+      VITE_THRUPUT_NETWORK_ID: b58(0x00),
+      VITE_NATIVE_HOG_ADDRESS: b58(0x02),
+      VITE_SWAP_FACTORY_ADDRESS: b58(0x03),
+      VITE_SWAP_ROUTER_ADDRESS: b58(0x04),
     };
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify(body)));
     const config = await loadRuntimeConfig();

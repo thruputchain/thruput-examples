@@ -1,7 +1,6 @@
 import {
   bytesEqual,
   fixedBytes,
-  toHex0x,
   type CoreThruputClient,
 } from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
@@ -20,7 +19,6 @@ type FactoryConfig = standard_token_factory_if.v0_1.factory.FactoryConfig;
 export interface FactoryReview {
   config: FactoryConfig;
   predictedAddress: ContractAddress;
-  predictedAddressHex: string;
   currentReserve: bigint;
   reserveHeight: bigint;
   fundingAmount: bigint;
@@ -113,7 +111,6 @@ export async function reviewFactory(
   return {
     config: factory,
     predictedAddress,
-    predictedAddressHex: toHex0x(predictedAddress),
     currentReserve,
     reserveHeight: reserveResult.height,
     fundingAmount,

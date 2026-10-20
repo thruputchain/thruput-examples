@@ -1,13 +1,15 @@
 // @vitest-environment node
+import { toBase58 } from "@thruputchain/client";
 import { describe, expect, it, vi } from "vitest";
 import { getDiscoveryTokens } from "./client.ts";
 import { loadDiscoveryConfig } from "./config.ts";
 import { validateDiscoveryResponse } from "./wire.ts";
 
-const address = (n: number) => `0x${n.toString(16).padStart(64, "0")}`;
+// The registry API, environment and token form state all use base58.
+const address = (n: number) => toBase58(new Uint8Array(32).fill(n));
 const config = loadDiscoveryConfig({
   VITE_TOKEN_DISCOVERY_ENABLED: "true",
-  VITE_THRUPUT_NETWORK_ID: "ab".repeat(32),
+  VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0xab)),
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: address(1),
   VITE_STANDARD_TOKEN_HASH: address(2),
 });
@@ -57,7 +59,11 @@ describe("browser token discovery client", () => {
   it.each([
     { ...response, extra: "private" },
     { ...response, scope: { ...config.scope, extra: "private" } },
-    { ...response, scope: { ...config.scope, networkId: "cd".repeat(32) } },
+    { ...response, scope: { ...config.scope, networkId: address(0xcd) } },
+    {
+      ...response,
+      tokens: [{ ...token, tokenAddress: `0x${"03".repeat(32)}` }],
+    },
     { ...response, scope: { ...config.scope, factoryAddress: address(99) } },
     { ...response, scope: { ...config.scope, tokenCodeHash: address(99) } },
     { ...response, tokens: [{ ...token, blockHeight: "1" }] },

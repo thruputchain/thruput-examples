@@ -1,15 +1,15 @@
 //! Tests for the swap factory: one-transaction pool bring-up, the pair registry, and the protocol
 //! fee flowing to the factory's `fee_to`.
 
-use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
-use sdk::storage::Node;
-use sdk::*;
 use swap_factory::{Addresses, POOL_FUNDING, SwapFactoryClient, SwapFactoryError};
 use swap_handler::SwapHandlerClient;
 use swap_if::SwapHashes;
 use swap_pair::Pair;
 use swap_pair::u256::U256;
 use thruput_erc20_if::{Difference, ERC20Client};
+use thruput_sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
+use thruput_sdk::storage::Node;
+use thruput_sdk::*;
 
 hash_ident! { pub static DEPLOYER: ContractAddress; }
 hash_ident! { pub static FEE_ADDR: ContractAddress; }
@@ -87,7 +87,7 @@ fn register_contracts(env: &TestEnvironmentHandle) -> (SwapHashes, SHA256Hash) {
 }
 
 fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
-    let env = sdk::TestEnvironment::new(None); // use default cost model
+    let env = thruput_sdk::TestEnvironment::new(None); // use default cost model
 
     let (hashes, factory_hash) = register_contracts(&env);
 

@@ -19,7 +19,7 @@ to remove a few repeated lines. Larger apps are reference implementations.
 
 Follow the root README's Setup section. Use npm and the root `package-lock.json`.
 Node must be at least 22.13. Rust is pinned in `rust-toolchain.toml`.
-Use CLI 0.29.0 and its managed runtime 0.1.31-rc.3 with this release set.
+Use CLI 0.32.1 and its managed runtime 0.1.31-rc.10 with this release set.
 
 Cargo needs `thruput` registry access and a credential provider such as
 `cargo:token`. npm needs GitHub Packages authentication for `@thruputchain/*`.

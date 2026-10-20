@@ -1,9 +1,10 @@
 import {
-  addressFromHex,
+  addressFromBase58,
   bytesEqual,
+  type CoreThruputClient,
+  toBase58,
   toHex0x,
   type TransactionReceipt,
-  type CoreThruputClient,
 } from "@thruputchain/client";
 import type { Invocation } from "@thruputchain/protocol";
 import { DefaultWallet } from "@thruputchain/client/contracts";
@@ -374,9 +375,9 @@ async function runCreationBatch(
       executionMode: "batch",
       batchSteps: names,
       batchPool: {
-        liquidityToken: toHex0x(pool.liquidityToken),
-        handler: toHex0x(pool.handler),
-        driver: toHex0x(pool.driver),
+        liquidityToken: toBase58(pool.liquidityToken),
+        handler: toBase58(pool.handler),
+        driver: toBase58(pool.driver),
       },
     };
     for (const name of creationStepOrder) {
@@ -416,9 +417,9 @@ async function runCreationBatch(
       );
       const expected = workflow.batchPool!;
       if (
-        toHex0x(created.handler) !== expected.handler ||
-        toHex0x(created.driver) !== expected.driver ||
-        toHex0x(created.liquidity_token) !== expected.liquidityToken
+        toBase58(created.handler) !== expected.handler ||
+        toBase58(created.driver) !== expected.driver ||
+        toBase58(created.liquidity_token) !== expected.liquidityToken
       )
         throw new Error("Pool prediction mismatch");
       const events = PoolCreated.allFromReceipt(result.receipt, {
@@ -426,8 +427,8 @@ async function runCreationBatch(
       });
       if (
         events.length !== 1 ||
-        toHex0x(events[0]!.topics.token0) !== workflow.token0.address ||
-        toHex0x(events[0]!.topics.token1) !== workflow.token1.address ||
+        toBase58(events[0]!.topics.token0) !== workflow.token0.address ||
+        toBase58(events[0]!.topics.token1) !== workflow.token1.address ||
         !bytesEqual(events[0]!.fields.handler, created.handler) ||
         !bytesEqual(events[0]!.fields.driver, created.driver) ||
         !bytesEqual(events[0]!.fields.liquidity_token, created.liquidity_token)
@@ -590,7 +591,7 @@ async function revalidateWorkflow(
   const otherWorkflows = loadAccountCreationWorkflows(config).filter(({ id }) => id !== workflow.id);
   const requests = loadAccountRequestRecords(config);
   const liquidityOperations = loadAccountLiquidityOperations(config);
-  const nativeHogHex = toHex0x(config.nativeHogAddress);
+  const nativeHogBase58 = toBase58(config.nativeHogAddress);
   const readReview = () => preparePoolCreation(
     config,
     {
@@ -600,9 +601,9 @@ async function revalidateWorkflow(
       amountB: formatAmount(BigInt(workflow.token1.amount), workflow.token1.decimals),
     },
     reservedCreationHog(otherWorkflows)
-      + reservedCreationToken(otherWorkflows, nativeHogHex)
-      + reservedInputForToken(requests, nativeHogHex)
-      + reservedLiquidityTokenAmount(liquidityOperations, nativeHogHex),
+      + reservedCreationToken(otherWorkflows, nativeHogBase58)
+      + reservedInputForToken(requests, nativeHogBase58)
+      + reservedLiquidityTokenAmount(liquidityOperations, nativeHogBase58),
     {
       ...dependencies,
       requiredNativeHog: hasCreationFundingExposure(workflow)
@@ -622,8 +623,8 @@ async function revalidateWorkflow(
   if (review.readHeight < confirmedHeight)
     throw new Error("The pool snapshot has not reached the confirmed transaction block yet. Check again.");
   if (
-    review.token0.addressHex !== workflow.token0.address
-    || review.token1.addressHex !== workflow.token1.address
+    review.token0.addressBase58 !== workflow.token0.address
+    || review.token1.addressBase58 !== workflow.token1.address
     || review.token0.amount !== BigInt(workflow.token0.amount)
     || review.token1.amount !== BigInt(workflow.token1.amount)
     || review.fundingMinimum !== BigInt(workflow.fundingMinimum)
@@ -632,9 +633,9 @@ async function revalidateWorkflow(
   ) throw new Error("The creation review no longer matches the saved workflow");
 
   for (const token of [review.token0, review.token1]) {
-    const reserved = reservedCreationToken(otherWorkflows, token.addressHex)
-      + reservedInputForToken(requests, token.addressHex)
-      + reservedLiquidityTokenAmount(liquidityOperations, token.addressHex);
+    const reserved = reservedCreationToken(otherWorkflows, token.addressBase58)
+      + reservedInputForToken(requests, token.addressBase58)
+      + reservedLiquidityTokenAmount(liquidityOperations, token.addressBase58);
     if (token.balance < token.amount + reserved) {
       throw new Error(`The unreserved ${token.symbol} balance is no longer sufficient`);
     }
@@ -684,7 +685,7 @@ function withAggregateApproval(
   records: Parameters<typeof requiredAllowanceFor>[0],
   handlerAddress: string,
 ): PoolCreationReview["token0"] {
-  const required = token.amount + requiredAllowanceFor(records, token.addressHex, handlerAddress);
+  const required = token.amount + requiredAllowanceFor(records, token.addressBase58, handlerAddress);
   return {
     ...token,
     approvalDifference: token.allowance >= required ? 0n : required - token.allowance,
@@ -706,8 +707,8 @@ function targetForStep(
   if (name === "createPool") {
     return buildCreatePairTarget(
       config.factoryAddress,
-      addressFromHex(workflow.token0.address),
-      addressFromHex(workflow.token1.address),
+      addressFromBase58(workflow.token0.address),
+      addressFromBase58(workflow.token1.address),
       BigInt(workflow.fundingPerContract),
     );
   }
@@ -732,7 +733,7 @@ function targetForStep(
     });
   }
   if (workflow.pool === null) throw new Error("The created pool is unavailable");
-  return buildProcessRequestsTarget(addressFromHex(workflow.pool.driver));
+  return buildProcessRequestsTarget(addressFromBase58(workflow.pool.driver));
 }
 
 function applyWriteResult(
@@ -775,7 +776,7 @@ async function applyCommittedStep(
 ): Promise<CreationWorkflow> {
   let next = updateStep(workflow, name, {
     status: "committed",
-    transactionHash: toHex0x(receipt.txHash),
+    transactionHash: toBase58(receipt.txHash),
     receiptBlock: receipt.height.toString(),
     message: null,
   });
@@ -785,8 +786,8 @@ async function applyCommittedStep(
       created = PoolCreated.allFromReceipt(receipt, {
         contractAddress: config.factoryAddress,
       }).filter((event) =>
-        toHex0x(event.topics.token0) === workflow.token0.address
-        && toHex0x(event.topics.token1) === workflow.token1.address
+        toBase58(event.topics.token0) === workflow.token0.address
+        && toBase58(event.topics.token1) === workflow.token1.address
       );
     } catch {
       // Factory state remains authoritative when receipt event decoding is unavailable.
@@ -796,9 +797,9 @@ async function applyCommittedStep(
       next = {
         ...next,
         pool: {
-          liquidityToken: toHex0x(event.fields.liquidity_token),
-          handler: toHex0x(event.fields.handler),
-          driver: toHex0x(event.fields.driver),
+          liquidityToken: toBase58(event.fields.liquidity_token),
+          handler: toBase58(event.fields.handler),
+          driver: toBase58(event.fields.driver),
         },
       };
     } else {
@@ -810,7 +811,7 @@ async function applyCommittedStep(
       } catch {
         return update(updateStep(workflow, name, {
           status: "indeterminate",
-          transactionHash: toHex0x(receipt.txHash),
+          transactionHash: toBase58(receipt.txHash),
           receiptBlock: null,
           message: "Pool creation committed, but its factory record could not be resolved yet.",
         }));
@@ -828,7 +829,7 @@ async function applyCommittedStep(
       } catch {
         return update(updateStep(workflow, name, {
           status: "indeterminate",
-          transactionHash: toHex0x(receipt.txHash),
+          transactionHash: toBase58(receipt.txHash),
           receiptBlock: null,
           message: "Pool creation committed, but its receipt does not match factory state yet.",
         }));
@@ -838,7 +839,7 @@ async function applyCommittedStep(
   if (name === "enqueue") {
     if (next.pool === null) throw new Error("The created pool is unavailable");
     const accepted = RequestAccepted.allFromReceipt(receipt, {
-      contractAddress: addressFromHex(next.pool.driver),
+      contractAddress: addressFromBase58(next.pool.driver),
     });
     if (accepted.length !== 1) {
       return update({
@@ -885,7 +886,7 @@ function reconcileRelatedReceipt(
   const queued = requests.filter((request) =>
     needsQueueProcessing(request)
     && request.requestId !== null
-    && request.criteria.driverAddress === toHex0x(poolConfig.driverAddress)
+    && request.criteria.driverAddress === toBase58(poolConfig.driverAddress)
   );
   if (queued.length > 0) {
     saveRequestCollection(
@@ -951,8 +952,8 @@ async function resolveExistingPool(
     contract: config.factoryAddress,
     caller: config.accountAddress,
   });
-  const token0 = addressFromHex(workflow.token0.address);
-  const token1 = addressFromHex(workflow.token1.address);
+  const token0 = addressFromBase58(workflow.token0.address);
+  const token1 = addressFromBase58(workflow.token1.address);
   // Receipts can be indexed before views reach their block. Retry reads only;
   // never resubmit the batch because its factory view is briefly behind.
   const attempts = minimumHeight === undefined ? 1 : 5;
@@ -962,8 +963,8 @@ async function resolveExistingPool(
     ]);
     if (registered.value !== null && registered.height === addresses.height &&
       registered.height >= (minimumHeight ?? 0n) && bytesEqual(registered.value, addresses.value.handler)) {
-      return { liquidityToken: toHex0x(addresses.value.liquidityToken),
-        handler: toHex0x(addresses.value.handler), driver: toHex0x(addresses.value.driver) };
+      return { liquidityToken: toBase58(addresses.value.liquidityToken),
+        handler: toBase58(addresses.value.handler), driver: toBase58(addresses.value.driver) };
     }
     if (attempt + 1 < attempts) await new Promise((resolve) => setTimeout(resolve, 250));
   }
@@ -988,9 +989,9 @@ function updateStep(
 
 function poolAddresses(pool: CreationPool): PoolAddresses {
   return {
-    liquidityToken: addressFromHex(pool.liquidityToken),
-    handler: addressFromHex(pool.handler),
-    driver: addressFromHex(pool.driver),
+    liquidityToken: addressFromBase58(pool.liquidityToken),
+    handler: addressFromBase58(pool.handler),
+    driver: addressFromBase58(pool.driver),
   };
 }
 
@@ -998,11 +999,11 @@ function workflowAppConfig(config: GlobalConfig, workflow: CreationWorkflow): Ap
   if (workflow.pool === null) throw new Error("The created pool is unavailable");
   return {
     ...config,
-    liquidityTokenAddress: addressFromHex(workflow.pool.liquidityToken),
-    handlerAddress: addressFromHex(workflow.pool.handler),
-    driverAddress: addressFromHex(workflow.pool.driver),
-    tokenAAddress: addressFromHex(workflow.token0.address),
-    tokenBAddress: addressFromHex(workflow.token1.address),
+    liquidityTokenAddress: addressFromBase58(workflow.pool.liquidityToken),
+    handlerAddress: addressFromBase58(workflow.pool.handler),
+    driverAddress: addressFromBase58(workflow.pool.driver),
+    tokenAAddress: addressFromBase58(workflow.token0.address),
+    tokenBAddress: addressFromBase58(workflow.token1.address),
     tokenASymbol: workflow.token0.symbol,
     tokenBSymbol: workflow.token1.symbol,
     tokenADecimals: workflow.token0.decimals,

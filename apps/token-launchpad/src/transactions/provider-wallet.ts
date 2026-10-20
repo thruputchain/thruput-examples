@@ -46,7 +46,7 @@ export function createProviderWriteBoundary(
         message: "Connect a wallet to make changes",
       };
     try {
-      await assertExpectedNetwork(client, config.networkIdHex);
+      await assertExpectedNetwork(client, config.networkId);
       const targets = calls.map((call) => call.invocation);
       const createsToken = targets.some(
         (target) =>

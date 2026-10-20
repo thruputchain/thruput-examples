@@ -1,4 +1,4 @@
-import { addressFromHex } from "@thruputchain/client";
+import { addressFromBase58 } from "@thruputchain/client";
 import { useMemo, useState } from "react";
 import { useWallet, useWalletClient } from "@thruputchain/react";
 import { Navigate, Route, Routes } from "react-router-dom";
@@ -19,7 +19,7 @@ export function AppRoutes({ config: baseConfig }: { config: GlobalConfig }) {
   const config = useMemo(
     () => ({
       ...baseConfig,
-      accountAddress: address ? addressFromHex(address) : READ_ONLY_CALLER,
+      accountAddress: address ? addressFromBase58(address) : READ_ONLY_CALLER,
     }),
     [baseConfig, address],
   );

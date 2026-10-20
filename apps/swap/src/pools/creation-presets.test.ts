@@ -1,8 +1,14 @@
+import {
+  addressFromBase58,
+  addressToStrkey,
+  toBase58,
+} from "@thruputchain/client";
 import { describe, expect, it } from "vitest";
 import { readCreationPresets } from "./creation-presets";
 
-const a = `0x${"ab".repeat(32)}`;
-const b = `0x${"cd".repeat(32)}`;
+const a = toBase58(new Uint8Array(32).fill(0xab));
+const b = toBase58(new Uint8Array(32).fill(0xcd));
+const strkeyA = addressToStrkey(addressFromBase58(a));
 
 describe("creation link presets", () => {
   it.each([
@@ -10,7 +16,7 @@ describe("creation link presets", () => {
     [`?tokenA=${a}`, a, ""],
     [`?tokenB=${b}`, "", b],
     [`?tokenA=${b}&tokenB=${a}`, b, a],
-    [`?tokenA=0x${"AB".repeat(32)}`, a, ""],
+    [`?tokenA=${strkeyA}`, a, ""],
     [`?TokenA=${a}&amountA=5&callback=https://example.com`, "", ""],
   ])("seeds only address slots: %s", (query, tokenA, tokenB) => {
     expect(readCreationPresets(query)).toEqual({
@@ -25,6 +31,7 @@ describe("creation link presets", () => {
     "bad",
     `0x${"0".repeat(64)}`,
     a.slice(2),
+    `0x${"ab".repeat(32)}`,
     `0X${"ab".repeat(32)}`,
     `${a}&tokenA=${a}`,
   ])("rejects invalid or repeated A without losing B: %s", (value) => {
@@ -39,12 +46,12 @@ describe("creation link presets", () => {
     expect(
       readCreationPresets(`?tokenA=${a}&tokenB=${b}&tokenB=${b}`),
     ).toMatchObject({ tokenA: a, tokenB: "", warnings: [expect.any(String)] });
-    expect(
-      readCreationPresets(`?tokenA=${a}&tokenB=0x${"AB".repeat(32)}`),
-    ).toMatchObject({
-      tokenA: a,
-      tokenB: "",
-      warnings: [expect.stringContaining("different contract")],
-    });
+    expect(readCreationPresets(`?tokenA=${a}&tokenB=${strkeyA}`)).toMatchObject(
+      {
+        tokenA: a,
+        tokenB: "",
+        warnings: [expect.stringContaining("different contract")],
+      },
+    );
   });
 });

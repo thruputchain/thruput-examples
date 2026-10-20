@@ -1,10 +1,10 @@
 mod support;
 
-use sdk::call::RawCallError;
-use sdk::*;
 use standard_token_factory::TokenCreated;
 use support::*;
 use thruput_erc20_if::ERC20Error;
+use thruput_sdk::call::RawCallError;
+use thruput_sdk::*;
 
 fn register_failing_child(env: &TestEnvironmentHandle) -> SHA256Hash {
     *token_factory_failing_child::register_mock_contract(env).as_hash()

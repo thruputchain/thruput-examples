@@ -1,4 +1,4 @@
-import { fixedBytes } from "@thruputchain/client";
+import { fixedBytes, toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { describe, expect, it } from "vitest";
 
@@ -23,7 +23,6 @@ const review: FactoryReview = {
     fee_recipient: null,
   },
   predictedAddress: contractAddress(new Uint8Array(32).fill(4)),
-  predictedAddressHex: `0x${"04".repeat(32)}`,
   currentReserve: 0n,
   reserveHeight: 0n,
   fundingAmount: 110n,
@@ -32,13 +31,20 @@ const review: FactoryReview = {
 };
 
 describe("launch workflow persistence", () => {
-  it("migrates version-two progress as single-call execution without losing its hash", () => {
-    const storage = new MemoryStorage();
-    const workflow = createWorkflow(config, { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n }, new Uint8Array(32).fill(5), review);
-    const funding = { status: "pending", hash: `0x${"06".repeat(32)}` };
-    storage.value = JSON.stringify({ ...workflow, version: 2, executionMode: undefined, funding });
-    expect(loadWorkflow(storage, "workflow")).toMatchObject({ version: 3, executionMode: "single", funding });
-  });
+  it.each([2, 3])(
+    "rejects hex-identifier workflow version %i as unsupported",
+    (version) => {
+      const storage = new MemoryStorage();
+      const workflow = createWorkflow(
+        config,
+        { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
+        new Uint8Array(32).fill(5),
+        review,
+      );
+      storage.value = JSON.stringify({ ...workflow, version });
+      expect(() => loadWorkflow(storage, "workflow")).toThrow(/unsupported/);
+    },
+  );
   it("round-trips a reviewed workflow without bigint JSON values", () => {
     const storage = new MemoryStorage();
     const workflow = createWorkflow(
@@ -79,7 +85,7 @@ describe("launch workflow persistence", () => {
       version: 1,
       funding: { status: "idle", hash: null },
       creation: { status: "idle", hash: null },
-      createdAddressHex: null,
+      createdAddress: null,
       creationBlock: null,
       verification: {
         status: "pending",
@@ -92,9 +98,12 @@ describe("launch workflow persistence", () => {
 
     storage.value = JSON.stringify({
       version: 1,
-      funding: { status: "pending", hash: `0x${"06".repeat(32)}` },
+      funding: {
+        status: "pending",
+        hash: toBase58(new Uint8Array(32).fill(0x06)),
+      },
       creation: { status: "idle", hash: null },
-      createdAddressHex: null,
+      createdAddress: null,
       creationBlock: null,
       verification: {
         status: "pending",
@@ -109,7 +118,7 @@ describe("launch workflow persistence", () => {
       version: 1,
       funding: { status: "idle", hash: null },
       creation: { status: "idle", hash: null },
-      createdAddressHex: null,
+      createdAddress: null,
       creationBlock: "42",
       verification: {
         status: "complete",
@@ -127,7 +136,7 @@ describe("launch workflow persistence", () => {
       version: 3,
       funding: { status: "idle", hash: null },
       creation: { status: "idle", hash: null },
-      createdAddressHex: null,
+      createdAddress: null,
     });
     expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(false);
   });
@@ -178,8 +187,11 @@ describe("launch workflow persistence", () => {
     storage.value = JSON.stringify({
       ...workflow,
       funding: { status: "committed", hash: null },
-      creation: { status: "committed", hash: `0x${"06".repeat(32)}` },
-      createdAddressHex: `0x${"09".repeat(32)}`,
+      creation: {
+        status: "committed",
+        hash: toBase58(new Uint8Array(32).fill(0x06)),
+      },
+      createdAddress: toBase58(new Uint8Array(32).fill(0x09)),
       creationBlock: "10",
       verification: {
         status: "complete",

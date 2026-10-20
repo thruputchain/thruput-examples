@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
@@ -20,9 +21,10 @@ import { LiquidityPage } from "./liquidity-page";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
@@ -142,12 +144,12 @@ describe("LiquidityPage", () => {
     completed.updatedAt = 2;
     completed.steps.enqueue = {
       status: "committed",
-      transactionHash: hex(31),
+      transactionHash: id(31),
       message: null,
       updatedAt: 2,
     };
     completed.result = {
-      transactionHash: hex(32),
+      transactionHash: id(32),
       blockHeight: "9",
       liquidityMinted: "10000000",
       amountsDeposited: null,
@@ -176,7 +178,7 @@ describe("LiquidityPage", () => {
     queued.receiptBlock = "8";
     queued.steps.enqueue = {
       status: "committed",
-      transactionHash: hex(31),
+      transactionHash: id(31),
       message: null,
       updatedAt: 2,
     };

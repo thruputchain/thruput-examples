@@ -1,7 +1,7 @@
 import {
   bytesEqual,
   hashSignedTransaction,
-  toHex0x,
+  toBase58,
 } from "@thruputchain/client";
 import { DefaultWallet } from "@thruputchain/client/contracts";
 import {
@@ -43,8 +43,8 @@ export function loadPending(
       throw new Error("Saved transaction belongs to another network");
     const tx = parseSignedTransactionHex(signed.signedTransaction);
     if (
-      toHex0x(hashSignedTransaction(tx)) !== signed.hash ||
-      toHex0x(tx.tx.invocation.invoked_address) !== account.address ||
+      toBase58(hashSignedTransaction(tx)) !== signed.hash ||
+      toBase58(tx.tx.invocation.invoked_address) !== account.address ||
       !bytesEqual(
         tx.tx.invocation.entrypoint,
         DefaultWallet.v0_1.execute.entrypoint,
@@ -61,7 +61,7 @@ export function loadPending(
     if (
       calls.length !== 1 ||
       !call ||
-      toHex0x(call.target) !== contract ||
+      toBase58(call.target) !== contract ||
       !method ||
       method.decodeArgs(call.calldata).amount !== 1n
     )

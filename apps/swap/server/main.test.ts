@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { hashContract, toHex0x } from "@thruputchain/client";
+import { hashContract, toBase58 } from "@thruputchain/client";
 import { ContractType } from "@thruputchain/protocol";
 import { createThruputRegistrySource } from "./chain.ts";
 
@@ -18,15 +18,17 @@ import {
   start,
 } from "./main.ts";
 
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
+
 vi.mock("./chain.ts", () => ({ createThruputRegistrySource: vi.fn() }));
 
 const environment = {
   VITE_THRUPUT_RPC_URL: "https://rpc.example.test/thruput",
-  VITE_THRUPUT_NETWORK_ID: `0x${"11".repeat(32)}`,
-  VITE_POOL_TOKEN_HASH: `0x${"22".repeat(32)}`,
-  VITE_NATIVE_HOG_ADDRESS: `0x${"44".repeat(32)}`,
-  VITE_SWAP_FACTORY_ADDRESS: `0x${"66".repeat(32)}`,
-  VITE_SWAP_ROUTER_ADDRESS: `0x${"77".repeat(32)}`,
+  VITE_THRUPUT_NETWORK_ID: b58(0x11),
+  VITE_POOL_TOKEN_HASH: b58(0x22),
+  VITE_NATIVE_HOG_ADDRESS: b58(0x44),
+  VITE_SWAP_FACTORY_ADDRESS: b58(0x66),
+  VITE_SWAP_ROUTER_ADDRESS: b58(0x77),
 };
 
 describe("production startup reporting", () => {
@@ -47,7 +49,7 @@ describe("production startup reporting", () => {
       directory = await mkdtemp(
         path.join(os.tmpdir(), "swap-startup-artifact-"),
       );
-      const hash = toHex0x(
+      const hash = toBase58(
         hashContract({
           contract_type: ContractType.kRv32,
           rv32_contract: { data: new Uint8Array([1, 2, 3]) },

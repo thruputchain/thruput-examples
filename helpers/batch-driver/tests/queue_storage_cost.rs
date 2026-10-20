@@ -1,7 +1,7 @@
 //! What a driver's queue costs to hold.
 //!
 //! A queued entry is a storage deposit locked out of the driver contract's own HOG balance, and
-//! that deposit is what [`CapacityConstraint`](sdk::storage::CapacityConstraint) exists to bound.
+//! that deposit is what [`CapacityConstraint`](thruput_sdk::storage::CapacityConstraint) exists to bound.
 //! How big a ceiling is affordable depends on the price, so this measures it: under the default
 //! cost model an entry is *flat and cheap*, whatever it contains, over a fixed cost for the queue
 //! itself.
@@ -12,8 +12,8 @@
 //! admitted to the back of the queue would have to wait -- and about the fact that, once admitted,
 //! it cannot be taken back.
 
-use sdk::storage::*;
-use sdk::*;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([9u8; 32]);
 
@@ -30,7 +30,7 @@ const ENTRIES_PER_QUEUE_BLOCK: u32 = 250;
 // Insert `entries` entries of `size` bytes each, in one transaction, into a queue whose contract
 // holds `grant`. Reports whether the deposit was affordable.
 fn affordable(grant: i64, entries: u32, size: usize) -> bool {
-    let env = sdk::TestEnvironment::new(None); // default cost model
+    let env = thruput_sdk::TestEnvironment::new(None); // default cost model
     env.setup_grant_storage_tokens(&ADDR, grant);
 
     env.transact(|tx| {

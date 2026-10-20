@@ -1,4 +1,9 @@
-import { fromHex0x, hashContract, toHex0x } from "@thruputchain/client";
+import {
+  fromHex0x,
+  hashContract,
+  hashFromBase58,
+  toBase58,
+} from "@thruputchain/client";
 import { ContractType, type Contract } from "@thruputchain/protocol";
 
 export const MAX_POOL_TOKEN_ARTIFACT_BYTES = 8 * 1024 * 1024;
@@ -6,8 +11,8 @@ export const MAX_POOL_TOKEN_ARTIFACT_BYTES = 8 * 1024 * 1024;
 export function poolTokenArtifactPath(
   expectedHash: string | undefined,
 ): string {
-  if (!expectedHash || !/^0x[0-9a-f]{64}$/.test(expectedHash)) {
-    throw new Error("VITE_POOL_TOKEN_HASH must be a canonical 32-byte hash");
+  if (!expectedHash || !isCanonicalHash(expectedHash)) {
+    throw new Error("VITE_POOL_TOKEN_HASH must be a canonical base58 32-byte hash");
   }
   return `contract-artifacts/${expectedHash}.json`;
 }
@@ -38,9 +43,17 @@ export function parsePoolTokenArtifact(
     contract_type: ContractType.kRv32,
     rv32_contract: { data: fromHex0x(value.data) },
   };
-  if (toHex0x(hashContract(contract)) !== expectedHash)
+  if (toBase58(hashContract(contract)) !== expectedHash)
     throw new Error("Pool token artifact hash mismatch");
   return contract;
+}
+
+function isCanonicalHash(value: string): boolean {
+  try {
+    return toBase58(hashFromBase58(value)) === value;
+  } catch {
+    return false;
+  }
 }
 
 export async function fetchPoolTokenArtifact(

@@ -10,10 +10,11 @@ import {
   createWalletClient,
   defineCluster,
   fixedBytes,
-  fromHex0x,
   hashContract,
+  hashFromBase58,
   HttpTransport,
   PrivateKeySigner,
+  toBase58,
   toHex0x,
 } from "@thruputchain/client";
 import { prepareContractDeployment } from "@thruputchain/client/wallet";
@@ -23,7 +24,6 @@ import {
   gasAmount,
   HOG_ADDRESS,
   networkHash,
-  sha256Hash,
   type Contract,
   type ContractAddress,
   type Invocation,
@@ -60,7 +60,7 @@ export async function provisionSwap(options: {
     "contract-artifacts",
   );
   const rpcUrl = options.rpcUrl;
-  const expectedNetwork = networkHash(sha256Hash(fromHex0x(options.networkId)));
+  const expectedNetwork = networkHash(hashFromBase58(options.networkId));
   const explorerUrl = parseExplorerUrl(options.explorerUrl);
   const client = await createThruputClient({
     cluster: defineCluster({
@@ -97,10 +97,10 @@ export async function provisionSwap(options: {
       })),
     );
   const tokenHash = hashContract(erc20!);
-  const artifactPath = join(artifactDirectory, `${toHex0x(tokenHash)}.json`);
+  const artifactPath = join(artifactDirectory, `${toBase58(tokenHash)}.json`);
   if (erc20?.contract_type !== ContractType.kRv32)
     throw new Error("Expected an RV32 token artifact");
-  const artifactContents = `${JSON.stringify({ contractType: "rv32", data: toHex0x(erc20.rv32_contract.data), hash: toHex0x(tokenHash) })}\n`;
+  const artifactContents = `${JSON.stringify({ contractType: "rv32", data: toHex0x(erc20.rv32_contract.data), hash: toBase58(tokenHash) })}\n`;
   const handlerHash = hashContract(handler!);
   const driverHash = hashContract(driver!);
 
@@ -126,8 +126,8 @@ export async function provisionSwap(options: {
     const result = await wallet.deployContractAndWait(deployment, { gasLimit: GAS_LIMIT, amount: 0n }, {
       timeoutMs: 60_000,
     });
-    console.log(`Deploy ${name}: ${toHex0x(result.txHash)}`);
-    console.log(`${name}: ${toHex0x(result.address)}`);
+    console.log(`Deploy ${name}: ${toBase58(result.txHash)}`);
+    console.log(`${name}: ${toBase58(result.address)}`);
     return result.address;
   };
   const execute = async (invocation: Invocation): Promise<void> => {
@@ -135,7 +135,7 @@ export async function provisionSwap(options: {
       { invocation, gasLimit: GAS_LIMIT },
       { timeoutMs: 60_000 },
     );
-    console.log(`Setup transaction: ${toHex0x(txHash)}`);
+    console.log(`Setup transaction: ${toBase58(txHash)}`);
   };
 
   await mkdir(dirname(environmentPath), { recursive: true });
@@ -205,7 +205,7 @@ export async function provisionSwap(options: {
     }
     await writeFile(
       temporary,
-      renderEnvironment(toHex0x(expectedNetwork), rpcUrl, {
+      renderEnvironment(toBase58(expectedNetwork), rpcUrl, {
         factory,
         router,
         tokenHash,
@@ -223,7 +223,7 @@ export async function provisionSwap(options: {
     await publishArtifact(temporaryArtifact, artifactPath);
     await rename(temporary, environmentPath);
     console.log(
-      `Swap ${options.network} infrastructure ready\nApp environment: ${environmentPath}\nFactory: ${toHex0x(factory)}\nRouter: ${toHex0x(router)}\nLP token code: ${toHex0x(tokenHash)}\nHandler code: ${toHex0x(handlerHash)}\nDriver code: ${toHex0x(driverHash)}`,
+      `Swap ${options.network} infrastructure ready\nApp environment: ${environmentPath}\nFactory: ${toBase58(factory)}\nRouter: ${toBase58(router)}\nLP token code: ${toBase58(tokenHash)}\nHandler code: ${toBase58(handlerHash)}\nDriver code: ${toBase58(driverHash)}`,
     );
     console.warn(
       `No pools or tokens were created. First pair creation can attach the code asset at ${artifactPath}.`,
@@ -246,10 +246,10 @@ function renderEnvironment(
   return [
     `VITE_THRUPUT_RPC_URL=${rpcUrl}`,
     `VITE_THRUPUT_NETWORK_ID=${network}`,
-    `VITE_NATIVE_HOG_ADDRESS=${toHex0x(HOG_ADDRESS)}`,
-    `VITE_SWAP_FACTORY_ADDRESS=${toHex0x(deployment.factory)}`,
-    `VITE_SWAP_ROUTER_ADDRESS=${toHex0x(deployment.router)}`,
-    `VITE_POOL_TOKEN_HASH=${toHex0x(deployment.tokenHash)}`,
+    `VITE_NATIVE_HOG_ADDRESS=${toBase58(HOG_ADDRESS)}`,
+    `VITE_SWAP_FACTORY_ADDRESS=${toBase58(deployment.factory)}`,
+    `VITE_SWAP_ROUTER_ADDRESS=${toBase58(deployment.router)}`,
+    `VITE_POOL_TOKEN_HASH=${toBase58(deployment.tokenHash)}`,
     "",
   ].join("\n");
 }

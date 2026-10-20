@@ -1,4 +1,8 @@
-import { addressFromHex, toHex0x } from "@thruputchain/client";
+import {
+  addressFromBase58,
+  hashFromBase58,
+  toBase58,
+} from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
 import { ConfigurationError } from "./lib/errors";
 import { parseExplorerUrl } from "./lib/explorer-url";
@@ -8,16 +12,16 @@ import {
   type DiscoveryConfig,
 } from "./token-discovery/config.ts";
 
-const NETWORK_ID_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
-
 // Public views require a caller, not a connected wallet or signing identity.
-export const READ_ONLY_CALLER = addressFromHex(`0x${"00".repeat(32)}`);
+export const READ_ONLY_CALLER = addressFromBase58(
+  toBase58(new Uint8Array(32)),
+);
 
 export interface GlobalConfig {
   explorerUrl?: string | undefined;
   rpcUrl: URL;
   tokenDiscovery?: DiscoveryConfig;
-  networkIdHex: string;
+  networkId: string;
   poolTokenHash?: string;
   accountAddress: ContractAddress;
   routerAddress: ContractAddress;
@@ -57,23 +61,17 @@ export async function loadRuntimeConfig(): Promise<GlobalConfig> {
 }
 
 export function loadGlobalConfig(environment: Environment): GlobalConfig {
-  const networkIdHex = required(environment, "VITE_THRUPUT_NETWORK_ID");
-  if (!NETWORK_ID_PATTERN.test(networkIdHex)) {
-    throw new ConfigurationError(
-      "VITE_THRUPUT_NETWORK_ID must be a 32-byte hexadecimal value",
-    );
-  }
-
+  // Identifiers are canonical base58 throughout the app.
   return {
     explorerUrl: parseExplorerUrl(environment.VITE_EXPLORER_URL),
     rpcUrl: parseRpcUrl(required(environment, "VITE_THRUPUT_RPC_URL")),
     tokenDiscovery: loadDiscoveryConfig(environment),
-    networkIdHex: networkIdHex.replace(/^0x/, "").toLowerCase(),
+    networkId: toBase58(hash(environment, "VITE_THRUPUT_NETWORK_ID")),
     accountAddress: READ_ONLY_CALLER,
     ...(environment.VITE_POOL_TOKEN_HASH === undefined
       ? {}
       : {
-          poolTokenHash: toHex0x(address(environment, "VITE_POOL_TOKEN_HASH")),
+          poolTokenHash: toBase58(hash(environment, "VITE_POOL_TOKEN_HASH")),
         }),
     routerAddress: address(environment, "VITE_SWAP_ROUTER_ADDRESS"),
     factoryAddress: address(environment, "VITE_SWAP_FACTORY_ADDRESS"),
@@ -102,12 +100,23 @@ function required(environment: Environment, key: string): string {
 function address(environment: Environment, key: string): ContractAddress {
   const value = required(environment, key);
   try {
-    return addressFromHex(value);
+    const parsed = addressFromBase58(value);
+    if (toBase58(parsed) === value) return parsed;
   } catch {
-    throw new ConfigurationError(
-      `${key} must be a 32-byte 0x-prefixed address`,
-    );
+    // Reported below.
   }
+  throw new ConfigurationError(`${key} must be a base58 contract address`);
+}
+
+function hash(environment: Environment, key: string): Uint8Array {
+  const value = required(environment, key);
+  try {
+    const parsed = hashFromBase58(value);
+    if (toBase58(parsed) === value) return parsed;
+  } catch {
+    // Reported below.
+  }
+  throw new ConfigurationError(`${key} must be a base58 32-byte hash`);
 }
 
 function parseRpcUrl(value: string): URL {

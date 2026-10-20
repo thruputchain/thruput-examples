@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { fireEvent, render, screen } from "@/test/render";
 import { MemoryRouter } from "react-router-dom";
@@ -19,7 +20,7 @@ const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
 const config: AppConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(3),

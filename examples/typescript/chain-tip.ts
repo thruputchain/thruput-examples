@@ -1,4 +1,4 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { createLocalClient } from "./local-client.ts";
 
 const client = await createLocalClient();
@@ -8,7 +8,7 @@ console.log(
   JSON.stringify(
     {
       rpcUrl: client.cluster.rpcUrl,
-      networkHash: toHex0x(client.network.networkHash),
+      networkHash: toBase58(client.network.networkHash),
       height: tip.height.toString(),
     },
     null,

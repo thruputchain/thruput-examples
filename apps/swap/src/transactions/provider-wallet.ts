@@ -1,7 +1,8 @@
 import {
-  hashFromHex,
-  toHex0x,
   type CoreThruputClient,
+  hashFromBase58,
+  toBase58,
+  toHex0x,
 } from "@thruputchain/client";
 import {
   submitAndObserve,
@@ -67,8 +68,8 @@ export function createProviderWriteBoundary(
       await verifyReadNetwork(client, config);
       const isCreation = invocations.some(
         (invocation) =>
-          toHex0x(invocation.invoked_address) ===
-            toHex0x(config.factoryAddress) &&
+          toBase58(invocation.invoked_address) ===
+            toBase58(config.factoryAddress) &&
           toHex0x(invocation.entrypoint) ===
             toHex0x(SwapFactory.v0_1.createPair.entrypoint),
       );
@@ -99,9 +100,7 @@ export function createProviderWriteBoundary(
         ...(contractsToDeploy ? { contractsToDeploy } : {}),
       };
       const wait = {
-        expectedNetworkHash: networkHash(
-          hashFromHex(`0x${config.networkIdHex}`),
-        ),
+        expectedNetworkHash: networkHash(hashFromBase58(config.networkId)),
         timeoutMs: 20_000,
         pollingIntervalMs: 500,
       };
@@ -121,7 +120,7 @@ export function createProviderWriteBoundary(
       await observer?.onSigned(signed.hash);
       const result = await submitAndObserve(
         client,
-        hashFromHex(signed.hash),
+        hashFromBase58(signed.hash),
         () => wallet.submitTransaction(signed),
         wait,
       );

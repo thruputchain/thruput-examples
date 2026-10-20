@@ -1,9 +1,9 @@
 //! The drain loop and its gas budgeting: what it takes to hand a batch of requests to a handler,
 //! and how a caller sizes one.
 
-use sdk::stats::gas_remaining;
-use sdk::storage::*;
-use sdk::*;
+use thruput_sdk::stats::gas_remaining;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 /// This is the gas that [`Queue::crank`] holds back so the frame can finish once the batch is over:
 /// the budget check that ends the drain, the probe that finds the queue empty, releasing the room

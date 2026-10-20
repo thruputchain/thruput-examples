@@ -9,18 +9,18 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
-use sdk::storage::Value;
-use sdk::*;
 pub use stellar_account_factory_if::{
     AccountCreated, AccountFactoryError, FactoryConfig, StellarAccountFactory,
     StellarAccountFactoryClient, StellarAccountInitializerClient, account_address,
     deployment_nonce,
 };
 use thruput_erc20_if::{CONTRACT_ADDR_ZERO, ERC20Client};
+use thruput_sdk::storage::Value;
+use thruput_sdk::*;
 
-#[sdk::storage]
+#[thruput_sdk::storage]
 pub struct StellarAccountFactoryContract {
     config: Value<FactoryConfig>,
 }

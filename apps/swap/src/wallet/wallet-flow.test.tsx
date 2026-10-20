@@ -1,10 +1,10 @@
 import {
-  addressFromHex,
+  addressFromBase58,
   createThruputClient,
   localnet,
   MockTransport,
   PrivateKeySigner,
-  toHex0x,
+  toBase58,
 } from "@thruputchain/client";
 import { createPubkeyAccount } from "@thruputchain/client/wallet";
 import {
@@ -49,20 +49,20 @@ vi.mock("@/pools/pool-create-page", () => ({
 }));
 const config: GlobalConfig = {
   rpcUrl: new URL("http://localhost/thruput-rpc"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: READ_ONLY_CALLER,
-  factoryAddress: addressFromHex(`0x${"03".repeat(32)}`),
-  routerAddress: addressFromHex(`0x${"04".repeat(32)}`),
-  nativeHogAddress: addressFromHex(`0x${"05".repeat(32)}`),
+  factoryAddress: addressFromBase58(toBase58(new Uint8Array(32).fill(0x03))),
+  routerAddress: addressFromBase58(toBase58(new Uint8Array(32).fill(0x04))),
+  nativeHogAddress: addressFromBase58(toBase58(new Uint8Array(32).fill(0x05))),
 };
 const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
 const local = createPubkeyAccount({ signer });
 const session: WalletSession = {
-  networkHash: config.networkIdHex,
+  networkHash: toBase58(new Uint8Array(32)),
   accounts: [
     {
-      address: toHex0x(local.address),
-      publicKey: toHex0x(signer.publicKey.ed25519),
+      address: toBase58(local.address),
+      publicKey: toBase58(signer.publicKey.ed25519),
       nonce: "0",
     },
   ],
@@ -80,7 +80,7 @@ it("preserves public filters, resets write forms on rebinding, and invalidates o
   });
   cleanups.push(
     registerWalletProvider({
-      info: { id: "test", name: "Test Wallet", version: "1.0.0" },
+      info: { id: "test", name: "Test Wallet", version: "2.0.0" },
       supportedMethods: ["getCapabilities"],
       request,
       on(_event, listener) {

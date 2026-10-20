@@ -12,11 +12,11 @@ use crate::{Address, Amount, Amounts, SwapPairError};
 use core::cmp::min;
 use core::iter::zip;
 use core::ops::Mul;
-use sdk::storage::*;
-use sdk::*;
 use swap_if::SwapFactoryClient;
 use thruput_erc20_controls_if::ERC20BurnClient;
 use thruput_erc20_if::{ERC20Client, ERC20Error};
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 /// The ERC20 interface counts in `i128` (never negative on the wire); the
 /// pair's arithmetic is in `u128`. A token reporting a negative amount is

@@ -45,7 +45,9 @@ export function TokenAddressCombobox({
   const manual = tokenAddress(query.trim());
   const error =
     value && selected === null
-      ? "Enter a nonzero 32-byte contract address."
+      ? /^0x/i.test(value.trim())
+        ? "Enter the base58 contract address. 0x hex addresses are not accepted."
+        : "Enter a nonzero base58 contract address."
       : selected !== null && selected === other
         ? "Choose a different contract from the other token."
         : null;

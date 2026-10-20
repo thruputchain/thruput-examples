@@ -7,13 +7,11 @@
 all-features = true
 
 [advisories]
+# 0.26.11 only re-exports webpki-root-certs 1.x; Cargo.lock selects fixed 1.0.10.
+# Remove this exception when jsonrpsee updates rustls-platform-verifier or the
+# advisory recognizes the wrapper. The bans below still reject affected bundles.
 ignore = [
-    # unsafe-libyaml is unmaintained (no fix). It arrives only through
-    # serde_yaml in the thruput-xdr-macros 0.54.0 proc-macro. protocol-rs 0.54.0
-    # is the family hog-devnode 0.1.31-rc.3 accepts (protocol id hogp/cfcaf86).
-    # Remove when Examples moves to protocol-rs 0.54.1+ (serde-saphyr) with a
-    # matching devnode. Added 2026-10-13.
-    { id = "RUSTSEC-2024-0449", reason = "unmaintained unsafe-libyaml via thruput-xdr-macros 0.54.0 (serde_yaml); remove with protocol-rs >=0.54.1 and a matching devnode" },
+    { id = "RUSTSEC-2026-0383", reason = "webpki-root-certs 0.26.11 only re-exports 1.x; bans require the patched bundle" },
 ]
 # Informational advisories (unsound, unmaintained) default to workspace-direct
 # dependencies only.
@@ -53,6 +51,12 @@ allow = [
 # NOTE: r-efi is "MIT OR Apache-2.0 OR LGPL-2.1-or-later"
 
 [bans]
+# Permit only the verified 0.26.11 wrapper and patched bundles (>=1.0.10).
+# Keep these restrictions while RUSTSEC-2026-0383 is ignored above.
+deny = [
+    { name = "webpki-root-certs", version = "<0.26.11" },
+    { name = "webpki-root-certs", version = ">0.26.11, <1.0.10" },
+]
 multiple-versions = "warn"
 wildcards = "deny"
 # Internal path dependencies carry no version requirement. Registry wildcards

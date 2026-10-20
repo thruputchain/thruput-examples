@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { createReadClient, NetworkMismatchError, verifyReadNetwork } from "./client";
 
@@ -20,7 +21,7 @@ describe("client initialization", () => {
       });
     });
     const pending = createReadClient(
-      { rpcUrl: new URL("http://127.0.0.1:9545"), networkIdHex: "00".repeat(32) },
+      { rpcUrl: new URL("http://127.0.0.1:9545"), networkId: toBase58(new Uint8Array(32).fill(0x00)) },
       controller.signal,
     );
     await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
@@ -35,7 +36,7 @@ describe("client initialization", () => {
 describe("network-bound creation reads", () => {
   const address = contractAddress(new Uint8Array(32).fill(1));
   const config = {
-    rpcUrl: new URL("http://127.0.0.1:9545"), networkIdHex: "00".repeat(32),
+    rpcUrl: new URL("http://127.0.0.1:9545"), networkId: toBase58(new Uint8Array(32).fill(0x00)),
     accountAddress: address, factoryAddress: address, routerAddress: address, nativeHogAddress: address,
   };
 
@@ -44,7 +45,7 @@ describe("network-bound creation reads", () => {
     const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
       const request = JSON.parse(String(init?.body));
       expect(request.method).toBe("groundhog_networkInfo");
-      return Response.json({ jsonrpc: "2.0", id: request.id, result: { networkHash: `0x${config.networkIdHex}` } });
+      return Response.json({ jsonrpc: "2.0", id: request.id, result: { networkHash: toBase58(new Uint8Array(32)) } });
     });
     const client = await createReadClient(config, controller.signal);
     expect(client.cluster.networkHash).toEqual(new Uint8Array(32));
@@ -55,14 +56,14 @@ describe("network-bound creation reads", () => {
   });
 
   it("sanitizes SDK network mismatch and rejects a changed network on the explicit check", async () => {
-    let observed = "01".repeat(32);
+    let observed = toBase58(new Uint8Array(32).fill(1));
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => Response.json({
-      jsonrpc: "2.0", id: JSON.parse(String(init?.body)).id, result: { networkHash: `0x${observed}` },
+      jsonrpc: "2.0", id: JSON.parse(String(init?.body)).id, result: { networkHash: observed },
     }));
     await expect(createReadClient(config)).rejects.toBeInstanceOf(NetworkMismatchError);
-    observed = config.networkIdHex;
+    observed = toBase58(new Uint8Array(32));
     const client = await createReadClient(config);
-    observed = "02".repeat(32);
+    observed = toBase58(new Uint8Array(32).fill(2));
     await expect(verifyReadNetwork(client, config)).rejects.toBeInstanceOf(NetworkMismatchError);
   });
 });

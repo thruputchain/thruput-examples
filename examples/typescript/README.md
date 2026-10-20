@@ -67,7 +67,7 @@ Keep amounts as `bigint`, not floating-point numbers.
 Source: [view-hog-balance.ts](view-hog-balance.ts).
 
 ```sh
-export THRUPUT_ADDRESS=0x<recipient-from-the-transfer-output>
+export THRUPUT_ADDRESS=<recipient-from-the-transfer-output>
 npm run example:view-hog-balance
 ```
 
@@ -105,7 +105,7 @@ later write or readback fails; stdout keeps the final JSON result.
 Each run deploys a new Counter. Copy `contractAddress` into:
 
 ```sh
-export THRUPUT_COUNTER_ADDRESS=0x<contractAddress-from-the-output>
+export THRUPUT_COUNTER_ADDRESS=<contractAddress-from-the-output>
 ```
 
 The 1-HOG storage reserve and gas limits are local example budgets, not general

@@ -5,7 +5,7 @@ import {
   createWalletClient,
   parseUnits,
   PrivateKeySigner,
-  toHex0x,
+  toBase58,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
 import { gasAmount, HOG_ADDRESS } from "@thruputchain/protocol";
@@ -72,9 +72,9 @@ assert.equal(
 console.log(
   JSON.stringify(
     {
-      sender: toHex0x(sender.address),
-      recipient: toHex0x(recipient.address),
-      txHash: toHex0x(txHash),
+      sender: toBase58(sender.address),
+      recipient: toBase58(recipient.address),
+      txHash: toBase58(txHash),
       transferredRaw: amount.toString(),
       recipientBalance: after.value.toString(),
     },

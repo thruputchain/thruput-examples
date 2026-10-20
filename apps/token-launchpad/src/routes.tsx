@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { addressFromHex, toHex0x } from "@thruputchain/client";
+import { addressFromBase58, toBase58 } from "@thruputchain/client";
 import { useClient, getClientQueryKey, useWallet } from "@thruputchain/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Navigate, Route, Routes } from "react-router-dom";
@@ -25,11 +25,11 @@ export function AppRoutes({ config }: { config: AppConfig }) {
   if (
     !readOnly &&
     wallet.address &&
-    toHex0x(workflowConfig.accountAddress) !== wallet.address
+    toBase58(workflowConfig.accountAddress) !== wallet.address
   ) {
     setWorkflowConfig({
       ...config,
-      accountAddress: addressFromHex(wallet.address),
+      accountAddress: addressFromBase58(wallet.address),
     });
   }
   const writer = useTransactions(workflowConfig);

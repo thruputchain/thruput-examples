@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { addressFromHex, toHex0x } from "@thruputchain/client";
+import { addressFromBase58, toBase58 } from "@thruputchain/client";
 import { getClientQueryKey, useClient } from "@thruputchain/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { GlobalConfig } from "@/config";
+import { typedAddress } from "@/lib/address";
 import {
   getRegistryPools,
   getPoolRegistryStatus,
@@ -42,15 +43,15 @@ export function usePoolDirectory({
   }>({ offset: 0 });
   const [syncRevision, setSyncRevision] = useState(0);
   const lastStatus = useRef(0);
-  const factory = toHex0x(config.factoryAddress);
-  const account = toHex0x(config.accountAddress);
-  const networkIdHex = config.networkIdHex;
+  const factory = toBase58(config.factoryAddress);
+  const account = toBase58(config.accountAddress);
+  const networkId = config.networkId;
   const registry = useMemo(
-    () => ({ networkIdHex, factoryAddress: addressFromHex(factory) }),
-    [networkIdHex, factory],
+    () => ({ networkId, factoryAddress: addressFromBase58(factory) }),
+    [networkId, factory],
   );
   const prefix = useMemo(
-    () => ["pool-registry", registry.networkIdHex, factory],
+    () => ["pool-registry", registry.networkId, factory],
     [registry, factory],
   );
   const statusKey = useMemo(
@@ -61,6 +62,23 @@ export function usePoolDirectory({
     () => [...prefix, "page", filters, sort, pagination],
     [prefix, filters, sort, pagination],
   );
+  // The token filter is an exact address: base58 or C StrKey, sent as base58.
+  const tokenFilter = filters.token.trim() ? typedAddress(filters.token) : null;
+  const tokenError =
+    token.trim() && typedAddress(token) === null
+      ? /^0x/i.test(token.trim())
+        ? "Enter the base58 token address. 0x hex addresses are not accepted."
+        : "Enter a complete base58 token address."
+      : null;
+  // Search matches address substrings. A whole address (base58 or C StrKey)
+  // is searched as base58; base58 has no "0", so 0x hex can never match.
+  const searchText = filters.search.trim();
+  const searchQuery = searchText
+    ? (typedAddress(searchText) ?? searchText)
+    : null;
+  const searchError = /^0x/i.test(search.trim())
+    ? "Search with base58 address text. 0x hex addresses are not accepted."
+    : null;
   useEffect(() => {
     if (search === filters.search && token === filters.token) return;
     const timer = setTimeout(() => {
@@ -75,14 +93,17 @@ export function usePoolDirectory({
       read(
         registry,
         {
-          ...(filters.search.trim() ? { q: filters.search } : {}),
-          ...(filters.token.trim() ? { token: filters.token.trim() } : {}),
+          ...(searchQuery === null ? {} : { q: searchQuery }),
+          ...(tokenFilter === null ? {} : { token: tokenFilter }),
           sort,
           limit: 20,
           ...pagination,
         },
         AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
       ),
+    enabled:
+      (!filters.token.trim() || tokenFilter !== null) &&
+      !/^0x/i.test(searchText),
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -195,8 +216,10 @@ export function usePoolDirectory({
   return {
     search,
     setSearch,
+    searchError,
     token,
     setToken,
+    tokenError,
     sort,
     setSort,
     offset: pagination.offset,

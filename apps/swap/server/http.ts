@@ -22,6 +22,7 @@ import {
   boundedInteger,
   canonicalAddress,
   canonicalDecimal,
+  isBase58Identifier,
   ValidationError,
 } from "./validation.ts";
 
@@ -538,7 +539,7 @@ export function isAllowedProductionRpcRequest(
       return value.params.length === 0;
     case "groundhog_getTransactionReceipt":
     case "groundhog_getTransactionStatus":
-      return value.params.length === 1 && isCanonicalHash(value.params[0]);
+      return value.params.length === 1 && isBase58Identifier(value.params[0]);
     case "groundhog_view":
       return validViewParams(value.params);
     case "groundhog_getEvents":
@@ -627,14 +628,14 @@ function validViewParams(params: unknown[]): boolean {
     !isRecord(request) ||
     !hasOnlyKeys(request, ["contract", "entrypoint", "calldata", "caller"]) ||
     !hasKeys(request, ["contract", "entrypoint", "calldata"]) ||
-    !isCanonicalAddress(request.contract) ||
+    !isBase58Identifier(request.contract) ||
     typeof request.entrypoint !== "string" ||
     !/^0x[0-9a-f]{16}$/u.test(request.entrypoint) ||
     !isBoundedHex(request.calldata, MAX_VIEW_CALLDATA_BYTES)
   ) {
     return false;
   }
-  return request.caller === undefined || isCanonicalAddress(request.caller);
+  return request.caller === undefined || isBase58Identifier(request.caller);
 }
 
 function validEventParams(params: unknown[]): boolean {
@@ -662,7 +663,7 @@ function validEventFilter(value: unknown): boolean {
     !isExactRecord(value, ["contractAddresses", "topics"]) ||
     !Array.isArray(value.contractAddresses) ||
     value.contractAddresses.length > MAX_EVENT_VALUES_PER_FILTER ||
-    !value.contractAddresses.every(isCanonicalAddress) ||
+    !value.contractAddresses.every(isBase58Identifier) ||
     !isExactRecord(value.topics, ["topic0", "topic1", "topic2"])
   ) {
     return false;
@@ -671,7 +672,7 @@ function validEventFilter(value: unknown): boolean {
     (topics) =>
       Array.isArray(topics) &&
       topics.length <= MAX_EVENT_VALUES_PER_FILTER &&
-      topics.every(isCanonicalHash),
+      topics.every(isCanonicalTopic),
   );
 }
 
@@ -697,11 +698,7 @@ function isRpcId(value: unknown): boolean {
   );
 }
 
-function isCanonicalAddress(value: unknown): boolean {
-  return typeof value === "string" && /^0x[0-9a-f]{64}$/u.test(value);
-}
-
-function isCanonicalHash(value: unknown): boolean {
+function isCanonicalTopic(value: unknown): boolean {
   return typeof value === "string" && /^0x[0-9a-f]{64}$/u.test(value);
 }
 

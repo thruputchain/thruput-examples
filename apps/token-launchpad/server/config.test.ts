@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { toBase58 } from "@thruputchain/client";
 
 import { describe, expect, it } from "vitest";
 
@@ -8,13 +9,13 @@ const environment = {
   PORT: "3000",
   TOKEN_REGISTRY_DB_PATH: "/data/registry.sqlite",
   VITE_THRUPUT_RPC_URL: "https://rpc.example.test/path",
-  VITE_THRUPUT_NETWORK_ID: `0x${"AA".repeat(32)}`,
-  VITE_STANDARD_TOKEN_FACTORY_ADDRESS: `0x${"BB".repeat(32)}`,
-  VITE_STANDARD_TOKEN_HASH: "cc".repeat(32),
+  VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0xaa)),
+  VITE_STANDARD_TOKEN_FACTORY_ADDRESS: toBase58(new Uint8Array(32).fill(0xbb)),
+  VITE_STANDARD_TOKEN_HASH: toBase58(new Uint8Array(32).fill(0xcc)),
 };
 
 describe("loadServerConfig", () => {
-  it("parses and canonicalizes the complete server configuration", () => {
+  it("parses the complete server configuration", () => {
     const config = loadServerConfig(environment);
 
     expect(config).toMatchObject({
@@ -23,9 +24,9 @@ describe("loadServerConfig", () => {
       syncIntervalMs: 5_000,
       pageSize: 200,
       scope: {
-        networkId: "aa".repeat(32),
-        factoryAddress: `0x${"bb".repeat(32)}`,
-        tokenCodeHash: `0x${"cc".repeat(32)}`,
+        networkId: toBase58(new Uint8Array(32).fill(0xaa)),
+        factoryAddress: toBase58(new Uint8Array(32).fill(0xbb)),
+        tokenCodeHash: toBase58(new Uint8Array(32).fill(0xcc)),
       },
     });
     expect(config.rpcUrl.href).toBe("https://rpc.example.test/path");
@@ -57,7 +58,8 @@ describe("loadServerConfig", () => {
     ["TOKEN_REGISTRY_SYNC_INTERVAL_MS", "999"],
     ["TOKEN_REGISTRY_PAGE_SIZE", "501"],
     ["VITE_THRUPUT_NETWORK_ID", "abc"],
-    ["VITE_STANDARD_TOKEN_FACTORY_ADDRESS", "11".repeat(32)],
+    // Legacy hex identifiers are no longer accepted.
+    ["VITE_STANDARD_TOKEN_FACTORY_ADDRESS", `0x${"11".repeat(32)}`],
     ["VITE_STANDARD_TOKEN_HASH", "zz".repeat(32)],
     ["VITE_THRUPUT_RPC_URL", "ftp://rpc.example.test"],
     ["VITE_THRUPUT_RPC_URL", "https://user:secret@rpc.example.test"],

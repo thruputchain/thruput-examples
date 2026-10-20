@@ -1,4 +1,4 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 
 import { orientReserves, orderTokens } from "@/domain/tokens";
 import type { PoolSnapshot, TokenSnapshot } from "@/swap/snapshot";
@@ -75,7 +75,7 @@ function tokenByAddress(
   snapshot: PoolSnapshot,
   address: string,
 ): TokenSnapshot | null {
-  if (toHex0x(snapshot.tokenA.address) === address) return snapshot.tokenA;
-  if (toHex0x(snapshot.tokenB.address) === address) return snapshot.tokenB;
+  if (toBase58(snapshot.tokenA.address) === address) return snapshot.tokenA;
+  if (toBase58(snapshot.tokenB.address) === address) return snapshot.tokenB;
   return null;
 }

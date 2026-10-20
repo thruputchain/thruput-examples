@@ -15,11 +15,11 @@ doctest = false
 test = false # suppress output from our zero unit-tests
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 
 [features]
 # Enables std in native tests.
-dev = ["sdk/dev"]
+dev = ["thruput-sdk/dev"]
 
 # Turns the `dev` feature on for the tests in `tests/`.
 [dev-dependencies]

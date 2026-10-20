@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { describe, expect, it } from "vitest";
 
@@ -12,11 +13,12 @@ import {
 const tokenA = contractAddress(new Uint8Array(32).fill(1));
 const tokenB = contractAddress(new Uint8Array(32).fill(2));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const request: OutstandingRequest = {
   status: "queued",
   phase: "swap",
   intent: { amountIn: 10n, amountOutMin: 18n },
-  transactionHash: hex(0xaa),
+  transactionHash: id(0xaa),
   receiptBlock: 8n,
   requestId: hex(0xcc),
   visibleObservationMs: 0,
@@ -29,12 +31,12 @@ const request: OutstandingRequest = {
     reserveOut: 2_000n,
   },
   criteria: {
-    sender: hex(9),
-    handlerAddress: hex(6),
-    driverAddress: hex(5),
-    recipient: hex(9),
-    tokenIn: hex(1),
-    tokenOut: hex(2),
+    sender: id(9),
+    handlerAddress: id(6),
+    driverAddress: id(5),
+    recipient: id(9),
+    tokenIn: id(1),
+    tokenOut: id(2),
   },
 };
 const executed: PoolSnapshot = {

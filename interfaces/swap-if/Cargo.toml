@@ -15,13 +15,13 @@ doctest = false
 test = false # suppress output from our zero unit-tests
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 batch-driver = { path = "../../helpers/batch-driver" }
 thruput-u256 = { workspace = true }
 
 [features]
-dev = ["sdk/dev", "batch-driver/dev", "thruput-u256/std"]
+dev = ["thruput-sdk/dev", "batch-driver/dev", "thruput-u256/std"]
 
 [lints]
 clippy.result_large_err = "allow"

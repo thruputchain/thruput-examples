@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import {
   contractAddress,
   ExecResult,
@@ -32,9 +33,10 @@ type MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
@@ -261,13 +263,13 @@ describe("liquidity executor", () => {
     operation.receiptBlock = "10";
     for (const name of ["approveToken0", "approveToken1", "enqueue"] as const) {
       operation.steps[name].status = "committed";
-      operation.steps[name].transactionHash = hex(40);
+      operation.steps[name].transactionHash = id(40);
     }
     saveLiquidityOperations(config, [operation]);
     saveCrankAttempt(config, {
       ...createCrankAttempt(config),
       status: "indeterminate",
-      transactionHash: hex(41),
+      transactionHash: id(41),
     });
     const execute = vi.fn();
     const observe = vi.fn().mockResolvedValue(
@@ -279,7 +281,7 @@ describe("liquidity executor", () => {
       readSnapshot: async () => snapshot({ liquidityBalance: 15n }),
     });
 
-    expect(observe).toHaveBeenCalledWith(hex(41));
+    expect(observe).toHaveBeenCalledWith(id(41));
     expect(execute).not.toHaveBeenCalled();
     expect(result.status).toBe("executed");
   });
@@ -394,7 +396,7 @@ function snapshot(overrides: Partial<PoolSnapshot> = {}): PoolSnapshot {
 function committedStep() {
   return {
     status: "committed" as const,
-    transactionHash: hex(40),
+    transactionHash: id(40),
     message: null,
     updatedAt: 1,
   };
@@ -406,7 +408,7 @@ function committed(
 ): Extract<WriteResult, { kind: "committedSuccess" }> {
   return {
     kind: "committedSuccess",
-    hash: hex(40),
+    hash: id(40),
     receipt: {
       txHash: sha256Hash(new Uint8Array(32).fill(40)),
       height,

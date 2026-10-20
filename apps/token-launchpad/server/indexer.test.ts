@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { toBase58 } from "@thruputchain/client";
 
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -18,9 +19,9 @@ import { RegistryIndexer } from "./indexer.ts";
 import { RegistryStore } from "./store.ts";
 
 const scope: RegistryScope = {
-  networkId: "11".repeat(32),
-  factoryAddress: `0x${"22".repeat(32)}`,
-  tokenCodeHash: `0x${"33".repeat(32)}`,
+  networkId: toBase58(new Uint8Array(32).fill(0x11)),
+  factoryAddress: toBase58(new Uint8Array(32).fill(0x22)),
+  tokenCodeHash: toBase58(new Uint8Array(32).fill(0x33)),
 };
 const temporaryDirectories: string[] = [];
 
@@ -402,20 +403,19 @@ function page(
 }
 
 function token(sequence: number, blockHeight: string): RegistryToken {
-  const byte = sequence.toString(16).padStart(2, "0");
   return {
     networkId: scope.networkId,
     factoryAddress: scope.factoryAddress,
-    tokenAddress: `0x${byte.repeat(32)}`,
-    creatorAddress: `0x${"44".repeat(32)}`,
-    administratorAddress: `0x${"55".repeat(32)}`,
-    initialHolderAddress: `0x${"66".repeat(32)}`,
+    tokenAddress: toBase58(new Uint8Array(32).fill(sequence)),
+    creatorAddress: toBase58(new Uint8Array(32).fill(0x44)),
+    administratorAddress: toBase58(new Uint8Array(32).fill(0x55)),
+    initialHolderAddress: toBase58(new Uint8Array(32).fill(0x66)),
     initialSupply: "1000",
     name: `Token ${sequence}`,
     symbol: `T${sequence}`,
     decimals: 7,
     tokenCodeHash: scope.tokenCodeHash,
-    transactionHash: `0x${(sequence + 20).toString(16).padStart(2, "0").repeat(32)}`,
+    transactionHash: toBase58(new Uint8Array(32).fill(sequence + 20)),
     eventSequence: sequence,
     blockHeight,
     indexedAt: "2026-09-05T12:00:00.000Z",

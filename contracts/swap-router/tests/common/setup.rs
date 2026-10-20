@@ -1,7 +1,7 @@
 use super::*;
-use sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 use std::env;
 use swap_factory::{POOL_FUNDING, SwapFactoryClient, SwapHashes};
+use thruput_sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
 
 pub fn setup_etx() -> Result<Etx> {
     #[cfg(not(feature = "guest_test"))]
@@ -16,7 +16,7 @@ pub fn setup_etx() -> Result<Etx> {
 }
 
 pub fn setup_etx_native() -> Result<Etx> {
-    let env = sdk::TestEnvironment::new(None); // use default cost model
+    let env = thruput_sdk::TestEnvironment::new(None); // use default cost model
 
     // Register the contracts the factory deploys, plus the factory and the single suite-wide router
     // (both deployed directly).
@@ -43,7 +43,7 @@ pub fn setup_etx_guest() -> Result<Etx> {
     let router_contract = load("swap_router");
     let factory_contract = load("swap_factory");
 
-    let env = sdk::TestEnvironment::new(None); // use default cost model
+    let env = thruput_sdk::TestEnvironment::new(None); // use default cost model
 
     let hashes = SwapHashes {
         token: env.setup_create_contract(&token_contract),

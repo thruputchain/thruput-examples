@@ -1,7 +1,7 @@
-use sdk::{ContractAddress, Named, SHA256Hash, TestEnvironment, encode_xdr, log_event};
 use standard_token_factory_if::{
     FactoryConfig, StandardTokenFactoryClient, StandardTokenInitializerClient, TokenCreated,
 };
+use thruput_sdk::{ContractAddress, Named, SHA256Hash, TestEnvironment, encode_xdr, log_event};
 
 #[test]
 fn generated_clients_compile() {
@@ -21,7 +21,7 @@ fn factory_config_roundtrips() {
     };
 
     let encoded = encode_xdr(&config).expect("config encodes");
-    let decoded: FactoryConfig = sdk::xdr::cxs::decode(&encoded).expect("config decodes");
+    let decoded: FactoryConfig = thruput_sdk::xdr::cxs::decode(&encoded).expect("config decodes");
     assert_eq!(decoded, config);
 }
 

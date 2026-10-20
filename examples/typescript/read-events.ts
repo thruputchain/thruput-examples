@@ -1,13 +1,13 @@
-import { addressFromHex } from "@thruputchain/client";
+import { parseAddress } from "@thruputchain/client";
 import { counter } from "./generated/counter.ts";
 import { createLocalClient } from "./local-client.ts";
 
-const addressHex = process.env.THRUPUT_COUNTER_ADDRESS;
-if (!addressHex)
+const addressText = process.env.THRUPUT_COUNTER_ADDRESS;
+if (!addressText)
   throw new Error(
     "Set THRUPUT_COUNTER_ADDRESS to the deployed Counter address",
   );
-const address = addressFromHex(addressHex);
+const address = parseAddress(addressText);
 const client = await createLocalClient();
 const PingEvent = counter.v0_1.implementation.PingEvent;
 // Keep the upper block bound fixed while paging through this query.
@@ -33,7 +33,7 @@ const tags = events.map(({ event }) => {
 });
 console.log(
   JSON.stringify(
-    { contractAddress: addressHex, count: tags.length, tags },
+    { contractAddress: addressText, count: tags.length, tags },
     null,
     2,
   ),

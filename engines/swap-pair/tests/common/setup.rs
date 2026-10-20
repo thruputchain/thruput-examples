@@ -29,7 +29,7 @@ fn fund_deploy_target(
 // by the `swap-factory` crate's tests instead.
 #[rustfmt::skip]
 pub fn setup_etx() -> Result<Etx> {
-    let env = sdk::TestEnvironment::new(None); // use default cost model
+    let env = thruput_sdk::TestEnvironment::new(None); // use default cost model
 
     // Register the token contract
     let token_contract = erc20::register_mock_contract(&env);

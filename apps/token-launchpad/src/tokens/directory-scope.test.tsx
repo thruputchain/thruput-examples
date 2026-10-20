@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@/test/render";
 import { MemoryRouter } from "react-router-dom";
 import { expect, it, vi } from "vitest";
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { configuration } from "@/test/fixtures";
 import { TokensPage } from "./tokens-page";
 import type { RegistryStatus } from "@/registry/client";
@@ -45,7 +45,7 @@ it("starts My Tokens on page one without the All Tokens snapshot", async () => {
   );
   await waitFor(() =>
     expect(read.mock.lastCall?.[1]).toEqual({
-      creator: toHex0x(config.accountAddress),
+      creator: toBase58(config.accountAddress),
       sort: "newest",
       offset: 0,
       limit: 20,

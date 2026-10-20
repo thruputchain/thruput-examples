@@ -4,8 +4,10 @@ import {
   addressFromHex,
   fixedBytes,
   ThruputRpcErrorCode,
+  hashFromBase58,
   hashFromHex,
   JsonRpcError,
+  toBase58,
 } from "@thruputchain/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -27,16 +29,16 @@ const TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 type TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 
 const scope: RegistryScope = {
-  networkId: "11".repeat(32),
-  factoryAddress: `0x${"22".repeat(32)}`,
-  tokenCodeHash: `0x${"33".repeat(32)}`,
+  networkId: toBase58(new Uint8Array(32).fill(0x11)),
+  factoryAddress: toBase58(new Uint8Array(32).fill(0x22)),
+  tokenCodeHash: toBase58(new Uint8Array(32).fill(0x33)),
 };
 const client = { view: vi.fn(), getEvents: vi.fn(), getNetworkInfo: vi.fn() };
 
 beforeEach(() => {
   client.getEvents.mockReset();
   client.getNetworkInfo.mockReset().mockResolvedValue({
-    networkHash: hashFromHex(`0x${scope.networkId}`),
+    networkHash: hashFromBase58(scope.networkId),
   });
 });
 
@@ -101,8 +103,7 @@ describe("ThruputRegistrySource", () => {
           indexedThroughBlock: "0",
           tokenCount: 0,
           lastSuccessfulSyncAt: null,
-          lastError:
-            "The RPC endpoint belongs to a different Thruput network",
+          lastError: "The RPC endpoint belongs to a different Thruput network",
         });
         expect(client.getEvents).toHaveBeenCalledTimes(
           timing === "before scan" ? 0 : 1,
@@ -272,10 +273,10 @@ describe("ThruputRegistrySource", () => {
       oldestBlock: "2",
       tokens: [
         {
-          tokenAddress: `0x${"44".repeat(32)}`,
-          creatorAddress: `0x${"55".repeat(32)}`,
+          tokenAddress: toBase58(new Uint8Array(32).fill(0x44)),
+          creatorAddress: toBase58(new Uint8Array(32).fill(0x55)),
           initialSupply: "123",
-          transactionHash: `0x${"88".repeat(32)}`,
+          transactionHash: toBase58(new Uint8Array(32).fill(0x88)),
           eventSequence: 0,
           blockHeight: "8",
           name: "Token",

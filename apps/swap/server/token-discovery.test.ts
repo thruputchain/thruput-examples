@@ -3,14 +3,18 @@ import { createServer, request as httpRequest, type Server } from "node:http";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fromHex0x, toBase58 } from "@thruputchain/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTokenDiscoveryHandler } from "./token-discovery.ts";
 import { createRegistryHttpServer } from "./http.ts";
 import { RegistryStore } from "./store.ts";
 
-const address = (n: number) => `0x${n.toString(16).padStart(64, "0")}`;
+// The Launchpad registry API emits canonical base58 identifiers.
+const address = (n: number) =>
+  toBase58(fromHex0x(`0x${n.toString(16).padStart(64, "0")}`));
+const network = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const scope = {
-  networkId: "ab".repeat(32),
+  networkId: network(0xab),
   factoryAddress: address(1),
   tokenCodeHash: address(2),
 };
@@ -287,7 +291,7 @@ describe("fixed token discovery boundary", () => {
   });
 
   it.each([
-    { networkId: "cd".repeat(32) },
+    { networkId: network(0xcd) },
     { networkId: scope.networkId.toUpperCase() },
     { factoryAddress: address(50) },
     { syncing: true },
@@ -319,7 +323,7 @@ describe("fixed token discovery boundary", () => {
 
   it.each([
     { tokenCodeHash: address(99) },
-    { networkId: "cd".repeat(32) },
+    { networkId: network(0xcd) },
     { factoryAddress: address(99) },
     { tokenAddress: address(0) },
     { tokenAddress: `${address(3)}\n` },
@@ -502,8 +506,8 @@ describe("fixed token discovery boundary", () => {
       "<!doctype html><p>Swap</p>",
     );
     const store = new RegistryStore(":memory:", {
-      networkId: scope.networkId,
-      factoryAddress: address(50),
+      networkId: network(0xab),
+      factoryAddress: network(50),
     });
     cleanup.push(() => store.close());
     const fetcher = vi

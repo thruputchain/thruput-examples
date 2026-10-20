@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress, ExecResult, sha256Hash } from "@thruputchain/protocol";
 import { act, render, screen, waitFor, within } from "@/test/render";
 import userEvent from "@testing-library/user-event";
@@ -37,7 +38,7 @@ const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte))
 
 const config: AppConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(10),
@@ -114,14 +115,14 @@ async function enableManualProcessing(container?: HTMLElement): Promise<void> {
   );
 }
 
-const hash = `0x${"ab".repeat(32)}`;
+const hash = toBase58(new Uint8Array(32).fill(0xab));
 const criteria = {
-  handlerAddress: `0x${"06".repeat(32)}`,
-  driverAddress: `0x${"05".repeat(32)}`,
-  sender: `0x${"09".repeat(32)}`,
-  recipient: `0x${"09".repeat(32)}`,
-  tokenIn: `0x${"01".repeat(32)}`,
-  tokenOut: `0x${"02".repeat(32)}`,
+  handlerAddress: toBase58(new Uint8Array(32).fill(0x06)),
+  driverAddress: toBase58(new Uint8Array(32).fill(0x05)),
+  sender: toBase58(new Uint8Array(32).fill(0x09)),
+  recipient: toBase58(new Uint8Array(32).fill(0x09)),
+  tokenIn: toBase58(new Uint8Array(32).fill(0x01)),
+  tokenOut: toBase58(new Uint8Array(32).fill(0x02)),
 };
 
 function saveOutstandingRequest(
@@ -199,6 +200,8 @@ function committedSuccess(
   };
 }
 
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
+
 describe("read-only swap experience", () => {
   it.each([
     undefined,
@@ -221,12 +224,12 @@ describe("read-only swap experience", () => {
     );
     await screen.findByLabelText("YOU PAY");
     expect(screen.getByRole("link", { name: /Token A address:/ })).toHaveAttribute(
-      "href", `https://explorer.test/address/0x${"01".repeat(32)}`,
+      "href", `https://explorer.test/address/${b58(0x01)}`,
     );
 
     page.rerender(<App {...props} config={{ ...config, explorerUrl }} />);
     expect(screen.queryByRole("link", { name: /Token A address:/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: `Token A address: 0x${"01".repeat(32)}` })).toBeVisible();
+    expect(screen.getByRole("button", { name: `Token A address: ${b58(0x01)}` })).toBeVisible();
   });
 
   it("loads the local snapshot and derives an exact-input preview", async () => {
@@ -620,7 +623,7 @@ describe("local swap submission", () => {
       status: "executed",
       execution: {
         kind: "executed",
-        transactionHash: `0x${"ef".repeat(32)}`,
+        transactionHash: toBase58(new Uint8Array(32).fill(0xef)),
         blockHeight: 14n,
         amountIn: 10_000_000n,
         amountOut: 19_500_000n,
@@ -841,7 +844,7 @@ describe("local swap submission", () => {
       updatedAt: queued!.updatedAt + 1,
       execution: {
         kind: "failed",
-        transactionHash: `0x${"ef".repeat(32)}`,
+        transactionHash: toBase58(new Uint8Array(32).fill(0xef)),
         blockHeight: 14n,
       },
     }]);
@@ -1622,7 +1625,7 @@ describe("local swap submission", () => {
           status: "queued",
           phase: "swap",
           intent: { amountIn: 4_000_000n, amountOutMin: 1_900_000n },
-          transactionHash: `0x${"bc".repeat(32)}`,
+          transactionHash: toBase58(new Uint8Array(32).fill(0xbc)),
           receiptBlock: 13n,
           requestId: `0x${"ce".repeat(32)}`,
           visibleObservationMs: 0,
@@ -1638,7 +1641,7 @@ describe("local swap submission", () => {
       status: "executed",
       execution: {
         kind: "executed",
-        transactionHash: `0x${"ef".repeat(32)}`,
+        transactionHash: toBase58(new Uint8Array(32).fill(0xef)),
         blockHeight: 14n,
         amountIn: 4_000_000n,
         amountOut: 2_000_000n,
@@ -1655,9 +1658,9 @@ describe("local swap submission", () => {
     const executedItem = screen.getByRole("article", { name: "gEUR gUSD" });
     expect(
       within(executedItem).getByLabelText(
-        `Execution transaction hash: 0x${"ef".repeat(32)}`,
+        `Execution transaction hash: ${b58(0xef)}`,
       ),
-    ).toHaveTextContent("0xefefef…efef");
+    ).toHaveTextContent(`${b58(0xef).slice(0, 8)}…${b58(0xef).slice(-4)}`);
     await user.click(
       within(executedItem).getByRole("button", { name: "Dismiss from history" }),
     );
@@ -1702,7 +1705,7 @@ describe("local swap submission", () => {
           {
             kind: "executionObserved",
             requestId: first.requestId!,
-            transactionHash: `0x${"ef".repeat(32)}`,
+            transactionHash: toBase58(new Uint8Array(32).fill(0xef)),
             blockHeight: 14n,
             amountIn: 10_000_000n,
             amountOut: 19_500_000n,
@@ -1710,7 +1713,7 @@ describe("local swap submission", () => {
           {
             kind: "executionFailed",
             requestId: second.requestId!,
-            transactionHash: `0x${"ac".repeat(32)}`,
+            transactionHash: toBase58(new Uint8Array(32).fill(0xac)),
             blockHeight: 14n,
           },
         ],
@@ -1748,7 +1751,7 @@ describe("local swap submission", () => {
       scan: vi.fn().mockResolvedValue({
         kind: "executionObserved",
         requestId: `0x${"cd".repeat(32)}`,
-        transactionHash: `0x${"ef".repeat(32)}`,
+        transactionHash: toBase58(new Uint8Array(32).fill(0xef)),
         blockHeight: 14n,
         amountIn: 10_000_000n,
         amountOut: 19_500_000n,
@@ -1805,7 +1808,7 @@ describe("local swap submission", () => {
       scan: vi.fn().mockResolvedValue({
         kind: "executionObserved",
         requestId: `0x${"cd".repeat(32)}`,
-        transactionHash: `0x${"ef".repeat(32)}`,
+        transactionHash: toBase58(new Uint8Array(32).fill(0xef)),
         blockHeight: 14n,
         amountIn: 10_000_000n,
         amountOut: 19_500_000n,
@@ -1837,7 +1840,7 @@ describe("local swap submission", () => {
       scan: vi.fn().mockResolvedValue({
         kind: "executionObserved",
         requestId: `0x${"cd".repeat(32)}`,
-        transactionHash: `0x${"ef".repeat(32)}`,
+        transactionHash: toBase58(new Uint8Array(32).fill(0xef)),
         blockHeight: 14n,
         amountIn: 10_000_000n,
         amountOut: 4_500_000n,
@@ -2053,7 +2056,7 @@ describe("local swap submission", () => {
       resolveScan({
         kind: "executionObserved",
         requestId: `0x${"cd".repeat(32)}`,
-        transactionHash: `0x${"ef".repeat(32)}`,
+        transactionHash: toBase58(new Uint8Array(32).fill(0xef)),
         blockHeight: 14n,
         amountIn: 10_000_000n,
         amountOut: 19_500_000n,
@@ -2104,7 +2107,7 @@ describe("local swap submission", () => {
       resolveScan({
         kind: "executionObserved",
         requestId: queuedRequest.requestId,
-        transactionHash: `0x${"ef".repeat(32)}`,
+        transactionHash: toBase58(new Uint8Array(32).fill(0xef)),
         blockHeight: 14n,
         amountIn: 10_000_000n,
         amountOut: 19_500_000n,

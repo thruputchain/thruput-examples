@@ -13,7 +13,7 @@ import { loadServerConfig } from "../../apps/counter/server/config.ts";
 import { createCounterServer } from "../../apps/counter/server/main.ts";
 import { createCounterConnection } from "../../apps/counter/src/thruput/client.ts";
 import { TransactionEngine } from "../../apps/counter/src/transactions/engine.ts";
-import { addressFromHex } from "@thruputchain/client";
+import { addressFromBase58 } from "@thruputchain/client";
 import { Counter } from "../../apps/counter/src/contracts/generated/counter.ts";
 import { createPublicClient } from "../../apps/counter/src/thruput/public-client.ts";
 
@@ -151,7 +151,7 @@ try {
     (
       await Counter.v0_1.get.view({
         client: readClient,
-        contract: addressFromHex(config.app.counterAddress),
+        contract: addressFromBase58(config.app.counterAddress),
       })
     ).value;
   timer = setInterval(() => engine!.tick(), 25);

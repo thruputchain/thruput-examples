@@ -1,4 +1,8 @@
-import { toHex0x } from "@thruputchain/client";
+import {
+  addressFromBase58,
+  addressToStrkey,
+  toBase58,
+} from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
@@ -21,7 +25,7 @@ const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
 const globalConfig: GlobalConfig = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(3),
@@ -112,8 +116,8 @@ describe("PoolDirectoryPage", () => {
         hasMore: query.offset === 0,
         pools: [{
           ...page().pools[0]!,
-          token0Address: hex(query.offset + 5),
-          token1Address: hex(query.offset + 6),
+          token0Address: id(query.offset + 5),
+          token1Address: id(query.offset + 6),
         }],
       }));
       const readStatus = vi.fn().mockResolvedValue(status());
@@ -125,7 +129,7 @@ describe("PoolDirectoryPage", () => {
       await act(async () => {});
       await act(async () => fireEvent.click(screen.getByRole("button", { name: "Next" })));
       expect(screen.getByText("Showing 21-21 of 21")).toBeVisible();
-      const pageTwoLink = `/pools/${hex(25)}/${hex(26)}`;
+      const pageTwoLink = `/pools/${id(25)}/${id(26)}`;
       expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute("href", pageTwoLink);
 
       latestBlock = "99";
@@ -244,7 +248,7 @@ describe("PoolDirectoryPage", () => {
     const user = userEvent.setup();
     let resolveBackground!: (value: RegistryPoolPage) => void;
     const replacement = page();
-    replacement.pools[0] = { ...replacement.pools[0]!, token0Address: hex(20), token1Address: hex(21) };
+    replacement.pools[0] = { ...replacement.pools[0]!, token0Address: id(20), token1Address: id(21) };
     const readRegistry = vi.fn().mockResolvedValue(page());
     renderPage(globalConfig, {
       readRegistry,
@@ -256,7 +260,7 @@ describe("PoolDirectoryPage", () => {
     readRegistry.mockImplementationOnce(() => new Promise((resolve) => { resolveBackground = resolve; })).mockResolvedValue(replacement);
     await act(async () => window.dispatchEvent(new Event("focus")));
     await user.type(screen.getByLabelText("Search addresses"), "20");
-    const link = `/pools/${hex(20)}/${hex(21)}`;
+    const link = `/pools/${id(20)}/${id(21)}`;
     await waitFor(() => expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute("href", link));
     await act(async () => resolveBackground(page()));
     expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute("href", link);
@@ -280,7 +284,7 @@ describe("PoolDirectoryPage", () => {
     expect(screen.getByText("2")).toBeVisible();
     expect(
       screen.getByRole("button", {
-        name: `Handler address: ${toHex0x(poolConfig.handlerAddress)}`,
+        name: `Handler address: ${toBase58(poolConfig.handlerAddress)}`,
       }),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "View pool" })).toBeVisible();
@@ -333,14 +337,14 @@ describe("PoolDirectoryPage", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "0x050505…0505 / 0x060606…0606" }),
+      await screen.findByRole("heading", { name: poolHeading(5, 6) }),
     ).toBeVisible();
     expect(
       await screen.findByText("Some pools could not be loaded"),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute(
       "href",
-      `/pools/${hex(5)}/${hex(6)}`,
+      `/pools/${id(5)}/${id(6)}`,
     );
     expect(requestSync).toHaveBeenCalledTimes(1);
   });
@@ -389,11 +393,107 @@ describe("PoolDirectoryPage", () => {
     });
     expect(readRegistry.mock.calls[3]?.[1]).not.toHaveProperty("asOfBlock");
 
-    await user.type(screen.getByLabelText("Contains token"), hex(5));
+    await user.type(screen.getByLabelText("Contains token"), id(5));
     await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(5));
-    expect(readRegistry.mock.calls[4]?.[1]).toMatchObject({ token: hex(5) });
+    expect(readRegistry.mock.calls[4]?.[1]).toMatchObject({ token: id(5) });
     expect(readRegistry.mock.calls[4]?.[1]).not.toHaveProperty("asOfBlock");
     expect(requestSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("filters by a pasted base58 or StrKey token and rejects hex", async () => {
+    const user = userEvent.setup();
+    const readRegistry = vi.fn().mockResolvedValue(page());
+    renderPage(globalConfig, {
+      readRegistry,
+      requestSync: vi.fn().mockResolvedValue(status()),
+      readStatus: vi.fn().mockResolvedValue(status()),
+      enrich: vi.fn(async (_config, entries) => entries),
+    });
+    await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(1));
+    const token = screen.getByLabelText("Contains token");
+
+    // The base58 address the page displays is what people paste back.
+    await user.click(token);
+    await user.paste(id(5));
+    await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(2));
+    expect(readRegistry.mock.calls[1]?.[1]).toMatchObject({ token: id(5) });
+    expect(token).not.toHaveAttribute("aria-invalid", "true");
+
+    await user.clear(token);
+    await user.paste(addressToStrkey(addressFromBase58(id(6))));
+    await waitFor(() =>
+      expect(readRegistry.mock.calls.at(-1)?.[1]).toMatchObject({
+        token: id(6),
+      }),
+    );
+
+    const calls = readRegistry.mock.calls.length;
+    await user.clear(token);
+    await user.paste(`0x${"05".repeat(32)}`);
+    expect(
+      await screen.findByText(
+        "Enter the base58 token address. 0x hex addresses are not accepted.",
+      ),
+    ).toBeInTheDocument();
+    expect(token).toHaveAttribute("aria-invalid", "true");
+    await act(() => new Promise((resolve) => setTimeout(resolve, 400)));
+    expect(
+      readRegistry.mock.calls
+        .slice(calls)
+        .some(([, query]) => String(query.token).startsWith("0x")),
+    ).toBe(false);
+  });
+
+  it("sends a pasted base58 address fragment as a case-sensitive search", async () => {
+    const user = userEvent.setup();
+    const readRegistry = vi.fn().mockResolvedValue(page());
+    renderPage(globalConfig, {
+      readRegistry,
+      requestSync: vi.fn().mockResolvedValue(status()),
+      readStatus: vi.fn().mockResolvedValue(status()),
+      enrich: vi.fn(async (_config, entries) => entries),
+    });
+    await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(1));
+    const fragment = id(5).slice(4, 14);
+    await user.click(screen.getByLabelText("Search addresses"));
+    await user.paste(fragment);
+    await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(2));
+    expect(readRegistry.mock.calls[1]?.[1]).toMatchObject({ q: fragment });
+  });
+
+  it("searches a pasted StrKey address as base58 and rejects hex", async () => {
+    const user = userEvent.setup();
+    const readRegistry = vi.fn().mockResolvedValue(page());
+    renderPage(globalConfig, {
+      readRegistry,
+      requestSync: vi.fn().mockResolvedValue(status()),
+      readStatus: vi.fn().mockResolvedValue(status()),
+      enrich: vi.fn(async (_config, entries) => entries),
+    });
+    await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(1));
+    const search = screen.getByLabelText("Search addresses");
+
+    await user.click(search);
+    await user.paste(addressToStrkey(addressFromBase58(id(6))));
+    await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(2));
+    expect(readRegistry.mock.calls[1]?.[1]).toMatchObject({ q: id(6) });
+    expect(search).not.toHaveAttribute("aria-invalid", "true");
+
+    const calls = readRegistry.mock.calls.length;
+    await user.clear(search);
+    await user.paste(`0x${"05".repeat(32)}`);
+    expect(
+      await screen.findByText(
+        "Search with base58 address text. 0x hex addresses are not accepted.",
+      ),
+    ).toBeInTheDocument();
+    expect(search).toHaveAttribute("aria-invalid", "true");
+    await act(() => new Promise((resolve) => setTimeout(resolve, 400)));
+    expect(
+      readRegistry.mock.calls
+        .slice(calls)
+        .some(([, query]) => String(query.q).startsWith("0x")),
+    ).toBe(false);
   });
 
   it.each(["search", "token", "sort", "page"])(
@@ -434,7 +534,7 @@ describe("PoolDirectoryPage", () => {
       if (change === "search") {
         await user.type(screen.getByLabelText("Search addresses"), "20");
       } else if (change === "token") {
-        await user.type(screen.getByLabelText("Contains token"), hex(20));
+        await user.type(screen.getByLabelText("Contains token"), id(20));
       } else if (change === "sort") {
         await user.selectOptions(screen.getByLabelText("Sort by"), "oldest");
       } else if (change === "page") {
@@ -450,13 +550,13 @@ describe("PoolDirectoryPage", () => {
       const replacement = page();
       replacement.pools[0] = {
         ...replacement.pools[0]!,
-        token0Address: hex(20),
-        token1Address: hex(21),
+        token0Address: id(20),
+        token1Address: id(21),
       };
       await act(async () => resolveReplacement(replacement));
       expect(screen.getByRole("link", { name: "View pool" })).toHaveAttribute(
         "href",
-        `/pools/${hex(20)}/${hex(21)}`,
+        `/pools/${id(20)}/${id(21)}`,
       );
     },
   );
@@ -527,8 +627,8 @@ describe("PoolDirectoryPage", () => {
     const secondPage = page();
     secondPage.pools[0] = {
       ...secondPage.pools[0]!,
-      token0Address: hex(20),
-      token1Address: hex(21),
+      token0Address: id(20),
+      token1Address: id(21),
     };
     const readRegistry = vi
       .fn()
@@ -552,12 +652,12 @@ describe("PoolDirectoryPage", () => {
     await user.type(screen.getByLabelText("Search addresses"), "20");
     await waitFor(() => expect(readRegistry).toHaveBeenCalledTimes(2));
     expect(
-      await screen.findByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
+      await screen.findByRole("heading", { name: poolHeading(0x14, 0x15) }),
     ).toBeVisible();
     resolveFirst?.(firstPage);
     await act(async () => {});
     expect(
-      screen.getByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
+      screen.getByRole("heading", { name: poolHeading(0x14, 0x15) }),
     ).toBeVisible();
   });
 
@@ -569,8 +669,8 @@ describe("PoolDirectoryPage", () => {
     const secondPage = page();
     secondPage.pools[0] = {
       ...secondPage.pools[0]!,
-      token0Address: hex(20),
-      token1Address: hex(21),
+      token0Address: id(20),
+      token1Address: id(21),
     };
     const enrich = vi
       .fn()
@@ -593,17 +693,17 @@ describe("PoolDirectoryPage", () => {
       },
     );
     expect(
-      await screen.findByRole("heading", { name: "0x050505…0505 / 0x060606…0606" }),
+      await screen.findByRole("heading", { name: poolHeading(5, 6) }),
     ).toBeVisible();
 
     await user.type(screen.getByLabelText("Search addresses"), "20");
     expect(
-      await screen.findByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
+      await screen.findByRole("heading", { name: poolHeading(0x14, 0x15) }),
     ).toBeVisible();
     resolveFirst?.(registryPoolsToEntries(firstPage.pools));
     await act(async () => {});
     expect(
-      screen.getByRole("heading", { name: "0x141414…1414 / 0x151515…1515" }),
+      screen.getByRole("heading", { name: poolHeading(0x14, 0x15) }),
     ).toBeVisible();
   });
 });
@@ -634,24 +734,23 @@ function renderPage(
   );
 }
 
-const hex = (byte: number) =>
-  `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 
 function page(): RegistryPoolPage {
   return {
-    networkId: globalConfig.networkIdHex,
-    factoryAddress: hex(3),
+    networkId: globalConfig.networkId,
+    factoryAddress: id(3),
     pools: [
       {
-        networkId: globalConfig.networkIdHex,
-        factoryAddress: hex(3),
-        token0Address: hex(5),
-        token1Address: hex(6),
-        liquidityTokenAddress: hex(8),
-        handlerAddress: hex(9),
-        driverAddress: hex(10),
+        networkId: globalConfig.networkId,
+        factoryAddress: id(3),
+        token0Address: id(5),
+        token1Address: id(6),
+        liquidityTokenAddress: id(8),
+        handlerAddress: id(9),
+        driverAddress: id(10),
         pairCount: "1",
-        transactionHash: hex(11),
+        transactionHash: id(11),
         eventSequence: "0",
         createdBlock: "12",
         indexedAt: "2026-09-05T00:00:00.000Z",
@@ -668,8 +767,8 @@ function page(): RegistryPoolPage {
 
 function status(overrides: Partial<RegistryStatus> = {}): RegistryStatus {
   return {
-    networkId: globalConfig.networkIdHex,
-    factoryAddress: hex(3),
+    networkId: globalConfig.networkId,
+    factoryAddress: id(3),
     indexedThroughBlock: "12",
     poolCount: 1,
     historyLimited: false,
@@ -679,4 +778,13 @@ function status(overrides: Partial<RegistryStatus> = {}): RegistryStatus {
     lastError: null,
     ...overrides,
   };
+}
+
+/** Untitled pools are named by their abbreviated base58 token addresses. */
+function poolHeading(token0: number, token1: number): string {
+  const short = (byte: number) => {
+    const value = toBase58(new Uint8Array(32).fill(byte));
+    return `${value.slice(0, 8)}…${value.slice(-4)}`;
+  };
+  return `${short(token0)} / ${short(token1)}`;
 }

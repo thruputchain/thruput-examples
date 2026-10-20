@@ -1,8 +1,8 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use sdk::*;
+use thruput_sdk::*;
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
 /// Error type for the callee contract.
 #[contract_exception]
@@ -32,9 +32,9 @@ impl ErrorHandlingCallee {
 
     /// Burn gas by repeatedly hashing. Returns the iteration count if it completes.
     pub fn spin(iterations: u32) -> u32 {
-        let mut hash = sdk::crypto::sha256(b"seed");
+        let mut hash = thruput_sdk::crypto::sha256(b"seed");
         for _ in 1..iterations {
-            hash = sdk::crypto::sha256(hash.as_slice());
+            hash = thruput_sdk::crypto::sha256(hash.as_slice());
         }
         // Use hash to prevent the loop from being optimized away
         let _ = hash;

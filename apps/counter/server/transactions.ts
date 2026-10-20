@@ -1,5 +1,5 @@
 import {
-  addressFromHex,
+  addressFromBase58,
   bytesEqual,
   createThruputClient,
   createPubkeyAccount,
@@ -8,10 +8,11 @@ import {
   defineCluster,
   deserializeSignedTransaction,
   fromHex0x,
-  hashFromHex,
+  hashFromBase58,
   HttpTransport,
   PrivateKeySigner,
   serializeSignedTransaction,
+  toBase58,
   toHex0x,
 } from "@thruputchain/client";
 import {
@@ -63,8 +64,8 @@ export function createCounterTransactions(
   const account = createPubkeyAccount({
     signer: new PrivateKeySigner(fromHex0x(config.signingPrivateKey)),
   });
-  const expected = networkHash(hashFromHex(config.app.networkId));
-  const contract = addressFromHex(config.app.counterAddress);
+  const expected = networkHash(hashFromBase58(config.app.networkId));
+  const contract = addressFromBase58(config.app.counterAddress);
   const invocations = {
     increment: Counter.v0_1.increment.invocation(contract, GAS, { amount: 1n }),
     decrement: Counter.v0_1.decrement.invocation(contract, GAS, { amount: 1n }),
@@ -126,7 +127,7 @@ export function createCounterTransactions(
       );
     }
     return {
-      hash: toHex0x(result.txHash),
+      hash: toBase58(result.txHash),
       rawAmount: result.rawAmount.toString(),
     };
   }

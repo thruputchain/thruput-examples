@@ -84,7 +84,8 @@ Run `npm run <command> --workspace apps/counter`:
 | `start` | Serve the production bundle; `PORT` defaults to 3000 |
 
 For Devnet, set `THRUPUT_RPC_URL` to the HTTPS endpoint and
-`THRUPUT_NETWORK_ID` to its verified live hash, then run `setup:devnet`.
+`THRUPUT_NETWORK_ID` to its verified live base58 network hash, then run
+`setup:devnet`.
 It writes `.env.devnet`; select it with `dev -- --mode devnet` or supply its
 values to the production server. Environment files contain private signer
 material and are ignored by Git. See [`.env.example`](.env.example).

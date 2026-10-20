@@ -1,7 +1,10 @@
+import { typedAddress } from "@/lib/address";
+import { ZERO_ADDRESS } from "../../shared/registry";
+
+/** Read a nonzero base58 or C StrKey address as canonical base58. */
 export function tokenAddress(value: string): string | null {
-  return /^0x[0-9a-fA-F]{64}$/.test(value) && !/^0x0{64}$/.test(value)
-    ? value.toLowerCase()
-    : null;
+  const address = typedAddress(value);
+  return address !== null && address !== ZERO_ADDRESS ? address : null;
 }
 
 export function readCreationPresets(search: string) {
@@ -13,7 +16,7 @@ export function readCreationPresets(search: string) {
     const address = values.length === 1 ? tokenAddress(values[0]!) : null;
     if (address !== null) return address;
     warnings.push(
-      `${key} preset was ignored: provide one nonzero 32-byte contract address.`,
+      `${key} preset was ignored: provide one nonzero base58 contract address.`,
     );
     return "";
   };

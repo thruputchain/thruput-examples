@@ -1,5 +1,5 @@
-use sdk::storage::NNInt;
-use sdk::*;
+use thruput_sdk::storage::NNInt;
+use thruput_sdk::*;
 
 #[contract_exception]
 pub enum CounterError {
@@ -17,7 +17,7 @@ pub struct PingEvent {
 /// execute concurrently and merge correctly regardless of
 /// order.
 #[derive(Debug)]
-#[sdk::storage]
+#[thruput_sdk::storage]
 pub struct Counter {
     value: NNInt,
 }

@@ -12,9 +12,9 @@
 pub use thruput_erc20_if::ERC20Error;
 
 /// A contract address.
-pub type Address = sdk::ContractAddress;
+pub type Address = thruput_sdk::ContractAddress;
 /// A pair of addresses (the two tokens of a swap pair).
-pub type Addresses = [sdk::ContractAddress; 2];
+pub type Addresses = [thruput_sdk::ContractAddress; 2];
 /// A token amount.
 pub type Amount = u128;
 /// A pair of amounts, one per token.
@@ -25,7 +25,7 @@ pub type Amounts = [Amount; 2];
 /// [`SwapDriver::request`]) -- so it is unique even across several
 /// requests in one transaction -- and is echoed into the event the request eventually produces,
 /// letting the off-chain application track a request's lifecycle by polling for that event.
-pub type RequestId = sdk::SHA256Hash;
+pub type RequestId = thruput_sdk::SHA256Hash;
 
 extern crate alloc;
 

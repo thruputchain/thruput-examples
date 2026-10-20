@@ -17,6 +17,7 @@ import {
   fixedBytes,
   fromHex0x,
   hashContract,
+  toBase58,
   toHex0x,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
@@ -67,6 +68,7 @@ vi.mock("@thruputchain/client", async (original) => ({
 
 const address = (byte: number) =>
   contractAddress(new Uint8Array(32).fill(byte));
+const b58 = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const factory = address(3);
 const router = address(4);
 const gas = gasAmount(10_000_000n);
@@ -94,12 +96,12 @@ beforeEach(async () => {
   assetPath = join(
     root,
     "public/contract-artifacts",
-    `${toHex0x(hashContract(contract("erc20")))}.json`,
+    `${toBase58(hashContract(contract("erc20")))}.json`,
   );
   oldAssetPath = join(
     root,
     "public/contract-artifacts",
-    `0x${"11".repeat(32)}.json`,
+    `${b58(0x11)}.json`,
   );
   await mkdir(join(root, "public/contract-artifacts"), { recursive: true });
   await writeFile(oldAssetPath, "previous artifact\n");
@@ -126,7 +128,7 @@ beforeEach(async () => {
   vi.stubEnv("SWAP_APP_PUBLIC_DIR", join(root, "public"));
   vi.stubEnv("THRUPUT_RPC_URL", "http://127.0.0.1:9545");
   vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "");
-  vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"00".repeat(32)}`);
+  vi.stubEnv("THRUPUT_NETWORK_ID", b58(0x00));
   phases = [];
   mocks.getVersion.mockResolvedValue({ wireFormat: "4.0.0" });
   mocks.requestAirdrop.mockImplementation(async () => {
@@ -167,7 +169,7 @@ afterEach(async () => {
 describe("infrastructure-only swap provisioning", () => {
   it("provisions Devnet with an explicit network pin and no local manifest or exported signer", async () => {
     vi.stubEnv("THRUPUT_RPC_URL", undefined);
-    vi.stubEnv("THRUPUT_NETWORK_ID", `0x${"11".repeat(32)}`);
+    vi.stubEnv("THRUPUT_NETWORK_ID", b58(0x11));
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "/unused-local-manifest.json");
     await setupDevnet();
     expect(createThruputClient).toHaveBeenCalledWith(
@@ -183,7 +185,7 @@ describe("infrastructure-only swap provisioning", () => {
     expect(env).toContain(
       "VITE_THRUPUT_RPC_URL=https://rpc.thruput.network/\n",
     );
-    expect(env).toContain(`VITE_THRUPUT_NETWORK_ID=0x${"11".repeat(32)}\n`);
+    expect(env).toContain(`VITE_THRUPUT_NETWORK_ID=${b58(0x11)}\n`);
     expect(env).toContain("VITE_TOKEN_DISCOVERY_ENABLED=false\n");
     expect(env).toContain(
       "VITE_EXPLORER_URL=https://explorer.thruput.network\n",
@@ -228,13 +230,13 @@ describe("infrastructure-only swap provisioning", () => {
       "VITE_THRUPUT_RPC_URL=http://127.0.0.1:9545/\n",
     );
     expect(JSON.parse(await readFile(assetPath, "utf8")).hash).toBe(
-      toHex0x(hashContract(contract("erc20"))),
+      toBase58(hashContract(contract("erc20"))),
     );
   });
   it("publishes concurrent different hashes without overwriting existing assets", async () => {
     const publications = await Promise.all(
       ["first code", "second code"].map(async (code, index) => {
-        const hash = toHex0x(hashContract(contract(code)));
+        const hash = toBase58(hashContract(contract(code)));
         const destination = join(
           root,
           "public/contract-artifacts",
@@ -339,16 +341,16 @@ describe("infrastructure-only swap provisioning", () => {
     expect(env).not.toMatch(
       /PRIVATE|PERSONA|WALLET|ENTRYPOINT|POOL_ADDRESS|LIQUIDITY|DRIVER|alice|bob|carol/i,
     );
-    expect(env).not.toContain(toHex0x(account.address));
+    expect(env).not.toContain(toBase58(account.address));
     expect(await readdir(root)).not.toContain("thruput");
     const asset = JSON.parse(await readFile(assetPath, "utf8"));
     expect(asset).toEqual({
       contractType: "rv32",
       data: toHex0x(Buffer.from("erc20")),
-      hash: toHex0x(hashContract(contract("erc20"))),
+      hash: toBase58(hashContract(contract("erc20"))),
     });
     expect(asset.hash).toBe(
-      toHex0x(
+      toBase58(
         hashContract({
           contract_type: ContractType.kRv32,
           rv32_contract: { data: fromHex0x(asset.data) },
@@ -411,7 +413,7 @@ describe("infrastructure-only swap provisioning", () => {
       expect(await readFile(output, "utf8")).toBe("previous environment\n");
       if (destination === output) {
         expect(JSON.parse(await readFile(assetPath, "utf8")).hash).toBe(
-          toHex0x(hashContract(contract("erc20"))),
+          toBase58(hashContract(contract("erc20"))),
         );
         throw new Error("Cannot publish environment");
       }
@@ -432,7 +434,7 @@ describe("infrastructure-only swap provisioning", () => {
     const manifest = join(root, "runtime.json");
     await writeFile(
       manifest,
-      JSON.stringify({ networkHash: `0x${"00".repeat(32)}` }),
+      JSON.stringify({ networkHash: b58(0x00) }),
     );
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await main();
@@ -443,17 +445,25 @@ describe("infrastructure-only swap provisioning", () => {
     );
   });
 
-  it.each(["ab".repeat(32), `0x${"AB".repeat(32)}`, `0X${"ab".repeat(32)}`])(
-    "normalizes manifest network hash %s",
+  it("writes the base58 manifest network hash", async () => {
+    const manifest = join(root, "runtime.json");
+    await writeFile(manifest, JSON.stringify({ networkHash: b58(0xab) }));
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
+    vi.stubEnv("THRUPUT_NETWORK_ID", b58(0xab));
+    await main();
+    expect(await readFile(output, "utf8")).toContain(
+      `VITE_THRUPUT_NETWORK_ID=${b58(0xab)}\n`,
+    );
+  });
+
+  it.each(["ab".repeat(32), `0x${"ab".repeat(32)}`, ` ${b58(0xab)}`])(
+    "rejects a noncanonical manifest network hash %s",
     async (recorded) => {
       const manifest = join(root, "runtime.json");
       await writeFile(manifest, JSON.stringify({ networkHash: recorded }));
       vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
-      vi.stubEnv("THRUPUT_NETWORK_ID", "AB".repeat(32));
-      await main();
-      expect(await readFile(output, "utf8")).toContain(
-        `VITE_THRUPUT_NETWORK_ID=0x${"ab".repeat(32)}\n`,
-      );
+      await expect(main()).rejects.toThrow(/network hash/);
+      expect(createThruputClient).not.toHaveBeenCalled();
     },
   );
 
@@ -461,7 +471,7 @@ describe("infrastructure-only swap provisioning", () => {
     const manifest = join(root, "runtime.json");
     await writeFile(
       manifest,
-      JSON.stringify({ networkHash: `0x${"11".repeat(32)}` }),
+      JSON.stringify({ networkHash: b58(0x11) }),
     );
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await expect(main()).rejects.toThrow(/disagree/);

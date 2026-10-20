@@ -1,9 +1,9 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
 use error_handling_callee::{CalleeError, ErrorHandlingCalleeClient};
-use sdk::*;
+use thruput_sdk::*;
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
 /// Error type for the caller contract. Exists to satisfy the #[contract] macro;
 /// the caller never throws — it catches everything.

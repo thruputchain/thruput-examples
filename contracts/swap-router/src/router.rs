@@ -5,9 +5,9 @@
 //! are dequeued and performed.
 
 use crate::cfg::*;
-use sdk::storage::*;
-use sdk::*;
 use swap_if::*;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 #[storage]
 pub struct Router {

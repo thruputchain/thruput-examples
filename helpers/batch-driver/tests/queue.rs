@@ -13,8 +13,8 @@
 //! `min_batch` tests cover it, calling `process_requests` through a client with a declared limit.
 
 use batch_driver::{BatchRequest, CrankPolicy, Queue};
-use sdk::storage::*;
-use sdk::*;
+use thruput_sdk::storage::*;
+use thruput_sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([4u8; 32]);
 
@@ -23,7 +23,7 @@ const MIN_BATCH: u32 = 2;
 
 /// An ordinary request, cheap enough that a default frame drains any batch.
 #[derive(ReadXDR, WriteXDR, Clone, Copy, Debug, PartialEq, Eq)]
-#[xdrs(crate = "::sdk::__xdrs")]
+#[xdrs(crate = "::thruput_sdk::__xdrs")]
 struct Request {
     id: SHA256Hash,
 }

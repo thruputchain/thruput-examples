@@ -20,13 +20,13 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-sdk::declare_mock_contract!();
+thruput_sdk::declare_mock_contract!();
 
 use permit_wallet::WalletRequest;
-use sdk::signer::Signed;
-use sdk::types::Ed25519Signature;
-use sdk::*;
 use thruput_erc20_permit_if::{DeleteAllowanceGrant, ERC20PermitClient, PermitGrant};
+use thruput_sdk::signer::Signed;
+use thruput_sdk::types::Ed25519Signature;
+use thruput_sdk::*;
 use thruput_signed_op_if::{Operation, SignedOpClient};
 
 /// Why the relayer refused, before anything reached the wallet.
@@ -64,7 +64,7 @@ impl PermitRelayer {
         // The body says which grant the wallet will mint. Reading it here
         // decides nothing about authorization: the wallet still verifies the
         // signature over these same bytes before minting anything.
-        let request: WalletRequest = sdk::xdr::cxs::decode(op.body.0.as_slice())
+        let request: WalletRequest = thruput_sdk::xdr::cxs::decode(op.body.0.as_slice())
             .unwrap_or_else(|_| throw(RelayError::NotAWalletRequest));
 
         let minted = SignedOpClient::new(wallet).execute_signed_op(op, signature);

@@ -1,4 +1,10 @@
+import { toBase58 } from "@thruputchain/client";
+import { isBase58Identifier } from "../lib/address.ts";
+
 export const MAX_DISCOVERY_RESPONSE_BYTES = 256_000;
+
+// The Launchpad registry API identifies everything in canonical base58.
+const ZERO_IDENTIFIER = toBase58(new Uint8Array(32));
 
 export interface DiscoveryScope {
   networkId: string;
@@ -45,12 +51,10 @@ export function validateScope(
 ): DiscoveryScope {
   const scope = record(value);
   if (
-    typeof scope.networkId !== "string" ||
-    scope.networkId.length !== 64 ||
-    !/^[0-9a-f]{64}$/.test(scope.networkId) ||
-    !canonicalAddress(scope.factoryAddress) ||
-    scope.factoryAddress === `0x${"0".repeat(64)}` ||
-    !canonicalAddress(scope.tokenCodeHash) ||
+    !canonicalIdentifier(scope.networkId) ||
+    !canonicalIdentifier(scope.factoryAddress) ||
+    scope.factoryAddress === ZERO_IDENTIFIER ||
+    !canonicalIdentifier(scope.tokenCodeHash) ||
     scope.networkId !== expected.networkId ||
     scope.factoryAddress !== expected.factoryAddress ||
     scope.tokenCodeHash !== expected.tokenCodeHash
@@ -66,9 +70,9 @@ export function validateScope(
 export function projectToken(value: unknown): DiscoveryToken {
   const token = record(value);
   if (
-    !canonicalAddress(token.tokenAddress) ||
-    token.tokenAddress === `0x${"0".repeat(64)}` ||
-    !canonicalAddress(token.creatorAddress) ||
+    !canonicalIdentifier(token.tokenAddress) ||
+    token.tokenAddress === ZERO_IDENTIFIER ||
+    !canonicalIdentifier(token.creatorAddress) ||
     !nullableText(token.name, 256) ||
     !nullableText(token.symbol, 64) ||
     !(
@@ -196,13 +200,7 @@ export async function readDiscoveryJson(
   }
 }
 
-function canonicalAddress(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length === 66 &&
-    /^0x[0-9a-f]{64}$/.test(value)
-  );
-}
+export const canonicalIdentifier = isBase58Identifier;
 
 function nullableText(value: unknown, maximum: number): value is string | null {
   return (

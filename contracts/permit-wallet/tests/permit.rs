@@ -22,12 +22,12 @@ use erc20::{
 };
 use permit_relayer::PermitRelayerClient;
 use permit_wallet::{PermitWalletClient, WalletRequest};
-use sdk::signer::Signed;
-use sdk::types::transaction::Uniquifier;
-use sdk::types::{Ed25519PublicKey, Ed25519Signature};
-use sdk::xdr::BytesM;
-use sdk::*;
 use thruput_domain_separator::SignedOp as SignedOpPreimage;
+use thruput_sdk::signer::Signed;
+use thruput_sdk::types::transaction::Uniquifier;
+use thruput_sdk::types::{Ed25519PublicKey, Ed25519Signature};
+use thruput_sdk::xdr::BytesM;
+use thruput_sdk::*;
 use thruput_signed_op_if::{Operation, SignedOpClient, SignedOpError};
 
 const ALICE_SEED: [u8; 32] = [0x11; 32];
@@ -88,7 +88,7 @@ fn setup() -> TestEnvironmentHandle {
 /// The current height, read from inside a frame because that is the only
 /// place the syscall answers.
 fn current_height(env: &TestEnvironmentHandle) -> BlockHeight {
-    let result = env.transact(|tx| tx.call(&token()).run(sdk::block::get_block_height));
+    let result = env.transact(|tx| tx.call(&token()).run(thruput_sdk::block::get_block_height));
     result.assert_success();
     result.assert_return_as::<BlockHeight>()
 }
@@ -107,7 +107,7 @@ fn sign(
 ) -> (Operation, Ed25519Signature) {
     let key = SigningKey::from_bytes(seed);
     let preimage = SignedOpPreimage {
-        network: sdk::test_network_hash(),
+        network: thruput_sdk::test_network_hash(),
         verifying_contract: *verifying_contract,
         uniquifier: Uniquifier {
             block_expiry_height: expiry.clone(),
@@ -121,7 +121,7 @@ fn sign(
     let op = Operation {
         block_expiry_height: expiry,
         nonce,
-        body: BytesM(sdk::xdr::cxs::encode(body).expect("encoding the body")),
+        body: BytesM(thruput_sdk::xdr::cxs::encode(body).expect("encoding the body")),
     };
     (op, Ed25519Signature::from(key.sign(&preimage).to_bytes()))
 }
@@ -158,7 +158,7 @@ fn alice_permit(env: &TestEnvironmentHandle) -> (Operation, Ed25519Signature) {
 /// The submitter's first step, inside a frame: take the operation to Alice's
 /// wallet and name the grant it mints. `T` is only what the submitter claims
 /// the grant is; the token decodes the payload when it consumes it.
-fn mint_grant<T: sdk::mintable::MintableType>(
+fn mint_grant<T: thruput_sdk::mintable::MintableType>(
     op: Operation,
     signature: &Ed25519Signature,
 ) -> Signed<T> {

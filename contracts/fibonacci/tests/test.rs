@@ -1,7 +1,7 @@
 use fibonacci::*;
-use sdk::*;
+use thruput_sdk::*;
 
-static FIB_NONCE: SHA256Hash = sdk::sha256_static!("FIB_TEST_NONCE");
+static FIB_NONCE: SHA256Hash = thruput_sdk::sha256_static!("FIB_TEST_NONCE");
 
 /// Helper: set up the fibonacci contract in a test environment.
 fn setup() -> (TestEnvironmentHandle, SHA256Hash) {

@@ -14,7 +14,7 @@ categories.workspace = true
 [features]
 entrypoints = []
 dev = [
-    "sdk/dev",
+    "thruput-sdk/dev",
     "thruput-erc20-if/dev",
     "stellar-account-factory-if/dev",
 ]
@@ -32,7 +32,7 @@ test = false
 bench = false
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 stellar-account-factory-if = { path = "../../interfaces/stellar-account-factory-if", version = "=0.1.0" }
 

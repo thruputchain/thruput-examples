@@ -1,3 +1,4 @@
+import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -15,9 +16,10 @@ import {
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
-  networkIdHex: "00".repeat(32),
+  networkId: toBase58(new Uint8Array(32).fill(0x00)),
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(3),
@@ -52,7 +54,7 @@ describe("request collection", () => {
         status: "failed",
         execution: {
           kind: "failed",
-          transactionHash: hex(22),
+          transactionHash: id(22),
           blockHeight: 13n,
           ...(failureMessage === undefined ? {} : { failureMessage }),
         },
@@ -77,8 +79,8 @@ describe("request collection", () => {
     };
     saveRequestCollection(config, [createRequestRecord(request(), { localId: "first", now: 1 })]);
     saveRequestCollection(other, [createRequestRecord(request({
-      handlerAddress: hex(11),
-      driverAddress: hex(12),
+      handlerAddress: id(11),
+      driverAddress: id(12),
     }), { localId: "second", now: 2 })]);
 
     expect(loadAccountRequestRecords(config).map(({ localId }) => localId)).toEqual([
@@ -122,18 +124,18 @@ function request(
     status: "queued",
     phase: "swap",
     intent: { amountIn: 10n, amountOutMin: 9n },
-    transactionHash: hex(20),
+    transactionHash: id(20),
     receiptBlock: 12n,
     requestId: hex(21),
     visibleObservationMs: 0,
     observationBaseline: null,
     criteria: {
-      handlerAddress: hex(6),
-      driverAddress: hex(7),
-      sender: hex(1),
-      recipient: hex(1),
-      tokenIn: hex(8),
-      tokenOut: hex(9),
+      handlerAddress: id(6),
+      driverAddress: id(7),
+      sender: id(1),
+      recipient: id(1),
+      tokenIn: id(8),
+      tokenOut: id(9),
       ...criteria,
     },
   };

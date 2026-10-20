@@ -1,11 +1,13 @@
 // @vitest-environment node
+
+import { toBase58 } from "@thruputchain/client";
 import { expect, it, vi } from "vitest";
 import { validateStandardTokenArtifact } from "./contract-artifact";
 import { createThruputRegistrySource } from "./chain";
 
 vi.mock("./config.ts", () => ({
   loadServerConfig: () => ({
-    scope: { tokenCodeHash: `0x${"11".repeat(32)}` },
+    scope: { tokenCodeHash: toBase58(new Uint8Array(32).fill(0x11)) },
   }),
 }));
 vi.mock("./contract-artifact.ts", () => ({
@@ -18,7 +20,7 @@ it("validates dist before connecting to RPC or opening the database", async () =
   await expect(import("./main")).rejects.toThrow(/artifact is missing/);
   expect(validateStandardTokenArtifact).toHaveBeenCalledWith(
     expect.stringMatching(/token-launchpad\/dist$/),
-    `0x${"11".repeat(32)}`,
+    toBase58(new Uint8Array(32).fill(0x11)),
   );
   expect(createThruputRegistrySource).not.toHaveBeenCalled();
 });

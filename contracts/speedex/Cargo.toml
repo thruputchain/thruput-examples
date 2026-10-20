@@ -25,11 +25,11 @@ bench = false
 
 [features]
 # The clearing engine keeps the batch's histogram in a `Vec`, so the guest needs the SDK's allocator.
-entrypoints = ["sdk/alloc"]
-dev = ["sdk/dev", "unique-ids/dev"]
+entrypoints = ["thruput-sdk/alloc"]
+dev = ["thruput-sdk/dev", "unique-ids/dev"]
 
 [dependencies]
-sdk = { workspace = true }
+thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
 unique-ids = { path = "../../helpers/unique-ids" }
 

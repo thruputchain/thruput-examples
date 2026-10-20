@@ -1,4 +1,4 @@
-import { addressFromHex } from "@thruputchain/client";
+import { addressFromBase58 } from "@thruputchain/client";
 import { contractViewQueryOptions, useClient } from "@thruputchain/react";
 import { useQuery } from "@tanstack/react-query";
 import { Counter } from "../contracts/generated/counter";
@@ -9,7 +9,7 @@ export function useCounterValue(address: string) {
     ...contractViewQueryOptions({
       client,
       method: Counter.v0_1.get,
-      contract: addressFromHex(address),
+      contract: addressFromBase58(address),
     }),
     refetchInterval: 2_000,
   });

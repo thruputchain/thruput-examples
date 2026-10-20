@@ -1,4 +1,4 @@
-import { addressFromHex, toHex0x } from "@thruputchain/client";
+import { addressFromBase58, toBase58 } from "@thruputchain/client";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import type { ContractAddress } from "@thruputchain/protocol";
 import { useEffect, useState } from "react";
@@ -27,7 +27,7 @@ import type { PoolSnapshot, SnapshotReader } from "@/swap/snapshot";
 
 interface AllowanceAsset {
   address: ContractAddress;
-  addressHex: string;
+  addressBase58: string;
   symbol: string;
   decimals: number;
   allowance: bigint;
@@ -89,7 +89,7 @@ export function AllowanceCleanupCard({
         client,
         writeBoundary: writer,
         readAllowance: async (requestedToken, requestedHandler) => {
-          if (toHex0x(requestedHandler) !== toHex0x(config.handlerAddress)) {
+          if (toBase58(requestedHandler) !== toBase58(config.handlerAddress)) {
             throw new Error("The cleanup handler does not match this pool");
           }
           const fresh = await readSnapshot();
@@ -116,7 +116,7 @@ export function AllowanceCleanupCard({
 
   const pendingAsset = cleanup === null
     ? null
-    : assets.find(({ addressHex }) => addressHex === cleanup.tokenAddress) ?? null;
+    : assets.find(({ addressBase58 }) => addressBase58 === cleanup.tokenAddress) ?? null;
   return (
     <Card>
       <CardHeader>
@@ -130,10 +130,10 @@ export function AllowanceCleanupCard({
         {cleanup === null ? (
           <ul className="grid gap-3">
             {excess.map((asset) => (
-              <li className="flex flex-wrap items-center justify-between gap-3" key={asset.addressHex}>
+              <li className="flex flex-wrap items-center justify-between gap-3" key={asset.addressBase58}>
                 <div>
                   <p className="font-medium">{asset.symbol}</p>
-                  <BlockchainIdentifier kind="address" value={asset.addressHex} label="Allowance token address" />
+                  <BlockchainIdentifier kind="address" value={asset.addressBase58} label="Allowance token address" />
                   <p className="text-sm text-muted-foreground">
                     {formatTokenAmount(asset.allowance - asset.required, asset.decimals, 8)} unused
                   </p>
@@ -180,8 +180,8 @@ export function AllowanceCleanupCard({
                 variant="outline"
                 disabled={isRunning}
                 onClick={() => run(
-                  addressFromHex(cleanup.tokenAddress),
-                  addressFromHex(cleanup.spenderAddress),
+                  addressFromBase58(cleanup.tokenAddress),
+                  addressFromBase58(cleanup.spenderAddress),
                 )}
               >
                 Check cleanup status
@@ -201,25 +201,25 @@ function allowanceAssets(
   config: AppConfig,
   snapshot: PoolSnapshot,
 ): AllowanceAsset[] {
-  const handlerAddress = toHex0x(config.handlerAddress);
+  const handlerAddress = toBase58(config.handlerAddress);
   return [
     {
       address: snapshot.tokenA.address,
-      addressHex: toHex0x(snapshot.tokenA.address),
+      addressBase58: toBase58(snapshot.tokenA.address),
       symbol: snapshot.tokenA.symbol,
       decimals: snapshot.tokenA.decimals,
       allowance: snapshot.tokenA.allowance,
     },
     {
       address: snapshot.tokenB.address,
-      addressHex: toHex0x(snapshot.tokenB.address),
+      addressBase58: toBase58(snapshot.tokenB.address),
       symbol: snapshot.tokenB.symbol,
       decimals: snapshot.tokenB.decimals,
       allowance: snapshot.tokenB.allowance,
     },
     {
       address: config.liquidityTokenAddress,
-      addressHex: toHex0x(config.liquidityTokenAddress),
+      addressBase58: toBase58(config.liquidityTokenAddress),
       symbol: snapshot.liquidityTokenSymbol,
       decimals: snapshot.liquidityTokenDecimals,
       allowance: snapshot.liquidityAllowance,
@@ -228,7 +228,7 @@ function allowanceAssets(
     ...asset,
     required: loadCleanupAllowanceRequirement(
       config,
-      asset.addressHex,
+      asset.addressBase58,
       handlerAddress,
     ).requiredAllowance,
   }));
@@ -239,14 +239,14 @@ function allowanceFromSnapshot(
   snapshot: PoolSnapshot,
   token: ContractAddress,
 ): bigint {
-  const tokenAddress = toHex0x(token);
-  if (tokenAddress === toHex0x(snapshot.tokenA.address)) {
+  const tokenAddress = toBase58(token);
+  if (tokenAddress === toBase58(snapshot.tokenA.address)) {
     return snapshot.tokenA.allowance;
   }
-  if (tokenAddress === toHex0x(snapshot.tokenB.address)) {
+  if (tokenAddress === toBase58(snapshot.tokenB.address)) {
     return snapshot.tokenB.allowance;
   }
-  if (tokenAddress === toHex0x(config.liquidityTokenAddress)) {
+  if (tokenAddress === toBase58(config.liquidityTokenAddress)) {
     return snapshot.liquidityAllowance;
   }
   throw new Error("The cleanup token does not belong to this pool");

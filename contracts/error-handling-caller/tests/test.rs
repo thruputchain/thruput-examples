@@ -1,9 +1,9 @@
 use error_handling_caller::*;
-use sdk::*;
+use thruput_sdk::*;
 
-static CALLEE_NONCE: SHA256Hash = sdk::sha256_static!("ERROR_HANDLING_CALLEE_NONCE");
-static CALLER_NONCE: SHA256Hash = sdk::sha256_static!("ERROR_HANDLING_CALLER_NONCE");
-static FIB_NONCE: SHA256Hash = sdk::sha256_static!("ERROR_HANDLING_FIB_NONCE");
+static CALLEE_NONCE: SHA256Hash = thruput_sdk::sha256_static!("ERROR_HANDLING_CALLEE_NONCE");
+static CALLER_NONCE: SHA256Hash = thruput_sdk::sha256_static!("ERROR_HANDLING_CALLER_NONCE");
+static FIB_NONCE: SHA256Hash = thruput_sdk::sha256_static!("ERROR_HANDLING_FIB_NONCE");
 
 /// Set up both contracts in a test environment.
 fn setup() -> (TestEnvironmentHandle, SHA256Hash, SHA256Hash) {

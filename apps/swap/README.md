@@ -33,7 +33,7 @@ Set up [Launchpad](../token-launchpad/README.md#local-setup) on the same node;
 its factory is used to create fresh tokens. Neither app server needs to run.
 
 ```sh
-export SEED_RECIPIENT=0x<your-public-wallet-address>
+export SEED_RECIPIENT=<your-base58-wallet-address>
 npm run seed --workspace apps/swap
 ```
 
@@ -54,7 +54,7 @@ The registry defaults to factory-scoped SQLite under `.local/`;
 `POOL_REGISTRY_DB_PATH` overrides it. Use one writer per database.
 
 For `setup:devnet`, set an HTTPS RPC endpoint and verified live
-`THRUPUT_NETWORK_ID`. Each run writes a fresh `.env.devnet` deployment. Use
+`THRUPUT_NETWORK_ID` (base58, as `thruput` and the explorer print it). Each run writes a fresh `.env.devnet` deployment. Use
 `dev -- --mode devnet` to select it locally; supply environment values directly
 when hosting with `start`. `PORT` defaults to 3000. Railway uses
 `apps/swap/railway.json` and the root npm install.

@@ -1,8 +1,9 @@
 import {
   fixedBytes,
-  fromHex0x,
+  hashFromBase58,
   type ThruputClient,
   type TransactionReceipt,
+  toBase58,
 } from "@thruputchain/client";
 import { describe, expect, it, vi } from "vitest";
 import { ExecResult } from "@thruputchain/protocol";
@@ -38,7 +39,7 @@ describe("advanceWorkflow", () => {
       factoryReview(config),
     );
     saveWorkflow(storage, workflowStorageKey(config), workflow);
-    const hash = `0x${"06".repeat(32)}`;
+    const hash = toBase58(new Uint8Array(32).fill(0x06));
     const writer: WriteBoundary = {
       supportsBatch: vi.fn().mockResolvedValue(true),
       execute: vi.fn(),
@@ -172,7 +173,7 @@ describe("advanceWorkflow", () => {
     async (status) => {
       const config = configuration();
       const storage = new MemoryStorage();
-      const hash = `0x${"06".repeat(32)}`;
+      const hash = toBase58(new Uint8Array(32).fill(0x06));
       const workflow = {
         ...createWorkflow(
           config,
@@ -227,7 +228,7 @@ describe("advanceWorkflow", () => {
     async (state) => {
       const config = configuration();
       const storage = new MemoryStorage();
-      const hash = `0x${"06".repeat(32)}`;
+      const hash = toBase58(new Uint8Array(32).fill(0x06));
       const initial = createWorkflow(
         config,
         { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
@@ -257,7 +258,7 @@ describe("advanceWorkflow", () => {
           });
       const client = {
         getTransactionReceipt: vi.fn().mockResolvedValue({
-          txHash: fromHex0x(hash),
+          txHash: hashFromBase58(hash),
           height: 10n,
           execResult: ExecResult.ExecResultOK,
         }),
@@ -331,9 +332,9 @@ describe("advanceWorkflow", () => {
               id: request.id,
               result: {
                 networkHash: !initialized
-                  ? `0x${config.networkIdHex}`
+                  ? config.networkId
                   : failure === "mismatch"
-                    ? `0x${"99".repeat(32)}`
+                    ? toBase58(new Uint8Array(32).fill(0x99))
                     : "broken",
               },
             }),
@@ -348,7 +349,10 @@ describe("advanceWorkflow", () => {
             ...workflow,
             funding: {
               status,
-              hash: status === "uncertain" ? `0x${"06".repeat(32)}` : null,
+              hash:
+                status === "uncertain"
+                  ? toBase58(new Uint8Array(32).fill(0x06))
+                  : null,
             },
           };
           saveWorkflow(storage, workflowStorageKey(config), saved);
@@ -398,7 +402,7 @@ describe("advanceWorkflow", () => {
           .fn()
           .mockResolvedValueOnce({
             kind: "committedSuccess",
-            hash: `0x${"06".repeat(32)}`,
+            hash: toBase58(new Uint8Array(32).fill(0x06)),
             receipt: {} as TransactionReceipt,
           })
           .mockResolvedValueOnce({
@@ -488,7 +492,7 @@ describe("advanceWorkflow", () => {
       factoryReview(config),
     );
     saveWorkflow(storage, workflowStorageKey(config), workflow);
-    const hash = `0x${"06".repeat(32)}`;
+    const hash = toBase58(new Uint8Array(32).fill(0x06));
     let signedWasPersisted = false;
     const writer: WriteBoundary = {
       async execute(_invocation, observer) {
@@ -546,7 +550,7 @@ describe("advanceWorkflow", () => {
           await fundingGate;
           return {
             kind: "committedSuccess" as const,
-            hash: `0x${"06".repeat(32)}`,
+            hash: toBase58(new Uint8Array(32).fill(0x06)),
             receipt: {} as TransactionReceipt,
           };
         })
@@ -673,7 +677,7 @@ describe("advanceWorkflow", () => {
   it("observes pending funding evidence even when the reserve is now full", async () => {
     const config = configuration();
     const storage = new MemoryStorage();
-    const hash = `0x${"08".repeat(32)}`;
+    const hash = toBase58(new Uint8Array(32).fill(0x08));
     const workflow = {
       ...createWorkflow(
         config,
@@ -716,7 +720,7 @@ describe("advanceWorkflow", () => {
   it("observes pending creation evidence after deployment consumes the reserve", async () => {
     const config = configuration();
     const storage = new MemoryStorage();
-    const hash = `0x${"09".repeat(32)}`;
+    const hash = toBase58(new Uint8Array(32).fill(0x09));
     const workflow = {
       ...createWorkflow(
         config,
@@ -726,7 +730,7 @@ describe("advanceWorkflow", () => {
       ),
       funding: {
         status: "committed" as const,
-        hash: `0x${"08".repeat(32)}`,
+        hash: toBase58(new Uint8Array(32).fill(0x08)),
       },
       creation: { status: "pending" as const, hash },
     };
@@ -768,11 +772,11 @@ describe("advanceWorkflow", () => {
       ...base,
       funding: {
         status: "committed" as const,
-        hash: `0x${"08".repeat(32)}`,
+        hash: toBase58(new Uint8Array(32).fill(0x08)),
       },
       creation: {
         status: "committed" as const,
-        hash: `0x${"09".repeat(32)}`,
+        hash: toBase58(new Uint8Array(32).fill(0x09)),
       },
       verification: {
         status: "complete" as const,
@@ -780,7 +784,7 @@ describe("advanceWorkflow", () => {
         totalSupply: "12",
         holderBalance: "12",
       },
-      createdAddressHex: base.predictedAddressHex,
+      createdAddress: base.predictedAddress,
       creationBlock: "9",
     };
     saveWorkflow(storage, workflowStorageKey(config), workflow);
@@ -850,7 +854,7 @@ describe("advanceWorkflow", () => {
       writer: {
         execute: async () => ({
           kind: "invalid",
-          hash: `0x${"06".repeat(32)}`,
+          hash: toBase58(new Uint8Array(32).fill(0x06)),
           reason: `${secret} ${"upstream".repeat(100)}`,
         }),
         observe: vi.fn(),
@@ -870,7 +874,7 @@ describe("advanceWorkflow", () => {
   it("observes stored evidence instead of submitting a duplicate", async () => {
     const config = configuration();
     const storage = new MemoryStorage();
-    const hash = `0x${"07".repeat(32)}`;
+    const hash = toBase58(new Uint8Array(32).fill(0x07));
     const workflow = {
       ...createWorkflow(
         config,
@@ -1093,7 +1097,7 @@ describe("advanceWorkflow", () => {
       revision: 2,
       funding: {
         status: "committed" as const,
-        hash: `0x${"06".repeat(32)}`,
+        hash: toBase58(new Uint8Array(32).fill(0x06)),
       },
       creation: { status: "signing" as const, hash: null },
     };
@@ -1134,7 +1138,6 @@ function factoryReview(config = configuration()): FactoryReview {
       fee_recipient: null,
     },
     predictedAddress: config.factoryAddress,
-    predictedAddressHex: `0x${"03".repeat(32)}`,
     currentReserve: 0n,
     reserveHeight: 0n,
     fundingAmount: 110n,

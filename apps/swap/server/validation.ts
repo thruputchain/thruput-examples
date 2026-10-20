@@ -1,5 +1,10 @@
-const HASH = /^(?:0x)?[0-9a-fA-F]{64}$/;
-const ADDRESS = /^0x[0-9a-fA-F]{64}$/;
+import {
+  addressFromBase58,
+  fixedFromBase58,
+  hashFromBase58,
+  toBase58,
+} from "@thruputchain/client";
+
 const DECIMAL = /^(?:0|[1-9]\d*)$/;
 
 export class ValidationError extends Error {
@@ -10,21 +15,37 @@ export class ValidationError extends Error {
 }
 
 export function canonicalHash(value: string, name: string): string {
-  if (!HASH.test(value)) {
-    throw new ValidationError(`${name} must be a 32-byte hexadecimal value`);
+  if (!isCanonical(value, hashFromBase58)) {
+    throw new ValidationError(`${name} must be a 32-byte base58 hash`);
   }
-  return `0x${value.replace(/^0x/i, "").toLowerCase()}`;
+  return value;
 }
 
 export function canonicalNetworkId(value: string, name: string): string {
-  return canonicalHash(value, name).slice(2);
+  return canonicalHash(value, name);
 }
 
 export function canonicalAddress(value: string, name: string): string {
-  if (!ADDRESS.test(value)) {
-    throw new ValidationError(`${name} must be a 32-byte 0x-prefixed address`);
+  if (!isCanonical(value, addressFromBase58)) {
+    throw new ValidationError(`${name} must be a 32-byte base58 address`);
   }
-  return value.toLowerCase();
+  return value;
+}
+
+export function isBase58Identifier(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    isCanonical(value, (text) => fixedFromBase58(text, 32))
+  );
+}
+
+// Base58 is case-sensitive; accept only the exact encoding the chain emits.
+function isCanonical(value: string, decode: (text: string) => Uint8Array) {
+  try {
+    return toBase58(decode(value)) === value;
+  } catch {
+    return false;
+  }
 }
 
 export function canonicalDecimal(value: string, name: string): string {
@@ -50,14 +71,6 @@ export function boundedInteger(
     );
   }
   return parsed;
-}
-
-export function normalizedSearch(value: string): string {
-  return value.normalize("NFKC").toLowerCase();
-}
-
-export function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, "\\$&");
 }
 
 export function compareDecimal(left: string, right: string): number {

@@ -1,4 +1,4 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 import { ChevronDownIcon } from "lucide-react";
 import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { Badge } from "@/components/ui/badge";
@@ -225,7 +225,7 @@ export function TransactionDetails({
             value={
               <BlockchainIdentifier
                 kind="address"
-                value={toHex0x(config.handlerAddress)}
+                value={toBase58(config.handlerAddress)}
                 label="Handler address"
               />
             }

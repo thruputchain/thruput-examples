@@ -1,11 +1,15 @@
-import { toHex0x } from "@thruputchain/client";
+import { toBase58 } from "@thruputchain/client";
 
 import type { AppConfig } from "@/config";
+import { isBase58Identifier } from "@/lib/address";
 import { recordAllowanceTerminalEvidence } from "@/transactions/allowance-evidence";
+import { inCanonicalTokenOrder } from "../../shared/registry";
 
-const STORAGE_VERSION = 3;
+// Version 4 stores addresses and transaction hashes as base58. Request IDs are
+// event topic bytes and stay 0x hex.
+const STORAGE_VERSION = 4;
 const TERMINAL_LIMIT = 50;
-const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
+const REQUEST_ID_PATTERN = /^0x[0-9a-f]{64}$/;
 
 export type LiquidityOperationKind = "add" | "remove";
 export type LiquidityOperationStatus = "active" | "queued" | "executed" | "failed";
@@ -33,7 +37,7 @@ interface LiquidityOperationBase {
   id: string;
   kind: LiquidityOperationKind;
   status: LiquidityOperationStatus;
-  networkIdHex: string;
+  networkId: string;
   accountAddress: string;
   factoryAddress: string;
   handlerAddress: string;
@@ -99,21 +103,21 @@ export class LiquidityOperationError extends Error {
 export function liquidityOperationKey(config: AppConfig): string {
   return [
     "groundhog-swap:liquidity:v2",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
-    toHex0x(config.factoryAddress),
-    toHex0x(config.handlerAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
+    toBase58(config.factoryAddress),
+    toBase58(config.handlerAddress),
   ].join(":");
 }
 
 export function isAccountLiquidityOperationKey(
-  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: Pick<AppConfig, "networkId" | "accountAddress">,
   key: string | null,
 ): boolean {
   return key?.startsWith([
     "groundhog-swap:liquidity:v2",
-    config.networkIdHex,
-    toHex0x(config.accountAddress),
+    config.networkId,
+    toBase58(config.accountAddress),
     "",
   ].join(":")) ?? false;
 }
@@ -164,7 +168,7 @@ export function loadLiquidityOperations(config: AppConfig): LiquidityOperation[]
   const stored = window.localStorage.getItem(liquidityOperationKey(config));
   if (stored === null) return [];
   try {
-    const parsed: unknown = migrateCollection(JSON.parse(stored));
+    const parsed: unknown = JSON.parse(stored);
     if (!isCollection(parsed, config, "pool")) throw new Error("invalid collection");
     return parsed.operations;
   } catch {
@@ -173,7 +177,7 @@ export function loadLiquidityOperations(config: AppConfig): LiquidityOperation[]
 }
 
 export function loadAccountLiquidityOperations(
-  config: Pick<AppConfig, "networkIdHex" | "accountAddress">,
+  config: Pick<AppConfig, "networkId" | "accountAddress">,
 ): LiquidityOperation[] {
   if (typeof window === "undefined") return [];
   const operations: LiquidityOperation[] = [];
@@ -183,7 +187,7 @@ export function loadAccountLiquidityOperations(
     const stored = window.localStorage.getItem(key);
     if (stored === null) continue;
     try {
-      const parsed: unknown = migrateCollection(JSON.parse(stored));
+      const parsed: unknown = JSON.parse(stored);
       if (!isCollection(parsed, config, "account")) throw new Error("invalid collection");
       if (parsed.operations.some((operation) => operationStorageKey(operation) !== key)) {
         throw new Error("operation scope mismatch");
@@ -306,15 +310,15 @@ function baseOperation(
     executionMode: "auto",
     kind,
     status: "active",
-    networkIdHex: config.networkIdHex,
-    accountAddress: toHex0x(config.accountAddress),
-    factoryAddress: toHex0x(config.factoryAddress),
-    handlerAddress: toHex0x(config.handlerAddress),
-    driverAddress: toHex0x(config.driverAddress),
-    liquidityTokenAddress: toHex0x(config.liquidityTokenAddress),
-    token0Address: toHex0x(config.tokenAAddress),
-    token1Address: toHex0x(config.tokenBAddress),
-    recipient: toHex0x(config.accountAddress),
+    networkId: config.networkId,
+    accountAddress: toBase58(config.accountAddress),
+    factoryAddress: toBase58(config.factoryAddress),
+    handlerAddress: toBase58(config.handlerAddress),
+    driverAddress: toBase58(config.driverAddress),
+    liquidityTokenAddress: toBase58(config.liquidityTokenAddress),
+    token0Address: toBase58(config.tokenAAddress),
+    token1Address: toBase58(config.tokenBAddress),
+    recipient: toBase58(config.accountAddress),
     requestId: null,
     receiptBlock: null,
     terminalBlock: null,
@@ -342,16 +346,9 @@ function pruneOperations(
   );
 }
 
-function migrateCollection(value: unknown): unknown {
-  if (!isRecord(value) || value.version !== 2 || !Array.isArray(value.operations)) return value;
-  return { ...value, version: STORAGE_VERSION, operations: value.operations.map((operation) =>
-    isRecord(operation) && operation.version === 2
-      ? { ...operation, version: STORAGE_VERSION, executionMode: "single" } : operation) };
-}
-
 function isCollection(
   value: unknown,
-  config: Pick<AppConfig, "networkIdHex" | "accountAddress"> | AppConfig,
+  config: Pick<AppConfig, "networkId" | "accountAddress"> | AppConfig,
   scope: "pool" | "account",
 ): value is StoredLiquidityCollection {
   if (!isRecord(value) || value.version !== STORAGE_VERSION) return false;
@@ -369,7 +366,7 @@ function isCollection(
 
 function isOperation(
   value: unknown,
-  config: Pick<AppConfig, "networkIdHex" | "accountAddress"> | AppConfig,
+  config: Pick<AppConfig, "networkId" | "accountAddress"> | AppConfig,
   scope: "pool" | "account",
 ): value is LiquidityOperation {
   if (!isRecord(value)) return false;
@@ -381,14 +378,14 @@ function isOperation(
     || value.id.length === 0
     || (value.kind !== "add" && value.kind !== "remove")
     || !["active", "queued", "executed", "failed"].includes(String(value.status))
-    || value.networkIdHex !== config.networkIdHex
-    || value.accountAddress !== toHex0x(config.accountAddress)
+    || value.networkId !== config.networkId
+    || value.accountAddress !== toBase58(config.accountAddress)
     || !["factoryAddress", "handlerAddress", "driverAddress",
       "liquidityTokenAddress", "token0Address", "token1Address", "recipient"]
-      .every((key) => typeof value[key] === "string" && HASH_PATTERN.test(value[key]))
-    || value.recipient !== toHex0x(config.accountAddress)
-    || String(value.token0Address) >= String(value.token1Address)
-    || !nullableHash(value.requestId)
+      .every((key) => isBase58Identifier(value[key]))
+    || value.recipient !== toBase58(config.accountAddress)
+    || !inCanonicalTokenOrder(String(value.token0Address), String(value.token1Address))
+    || !nullableRequestId(value.requestId)
     || !(value.receiptBlock === null || unsignedInteger(value.receiptBlock))
     || !(value.terminalBlock === undefined
       || value.terminalBlock === null
@@ -417,12 +414,12 @@ function isOperation(
   if (scope === "pool") {
     const pool = config as AppConfig;
     if (
-      value.factoryAddress !== toHex0x(pool.factoryAddress)
-      || value.handlerAddress !== toHex0x(pool.handlerAddress)
-      || value.driverAddress !== toHex0x(pool.driverAddress)
-      || value.liquidityTokenAddress !== toHex0x(pool.liquidityTokenAddress)
-      || value.token0Address !== toHex0x(pool.tokenAAddress)
-      || value.token1Address !== toHex0x(pool.tokenBAddress)
+      value.factoryAddress !== toBase58(pool.factoryAddress)
+      || value.handlerAddress !== toBase58(pool.handlerAddress)
+      || value.driverAddress !== toBase58(pool.driverAddress)
+      || value.liquidityTokenAddress !== toBase58(pool.liquidityTokenAddress)
+      || value.token0Address !== toBase58(pool.tokenAAddress)
+      || value.token1Address !== toBase58(pool.tokenBAddress)
     ) return false;
   }
   return true;
@@ -432,7 +429,7 @@ function isCoherentLifecycle(value: Record<string, unknown>): boolean {
   const queuedOrTerminal = value.status === "queued"
     || value.status === "executed"
     || value.status === "failed";
-  const hasQueueIdentity = hash(value.requestId) && unsignedInteger(value.receiptBlock);
+  const hasQueueIdentity = requestId(value.requestId) && unsignedInteger(value.receiptBlock);
   if (queuedOrTerminal !== hasQueueIdentity) return false;
   if (value.terminalBlock !== undefined && value.terminalBlock !== null) {
     if (value.status !== "executed" && value.status !== "failed") return false;
@@ -499,7 +496,7 @@ function isStep(value: unknown): value is LiquidityStep {
 function operationStorageKey(operation: LiquidityOperation): string {
   return [
     "groundhog-swap:liquidity:v2",
-    operation.networkIdHex,
+    operation.networkId,
     operation.accountAddress,
     operation.factoryAddress,
     operation.handlerAddress,
@@ -519,7 +516,15 @@ function nullableHash(value: unknown): value is string | null {
 }
 
 function hash(value: unknown): value is string {
-  return typeof value === "string" && HASH_PATTERN.test(value);
+  return isBase58Identifier(value);
+}
+
+function nullableRequestId(value: unknown): value is string | null {
+  return value === null || requestId(value);
+}
+
+function requestId(value: unknown): value is string {
+  return typeof value === "string" && REQUEST_ID_PATTERN.test(value);
 }
 
 function isPositiveInteger(value: unknown): value is string {
