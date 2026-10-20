@@ -56,9 +56,7 @@ theme-aware accent for readable links and focus indicators. Keep these roles
 separate when adding controls.
 
 The SVGs in each app's `public/brand/` and its favicon use the official Stellar
-Logo Press Kit 2026 vector paths. See [GH-533](https://linear.app/grndhg/issue/GH-533)
-for marketing references and the [shared brand conventions](https://github.com/thruputchain/thruput-docs/blob/main/public/brand/README.md)
-for asset provenance and palette values.
+Logo Press Kit 2026 vector paths.
 
 ## Setup
 
