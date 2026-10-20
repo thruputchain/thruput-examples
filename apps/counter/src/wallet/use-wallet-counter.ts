@@ -55,8 +55,24 @@ export function useWalletCounter(address: string) {
     busy || execution.isPending || Boolean(pending.record || pending.error);
 
   useEffect(() => {
+    if (!pending.record || !pending.direction) return;
+    const transaction: Transaction = {
+      id: ++nextId.current,
+      direction: pending.direction,
+      hash: pending.record.hash,
+      state: "pending",
+      message: null,
+    };
+    setRecent((transactions) =>
+      transactions.some((entry) => entry.hash === transaction.hash)
+        ? transactions
+        : [transaction, ...transactions].slice(0, 20),
+    );
+  }, [pending.record, pending.direction]);
+
+  useEffect(() => {
     if (receipt.data) recordReceipt(receipt.data);
-  }, [receipt.data]);
+  }, [receipt.data, pending.record]);
 
   function recordReceipt(value: TransactionReceipt) {
     const hash = toBase58(value.txHash);

@@ -106,7 +106,13 @@ export function ConnectedCounter({ config }: { config: AppConfig }) {
     value: counter.data?.value ?? null,
     ready: Boolean(counter.data) && !counter.error && canSend,
     atCapacity: !walletMode && development.snapshot.atCapacity,
-    recent: walletMode ? activity.recent : development.snapshot.recent,
+    recent: [
+      ...activity.recent.map((transaction) => ({
+        ...transaction,
+        id: -transaction.id,
+      })),
+      ...development.snapshot.recent,
+    ],
     message,
   };
   return (

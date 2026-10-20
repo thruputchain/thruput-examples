@@ -12,10 +12,12 @@ import {
 } from "@thruputchain/client/provider";
 import type { PendingWalletTransaction } from "@thruputchain/client/wallet";
 import { Counter } from "../contracts/generated/counter";
+import type { Direction } from "../transactions/engine";
 
 export type PendingState = {
   record: PendingWalletTransaction | null;
   error: string | null;
+  direction?: Direction;
 };
 export function pendingKey(network: string, contract: string) {
   return `counter-wallet:v1:${network}:${contract}`;
@@ -68,7 +70,11 @@ export function loadPending(
       throw new Error(
         "Saved transaction is not a one-unit update to this Counter",
       );
-    return { record: { ...signed, account, networkHash }, error: null };
+    return {
+      record: { ...signed, account, networkHash },
+      error: null,
+      direction: method === Counter.v0_1.increment ? "increment" : "decrement",
+    };
   } catch (error) {
     return {
       record: null,
