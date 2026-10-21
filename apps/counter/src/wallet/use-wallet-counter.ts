@@ -34,9 +34,11 @@ export function useWalletCounter(address: string) {
   const queries = useQueryClient();
   const execution = useExecute();
   const lock = useRef(false);
+  const acknowledged = useRef<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [recent, setRecent] = useState<Transaction[]>([]);
+  const [confirmedHash, setConfirmedHash] = useState<string | null>(null);
   const nextId = useRef(0);
   const network = toBase58(client.network.networkHash);
   const key = pendingKey(network, address);
@@ -53,6 +55,20 @@ export function useWalletCounter(address: string) {
   });
   const blocked =
     busy || execution.isPending || Boolean(pending.record || pending.error);
+
+  useEffect(() => {
+    const hash = pending.record?.hash;
+    if (
+      busy ||
+      pending.error ||
+      !hash ||
+      confirmedHash !== hash ||
+      acknowledged.current === hash
+    )
+      return;
+    acknowledged.current = hash;
+    clearRecord(hash);
+  }, [busy, pending.record, pending.error, confirmedHash]);
 
   useEffect(() => {
     if (!pending.record || !pending.direction) return;
@@ -84,6 +100,7 @@ export function useWalletCounter(address: string) {
       return;
     }
     const hash = toBase58(value.transactionHash);
+    if (value.execution.result === "return") setConfirmedHash(hash);
     setRecent((transactions) =>
       transactions.map((transaction) =>
         transaction.hash === hash
@@ -266,9 +283,13 @@ export function useWalletCounter(address: string) {
       setPending(readSaved());
     });
   }
-  function clearRecord() {
+  function clearRecord(confirmed?: string) {
     void exclusive(async () => {
       const saved = readSaved();
+      if (confirmed && (saved.error || saved.record?.hash !== confirmed)) {
+        setPending(saved);
+        throw new Error("Saved transaction changed. Review it before removing it.");
+      }
       if (saved.record && saved.record.hash !== pending.record?.hash) {
         setPending(saved);
         throw new Error(
@@ -286,7 +307,7 @@ export function useWalletCounter(address: string) {
     send,
     retrySubmission,
     retryStorage,
-    clearRecord,
+    clearRecord: () => clearRecord(),
     pending,
     receipt,
     execution,

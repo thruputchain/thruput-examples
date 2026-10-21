@@ -106,7 +106,7 @@ it("preserves public filters, resets write forms on rebinding, and invalidates o
   );
   const user = userEvent.setup();
   await user.type(screen.getByLabelText("Directory search"), "pair");
-  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  await user.click(screen.getByRole("button", { name: "Connect wallet" }));
   expect(screen.getByLabelText("Directory search")).toHaveValue("pair");
   await user.click(screen.getByRole("link", { name: "Create pool" }));
   const old = writer!;

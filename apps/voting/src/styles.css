@@ -1,0 +1,306 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/inconsolata";
+
+/* Same Stellar Thruput palette and typography as Counter, Swap, and Launchpad. */
+:root {
+  color-scheme: dark;
+  --background: #0a0a0a;
+  --foreground: #f5f5f0;
+  --card: #111111;
+  --signal: #fdda24;
+  --primary: #fdda24;
+  --muted: #a8a8a8;
+  --border: #ffffff26;
+  --secondary: #1c1c1c;
+  --local: #30a46c;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --background: #f5f5f0;
+    --foreground: #0a0a0a;
+    --card: #fff;
+    --muted: #626262;
+    --border: #00000026;
+    --secondary: #e9e9e3;
+    --local: #18794e;
+    --primary: #705c00;
+  }
+}
+@theme {
+  --font-sans: "Inter Variable", sans-serif;
+  --font-mono: "Inconsolata Variable", monospace;
+}
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    @apply font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    min-width: 320px;
+  }
+  #root {
+    isolation: isolate;
+  }
+  h1 {
+    @apply text-3xl font-medium tracking-tight text-balance sm:text-4xl;
+  }
+  h2 {
+    @apply text-xl font-medium text-balance;
+  }
+  p {
+    @apply text-base text-pretty sm:text-sm;
+  }
+  button,
+  .button {
+    @apply inline-flex items-center justify-center rounded-md border px-3 text-sm font-medium;
+    min-height: 36px;
+    background: var(--secondary);
+    color: var(--foreground);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled),
+  .button:hover {
+    background: var(--card);
+  }
+  button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  button.small {
+    min-height: 28px;
+  }
+  button.primary,
+  .button.primary {
+    background: var(--signal);
+    color: #0a0a0a;
+    border-color: var(--signal);
+  }
+  button.primary:hover:not(:disabled),
+  .button.primary:hover {
+    background: #ffe45c;
+  }
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+  }
+  input,
+  textarea,
+  select {
+    @apply w-full min-w-0 rounded-md border px-3 py-2 text-base sm:text-sm;
+    background: var(--card);
+    color: var(--foreground);
+  }
+  input:focus-visible,
+  textarea:focus-visible {
+    outline-offset: -1px;
+  }
+  input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--primary);
+    flex-shrink: 0;
+  }
+  label {
+    @apply grid gap-2 text-base sm:text-sm;
+  }
+  a {
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  fieldset {
+    min-width: 0;
+  }
+  @media (pointer: coarse) {
+    button,
+    button.small,
+    .button {
+      min-height: 48px;
+    }
+  }
+}
+header {
+  border-bottom: 1px solid var(--border);
+}
+.header-inner {
+  @apply mx-auto flex max-w-6xl flex-wrap items-center gap-6 px-5 py-5;
+}
+.brand {
+  @apply flex shrink-0 items-center gap-3 text-[17px] font-medium min-[384px]:text-xl;
+}
+.brand picture {
+  flex-shrink: 0;
+}
+.brand img {
+  @apply w-20 min-[384px]:w-25;
+}
+.brand span {
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+}
+.desktop-nav {
+  @apply flex min-w-0 flex-1 gap-2 max-lg:hidden;
+}
+nav a {
+  @apply rounded-md px-3 py-2;
+}
+nav a.active,
+button[aria-pressed="true"],
+button[aria-current="step"] {
+  background: var(--secondary);
+  outline: 1px solid var(--border);
+}
+.mobile-nav {
+  @apply w-full lg:hidden;
+}
+.mobile-nav nav {
+  @apply flex gap-2 py-3;
+}
+.wallet {
+  @apply ml-auto flex min-w-0 flex-col items-end gap-2;
+  max-width: 100%;
+}
+.wallet select {
+  max-width: 260px;
+}
+main {
+  @apply mx-auto flex min-h-[70svh] max-w-6xl flex-col gap-8 px-5 py-10;
+}
+.page-heading {
+  @apply flex flex-wrap items-start justify-between gap-5;
+}
+.page-heading > div {
+  @apply grid min-w-0 gap-3;
+}
+.page-heading h1,
+.description {
+  overflow-wrap: anywhere;
+  max-width: 65ch;
+}
+.description {
+  white-space: pre-wrap;
+}
+.eyebrow {
+  @apply font-mono uppercase tracking-wide;
+  color: var(--muted);
+}
+.muted {
+  color: var(--muted);
+}
+.mono {
+  @apply font-mono tabular-nums;
+}
+.actions {
+  @apply flex flex-wrap items-center gap-3;
+}
+.section-heading {
+  @apply flex flex-wrap items-center justify-between gap-3;
+}
+.notice {
+  @apply grid gap-3 rounded-md border p-5;
+  background: var(--card);
+}
+.empty {
+  @apply grid gap-3 border-y py-12;
+}
+.poll-list {
+  @apply grid gap-4 md:grid-cols-2 lg:grid-cols-3;
+}
+.poll-card {
+  @apply flex h-full flex-col gap-4 rounded-md border p-5;
+  background: var(--card);
+}
+.poll-card:hover {
+  text-decoration: none;
+  border-color: var(--muted);
+}
+.poll-card h2 {
+  overflow-wrap: anywhere;
+}
+.poll-card .description {
+  @apply line-clamp-3 flex-1;
+}
+.badge {
+  @apply rounded border px-2 py-1 font-mono;
+}
+.badge[data-status="Open"] {
+  color: var(--local);
+}
+.editor {
+  @apply grid gap-6;
+  max-width: 800px;
+}
+.question-editor {
+  @apply grid gap-4 border-t pt-6;
+}
+.option-editor {
+  @apply grid gap-2;
+}
+.option-controls {
+  @apply flex flex-wrap items-center gap-3;
+}
+.option-controls input {
+  @apply min-w-0 flex-1;
+  min-width: 160px;
+}
+.question-nav {
+  @apply flex flex-wrap gap-3;
+}
+.question-layout {
+  @apply grid gap-10 lg:grid-cols-2;
+}
+.ballot,
+.results {
+  @apply flex min-w-0 flex-col items-start gap-5;
+}
+.ballot h2 {
+  overflow-wrap: anywhere;
+}
+.options {
+  @apply grid w-full gap-3;
+}
+.option {
+  @apply flex items-center gap-3 rounded-md border p-4;
+  overflow-wrap: anywhere;
+  background: var(--card);
+}
+.option:has(:checked) {
+  border-color: var(--primary);
+}
+.results {
+  @apply border-t pt-8 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8;
+}
+.results ul {
+  @apply grid w-full gap-5;
+}
+.results li p:first-child {
+  @apply min-w-0 flex-1;
+  overflow-wrap: anywhere;
+}
+progress {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--secondary);
+}
+progress::-webkit-progress-bar {
+  background: var(--secondary);
+}
+progress::-webkit-progress-value {
+  background: var(--primary);
+}
+progress::-moz-progress-bar {
+  background: var(--primary);
+}

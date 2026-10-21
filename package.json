@@ -5,6 +5,7 @@
   "type": "module",
   "workspaces": [
     "apps/counter",
+    "apps/voting",
     "apps/swap",
     "apps/token-launchpad"
   ],

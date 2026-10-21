@@ -64,7 +64,8 @@ Expired updates cannot be resubmitted. **Check transaction** only reads.
 **Retry storage** recovers from a temporary storage error. **Export transaction
 record** preserves readable signed evidence. Forgetting a record requires
 confirmation: it does not cancel a transaction or prove failure, and sending a
-new update afterward may apply the change twice. **Finish** clears a confirmed
+new update afterward may apply the change twice. Successful updates clear their
+pending record automatically and remain in recent transactions. **Finish** clears a confirmed
 outcome. Switching accounts does not replace the original record.
 
 For a wallet-only deployment, omit `COUNTER_SIGNING_PRIVATE_KEY`. The app still

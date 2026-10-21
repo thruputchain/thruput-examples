@@ -214,7 +214,7 @@ try {
   networkReads = 0;
   await page
     .getByRole("button", {
-      name: "Connect UI fixture (cannot sign)",
+      name: "Connect wallet",
       exact: true,
     })
     .click();
@@ -419,7 +419,7 @@ try {
     await launch.getByText("No tokens yet", { exact: true }).waitFor();
     await launch
       .getByRole("button", {
-        name: "Connect UI fixture (cannot sign)",
+        name: "Connect wallet",
         exact: true,
       })
       .click();
@@ -429,7 +429,7 @@ try {
     await launch.goto(`${launchOrigin}/create`);
     await launch
       .getByRole("button", {
-        name: "Connect UI fixture (cannot sign)",
+        name: "Connect wallet",
         exact: true,
       })
       .click();

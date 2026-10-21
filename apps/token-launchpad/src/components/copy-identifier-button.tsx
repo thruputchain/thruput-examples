@@ -1,4 +1,4 @@
-import { CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -44,13 +44,13 @@ export function CopyIdentifierButton({
         aria-describedby={statusId}
         onClick={() => void copy()}
       >
-        <CopyIcon />
+        {result?.value === value && result.message === "Copied" ? (
+          <CheckIcon />
+        ) : (
+          <CopyIcon />
+        )}
       </Button>
-      <span
-        id={statusId}
-        role="status"
-        className="text-xs text-muted-foreground"
-      >
+      <span id={statusId} role="status" className="sr-only">
         {result?.value === value ? result.message : null}
       </span>
     </div>
