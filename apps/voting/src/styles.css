@@ -243,9 +243,12 @@ main {
   @apply grid gap-4 border-t pt-6;
 }
 .option-editor {
-  @apply flex flex-wrap items-end gap-3;
+  @apply grid gap-2;
 }
-.option-editor label {
+.option-controls {
+  @apply flex flex-wrap items-center gap-3;
+}
+.option-controls input {
   @apply min-w-0 flex-1;
   min-width: 160px;
 }
@@ -300,15 +303,4 @@ progress::-webkit-progress-value {
 }
 progress::-moz-progress-bar {
   background: var(--primary);
-}
-footer {
-  @apply mx-auto flex max-w-6xl flex-wrap justify-between gap-4 border-t px-5 py-6;
-  color: var(--muted);
-}
-.local-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--local);
 }

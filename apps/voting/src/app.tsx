@@ -47,7 +47,12 @@ export function App({ config }: { config: AppConfig }) {
           <nav className="desktop-nav" aria-label="Main">
             <Navigation />
           </nav>
-          <WalletControls />
+          <div className="actions ml-auto">
+            <Link className="button primary" to="/new">
+              Create poll
+            </Link>
+            <WalletControls />
+          </div>
           <details className="mobile-nav">
             <summary>Menu</summary>
             <nav aria-label="Mobile">
@@ -82,13 +87,6 @@ export function App({ config }: { config: AppConfig }) {
           />
         </Routes>
       </main>
-      <footer>
-        <p className="mono">
-          <span className="local-dot" />
-          Localnode · Thruput example
-        </p>
-        <p>Questions, answers, and results live on-chain.</p>
-      </footer>
     </>
   );
 }

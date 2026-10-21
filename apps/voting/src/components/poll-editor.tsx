@@ -126,9 +126,12 @@ export function PollEditor({
             </label>
             {q.options.map((option, optionIndex) => (
               <div key={optionIndex} className="option-editor">
-                <label>
+                <label htmlFor={`option-${index}-${optionIndex}`}>
                   Option {optionIndex + 1}
+                </label>
+                <div className="option-controls">
                   <input
+                    id={`option-${index}-${optionIndex}`}
                     name={`option-${index}-${optionIndex}`}
                     required
                     value={option}
@@ -140,47 +143,49 @@ export function PollEditor({
                       })
                     }
                   />
-                </label>
-                <div className="actions">
-                  <button
-                    type="button"
-                    className="small"
-                    aria-label={`Move option ${optionIndex + 1} up`}
-                    disabled={optionIndex === 0}
-                    onClick={() =>
-                      question(index, {
-                        options: move(q.options, optionIndex, -1),
-                      })
-                    }
-                  >
-                    Up
-                  </button>
-                  <button
-                    type="button"
-                    className="small"
-                    aria-label={`Move option ${optionIndex + 1} down`}
-                    disabled={optionIndex === q.options.length - 1}
-                    onClick={() =>
-                      question(index, {
-                        options: move(q.options, optionIndex, 1),
-                      })
-                    }
-                  >
-                    Down
-                  </button>
-                  <button
-                    type="button"
-                    className="small"
-                    aria-label={`Remove option ${optionIndex + 1}`}
-                    disabled={q.options.length <= 2}
-                    onClick={() =>
-                      question(index, {
-                        options: q.options.filter((_, i) => i !== optionIndex),
-                      })
-                    }
-                  >
-                    Remove
-                  </button>
+                  <div className="actions">
+                    <button
+                      type="button"
+                      className="small"
+                      aria-label={`Move option ${optionIndex + 1} up`}
+                      disabled={optionIndex === 0}
+                      onClick={() =>
+                        question(index, {
+                          options: move(q.options, optionIndex, -1),
+                        })
+                      }
+                    >
+                      Up
+                    </button>
+                    <button
+                      type="button"
+                      className="small"
+                      aria-label={`Move option ${optionIndex + 1} down`}
+                      disabled={optionIndex === q.options.length - 1}
+                      onClick={() =>
+                        question(index, {
+                          options: move(q.options, optionIndex, 1),
+                        })
+                      }
+                    >
+                      Down
+                    </button>
+                    <button
+                      type="button"
+                      className="small"
+                      aria-label={`Remove option ${optionIndex + 1}`}
+                      disabled={q.options.length <= 2}
+                      onClick={() =>
+                        question(index, {
+                          options: q.options.filter(
+                            (_, i) => i !== optionIndex,
+                          ),
+                        })
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

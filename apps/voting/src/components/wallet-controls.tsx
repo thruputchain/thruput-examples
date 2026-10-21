@@ -49,9 +49,6 @@ export function WalletControls() {
         </p>
       ) : null}
       {balance.error ? <p role="alert">Balance unavailable.</p> : null}
-      {!wallet.provider ? (
-        <p className="muted">Connect with Thruput Freighter.</p>
-      ) : null}
       {wallet.status === "wrongNetwork" ? (
         <p role="alert">Select this localnode in your wallet.</p>
       ) : null}

@@ -39,9 +39,6 @@ export function PollList({
               : "One wallet. One answer per question. Every result on-chain."}
           </p>
         </div>
-        <Link className="button primary" to="/new">
-          Create poll
-        </Link>
       </div>
       <div className="section-heading">
         <div className="actions" aria-label="Filter polls">
