@@ -256,8 +256,10 @@ it("automatically completes a confirmed success without another user action", as
     events: [],
   };
   const { result } = renderHook(() => useTransaction(config), { wrapper });
-  await waitFor(() => expect(localStorage.getItem(key)).toBeNull());
-  expect(result.current.completed).toBe("Submit answer");
-  expect(result.current.blocked).toBe(false);
+  await waitFor(() => {
+    expect(localStorage.getItem(key)).toBeNull();
+    expect(result.current.completed).toBe("Submit answer");
+    expect(result.current.blocked).toBe(false);
+  });
   expect(mocks.execute).not.toHaveBeenCalled();
 });
