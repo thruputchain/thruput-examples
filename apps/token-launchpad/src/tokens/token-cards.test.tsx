@@ -25,22 +25,24 @@ it("loads all visible balances concurrently and isolates account changes and fai
   const pending = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const view = vi.spyOn(client, "view").mockImplementation(async (request) => {
-    await pending;
-    if (request.contract[31] === 2) throw new Error("Token unavailable");
-    const data = new CxsWriter();
-    data.writeUint128(
-      request.caller && toBase58(request.caller) === testAccount().address
-        ? 100n
-        : 200n,
-    );
-    return {
-      output: { result: "return", returnData: data.finish() },
-      height: 1n,
-      events: [],
-      gasUsed: 0n,
-    };
-  });
+  const view = vi
+    .spyOn(client, "simulateInvocation")
+    .mockImplementation(async (request) => {
+      await pending;
+      if (request.address[31] === 2) throw new Error("Token unavailable");
+      const data = new CxsWriter();
+      data.writeUint128(
+        request.caller && toBase58(request.caller) === testAccount().address
+          ? 100n
+          : 200n,
+      );
+      return {
+        output: { result: "return", returnData: data.finish() },
+        stateBlockHeight: 1n,
+        events: [],
+        gasUsed: 0n,
+      };
+    });
   const tokens = Array.from({ length: 20 }, (_, i) => ({
     address: toBase58(
       Uint8Array.from({ length: 32 }, (_, j) => (j === 31 ? i + 1 : 0)),

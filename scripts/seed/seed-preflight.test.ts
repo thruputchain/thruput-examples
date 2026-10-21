@@ -43,9 +43,7 @@ describe("seed RPC redirects", () => {
       }),
     );
     await expect(
-      seedTransport(source).request("groundhog_sendRawTransaction", [
-        "test-payload",
-      ]),
+      seedTransport(source).request("sendTransaction", ["test-payload"]),
     ).rejects.toThrow();
     expect(target).not.toHaveBeenCalled();
   });
@@ -56,7 +54,7 @@ describe("live swap relationship preflight", () => {
   const router = contractAddress(new Uint8Array(32).fill(2));
   const other = contractAddress(new Uint8Array(32).fill(3));
   const storage = (bytes: Uint8Array): StorageItemRead => ({
-    blockHeight: 1n,
+    stateBlockHeight: 1n,
     item: { kind: "bytestring", bytes },
   });
 
@@ -65,10 +63,10 @@ describe("live swap relationship preflight", () => {
       .fn()
       .mockResolvedValueOnce(storage(router))
       .mockResolvedValueOnce(storage(factory));
-    await verifySwapRelationship({ getStorageAt }, factory, router);
+    await verifySwapRelationship({ getStorage: getStorageAt }, factory, router);
     expect(getStorageAt.mock.calls).toEqual([
-      [factory, seedStorageKey("Factory", 2)],
-      [router, seedStorageKey("Router", 0)],
+      [{ address: factory, key: seedStorageKey("Factory", 2) }],
+      [{ address: router, key: seedStorageKey("Router", 0) }],
     ]);
   });
 
@@ -80,7 +78,7 @@ describe("live swap relationship preflight", () => {
         .mockResolvedValueOnce(storage(side === "factory" ? other : router))
         .mockResolvedValueOnce(storage(other));
       await expect(
-        verifySwapRelationship({ getStorageAt }, factory, router),
+        verifySwapRelationship({ getStorage: getStorageAt }, factory, router),
       ).rejects.toThrow("relationship mismatch");
     },
   );
@@ -92,7 +90,7 @@ describe("live swap relationship preflight", () => {
   ])("rejects missing or unsupported storage", async (item) => {
     const getStorageAt = vi.fn().mockResolvedValue({ blockHeight: 1n, item });
     await expect(
-      verifySwapRelationship({ getStorageAt }, factory, router),
+      verifySwapRelationship({ getStorage: getStorageAt }, factory, router),
     ).rejects.toThrow("unsupported storage layout");
   });
 });

@@ -17,7 +17,7 @@ vi.mock("@thruputchain/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@thruputchain/client")>()),
   createWalletClient: () => ({
     requestAirdrop: async () => ({
-      txHash: new Uint8Array(32).fill(1),
+      transactionHash: new Uint8Array(32).fill(1),
       status: { result: "ok" },
     }),
     deployContractAndWait: calls.deploy,
@@ -41,15 +41,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   calls.deploy.mockReset().mockResolvedValue({
     address: new Uint8Array(32).fill(5),
-    txHash: new Uint8Array(32).fill(2),
+    transactionHash: new Uint8Array(32).fill(2),
   });
   calls.execute
     .mockReset()
     .mockResolvedValueOnce({
-      txHash: new Uint8Array(32).fill(3),
-      receipt: { height: 1n },
+      transactionHash: new Uint8Array(32).fill(3),
+      receipt: { blockHeight: 1n },
     })
-    .mockResolvedValueOnce({ txHash: new Uint8Array(32).fill(4) });
+    .mockResolvedValueOnce({ transactionHash: new Uint8Array(32).fill(4) });
   calls.view.mockReset().mockResolvedValue({ value: 47n });
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "log").mockImplementation(() => {});
@@ -99,8 +99,8 @@ it("keeps earlier hashes if ping fails", async () => {
   calls.execute
     .mockReset()
     .mockResolvedValueOnce({
-      txHash: new Uint8Array(32).fill(3),
-      receipt: { height: 1n },
+      transactionHash: new Uint8Array(32).fill(3),
+      receipt: { blockHeight: 1n },
     })
     .mockRejectedValueOnce(new Error("ping failed"));
   await expect(

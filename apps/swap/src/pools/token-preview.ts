@@ -12,17 +12,14 @@ import {
   createErc20ReadAdapter,
   type TokenMetadata,
 } from "@/contracts/erc20-adapter";
-import {
-  NetworkMismatchError,
-  verifyReadNetwork,
-} from "@/thruput/client";
+import { NetworkMismatchError, verifyReadNetwork } from "@/thruput/client";
 import { tokenAddress } from "./creation-presets";
 
 export async function readTokenPreview(
   config: GlobalConfig,
   address: string,
   signal: AbortSignal,
-  client: Pick<CoreThruputClient, "view" | "getNetworkInfo">,
+  client: Pick<CoreThruputClient, "simulateInvocation" | "getNetworkInfo">,
 ): Promise<TokenMetadata> {
   await verifyReadNetwork(client, config);
   signal.throwIfAborted();

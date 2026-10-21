@@ -20,12 +20,12 @@ import {
   PrivateKeySigner,
   toBase58,
   toHex0x,
-  TransactionProcessingError,
+  TransactionReceiptTimeoutError,
+  serializeSignedTransaction,
 } from "@thruputchain/client";
 import { DefaultWallet } from "@thruputchain/client/contracts";
 import {
   ContractType,
-  ExecResult,
   gasAmount,
   HOG_ADDRESS,
   type Contract,
@@ -116,7 +116,7 @@ try {
   let startup:
     | {
         ok: boolean;
-        data: { rpc_url: string; runtime_manifest: { path: string } };
+        data: { rpcUrl: string; runtimeManifest: { path: string } };
       }
     | undefined;
   await until(() => {
@@ -128,7 +128,7 @@ try {
     }
     return startup?.ok === true;
   });
-  const rpcUrl = startup!.data.rpc_url;
+  const rpcUrl = startup!.data.rpcUrl;
   const configs: Record<string, Record<string, string | undefined>> = {};
   for (const [app, prefix] of [
     ["token-launchpad", "LAUNCHPAD"],
@@ -140,7 +140,7 @@ try {
       [`apps/${app}/scripts/setup-local.ts`],
       {
         THRUPUT_RPC_URL: rpcUrl,
-        THRUPUT_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
+        THRUPUT_RUNTIME_MANIFEST: startup!.data.runtimeManifest.path,
         [`${prefix}_ARTIFACT_ROOT`]: artifacts,
         [`${prefix}_APP_ENV`]: output,
         [`${prefix}_APP_PUBLIC_DIR`]: join(work, app!),
@@ -156,7 +156,7 @@ try {
     cluster: localnet({ rpcUrl }),
     transport: new HttpTransport(rpcUrl),
   });
-  console.log("Runtime:", await client.getVersion());
+  console.log("Runtime:", await client.getVersionInfo());
   const account = createPubkeyAccount({
     signer: new PrivateKeySigner(randomBytes(32)),
   });
@@ -169,7 +169,7 @@ try {
     (
       await StandardTokenFactory.v0_1.requiredTokenFunding.view({
         client,
-        contract: tokenFactory,
+        address: tokenFactory,
       })
     ).value +
     BigInt(configs["token-launchpad"]!.VITE_NATIVE_BALANCE_ITEM_COST!);
@@ -217,14 +217,15 @@ try {
     const receipt = await wallet.waitForTransactionReceipt(hash, {
       timeoutMs: 60_000,
     });
-    console.log(label, toBase58(hash), ExecResult[receipt.execResult]);
-    return receipt;
+    assert.ok("result" in receipt.execution, "Unsupported execution result");
+    console.log(label, toBase58(hash), receipt.execution.result);
+    return { ...receipt, execution: receipt.execution };
   }
   const invalidNonce = fixedBytes(randomBytes(32), 32);
   const rollbackAddress = (
     await StandardTokenFactory.v0_1.predictToken.view({
       client,
-      contract: tokenFactory,
+      address: tokenFactory,
       args: { creator: account.address, nonce: invalidNonce },
     })
   ).value;
@@ -247,8 +248,11 @@ try {
     ],
     [tokenCode],
   );
-  assert.notEqual(rejected.execResult, ExecResult.ExecResultOK);
-  assert.equal((await wallet.getBalance(rollbackAddress)).rawBalance, 0n);
+  assert.equal(rejected.execution.result, "abort");
+  assert.equal(
+    (await wallet.getBalance({ address: rollbackAddress })).rawBalance,
+    0n,
+  );
   assert.equal(rejected.events.length, 0);
   const retry = await batch(
     "Retry the same token nonce after rollback",
@@ -269,12 +273,12 @@ try {
     ],
     [tokenCode],
   );
-  assert.equal(retry.execResult, ExecResult.ExecResultOK);
+  assert.equal(retry.execution.result, "return");
   assert.equal(
     (
       await ERC20.v0_1.getBalanceOf.view({
         client,
-        contract: rollbackAddress,
+        address: rollbackAddress,
         args: { addr: account.address },
       })
     ).value,
@@ -286,7 +290,7 @@ try {
     const predicted = (
       await StandardTokenFactory.v0_1.predictToken.view({
         client,
-        contract: tokenFactory,
+        address: tokenFactory,
         args: { creator: account.address, nonce },
       })
     ).value;
@@ -312,12 +316,12 @@ try {
       [funding, creation],
       [tokenCode],
     );
-    assert.equal(receipt.execResult, ExecResult.ExecResultOK);
+    assert.equal(receipt.execution.result, "return");
     assert.equal(
       (
         await ERC20.v0_1.getBalanceOf.view({
           client,
-          contract: predicted,
+          address: predicted,
           args: { addr: account.address },
         })
       ).value,
@@ -338,9 +342,9 @@ try {
     waitForView(() =>
       ERC20.v0_1.getBalanceOf.view({
         client,
-        contract: token,
+        address: token,
         args: { addr: owner },
-        minHeight,
+        minStateBlockHeight: minHeight,
       }),
     );
   // Measure the cost of this exact token shape, then deploy an identical token
@@ -379,7 +383,7 @@ try {
     await readBalance(
       HOG_ADDRESS,
       calibration.address,
-      calibration.receipt.height,
+      calibration.receipt.blockHeight,
     )
   ).value;
   const initializationCost = calibrationFunding - spare;
@@ -387,13 +391,18 @@ try {
   const depleted = await deployReserveToken(initializationCost);
   const reserveToken = depleted.address;
   assert.equal(
-    (await readBalance(HOG_ADDRESS, reserveToken, depleted.receipt.height))
+    (await readBalance(HOG_ADDRESS, reserveToken, depleted.receipt.blockHeight))
       .value,
     0n,
   );
   assert.equal(
-    (await readBalance(reserveToken, account.address, depleted.receipt.height))
-      .value,
+    (
+      await readBalance(
+        reserveToken,
+        account.address,
+        depleted.receipt.blockHeight,
+      )
+    ).value,
     10n,
   );
   const transfer = ERC20.v0_1.transfer.invocation(reserveToken, gas, {
@@ -405,16 +414,20 @@ try {
     gasLimit: gas,
     expiryBlocks: 1n,
   });
-  const unfundedHash = await wallet.sendTransaction(
-    await wallet.signTransaction(unfunded),
-  );
+  const { transactionHash: unfundedHash } = await wallet.sendTransaction({
+    signedTransaction: serializeSignedTransaction(
+      await wallet.signTransaction(unfunded),
+    ),
+  });
   await assert.rejects(
-    wallet.waitForTransactionReceipt(unfundedHash, { timeoutMs: 60_000 }),
+    wallet.waitForTransactionReceipt(unfundedHash, { timeoutMs: 3_000 }),
     (error: unknown) =>
-      error instanceof TransactionProcessingError &&
-      error.status === "retry" &&
-      error.error.source === "executor" &&
-      error.error.code === 3,
+      error instanceof TransactionReceiptTimeoutError &&
+      error.lastStatus !== undefined &&
+      "status" in error.lastStatus &&
+      error.lastStatus.status === "retry" &&
+      error.lastStatus.error.source === "executor" &&
+      error.lastStatus.error.code === 3,
   );
   console.log(
     "Transfer alone cannot commit with zero storage reserve",
@@ -424,7 +437,7 @@ try {
   // reserve is still zero so it cannot execute later using the batch's top-up.
   for (
     let blocks = 0;
-    (await client.getChainTip()).height <=
+    (await client.getChainTip()).blockHeight <=
     unfunded.uniquifier.block_expiry_height;
     blocks++
   ) {
@@ -440,12 +453,15 @@ try {
             amount: 0n,
           }),
         ])
-      ).execResult,
-      ExecResult.ExecResultOK,
+      ).execution.result,
+      "return",
     );
   }
-  assert.equal(await client.getTransactionReceipt(unfundedHash), null);
-  const controlHeight = (await client.getChainTip()).height;
+  assert.equal(
+    await client.getTransactionReceipt({ transactionHash: unfundedHash }),
+    null,
+  );
+  const controlHeight = (await client.getChainTip()).blockHeight;
   assert.equal(
     (await readBalance(reserveToken, receiver, controlHeight)).value,
     0n,
@@ -470,34 +486,39 @@ try {
       }),
     ],
   );
+  assert.equal(failedTransfer.execution.result, "abort");
   assert.equal(
-    failedTransfer.execResult,
-    ExecResult.ExecResultTxRootFrameReverted,
-  );
-  assert.equal(
-    (await readBalance(HOG_ADDRESS, reserveToken, failedTransfer.height)).value,
+    (await readBalance(HOG_ADDRESS, reserveToken, failedTransfer.blockHeight))
+      .value,
     0n,
   );
   assert.equal(
-    (await readBalance(reserveToken, receiver, failedTransfer.height)).value,
+    (await readBalance(reserveToken, receiver, failedTransfer.blockHeight))
+      .value,
     0n,
   );
   const fundedTransfer = await batch(
     "Top up storage and transfer to a new holder",
     [topup, transfer],
   );
-  assert.equal(fundedTransfer.execResult, ExecResult.ExecResultOK);
+  assert.equal(fundedTransfer.execution.result, "return");
   assert.equal(
-    (await readBalance(reserveToken, receiver, fundedTransfer.height)).value,
+    (await readBalance(reserveToken, receiver, fundedTransfer.blockHeight))
+      .value,
     1n,
   );
   assert.equal(
-    (await readBalance(reserveToken, account.address, fundedTransfer.height))
-      .value,
+    (
+      await readBalance(
+        reserveToken,
+        account.address,
+        fundedTransfer.blockHeight,
+      )
+    ).value,
     9n,
   );
   const reserveAfter = (
-    await readBalance(HOG_ADDRESS, reserveToken, fundedTransfer.height)
+    await readBalance(HOG_ADDRESS, reserveToken, fundedTransfer.blockHeight)
   ).value;
   assert.ok(
     reserveAfter >= 0n && reserveAfter < topupAmount,
@@ -506,12 +527,12 @@ try {
   const pool = (
     await SwapFactory.v0_1.poolAddresses.view({
       client,
-      contract: swapFactory,
+      address: swapFactory,
       args: { tokenA: token0!, tokenB: token1! },
     })
   ).value;
   const funding = (
-    await SwapFactory.v0_1.poolFunding.view({ client, contract: swapFactory })
+    await SwapFactory.v0_1.poolFunding.view({ client, address: swapFactory })
   ).value.recommended;
   const amount = 1_000_000_000n;
   const calls = [
@@ -545,7 +566,7 @@ try {
     calls,
     [lpCode],
   );
-  assert.equal(receipt.execResult, ExecResult.ExecResultOK);
+  assert.equal(receipt.execution.result, "return");
   assert.equal(
     (
       await batch("Process liquidity", [
@@ -554,13 +575,13 @@ try {
           gasAmount(CRANK_FRAME_GAS),
         ),
       ])
-    ).execResult,
-    ExecResult.ExecResultOK,
+    ).execution.result,
+    "return",
   );
   const lpBalance = (
     await ERC20.v0_1.getBalanceOf.view({
       client,
-      contract: pool.liquidity_token,
+      address: pool.liquidity_token,
       args: { addr: account.address },
     })
   ).value;
@@ -574,8 +595,8 @@ try {
           difference: 8_000n,
         }),
       ])
-    ).execResult,
-    ExecResult.ExecResultOK,
+    ).execution.result,
+    "return",
   );
   for (let i = 0; i < 8; i++) {
     assert.equal(
@@ -589,8 +610,8 @@ try {
             recipient: account.address,
           }),
         ])
-      ).execResult,
-      ExecResult.ExecResultOK,
+      ).execution.result,
+      "return",
     );
   }
   const drained = await batch(
@@ -602,10 +623,10 @@ try {
       ),
     ],
   );
-  assert.equal(drained.execResult, ExecResult.ExecResultOK);
+  assert.equal(drained.execution.result, "return");
   assert.deepEqual(
     RequestsProcessed.singleFromReceipt(drained, {
-      contractAddress: pool.driver,
+      address: pool.driver,
     }).fields,
     { processed: 8n, failed: 0n },
   );

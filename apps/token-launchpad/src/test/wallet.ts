@@ -24,7 +24,7 @@ export function testClient(networkId: string) {
     }),
     transport: {
       request: (method, params) =>
-        method === "groundhog_networkInfo"
+        method === "getNetworkInfo"
           ? Promise.resolve({ networkHash: networkId } as never)
           : transport.request(method, params),
     },

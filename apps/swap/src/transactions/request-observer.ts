@@ -17,7 +17,10 @@ import { requestFailureMessage } from "@/contracts/failure-message";
 import { batch_driver } from "@/contracts/generated/swap-driver";
 import { swap_if } from "@/contracts/generated/swap-handler";
 import { orderTokens } from "@/domain/tokens";
-import type { OutstandingRequest, RequestRecord } from "@/transactions/request-collection";
+import type {
+  OutstandingRequest,
+  RequestRecord,
+} from "@/transactions/request-collection";
 
 const RequestFailed = batch_driver.v0_1.events.RequestFailed;
 type RequestFailed = batch_driver.v0_1.events.RequestFailed;
@@ -80,7 +83,9 @@ export function createRequestObserver(
     const requestsById = new Map<string, RequestRecord>();
     for (const request of requests) {
       if (request.requestId === null || request.receiptBlock === null) {
-        throw new Error("Queued request is missing its request ID or receipt block");
+        throw new Error(
+          "Queued request is missing its request ID or receipt block",
+        );
       }
       if (requestsById.has(request.requestId)) {
         throw new Error("Queued requests contain a duplicate request ID");
@@ -88,48 +93,55 @@ export function createRequestObserver(
       requestsById.set(request.requestId, request);
     }
 
-    const anchorHeight = requests.reduce(
-      (earliest, request) => {
-        const start = request.observedThroughBlock ?? request.receiptBlock!;
-        return start < earliest ? start : earliest;
-      },
-      requests[0]!.observedThroughBlock ?? requests[0]!.receiptBlock!,
-    );
+    const anchorHeight = requests.reduce((earliest, request) => {
+      const start = request.observedThroughBlock ?? request.receiptBlock!;
+      return start < earliest ? start : earliest;
+    }, requests[0]!.observedThroughBlock ?? requests[0]!.receiptBlock!);
     const filters = [
       GeneratedSwapEvent.filter({
-        contractAddresses: [config.handlerAddress],
+        addresses: [config.handlerAddress],
       }),
       RequestFailed.filter({
-        contractAddresses: [config.driverAddress],
+        addresses: [config.driverAddress],
       }),
     ];
     const observations: RequestObservation[] = [];
     const completed = new Set<string>();
     const seenEvents = new Set<string>();
     const seenCursors = new Set<string>();
-    let cursor: Uint8Array | undefined;
+    let cursor: string | undefined;
     let observedThroughBlock: bigint | null = null;
     let oldestRetainedBlock: bigint | null = null;
 
     for (;;) {
       const page: EventPage = await client.getEvents({
         filters,
-        order: "ascending",
-        anchor: { height: anchorHeight },
-        ...(cursor === undefined ? {} : { cursor }),
+        ...(cursor === undefined
+          ? {
+              start: {
+                order: "ascending" as const,
+                anchor: {
+                  kind: "atHeight" as const,
+                  blockHeight: anchorHeight,
+                },
+              },
+            }
+          : { cursor }),
         limit: 200,
       });
-      observedThroughBlock = observedThroughBlock === null
-          || page.latestBlock > observedThroughBlock
-        ? page.latestBlock
-        : observedThroughBlock;
-      oldestRetainedBlock = oldestRetainedBlock === null
-          || page.oldestBlock > oldestRetainedBlock
-        ? page.oldestBlock
-        : oldestRetainedBlock;
+      observedThroughBlock =
+        observedThroughBlock === null ||
+        page.latestIndexedBlockHeight > observedThroughBlock
+          ? page.latestIndexedBlockHeight
+          : observedThroughBlock;
+      oldestRetainedBlock =
+        oldestRetainedBlock === null ||
+        page.oldestIndexedBlockHeight > oldestRetainedBlock
+          ? page.oldestIndexedBlockHeight
+          : oldestRetainedBlock;
 
       for (const event of page.events) {
-        const key = `${toBase58(event.txHash)}:${event.sequenceNumber}`;
+        const key = `${toBase58(event.transactionHash)}:${event.sequenceNumber}`;
         if (seenEvents.has(key)) continue;
         seenEvents.add(key);
 
@@ -148,22 +160,23 @@ export function createRequestObserver(
         }
       }
 
-      if (page.cursor.length === 0) break;
-      const cursorKey = toHex0x(page.cursor);
+      if (page.nextCursor === null) break;
+      const cursorKey = page.nextCursor;
       if (seenCursors.has(cursorKey)) {
         throw new Error("Event query returned a repeated pagination cursor");
       }
       seenCursors.add(cursorKey);
-      cursor = page.cursor;
+      cursor = page.nextCursor;
     }
 
     if (
-      oldestRetainedBlock !== null
-      && requests.some((request) => {
+      oldestRetainedBlock !== null &&
+      requests.some((request) => {
         if (completed.has(request.requestId!)) return false;
-        const requiredFrom = request.observedThroughBlock === null
-          ? request.receiptBlock!
-          : request.observedThroughBlock + 1n;
+        const requiredFrom =
+          request.observedThroughBlock === null
+            ? request.receiptBlock!
+            : request.observedThroughBlock + 1n;
         return oldestRetainedBlock! > requiredFrom;
       })
     ) {
@@ -199,19 +212,23 @@ export function applyObservationBatch(
   now = Date.now(),
 ): RequestRecord[] {
   const scannedIds = new Set(
-    scanned.flatMap(({ requestId }) => requestId === null ? [] : [requestId]),
+    scanned.flatMap(({ requestId }) => (requestId === null ? [] : [requestId])),
   );
   const observations = new Map(
-    batch.observations.map((observation) => [observation.requestId, observation]),
+    batch.observations.map((observation) => [
+      observation.requestId,
+      observation,
+    ]),
   );
 
   return current.map((request) => {
     if (
-      request.requestId === null
-      || !scannedIds.has(request.requestId)
-      || request.status === "executed"
-      || request.status === "failed"
-    ) return request;
+      request.requestId === null ||
+      !scannedIds.has(request.requestId) ||
+      request.status === "executed" ||
+      request.status === "failed"
+    )
+      return request;
 
     const observation = observations.get(request.requestId);
     if (observation?.kind === "executionFailed") {
@@ -232,8 +249,8 @@ export function applyObservationBatch(
       };
     }
     if (
-      observation?.kind === "executionObserved"
-      || observation?.kind === "executionInferred"
+      observation?.kind === "executionObserved" ||
+      observation?.kind === "executionInferred"
     ) {
       return {
         ...request,
@@ -253,10 +270,11 @@ export function applyObservationBatch(
     if (batch.observedThroughBlock === null) return request;
     return {
       ...request,
-      observedThroughBlock: request.observedThroughBlock === null
-          || batch.observedThroughBlock > request.observedThroughBlock
-        ? batch.observedThroughBlock
-        : request.observedThroughBlock,
+      observedThroughBlock:
+        request.observedThroughBlock === null ||
+        batch.observedThroughBlock > request.observedThroughBlock
+          ? batch.observedThroughBlock
+          : request.observedThroughBlock,
     };
   });
 }
@@ -268,7 +286,7 @@ export function observationsFromReceipt(
 ): RequestObservationBatch {
   const requestsById = new Map(
     requests.flatMap((request) =>
-      request.requestId === null ? [] : [[request.requestId, request] as const]
+      request.requestId === null ? [] : [[request.requestId, request] as const],
     ),
   );
   const observations: RequestObservation[] = [];
@@ -289,7 +307,7 @@ export function observationsFromReceipt(
   };
 
   for (const decoded of GeneratedSwapEvent.allFromReceipt(receipt, {
-    contractAddress: config.handlerAddress,
+    address: config.handlerAddress,
   })) {
     const requestBytes = decoded.fields.request_id;
     if (requestBytes === null) continue;
@@ -302,14 +320,14 @@ export function observationsFromReceipt(
         request,
         requestIdFromHex(requestId),
         decoded,
-        receipt.txHash,
-        receipt.height,
+        receipt.transactionHash,
+        receipt.blockHeight,
       ),
     );
   }
 
   for (const failed of RequestFailed.allFromReceipt(receipt, {
-    contractAddress: config.driverAddress,
+    address: config.driverAddress,
   })) {
     const requestId = toHex0x(failed.topics.request_id);
     const request = requestsById.get(requestId);
@@ -320,8 +338,8 @@ export function observationsFromReceipt(
         request,
         requestIdFromHex(requestId),
         failed,
-        receipt.txHash,
-        receipt.height,
+        receipt.transactionHash,
+        receipt.blockHeight,
       ),
     );
   }
@@ -333,12 +351,11 @@ function terminalRequestId(
   identified: IdentifiedEvent,
   config: AppConfig,
 ): string | null {
-  if (bytesEqual(identified.event.contractAddress, config.driverAddress)) {
+  if (bytesEqual(identified.event.address, config.driverAddress)) {
     const failed = RequestFailed.decode(identified.event);
     return failed === null ? null : toHex0x(failed.topics.request_id);
   }
-  if (!bytesEqual(identified.event.contractAddress, config.handlerAddress))
-    return null;
+  if (!bytesEqual(identified.event.address, config.handlerAddress)) return null;
   const swap = GeneratedSwapEvent.decode(identified.event);
   return swap?.fields.request_id === null ||
     swap?.fields.request_id === undefined
@@ -356,7 +373,7 @@ function matchTerminalEvent(
   const handlerAddress = addressFromBase58(request.criteria.handlerAddress);
   const driverAddress = addressFromBase58(request.criteria.driverAddress);
 
-  if (bytesEqual(event.contractAddress, driverAddress)) {
+  if (bytesEqual(event.address, driverAddress)) {
     const failed = RequestFailed.decode(event);
     return failed === null
       ? null
@@ -364,12 +381,12 @@ function matchTerminalEvent(
           request,
           requestId,
           failed,
-          identified.txHash,
+          identified.transactionHash,
           identified.blockHeight,
         );
   }
 
-  if (!bytesEqual(event.contractAddress, handlerAddress)) return null;
+  if (!bytesEqual(event.address, handlerAddress)) return null;
   const swap = GeneratedSwapEvent.decode(event);
   return swap === null
     ? null
@@ -377,7 +394,7 @@ function matchTerminalEvent(
         request,
         requestId,
         swap,
-        identified.txHash,
+        identified.transactionHash,
         identified.blockHeight,
       );
 }
@@ -390,8 +407,8 @@ function matchFailedEvent(
   blockHeight: bigint,
 ): RequestObservation | null {
   if (
-    blockHeight < request.receiptBlock!
-    || !bytesEqual(failed.topics.request_id, requestId)
+    blockHeight < request.receiptBlock! ||
+    !bytesEqual(failed.topics.request_id, requestId)
   ) {
     return null;
   }

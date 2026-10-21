@@ -26,15 +26,22 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use thruput_contract_util::{NormalizedMethodSignature, contract_entrypoint_id};
-use thruput_json_rpc_client::{GroundhogApiClient, HttpClient, HttpClientBuilder};
+use thruput_json_rpc_client::{
+    DecodedResponse, HttpClient, HttpClientBuilder, NativeClient, NativeClientError,
+};
 use thruput_json_rpc_types::base58::Base58;
-use thruput_json_rpc_types::block::{BlockInfo, ChainTip};
-use thruput_json_rpc_types::events::{EventPage, EventQuery};
 use thruput_json_rpc_types::hex::HexBytes;
-use thruput_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
+use thruput_json_rpc_types::requests::{
+    BlockQuery, EmptyRequest, EventQuery, SendTransactionRequest, SimulateInvocationRequest,
+    TransactionQuery,
+};
+use thruput_json_rpc_types::responses::{
+    Admission, BlockInfo, ChainTip, EventPage, InvocationOutput as RootInvocationOutput,
+    ReceiptExecution as ExecutionResult, SimulationResult as ViewResponse, TransactionReceipt,
+    TransactionStatus,
+};
 use thruput_json_rpc_types::runtime_manifest::parse_runtime_manifest;
-use thruput_json_rpc_types::transaction::{SchedulerTransactionError, TransactionStatus, TxHash};
-use thruput_json_rpc_types::view::{RootInvocationOutput, ViewRequest, ViewResponse};
+use thruput_json_rpc_types::transaction::{SchedulerTransactionError, TxHash};
 use thruput_signing::default_wallet::{
     BuildDefaultWalletCallTransaction, DEFAULT_WALLET_EXECUTE_ENTRYPOINT,
     build_default_wallet_call_transaction, decode_default_wallet_call_return,
@@ -149,7 +156,7 @@ impl std::error::Error for SubmissionError {}
 /// Everything needed to sign and submit calls against the live node, bound to a
 /// single deployed contract's interface and version.
 pub struct Harness {
-    client: Result<HttpClient, String>,
+    client: Result<NativeClient<HttpClient>, String>,
     contract: ContractAddress,
     /// Interface name and version of the deployed contract, used to derive
     /// entrypoint IDs for the methods under test.
@@ -173,6 +180,7 @@ impl Harness {
         let rpc_url = env("THRUPUT_RPC_URL");
         let client = HttpClientBuilder::default()
             .build(&rpc_url)
+            .map(NativeClient::new)
             .map_err(|e| format!("{rpc_url}: {e}"));
         let contract = parse_address(&env("THRUPUT_CONTRACT_ADDRESS"));
 
@@ -246,7 +254,7 @@ impl Harness {
         self
     }
 
-    fn client(&self) -> Result<&HttpClient, SubmissionError> {
+    fn client(&self) -> Result<&NativeClient<HttpClient>, SubmissionError> {
         self.client
             .as_ref()
             .map_err(|message| SubmissionError::BuildClient(message.clone()))
@@ -275,34 +283,46 @@ impl Harness {
         method: &str,
         calldata: Vec<u8>,
     ) -> Result<ViewResponse, SubmissionError> {
-        self.client()?
-            .view(ViewRequest {
-                contract: Base58(self.contract),
-                entrypoint: HexBytes(self.entrypoint_id(method).into_inner().to_vec()),
-                calldata: HexBytes(calldata),
-                caller: Some(Base58(self.wallet)),
-                auth_claim: None,
-                gas_limit: None,
-                min_height: None,
-            })
-            .await
-            .map_err(|e| rpc_error("view", e, None))
+        known(
+            self.client()?
+                .simulate_invocation(SimulateInvocationRequest {
+                    address: Base58(self.contract),
+                    entrypoint: HexBytes(self.entrypoint_id(method).into_inner().to_vec()),
+                    calldata: HexBytes(calldata),
+                    caller: Some(Base58(self.wallet)),
+                    assumed_auth: None,
+                    gas_limit: None,
+                    min_state_block_height: None,
+                })
+                .await
+                .map_err(|e| rpc_error("simulateInvocation", e, None))?,
+            "simulateInvocation",
+            None,
+        )
     }
 
     /// Read the current committed block height and hash.
     pub async fn chain_tip(&self) -> Result<ChainTip, SubmissionError> {
-        self.client()?
-            .chain_tip()
-            .await
-            .map_err(|e| rpc_error("chainTip", e, None))
+        known(
+            self.client()?
+                .get_chain_tip(EmptyRequest {})
+                .await
+                .map_err(|e| rpc_error("getChainTip", e, None))?,
+            "getChainTip",
+            None,
+        )
     }
 
     /// Query committed contract events through the live RPC indexer.
     pub async fn events(&self, query: EventQuery) -> Result<EventPage, SubmissionError> {
-        self.client()?
-            .get_events(query)
-            .await
-            .map_err(|e| rpc_error("getEvents", e, None))
+        known(
+            self.client()?
+                .get_events(query)
+                .await
+                .map_err(|e| rpc_error("getEvents", e, None))?,
+            "getEvents",
+            None,
+        )
     }
 
     /// Read one committed block when the selected backend implements historical lookup.
@@ -310,10 +330,16 @@ impl Harness {
         &self,
         height: thruput_json_rpc_types::BlockHeight,
     ) -> Result<Option<BlockInfo>, SubmissionError> {
-        self.client()?
-            .get_block_by_number(thruput_json_rpc_types::decimal::Decimal(height))
-            .await
-            .map_err(|e| rpc_error("getBlockByNumber", e, None))
+        known(
+            self.client()?
+                .get_block_by_height(BlockQuery {
+                    block_height: height,
+                })
+                .await
+                .map_err(|e| rpc_error("getBlockByHeight", e, None))?,
+            "getBlockByHeight",
+            None,
+        )
     }
 
     /// Sign and submit a call to `method` with the given calldata, wait for the
@@ -326,7 +352,7 @@ impl Harness {
         {
             SubmissionOutcome::Committed(receipt) => {
                 assert!(
-                    matches!(receipt.status, ExecStatus::Ok),
+                    matches!(receipt.execution, ExecutionResult::Return { .. }),
                     "{}",
                     self.failure_diagnostics(method, &receipt)
                 );
@@ -357,11 +383,8 @@ impl Harness {
         options: InvocationOptions,
     ) -> Result<SubmissionOutcome, SubmissionError> {
         let client = self.client()?;
-        let tip = client
-            .chain_tip()
-            .await
-            .map_err(|e| rpc_error("chainTip", e, None))?;
-        let block_expiry_height = expiry_height(*tip.height, options.expiry);
+        let tip = self.chain_tip().await?;
+        let block_expiry_height = expiry_height(*tip.block_height, options.expiry);
 
         let tx = build_default_wallet_call_transaction(BuildDefaultWalletCallTransaction {
             account: &self.account,
@@ -375,6 +398,10 @@ impl Harness {
         })
         .map_err(|e| SubmissionError::BuildTransaction(e.to_string()))?;
 
+        let tx_hash = TxHash(Base58(
+            thruput_signing::transaction_hash(&tx)
+                .map_err(|e| SubmissionError::BuildTransaction(e.to_string()))?,
+        ));
         let tx_hex = sign_and_encode_transaction_hex(
             tx,
             &self.signer,
@@ -383,10 +410,28 @@ impl Harness {
         )
         .map_err(|e| SubmissionError::SignTransaction(e.to_string()))?;
 
-        let tx_hash = client
-            .send_raw_transaction(tx_hex)
-            .await
-            .map_err(|e| rpc_error("sendRawTransaction", e, None))?;
+        let signed_transaction = HexBytes(
+            thruput_json_rpc_types::hex::decode_prefixed_hex(&tx_hex)
+                .map_err(|e| SubmissionError::SignTransaction(e.to_string()))?,
+        );
+        let submitted = known(
+            client
+                .send_transaction(SendTransactionRequest { signed_transaction })
+                .await
+                .map_err(|e| rpc_error("sendTransaction", e, Some(tx_hash)))?,
+            "sendTransaction",
+            Some(tx_hash),
+        )?;
+        if submitted.transaction_hash != tx_hash
+            || !matches!(submitted.admission, Admission::Accepted)
+        {
+            return Err(SubmissionError::Rpc {
+                operation: "sendTransaction",
+                code: None,
+                message: "Unexpected admission evidence".into(),
+                tx_hash: Some(tx_hash),
+            });
+        }
         eprintln!(
             "submitted `{method}`: tx={tx_hash:?}, expiry={block_expiry_height}, outer_gas={}, target_gas={}",
             options.outer_transaction_gas_limit, options.target_call_gas_limit
@@ -394,34 +439,44 @@ impl Harness {
         let deadline = Instant::now().checked_add(options.receipt_timeout);
 
         loop {
-            if let Some(receipt) = client
-                .get_transaction_receipt(tx_hash)
-                .await
-                .map_err(|e| rpc_error("getTransactionReceipt", e, Some(tx_hash)))?
-            {
+            if let Some(receipt) = known(
+                client
+                    .get_transaction_receipt(TransactionQuery {
+                        transaction_hash: tx_hash,
+                    })
+                    .await
+                    .map_err(|e| rpc_error("getTransactionReceipt", e, Some(tx_hash)))?,
+                "getTransactionReceipt",
+                Some(tx_hash),
+            )? {
                 return Ok(receipt_outcome(receipt));
             }
 
-            let status = client
-                .get_transaction_status(tx_hash)
-                .await
-                .map_err(|e| rpc_error("getTransactionStatus", e, Some(tx_hash)))?;
-
-            let tip = client
-                .chain_tip()
-                .await
-                .map_err(|e| rpc_error("chainTip", e, Some(tx_hash)))?;
-            let expired = *tip.height >= block_expiry_height;
-            let timed_out = deadline.is_some_and(|deadline| Instant::now() >= deadline);
-            if (expired
-                || matches!(
-                    status,
-                    TransactionStatus::Dropped { .. } | TransactionStatus::Invalid { .. }
-                ))
-                && let Some(receipt) = client
-                    .get_transaction_receipt(tx_hash)
+            let status = known(
+                client
+                    .get_transaction_status(TransactionQuery {
+                        transaction_hash: tx_hash,
+                    })
                     .await
-                    .map_err(|e| rpc_error("getTransactionReceipt", e, Some(tx_hash)))?
+                    .map_err(|e| rpc_error("getTransactionStatus", e, Some(tx_hash)))?,
+                "getTransactionStatus",
+                Some(tx_hash),
+            )?;
+
+            let tip = self.chain_tip().await?;
+            let expired = *tip.block_height >= block_expiry_height;
+            let timed_out = deadline.is_some_and(|deadline| Instant::now() >= deadline);
+            if (expired || matches!(status, TransactionStatus::Dropped { .. }))
+                && let Some(receipt) = known(
+                    client
+                        .get_transaction_receipt(TransactionQuery {
+                            transaction_hash: tx_hash,
+                        })
+                        .await
+                        .map_err(|e| rpc_error("getTransactionReceipt", e, Some(tx_hash)))?,
+                    "getTransactionReceipt",
+                    Some(tx_hash),
+                )?
             {
                 return Ok(receipt_outcome(receipt));
             }
@@ -451,17 +506,17 @@ impl Harness {
     /// The receipt we already hold is our stand-in for the CLI's
     /// `groundhog_dev_getTransactionDetail` dump.
     fn failure_diagnostics(&self, method: &str, receipt: &TransactionReceipt) -> String {
-        let abort_data = receipt
-            .abort_data
-            .as_ref()
-            .map_or_else(|| "none".to_owned(), |data| format_hex_bytes(&data.0));
+        let abort_data = match &receipt.execution {
+            ExecutionResult::Abort { abort_data } => format_hex_bytes(&abort_data.0),
+            _ => "none".to_owned(),
+        };
         format!(
             "`{method}` did not succeed\n  \
              status: {:?}\n  \
              account: {} entrypoint={}\n  \
              target: {} method=`{method}` entrypoint={}\n  \
              abort_data: {abort_data}",
-            receipt.status,
+            receipt.execution,
             format_contract_address(&self.wallet),
             format_entrypoint_id(DEFAULT_WALLET_EXECUTE_ENTRYPOINT),
             format_contract_address(&self.contract),
@@ -478,8 +533,8 @@ fn expiry_height(tip_height: i64, expiry: TransactionExpiry) -> i64 {
 }
 
 fn receipt_outcome(receipt: TransactionReceipt) -> SubmissionOutcome {
-    match receipt.status {
-        ExecStatus::Ok => SubmissionOutcome::Committed(receipt),
+    match receipt.execution {
+        ExecutionResult::Return { .. } => SubmissionOutcome::Committed(receipt),
         _ => SubmissionOutcome::Failed(receipt),
     }
 }
@@ -491,10 +546,6 @@ fn unresolved_outcome(
     timed_out: bool,
 ) -> Option<SubmissionOutcome> {
     match status {
-        TransactionStatus::Dropped { error } => Some(SubmissionOutcome::Dropped { tx_hash, error }),
-        TransactionStatus::Invalid { reason } => {
-            Some(SubmissionOutcome::Invalid { tx_hash, reason })
-        }
         TransactionStatus::Committed { .. } if timed_out => {
             Some(SubmissionOutcome::Pending { tx_hash })
         }
@@ -505,13 +556,29 @@ fn unresolved_outcome(
     }
 }
 
+fn known<T>(
+    response: DecodedResponse<T>,
+    operation: &'static str,
+    tx_hash: Option<TxHash>,
+) -> Result<T, SubmissionError> {
+    match response {
+        DecodedResponse::Known(value) => Ok(value),
+        _ => Err(SubmissionError::Rpc {
+            operation,
+            code: None,
+            message: "Unsupported RPC response".into(),
+            tx_hash,
+        }),
+    }
+}
+
 fn rpc_error(
     operation: &'static str,
-    error: jsonrpsee_core::client::Error,
+    error: NativeClientError,
     tx_hash: Option<TxHash>,
 ) -> SubmissionError {
     let code = match &error {
-        jsonrpsee_core::client::Error::Call(error) => Some(error.code()),
+        NativeClientError::Application { source, .. } => Some(source.code()),
         _ => None,
     };
     SubmissionError::Rpc {
@@ -538,10 +605,9 @@ pub fn decode_return<T>(receipt: &TransactionReceipt) -> T
 where
     T: for<'a> xdrs::ReadXDR<'a>,
 {
-    let data = receipt
-        .return_data
-        .as_ref()
-        .expect("expected a return value");
+    let ExecutionResult::Return { return_data: data } = &receipt.execution else {
+        panic!("expected a return value: {:?}", receipt.execution);
+    };
     let returned = decode_default_wallet_call_return(data.0.as_slice())
         .expect("unwrap the default wallet's return");
     xdrs::cxs::decode(returned.as_slice()).expect("decode return value")
@@ -595,9 +661,9 @@ mod tests {
 
     fn receipt(status: serde_json::Value) -> TransactionReceipt {
         serde_json::from_value(serde_json::json!({
-            "txHash": tx_hash(),
-            "height": "10",
-            "status": status,
+            "transactionHash": tx_hash(),
+            "blockHeight": "10",
+            "execution": status,
             "events": [],
             "gasUsed": "0"
         }))
@@ -631,10 +697,10 @@ mod tests {
     #[test]
     fn deterministic_receipts_are_exposed_separately() {
         let reverted = receipt(serde_json::json!({
-            "result": "reverted",
-            "message": "expected failure"
+            "result": "abort",
+            "abortData": "0x"
         }));
-        let successful = receipt(serde_json::json!({ "result": "ok" }));
+        let successful = receipt(serde_json::json!({ "result": "return", "returnData": "0x" }));
 
         assert!(matches!(
             receipt_outcome(reverted),
@@ -650,7 +716,7 @@ mod tests {
     fn recent_failure_remains_pending_while_unexpired() {
         let status: TransactionStatus = serde_json::from_value(serde_json::json!({
             "status": "recentFailure",
-            "attemptHeight": "9",
+            "attemptBlockHeight": "9",
             "cause": {
                 "kind": "dbConflict",
                 "conflict": {
@@ -670,43 +736,10 @@ mod tests {
 
     #[test]
     fn unresolved_transaction_is_expired_only_at_expiry_height() {
-        assert!(unresolved_outcome(TransactionStatus::Pending, tx_hash(), false, false).is_none());
-        assert!(matches!(
-            unresolved_outcome(TransactionStatus::Unknown, tx_hash(), true, false),
-            Some(SubmissionOutcome::Expired { .. })
-        ));
-    }
-
-    #[test]
-    fn invalid_status_exposes_rejection_reason() {
-        let outcome = unresolved_outcome(
-            TransactionStatus::Invalid {
-                reason: "bad nonce".to_owned(),
-            },
-            tx_hash(),
-            false,
-            false,
-        );
-
-        assert!(matches!(
-            outcome,
-            Some(SubmissionOutcome::Invalid { reason, .. }) if reason == "bad nonce"
-        ));
-    }
-    #[test]
-    fn dropped_is_terminal_and_retry_can_remain_pending() {
-        let error = SchedulerTransactionError::new(
-            thruput_json_rpc_types::transaction::SchedulerTransactionErrorSource::Scheduler,
-            7,
-        );
-        assert!(
-            matches!(unresolved_outcome(TransactionStatus::Dropped { error: error.clone() }, tx_hash(), false, false),
-            Some(SubmissionOutcome::Dropped { error: observed, .. }) if observed == error)
-        );
         assert!(
             unresolved_outcome(
-                TransactionStatus::Retry {
-                    error: error.clone()
+                TransactionStatus::Pending {
+                    recent_failure: None
                 },
                 tx_hash(),
                 false,
@@ -715,7 +748,51 @@ mod tests {
             .is_none()
         );
         assert!(matches!(
-            unresolved_outcome(TransactionStatus::Retry { error }, tx_hash(), false, true),
+            unresolved_outcome(TransactionStatus::Unknown {}, tx_hash(), true, false),
+            Some(SubmissionOutcome::Expired { .. })
+        ));
+    }
+
+    #[test]
+    fn dropped_and_retry_are_advisory() {
+        let error = thruput_json_rpc_types::responses::SchedulerError {
+            source: thruput_json_rpc_types::responses::SchedulerErrorSource::Scheduler,
+            code: 7,
+        };
+        assert!(
+            unresolved_outcome(
+                TransactionStatus::Dropped {
+                    error: error.clone(),
+                    recent_failure: None
+                },
+                tx_hash(),
+                false,
+                false
+            )
+            .is_none()
+        );
+        assert!(
+            unresolved_outcome(
+                TransactionStatus::Retry {
+                    error: error.clone(),
+                    recent_failure: None
+                },
+                tx_hash(),
+                false,
+                false
+            )
+            .is_none()
+        );
+        assert!(matches!(
+            unresolved_outcome(
+                TransactionStatus::Retry {
+                    error,
+                    recent_failure: None
+                },
+                tx_hash(),
+                false,
+                true
+            ),
             Some(SubmissionOutcome::Pending { .. })
         ));
     }

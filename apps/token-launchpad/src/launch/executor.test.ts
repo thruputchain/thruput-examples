@@ -1,12 +1,12 @@
 import {
   fixedBytes,
+  MockTransport,
   hashFromBase58,
   type ThruputClient,
   type TransactionReceipt,
   toBase58,
 } from "@thruputchain/client";
 import { describe, expect, it, vi } from "vitest";
-import { ExecResult } from "@thruputchain/protocol";
 
 import type { FactoryReview } from "@/contracts/launchpad-client";
 import { createReadClient } from "@/thruput/client";
@@ -258,9 +258,12 @@ describe("advanceWorkflow", () => {
           });
       const client = {
         getTransactionReceipt: vi.fn().mockResolvedValue({
-          txHash: hashFromBase58(hash),
-          height: 10n,
-          execResult: ExecResult.ExecResultOK,
+          transactionHash: hashFromBase58(hash),
+          blockHeight: 10n,
+          execution: {
+            result: "return" as const,
+            returnData: new Uint8Array(),
+          },
         }),
       } as unknown as ThruputClient;
       const writer = {
@@ -330,13 +333,19 @@ describe("advanceWorkflow", () => {
             JSON.stringify({
               jsonrpc: "2.0",
               id: request.id,
-              result: {
-                networkHash: !initialized
-                  ? config.networkId
-                  : failure === "mismatch"
-                    ? toBase58(new Uint8Array(32).fill(0x99))
-                    : "broken",
-              },
+              result:
+                request.method !== "getNetworkInfo"
+                  ? await new MockTransport().request(
+                      request.method,
+                      request.params,
+                    )
+                  : {
+                      networkHash: !initialized
+                        ? config.networkId
+                        : failure === "mismatch"
+                          ? toBase58(new Uint8Array(32).fill(0x99))
+                          : "broken",
+                    },
             }),
           );
         });
@@ -375,7 +384,7 @@ describe("advanceWorkflow", () => {
         }
         expect(writer.execute).not.toHaveBeenCalled();
         expect(writer.observe).not.toHaveBeenCalled();
-        expect(methods).toEqual(Array(3).fill("groundhog_networkInfo"));
+        expect(methods).toEqual(Array(3).fill("getNetworkInfo"));
       } finally {
         fetch.mockRestore();
       }

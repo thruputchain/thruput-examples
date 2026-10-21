@@ -6,8 +6,8 @@ import {
   defineCluster,
   hashFromBase58,
   HttpTransport,
-  JsonRpcError,
-  ThruputRpcErrorCode,
+  NativeRpcError,
+  NativeRpcErrorCode,
   toBase58,
   type EventPage,
   type EventQuery,
@@ -18,7 +18,10 @@ import {
 } from "@thruputchain/client";
 import { networkHash } from "@thruputchain/protocol";
 
-import { SwapFactory, swap_if } from "../src/contracts/generated/swap-factory.ts";
+import {
+  SwapFactory,
+  swap_if,
+} from "../src/contracts/generated/swap-factory.ts";
 import type { ServerConfig } from "./config.ts";
 import {
   inCanonicalTokenOrder,
@@ -97,7 +100,7 @@ export async function createThruputRegistrySource(
 
 type RegistryClient = Pick<
   ThruputClient,
-  "getEvents" | "getNetworkInfo" | "view"
+  "getEvents" | "getNetworkInfo" | "simulateInvocation"
 >;
 type RpcRunner = <T>(
   action: () => Promise<T>,
@@ -145,12 +148,18 @@ export class ThruputRegistrySource implements RegistrySource {
         () =>
           this.#client.getEvents({
             filters: [
-              PoolCreated.filter({ contractAddresses: [this.#factoryAddress] }),
+              PoolCreated.filter({ addresses: [this.#factoryAddress] }),
             ],
-            order: "ascending",
-            anchor: { height: BigInt(request.anchorBlock) },
             ...(request.cursor === null
-              ? {}
+              ? {
+                  start: {
+                    order: "ascending" as const,
+                    anchor: {
+                      kind: "atHeight" as const,
+                      blockHeight: BigInt(request.anchorBlock),
+                    },
+                  },
+                }
               : { cursor: decodeCursor(request.cursor) }),
             limit: request.limit,
           } satisfies EventQuery),
@@ -159,8 +168,8 @@ export class ThruputRegistrySource implements RegistrySource {
     } catch (error) {
       if (
         request.cursor !== null &&
-        error instanceof JsonRpcError &&
-        error.code === ThruputRpcErrorCode.InvalidParams
+        error instanceof NativeRpcError &&
+        error.code === NativeRpcErrorCode.InvalidParams
       ) {
         // Thruput has no cursor-specific code; every other continuation input is local and validated.
         throw new RegistryCursorRejectedError({ cause: error });
@@ -195,7 +204,7 @@ export class ThruputRegistrySource implements RegistrySource {
     await this.verifyNetworkIdentity(request.signal);
     return {
       pools,
-      nextCursor: encodeCursor(page.cursor),
+      nextCursor: encodeCursor(page.nextCursor),
       latestBlock: metadata.latestBlock,
       oldestBlock: metadata.oldestBlock,
     };
@@ -210,7 +219,7 @@ export class ThruputRegistrySource implements RegistrySource {
     let eventSequence: string;
     try {
       eventSequence = sequenceDecimal(event.sequenceNumber);
-      if (toBase58(event.event.contractAddress) !== this.#scope.factoryAddress) {
+      if (toBase58(event.event.address) !== this.#scope.factoryAddress) {
         throw new Error("event emitter does not match the configured factory");
       }
       decoded = PoolCreated.decode(event.event);
@@ -237,7 +246,7 @@ export class ThruputRegistrySource implements RegistrySource {
           "pair count",
         );
         const createdBlock = unsignedDecimal(event.blockHeight, "event block");
-        const transactionHash = toBase58(event.txHash);
+        const transactionHash = toBase58(event.transactionHash);
         if (
           token0Address === ZERO_ADDRESS ||
           token1Address === ZERO_ADDRESS ||
@@ -280,7 +289,7 @@ export class ThruputRegistrySource implements RegistrySource {
             Promise.all([
               SwapFactory.v0_1.getPair.view({
                 client: this.#client,
-                contract: this.#factoryAddress,
+                address: this.#factoryAddress,
                 args: {
                   tokenA: decoded.topics.token0,
                   tokenB: decoded.topics.token1,
@@ -288,7 +297,7 @@ export class ThruputRegistrySource implements RegistrySource {
               }),
               SwapFactory.v0_1.poolAddresses.view({
                 client: this.#client,
-                contract: this.#factoryAddress,
+                address: this.#factoryAddress,
                 args: {
                   tokenA: decoded.topics.token0,
                   tokenB: decoded.topics.token1,
@@ -296,7 +305,7 @@ export class ThruputRegistrySource implements RegistrySource {
               }),
               SwapFactory.v0_1.pairAt.view({
                 client: this.#client,
-                contract: this.#factoryAddress,
+                address: this.#factoryAddress,
                 args: { index: decoded.fields.pair_count - 1n },
               }),
             ]),
@@ -316,9 +325,9 @@ export class ThruputRegistrySource implements RegistrySource {
       }
       const [pair, addresses, indexedPair] = views;
       if (
-        pair.height !== addresses.height ||
-        pair.height !== indexedPair.height ||
-        pair.height < event.blockHeight
+        pair.stateBlockHeight !== addresses.stateBlockHeight ||
+        pair.stateBlockHeight !== indexedPair.stateBlockHeight ||
+        pair.stateBlockHeight < event.blockHeight
       ) {
         continue;
       }
@@ -403,16 +412,16 @@ class SignalTransport implements Transport {
   }
 }
 
-function encodeCursor(cursor: Uint8Array): string | null {
-  if (cursor.length === 0) return null;
-  const encoded = Buffer.from(cursor).toString("base64url");
+function encodeCursor(cursor: string | null): string | null {
+  if (cursor === null) return null;
+  const encoded = Buffer.from(cursor.slice(2), "hex").toString("base64url");
   if (encoded.length > MAX_CURSOR_CHARACTERS) {
     throw new RegistryIntegrityError("RPC returned an oversized event cursor");
   }
   return encoded;
 }
 
-function decodeCursor(cursor: string): Uint8Array {
+function decodeCursor(cursor: string): string {
   if (cursor.length === 0 || cursor.length > MAX_CURSOR_CHARACTERS) {
     throw new RegistryIntegrityError("Invalid durable cursor");
   }
@@ -423,7 +432,7 @@ function decodeCursor(cursor: string): Uint8Array {
   ) {
     throw new RegistryIntegrityError("Invalid durable cursor");
   }
-  return bytes;
+  return `0x${bytes.toString("hex")}`;
 }
 
 function sequenceDecimal(value: number): string {
@@ -446,9 +455,15 @@ function validatePageMetadata(
 ): { latestBlock: string; oldestBlock: string } {
   try {
     const anchor = BigInt(anchorBlock);
-    const latestBlock = unsignedDecimal(page.latestBlock, "latest block");
-    const oldestBlock = unsignedDecimal(page.oldestBlock, "oldest block");
-    if (page.oldestBlock > page.latestBlock) {
+    const latestBlock = unsignedDecimal(
+      page.latestIndexedBlockHeight,
+      "latest block",
+    );
+    const oldestBlock = unsignedDecimal(
+      page.oldestIndexedBlockHeight,
+      "oldest block",
+    );
+    if (page.oldestIndexedBlockHeight > page.latestIndexedBlockHeight) {
       throw new Error("oldest block exceeds latest block");
     }
 
@@ -457,17 +472,20 @@ function validatePageMetadata(
     for (const event of page.events) {
       unsignedDecimal(event.blockHeight, "event block");
       const sequence = sequenceDecimal(event.sequenceNumber);
-      if (event.blockHeight < anchor || event.blockHeight > page.latestBlock) {
+      if (
+        event.blockHeight < anchor ||
+        event.blockHeight > page.latestIndexedBlockHeight
+      ) {
         throw new Error("event block is outside the requested page bounds");
       }
-      if (event.blockHeight < page.oldestBlock) {
+      if (event.blockHeight < page.oldestIndexedBlockHeight) {
         throw new Error("event block predates the retained page bounds");
       }
       if (previousHeight !== null && event.blockHeight < previousHeight) {
         throw new Error("event blocks are out of order");
       }
       previousHeight = event.blockHeight;
-      const identity = `${toBase58(event.txHash)}:${sequence}`;
+      const identity = `${toBase58(event.transactionHash)}:${sequence}`;
       if (identities.has(identity)) {
         throw new Error("duplicate event identity");
       }

@@ -44,7 +44,7 @@ npm run example:chain-tip
 ```
 
 Expected: JSON with `rpcUrl`, `networkHash`, and block `height`. This read-only
-request needs no signer or contract build. Try adding `client.getVersion()` and
+request needs no signer or contract build. Try adding `client.getVersionInfo()` and
 printing the RPC implementation version.
 
 ## 2. Transfer test HOG
@@ -191,7 +191,7 @@ See the [firehose consumption guide](https://docs.thruput.network/guides/consume
 
 - `local-client.ts` shares endpoint selection and localnet client creation.
 - `wait-for-view.ts` handles the gap between a committed receipt and an available
-  read snapshot. Calls specify `minHeight`; only `ViewHeightUnavailable` is
+  read snapshot. Calls specify `minStateBlockHeight`; only `StateHeightUnavailable` is
   retried, for at most 15 seconds. It never retries signing or submission.
 - `generate.sh` builds the artifact and matching binding.
 - `generated/counter.ts` is generated, not a hand-written teaching example.

@@ -62,7 +62,9 @@ vi.mock("@thruputchain/client/wallet", async (original) => {
 });
 vi.mock("@thruputchain/client", async (original) => ({
   ...(await original<typeof import("@thruputchain/client")>()),
-  createThruputClient: vi.fn(async () => ({ getVersion: mocks.getVersion })),
+  createThruputClient: vi.fn(async () => ({
+    getVersionInfo: mocks.getVersion,
+  })),
   createWalletClient: vi.fn(() => mocks),
 }));
 
@@ -148,7 +150,7 @@ beforeEach(async () => {
   vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", join(root, "runtime.json"));
   vi.stubEnv("THRUPUT_NETWORK_ID", zeroNetwork);
   phases = [];
-  mocks.getVersion.mockResolvedValue({ wireFormat: "13.0.0" });
+  mocks.getVersion.mockResolvedValue({ wireFormat: "14.0.0" });
   mocks.deriveContractAddress.mockReturnValue(factory);
   mocks.requestAirdrop.mockImplementation(async () => {
     phases.push("airdrop");
@@ -157,11 +159,11 @@ beforeEach(async () => {
   mocks.getBalance.mockResolvedValue({ rawBalance: 1_000_000_000n });
   mocks.deployContractAndWait.mockImplementation(async (deployment) => {
     phases.push("deploy");
-    return { txHash: new Uint8Array(32), address: deployment.address };
+    return { transactionHash: new Uint8Array(32), address: deployment.address };
   });
   mocks.executeAndWait.mockImplementation(async () => {
     phases.push("execute");
-    return { txHash: new Uint8Array(32) };
+    return { transactionHash: new Uint8Array(32) };
   });
   vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
     value: config,
@@ -197,7 +199,7 @@ describe("infrastructure-only launchpad provisioning", () => {
         }),
       }),
     );
-    expect(mocks.getBalance).toHaveBeenLastCalledWith(factory);
+    expect(mocks.getBalance).toHaveBeenLastCalledWith({ address: factory });
     const env = await readFile(output, "utf8");
     expect(env).toContain(
       "VITE_THRUPUT_RPC_URL=https://rpc.thruput.network/\n",
@@ -421,9 +423,7 @@ describe("infrastructure-only launchpad provisioning", () => {
     "asset publication",
   ])("preserves existing output when %s fails", async (phase) => {
     if (phase === "airdrop")
-      mocks.requestAirdrop.mockResolvedValueOnce({
-        status: { result: "reverted" },
-      });
+      mocks.requestAirdrop.mockRejectedValueOnce(new Error("Funding stopped"));
     if (phase === "receipt")
       mocks.executeAndWait.mockRejectedValueOnce(new Error("Execution failed"));
     if (phase === "address")

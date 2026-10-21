@@ -3,6 +3,8 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "paths": { "@/*": ["./src/*"] },
     "strict": true,
     "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,
@@ -10,5 +12,10 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "scripts/**/*.ts", "server/**/*.ts"]
+  "include": [
+    "vite.config.ts",
+    "scripts/**/*.ts",
+    "server/**/*.ts",
+    "../../tests/e2e/batching.ts"
+  ]
 }

@@ -16,7 +16,9 @@ export interface PoolFunding {
 
 export interface SwapFactoryReadAdapter {
   allPairsLength(): Promise<ContractView<bigint>>;
-  pairAt(index: bigint): Promise<ContractView<readonly [ContractAddress, ContractAddress] | null>>;
+  pairAt(
+    index: bigint,
+  ): Promise<ContractView<readonly [ContractAddress, ContractAddress] | null>>;
   getPair(
     tokenA: ContractAddress,
     tokenB: ContractAddress,
@@ -30,13 +32,13 @@ export interface SwapFactoryReadAdapter {
 }
 
 export function createSwapFactoryReadAdapter(params: {
-  client: Pick<ThruputClient, "view">;
+  client: Pick<ThruputClient, "simulateInvocation">;
   contract: ContractAddress;
   caller: ContractAddress;
 }): SwapFactoryReadAdapter {
   const context = {
     client: params.client,
-    contract: params.contract,
+    address: params.contract,
     caller: params.caller,
   };
   return {

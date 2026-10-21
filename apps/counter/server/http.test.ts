@@ -12,6 +12,7 @@ import {
   hashFromBase58,
   hashSignedTransaction,
   PrivateKeySigner,
+  MockTransport,
   serializeSignedTransaction,
   signTransaction,
   toBase58,
@@ -91,33 +92,39 @@ afterEach(async () => {
 });
 
 function rpcMock() {
+  const transport = new MockTransport();
   return vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
     const body = JSON.parse(String(init?.body)) as {
       method: string;
       id: number;
-      params: string[];
+      params: Record<string, string>;
     };
     const result =
-      body.method === "groundhog_networkInfo"
+      body.method === "getNetworkInfo"
         ? { networkHash: config.app.networkId }
-        : body.method === "groundhog_chainTip"
-          ? { height: "10", blockHash: b58(0x00) }
-          : body.method === "groundhog_sendRawTransaction"
-            ? toBase58(
-                hashSignedTransaction(
-                  deserializeSignedTransaction(fromHex0x(body.params[0]!)),
+        : body.method === "getChainTip"
+          ? { blockHeight: "10", blockHash: b58(0x00) }
+          : body.method === "sendTransaction"
+            ? {
+                admission: "accepted",
+                transactionHash: toBase58(
+                  hashSignedTransaction(
+                    deserializeSignedTransaction(
+                      fromHex0x(body.params.signedTransaction!),
+                    ),
+                  ),
                 ),
-              )
-            : body.method === "groundhog_requestAirdrop"
+              }
+            : body.method === "faucet_requestAirdrop"
               ? {
                   attemptStatus: "succeeded",
                   recipient: config.app.signerAddress,
                   rawAmount: "100000000",
-                  txHash: b58(0x44),
-                  height: "10",
-                  status: { result: "ok" },
+                  transactionHash: b58(0x44),
+                  blockHeight: "10",
+                  execution: { result: "return", returnData: "0x" },
                 }
-              : null;
+              : await transport.request(body.method, body.params);
     return Response.json({ jsonrpc: "2.0", id: body.id, result });
   });
 }
@@ -146,7 +153,7 @@ async function fixture(upstream = rpcMock(), serverConfig = config) {
       post("/thruput-rpc", {
         jsonrpc: "2.0",
         id: 1,
-        method: "groundhog_sendRawTransaction",
+        method: "sendTransaction",
         params,
       }),
   };
@@ -163,9 +170,9 @@ describe("counter signing boundary", () => {
     });
     const calls = upstream.mock.calls
       .map(([, init]) => JSON.parse(String(init?.body)))
-      .filter((body) => body.method === "groundhog_requestAirdrop");
+      .filter((body) => body.method === "faucet_requestAirdrop");
     expect(calls).toHaveLength(1);
-    expect(calls[0].params[0].recipient).toBe(config.app.signerAddress);
+    expect(calls[0].params.recipient).toBe(config.app.signerAddress);
   });
 
   it("rejects caller-selected recipients and amounts before requesting an airdrop", async () => {
@@ -197,7 +204,7 @@ describe("counter signing boundary", () => {
     expect((await throttled.json()).retryAfterSeconds).toBe(600);
     const calls = upstream.mock.calls
       .map(([, init]) => JSON.parse(String(init?.body)))
-      .filter((body) => body.method === "groundhog_requestAirdrop");
+      .filter((body) => body.method === "faucet_requestAirdrop");
     expect(calls).toHaveLength(1);
     const beforeRetry = upstream.mock.calls.length;
     clock.mockReturnValue(1_300_000);
@@ -242,7 +249,7 @@ describe("counter signing boundary", () => {
       .fn<typeof fetch>()
       .mockImplementation(async (input, init) => {
         const body = JSON.parse(String(init?.body));
-        if (rejected && body.method === "groundhog_requestAirdrop") {
+        if (rejected && body.method === "faucet_requestAirdrop") {
           return Response.json({
             jsonrpc: "2.0",
             id: body.id,
@@ -269,7 +276,7 @@ describe("counter signing boundary", () => {
       .fn<typeof fetch>()
       .mockImplementation(async (input, init) => {
         const body = JSON.parse(String(init?.body));
-        if (body.method === "groundhog_requestAirdrop") {
+        if (body.method === "faucet_requestAirdrop") {
           return Response.json({
             jsonrpc: "2.0",
             id: body.id,
@@ -277,9 +284,9 @@ describe("counter signing boundary", () => {
               attemptStatus: "succeeded",
               recipient: config.app.signerAddress,
               rawAmount: "100000000",
-              txHash: b58(0x44),
-              height: "10",
-              status: { result: "reverted" },
+              transactionHash: b58(0x44),
+              blockHeight: "10",
+              execution: { result: "abort", abortData: "0x" },
             },
           });
         }
@@ -288,9 +295,7 @@ describe("counter signing boundary", () => {
     const { post } = await fixture(upstream);
     const response = await post("/api/topup", {});
     expect(response.status).toBe(503);
-    expect((await response.json()).error).toContain(
-      "did not execute successfully",
-    );
+    expect((await response.json()).error).toContain("cooldown");
   });
 
   it("publishes only public identity and rejects malformed signing keys", async () => {
@@ -328,7 +333,7 @@ describe("counter signing boundary", () => {
         await post("/thruput-rpc", {
           jsonrpc: "2.0",
           id: 1,
-          method: "groundhog_networkInfo",
+          method: "getNetworkInfo",
           params: [],
         })
       ).status,
@@ -337,7 +342,7 @@ describe("counter signing boundary", () => {
       (await post("/api/prepare", { direction: "increment" })).status,
     ).toBe(503);
     expect((await post("/api/topup", {})).status).toBe(503);
-    expect((await send([await sign()])).status).toBe(403);
+    expect((await send({ signedTransaction: await sign() })).status).toBe(403);
     expect(upstream).toHaveBeenCalledOnce();
   });
 
@@ -378,10 +383,10 @@ describe("counter signing boundary", () => {
       ).toEqual({ amount: 1n });
       expect(
         upstream.mock.calls.some(([, init]) =>
-          String(init?.body).includes("groundhog_sendRawTransaction"),
+          String(init?.body).includes("sendTransaction"),
         ),
       ).toBe(false);
-      expect((await send([transaction])).status).toBe(200);
+      expect((await send({ signedTransaction: transaction })).status).toBe(200);
     },
   );
 
@@ -417,9 +422,10 @@ describe("counter signing boundary", () => {
     expect(await response.text()).not.toContain(key);
     expect((await post("/api/topup", {})).status).toBe(503);
     expect(
-      upstream.mock.calls.every(
-        ([, init]) =>
-          JSON.parse(String(init?.body)).method === "groundhog_networkInfo",
+      upstream.mock.calls.every(([, init]) =>
+        ["getVersionInfo", "getNetworkInfo", "getServerLimits"].includes(
+          JSON.parse(String(init?.body)).method,
+        ),
       ),
     ).toBe(true);
   });
@@ -445,8 +451,14 @@ describe("counter signing boundary", () => {
     ];
     for (const call of calls)
       expect(
-        (await send([await sign({ ...normal(), invocation: wrap(call) })]))
-          .status,
+        (
+          await send({
+            signedTransaction: await sign({
+              ...normal(),
+              invocation: wrap(call),
+            }),
+          })
+        ).status,
       ).toBe(403);
     expect(upstream).not.toHaveBeenCalled();
   });
@@ -491,7 +503,9 @@ describe("counter signing boundary", () => {
       },
     ];
     for (const tx of variants)
-      expect((await send([await sign(tx)])).status).toBe(403);
+      expect((await send({ signedTransaction: await sign(tx) })).status).toBe(
+        403,
+      );
     for (const params of [
       [],
       ["0x1234"],
@@ -505,7 +519,7 @@ describe("counter signing boundary", () => {
   it("does not replay an allowed submission after an upstream error", async () => {
     const upstream = rpcMock().mockRejectedValue(new Error("lost response"));
     const { send } = await fixture(upstream);
-    expect((await send([await sign()])).status).toBe(502);
+    expect((await send({ signedTransaction: await sign() })).status).toBe(502);
     expect(upstream).toHaveBeenCalledTimes(1);
   });
 
@@ -530,13 +544,15 @@ describe("counter signing boundary", () => {
     expect(new Set(hashes).size).toBe(20);
     expect(
       upstream.mock.calls.filter(([, init]) =>
-        String(init?.body).includes("groundhog_chainTip"),
+        String(init?.body).includes("getChainTip"),
       ),
     ).toHaveLength(1);
     expect(
-      (await Promise.all(transactions.map((tx) => send([tx])))).every(
-        (response) => response.status === 200,
-      ),
+      (
+        await Promise.all(
+          transactions.map((tx) => send({ signedTransaction: tx })),
+        )
+      ).every((response) => response.status === 200),
     ).toBe(true);
   });
 
@@ -549,7 +565,7 @@ describe("counter signing boundary", () => {
       JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "groundhog_requestAirdrop",
+        method: "faucet_requestAirdrop",
       }),
     ]) {
       expect(

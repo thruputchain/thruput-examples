@@ -1,9 +1,5 @@
 import { toBase58 } from "@thruputchain/client";
-import {
-  contractAddress,
-  ExecResult,
-  sha256Hash,
-} from "@thruputchain/protocol";
+import { contractAddress, sha256Hash } from "@thruputchain/protocol";
 import { CxsWriter, FixedArrayCodec, Uint128Codec } from "@thruputchain/xdr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,8 +27,10 @@ type BurnEvent = swap_if.v0_1.events.LiquidityBurnEvent;
 const MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
 type MintEvent = swap_if.v0_1.events.LiquidityMintEvent;
 
-const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
-const hex = (byte: number) => `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
+const address = (byte: number) =>
+  contractAddress(new Uint8Array(32).fill(byte));
+const hex = (byte: number) =>
+  `0x${byte.toString(16).padStart(2, "0").repeat(32)}`;
 const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
@@ -56,40 +54,78 @@ describe("liquidity executor", () => {
   beforeEach(() => window.localStorage.clear());
 
   it.each([
-    ["add", 1], ["add", 2], ["add", 3], ["remove", 1], ["remove", 2],
-  ] as const)("negotiates the actual %s liquidity batch of %s calls", async (kind, count) => {
-    const operation = kind === "add" ? createAddLiquidityOperation(config, {
-      amountsDesired: [10n, 20n], amountsMin: [9n, 18n], estimatedLiquidity: 10n,
-      liquidityBalanceBefore: 5n, reservesBefore: [100n, 200n],
-    }) : createRemoveLiquidityOperation(config, { liquidity: 1n, amountsMin: [1n, 1n] });
-    saveLiquidityOperations(config, [operation]);
-    const read = snapshot();
-    if (count >= 2) { read.tokenA.allowance = 0n; read.liquidityAllowance = 0n; }
-    if (count === 3) read.tokenB.allowance = 0n;
-    const writer = {
-      supportsBatch: vi.fn(async (actual: number) => actual <= count), execute: vi.fn(),
-      executeBatch: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }),
-    };
-    const result = await runLiquidityOperation(config, operation, {
-      writeBoundary: writer, readSnapshot: async () => read, automaticProcessing: false,
-    });
-    expect(writer.supportsBatch.mock.calls).toEqual([[1], [count]]);
-    expect(writer.executeBatch).toHaveBeenCalledOnce();
-    expect(writer.executeBatch.mock.calls[0]![0]).toHaveLength(count);
-    expect(result.executionMode).toBe("batch");
-    expect(writer.execute).not.toHaveBeenCalled();
-  });
+    ["add", 1],
+    ["add", 2],
+    ["add", 3],
+    ["remove", 1],
+    ["remove", 2],
+  ] as const)(
+    "negotiates the actual %s liquidity batch of %s calls",
+    async (kind, count) => {
+      const operation =
+        kind === "add"
+          ? createAddLiquidityOperation(config, {
+              amountsDesired: [10n, 20n],
+              amountsMin: [9n, 18n],
+              estimatedLiquidity: 10n,
+              liquidityBalanceBefore: 5n,
+              reservesBefore: [100n, 200n],
+            })
+          : createRemoveLiquidityOperation(config, {
+              liquidity: 1n,
+              amountsMin: [1n, 1n],
+            });
+      saveLiquidityOperations(config, [operation]);
+      const read = snapshot();
+      if (count >= 2) {
+        read.tokenA.allowance = 0n;
+        read.liquidityAllowance = 0n;
+      }
+      if (count === 3) read.tokenB.allowance = 0n;
+      const writer = {
+        supportsBatch: vi.fn(async (actual: number) => actual <= count),
+        execute: vi.fn(),
+        executeBatch: vi
+          .fn()
+          .mockResolvedValue({
+            kind: "preSubmissionFailure",
+            hash: null,
+            message: "Rejected",
+          }),
+      };
+      const result = await runLiquidityOperation(config, operation, {
+        writeBoundary: writer,
+        readSnapshot: async () => read,
+        automaticProcessing: false,
+      });
+      expect(writer.supportsBatch.mock.calls).toEqual([[1], [count]]);
+      expect(writer.executeBatch).toHaveBeenCalledOnce();
+      expect(writer.executeBatch.mock.calls[0]![0]).toHaveLength(count);
+      expect(result.executionMode).toBe("batch");
+      expect(writer.execute).not.toHaveBeenCalled();
+    },
+  );
 
   it("falls back before signing when the actual liquidity batch is too large", async () => {
-    const operation = createRemoveLiquidityOperation(config, { liquidity: 1n, amountsMin: [1n, 1n] });
+    const operation = createRemoveLiquidityOperation(config, {
+      liquidity: 1n,
+      amountsMin: [1n, 1n],
+    });
     saveLiquidityOperations(config, [operation]);
     const writer = {
       supportsBatch: vi.fn(async (count: number) => count <= 1),
-      execute: vi.fn().mockResolvedValue({ kind: "preSubmissionFailure", hash: null, message: "Rejected" }),
+      execute: vi
+        .fn()
+        .mockResolvedValue({
+          kind: "preSubmissionFailure",
+          hash: null,
+          message: "Rejected",
+        }),
       executeBatch: vi.fn(),
     };
     const result = await runLiquidityOperation(config, operation, {
-      writeBoundary: writer, readSnapshot: async () => snapshot({ liquidityAllowance: 0n }),
+      writeBoundary: writer,
+      readSnapshot: async () => snapshot({ liquidityAllowance: 0n }),
     });
     expect(writer.supportsBatch.mock.calls).toEqual([[1], [2]]);
     expect(writer.executeBatch).not.toHaveBeenCalled();
@@ -99,81 +135,130 @@ describe("liquidity executor", () => {
   });
 
   it("keeps the saved liquidity steps unchanged when capability detection fails", async () => {
-    const operation = createRemoveLiquidityOperation(config, { liquidity: 1n, amountsMin: [1n, 1n] });
+    const operation = createRemoveLiquidityOperation(config, {
+      liquidity: 1n,
+      amountsMin: [1n, 1n],
+    });
     saveLiquidityOperations(config, [operation]);
     const writer = {
-      supportsBatch: vi.fn().mockRejectedValue(new Error("Capabilities unavailable")),
-      execute: vi.fn(), executeBatch: vi.fn(),
+      supportsBatch: vi
+        .fn()
+        .mockRejectedValue(new Error("Capabilities unavailable")),
+      execute: vi.fn(),
+      executeBatch: vi.fn(),
     };
-    await expect(runLiquidityOperation(config, operation, {
-      writeBoundary: writer, readSnapshot: async () => snapshot(),
-    })).rejects.toThrow("Capabilities unavailable");
+    await expect(
+      runLiquidityOperation(config, operation, {
+        writeBoundary: writer,
+        readSnapshot: async () => snapshot(),
+      }),
+    ).rejects.toThrow("Capabilities unavailable");
     expect(writer.execute).not.toHaveBeenCalled();
     expect(writer.executeBatch).not.toHaveBeenCalled();
     expect(loadLiquidityOperations(config)).toEqual([operation]);
   });
 
-  it.each(["add", "remove"] as const)("recovers the original %s batch without re-approving", async (kind) => {
-    const operation = kind === "add" ? createAddLiquidityOperation(config, {
-      amountsDesired: [10n, 20n], amountsMin: [9n, 18n], estimatedLiquidity: 10n,
-      liquidityBalanceBefore: 5n, reservesBefore: [100n, 200n],
-    }) : createRemoveLiquidityOperation(config, { liquidity: 1n, amountsMin: [1n, 1n] });
-    saveLiquidityOperations(config, [operation]);
-    const read = snapshot();
-    read.tokenA.allowance = 0n;
-    read.tokenB.allowance = 0n;
-    read.liquidityAllowance = 0n;
-    const result = committed(10n, [acceptedEvent(new Uint8Array(32).fill(31))]);
-    const returns = new CxsWriter();
-    const count = kind === "add" ? 3 : 2;
-    returns.writeUint32(BigInt(count));
-    for (let i = 0; i < count; i++) returns.writeVarOpaque(new Uint8Array(), 0xffff_ffff);
-    result.receipt.returnData = returns.finish();
-    const writer: WriteBoundary = {
-      supportsBatch: vi.fn().mockResolvedValue(true), execute: vi.fn(),
-      executeBatch: vi.fn<NonNullable<WriteBoundary["executeBatch"]>>(async (calls, observer) => {
-        expect(calls).toHaveLength(count);
-        await observer?.onSigned(result.hash);
-        return { kind: "indeterminate", hash: result.hash, reason: "timeout" };
-      }),
-      observe: vi.fn().mockResolvedValue(result),
-    };
-    const options = { writeBoundary: writer, readSnapshot: async () => read, automaticProcessing: false };
-    const pending = await runLiquidityOperation(config, operation, options);
-    expect(pending.steps.enqueue.status).toBe("indeterminate");
-    const recovered = await runLiquidityOperation(config, pending, options);
-    expect(recovered.status).toBe("queued");
-    expect(recovered.requestId).toBe(hex(31));
-    for (const name of recovered.batchSteps!)
-      expect(recovered.steps[name]).toMatchObject({ status: "committed", transactionHash: result.hash });
-    expect(writer.executeBatch).toHaveBeenCalledOnce();
-    expect(writer.observe).toHaveBeenCalledExactlyOnceWith(result.hash);
-    expect(writer.execute).not.toHaveBeenCalled();
-  });
+  it.each(["add", "remove"] as const)(
+    "recovers the original %s batch without re-approving",
+    async (kind) => {
+      const operation =
+        kind === "add"
+          ? createAddLiquidityOperation(config, {
+              amountsDesired: [10n, 20n],
+              amountsMin: [9n, 18n],
+              estimatedLiquidity: 10n,
+              liquidityBalanceBefore: 5n,
+              reservesBefore: [100n, 200n],
+            })
+          : createRemoveLiquidityOperation(config, {
+              liquidity: 1n,
+              amountsMin: [1n, 1n],
+            });
+      saveLiquidityOperations(config, [operation]);
+      const read = snapshot();
+      read.tokenA.allowance = 0n;
+      read.tokenB.allowance = 0n;
+      read.liquidityAllowance = 0n;
+      const result = committed(10n, [
+        acceptedEvent(new Uint8Array(32).fill(31)),
+      ]);
+      const returns = new CxsWriter();
+      const count = kind === "add" ? 3 : 2;
+      returns.writeUint32(BigInt(count));
+      for (let i = 0; i < count; i++)
+        returns.writeVarOpaque(new Uint8Array(), 0xffff_ffff);
+      result.receipt.execution = {
+        result: "return",
+        returnData: returns.finish(),
+      };
+      const writer: WriteBoundary = {
+        supportsBatch: vi.fn().mockResolvedValue(true),
+        execute: vi.fn(),
+        executeBatch: vi.fn<NonNullable<WriteBoundary["executeBatch"]>>(
+          async (calls, observer) => {
+            expect(calls).toHaveLength(count);
+            await observer?.onSigned(result.hash);
+            return {
+              kind: "indeterminate",
+              hash: result.hash,
+              reason: "timeout",
+            };
+          },
+        ),
+        observe: vi.fn().mockResolvedValue(result),
+      };
+      const options = {
+        writeBoundary: writer,
+        readSnapshot: async () => read,
+        automaticProcessing: false,
+      };
+      const pending = await runLiquidityOperation(config, operation, options);
+      expect(pending.steps.enqueue.status).toBe("indeterminate");
+      const recovered = await runLiquidityOperation(config, pending, options);
+      expect(recovered.status).toBe("queued");
+      expect(recovered.requestId).toBe(hex(31));
+      for (const name of recovered.batchSteps!)
+        expect(recovered.steps[name]).toMatchObject({
+          status: "committed",
+          transactionHash: result.hash,
+        });
+      expect(writer.executeBatch).toHaveBeenCalledOnce();
+      expect(writer.observe).toHaveBeenCalledExactlyOnceWith(result.hash);
+      expect(writer.execute).not.toHaveBeenCalled();
+    },
+  );
 
   it("enqueues, cranks once, and verifies an unambiguous mint", async () => {
-    const operation = createAddLiquidityOperation(config, {
-      amountsDesired: [10n, 20n],
-      amountsMin: [9n, 18n],
-      estimatedLiquidity: 10n,
-      liquidityBalanceBefore: 5n,
-      reservesBefore: [100n, 200n],
-    }, 1);
+    const operation = createAddLiquidityOperation(
+      config,
+      {
+        amountsDesired: [10n, 20n],
+        amountsMin: [9n, 18n],
+        estimatedLiquidity: 10n,
+        liquidityBalanceBefore: 5n,
+        reservesBefore: [100n, 200n],
+      },
+      1,
+    );
     saveLiquidityOperations(config, [operation]);
     const requestId = new Uint8Array(32).fill(30);
-    const execute = vi.fn()
+    const execute = vi
+      .fn()
       .mockResolvedValueOnce(committed(10n, [acceptedEvent(requestId)]))
       .mockResolvedValueOnce(committed(11n, [mintEvent(requestId, 10n)]));
-    const readSnapshot = vi.fn()
+    const readSnapshot = vi
+      .fn()
       .mockResolvedValue(snapshot())
       .mockResolvedValueOnce(snapshot())
       .mockResolvedValueOnce(snapshot())
       .mockResolvedValueOnce(snapshot())
-      .mockResolvedValueOnce(snapshot({
-        reserve0: 110n,
-        reserve1: 220n,
-        liquidityBalance: 15n,
-      }));
+      .mockResolvedValueOnce(
+        snapshot({
+          reserve0: 110n,
+          reserve1: 220n,
+          liquidityBalance: 15n,
+        }),
+      );
 
     const result = await runLiquidityOperation(config, operation, {
       writeBoundary: { execute },
@@ -202,9 +287,9 @@ describe("liquidity executor", () => {
     });
     saveLiquidityOperations(config, [operation]);
     const requestId = new Uint8Array(32).fill(31);
-    const execute = vi.fn().mockResolvedValue(
-      committed(10n, [acceptedEvent(requestId)]),
-    );
+    const execute = vi
+      .fn()
+      .mockResolvedValue(committed(10n, [acceptedEvent(requestId)]));
 
     const result = await runLiquidityOperation(config, operation, {
       writeBoundary: { execute },
@@ -272,9 +357,9 @@ describe("liquidity executor", () => {
       transactionHash: id(41),
     });
     const execute = vi.fn();
-    const observe = vi.fn().mockResolvedValue(
-      committed(11n, [mintEvent(requestId, 10n)]),
-    );
+    const observe = vi
+      .fn()
+      .mockResolvedValue(committed(11n, [mintEvent(requestId, 10n)]));
 
     const result = await runLiquidityOperation(config, operation, {
       writeBoundary: { execute, observe },
@@ -306,13 +391,16 @@ describe("liquidity executor", () => {
     saveLiquidityOperations(config, [operation, other]);
     const execute = vi.fn();
 
-    await expect(runLiquidityOperation(config, operation, {
-      writeBoundary: { execute },
-      readSnapshot: async () => snapshot({
-        tokenA: { ...snapshot().tokenA, allowance: 10n },
-        tokenB: { ...snapshot().tokenB, allowance: 20n },
+    await expect(
+      runLiquidityOperation(config, operation, {
+        writeBoundary: { execute },
+        readSnapshot: async () =>
+          snapshot({
+            tokenA: { ...snapshot().tokenA, allowance: 10n },
+            tokenB: { ...snapshot().tokenB, allowance: 20n },
+          }),
       }),
-    })).rejects.toThrow("allowances have not been observed");
+    ).rejects.toThrow("allowances have not been observed");
     expect(execute).not.toHaveBeenCalled();
   });
 
@@ -329,10 +417,12 @@ describe("liquidity executor", () => {
     saveLiquidityOperations(config, [operation, other]);
     const execute = vi.fn();
 
-    await expect(runLiquidityOperation(config, operation, {
-      writeBoundary: { execute },
-      readSnapshot: async () => snapshot({ liquidityBalance: 5n }),
-    })).rejects.toThrow("unreserved LP balance");
+    await expect(
+      runLiquidityOperation(config, operation, {
+        writeBoundary: { execute },
+        readSnapshot: async () => snapshot({ liquidityBalance: 5n }),
+      }),
+    ).rejects.toThrow("unreserved LP balance");
     expect(execute).not.toHaveBeenCalled();
   });
 });
@@ -404,26 +494,28 @@ function committedStep() {
 
 function committed(
   height: bigint,
-  events: Array<{ contractAddress: ReturnType<typeof address>; topics: Uint8Array[]; data: Uint8Array }>,
+  events: Array<{
+    address: ReturnType<typeof address>;
+    topics: Uint8Array[];
+    data: Uint8Array;
+  }>,
 ): Extract<WriteResult, { kind: "committedSuccess" }> {
   return {
     kind: "committedSuccess",
     hash: id(40),
     receipt: {
-      txHash: sha256Hash(new Uint8Array(32).fill(40)),
-      height,
-      execResult: ExecResult.ExecResultOK,
+      transactionHash: sha256Hash(new Uint8Array(32).fill(40)),
+      blockHeight: height,
+      execution: { result: "return" as const, returnData: new Uint8Array() },
       gasUsed: 0n,
       events,
-      returnData: new Uint8Array(),
-      abortData: null,
     },
   };
 }
 
 function acceptedEvent(requestId: Uint8Array) {
   return {
-    contractAddress: config.driverAddress,
+    address: config.driverAddress,
     topics: [RequestAccepted.signature, requestId],
     data: new Uint8Array(),
   };
@@ -435,22 +527,19 @@ function mintEvent(requestId: Uint8Array, amount: bigint) {
   writer.writeUint32(1n);
   writer.writeFixedOpaque(requestId, 32);
   return {
-    contractAddress: config.handlerAddress,
+    address: config.handlerAddress,
     topics: [MintEvent.signature, config.accountAddress, config.accountAddress],
     data: writer.finish(),
   };
 }
 
-function burnEvent(
-  requestId: Uint8Array,
-  amounts: readonly [bigint, bigint],
-) {
+function burnEvent(requestId: Uint8Array, amounts: readonly [bigint, bigint]) {
   const writer = new CxsWriter();
   FixedArrayCodec(Uint128Codec, 2).encode(writer, [...amounts]);
   writer.writeUint32(1n);
   writer.writeFixedOpaque(requestId, 32);
   return {
-    contractAddress: config.handlerAddress,
+    address: config.handlerAddress,
     topics: [BurnEvent.signature, config.accountAddress, config.accountAddress],
     data: writer.finish(),
   };

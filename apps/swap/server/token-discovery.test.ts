@@ -546,7 +546,7 @@ describe("fixed token discovery boundary", () => {
           body: JSON.stringify({
             jsonrpc: "2.0",
             id: 1,
-            method: "groundhog_sendRawTransaction",
+            method: "sendTransaction",
             params: [],
           }),
         })
@@ -557,5 +557,4 @@ describe("fixed token discovery boundary", () => {
     ).toContain("Swap");
     expect((await raw(origin, "/api/token-discovery/extra")).status).toBe(404);
   });
-
 });

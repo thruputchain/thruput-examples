@@ -447,7 +447,7 @@ export function useSwap({
                 requestObserver,
                 request.criteria.tokenIn,
                 request.intent.amountIn,
-                result.receipt.height,
+                result.receipt.blockHeight,
               );
               if (cancelled) return;
               current = recoveredCollection ?? loadRequestCollection(config);
@@ -991,7 +991,7 @@ export function useSwap({
             requestObserver,
             tokenIn,
             initialQuote.amountIn,
-            approval.receipt.height,
+            approval.receipt.blockHeight,
           );
           if (approvalObserved === null) {
             approvalRequest = {
@@ -1155,11 +1155,13 @@ export function useSwap({
           ? await writeBoundary.executeBatch!(
               [
                 ...(freshQuote.allowanceDifference > 0n
-                  ? [buildApprovalTarget(
-                      submissionTokens.input.address,
-                      config.handlerAddress,
-                      freshQuote.allowanceDifference,
-                    )]
+                  ? [
+                      buildApprovalTarget(
+                        submissionTokens.input.address,
+                        config.handlerAddress,
+                        freshQuote.allowanceDifference,
+                      ),
+                    ]
                   : []),
                 swapTarget,
               ],
@@ -1181,7 +1183,7 @@ export function useSwap({
             dispatch({
               type: "requestQueued",
               transactionHash: submission.hash,
-              receiptBlock: submission.receipt.height,
+              receiptBlock: submission.receipt.blockHeight,
             });
             dispatch({ type: "inputChanged" });
           }
@@ -1995,10 +1997,10 @@ function requestFromQueuedReceipt(
       ...request,
       status: "queued",
       transactionHash: result.hash,
-      receiptBlock: result.receipt.height,
+      receiptBlock: result.receipt.blockHeight,
       requestId: toHex0x(
         RequestAccepted.singleFromReceipt(result.receipt, {
-          contractAddress: config.driverAddress,
+          address: config.driverAddress,
         }).topics.request_id,
       ),
       visibleObservationMs: 0,
@@ -2010,7 +2012,7 @@ function requestFromQueuedReceipt(
       ...request,
       status: "queuedUntracked",
       transactionHash: result.hash,
-      receiptBlock: result.receipt.height,
+      receiptBlock: result.receipt.blockHeight,
       requestId: null,
       visibleObservationMs: 0,
       observedThroughBlock: null,
@@ -2111,8 +2113,11 @@ async function observeAggregateAllowance(
       }
       const snapshot = await readSnapshot();
       const target =
-        loadRequiredAllowance(config, tokenIn, toBase58(config.handlerAddress)) +
-        amountIn;
+        loadRequiredAllowance(
+          config,
+          tokenIn,
+          toBase58(config.handlerAddress),
+        ) + amountIn;
       const inputToken =
         tokenIn === toBase58(snapshot.tokenA.address)
           ? snapshot.tokenA

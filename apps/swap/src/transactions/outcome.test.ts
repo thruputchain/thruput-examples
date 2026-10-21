@@ -1,5 +1,8 @@
-import type { TransactionStatus } from "@thruputchain/client";
-import { ExecResult, sha256Hash } from "@thruputchain/protocol";
+import {
+  UnsupportedRpcValue,
+  type TransactionStatus,
+} from "@thruputchain/client";
+import { sha256Hash } from "@thruputchain/protocol";
 import { describe, expect, it } from "vitest";
 
 import { outcomeFromReceipt, outcomeFromStatus } from "./outcome";
@@ -7,14 +10,27 @@ import { outcomeFromReceipt, outcomeFromStatus } from "./outcome";
 const hash = sha256Hash(new Uint8Array(32));
 
 describe("transaction outcomes", () => {
+  it("does not treat an unfamiliar execution as a confirmed failure", () => {
+    expect(
+      outcomeFromReceipt({
+        transactionHash: hash,
+        blockHeight: 7n,
+        execution: new UnsupportedRpcValue({ result: "future" }),
+        gasUsed: 0n,
+        events: [],
+      }),
+    ).toEqual({ kind: "indeterminate", reason: "other" });
+  });
   it("keeps pending and committed-without-receipt non-resubmittable", () => {
     expect(outcomeFromStatus({ status: "pending" })).toEqual({
       kind: "pending",
     });
-    expect(outcomeFromStatus({ status: "committed", height: 7n })).toEqual({
-      kind: "awaitingReceipt",
-      height: 7n,
-    });
+    expect(outcomeFromStatus({ status: "committed", blockHeight: 7n })).toEqual(
+      {
+        kind: "awaitingReceipt",
+        height: 7n,
+      },
+    );
   });
 
   it.each(["recentFailure", "unknown", "other"] as const)(
@@ -24,7 +40,7 @@ describe("transaction outcomes", () => {
         status === "recentFailure"
           ? {
               status,
-              attemptHeight: 1n,
+              attemptBlockHeight: 1n,
               cause: { kind: "other" },
             }
           : { status };
@@ -33,12 +49,6 @@ describe("transaction outcomes", () => {
       });
     },
   );
-
-  it("waits for a receipt when commitment height is unavailable", () => {
-    expect(outcomeFromStatus({ status: "committed" })).toEqual({
-      kind: "awaitingReceipt",
-    });
-  });
 
   it("keeps scheduler retries pending and drops non-resubmittable", () => {
     const error = { source: "scheduler" as const, code: 1 };
@@ -51,24 +61,22 @@ describe("transaction outcomes", () => {
     });
   });
 
-  it("allows retry after authoritative invalid status", () => {
-    expect(outcomeFromStatus({ status: "invalid", reason: "expired" })).toEqual(
-      {
-        kind: "invalid",
-        reason: "expired",
-      },
-    );
+  it("keeps unfamiliar statuses indeterminate", () => {
+    expect(
+      outcomeFromStatus(new UnsupportedRpcValue({ status: "future" })),
+    ).toEqual({
+      kind: "indeterminate",
+      reason: "other",
+    });
   });
 
   it("uses the committed receipt to determine execution success", () => {
     const receipt = {
-      txHash: hash,
-      height: 7n,
-      execResult: ExecResult.ExecResultOK,
+      transactionHash: hash,
+      blockHeight: 7n,
+      execution: { result: "return" as const, returnData: new Uint8Array() },
       gasUsed: 0n,
       events: [],
-      returnData: null,
-      abortData: null,
     };
     expect(outcomeFromReceipt(receipt)).toMatchObject({
       kind: "committedSuccess",
@@ -76,7 +84,7 @@ describe("transaction outcomes", () => {
     expect(
       outcomeFromReceipt({
         ...receipt,
-        execResult: ExecResult.ExecResultTxRootFrameReverted,
+        execution: { result: "abort" as const, abortData: new Uint8Array() },
         gasUsed: 0n,
       }),
     ).toMatchObject({ kind: "committedFailure" });

@@ -7,7 +7,7 @@ import {
   type TransactionReceipt,
 } from "@thruputchain/client";
 import { parseSignedTransactionHex } from "@thruputchain/client/provider";
-import { ExecResult, gasAmount } from "@thruputchain/protocol";
+import { gasAmount } from "@thruputchain/protocol";
 import {
   contractViewQueryOptions,
   transactionReceiptQueryOptions,
@@ -77,14 +77,21 @@ export function useWalletCounter(address: string) {
   }, [receipt.data, pending.record]);
 
   function recordReceipt(value: TransactionReceipt) {
-    const hash = toBase58(value.txHash);
+    if (!("result" in value.execution)) {
+      setMessage(
+        "Receipt contains an unsupported execution result. Keep the saved transaction for recovery.",
+      );
+      return;
+    }
+    const hash = toBase58(value.transactionHash);
     setRecent((transactions) =>
       transactions.map((transaction) =>
         transaction.hash === hash
           ? {
               ...transaction,
               state:
-                value.execResult === ExecResult.ExecResultOK
+                "result" in value.execution &&
+                value.execution.result === "return"
                   ? "confirmed"
                   : "failed",
             }
@@ -105,15 +112,17 @@ export function useWalletCounter(address: string) {
   function committed(value: TransactionReceipt) {
     recordReceipt(value);
     queries.setQueryData(
-      transactionReceiptQueryOptions({ client, hash: toBase58(value.txHash) })
-        .queryKey,
+      transactionReceiptQueryOptions({
+        client,
+        hash: toBase58(value.transactionHash),
+      }).queryKey,
       value,
     );
     void queries.invalidateQueries({
       queryKey: contractViewQueryOptions({
         client,
         method: Counter.v0_1.get,
-        contract: addressFromBase58(address),
+        address: addressFromBase58(address),
       }).queryKey,
     });
   }
@@ -217,18 +226,18 @@ export function useWalletCounter(address: string) {
         throw new Error(
           "Saved state changed. Retry storage before continuing.",
         );
-      const existing = await client.getTransactionReceipt(
-        hashFromBase58(record.hash),
-      );
+      const existing = await client.getTransactionReceipt({
+        transactionHash: hashFromBase58(record.hash),
+      });
       if (existing) {
-        if (toBase58(existing.txHash) !== record.hash)
+        if (toBase58(existing.transactionHash) !== record.hash)
           throw new Error("Receipt hash does not match the saved transaction.");
         committed(existing);
         return;
       }
       const signed = parseSignedTransactionHex(record.signedTransaction);
       if (
-        (await client.getChainTip()).height >
+        (await client.getChainTip()).blockHeight >
         signed.tx.uniquifier.block_expiry_height
       )
         throw new Error(

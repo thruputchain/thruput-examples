@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ExecResult } from "@thruputchain/protocol";
 import type { useWalletCounter } from "./use-wallet-counter";
 import { BlockchainIdentifier } from "../components/blockchain-identifier";
 
@@ -66,7 +65,8 @@ export function WalletActivity({
           {receipt.data ? (
             <>
               <p role="status">
-                {receipt.data.execResult === ExecResult.ExecResultOK
+                {"result" in receipt.data.execution &&
+                receipt.data.execution.result === "return"
                   ? "Counter update committed."
                   : "The transaction committed with failed execution."}
               </p>

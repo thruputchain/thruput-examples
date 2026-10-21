@@ -12,7 +12,7 @@ const client = await createLocalClient();
 // A typed view reads committed state; it does not sign a transaction.
 const balance = await ERC20.v0_1.getBalanceOf.view({
   client,
-  contract: HOG_ADDRESS,
+  address: HOG_ADDRESS,
   caller: address,
   args: { addr: address },
 });
@@ -22,7 +22,7 @@ console.log(
       account: toBase58(address),
       rawBalance: balance.value.toString(),
       hog: formatUnits(balance.value, 7),
-      height: balance.height.toString(),
+      height: balance.stateBlockHeight.toString(),
     },
     null,
     2,

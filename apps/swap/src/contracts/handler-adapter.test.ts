@@ -24,12 +24,12 @@ describe("createSwapHandlerReadAdapter", () => {
         returnData: writer.finish(),
       },
       events: [],
-      height: 1n,
+      stateBlockHeight: 1n,
     });
     const contract = address(3);
     const caller = address(4);
     const adapter = createSwapHandlerReadAdapter({
-      client: { view },
+      client: { simulateInvocation: view },
       contract,
       caller,
     });
@@ -43,12 +43,11 @@ describe("createSwapHandlerReadAdapter", () => {
         liquidityToken: address(5),
         cumulativePrices,
       },
-      height: 1n,
+      stateBlockHeight: 1n,
       events: [],
     });
     expect(view).toHaveBeenCalledWith(
-      expect.objectContaining({ contract, caller }),
+      expect.objectContaining({ address: contract, caller }),
     );
   });
-
 });

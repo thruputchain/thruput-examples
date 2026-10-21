@@ -26,7 +26,7 @@ export interface Erc20ReadAdapter {
 }
 
 export function createErc20ReadAdapter(params: {
-  client: Pick<ThruputClient, "view">;
+  client: Pick<ThruputClient, "simulateInvocation">;
   contract: ContractAddress;
   caller: ContractAddress;
 }): Erc20ReadAdapter {

@@ -128,7 +128,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       hashFromBase58(launch.VITE_STANDARD_TOKEN_HASH!),
     );
     const config = (
-      await StandardTokenFactory.v0_1.config.view({ client, contract: factory })
+      await StandardTokenFactory.v0_1.config.view({ client, address: factory })
     ).value;
     if (
       toBase58(config.token_code_hash) !== tokenHash ||
@@ -153,7 +153,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
           funding: (
             await SwapFactory.v0_1.poolFunding.view({
               client,
-              contract: addressFromBase58(swap.VITE_SWAP_FACTORY_ADDRESS!),
+              address: addressFromBase58(swap.VITE_SWAP_FACTORY_ADDRESS!),
             })
           ).value,
         }
@@ -190,16 +190,14 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         RESERVE * 10n + (poolConfig?.funding.recommended ?? 0n) * 3n
       ) {
         const funding = await wallet.requestAirdrop();
-        console.log(`Airdrop: ${toBase58(funding.txHash)}`);
-        if (funding.status.result !== "ok")
-          throw new SeedError("Tool account airdrop failed");
+        console.log(`Airdrop: ${toBase58(funding.transactionHash)}`);
       }
       const receipt = await submitSeedTransaction(wallet, name, {
         invocation,
         gasLimit: GAS,
         contractsToDeploy,
       });
-      height = receipt.height;
+      height = receipt.blockHeight;
       return receipt;
     }
     const balance = async (token: ContractAddress, owner: ContractAddress) =>
@@ -207,9 +205,9 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         await waitForView(() =>
           ERC20.v0_1.getBalanceOf.view({
             client,
-            contract: token,
+            address: token,
             args: { addr: owner },
-            minHeight: height,
+            minStateBlockHeight: height,
           }),
         )
       ).value;
@@ -223,7 +221,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       const address = (
         await StandardTokenFactory.v0_1.predictToken.view({
           client,
-          contract: factory,
+          address: factory,
           args: { creator: account.address, nonce },
         })
       ).value;
@@ -251,7 +249,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       const created =
         standard_token_factory_if.v0_1.events.TokenCreated.singleFromReceipt(
           receipt,
-          { contractAddress: factory },
+          { address: factory },
         );
       if (
         !bytesEqual(created.topics.token, address) ||
@@ -261,7 +259,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         created.fields.initial_supply !== SUPPLY
       )
         throw new SeedError("Token creation evidence mismatch");
-      const options = { client, contract: address, minHeight: height };
+      const options = { client, address, minStateBlockHeight: height };
       if (
         (await waitForView(() => ERC20Metadata.v0_1.symbol.view(options)))
           .value !== symbol ||
@@ -294,9 +292,9 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       );
       const options = {
         client,
-        contract: poolConfig.factory,
+        address: poolConfig.factory,
         args: { tokenA, tokenB },
-        minHeight: height,
+        minStateBlockHeight: height,
       };
       pool = (
         await waitForView(() => SwapFactory.v0_1.poolAddresses.view(options))
@@ -326,7 +324,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       );
       const accepted =
         batch_driver.v0_1.events.RequestAccepted.singleFromReceipt(queued, {
-          contractAddress: pool.driver,
+          address: pool.driver,
         });
       console.log(`Liquidity request: ${toHex0x(accepted.topics.request_id)}`);
       const receipt = await execute(
@@ -344,8 +342,8 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         await waitForView(() =>
           SwapHandler.v0_1.poolState.view({
             client,
-            contract: pool!.handler,
-            minHeight: height,
+            address: pool!.handler,
+            minStateBlockHeight: height,
           }),
         )
       ).value;

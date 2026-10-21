@@ -1,4 +1,8 @@
-import { toBase58, toHex0x, type TransactionReceipt } from "@thruputchain/client";
+import {
+  toBase58,
+  toHex0x,
+  type TransactionReceipt,
+} from "@thruputchain/client";
 import type { Invocation } from "@thruputchain/protocol";
 import { DefaultWallet } from "@thruputchain/client/contracts";
 
@@ -95,18 +99,34 @@ export async function runLiquidityOperation(
     dependencies.onUpdate?.(next);
     return next;
   };
-  const steps: readonly LiquidityStepName[] = operation.kind === "add"
-    ? ["approveToken0", "approveToken1", "enqueue"]
-    : ["approveLiquidity", "enqueue"];
+  const steps: readonly LiquidityStepName[] =
+    operation.kind === "add"
+      ? ["approveToken0", "approveToken1", "enqueue"]
+      : ["approveLiquidity", "enqueue"];
 
   if (operation.status === "active") {
-    const fresh = operation.executionMode === "auto" && steps.every((name) =>
-      operation.steps[name].status === "pending" && operation.steps[name].transactionHash === null);
+    const fresh =
+      operation.executionMode === "auto" &&
+      steps.every(
+        (name) =>
+          operation.steps[name].status === "pending" &&
+          operation.steps[name].transactionHash === null,
+      );
     // Probe basic support before preparing a batch; its final size is checked
     // after unnecessary approvals have been omitted.
-    if (operation.executionMode === "batch" || (fresh && dependencies.writeBoundary.executeBatch &&
-      await dependencies.writeBoundary.supportsBatch?.(1))) {
-      const batched = await runLiquidityBatch(config, operation, steps, dependencies, update);
+    if (
+      operation.executionMode === "batch" ||
+      (fresh &&
+        dependencies.writeBoundary.executeBatch &&
+        (await dependencies.writeBoundary.supportsBatch?.(1)))
+    ) {
+      const batched = await runLiquidityBatch(
+        config,
+        operation,
+        steps,
+        dependencies,
+        update,
+      );
       if (batched !== null) {
         operation = batched;
         if (operation.status !== "queued") return operation;
@@ -120,43 +140,78 @@ export async function runLiquidityOperation(
     if (step.status === "committed" || step.status === "skipped") continue;
     if (step.status === "signing" || step.status === "indeterminate") {
       if (step.transactionHash === null) {
-        throw new Error("Confirm that the pre-hash transaction was never signed before retrying");
+        throw new Error(
+          "Confirm that the pre-hash transaction was never signed before retrying",
+        );
       }
       if (dependencies.writeBoundary.observe === undefined) {
         throw new Error("This wallet cannot recover the stored transaction");
       }
-      const observed = await dependencies.writeBoundary.observe(step.transactionHash);
+      const observed = await dependencies.writeBoundary.observe(
+        step.transactionHash,
+      );
       operation = applyWriteResult(operation, name, observed, update);
       if (observed.kind !== "committedSuccess") return operation;
-      operation = applyCommittedRouterStep(config, operation, name, observed.receipt, update);
+      operation = applyCommittedRouterStep(
+        config,
+        operation,
+        name,
+        observed.receipt,
+        update,
+      );
       continue;
     }
 
     let snapshot = await dependencies.readSnapshot();
-    const confirmedHeight = Object.values(operation.steps).reduce((height, entry) =>
-      entry.status === "committed" && entry.receiptBlock !== undefined && BigInt(entry.receiptBlock) > height
-        ? BigInt(entry.receiptBlock) : height, 0n);
-    for (let attempt = 0; snapshot.chainHeight < confirmedHeight && attempt < 4; attempt++) {
+    const confirmedHeight = Object.values(operation.steps).reduce(
+      (height, entry) =>
+        entry.status === "committed" &&
+        entry.receiptBlock !== undefined &&
+        BigInt(entry.receiptBlock) > height
+          ? BigInt(entry.receiptBlock)
+          : height,
+      0n,
+    );
+    for (
+      let attempt = 0;
+      snapshot.chainHeight < confirmedHeight && attempt < 4;
+      attempt++
+    ) {
       await new Promise((resolve) => setTimeout(resolve, 250));
       snapshot = await dependencies.readSnapshot();
     }
     if (snapshot.chainHeight < confirmedHeight)
-      throw new Error("The pool snapshot has not reached the confirmed approval block yet. Check again.");
+      throw new Error(
+        "The pool snapshot has not reached the confirmed approval block yet. Check again.",
+      );
     assertAccountCanSign(config, operation, name);
     const target = targetForStep(config, operation, snapshot);
     if (target === null) {
-      operation = update(updateStep(operation, name, {
-        status: "skipped",
-        transactionHash: null,
-        message: null,
-      }));
+      operation = update(
+        updateStep(operation, name, {
+          status: "skipped",
+          transactionHash: null,
+          message: null,
+        }),
+      );
       continue;
     }
-    operation = update(updateStep({ ...operation, ...(operation.executionMode === "auto" ? { executionMode: "single" as const } : {}) }, name, {
-      status: "signing",
-      transactionHash: null,
-      message: null,
-    }));
+    operation = update(
+      updateStep(
+        {
+          ...operation,
+          ...(operation.executionMode === "auto"
+            ? { executionMode: "single" as const }
+            : {}),
+        },
+        name,
+        {
+          status: "signing",
+          transactionHash: null,
+          message: null,
+        },
+      ),
+    );
     const result = await dependencies.writeBoundary.execute(target, {
       onSigned: (transactionHash) => {
         operation = update(updateStep(operation, name, { transactionHash }));
@@ -164,38 +219,59 @@ export async function runLiquidityOperation(
     });
     operation = applyWriteResult(operation, name, result, update);
     if (result.kind !== "committedSuccess") return operation;
-    operation = applyCommittedRouterStep(config, operation, name, result.receipt, update);
+    operation = applyCommittedRouterStep(
+      config,
+      operation,
+      name,
+      result.receipt,
+      update,
+    );
   }
 
-  if (operation.status !== "queued" || dependencies.automaticProcessing === false) {
+  if (
+    operation.status !== "queued" ||
+    dependencies.automaticProcessing === false
+  ) {
     return operation;
   }
   if (dependencies.observer !== undefined) {
     operation = update(await dependencies.observer.scan(operation));
     if (operation.status !== "queued") {
       if (operation.kind === "add" && operation.status === "executed") {
-        operation = verifyAddResult(operation, await dependencies.readSnapshot());
+        operation = verifyAddResult(
+          operation,
+          await dependencies.readSnapshot(),
+        );
         update(operation);
       }
       return operation;
     }
   }
-  const otherBlockingCrank = loadAccountCrankAttempts(config).find((attempt) =>
-    isBlockingCrankAttempt(attempt)
-    && attempt.driverAddress !== toBase58(config.driverAddress)
+  const otherBlockingCrank = loadAccountCrankAttempts(config).find(
+    (attempt) =>
+      isBlockingCrankAttempt(attempt) &&
+      attempt.driverAddress !== toBase58(config.driverAddress),
   );
   if (otherBlockingCrank !== undefined) {
-    throw new Error("Resolve the account's queue-processing transaction for another pool first");
+    throw new Error(
+      "Resolve the account's queue-processing transaction for another pool first",
+    );
   }
   const blockingCrank = loadCrankAttempt(config);
   if (blockingCrank !== null && isBlockingCrankAttempt(blockingCrank)) {
     if (blockingCrank.transactionHash === null) {
-      throw new Error("Confirm that the pre-hash queue-processing transaction was never signed before retrying");
+      throw new Error(
+        "Confirm that the pre-hash queue-processing transaction was never signed before retrying",
+      );
     }
     if (dependencies.writeBoundary.observe === undefined) {
-      throw new Error("This wallet cannot recover the stored queue-processing transaction");
+      throw new Error(
+        "This wallet cannot recover the stored queue-processing transaction",
+      );
     }
-    const observed = await dependencies.writeBoundary.observe(blockingCrank.transactionHash);
+    const observed = await dependencies.writeBoundary.observe(
+      blockingCrank.transactionHash,
+    );
     if (observed.kind === "indeterminate") {
       saveCrankAttempt(config, {
         ...blockingCrank,
@@ -223,7 +299,13 @@ export async function runLiquidityOperation(
       message: null,
       updatedAt: Date.now(),
     });
-    return reconcileCrankReceipt(config, operation, observed.receipt, dependencies, update);
+    return reconcileCrankReceipt(
+      config,
+      operation,
+      observed.receipt,
+      dependencies,
+      update,
+    );
   }
   assertAccountCanSign(config, operation, "enqueue");
   let crank = saveCrankAttempt(config, createCrankAttempt(config));
@@ -266,7 +348,13 @@ export async function runLiquidityOperation(
     message: null,
     updatedAt: Date.now(),
   });
-  return reconcileCrankReceipt(config, operation, crankResult.receipt, dependencies, update);
+  return reconcileCrankReceipt(
+    config,
+    operation,
+    crankResult.receipt,
+    dependencies,
+    update,
+  );
 }
 
 async function runLiquidityBatch(
@@ -307,7 +395,10 @@ async function runLiquidityBatch(
     }
     if (!writer.executeBatch)
       throw new Error("Reconnect a wallet that supports this saved batch");
-    if (operation.executionMode !== "batch" && !(await writer.supportsBatch?.(calls.length)))
+    if (
+      operation.executionMode !== "batch" &&
+      !(await writer.supportsBatch?.(calls.length))
+    )
       return null;
     operation = update(
       updateLiquidityBatch(
@@ -330,12 +421,12 @@ async function runLiquidityBatch(
   if (result.kind === "committedSuccess") {
     try {
       if (
-        DefaultWallet.v0_1.execute.decodeReceipt(result.receipt).value.length !==
-        operation.batchSteps!.length
+        DefaultWallet.v0_1.execute.decodeReceipt(result.receipt).value
+          .length !== operation.batchSteps!.length
       )
         throw new Error("Unexpected batch results");
       const accepted = RequestAccepted.allFromReceipt(result.receipt, {
-        contractAddress: config.driverAddress,
+        address: config.driverAddress,
       });
       if (accepted.length !== 1)
         throw new Error("Expected one liquidity request");
@@ -394,17 +485,19 @@ export function confirmLiquidityStepWasNotSigned(
   const authoritative = authoritativeOperation(config, operation);
   const step = authoritative.steps[expectedStep];
   if (
-    (step.status !== "signing" && step.status !== "indeterminate")
-    || step.transactionHash !== null
-  ) throw new Error("The liquidity operation advanced in another tab");
+    (step.status !== "signing" && step.status !== "indeterminate") ||
+    step.transactionHash !== null
+  )
+    throw new Error("The liquidity operation advanced in another tab");
   const patch = {
     status: "pending" as const,
     transactionHash: null,
     message: "Confirmed locally as not signed",
   };
-  const next = authoritative.executionMode === "batch"
-    ? updateLiquidityBatch(authoritative, patch)
-    : updateStep(authoritative, expectedStep, patch);
+  const next =
+    authoritative.executionMode === "batch"
+      ? updateLiquidityBatch(authoritative, patch)
+      : updateStep(authoritative, expectedStep, patch);
   saveLiquidityOperations(
     config,
     upsertLiquidityOperation(loadLiquidityOperations(config), next),
@@ -415,9 +508,9 @@ export function confirmLiquidityStepWasNotSigned(
 export function confirmLiquidityCrankWasNotSigned(config: AppConfig): void {
   const attempt = loadCrankAttempt(config);
   if (
-    attempt === null
-    || !isBlockingCrankAttempt(attempt)
-    || attempt.transactionHash !== null
+    attempt === null ||
+    !isBlockingCrankAttempt(attempt) ||
+    attempt.transactionHash !== null
   ) {
     throw new Error("The queue-processing transaction advanced in another tab");
   }
@@ -438,10 +531,11 @@ async function reconcileCrankReceipt(
 ): Promise<LiquidityOperation> {
   decodeRequestsProcessedSummary(receipt, config.driverAddress);
   const requests = loadRequestCollectionForUpdate(config);
-  const queuedRequests = requests.filter((request) =>
-    needsQueueProcessing(request)
-    && request.requestId !== null
-    && request.criteria.driverAddress === toBase58(config.driverAddress)
+  const queuedRequests = requests.filter(
+    (request) =>
+      needsQueueProcessing(request) &&
+      request.requestId !== null &&
+      request.criteria.driverAddress === toBase58(config.driverAddress),
   );
   if (queuedRequests.length > 0) {
     saveRequestCollection(
@@ -480,38 +574,43 @@ export function applyLiquidityReceipt(
 ): LiquidityOperation[] {
   const byRequestId = new Map(
     operations.flatMap((operation) =>
-      operation.requestId === null ? [] : [[operation.requestId, operation] as const]
+      operation.requestId === null
+        ? []
+        : [[operation.requestId, operation] as const],
     ),
   );
   const terminal = new Map<string, LiquidityOperation>();
   const record = (requestId: string, operation: LiquidityOperation) => {
     if (terminal.has(requestId)) {
-      throw new Error("Queue receipt contains duplicate terminal liquidity events");
+      throw new Error(
+        "Queue receipt contains duplicate terminal liquidity events",
+      );
     }
     terminal.set(requestId, operation);
   };
 
   for (const event of MintEvent.allFromReceipt(receipt, {
-    contractAddress: config.handlerAddress,
+    address: config.handlerAddress,
   })) {
     if (event.fields.request_id === null) continue;
     const requestId = toHex0x(event.fields.request_id);
     const operation = byRequestId.get(requestId);
     if (operation === undefined) continue;
     if (
-      operation.kind !== "add"
-      || toBase58(event.topics.sender) !== operation.accountAddress
-      || toBase58(event.topics.recipient) !== operation.recipient
-      || event.fields.amount_minted <= 0n
-    ) throw new Error("Queue receipt contains invalid terminal mint evidence");
+      operation.kind !== "add" ||
+      toBase58(event.topics.sender) !== operation.accountAddress ||
+      toBase58(event.topics.recipient) !== operation.recipient ||
+      event.fields.amount_minted <= 0n
+    )
+      throw new Error("Queue receipt contains invalid terminal mint evidence");
     record(requestId, {
       ...operation,
       status: "executed",
-      terminalBlock: receipt.height.toString(),
+      terminalBlock: receipt.blockHeight.toString(),
       updatedAt: Date.now(),
       result: {
-        transactionHash: toBase58(receipt.txHash),
-        blockHeight: receipt.height.toString(),
+        transactionHash: toBase58(receipt.transactionHash),
+        blockHeight: receipt.blockHeight.toString(),
         liquidityMinted: event.fields.amount_minted.toString(),
         amountsDeposited: null,
         recipientVerified: true,
@@ -519,28 +618,29 @@ export function applyLiquidityReceipt(
     });
   }
   for (const event of BurnEvent.allFromReceipt(receipt, {
-    contractAddress: config.handlerAddress,
+    address: config.handlerAddress,
   })) {
     if (event.fields.request_id === null) continue;
     const requestId = toHex0x(event.fields.request_id);
     const operation = byRequestId.get(requestId);
     if (operation === undefined) continue;
     if (
-      operation.kind !== "remove"
-      || toBase58(event.topics.sender) !== operation.accountAddress
-      || toBase58(event.topics.recipient) !== operation.recipient
-      || event.fields.amounts_redeemed.some((amount, index) =>
-        amount < BigInt(operation.intent.amountsMin[index]!)
+      operation.kind !== "remove" ||
+      toBase58(event.topics.sender) !== operation.accountAddress ||
+      toBase58(event.topics.recipient) !== operation.recipient ||
+      event.fields.amounts_redeemed.some(
+        (amount, index) => amount < BigInt(operation.intent.amountsMin[index]!),
       )
-    ) throw new Error("Queue receipt contains invalid terminal burn evidence");
+    )
+      throw new Error("Queue receipt contains invalid terminal burn evidence");
     record(requestId, {
       ...operation,
       status: "executed",
-      terminalBlock: receipt.height.toString(),
+      terminalBlock: receipt.blockHeight.toString(),
       updatedAt: Date.now(),
       result: {
-        transactionHash: toBase58(receipt.txHash),
-        blockHeight: receipt.height.toString(),
+        transactionHash: toBase58(receipt.transactionHash),
+        blockHeight: receipt.blockHeight.toString(),
         amountsRedeemed: [
           event.fields.amounts_redeemed[0].toString(),
           event.fields.amounts_redeemed[1].toString(),
@@ -549,7 +649,7 @@ export function applyLiquidityReceipt(
     });
   }
   for (const event of RequestFailed.allFromReceipt(receipt, {
-    contractAddress: config.driverAddress,
+    address: config.driverAddress,
   })) {
     const requestId = toHex0x(event.topics.request_id);
     const operation = byRequestId.get(requestId);
@@ -557,12 +657,14 @@ export function applyLiquidityReceipt(
     record(requestId, {
       ...operation,
       status: "failed",
-      terminalBlock: receipt.height.toString(),
+      terminalBlock: receipt.blockHeight.toString(),
       updatedAt: Date.now(),
     });
   }
   return operations.map((operation) =>
-    operation.requestId === null ? operation : terminal.get(operation.requestId) ?? operation
+    operation.requestId === null
+      ? operation
+      : (terminal.get(operation.requestId) ?? operation),
   );
 }
 
@@ -574,31 +676,49 @@ function targetForStep(
   approvalsIncluded = false,
 ): Invocation | null {
   if (name === null) return null;
-  if (snapshot.feeTo !== null) throw new Error("Liquidity changes are disabled while protocol fees are enabled");
-  const otherOperations = loadAccountLiquidityOperations(config)
-    .filter(({ id }) => id !== operation.id);
+  if (snapshot.feeTo !== null)
+    throw new Error(
+      "Liquidity changes are disabled while protocol fees are enabled",
+    );
+  const otherOperations = loadAccountLiquidityOperations(config).filter(
+    ({ id }) => id !== operation.id,
+  );
   const requests = loadAccountRequestRecords(config);
   const creations = loadAccountCreationWorkflows(config);
   if (operation.kind === "add") {
-    const desired = operation.intent.amountsDesired.map(BigInt) as unknown as readonly [bigint, bigint];
-    const minimums = operation.intent.amountsMin.map(BigInt) as unknown as readonly [bigint, bigint];
+    const desired = operation.intent.amountsDesired.map(
+      BigInt,
+    ) as unknown as readonly [bigint, bigint];
+    const minimums = operation.intent.amountsMin.map(
+      BigInt,
+    ) as unknown as readonly [bigint, bigint];
     assertAddStillValid(snapshot, desired, minimums);
     const tokens = [snapshot.tokenA, snapshot.tokenB] as const;
     const balanceReserved = tokens.map((token) => {
       const tokenBase58 = toBase58(token.address);
-      return reservedInputForToken(requests, tokenBase58)
-        + reservedCreationToken(creations, tokenBase58)
-        + reservedLiquidityTokenAmount(otherOperations, tokenBase58);
+      return (
+        reservedInputForToken(requests, tokenBase58) +
+        reservedCreationToken(creations, tokenBase58) +
+        reservedLiquidityTokenAmount(otherOperations, tokenBase58)
+      );
     });
-    if (tokens.some((token, index) =>
-      token.balance < desired[index]! + balanceReserved[index]!
-    )) throw new Error("The unreserved token balance is insufficient");
+    if (
+      tokens.some(
+        (token, index) =>
+          token.balance < desired[index]! + balanceReserved[index]!,
+      )
+    )
+      throw new Error("The unreserved token balance is insufficient");
     const allowanceReserved = tokens.map((token) =>
-      requiredAllowanceFor({
-        requests,
-        liquidityOperations: otherOperations,
-        creationWorkflows: creations,
-      }, toBase58(token.address), toBase58(config.handlerAddress))
+      requiredAllowanceFor(
+        {
+          requests,
+          liquidityOperations: otherOperations,
+          creationWorkflows: creations,
+        },
+        toBase58(token.address),
+        toBase58(config.handlerAddress),
+      ),
     );
     if (name === "approveToken0" || name === "approveToken1") {
       const index = name === "approveToken0" ? 0 : 1;
@@ -606,13 +726,19 @@ function targetForStep(
       const required = desired[index]! + allowanceReserved[index]!;
       return token.allowance >= required
         ? null
-        : buildApprovalTarget(token.address, config.handlerAddress, required - token.allowance);
+        : buildApprovalTarget(
+            token.address,
+            config.handlerAddress,
+            required - token.allowance,
+          );
     }
     if (name === "enqueue") {
-      if (!approvalsIncluded && (
-        snapshot.tokenA.allowance < desired[0] + allowanceReserved[0]!
-        || snapshot.tokenB.allowance < desired[1] + allowanceReserved[1]!
-      )) throw new Error("The liquidity allowances have not been observed yet");
+      if (
+        !approvalsIncluded &&
+        (snapshot.tokenA.allowance < desired[0] + allowanceReserved[0]! ||
+          snapshot.tokenB.allowance < desired[1] + allowanceReserved[1]!)
+      )
+        throw new Error("The liquidity allowances have not been observed yet");
       return buildAddLiquidityTarget(config.routerAddress, {
         token0: config.tokenAAddress,
         token1: config.tokenBAddress,
@@ -624,17 +750,22 @@ function targetForStep(
   } else {
     const liquidity = BigInt(operation.intent.liquidity);
     const liquidityBase58 = toBase58(config.liquidityTokenAddress);
-    const balanceReserved = reservedLiquidityTokenAmount(otherOperations, liquidityBase58)
-      + reservedInputForToken(requests, liquidityBase58)
-      + reservedCreationToken(creations, liquidityBase58);
+    const balanceReserved =
+      reservedLiquidityTokenAmount(otherOperations, liquidityBase58) +
+      reservedInputForToken(requests, liquidityBase58) +
+      reservedCreationToken(creations, liquidityBase58);
     if (snapshot.liquidityBalance < liquidity + balanceReserved) {
       throw new Error("The unreserved LP balance is insufficient");
     }
-    const allowanceReserved = requiredAllowanceFor({
-      requests,
-      liquidityOperations: otherOperations,
-      creationWorkflows: creations,
-    }, liquidityBase58, toBase58(config.handlerAddress));
+    const allowanceReserved = requiredAllowanceFor(
+      {
+        requests,
+        liquidityOperations: otherOperations,
+        creationWorkflows: creations,
+      },
+      liquidityBase58,
+      toBase58(config.handlerAddress),
+    );
     if (name === "approveLiquidity") {
       const required = liquidity + allowanceReserved;
       return snapshot.liquidityAllowance >= required
@@ -646,14 +777,19 @@ function targetForStep(
           );
     }
     if (name === "enqueue") {
-      if (!approvalsIncluded && snapshot.liquidityAllowance < liquidity + allowanceReserved) {
+      if (
+        !approvalsIncluded &&
+        snapshot.liquidityAllowance < liquidity + allowanceReserved
+      ) {
         throw new Error("The LP allowance has not been observed yet");
       }
       return buildRemoveLiquidityTarget(config.routerAddress, {
         token0: config.tokenAAddress,
         token1: config.tokenBAddress,
         liquidity,
-        amountsMin: operation.intent.amountsMin.map(BigInt) as unknown as readonly [bigint, bigint],
+        amountsMin: operation.intent.amountsMin.map(
+          BigInt,
+        ) as unknown as readonly [bigint, bigint],
         recipient: config.accountAddress,
       });
     }
@@ -670,27 +806,46 @@ function assertAccountCanSign(
     throw new Error("Resolve the account's pending allowance cleanup first");
   }
   if (loadAccountCrankAttempts(config).some(isBlockingCrankAttempt)) {
-    throw new Error("Resolve the account's indeterminate queue-processing transaction first");
+    throw new Error(
+      "Resolve the account's indeterminate queue-processing transaction first",
+    );
   }
-  if (loadAccountRequestRecords(config).some((request) =>
-    request.status === "approving"
-    || request.status === "submitting"
-    || request.status === "indeterminate"
-  )) throw new Error("Resolve the account's pending transaction first");
-  if (loadAccountCreationWorkflows(config).some(hasBlockingCreationTransaction)) {
+  if (
+    loadAccountRequestRecords(config).some(
+      (request) =>
+        request.status === "approving" ||
+        request.status === "submitting" ||
+        request.status === "indeterminate",
+    )
+  )
+    throw new Error("Resolve the account's pending transaction first");
+  if (
+    loadAccountCreationWorkflows(config).some(hasBlockingCreationTransaction)
+  ) {
     throw new Error("Resolve the account's pending pool creation first");
   }
-  if (loadAccountLiquidityOperations(config).some((candidate) =>
-    candidate.id !== operation.id && hasBlockingLiquidityTransaction(candidate)
-  )) throw new Error("Resolve the account's other pending liquidity transaction first");
+  if (
+    loadAccountLiquidityOperations(config).some(
+      (candidate) =>
+        candidate.id !== operation.id &&
+        hasBlockingLiquidityTransaction(candidate),
+    )
+  )
+    throw new Error(
+      "Resolve the account's other pending liquidity transaction first",
+    );
   if (step === "enqueue") {
-    const exposed = loadAccountRequestRecords(config).filter(hasExecutionExposure).length
-      + loadAccountCreationWorkflows(config).filter(hasCreationExecutionExposure).length
-      + loadAccountLiquidityOperations(config)
+    const exposed =
+      loadAccountRequestRecords(config).filter(hasExecutionExposure).length +
+      loadAccountCreationWorkflows(config).filter(hasCreationExecutionExposure)
+        .length +
+      loadAccountLiquidityOperations(config)
         .filter((candidate) => candidate.id !== operation.id)
         .filter(hasLiquidityExecutionExposure).length;
     if (exposed >= MAX_EXECUTION_EXPOSURE) {
-      throw new Error("The account already has ten execution-exposed operations");
+      throw new Error(
+        "The account already has ten execution-exposed operations",
+      );
     }
   }
 }
@@ -704,22 +859,24 @@ function applyCommittedRouterStep(
 ): LiquidityOperation {
   let next = updateStep(operation, name, {
     status: "committed",
-    transactionHash: toBase58(receipt.txHash),
-    receiptBlock: receipt.height.toString(),
+    transactionHash: toBase58(receipt.transactionHash),
+    receiptBlock: receipt.blockHeight.toString(),
     message: null,
   });
   if (name === "enqueue") {
     const accepted = RequestAccepted.allFromReceipt(receipt, {
-      contractAddress: config.driverAddress,
+      address: config.driverAddress,
     });
     if (accepted.length !== 1) {
-      throw new Error("Router receipt does not contain one matching RequestAccepted event");
+      throw new Error(
+        "Router receipt does not contain one matching RequestAccepted event",
+      );
     }
     next = {
       ...next,
       status: "queued",
       requestId: toHex0x(accepted[0]!.topics.request_id),
-      receiptBlock: receipt.height.toString(),
+      receiptBlock: receipt.blockHeight.toString(),
       updatedAt: Date.now(),
     };
   }
@@ -734,17 +891,21 @@ function applyWriteResult(
 ): LiquidityOperation {
   if (result.kind === "committedSuccess") return operation;
   if (result.kind === "indeterminate") {
-    return update(updateStep(operation, name, {
-      status: "indeterminate",
-      transactionHash: result.hash ?? operation.steps[name].transactionHash,
-      message: "The transaction outcome is uncertain.",
-    }));
+    return update(
+      updateStep(operation, name, {
+        status: "indeterminate",
+        transactionHash: result.hash ?? operation.steps[name].transactionHash,
+        message: "The transaction outcome is uncertain.",
+      }),
+    );
   }
-  return update(updateStep(operation, name, {
-    status: "failed",
-    transactionHash: result.hash,
-    message: writeFailureMessage(operation, name, result),
-  }));
+  return update(
+    updateStep(operation, name, {
+      status: "failed",
+      transactionHash: result.hash,
+      message: writeFailureMessage(operation, name, result),
+    }),
+  );
 }
 
 function verifyAddResult(
@@ -771,16 +932,23 @@ function assertAddStillValid(
   minimums: readonly [bigint, bigint],
 ): void {
   if (
-    snapshot.reserve0 <= 0n
-    || snapshot.reserve1 <= 0n
-    || snapshot.liquidityTotalSupply <= 0n
-  ) throw new Error("The pool no longer has usable liquidity");
-  const optimal1 = desired[0] * snapshot.reserve1 / snapshot.reserve0;
-  const actual = optimal1 <= desired[1]
-    ? [desired[0], optimal1] as const
-    : [desired[1] * snapshot.reserve0 / snapshot.reserve1, desired[1]] as const;
+    snapshot.reserve0 <= 0n ||
+    snapshot.reserve1 <= 0n ||
+    snapshot.liquidityTotalSupply <= 0n
+  )
+    throw new Error("The pool no longer has usable liquidity");
+  const optimal1 = (desired[0] * snapshot.reserve1) / snapshot.reserve0;
+  const actual =
+    optimal1 <= desired[1]
+      ? ([desired[0], optimal1] as const)
+      : ([
+          (desired[1] * snapshot.reserve0) / snapshot.reserve1,
+          desired[1],
+        ] as const);
   if (actual[0] < minimums[0] || actual[1] < minimums[1]) {
-    throw new Error("The live pool ratio moved beyond the reviewed deposit minimums");
+    throw new Error(
+      "The live pool ratio moved beyond the reviewed deposit minimums",
+    );
   }
 }
 
@@ -788,25 +956,35 @@ function authoritativeOperation(
   config: AppConfig,
   initial: LiquidityOperation,
 ): LiquidityOperation {
-  const stored = loadLiquidityOperations(config).find(({ id }) => id === initial.id);
-  if (stored === undefined) throw new Error("The liquidity operation changed before locking");
+  const stored = loadLiquidityOperations(config).find(
+    ({ id }) => id === initial.id,
+  );
+  if (stored === undefined)
+    throw new Error("The liquidity operation changed before locking");
   return stored;
 }
 
-function firstRunnableStep(operation: LiquidityOperation): LiquidityStepName | null {
-  const order: readonly LiquidityStepName[] = operation.kind === "add"
-    ? ["approveToken0", "approveToken1", "enqueue"]
-    : ["approveLiquidity", "enqueue"];
-  return order.find((name) => {
-    const status = operation.steps[name].status;
-    return status !== "committed" && status !== "skipped";
-  }) ?? null;
+function firstRunnableStep(
+  operation: LiquidityOperation,
+): LiquidityStepName | null {
+  const order: readonly LiquidityStepName[] =
+    operation.kind === "add"
+      ? ["approveToken0", "approveToken1", "enqueue"]
+      : ["approveLiquidity", "enqueue"];
+  return (
+    order.find((name) => {
+      const status = operation.steps[name].status;
+      return status !== "committed" && status !== "skipped";
+    }) ?? null
+  );
 }
 
 function updateStep(
   operation: LiquidityOperation,
   name: LiquidityStepName,
-  patch: Partial<Omit<LiquidityOperation["steps"][LiquidityStepName], "updatedAt">>,
+  patch: Partial<
+    Omit<LiquidityOperation["steps"][LiquidityStepName], "updatedAt">
+  >,
 ): LiquidityOperation {
   const now = Date.now();
   return {
@@ -826,8 +1004,10 @@ function writeFailureMessage(
 ): string {
   if (result.kind === "preSubmissionFailure") return result.message;
   if (result.kind === "invalid") return result.reason;
-  return liquidityFailureMessage(operation, name, result.receipt)
-    ?? "The transaction committed with a failed execution result";
+  return (
+    liquidityFailureMessage(operation, name, result.receipt) ??
+    "The transaction committed with a failed execution result"
+  );
 }
 
 function crankFailureMessage(
@@ -835,6 +1015,8 @@ function crankFailureMessage(
 ): string {
   if (result.kind === "preSubmissionFailure") return result.message;
   if (result.kind === "invalid") return result.reason;
-  return swapFailureMessage("crank", result.receipt)
-    ?? "The queue-processing transaction committed without succeeding";
+  return (
+    swapFailureMessage("crank", result.receipt) ??
+    "The queue-processing transaction committed without succeeding"
+  );
 }

@@ -4,9 +4,7 @@ import { contractAddress } from "@thruputchain/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GlobalConfig } from "@/config";
 import { createErc20ReadAdapter } from "@/contracts/erc20-adapter";
-import {
-  NetworkMismatchError,
-} from "@/thruput/client";
+import { NetworkMismatchError } from "@/thruput/client";
 import { readTokenPreview, useTokenPreview } from "./token-preview";
 import { testClient, TestProviders } from "@/test/render";
 
@@ -23,7 +21,7 @@ const config: GlobalConfig = {
   routerAddress: address(3),
   nativeHogAddress: address(4),
 };
-const view = <T>(value: T) => ({ value, height: 1n, events: [] });
+const view = <T>(value: T) => ({ value, stateBlockHeight: 1n, events: [] });
 const metadata = {
   name: view("Live Name"),
   symbol: view("LIVE"),
@@ -47,7 +45,9 @@ beforeEach(() => {
 describe("live token previews", () => {
   it("checks the actual network before metadata and uses the configured caller", async () => {
     const signal = new AbortController().signal;
-    await expect(readTokenPreview(config, id(8), signal, client)).resolves.toEqual({
+    await expect(
+      readTokenPreview(config, id(8), signal, client),
+    ).resolves.toEqual({
       name: "Live Name",
       symbol: "LIVE",
       decimals: 6,
@@ -128,7 +128,12 @@ describe("live token previews", () => {
     expect(result.current.preview?.status).toBe("pending");
     await waitFor(() => expect(network).toHaveBeenCalledTimes(3));
     network.mockResolvedValue({ networkHash: new Uint8Array(32).fill(5) });
-    rerender({ current: { ...config, networkId: toBase58(new Uint8Array(32).fill(0x05)) } });
+    rerender({
+      current: {
+        ...config,
+        networkId: toBase58(new Uint8Array(32).fill(0x05)),
+      },
+    });
     await waitFor(() => expect(network).toHaveBeenCalledTimes(4));
     await waitFor(() => expect(result.current.preview?.status).toBe("ready"));
   });

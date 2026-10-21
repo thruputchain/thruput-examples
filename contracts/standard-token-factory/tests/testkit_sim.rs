@@ -8,12 +8,13 @@ use standard_token::Config;
 use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
 use thruput_erc20_if::{AllowanceChangeEvent, BurnEvent, MintEvent, TransferEvent};
 use thruput_json_rpc_types::base58::Base58;
-use thruput_json_rpc_types::events::{
-    BlockAnchor, ContractAddressList, EventFilter, EventFilterList, EventQuery, EventTopicFilter,
-    IdentifiedEvent, IterationOrder, PaginationCursor, TopicList,
-};
 use thruput_json_rpc_types::hex::Topic;
-use thruput_json_rpc_types::receipt::{ExecStatus, TransactionReceipt};
+use thruput_json_rpc_types::requests::{
+    AscendingAnchor, EventFilter, EventQuery, HistoryStart, TopicFilter as EventTopics,
+};
+use thruput_json_rpc_types::responses::{
+    IdentifiedEvent, ReceiptExecution as ExecutionResult, TransactionReceipt,
+};
 use thruput_sdk::Event as _;
 use thruput_sdk::exn::{LibraryExn, RawException};
 use thruput_testkit::xdr::types::{ContractAddress, SHA256Hash};
@@ -22,8 +23,8 @@ use thruput_testkit::{
     Scenario, xdrs,
 };
 
-const ERC20: (&str, &str) = ("ERC20", "0.1.60");
-const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.60");
+const ERC20: (&str, &str) = ("ERC20", "0.1.62");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.62");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
 const REQUIRED_FACTORY_FUNDING: i128 = 1_000_000;
 // Exactly what creating a token through the factory costs its new address
@@ -136,11 +137,9 @@ async fn reserve(ctx: &AgentContext, native: &Contract, address: ContractAddress
 /// `WalletError::CallAborted` (variant 5); the callee's exception, such as the
 /// factory's `TokenFactoryError`, is not forwarded through it.
 fn assert_wallet_call_aborted(receipt: &TransactionReceipt) {
-    assert!(matches!(receipt.status, ExecStatus::Reverted { .. }));
-    let abort = receipt
-        .abort_data
-        .as_ref()
-        .expect("an aborted call carries the wallet's exception");
+    let ExecutionResult::Abort { abort_data: abort } = &receipt.execution else {
+        panic!("expected reverted factory call: {:?}", receipt.execution);
+    };
     let exception = RawException::from_abort_buf(&abort.0).expect("decode the wallet's exception");
     assert!(exception.try_as::<LibraryExn>().is_none());
     assert!(exception.try_as::<TokenFactoryError>().is_none());
@@ -156,7 +155,7 @@ fn assert_transfer(
     amount: i128,
 ) {
     let event = &receipt.events[index];
-    assert_eq!(event.contract_address.0, contract);
+    assert_eq!(event.address.0, contract);
     assert_eq!(event.topics.len(), 3);
     assert_eq!(event.topics[0].0, *TransferEvent::SIGNATURE);
     assert_eq!(event.topics[1].0, *from.as_ref());
@@ -172,7 +171,7 @@ fn assert_mint(
     amount: i128,
 ) {
     let event = &receipt.events[index];
-    assert_eq!(event.contract_address.0, contract);
+    assert_eq!(event.address.0, contract);
     assert_eq!(event.topics.len(), 2);
     assert_eq!(event.topics[0].0, *MintEvent::SIGNATURE);
     assert_eq!(event.topics[1].0, *to.as_ref());
@@ -189,14 +188,14 @@ fn assert_clawback(
     amount: i128,
 ) {
     let burn = &receipt.events[index];
-    assert_eq!(burn.contract_address.0, contract);
+    assert_eq!(burn.address.0, contract);
     assert_eq!(burn.topics.len(), 2);
     assert_eq!(burn.topics[0].0, *BurnEvent::SIGNATURE);
     assert_eq!(burn.topics[1].0, *from.as_ref());
     assert_eq!(xdrs::cxs::decode::<i128>(&burn.data.0).unwrap(), amount);
 
     let clawback = &receipt.events[index + 1];
-    assert_eq!(clawback.contract_address.0, contract);
+    assert_eq!(clawback.address.0, contract);
     assert_eq!(clawback.topics[0].0, *ClawbackEvent::SIGNATURE);
     assert_eq!(clawback.topics[1].0, *from.as_ref());
 }
@@ -210,7 +209,7 @@ fn assert_allowance_change(
     difference: i128,
 ) {
     let event = &receipt.events[index];
-    assert_eq!(event.contract_address.0, contract);
+    assert_eq!(event.address.0, contract);
     assert_eq!(event.topics.len(), 3);
     assert_eq!(event.topics[0].0, *AllowanceChangeEvent::SIGNATURE);
     assert_eq!(event.topics[1].0, *owner.as_ref());
@@ -240,7 +239,7 @@ fn assert_created(
     assert_mint(receipt, first_creation_event, token, holder, supply);
 
     let event = &receipt.events[first_creation_event + 1];
-    assert_eq!(event.contract_address.0, factory);
+    assert_eq!(event.address.0, factory);
     assert_eq!(event.topics.len(), 3);
     assert_eq!(event.topics[0].0, *TokenCreated::SIGNATURE);
     assert_eq!(event.topics[1].0, *token.as_ref());
@@ -260,30 +259,21 @@ fn event_query(
     height: thruput_json_rpc_types::BlockHeight,
 ) -> EventQuery {
     EventQuery {
-        filters: EventFilterList(
-            vec![EventFilter {
-                contract_addresses: ContractAddressList(
-                    vec![Base58(factory)]
-                        .try_into()
-                        .expect("one contract filter"),
-                ),
-                topics: EventTopicFilter {
-                    topic0: TopicList(
-                        vec![Topic(*TokenCreated::SIGNATURE)]
-                            .try_into()
-                            .expect("one topic filter"),
-                    ),
-                    topic1: TopicList::default(),
-                    topic2: TopicList::default(),
-                },
-            }]
-            .try_into()
-            .expect("one event filter"),
-        ),
-        order: IterationOrder::Ascending,
-        anchor: BlockAnchor::AtHeight { height },
-        cursor: PaginationCursor::default(),
-        limit: 10,
+        filters: vec![EventFilter {
+            addresses: vec![Base58(factory)],
+            topics: Some(EventTopics {
+                topic0: Some(vec![Topic(*TokenCreated::SIGNATURE)]),
+                topic1: None,
+                topic2: None,
+            }),
+        }],
+        start: Some(HistoryStart::Ascending {
+            anchor: AscendingAnchor::AtHeight {
+                block_height: height,
+            },
+        }),
+        cursor: None,
+        limit: Some(10),
     }
 }
 
@@ -297,7 +287,7 @@ async fn indexed_created_events(
             .network()
             .get_events(event_query(factory, height.clone()))
             .await?;
-        if page.latest_block >= height {
+        if page.latest_indexed_block_height >= height {
             assert!(page.events.iter().all(|event| event.block_height == height));
             return Ok(page.events);
         }
@@ -555,8 +545,8 @@ fn creator_agent() -> Agent {
         .await?;
         let unavailable_receipt = ctx.network().await_receipt(unavailable.tx_hash()).await?;
         assert!(matches!(
-            unavailable_receipt.status,
-            ExecStatus::Reverted { .. }
+            unavailable_receipt.execution,
+            ExecutionResult::Abort { .. }
         ));
         assert!(unavailable_receipt.events.is_empty());
         assert_wallet_call_aborted(&unavailable_receipt);
@@ -568,7 +558,7 @@ fn creator_agent() -> Agent {
             indexed_created_events(
                 &ctx,
                 unavailable_factory.address(),
-                unavailable_receipt.height
+                unavailable_receipt.block_height
             )
             .await?
             .is_empty()
@@ -601,13 +591,13 @@ fn creator_agent() -> Agent {
             create(&mut ctx, &factory, underfunded_nonce, &config, creator, 1).await?;
         let underfunded_receipt = ctx.network().await_receipt(underfunded.tx_hash()).await?;
         assert!(matches!(
-            underfunded_receipt.status,
-            ExecStatus::Reverted { .. }
+            underfunded_receipt.execution,
+            ExecutionResult::Abort { .. }
         ));
         assert!(underfunded_receipt.events.is_empty());
         assert_wallet_call_aborted(&underfunded_receipt);
         assert!(
-            indexed_created_events(&ctx, factory.address(), underfunded_receipt.height)
+            indexed_created_events(&ctx, factory.address(), underfunded_receipt.block_height)
                 .await?
                 .is_empty()
         );
@@ -622,14 +612,15 @@ fn creator_agent() -> Agent {
         assert_eq!(creation_receipt.events.len(), 2);
         // The account's default wallet ran the call and returns one buffer per
         // call it made; unwrap that envelope before decoding the address.
-        let returned = thruput_signing::default_wallet::decode_default_wallet_call_return(
-            &creation_receipt
-                .return_data
-                .as_ref()
-                .expect("create_token returns an address")
-                .0,
-        )
-        .expect("unwrap the wallet's return");
+        let ExecutionResult::Return { return_data } = &creation_receipt.execution else {
+            panic!(
+                "create_token did not return: {:?}",
+                creation_receipt.execution
+            );
+        };
+        let returned =
+            thruput_signing::default_wallet::decode_default_wallet_call_return(&return_data.0)
+                .expect("unwrap the wallet's return");
         let created: ContractAddress =
             xdrs::cxs::decode(returned.as_slice()).expect("decode created token address");
         assert_eq!(created, predicted);
@@ -643,16 +634,19 @@ fn creator_agent() -> Agent {
             1_000,
             token_hash,
         );
-        let indexed =
-            indexed_created_events(&ctx, factory.address(), creation_receipt.height.clone())
-                .await?;
+        let indexed = indexed_created_events(
+            &ctx,
+            factory.address(),
+            creation_receipt.block_height.clone(),
+        )
+        .await?;
         assert_eq!(indexed.len(), 1);
-        assert_eq!(indexed[0].tx_hash, creation_receipt.tx_hash);
-        assert_eq!(indexed[0].sequence_number, 1);
         assert_eq!(
-            indexed[0].event.contract_address,
-            creation_receipt.events[1].contract_address
+            indexed[0].transaction_hash,
+            creation_receipt.transaction_hash
         );
+        assert_eq!(indexed[0].sequence_number, 1);
+        assert_eq!(indexed[0].event.address, creation_receipt.events[1].address);
         assert_eq!(indexed[0].event.topics, creation_receipt.events[1].topics);
         assert_eq!(indexed[0].event.data.0, creation_receipt.events[1].data.0);
 
@@ -838,12 +832,12 @@ fn creator_agent() -> Agent {
 
         println!(
             "phase6: token_hash={token_hash:?} unavailable_tx={:?} underfunded_tx={:?} creation_tx={:?} event_query_height={} indexed_events={} creation_sequence=[Transfer,TokenCreated] fee_tx={:?} fee_sequence=[Transfer,Transfer,TokenCreated]",
-            unavailable_receipt.tx_hash,
-            underfunded_receipt.tx_hash,
-            creation_receipt.tx_hash,
-            *creation_receipt.height,
+            unavailable_receipt.transaction_hash,
+            underfunded_receipt.transaction_hash,
+            creation_receipt.transaction_hash,
+            *creation_receipt.block_height,
             indexed.len(),
-            fee_creation.tx_hash,
+            fee_creation.transaction_hash,
         );
         Ok(())
     })

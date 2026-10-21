@@ -5,7 +5,8 @@ import {
   signTransaction,
   toHex0x,
   TransactionReceiptTimeoutError,
-  TransactionRejectedError,
+  NativeRpcError,
+  JsonRpcError,
   type ThruputClient,
   type TransactionReceipt,
   toBase58,
@@ -28,7 +29,6 @@ import {
   contractAddress,
   contractEntrypointID,
   ContractType,
-  ExecResult,
   gasAmount,
   networkHash,
   serialize,
@@ -115,18 +115,21 @@ function setup() {
     },
   };
   const receipt = (hash: Uint8Array): TransactionReceipt => ({
-    txHash: sha256Hash(hash),
-    height: blockHeight(11n),
-    execResult: ExecResult.ExecResultOK,
+    transactionHash: sha256Hash(hash),
+    blockHeight: blockHeight(11n),
+    execution: { result: "return" as const, returnData: wrappedReturn },
     gasUsed: 0n,
     events: [],
-    returnData: wrappedReturn,
-    abortData: null,
   });
   const client = {
+    requireMethods: vi.fn(),
+    discovery: { network: { networkHash: signingNetwork } },
     getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: signingNetwork }),
-    getChainTip: vi.fn().mockResolvedValue({ height: 10n }),
-    getTransactionReceipt: vi.fn(async (hash: Uint8Array) => receipt(hash)),
+    getChainTip: vi.fn().mockResolvedValue({ blockHeight: 10n }),
+    getTransactionReceipt: vi.fn(
+      async ({ transactionHash }: { transactionHash: Uint8Array }) =>
+        receipt(transactionHash),
+    ),
     getTransactionStatus: vi.fn().mockResolvedValue({ status: "unknown" }),
     waitForTransactionReceipt: vi.fn(async (hash: Uint8Array) => receipt(hash)),
     sendTransaction: vi.fn(),
@@ -163,12 +166,11 @@ describe("provider write boundary with the real SDK", () => {
   it("preserves committed failure without trying to decode child return bytes", async () => {
     const { boundary, client } = setup();
     client.waitForTransactionReceipt.mockImplementationOnce(async (hash) => ({
-      txHash: sha256Hash(hash),
-      height: blockHeight(11n),
-      execResult: ExecResult.ExecResultTxRootFrameReverted,
+      transactionHash: sha256Hash(hash),
+      blockHeight: blockHeight(11n),
+      execution: { result: "abort" as const, abortData: new Uint8Array([1]) },
       gasUsed: 0n,
-      returnData: null,
-      abortData: new Uint8Array([1]),
+
       events: [],
     }));
     try {
@@ -183,19 +185,20 @@ describe("provider write boundary with the real SDK", () => {
   it("retains the original successful receipt when child decoding fails", async () => {
     const { boundary, client } = setup();
     client.waitForTransactionReceipt.mockImplementationOnce(async (hash) => ({
-      txHash: sha256Hash(hash),
-      height: blockHeight(11n),
-      execResult: ExecResult.ExecResultOK,
+      transactionHash: sha256Hash(hash),
+      blockHeight: blockHeight(11n),
+      execution: { result: "return" as const, returnData: new Uint8Array([1]) },
       gasUsed: 0n,
-      returnData: new Uint8Array([1]),
-      abortData: null,
+
       events: [],
     }));
     try {
       const result = await boundary.execute(target, { onSigned() {} });
       expect(result).toMatchObject({
         kind: "committedSuccess",
-        receipt: { returnData: new Uint8Array([1]) },
+        receipt: {
+          execution: { result: "return", returnData: new Uint8Array([1]) },
+        },
       });
     } finally {
       boundary.dispose();
@@ -268,8 +271,11 @@ describe("provider write boundary with the real SDK", () => {
     expect(result.kind).toBe("committedSuccess");
     if (result.kind !== "committedSuccess") throw new Error("Expected commit");
     expect(result.hash).toBe(onSigned.mock.calls[0]![0]);
-    expect(result.receipt.returnData).toEqual(wrappedReturn);
-    expect(toBase58(result.receipt.txHash)).toBe(result.hash);
+    expect(result.receipt.execution).toEqual({
+      result: "return",
+      returnData: wrappedReturn,
+    });
+    expect(toBase58(result.receipt.transactionHash)).toBe(result.hash);
     expect(result.receipt.events).toEqual([]);
     expect(client.sendTransaction).not.toHaveBeenCalled();
     boundary.dispose();
@@ -291,7 +297,7 @@ describe("provider write boundary with the real SDK", () => {
           return Promise.reject(new Error("Storage full"));
         },
       });
-      expect(result.kind).toBe("preSubmissionFailure");
+      expect(result.kind).toBe("indeterminate");
       expect(
         request.mock.calls.some(
           ([input]) => input.method === "submitTransaction",
@@ -356,7 +362,7 @@ describe("provider write boundary with the real SDK", () => {
         change({ networkHash: config.networkId, accounts: [] });
       },
     });
-    expect(result.kind).toBe("preSubmissionFailure");
+    expect(result.kind).toBe("indeterminate");
     expect(
       request.mock.calls.some(
         ([input]) => input.method === "submitTransaction",
@@ -433,13 +439,21 @@ describe("provider write boundary with the real SDK", () => {
       const hash = sha256Hash(new Uint8Array(32).fill(1));
       client.waitForTransactionReceipt.mockRejectedValue(
         status === "invalid"
-          ? new TransactionRejectedError(hash, "Rejected")
+          ? new NativeRpcError(
+              new JsonRpcError(-32000, "Rejected", {
+                kind: "transactionInvalid",
+                admission: "notAttempted",
+              }),
+              "sendTransaction",
+              hash,
+            )
           : new TransactionReceiptTimeoutError(
               hash,
+              undefined,
               status === "recentFailure"
                 ? {
                     status,
-                    attemptHeight: blockHeight(1n),
+                    attemptBlockHeight: blockHeight(1n),
                     cause: {
                       kind: "dbConflict",
                       conflict: {

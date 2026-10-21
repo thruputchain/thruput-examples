@@ -296,12 +296,23 @@ describe("production HTTP server", () => {
   });
 
   it("serves the LP contract artifact as same-origin JSON without an RPC call", async () => {
-    const artifact = { contractType: "rv32", data: "0x010203", hash: wireId(9) };
+    const artifact = {
+      contractType: "rv32",
+      data: "0x010203",
+      hash: wireId(9),
+    };
     await mkdir(path.join(directory, "contract-artifacts"));
-    await writeFile(path.join(directory, "contract-artifacts", `${artifact.hash}.json`), JSON.stringify(artifact));
-    const response = await fetch(`${origin}/contract-artifacts/${artifact.hash}.json`);
+    await writeFile(
+      path.join(directory, "contract-artifacts", `${artifact.hash}.json`),
+      JSON.stringify(artifact),
+    );
+    const response = await fetch(
+      `${origin}/contract-artifacts/${artifact.hash}.json`,
+    );
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    expect(response.headers.get("content-type")).toBe(
+      "application/json; charset=utf-8",
+    );
     expect(await response.json()).toEqual(artifact);
     expect(upstream).not.toHaveBeenCalled();
   });
@@ -336,12 +347,14 @@ describe("production HTTP server", () => {
   });
 
   it.each([
-    ["groundhog_networkInfo", []],
-    ["groundhog_chainTip", []],
-    ["groundhog_getTransactionReceipt", [wireId(1)]],
-    ["groundhog_getTransactionStatus", [wireId(2)]],
-    ["groundhog_view", [viewRequest()]],
-    ["groundhog_getEvents", [eventQuery()]],
+    ["getNetworkInfo", {}],
+    ["getVersionInfo", {}],
+    ["getServerLimits", {}],
+    ["getChainTip", {}],
+    ["getTransactionReceipt", { transactionHash: wireId(1) }],
+    ["getTransactionStatus", { transactionHash: wireId(2) }],
+    ["simulateInvocation", viewRequest()],
+    ["getEvents", eventQuery()],
   ])(
     "proxies exact read-only %s requests without caller headers",
     async (method, params) => {
@@ -371,29 +384,32 @@ describe("production HTTP server", () => {
       {
         jsonrpc: "2.0",
         id: 1,
-        method: "groundhog_sendRawTransaction",
+        method: "sendTransaction",
         params: [],
       },
       403,
     ],
-    [[{ jsonrpc: "2.0", id: 1, method: "groundhog_view", params: [] }], 400],
+    [
+      [{ jsonrpc: "2.0", id: 1, method: "simulateInvocation", params: [] }],
+      400,
+    ],
     [
       {
         jsonrpc: "2.0",
         id: 1,
-        method: "groundhog_chainTip",
+        method: "getChainTip",
         params: [],
         extra: true,
       },
       400,
     ],
-    [{ jsonrpc: "2.0", id: 1, method: "groundhog_chainTip" }, 400],
-    [{ jsonrpc: "2.0", id: 1, method: "groundhog_chainTip", params: [1] }, 400],
+    [{ jsonrpc: "2.0", id: 1, method: "getChainTip" }, 400],
+    [{ jsonrpc: "2.0", id: 1, method: "getChainTip", params: [1] }, 400],
     [
       {
         jsonrpc: "2.0",
         id: 1,
-        method: "groundhog_getTransactionStatus",
+        method: "getTransactionStatus",
         // Transaction hashes are base58 on the wire; 0x hex is rejected.
         params: [`0x${"01".repeat(32)}`],
       },
@@ -403,7 +419,7 @@ describe("production HTTP server", () => {
       {
         jsonrpc: "2.0",
         id: 1,
-        method: "groundhog_view",
+        method: "simulateInvocation",
         params: [{ ...viewRequest(), calldata: `0x${"00".repeat(65_537)}` }],
       },
       400,
@@ -412,7 +428,7 @@ describe("production HTTP server", () => {
       {
         jsonrpc: "2.0",
         id: 1,
-        method: "groundhog_getEvents",
+        method: "getEvents",
         params: [{ ...eventQuery(), limit: 501 }],
       },
       400,
@@ -441,8 +457,8 @@ describe("production HTTP server", () => {
         rpcRequest({
           jsonrpc: "2.0",
           id: 1,
-          method: "groundhog_chainTip",
-          params: [],
+          method: "getChainTip",
+          params: {},
         }),
       );
       const body = await response.text();
@@ -693,16 +709,16 @@ describe("production RPC validation", () => {
       isAllowedProductionRpcRequest({
         jsonrpc: "2.0",
         id: null,
-        method: "groundhog_view",
-        params: [viewRequest()],
+        method: "simulateInvocation",
+        params: viewRequest(),
       }),
     ).toBe(true);
     expect(
       isAllowedProductionRpcRequest({
         jsonrpc: "2.0",
         id: 1,
-        method: "groundhog_getEvents",
-        params: [eventQuery()],
+        method: "getEvents",
+        params: eventQuery(),
       }),
     ).toBe(true);
   });
@@ -712,18 +728,27 @@ describe("production RPC validation", () => {
     ["9007199254740993", true],
     ["9223372036854775807", true],
     ["9223372036854775808", false],
+    ["18446744073709551616", false],
     [1, false],
     ["01", false],
     ["-1", false],
     ["1.0", false],
     ["1\n", false],
   ])("validates decimal-string event height %j", (height, accepted) => {
-    expect(isAllowedProductionRpcRequest({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "groundhog_getEvents",
-      params: [{ ...eventQuery(), anchor: { kind: "atHeight", height } }],
-    })).toBe(accepted);
+    expect(
+      isAllowedProductionRpcRequest({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getEvents",
+        params: {
+          ...eventQuery(),
+          start: {
+            order: "ascending",
+            anchor: { kind: "atHeight", blockHeight: height },
+          },
+        },
+      }),
+    ).toBe(accepted);
   });
 
   it("validates exact success and error response envelopes", () => {
@@ -894,7 +919,7 @@ function hash(value: number): string {
 
 function viewRequest() {
   return {
-    contract: wireId(1),
+    address: wireId(1),
     entrypoint: `0x${"12".repeat(8)}`,
     calldata: "0x",
     caller: wireId(2),
@@ -905,14 +930,15 @@ function eventQuery() {
   return {
     filters: [
       {
-        contractAddresses: [wireId(1)],
+        addresses: [wireId(1)],
         // Event topics are opaque 32-byte values and stay 0x hex.
         topics: { topic0: [`0x${"02".repeat(32)}`], topic1: [], topic2: [] },
       },
     ],
-    order: "ascending",
-    anchor: { kind: "atHeight", height: "1" },
-    cursor: "0x",
+    start: {
+      order: "ascending",
+      anchor: { kind: "atHeight", blockHeight: "1" },
+    },
     limit: 500,
   };
 }
@@ -921,8 +947,8 @@ function chainTip() {
   return {
     jsonrpc: "2.0",
     id: 1,
-    method: "groundhog_chainTip",
-    params: [],
+    method: "getChainTip",
+    params: {},
   };
 }
 

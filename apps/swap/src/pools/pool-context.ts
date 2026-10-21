@@ -32,7 +32,7 @@ export async function resolvePoolConfig({
   config: GlobalConfig;
   token0: ContractAddress;
   token1: ContractAddress;
-  client: Pick<ThruputClient, "view">;
+  client: Pick<ThruputClient, "simulateInvocation">;
   factory?: SwapFactoryReadAdapter;
 }): Promise<AppConfig> {
   const factory =
@@ -71,14 +71,14 @@ export async function resolvePoolConfig({
       throw new Error("Pool token decimals are unavailable");
     }
     const heights = [
-      registered.height,
-      addresses.height,
-      metadata0.name.height,
-      metadata0.symbol.height,
-      metadata0.decimals.height,
-      metadata1.name.height,
-      metadata1.symbol.height,
-      metadata1.decimals.height,
+      registered.stateBlockHeight,
+      addresses.stateBlockHeight,
+      metadata0.name.stateBlockHeight,
+      metadata0.symbol.stateBlockHeight,
+      metadata0.decimals.stateBlockHeight,
+      metadata1.name.stateBlockHeight,
+      metadata1.symbol.stateBlockHeight,
+      metadata1.decimals.stateBlockHeight,
     ];
     if (heights.some((height) => height !== heights[0])) continue;
 

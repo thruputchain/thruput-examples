@@ -28,7 +28,7 @@ vi.mock("@thruputchain/client", async (original) => {
   return {
     ...sdk,
     createThruputClient: vi.fn(async () => ({
-      getVersion: async () => ({ wireFormat: "13.0.0" }),
+      getVersionInfo: async () => ({ wireFormat: "14.0.0" }),
     })),
     createWalletClient: vi.fn(() => mocks),
   };
@@ -48,10 +48,12 @@ beforeEach(async () => {
   };
   await writeFile(options.artifact!, "counter artifact");
   mocks.requestAirdrop.mockResolvedValue({ status: { result: "ok" } });
-  mocks.executeAndWait.mockResolvedValue({ txHash: new Uint8Array(32) });
+  mocks.executeAndWait.mockResolvedValue({
+    transactionHash: new Uint8Array(32),
+  });
   mocks.deployContractAndWait.mockImplementation(
     async (deployment: ContractDeployment) => ({
-      txHash: new Uint8Array(32),
+      transactionHash: new Uint8Array(32),
       address: deployment.address,
     }),
   );
@@ -136,9 +138,7 @@ it.each([
 ])("preserves the existing environment when %s fails", async (phase) => {
   await writeFile(options.output, "previous environment");
   if (phase === "funding")
-    mocks.requestAirdrop.mockResolvedValue({
-      status: { result: "reverted" },
-    });
+    mocks.requestAirdrop.mockRejectedValue(new Error("Funding stopped"));
   if (phase === "transaction")
     mocks.executeAndWait.mockRejectedValueOnce(
       new Error("Funding transaction failed"),
