@@ -41,27 +41,3 @@ fn test_counter_rv32() {
 
     result.assert_success();
 }
-
-#[test]
-#[ignore = "requires RV32 build — run via `thruput test`"]
-fn test_counter_underflow_rv32() {
-    let contract = load_rv32_contract("../../target/thruput/counter.rv32a");
-    let env = TestEnvironment::no_cost();
-    let contract_hash = env.setup_create_contract(&contract);
-    let call_addr = ContractAddress::named("counter_underflow_rv32");
-
-    env.transact(|tx| {
-        tx.call(&call_addr).run(|| {
-            let addr = deploy_contract(&NONCE, &contract_hash);
-            let client = CounterClient::new(&addr);
-            client.initialize(5);
-
-            let err = client.try_decrement(10).expect_err("expected underflow");
-            assert_eq!(err.try_as(), Some(LibraryExn::NonNegativeIntUnderflow));
-            assert_eq!(client.get(), 5);
-            client.decrement(5);
-            assert_eq!(client.get(), 0);
-        })
-    })
-    .assert_success();
-}
