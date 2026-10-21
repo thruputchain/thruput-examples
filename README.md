@@ -121,10 +121,15 @@ thruput config use futurenet --project
 thruput config get --sources
 ```
 
-This repository keeps `local` as its project default so build scripts using older supported CLIs work
-without global configuration. That overrides a global Futurenet selection
+This repository keeps `local` as its project default so build scripts using older
+supported CLIs work without global configuration. That overrides a global Futurenet selection
 until you select Futurenet for this project. New CLI-generated projects follow
 the global default instead.
+
+Older CLIs cannot update a global config that contains `network = "futurenet"`.
+Before switching back to the pinned CLI, run `thruput config use local --project`
+with the newer CLI. Run the pinned CLI with a separate `XDG_CONFIG_HOME`, which
+has its own keys and settings.
 
 Existing app commands named `setup:devnet` and files named `.env.devnet` still
 refer to the hosted network. Keep those names when following the app guides.
