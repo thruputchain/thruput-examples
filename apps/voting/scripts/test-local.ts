@@ -25,7 +25,7 @@ async function participant() {
     signer: new PrivateKeySigner(randomBytes(32)),
   });
   const wallet = createWalletClient({ client, account });
-  assert.equal((await wallet.requestAirdrop()).status.result, "ok");
+  assert.equal((await wallet.requestAirdrop()).attemptStatus, "succeeded");
   return wallet;
 }
 const admin = await participant();
@@ -36,8 +36,8 @@ async function send(wallet: typeof admin, invocation: Invocation) {
     { invocation, gasLimit: GAS },
     { timeoutMs: 60_000 },
   );
-  height = result.receipt.height;
-  console.log(`Confirmed: ${toBase58(result.txHash)}`);
+  height = result.receipt.blockHeight;
+  console.log(`Confirmed: ${toBase58(result.transactionHash)}`);
   return result;
 }
 async function rejects(wallet: typeof admin, invocation: Invocation) {
@@ -92,9 +92,9 @@ await rejects(
 );
 const poll = await methods.getPoll.view({
   client,
-  contract: address,
+  address,
   args: { id: 0n },
-  minHeight: height,
+  minStateBlockHeight: height,
 });
 assert.equal(poll.value.status, 2n);
 const state = await readPoll(

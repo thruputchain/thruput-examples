@@ -12,6 +12,9 @@ import {
   signTransaction,
   toBase58,
   toHex0x,
+  type TransactionReceipt,
+  hashFromBase58,
+  UnsupportedRpcValue,
 } from "@thruputchain/client";
 import {
   blockHeight,
@@ -30,12 +33,13 @@ const mocks = vi.hoisted(() => ({
   getChainTip: vi.fn(),
   sendTransaction: vi.fn(),
   refetch: vi.fn(),
+  receipt: null as TransactionReceipt | null,
 }));
 vi.mock("@thruputchain/react", () => ({
   useClient: () => ({ ...mocks, network: { networkHash: new Uint8Array(32) } }),
   useExecute: () => ({ mutateAsync: mocks.execute }),
   useWaitForTransactionReceipt: () => ({
-    data: null,
+    data: mocks.receipt,
     error: new Error("Timed out"),
     refetch: mocks.refetch,
     isFetching: false,
@@ -91,10 +95,11 @@ beforeEach(async () => {
   queries = new QueryClient();
   mocks.execute.mockReset();
   mocks.getTransactionReceipt.mockReset().mockResolvedValue(null);
-  mocks.getChainTip.mockReset().mockResolvedValue({ height: 50n });
+  mocks.receipt = null;
+  mocks.getChainTip.mockReset().mockResolvedValue({ blockHeight: 50n });
   mocks.sendTransaction
     .mockReset()
-    .mockResolvedValue(hashSignedTransaction(signed));
+    .mockResolvedValue({ transactionHash: hashSignedTransaction(signed) });
   mocks.refetch.mockReset().mockResolvedValue({});
   Object.defineProperty(navigator, "locks", {
     configurable: true,
@@ -176,9 +181,7 @@ it("recovers storage and submits the original bytes without signing again", asyn
   act(() => reloaded.result.current.retrySubmission());
   await waitFor(() => expect(mocks.sendTransaction).toHaveBeenCalledTimes(1));
   expect(
-    toHex0x(
-      serializeSignedTransaction(mocks.sendTransaction.mock.calls[0]![0]),
-    ),
+    toHex0x(mocks.sendTransaction.mock.calls[0]![0].signedTransaction),
   ).toBe(pending.record.signedTransaction);
   expect(mocks.execute).toHaveBeenCalledTimes(1);
   expect(loadPending(localStorage, key, config.networkId)).toEqual(pending);
@@ -191,10 +194,10 @@ it.each(["committed", "expired", "changed"])(
     const { result } = renderHook(() => useTransaction(config), { wrapper });
     if (state === "committed")
       mocks.getTransactionReceipt.mockResolvedValue({
-        txHash: pending.record.hash,
+        transactionHash: pending.record.hash,
       });
     if (state === "expired")
-      mocks.getChainTip.mockResolvedValue({ height: 101n });
+      mocks.getChainTip.mockResolvedValue({ blockHeight: 101n });
     if (state === "changed") localStorage.removeItem(key);
     act(() => result.current.retrySubmission());
     await waitFor(() => expect(result.current.busy).toBe(false));
@@ -215,3 +218,30 @@ it("retains the signed record after an uncertain submission", async () => {
   act(() => result.current.send("Submit answer", invocation));
   expect(mocks.execute).toHaveBeenCalledTimes(1);
 });
+
+it.each(["return", "abort", "unsupported"])(
+  "handles native %s receipts without losing uncertain evidence",
+  async (kind) => {
+    savePending(localStorage, key, pending);
+    mocks.receipt = {
+      transactionHash: hashFromBase58(pending.record.hash),
+      blockHeight: 10n,
+      execution:
+        kind === "return"
+          ? { result: "return", returnData: new Uint8Array() }
+          : kind === "abort"
+            ? { result: "abort", abortData: new Uint8Array() }
+            : new UnsupportedRpcValue({ result: "future" }),
+      gasUsed: 0n,
+      events: [],
+    };
+    const { result } = renderHook(() => useTransaction(config), { wrapper });
+    expect(result.current.confirmed).toBe(kind === "return");
+    expect(result.current.settled).toBe(kind !== "unsupported");
+    act(() => result.current.finish());
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    expect(loadPending(localStorage, key, config.networkId)).toEqual(
+      kind === "unsupported" ? pending : null,
+    );
+  },
+);

@@ -17,9 +17,11 @@ export function TransactionStatus({
           <h2>{tx.pending.label}</h2>
           <p>
             {tx.receipt.data
-              ? tx.confirmed
-                ? "Confirmed on-chain."
-                : "Transaction committed, but execution failed. No changes were applied."
+              ? !tx.settled
+                ? "Unsupported execution result. Keep the saved transaction and check again."
+                : tx.confirmed
+                  ? "Confirmed on-chain."
+                  : "Transaction committed, but execution failed. No changes were applied."
               : tx.receipt.error
                 ? "Outcome unknown. Check the original transaction; do not submit another."
                 : "Waiting for confirmation…"}
@@ -29,7 +31,7 @@ export function TransactionStatus({
             Signed by {tx.pending.record.account.address}
           </p>
           <div className="actions">
-            {tx.receipt.data ? (
+            {tx.settled ? (
               <button type="button" disabled={tx.busy} onClick={tx.finish}>
                 Finish
               </button>

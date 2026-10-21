@@ -6,6 +6,8 @@ This is a localnode-only teaching app for the [Voting contract](../../contracts/
 ## Local setup
 
 Complete [repository setup](../../README.md#setup) and run `npm ci` from the root.
+Use CLI 0.33.0 with runtime 0.1.31-rc.11 (native wire 14). Voting uses client
+0.22.1, React SDK 0.7.0, and protocol packages 0.18.0, matching the other apps.
 Start a local node in another terminal:
 
 ```sh
@@ -73,6 +75,7 @@ transaction** only observe the original hash, even after disconnecting.
 
 An uncertain outcome blocks new writes. The app does not resubmit automatically.
 **Finish** clears a confirmed outcome, including a committed execution failure.
+An unfamiliar receipt execution result remains unresolved and keeps the signed record.
 **Export record** preserves signed evidence. If browser storage fails, submission
 stops; **Retry storage** saves the in-memory record. Then select **Submit original
 transaction** to send those same signed bytes. This action checks for an existing

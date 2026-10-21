@@ -5,8 +5,12 @@ import {
   useWaitForTransactionReceipt,
 } from "@thruputchain/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ExecResult, type Invocation } from "@thruputchain/protocol";
-import { hashFromBase58, toBase58 } from "@thruputchain/client";
+import { type Invocation } from "@thruputchain/protocol";
+import {
+  hashFromBase58,
+  serializeSignedTransaction,
+  toBase58,
+} from "@thruputchain/client";
 import { parseSignedTransactionHex } from "@thruputchain/client/provider";
 import { GAS } from "../contracts/polls";
 import { errorMessage, type AppConfig } from "../config";
@@ -25,6 +29,7 @@ export function useTransaction(config: AppConfig) {
   const receipt = useWaitForTransactionReceipt({
     hash: pending?.record.hash ?? null,
   });
+  const settled = Boolean(receipt.data && "result" in receipt.data.execution);
 
   function reload() {
     try {
@@ -108,9 +113,10 @@ export function useTransaction(config: AppConfig) {
   function finish() {
     void exclusive(async () => {
       if (
+        !settled ||
         !receipt.data ||
         !pending ||
-        toBase58(receipt.data.txHash) !== pending.record.hash
+        toBase58(receipt.data.transactionHash) !== pending.record.hash
       )
         return;
       const saved = loadPending(localStorage, key, config.networkId);
@@ -138,20 +144,22 @@ export function useTransaction(config: AppConfig) {
       if (toBase58(client.network.networkHash) !== saved.record.networkHash)
         throw new Error("Select the original transaction's network.");
       const hash = hashFromBase58(saved.record.hash);
-      if (await client.getTransactionReceipt(hash)) {
+      if (await client.getTransactionReceipt({ transactionHash: hash })) {
         await receipt.refetch();
         return;
       }
       const signed = parseSignedTransactionHex(saved.record.signedTransaction);
       if (
-        (await client.getChainTip()).height >
+        (await client.getChainTip()).blockHeight >
         signed.tx.uniquifier.block_expiry_height
       )
         throw new Error(
           "The signed transaction has expired. Export the record and check its outcome.",
         );
       // Submit only the saved bytes: no new signature, nonce, or expiry.
-      await client.sendTransaction(signed);
+      await client.sendTransaction({
+        signedTransaction: serializeSignedTransaction(signed),
+      });
       await receipt.refetch();
     });
   }
@@ -162,11 +170,16 @@ export function useTransaction(config: AppConfig) {
     message,
     storageError,
     receipt,
+    settled,
     send,
     finish,
     retrySubmission,
     blocked: busy || Boolean(pending) || storageError,
-    confirmed: receipt.data?.execResult === ExecResult.ExecResultOK,
+    confirmed: Boolean(
+      receipt.data &&
+      "result" in receipt.data.execution &&
+      receipt.data.execution.result === "return",
+    ),
     retryStorage: () => {
       void exclusive(async () => {
         const saved = loadPending(localStorage, key, config.networkId);

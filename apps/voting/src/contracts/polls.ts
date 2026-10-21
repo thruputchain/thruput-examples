@@ -31,7 +31,7 @@ export async function listPolls(
 ) {
   const { value: count } = await methods.count.view({
     client,
-    contract: config.address,
+    address: config.address,
   });
   const end = count - BigInt(page * 12);
   const ids = Array.from(
@@ -41,7 +41,7 @@ export async function listPolls(
   if (!ids.length) return { count, polls: [] };
   const result = await client.readViews({
     calls: ids.map((id) =>
-      methods.getPoll.viewRequest({ contract: config.address, args: { id } }),
+      methods.getPoll.viewRequest({ address: config.address, args: { id } }),
     ),
   });
   return {
@@ -61,7 +61,7 @@ export async function readPoll(
 ) {
   const { value: initial } = await methods.getPoll.view({
     client,
-    contract: config.address,
+    address: config.address,
     args: { id },
   });
   const questions =
@@ -73,7 +73,7 @@ export async function readPoll(
               { length: Number(initial.question_count) },
               (_, question) =>
                 methods.getQuestion.viewRequest({
-                  contract: config.address,
+                  address: config.address,
                   args: { id, question: BigInt(question) },
                 }),
             ),
@@ -82,19 +82,19 @@ export async function readPoll(
   // Keep batches small. Each question's percentages use one committed snapshot.
   const [participation, ...rows] = await Promise.all([
     methods.participantCount
-      .view({ client, contract: config.address, args: { id } })
+      .view({ client, address: config.address, args: { id } })
       .then((r) => [r.value]),
     ...questions.map(async (q, question) => {
       const calls = q.options.map((_, option) =>
         methods.tally.viewRequest({
-          contract: config.address,
+          address: config.address,
           args: { id, question: BigInt(question), option: BigInt(option) },
         }),
       );
       const answer = wallet
         ? [
             methods.answer.viewRequest({
-              contract: config.address,
+              address: config.address,
               args: {
                 id,
                 voter: addressFromBase58(wallet),

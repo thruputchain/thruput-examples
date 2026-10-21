@@ -9,7 +9,7 @@ export function WalletControls() {
   const balance = useQuery({
     queryKey: ["voting", "balance", address],
     enabled: Boolean(address),
-    queryFn: () => client.getBalance(addressFromBase58(address!)),
+    queryFn: () => client.getBalance({ address: addressFromBase58(address!) }),
     refetchInterval: 5_000,
   });
   return (

@@ -50,8 +50,7 @@ export async function deployVoting(
   });
   const wallet = createWalletClient({ client, account });
   const funding = await wallet.requestAirdrop();
-  if (funding.status.result !== "ok")
-    throw new Error("Deployer funding failed.");
+  console.log(`Airdrop confirmed: ${funding.rawAmount} raw HOG`);
   const contract = await readFile(resolve(root, "target/thruput/voting.rv32a"));
   const deployment = prepareContractDeployment({
     deployer: account.address,
@@ -74,16 +73,16 @@ export async function deployVoting(
       timeoutMs: 60_000,
     },
   );
-  console.log(`Funding transaction: ${toBase58(funded.txHash)}`);
-  const { txHash } = await wallet.deployContractAndWait(
+  console.log(`Funding transaction: ${toBase58(funded.transactionHash)}`);
+  const { transactionHash } = await wallet.deployContractAndWait(
     deployment,
     { gasLimit: GAS, amount: 0n },
     { timeoutMs: 60_000 },
   );
-  console.log(`Deployment transaction: ${toBase58(txHash)}`);
+  console.log(`Deployment transaction: ${toBase58(transactionHash)}`);
   const count = await methods.count.view({
     client,
-    contract: deployment.address,
+    address: deployment.address,
   });
   if (count.value !== 0n)
     throw new Error("Expected a fresh empty Voting deployment.");

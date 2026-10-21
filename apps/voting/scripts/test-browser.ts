@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { networkHash, sha256Hash } from "@thruputchain/protocol";
 import { randomBytes } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -33,9 +34,9 @@ const accounts: WalletAccount[] = [];
 for (const signer of signers) {
   const account = createPubkeyAccount({ signer });
   assert.equal(
-    (await createWalletClient({ client, account }).requestAirdrop()).status
-      .result,
-    "ok",
+    (await createWalletClient({ client, account }).requestAirdrop())
+      .attemptStatus,
+    "succeeded",
   );
   accounts.push({
     address: toBase58(account.address),
@@ -82,7 +83,7 @@ try {
       const signed = await signTransaction(
         parseTransactionHex(request.params.transaction),
         [{ signer: signers[index]!, publicKeyId: 0n }],
-        client.network.networkHash,
+        networkHash(sha256Hash(client.network.networkHash)),
       );
       signatures++;
       return {
@@ -93,9 +94,13 @@ try {
     if (request.method === "submitTransaction")
       return {
         hash: toBase58(
-          await client.sendTransaction(
-            parseSignedTransactionHex(request.params.signedTransaction),
-          ),
+          (
+            await client.sendTransaction({
+              signedTransaction: serializeSignedTransaction(
+                parseSignedTransactionHex(request.params.signedTransaction),
+              ),
+            })
+          ).transactionHash,
         ),
       };
     throw new Error("Unexpected provider request");
