@@ -104,6 +104,9 @@ try {
     THRUPUT_ADDRESS: transfer.recipient,
   });
   assert.equal(balance.rawBalance, transfer.recipientBalance);
+  const pq = await run("pq-account");
+  assert.equal(pq.transferredRawEach, "1000");
+  assert.notEqual(pq.ed25519.sender, pq.mlDsa65.sender);
   const deployment = await run("deploy-counter");
   assert.equal(deployment.value, "47");
   const settings = { THRUPUT_COUNTER_ADDRESS: deployment.contractAddress };
@@ -126,7 +129,7 @@ try {
     /loopback HTTP/,
   );
   console.log(
-    "PASS published-SDK examples: reads, transfer, deployment, events, batch, and rollback",
+    "PASS published-SDK examples: reads, transfer, ML-DSA-65 account, deployment, events, batch, and rollback",
   );
 } finally {
   clearTimeout(watchdog);

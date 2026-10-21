@@ -18,6 +18,7 @@
     "example:chain-tip": "tsx examples/typescript/chain-tip.ts",
     "example:view-hog-balance": "tsx examples/typescript/view-hog-balance.ts",
     "example:transfer-hog": "tsx examples/typescript/transfer-hog.ts",
+    "example:pq-account": "tsx examples/typescript/pq-account.ts",
     "example:deploy-counter": "tsx examples/typescript/deploy-counter.ts",
     "example:read-events": "tsx examples/typescript/read-events.ts",
     "example:batch-counter": "tsx examples/typescript/batch-counter.ts",
