@@ -20,6 +20,7 @@ fn test_counter() {
             let addr = deploy_contract(&NONCE, &contract_hash);
             let client = CounterClient::new(&addr);
 
+            assert_eq!(client.get(), 0);
             client.initialize(10);
             assert_eq!(client.get(), 10);
 
@@ -45,8 +46,7 @@ fn test_counter_underflow() {
 
             client.initialize(5);
 
-            // Decrementing past zero aborts because
-            // NNInt enforces non-negative values.
+            // Balance rejects a decrease below zero during execution.
             match client.try_decrement(10) {
                 Ok(_) => panic!("expected underflow"),
                 Err(err) => assert_eq!(
@@ -55,6 +55,9 @@ fn test_counter_underflow() {
                     "expected underflow, got: {err:?}"
                 ),
             }
+            assert_eq!(client.get(), 5);
+            client.decrement(5);
+            assert_eq!(client.get(), 0);
         })
     })
     .assert_success();

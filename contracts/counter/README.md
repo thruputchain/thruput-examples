@@ -1,8 +1,9 @@
 # Counter: your first stateful contract
 
 Learn to store a non-negative integer, call generated client methods, and test
-an error. `NNInt` supports commutative updates; this example adds and subtracts
-amounts instead of replacing a stored value.
+an error. `Balance` provides zero-defaulting reads and nonnegative amounts.
+Its `increase` and `decrease` methods record relative changes that can merge
+across compatible concurrent transactions within bounds.
 
 ## Run
 
@@ -13,14 +14,15 @@ From the repo root, without a node or npm:
 cargo test -p counter --locked --test test
 ```
 
-Expected: **2 tests pass**. The first initializes to 10, increments by 5,
-decrements by 3, and reads 12. The second catches a decrement below zero.
+Expected: **2 tests pass**. The first reads zero before initialization, initializes
+to 10, increments by 5, decrements by 3, and reads 12. The second catches a
+decrement below zero, checks that the value is unchanged, and decreases to zero.
 The expected exception can appear in the test output; the final result is what
 determines success.
 
 ## Read
 
-1. [Implementation](src/implementation.rs): `NNInt`, generated methods, and `PingEvent`.
+1. [Implementation](src/implementation.rs): `Balance`, generated methods, and `PingEvent`.
 2. [Native tests](tests/test.rs): register, deploy, invoke, and assert results.
 3. [Manifest](Cargo.toml): `dev` enables native testing; `entrypoints` enables the guest binary.
 
