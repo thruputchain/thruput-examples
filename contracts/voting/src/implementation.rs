@@ -1,9 +1,11 @@
+use alloc::vec::Vec;
 use thruput_sdk::storage::{Balance, Map, NNInt, Value};
 use thruput_sdk::*;
 
 pub type Text = heapless::String<160>;
 pub type Description = heapless::String<512>;
-pub type Options = VecM<Text, 6>;
+pub type OptionText = heapless::String<96>;
+pub type Options = VecM<OptionText, 6>;
 pub type Questions = VecM<Question, 8>;
 
 #[contract_type]
@@ -29,12 +31,15 @@ pub enum Status {
     Closed = 2,
 }
 
+// Keep each Value below the localnode's 1 KiB bytestring limit.
 #[contract_type]
 #[derive(Clone, Debug)]
-pub struct Poll {
+pub struct PollHeader {
     pub admin: ContractAddress,
     pub status: Status,
-    pub definition: Definition,
+    pub title: Text,
+    pub description: Description,
+    pub question_count: u32,
 }
 
 #[contract_exception]
@@ -59,7 +64,10 @@ pub struct PollCreated {
 pub struct Voting {
     // Creation is deliberately serialized. Voting does not write this counter.
     poll_count: NNInt,
-    polls: Map<u64, Value<Poll>>,
+    polls: Map<u64, Value<PollHeader>>,
+    question_titles: Map<u64, Map<u32, Value<Text>>>,
+    option_counts: Map<u64, Map<u32, Value<u32>>>,
+    options: Map<u64, Map<u32, Map<u32, Value<OptionText>>>>,
     answers: Map<u64, Map<ContractAddress, Map<u32, Value<u32>>>>,
     participants: Map<u64, Map<ContractAddress, Value<bool>>>,
     participant_counts: Map<u64, Balance>,
@@ -67,24 +75,56 @@ pub struct Voting {
 }
 
 impl Voting {
-    fn require_admin(&self, id: u64, status: Status) -> Poll {
-        let poll = self.get_poll(id);
+    fn header(&self, id: u64) -> PollHeader {
+        self.polls
+            .at(&id)
+            .try_get()
+            .none_if_missing()
+            .unwrap_or_else(|| throw(VotingError::NotFound))
+    }
+
+    fn require_admin(&self, id: u64, status: Status) -> PollHeader {
+        let poll = self.header(id);
         ensure(poll.admin == get_caller(), VotingError::NotAdmin);
         ensure(poll.status == status, VotingError::WrongStatus);
         poll
     }
 
-    fn validate(definition: &Definition, opening: bool) {
+    fn save_definition(&mut self, id: u64, admin: ContractAddress, definition: Definition) {
+        self.polls.at_mut(&id).set_exclusive(&PollHeader {
+            admin,
+            status: Status::Draft,
+            title: definition.title,
+            description: definition.description,
+            question_count: definition.questions.len() as u32,
+        });
+        for (index, question) in definition.questions.iter().enumerate() {
+            let index = index as u32;
+            self.question_titles
+                .at_mut(&id)
+                .at_mut(&index)
+                .set_exclusive(&question.title);
+            self.option_counts
+                .at_mut(&id)
+                .at_mut(&index)
+                .set_exclusive(&(question.options.len() as u32));
+            for (option, text) in question.options.iter().enumerate() {
+                self.options
+                    .at_mut(&id)
+                    .at_mut(&index)
+                    .at_mut(&(option as u32))
+                    .set_exclusive(text);
+            }
+        }
+        // Old slots beyond the current counts are inaccessible and can be reused
+        // by later draft edits. At most 8 × 6 option slots exist per poll.
+    }
+
+    fn validate(definition: &Definition) {
         ensure(
             !definition.title.trim().is_empty(),
             VotingError::InvalidDefinition,
         );
-        if opening {
-            ensure(
-                !definition.questions.is_empty(),
-                VotingError::InvalidDefinition,
-            );
-        }
         for question in definition.questions.iter() {
             ensure(
                 !question.title.trim().is_empty(),
@@ -107,30 +147,25 @@ impl Voting {
 #[contract(throws = VotingError, emits(PollCreated))]
 impl Voting {
     pub fn create_poll(&mut self, definition: Definition) -> u64 {
-        Self::validate(&definition, false);
+        Self::validate(&definition);
         let id = self.count();
         ensure(id < u64::MAX, VotingError::LimitReached);
         self.poll_count.set(i128::from(id) + 1);
         let admin = get_caller();
-        self.polls.at_mut(&id).set_exclusive(&Poll {
-            admin,
-            status: Status::Draft,
-            definition,
-        });
+        self.save_definition(id, admin, definition);
         log_event(&PollCreated { id, admin });
         id
     }
 
     pub fn edit_poll(&mut self, id: u64, definition: Definition) {
-        let mut poll = self.require_admin(id, Status::Draft);
-        Self::validate(&definition, false);
-        poll.definition = definition;
-        self.polls.at_mut(&id).set_exclusive(&poll);
+        let poll = self.require_admin(id, Status::Draft);
+        Self::validate(&definition);
+        self.save_definition(id, poll.admin, definition);
     }
 
     pub fn open_poll(&mut self, id: u64) {
         let mut poll = self.require_admin(id, Status::Draft);
-        Self::validate(&poll.definition, true);
+        ensure(poll.question_count > 0, VotingError::InvalidDefinition);
         poll.status = Status::Open;
         self.polls.at_mut(&id).set_exclusive(&poll);
     }
@@ -142,15 +177,14 @@ impl Voting {
     }
 
     pub fn vote(&mut self, id: u64, question: u32, option: u32) {
-        let poll = self.get_poll(id);
+        let poll = self.header(id);
         ensure(poll.status == Status::Open, VotingError::WrongStatus);
-        let question_data = poll
-            .definition
-            .questions
-            .get(question as usize)
-            .unwrap_or_else(|| throw(VotingError::InvalidSelection));
         ensure(
-            (option as usize) < question_data.options.len(),
+            question < poll.question_count,
+            VotingError::InvalidSelection,
+        );
+        ensure(
+            option < self.option_counts.at(&id).at(&question).get(),
             VotingError::InvalidSelection,
         );
         let voter = get_caller();
@@ -190,12 +224,23 @@ impl Voting {
         self.poll_count.try_get().none_if_missing().unwrap_or(0) as u64
     }
 
-    pub fn get_poll(&self, id: u64) -> Poll {
-        self.polls
-            .at(&id)
-            .try_get()
-            .none_if_missing()
-            .unwrap_or_else(|| throw(VotingError::NotFound))
+    pub fn get_poll(&self, id: u64) -> PollHeader {
+        self.header(id)
+    }
+
+    pub fn get_question(&self, id: u64, question: u32) -> Question {
+        ensure(
+            question < self.header(id).question_count,
+            VotingError::InvalidSelection,
+        );
+        let mut options = Vec::new();
+        for option in 0..self.option_counts.at(&id).at(&question).get() {
+            options.push(self.options.at(&id).at(&question).at(&option).get());
+        }
+        Question {
+            title: self.question_titles.at(&id).at(&question).get(),
+            options: VecM(options),
+        }
     }
 
     pub fn answer(&self, id: u64, voter: &ContractAddress, question: u32) -> Option<u32> {

@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
+extern crate alloc;
+
 mod implementation;
 pub use implementation::*;
 

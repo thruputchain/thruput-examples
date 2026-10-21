@@ -216,6 +216,39 @@ fn invalid_content_is_rejected() {
 }
 
 #[test]
+fn removed_draft_slots_cannot_be_read_or_voted_on() {
+    let f = Fixture::new();
+    f.call(f.admin, |c| {
+        let mut edited = definition();
+        edited.questions.0.remove(0);
+        edited.questions.0[0].title = "Replacement question".try_into().unwrap();
+        c.edit_poll(0, edited);
+        assert_eq!(c.get_poll(0).question_count, 1);
+        assert_eq!(c.get_question(0, 0).title.as_str(), "Replacement question");
+        assert_eq!(
+            c.try_get_question(0, 1).unwrap_err().try_as(),
+            Some(VotingError::InvalidSelection)
+        );
+        c.open_poll(0);
+        assert_eq!(
+            c.try_vote(0, 1, 0).unwrap_err().try_as(),
+            Some(VotingError::InvalidSelection)
+        );
+    });
+}
+
+#[test]
+fn oversized_question_vectors_fail_at_the_abi_boundary() {
+    let f = Fixture::new();
+    f.call(f.admin, |c| {
+        let mut oversized = definition();
+        oversized.questions = VecM(vec![oversized.questions.0[0].clone(); 9]);
+        assert!(c.try_create_poll(oversized).is_err());
+        assert_eq!(c.count(), 1);
+    });
+}
+
+#[test]
 fn concurrent_distinct_wallets_merge_but_duplicate_answers_do_not() {
     for same_wallet in [false, true] {
         let f = Fixture::new();
