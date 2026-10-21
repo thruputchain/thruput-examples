@@ -1,0 +1,155 @@
+// @vitest-environment jsdom
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import {
+  createPubkeyAccount,
+  createTransaction,
+  defaultWalletAdapter,
+  hashSignedTransaction,
+  PrivateKeySigner,
+  serializeSignedTransaction,
+  signTransaction,
+  toBase58,
+  toHex0x,
+} from "@thruputchain/client";
+import {
+  blockHeight,
+  contractAddress,
+  networkHash,
+  sha256Hash,
+} from "@thruputchain/protocol";
+import type { ReactNode } from "react";
+import { GAS, methods } from "../contracts/polls";
+import { useTransaction } from "./use-transaction";
+import { loadPending, savePending, type Pending } from "./pending";
+
+const mocks = vi.hoisted(() => ({ execute: vi.fn() }));
+vi.mock("@thruputchain/react", () => ({
+  useClient: () => ({ network: { networkHash: new Uint8Array(32) } }),
+  useExecute: () => ({ mutateAsync: mocks.execute }),
+  useWaitForTransactionReceipt: () => ({
+    data: null,
+    error: new Error("Timed out"),
+    refetch: vi.fn(),
+    isFetching: false,
+  }),
+}));
+const config = {
+  networkId: toBase58(new Uint8Array(32)),
+  address: contractAddress(new Uint8Array(32).fill(2)),
+};
+const key = `voting:v1:${config.networkId}:${toBase58(config.address)}`;
+const invocation = methods.vote.invocation(config.address, GAS, {
+  id: 0n,
+  question: 0n,
+  option: 0n,
+});
+let pending: Pending;
+let queries: QueryClient;
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <QueryClientProvider client={queries}>{children}</QueryClientProvider>
+);
+
+beforeEach(async () => {
+  const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
+  const account = createPubkeyAccount({ signer });
+  const transaction = createTransaction({
+    invocation: defaultWalletAdapter.createRootInvocation(account.address, {
+      invocation,
+      gasLimit: GAS,
+    }),
+    auth_claim: account.authClaim,
+    contracts_to_deploy: [],
+    uniquifier: { nonce: 1n, block_expiry_height: blockHeight(100n) },
+  });
+  const signed = await signTransaction(
+    transaction,
+    account.signers,
+    networkHash(sha256Hash(new Uint8Array(32))),
+  );
+  pending = {
+    version: 1,
+    label: "Submit answer",
+    record: {
+      signedTransaction: toHex0x(serializeSignedTransaction(signed)),
+      hash: toBase58(hashSignedTransaction(signed)),
+      account: {
+        address: toBase58(account.address),
+        publicKey: toBase58(signer.publicKey.ed25519),
+        nonce: "0",
+      },
+      networkHash: config.networkId,
+    },
+  };
+  queries = new QueryClient();
+  mocks.execute.mockReset();
+  Object.defineProperty(navigator, "locks", {
+    configurable: true,
+    value: {
+      request: async (
+        _key: string,
+        _options: unknown,
+        run: (held: object) => Promise<void>,
+      ) => run({}),
+    },
+  });
+});
+afterEach(() => {
+  cleanup();
+  queries.clear();
+  localStorage.clear();
+  vi.restoreAllMocks();
+});
+
+it("round-trips the complete signed record and blocks new writes after reload and timeout", async () => {
+  savePending(localStorage, key, pending);
+  expect(loadPending(localStorage, key, config.networkId)).toEqual(pending);
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  await waitFor(() => expect(result.current.pending).toEqual(pending));
+  expect(result.current.blocked).toBe(true);
+  act(() => result.current.send("Another answer", invocation));
+  act(() => result.current.finish());
+  await waitFor(() => expect(result.current.busy).toBe(false));
+  expect(mocks.execute).not.toHaveBeenCalled();
+  expect(loadPending(localStorage, key, config.networkId)).toEqual(pending);
+});
+
+it("preserves corrupt evidence and blocks new signing", async () => {
+  localStorage.setItem(key, "corrupt");
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  await waitFor(() => expect(result.current.storageError).toBe(true));
+  act(() => result.current.send("Answer", invocation));
+  expect(mocks.execute).not.toHaveBeenCalled();
+  expect(localStorage.getItem(key)).toBe("corrupt");
+});
+
+it("stops before submission when signed-record storage fails", async () => {
+  const broadcast = vi.fn();
+  mocks.execute.mockImplementation(async ({ options }) => {
+    await options.onSigned(pending.record);
+    broadcast();
+  });
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new Error("Quota exceeded");
+  });
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  act(() => result.current.send("Answer", invocation));
+  await waitFor(() => expect(result.current.storageError).toBe(true));
+  expect(result.current.pending?.record).toEqual(pending.record);
+  expect(broadcast).not.toHaveBeenCalled();
+  expect(result.current.blocked).toBe(true);
+});
+
+it("retains the signed record after an uncertain submission", async () => {
+  mocks.execute.mockImplementation(async ({ options }) => {
+    await options.onSigned(pending.record);
+    throw new Error("Connection lost");
+  });
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  act(() => result.current.send("Submit answer", invocation));
+  await waitFor(() => expect(result.current.message).toBe("Connection lost"));
+  expect(loadPending(localStorage, key, config.networkId)).toEqual(pending);
+  act(() => result.current.send("Submit answer", invocation));
+  expect(mocks.execute).toHaveBeenCalledTimes(1);
+});

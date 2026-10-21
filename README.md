@@ -45,7 +45,7 @@ read events, and submit a batch.
 
 ## App visual identity
 
-Counter, Swap, and Token Launchpad use the Stellar Thruput identity and follow
+Counter, Voting, Swap, and Token Launchpad use the Stellar Thruput identity and follow
 the system's light or dark theme. Each app keeps its tokens in `src/styles.css`.
 Inter Variable is used for headings, body text, and UI actions. Inconsolata
 Variable is used for code, numbers, balances, and system labels. Both are
@@ -119,6 +119,7 @@ Suggested order: **Counter → Fibonacci → Events → Cross-call → error han
 | Example | What you learn |
 | --- | --- |
 | [Counter](contracts/counter/README.md) | Store and update a non-negative counter |
+| [Voting](contracts/voting/README.md) | Admin permissions, poll lifecycle, and mergeable vote totals |
 | [Fibonacci](contracts/fibonacci/README.md) | A stateless method, a declared error, and an event |
 | [Events](contracts/events/README.md) | Event payloads and indexed topics |
 | [Cross-call](contracts/cross-call/README.md) | Call another contract through its generated client |
@@ -146,6 +147,7 @@ These combine several concepts. Read a small example first.
 | App | Purpose |
 | --- | --- |
 | [Counter](apps/counter/README.md) | Development-signed concurrent updates or wallet-approved button updates, with reload recovery |
+| [Voting](apps/voting/README.md) | Create multi-question polls, vote once per question, and view live results on localnode |
 | [Token Launchpad](apps/token-launchpad/README.md) | Create tokens with an external wallet and browse indexed launches |
 | [Swap](apps/swap/README.md) | Create pools, swap tokens, and manage liquidity |
 
