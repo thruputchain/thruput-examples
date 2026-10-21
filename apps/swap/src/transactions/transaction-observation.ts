@@ -2,7 +2,7 @@ import {
   hashFromBase58,
   toBase58,
   TransactionReceiptTimeoutError,
-  TransactionRejectedError,
+  NativeRpcError,
   type CoreThruputClient,
   type TransactionReceipt,
 } from "@thruputchain/client";
@@ -10,26 +10,39 @@ import {
   TransactionExecutionError,
   TransactionObservationError,
 } from "@thruputchain/client/wallet";
-import { ExecResult, networkHash } from "@thruputchain/protocol";
+import { networkHash } from "@thruputchain/protocol";
 import { isBase58Identifier } from "@/lib/address";
 import type { WriteResult } from "./write-boundary";
 
 export function receiptResult(receipt: TransactionReceipt): WriteResult {
+  if (!("result" in receipt.execution))
+    return {
+      kind: "indeterminate",
+      hash: toBase58(receipt.transactionHash),
+      reason: "other",
+    };
   return {
     kind:
-      receipt.execResult === ExecResult.ExecResultOK
+      receipt.execution.result === "return"
         ? "committedSuccess"
         : "committedFailure",
-    hash: toBase58(receipt.txHash),
+    hash: toBase58(receipt.transactionHash),
     receipt,
   };
 }
 
 export function observationFailure(hash: string, error: unknown): WriteResult {
-  if (error instanceof TransactionRejectedError)
-    return { kind: "invalid", hash, reason: error.reason };
+  if (
+    error instanceof NativeRpcError &&
+    error.decoded.classification === "known" &&
+    error.decoded.data.kind === "transactionInvalid"
+  )
+    return { kind: "invalid", hash, reason: error.rpcMessage };
   if (error instanceof TransactionReceiptTimeoutError) {
-    const status = error.lastStatus?.status;
+    const status =
+      error.lastStatus && "status" in error.lastStatus
+        ? error.lastStatus.status
+        : undefined;
     return {
       kind: "indeterminate",
       hash,
@@ -54,7 +67,7 @@ export function executionFailure(error: unknown): WriteResult | undefined {
   if (error instanceof TransactionExecutionError)
     return receiptResult(error.receipt);
   if (error instanceof TransactionObservationError)
-    return observationFailure(toBase58(error.txHash), error.cause);
+    return observationFailure(toBase58(error.transactionHash), error.cause);
 }
 
 // Public observation remains available after the signing wallet is disposed.

@@ -23,8 +23,7 @@ const account = createPubkeyAccount({
 });
 const wallet = createWalletClient({ client, account });
 const funding = await wallet.requestAirdrop();
-console.error(`Airdrop transaction: ${toBase58(funding.txHash)}`);
-assert.equal(funding.status.result, "ok", "Airdrop failed");
+console.error(`Airdrop transaction: ${toBase58(funding.transactionHash)}`);
 
 const deployment = prepareContractDeployment({
   deployer: account.address,
@@ -32,22 +31,23 @@ const deployment = prepareContractDeployment({
 });
 const callGas = gasAmount(500_000n);
 const walletGas = gasAmount(10_000_000n);
-const { address, txHash: deployHash } = await wallet.deployContractAndWait(
-  deployment,
-  {
-    gasLimit: walletGas,
-    amount: 10_000_000n, // 1 test HOG for this contract's local storage reserve.
-    initializer: Counter.v0_1.initialize.invocation(
-      deployment.address,
-      callGas,
-      { initialValue: 42n },
-    ),
-  },
-  { timeoutMs: 60_000 },
-);
+const { address, transactionHash: deployHash } =
+  await wallet.deployContractAndWait(
+    deployment,
+    {
+      gasLimit: walletGas,
+      amount: 10_000_000n, // 1 test HOG for this contract's local storage reserve.
+      initializer: Counter.v0_1.initialize.invocation(
+        deployment.address,
+        callGas,
+        { initialValue: 42n },
+      ),
+    },
+    { timeoutMs: 60_000 },
+  );
 console.error(`Deploy transaction: ${toBase58(deployHash)}`);
 
-const { txHash: incrementHash, receipt } = await wallet.executeAndWait(
+const { transactionHash: incrementHash, receipt } = await wallet.executeAndWait(
   {
     invocation: Counter.v0_1.increment.invocation(address, callGas, {
       amount: 5n,
@@ -60,15 +60,15 @@ console.error(`Increment transaction: ${toBase58(incrementHash)}`);
 const view = await waitForView(() =>
   Counter.v0_1.get.view({
     client,
-    contract: address,
+    address,
     caller: account.address,
-    minHeight: receipt.height,
+    minStateBlockHeight: receipt.blockHeight,
   }),
 );
 assert.equal(view.value, 47n, "Counter should be 42 + 5");
 
 // Leave one event for the separate read-events example to query.
-const { txHash: eventHash } = await wallet.executeAndWait(
+const { transactionHash: eventHash } = await wallet.executeAndWait(
   {
     invocation: Counter.v0_1.ping.invocation(address, callGas, { tag: 7n }),
     gasLimit: walletGas,

@@ -9,7 +9,7 @@ console.log(
     {
       rpcUrl: client.cluster.rpcUrl,
       networkHash: toBase58(client.network.networkHash),
-      height: tip.height.toString(),
+      height: tip.blockHeight.toString(),
     },
     null,
     2,

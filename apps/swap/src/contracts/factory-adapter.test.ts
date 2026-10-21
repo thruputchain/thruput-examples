@@ -23,32 +23,46 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("createSwapFactoryReadAdapter", () => {
   it("forwards typed view arguments and normalizes pool fields", async () => {
-    const result = (value: unknown) => ({ value, height: 4n, events: [] });
+    const result = (value: unknown) => ({
+      value,
+      stateBlockHeight: 4n,
+      events: [],
+    });
     methods.allPairsLength.view.mockResolvedValue(result(1n));
     methods.pairAt.view.mockResolvedValue(result([address(1), address(2)]));
     methods.getPair.view.mockResolvedValue(result(address(3)));
-    methods.poolAddresses.view.mockResolvedValue(result({
-      liquidity_token: address(4),
-      handler: address(5),
-      driver: address(6),
-    }));
+    methods.poolAddresses.view.mockResolvedValue(
+      result({
+        liquidity_token: address(4),
+        handler: address(5),
+        driver: address(6),
+      }),
+    );
     methods.feeTo.view.mockResolvedValue(result(null));
-    methods.poolFunding.view.mockResolvedValue(result({ min: 10n, recommended: 20n }));
-    const client = { view: vi.fn() };
+    methods.poolFunding.view.mockResolvedValue(
+      result({ min: 10n, recommended: 20n }),
+    );
+    const client = { simulateInvocation: vi.fn() };
     const adapter = createSwapFactoryReadAdapter({
       client,
       contract: address(7),
       caller: address(8),
     });
 
-    await expect(adapter.allPairsLength()).resolves.toMatchObject({ value: 1n });
+    await expect(adapter.allPairsLength()).resolves.toMatchObject({
+      value: 1n,
+    });
     await expect(adapter.pairAt(0n)).resolves.toMatchObject({
       value: [address(1), address(2)],
     });
-    await expect(adapter.getPair(address(1), address(2))).resolves.toMatchObject({
+    await expect(
+      adapter.getPair(address(1), address(2)),
+    ).resolves.toMatchObject({
       value: address(3),
     });
-    await expect(adapter.poolAddresses(address(1), address(2))).resolves.toMatchObject({
+    await expect(
+      adapter.poolAddresses(address(1), address(2)),
+    ).resolves.toMatchObject({
       value: {
         liquidityToken: address(4),
         handler: address(5),
@@ -64,7 +78,9 @@ describe("createSwapFactoryReadAdapter", () => {
       expect.objectContaining({ args: { index: 0n } }),
     );
     expect(methods.getPair.view).toHaveBeenCalledWith(
-      expect.objectContaining({ args: { tokenA: address(1), tokenB: address(2) } }),
+      expect.objectContaining({
+        args: { tokenA: address(1), tokenB: address(2) },
+      }),
     );
   });
 });

@@ -18,7 +18,7 @@ use integration_test::{Harness, InvocationOptions, SubmissionOutcome, decode_ret
 use thruput_xdr::types::ContractAddress;
 
 const INTERFACE: &str = "ERC20";
-const VERSION: &str = "0.1.60";
+const VERSION: &str = "0.1.62";
 
 #[tokio::test]
 async fn erc20_lifecycle_over_rpc() {
@@ -199,10 +199,10 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
 fn describe(outcome: &SubmissionOutcome) -> String {
     match outcome {
         SubmissionOutcome::Committed(_) => "committed".to_owned(),
-        SubmissionOutcome::Failed(receipt) => format!("committed but failed: {:?}", receipt.status),
+        SubmissionOutcome::Failed(receipt) => {
+            format!("committed but failed: {:?}", receipt.execution)
+        }
         SubmissionOutcome::Pending { .. } => "still pending when the timeout elapsed".to_owned(),
         SubmissionOutcome::Expired { .. } => "expired before committing".to_owned(),
-        SubmissionOutcome::Dropped { error, .. } => format!("dropped by the scheduler: {error:?}"),
-        SubmissionOutcome::Invalid { reason, .. } => format!("rejected by the scheduler: {reason}"),
     }
 }

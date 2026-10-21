@@ -105,7 +105,7 @@ describe("requiredAllowanceFor", () => {
     });
   });
 
-  it("preserves terminal exposure from legacy records without block evidence", () => {
+  it("preserves terminal exposure when block evidence is missing", () => {
     const liquidity = createAddLiquidityOperation(config, {
       amountsDesired: [5n, 7n],
       amountsMin: [4n, 6n],

@@ -80,12 +80,13 @@ try {
     }
   }
   assert.equal(startup.ok, true, node.stderr());
+  assert.equal(typeof startup.data.rpcUrl, "string", "Missing isolated RPC URL");
 
   async function run(name, settings = {}, expectedCode = 0) {
     const command = spawn(
       join(root, "node_modules/.bin/tsx"),
       [`examples/typescript/${name}.ts`],
-      { THRUPUT_RPC_URL: startup.data.rpc_url, ...settings },
+      { THRUPUT_RPC_URL: startup.data.rpcUrl, ...settings },
     );
     const code = await new Promise((resolve, reject) => {
       command.child.once("error", reject);

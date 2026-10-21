@@ -14,13 +14,13 @@ if [[ "$cli_version" =~ $version_pattern ]]; then
   patch="${BASH_REMATCH[3]}"
   prerelease="${BASH_REMATCH[4]}"
 
-  # Anything strictly above 0.32.1, or 0.32.1 itself. A prerelease of 0.32.1
+  # Anything strictly above 0.33.0, or 0.33.0 itself. A prerelease of 0.33.0
   # sorts below the stable release, so it does not satisfy the minimum.
-  if (( major > 0 || minor > 32 || (minor == 32 && patch > 1) )) \
-    || { (( minor == 32 && patch == 1 )) && [[ -z "$prerelease" ]]; }; then
+  if (( major > 0 || minor > 33 || (minor == 33 && patch > 0) )) \
+    || { (( minor == 33 && patch == 0 )) && [[ -z "$prerelease" ]]; }; then
     exit 0
   fi
 fi
 
-printf 'Thruput CLI 0.32.1 or newer is required; found %s.\n' "$cli_version" >&2
+printf 'Thruput CLI 0.33.0 or newer is required; found %s.\n' "$cli_version" >&2
 exit 1

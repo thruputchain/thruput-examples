@@ -9,13 +9,15 @@ import {
 } from "./transactions";
 
 const METHODS = new Set([
-  "groundhog_networkInfo",
-  "groundhog_chainTip",
-  "groundhog_view",
-  "groundhog_getBalance",
-  "groundhog_getTransactionReceipt",
-  "groundhog_getTransactionStatus",
-  "groundhog_sendRawTransaction",
+  "getVersionInfo",
+  "getNetworkInfo",
+  "getServerLimits",
+  "getChainTip",
+  "simulateInvocation",
+  "getBalance",
+  "getTransactionReceipt",
+  "getTransactionStatus",
+  "sendTransaction",
 ]);
 const MAX_BYTES = 1_000_000;
 
@@ -182,7 +184,7 @@ export function createApiHandler(
       json(response, 403, { error: "RPC method is not available in Counter." });
       return true;
     }
-    if (body.method === "groundhog_sendRawTransaction") {
+    if (body.method === "sendTransaction") {
       if (!transactions) {
         json(response, 403, {
           error: "Submit wallet transactions through the wallet provider.",

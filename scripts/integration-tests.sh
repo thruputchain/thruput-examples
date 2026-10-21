@@ -2,7 +2,7 @@
 
 # Run integration (RPC-targeted) tests.
 #
-# Requires thruput-cli 0.32.1 or newer and a compatible hog-devnode.
+# Requires thruput-cli 0.33.0 or newer and a compatible hog-devnode.
 
 set -euo pipefail
 

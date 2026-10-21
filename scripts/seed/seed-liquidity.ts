@@ -12,7 +12,7 @@ export function assertLiquidityMint(
   recipient: ContractAddress,
 ): void {
   const mints = swap_if.v0_1.events.LiquidityMintEvent.allFromReceipt(receipt, {
-    contractAddress: handler,
+    address: handler,
   });
   if (
     mints.length !== 1 ||

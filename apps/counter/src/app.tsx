@@ -25,7 +25,7 @@ type Runtime = {
 
 export function App() {
   const [runtime, setRuntime] = useState<Runtime | null>(null);
-  const [message, setMessage] = useState("Connecting to Thruput…");
+  const [message, setMessage] = useState("");
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -59,6 +59,7 @@ export function App() {
       clearTimeout(timer);
     };
   }, []);
+  if (!runtime && !message) return null;
   if (!runtime)
     return (
       <main className="mx-auto max-w-3xl p-6">
@@ -164,7 +165,7 @@ export function CounterPage({
               wallet.
             </p>
           </div>
-          {!snapshot.ready ? (
+          {!snapshot.ready && snapshot.message ? (
             <p role="status" className="rounded-md border bg-card p-4">
               {snapshot.message}
             </p>

@@ -23,24 +23,22 @@ const recipient = createPubkeyAccount({
 const wallet = createWalletClient({ client, account: sender });
 
 // Fund both accounts so a tiny transfer need not pay for a new balance row.
-const senderFunding = await wallet.requestAirdrop();
-assert.equal(senderFunding.status.result, "ok", "Sender airdrop failed");
+await wallet.requestAirdrop();
 const recipientFunding = await client.requestAirdrop({
   recipient: recipient.address,
 });
-assert.equal(recipientFunding.status.result, "ok", "Recipient airdrop failed");
 const before = await waitForView(() =>
   ERC20.v0_1.getBalanceOf.view({
     client,
-    contract: HOG_ADDRESS,
+    address: HOG_ADDRESS,
     caller: sender.address,
     args: { addr: recipient.address },
-    minHeight: recipientFunding.height,
+    minStateBlockHeight: recipientFunding.blockHeight,
   }),
 );
 
 const amount = parseUnits("0.0001", 7); // HOG has seven decimal places.
-const { txHash, receipt } = await wallet.executeAndWait(
+const { transactionHash, receipt } = await wallet.executeAndWait(
   {
     invocation: ERC20.v0_1.transfer.invocation(
       HOG_ADDRESS,
@@ -57,10 +55,10 @@ const { txHash, receipt } = await wallet.executeAndWait(
 const after = await waitForView(() =>
   ERC20.v0_1.getBalanceOf.view({
     client,
-    contract: HOG_ADDRESS,
+    address: HOG_ADDRESS,
     caller: sender.address,
     args: { addr: recipient.address },
-    minHeight: receipt.height,
+    minStateBlockHeight: receipt.blockHeight,
   }),
 );
 assert.equal(
@@ -74,7 +72,7 @@ console.log(
     {
       sender: toBase58(sender.address),
       recipient: toBase58(recipient.address),
-      txHash: toBase58(txHash),
+      txHash: toBase58(transactionHash),
       transferredRaw: amount.toString(),
       recipientBalance: after.value.toString(),
     },

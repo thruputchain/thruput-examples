@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ExecResult } from "@thruputchain/protocol";
 import type { useWalletCounter } from "./use-wallet-counter";
 import { BlockchainIdentifier } from "../components/blockchain-identifier";
 
@@ -11,6 +10,8 @@ export function WalletActivity({
   explorerUrl: string | null;
 }) {
   const { pending, receipt, execution, busy, message } = activity;
+  const knownReceipt =
+    receipt.data && "result" in receipt.data.execution ? receipt.data : null;
   const [forget, setForget] = useState<string | null>(null);
   const recordIdentity = pending.record?.hash ?? "unreadable";
   const buttonClass =
@@ -63,10 +64,11 @@ export function WalletActivity({
               explorerUrl={explorerUrl}
             />
           </p>
-          {receipt.data ? (
+          {knownReceipt ? (
             <>
               <p role="status">
-                {receipt.data.execResult === ExecResult.ExecResultOK
+                {"result" in knownReceipt.execution &&
+                knownReceipt.execution.result === "return"
                   ? "Counter update committed."
                   : "The transaction committed with failed execution."}
               </p>
@@ -127,7 +129,7 @@ export function WalletActivity({
           Retry storage
         </button>
       ) : null}
-      {pending.error || (pending.record && !receipt.data) ? (
+      {pending.error || (pending.record && !knownReceipt) ? (
         <>
           <button
             type="button"

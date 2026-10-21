@@ -11,7 +11,8 @@ import {
   preparePoolCreation,
 } from "./pool-creation";
 
-const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
+const address = (byte: number) =>
+  contractAddress(new Uint8Array(32).fill(byte));
 const config = {
   rpcUrl: new URL("http://127.0.0.1:9545"),
   networkId: toBase58(new Uint8Array(32).fill(0x00)),
@@ -30,29 +31,55 @@ const input = {
 describe("preparePoolCreation", () => {
   it("retries a changed factory snapshot without treating it as a different pool", async () => {
     const deps = dependencies();
-    const pool = { handler: address(7), driver: address(8), liquidityToken: address(9) };
+    const pool = {
+      handler: address(7),
+      driver: address(8),
+      liquidityToken: address(9),
+    };
     vi.mocked(deps.factory.getPair).mockResolvedValue(view(pool.handler));
-    vi.mocked(deps.factory.poolAddresses).mockResolvedValueOnce({ ...view(pool), height: 11n }).mockResolvedValue(view(pool));
-    const review = await preparePoolCreation(config, input, 0n, { ...deps, existingPool: pool });
+    vi.mocked(deps.factory.poolAddresses)
+      .mockResolvedValueOnce({ ...view(pool), stateBlockHeight: 11n })
+      .mockResolvedValue(view(pool));
+    const review = await preparePoolCreation(config, input, 0n, {
+      ...deps,
+      existingPool: pool,
+    });
     expect(review.pool).toEqual(pool);
     expect(deps.factory.getPair).toHaveBeenCalledTimes(2);
-    vi.mocked(deps.factory.poolAddresses).mockResolvedValue({ ...view(pool), height: 11n });
-    await expect(preparePoolCreation(config, input, 0n, { ...deps, existingPool: pool })).rejects.toMatchObject({ code: "staleReads" });
+    vi.mocked(deps.factory.poolAddresses).mockResolvedValue({
+      ...view(pool),
+      stateBlockHeight: 11n,
+    });
+    await expect(
+      preparePoolCreation(config, input, 0n, { ...deps, existingPool: pool }),
+    ).rejects.toMatchObject({ code: "staleReads" });
   });
 
   it("still rejects different pool addresses at the same height", async () => {
     const deps = dependencies();
-    const pool = { handler: address(7), driver: address(8), liquidityToken: address(9) };
+    const pool = {
+      handler: address(7),
+      driver: address(8),
+      liquidityToken: address(9),
+    };
     vi.mocked(deps.factory.getPair).mockResolvedValue(view(pool.handler));
-    vi.mocked(deps.factory.poolAddresses).mockResolvedValue(view({ ...pool, driver: address(10) }));
-    await expect(preparePoolCreation(config, input, 0n, { ...deps, existingPool: pool })).rejects.toMatchObject({ code: "poolIdentity" });
+    vi.mocked(deps.factory.poolAddresses).mockResolvedValue(
+      view({ ...pool, driver: address(10) }),
+    );
+    await expect(
+      preparePoolCreation(config, input, 0n, { ...deps, existingPool: pool }),
+    ).rejects.toMatchObject({ code: "poolIdentity" });
     expect(deps.factory.getPair).toHaveBeenCalledOnce();
   });
 
   it("rejects the wrong network before any authoritative contract reads", async () => {
     const deps = dependencies();
-    deps.client.getNetworkInfo.mockResolvedValue({ networkHash: new Uint8Array(32).fill(1) });
-    await expect(preparePoolCreation(config, input, 0n, deps)).rejects.toMatchObject({ name: "NetworkMismatchError" });
+    deps.client.getNetworkInfo.mockResolvedValue({
+      networkHash: new Uint8Array(32).fill(1),
+    });
+    await expect(
+      preparePoolCreation(config, input, 0n, deps),
+    ).rejects.toMatchObject({ name: "NetworkMismatchError" });
     expect(deps.factory.getPair).not.toHaveBeenCalled();
     expect(deps.token).not.toHaveBeenCalled();
   });
@@ -71,7 +98,9 @@ describe("preparePoolCreation", () => {
     const deps = dependencies();
     vi.mocked(deps.factory!.getPair).mockResolvedValue(view(address(7)));
 
-    await expect(preparePoolCreation(config, input, 0n, deps)).rejects.toMatchObject({
+    await expect(
+      preparePoolCreation(config, input, 0n, deps),
+    ).rejects.toMatchObject({
       code: "poolExists",
     });
     expect(deps.factory!.poolAddresses).not.toHaveBeenCalled();
@@ -79,11 +108,13 @@ describe("preparePoolCreation", () => {
 
   it("rejects a malformed funding policy", async () => {
     const deps = dependencies();
-    vi.mocked(deps.factory!.poolFunding).mockResolvedValue(view({ min: 1_001n, recommended: 1_000n }));
-
-    await expect(preparePoolCreation(config, input, 0n, deps)).rejects.toBeInstanceOf(
-      PoolCreationValidationError,
+    vi.mocked(deps.factory!.poolFunding).mockResolvedValue(
+      view({ min: 1_001n, recommended: 1_000n }),
     );
+
+    await expect(
+      preparePoolCreation(config, input, 0n, deps),
+    ).rejects.toBeInstanceOf(PoolCreationValidationError);
   });
 });
 
@@ -99,16 +130,25 @@ describe("integerSquareRoot", () => {
 });
 
 function dependencies() {
-  const client = { view: vi.fn(), getNetworkInfo: vi.fn().mockResolvedValue({ networkHash: new Uint8Array(32) }) };
+  const client = {
+    simulateInvocation: vi.fn(),
+    getNetworkInfo: vi
+      .fn()
+      .mockResolvedValue({ networkHash: new Uint8Array(32) }),
+  };
   const factory: SwapFactoryReadAdapter = {
     allPairsLength: vi.fn(),
     pairAt: vi.fn(),
     getPair: vi.fn().mockResolvedValue(view(null)),
     poolAddresses: vi.fn(),
-    poolFunding: vi.fn().mockResolvedValue(view({ min: 100n, recommended: 1_000n })),
+    poolFunding: vi
+      .fn()
+      .mockResolvedValue(view({ min: 100n, recommended: 1_000n })),
     feeTo: vi.fn(),
   };
-  const token = vi.fn((contract) => tokenAdapter(contract === config.nativeHogAddress));
+  const token = vi.fn((contract) =>
+    tokenAdapter(contract === config.nativeHogAddress),
+  );
   return { client, factory, token };
 }
 
@@ -125,5 +165,5 @@ function tokenAdapter(native: boolean): Erc20ReadAdapter {
 }
 
 function view<T>(value: T) {
-  return { value, height: 10n, gasUsed: 0n, events: [] };
+  return { value, stateBlockHeight: 10n, gasUsed: 0n, events: [] };
 }

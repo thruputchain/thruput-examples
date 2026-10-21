@@ -1,6 +1,4 @@
-import {
-  type TransactionReceipt,
-} from "@thruputchain/client";
+import { type TransactionReceipt } from "@thruputchain/client";
 import {
   gasAmount,
   type ContractAddress,
@@ -25,7 +23,9 @@ export const CRANK_FRAME_GAS = 13_700_000n;
 
 const TARGET_GAS = gasAmount(CRANK_FRAME_GAS);
 
-export function buildProcessRequestsTarget(driver: ContractAddress): Invocation {
+export function buildProcessRequestsTarget(
+  driver: ContractAddress,
+): Invocation {
   return SwapDriver.v0_1.processRequests.invocation(driver, TARGET_GAS);
 }
 
@@ -34,7 +34,7 @@ export function decodeRequestsProcessedSummary(
   driver: ContractAddress,
 ): { processed: bigint; failed: bigint } | null {
   const summaries = RequestsProcessed.allFromReceipt(receipt, {
-    contractAddress: driver,
+    address: driver,
   });
   if (summaries.length === 0) return null;
   if (summaries.length !== 1) {

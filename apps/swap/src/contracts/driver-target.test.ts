@@ -1,9 +1,5 @@
 import type { TransactionReceipt } from "@thruputchain/client";
-import {
-  contractAddress,
-  ExecResult,
-  sha256Hash,
-} from "@thruputchain/protocol";
+import { contractAddress, sha256Hash } from "@thruputchain/protocol";
 import { CxsWriter } from "@thruputchain/xdr";
 import { describe, expect, it } from "vitest";
 
@@ -36,17 +32,17 @@ describe("decodeRequestsProcessedSummary", () => {
     writer.writeUint32(3n);
     writer.writeUint32(1n);
     const receipt = {
-      txHash: sha256Hash(new Uint8Array(32).fill(1)),
-      height: 2n,
-      execResult: ExecResult.ExecResultOK,
+      transactionHash: sha256Hash(new Uint8Array(32).fill(1)),
+      blockHeight: 2n,
+      execution: { result: "return" as const, returnData: new Uint8Array() },
       gasUsed: 0n,
-      events: [{
-        contractAddress: driver,
-        topics: [RequestsProcessed.signature],
-        data: writer.finish(),
-      }],
-      returnData: new Uint8Array(),
-      abortData: null,
+      events: [
+        {
+          address: driver,
+          topics: [RequestsProcessed.signature],
+          data: writer.finish(),
+        },
+      ],
     } satisfies TransactionReceipt;
 
     expect(decodeRequestsProcessedSummary(receipt, driver)).toEqual({

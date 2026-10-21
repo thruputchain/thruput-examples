@@ -30,12 +30,14 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const HEADERS_TIMEOUT_MS = 10_000;
 const KEEP_ALIVE_TIMEOUT_MS = 5_000;
 const PRODUCTION_RPC_METHODS = new Set([
-  "groundhog_networkInfo",
-  "groundhog_chainTip",
-  "groundhog_getEvents",
-  "groundhog_getTransactionReceipt",
-  "groundhog_getTransactionStatus",
-  "groundhog_view",
+  "getVersionInfo",
+  "getNetworkInfo",
+  "getServerLimits",
+  "getChainTip",
+  "getEvents",
+  "getTransactionReceipt",
+  "getTransactionStatus",
+  "simulateInvocation",
 ]);
 const MIME_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -81,10 +83,16 @@ export function createRegistryHttpServer(
     try {
       const url = requestUrl(request);
       if (url.pathname === "/api/config") {
-        if (request.method !== "GET") throw new HttpError(405, "method_not_allowed", "GET is required");
+        if (request.method !== "GET")
+          throw new HttpError(405, "method_not_allowed", "GET is required");
         await requireEmptyBody(request);
         rejectParameters(url);
-        if (!production?.publicConfig) throw new HttpError(503, "configuration_unavailable", "Public configuration is unavailable");
+        if (!production?.publicConfig)
+          throw new HttpError(
+            503,
+            "configuration_unavailable",
+            "Public configuration is unavailable",
+          );
         return sendJson(response, 200, production.publicConfig);
       }
       const allowedMethod = methodForPath(url.pathname);
@@ -143,7 +151,10 @@ export function createRegistryHttpServer(
         );
       }
 
-      if (productionContext === undefined || !productionContext.staticDirectory) {
+      if (
+        productionContext === undefined ||
+        !productionContext.staticDirectory
+      ) {
         return rejectBeforeBody(
           request,
           response,
@@ -348,8 +359,12 @@ interface ProductionContext {
 function createProductionContext(
   options: ProductionHttpOptions,
 ): ProductionContext {
-  const staticDirectory = options.staticDirectory ? realpathSync(options.staticDirectory) : "";
-  const indexPath = staticDirectory ? realpathSync(path.join(staticDirectory, "index.html")) : "";
+  const staticDirectory = options.staticDirectory
+    ? realpathSync(options.staticDirectory)
+    : "";
+  const indexPath = staticDirectory
+    ? realpathSync(path.join(staticDirectory, "index.html"))
+    : "";
   if (staticDirectory && !isWithin(staticDirectory, indexPath)) {
     throw new Error("Static index must be inside the static directory");
   }

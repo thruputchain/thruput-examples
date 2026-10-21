@@ -1,7 +1,6 @@
 import {
   createThruputClient,
   defineCluster,
-  getNetworkInfo,
   hashFromBase58,
   HttpTransport,
   toBase58,
@@ -12,7 +11,7 @@ import { networkHash } from "@thruputchain/protocol";
 
 import type { AppConfig } from "@/config";
 
-export function createReadClient(
+export async function createReadClient(
   config: Pick<AppConfig, "rpcUrl" | "networkId">,
 ): Promise<ConnectedThruputClient> {
   const target = config.rpcUrl.href;
@@ -20,26 +19,23 @@ export function createReadClient(
     fetch: (...args) => globalThis.fetch(...args),
     timeoutMs: 10_000,
   });
-  return createThruputClient({
+  const client = await createThruputClient({
     cluster: defineCluster({
       name: "launchpad",
       rpcUrl: target,
       networkHash: networkHash(hashFromBase58(config.networkId)),
       capabilities: [] as const,
     }),
-    transport: {
-      async request(method, params, options) {
-        // Retain network checks for evidence reads after initial connection.
-        if (method !== "groundhog_networkInfo") {
-          await assertExpectedNetwork(
-            { getNetworkInfo: () => getNetworkInfo(transport) },
-            config.networkId,
-          );
-        }
-        return transport.request(method, params, options);
-      },
-    },
+    transport,
   });
+  const request = transport.request.bind(transport);
+  transport.request = async (method, params, options) => {
+    // Retain network checks for evidence reads after initial connection.
+    if (method !== "getNetworkInfo")
+      await assertExpectedNetwork(client, config.networkId);
+    return request(method, params, options);
+  };
+  return client;
 }
 
 export async function assertExpectedNetwork(

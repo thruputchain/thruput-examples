@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { createServer } from "vite";
-import { PrivateKeySigner, toBase58 } from "@thruputchain/client";
+import { PrivateKeySigner, toBase58, MockTransport } from "@thruputchain/client";
 import { createPubkeyAccount } from "@thruputchain/client/wallet";
 
 async function checkBrand(page) {
@@ -139,7 +139,12 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/thruput-rpc", async (route) => {
     const request = route.request().postDataJSON();
-    if (!checkingCreation && request.method === "groundhog_view") {
+    if (["getVersionInfo", "getServerLimits"].includes(request.method)) {
+      await route.fulfill({ json: { jsonrpc: "2.0", id: request.id,
+        result: await new MockTransport().request(request.method, request.params) } });
+      return;
+    }
+    if (!checkingCreation && request.method === "simulateInvocation") {
       await route.fulfill({
         json: {
           jsonrpc: "2.0",
@@ -154,7 +159,7 @@ try {
     }
     assert.equal(
       request.method,
-      "groundhog_networkInfo",
+      "getNetworkInfo",
       "No contract reads or writes may follow a network mismatch",
     );
     networkReads += 1;
@@ -368,14 +373,14 @@ try {
     await launchpad.listen();
     const launchOrigin = `http://127.0.0.1:${launchpad.httpServer.address().port}`;
     const launch = await context.newPage();
-    await launch.route("**/thruput-rpc", (route) => {
+    await launch.route("**/thruput-rpc", async (route) => {
       const body = route.request().postDataJSON();
       return route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: body.id,
-          result: { networkHash: scope.networkId },
+          result: body.method === "getNetworkInfo" ? { networkHash: scope.networkId } : await new MockTransport().request(body.method, body.params),
         }),
       });
     });

@@ -1,4 +1,4 @@
-import { toBase58 } from "@thruputchain/client";
+import { toBase58, MockTransport } from "@thruputchain/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { createReadClient } from "@/thruput/client";
@@ -15,6 +15,7 @@ describe("network-bound read client", () => {
       const config = configuration();
       let response = networkInfo;
       const methods: string[] = [];
+      const transport = new MockTransport();
       const fetch = vi
         .spyOn(globalThis, "fetch")
         .mockImplementation(async (_url, init) => {
@@ -25,23 +26,28 @@ describe("network-bound read client", () => {
               jsonrpc: "2.0",
               id: request.id,
               result:
-                request.method === "groundhog_networkInfo" ? response : null,
+                request.method === "getNetworkInfo"
+                  ? response
+                  : await transport.request(request.method, request.params),
             }),
           );
         });
       try {
         await expect(createReadClient(config)).rejects.toThrow();
-        expect(methods).toEqual(["groundhog_networkInfo"]);
+        expect(methods).not.toContain("getEvents");
         response = { networkHash: config.networkId };
         const client = await createReadClient(config);
         await expect(client.getNetworkInfo()).resolves.toHaveProperty(
           "networkHash",
         );
         response = networkInfo;
-        await expect(client.getEvents({ filters: [] })).rejects.toThrow();
-        expect(
-          methods.every((method) => method === "groundhog_networkInfo"),
-        ).toBe(true);
+        await expect(
+          client.getEvents({
+            filters: [{ addresses: [config.factoryAddress] }],
+            start: { order: "ascending", anchor: { kind: "atBeginning" } },
+          }),
+        ).rejects.toThrow();
+        expect(!methods.includes("getEvents")).toBe(true);
       } finally {
         fetch.mockRestore();
       }

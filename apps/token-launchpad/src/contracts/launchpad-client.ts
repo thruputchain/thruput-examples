@@ -112,7 +112,7 @@ export async function reviewFactory(
     config: factory,
     predictedAddress,
     currentReserve,
-    reserveHeight: reserveResult.height,
+    reserveHeight: reserveResult.stateBlockHeight,
     fundingAmount,
     creatorBalance,
     fundingShortfall:

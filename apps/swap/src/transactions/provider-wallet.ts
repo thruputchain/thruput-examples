@@ -1,11 +1,13 @@
 import {
   type CoreThruputClient,
   hashFromBase58,
+  fromHex0x,
   toBase58,
   toHex0x,
 } from "@thruputchain/client";
 import {
   submitAndObserve,
+  createSubmissionEvidence,
   walletGasLimit,
   type ProviderWalletClient,
 } from "@thruputchain/client/wallet";
@@ -120,8 +122,13 @@ export function createProviderWriteBoundary(
       await observer?.onSigned(signed.hash);
       const result = await submitAndObserve(
         client,
-        hashFromBase58(signed.hash),
-        () => wallet.submitTransaction(signed),
+        createSubmissionEvidence(
+          fromHex0x(signed.signedTransaction),
+          hashFromBase58(config.networkId),
+        ),
+        async () => {
+          await wallet.submitTransaction(signed);
+        },
         wait,
       );
       return receiptResult(result.receipt);

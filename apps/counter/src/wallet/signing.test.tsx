@@ -85,8 +85,8 @@ async function setup(withSigner = true) {
   });
   const writer = new CxsWriter();
   writer.writeUint64(10n);
-  vi.spyOn(client, "view").mockResolvedValue({
-    height: 1n,
+  vi.spyOn(client, "simulateInvocation").mockResolvedValue({
+    stateBlockHeight: 1n,
     output: { result: "return", returnData: writer.finish() },
     events: [],
     gasUsed: 1n,

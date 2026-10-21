@@ -11,7 +11,7 @@ import {
 import { useClient } from "@thruputchain/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
-import { blockHeight, ExecResult } from "@thruputchain/protocol";
+import { blockHeight } from "@thruputchain/protocol";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { useTransactions } from "./use-transactions";
@@ -40,12 +40,11 @@ it("shares committed recovery across observers without wallet permission and ret
   };
   const hash = toBase58(new Uint8Array(32).fill(0x02));
   const receipt: TransactionReceipt = {
-    txHash: hashFromBase58(hash),
-    height: blockHeight(1n),
-    execResult: ExecResult.ExecResultTxRootFrameReverted,
+    transactionHash: hashFromBase58(hash),
+    blockHeight: blockHeight(1n),
+    execution: { result: "abort" as const, abortData: new Uint8Array() },
     gasUsed: 0n,
-    returnData: null,
-    abortData: null,
+
     events: [],
   };
   const wait = vi
@@ -70,7 +69,7 @@ it("shares committed recovery across observers without wallet permission and ret
     ]);
     expect(wait).toHaveBeenCalledOnce();
     expect(wait).toHaveBeenCalledWith(
-      receipt.txHash,
+      receipt.transactionHash,
       expect.objectContaining({
         expectedNetworkHash: client.network.networkHash,
         signal: expect.any(AbortSignal),
@@ -80,7 +79,11 @@ it("shares committed recovery across observers without wallet permission and ret
     expect(wait).toHaveBeenCalledOnce();
     queries.clear();
     wait.mockRejectedValueOnce(
-      new TransactionReceiptTimeoutError(receipt.txHash, undefined),
+      new TransactionReceiptTimeoutError(
+        receipt.transactionHash,
+        undefined,
+        undefined,
+      ),
     );
     expect((await result.current.observe(hash)).kind).toBe("indeterminate");
     expect(wait).toHaveBeenCalledTimes(2);

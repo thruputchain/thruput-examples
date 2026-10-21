@@ -36,13 +36,15 @@ use std::sync::{Arc, Mutex};
 use speedex::engine::{Grid, MAX_ASSETS};
 use speedex::max_clear_cells_in;
 use synthetic::{Rng, Shape};
-use thruput_json_rpc_client::GroundhogApiClient;
+use thruput_json_rpc_client::DecodedResponse;
 use thruput_signing::{
     BuildCallTransaction, DEFAULT_PUBKEY_ACCOUNT_NONCE, LocalSigner, PubkeyAccount,
     SignTransactionParams, build_call_transaction, sign_and_encode_transaction_hex,
 };
-use thruput_testkit::rpc_types::decimal::Decimal;
-use thruput_testkit::rpc_types::receipt::TransactionReceipt;
+use thruput_testkit::rpc_types::{
+    requests::EmptyRequest,
+    responses::{ReceiptExecution as ExecutionResult, TransactionReceipt},
+};
 use thruput_testkit::xdr::types::{ContractAddress, NetworkHash};
 use thruput_testkit::xdrs::{self, ReadXDR, WriteXDR};
 use thruput_testkit::{
@@ -51,7 +53,7 @@ use thruput_testkit::{
 };
 
 /// Interface identities the artifacts stamp; `entrypoint_id` derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.60");
+const ERC20: (&str, &str) = ("ERC20", "0.1.62");
 const SPEEDEX: (&str, &str) = ("Speedex", "0.1.0");
 /// The node's default wallet, which serves every key-pair account: `execute` runs a list of
 /// calls from the account, and takes calldata of any length.
@@ -190,13 +192,9 @@ fn native_token() -> Contract {
 }
 
 fn status_of(receipt: &TransactionReceipt) -> String {
-    use thruput_testkit::rpc_types::receipt::ExecStatus;
-    match &receipt.status {
-        ExecStatus::Ok => "ok".to_owned(),
-        ExecStatus::Reverted { message } => {
-            format!("reverted({})", message.as_deref().unwrap_or("")).replace(',', ";")
-        }
-        ExecStatus::DeterministicError { kind } => kind.clone(),
+    match &receipt.execution {
+        ExecutionResult::Return { .. } => "ok".to_owned(),
+        ExecutionResult::Abort { .. } => "reverted".to_owned(),
         other => format!("{other:?}"),
     }
 }
@@ -214,21 +212,22 @@ impl Account {
         // A separate test-only account permits custom gas limits without accessing
         // the testkit's private agent key. The scenario funds it explicitly.
         let signer = LocalSigner::from_secret_key([0x5b; 32]);
-        let tip = ctx.network().chain_tip().await?;
         let client = ctx.network().client().ok_or(TestkitError::Offline {
-            operation: "getBlockByNumber",
+            operation: "getNetworkInfo",
         })?;
-        let block = client
-            .get_block_by_number(Decimal(tip.height))
+        let info = client
+            .get_network_info(EmptyRequest {})
             .await
             .map_err(|e| TestkitError::Manifest {
                 field: "networkHash",
                 detail: e.to_string(),
-            })?
-            .ok_or(TestkitError::Manifest {
-                field: "networkHash",
-                detail: "tip block is unavailable".to_owned(),
             })?;
+        let DecodedResponse::Known(info) = info else {
+            return Err(TestkitError::Manifest {
+                field: "networkHash",
+                detail: "unsupported network identity".to_owned(),
+            });
+        };
         let account = PubkeyAccount::from_public_key_bytes(
             signer.verifying_key_bytes(),
             DEFAULT_PUBKEY_ACCOUNT_NONCE,
@@ -236,7 +235,7 @@ impl Account {
         Ok(Account {
             account,
             signer,
-            network_hash: NetworkHash::from(block.network_hash.0),
+            network_hash: NetworkHash::from(info.network_hash.0),
             sequence: 0,
         })
     }
@@ -308,11 +307,10 @@ async fn call<A: WriteXDR + ?Sized>(
 }
 
 fn decode<R: for<'r> ReadXDR<'r>>(receipt: &TransactionReceipt) -> R {
-    let bytes = receipt
-        .return_data
-        .as_ref()
-        .map_or(&[][..], |d| d.0.as_slice());
-    xdrs::cxs::decode(bytes).expect("decoding a return value")
+    let ExecutionResult::Return { return_data } = &receipt.execution else {
+        panic!("execution did not return: {:?}", receipt.execution);
+    };
+    xdrs::cxs::decode(&return_data.0).expect("decoding a return value")
 }
 
 /// A return value from a call the default wallet made on the account's behalf: the wallet

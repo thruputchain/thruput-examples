@@ -30,7 +30,7 @@ it("validates the exact served immutable artifact", async () => {
     validateStandardTokenArtifact(directory, hash),
   ).resolves.toBeUndefined();
 });
-it("rejects missing files even if a legacy filename exists", async () => {
+it("requires the hash-qualified artifact filename", async () => {
   await writeFile(
     path.join(directory, "contract-artifacts/standard-token.json"),
     JSON.stringify(artifact),

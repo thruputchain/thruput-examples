@@ -52,12 +52,14 @@ const ALLOWED_POOL_PARAMETERS = new Set([
   "asOfBlock",
 ]);
 const READ_ONLY_RPC_METHODS = new Set([
-  "groundhog_networkInfo",
-  "groundhog_chainTip",
-  "groundhog_getEvents",
-  "groundhog_getTransactionReceipt",
-  "groundhog_getTransactionStatus",
-  "groundhog_view",
+  "getVersionInfo",
+  "getNetworkInfo",
+  "getServerLimits",
+  "getChainTip",
+  "getEvents",
+  "getTransactionReceipt",
+  "getTransactionStatus",
+  "simulateInvocation",
 ]);
 const MIME_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -120,10 +122,16 @@ export function createRegistryHttpServer(
       if (await discovery(request, response)) return;
       const url = requestUrl(request);
       if (url.pathname === "/api/config") {
-        if (request.method !== "GET") throw new HttpError(405, "method_not_allowed", "GET is required");
+        if (request.method !== "GET")
+          throw new HttpError(405, "method_not_allowed", "GET is required");
         await requireEmptyBody(request);
         rejectParameters(url);
-        if (!production?.publicConfig) throw new HttpError(503, "configuration_unavailable", "Public configuration is unavailable");
+        if (!production?.publicConfig)
+          throw new HttpError(
+            503,
+            "configuration_unavailable",
+            "Public configuration is unavailable",
+          );
         return sendJson(response, 200, production.publicConfig);
       }
       const allowedMethod = methodForPath(url.pathname);
@@ -174,7 +182,10 @@ export function createRegistryHttpServer(
           productionContext,
         );
       }
-      if (productionContext === undefined || !productionContext.staticDirectory) {
+      if (
+        productionContext === undefined ||
+        !productionContext.staticDirectory
+      ) {
         return rejectBeforeBody(
           request,
           response,
@@ -315,8 +326,12 @@ function queryInteger(
 function createProductionContext(
   options: ProductionHttpOptions,
 ): ProductionContext {
-  const staticDirectory = options.staticDirectory ? realpathSync(options.staticDirectory) : "";
-  const indexPath = staticDirectory ? realpathSync(path.join(staticDirectory, "index.html")) : "";
+  const staticDirectory = options.staticDirectory
+    ? realpathSync(options.staticDirectory)
+    : "";
+  const indexPath = staticDirectory
+    ? realpathSync(path.join(staticDirectory, "index.html"))
+    : "";
   if (staticDirectory && !isWithin(staticDirectory, indexPath)) {
     throw new Error("Static index must be inside the static directory");
   }
@@ -499,7 +514,7 @@ interface ProductionRpcRequest extends Record<string, unknown> {
   jsonrpc: "2.0";
   id: JsonRpcId;
   method: string;
-  params: unknown[];
+  params: Record<string, unknown>;
 }
 
 interface JsonRpcResultResponse {
@@ -529,20 +544,25 @@ export function isAllowedProductionRpcRequest(
     !isRpcId(value.id) ||
     typeof value.method !== "string" ||
     !READ_ONLY_RPC_METHODS.has(value.method) ||
-    !Array.isArray(value.params)
+    !isRecord(value.params)
   ) {
     return false;
   }
   switch (value.method) {
-    case "groundhog_networkInfo":
-    case "groundhog_chainTip":
-      return value.params.length === 0;
-    case "groundhog_getTransactionReceipt":
-    case "groundhog_getTransactionStatus":
-      return value.params.length === 1 && isBase58Identifier(value.params[0]);
-    case "groundhog_view":
+    case "getVersionInfo":
+    case "getServerLimits":
+    case "getNetworkInfo":
+    case "getChainTip":
+      return Object.keys(value.params).length === 0;
+    case "getTransactionReceipt":
+    case "getTransactionStatus":
+      return (
+        isExactRecord(value.params, ["transactionHash"]) &&
+        isBase58Identifier(value.params.transactionHash)
+      );
+    case "simulateInvocation":
       return validViewParams(value.params);
-    case "groundhog_getEvents":
+    case "getEvents":
       return validEventParams(value.params);
     default:
       return false;
@@ -621,73 +641,110 @@ function requestLifecycleSignal(
   };
 }
 
-function validViewParams(params: unknown[]): boolean {
-  if (params.length !== 1) return false;
-  const request = params[0];
+function validViewParams(request: Record<string, unknown>): boolean {
   if (
     !isRecord(request) ||
-    !hasOnlyKeys(request, ["contract", "entrypoint", "calldata", "caller"]) ||
-    !hasKeys(request, ["contract", "entrypoint", "calldata"]) ||
-    !isBase58Identifier(request.contract) ||
+    !hasOnlyKeys(request, [
+      "address",
+      "entrypoint",
+      "calldata",
+      "caller",
+      "gasLimit",
+      "minStateBlockHeight",
+    ]) ||
+    !hasKeys(request, ["address", "entrypoint", "calldata"]) ||
+    !isBase58Identifier(request.address) ||
     typeof request.entrypoint !== "string" ||
     !/^0x[0-9a-f]{16}$/u.test(request.entrypoint) ||
     !isBoundedHex(request.calldata, MAX_VIEW_CALLDATA_BYTES)
   ) {
     return false;
   }
-  return request.caller === undefined || isBase58Identifier(request.caller);
+  return (
+    (request.caller === undefined || isBase58Identifier(request.caller)) &&
+    (request.gasLimit === undefined || isU64(request.gasLimit)) &&
+    (request.minStateBlockHeight === undefined ||
+      isBlockHeight(request.minStateBlockHeight))
+  );
 }
 
-function validEventParams(params: unknown[]): boolean {
-  if (params.length !== 1) return false;
-  const query = params[0];
+function validEventParams(query: Record<string, unknown>): boolean {
   if (
-    !isExactRecord(query, ["filters", "order", "anchor", "cursor", "limit"]) ||
+    !hasOnlyKeys(query, ["filters", "start", "cursor", "limit"]) ||
     !Array.isArray(query.filters) ||
     query.filters.length < 1 ||
     query.filters.length > MAX_EVENT_FILTERS ||
-    (query.order !== "ascending" && query.order !== "descending") ||
-    !validEventAnchor(query.anchor) ||
-    !isBoundedCursor(query.cursor) ||
-    !Number.isSafeInteger(query.limit) ||
-    (query.limit as number) < 1 ||
-    (query.limit as number) > 500
+    (query.limit !== undefined &&
+      (!Number.isSafeInteger(query.limit) ||
+        (query.limit as number) < 1 ||
+        (query.limit as number) > 500))
   ) {
     return false;
   }
-  return query.filters.every(validEventFilter);
+  if (!query.filters.every(validEventFilter)) return false;
+  if (Object.hasOwn(query, "cursor"))
+    return (
+      !Object.hasOwn(query, "start") &&
+      isBoundedCursor(query.cursor) &&
+      query.cursor !== "0x"
+    );
+  return (
+    isExactRecord(query.start, ["order", "anchor"]) &&
+    (query.start.order === "ascending" || query.start.order === "descending") &&
+    validEventAnchor(query.start.anchor) &&
+    (query.start.anchor.kind === "atHeight" ||
+      query.start.anchor.kind ===
+        (query.start.order === "ascending" ? "atBeginning" : "atEnd"))
+  );
 }
 
 function validEventFilter(value: unknown): boolean {
   if (
-    !isExactRecord(value, ["contractAddresses", "topics"]) ||
-    !Array.isArray(value.contractAddresses) ||
-    value.contractAddresses.length > MAX_EVENT_VALUES_PER_FILTER ||
-    !value.contractAddresses.every(isBase58Identifier) ||
-    !isExactRecord(value.topics, ["topic0", "topic1", "topic2"])
+    !isRecord(value) ||
+    !hasOnlyKeys(value, ["addresses", "topics"]) ||
+    !Array.isArray(value.addresses) ||
+    value.addresses.length > MAX_EVENT_VALUES_PER_FILTER ||
+    !value.addresses.every(isBase58Identifier)
   ) {
     return false;
   }
+  if (value.topics === undefined) return true;
+  if (
+    !isRecord(value.topics) ||
+    !hasOnlyKeys(value.topics, ["topic0", "topic1", "topic2"])
+  )
+    return false;
   return [value.topics.topic0, value.topics.topic1, value.topics.topic2].every(
     (topics) =>
-      Array.isArray(topics) &&
-      topics.length <= MAX_EVENT_VALUES_PER_FILTER &&
-      topics.every(isCanonicalTopic),
+      topics === undefined ||
+      (Array.isArray(topics) &&
+        topics.length <= MAX_EVENT_VALUES_PER_FILTER &&
+        topics.every(isCanonicalTopic)),
   );
 }
 
-function validEventAnchor(value: unknown): boolean {
+function validEventAnchor(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value) || typeof value.kind !== "string") return false;
   if (value.kind === "atBeginning" || value.kind === "atEnd") {
     return isExactRecord(value, ["kind"]);
   }
   return (
     value.kind === "atHeight" &&
-    isExactRecord(value, ["kind", "height"]) &&
-    typeof value.height === "string" &&
-    /^(0|[1-9][0-9]{0,18})(?![\s\S])/u.test(value.height) &&
-    BigInt(value.height) <= 0x7fff_ffff_ffff_ffffn
+    isExactRecord(value, ["kind", "blockHeight"]) &&
+    isBlockHeight(value.blockHeight)
   );
+}
+
+function isU64(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^(0|[1-9][0-9]{0,19})$/u.test(value) &&
+    BigInt(value) <= 0xffff_ffff_ffff_ffffn
+  );
+}
+
+function isBlockHeight(value: unknown): boolean {
+  return isU64(value) && BigInt(value) <= 0x7fff_ffff_ffff_ffffn;
 }
 
 function isRpcId(value: unknown): boolean {

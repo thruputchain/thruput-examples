@@ -39,7 +39,7 @@ export type SnapshotReader = () => Promise<PoolSnapshot>;
 
 export function createSnapshotReader(
   config: AppConfig,
-  client: Pick<ThruputClient, "view">,
+  client: Pick<ThruputClient, "simulateInvocation">,
 ): SnapshotReader {
   const tokenA = createErc20ReadAdapter({
     client,
@@ -100,43 +100,45 @@ export function createSnapshotReader(
       ]);
 
       const readHeights = [
-        poolState.height,
-        metadataA.name.height,
-        metadataA.symbol.height,
-        metadataA.decimals.height,
-        metadataB.name.height,
-        metadataB.symbol.height,
-        metadataB.decimals.height,
-        liquidityMetadata.name.height,
-        liquidityMetadata.symbol.height,
-        liquidityMetadata.decimals.height,
-        balanceA.height,
-        balanceB.height,
-        allowanceA.height,
-        allowanceB.height,
-        liquidityBalance.height,
-        liquidityAllowance.height,
-        feeTo.height,
-        registeredHandler.height,
-        poolAddresses.height,
+        poolState.stateBlockHeight,
+        metadataA.name.stateBlockHeight,
+        metadataA.symbol.stateBlockHeight,
+        metadataA.decimals.stateBlockHeight,
+        metadataB.name.stateBlockHeight,
+        metadataB.symbol.stateBlockHeight,
+        metadataB.decimals.stateBlockHeight,
+        liquidityMetadata.name.stateBlockHeight,
+        liquidityMetadata.symbol.stateBlockHeight,
+        liquidityMetadata.decimals.stateBlockHeight,
+        balanceA.stateBlockHeight,
+        balanceB.stateBlockHeight,
+        allowanceA.stateBlockHeight,
+        allowanceB.stateBlockHeight,
+        liquidityBalance.stateBlockHeight,
+        liquidityAllowance.stateBlockHeight,
+        feeTo.stateBlockHeight,
+        registeredHandler.stateBlockHeight,
+        poolAddresses.stateBlockHeight,
       ];
       const readHeight = readHeights[0]!;
       if (readHeights.some((height) => height !== readHeight)) continue;
       if (
-        registeredHandler.value === null
-        || !sameAddress(registeredHandler.value, config.handlerAddress)
-        || !sameAddress(poolAddresses.value.handler, config.handlerAddress)
-        || !sameAddress(poolAddresses.value.driver, config.driverAddress)
-        || !sameAddress(
+        registeredHandler.value === null ||
+        !sameAddress(registeredHandler.value, config.handlerAddress) ||
+        !sameAddress(poolAddresses.value.handler, config.handlerAddress) ||
+        !sameAddress(poolAddresses.value.driver, config.driverAddress) ||
+        !sameAddress(
           poolAddresses.value.liquidityToken,
           config.liquidityTokenAddress,
-        )
-        || !sameAddress(
+        ) ||
+        !sameAddress(
           poolState.value.liquidityToken,
           config.liquidityTokenAddress,
         )
       ) {
-        throw new Error("The factory and handler returned inconsistent pool addresses");
+        throw new Error(
+          "The factory and handler returned inconsistent pool addresses",
+        );
       }
       const liquidityTokenMetadata = metadataValues(liquidityMetadata);
 
@@ -171,7 +173,9 @@ export function createSnapshotReader(
         readAt: Date.now(),
       };
     }
-    throw new Error("Unable to read a consistent chain snapshot after three attempts");
+    throw new Error(
+      "Unable to read a consistent chain snapshot after three attempts",
+    );
   };
 }
 
