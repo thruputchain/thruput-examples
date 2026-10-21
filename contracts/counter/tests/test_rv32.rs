@@ -8,7 +8,7 @@ static NONCE: SHA256Hash = thruput_sdk::sha256_static!("COUNTER_RV32_NONCE");
 /// Unlike `cargo test` (which runs natively with unwind),
 /// the contract here is compiled to RV32 and executed by
 /// the mock executor — the same path as on-chain. A
-/// contract fault (e.g. NNInt underflow) is a real abort,
+/// contract fault (e.g. Balance underflow) is a real abort,
 /// not a caught Rust panic.
 ///
 /// Use `cargo test` for fast iteration and error-path
@@ -27,6 +27,7 @@ fn test_counter_rv32() {
             let addr = deploy_contract(&NONCE, &contract_hash);
             let client = CounterClient::new(&addr);
 
+            assert_eq!(client.get(), 0);
             client.initialize(10);
             assert_eq!(client.get(), 10);
 
