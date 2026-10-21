@@ -10,6 +10,7 @@ the whole repository.
 | --- | --- | --- |
 | Write a contract | [Counter](contracts/counter/README.md) | Rust and Cargo registry access; no running node |
 | Use the TypeScript SDK | [Client examples](examples/typescript/README.md) | Node.js, npm package access, and a local node |
+| Consume hosted blocks | [Firehose consumer](examples/typescript/README.md#7-consume-the-hosted-firehose) | Node.js and the repo npm install; no local node |
 | Try an application | [Counter app](apps/counter/README.md) | Rust, Node.js, CLI, and a local node |
 | Explore a full wallet app | [Token Launchpad](apps/token-launchpad/README.md), then [Swap](apps/swap/README.md) | The app toolchain and [Thruput Freighter](https://github.com/thruputchain/freighter) |
 
