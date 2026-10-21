@@ -42,6 +42,15 @@ export function TransactionStatus({
                 Check transaction
               </button>
             )}
+            {!tx.receipt.data ? (
+              <button
+                type="button"
+                disabled={tx.busy || tx.storageError}
+                onClick={tx.retrySubmission}
+              >
+                Submit original transaction
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => {

@@ -6,7 +6,8 @@ import {
 } from "@thruputchain/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ExecResult, type Invocation } from "@thruputchain/protocol";
-import { toBase58 } from "@thruputchain/client";
+import { hashFromBase58, toBase58 } from "@thruputchain/client";
+import { parseSignedTransactionHex } from "@thruputchain/client/provider";
 import { GAS } from "../contracts/polls";
 import { errorMessage, type AppConfig } from "../config";
 import { loadPending, savePending, type Pending } from "./pending";
@@ -124,6 +125,37 @@ export function useTransaction(config: AppConfig) {
     });
   }
 
+  function retrySubmission() {
+    void exclusive(async () => {
+      if (!pending || storageError) return;
+      const saved = loadPending(localStorage, key, config.networkId);
+      if (saved?.record.hash !== pending.record.hash) {
+        reload();
+        throw new Error(
+          "Saved transaction changed. Check its status before continuing.",
+        );
+      }
+      if (toBase58(client.network.networkHash) !== saved.record.networkHash)
+        throw new Error("Select the original transaction's network.");
+      const hash = hashFromBase58(saved.record.hash);
+      if (await client.getTransactionReceipt(hash)) {
+        await receipt.refetch();
+        return;
+      }
+      const signed = parseSignedTransactionHex(saved.record.signedTransaction);
+      if (
+        (await client.getChainTip()).height >
+        signed.tx.uniquifier.block_expiry_height
+      )
+        throw new Error(
+          "The signed transaction has expired. Export the record and check its outcome.",
+        );
+      // Submit only the saved bytes: no new signature, nonce, or expiry.
+      await client.sendTransaction(signed);
+      await receipt.refetch();
+    });
+  }
+
   return {
     pending,
     busy,
@@ -132,15 +164,15 @@ export function useTransaction(config: AppConfig) {
     receipt,
     send,
     finish,
+    retrySubmission,
     blocked: busy || Boolean(pending) || storageError,
     confirmed: receipt.data?.execResult === ExecResult.ExecResultOK,
     retryStorage: () => {
-      try {
-        if (pending) savePending(localStorage, key, pending);
+      void exclusive(async () => {
+        const saved = loadPending(localStorage, key, config.networkId);
+        if (pending && !saved) savePending(localStorage, key, pending);
         reload();
-      } catch (error) {
-        setMessage(errorMessage(error));
-      }
+      });
     },
   };
 }

@@ -74,7 +74,9 @@ transaction** only observe the original hash, even after disconnecting.
 An uncertain outcome blocks new writes. The app does not resubmit automatically.
 **Finish** clears a confirmed outcome, including a committed execution failure.
 **Export record** preserves signed evidence. If browser storage fails, submission
-stops; **Retry storage** saves the in-memory record. A malformed saved record
+stops; **Retry storage** saves the in-memory record. Then select **Submit original
+transaction** to send those same signed bytes. This action checks for an existing
+receipt and expiry first; it never creates or signs a replacement. A malformed saved record
 blocks signing rather than silently discarding evidence.
 
 ## Checks

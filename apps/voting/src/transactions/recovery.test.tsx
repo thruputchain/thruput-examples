@@ -24,14 +24,20 @@ import { GAS, methods } from "../contracts/polls";
 import { useTransaction } from "./use-transaction";
 import { loadPending, savePending, type Pending } from "./pending";
 
-const mocks = vi.hoisted(() => ({ execute: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  execute: vi.fn(),
+  getTransactionReceipt: vi.fn(),
+  getChainTip: vi.fn(),
+  sendTransaction: vi.fn(),
+  refetch: vi.fn(),
+}));
 vi.mock("@thruputchain/react", () => ({
-  useClient: () => ({ network: { networkHash: new Uint8Array(32) } }),
+  useClient: () => ({ ...mocks, network: { networkHash: new Uint8Array(32) } }),
   useExecute: () => ({ mutateAsync: mocks.execute }),
   useWaitForTransactionReceipt: () => ({
     data: null,
     error: new Error("Timed out"),
-    refetch: vi.fn(),
+    refetch: mocks.refetch,
     isFetching: false,
   }),
 }));
@@ -84,6 +90,12 @@ beforeEach(async () => {
   };
   queries = new QueryClient();
   mocks.execute.mockReset();
+  mocks.getTransactionReceipt.mockReset().mockResolvedValue(null);
+  mocks.getChainTip.mockReset().mockResolvedValue({ height: 50n });
+  mocks.sendTransaction
+    .mockReset()
+    .mockResolvedValue(hashSignedTransaction(signed));
+  mocks.refetch.mockReset().mockResolvedValue({});
   Object.defineProperty(navigator, "locks", {
     configurable: true,
     value: {
@@ -140,6 +152,56 @@ it("stops before submission when signed-record storage fails", async () => {
   expect(broadcast).not.toHaveBeenCalled();
   expect(result.current.blocked).toBe(true);
 });
+
+it("recovers storage and submits the original bytes without signing again", async () => {
+  mocks.execute.mockImplementation(async ({ options }) =>
+    options.onSigned(pending.record),
+  );
+  const storage = vi
+    .spyOn(Storage.prototype, "setItem")
+    .mockImplementation(() => {
+      throw new Error("Quota exceeded");
+    });
+  const { result, unmount } = renderHook(() => useTransaction(config), {
+    wrapper,
+  });
+  act(() => result.current.send("Submit answer", invocation));
+  await waitFor(() => expect(result.current.storageError).toBe(true));
+  storage.mockRestore();
+  act(() => result.current.retryStorage());
+  await waitFor(() => expect(result.current.storageError).toBe(false));
+  expect(mocks.sendTransaction).not.toHaveBeenCalled();
+  unmount();
+  const reloaded = renderHook(() => useTransaction(config), { wrapper });
+  act(() => reloaded.result.current.retrySubmission());
+  await waitFor(() => expect(mocks.sendTransaction).toHaveBeenCalledTimes(1));
+  expect(
+    toHex0x(
+      serializeSignedTransaction(mocks.sendTransaction.mock.calls[0]![0]),
+    ),
+  ).toBe(pending.record.signedTransaction);
+  expect(mocks.execute).toHaveBeenCalledTimes(1);
+  expect(loadPending(localStorage, key, config.networkId)).toEqual(pending);
+});
+
+it.each(["committed", "expired", "changed"])(
+  "does not resubmit a %s transaction",
+  async (state) => {
+    savePending(localStorage, key, pending);
+    const { result } = renderHook(() => useTransaction(config), { wrapper });
+    if (state === "committed")
+      mocks.getTransactionReceipt.mockResolvedValue({
+        txHash: pending.record.hash,
+      });
+    if (state === "expired")
+      mocks.getChainTip.mockResolvedValue({ height: 101n });
+    if (state === "changed") localStorage.removeItem(key);
+    act(() => result.current.retrySubmission());
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.execute).not.toHaveBeenCalled();
+  },
+);
 
 it("retains the signed record after an uncertain submission", async () => {
   mocks.execute.mockImplementation(async ({ options }) => {
