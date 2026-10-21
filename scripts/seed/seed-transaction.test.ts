@@ -14,7 +14,6 @@ import {
 import { ERC20 } from "@thruputchain/client/contracts";
 import {
   blockHeight,
-  ExecResult,
   gasAmount,
   HOG_ADDRESS,
   networkHash,
@@ -45,18 +44,19 @@ async function fixture() {
   );
   const hash = hashSignedTransaction(signed);
   const receipt: TransactionReceipt = {
-    txHash: hash,
-    height: 10n,
-    execResult: ExecResult.ExecResultOK,
+    transactionHash: hash,
+    blockHeight: 10n,
+    execution: { result: "return" as const, returnData: new Uint8Array() },
     gasUsed: 0n,
     events: [],
-    returnData: null,
-    abortData: null,
   };
   const wallet = {
     prepareExecution: vi.fn(async () => tx),
     signTransaction: vi.fn(async () => signed),
-    sendTransaction: vi.fn(async () => hash),
+    sendTransaction: vi.fn(async () => ({
+      transactionHash: hash,
+      admission: "accepted" as const,
+    })),
     waitForTransactionReceipt: vi.fn(async () => receipt),
   };
   const log = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -75,7 +75,7 @@ it("prints the canonical hash before submission and confirms the receipt", async
     expect(f.log).toHaveBeenCalledWith(
       `Submitting transfer: ${toBase58(f.hash)}`,
     );
-    return f.hash;
+    return { transactionHash: f.hash, admission: "accepted" as const };
   });
   expect(await submitSeedTransaction(f.wallet, "transfer", f.request)).toBe(
     f.receipt,
@@ -103,14 +103,14 @@ it("rejects a mismatched receipt and a reverted transaction", async () => {
   const f = await fixture();
   f.wallet.waitForTransactionReceipt.mockResolvedValue({
     ...f.receipt,
-    txHash: sha256Hash(new Uint8Array(32)),
+    transactionHash: sha256Hash(new Uint8Array(32)),
   });
   await expect(
     submitSeedTransaction(f.wallet, "transfer", f.request),
   ).rejects.toThrow("receipt hash mismatched");
   f.wallet.waitForTransactionReceipt.mockResolvedValue({
     ...f.receipt,
-    execResult: ExecResult.ExecResultTxRootFrameReverted,
+    execution: { result: "abort" as const, abortData: new Uint8Array() },
   });
   await expect(
     submitSeedTransaction(f.wallet, "transfer", f.request),

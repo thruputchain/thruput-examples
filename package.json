@@ -22,6 +22,7 @@
     "example:deploy-counter": "tsx examples/typescript/deploy-counter.ts",
     "example:read-events": "tsx examples/typescript/read-events.ts",
     "example:batch-counter": "tsx examples/typescript/batch-counter.ts",
+    "example:consume-firehose": "tsx examples/typescript/consume-firehose.ts",
     "test:examples": "node tests/e2e/typescript-examples.mjs",
     "test:browser": "node tests/browser/apps.mjs",
     "test:counter": "tsx tests/e2e/counter.ts",
@@ -30,18 +31,20 @@
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },
   "dependencies": {
-    "@thruputchain/client": "0.21.0",
-    "@thruputchain/contract-spec": "0.17.0",
-    "@thruputchain/protocol": "0.17.0",
-    "@thruputchain/xdr": "0.17.0"
+    "@thruputchain/client": "0.22.1",
+    "@thruputchain/contract-spec": "0.18.0",
+    "@thruputchain/protocol": "0.18.0",
+    "@thruputchain/xdr": "0.18.0"
   },
   "devDependencies": {
     "@types/node": "25.9.1",
-    "playwright-core": "1.63.0",
+    "@types/ws": "8.18.2",
     "jsdom": "26.1.0",
-    "vite": "7.3.6",
+    "playwright-core": "1.63.0",
     "tsx": "4.22.4",
     "typescript": "6.0.3",
-    "vitest": "4.1.11"
+    "vite": "7.3.6",
+    "vitest": "4.1.11",
+    "ws": "8.21.3"
   }
 }

@@ -1,5 +1,14 @@
-import { AlertCircleIcon, CheckCircle2Icon, CircleIcon, LoaderCircleIcon } from "lucide-react";
-import { addressFromBase58, type CoreThruputClient, toBase58 } from "@thruputchain/client";
+import {
+  AlertCircleIcon,
+  CheckCircle2Icon,
+  CircleIcon,
+  LoaderCircleIcon,
+} from "lucide-react";
+import {
+  addressFromBase58,
+  type CoreThruputClient,
+  toBase58,
+} from "@thruputchain/client";
 import { useClient } from "@thruputchain/react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -18,7 +27,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { GlobalConfig } from "@/config";
@@ -107,9 +121,12 @@ export function PoolCreatePage({
   dependencies?: PoolCreatePageDependencies;
 }) {
   const scope = JSON.stringify([
-    config.networkId, config.rpcUrl.href,
-    toBase58(config.accountAddress), toBase58(config.factoryAddress),
-    toBase58(config.routerAddress), toBase58(config.nativeHogAddress),
+    config.networkId,
+    config.rpcUrl.href,
+    toBase58(config.accountAddress),
+    toBase58(config.factoryAddress),
+    toBase58(config.routerAddress),
+    toBase58(config.nativeHogAddress),
   ]);
   return <CreationPage key={scope} config={config} {...props} />;
 }
@@ -130,40 +147,62 @@ function CreationPage({
       return readCreationPresets(location.search);
     }
     const params = new URLSearchParams(location.search);
-    const ignored = initialState.current !== null && (params.has("tokenA") || params.has("tokenB"));
+    const ignored =
+      initialState.current !== null &&
+      (params.has("tokenA") || params.has("tokenB"));
     return {
       ...emptyInput,
       warnings: ignored
-        ? ["A saved creation is being recovered. Link presets were not applied."]
+        ? [
+            "A saved creation is being recovered. Link presets were not applied.",
+          ]
         : [],
     };
   });
   const connectedWriter = useTransactions(config);
   const writer = dependencies.writer ?? connectedWriter;
   const [input, setInput] = useState<PoolCreationInput>(() => ({
-    ...emptyInput, tokenA: presets.tokenA, tokenB: presets.tokenB,
+    ...emptyInput,
+    tokenA: presets.tokenA,
+    tokenB: presets.tokenB,
   }));
   const revision = useRef(0);
-  useEffect(() => () => { revision.current += 1; }, []);
+  useEffect(
+    () => () => {
+      revision.current += 1;
+    },
+    [],
+  );
   const [review, setReview] = useState<PoolCreationReview | null>(null);
-  const [accountWorkflows, setAccountWorkflows] = useState(initialState.workflows);
+  const [accountWorkflows, setAccountWorkflows] = useState(
+    initialState.workflows,
+  );
   const [cleanup, setCleanup] = useState(initialState.cleanup);
   const [workflow, setWorkflow] = useState<CreationWorkflow | null>(
     initialState.current,
   );
   const [isReviewing, setIsReviewing] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const { mode: processingMode, setMode: setProcessingMode } = useProcessingMode();
+  const { mode: processingMode, setMode: setProcessingMode } =
+    useProcessingMode();
   const manualProcessing = processingMode === "manual";
   const [error, setError] = useState<string | null>(initialState.error);
   const canPreview = workflow === null && initialState.error === null;
-  const previewA = useTokenPreview(config, canPreview ? input.tokenA : "", client);
-  const previewB = useTokenPreview(config,
-    canPreview && tokenAddress(input.tokenB) !== tokenAddress(input.tokenA)
-      ? input.tokenB : "", client,
+  const previewA = useTokenPreview(
+    config,
+    canPreview ? input.tokenA : "",
+    client,
   );
-  const networkMismatch = [previewA, previewB].some(({ preview }) =>
-    preview?.status === "unavailable" && preview.networkMismatch
+  const previewB = useTokenPreview(
+    config,
+    canPreview && tokenAddress(input.tokenB) !== tokenAddress(input.tokenA)
+      ? input.tokenB
+      : "",
+    client,
+  );
+  const networkMismatch = [previewA, previewB].some(
+    ({ preview }) =>
+      preview?.status === "unavailable" && preview.networkMismatch,
   );
   useEffect(() => {
     if (networkMismatch) {
@@ -173,18 +212,20 @@ function CreationPage({
   }, [networkMismatch]);
   const prepare = dependencies.prepare ?? preparePoolCreation;
   const run = dependencies.run ?? runCreationWorkflow;
-  const requestRegistrySync = dependencies.requestRegistrySync
-    ?? requestPoolRegistrySync;
+  const requestRegistrySync =
+    dependencies.requestRegistrySync ?? requestPoolRegistrySync;
   const currentFactory = toBase58(config.factoryAddress);
   const recoverable = accountWorkflows.filter((candidate) =>
-    isRecoverableCreationWorkflow(candidate, currentFactory)
+    isRecoverableCreationWorkflow(candidate, currentFactory),
   );
-  const obsolete = accountWorkflows.find((candidate) =>
-    candidate.factoryAddress !== currentFactory
-    && (candidate.status === "active"
-      || candidate.status === "queued"
-      || candidate.status === "race")
-  ) ?? null;
+  const obsolete =
+    accountWorkflows.find(
+      (candidate) =>
+        candidate.factoryAddress !== currentFactory &&
+        (candidate.status === "active" ||
+          candidate.status === "queued" ||
+          candidate.status === "race"),
+    ) ?? null;
 
   const applyWorkflow = (next: CreationWorkflow) => {
     setWorkflow(next);
@@ -195,7 +236,13 @@ function CreationPage({
   };
 
   async function reviewPool() {
-    if (isReviewing || isRunning || initialState.error !== null || networkMismatch) return;
+    if (
+      isReviewing ||
+      isRunning ||
+      initialState.error !== null ||
+      networkMismatch
+    )
+      return;
     const generation = ++revision.current;
     setIsReviewing(true);
     setError(null);
@@ -205,13 +252,13 @@ function CreationPage({
       const next = await prepare(
         config,
         input,
-        reservedCreationHog(accountWorkflows)
-          + reservedCreationToken(accountWorkflows, nativeHogBase58)
-          + reservedInputForToken(
+        reservedCreationHog(accountWorkflows) +
+          reservedCreationToken(accountWorkflows, nativeHogBase58) +
+          reservedInputForToken(
             loadAccountRequestRecords(config),
             nativeHogBase58,
-          )
-          + reservedLiquidityTokenAmount(
+          ) +
+          reservedLiquidityTokenAmount(
             loadAccountLiquidityOperations(config),
             nativeHogBase58,
           ),
@@ -229,16 +276,33 @@ function CreationPage({
   }
 
   async function startOrContinue(processQueue = false) {
-    if (isRunning || initialState.error !== null || (workflow === null && networkMismatch)) return;
+    if (
+      isRunning ||
+      initialState.error !== null ||
+      (workflow === null && networkMismatch)
+    )
+      return;
     const generation = revision.current;
     const assertCurrent = () => {
       if (generation !== revision.current) {
-        throw new Error("The creation review changed before the account lock was acquired");
+        throw new Error(
+          "The creation review changed before the account lock was acquired",
+        );
       }
       if (workflow !== null) {
-        const stored = loadCreationWorkflow(config, workflow.token0.address, workflow.token1.address);
-        if (stored === null || stored.id !== workflow.id || !sameCreationIntent(stored, workflow)) {
-          throw new Error("The saved creation intent changed; review it before continuing");
+        const stored = loadCreationWorkflow(
+          config,
+          workflow.token0.address,
+          workflow.token1.address,
+        );
+        if (
+          stored === null ||
+          stored.id !== workflow.id ||
+          !sameCreationIntent(stored, workflow)
+        ) {
+          throw new Error(
+            "The saved creation intent changed; review it before continuing",
+          );
         }
       }
     };
@@ -246,10 +310,10 @@ function CreationPage({
     setError(null);
     try {
       if (
-        workflow !== null
-        && (workflow.status === "race" || workflow.status === "failed")
-        && workflow.steps.approveFunding.status === "committed"
-        && workflow.steps.createPool.status === "failed"
+        workflow !== null &&
+        (workflow.status === "race" || workflow.status === "failed") &&
+        workflow.steps.approveFunding.status === "committed" &&
+        workflow.steps.createPool.status === "failed"
       ) {
         const cleanup = await runAllowanceCleanup(
           config,
@@ -259,8 +323,9 @@ function CreationPage({
             client,
             writeBoundary: writer,
             assertCurrent,
-            readAllowance: dependencies.readFactoryAllowance
-              ?? (() => readFactoryAllowance(config, client)),
+            readAllowance:
+              dependencies.readFactoryAllowance ??
+              (() => readFactoryAllowance(config, client)),
           },
         );
         if (cleanup.kind === "pending") {
@@ -282,19 +347,25 @@ function CreationPage({
       const result = await withAccountLock(config, async () => {
         assertCurrent();
         if (hasBlockingAllowanceCleanup(config)) {
-          throw new Error("Resolve the account's pending allowance cleanup first");
+          throw new Error(
+            "Resolve the account's pending allowance cleanup first",
+          );
         }
         let current = workflow;
         if (current === null) {
-          if (review === null) throw new Error("Review the pool before creating it");
-          const existing = loadAccountCreationWorkflows(config).find((candidate) =>
-            isRecoverableCreationWorkflow(candidate, currentFactory)
-            && candidate.token0.address === review.token0.addressBase58
-            && candidate.token1.address === review.token1.addressBase58
+          if (review === null)
+            throw new Error("Review the pool before creating it");
+          const existing = loadAccountCreationWorkflows(config).find(
+            (candidate) =>
+              isRecoverableCreationWorkflow(candidate, currentFactory) &&
+              candidate.token0.address === review.token0.addressBase58 &&
+              candidate.token1.address === review.token1.addressBase58,
           );
           if (existing !== undefined) {
             applyWorkflow(existing);
-            throw new Error("A saved creation appeared in another tab. Review its amounts and funding before explicitly continuing.");
+            throw new Error(
+              "A saved creation appeared in another tab. Review its amounts and funding before explicitly continuing.",
+            );
           }
           current = saveCreationWorkflow(
             config,
@@ -314,8 +385,8 @@ function CreationPage({
           applyWorkflow(current);
         }
         if (
-          current.status === "queued"
-          && ["committed", "failed"].includes(current.steps.crank.status)
+          current.status === "queued" &&
+          ["committed", "failed"].includes(current.steps.crank.status)
         ) {
           current = resetCreationCrank(config, current);
           applyWorkflow(current);
@@ -328,9 +399,9 @@ function CreationPage({
         let syncHintSent = false;
         const hintRegistryAfterCreation = (next: CreationWorkflow) => {
           if (
-            !syncHintSent
-            && previousCreatePoolStatus !== "committed"
-            && next.steps.createPool.status === "committed"
+            !syncHintSent &&
+            previousCreatePoolStatus !== "committed" &&
+            next.steps.createPool.status === "committed"
           ) {
             syncHintSent = true;
             void requestRegistrySync(config).catch(() => undefined);
@@ -356,16 +427,22 @@ function CreationPage({
         if (dependencies.verifyResult !== undefined) {
           await dependencies.verifyResult(result);
         } else {
-          if (result.pool === null) throw new Error("The created pool is unavailable");
+          if (result.pool === null)
+            throw new Error("The created pool is unavailable");
           const token0 = addressFromBase58(result.token0.address);
           const token1 = addressFromBase58(result.token1.address);
-          const poolConfig = await resolvePoolConfig({ config, token0, token1, client });
+          const poolConfig = await resolvePoolConfig({
+            config,
+            token0,
+            token1,
+            client,
+          });
           const snapshot = await createSnapshotReader(poolConfig, client)();
           if (
-            snapshot.reserve0 <= 0n
-            || snapshot.reserve1 <= 0n
-            || snapshot.liquidityTotalSupply <= 0n
-            || snapshot.liquidityBalance <= 0n
+            snapshot.reserve0 <= 0n ||
+            snapshot.reserve1 <= 0n ||
+            snapshot.liquidityTotalSupply <= 0n ||
+            snapshot.liquidityBalance <= 0n
           ) {
             throw new Error(
               "Mint execution was observed, but the recipient's LP delivery could not be verified from a coherent snapshot",
@@ -378,7 +455,10 @@ function CreationPage({
       setError(describeError(cause));
       const next = readCreationState(config);
       setAccountWorkflows(next.workflows);
-      setWorkflow((current) => next.workflows.find(({ id }) => id === current?.id) ?? next.current);
+      setWorkflow(
+        (current) =>
+          next.workflows.find(({ id }) => id === current?.id) ?? next.current,
+      );
       setCleanup(next.cleanup);
     } finally {
       setIsRunning(false);
@@ -415,13 +495,11 @@ function CreationPage({
           throw new Error("The creation workflow changed in another tab");
         }
         if (blockingStep === null) {
-          throw new Error("The creation workflow no longer requires confirmation");
+          throw new Error(
+            "The creation workflow no longer requires confirmation",
+          );
         }
-        return confirmCreationStepWasNotSigned(
-          config,
-          stored,
-          blockingStep,
-        );
+        return confirmCreationStepWasNotSigned(config, stored, blockingStep);
       });
       applyWorkflow(next);
     } catch (cause) {
@@ -440,7 +518,7 @@ function CreationPage({
     setError(null);
     try {
       const archived = await withAccountLock(config, async () =>
-        archiveCreationWorkflow(config, obsolete)
+        archiveCreationWorkflow(config, obsolete),
       );
       setAccountWorkflows((current) => [
         ...current.filter(({ id }) => id !== archived.id),
@@ -453,14 +531,16 @@ function CreationPage({
     }
   }
 
-  const blockingStep = workflow === null
-    ? null
-    : creationStepOrder.find((name) => {
-        const status = workflow.steps[name].status;
-        return status === "signing" || status === "indeterminate";
-      }) ?? null;
-  const requiresPreHashConfirmation = blockingStep !== null
-    && workflow!.steps[blockingStep].transactionHash === null;
+  const blockingStep =
+    workflow === null
+      ? null
+      : (creationStepOrder.find((name) => {
+          const status = workflow.steps[name].status;
+          return status === "signing" || status === "indeterminate";
+        }) ?? null);
+  const requiresPreHashConfirmation =
+    blockingStep !== null &&
+    workflow!.steps[blockingStep].transactionHash === null;
 
   return (
     <PoolPage
@@ -514,10 +594,22 @@ function CreationPage({
               ? "Confirm only if the account's allowance cleanup transaction was never signed."
               : "The cleanup has a transaction hash and must be observed before continuing."}
           </AlertDescription>
-          <BlockchainIdentifier kind="address" value={cleanup.tokenAddress} label="Cleanup token" />
-          <BlockchainIdentifier kind="address" value={cleanup.spenderAddress} label="Cleanup spender" />
+          <BlockchainIdentifier
+            kind="address"
+            value={cleanup.tokenAddress}
+            label="Cleanup token"
+          />
+          <BlockchainIdentifier
+            kind="address"
+            value={cleanup.spenderAddress}
+            label="Cleanup spender"
+          />
           {cleanup.transactionHash === null ? (
-            <Button disabled={isRunning} variant="destructive" onClick={confirmCleanupNotSigned}>
+            <Button
+              disabled={isRunning}
+              variant="destructive"
+              onClick={confirmCleanupNotSigned}
+            >
               Confirm allowance cleanup was not signed
             </Button>
           ) : null}
@@ -527,23 +619,47 @@ function CreationPage({
       {recoverable.length <= 1 ? null : (
         <Card>
           <CardHeader>
-            <CardTitle asChild><h2>Recoverable workflows</h2></CardTitle>
-            <CardDescription>Select the pool creation to inspect or continue.</CardDescription>
+            <CardTitle asChild>
+              <h2>Recoverable workflows</h2>
+            </CardTitle>
+            <CardDescription>
+              Select the pool creation to inspect or continue.
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {recoverable.map((candidate) => (
               <div key={candidate.id} className="flex flex-col gap-2">
                 <Button
                   size="sm"
-                  variant={candidate.id === workflow?.id ? "default" : "outline"}
+                  variant={
+                    candidate.id === workflow?.id ? "default" : "outline"
+                  }
                   disabled={isRunning}
                   onClick={() => setWorkflow(candidate)}
                 >
-                  <TokenSymbol symbol={candidate.token0.symbol} address={candidate.token0.address} nonInteractive /> / <TokenSymbol symbol={candidate.token1.symbol} address={candidate.token1.address} nonInteractive />
+                  <TokenSymbol
+                    symbol={candidate.token0.symbol}
+                    address={candidate.token0.address}
+                    nonInteractive
+                  />{" "}
+                  /{" "}
+                  <TokenSymbol
+                    symbol={candidate.token1.symbol}
+                    address={candidate.token1.address}
+                    nonInteractive
+                  />
                 </Button>
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <BlockchainIdentifier kind="address" value={candidate.token0.address} label="Recovery token 0 address" />
-                  <BlockchainIdentifier kind="address" value={candidate.token1.address} label="Recovery token 1 address" />
+                  <BlockchainIdentifier
+                    kind="address"
+                    value={candidate.token0.address}
+                    label="Recovery token 0 address"
+                  />
+                  <BlockchainIdentifier
+                    kind="address"
+                    value={candidate.token1.address}
+                    label="Recovery token 1 address"
+                  />
                 </div>
               </div>
             ))}
@@ -566,8 +682,11 @@ function CreationPage({
             setInput((current) => ({
               ...current,
               [field]: value,
-              ...(field === "tokenA" ? { amountA: "" }
-                : field === "tokenB" ? { amountB: "" } : {}),
+              ...(field === "tokenA"
+                ? { amountA: "" }
+                : field === "tokenB"
+                  ? { amountB: "" }
+                  : {}),
             }));
             setReview(null);
           }}
@@ -589,14 +708,15 @@ function CreationPage({
           isRunning={isRunning}
           requiresPreHashConfirmation={requiresPreHashConfirmation}
           onConfirmNotSigned={confirmNotSigned}
-          onContinue={() => startOrContinue(
-            workflow.status === "queued"
-            || workflow.status === "race",
-          )}
+          onContinue={() =>
+            startOrContinue(
+              workflow.status === "queued" || workflow.status === "race",
+            )
+          }
           onStartOver={() => {
             if (workflow !== null) {
               setAccountWorkflows((current) =>
-                current.filter(({ id }) => id !== workflow.id)
+                current.filter(({ id }) => id !== workflow.id),
               );
             }
             setWorkflow(null);
@@ -619,7 +739,8 @@ function CreationPage({
           checked={manualProcessing}
           disabled={isRunning || workflow?.status === "queued"}
           onCheckedChange={(manual) =>
-            setProcessingMode(manual ? "manual" : "automatic")}
+            setProcessingMode(manual ? "manual" : "automatic")
+          }
         />
       </Field>
     </PoolPage>
@@ -650,9 +771,12 @@ function CreationForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle asChild><h2>Token pair</h2></CardTitle>
+        <CardTitle asChild>
+          <h2>Token pair</h2>
+        </CardTitle>
         <CardDescription>
-          Enter existing ERC20 contracts and the exact amounts for the first deposit.
+          Enter existing ERC20 contracts and the exact amounts for the first
+          deposit.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -681,10 +805,13 @@ function CreationForm({
       </CardContent>
       <CardFooter>
         <Button
-          disabled={isReviewing || blocked
-            || tokenAddress(input.tokenA) === null
-            || tokenAddress(input.tokenB) === null
-            || tokenAddress(input.tokenA) === tokenAddress(input.tokenB)}
+          disabled={
+            isReviewing ||
+            blocked ||
+            tokenAddress(input.tokenA) === null ||
+            tokenAddress(input.tokenB) === null ||
+            tokenAddress(input.tokenA) === tokenAddress(input.tokenB)
+          }
           onClick={onReview}
         >
           {isReviewing ? "Reviewing pool…" : "Review pool"}
@@ -724,27 +851,54 @@ function TokenFields({
         onChange={onAddress}
       />
       {preview === null ? null : (
-        <div role="status" aria-live="polite" className="flex min-w-0 flex-col gap-2 break-all text-sm">
-          {preview.status === "pending" ? "Loading live token metadata..."
-            : preview.status === "ready" ? (
-              <>
-                <span>Live name: {preview.metadata.name?.trim() || <BlockchainIdentifier kind="address" value={address} label="Token address" />}</span>
-                <span>Live symbol: {preview.metadata.symbol?.trim() || <BlockchainIdentifier kind="address" value={address} label="Token address" />}</span>
-                <span>Decimals: {preview.metadata.decimals ?? "unavailable"}</span>
-                <span className="text-muted-foreground">
-                  Informational only. Review rereads live state before creation.
-                </span>
-              </>
-            ) : (
-              <>
-                <span>{preview.networkMismatch
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex min-w-0 flex-col gap-2 break-all text-sm"
+        >
+          {preview.status === "pending" ? (
+            "Loading live token metadata..."
+          ) : preview.status === "ready" ? (
+            <>
+              <span>
+                Live name:{" "}
+                {preview.metadata.name?.trim() || (
+                  <BlockchainIdentifier
+                    kind="address"
+                    value={address}
+                    label="Token address"
+                  />
+                )}
+              </span>
+              <span>
+                Live symbol:{" "}
+                {preview.metadata.symbol?.trim() || (
+                  <BlockchainIdentifier
+                    kind="address"
+                    value={address}
+                    label="Token address"
+                  />
+                )}
+              </span>
+              <span>
+                Decimals: {preview.metadata.decimals ?? "unavailable"}
+              </span>
+              <span className="text-muted-foreground">
+                Informational only. Review rereads live state before creation.
+              </span>
+            </>
+          ) : (
+            <>
+              <span>
+                {preview.networkMismatch
                   ? "RPC network mismatch. Check the connection and retry."
-                  : "Live token metadata is unavailable. The address is still editable."}</span>
-                <Button type="button" size="sm" variant="outline" onClick={retry}>
-                  Retry {label} metadata
-                </Button>
-              </>
-            )}
+                  : "Live token metadata is unavailable. The address is still editable."}
+              </span>
+              <Button type="button" size="sm" variant="outline" onClick={retry}>
+                Retry {label} metadata
+              </Button>
+            </>
+          )}
         </div>
       )}
       <Field>
@@ -756,7 +910,9 @@ function TokenFields({
           value={amount}
           onChange={(event) => onAmount(event.target.value)}
         />
-        <FieldDescription>Desired amount and exact initial minimum.</FieldDescription>
+        <FieldDescription>
+          Desired amount and exact initial minimum.
+        </FieldDescription>
       </Field>
     </div>
   );
@@ -774,7 +930,9 @@ function CreationReviewCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle asChild><h2>Creation review</h2></CardTitle>
+        <CardTitle asChild>
+          <h2>Creation review</h2>
+        </CardTitle>
         <CardDescription>
           This ratio establishes initial liquidity. It is not a market price.
         </CardDescription>
@@ -782,34 +940,60 @@ function CreationReviewCard({
       <CardContent className="grid gap-6 lg:grid-cols-2">
         <dl className="grid gap-3 text-sm">
           <ReviewRow
-            label={<TokenSymbol symbol={review.token0.symbol} address={review.token0.addressBase58} />}
+            label={
+              <TokenSymbol
+                symbol={review.token0.symbol}
+                address={review.token0.addressBase58}
+              />
+            }
             value={formatAmount(review.token0.amount, review.token0.decimals)}
           />
           <ReviewRow
-            label={<TokenSymbol symbol={review.token1.symbol} address={review.token1.addressBase58} />}
+            label={
+              <TokenSymbol
+                symbol={review.token1.symbol}
+                address={review.token1.addressBase58}
+              />
+            }
             value={formatAmount(review.token1.amount, review.token1.decimals)}
           />
-          <ReviewRow label="Initial ratio" value={<>{formatAmount(
-            review.token0.amount,
-            review.token0.decimals,
-          )} <TokenSymbol symbol={review.token0.symbol} address={review.token0.addressBase58} /> : {formatAmount(
-            review.token1.amount,
-            review.token1.decimals,
-          )} <TokenSymbol symbol={review.token1.symbol} address={review.token1.addressBase58} /></>} />
+          <ReviewRow
+            label="Initial ratio"
+            value={
+              <>
+                {formatAmount(review.token0.amount, review.token0.decimals)}{" "}
+                <TokenSymbol
+                  symbol={review.token0.symbol}
+                  address={review.token0.addressBase58}
+                />{" "}
+                : {formatAmount(review.token1.amount, review.token1.decimals)}{" "}
+                <TokenSymbol
+                  symbol={review.token1.symbol}
+                  address={review.token1.addressBase58}
+                />
+              </>
+            }
+          />
           <ReviewRow
             label="Estimated LP before lock"
             value={`${review.initialLiquidity} base units`}
           />
-          <ReviewRow label="Funding minimum" value={`${review.fundingMinimum} HOG base units per contract`} />
-          <ReviewRow label="Recommended funding" value={`${review.fundingPerContract} HOG base units per contract`} />
+          <ReviewRow
+            label="Funding minimum"
+            value={`${review.fundingMinimum} HOG base units per contract`}
+          />
+          <ReviewRow
+            label="Recommended funding"
+            value={`${review.fundingPerContract} HOG base units per contract`}
+          />
         </dl>
         <div className="flex flex-col gap-3">
           <div>
             <h3 className="font-medium">Atomic factory funding</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               The factory recommends {review.totalFunding} HOG base units across
-              the LP token, handler, and driver. The app will approve
-              {" "}{review.fundingApprovalDifference} additional base units, then
+              the LP token, handler, and driver. The app will approve{" "}
+              {review.fundingApprovalDifference} additional base units, then
               create and fund all three contracts atomically.
             </p>
           </div>
@@ -824,7 +1008,13 @@ function CreationReviewCard({
   );
 }
 
-function ReviewRow({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
+function ReviewRow({
+  label,
+  value,
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+}) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-foreground/10 pb-3">
       <dt className="text-muted-foreground">{label}</dt>
@@ -850,11 +1040,13 @@ function CreationProgressCard({
 }) {
   const blocking = hasBlockingCreationTransaction(workflow);
   const canContinueRace = workflow.status === "race" && workflow.pool !== null;
-  const needsFundingCleanup = workflow.status === "failed"
-    && workflow.steps.approveFunding.status === "committed"
-    && workflow.steps.createPool.status === "failed";
-  const terminal = ["executed", "failed", "archived"].includes(workflow.status)
-    || (workflow.status === "race" && !canContinueRace);
+  const needsFundingCleanup =
+    workflow.status === "failed" &&
+    workflow.steps.approveFunding.status === "committed" &&
+    workflow.steps.createPool.status === "failed";
+  const terminal =
+    ["executed", "failed", "archived"].includes(workflow.status) ||
+    (workflow.status === "race" && !canContinueRace);
   const actionLabel = blocking
     ? "Check transaction and continue"
     : workflow.status === "queued"
@@ -871,15 +1063,36 @@ function CreationProgressCard({
       <CardHeader>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <CardTitle asChild><h2>Creation progress</h2></CardTitle>
+            <CardTitle asChild>
+              <h2>Creation progress</h2>
+            </CardTitle>
             <CardDescription>
-              {formatAmount(BigInt(workflow.token0.amount), workflow.token0.decimals)} <TokenSymbol symbol={workflow.token0.symbol} address={workflow.token0.address} />
-              {" / "}{formatAmount(BigInt(workflow.token1.amount), workflow.token1.decimals)} <TokenSymbol symbol={workflow.token1.symbol} address={workflow.token1.address} />.
-              {" "}Factory funding: {workflow.totalFunding} HOG base units
-              ({workflow.fundingPerContract} per contract; minimum {workflow.fundingMinimum}).
+              {formatAmount(
+                BigInt(workflow.token0.amount),
+                workflow.token0.decimals,
+              )}{" "}
+              <TokenSymbol
+                symbol={workflow.token0.symbol}
+                address={workflow.token0.address}
+              />
+              {" / "}
+              {formatAmount(
+                BigInt(workflow.token1.amount),
+                workflow.token1.decimals,
+              )}{" "}
+              <TokenSymbol
+                symbol={workflow.token1.symbol}
+                address={workflow.token1.address}
+              />
+              . Factory funding: {workflow.totalFunding} HOG base units (
+              {workflow.fundingPerContract} per contract; minimum{" "}
+              {workflow.fundingMinimum}).
             </CardDescription>
             {workflow.executionMode === "batch" ? (
-              <CardDescription>Pool creation, approvals, and liquidity submission share one transaction. Queue processing is separate.</CardDescription>
+              <CardDescription>
+                Pool creation, approvals, and liquidity submission share one
+                transaction. Queue processing is separate.
+              </CardDescription>
             ) : null}
           </div>
           <Badge variant="outline">{workflow.status}</Badge>
@@ -887,16 +1100,32 @@ function CreationProgressCard({
       </CardHeader>
       <CardContent className="grid gap-6">
         <div className="flex flex-wrap gap-3 text-sm">
-          <BlockchainIdentifier kind="address" value={workflow.token0.address} label="Token 0 address" />
-          <BlockchainIdentifier kind="address" value={workflow.token1.address} label="Token 1 address" />
+          <BlockchainIdentifier
+            kind="address"
+            value={workflow.token0.address}
+            label="Token 0 address"
+          />
+          <BlockchainIdentifier
+            kind="address"
+            value={workflow.token1.address}
+            label="Token 1 address"
+          />
         </div>
         {workflow.executionMode === "batch" ? (
           <div className="grid gap-1 text-sm">
             <span className="font-medium">Creation batch</span>
             {workflow.steps.createPool.transactionHash ? (
-              <BlockchainIdentifier kind="transaction" value={workflow.steps.createPool.transactionHash} label="Creation batch transaction hash" />
+              <BlockchainIdentifier
+                kind="transaction"
+                value={workflow.steps.createPool.transactionHash}
+                label="Creation batch transaction hash"
+              />
             ) : null}
-            {workflow.steps.createPool.message ? <p className="text-muted-foreground">{workflow.steps.createPool.message}</p> : null}
+            {workflow.steps.createPool.message ? (
+              <p className="text-muted-foreground">
+                {workflow.steps.createPool.message}
+              </p>
+            ) : null}
           </div>
         ) : null}
         <CreationSteps
@@ -912,12 +1141,18 @@ function CreationProgressCard({
       </CardContent>
       {terminal && !needsFundingCleanup ? (
         <CardFooter>
-          <Button disabled={isRunning} variant="outline" onClick={onStartOver}>Start another pool</Button>
+          <Button disabled={isRunning} variant="outline" onClick={onStartOver}>
+            Start another pool
+          </Button>
         </CardFooter>
       ) : (
         <CardFooter className="gap-3">
           {requiresPreHashConfirmation ? (
-            <Button disabled={isRunning} variant="destructive" onClick={onConfirmNotSigned}>
+            <Button
+              disabled={isRunning}
+              variant="destructive"
+              onClick={onConfirmNotSigned}
+            >
               Confirm transaction was not signed
             </Button>
           ) : (
@@ -942,7 +1177,9 @@ function CreationSteps({
 }) {
   return (
     <section>
-      <h3 className="mb-3 text-sm font-medium text-muted-foreground">{label}</h3>
+      <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+        {label}
+      </h3>
       <ol aria-label={`${label} stages`} className="grid gap-3">
         {names.map((name) => {
           const step = workflow.steps[name];
@@ -952,12 +1189,20 @@ function CreationSteps({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-medium">{stepLabels[name]}</span>
-                  <span className="text-xs text-muted-foreground">{step.status}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {step.status}
+                  </span>
                 </div>
-                {step.message === null || (workflow.executionMode === "batch" && name !== "crank") ? null : (
-                  <p className="mt-1 text-sm text-muted-foreground">{step.message}</p>
+                {step.message === null ||
+                (workflow.executionMode === "batch" &&
+                  name !== "crank") ? null : (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {step.message}
+                  </p>
                 )}
-                {step.transactionHash === null || (workflow.executionMode === "batch" && name !== "crank") ? null : (
+                {step.transactionHash === null ||
+                (workflow.executionMode === "batch" &&
+                  name !== "crank") ? null : (
                   <div className="mt-1 text-xs">
                     <BlockchainIdentifier
                       kind="transaction"
@@ -975,17 +1220,41 @@ function CreationSteps({
   );
 }
 
-function StepIcon({ status }: { status: CreationWorkflow["steps"][CreationStepName]["status"] }) {
+function StepIcon({
+  status,
+}: {
+  status: CreationWorkflow["steps"][CreationStepName]["status"];
+}) {
   if (status === "committed" || status === "skipped") {
-    return <CheckCircle2Icon aria-hidden="true" className="mt-0.5 size-5 text-primary" />;
+    return (
+      <CheckCircle2Icon
+        aria-hidden="true"
+        className="mt-0.5 size-5 text-primary"
+      />
+    );
   }
   if (status === "signing") {
-    return <LoaderCircleIcon aria-hidden="true" className="mt-0.5 size-5 animate-spin" />;
+    return (
+      <LoaderCircleIcon
+        aria-hidden="true"
+        className="mt-0.5 size-5 animate-spin"
+      />
+    );
   }
   if (status === "failed" || status === "indeterminate") {
-    return <AlertCircleIcon aria-hidden="true" className="mt-0.5 size-5 text-destructive" />;
+    return (
+      <AlertCircleIcon
+        aria-hidden="true"
+        className="mt-0.5 size-5 text-destructive"
+      />
+    );
   }
-  return <CircleIcon aria-hidden="true" className="mt-0.5 size-5 text-muted-foreground" />;
+  return (
+    <CircleIcon
+      aria-hidden="true"
+      className="mt-0.5 size-5 text-muted-foreground"
+    />
+  );
 }
 
 function readCreationState(config: GlobalConfig): {
@@ -996,13 +1265,21 @@ function readCreationState(config: GlobalConfig): {
 } {
   try {
     const workflows = loadAccountCreationWorkflows(config);
-    const current = workflows
-      .filter((workflow) => isRecoverableCreationWorkflow(
-        workflow,
-        toBase58(config.factoryAddress),
-      ))
-      .sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
-    return { workflows, current, cleanup: loadAllowanceCleanup(config), error: null };
+    const current =
+      workflows
+        .filter((workflow) =>
+          isRecoverableCreationWorkflow(
+            workflow,
+            toBase58(config.factoryAddress),
+          ),
+        )
+        .sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
+    return {
+      workflows,
+      current,
+      cleanup: loadAllowanceCleanup(config),
+      error: null,
+    };
   } catch {
     return {
       workflows: [],
@@ -1018,17 +1295,21 @@ function isRecoverableCreationWorkflow(
   workflow: CreationWorkflow,
   factoryAddress: string,
 ): boolean {
-  return workflow.factoryAddress === factoryAddress
-    && (workflow.status === "active"
-      || workflow.status === "queued"
-      || workflow.status === "race"
-      || (workflow.status === "failed"
-        && workflow.steps.approveFunding.status === "committed"
-        && workflow.steps.createPool.status === "failed"));
+  return (
+    workflow.factoryAddress === factoryAddress &&
+    (workflow.status === "active" ||
+      workflow.status === "queued" ||
+      workflow.status === "race" ||
+      (workflow.status === "failed" &&
+        workflow.steps.approveFunding.status === "committed" &&
+        workflow.steps.createPool.status === "failed"))
+  );
 }
 
 function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : "Pool creation could not continue";
+  return error instanceof Error
+    ? error.message
+    : "Pool creation could not continue";
 }
 
 async function readFactoryAllowance(
@@ -1040,6 +1321,9 @@ async function readFactoryAllowance(
     contract: config.nativeHogAddress,
     caller: config.accountAddress,
   });
-  const view = await token.allowance(config.accountAddress, config.factoryAddress);
-  return { value: view.value, height: view.height };
+  const view = await token.allowance(
+    config.accountAddress,
+    config.factoryAddress,
+  );
+  return { value: view.value, height: view.stateBlockHeight };
 }

@@ -13,15 +13,19 @@ const PingEvent = counter.v0_1.implementation.PingEvent;
 // Keep the upper block bound fixed while paging through this query.
 const tip = await client.getChainTip();
 const query = {
-  filters: [PingEvent.filter({ contractAddresses: [address] })],
-  anchor: { height: tip.height },
-  order: "descending" as const,
+  filters: [PingEvent.filter({ addresses: [address] })],
   limit: 100,
 };
-let page = await client.getEvents(query);
+let page = await client.getEvents({
+  ...query,
+  start: {
+    order: "descending",
+    anchor: { kind: "atHeight", blockHeight: tip.blockHeight },
+  },
+});
 const events = [...page.events];
-while (page.cursor.length > 0) {
-  page = await client.getEvents({ ...query, cursor: page.cursor });
+while (page.nextCursor !== null) {
+  page = await client.getEvents({ ...query, cursor: page.nextCursor });
   events.push(...page.events);
 }
 

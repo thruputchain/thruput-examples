@@ -2,7 +2,6 @@ import type {
   TransactionReceipt,
   TransactionStatus,
 } from "@thruputchain/client";
-import { ExecResult } from "@thruputchain/protocol";
 
 export type TransactionOutcome =
   | { kind: "pending" }
@@ -30,6 +29,7 @@ export type TransactionOutcome =
 export function outcomeFromStatus(
   status: TransactionStatus,
 ): TransactionOutcome {
+  if (!("status" in status)) return { kind: "indeterminate", reason: "other" };
   switch (status.status) {
     case "retry":
     case "pending":
@@ -37,10 +37,8 @@ export function outcomeFromStatus(
     case "committed":
       return {
         kind: "awaitingReceipt",
-        ...(status.height === undefined ? {} : { height: status.height }),
+        height: status.blockHeight,
       };
-    case "invalid":
-      return { kind: "invalid", reason: status.reason };
     case "dropped":
       return { kind: "indeterminate", reason: "dropped" };
     case "recentFailure":
@@ -64,7 +62,9 @@ export function outcomeFromStatus(
 export function outcomeFromReceipt(
   receipt: TransactionReceipt,
 ): TransactionOutcome {
-  return receipt.execResult === ExecResult.ExecResultOK
+  if (!("result" in receipt.execution))
+    return { kind: "indeterminate", reason: "other" };
+  return "result" in receipt.execution && receipt.execution.result === "return"
     ? { kind: "committedSuccess", receipt }
     : { kind: "committedFailure", receipt };
 }

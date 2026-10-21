@@ -9,7 +9,7 @@ export function useCounterValue(address: string) {
     ...contractViewQueryOptions({
       client,
       method: Counter.v0_1.get,
-      contract: addressFromBase58(address),
+      address: addressFromBase58(address),
     }),
     refetchInterval: 2_000,
   });

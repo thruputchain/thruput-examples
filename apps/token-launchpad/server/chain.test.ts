@@ -3,7 +3,8 @@
 import {
   addressFromHex,
   fixedBytes,
-  ThruputRpcErrorCode,
+  NativeRpcErrorCode,
+  NativeRpcError,
   hashFromBase58,
   hashFromHex,
   JsonRpcError,
@@ -33,7 +34,11 @@ const scope: RegistryScope = {
   factoryAddress: toBase58(new Uint8Array(32).fill(0x22)),
   tokenCodeHash: toBase58(new Uint8Array(32).fill(0x33)),
 };
-const client = { view: vi.fn(), getEvents: vi.fn(), getNetworkInfo: vi.fn() };
+const client = {
+  simulateInvocation: vi.fn(),
+  getEvents: vi.fn(),
+  getNetworkInfo: vi.fn(),
+};
 
 beforeEach(() => {
   client.getEvents.mockReset();
@@ -50,7 +55,7 @@ describe("ThruputRegistrySource", () => {
     async (timing) => {
       vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
         value: factoryConfig(0x33),
-        height: 1n,
+        stateBlockHeight: 1n,
         events: [],
         gasUsed: 0n,
       });
@@ -81,9 +86,9 @@ describe("ThruputRegistrySource", () => {
             timing === "empty page" || timing === "no new blocks"
               ? []
               : [identifiedEvent()],
-          cursor: new Uint8Array(),
-          latestBlock: timing === "no new blocks" ? 0n : 8n,
-          oldestBlock: 1n,
+          nextCursor: null,
+          latestIndexedBlockHeight: timing === "no new blocks" ? 0n : 8n,
+          oldestIndexedBlockHeight: 1n,
         };
       });
       if (timing === "before scan") switchNetwork();
@@ -125,9 +130,9 @@ describe("ThruputRegistrySource", () => {
           client.getNetworkInfo.mockRejectedValueOnce(failure);
         return {
           events: [],
-          cursor: new Uint8Array(),
-          latestBlock: 8n,
-          oldestBlock: 1n,
+          nextCursor: null,
+          latestIndexedBlockHeight: 8n,
+          oldestIndexedBlockHeight: 1n,
         };
       });
       if (timing === "before scan")
@@ -143,9 +148,9 @@ describe("ThruputRegistrySource", () => {
         expect(store.getScan()).toBeNull();
         client.getEvents.mockResolvedValue({
           events: [],
-          cursor: new Uint8Array(),
-          latestBlock: 8n,
-          oldestBlock: 1n,
+          nextCursor: null,
+          latestIndexedBlockHeight: 8n,
+          oldestIndexedBlockHeight: 1n,
         });
       });
       const indexer = new RegistryIndexer(
@@ -176,7 +181,7 @@ describe("ThruputRegistrySource", () => {
   it("verifies the configured factory token implementation", async () => {
     vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
       value: factoryConfig(0x33),
-      height: 1n,
+      stateBlockHeight: 1n,
       events: [],
       gasUsed: 0n,
     });
@@ -189,7 +194,7 @@ describe("ThruputRegistrySource", () => {
   it("rejects a factory outside the configured token scope", async () => {
     vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
       value: factoryConfig(0x44),
-      height: 1n,
+      stateBlockHeight: 1n,
       events: [],
       gasUsed: 0n,
     });
@@ -221,9 +226,9 @@ describe("ThruputRegistrySource", () => {
     });
     client.getEvents.mockResolvedValueOnce({
       events: [identifiedEvent()],
-      cursor: new Uint8Array(),
-      latestBlock: 8n,
-      oldestBlock: 1n,
+      nextCursor: null,
+      latestIndexedBlockHeight: 8n,
+      oldestIndexedBlockHeight: 1n,
     });
 
     await expect(
@@ -255,9 +260,9 @@ describe("ThruputRegistrySource", () => {
     });
     client.getEvents.mockResolvedValueOnce({
       events: [identifiedEvent()],
-      cursor: Uint8Array.of(1, 2, 3),
-      latestBlock: 8n,
-      oldestBlock: 2n,
+      nextCursor: "0x010203",
+      latestIndexedBlockHeight: 8n,
+      oldestIndexedBlockHeight: 2n,
     });
 
     const result = await new ThruputRegistrySource(client, scope).getPage({
@@ -286,13 +291,21 @@ describe("ThruputRegistrySource", () => {
       ],
     });
     expect(client.getEvents).toHaveBeenCalledWith(
-      expect.objectContaining({ order: "ascending", anchor: { height: 2n } }),
+      expect.objectContaining({
+        start: {
+          order: "ascending",
+          anchor: { kind: "atHeight", blockHeight: 2n },
+        },
+      }),
     );
   });
 
   it("classifies only invalid supplied cursors as cursor rejection", async () => {
     client.getEvents.mockRejectedValueOnce(
-      new JsonRpcError(ThruputRpcErrorCode.InvalidParams, "invalid cursor"),
+      new NativeRpcError(
+        new JsonRpcError(NativeRpcErrorCode.InvalidParams, "invalid cursor"),
+        "getEvents",
+      ),
     );
     const source = new ThruputRegistrySource(client, scope);
 
@@ -352,11 +365,11 @@ function factoryConfig(byte: number) {
 
 function identifiedEvent() {
   return {
-    txHash: hashFromHex(`0x${"88".repeat(32)}`),
+    transactionHash: hashFromHex(`0x${"88".repeat(32)}`),
     blockHeight: 8n,
     sequenceNumber: 0,
     event: {
-      contractAddress: address(0x22),
+      address: address(0x22),
       topics: [],
       data: new Uint8Array(),
     },

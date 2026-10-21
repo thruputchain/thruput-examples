@@ -10,6 +10,7 @@ the whole repository.
 | --- | --- | --- |
 | Write a contract | [Counter](contracts/counter/README.md) | Rust and Cargo registry access; no running node |
 | Use the TypeScript SDK | [Client examples](examples/typescript/README.md) | Node.js, npm package access, and a local node |
+| Consume hosted blocks | [Firehose consumer](examples/typescript/README.md#7-consume-the-hosted-firehose) | Node.js and the repo npm install; no local node |
 | Try an application | [Counter app](apps/counter/README.md) | Rust, Node.js, CLI, and a local node |
 | Explore a full wallet app | [Token Launchpad](apps/token-launchpad/README.md), then [Swap](apps/swap/README.md) | The app toolchain and [Thruput Freighter](https://github.com/thruputchain/freighter) |
 
@@ -72,11 +73,11 @@ credential provider. Save your token at Cargo's prompt:
 export CARGO_REGISTRIES_THRUPUT_CREDENTIAL_PROVIDER=cargo:token
 cargo login --registry thruput
 rustup show
-cargo install --locked --registry thruput --version 0.32.1 thruput-cli
+cargo install --locked --registry thruput --version 0.33.0 thruput-cli
 thruput toolchain install
 ```
 
-CLI **0.32.1** manages runtime **0.1.31-rc.10**. Native tests need Rust and registry
+CLI **0.33.0** manages runtime **0.1.31-rc.11** (native RPC wire 14). Native tests need Rust and registry
 access but no CLI or node. For contract builds, add this local profile to
 `thruput.toml` if it is not already configured:
 

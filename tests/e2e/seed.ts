@@ -155,7 +155,7 @@ try {
   let startup:
     | {
         ok: boolean;
-        data: { rpc_url: string; runtime_manifest: { path: string } };
+        data: { rpcUrl: string; runtimeManifest: { path: string } };
       }
     | undefined;
   await until(
@@ -176,8 +176,8 @@ try {
     () => node.output().replace(/(?:0x)?[0-9a-fA-F]{64}/g, "[hex32]"),
   );
   Object.assign(env, {
-    THRUPUT_RPC_URL: startup!.data.rpc_url,
-    THRUPUT_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
+    THRUPUT_RPC_URL: startup!.data.rpcUrl,
+    THRUPUT_RUNTIME_MANIFEST: startup!.data.runtimeManifest.path,
   });
   stage = "infrastructure setup";
   for (const [app, prefix] of [
@@ -224,7 +224,7 @@ try {
   });
   const factory = addressFromBase58(swap.VITE_SWAP_FACTORY_ADDRESS!);
   const count = async () =>
-    (await SwapFactory.v0_1.allPairsLength.view({ client, contract: factory }))
+    (await SwapFactory.v0_1.allPairsLength.view({ client, address: factory }))
       .value;
   assert.equal(await count(), 0n);
   assert.equal(store!.getStatus().tokenCount, 0);
@@ -233,12 +233,12 @@ try {
   const otherSetup = join(work, "OTHER-SWAP.env");
   await run("swap", "setup-local", { SWAP_APP_ENV: otherSetup });
   const other = parseEnv(await readFile(otherSetup, "utf8"));
-  const tipBeforeMismatch = (await client.getChainTip()).height;
+  const tipBeforeMismatch = (await client.getChainTip()).blockHeight;
   const mismatchedRouter = {
     VITE_SWAP_ROUTER_ADDRESS: other.VITE_SWAP_ROUTER_ADDRESS!,
   };
   await run("swap", "seed-pools", mismatchedRouter, 1);
-  assert.equal((await client.getChainTip()).height, tipBeforeMismatch);
+  assert.equal((await client.getChainTip()).blockHeight, tipBeforeMismatch);
   await assert.rejects(readdir(env.SEED_STATE_DIR!), { code: "ENOENT" });
   assert.equal(await count(), 0n);
   assert.equal(store!.getStatus().tokenCount, 0);
@@ -263,7 +263,7 @@ try {
       (
         await ERC20.v0_1.getBalanceOf.view({
           client,
-          contract: addressFromBase58(token),
+          address: addressFromBase58(token),
           args: { addr: addressFromBase58(tokens.recipient) },
         })
       ).value,
@@ -281,7 +281,7 @@ try {
       (
         await ERC20.v0_1.getBalanceOf.view({
           client,
-          contract: addressFromBase58(token),
+          address: addressFromBase58(token),
           args: { addr: addressFromBase58(manifest.recipient) },
         })
       ).value,
@@ -291,7 +291,7 @@ try {
   const pool = (
     await SwapHandler.v0_1.poolState.view({
       client,
-      contract: addressFromBase58(manifest.pool.handler),
+      address: addressFromBase58(manifest.pool.handler),
     })
   ).value;
   assert.deepEqual(pool.reserves, [1_000_000_000n, 1_000_000_000n]);
@@ -299,7 +299,7 @@ try {
     (
       await ERC20.v0_1.getBalanceOf.view({
         client,
-        contract: addressFromBase58(manifest.pool.liquidityToken),
+        address: addressFromBase58(manifest.pool.liquidityToken),
         args: { addr: addressFromBase58(manifest.recipient) },
       })
     ).value > 0n,
@@ -315,9 +315,9 @@ try {
       ),
     },
   ]) {
-    const tip = (await client.getChainTip()).height;
+    const tip = (await client.getChainTip()).blockHeight;
     await run("token-launchpad", "seed-tokens", overrides, 1);
-    assert.equal((await client.getChainTip()).height, tip);
+    assert.equal((await client.getChainTip()).blockHeight, tip);
   }
   const second = result(await run("swap", "seed-pools"));
   assert.ok(second.pool);

@@ -34,7 +34,7 @@ import { publishArtifact } from "../../scripts/provision";
 import { setupDevnet } from "../../scripts/setup-devnet";
 
 const mocks = vi.hoisted(() => ({
-  getVersion: vi.fn(),
+  getVersionInfo: vi.fn(),
   requestAirdrop: vi.fn(),
   getBalance: vi.fn(),
   deployContractAndWait: vi.fn(),
@@ -62,7 +62,9 @@ vi.mock("@thruputchain/client/wallet", async (original) => {
 });
 vi.mock("@thruputchain/client", async (original) => ({
   ...(await original<typeof import("@thruputchain/client")>()),
-  createThruputClient: vi.fn(async () => ({ getVersion: mocks.getVersion })),
+  createThruputClient: vi.fn(async () => ({
+    getVersionInfo: mocks.getVersionInfo,
+  })),
   createWalletClient: vi.fn(() => mocks),
 }));
 
@@ -98,11 +100,7 @@ beforeEach(async () => {
     "public/contract-artifacts",
     `${toBase58(hashContract(contract("erc20")))}.json`,
   );
-  oldAssetPath = join(
-    root,
-    "public/contract-artifacts",
-    `${b58(0x11)}.json`,
-  );
+  oldAssetPath = join(root, "public/contract-artifacts", `${b58(0x11)}.json`);
   await mkdir(join(root, "public/contract-artifacts"), { recursive: true });
   await writeFile(oldAssetPath, "previous artifact\n");
   mocks.link.mockImplementation(
@@ -130,19 +128,19 @@ beforeEach(async () => {
   vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "");
   vi.stubEnv("THRUPUT_NETWORK_ID", b58(0x00));
   phases = [];
-  mocks.getVersion.mockResolvedValue({ wireFormat: "4.0.0" });
+  mocks.getVersionInfo.mockResolvedValue({ wireFormat: "14.0.0" });
   mocks.requestAirdrop.mockImplementation(async () => {
     phases.push("airdrop");
-    return { status: { result: "ok" } };
+    return { rawAmount: 1_000_000_000n };
   });
   mocks.getBalance.mockResolvedValue({ rawBalance: 1_000_000_000n });
   mocks.deployContractAndWait.mockImplementation(async (deployment) => {
     phases.push("deploy");
-    return { txHash: new Uint8Array(32), address: deployment.address };
+    return { transactionHash: new Uint8Array(32), address: deployment.address };
   });
   mocks.executeAndWait.mockImplementation(async () => {
     phases.push("execute");
-    return { txHash: new Uint8Array(32) };
+    return { transactionHash: new Uint8Array(32) };
   });
   const deployments = [address(1), address(2), factory, router];
   const predicted = [...deployments];
@@ -297,8 +295,8 @@ describe("infrastructure-only swap provisioning", () => {
         (name) => contract(name),
       ),
     );
-    for (const [deployment, deployOptions, options] of mocks.deployContractAndWait
-      .mock.calls) {
+    for (const [deployment, deployOptions, options] of mocks
+      .deployContractAndWait.mock.calls) {
       expect(deployment.deployer).toEqual(account.address);
       expect(deployOptions).toEqual({ gasLimit: gas, amount: 0n });
       expect(options).toEqual({ timeoutMs: 60_000 });
@@ -375,9 +373,7 @@ describe("infrastructure-only swap provisioning", () => {
     "asset publication",
   ])("preserves existing output when %s fails", async (phase) => {
     if (phase === "airdrop")
-      mocks.requestAirdrop.mockResolvedValueOnce({
-        status: { result: "reverted" },
-      });
+      mocks.requestAirdrop.mockRejectedValueOnce(new Error("Funding stopped"));
     if (phase === "receipt")
       mocks.executeAndWait.mockRejectedValueOnce(new Error("Execution failed"));
     if (phase === "address")
@@ -432,10 +428,7 @@ describe("infrastructure-only swap provisioning", () => {
 
   it("accepts a network-only manifest without bootstrap personas", async () => {
     const manifest = join(root, "runtime.json");
-    await writeFile(
-      manifest,
-      JSON.stringify({ networkHash: b58(0x00) }),
-    );
+    await writeFile(manifest, JSON.stringify({ networkHash: b58(0x00) }));
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await main();
     expect(createThruputClient).toHaveBeenCalledWith(
@@ -469,14 +462,11 @@ describe("infrastructure-only swap provisioning", () => {
 
   it("rejects mismatched network pins and unsupported wire formats before funding", async () => {
     const manifest = join(root, "runtime.json");
-    await writeFile(
-      manifest,
-      JSON.stringify({ networkHash: b58(0x11) }),
-    );
+    await writeFile(manifest, JSON.stringify({ networkHash: b58(0x11) }));
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await expect(main()).rejects.toThrow(/disagree/);
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "");
-    mocks.getVersion.mockResolvedValueOnce({ wireFormat: "3.0.0" });
+    mocks.getVersionInfo.mockResolvedValueOnce({ wireFormat: "13.0.0" });
     await expect(main()).rejects.toThrow(/wire format/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });

@@ -71,14 +71,10 @@ export async function provisionSwap(options: {
     }),
     transport: new HttpTransport(rpcUrl, { timeoutMs: 10_000 }),
   });
-  const version = await client.getVersion();
-  if (
-    !/^(?:[4-9]|[1-9]\d+)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(
-      version.wireFormat,
-    )
-  ) {
+  const version = await client.getVersionInfo();
+  if (!/^14\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(version.wireFormat)) {
     throw new Error(
-      `Thruput wire format >=4.0.0 is required; found ${version.wireFormat}`,
+      `Thruput wire format 14.x is required; found ${version.wireFormat}`,
     );
   }
   const [erc20, factoryContract, routerContract, handler, driver] =
@@ -123,15 +119,19 @@ export async function provisionSwap(options: {
         amount: CONTRACT_FUNDING,
       }),
     );
-    const result = await wallet.deployContractAndWait(deployment, { gasLimit: GAS_LIMIT, amount: 0n }, {
-      timeoutMs: 60_000,
-    });
-    console.log(`Deploy ${name}: ${toBase58(result.txHash)}`);
+    const result = await wallet.deployContractAndWait(
+      deployment,
+      { gasLimit: GAS_LIMIT, amount: 0n },
+      {
+        timeoutMs: 60_000,
+      },
+    );
+    console.log(`Deploy ${name}: ${toBase58(result.transactionHash)}`);
     console.log(`${name}: ${toBase58(result.address)}`);
     return result.address;
   };
   const execute = async (invocation: Invocation): Promise<void> => {
-    const { txHash } = await wallet.executeAndWait(
+    const { transactionHash: txHash } = await wallet.executeAndWait(
       { invocation, gasLimit: GAS_LIMIT },
       { timeoutMs: 60_000 },
     );
@@ -150,10 +150,7 @@ export async function provisionSwap(options: {
       flag: "wx",
     });
     const airdrop = await wallet.requestAirdrop();
-    if (
-      airdrop.status.result !== "ok" ||
-      (await wallet.getBalance()).rawBalance < CONTRACT_FUNDING * 6n
-    ) {
+    if ((await wallet.getBalance()).rawBalance < CONTRACT_FUNDING * 6n) {
       throw new Error(
         "Infrastructure deployer airdrop did not provide the required HOG reserve",
       );
@@ -188,9 +185,11 @@ export async function provisionSwap(options: {
     await execute(
       SwapRouter.v0_1.initialize.invocation(router, GAS_LIMIT, { factory }),
     );
-    const viewOptions = { client, contract: factory, caller: account.address };
-    const count = (await SwapFactory.v0_1.allPairsLength.view(viewOptions)).value;
-    const funding = (await SwapFactory.v0_1.poolFunding.view(viewOptions)).value;
+    const viewOptions = { client, address: factory, caller: account.address };
+    const count = (await SwapFactory.v0_1.allPairsLength.view(viewOptions))
+      .value;
+    const funding = (await SwapFactory.v0_1.poolFunding.view(viewOptions))
+      .value;
     const feeTo = (await SwapFactory.v0_1.feeTo.view(viewOptions)).value;
     if (
       count !== 0n ||

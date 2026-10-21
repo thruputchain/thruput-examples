@@ -7,13 +7,17 @@ import {
   hashFromBase58,
   JsonRpcError,
   type ThruputClient,
-  ThruputRpcErrorCode,
+  NativeRpcErrorCode,
+  NativeRpcError,
   toBase58,
 } from "@thruputchain/client";
 import { networkHash } from "@thruputchain/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SwapFactory, swap_if } from "../src/contracts/generated/swap-factory.ts";
+import {
+  SwapFactory,
+  swap_if,
+} from "../src/contracts/generated/swap-factory.ts";
 import {
   ThruputRegistrySource,
   RegistryCursorRejectedError,
@@ -65,12 +69,14 @@ describe("ThruputRegistrySource", () => {
     });
     expect(client.getEvents).toHaveBeenCalledWith(
       expect.objectContaining({
-        order: "ascending",
-        anchor: { height: 1n },
+        start: {
+          order: "ascending",
+          anchor: { kind: "atHeight", blockHeight: 1n },
+        },
         limit: 20,
         filters: [
           expect.objectContaining({
-            contractAddresses: [address(0x22)],
+            addresses: [address(0x22)],
           }),
         ],
       }),
@@ -84,9 +90,7 @@ describe("ThruputRegistrySource", () => {
   it("rejects endpoint drift before events and immediately before returning a page", async () => {
     const before = mockClient({ networkIds: [0x99] });
     await expect(
-      new ThruputRegistrySource(typedClient(before), scope).getPage(
-        request(),
-      ),
+      new ThruputRegistrySource(typedClient(before), scope).getPage(request()),
     ).rejects.toBeInstanceOf(RegistryScopeVerificationError);
     expect(before.getEvents).not.toHaveBeenCalled();
 
@@ -104,9 +108,7 @@ describe("ThruputRegistrySource", () => {
     client.getNetworkInfo.mockRejectedValueOnce(new Error("temporary outage"));
 
     await expect(
-      new ThruputRegistrySource(typedClient(client), scope).getPage(
-        request(),
-      ),
+      new ThruputRegistrySource(typedClient(client), scope).getPage(request()),
     ).rejects.toThrow("temporary outage");
   });
 
@@ -183,9 +185,7 @@ describe("ThruputRegistrySource", () => {
       .mockResolvedValueOnce(view([address(1), address(2)] as const, 9n));
 
     await expect(
-      new ThruputRegistrySource(typedClient(client), scope).getPage(
-        request(),
-      ),
+      new ThruputRegistrySource(typedClient(client), scope).getPage(request()),
     ).resolves.toMatchObject({ pools: [{ handlerAddress: addressBase58(4) }] });
     expect(SwapFactory.v0_1.getPair.view).toHaveBeenCalledTimes(2);
   });
@@ -225,7 +225,10 @@ describe("ThruputRegistrySource", () => {
   it("classifies only invalid supplied cursors and preserves the abort signal", async () => {
     const client = mockClient();
     client.getEvents.mockRejectedValue(
-      new JsonRpcError(ThruputRpcErrorCode.InvalidParams, "invalid cursor"),
+      new NativeRpcError(
+        new JsonRpcError(NativeRpcErrorCode.InvalidParams, "invalid cursor"),
+        "getEvents",
+      ),
     );
     const signals: AbortSignal[] = [];
     const source = new ThruputRegistrySource(
@@ -251,7 +254,7 @@ describe("ThruputRegistrySource", () => {
   it("does not classify InvalidParams without a supplied cursor", async () => {
     const client = mockClient();
     const invalidParams = new JsonRpcError(
-      ThruputRpcErrorCode.InvalidParams,
+      NativeRpcErrorCode.InvalidParams,
       "invalid parameters",
     );
     client.getEvents.mockRejectedValue(invalidParams);
@@ -315,9 +318,7 @@ describe("ThruputRegistrySource", () => {
     client.getEvents.mockResolvedValue(eventPage({ ...metadata, events: [] }));
 
     await expect(
-      new ThruputRegistrySource(typedClient(client), scope).getPage(
-        request(),
-      ),
+      new ThruputRegistrySource(typedClient(client), scope).getPage(request()),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
   });
 
@@ -378,9 +379,7 @@ describe("ThruputRegistrySource", () => {
     );
 
     await expect(
-      new ThruputRegistrySource(typedClient(client), scope).getPage(
-        request(),
-      ),
+      new ThruputRegistrySource(typedClient(client), scope).getPage(request()),
     ).rejects.toBeInstanceOf(RegistryIntegrityError);
   });
 
@@ -398,15 +397,18 @@ describe("ThruputRegistrySource", () => {
     mockCoherentFactoryViews();
 
     await expect(
-      new ThruputRegistrySource(typedClient(client), scope).getPage(
-        request(),
-      ),
+      new ThruputRegistrySource(typedClient(client), scope).getPage(request()),
     ).rejects.toThrow("duplicated or out of order");
   });
 
   it.each([
     new ContractDecodeError("malformed view return"),
-    new ContractViewError({ kind: "fault", height: 8n, gasUsed: 0n, events: [] }),
+    new ContractViewError({
+      kind: "fault",
+      stateBlockHeight: 8n,
+      gasUsed: 0n,
+      events: [],
+    }),
   ])(
     "classifies generated factory failure $name as integrity",
     async (error) => {
@@ -416,10 +418,7 @@ describe("ThruputRegistrySource", () => {
       mockCoherentFactoryViews();
       vi.mocked(SwapFactory.v0_1.getPair.view).mockRejectedValue(error);
 
-      const caught = await new ThruputRegistrySource(
-        typedClient(client),
-        scope,
-      )
+      const caught = await new ThruputRegistrySource(typedClient(client), scope)
         .getPage(request())
         .catch((value: unknown) => value);
 
@@ -434,7 +433,9 @@ describe("ThruputRegistrySource", () => {
     vi.spyOn(PoolCreated, "decode").mockReturnValue(decoded());
     mockCoherentFactoryViews();
     const transportFailure = new Error("transport unavailable");
-    vi.mocked(SwapFactory.v0_1.getPair.view).mockRejectedValue(transportFailure);
+    vi.mocked(SwapFactory.v0_1.getPair.view).mockRejectedValue(
+      transportFailure,
+    );
 
     const caught = await new ThruputRegistrySource(typedClient(client), scope)
       .getPage(request())
@@ -448,7 +449,7 @@ describe("ThruputRegistrySource", () => {
 function mockClient(options: { networkIds?: number[] } = {}) {
   const networkIds = options.networkIds ?? [0x11];
   return {
-    view: vi.fn(),
+    simulateInvocation: vi.fn(),
     getEvents: vi.fn(),
     getNetworkInfo: vi.fn(async () => ({
       networkHash: networkHash(
@@ -461,7 +462,7 @@ function mockClient(options: { networkIds?: number[] } = {}) {
 function typedClient(client: ReturnType<typeof mockClient>) {
   return client as unknown as Pick<
     ThruputClient,
-    "getEvents" | "getNetworkInfo" | "view"
+    "getEvents" | "getNetworkInfo" | "simulateInvocation"
   >;
 }
 
@@ -519,7 +520,7 @@ function pool() {
 }
 
 function view<T>(value: T, height: bigint) {
-  return { value, height, gasUsed: 0n, events: [] };
+  return { value, stateBlockHeight: height, gasUsed: 0n, events: [] };
 }
 
 function eventPage(
@@ -533,9 +534,11 @@ function eventPage(
 ) {
   return {
     events: overrides.events ?? [overrides.event ?? identifiedEvent()],
-    cursor: overrides.cursor ?? new Uint8Array(),
-    latestBlock: overrides.latestBlock ?? 12n,
-    oldestBlock: overrides.oldestBlock ?? 1n,
+    nextCursor: overrides.cursor?.length
+      ? `0x${Buffer.from(overrides.cursor).toString("hex")}`
+      : null,
+    latestIndexedBlockHeight: overrides.latestBlock ?? 12n,
+    oldestIndexedBlockHeight: overrides.oldestBlock ?? 1n,
   };
 }
 
@@ -548,11 +551,13 @@ function identifiedEvent(
   } = {},
 ) {
   return {
-    txHash: hashFromBase58(addressBase58(overrides.txHashByte ?? 0x88)),
+    transactionHash: hashFromBase58(
+      addressBase58(overrides.txHashByte ?? 0x88),
+    ),
     blockHeight: overrides.blockHeight ?? 8n,
     sequenceNumber: overrides.sequenceNumber ?? 7,
     event: {
-      contractAddress: address(overrides.emitter ?? 0x22),
+      address: address(overrides.emitter ?? 0x22),
       topics: [],
       data: new Uint8Array(),
     },

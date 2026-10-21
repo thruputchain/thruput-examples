@@ -31,7 +31,7 @@ export function requestFailedEvent(
   VarOpaqueCodec(256).encode(writer, fields.payload);
   Uint32Codec.encode(writer, fields.payload_len);
   return {
-    contractAddress,
+    address: contractAddress,
     topics: [RequestFailed.signature, requestId],
     data: writer.finish(),
   };

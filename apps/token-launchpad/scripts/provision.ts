@@ -82,14 +82,10 @@ export async function provisionLaunchpad(options: {
     }),
     transport: new HttpTransport(rpcUrl, { timeoutMs: 10_000 }),
   });
-  const version = await client.getVersion();
-  if (
-    !/^(?:1[3-9]|[2-9]\d|[1-9]\d{2,})\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(
-      version.wireFormat,
-    )
-  ) {
+  const version = await client.getVersionInfo();
+  if (!/^14\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(version.wireFormat)) {
     throw new Error(
-      `Thruput wire format >=13.0.0 is required; found ${version.wireFormat}`,
+      `Thruput wire format 14.x is required; found ${version.wireFormat}`,
     );
   }
   const [tokenContract, factoryContract] = await Promise.all(
@@ -119,7 +115,7 @@ export async function provisionLaunchpad(options: {
   });
   const wallet = createWalletClient({ client, account });
   const execute = async (invocation: Invocation): Promise<void> => {
-    const { txHash } = await wallet.executeAndWait(
+    const { transactionHash: txHash } = await wallet.executeAndWait(
       { invocation, gasLimit: GAS_LIMIT },
       { timeoutMs: 60_000 },
     );
@@ -137,10 +133,7 @@ export async function provisionLaunchpad(options: {
       flag: "wx",
     });
     const airdrop = await wallet.requestAirdrop();
-    if (
-      airdrop.status.result !== "ok" ||
-      (await wallet.getBalance()).rawBalance < CONTRACT_FUNDING * 3n
-    ) {
+    if ((await wallet.getBalance()).rawBalance < CONTRACT_FUNDING * 3n) {
       throw new Error(
         "Infrastructure deployer airdrop did not provide the required HOG reserve",
       );
@@ -166,14 +159,15 @@ export async function provisionLaunchpad(options: {
     if (options.network === "devnet") {
       // A fresh address has only its native balance row at this point. Check
       // the bookkeeping charge used by the frontend's token prefunding flow.
-      const received = (await wallet.getBalance(predicted)).rawBalance;
+      const received = (await wallet.getBalance({ address: predicted }))
+        .rawBalance;
       if (CONTRACT_FUNDING - received !== PINNED_NATIVE_BALANCE_ITEM_COST) {
         throw new Error(
           "Devnet native balance bookkeeping cost could not be verified against the app's pinned runtime",
         );
       }
     }
-    const { txHash, address: factoryAddress } =
+    const { transactionHash: txHash, address: factoryAddress } =
       await wallet.deployContractAndWait(
         deployment,
         { gasLimit: GAS_LIMIT, amount: 0n },
@@ -201,7 +195,7 @@ export async function provisionLaunchpad(options: {
     const observed = (
       await StandardTokenFactory.v0_1.config.view({
         client,
-        contract: factoryAddress,
+        address: factoryAddress,
         caller: account.address,
       })
     ).value;
@@ -269,8 +263,7 @@ export function validateTokenFunding(
   costs: unknown,
   artifactBytes: number,
 ): void {
-  // Same storage profile as the legacy local-environment validator, without
-  // any bootstrap-account or persona requirements.
+  // Validate the storage costs used to calculate token deployment funding.
   const profile = {
     hash: "9btQLv5PdVwzgrgXKD2Vq5EbWzoNmpwK2jnNg3Mi9FRP",
     baseDataItemCost: "12000",

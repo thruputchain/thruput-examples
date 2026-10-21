@@ -23,7 +23,6 @@ import {
 } from "@thruputchain/client";
 import {
   blockHeight,
-  ExecResult,
   gasAmount,
   networkHash,
   sha256Hash,
@@ -110,13 +109,11 @@ async function signedUpdate() {
     networkHash: zero58,
   };
   const receipt: TransactionReceipt = {
-    txHash: hash,
-    height: 10n,
-    execResult: ExecResult.ExecResultOK,
+    transactionHash: hash,
+    blockHeight: 10n,
+    execution: { result: "return" as const, returnData: new Uint8Array() },
     gasUsed: 0n,
     events: [],
-    returnData: null,
-    abortData: null,
   };
   return { record, tx, receipt };
 }
@@ -129,7 +126,7 @@ beforeEach(async () => {
   calls.submit.mockReset().mockResolvedValue({ hash: fixture.record.hash });
   calls.getReceipt.mockReset().mockResolvedValue(null);
   calls.wait.mockReset().mockResolvedValue(fixture.receipt);
-  calls.tip.mockReset().mockResolvedValue({ height: 10n });
+  calls.tip.mockReset().mockResolvedValue({ blockHeight: 10n });
   Object.defineProperty(navigator, "locks", {
     configurable: true,
     value: {
@@ -281,7 +278,7 @@ it("refuses another account, changed approval bytes, and expired transactions", 
     "Wallet reapproval changed the original transaction.",
   );
   expect(calls.submit).not.toHaveBeenCalled();
-  calls.tip.mockResolvedValue({ height: 101n });
+  calls.tip.mockResolvedValue({ blockHeight: 101n });
   calls.sign.mockClear();
   fireEvent.click(
     screen.getByRole("button", { name: "Retry same transaction" }),

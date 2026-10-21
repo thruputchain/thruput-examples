@@ -20,18 +20,18 @@ describe("createErc20ReadAdapter", () => {
     const caller = address(2);
     const owner = address(3);
     const adapter = createErc20ReadAdapter({
-      client: { view },
+      client: { simulateInvocation: view },
       contract,
       caller,
     });
 
     await expect(adapter.balanceOf(owner)).resolves.toEqual({
       value: 42n,
-      height: 1n,
+      stateBlockHeight: 1n,
       events: [],
     });
     expect(view).toHaveBeenCalledWith(
-      expect.objectContaining({ contract, caller }),
+      expect.objectContaining({ address: contract, caller }),
     );
   });
 
@@ -43,20 +43,20 @@ describe("createErc20ReadAdapter", () => {
       .mockResolvedValueOnce(response(encodeOptionalString("HOG")))
       .mockResolvedValueOnce(response(encode(OptionCodec(Uint32Codec), 6n)));
     const adapter = createErc20ReadAdapter({
-      client: { view },
+      client: { simulateInvocation: view },
       contract: address(1),
       caller: address(2),
     });
 
     await expect(adapter.allowance(address(3), address(4))).resolves.toEqual({
       value: 7n,
-      height: 1n,
+      stateBlockHeight: 1n,
       events: [],
     });
     await expect(adapter.metadata()).resolves.toEqual({
-      name: { value: "Thruput", height: 1n, events: [] },
-      symbol: { value: "HOG", height: 1n, events: [] },
-      decimals: { value: 6, height: 1n, events: [] },
+      name: { value: "Thruput", stateBlockHeight: 1n, events: [] },
+      symbol: { value: "HOG", stateBlockHeight: 1n, events: [] },
+      decimals: { value: 6, stateBlockHeight: 1n, events: [] },
     });
   });
 
@@ -67,7 +67,7 @@ describe("createErc20ReadAdapter", () => {
       .mockResolvedValueOnce(response(encodeOptionalString("HOG")))
       .mockResolvedValueOnce(response(encode(OptionCodec(Uint32Codec), 18n)));
     const adapter = createErc20ReadAdapter({
-      client: { view },
+      client: { simulateInvocation: view },
       contract: address(1),
       caller: address(2),
     });
@@ -80,7 +80,7 @@ function response(returnData: Uint8Array) {
   return {
     output: { result: "return" as const, returnData },
     events: [],
-    height: 1n,
+    stateBlockHeight: 1n,
   };
 }
 

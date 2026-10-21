@@ -29,16 +29,18 @@ export function createCreationObserver(
   return {
     async scan(workflow) {
       if (
-        workflow.status !== "queued"
-        || workflow.requestId === null
-        || workflow.enqueueReceiptBlock === null
-        || workflow.pool === null
-      ) return workflow;
+        workflow.status !== "queued" ||
+        workflow.requestId === null ||
+        workflow.enqueueReceiptBlock === null ||
+        workflow.pool === null
+      )
+        return workflow;
       const requestBlock = BigInt(workflow.enqueueReceiptBlock);
-      const anchorHeight = workflow.observedThroughBlock === null
-        ? requestBlock
-        : BigInt(workflow.observedThroughBlock) + 1n;
-      let cursor: Uint8Array | undefined;
+      const anchorHeight =
+        workflow.observedThroughBlock === null
+          ? requestBlock
+          : BigInt(workflow.observedThroughBlock) + 1n;
+      let cursor: string | undefined;
       let observedThrough = BigInt(
         workflow.observedThroughBlock ?? workflow.enqueueReceiptBlock,
       );
@@ -51,46 +53,65 @@ export function createCreationObserver(
         const page: EventPage = await client.getEvents({
           filters: [
             MintEvent.filter({
-              contractAddresses: [addressFromBase58(workflow.pool.handler)],
+              addresses: [addressFromBase58(workflow.pool.handler)],
             }),
             RequestFailed.filter({
-              contractAddresses: [addressFromBase58(workflow.pool.driver)],
+              addresses: [addressFromBase58(workflow.pool.driver)],
             }),
           ],
-          order: "ascending",
-          anchor: { height: anchorHeight },
-          ...(cursor === undefined ? {} : { cursor }),
+          ...(cursor === undefined
+            ? {
+                start: {
+                  order: "ascending" as const,
+                  anchor: {
+                    kind: "atHeight" as const,
+                    blockHeight: anchorHeight,
+                  },
+                },
+              }
+            : { cursor }),
           limit: 200,
         });
-        if (page.latestBlock > observedThrough) observedThrough = page.latestBlock;
-        if (oldestRetained === null || page.oldestBlock > oldestRetained) {
-          oldestRetained = page.oldestBlock;
+        if (page.latestIndexedBlockHeight > observedThrough)
+          observedThrough = page.latestIndexedBlockHeight;
+        if (
+          oldestRetained === null ||
+          page.oldestIndexedBlockHeight > oldestRetained
+        ) {
+          oldestRetained = page.oldestIndexedBlockHeight;
         }
         for (const identified of page.events) {
-          const key = `${toBase58(identified.txHash)}:${identified.sequenceNumber}`;
+          const key = `${toBase58(identified.transactionHash)}:${identified.sequenceNumber}`;
           if (seenEvents.has(key)) continue;
           seenEvents.add(key);
           const matched = matchTerminal(config, workflow, identified);
           if (matched === null) continue;
           if (terminal !== null) {
-            throw new Error("Event history contains duplicate terminal creation events");
+            throw new Error(
+              "Event history contains duplicate terminal creation events",
+            );
           }
           terminal = matched;
         }
-        if (page.cursor.length === 0) break;
-        const cursorKey = toHex0x(page.cursor);
+        if (page.nextCursor === null) break;
+        const cursorKey = page.nextCursor;
         if (seenCursors.has(cursorKey)) {
           throw new Error("Event query returned a repeated pagination cursor");
         }
         seenCursors.add(cursorKey);
-        cursor = page.cursor;
+        cursor = page.nextCursor;
       }
 
       if (terminal !== null) {
-        return { ...terminal, observedThroughBlock: observedThrough.toString() };
+        return {
+          ...terminal,
+          observedThroughBlock: observedThrough.toString(),
+        };
       }
       if (oldestRetained !== null && oldestRetained > anchorHeight) {
-        throw new Error("Event history no longer covers this unresolved creation request");
+        throw new Error(
+          "Event history no longer covers this unresolved creation request",
+        );
       }
       return {
         ...workflow,
@@ -105,27 +126,40 @@ export function applyCreationReceipt(
   workflow: CreationWorkflow,
   receipt: TransactionReceipt,
 ): CreationWorkflow {
-  if (workflow.status !== "queued" || workflow.requestId === null || workflow.pool === null) {
+  if (
+    workflow.status !== "queued" ||
+    workflow.requestId === null ||
+    workflow.pool === null
+  ) {
     return workflow;
   }
   const minted = MintEvent.allFromReceipt(receipt, {
-    contractAddress: addressFromBase58(workflow.pool.handler),
-  }).filter((event) => event.fields.request_id !== null
-    && toHex0x(event.fields.request_id) === workflow.requestId
-    && toBase58(event.topics.sender) === workflow.accountAddress
-    && toBase58(event.topics.recipient) === workflow.accountAddress
-    && event.fields.amount_minted > 0n);
+    address: addressFromBase58(workflow.pool.handler),
+  }).filter(
+    (event) =>
+      event.fields.request_id !== null &&
+      toHex0x(event.fields.request_id) === workflow.requestId &&
+      toBase58(event.topics.sender) === workflow.accountAddress &&
+      toBase58(event.topics.recipient) === workflow.accountAddress &&
+      event.fields.amount_minted > 0n,
+  );
   const failed = RequestFailed.allFromReceipt(receipt, {
-    contractAddress: addressFromBase58(workflow.pool.driver),
+    address: addressFromBase58(workflow.pool.driver),
   }).filter((event) => toHex0x(event.topics.request_id) === workflow.requestId);
-  if (minted.length > 1 || failed.length > 1 || (minted.length > 0 && failed.length > 0)) {
-    throw new Error("Queue receipt contains conflicting terminal creation events");
+  if (
+    minted.length > 1 ||
+    failed.length > 1 ||
+    (minted.length > 0 && failed.length > 0)
+  ) {
+    throw new Error(
+      "Queue receipt contains conflicting terminal creation events",
+    );
   }
   if (failed.length === 1) {
     return {
       ...workflow,
       status: "failed",
-      terminalBlock: receipt.height.toString(),
+      terminalBlock: receipt.blockHeight.toString(),
       updatedAt: Date.now(),
     };
   }
@@ -133,7 +167,7 @@ export function applyCreationReceipt(
     return {
       ...workflow,
       status: "executed",
-      terminalBlock: receipt.height.toString(),
+      terminalBlock: receipt.blockHeight.toString(),
       updatedAt: Date.now(),
     };
   }
@@ -145,11 +179,15 @@ function matchTerminal(
   workflow: CreationWorkflow,
   identified: IdentifiedEvent,
 ): CreationWorkflow | null {
-  if (identified.blockHeight < BigInt(workflow.enqueueReceiptBlock!)) return null;
+  if (identified.blockHeight < BigInt(workflow.enqueueReceiptBlock!))
+    return null;
   const event = identified.event;
-  if (bytesEqual(event.contractAddress, addressFromBase58(workflow.pool!.driver))) {
+  if (bytesEqual(event.address, addressFromBase58(workflow.pool!.driver))) {
     const failed = RequestFailed.decode(event);
-    if (failed === null || toHex0x(failed.topics.request_id) !== workflow.requestId) {
+    if (
+      failed === null ||
+      toHex0x(failed.topics.request_id) !== workflow.requestId
+    ) {
       return null;
     }
     return {
@@ -159,20 +197,24 @@ function matchTerminal(
       updatedAt: Date.now(),
     };
   }
-  if (!bytesEqual(event.contractAddress, addressFromBase58(workflow.pool!.handler))) {
+  if (!bytesEqual(event.address, addressFromBase58(workflow.pool!.handler))) {
     return null;
   }
   const minted = MintEvent.decode(event);
   if (
-    minted === null
-    || minted.fields.request_id === null
-    || toHex0x(minted.fields.request_id) !== workflow.requestId
-  ) return null;
+    minted === null ||
+    minted.fields.request_id === null ||
+    toHex0x(minted.fields.request_id) !== workflow.requestId
+  )
+    return null;
   if (
-    !bytesEqual(minted.topics.sender, config.accountAddress)
-    || !bytesEqual(minted.topics.recipient, config.accountAddress)
-    || minted.fields.amount_minted <= 0n
-  ) throw new Error("Event history contains invalid terminal creation evidence");
+    !bytesEqual(minted.topics.sender, config.accountAddress) ||
+    !bytesEqual(minted.topics.recipient, config.accountAddress) ||
+    minted.fields.amount_minted <= 0n
+  )
+    throw new Error(
+      "Event history contains invalid terminal creation evidence",
+    );
   return {
     ...workflow,
     status: "executed",

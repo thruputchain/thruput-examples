@@ -90,7 +90,7 @@ try {
     stderr += error.message;
   });
   let startup:
-    | { data: { rpc_url: string; runtime_manifest: { path: string } } }
+    | { data: { rpcUrl: string; runtimeManifest: { path: string } } }
     | undefined;
   await until(() => {
     assert.equal(
@@ -100,14 +100,14 @@ try {
     );
     try {
       startup = JSON.parse(stdout);
-      return !!startup?.data.rpc_url;
+      return !!startup?.data.rpcUrl;
     } catch {
       return false;
     }
   }, "node startup");
   const environment = {
-    THRUPUT_RPC_URL: startup!.data.rpc_url,
-    THRUPUT_RUNTIME_MANIFEST: startup!.data.runtime_manifest.path,
+    THRUPUT_RPC_URL: startup!.data.rpcUrl,
+    THRUPUT_RUNTIME_MANIFEST: startup!.data.runtimeManifest.path,
     COUNTER_APP_ENV: join(work, ".env.local"),
   };
   await setup(environment);
@@ -151,7 +151,7 @@ try {
     (
       await Counter.v0_1.get.view({
         client: readClient,
-        contract: addressFromBase58(config.app.counterAddress),
+        address: addressFromBase58(config.app.counterAddress),
       })
     ).value;
   timer = setInterval(() => engine!.tick(), 25);

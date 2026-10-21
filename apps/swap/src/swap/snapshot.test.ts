@@ -44,7 +44,7 @@ beforeEach(() => {
 
 describe("createSnapshotReader", () => {
   it("accepts views that all come from the same height", async () => {
-    const client = { view: vi.fn() } as never;
+    const client = { simulateInvocation: vi.fn() } as never;
 
     const tokenA = tokenAdapter("Token A", "A", 10n, 1n, 8n);
     const tokenB = tokenAdapter("Token B", "B", 20n, 2n, 8n);
@@ -63,36 +63,46 @@ describe("createSnapshotReader", () => {
           liquidityToken: config.liquidityTokenAddress,
           cumulativePrices: [0n, 0n],
         },
-        height: 8n,
+        stateBlockHeight: 8n,
         events: [],
       }),
     });
     vi.mocked(createSwapFactoryReadAdapter).mockReturnValue({
-      feeTo: vi.fn().mockResolvedValue({ value: null, height: 8n, events: [] }),
-      getPair: vi.fn().mockResolvedValue({ value: config.handlerAddress, height: 8n, events: [] }),
+      feeTo: vi
+        .fn()
+        .mockResolvedValue({ value: null, stateBlockHeight: 8n, events: [] }),
+      getPair: vi
+        .fn()
+        .mockResolvedValue({
+          value: config.handlerAddress,
+          stateBlockHeight: 8n,
+          events: [],
+        }),
       poolAddresses: vi.fn().mockResolvedValue({
         value: {
           liquidityToken: config.liquidityTokenAddress,
           handler: config.handlerAddress,
           driver: config.driverAddress,
         },
-        height: 8n,
+        stateBlockHeight: 8n,
         events: [],
       }),
     } as never);
 
-    await expect(createSnapshotReader(config, client)()).resolves.toMatchObject({
-      tokenA: { name: "Token A", balance: 10n, allowance: 1n },
-      tokenB: { name: "Token B", balance: 20n, allowance: 2n },
-      reserve0: 100n,
-      reserve1: 200n,
-      liquidityTotalSupply: 300n,
-      liquidityBalance: 30n,
-      liquidityTokenSymbol: "LP",
-      liquidityTokenDecimals: 6,
-      feeTo: null,
-      chainHeight: 8n,
-    });
+    await expect(createSnapshotReader(config, client)()).resolves.toMatchObject(
+      {
+        tokenA: { name: "Token A", balance: 10n, allowance: 1n },
+        tokenB: { name: "Token B", balance: 20n, allowance: 2n },
+        reserve0: 100n,
+        reserve1: 200n,
+        liquidityTotalSupply: 300n,
+        liquidityBalance: 30n,
+        liquidityTokenSymbol: "LP",
+        liquidityTokenDecimals: 6,
+        feeTo: null,
+        chainHeight: 8n,
+      },
+    );
   });
 
   it("fails after three attempts when view heights do not match", async () => {
@@ -110,27 +120,35 @@ describe("createSnapshotReader", () => {
           liquidityToken: config.liquidityTokenAddress,
           cumulativePrices: [0n, 0n],
         },
-        height: 2n,
+        stateBlockHeight: 2n,
         events: [],
       }),
     });
     vi.mocked(createSwapFactoryReadAdapter).mockReturnValue({
-      feeTo: vi.fn().mockResolvedValue({ value: null, height: 2n, events: [] }),
-      getPair: vi.fn().mockResolvedValue({ value: config.handlerAddress, height: 2n, events: [] }),
+      feeTo: vi
+        .fn()
+        .mockResolvedValue({ value: null, stateBlockHeight: 2n, events: [] }),
+      getPair: vi
+        .fn()
+        .mockResolvedValue({
+          value: config.handlerAddress,
+          stateBlockHeight: 2n,
+          events: [],
+        }),
       poolAddresses: vi.fn().mockResolvedValue({
         value: {
           liquidityToken: config.liquidityTokenAddress,
           handler: config.handlerAddress,
           driver: config.driverAddress,
         },
-        height: 2n,
+        stateBlockHeight: 2n,
         events: [],
       }),
     } as never);
 
-    await expect(createSnapshotReader(config, { view: vi.fn() })()).rejects.toThrow(
-      "consistent chain snapshot after three attempts",
-    );
+    await expect(
+      createSnapshotReader(config, { simulateInvocation: vi.fn() })(),
+    ).rejects.toThrow("consistent chain snapshot after three attempts");
   });
 });
 
@@ -144,15 +162,23 @@ function tokenAdapter(
 ) {
   return {
     metadata: vi.fn().mockResolvedValue({
-      name: { value: name, height, events: [] },
-      symbol: { value: symbol, height, events: [] },
-      decimals: { value: decimals, height, events: [] },
+      name: { value: name, stateBlockHeight: height, events: [] },
+      symbol: { value: symbol, stateBlockHeight: height, events: [] },
+      decimals: { value: decimals, stateBlockHeight: height, events: [] },
     }),
     balanceOf: vi
       .fn()
-      .mockResolvedValue({ value: balance, height, events: [] }),
+      .mockResolvedValue({
+        value: balance,
+        stateBlockHeight: height,
+        events: [],
+      }),
     allowance: vi
       .fn()
-      .mockResolvedValue({ value: allowance, height, events: [] }),
+      .mockResolvedValue({
+        value: allowance,
+        stateBlockHeight: height,
+        events: [],
+      }),
   };
 }

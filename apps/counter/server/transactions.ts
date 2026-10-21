@@ -118,16 +118,13 @@ export function createCounterTransactions(
       recipient: account.address,
       timeoutMs: 60_000,
     });
-    if (
-      result.status.result !== "ok" ||
-      !bytesEqual(result.recipient, account.address)
-    ) {
+    if (!bytesEqual(result.recipient, account.address)) {
       throw new CounterTopupError(
         "The signer airdrop did not execute successfully.",
       );
     }
     return {
-      hash: toBase58(result.txHash),
+      hash: toBase58(result.transactionHash),
       rawAmount: result.rawAmount.toString(),
     };
   }
@@ -139,7 +136,7 @@ export function createCounterTransactions(
       const client = await wallet();
       if (!bytesEqual((await client.getNetworkInfo()).networkHash, expected))
         throw new Error("Network changed.");
-      return (await client.getChainTip()).height + 1_000n;
+      return (await client.getChainTip()).blockHeight + 1_000n;
     })().finally(() => {
       tipExpiresAt = Date.now() + 500;
     });
@@ -178,14 +175,19 @@ export function createCounterTransactions(
     assertSubmission(params: unknown): void {
       try {
         if (
-          !Array.isArray(params) ||
-          params.length !== 1 ||
-          typeof params[0] !== "string" ||
-          params[0].length > 8_192 ||
-          !/^0x(?:[0-9a-f]{2})+$/i.test(params[0])
+          !params ||
+          typeof params !== "object" ||
+          Array.isArray(params) ||
+          Object.keys(params).length !== 1 ||
+          !("signedTransaction" in params) ||
+          typeof params.signedTransaction !== "string" ||
+          params.signedTransaction.length > 8_192 ||
+          !/^0x(?:[0-9a-f]{2})+$/i.test(params.signedTransaction)
         )
           throw new Error();
-        const signed = deserializeSignedTransaction(fromHex0x(params[0]));
+        const signed = deserializeSignedTransaction(
+          fromHex0x(params.signedTransaction),
+        );
         const invocation = serialize(signed.tx.invocation, codec.Invocation);
         if (
           signed.tx.contracts_to_deploy.length !== 0 ||

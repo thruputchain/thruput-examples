@@ -1,5 +1,6 @@
 // Controlled provider + real local transactions; no extension or tutorial checkout.
 import assert from "node:assert/strict";
+import { networkHash, sha256Hash } from "@thruputchain/protocol";
 import { randomBytes } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -101,7 +102,7 @@ try {
   let ready:
     | {
         ok: boolean;
-        data: { rpc_url: string; runtime_manifest: { path: string } };
+        data: { rpcUrl: string; runtimeManifest: { path: string } };
       }
     | undefined;
   await until(() => {
@@ -115,8 +116,8 @@ try {
   }, "node startup");
   const output = join(work, ".env.local");
   await setup({
-    THRUPUT_RPC_URL: ready!.data.rpc_url,
-    THRUPUT_RUNTIME_MANIFEST: ready!.data.runtime_manifest.path,
+    THRUPUT_RPC_URL: ready!.data.rpcUrl,
+    THRUPUT_RUNTIME_MANIFEST: ready!.data.runtimeManifest.path,
     COUNTER_APP_ENV: output,
     COUNTER_ARTIFACT:
       process.env.COUNTER_ARTIFACT ??
@@ -124,7 +125,7 @@ try {
   });
   const config = loadServerConfig(parseEnv(await readFile(output, "utf8")));
   const client = await createThruputClient({
-    cluster: localnet({ rpcUrl: ready!.data.rpc_url }),
+    cluster: localnet({ rpcUrl: ready!.data.rpcUrl }),
   });
   const signers = [
     new PrivateKeySigner(randomBytes(32)),
@@ -137,7 +138,7 @@ try {
       client,
       account,
     }).requestAirdrop();
-    assert.equal(result.status.result, "ok");
+    assert.equal(result.attemptStatus, "succeeded");
     accounts.push({
       address: toBase58(account.address),
       publicKey: toBase58(signer.publicKey.ed25519),
@@ -181,7 +182,7 @@ try {
       const signed = await signTransaction(
         parseTransactionHex(request.params.transaction),
         [{ signer: signers[index]!, publicKeyId: 0n }],
-        client.network.networkHash,
+        networkHash(sha256Hash(client.network.networkHash)),
       );
       const hash = toBase58(hashSignedTransaction(signed));
       signatures.push(hash);
@@ -195,7 +196,15 @@ try {
         request.params.signedTransaction,
       );
       submissions.push(toBase58(hashSignedTransaction(signed)));
-      return { hash: toBase58(await client.sendTransaction(signed)) };
+      return {
+        hash: toBase58(
+          (
+            await client.sendTransaction({
+              signedTransaction: serializeSignedTransaction(signed),
+            })
+          ).transactionHash,
+        ),
+      };
     }
     throw new Error("Unexpected provider bridge request");
   });

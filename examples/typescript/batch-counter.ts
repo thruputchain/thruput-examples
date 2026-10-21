@@ -9,7 +9,7 @@ import {
   toBase58,
 } from "@thruputchain/client";
 import { DefaultWallet } from "@thruputchain/client/contracts";
-import { ExecResult, gasAmount, type Invocation } from "@thruputchain/protocol";
+import { gasAmount, type Invocation } from "@thruputchain/protocol";
 import { Counter } from "./generated/counter.ts";
 import { createLocalClient } from "./local-client.ts";
 import { waitForView } from "./wait-for-view.ts";
@@ -25,8 +25,7 @@ const account = createPubkeyAccount({
   signer: new PrivateKeySigner(randomBytes(32)),
 });
 const wallet = createWalletClient({ client, account });
-const funding = await wallet.requestAirdrop();
-assert.equal(funding.status.result, "ok", "Airdrop failed");
+await wallet.requestAirdrop();
 const gas = gasAmount(500_000n);
 
 // The native DefaultWallet executes the ordered calls in one transaction.
@@ -51,20 +50,22 @@ async function batch(calls: Invocation[]) {
 }
 const before = await Counter.v0_1.get.view({
   client,
-  contract: address,
+  address,
   caller: account.address,
 });
 const success = await batch([
   Counter.v0_1.increment.invocation(address, gas, { amount: 5n }),
   Counter.v0_1.decrement.invocation(address, gas, { amount: 2n }),
 ]);
-assert.equal(success.execResult, ExecResult.ExecResultOK);
+assert.ok(
+  "result" in success.execution && success.execution.result === "return",
+);
 const after = await waitForView(() =>
   Counter.v0_1.get.view({
     client,
-    contract: address,
+    address,
     caller: account.address,
-    minHeight: success.height,
+    minStateBlockHeight: success.blockHeight,
   }),
 );
 assert.equal(after.value, before.value + 3n);
@@ -73,13 +74,15 @@ const reverted = await batch([
   Counter.v0_1.increment.invocation(address, gas, { amount: 5n }),
   Counter.v0_1.error.invocation(address, gas),
 ]);
-assert.equal(reverted.execResult, ExecResult.ExecResultTxRootFrameReverted);
+assert.ok(
+  "result" in reverted.execution && reverted.execution.result === "abort",
+);
 const final = await waitForView(() =>
   Counter.v0_1.get.view({
     client,
-    contract: address,
+    address,
     caller: account.address,
-    minHeight: reverted.height,
+    minStateBlockHeight: reverted.blockHeight,
   }),
 );
 assert.equal(
@@ -94,8 +97,8 @@ console.log(
       before: before.value.toString(),
       after: after.value.toString(),
       afterRollback: final.value.toString(),
-      successHash: toBase58(success.txHash),
-      revertedHash: toBase58(reverted.txHash),
+      successHash: toBase58(success.transactionHash),
+      revertedHash: toBase58(reverted.transactionHash),
     },
     null,
     2,

@@ -19,15 +19,14 @@ function receipt(amount = 10n): TransactionReceipt {
   writer.writeUint32(1n);
   writer.writeFixedOpaque(request, 32);
   return {
-    txHash: sha256Hash(new Uint8Array(32)),
-    height: 1n,
+    transactionHash: sha256Hash(new Uint8Array(32)),
+    blockHeight: 1n,
     gasUsed: 0n,
-    execResult: ExecResult.ExecResultOK,
-    returnData: null,
-    abortData: null,
+    execution: { result: "return" as const, returnData: new Uint8Array() },
+
     events: [
       {
-        contractAddress: handler,
+        address: handler,
         topics: [
           swap_if.v0_1.events.LiquidityMintEvent.signature,
           owner,

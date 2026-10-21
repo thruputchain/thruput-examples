@@ -12,14 +12,12 @@ import { runWorkflow } from "./executor";
 import { parseTokenDraft, type TokenDraft } from "./form";
 import { actionLabel, canDiscardWorkflow } from "./presentation";
 import {
-  canDiscardInvalidStoredWorkflow,
   createWorkflow,
   loadWorkflow,
   saveWorkflow,
   withWorkflowLock,
   workflowIntent,
   workflowStorageKey,
-  WorkflowStorageError,
   type LaunchWorkflow,
 } from "./workflow";
 
@@ -53,7 +51,6 @@ export function useLaunch({
       return {
         workflow: loadWorkflow(localStorage, storageKey),
         error: null as string | null,
-        invalidDiscardable: false,
       };
     } catch (error) {
       return {
@@ -61,10 +58,6 @@ export function useLaunch({
         error: userErrorMessage(
           error,
           "The saved launch workflow could not be read",
-        ),
-        invalidDiscardable: canDiscardInvalidStoredWorkflow(
-          localStorage,
-          storageKey,
         ),
       };
     }
@@ -103,13 +96,7 @@ export function useLaunch({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (
-      working.current ||
-      workflow ||
-      storageError ||
-      !connected
-    )
-      return;
+    if (working.current || workflow || storageError || !connected) return;
     setSubmitted(true);
     setError(null);
     if (!parsed.value) return;
@@ -196,8 +183,8 @@ export function useLaunch({
   }
 
   async function reset(clearDraft = false) {
-    if (working.current) return;
-    if (workflow && !canDiscardWorkflow(workflow)) {
+    if (working.current || workflow === null) return;
+    if (!canDiscardWorkflow(workflow)) {
       setError("A workflow with transaction evidence cannot be discarded.");
       return;
     }
@@ -205,35 +192,20 @@ export function useLaunch({
     setLoading(true);
     try {
       await withWorkflowLock(config, async () => {
-        if (workflow === null) {
-          try {
-            if (loadWorkflow(localStorage, storageKey))
-              throw new Error(
-                "This launch changed in another tab. Reload before clearing it.",
-              );
-          } catch (reason) {
-            if (!(reason instanceof WorkflowStorageError)) throw reason;
-          }
-          if (!canDiscardInvalidStoredWorkflow(localStorage, storageKey))
-            throw new Error(
-              "The invalid saved workflow may contain transaction evidence and cannot be discarded safely.",
-            );
-        } else {
-          const stored = loadWorkflow(localStorage, storageKey);
-          if (
-            !stored ||
-            stored.id !== workflow.id ||
-            stored.revision !== workflow.revision
-          )
-            throw new Error(
-              "This launch changed in another tab. Reload before clearing it.",
-            );
-        }
+        const stored = loadWorkflow(localStorage, storageKey);
+        if (
+          !stored ||
+          stored.id !== workflow.id ||
+          stored.revision !== workflow.revision
+        )
+          throw new Error(
+            "This launch changed in another tab. Reload before clearing it.",
+          );
         localStorage.removeItem(storageKey);
       });
       setWorkflow(null);
       setReview(null);
-      if (clearDraft || workflow?.creation.status === "committed")
+      if (clearDraft || workflow.creation.status === "committed")
         setDraft(initialDraft);
       setSubmitted(false);
       setError(null);
@@ -260,7 +232,6 @@ export function useLaunch({
     loading,
     error,
     storageError,
-    invalidDiscardable: initial.invalidDiscardable,
     manualProcessing,
     setManualProcessing,
     submit,

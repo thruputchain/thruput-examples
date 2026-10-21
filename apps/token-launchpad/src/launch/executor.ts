@@ -7,7 +7,7 @@ import {
   toBase58,
   type CoreThruputClient,
 } from "@thruputchain/client";
-import { ExecResult, gasAmount } from "@thruputchain/protocol";
+import { gasAmount } from "@thruputchain/protocol";
 import { decodeExecution } from "@thruputchain/client/wallet";
 
 import type { AppConfig } from "@/config";
@@ -87,11 +87,14 @@ export async function advanceWorkflow(input: {
         review.fundingAmount > 0n
       ) {
         const hash = hashFromBase58(workflow.funding.hash);
-        const receipt = await input.client.getTransactionReceipt(hash);
+        const receipt = await input.client.getTransactionReceipt({
+          transactionHash: hash,
+        });
         if (
           !receipt ||
-          !bytesEqual(receipt.txHash, hash) ||
-          receipt.execResult !== ExecResult.ExecResultOK
+          !bytesEqual(receipt.transactionHash, hash) ||
+          !("result" in receipt.execution) ||
+          receipt.execution.result !== "return"
         ) {
           throw new Error(
             "Funding evidence is unavailable. Check again before creating the token.",
@@ -99,10 +102,10 @@ export async function advanceWorkflow(input: {
         }
         // Receipt indexing can lead the state snapshot used by views. Retry only
         // a proven stale read, never a fresh shortfall or the funding transaction.
-        if (review.reserveHeight < receipt.height) {
+        if (review.reserveHeight < receipt.blockHeight) {
           for (
             let attempt = 0;
-            attempt < 3 && review.reserveHeight < receipt.height;
+            attempt < 3 && review.reserveHeight < receipt.blockHeight;
             attempt++
           ) {
             await new Promise((resolve) =>
@@ -115,7 +118,7 @@ export async function advanceWorkflow(input: {
               { balanceItemKnown: true },
             );
           }
-          if (review.reserveHeight < receipt.height) {
+          if (review.reserveHeight < receipt.blockHeight) {
             throw new Error(
               "Funding committed, but the reserve snapshot has not reached its block yet. Check again.",
             );
@@ -195,7 +198,7 @@ export async function advanceWorkflow(input: {
         saveWorkflow(storage, key, workflow);
       }
       const creation = StandardTokenFactory.v0_1.createToken.call({
-        contract: input.config.factoryAddress,
+        address: input.config.factoryAddress,
         gasLimit: GAS_LIMIT,
         args: {
           nonce,
@@ -220,10 +223,10 @@ export async function advanceWorkflow(input: {
               ] as const)[1]
             : decodeExecution(result.receipt, [creation] as const)[0];
         const event = TokenCreated.singleFromReceipt(result.receipt, {
-          contractAddress: input.config.factoryAddress,
+          address: input.config.factoryAddress,
         });
         const mintEvents = MintEvent.allFromReceipt(result.receipt, {
-          contractAddress: created,
+          address: created,
         });
         validateCreationEvidence({
           created,
@@ -237,7 +240,7 @@ export async function advanceWorkflow(input: {
         return {
           ...current,
           createdAddress: current.predictedAddress,
-          creationBlock: result.receipt.height.toString(),
+          creationBlock: result.receipt.blockHeight.toString(),
           verification: await readAndAssessTokenState({
             client: input.client,
             token: created,
@@ -248,7 +251,7 @@ export async function advanceWorkflow(input: {
       };
       const fundingCall = (amount: bigint) =>
         ERC20.v0_1.transfer.call({
-          contract: input.config.nativeHogAddress,
+          address: input.config.nativeHogAddress,
           gasLimit: GAS_LIMIT,
           args: { receiver: review.predictedAddress, amount },
         });

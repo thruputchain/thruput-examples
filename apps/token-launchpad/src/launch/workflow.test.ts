@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import { configuration, MemoryStorage } from "@/test/fixtures";
 import type { FactoryReview } from "@/contracts/launchpad-client";
 import {
-  canDiscardInvalidStoredWorkflow,
   assertWorkflowScope,
   createWorkflow,
   loadWorkflow,
@@ -77,68 +76,6 @@ describe("launch workflow persistence", () => {
         accountAddress: contractAddress(new Uint8Array(32).fill(9)),
       }),
     ).toThrow(/another account or network/);
-  });
-
-  it("only permits invalid stored workflows with pristine transaction steps", () => {
-    const storage = new MemoryStorage();
-    storage.value = JSON.stringify({
-      version: 1,
-      funding: { status: "idle", hash: null },
-      creation: { status: "idle", hash: null },
-      createdAddress: null,
-      creationBlock: null,
-      verification: {
-        status: "pending",
-        message: null,
-        totalSupply: null,
-        holderBalance: null,
-      },
-    });
-    expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(true);
-
-    storage.value = JSON.stringify({
-      version: 1,
-      funding: {
-        status: "pending",
-        hash: toBase58(new Uint8Array(32).fill(0x06)),
-      },
-      creation: { status: "idle", hash: null },
-      createdAddress: null,
-      creationBlock: null,
-      verification: {
-        status: "pending",
-        message: null,
-        totalSupply: null,
-        holderBalance: null,
-      },
-    });
-    expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(false);
-
-    storage.value = JSON.stringify({
-      version: 1,
-      funding: { status: "idle", hash: null },
-      creation: { status: "idle", hash: null },
-      createdAddress: null,
-      creationBlock: "42",
-      verification: {
-        status: "complete",
-        message: null,
-        totalSupply: "12",
-        holderBalance: "12",
-      },
-    });
-    expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(false);
-
-    storage.value = "invalid";
-    expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(false);
-
-    storage.value = JSON.stringify({
-      version: 3,
-      funding: { status: "idle", hash: null },
-      creation: { status: "idle", hash: null },
-      createdAddress: null,
-    });
-    expect(canDiscardInvalidStoredWorkflow(storage, "workflow")).toBe(false);
   });
 
   it("turns storage failures into signing-blocking errors", () => {
@@ -232,7 +169,7 @@ describe("launch workflow persistence", () => {
     }
   });
 
-  it("redacts and bounds legacy persisted errors", () => {
+  it("redacts and bounds persisted errors", () => {
     const storage = new MemoryStorage();
     const workflow = createWorkflow(
       config,
@@ -250,9 +187,9 @@ describe("launch workflow persistence", () => {
     expect(loaded.error!.length).toBeLessThanOrEqual(300);
   });
 
-  it("migrates an earlier version-two funding plan in place", () => {
+  it("rejects a saved workflow with missing funding-plan fields", () => {
     const storage = new MemoryStorage();
-    const legacy = {
+    const incomplete = {
       ...createWorkflow(
         config,
         { name: "Acorn", symbol: "NUT", decimals: 7, initialSupply: 12n },
@@ -260,11 +197,11 @@ describe("launch workflow persistence", () => {
         review,
       ),
     } as Partial<ReturnType<typeof createWorkflow>>;
-    delete legacy.plannedFundingAmount;
-    delete legacy.plannedReserve;
-    storage.value = JSON.stringify(legacy);
-    const loaded = loadWorkflow(storage, "workflow")!;
-    expect(loaded.plannedFundingAmount).toBe(loaded.reviewedFundingAmount);
-    expect(loaded.plannedReserve).toBe(loaded.reviewedReserve);
+    delete incomplete.plannedFundingAmount;
+    delete incomplete.plannedReserve;
+    storage.value = JSON.stringify(incomplete);
+    expect(() => loadWorkflow(storage, "workflow")).toThrow(
+      WorkflowStorageError,
+    );
   });
 });

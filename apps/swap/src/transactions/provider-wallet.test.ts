@@ -5,7 +5,15 @@ import {
   toBase58,
   type TransactionReceipt,
   TransactionReceiptTimeoutError,
-  TransactionRejectedError,
+  NativeRpcError,
+  JsonRpcError,
+  PrivateKeySigner,
+  createPubkeyAccount,
+  createTransaction,
+  signTransaction,
+  serializeSignedTransaction,
+  hashSignedTransaction,
+  toHex0x,
 } from "@thruputchain/client";
 import {
   TransactionExecutionError,
@@ -17,9 +25,10 @@ import {
   calldata,
   contractEntrypointID,
   ContractType,
-  ExecResult,
   gasAmount,
   blockHeight,
+  networkHash,
+  sha256Hash,
   type Transaction,
 } from "@thruputchain/protocol";
 import { describe, expect, it, vi } from "vitest";
@@ -30,7 +39,6 @@ import { createProviderWriteBoundary } from "./provider-wallet";
 
 const id = (byte: number) => toBase58(new Uint8Array(32).fill(byte));
 // A v2 provider reports identifiers in base58, the form Swap stores.
-const hash = id(0xab);
 const config: GlobalConfig = {
   rpcUrl: new URL("http://localhost:9545"),
   networkId: toBase58(new Uint8Array(32).fill(0x00)),
@@ -46,20 +54,32 @@ const target = {
   gas_limit: gasAmount(1n),
   calldata: calldata(new Uint8Array()),
 };
+const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
+const account = createPubkeyAccount({ signer });
+const signed = await signTransaction(
+  createTransaction({
+    invocation: target,
+    auth_claim: account.authClaim,
+    contracts_to_deploy: [],
+    uniquifier: { nonce: 1n, block_expiry_height: blockHeight(100n) },
+  }),
+  account.signers,
+  networkHash(sha256Hash(new Uint8Array(32))),
+);
+const signedBytes = serializeSignedTransaction(signed);
+const hash = toBase58(hashSignedTransaction(signed));
 const receipt: TransactionReceipt = {
-  txHash: hashFromBase58(hash),
-  height: blockHeight(11n),
-  execResult: ExecResult.ExecResultOK,
+  transactionHash: hashFromBase58(hash),
+  blockHeight: blockHeight(11n),
+  execution: { result: "return" as const, returnData: new Uint8Array() },
   gasUsed: 0n,
   events: [],
-  returnData: new Uint8Array(),
-  abortData: null,
 };
 
 function fixture() {
   const pending = {
     hash,
-    signedTransaction: "0x00",
+    signedTransaction: toHex0x(signedBytes),
     networkHash: config.networkId,
     account: { address: id(0x01), publicKey: id(0x02), nonce: "0" },
   };
@@ -70,7 +90,7 @@ function fixture() {
     executeAndWait: vi.fn<ProviderWalletClient["executeAndWait"]>(
       async (_request, options) => {
         await options.onSigned(pending);
-        return { txHash: receipt.txHash, receipt };
+        return { transactionHash: receipt.transactionHash, receipt };
       },
     ),
     getCapabilities: vi
@@ -209,7 +229,7 @@ describe("provider write boundary", () => {
       "committedSuccess",
     );
     expect(client.waitForTransactionReceipt).toHaveBeenCalledWith(
-      receipt.txHash,
+      receipt.transactionHash,
       expect.anything(),
     );
     expect(wallet.signTransaction).toHaveBeenCalledOnce();
@@ -219,7 +239,10 @@ describe("provider write boundary", () => {
   it("retains committed failure and uncertain submission evidence", async () => {
     const { boundary, wallet } = fixture();
     wallet.executeAndWait.mockRejectedValueOnce(
-      new TransactionExecutionError({ ...receipt, execResult: 1 }),
+      new TransactionExecutionError({
+        ...receipt,
+        execution: { result: "abort" as const, abortData: new Uint8Array() },
+      }),
     );
     expect(await boundary.execute(target)).toMatchObject({
       kind: "committedFailure",
@@ -227,8 +250,16 @@ describe("provider write boundary", () => {
     });
     wallet.executeAndWait.mockRejectedValueOnce(
       new TransactionObservationError(
-        receipt.txHash,
-        new TransactionReceiptTimeoutError(receipt.txHash, undefined),
+        {
+          signedTransaction: signedBytes,
+          transactionHash: receipt.transactionHash,
+          networkHash: new Uint8Array(32),
+        },
+        new TransactionReceiptTimeoutError(
+          receipt.transactionHash,
+          undefined,
+          undefined,
+        ),
       ),
     );
     expect(await boundary.execute(target)).toEqual({
@@ -251,7 +282,7 @@ describe("provider write boundary", () => {
       receipt,
     });
     expect(client.waitForTransactionReceipt).toHaveBeenCalledWith(
-      receipt.txHash,
+      receipt.transactionHash,
       expect.objectContaining({ expectedNetworkHash: new Uint8Array(32) }),
     );
     expect((await boundary.observe!("invalid")).kind).toBe(
@@ -259,7 +290,14 @@ describe("provider write boundary", () => {
     );
     expect(client.waitForTransactionReceipt).toHaveBeenCalledOnce();
     client.waitForTransactionReceipt.mockRejectedValueOnce(
-      new TransactionRejectedError(receipt.txHash, "expired"),
+      new NativeRpcError(
+        new JsonRpcError(-32000, "expired", {
+          kind: "transactionInvalid",
+          admission: "notAttempted",
+        }),
+        "sendTransaction",
+        receipt.transactionHash,
+      ),
     );
     expect(await boundary.observe!(hash)).toEqual({
       kind: "invalid",

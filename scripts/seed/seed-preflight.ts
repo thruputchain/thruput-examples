@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import {
   bytesEqual,
   HttpTransport,
-  JsonRpcError,
-  ThruputRpcErrorCode,
+  NativeRpcError,
+  NativeRpcErrorCode,
   type ThruputClient,
 } from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
@@ -20,8 +20,8 @@ export async function waitForView<T>(read: () => Promise<T>): Promise<T> {
       return await read();
     } catch (error) {
       if (
-        !(error instanceof JsonRpcError) ||
-        error.code !== ThruputRpcErrorCode.ViewHeightUnavailable ||
+        !(error instanceof NativeRpcError) ||
+        error.code !== NativeRpcErrorCode.StateHeightUnavailable ||
         Date.now() >= deadline
       )
         throw error;
@@ -49,7 +49,7 @@ export function seedStorageKey(domain: string, slot: number): Uint8Array {
 }
 
 export async function verifySwapRelationship(
-  client: Pick<ThruputClient, "getStorageAt">,
+  client: Pick<ThruputClient, "getStorage">,
   factory: ContractAddress,
   router: ContractAddress,
 ): Promise<void> {
@@ -61,11 +61,16 @@ export async function verifySwapRelationship(
     [factory, "Factory", 2, router],
     [router, "Router", 0, factory],
   ] as const) {
-    const { item } = await client.getStorageAt(
-      contract,
-      seedStorageKey(domain, slot),
-    );
-    if (item?.kind !== "bytestring" || !bytesEqual(item.bytes, expected)) {
+    const { item } = await client.getStorage({
+      address: contract,
+      key: seedStorageKey(domain, slot),
+    });
+    if (
+      !item ||
+      !("kind" in item) ||
+      item.kind !== "bytestring" ||
+      !bytesEqual(item.bytes, expected)
+    ) {
       throw new SeedError(
         "Swap factory/router relationship mismatch or unsupported storage layout",
       );

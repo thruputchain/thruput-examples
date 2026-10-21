@@ -46,14 +46,10 @@ export async function provisionCounter(options: {
     }),
     transport: new HttpTransport(options.rpcUrl, { timeoutMs: 15_000 }),
   });
-  const version = await client.getVersion();
-  if (
-    !/^(?:1[3-9]|[2-9]\d|[1-9]\d{2,})\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(
-      version.wireFormat,
-    )
-  ) {
+  const version = await client.getVersionInfo();
+  if (!/^14\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(version.wireFormat)) {
     throw new Error(
-      `RPC wire format >=13.0.0 is required; found ${version.wireFormat}`,
+      `RPC wire format 14.x is required; found ${version.wireFormat}`,
     );
   }
   const contract = await readFile(
@@ -74,7 +70,7 @@ export async function provisionCounter(options: {
     explorerUrl: options.explorerUrl,
   });
   const execute = async (name: string, invocation: Invocation) => {
-    const { txHash } = await wallet.executeAndWait(
+    const { transactionHash: txHash } = await wallet.executeAndWait(
       { invocation, gasLimit: GAS },
       { timeoutMs: 60_000 },
     );
@@ -86,8 +82,6 @@ export async function provisionCounter(options: {
   try {
     await writeFile(temporary, "", { flag: "wx", mode: 0o600 });
     const funding = await wallet.requestAirdrop();
-    if (funding.status.result !== "ok")
-      throw new Error("Counter signer funding failed.");
     console.log(`Airdrop confirmed: ${funding.rawAmount} raw HOG (7 decimals)`);
     await execute(
       "Fund counter",
@@ -96,7 +90,7 @@ export async function provisionCounter(options: {
         amount: 10_000_000n,
       }),
     );
-    const { txHash } = await wallet.deployContractAndWait(
+    const { transactionHash: txHash } = await wallet.deployContractAndWait(
       deployment,
       { gasLimit: GAS, amount: 0n },
       {
@@ -114,7 +108,7 @@ export async function provisionCounter(options: {
       (
         await Counter.v0_1.get.view({
           client,
-          contract: address,
+          address: address,
           caller: account.address,
         })
       ).value !== INITIAL_VALUE

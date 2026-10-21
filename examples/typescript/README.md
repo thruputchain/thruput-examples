@@ -1,7 +1,9 @@
 # Small TypeScript client examples
 
-Each script teaches one operation using the published `@thruputchain/client`
-package. No browser, Freighter, app server, or registry database is required.
+The local-node scripts teach one operation using the published
+`@thruputchain/client` package. The hosted firehose consumer uses only Node
+built-ins and connects to a separate service from the JSON-RPC gateway.
+No browser, Freighter, app server, or registry database is required.
 The SDK repository's own examples exercise its source checkout; these exercise
 the packages installed by this repository.
 
@@ -9,6 +11,8 @@ the packages installed by this repository.
 
 Follow [Setup](../../README.md#setup) for package access and
 CLI installation. Run everything here from the repository root.
+For the [hosted firehose consumer](#7-consume-the-hosted-firehose), only the
+repo npm install is needed; skip the CLI and local-node setup below.
 
 In terminal A:
 
@@ -23,7 +27,7 @@ npm ci
 export THRUPUT_RPC_URL=http://127.0.0.1:9545
 ```
 
-The scripts accept only loopback HTTP endpoints and check the localnet network
+The SDK scripts accept only loopback HTTP endpoints and check the localnet network
 identity. Use one local node for the sequence. Local nodes share a network hash,
 so that hash alone does not identify a particular local node.
 
@@ -40,7 +44,7 @@ npm run example:chain-tip
 ```
 
 Expected: JSON with `rpcUrl`, `networkHash`, and block `height`. This read-only
-request needs no signer or contract build. Try adding `client.getVersion()` and
+request needs no signer or contract build. Try adding `client.getVersionInfo()` and
 printing the RPC implementation version.
 
 ## 2. Transfer test HOG
@@ -153,11 +157,41 @@ it is not a read-only command. Use a dedicated Counter with no concurrent
 writers while checking exact values. This is a native local-account batch,
 not browser-wallet capability negotiation.
 
+## 7. Consume the hosted firehose
+
+Source: [consume-firehose.ts](consume-firehose.ts).
+
+```sh
+npm run example:consume-firehose
+```
+
+This long-running consumer subscribes at tip and writes each block record to
+`<height>.xdr`, with a durable `cursor.json` checkpoint. Expected: one JSON line
+per processed block with `height` and `bytes`. Saved records are output, not
+commitment verification. It uses only Node built-ins (including global
+`WebSocket`), needs no local node, and requires no npm authentication beyond
+the repo install.
+
+- `FIREHOSE_URL`: WebSocket endpoint; defaults to `wss://firehose.thruput.network`.
+- `OUTPUT_DIR`: records and checkpoint directory; defaults to `./firehose-output`.
+  Run only one consumer per output directory.
+
+Stop with Ctrl-C and rerun with the same endpoint and output directory to
+resume from the saved inclusive height. The cursor is saved before writing
+each record and advanced after `firehose_ack`; replay overwrites the same
+height's file. Transport loss reconnects after 2 seconds from saved progress.
+A `closed` notification or `below_window` error stops the consumer with a nonzero
+exit status. For `below_window`, recover state or explicitly choose a new output
+directory to start at tip. A saved checkpoint cannot be reused with a different
+endpoint.
+
+See the [firehose consumption guide](https://docs.thruput.network/guides/consume-the-firehose/).
+
 ## Supporting code
 
 - `local-client.ts` shares endpoint selection and localnet client creation.
 - `wait-for-view.ts` handles the gap between a committed receipt and an available
-  read snapshot. Calls specify `minHeight`; only `ViewHeightUnavailable` is
+  read snapshot. Calls specify `minStateBlockHeight`; only `StateHeightUnavailable` is
   retried, for at most 15 seconds. It never retries signing or submission.
 - `generate.sh` builds the artifact and matching binding.
 - `generated/counter.ts` is generated, not a hand-written teaching example.
@@ -168,7 +202,8 @@ Investigate the original hash instead of repeating a write on that assumption.
 ## Verification and next steps
 
 `npm run typecheck` includes these scripts. For maintainers, `npm run test:examples`
-runs them against a fresh isolated node and checks the results. See
+runs the SDK scripts against a fresh isolated node and checks the results; it
+does not run the hosted firehose consumer. See
 [Development checks](../../scripts/README.md#checks).
 
 Next: [Counter app](../../apps/counter/README.md) for concurrent requests, or

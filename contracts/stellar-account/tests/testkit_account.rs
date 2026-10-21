@@ -24,7 +24,10 @@ use std::path::PathBuf;
 
 use stellar_account_factory_if::FactoryConfig;
 use thruput_domain_separator::transaction_signature_preimage;
-use thruput_json_rpc_client::GroundhogApiClient;
+use thruput_json_rpc_client::DecodedResponse;
+use thruput_json_rpc_types::{
+    requests::EmptyRequest, responses::ReceiptExecution as ExecutionResult,
+};
 use thruput_signing::{
     BuildCallTransaction, LocalSigner, Signer, build_call_transaction,
     encode_signed_transaction_xdr,
@@ -41,7 +44,7 @@ type Address = ContractAddress;
 
 const ACCOUNT_IF: (&str, &str) = ("StellarAccount", "0.1.0");
 const FACTORY_IF: (&str, &str) = ("StellarAccountFactory", "0.1.0");
-const ERC20: (&str, &str) = ("ERC20", "0.1.60");
+const ERC20: (&str, &str) = ("ERC20", "0.1.62");
 
 const MASTER_SEED: [u8; 32] = [0x11; 32];
 const SECOND_SEED: [u8; 32] = [0x22; 32];
@@ -80,7 +83,13 @@ async fn network_hash(ctx: &AgentContext) -> NetworkHash {
         .network()
         .client()
         .expect("a local network has an RPC client");
-    let info = client.network_info().await.expect("networkInfo answers");
+    let DecodedResponse::Known(info) = client
+        .get_network_info(EmptyRequest {})
+        .await
+        .expect("getNetworkInfo answers")
+    else {
+        panic!("unsupported network identity")
+    };
     NetworkHash::new(info.network_hash.0)
 }
 
@@ -104,7 +113,7 @@ async fn account_tx<A: xdrs::WriteXDR>(
         entrypoint: entrypoint_id(ACCOUNT_IF.0, ACCOUNT_IF.1, method),
         calldata: xdrs::cxs::encode(args).expect("encode args"),
         gas_limit: GAS_LIMIT,
-        block_expiry_height: *tip.height + HORIZON,
+        block_expiry_height: *tip.block_height + HORIZON,
         nonce,
         auth_claim: source_claim(required_weight),
     });
@@ -135,12 +144,9 @@ async fn submit_ok(ctx: &AgentContext, tx_hex: String) {
         .expect("accepted at admission");
     let receipt = ctx.network().await_receipt(hash).await.expect("receipt");
     assert!(
-        matches!(
-            receipt.status,
-            thruput_json_rpc_types::receipt::ExecStatus::Ok
-        ),
+        matches!(receipt.execution, ExecutionResult::Return { .. }),
         "execution ok, got {:?}",
-        receipt.status
+        receipt.execution
     );
 }
 
@@ -244,10 +250,7 @@ fn admin() -> Agent {
                 let receipt = ctx.network().await_receipt(hash).await;
                 assert!(
                     receipt.is_err()
-                        || !matches!(
-                            receipt.unwrap().status,
-                            thruput_json_rpc_types::receipt::ExecStatus::Ok
-                        ),
+                        || !matches!(receipt.unwrap().execution, ExecutionResult::Return { .. }),
                     "an under-weight transaction must not execute"
                 );
             }
@@ -272,10 +275,7 @@ fn admin() -> Agent {
             .expect("admitted: weight 1 is satisfied");
         let receipt = ctx.network().await_receipt(hash).await.expect("receipt");
         assert!(
-            !matches!(
-                receipt.status,
-                thruput_json_rpc_types::receipt::ExecStatus::Ok
-            ),
+            !matches!(receipt.execution, ExecutionResult::Return { .. }),
             "InsufficientAuthWeight"
         );
 

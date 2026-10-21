@@ -10,7 +10,7 @@ use thruput_testkit::{AgentContext, Contract, DeployOptions, Result, xdrs};
 type Address = ContractAddress;
 
 // Interface identities (name, version)
-pub const ERC20: (&str, &str) = ("ERC20", "0.1.60");
+pub const ERC20: (&str, &str) = ("ERC20", "0.1.62");
 pub const HANDLER: (&str, &str) = ("SwapHandler", "0.1.0");
 pub const DRIVER: (&str, &str) = ("SwapDriver", "0.1.0");
 pub const ROUTER: (&str, &str) = ("SwapRouter", "0.1.0");

@@ -58,7 +58,7 @@ describe("loadServerConfig", () => {
     ["TOKEN_REGISTRY_SYNC_INTERVAL_MS", "999"],
     ["TOKEN_REGISTRY_PAGE_SIZE", "501"],
     ["VITE_THRUPUT_NETWORK_ID", "abc"],
-    // Legacy hex identifiers are no longer accepted.
+    // Public identifiers must use base58.
     ["VITE_STANDARD_TOKEN_FACTORY_ADDRESS", `0x${"11".repeat(32)}`],
     ["VITE_STANDARD_TOKEN_HASH", "zz".repeat(32)],
     ["VITE_THRUPUT_RPC_URL", "ftp://rpc.example.test"],

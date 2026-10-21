@@ -10,7 +10,7 @@ import {
   HttpTransport,
   toBase58,
 } from "@thruputchain/client";
-import { ExecResult, networkHash } from "@thruputchain/protocol";
+import { networkHash } from "@thruputchain/protocol";
 import type { AppConfig } from "../config";
 import type { CounterConnection } from "../transactions/engine";
 
@@ -48,7 +48,7 @@ export async function createCounterConnection(
       const network = await client.getNetworkInfo();
       if (!bytesEqual(network.networkHash, expected))
         throw new Error("Network changed. Check the app configuration.");
-      const balance = await client.getBalance(signerAddress);
+      const balance = await client.getBalance({ address: signerAddress });
       return { value: null, signerBalance: balance.rawBalance };
     },
     async prepare(direction) {
@@ -78,8 +78,10 @@ export async function createCounterConnection(
       return {
         hash: toBase58(hash),
         async submit() {
-          const received = await client.sendTransaction(signed);
-          if (!bytesEqual(received, hash))
+          const received = await client.sendTransaction({
+            signedTransaction: fromHex0x(body.transaction as string),
+          });
+          if (!bytesEqual(received.transactionHash, hash))
             throw new Error(
               "Submission returned a different transaction hash.",
             );
@@ -88,21 +90,26 @@ export async function createCounterConnection(
     },
     async observe(hashText) {
       const hash = hashFromBase58(hashText);
-      const receipt = await client.getTransactionReceipt(hash);
+      const receipt = await client.getTransactionReceipt({
+        transactionHash: hash,
+      });
       if (receipt) {
-        if (!bytesEqual(receipt.txHash, hash))
+        if (!bytesEqual(receipt.transactionHash, hash))
           throw new Error("Receipt hash does not match.");
-        return receipt.execResult === ExecResult.ExecResultOK
+        if (!("result" in receipt.execution))
+          throw new Error("Receipt contains an unsupported execution result.");
+        return "result" in receipt.execution &&
+          receipt.execution.result === "return"
           ? { state: "confirmed", message: null }
           : {
               state: "failed",
-              message: `Transaction failed: ${ExecResult[receipt.execResult]}.`,
+              message:
+                "Transaction committed without a successful execution result.",
             };
       }
-      const status = await client.getTransactionStatus(hash);
-      return status.status === "invalid"
-        ? { state: "failed", message: status.reason }
-        : { state: "pending" };
+      // Scheduler failures are not proof that the transaction cannot commit later.
+      await client.getTransactionStatus({ transactionHash: hash });
+      return { state: "pending" };
     },
     dispose() {
       controller.abort();

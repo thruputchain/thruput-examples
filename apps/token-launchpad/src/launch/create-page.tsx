@@ -58,16 +58,6 @@ export function CreatePage(props: LaunchOptions) {
           </AlertDescription>
         </Alert>
       ) : null}
-      {launch.storageError && launch.invalidDiscardable ? (
-        <Button
-          className="mb-6"
-          variant="outline"
-          onClick={launch.reset}
-          disabled={launch.loading}
-        >
-          Discard invalid saved workflow
-        </Button>
-      ) : null}
       {launch.submitted && !launch.parsed.value ? (
         <Alert variant="destructive" className="mb-6">
           <AlertCircleIcon />

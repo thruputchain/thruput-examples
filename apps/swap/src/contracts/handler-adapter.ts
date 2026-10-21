@@ -17,7 +17,7 @@ export interface SwapHandlerReadAdapter {
 }
 
 export function createSwapHandlerReadAdapter(params: {
-  client: Pick<ThruputClient, "view">;
+  client: Pick<ThruputClient, "simulateInvocation">;
   contract: ContractAddress;
   caller: ContractAddress;
 }): SwapHandlerReadAdapter {
@@ -25,7 +25,7 @@ export function createSwapHandlerReadAdapter(params: {
     async poolState() {
       const result = await SwapHandler.v0_1.poolState.view({
         client: params.client,
-        contract: params.contract,
+        address: params.contract,
         caller: params.caller,
       });
       const [reserve0, reserve1] = result.value.reserves;

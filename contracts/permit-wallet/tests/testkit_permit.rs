@@ -27,7 +27,8 @@ use ed25519_dalek::{Signer, SigningKey};
 use permit_wallet::WalletRequest;
 use thruput_domain_separator::SignedOp as SignedOpPreimage;
 use thruput_erc20_permit_if::{DeleteAllowanceRequest, PermitRequest};
-use thruput_json_rpc_client::GroundhogApiClient;
+use thruput_json_rpc_client::DecodedResponse;
+use thruput_json_rpc_client::types::requests::EmptyRequest;
 use thruput_sdk::types::transaction::Uniquifier;
 use thruput_sdk::types::{Ed25519PublicKey, Ed25519Signature};
 use thruput_sdk::xdr::BytesM;
@@ -43,7 +44,7 @@ type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as
 // recorded in each `*.spec.json`; the testkit derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.60");
+const ERC20: (&str, &str) = ("ERC20", "0.1.62");
 const WALLET: (&str, &str) = ("PermitWallet", "0.1.0");
 const RELAYER: (&str, &str) = ("PermitRelayer", "0.1.0");
 
@@ -97,10 +98,13 @@ async fn network_hash(ctx: &AgentContext) -> thruput_sdk::types::NetworkHash {
         .network()
         .client()
         .expect("a local network has an RPC client");
-    let info = client
-        .network_info()
+    let DecodedResponse::Known(info) = client
+        .get_network_info(EmptyRequest {})
         .await
-        .expect("networkInfo answers on a live node");
+        .expect("getNetworkInfo answers on a live node")
+    else {
+        panic!("unsupported network identity")
+    };
     thruput_sdk::types::NetworkHash::new(info.network_hash.0)
 }
 
@@ -235,7 +239,7 @@ fn spender() -> Agent {
         // us, valid for `HORIZON` blocks. In practice this arrives from Alice
         // out of band; here we hold her test-only key.
         let network = network_hash(&ctx).await;
-        let expiry = *ctx.network().chain_tip().await?.height + HORIZON;
+        let expiry = *ctx.network().chain_tip().await?.block_height + HORIZON;
         let request = WalletRequest::Permit(PermitRequest {
             token: sdk_address(&cfg.token),
             spender: sdk_address(&me),

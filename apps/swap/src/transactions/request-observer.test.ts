@@ -1,7 +1,6 @@
-import { toBase58 } from "@thruputchain/client";
+import { toBase58, toHex0x } from "@thruputchain/client";
 import {
   contractAddress,
-  ExecResult,
   sha256Hash,
   type ContractAddress,
 } from "@thruputchain/protocol";
@@ -106,12 +105,14 @@ describe("request observer", () => {
     expect(getEvents).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        order: "ascending",
-        anchor: { height: 8n },
+        start: {
+          order: "ascending",
+          anchor: { kind: "atHeight", blockHeight: 8n },
+        },
         limit: 200,
       }),
     );
-    expect(getEvents.mock.calls[1]?.[0].cursor).toEqual(new Uint8Array([1]));
+    expect(getEvents.mock.calls[1]?.[0].cursor).toBe("0x01");
   });
 
   it("ignores identical amounts with another request ID", async () => {
@@ -165,29 +166,33 @@ describe("request observer", () => {
 
   it("preserves slippage reasons from polling and receipts through saved history", async () => {
     const queued = record(request, "slippage");
-    const event = requestFailedEvent(config.driverAddress, new Uint8Array(32).fill(0xcc), {
-      cause: Cause.Exception,
-      selector: 0x947bdd51feea1ccen,
-      payload: Uint8Array.of(3),
-      payload_len: 1n,
-    });
-    const getEvents = vi.fn().mockResolvedValue(
-      page([identified(event, 10n)], new Uint8Array(), 10n),
+    const event = requestFailedEvent(
+      config.driverAddress,
+      new Uint8Array(32).fill(0xcc),
+      {
+        cause: Cause.Exception,
+        selector: 0x947bdd51feea1ccen,
+        payload: Uint8Array.of(3),
+        payload_len: 1n,
+      },
     );
-    const polled = await createRequestObserver(config, rpcClient(getEvents)).scanAll!([queued]);
+    const getEvents = vi
+      .fn()
+      .mockResolvedValue(page([identified(event, 10n)], new Uint8Array(), 10n));
+    const polled = await createRequestObserver(config, rpcClient(getEvents))
+      .scanAll!([queued]);
     const receipt = observationsFromReceipt(config, [queued], {
-      txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
-      height: 10n,
-      execResult: ExecResult.ExecResultOK,
+      transactionHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
+      blockHeight: 10n,
+      execution: { result: "return" as const, returnData: new Uint8Array() },
       gasUsed: 0n,
       events: [event],
-      returnData: new Uint8Array(),
-      abortData: null,
     });
     expect(polled.observations).toEqual(receipt.observations);
     expect(receipt.observations[0]).toMatchObject({
       kind: "executionFailed",
-      failureMessage: "Slippage limit exceeded: output was below your minimum received amount.",
+      failureMessage:
+        "Slippage limit exceeded: output was below your minimum received amount.",
     });
     const applied = applyObservationBatch([queued], [queued], receipt);
     saveRequestCollection(config, applied);
@@ -295,7 +300,7 @@ describe("request observer", () => {
   it("reports unavailable retained history so fallback observation can run", async () => {
     const getEvents = vi.fn().mockResolvedValue({
       ...page([], new Uint8Array(), 20n),
-      oldestBlock: 10n,
+      oldestIndexedBlockHeight: 10n,
     });
 
     await expect(
@@ -349,7 +354,10 @@ describe("request observer", () => {
     });
     expect(getEvents).toHaveBeenCalledTimes(1);
     expect(getEvents.mock.calls[0]?.[0]).toMatchObject({
-      anchor: { height: 8n },
+      start: {
+        order: "ascending",
+        anchor: { kind: "atHeight", blockHeight: 8n },
+      },
     });
     expect(
       getEvents.mock.calls[0]?.[0].filters[1].topics.topic1,
@@ -372,7 +380,12 @@ describe("request observer", () => {
     ]);
 
     expect(getEvents).toHaveBeenCalledWith(
-      expect.objectContaining({ anchor: { height: 10n } }),
+      expect.objectContaining({
+        start: {
+          order: "ascending",
+          anchor: { kind: "atHeight", blockHeight: 10n },
+        },
+      }),
     );
   });
 
@@ -380,7 +393,7 @@ describe("request observer", () => {
     const observed = { ...record(request, "first"), observedThroughBlock: 10n };
     const getEvents = vi.fn().mockResolvedValue({
       ...page([], new Uint8Array(), 12n),
-      oldestBlock: 11n,
+      oldestIndexedBlockHeight: 11n,
     });
 
     await expect(
@@ -436,16 +449,14 @@ describe("request observer", () => {
     const first = { ...record(request, "first"), observedThroughBlock: 9n };
     const second = record({ ...request, requestId: hex(0xee) }, "second");
     const receipt = {
-      txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
-      height: 10n,
-      execResult: ExecResult.ExecResultOK,
+      transactionHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
+      blockHeight: 10n,
+      execution: { result: "return" as const, returnData: new Uint8Array() },
       gasUsed: 0n,
       events: [
         swapEvent(new Uint8Array(32).fill(0xcc)),
         failedEvent(new Uint8Array(32).fill(0xee)),
       ],
-      returnData: new Uint8Array(),
-      abortData: null,
     };
 
     const batch = observationsFromReceipt(config, [first, second], receipt);
@@ -469,13 +480,11 @@ describe("request observer", () => {
     const queued = record(request, "first");
     const event = failedEvent(new Uint8Array(32).fill(0xcc));
     const receipt = {
-      txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
-      height: 10n,
-      execResult: ExecResult.ExecResultOK,
+      transactionHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
+      blockHeight: 10n,
+      execution: { result: "return" as const, returnData: new Uint8Array() },
       gasUsed: 0n,
       events: [event, event],
-      returnData: new Uint8Array(),
-      abortData: null,
     };
 
     expect(() => observationsFromReceipt(config, [queued], receipt)).toThrow(
@@ -502,7 +511,7 @@ function swapEvent(
   writer.writeUint32(1n);
   writer.writeFixedOpaque(requestId, 32);
   return {
-    contractAddress: options.contractAddress ?? config.handlerAddress,
+    address: options.contractAddress ?? config.handlerAddress,
     topics: [
       SwapEvent.signature,
       options.sender ?? config.accountAddress,
@@ -522,7 +531,7 @@ function identified(
   sequenceNumber = 1,
 ) {
   return {
-    txHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
+    transactionHash: sha256Hash(new Uint8Array(32).fill(0xdd)),
     blockHeight,
     sequenceNumber,
     event,
@@ -534,7 +543,12 @@ function page(
   cursor: Uint8Array,
   latestBlock: bigint,
 ) {
-  return { events, cursor, latestBlock, oldestBlock: 1n };
+  return {
+    events,
+    nextCursor: cursor.length ? toHex0x(cursor) : null,
+    latestIndexedBlockHeight: latestBlock,
+    oldestIndexedBlockHeight: 1n,
+  };
 }
 
 function record(value: OutstandingRequest, localId: string): RequestRecord {

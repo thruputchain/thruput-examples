@@ -1,10 +1,6 @@
 import { toBase58 } from "@thruputchain/client";
 import type { ThruputClient } from "@thruputchain/client";
-import {
-  contractAddress,
-  ExecResult,
-  sha256Hash,
-} from "@thruputchain/protocol";
+import { contractAddress, sha256Hash } from "@thruputchain/protocol";
 import { CxsWriter } from "@thruputchain/xdr";
 import { describe, expect, it, vi } from "vitest";
 
@@ -41,23 +37,23 @@ describe("creation observer", () => {
     const event = requestFailedEvent(address(23), new Uint8Array(32).fill(30));
     const txHash = sha256Hash(new Uint8Array(32).fill(40));
     const getEvents = vi.fn().mockResolvedValue({
-      events: [{ event, blockHeight: 10n, txHash, sequenceNumber: 1 }],
-      cursor: new Uint8Array(),
-      latestBlock: 11n,
-      oldestBlock: 1n,
+      events: [
+        { event, blockHeight: 10n, transactionHash: txHash, sequenceNumber: 1 },
+      ],
+      nextCursor: null,
+      latestIndexedBlockHeight: 11n,
+      oldestIndexedBlockHeight: 1n,
     });
     await expect(
       createCreationObserver(config, rpcClient(getEvents)).scan(workflow),
     ).resolves.toMatchObject({ status: "failed", terminalBlock: "10" });
     expect(
       applyCreationReceipt(workflow, {
-        txHash,
-        height: 10n,
-        execResult: ExecResult.ExecResultOK,
+        transactionHash: txHash,
+        blockHeight: 10n,
+        execution: { result: "return" as const, returnData: new Uint8Array() },
         gasUsed: 0n,
         events: [event],
-        returnData: null,
-        abortData: null,
       }),
     ).toMatchObject({ status: "failed", terminalBlock: "10" });
   });
@@ -68,13 +64,13 @@ describe("creation observer", () => {
         {
           event: mintEvent(new Uint8Array(32).fill(30)),
           blockHeight: 10n,
-          txHash: sha256Hash(new Uint8Array(32).fill(40)),
+          transactionHash: sha256Hash(new Uint8Array(32).fill(40)),
           sequenceNumber: 1,
         },
       ],
-      cursor: new Uint8Array(),
-      latestBlock: 11n,
-      oldestBlock: 1n,
+      nextCursor: null,
+      latestIndexedBlockHeight: 11n,
+      oldestIndexedBlockHeight: 1n,
     });
 
     await expect(
@@ -86,8 +82,10 @@ describe("creation observer", () => {
     });
     expect(getEvents).toHaveBeenCalledWith(
       expect.objectContaining({
-        anchor: { height: 8n },
-        order: "ascending",
+        start: {
+          order: "ascending",
+          anchor: { kind: "atHeight", blockHeight: 8n },
+        },
       }),
     );
   });
@@ -139,7 +137,7 @@ function mintEvent(requestId: Uint8Array) {
   writer.writeUint32(1n);
   writer.writeFixedOpaque(requestId, 32);
   return {
-    contractAddress: address(22),
+    address: address(22),
     topics: [MintEvent.signature, config.accountAddress, config.accountAddress],
     data: writer.finish(),
   };

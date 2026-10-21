@@ -40,7 +40,7 @@ describe("registry pool enrichment", () => {
     const resultPromise = enrichRegistryPools(
       config,
       entries,
-      { view: vi.fn() },
+      { simulateInvocation: vi.fn() },
       undefined,
       readPool,
     );
@@ -63,7 +63,7 @@ describe("registry pool enrichment", () => {
     const result = await enrichRegistryPools(
       config,
       entry,
-      { view: vi.fn() },
+      { simulateInvocation: vi.fn() },
       undefined,
       async (_config, record) => ({
         ...live(record),
@@ -80,7 +80,7 @@ describe("registry pool enrichment", () => {
       enrichRegistryPools(
         config,
         registryPoolsToEntries([pool(1)]),
-        { view: vi.fn() },
+        { simulateInvocation: vi.fn() },
         controller.signal,
         async () => live(pool(1)),
       ),
@@ -93,7 +93,7 @@ describe("registry pool enrichment", () => {
     await enrichRegistryPools(
       config,
       registryPoolsToEntries([pool(1)]),
-      { view: vi.fn() },
+      { simulateInvocation: vi.fn() },
       signal,
       readPool,
     );

@@ -6,8 +6,8 @@ import {
   fixedBytes,
   hashFromBase58,
   HttpTransport,
-  JsonRpcError,
-  ThruputRpcErrorCode,
+  NativeRpcError,
+  NativeRpcErrorCode,
   toBase58,
   type EventPage,
   type EventQuery,
@@ -99,7 +99,7 @@ export async function createThruputRegistrySource(
 export class ThruputRegistrySource implements RegistrySource {
   readonly #client: Pick<
     ThruputClient,
-    "getEvents" | "view" | "getNetworkInfo"
+    "getEvents" | "simulateInvocation" | "getNetworkInfo"
   >;
   readonly #getNetworkInfo: (
     signal: AbortSignal,
@@ -113,7 +113,10 @@ export class ThruputRegistrySource implements RegistrySource {
   readonly #expectedTokenHash;
 
   constructor(
-    client: Pick<ThruputClient, "getEvents" | "view" | "getNetworkInfo">,
+    client: Pick<
+      ThruputClient,
+      "getEvents" | "simulateInvocation" | "getNetworkInfo"
+    >,
     scope: RegistryScope,
     getEvents = (query: EventQuery, signal: AbortSignal) =>
       abortable(client.getEvents(query), signal),
@@ -149,7 +152,7 @@ export class ThruputRegistrySource implements RegistrySource {
       observed = (
         await StandardTokenFactory.v0_1.config.view({
           client: this.#client,
-          contract: this.#factoryAddress,
+          address: this.#factoryAddress,
         })
       ).value;
     } catch (error) {
@@ -173,13 +176,19 @@ export class ThruputRegistrySource implements RegistrySource {
         {
           filters: [
             TokenCreated.filter({
-              contractAddresses: [this.#factoryAddress],
+              addresses: [this.#factoryAddress],
             }),
           ],
-          order: "ascending",
-          anchor: { height: BigInt(request.anchorBlock) },
           ...(request.cursor === null
-            ? {}
+            ? {
+                start: {
+                  order: "ascending" as const,
+                  anchor: {
+                    kind: "atHeight" as const,
+                    blockHeight: BigInt(request.anchorBlock),
+                  },
+                },
+              }
             : { cursor: decodeCursor(request.cursor) }),
           limit: request.limit,
         },
@@ -188,8 +197,8 @@ export class ThruputRegistrySource implements RegistrySource {
     } catch (error) {
       if (
         request.cursor !== null &&
-        error instanceof JsonRpcError &&
-        error.code === ThruputRpcErrorCode.InvalidParams
+        error instanceof NativeRpcError &&
+        error.code === NativeRpcErrorCode.InvalidParams
       ) {
         throw new RegistryCursorRejectedError({ cause: error });
       }
@@ -203,17 +212,21 @@ export class ThruputRegistrySource implements RegistrySource {
     await this.verifyNetworkIdentity(request.signal);
     return {
       tokens,
-      nextCursor: encodeCursor(page.cursor),
-      latestBlock: unsignedDecimal(page.latestBlock, "latest block"),
-      oldestBlock: unsignedDecimal(page.oldestBlock, "oldest block"),
+      nextCursor: encodeCursor(page.nextCursor),
+      latestBlock: unsignedDecimal(
+        page.latestIndexedBlockHeight,
+        "latest block",
+      ),
+      oldestBlock: unsignedDecimal(
+        page.oldestIndexedBlockHeight,
+        "oldest block",
+      ),
     };
   }
 
   #decodeEvent(event: IdentifiedEvent, indexedAt: string): RegistryToken {
     try {
-      if (
-        toBase58(event.event.contractAddress) !== this.#scope.factoryAddress
-      ) {
+      if (toBase58(event.event.address) !== this.#scope.factoryAddress) {
         throw new Error("event emitter does not match the configured factory");
       }
       const decoded = TokenCreated.decode(event.event);
@@ -242,7 +255,7 @@ export class ThruputRegistrySource implements RegistrySource {
         symbol: decoded.fields.symbol,
         decimals: decimals === null ? null : Number(decimals),
         tokenCodeHash,
-        transactionHash: toBase58(event.txHash),
+        transactionHash: toBase58(event.transactionHash),
         eventSequence: event.sequenceNumber,
         blockHeight: unsignedDecimal(event.blockHeight, "block height"),
         indexedAt,
@@ -268,7 +281,7 @@ class SignalTransport implements Transport {
 
   request<T>(
     method: string,
-    params?: unknown[],
+    params?: unknown[] | Record<string, unknown>,
     options?: TransportRequestOptions,
   ): Promise<T> {
     const signals = [options?.signal, this.#signal].filter(
@@ -299,15 +312,17 @@ class SignalTransport implements Transport {
   }
 }
 
-function encodeCursor(cursor: Uint8Array): string | null {
-  return cursor.length === 0 ? null : Buffer.from(cursor).toString("base64url");
+function encodeCursor(cursor: string | null): string | null {
+  return cursor === null
+    ? null
+    : Buffer.from(cursor.slice(2), "hex").toString("base64url");
 }
 
-function decodeCursor(cursor: string): Uint8Array {
+function decodeCursor(cursor: string): string {
   const bytes = Buffer.from(cursor, "base64url");
   if (bytes.length === 0)
     throw new RegistryIntegrityError("Invalid durable cursor");
-  return bytes;
+  return `0x${bytes.toString("hex")}`;
 }
 
 function unsignedDecimal(value: bigint, name: string): string {

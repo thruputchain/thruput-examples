@@ -37,7 +37,7 @@ export function registryPoolsToEntries(
 export async function enrichRegistryPools(
   config: GlobalConfig,
   entries: readonly RegistryPoolEntry[],
-  client: Pick<CoreThruputClient, "view">,
+  client: Pick<CoreThruputClient, "simulateInvocation">,
   signal?: AbortSignal,
   readPool?: PoolReader,
 ): Promise<RegistryPoolEntry[]> {
@@ -77,7 +77,7 @@ export async function enrichRegistryPools(
 async function defaultPoolReader(
   config: GlobalConfig,
   pool: RegistryPool,
-  client: Pick<CoreThruputClient, "view">,
+  client: Pick<CoreThruputClient, "simulateInvocation">,
 ): Promise<PoolDirectoryEntry> {
   const poolConfig = await resolvePoolConfig({
     config,

@@ -382,12 +382,12 @@ describe("production HTTP serving", () => {
   });
 
   it.each([
-    "groundhog_networkInfo",
-    "groundhog_chainTip",
-    "groundhog_getEvents",
-    "groundhog_getTransactionReceipt",
-    "groundhog_getTransactionStatus",
-    "groundhog_view",
+    "getNetworkInfo",
+    "getChainTip",
+    "getEvents",
+    "getTransactionReceipt",
+    "getTransactionStatus",
+    "simulateInvocation",
   ])("proxies the read-only RPC method %s", async (method) => {
     const response = await fetch(`${origin}/thruput-rpc`, {
       method: "POST",
@@ -422,22 +422,26 @@ describe("production HTTP serving", () => {
         rpcRequest({
           jsonrpc: "2.0",
           id: 1,
-          method: "groundhog_sendRawTransaction",
+          method: "sendTransaction",
         }),
         403,
       ],
       [
         "/thruput-rpc",
-        rpcRequest([{ jsonrpc: "2.0", id: 1, method: "groundhog_view" }]),
+        rpcRequest([{ jsonrpc: "2.0", id: 1, method: "simulateInvocation" }]),
         400,
       ],
-      ["/thruput-rpc", rpcRequest({ id: 1, method: "groundhog_view" }), 400],
+      [
+        "/thruput-rpc",
+        rpcRequest({ id: 1, method: "simulateInvocation" }),
+        400,
+      ],
       [
         "/thruput-rpc",
         rpcRequest({
           jsonrpc: "2.0",
           id: true,
-          method: "groundhog_view",
+          method: "simulateInvocation",
         }),
         400,
       ],
@@ -446,7 +450,7 @@ describe("production HTTP serving", () => {
         rpcRequest({
           jsonrpc: "2.0",
           id: 1,
-          method: "groundhog_view",
+          method: "simulateInvocation",
           params: null,
         }),
         400,
@@ -456,7 +460,7 @@ describe("production HTTP serving", () => {
         rpcRequest({
           jsonrpc: "2.0",
           id: 1,
-          method: "groundhog_view",
+          method: "simulateInvocation",
           params: "invalid",
         }),
         400,
@@ -509,7 +513,7 @@ describe("production HTTP serving", () => {
       upstreamFetch.mockResolvedValueOnce(upstream);
       const response = await fetch(
         `${origin}/thruput-rpc`,
-        rpcRequest({ jsonrpc: "2.0", id: 1, method: "groundhog_view" }),
+        rpcRequest({ jsonrpc: "2.0", id: 1, method: "simulateInvocation" }),
       );
       const body = await response.text();
       expect(response.status).toBe(502);
@@ -524,7 +528,7 @@ describe("production HTTP serving", () => {
     );
     const response = await fetch(
       `${origin}/thruput-rpc`,
-      rpcRequest({ jsonrpc: "2.0", id: 1, method: "groundhog_view" }),
+      rpcRequest({ jsonrpc: "2.0", id: 1, method: "simulateInvocation" }),
     );
     const body = await response.text();
     expect(response.status).toBe(502);
@@ -545,7 +549,7 @@ describe("production HTTP serving", () => {
     upstreamFetch.mockResolvedValueOnce(upstream);
     const response = await fetch(
       `${origin}/thruput-rpc`,
-      rpcRequest({ jsonrpc: "2.0", id: 1, method: "groundhog_view" }),
+      rpcRequest({ jsonrpc: "2.0", id: 1, method: "simulateInvocation" }),
     );
     const body = await response.text();
     expect(response.status).toBe(502);
@@ -608,7 +612,7 @@ describe("isJsonRpcRequest", () => {
       expect(
         isJsonRpcRequest({
           jsonrpc: "2.0",
-          method: "groundhog_view",
+          method: "simulateInvocation",
           ...(id === undefined ? {} : { id }),
           params: [],
         }),
@@ -620,7 +624,7 @@ describe("isJsonRpcRequest", () => {
     "rejects unsupported JSON-RPC id %#",
     (id) => {
       expect(
-        isJsonRpcRequest({ jsonrpc: "2.0", method: "groundhog_view", id }),
+        isJsonRpcRequest({ jsonrpc: "2.0", method: "simulateInvocation", id }),
       ).toBe(false);
     },
   );
@@ -631,7 +635,7 @@ describe("isJsonRpcRequest", () => {
       expect(
         isJsonRpcRequest({
           jsonrpc: "2.0",
-          method: "groundhog_view",
+          method: "simulateInvocation",
           params,
         }),
       ).toBe(false);

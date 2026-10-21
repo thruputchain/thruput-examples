@@ -55,9 +55,9 @@ describe("liquidity observer", () => {
     operation.receiptBlock = "8";
     const getEvents = vi.fn().mockResolvedValue({
       events: [identified(mintEvent(new Uint8Array(32).fill(30)), 10n)],
-      cursor: new Uint8Array(),
-      latestBlock: 11n,
-      oldestBlock: 1n,
+      nextCursor: null,
+      latestIndexedBlockHeight: 11n,
+      oldestIndexedBlockHeight: 1n,
     });
 
     const result = await createLiquidityObserver(
@@ -77,8 +77,10 @@ describe("liquidity observer", () => {
     });
     expect(getEvents).toHaveBeenCalledWith(
       expect.objectContaining({
-        anchor: { height: 8n },
-        order: "ascending",
+        start: {
+          order: "ascending",
+          anchor: { kind: "atHeight", blockHeight: 8n },
+        },
       }),
     );
   });
@@ -88,9 +90,9 @@ describe("liquidity observer", () => {
     const failedClient = rpcClient(
       vi.fn().mockResolvedValue({
         events: [identified(failedEvent(new Uint8Array(32).fill(30)), 10n)],
-        cursor: new Uint8Array(),
-        latestBlock: 10n,
-        oldestBlock: 1n,
+        nextCursor: null,
+        latestIndexedBlockHeight: 10n,
+        oldestIndexedBlockHeight: 1n,
       }),
     );
     await expect(
@@ -102,9 +104,9 @@ describe("liquidity observer", () => {
         events: [
           identified(burnEvent(new Uint8Array(32).fill(30), [1n, 2n]), 10n),
         ],
-        cursor: new Uint8Array(),
-        latestBlock: 10n,
-        oldestBlock: 1n,
+        nextCursor: null,
+        latestIndexedBlockHeight: 10n,
+        oldestIndexedBlockHeight: 1n,
       }),
     );
     await expect(
@@ -125,7 +127,7 @@ function mintEvent(requestId: Uint8Array) {
   writer.writeUint32(1n);
   writer.writeFixedOpaque(requestId, 32);
   return {
-    contractAddress: config.handlerAddress,
+    address: config.handlerAddress,
     topics: [MintEvent.signature, config.accountAddress, config.accountAddress],
     data: writer.finish(),
   };
@@ -138,7 +140,7 @@ function burnEvent(requestId: Uint8Array, amounts: readonly [bigint, bigint]) {
   writer.writeUint32(1n);
   writer.writeFixedOpaque(requestId, 32);
   return {
-    contractAddress: config.handlerAddress,
+    address: config.handlerAddress,
     topics: [BurnEvent.signature, config.accountAddress, config.accountAddress],
     data: writer.finish(),
   };
@@ -156,7 +158,7 @@ function identified(
   blockHeight: bigint,
 ) {
   return {
-    txHash: sha256Hash(new Uint8Array(32).fill(40)),
+    transactionHash: sha256Hash(new Uint8Array(32).fill(40)),
     blockHeight,
     sequenceNumber: 1,
     event,
