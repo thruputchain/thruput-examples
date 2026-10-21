@@ -258,21 +258,22 @@ try {
     .click();
   await page
     .locator("header")
-    .getByRole("button", { name: "Disconnect wallet", exact: true })
+    .getByRole("button", { name: "Disconnect", exact: true })
     .waitFor();
   await increment.click();
-  await page.getByText("Counter update committed.", { exact: true }).waitFor();
-  await expectValue(1_000_002);
-  await page.reload();
-  await page.getByText("Counter update committed.", { exact: true }).waitFor();
-  assert.equal(signatures.length, 1);
-  assert.equal(submissions.length, 1);
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
   await page
     .getByRole("region", { name: "Transaction activity" })
     .getByText("Confirmed", { exact: true })
     .last()
     .waitFor();
+  await expectValue(1_000_002);
+  await page
+    .getByRole("region", { name: "Wallet transaction", exact: true })
+    .waitFor({ state: "hidden" });
+  await page.reload();
+  await expectValue(1_000_002);
+  assert.equal(signatures.length, 1);
+  assert.equal(submissions.length, 1);
   await page
     .getByRole("button", { name: "Connect wallet", exact: true })
     .click();
@@ -309,11 +310,16 @@ try {
     .locator('select[name="account"]')
     .selectOption(accounts[0]!.address);
   await page.getByRole("button", { name: "Retry same transaction" }).click();
-  await page.getByText("Counter update committed.", { exact: true }).waitFor();
+  await page
+    .getByRole("region", { name: "Transaction activity" })
+    .getByText("Confirmed", { exact: true })
+    .waitFor();
   assert.equal(signatures.at(-1), original);
   assert.equal(submissions.at(-1), original);
   await expectValue(1_000_003);
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await page
+    .getByRole("region", { name: "Wallet transaction", exact: true })
+    .waitFor({ state: "hidden" });
   await page
     .getByRole("region", { name: "Transaction activity" })
     .getByText("Confirmed", { exact: true })
@@ -337,9 +343,7 @@ try {
     })
     .waitFor();
   assert.equal(await increment.isDisabled(), true);
-  await page
-    .getByRole("button", { name: "Disconnect wallet", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Disconnect", exact: true }).click();
   await page
     .locator("header")
     .getByRole("button", { name: "Connect wallet", exact: true })
@@ -375,7 +379,11 @@ try {
     .getByRole("button", { name: "Connect wallet", exact: true })
     .click();
   await increment.click();
-  await page.getByText("Counter update committed.", { exact: true }).waitFor();
+  await page
+    .getByRole("region", { name: "Transaction activity" })
+    .getByText("Confirmed", { exact: true })
+    .last()
+    .waitFor();
   await expectValue(1_000_005);
   await new Promise<void>((resolve) => server!.close(() => resolve()));
   server = createCounterServer({
@@ -397,7 +405,11 @@ try {
     .getByRole("button", { name: "Connect wallet", exact: true })
     .click();
   await increment.click();
-  await page.getByText("Counter update committed.", { exact: true }).waitFor();
+  await page
+    .getByRole("region", { name: "Transaction activity" })
+    .getByText("Confirmed", { exact: true })
+    .last()
+    .waitFor();
   await expectValue(1_000_006);
   assert.equal(
     developmentRequests,

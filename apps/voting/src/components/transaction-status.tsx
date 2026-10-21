@@ -5,7 +5,8 @@ export function TransactionStatus({
 }: {
   transaction: Transaction;
 }) {
-  if (!tx.pending && !tx.message && !tx.busy) return null;
+  if (!tx.pending && !tx.message && !tx.busy)
+    return tx.completed ? <p role="status">{tx.completed} confirmed.</p> : null;
   return (
     <section
       className="notice"

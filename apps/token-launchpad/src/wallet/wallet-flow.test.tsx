@@ -37,14 +37,14 @@ async function setup() {
 it("preserves public filters and disconnected launch drafts while isolating accounts", async () => {
   const { user, wallet } = await setup();
   await user.type(screen.getByLabelText("Directory search"), "acorn");
-  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  await user.click(screen.getByRole("button", { name: "Connect wallet" }));
   expect(screen.getByLabelText("Directory search")).toHaveValue("acorn");
   await user.click(screen.getByRole("link", { name: "Create Token" }));
   await user.type(screen.getByLabelText("Token name"), "Acorn");
   await user.click(screen.getByRole("button", { name: "Disconnect" }));
   expect(screen.getByLabelText("Token name")).toHaveValue("Acorn");
   expect(screen.getByRole("button", { name: "Review launch" })).toBeDisabled();
-  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  await user.click(screen.getByRole("button", { name: "Connect wallet" }));
   expect(screen.getByLabelText("Token name")).toHaveValue("Acorn");
   await act(async () =>
     wallet.change({
@@ -60,9 +60,9 @@ it("handles popup cancellation quietly and makes wrong-network sessions read-onl
   wallet.request.mockRejectedValueOnce(
     Object.assign(new Error("Page closed"), { code: 4001 }),
   );
-  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  await user.click(screen.getByRole("button", { name: "Connect wallet" }));
   expect(screen.queryByRole("alert")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Connect Test Wallet" }));
+  await user.click(screen.getByRole("button", { name: "Connect wallet" }));
   await act(async () =>
     wallet.change({
       networkHash: toBase58(new Uint8Array(32).fill(0xcd)),

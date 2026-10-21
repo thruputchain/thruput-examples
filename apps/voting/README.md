@@ -37,7 +37,7 @@ app after setup. This app does not support devnet.
 ## Use it
 
 1. Select **Create poll**, enter questions and options, then **Save draft**.
-2. Select **Finish** after confirmation, then find the poll under **My polls**.
+2. After confirmation, find the poll under **My polls**.
 3. Review or edit the draft. **Open poll** freezes all questions and options.
 4. Share the poll link. Voters submit each question separately and may return
    for unanswered questions while voting is open.
@@ -62,7 +62,7 @@ to the current page. Use **Older** to check earlier polls.
 - `vite.config.ts`: local RPC proxy and public runtime configuration for both
   development and preview. No database or signing server is required.
 
-Wallet balance display uses `client.getBalance`. Setup credits the contract
+Setup reads the deployer balance through the balance API and credits the contract
 with 1 HOG for storage. This is a finite shared reserve for a local demo; anyone
 can fund the contract address if it runs low. Wallets need free HOG for gas
 capacity. Gas has no token fee; storage deposits are separate.
@@ -74,7 +74,8 @@ Locks prevent two tabs from replacing the saved record. Reload and **Check
 transaction** only observe the original hash, even after disconnecting.
 
 An uncertain outcome blocks new writes. The app does not resubmit automatically.
-**Finish** clears a confirmed outcome, including a committed execution failure.
+Successful transactions clear their pending record automatically and show a short
+confirmation. **Finish** acknowledges a committed execution failure.
 An unfamiliar receipt execution result remains unresolved and keeps the signed record.
 **Export record** preserves signed evidence. If browser storage fails, submission
 stops; **Retry storage** saves the in-memory record. Then select **Submit original

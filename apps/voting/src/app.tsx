@@ -1,4 +1,5 @@
-import { Link, NavLink, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { useWallet } from "@thruputchain/react";
 import type { AppConfig } from "./config";
 import {
@@ -99,19 +100,12 @@ function CreatePoll({
   transaction: Transaction;
 }) {
   const wallet = useWallet();
-  if (tx.pending?.label === "Create poll" && tx.confirmed)
-    return (
-      <section className="empty">
-        <h1>Poll created</h1>
-        <p>
-          Your draft is ready. Finish the transaction above, then manage your
-          poll.
-        </p>
-        <Link to="/admin" className="button primary">
-          View my polls
-        </Link>
-      </section>
-    );
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (tx.completed !== "Create poll") return;
+    tx.dismissConfirmation();
+    navigate("/admin");
+  }, [tx.completed, navigate]);
   return (
     <>
       <div className="page-heading">

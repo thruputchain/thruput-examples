@@ -1,17 +1,16 @@
-import { useClient, useWallet } from "@thruputchain/react";
-import { useQuery } from "@tanstack/react-query";
-import { addressFromBase58, formatUnits } from "@thruputchain/client";
+import { useWallet } from "@thruputchain/react";
+import { LogOutIcon } from "lucide-react";
+import { WalletProviderError } from "@thruputchain/client/provider";
 
 export function WalletControls() {
   const wallet = useWallet();
-  const client = useClient();
+  const error =
+    wallet.error instanceof WalletProviderError && wallet.error.code === 4001
+      ? null
+      : wallet.error;
   const address = wallet.address;
-  const balance = useQuery({
-    queryKey: ["voting", "balance", address],
-    enabled: Boolean(address),
-    queryFn: () => client.getBalance({ address: addressFromBase58(address!) }),
-    refetchInterval: 5_000,
-  });
+  const busy =
+    wallet.status === "connecting" || wallet.status === "disconnecting";
   return (
     <section aria-label="Wallet" className="wallet">
       <div className="actions">
@@ -30,29 +29,32 @@ export function WalletControls() {
           </select>
         ) : null}
         {wallet.status === "connected" || wallet.status === "wrongNetwork" ? (
-          <button type="button" onClick={() => void wallet.disconnect()}>
-            Disconnect {address?.slice(0, 6)}…
+          <button
+            className="primary gap-2"
+            type="button"
+            aria-label="Disconnect"
+            title={`Disconnect ${address}`}
+            disabled={busy}
+            onClick={() => void wallet.disconnect()}
+          >
+            {address?.slice(0, 6)}...{address?.slice(-4)}
+            <LogOutIcon aria-hidden="true" size={16} />
           </button>
         ) : (
           <button
             type="button"
-            disabled={!wallet.provider || wallet.status === "connecting"}
+            className="primary"
+            disabled={!wallet.provider || busy}
             onClick={() => void wallet.connect()}
           >
             {wallet.status === "connecting" ? "Connecting…" : "Connect wallet"}
           </button>
         )}
       </div>
-      {balance.data ? (
-        <p className="mono muted">
-          {formatUnits(balance.data.rawBalance, 7)} HOG
-        </p>
-      ) : null}
-      {balance.error ? <p role="alert">Balance unavailable.</p> : null}
       {wallet.status === "wrongNetwork" ? (
         <p role="alert">Select this localnode in your wallet.</p>
       ) : null}
-      {wallet.error ? <p role="alert">{wallet.error.message}</p> : null}
+      {error ? <p role="alert">{error.message}</p> : null}
       {wallet.session && wallet.session.accounts.length > 1 ? (
         <select
           name="account"

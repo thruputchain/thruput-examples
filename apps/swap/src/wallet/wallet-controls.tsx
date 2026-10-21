@@ -27,9 +27,7 @@ export function WalletControls() {
     wallet.status === "connecting" || wallet.status === "disconnecting";
   const address = wallet.status === "connected" ? wallet.address : null;
   const error =
-    wallet.error instanceof WalletProviderError &&
-    wallet.error.code === 4001 &&
-    wallet.error.message === "Page closed"
+    wallet.error instanceof WalletProviderError && wallet.error.code === 4001
       ? null
       : wallet.error;
   const selectClass =
@@ -73,11 +71,7 @@ export function WalletControls() {
             disabled={!wallet.provider || busy}
             onClick={() => void wallet.connect()}
           >
-            {busy
-              ? "Connecting..."
-              : wallet.provider
-                ? `Connect ${wallet.provider.info.name}`
-                : "Connect wallet"}
+            {busy ? "Connecting..." : "Connect wallet"}
           </Button>
         </>
       )}

@@ -1,4 +1,6 @@
 import { useWallet } from "@thruputchain/react";
+import { LogOutIcon } from "lucide-react";
+import { WalletProviderError } from "@thruputchain/client/provider";
 import type { SigningMode } from "./use-signing-mode";
 
 export function WalletControls({
@@ -9,6 +11,10 @@ export function WalletControls({
   disconnect(): void;
 }) {
   const wallet = useWallet();
+  const error =
+    wallet.error instanceof WalletProviderError && wallet.error.code === 4001
+      ? null
+      : wallet.error;
   const busy =
     wallet.status === "connecting" || wallet.status === "disconnecting";
   return (
@@ -55,14 +61,16 @@ export function WalletControls({
         (wallet.status === "connected" || wallet.status === "wrongNetwork") ? (
           <button
             type="button"
-            className="rounded-md bg-signal px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-            aria-label="Disconnect wallet"
+            className="inline-flex items-center gap-2 rounded-md bg-signal px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            aria-label="Disconnect"
+            title={`Disconnect ${wallet.address}`}
             disabled={busy}
             onClick={disconnect}
           >
             {wallet.address
-              ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
+              ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}`
               : "Disconnect wallet"}
+            <LogOutIcon aria-hidden="true" size={16} />
           </button>
         ) : null}
       </div>
@@ -88,7 +96,7 @@ export function WalletControls({
       {wallet.status === "wrongNetwork" ? (
         <p role="alert">Select the application's network in your wallet.</p>
       ) : null}
-      {wallet.error ? <p role="alert">{wallet.error.message}</p> : null}
+      {error ? <p role="alert">{error.message}</p> : null}
     </section>
   );
 }

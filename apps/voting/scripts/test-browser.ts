@@ -145,14 +145,20 @@ try {
   await second.getByLabel("Option 1", { exact: true }).fill("Monday");
   await second.getByLabel("Option 2", { exact: true }).fill("Friday");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
-  const confirmed = page.getByText("Confirmed on-chain.", { exact: true });
-  await confirmed.waitFor({ timeout: 60_000 });
+  const confirmed = page
+    .getByRole("status")
+    .filter({ hasText: /confirmed\.$/ });
+  await page
+    .getByRole("heading", { name: "My polls", exact: true })
+    .waitFor({ timeout: 60_000 });
   const beforeReload = signatures;
   await page.reload();
-  await confirmed.waitFor({ timeout: 60_000 });
+  await page.getByRole("heading", { name: "My polls", exact: true }).waitFor();
   assert.equal(signatures, beforeReload, "Reload must observe, not sign again");
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
-  await confirmed.waitFor({ state: "hidden" });
+  assert.equal(
+    await page.getByRole("button", { name: "Finish", exact: true }).count(),
+    0,
+  );
   await page.goto(`${origin}/admin`);
   await page
     .getByRole("button", { name: "Connect wallet", exact: true })
@@ -169,18 +175,14 @@ try {
     .fill("Choose our next development priority.");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await confirmed.waitFor({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
-  await confirmed.waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "View draft", exact: true }).click();
   await page.getByRole("button", { name: "Open poll", exact: true }).click();
   await confirmed.waitFor({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
   await page.getByRole("radio", { name: "Wallet", exact: true }).check();
   await page
     .getByRole("button", { name: "Submit answer", exact: true })
     .click();
   await confirmed.waitFor({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
   await page.getByText("Your answer is confirmed and cannot change.").waitFor();
   assert.equal(
     await page
@@ -196,7 +198,6 @@ try {
     .getByRole("button", { name: "Submit answer", exact: true })
     .click();
   await confirmed.waitFor({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
   await page.getByText("2 participants", { exact: true }).waitFor();
   await page
     .getByRole("navigation", { name: "Questions", exact: true })
@@ -207,13 +208,11 @@ try {
     .getByRole("button", { name: "Submit answer", exact: true })
     .click();
   await confirmed.waitFor({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Wallet account" })
     .selectOption(accounts[0]!.address);
   await page.getByRole("button", { name: "Close poll", exact: true }).click();
   await confirmed.waitFor({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
   await page.getByText("This poll is closed. The results are final.").waitFor();
   await page.reload();
   await page.getByText("This poll is closed. The results are final.").waitFor();

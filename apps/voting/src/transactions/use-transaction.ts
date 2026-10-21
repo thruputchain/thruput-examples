@@ -25,11 +25,28 @@ export function useTransaction(config: AppConfig) {
   const [message, setMessage] = useState<string | null>(null);
   const [storageError, setStorageError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [completed, setCompleted] = useState<string | null>(null);
+  const acknowledged = useRef<string | null>(null);
   const lock = useRef(false);
   const receipt = useWaitForTransactionReceipt({
     hash: pending?.record.hash ?? null,
   });
   const settled = Boolean(receipt.data && "result" in receipt.data.execution);
+  useEffect(() => {
+    if (
+      busy ||
+      storageError ||
+      !pending ||
+      !receipt.data ||
+      !("result" in receipt.data.execution) ||
+      receipt.data.execution.result !== "return" ||
+      toBase58(receipt.data.transactionHash) !== pending.record.hash ||
+      acknowledged.current === pending.record.hash
+    )
+      return;
+    acknowledged.current = pending.record.hash;
+    finish();
+  }, [busy, storageError, pending, receipt.data]);
 
   function reload() {
     try {
@@ -81,6 +98,7 @@ export function useTransaction(config: AppConfig) {
 
   function send(label: string, invocation: Invocation) {
     if (busy || pending || storageError) return;
+    setCompleted(null);
     void exclusive(async () => {
       if (loadPending(localStorage, key, config.networkId)) {
         reload();
@@ -125,6 +143,11 @@ export function useTransaction(config: AppConfig) {
         return;
       }
       localStorage.removeItem(key);
+      if (
+        "result" in receipt.data.execution &&
+        receipt.data.execution.result === "return"
+      )
+        setCompleted(pending.label);
       setPending(null);
       setStorageError(false);
       void queries.invalidateQueries({ queryKey: ["voting"] });
@@ -166,6 +189,8 @@ export function useTransaction(config: AppConfig) {
 
   return {
     pending,
+    completed,
+    dismissConfirmation: () => setCompleted(null),
     busy,
     message,
     storageError,

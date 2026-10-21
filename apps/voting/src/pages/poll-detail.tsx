@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useClient, useWallet } from "@thruputchain/react";
 import { useQuery } from "@tanstack/react-query";
@@ -33,6 +34,7 @@ export function PollDetail({
   const wallet = useWallet();
   const [selectedQuestion, setQuestion] = useState(0);
   const [edit, setEdit] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["voting", "poll", params.id, wallet.address],
     enabled: id !== null,
@@ -73,15 +75,22 @@ export function PollDetail({
       <div className="actions">
         <button
           type="button"
+          aria-label="Copy poll link"
           onClick={() => {
+            setCopiedId(null);
             void navigator.clipboard
               .writeText(window.location.href)
+              .then(() => setCopiedId(params.id ?? null))
               .catch(() =>
                 window.prompt("Copy this poll link", window.location.href),
               );
           }}
         >
-          Copy link
+          {copiedId === params.id ? (
+            <CheckIcon size={16} />
+          ) : (
+            <CopyIcon size={16} />
+          )}
         </button>
         <button
           type="button"

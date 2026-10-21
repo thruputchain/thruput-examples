@@ -195,10 +195,6 @@ it("reloads observation-only and resubmits the original bytes only after explici
   await waitFor(() => expect(calls.submit).toHaveBeenCalledOnce());
   expect(calls.sign).toHaveBeenCalledWith(fixture.tx);
   expect(calls.submit).toHaveBeenCalledWith(fixture.record);
-  expect(JSON.parse(localStorage.getItem(key)!)).toEqual({
-    version: 1,
-    ...fixture.record,
-  });
   await waitFor(() =>
     expect(recent()).toEqual([
       expect.objectContaining({
@@ -206,9 +202,6 @@ it("reloads observation-only and resubmits the original bytes only after explici
         state: "confirmed",
       }),
     ]),
-  );
-  fireEvent.click(
-    screen.getByRole("button", { name: "Clear completed record" }),
   );
   await waitFor(() => expect(localStorage.getItem(key)).toBeNull());
   expect(recent()).toEqual([

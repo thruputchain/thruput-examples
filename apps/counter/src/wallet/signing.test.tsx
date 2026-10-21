@@ -155,7 +155,7 @@ it("uses the header wallet when connected and falls back after disconnection", a
   expect(sendDevelopment).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("button", { name: "Connect wallet" }));
   await waitFor(() => expect(s.binding).not.toBeNull());
-  await screen.findByRole("button", { name: "Disconnect wallet" });
+  await screen.findByRole("button", { name: "Disconnect" });
   expect(screen.queryByRole("button", { name: /^Top up Signer/ })).toBeNull();
   expect(worker).toHaveBeenLastCalledWith(s.config, false);
   const execute = vi

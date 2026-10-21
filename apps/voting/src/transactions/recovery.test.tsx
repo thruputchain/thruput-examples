@@ -245,3 +245,19 @@ it.each(["return", "abort", "unsupported"])(
     );
   },
 );
+
+it("automatically completes a confirmed success without another user action", async () => {
+  savePending(localStorage, key, pending);
+  mocks.receipt = {
+    transactionHash: hashFromBase58(pending.record.hash),
+    blockHeight: 10n,
+    execution: { result: "return", returnData: new Uint8Array() },
+    gasUsed: 0n,
+    events: [],
+  };
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  await waitFor(() => expect(localStorage.getItem(key)).toBeNull());
+  expect(result.current.completed).toBe("Submit answer");
+  expect(result.current.blocked).toBe(false);
+  expect(mocks.execute).not.toHaveBeenCalled();
+});
