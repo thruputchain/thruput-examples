@@ -111,6 +111,24 @@ Run `npm run example:chain-tip` for a first read. Continue with the
 If authentication fails, check registry/package access. If the CLI rejects a
 runtime manifest, use its matching managed runtime rather than a protocol override.
 
+### Use Futurenet
+
+With a CLI that includes the Futurenet profile, run `thruput init`, then select
+it for this repository:
+
+```sh
+thruput config use futurenet --project
+thruput config get --sources
+```
+
+This repository keeps `local` as its project default so build scripts using older supported CLIs work
+without global configuration. That overrides a global Futurenet selection
+until you select Futurenet for this project. New CLI-generated projects follow
+the global default instead.
+
+Existing app commands named `setup:devnet` and files named `.env.devnet` still
+refer to the hosted network. Keep those names when following the app guides.
+
 ## Small contract examples
 
 Each README includes a test command, expected result, and an exercise.

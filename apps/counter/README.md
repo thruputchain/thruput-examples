@@ -83,7 +83,7 @@ Run `npm run <command> --workspace apps/counter`:
 | `typecheck`, `test`, `build` | Check types, tests, and production bundle |
 | `start` | Serve the production bundle; `PORT` defaults to 3000 |
 
-For Devnet, set `THRUPUT_RPC_URL` to the HTTPS endpoint and
+For Futurenet, set `THRUPUT_RPC_URL` to the HTTPS endpoint and
 `THRUPUT_NETWORK_ID` to its verified live base58 network hash, then run
 `setup:devnet`.
 It writes `.env.devnet`; select it with `dev -- --mode devnet` or supply its
@@ -107,4 +107,4 @@ Root `npm run test:counter` checks an isolated node and real browser input after
 the artifact and app are built. `npm run test:counter-wallet` checks wallet
 mode switching, recovery, storage reset, and keyless operation using a controlled
 provider and real local transactions. It does not qualify an installed extension
-or hosted Devnet. See [checks and prerequisites](../../scripts/README.md#checks).
+or hosted Futurenet. See [checks and prerequisites](../../scripts/README.md#checks).
