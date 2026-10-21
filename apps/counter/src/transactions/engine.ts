@@ -29,7 +29,7 @@ export interface Snapshot {
 }
 export const initialSnapshot: Snapshot = {
   ready: false,
-  message: "Connecting to Thruput…",
+  message: "",
   value: null,
   signerBalance: null,
   updatedAt: null,
