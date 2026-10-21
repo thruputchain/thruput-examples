@@ -18,7 +18,6 @@ vi.mock("@thruputchain/client", async (importOriginal) => ({
   createWalletClient: () => ({
     requestAirdrop: async () => ({
       transactionHash: new Uint8Array(32).fill(1),
-      status: { result: "ok" },
     }),
     deployContractAndWait: calls.deploy,
     executeAndWait: calls.execute,

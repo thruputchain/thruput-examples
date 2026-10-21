@@ -263,8 +263,7 @@ export function validateTokenFunding(
   costs: unknown,
   artifactBytes: number,
 ): void {
-  // Same storage profile as the legacy local-environment validator, without
-  // any bootstrap-account or persona requirements.
+  // Validate the storage costs used to calculate token deployment funding.
   const profile = {
     hash: "9btQLv5PdVwzgrgXKD2Vq5EbWzoNmpwK2jnNg3Mi9FRP",
     baseDataItemCost: "12000",

@@ -58,10 +58,10 @@ describe("crank attempt", () => {
   });
 
   it("ignores retired namespaces without deleting them", () => {
-    const legacy = `groundhog-swap:crank:v2:${config.networkId}:old`;
-    window.localStorage.setItem(legacy, "not-json");
+    const unrelated = "another-application:record";
+    window.localStorage.setItem(unrelated, "not-json");
     expect(loadAccountCrankAttempts(config)).toEqual([]);
-    expect(window.localStorage.getItem(legacy)).toBe("not-json");
+    expect(window.localStorage.getItem(unrelated)).toBe("not-json");
   });
 
   it("rejects malformed current storage", () => {

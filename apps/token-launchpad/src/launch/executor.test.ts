@@ -124,7 +124,7 @@ describe("advanceWorkflow", () => {
     expect(writer.execute).not.toHaveBeenCalled();
   });
 
-  it("does not batch saved legacy workflows or bypass a capability error", async () => {
+  it("does not bypass capability errors or accept a missing execution mode", async () => {
     const config = configuration();
     const storage = new MemoryStorage();
     const workflow = createWorkflow(
@@ -160,11 +160,10 @@ describe("advanceWorkflow", () => {
     saveWorkflow(storage, workflowStorageKey(config), workflow);
     await expect(runWorkflow(input)).rejects.toThrow("Capability unavailable");
     expect(writer.execute).not.toHaveBeenCalled();
-    const { executionMode, ...legacy } = workflow;
-    storage.setItem(workflowStorageKey(config), JSON.stringify(legacy));
-    const result = await runWorkflow(input);
-    expect(result.executionMode).toBe("single");
-    expect(writer.execute).toHaveBeenCalledOnce();
+    const { executionMode, ...incomplete } = workflow;
+    storage.setItem(workflowStorageKey(config), JSON.stringify(incomplete));
+    await expect(runWorkflow(input)).rejects.toThrow();
+    expect(writer.execute).not.toHaveBeenCalled();
     expect(writer.executeBatch).not.toHaveBeenCalled();
     expect(writer.supportsBatch).toHaveBeenCalledOnce();
   });

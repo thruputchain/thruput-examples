@@ -185,7 +185,7 @@ describe("creation executor", () => {
         predictionStates.push(state.created);
         if (!state.created && prediction === "unavailable")
           throw new Error("Prediction unavailable");
-        return { ...view(pool), height: state.created ? 100n : 0n };
+        return { ...view(pool), stateBlockHeight: state.created ? 100n : 0n };
       });
       const execute = vi.fn(async () => {
         if (execute.mock.calls.length === 1) {

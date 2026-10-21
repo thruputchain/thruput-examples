@@ -59,12 +59,12 @@ describe("live swap relationship preflight", () => {
   });
 
   it("checks both pinned immutable slots, rather than trusting poolFunding or the env pair", async () => {
-    const getStorageAt = vi
+    const getStorage = vi
       .fn()
       .mockResolvedValueOnce(storage(router))
       .mockResolvedValueOnce(storage(factory));
-    await verifySwapRelationship({ getStorage: getStorageAt }, factory, router);
-    expect(getStorageAt.mock.calls).toEqual([
+    await verifySwapRelationship({ getStorage }, factory, router);
+    expect(getStorage.mock.calls).toEqual([
       [{ address: factory, key: seedStorageKey("Factory", 2) }],
       [{ address: router, key: seedStorageKey("Router", 0) }],
     ]);
@@ -73,12 +73,12 @@ describe("live swap relationship preflight", () => {
   it.each(["factory", "router"])(
     "rejects a %s configured for another counterpart",
     async (side) => {
-      const getStorageAt = vi
+      const getStorage = vi
         .fn()
         .mockResolvedValueOnce(storage(side === "factory" ? other : router))
         .mockResolvedValueOnce(storage(other));
       await expect(
-        verifySwapRelationship({ getStorage: getStorageAt }, factory, router),
+        verifySwapRelationship({ getStorage }, factory, router),
       ).rejects.toThrow("relationship mismatch");
     },
   );
@@ -88,9 +88,9 @@ describe("live swap relationship preflight", () => {
     { kind: "bytestring", bytes: new Uint8Array(31) },
     { kind: "nonnegativeInt", value: 2n },
   ])("rejects missing or unsupported storage", async (item) => {
-    const getStorageAt = vi.fn().mockResolvedValue({ blockHeight: 1n, item });
+    const getStorage = vi.fn().mockResolvedValue({ stateBlockHeight: 1n, item });
     await expect(
-      verifySwapRelationship({ getStorage: getStorageAt }, factory, router),
+      verifySwapRelationship({ getStorage }, factory, router),
     ).rejects.toThrow("unsupported storage layout");
   });
 });

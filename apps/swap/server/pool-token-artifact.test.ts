@@ -49,7 +49,7 @@ describe("served LP artifact validation", () => {
       contents,
     );
   });
-  it("rejects a legacy filename and invalid configured hashes", async () => {
+  it("requires a hash-qualified filename and a valid configured hash", async () => {
     await writeFile(
       path.join(publicDir, "contract-artifacts/erc20.json"),
       JSON.stringify(artifact),

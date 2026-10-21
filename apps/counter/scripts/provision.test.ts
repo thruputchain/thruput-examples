@@ -47,7 +47,7 @@ beforeEach(async () => {
     artifact: join(directory, "counter.rv32a"),
   };
   await writeFile(options.artifact!, "counter artifact");
-  mocks.requestAirdrop.mockResolvedValue({ status: { result: "ok" } });
+  mocks.requestAirdrop.mockResolvedValue({ rawAmount: 1_000_000_000n });
   mocks.executeAndWait.mockResolvedValue({
     transactionHash: new Uint8Array(32),
   });
@@ -149,7 +149,7 @@ it.each([
     );
   if (phase === "initialization")
     mocks.executeAndWait
-      .mockResolvedValueOnce({ txHash: new Uint8Array(32) })
+      .mockResolvedValueOnce({ transactionHash: new Uint8Array(32) })
       .mockRejectedValueOnce(new Error("Initialization failed"));
   if (phase === "verification")
     vi.mocked(Counter.v0_1.get.view).mockResolvedValue({ value: 0n } as never);

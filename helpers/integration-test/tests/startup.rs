@@ -63,7 +63,7 @@ fn renamed_environment_and_stored_key_start_the_harness() {
         Base58(ContractAddress::from([0; 32])).to_string(),
         manifest.display().to_string(),
     ];
-    let run = |missing: Option<&str>, legacy_only: bool| {
+    let run = |missing: Option<&str>| {
         let mut cmd = Command::new(std::env::current_exe().expect("test binary"));
         cmd.args(["--exact", "child_startup", "--nocapture"])
             .env("STARTUP_TEST_CHILD", "1")
@@ -74,34 +74,24 @@ fn renamed_environment_and_stored_key_start_the_harness() {
         }
         for (name, value) in INPUTS.iter().zip(&values) {
             cmd.env_remove(name);
-            let old = name.replace("THRUPUT_", "GROUNDHOG_");
-            cmd.env_remove(&old);
-            if legacy_only {
-                cmd.env(old, value);
-            } else if missing != Some(*name) {
+            if missing != Some(*name) {
                 cmd.env(name, value);
             }
         }
         cmd.output().expect("startup subprocess")
     };
-    let success = run(None, false);
+    let success = run(None);
     assert!(
         success.status.success(),
         "startup failed: {}",
         String::from_utf8_lossy(&success.stderr)
     );
     for name in INPUTS {
-        let output = run(Some(name), false);
+        let output = run(Some(name));
         assert!(!output.status.success(), "startup accepted missing {name}");
         assert!(String::from_utf8_lossy(&output.stderr).contains(name));
     }
-    let missing_key = run(Some("THRUPUT_DEFAULT_KEY"), false);
+    let missing_key = run(Some("THRUPUT_DEFAULT_KEY"));
     assert!(!missing_key.status.success());
     assert!(String::from_utf8_lossy(&missing_key.stderr).contains("THRUPUT_DEFAULT_KEY"));
-    let legacy = run(None, true);
-    assert!(
-        !legacy.status.success(),
-        "startup accepted only legacy environment names"
-    );
-    assert!(String::from_utf8_lossy(&legacy.stderr).contains("THRUPUT_RPC_URL"));
 }

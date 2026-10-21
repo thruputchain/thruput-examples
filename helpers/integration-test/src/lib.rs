@@ -41,7 +41,7 @@ use thruput_json_rpc_types::responses::{
     TransactionStatus,
 };
 use thruput_json_rpc_types::runtime_manifest::parse_runtime_manifest;
-use thruput_json_rpc_types::transaction::{SchedulerTransactionError, TxHash};
+use thruput_json_rpc_types::transaction::TxHash;
 use thruput_signing::default_wallet::{
     BuildDefaultWalletCallTransaction, DEFAULT_WALLET_EXECUTE_ENTRYPOINT,
     build_default_wallet_call_transaction, decode_default_wallet_call_return,
@@ -106,13 +106,6 @@ pub enum SubmissionOutcome {
     Pending { tx_hash: TxHash },
     /// The transaction did not commit before its expiry height.
     Expired { tx_hash: TxHash },
-    /// The scheduler permanently dropped the transaction.
-    Dropped {
-        tx_hash: TxHash,
-        error: SchedulerTransactionError,
-    },
-    /// The scheduler rejected the transaction.
-    Invalid { tx_hash: TxHash, reason: String },
 }
 
 /// Failure to build, submit, or query an invocation.
@@ -365,10 +358,6 @@ impl Harness {
                 panic!("`{method}` receipt did not arrive within 30s")
             }
             SubmissionOutcome::Expired { .. } => panic!("`{method}` expired before committing"),
-            SubmissionOutcome::Dropped { error, .. } => panic!("`{method}` was dropped: {error:?}"),
-            SubmissionOutcome::Invalid { reason, .. } => {
-                panic!("`{method}` was rejected by the scheduler: {reason}")
-            }
         }
     }
 
@@ -503,8 +492,6 @@ impl Harness {
     /// diagnostics the `thruput call` CLI prints: the native account and the
     /// default-wallet entrypoint it executes through, the target
     /// contract/method/entrypoint, and the receipt's status and abort payload.
-    /// The receipt we already hold is our stand-in for the CLI's
-    /// `groundhog_dev_getTransactionDetail` dump.
     fn failure_diagnostics(&self, method: &str, receipt: &TransactionReceipt) -> String {
         let abort_data = match &receipt.execution {
             ExecutionResult::Abort { abort_data } => format_hex_bytes(&abort_data.0),

@@ -433,7 +433,7 @@ describe("provider write boundary with the real SDK", () => {
   });
 
   it.each(["invalid", "unknown", "recentFailure"])(
-    "preserves %s status semantics",
+    "preserves %s observation evidence",
     async (status) => {
       const { client, boundary } = setup();
       const hash = sha256Hash(new Uint8Array(32).fill(1));

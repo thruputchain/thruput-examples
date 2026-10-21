@@ -204,7 +204,5 @@ fn describe(outcome: &SubmissionOutcome) -> String {
         }
         SubmissionOutcome::Pending { .. } => "still pending when the timeout elapsed".to_owned(),
         SubmissionOutcome::Expired { .. } => "expired before committing".to_owned(),
-        SubmissionOutcome::Dropped { error, .. } => format!("dropped by the scheduler: {error:?}"),
-        SubmissionOutcome::Invalid { reason, .. } => format!("rejected by the scheduler: {reason}"),
     }
 }

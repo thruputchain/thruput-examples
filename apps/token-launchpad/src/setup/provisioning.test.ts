@@ -34,7 +34,7 @@ import { publishArtifact, validateTokenFunding } from "../../scripts/provision";
 import { setupDevnet } from "../../scripts/setup-devnet";
 
 const mocks = vi.hoisted(() => ({
-  getVersion: vi.fn(),
+  getVersionInfo: vi.fn(),
   requestAirdrop: vi.fn(),
   getBalance: vi.fn(),
   deployContractAndWait: vi.fn(),
@@ -63,7 +63,7 @@ vi.mock("@thruputchain/client/wallet", async (original) => {
 vi.mock("@thruputchain/client", async (original) => ({
   ...(await original<typeof import("@thruputchain/client")>()),
   createThruputClient: vi.fn(async () => ({
-    getVersionInfo: mocks.getVersion,
+    getVersionInfo: mocks.getVersionInfo,
   })),
   createWalletClient: vi.fn(() => mocks),
 }));
@@ -150,11 +150,11 @@ beforeEach(async () => {
   vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", join(root, "runtime.json"));
   vi.stubEnv("THRUPUT_NETWORK_ID", zeroNetwork);
   phases = [];
-  mocks.getVersion.mockResolvedValue({ wireFormat: "14.0.0" });
+  mocks.getVersionInfo.mockResolvedValue({ wireFormat: "14.0.0" });
   mocks.deriveContractAddress.mockReturnValue(factory);
   mocks.requestAirdrop.mockImplementation(async () => {
     phases.push("airdrop");
-    return { status: { result: "ok" } };
+    return { rawAmount: 1_000_000_000n };
   });
   mocks.getBalance.mockResolvedValue({ rawBalance: 1_000_000_000n });
   mocks.deployContractAndWait.mockImplementation(async (deployment) => {
@@ -494,7 +494,7 @@ describe("infrastructure-only launchpad provisioning", () => {
   });
 
   it.each([`0x${"00".repeat(32)}`, "00".repeat(32)])(
-    "rejects legacy hex manifest network hash %s",
+    "requires a base58 manifest network hash instead of %s",
     async (recorded) => {
       const manifest = join(root, "runtime.json");
       await writeFile(manifest, JSON.stringify(manifestContents(recorded)));
@@ -518,11 +518,11 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });
 
-  it("rejects invalid networks and old wire formats before funding", async () => {
+  it("rejects invalid networks and unsupported wire formats before funding", async () => {
     vi.stubEnv("THRUPUT_NETWORK_ID", "invalid");
     await expect(main()).rejects.toThrow(/THRUPUT_NETWORK_ID/);
     vi.stubEnv("THRUPUT_NETWORK_ID", zeroNetwork);
-    mocks.getVersion.mockResolvedValueOnce({ wireFormat: "12.0.0" });
+    mocks.getVersionInfo.mockResolvedValueOnce({ wireFormat: "13.0.0" });
     await expect(main()).rejects.toThrow(/wire format/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });

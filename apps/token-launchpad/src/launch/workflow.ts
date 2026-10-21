@@ -12,7 +12,6 @@ import type { ParsedToken } from "@/launch/form";
 import { MAX_SIGNED_AMOUNT } from "../../shared/amount";
 
 const WORKFLOW_VERSION = 4 as const;
-const LEGACY_WORKFLOW_VERSION = 1;
 const NONCE = /^0x[0-9a-f]{64}$/;
 
 export type StepStatus =
@@ -196,30 +195,6 @@ export function loadWorkflow(
   }
 }
 
-export function canDiscardInvalidStoredWorkflow(
-  storage: Pick<Storage, "getItem">,
-  key: string,
-): boolean {
-  let value: unknown;
-  try {
-    const serialized = storage.getItem(key);
-    if (serialized === null) return false;
-    value = JSON.parse(serialized);
-  } catch {
-    return false;
-  }
-  if (!isRecord(value) || value.version !== LEGACY_WORKFLOW_VERSION) {
-    return false;
-  }
-  return (
-    isPristineStep(value.funding) &&
-    isPristineStep(value.creation) &&
-    value.createdAddress === null &&
-    value.creationBlock === null &&
-    isPristineVerification(value.verification)
-  );
-}
-
 export function assertWorkflowScope(
   workflow: LaunchWorkflow,
   config: AppConfig,
@@ -288,14 +263,9 @@ function parseWorkflow(value: unknown): LaunchWorkflow {
         : address(value.reviewedFeeRecipient),
     reviewedFundingAmount: signedAmount(value.reviewedFundingAmount),
     reviewedReserve: unsigned(value.reviewedReserve),
-    plannedFundingAmount: signedAmount(
-      value.plannedFundingAmount ?? value.reviewedFundingAmount,
-    ),
-    plannedReserve: unsigned(value.plannedReserve ?? value.reviewedReserve),
-    executionMode:
-      value.executionMode === undefined
-        ? "single"
-        : executionMode(value.executionMode),
+    plannedFundingAmount: signedAmount(value.plannedFundingAmount),
+    plannedReserve: unsigned(value.plannedReserve),
+    executionMode: executionMode(value.executionMode),
     funding: step(value.funding),
     creation: step(value.creation),
     verification: verification(value.verification),
@@ -390,20 +360,6 @@ function step(value: unknown): WorkflowStep {
     status: value.status as StepStatus,
     hash: hash as string | null,
   };
-}
-
-function isPristineStep(value: unknown): boolean {
-  return isRecord(value) && value.status === "idle" && value.hash === null;
-}
-
-function isPristineVerification(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    value.status === "pending" &&
-    value.message === null &&
-    value.totalSupply === null &&
-    value.holderBalance === null
-  );
 }
 
 function verification(value: unknown): LaunchWorkflow["verification"] {

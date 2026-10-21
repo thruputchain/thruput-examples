@@ -34,7 +34,7 @@ import { publishArtifact } from "../../scripts/provision";
 import { setupDevnet } from "../../scripts/setup-devnet";
 
 const mocks = vi.hoisted(() => ({
-  getVersion: vi.fn(),
+  getVersionInfo: vi.fn(),
   requestAirdrop: vi.fn(),
   getBalance: vi.fn(),
   deployContractAndWait: vi.fn(),
@@ -63,7 +63,7 @@ vi.mock("@thruputchain/client/wallet", async (original) => {
 vi.mock("@thruputchain/client", async (original) => ({
   ...(await original<typeof import("@thruputchain/client")>()),
   createThruputClient: vi.fn(async () => ({
-    getVersionInfo: mocks.getVersion,
+    getVersionInfo: mocks.getVersionInfo,
   })),
   createWalletClient: vi.fn(() => mocks),
 }));
@@ -128,10 +128,10 @@ beforeEach(async () => {
   vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "");
   vi.stubEnv("THRUPUT_NETWORK_ID", b58(0x00));
   phases = [];
-  mocks.getVersion.mockResolvedValue({ wireFormat: "14.0.0" });
+  mocks.getVersionInfo.mockResolvedValue({ wireFormat: "14.0.0" });
   mocks.requestAirdrop.mockImplementation(async () => {
     phases.push("airdrop");
-    return { status: { result: "ok" } };
+    return { rawAmount: 1_000_000_000n };
   });
   mocks.getBalance.mockResolvedValue({ rawBalance: 1_000_000_000n });
   mocks.deployContractAndWait.mockImplementation(async (deployment) => {
@@ -466,7 +466,7 @@ describe("infrastructure-only swap provisioning", () => {
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await expect(main()).rejects.toThrow(/disagree/);
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "");
-    mocks.getVersion.mockResolvedValueOnce({ wireFormat: "3.0.0" });
+    mocks.getVersionInfo.mockResolvedValueOnce({ wireFormat: "13.0.0" });
     await expect(main()).rejects.toThrow(/wire format/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });
