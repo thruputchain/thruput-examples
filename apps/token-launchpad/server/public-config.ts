@@ -1,4 +1,4 @@
-import { loadConfig } from "../src/config.ts";
+import { loadConfig, nativeTokenKey } from "../src/config.ts";
 
 /** Only these public values cross the server/browser boundary. */
 const KEYS = [
@@ -15,9 +15,13 @@ export function publicConfig(
   environment: Record<string, string | undefined>,
 ): Record<string, string> {
   loadConfig(environment);
+  const source: Record<string, string | undefined> = {
+    ...environment,
+    VITE_NATIVE_TOKEN_ADDRESS: environment[nativeTokenKey(environment)],
+  };
   return Object.fromEntries(
     KEYS.flatMap((key) =>
-      environment[key] === undefined ? [] : [[key, environment[key]!]],
+      source[key] === undefined ? [] : [[key, source[key]!]],
     ),
   );
 }

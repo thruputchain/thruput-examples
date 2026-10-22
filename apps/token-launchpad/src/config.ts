@@ -77,10 +77,18 @@ export function loadConfig(environment: Environment): AppConfig {
     // Public views need a caller, not a connected wallet identity.
     accountAddress: addressFromHex(`0x${"00".repeat(32)}`),
     factoryAddress: address(environment, "VITE_STANDARD_TOKEN_FACTORY_ADDRESS"),
-    nativeTokenAddress: address(environment, "VITE_NATIVE_TOKEN_ADDRESS"),
+    nativeTokenAddress: address(environment, nativeTokenKey(environment)),
     nativeBalanceItemCost,
     expectedTokenHash: hashFromBase58(tokenHash),
   };
+}
+
+// Environments written before the native-token rename still carry the old key.
+export function nativeTokenKey(environment: Environment): string {
+  return environment.VITE_NATIVE_TOKEN_ADDRESS === undefined &&
+    environment.VITE_NATIVE_HOG_ADDRESS !== undefined
+    ? "VITE_NATIVE_HOG_ADDRESS"
+    : "VITE_NATIVE_TOKEN_ADDRESS";
 }
 
 function required(environment: Environment, key: string): string {

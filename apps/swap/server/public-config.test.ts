@@ -27,3 +27,16 @@ it("projects validated public settings without exposing server environment", () 
   expect(parsed.poolTokenHash).toBe(address);
   expect(parsed.rpcUrl.href).toBe("https://app.test/thruput-rpc");
 });
+
+it("publishes a native-token address set under the pre-rename key", () => {
+  const address = b58(0x11);
+  const published = publicConfig({
+    VITE_THRUPUT_RPC_URL: "https://app.test/thruput-rpc",
+    VITE_THRUPUT_NETWORK_ID: b58(0x00),
+    VITE_NATIVE_HOG_ADDRESS: address,
+    VITE_SWAP_FACTORY_ADDRESS: address,
+    VITE_SWAP_ROUTER_ADDRESS: address,
+  });
+  expect(published.VITE_NATIVE_TOKEN_ADDRESS).toBe(address);
+  expect(published).not.toHaveProperty("VITE_NATIVE_HOG_ADDRESS");
+});

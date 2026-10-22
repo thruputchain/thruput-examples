@@ -75,7 +75,7 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
         }),
     routerAddress: address(environment, "VITE_SWAP_ROUTER_ADDRESS"),
     factoryAddress: address(environment, "VITE_SWAP_FACTORY_ADDRESS"),
-    nativeTokenAddress: address(environment, "VITE_NATIVE_TOKEN_ADDRESS"),
+    nativeTokenAddress: address(environment, nativeTokenKey(environment)),
   };
 }
 
@@ -87,6 +87,14 @@ export function isLoopbackHostname(hostname: string): boolean {
   return (
     hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
   );
+}
+
+// Environments written before the native-token rename still carry the old key.
+export function nativeTokenKey(environment: Environment): string {
+  return environment.VITE_NATIVE_TOKEN_ADDRESS === undefined &&
+    environment.VITE_NATIVE_HOG_ADDRESS !== undefined
+    ? "VITE_NATIVE_HOG_ADDRESS"
+    : "VITE_NATIVE_TOKEN_ADDRESS";
 }
 
 function required(environment: Environment, key: string): string {
