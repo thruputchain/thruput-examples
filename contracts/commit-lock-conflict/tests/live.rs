@@ -16,6 +16,7 @@
 //! | `contested-unlocked`        | lead and rival, without commit locking           |
 //! | `contested-claimed`         | lead and rival, each first claiming exclusively  |
 //! | `contested-unlocked-claimed`| the same, without commit locking                 |
+//! | `contested-lock-claimed`    | lead and rival, each first claiming commit-locked|
 //!
 //! `contested-claimed` is the shape of two competing batch cranks: the claim
 //! makes one of the two transactions conflict at commit and be dropped, and the
@@ -23,6 +24,12 @@
 //! in every block, as well as the controls (`alone`, `disjoint`,
 //! `contested-unlocked-claimed`), once the tally has been printed. The other
 //! cases are printed only, to help pin down the cause.
+//!
+//! `contested-lock-claimed` is a way out: each transaction first claims a
+//! separate instance with a commit-locked `claim`, which writes its own hash.
+//! Only one can hold that claim; the other's faults, and it gives up before
+//! writing the counter. The test asserts that the winner then commits with
+//! every call succeeded, and the loser commits having written nothing.
 //!
 //! One run on `hog-devnode` 0.1.31-rc.11. Each outcome is the set of the
 //! block's fates, as bitmasks of the calls that succeeded and faulted (7 is all
@@ -42,6 +49,7 @@
 //! contested-claimed            9 x  ok=1 fault=6 / dropped
 //!                              1 x  ok=7 fault=0 / dropped
 //! contested-unlocked-claimed  10 x  ok=7 fault=0 / dropped
+//! contested-lock-claimed      10 x  ok=0 fault=0 / ok=7 fault=0
 //! ```
 //!
 //! The contested outcomes come in three shapes, which `tests/mock.rs`
@@ -105,6 +113,7 @@ struct Run {
     commit_locking: bool,
     blind: bool,
     claim: bool,
+    lock_claim: Option<ContractAddress>,
 }
 
 /// What became of one `run` transaction.
@@ -150,6 +159,7 @@ async fn submit(ctx: &AgentContext, outer: ContractAddress, run: &Run) -> Result
         run.commit_locking,
         run.blind,
         run.claim,
+        run.lock_claim,
     );
     let submitted = probe(outer)
         .prepare_call::<(u32, u32), _>(ctx, "run", &args)
@@ -224,6 +234,7 @@ fn lead(outcomes: Outcomes) -> Agent {
         let outer = deploy().await?;
         let inner = deploy().await?;
         let other = deploy().await?;
+        let claimant = deploy().await?;
         pumping.store(false, Ordering::Relaxed);
         pump.await.expect("the block pump finishes");
 
@@ -235,8 +246,13 @@ fn lead(outcomes: Outcomes) -> Agent {
             commit_locking: true,
             blind: false,
             claim: false,
+            lock_claim: None,
         };
-        let cases: [(&str, Run, Option<Run>); 8] = [
+        let lock_claimed = Run {
+            lock_claim: Some(claimant),
+            ..run
+        };
+        let cases: [(&str, Run, Option<Run>); 9] = [
             ("alone", run, None),
             (
                 "disjoint",
@@ -282,6 +298,7 @@ fn lead(outcomes: Outcomes) -> Agent {
                     ..run
                 }),
             ),
+            ("contested-lock-claimed", lock_claimed, Some(lock_claimed)),
         ];
 
         for (label, ours, theirs) in cases {
@@ -369,6 +386,16 @@ async fn dropped_transaction_spoils_commit_locked_calls() {
         (
             "contested-unlocked-claimed",
             outcome(vec![full, Fate::Dropped]),
+        ),
+        (
+            "contested-lock-claimed",
+            outcome(vec![
+                full,
+                Fate::Committed {
+                    succeeded: 0,
+                    faulted: 0,
+                },
+            ]),
         ),
     ];
     let mut wrong = Vec::new();

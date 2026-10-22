@@ -17,6 +17,13 @@
 //! interleave; and a transaction dropped at commit has, in the meantime, made
 //! the other's calls fault. Two batch cranks draining the same queue are such a
 //! pair.
+//!
+//! The same rule makes a commit-locked write a claim: if each transaction
+//! first writes a value of its own to a claim key, only the first can hold it,
+//! and the others can give up before writing anything else. On a node,
+//! `Probe::claim` writes the transaction's hash for this; the mock harness gives
+//! every transaction the same hash, so these tests write distinct values with
+//! `put` instead.
 
 use std::sync::Mutex;
 
@@ -25,6 +32,7 @@ use thruput_sdk::sys_exn::bytestring::bytestring_set_exclusive;
 use thruput_sdk::*;
 
 static NONCE: SHA256Hash = thruput_sdk::sha256_static!("COMMIT_LOCK_CONFLICT_NONCE");
+static CLAIMANT_NONCE: SHA256Hash = thruput_sdk::sha256_static!("COMMIT_LOCK_CONFLICT_CLAIMANT");
 
 // The key each transaction may claim exclusively (see `Block::claim`).
 const CLAIM: StorageKey = StorageKey::new([0xCC; 32]);
@@ -45,6 +53,9 @@ enum Call {
     BumpUnlocked,
     /// `put(value)`, commit-locked: write the counter without reading it.
     Put(u64),
+    /// `put(value)`, commit-locked, to a second probe instance, the claimant.
+    /// A transaction whose claim faults gives up: its later calls are skipped.
+    Claim(u64),
 }
 
 /// A block holding two transactions, `A` and `B`.
@@ -68,26 +79,32 @@ struct Outcome {
     committed: [bool; 2],
 }
 
-// Deploy the inner probe in an earlier block, and return the environment and
-// its address.
-fn setup() -> (TestEnvironmentHandle, ContractAddress) {
+// Deploy the inner probe and the claimant in an earlier block, and return the
+// environment and their addresses.
+fn setup() -> (TestEnvironmentHandle, ContractAddress, ContractAddress) {
     let env = TestEnvironment::no_cost();
     let hash = *register_mock_contract(&env).as_hash();
-    let inner = Mutex::new(None);
+    let addresses = Mutex::new(None);
     env.transact(|tx| {
         let deployer = <ContractAddress as Named>::named("deployer");
-        tx.call(&deployer)
-            .run(|| *inner.lock().unwrap() = Some(deploy_contract(&NONCE, &hash)))
+        tx.call(&deployer).run(|| {
+            let inner = deploy_contract(&NONCE, &hash);
+            let claimant = deploy_contract(&CLAIMANT_NONCE, &hash);
+            *addresses.lock().unwrap() = Some((inner, claimant));
+        })
     })
     .assert_success();
     env.advance_block();
-    let inner = inner.into_inner().unwrap().expect("the probe was deployed");
-    (env, inner)
+    let (inner, claimant) = addresses
+        .into_inner()
+        .unwrap()
+        .expect("the probes were deployed");
+    (env, inner, claimant)
 }
 
 impl Block {
     fn run(self) -> Outcome {
-        let (env, inner) = setup();
+        let (env, inner, claimant) = setup();
         let outer = <ContractAddress as Named>::named("outer");
         let calls = Mutex::new(Vec::new());
 
@@ -107,26 +124,38 @@ impl Block {
                 });
             }
 
+            let mut gave_up = [false; 2];
             for (tx, call) in self.calls {
+                if gave_up[tx as usize] {
+                    continue;
+                }
                 let root = match tx {
                     Tx::A => &mut *root_a,
                     Tx::B => &mut *root_b,
                 };
+                let faulted = Mutex::new(false);
                 root.execute(|_| {
                     let probe = ProbeClient::new(&inner);
                     let result = match call {
                         Call::Bump => probe.with_commit_locking().try_bump(),
                         Call::BumpUnlocked => probe.try_bump(),
                         Call::Put(value) => probe.with_commit_locking().try_put(value),
+                        Call::Claim(value) => ProbeClient::new(&claimant)
+                            .with_commit_locking()
+                            .try_put(value),
                     };
                     let outcome = match result {
                         Ok(()) => "ok",
                         Err(CallError::Fault(_)) => "fault",
                         Err(e) => panic!("{tx:?}'s {call:?} failed otherwise: {e:?}"),
                     };
+                    *faulted.lock().unwrap() = outcome == "fault";
                     calls.lock().unwrap().push(format!("{tx:?} {outcome}"));
                     FrameAction::Continue
                 });
+                if matches!(call, Call::Claim(_)) && faulted.into_inner().unwrap() {
+                    gave_up[tx as usize] = true;
+                }
             }
 
             root_a.execute(|_| FrameAction::Close);
@@ -304,6 +333,57 @@ fn each_call_is_checked_against_the_values_held_then() {
     };
     let expected = outcome(
         &["A ok", "B ok", "A ok", "B fault", "A ok", "B ok"],
+        [true, true],
+    );
+    assert_eq!(block.run(), expected);
+}
+
+/// Each transaction first claims with a value of its own, then bumps. The
+/// first to claim holds the claimant; the other's claim faults, and it gives
+/// up before touching the counter. The winner's bumps all succeed, and both
+/// commit -- the loser having written nothing.
+#[test]
+fn a_commit_locked_claim_lets_one_transaction_through() {
+    for (first, second) in [(A, B), (B, A)] {
+        let mut calls = vec![(first, Call::Claim(1)), (second, Call::Claim(2))];
+        calls.extend(bumps(&[A, B, A, B, A, B], Call::Bump));
+        let block = Block {
+            calls,
+            claim: false,
+            first_to_commit: A,
+        };
+        let (winner, loser) = (format!("{first:?}"), format!("{second:?}"));
+        let ok = format!("{winner} ok");
+        let expected = Outcome {
+            calls: vec![
+                ok.clone(),
+                format!("{loser} fault"),
+                ok.clone(),
+                ok.clone(),
+                ok,
+            ],
+            committed: [true, true],
+        };
+        assert_eq!(block.run(), expected);
+    }
+}
+
+/// Claims with equal values do not exclude each other: both transactions hold
+/// the claimant, and their bumps interleave as in
+/// `interleaved_bumps_fault_after_the_first`.
+#[test]
+fn equal_claims_exclude_nobody() {
+    let mut calls = vec![(A, Call::Claim(7)), (B, Call::Claim(7))];
+    calls.extend(bumps(&[A, B, A, B, A, B], Call::Bump));
+    let block = Block {
+        calls,
+        claim: false,
+        first_to_commit: A,
+    };
+    let expected = outcome(
+        &[
+            "A ok", "B ok", "A ok", "B ok", "A fault", "B fault", "A fault", "B fault",
+        ],
         [true, true],
     );
     assert_eq!(block.run(), expected);

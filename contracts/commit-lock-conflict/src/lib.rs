@@ -34,6 +34,10 @@ pub struct Probe {
 
     // Written exclusively by `run` on the outer instance, when asked to claim.
     claims: Value<u64>,
+
+    // Written by `claim`: the hash of the last transaction to claim this
+    // instance.
+    holder: Value<SHA256Hash>,
 }
 
 #[contract]
@@ -49,6 +53,14 @@ impl Probe {
         self.counter.set(&value);
     }
 
+    /// Claim this instance for the calling transaction, by writing its hash.
+    ///
+    /// No two transactions write the same value here, so of two commit-locked
+    /// `claim` calls in one block, the second faults.
+    pub fn claim(&mut self) {
+        self.holder.set(&get_source_transaction_hash());
+    }
+
     /// The counter's value.
     pub fn count(&self) -> u64 {
         self.counter.try_get().none_if_missing().unwrap_or(0)
@@ -62,10 +74,12 @@ impl Probe {
     ///   without reading.
     /// * `claim`: first make an exclusive write to this contract's own storage,
     ///   so two `run`s that both claim cannot both commit in one block.
+    /// * `lock_claim`: first make a commit-locked `claim` call to this instance,
+    ///   and if it fails, return without writing the counter at all.
     ///
     /// Returns two bitmasks, bit `i` describing call `i`: the calls that
     /// succeeded, and those that faulted. (A commit-locked call whose locks
-    /// cannot be acquired faults.)
+    /// cannot be acquired faults.) Both are zero if the `lock_claim` failed.
     pub fn run(
         &mut self,
         target: &ContractAddress,
@@ -73,10 +87,20 @@ impl Probe {
         commit_locking: bool,
         blind: bool,
         claim: bool,
+        lock_claim: Option<ContractAddress>,
     ) -> (u32, u32) {
         if claim {
             let claims = self.claims.try_get().none_if_missing().unwrap_or(0);
             self.claims.set_exclusive(&(claims + 1));
+        }
+
+        if let Some(claimant) = lock_claim
+            && ProbeClient::new(&claimant)
+                .with_commit_locking()
+                .try_claim()
+                .is_err()
+        {
+            return (0, 0);
         }
 
         let mut probe = ProbeClient::new(target);
