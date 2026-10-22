@@ -90,8 +90,7 @@ try {
     stderr += error.message;
   });
   let startup:
-    | { data: { rpcUrl: string; runtimeManifest: { path: string } } }
-    | undefined;
+    { data: { rpcUrl: string; runtimeManifest: { path: string } } } | undefined;
   await until(() => {
     assert.equal(
       child.exitCode,
@@ -197,6 +196,12 @@ try {
   config.rpcUrl = rpcUrl;
   await inc.waitFor();
   await until(() => inc.isEnabled(), "browser connection");
+  assert.equal(
+    await page.getByRole("button", { name: /connect wallet/i }).count(),
+    0,
+  );
+  assert.equal(await page.getByText("Ready", { exact: true }).count(), 0);
+  assert.equal(await page.getByRole("alert").count(), 0);
   await inc.click();
   await until(
     async () =>
@@ -286,8 +291,11 @@ try {
   assert.equal(await pad.getAttribute("data-active"), "false");
   config.rpcUrl = "http://127.0.0.1:1";
   await until(async () => !(await inc.isEnabled()), "pause during RPC outage");
+  await page.getByRole("alert").waitFor();
   config.rpcUrl = rpcUrl;
   await until(() => inc.isEnabled(), "reconnect after RPC outage");
+  assert.equal(await page.getByRole("alert").count(), 0);
+  assert.equal(await page.getByText("Ready", { exact: true }).count(), 0);
   assert.equal(
     await page.locator('[data-metric="Submitted"]').textContent(),
     "42",

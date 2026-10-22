@@ -102,14 +102,13 @@ npm run test:examples
 npm run generate:contracts --workspaces
 npm run build --workspaces
 npm run test:counter
-npm run test:counter-wallet
 npm run test:seed
 npm run test:batching
 ```
 
 These use isolated nodes and temporary state. Counter checks require Chromium.
-`test:counter-wallet` uses a controlled provider with real transactions, including
-same-hash recovery and operation without a development key.
+`test:counter` checks development-signed updates, keyboard bursts, signer top-up,
+and recovery after an RPC outage.
 Seeding checks fresh assets on rerun, balances, reserves, and indexing. Batching
 checks atomic rollback, storage top-ups, and pool operations. Freighter browser
 approval flows require separate acceptance testing.

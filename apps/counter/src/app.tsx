@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WalletProvider, useWallet } from "@thruputchain/react";
+import { WalletProvider } from "@thruputchain/react";
 import { AppHeader } from "./components/app-header";
 import { CounterDisplay } from "./components/counter-display";
 import { CounterControls } from "./components/counter-controls";
@@ -8,14 +8,9 @@ import { KeyboardPad } from "./components/keyboard-pad";
 import { SessionActivity } from "./components/session-activity";
 import { errorMessage, parseConfig, type AppConfig } from "./config";
 import type { Direction, Snapshot } from "./transactions/engine";
-import { mergeHistory } from "./transactions/history";
 import { useCounter } from "./transactions/use-counter";
 import { createPublicClient } from "./thruput/public-client";
 import { useCounterValue } from "./thruput/use-counter-value";
-import { useSigningMode, type SigningMode } from "./wallet/use-signing-mode";
-import { useWalletCounter } from "./wallet/use-wallet-counter";
-import { WalletControls } from "./wallet/wallet-controls";
-import { WalletActivity } from "./wallet/wallet-activity";
 
 type Runtime = {
   config: AppConfig;
@@ -80,49 +75,25 @@ export function App() {
 }
 
 export function ConnectedCounter({ config }: { config: AppConfig }) {
-  const wallet = useWallet();
-  const activity = useWalletCounter(config.counterAddress);
-  const signing = useSigningMode(activity.blocked);
-  const development = useCounter(
-    config,
-    signing.mode === "development" && !signing.busy,
-  );
+  const development = useCounter(config, true);
   const counter = useCounterValue(config.counterAddress);
-  const walletMode = signing.mode === "wallet";
-  const canSend =
-    !signing.busy &&
-    (walletMode
-      ? wallet.status === "connected" && !activity.blocked
-      : Boolean(config.signerAddress) && development.snapshot.ready);
+  const canSend = Boolean(config.signerAddress) && development.snapshot.ready;
   const message =
     counter.error?.message ??
-    (walletMode
-      ? activity.blocked
-        ? "Resolve the current wallet update before sending another."
-        : "Connect a wallet on this network, or disconnect to use the development signer."
-      : config.signerAddress
-        ? development.snapshot.message
-        : "Connect a wallet to send updates. No development signer is configured.");
+    (config.signerAddress
+      ? development.snapshot.message
+      : "No development signer is configured. Run Counter setup to send updates.");
   const snapshot = {
     ...development.snapshot,
     value: counter.data?.value ?? null,
     ready: Boolean(counter.data) && !counter.error && canSend,
-    atCapacity: !walletMode && development.snapshot.atCapacity,
-    recent: mergeHistory(activity.recent, development.snapshot.recent),
     message,
   };
   return (
     <CounterPage
       config={config}
       snapshot={snapshot}
-      send={walletMode ? activity.send : development.send}
-      signingMode={signing.mode}
-      walletControls={
-        <WalletControls mode={signing.mode} disconnect={signing.disconnect} />
-      }
-      walletActivity={
-        <WalletActivity activity={activity} explorerUrl={config.explorerUrl} />
-      }
+      send={development.send}
       readStale={Boolean(counter.error)}
     />
   );
@@ -132,26 +103,18 @@ export function CounterPage({
   config,
   snapshot,
   send,
-  signingMode = "development",
-  walletControls,
-  walletActivity,
   readStale = !snapshot.ready,
 }: {
   config: AppConfig | null;
   snapshot: Snapshot;
   send(direction: Direction): void;
-  signingMode?: SigningMode;
-  walletControls?: ReactNode;
-  walletActivity?: ReactNode;
   readStale?: boolean;
 }) {
-  const development = signingMode === "development";
   const disabled = !snapshot.ready || snapshot.atCapacity;
   return (
     <>
       <AppHeader
-        walletControls={walletControls}
-        canTopup={development && Boolean(config?.signerAddress)}
+        canTopup={Boolean(config?.signerAddress)}
         signerBalance={snapshot.signerBalance}
       />
       <main className="py-10 sm:py-14">
@@ -161,12 +124,11 @@ export function CounterPage({
               Every key counts
             </h1>
             <p className="max-w-[56ch] text-base text-muted-foreground">
-              A shared counter. Use the development signer or connect your
-              wallet.
+              A shared counter. One key. One transaction. No wallet prompts.
             </p>
           </div>
           {!snapshot.ready && snapshot.message ? (
-            <p role="status" className="rounded-md border bg-card p-4">
+            <p role="alert" className="rounded-md border bg-card p-4">
               {snapshot.message}
             </p>
           ) : null}
@@ -187,18 +149,12 @@ export function CounterPage({
             ) : null}
           </section>
           <div className="flex flex-col gap-6">
-            <KeyboardPad
-              disabled={disabled}
-              onInput={send}
-              walletMode={!development}
-            />
+            <KeyboardPad disabled={disabled} onInput={send} />
             <SessionActivity
               snapshot={snapshot}
               explorerUrl={config?.explorerUrl ?? null}
-              showMetrics={development}
             />
           </div>
-          {walletActivity}
         </div>
       </main>
     </>

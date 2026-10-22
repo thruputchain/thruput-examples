@@ -1,12 +1,9 @@
 import { TopupSigner } from "./topup-signer";
-import type { ReactNode } from "react";
 
 export function AppHeader({
-  walletControls,
   canTopup,
   signerBalance,
 }: {
-  walletControls?: ReactNode;
   canTopup: boolean;
   signerBalance: bigint | null;
 }) {
@@ -43,7 +40,6 @@ export function AppHeader({
               <TopupSigner disabled={false} balance={signerBalance} />
             </div>
           ) : null}
-          {walletControls}
         </div>
       </div>
     </header>

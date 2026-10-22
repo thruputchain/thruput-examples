@@ -35,11 +35,9 @@ function isSmashKey(
 export function KeyboardPad({
   disabled,
   onInput,
-  walletMode = false,
 }: {
   disabled: boolean;
   onInput(direction: Direction): void;
-  walletMode?: boolean;
 }) {
   const pad = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
@@ -106,11 +104,9 @@ export function KeyboardPad({
         id="keyboard-help"
         className="max-w-[56ch] text-base text-muted-foreground sm:text-sm"
       >
-        {walletMode
-          ? "Each key requests a +1 or −1 update. Approve it in your wallet."
-          : active
-            ? "Each key sends a random +1 or −1. Hold a key to keep going. Esc to stop."
-            : "One key. One transaction. No wallet prompts."}
+        {active
+          ? "Each key sends a random +1 or −1. Hold a key to keep going. Esc to stop."
+          : "One key. One transaction. No wallet prompts."}
       </p>
     </div>
   );
