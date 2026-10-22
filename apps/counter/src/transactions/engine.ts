@@ -194,7 +194,7 @@ export class TransactionEngine {
       this.state.updatedAt = this.now();
       this.state.ready = signerBalance > 0n;
       this.state.message = this.state.ready
-        ? "Ready"
+        ? ""
         : "The signer needs test native tokens. Use Top up Signer to continue.";
     } catch (error) {
       if (this.stopped) return;

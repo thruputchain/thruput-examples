@@ -1,8 +1,8 @@
 # Counter app
 
-A counter with two explicit signing modes. Development signing supports
-concurrent button/keyboard updates; a connected wallet approves individual
-button updates. Holding a key repeats in development mode; Escape stops capture.
+A counter with development signing for concurrent button and keyboard updates.
+No wallet connection or approval prompts are needed. Holding a key repeats;
+Escape stops capture.
 For the smaller contract example, start with
 [Counter](../../contracts/counter/README.md).
 
@@ -35,11 +35,8 @@ from the repo root.
 
 ## Behavior
 
-- Development signing is the default. A successful wallet connection selects
-  wallet signing; rejection, account changes, or session loss never silently
-  return to the development signer. Use **Disconnect wallet** to switch back.
-- Wallet mode pauses unsent development work, but submitted hashes are still
-  observed. Keyboard bursts are available only in development mode.
+- All updates use the server's development signer. Configure
+  `COUNTER_SIGNING_PRIVATE_KEY` through setup to enable updates.
 - A Web Worker has separate bounded submission and receipt-observation queues.
   Confirmation does not block the next submission; full queues stop new inputs.
 - Pending and unknown outcomes remain distinct. A timeout is not permission to
@@ -48,29 +45,6 @@ from the repo root.
   Reload clears statistics but does not cancel transactions already sent.
 - **Top up Signer** requests test native tokens. The server applies a 10-minute in-memory
   cooldown, and the faucet has its own limits. Use one server replica for this demo.
-
-## Wallet updates and recovery
-
-Use a compatible wallet such as [Thruput Freighter](https://github.com/thruputchain/freighter)
-on the same network. The app uses the published SDK/React wallet APIs and stores
-one pending signed update in browser storage. Web Locks prevent concurrent
-updates from different tabs. Public reads remain available without a wallet.
-
-Reload only observes the saved hash; it does not sign or submit anything.
-**Retry same transaction** asks the original account/network to reapprove the
-original transaction, then submits only if its signed bytes and hash match.
-Expired updates cannot be resubmitted. **Check transaction** only reads.
-
-**Retry storage** recovers from a temporary storage error. **Export transaction
-record** preserves readable signed evidence. Forgetting a record requires
-confirmation: it does not cancel a transaction or prove failure, and sending a
-new update afterward may apply the change twice. Successful updates clear their
-pending record automatically and remain in recent transactions. **Finish** clears a confirmed
-outcome. Switching accounts does not replace the original record.
-
-For a wallet-only deployment, omit `COUNTER_SIGNING_PRIVATE_KEY`. The app still
-serves public reads and wallet controls, while server signing, top-up, and
-development transaction submission stay disabled.
 
 ## Commands and deployment
 
@@ -105,7 +79,5 @@ against that policy. `/healthz` checks server configuration readiness.
 - `scripts/`: build, generation, and provisioning.
 
 Root `npm run test:counter` checks an isolated node and real browser input after
-the artifact and app are built. `npm run test:counter-wallet` checks wallet
-mode switching, recovery, storage reset, and keyless operation using a controlled
-provider and real local transactions. It does not qualify an installed extension
-or hosted Devnet. See [checks and prerequisites](../../scripts/README.md#checks).
+the artifact and app are built. See
+[checks and prerequisites](../../scripts/README.md#checks).
