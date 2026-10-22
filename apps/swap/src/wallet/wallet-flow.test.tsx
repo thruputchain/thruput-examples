@@ -53,7 +53,7 @@ const config: GlobalConfig = {
   accountAddress: READ_ONLY_CALLER,
   factoryAddress: addressFromBase58(toBase58(new Uint8Array(32).fill(0x03))),
   routerAddress: addressFromBase58(toBase58(new Uint8Array(32).fill(0x04))),
-  nativeHogAddress: addressFromBase58(toBase58(new Uint8Array(32).fill(0x05))),
+  nativeTokenAddress: addressFromBase58(toBase58(new Uint8Array(32).fill(0x05))),
 };
 const signer = new Ed25519Signer(new Uint8Array(32).fill(1));
 const local = createPubkeyAccount({ signer });

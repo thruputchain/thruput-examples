@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "../config";
 
-function formatHog(raw: bigint, fractionDigits = 7): string {
+function formatNativeToken(raw: bigint, fractionDigits = 7): string {
   const fraction = (raw % 10_000_000n)
     .toString()
     .padStart(7, "0")
@@ -26,7 +26,7 @@ export function TopupSigner({
       ? "—"
       : balance > 0n && balance < 10_000n
         ? "<0.001"
-        : formatHog(balance, 3);
+        : formatNativeToken(balance, 3);
 
   async function topup() {
     if (disabled || request.current) return;
@@ -61,7 +61,7 @@ export function TopupSigner({
       }
       const amount = BigInt(body.rawAmount);
       if (!controller.signal.aborted)
-        toast.success(`Signer received ${formatHog(amount)} HOG.`, {
+        toast.success(`Signer received ${formatNativeToken(amount)} native tokens.`, {
           id: toastId,
         });
     } catch (error) {
@@ -83,11 +83,11 @@ export function TopupSigner({
       title={
         balance === null
           ? "Signer balance unavailable"
-          : `Signer balance: ${formatHog(balance)} HOG`
+          : `Signer balance: ${formatNativeToken(balance)} native tokens`
       }
       className="flex min-h-12 max-w-full items-center justify-center rounded-md border bg-secondary px-3 py-2 font-mono text-sm tabular-nums hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9"
     >
-      <span className="truncate">Top up Signer (curr {balanceLabel} HOG)</span>
+      <span className="truncate">Top up Signer (curr {balanceLabel} native tokens)</span>
     </button>
   );
 }

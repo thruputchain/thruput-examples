@@ -331,7 +331,7 @@ describe("infrastructure-only swap provisioning", () => {
     ).toEqual([
       "VITE_THRUPUT_RPC_URL",
       "VITE_THRUPUT_NETWORK_ID",
-      "VITE_NATIVE_HOG_ADDRESS",
+      "VITE_NATIVE_TOKEN_ADDRESS",
       "VITE_SWAP_FACTORY_ADDRESS",
       "VITE_SWAP_ROUTER_ADDRESS",
       "VITE_POOL_TOKEN_HASH",

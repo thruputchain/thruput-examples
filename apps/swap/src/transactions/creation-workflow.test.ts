@@ -10,7 +10,7 @@ import {
   creationStepOrder,
   loadAccountCreationWorkflows,
   loadCreationWorkflow,
-  reservedCreationHog,
+  reservedCreationNativeToken,
   reservedCreationToken,
   saveCreationWorkflow,
 } from "./creation-workflow";
@@ -23,7 +23,7 @@ const config = {
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
-  nativeHogAddress: address(6),
+  nativeTokenAddress: address(6),
 } satisfies GlobalConfig;
 
 describe("creation workflow", () => {
@@ -62,12 +62,12 @@ describe("creation workflow", () => {
 
   it("reserves total factory funding and both initial token amounts", () => {
     const workflow = createCreationWorkflow(config, review(), 10);
-    expect(reservedCreationHog([workflow])).toBe(300n);
+    expect(reservedCreationNativeToken([workflow])).toBe(300n);
     expect(reservedCreationToken([workflow], id(1))).toBe(11n);
     expect(reservedCreationToken([workflow], id(2))).toBe(13n);
 
     workflow.steps.createPool.status = "skipped";
-    expect(reservedCreationHog([workflow])).toBe(0n);
+    expect(reservedCreationNativeToken([workflow])).toBe(0n);
   });
 
   it("archives only workflows without execution exposure", () => {
@@ -84,7 +84,7 @@ describe("creation workflow", () => {
     const archived = archiveCreationWorkflow(config, workflow);
     expect(loadCreationWorkflow(oldConfig, id(1), id(2))).toEqual(archived);
     expect(archived).toMatchObject({ status: "archived", factoryAddress: id(17), routerAddress: id(18) });
-    expect(reservedCreationHog([archived])).toBe(0n);
+    expect(reservedCreationNativeToken([archived])).toBe(0n);
     expect(loadCreationWorkflow(config, id(1), id(2))).toBeNull();
   });
 
@@ -114,8 +114,8 @@ function review(): PoolCreationReview {
     token0: token(1, 11n),
     token1: token(2, 13n),
     pool: null,
-    nativeHogBalance: 1_000n,
-    nativeHogAllowance: 0n,
+    nativeTokenBalance: 1_000n,
+    nativeTokenAllowance: 0n,
     fundingMinimum: 50n,
     fundingPerContract: 100n,
     totalFunding: 300n,

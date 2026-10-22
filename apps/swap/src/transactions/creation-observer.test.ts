@@ -28,7 +28,7 @@ const config = {
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
-  nativeHogAddress: address(6),
+  nativeTokenAddress: address(6),
 } satisfies GlobalConfig;
 
 describe("creation observer", () => {
@@ -120,8 +120,8 @@ function review(): PoolCreationReview {
     token0: token(1),
     token1: token(2),
     pool: null,
-    nativeHogBalance: 300n,
-    nativeHogAllowance: 0n,
+    nativeTokenBalance: 300n,
+    nativeTokenAllowance: 0n,
     fundingMinimum: 50n,
     fundingPerContract: 100n,
     totalFunding: 300n,

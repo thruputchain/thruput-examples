@@ -30,7 +30,7 @@ it("serves the real token registry API from the development server", async () =>
     server: { host: "127.0.0.1", port: 0 },
     plugins: [
       developmentRegistry({
-        VITE_NATIVE_HOG_ADDRESS: toBase58(new Uint8Array(32).fill(0x03)),
+        VITE_NATIVE_TOKEN_ADDRESS: toBase58(new Uint8Array(32).fill(0x03)),
         VITE_NATIVE_BALANCE_ITEM_COST: "1234",
         VITE_THRUPUT_RPC_URL: "http://127.0.0.1:1",
         VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0x00)),
@@ -74,7 +74,7 @@ it("closes its store when Vite shuts down in middleware mode", async () => {
     server: { middlewareMode: true },
     plugins: [
       developmentRegistry({
-        VITE_NATIVE_HOG_ADDRESS: toBase58(new Uint8Array(32).fill(0x03)),
+        VITE_NATIVE_TOKEN_ADDRESS: toBase58(new Uint8Array(32).fill(0x03)),
         VITE_NATIVE_BALANCE_ITEM_COST: "1234",
         VITE_THRUPUT_RPC_URL: "http://127.0.0.1:1",
         VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0x00)),

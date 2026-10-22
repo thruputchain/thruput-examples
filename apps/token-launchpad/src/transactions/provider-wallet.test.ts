@@ -46,7 +46,7 @@ const config = loadConfig({
   VITE_THRUPUT_RPC_URL: "http://localhost:9545",
   VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0xab)),
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: toBase58(new Uint8Array(32).fill(0x04)),
-  VITE_NATIVE_HOG_ADDRESS: toBase58(new Uint8Array(32).fill(0x05)),
+  VITE_NATIVE_TOKEN_ADDRESS: toBase58(new Uint8Array(32).fill(0x05)),
   VITE_STANDARD_TOKEN_HASH: toBase58(new Uint8Array(32).fill(0x06)),
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
 });

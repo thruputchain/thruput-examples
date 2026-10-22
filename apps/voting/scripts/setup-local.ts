@@ -50,16 +50,16 @@ export async function deployVoting(
   });
   const wallet = createWalletClient({ client, account });
   const funding = await wallet.requestAirdrop();
-  console.log(`Airdrop confirmed: ${funding.rawAmount} raw HOG`);
+  console.log(`Airdrop confirmed: ${funding.rawAmount} raw native-token units`);
   const contract = await readFile(resolve(root, "target/thruput/voting.rv32a"));
   const deployment = prepareContractDeployment({
     deployer: account.address,
     contract,
   });
   // A teaching deployment has a finite shared storage budget. The balance API
-  // makes that budget visible; users need free HOG for their own scheduling gas.
+  // makes that budget visible; users need free native tokens for their own scheduling gas.
   console.log(
-    `Deployer balance: ${(await wallet.getBalance()).rawBalance} raw HOG`,
+    `Deployer balance: ${(await wallet.getBalance()).rawBalance} raw native-token units`,
   );
   const funded = await wallet.executeAndWait(
     {

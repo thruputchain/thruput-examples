@@ -31,7 +31,7 @@ function setup(funded = false) {
   });
   const review = {
     config: {
-      native_token: config.nativeHogAddress,
+      native_token: config.nativeTokenAddress,
       token_code_hash: fixedBytes(config.expectedTokenHash, 32),
       required_token_funding: 100n,
       creation_fee: 0n,
@@ -98,7 +98,7 @@ it.each([false, true])(
     expect(stored.funding).toEqual(workflow.funding);
     for (const [invocation] of writer.execute.mock.calls)
       expect(invocation.invocation.invoked_address).toEqual(
-        funded ? config.factoryAddress : config.nativeHogAddress,
+        funded ? config.factoryAddress : config.nativeTokenAddress,
       );
     expect(writer.observe).not.toHaveBeenCalled();
   },

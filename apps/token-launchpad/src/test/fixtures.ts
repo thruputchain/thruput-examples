@@ -18,7 +18,7 @@ export function configuration(): AppConfig {
     networkId: toBase58(new Uint8Array(32).fill(1)),
     accountAddress: contractAddress(new Uint8Array(32).fill(2)),
     factoryAddress: contractAddress(new Uint8Array(32).fill(3)),
-    nativeHogAddress: contractAddress(new Uint8Array(32)),
+    nativeTokenAddress: contractAddress(new Uint8Array(32)),
     nativeBalanceItemCost: 10n,
     expectedTokenHash: new Uint8Array(32),
   };

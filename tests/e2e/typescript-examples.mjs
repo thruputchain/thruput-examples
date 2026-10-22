@@ -99,9 +99,9 @@ try {
 
   const tip = await run("chain-tip");
   assert.match(tip.height, /^\d+$/);
-  const transfer = await run("transfer-hog");
+  const transfer = await run("transfer-native-token");
   assert.equal(transfer.transferredRaw, "1000");
-  const balance = await run("view-hog-balance", {
+  const balance = await run("view-native-token-balance", {
     THRUPUT_ADDRESS: transfer.recipient,
   });
   assert.equal(balance.rawBalance, transfer.recipientBalance);
@@ -118,7 +118,7 @@ try {
   assert.equal(batch.after, "50");
   assert.equal(batch.afterRollback, "50");
   assert.match(
-    await run("view-hog-balance", { THRUPUT_ADDRESS: "" }, 1),
+    await run("view-native-token-balance", { THRUPUT_ADDRESS: "" }, 1),
     /Set THRUPUT_ADDRESS/,
   );
   assert.match(

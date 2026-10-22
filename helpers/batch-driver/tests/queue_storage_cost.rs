@@ -1,6 +1,6 @@
 //! What a driver's queue costs to hold.
 //!
-//! A queued entry is a storage deposit locked out of the driver contract's own HOG balance, and
+//! A queued entry is a storage deposit locked out of the driver contract's own native-token balance, and
 //! that deposit is what [`CapacityConstraint`](thruput_sdk::storage::CapacityConstraint) exists to bound.
 //! How big a ceiling is affordable depends on the price, so this measures it: under the default
 //! cost model an entry is *flat and cheap*, whatever it contains, over a fixed cost for the queue

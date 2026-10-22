@@ -53,6 +53,7 @@ export interface CreationWorkflow {
   accountAddress: string;
   factoryAddress: string;
   routerAddress: string;
+  // Stored field name kept so workflows saved before the native-token rename still load.
   nativeHogAddress: string;
   token0: CreationTokenIntent;
   token1: CreationTokenIntent;
@@ -131,7 +132,7 @@ export function createCreationWorkflow(
     accountAddress: toBase58(config.accountAddress),
     factoryAddress: toBase58(config.factoryAddress),
     routerAddress: toBase58(config.routerAddress),
-    nativeHogAddress: toBase58(config.nativeHogAddress),
+    nativeHogAddress: toBase58(config.nativeTokenAddress),
     token0: tokenIntent(review.token0),
     token1: tokenIntent(review.token1),
     pool: null,
@@ -241,7 +242,7 @@ export function canArchiveCreationWorkflow(workflow: CreationWorkflow): boolean 
     && !hasBlockingCreationTransaction(workflow);
 }
 
-export function reservedCreationHog(workflows: readonly CreationWorkflow[]): bigint {
+export function reservedCreationNativeToken(workflows: readonly CreationWorkflow[]): bigint {
   return workflows.reduce((total, workflow) =>
     hasCreationFundingExposure(workflow)
       ? total + BigInt(workflow.totalFunding)
@@ -315,7 +316,7 @@ function isCreationWorkflow(
     || value.accountAddress !== toBase58(config.accountAddress)
     || !isHash(value.factoryAddress)
     || !isHash(value.routerAddress)
-    || value.nativeHogAddress !== toBase58(config.nativeHogAddress)
+    || value.nativeHogAddress !== toBase58(config.nativeTokenAddress)
     || (scope === "factory" && value.factoryAddress !== toBase58(config.factoryAddress))
     || (scope === "factory" && value.routerAddress !== toBase58(config.routerAddress))
     || !isTokenIntent(value.token0)

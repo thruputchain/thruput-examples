@@ -1,6 +1,6 @@
 //! The ceiling on the driver's queue.
 //!
-//! The queue's storage is a deposit locked out of the driver's own HOG balance, so the driver holds
+//! The queue's storage is a deposit locked out of the driver's own native-token balance, so the driver holds
 //! at most `max_queue_len` requests at a time. Reaching that ceiling makes further requests *wait*
 //! rather than fail: their transactions are excluded from the block and returned to the mempool,
 //! and they land once a `process_requests` has freed room.

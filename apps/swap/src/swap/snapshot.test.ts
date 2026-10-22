@@ -26,7 +26,7 @@ const config: AppConfig = {
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(8),
-  nativeHogAddress: address(9),
+  nativeTokenAddress: address(9),
   liquidityTokenAddress: address(10),
   handlerAddress: address(4),
   driverAddress: address(5),

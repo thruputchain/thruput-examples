@@ -36,7 +36,7 @@ const config: GlobalConfig = {
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
-  nativeHogAddress: address(6),
+  nativeTokenAddress: address(6),
 };
 
 describe("PoolCreatePage", () => {
@@ -151,9 +151,9 @@ describe("PoolCreatePage", () => {
     await user.click(screen.getByRole("button", { name: "Review pool" }));
 
     expect(await screen.findByRole("heading", { name: "Creation review" })).toBeVisible();
-    expect(screen.getByText(/300 HOG base units across/)).toBeVisible();
-    expect(screen.getByText("50 HOG base units per contract")).toBeVisible();
-    expect(screen.getByText("100 HOG base units per contract")).toBeVisible();
+    expect(screen.getByText(/300 native-token base units across/)).toBeVisible();
+    expect(screen.getByText("50 native-token base units per contract")).toBeVisible();
+    expect(screen.getByText("100 native-token base units per contract")).toBeVisible();
     expect(screen.getByText("2 T1 : 3 T2")).toBeVisible();
     await user.click(screen.getByRole("switch", { name: "Manual queue processing" }));
     await user.click(screen.getByRole("button", { name: "Create pool" }));
@@ -654,8 +654,8 @@ function review(): PoolCreationReview {
       approvalDifference: 0n,
     },
     pool: null,
-    nativeHogBalance: 10_000n,
-    nativeHogAllowance: 0n,
+    nativeTokenBalance: 10_000n,
+    nativeTokenAllowance: 0n,
     fundingMinimum: 50n,
     fundingPerContract: 100n,
     totalFunding: 300n,

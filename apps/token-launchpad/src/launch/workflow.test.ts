@@ -17,7 +17,7 @@ const review: FactoryReview = {
   config: {
     token_code_hash: fixedBytes(new Uint8Array(32), 32),
     required_token_funding: 100n,
-    native_token: config.nativeHogAddress,
+    native_token: config.nativeTokenAddress,
     creation_fee: 0n,
     fee_recipient: null,
   },

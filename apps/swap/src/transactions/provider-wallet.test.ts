@@ -45,7 +45,7 @@ const config: GlobalConfig = {
   accountAddress: addressFromBase58(id(0x01)),
   factoryAddress: addressFromBase58(id(0x02)),
   routerAddress: addressFromBase58(id(0x03)),
-  nativeHogAddress: addressFromBase58(id(0x04)),
+  nativeTokenAddress: addressFromBase58(id(0x04)),
   poolTokenHash: id(0x05),
 };
 const target = {

@@ -46,7 +46,7 @@ from the repo root.
   resubmit a transaction; observation uses its original hash.
 - Session statistics measure this browser's confirmed work, not network throughput.
   Reload clears statistics but does not cancel transactions already sent.
-- **Top up Signer** requests test HOG. The server applies a 10-minute in-memory
+- **Top up Signer** requests test native tokens. The server applies a 10-minute in-memory
   cooldown, and the faucet has its own limits. Use one server replica for this demo.
 
 ## Wallet updates and recovery

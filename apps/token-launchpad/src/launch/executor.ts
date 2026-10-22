@@ -179,7 +179,7 @@ export async function advanceWorkflow(input: {
         review.fundingShortfall > 0n
       ) {
         throw new Error(
-          `Insufficient HOG: This wallet needs at least ${review.fundingShortfall} more HOG for token funding. Execution costs may require additional HOG.`,
+          `Insufficient native tokens: This wallet needs at least ${review.fundingShortfall} more native tokens for token funding. Execution costs may require additional native tokens.`,
         );
       }
       if (
@@ -251,7 +251,7 @@ export async function advanceWorkflow(input: {
       };
       const fundingCall = (amount: bigint) =>
         ERC20.v0_1.transfer.call({
-          address: input.config.nativeHogAddress,
+          address: input.config.nativeTokenAddress,
           gasLimit: GAS_LIMIT,
           args: { receiver: review.predictedAddress, amount },
         });

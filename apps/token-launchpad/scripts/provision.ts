@@ -135,10 +135,10 @@ export async function provisionLaunchpad(options: {
     const airdrop = await wallet.requestAirdrop();
     if ((await wallet.getBalance()).rawBalance < CONTRACT_FUNDING * 3n) {
       throw new Error(
-        "Infrastructure deployer airdrop did not provide the required HOG reserve",
+        "Infrastructure deployer airdrop did not provide the required native-token reserve",
       );
     }
-    console.log(`Airdrop confirmed: ${airdrop.rawAmount} raw HOG (7 decimals)`);
+    console.log(`Airdrop confirmed: ${airdrop.rawAmount} raw native-token units (7 decimals)`);
     // Unused contractsToDeploy attachments are not persisted by the node.
     // The first user token creation must attach standard_token.rv32a; setup
     // deliberately does not instantiate a token just to register its code.
@@ -251,7 +251,7 @@ function renderEnvironment(input: {
   return [
     `VITE_THRUPUT_RPC_URL=${input.rpcUrl}`,
     `VITE_THRUPUT_NETWORK_ID=${input.networkHash}`,
-    `VITE_NATIVE_HOG_ADDRESS=${toBase58(HOG_ADDRESS)}`,
+    `VITE_NATIVE_TOKEN_ADDRESS=${toBase58(HOG_ADDRESS)}`,
     `VITE_NATIVE_BALANCE_ITEM_COST=${PINNED_NATIVE_BALANCE_ITEM_COST}`,
     `VITE_STANDARD_TOKEN_FACTORY_ADDRESS=${toBase58(input.factoryAddress)}`,
     `VITE_STANDARD_TOKEN_HASH=${toBase58(input.tokenHash)}`,

@@ -23,7 +23,7 @@ level, so the contract adds the thresholds and nothing else.
 | Up to 20 signers | Slots 1 to 20, `set_signer(slot, key, weight)` / `remove_signer(slot)`. The client picks the slot by reading `AddressAuthData` over RPC. |
 | Low / medium / high thresholds | `set_thresholds(low, medium, high)`. `low` is also the chain-enforced required weight. |
 | Operation threshold check | The transaction's auth claim asks for a `required_weight`; hogd admits the transaction only if the signers' weights reach it; the account requires that claimed weight to reach the operation's threshold. |
-| `payment` | `payment(asset, to, amount)`: an ERC20 transfer. Native HOG is the ERC20 at the precompile address. |
+| `payment` | `payment(asset, to, amount)`: an ERC20 transfer. The native token is the ERC20 at the precompile address. |
 | `create_account` with starting balance | `create_account(factory, G, starting_balance)`: pays the balance to the predicted address, then the factory deploys and initializes. hogd charges deployment storage to the deployed address, which is why the balance is required. |
 | Any other operation | `invoke(target, entrypoint, gas_limit, calldata)`: raw passthrough. |
 

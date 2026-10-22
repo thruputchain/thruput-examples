@@ -102,7 +102,7 @@ pub trait SwapFactory {
     fn pool_funding(&self) -> PoolFunding;
 
     /// Deploy and initialize a pair's contracts (LP token, pair, request handler, driver) for the
-    /// given token pair, in one transaction. `funding` is the HOG given to *each* of the pool's
+    /// given token pair, in one transaction. `funding` is the native-token amount given to *each* of the pool's
     /// contracts to pay for the storage it will hold. The factory takes `3 * funding` from the
     /// caller, which must therefore have granted it that allowance on the native token beforehand,
     /// so that funding, deployment and initialization all happen in this one transaction.

@@ -5,8 +5,8 @@
 //! delta, and successful zero-value ERC20 operations still emit their standard
 //! events. Destruction lives in the `ERC20Burn` (holder) and `ERC20Clawback`
 //! (administrator) extensions.
-//! Native HOG is protocol-managed rather than an instance of this contract, so
-//! native funding, fees, and protocol-level HOG behavior are outside this ABI.
+//! The native token is protocol-managed rather than an instance of this contract, so
+//! native funding, fees, and protocol-level native-token behavior are outside this ABI.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
