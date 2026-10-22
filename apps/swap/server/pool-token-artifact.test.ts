@@ -101,7 +101,7 @@ describe("production assets", () => {
         VITE_STANDARD_TOKEN_FACTORY_ADDRESS: "",
         VITE_STANDARD_TOKEN_HASH: "",
         TOKEN_DISCOVERY_UPSTREAM_ORIGIN: "",
-        VITE_NATIVE_HOG_ADDRESS: address,
+        VITE_NATIVE_TOKEN_ADDRESS: address,
         VITE_SWAP_FACTORY_ADDRESS: address,
         VITE_SWAP_ROUTER_ADDRESS: address,
       };

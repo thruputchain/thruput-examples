@@ -36,7 +36,7 @@ const { address, transactionHash: deployHash } =
     deployment,
     {
       gasLimit: walletGas,
-      amount: 10_000_000n, // 1 test HOG for this contract's local storage reserve.
+      amount: 10_000_000n, // 1 test native token for this contract's local storage reserve.
       initializer: Counter.v0_1.initialize.invocation(
         deployment.address,
         callGas,

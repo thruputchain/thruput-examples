@@ -31,7 +31,7 @@ export function assertTrustedFactoryConfig(
   config: AppConfig,
 ): void {
   if (
-    !bytesEqual(factory.native_token, config.nativeHogAddress) ||
+    !bytesEqual(factory.native_token, config.nativeTokenAddress) ||
     !bytesEqual(factory.token_code_hash, config.expectedTokenHash) ||
     factory.required_token_funding <= 0n ||
     factory.required_token_funding > MAX_SIGNED_AMOUNT ||
@@ -78,7 +78,7 @@ export async function reviewFactory(
   });
   const nativeToken = getContract({
     binding: ERC20.v0_1,
-    address: config.nativeHogAddress,
+    address: config.nativeTokenAddress,
     client,
   });
   const caller = config.accountAddress;

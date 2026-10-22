@@ -114,25 +114,25 @@ impl SwapFactory for Factory {
         );
 
         // Fund, deploy and initialize the pool, all here. A contract pays for its own storage, so
-        // each of these has to hold HOG before it writes any -- and the funding goes to the address
+        // each of these has to hold native tokens before it writes any -- and the funding goes to the address
         // *before* the deploy, since a deployment is itself storage the new contract may be charged
         // for. Deploy addresses are deterministic, so an address can be funded before anything is
         // there.
         //
-        // The HOG comes from whoever asked for the pool, on the allowance they granted this
+        // The native tokens come from whoever asked for the pool, on the allowance they granted this
         // contract. Taking it from the factory's own balance would let anyone drain it by creating
         // pools. Distinct salts (per role) keep the child addresses distinct while remaining
         // deterministic in the token pair.
         let hashes = self.hashes.get();
         let payer = get_caller();
-        let hog = ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN);
-        // This interface counts HOG in `u128`; the token's amounts are `i128`,
+        let native = ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN);
+        // This interface counts native-token amounts in `u128`; the token's amounts are `i128`,
         // and no balance can cover anything above `i128::MAX`.
         let funding = i128::try_from(funding).unwrap_or_else(|_| throw(ERC20Error::TooLarge));
 
         let deploy_funded = |role: Role, hash: &SHA256Hash| -> Address {
             let nonce = tokens.nonce_for(role);
-            hog.transfer_from(&payer, &get_deploy_address(&nonce, hash), funding);
+            native.transfer_from(&payer, &get_deploy_address(&nonce, hash), funding);
             deploy_contract(&nonce, hash)
         };
 

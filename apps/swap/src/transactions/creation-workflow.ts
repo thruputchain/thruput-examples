@@ -53,7 +53,7 @@ export interface CreationWorkflow {
   accountAddress: string;
   factoryAddress: string;
   routerAddress: string;
-  nativeHogAddress: string;
+  nativeTokenAddress: string;
   token0: CreationTokenIntent;
   token1: CreationTokenIntent;
   pool: CreationPool | null;
@@ -131,7 +131,7 @@ export function createCreationWorkflow(
     accountAddress: toBase58(config.accountAddress),
     factoryAddress: toBase58(config.factoryAddress),
     routerAddress: toBase58(config.routerAddress),
-    nativeHogAddress: toBase58(config.nativeHogAddress),
+    nativeTokenAddress: toBase58(config.nativeTokenAddress),
     token0: tokenIntent(review.token0),
     token1: tokenIntent(review.token1),
     pool: null,
@@ -165,7 +165,7 @@ export function saveCreationWorkflow(
 
 export function sameCreationIntent(left: CreationWorkflow, right: CreationWorkflow): boolean {
   return ([
-    "networkId", "accountAddress", "factoryAddress", "routerAddress", "nativeHogAddress",
+    "networkId", "accountAddress", "factoryAddress", "routerAddress", "nativeTokenAddress",
     "fundingMinimum", "fundingPerContract", "totalFunding",
   ] as const).every((key) => left[key] === right[key])
     && (["token0", "token1"] as const).every((token) =>
@@ -241,7 +241,7 @@ export function canArchiveCreationWorkflow(workflow: CreationWorkflow): boolean 
     && !hasBlockingCreationTransaction(workflow);
 }
 
-export function reservedCreationHog(workflows: readonly CreationWorkflow[]): bigint {
+export function reservedCreationNativeToken(workflows: readonly CreationWorkflow[]): bigint {
   return workflows.reduce((total, workflow) =>
     hasCreationFundingExposure(workflow)
       ? total + BigInt(workflow.totalFunding)
@@ -315,7 +315,7 @@ function isCreationWorkflow(
     || value.accountAddress !== toBase58(config.accountAddress)
     || !isHash(value.factoryAddress)
     || !isHash(value.routerAddress)
-    || value.nativeHogAddress !== toBase58(config.nativeHogAddress)
+    || value.nativeTokenAddress !== toBase58(config.nativeTokenAddress)
     || (scope === "factory" && value.factoryAddress !== toBase58(config.factoryAddress))
     || (scope === "factory" && value.routerAddress !== toBase58(config.routerAddress))
     || !isTokenIntent(value.token0)

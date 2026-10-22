@@ -19,7 +19,7 @@ npm run dev --workspace apps/swap
 ```
 
 Open **http://127.0.0.1:5174**. The dev server includes the registry and indexer.
-Use the same endpoint in Freighter and request test HOG before submitting writes.
+Use the same endpoint in Freighter and request test native tokens before submitting writes.
 
 Setup builds artifacts/bindings and deploys fresh empty infrastructure. It
 writes `.env.local` and hash-named immutable public code assets. The deployer key

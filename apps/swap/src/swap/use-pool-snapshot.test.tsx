@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { addressFromBase58, toBase58 } from "@thruputchain/client";
 import { TestProviders } from "@/test/render";
 const address = addressFromBase58(toBase58(new Uint8Array(32).fill(0x01)));
-const config = { rpcUrl: new URL("http://localhost"), networkId: toBase58(new Uint8Array(32).fill(0x00)), accountAddress: address, factoryAddress: address, routerAddress: address, nativeHogAddress: address, handlerAddress: address, driverAddress: address, liquidityTokenAddress: address, tokenAAddress: address, tokenBAddress: address, tokenASymbol: "A", tokenBSymbol: "B", tokenADecimals: 7, tokenBDecimals: 7 };
+const config = { rpcUrl: new URL("http://localhost"), networkId: toBase58(new Uint8Array(32).fill(0x00)), accountAddress: address, factoryAddress: address, routerAddress: address, nativeTokenAddress: address, handlerAddress: address, driverAddress: address, liquidityTokenAddress: address, tokenAAddress: address, tokenBAddress: address, tokenASymbol: "A", tokenBSymbol: "B", tokenADecimals: 7, tokenBDecimals: 7 };
 
 import type { PoolSnapshot } from "@/swap/snapshot";
 

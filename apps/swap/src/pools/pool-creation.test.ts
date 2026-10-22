@@ -19,7 +19,7 @@ const config = {
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(3),
-  nativeHogAddress: address(4),
+  nativeTokenAddress: address(4),
 } satisfies GlobalConfig;
 const input = {
   tokenA: toBase58(new Uint8Array(32).fill(0x05)),
@@ -147,7 +147,7 @@ function dependencies() {
     feeTo: vi.fn(),
   };
   const token = vi.fn((contract) =>
-    tokenAdapter(contract === config.nativeHogAddress),
+    tokenAdapter(contract === config.nativeTokenAddress),
   );
   return { client, factory, token };
 }
@@ -155,8 +155,8 @@ function dependencies() {
 function tokenAdapter(native: boolean): Erc20ReadAdapter {
   return {
     metadata: vi.fn().mockResolvedValue({
-      name: view(native ? "HOG" : "Token"),
-      symbol: view(native ? "HOG" : "TKN"),
+      name: view(native ? "Native" : "Token"),
+      symbol: view(native ? "NATIVE" : "TKN"),
       decimals: view(6),
     }),
     balanceOf: vi.fn().mockResolvedValue(view(native ? 100_000n : 20_000_000n)),

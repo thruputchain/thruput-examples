@@ -47,7 +47,7 @@ import {
   hasCreationExecutionExposure,
   loadAccountCreationWorkflows,
   loadCreationWorkflow,
-  reservedCreationHog,
+  reservedCreationNativeToken,
   reservedCreationToken,
   saveCreationWorkflow,
   sameCreationIntent,
@@ -381,7 +381,7 @@ async function runCreationBatch(
       "approveFunding",
       review.fundingApprovalDifference > 0n
         ? buildApprovalTarget(
-            config.nativeHogAddress,
+            config.nativeTokenAddress,
             config.factoryAddress,
             review.fundingApprovalDifference,
           )
@@ -686,7 +686,7 @@ async function revalidateWorkflow(
   );
   const requests = loadAccountRequestRecords(config);
   const liquidityOperations = loadAccountLiquidityOperations(config);
-  const nativeHogBase58 = toBase58(config.nativeHogAddress);
+  const nativeTokenBase58 = toBase58(config.nativeTokenAddress);
   const readReview = () =>
     preparePoolCreation(
       config,
@@ -702,13 +702,13 @@ async function revalidateWorkflow(
           workflow.token1.decimals,
         ),
       },
-      reservedCreationHog(otherWorkflows) +
-        reservedCreationToken(otherWorkflows, nativeHogBase58) +
-        reservedInputForToken(requests, nativeHogBase58) +
-        reservedLiquidityTokenAmount(liquidityOperations, nativeHogBase58),
+      reservedCreationNativeToken(otherWorkflows) +
+        reservedCreationToken(otherWorkflows, nativeTokenBase58) +
+        reservedInputForToken(requests, nativeTokenBase58) +
+        reservedLiquidityTokenAmount(liquidityOperations, nativeTokenBase58),
       {
         ...dependencies,
-        requiredNativeHog: hasCreationFundingExposure(workflow)
+        requiredNativeToken: hasCreationFundingExposure(workflow)
           ? BigInt(workflow.totalFunding)
           : 0n,
         ...(workflow.pool === null
@@ -859,7 +859,7 @@ function targetForStep(
     return review.fundingApprovalDifference === 0n
       ? null
       : buildApprovalTarget(
-          config.nativeHogAddress,
+          config.nativeTokenAddress,
           config.factoryAddress,
           review.fundingApprovalDifference,
         );

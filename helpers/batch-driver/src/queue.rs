@@ -106,7 +106,7 @@ pub struct Queue<R: BatchRequest> {
     // The remaining capacity of the `requests` queue, whose maximum length is configured when
     // calling `initialize`.
     //
-    // A queued entry costs storage (and thus locked HOGs), so this is what stops a queue from being
+    // A queued entry costs storage (and thus locked native tokens), so this is what stops a queue from being
     // an unbounded claim on whoever funded the driver.
     slots: CapacityConstraint,
 

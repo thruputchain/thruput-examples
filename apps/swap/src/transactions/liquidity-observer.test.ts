@@ -29,7 +29,7 @@ const config = {
   accountAddress: address(9),
   routerAddress: address(8),
   factoryAddress: address(7),
-  nativeHogAddress: address(6),
+  nativeTokenAddress: address(6),
   liquidityTokenAddress: address(4),
   handlerAddress: address(3),
   driverAddress: address(2),

@@ -115,15 +115,15 @@ export function ReviewCard({
           )}
           <Detail
             label="Factory fee"
-            value={review || workflow ? "0 HOG" : "-"}
+            value={review || workflow ? "0 native tokens" : "-"}
           />
           <Detail
             label="Required reserve"
             value={
               review
-                ? `${review.config.required_token_funding} HOG units`
+                ? `${review.config.required_token_funding} native-token units`
                 : workflow
-                  ? `${workflow.requiredTokenFunding} HOG units`
+                  ? `${workflow.requiredTokenFunding} native-token units`
                   : "-"
             }
           />
@@ -131,20 +131,20 @@ export function ReviewCard({
             label="Funding transfer"
             value={
               review
-                ? `${review.fundingAmount} HOG units`
+                ? `${review.fundingAmount} native-token units`
                 : workflow
-                  ? `${workflow.plannedFundingAmount} HOG units`
+                  ? `${workflow.plannedFundingAmount} native-token units`
                   : "-"
             }
           />
           {review?.fundingShortfall ? (
             <Alert variant="destructive">
               <AlertCircleIcon />
-              <AlertTitle>Insufficient HOG</AlertTitle>
+              <AlertTitle>Insufficient native tokens</AlertTitle>
               <AlertDescription>
                 This wallet needs at least {review.fundingShortfall.toString()}{" "}
-                more HOG for token funding. Execution costs may require
-                additional HOG.
+                more native tokens for token funding. Execution costs may require
+                additional native tokens.
               </AlertDescription>
             </Alert>
           ) : null}

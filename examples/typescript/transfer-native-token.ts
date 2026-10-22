@@ -37,7 +37,7 @@ const before = await waitForView(() =>
   }),
 );
 
-const amount = parseUnits("0.0001", 7); // HOG has seven decimal places.
+const amount = parseUnits("0.0001", 7); // The native token has seven decimal places.
 const { transactionHash, receipt } = await wallet.executeAndWait(
   {
     invocation: ERC20.v0_1.transfer.invocation(

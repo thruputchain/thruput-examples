@@ -63,7 +63,7 @@ export function requiredAllowanceFor(
   }
   for (const workflow of records.creationWorkflows) {
     if (
-      workflow.nativeHogAddress === tokenAddress
+      workflow.nativeTokenAddress === tokenAddress
       && workflow.factoryAddress === spenderAddress
       && hasCreationFundingExposure(workflow)
     ) required += BigInt(workflow.totalFunding);
@@ -137,7 +137,7 @@ export function cleanupAllowanceRequirementFor(
   }
   for (const workflow of records.creationWorkflows) {
     if (
-      workflow.nativeHogAddress !== tokenAddress
+      workflow.nativeTokenAddress !== tokenAddress
       || workflow.factoryAddress !== spenderAddress
       || workflow.steps.approveFunding.status !== "committed"
     ) continue;

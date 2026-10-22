@@ -27,7 +27,7 @@ const config: GlobalConfig = {
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(3),
-  nativeHogAddress: address(4),
+  nativeTokenAddress: address(4),
 };
 
 describe("PoolRoutes", () => {
@@ -117,7 +117,7 @@ describe("browser configuration", () => {
       VITE_EXPLORER_URL: "https://Explorer.test/",
       VITE_THRUPUT_RPC_URL: "https://ignored-upstream.test",
       VITE_THRUPUT_NETWORK_ID: b58(0x00),
-      VITE_NATIVE_HOG_ADDRESS: b58(0x02),
+      VITE_NATIVE_TOKEN_ADDRESS: b58(0x02),
       VITE_SWAP_FACTORY_ADDRESS: b58(0x03),
       VITE_SWAP_ROUTER_ADDRESS: b58(0x04),
     };

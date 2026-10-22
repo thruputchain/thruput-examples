@@ -29,7 +29,7 @@ pub const EPILOGUE_GAS: u64 = 200_000;
 ///
 /// Since the drain is bounded by the gas its frame has left, this is how a caller *chooses* a batch
 /// size -- there is no batch size fixed here on everyone's behalf. For a root transaction the
-/// figure is also the throughput capacity the scheduler charges against the caller's free HOG,
+/// figure is also the throughput capacity the scheduler charges against the caller's free native tokens,
 /// spent whether or not the batch fills it, so a caller that wants a small encumbrance asks for a
 /// small batch.
 ///

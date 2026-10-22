@@ -27,7 +27,7 @@ npm run dev --workspace apps/voting
 If you installed the CLI elsewhere, set `THRUPUT_CLI` to that executable.
 Open **http://127.0.0.1:5176**. Connect
 [Thruput Freighter](https://github.com/thruputchain/freighter) to the same localnode
-and request test HOG in the wallet. Public browsing needs no wallet.
+and request test native tokens in the wallet. Public browsing needs no wallet.
 
 Setup builds the contract, generates bindings, deploys a fresh empty Voting
 contract, and writes `.env.local` only after success. It does not save the
@@ -63,8 +63,8 @@ to the current page. Use **Older** to check earlier polls.
   development and preview. No database or signing server is required.
 
 Setup reads the deployer balance through the balance API and credits the contract
-with 1 HOG for storage. This is a finite shared reserve for a local demo; anyone
-can fund the contract address if it runs low. Wallets need free HOG for gas
+with 1 native token for storage. This is a finite shared reserve for a local demo; anyone
+can fund the contract address if it runs low. Wallets need free native tokens for gas
 capacity. Gas has no token fee; storage deposits are separate.
 
 ## Transaction recovery

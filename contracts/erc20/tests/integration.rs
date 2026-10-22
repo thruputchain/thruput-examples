@@ -6,9 +6,9 @@
 //! contract-specific calls and the lifecycle they exercise.
 //!
 //! It also demonstrates a requirement that is easy to meet and hard to
-//! diagnose: a new allowance on the *native* HOG token needs that contract to
+//! diagnose: a new allowance on the *native* token needs that contract to
 //! hold a storage reserve. See
-//! [`native_hog_allowance_needs_a_storage_reserve`].
+//! [`native_token_allowance_needs_a_storage_reserve`].
 //!
 //! Run it with `thruput test --integration`.
 
@@ -100,7 +100,7 @@ impl Erc20 {
 const NATIVE_INTERFACE: (&str, &str) = ("ERC20", "0.1.3");
 const NATIVE_STORAGE_RESERVE: i128 = 10_000_000;
 
-fn native_hog() -> ContractAddress {
+fn native_token() -> ContractAddress {
     let mut bytes = [0u8; 32];
     bytes[31] = 1;
     ContractAddress::from(bytes)
@@ -113,27 +113,27 @@ fn options() -> InvocationOptions {
     }
 }
 
-/// A new allowance on the native HOG token needs the native contract to hold a
+/// A new allowance on the native token needs the native contract to hold a
 /// storage reserve of its own.
 ///
 /// An allowance is a new storage item, and a contract pays for its own storage
-/// out of its own HOG.  The native token is no exception -- but on a fresh node
+/// out of its own native-token balance.  The native token is no exception -- but on a fresh node
 /// it starts with nothing, so the first allowance anyone tries to create is
 /// rejected when its delta batch is reserved (`BoundsExceeded`, on the native
 /// contract itself) and returned to the mempool to be retried forever.  There is
 /// no error to see, only a receipt that never comes, so a caller experiences it
 /// as a hang rather than a failure.
 ///
-/// The remedy is to transfer HOG *to the native token's own address* first.
+/// The remedy is to transfer native tokens *to the native token's own address* first.
 #[tokio::test]
-async fn native_hog_allowance_needs_a_storage_reserve() {
+async fn native_token_allowance_needs_a_storage_reserve() {
     let (interface, version) = NATIVE_INTERFACE;
-    let hog = Harness::from_env(interface, version).retarget(native_hog(), interface, version);
+    let native = Harness::from_env(interface, version).retarget(native_token(), interface, version);
 
-    // The control.  Moving HOG funds a new recipient and commits,
+    // The control.  Moving native tokens funds a new recipient and commits,
     // so the account, signing, entrypoint IDs and node are all in order.
-    let spender = hog.recipient(1);
-    let transfer = hog
+    let spender = native.recipient(1);
+    let transfer = native
         .submit(
             "transfer",
             encode(&(spender, NATIVE_STORAGE_RESERVE)),
@@ -143,12 +143,12 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
         .expect("submitting transfer");
     assert!(
         matches!(transfer, SubmissionOutcome::Committed(_)),
-        "a native HOG transfer should commit, but got {}",
+        "a native token transfer should commit, but got {}",
         describe(&transfer)
     );
 
     // Unreserved, the same account cannot be granted an allowance.
-    let before = hog
+    let before = native
         .submit("adjust_allowance", encode(&(spender, 1i128)), options())
         .await
         .expect("submitting adjust_allowance");
@@ -162,10 +162,10 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
     );
 
     // Give the native token the reserve its own storage needs.
-    let reserve = hog
+    let reserve = native
         .submit(
             "transfer",
-            encode(&(native_hog(), NATIVE_STORAGE_RESERVE)),
+            encode(&(native_token(), NATIVE_STORAGE_RESERVE)),
             options(),
         )
         .await
@@ -180,8 +180,8 @@ async fn native_hog_allowance_needs_a_storage_reserve() {
     // *new* allowance row: the attempt above is still in the mempool and may
     // commit at any point, which would leave the first spender's row already
     // made.
-    let fresh_spender = hog.recipient(2);
-    let after = hog
+    let fresh_spender = native.recipient(2);
+    let after = native
         .submit(
             "adjust_allowance",
             encode(&(fresh_spender, 1i128)),

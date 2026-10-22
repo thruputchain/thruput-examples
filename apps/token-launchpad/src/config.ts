@@ -17,7 +17,7 @@ export interface AppConfig {
   networkId: string;
   accountAddress: ContractAddress;
   factoryAddress: ContractAddress;
-  nativeHogAddress: ContractAddress;
+  nativeTokenAddress: ContractAddress;
   nativeBalanceItemCost: bigint;
   expectedTokenHash: Uint8Array;
 }
@@ -77,7 +77,7 @@ export function loadConfig(environment: Environment): AppConfig {
     // Public views need a caller, not a connected wallet identity.
     accountAddress: addressFromHex(`0x${"00".repeat(32)}`),
     factoryAddress: address(environment, "VITE_STANDARD_TOKEN_FACTORY_ADDRESS"),
-    nativeHogAddress: address(environment, "VITE_NATIVE_HOG_ADDRESS"),
+    nativeTokenAddress: address(environment, "VITE_NATIVE_TOKEN_ADDRESS"),
     nativeBalanceItemCost,
     expectedTokenHash: hashFromBase58(tokenHash),
   };

@@ -14,11 +14,11 @@ use crate::TokenCreated;
 pub struct FactoryConfig {
     /// Hash of the only token artifact this factory may deploy.
     pub token_code_hash: SHA256Hash,
-    /// Native HOG required at a predicted token address before creation.
+    /// Native-token amount required at a predicted token address before creation.
     pub required_token_funding: Amount,
     /// Native token contract used for funding and optional fees.
     pub native_token: ContractAddress,
-    /// Native HOG charged to the creator, or zero when creation is free.
+    /// Native-token fee charged to the creator, or zero when creation is free.
     pub creation_fee: Amount,
     /// Immutable fee recipient; required only for a nonzero fee.
     pub fee_recipient: Option<ContractAddress>,
@@ -73,10 +73,10 @@ pub trait StandardTokenFactory {
     /// Predicts the token address for `creator` and its application nonce.
     fn predict_token(&self, creator: &ContractAddress, nonce: &SHA256Hash) -> ContractAddress;
 
-    /// Returns the native HOG required at a predicted token address.
+    /// Returns the native-token amount required at a predicted token address.
     fn required_token_funding(&self) -> Amount;
 
-    /// Returns the immutable native HOG creation fee.
+    /// Returns the immutable native token creation fee.
     fn creation_fee(&self) -> Amount;
 
     /// Returns the complete immutable factory configuration.

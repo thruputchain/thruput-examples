@@ -18,7 +18,7 @@ npm run dev --workspace apps/token-launchpad
 ```
 
 Open **http://127.0.0.1:5173**. The dev server includes the registry and indexer.
-Configure Freighter for the same local endpoint and request test HOG to sign
+Configure Freighter for the same local endpoint and request test native tokens to sign
 transactions. Setup creates an empty factory, not demo tokens.
 
 Every setup run builds contracts/bindings, deploys fresh infrastructure, and

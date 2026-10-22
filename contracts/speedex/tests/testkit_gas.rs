@@ -97,7 +97,7 @@ const EPOCH_LEN: u64 = 64;
 // everything with one expiry height, so each asset count of the sweep runs on a devnode of its
 // own, and the sweep's sizes (6,824 offers in all) stay under that.
 
-/// Native (HOG) tokens granted to each contract for the storage it creates. The exchange writes
+/// Native tokens granted to each contract for the storage it creates. The exchange writes
 /// three records per offer, so it gets a great deal more than a token does.
 const TOKEN_FUNDING: u128 = 1_000_000_000;
 const EXCHANGE_FUNDING: u128 = 20_000_000_000;

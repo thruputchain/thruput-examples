@@ -26,7 +26,7 @@ is ignored in this command. No running node is needed.
 ## Try a change
 
 Add a transfer to the lifecycle test and assert both resulting balances. Keep
-the underflow and allowance checks intact. For a client-side native HOG
+the underflow and allowance checks intact. For a client-side native token
 transfer, see [the TypeScript examples](../../examples/typescript/README.md).
 
 After CLI/runtime setup, `thruput test -p erc20` exercises the guest binary and

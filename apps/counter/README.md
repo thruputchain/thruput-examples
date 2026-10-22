@@ -46,7 +46,7 @@ from the repo root.
   resubmit a transaction; observation uses its original hash.
 - Session statistics measure this browser's confirmed work, not network throughput.
   Reload clears statistics but does not cancel transactions already sent.
-- **Top up Signer** requests test HOG. The server applies a 10-minute in-memory
+- **Top up Signer** requests test native tokens. The server applies a 10-minute in-memory
   cooldown, and the faucet has its own limits. Use one server replica for this demo.
 
 ## Wallet updates and recovery
@@ -84,7 +84,7 @@ Run `npm run <command> --workspace apps/counter`:
 | `typecheck`, `test`, `build` | Check types, tests, and production bundle |
 | `start` | Serve the production bundle; `PORT` defaults to 3000 |
 
-For Futurenet, set `THRUPUT_RPC_URL` to the HTTPS endpoint and
+For Devnet, set `THRUPUT_RPC_URL` to the HTTPS endpoint and
 `THRUPUT_NETWORK_ID` to its verified live base58 network hash, then run
 `setup:devnet`.
 It writes `.env.devnet`; select it with `dev -- --mode devnet` or supply its
@@ -108,4 +108,4 @@ Root `npm run test:counter` checks an isolated node and real browser input after
 the artifact and app are built. `npm run test:counter-wallet` checks wallet
 mode switching, recovery, storage reset, and keyless operation using a controlled
 provider and real local transactions. It does not qualify an installed extension
-or hosted Futurenet. See [checks and prerequisites](../../scripts/README.md#checks).
+or hosted Devnet. See [checks and prerequisites](../../scripts/README.md#checks).

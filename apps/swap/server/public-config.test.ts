@@ -12,7 +12,7 @@ it("projects validated public settings without exposing server environment", () 
     VITE_THRUPUT_RPC_URL: "https://private-upstream.test/rpc",
     VITE_THRUPUT_NETWORK_ID: b58(0x00),
     VITE_POOL_TOKEN_HASH: address,
-    VITE_NATIVE_HOG_ADDRESS: address,
+    VITE_NATIVE_TOKEN_ADDRESS: address,
     VITE_SWAP_FACTORY_ADDRESS: address,
     VITE_SWAP_ROUTER_ADDRESS: address,
     POOL_REGISTRY_DB_PATH: "/private/database",

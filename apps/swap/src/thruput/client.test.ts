@@ -52,7 +52,7 @@ describe("network-bound creation reads", () => {
     accountAddress: address,
     factoryAddress: address,
     routerAddress: address,
-    nativeHogAddress: address,
+    nativeTokenAddress: address,
   };
 
   it("binds the SDK cluster and explicitly rereads network identity through the abort-aware transport", async () => {
