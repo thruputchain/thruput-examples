@@ -152,10 +152,10 @@ export async function provisionSwap(options: {
     const airdrop = await wallet.requestAirdrop();
     if ((await wallet.getBalance()).rawBalance < CONTRACT_FUNDING * 6n) {
       throw new Error(
-        "Infrastructure deployer airdrop did not provide the required HOG reserve",
+        "Infrastructure deployer airdrop did not provide the required native-token reserve",
       );
     }
-    console.log(`Airdrop confirmed: ${airdrop.rawAmount} raw HOG (7 decimals)`);
+    console.log(`Airdrop confirmed: ${airdrop.rawAmount} raw native-token units (7 decimals)`);
     // Native-token storage also needs a reserve for future user allowance rows.
     await execute(
       ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
@@ -245,7 +245,7 @@ function renderEnvironment(
   return [
     `VITE_THRUPUT_RPC_URL=${rpcUrl}`,
     `VITE_THRUPUT_NETWORK_ID=${network}`,
-    `VITE_NATIVE_HOG_ADDRESS=${toBase58(HOG_ADDRESS)}`,
+    `VITE_NATIVE_TOKEN_ADDRESS=${toBase58(HOG_ADDRESS)}`,
     `VITE_SWAP_FACTORY_ADDRESS=${toBase58(deployment.factory)}`,
     `VITE_SWAP_ROUTER_ADDRESS=${toBase58(deployment.router)}`,
     `VITE_POOL_TOKEN_HASH=${toBase58(deployment.tokenHash)}`,

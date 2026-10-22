@@ -237,7 +237,7 @@ try {
   );
   releaseTopup();
   await until(
-    () => page.getByText(/^Signer received .* HOG\.$/).isVisible(),
+    () => page.getByText(/^Signer received .* native tokens\.$/).isVisible(),
     "signer airdrop confirmation",
   );
   await page.unroute("**/api/topup");

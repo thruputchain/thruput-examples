@@ -21,7 +21,7 @@ console.log(
     {
       account: toBase58(address),
       rawBalance: balance.value.toString(),
-      hog: formatUnits(balance.value, 7),
+      balance: formatUnits(balance.value, 7),
       height: balance.stateBlockHeight.toString(),
     },
     null,

@@ -19,7 +19,7 @@ const config: GlobalConfig = {
   accountAddress: address(1),
   factoryAddress: address(2),
   routerAddress: address(3),
-  nativeHogAddress: address(4),
+  nativeTokenAddress: address(4),
 };
 const view = <T>(value: T) => ({ value, stateBlockHeight: 1n, events: [] });
 const metadata = {

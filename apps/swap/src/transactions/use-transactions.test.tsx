@@ -36,7 +36,7 @@ it("shares committed recovery across observers without wallet permission and ret
     accountAddress: address,
     factoryAddress: address,
     routerAddress: address,
-    nativeHogAddress: address,
+    nativeTokenAddress: address,
   };
   const hash = toBase58(new Uint8Array(32).fill(0x02));
   const receipt: TransactionReceipt = {

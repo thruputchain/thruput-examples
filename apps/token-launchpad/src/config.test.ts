@@ -8,7 +8,7 @@ const environment = {
   VITE_THRUPUT_RPC_URL: "http://127.0.0.1:9545",
   VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(0x22)),
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: address,
-  VITE_NATIVE_HOG_ADDRESS: address,
+  VITE_NATIVE_TOKEN_ADDRESS: address,
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
   VITE_STANDARD_TOKEN_HASH: toBase58(new Uint8Array(32).fill(0x33)),
 };

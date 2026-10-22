@@ -91,7 +91,7 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
 
     let (hashes, factory_hash) = register_contracts(&env);
 
-    // The native HOG token is a precompile: it is live at its address from genesis and cannot be
+    // The native token is a precompile: it is live at its address from genesis and cannot be
     // redeployed. It still keeps its allowance ledger in its own storage, and pays for it like any
     // other contract.
     env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);

@@ -18,7 +18,7 @@ function environment(overrides: Environment = {}): Environment {
     VITE_THRUPUT_RPC_URL: "http://127.0.0.1:9545",
     VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32)),
     VITE_POOL_TOKEN_HASH: ADDRESS,
-    VITE_NATIVE_HOG_ADDRESS: ADDRESS,
+    VITE_NATIVE_TOKEN_ADDRESS: ADDRESS,
     VITE_SWAP_FACTORY_ADDRESS: ADDRESS,
     VITE_SWAP_ROUTER_ADDRESS: ADDRESS,
     ...overrides,

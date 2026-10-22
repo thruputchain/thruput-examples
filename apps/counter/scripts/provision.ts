@@ -82,7 +82,7 @@ export async function provisionCounter(options: {
   try {
     await writeFile(temporary, "", { flag: "wx", mode: 0o600 });
     const funding = await wallet.requestAirdrop();
-    console.log(`Airdrop confirmed: ${funding.rawAmount} raw HOG (7 decimals)`);
+    console.log(`Airdrop confirmed: ${funding.rawAmount} raw native-token units (7 decimals)`);
     await execute(
       "Fund counter",
       ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS, {

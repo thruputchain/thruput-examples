@@ -313,7 +313,7 @@ fn metadata_initializer_sets_views() {
             ERC20MetadataClient::new(&token).initialize(
                 &ADMIN,
                 Some(name("Thruput Token")),
-                Some(symbol("HOG")),
+                Some(symbol("THRU")),
                 Some(9),
             )
         })
@@ -330,7 +330,7 @@ fn metadata_initializer_sets_views() {
     views.assert_success();
     assert_eq!(
         views.assert_return_as::<(Option<Name>, Option<Symbol>, Option<u32>)>(),
-        (Some(name("Thruput Token")), Some(symbol("HOG")), Some(9))
+        (Some(name("Thruput Token")), Some(symbol("THRU")), Some(9))
     );
 }
 

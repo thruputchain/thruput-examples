@@ -29,7 +29,7 @@ const globalConfig: GlobalConfig = {
   accountAddress: address(1),
   routerAddress: address(2),
   factoryAddress: address(3),
-  nativeHogAddress: address(4),
+  nativeTokenAddress: address(4),
 };
 const poolConfig: AppConfig = {
   ...globalConfig,

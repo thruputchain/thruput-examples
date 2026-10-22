@@ -15,7 +15,7 @@ pub enum SwapRouterError {
     /// The factory has no pool for the requested token pair.
     ///
     /// Unlike UniswapV2's router, this one never creates one: a pool's contracts are funded as they
-    /// are deployed, so creating one costs its creator real HOG and is not something to do as a
+    /// are deployed, so creating one costs its creator real native tokens and is not something to do as a
     /// side effect of adding liquidity. Call
     /// [`SwapFactory::create_pair`](crate::SwapFactory::create_pair) first.
     NoSuchPair = 2,

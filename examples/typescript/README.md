@@ -47,16 +47,16 @@ Expected: JSON with `rpcUrl`, `networkHash`, and block `height`. This read-only
 request needs no signer or contract build. Try adding `client.getVersionInfo()` and
 printing the RPC implementation version.
 
-## 2. Transfer test HOG
+## 2. Transfer test native tokens
 
-Source: [transfer-hog.ts](transfer-hog.ts).
+Source: [transfer-native-token.ts](transfer-native-token.ts).
 
 ```sh
-npm run example:transfer-hog
+npm run example:transfer-native-token
 ```
 
 The script creates two disposable accounts, requests airdrops, transfers
-**0.0001 HOG (1,000 raw units)**, waits for commitment, and verifies the
+**0.0001 native tokens (1,000 raw units)**, waits for commitment, and verifies the
 recipient balance increased by that amount. Both accounts are funded before
 the tiny transfer so it does not need to pay a fresh balance-row deposit.
 
@@ -68,15 +68,15 @@ Keep amounts as `bigint`, not floating-point numbers.
 
 ## 3. Read a balance
 
-Source: [view-hog-balance.ts](view-hog-balance.ts).
+Source: [view-native-token-balance.ts](view-native-token-balance.ts).
 
 ```sh
 export THRUPUT_ADDRESS=<recipient-from-the-transfer-output>
-npm run example:view-hog-balance
+npm run example:view-native-token-balance
 ```
 
 Replace the entire placeholder with the public address. Expected: `rawBalance`,
-formatted `hog`, and the read's block height. This uses the SDK's generated
+formatted `balance`, and the read's block height. This uses the SDK's generated
 ERC20 view and needs no private key.
 
 Try the sender's public address too. Its balance also reflects execution costs,
@@ -99,7 +99,7 @@ createPubkeyAccount({ signer: MlDsa65Signer.fromSeed(randomBytes(32)) }); // ML-
 ```
 
 Both accounts then go through the same `fundAndTransfer` function: airdrop,
-DefaultWallet transfer of **0.0001 HOG**, and a committed receipt. The script
+DefaultWallet transfer of **0.0001 native tokens**, and a committed receipt. The script
 checks that the shared recipient received both transfers.
 
 Expected: an `ed25519` and an `mlDsa65` entry, each with its sender address and
@@ -159,7 +159,7 @@ Each run deploys a new Counter. Copy `contractAddress` into:
 export THRUPUT_COUNTER_ADDRESS=<contractAddress-from-the-output>
 ```
 
-The 1-HOG storage reserve and gas limits are local example budgets, not general
+The 1-native-token storage reserve and gas limits are local example budgets, not general
 deployment estimates. Try changing the initial value and increment, including
 the expected-value assertion.
 

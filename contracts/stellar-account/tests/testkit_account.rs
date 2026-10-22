@@ -2,7 +2,7 @@
 //! the native mock does not perform.
 //!
 //! An `admin` agent registers the account code, deploys and configures the
-//! factory, funds the predicted address with native HOG, and creates an
+//! factory, funds the predicted address with native tokens, and creates an
 //! account for a test-only master key. Then it drives the account directly
 //! with hand-built transactions whose invoked address is the account and
 //! whose auth claim is a source-address claim: add a second signer at

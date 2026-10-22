@@ -45,8 +45,8 @@ export interface PoolCreationReview {
   token1: PoolCreationToken;
   pool: PoolAddresses | null;
   predictedPool?: PoolAddresses;
-  nativeHogBalance: bigint;
-  nativeHogAllowance: bigint;
+  nativeTokenBalance: bigint;
+  nativeTokenAllowance: bigint;
   fundingMinimum: bigint;
   fundingPerContract: bigint;
   totalFunding: bigint;
@@ -74,7 +74,7 @@ export class PoolCreationValidationError extends Error {
       | "amount"
       | "minimumLiquidity"
       | "tokenBalance"
-      | "hogBalance"
+      | "nativeBalance"
       | "staleReads",
     message: string,
   ) {
@@ -87,7 +87,7 @@ export interface PoolCreationDependencies {
   client: Pick<ThruputClient, "simulateInvocation" | "getNetworkInfo">;
   factory?: SwapFactoryReadAdapter;
   token?: (address: ContractAddress) => Erc20ReadAdapter;
-  requiredNativeHog?: bigint;
+  requiredNativeToken?: bigint;
   existingPool?: PoolAddresses;
   predictPool?: boolean;
 }
@@ -105,7 +105,7 @@ export class PoolCreationNetworkError extends Error {
 export async function preparePoolCreation(
   config: GlobalConfig,
   input: PoolCreationInput,
-  reservedNativeHog: bigint,
+  reservedNativeToken: bigint,
   dependencies: PoolCreationDependencies,
 ): Promise<PoolCreationReview> {
   const [inputTokenA, inputTokenB] = parseTokenAddresses(
@@ -139,7 +139,7 @@ export async function preparePoolCreation(
       }));
   const token0 = createToken(ordered.token0);
   const token1 = createToken(ordered.token1);
-  const nativeHog = createToken(config.nativeHogAddress);
+  const nativeToken = createToken(config.nativeTokenAddress);
 
   for (let attempt = 0; attempt < MAX_COHERENCE_ATTEMPTS; attempt += 1) {
     const [registered, funding, metadata0, metadata1] = await Promise.all([
@@ -167,8 +167,8 @@ export async function preparePoolCreation(
       balance1,
       allowance0,
       allowance1,
-      hogBalance,
-      hogAllowance,
+      nativeBalance,
+      nativeAllowance,
     ] = await Promise.all([
       token0.balanceOf(config.accountAddress),
       token1.balanceOf(config.accountAddress),
@@ -178,8 +178,8 @@ export async function preparePoolCreation(
       handler === undefined
         ? emptyView(registered.stateBlockHeight)
         : token1.allowance(config.accountAddress, handler),
-      nativeHog.balanceOf(config.accountAddress),
-      nativeHog.allowance(config.accountAddress, config.factoryAddress),
+      nativeToken.balanceOf(config.accountAddress),
+      nativeToken.allowance(config.accountAddress, config.factoryAddress),
     ]);
     const heights = creationReadHeights(
       registered,
@@ -190,8 +190,8 @@ export async function preparePoolCreation(
       balance1,
       allowance0,
       allowance1,
-      hogBalance,
-      hogAllowance,
+      nativeBalance,
+      nativeAllowance,
     );
     if (predicted) heights.push(predicted.stateBlockHeight);
     if (heights.some((height) => height !== heights[0])) continue;
@@ -223,19 +223,19 @@ export async function preparePoolCreation(
         "The account does not have enough of both tokens for the reviewed deposit",
       );
     }
-    const requiredNativeHog = dependencies.requiredNativeHog ?? totalFunding;
-    const nativeHogBase58 = toBase58(config.nativeHogAddress);
+    const requiredNativeToken = dependencies.requiredNativeToken ?? totalFunding;
+    const nativeTokenBase58 = toBase58(config.nativeTokenAddress);
     const nativeLiquidity =
-      (details0.addressBase58 === nativeHogBase58 ? amount0 : 0n) +
-      (details1.addressBase58 === nativeHogBase58 ? amount1 : 0n);
+      (details0.addressBase58 === nativeTokenBase58 ? amount0 : 0n) +
+      (details1.addressBase58 === nativeTokenBase58 ? amount1 : 0n);
     if (
-      reservedNativeHog < 0n ||
-      requiredNativeHog < 0n ||
-      hogBalance.value < reservedNativeHog + requiredNativeHog + nativeLiquidity
+      reservedNativeToken < 0n ||
+      requiredNativeToken < 0n ||
+      nativeBalance.value < reservedNativeToken + requiredNativeToken + nativeLiquidity
     ) {
       throw new PoolCreationValidationError(
-        "hogBalance",
-        "The account does not have enough unreserved HOG for pool creation",
+        "nativeBalance",
+        "The account does not have enough unreserved native tokens for pool creation",
       );
     }
     return {
@@ -253,14 +253,14 @@ export async function preparePoolCreation(
       ),
       pool,
       ...(predicted ? { predictedPool: predicted.value } : {}),
-      nativeHogBalance: hogBalance.value,
-      nativeHogAllowance: hogAllowance.value,
+      nativeTokenBalance: nativeBalance.value,
+      nativeTokenAllowance: nativeAllowance.value,
       fundingMinimum: funding.value.min,
       fundingPerContract: funding.value.recommended,
       totalFunding,
       fundingApprovalDifference: positiveDifference(
         totalFunding,
-        hogAllowance.value,
+        nativeAllowance.value,
       ),
       initialLiquidity,
       readHeight: heights[0]!,

@@ -4,14 +4,14 @@
 # merge with global profiles of the same name, and project aliases override
 # global aliases.
 #
-# Keep an explicit local default for build scripts using older supported CLI
-# releases, including CI and fresh clones without global configuration.
-# Newer CLIs can build with the local overlay even without a selected default.
+# `thruput build` needs an active profile, so this file is what lets the
+# build scripts run on a machine with no global config -- CI, or a fresh
+# clone. Without it every build fails with "no active profile selected".
 
 default_profile = "local"
 
 [profile.local]
 network = "local"
 
-[profile.futurenet]
-network = "futurenet"
+[profile.devnet]
+network = "devnet"

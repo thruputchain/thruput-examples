@@ -382,7 +382,7 @@ describe("infrastructure-only launchpad provisioning", () => {
     ).toEqual([
       "VITE_THRUPUT_RPC_URL",
       "VITE_THRUPUT_NETWORK_ID",
-      "VITE_NATIVE_HOG_ADDRESS",
+      "VITE_NATIVE_TOKEN_ADDRESS",
       "VITE_NATIVE_BALANCE_ITEM_COST",
       "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
       "VITE_STANDARD_TOKEN_HASH",

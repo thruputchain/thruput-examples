@@ -19,7 +19,7 @@ function reviewed(): FactoryReview {
   const config = configuration();
   return {
     config: {
-      native_token: config.nativeHogAddress,
+      native_token: config.nativeTokenAddress,
       token_code_hash: fixedBytes(config.expectedTokenHash, 32),
       required_token_funding: 100n,
       creation_fee: 0n,

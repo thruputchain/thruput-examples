@@ -36,7 +36,7 @@ it("shows the current balance, prevents duplicate clicks, and updates one toast 
   vi.stubGlobal("fetch", fetchMock);
   const { rerender } = render(<AppHeader canTopup signerBalance={0n} />);
   const button = screen.getByRole("button", {
-    name: "Top up Signer (curr 0 HOG)",
+    name: "Top up Signer (curr 0 native tokens)",
   }) as HTMLButtonElement;
   expect(button.disabled).toBe(false);
   fireEvent.click(button);
@@ -56,14 +56,14 @@ it("shows the current balance, prevents duplicate clicks, and updates one toast 
     }),
   );
   await waitFor(() =>
-    expect(toast.success).toHaveBeenCalledWith("Signer received 10 HOG.", {
+    expect(toast.success).toHaveBeenCalledWith("Signer received 10 native tokens.", {
       id: "topup-toast",
     }),
   );
   expect(button.disabled).toBe(false);
   rerender(<AppHeader canTopup signerBalance={100_000_000n} />);
   expect(
-    screen.getByRole("button", { name: "Top up Signer (curr 10 HOG)" }),
+    screen.getByRole("button", { name: "Top up Signer (curr 10 native tokens)" }),
   ).toBe(button);
 });
 
@@ -87,7 +87,7 @@ it("uses an error toast and permits a new attempt", async () => {
   );
   render(<AppHeader canTopup signerBalance={189_986_486n} />);
   const button = screen.getByRole("button", {
-    name: "Top up Signer (curr 18.998 HOG)",
+    name: "Top up Signer (curr 18.998 native tokens)",
   }) as HTMLButtonElement;
   fireEvent.click(button);
   await waitFor(() =>
@@ -100,7 +100,7 @@ it("uses an error toast and permits a new attempt", async () => {
   fireEvent.click(button);
   await waitFor(() =>
     expect(toast.success).toHaveBeenCalledWith(
-      "Signer received 1.0000001 HOG.",
+      "Signer received 1.0000001 native tokens.",
       { id: "topup-toast" },
     ),
   );

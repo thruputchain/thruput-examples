@@ -40,7 +40,7 @@ describe("createErc20ReadAdapter", () => {
       .fn()
       .mockResolvedValueOnce(response(encode(Uint128Codec, 7n)))
       .mockResolvedValueOnce(response(encodeOptionalString("Thruput")))
-      .mockResolvedValueOnce(response(encodeOptionalString("HOG")))
+      .mockResolvedValueOnce(response(encodeOptionalString("THRU")))
       .mockResolvedValueOnce(response(encode(OptionCodec(Uint32Codec), 6n)));
     const adapter = createErc20ReadAdapter({
       client: { simulateInvocation: view },
@@ -55,7 +55,7 @@ describe("createErc20ReadAdapter", () => {
     });
     await expect(adapter.metadata()).resolves.toEqual({
       name: { value: "Thruput", stateBlockHeight: 1n, events: [] },
-      symbol: { value: "HOG", stateBlockHeight: 1n, events: [] },
+      symbol: { value: "THRU", stateBlockHeight: 1n, events: [] },
       decimals: { value: 6, stateBlockHeight: 1n, events: [] },
     });
   });
@@ -64,7 +64,7 @@ describe("createErc20ReadAdapter", () => {
     const view = vi
       .fn()
       .mockRejectedValueOnce(new Error("name unavailable"))
-      .mockResolvedValueOnce(response(encodeOptionalString("HOG")))
+      .mockResolvedValueOnce(response(encodeOptionalString("THRU")))
       .mockResolvedValueOnce(response(encode(OptionCodec(Uint32Codec), 18n)));
     const adapter = createErc20ReadAdapter({
       client: { simulateInvocation: view },

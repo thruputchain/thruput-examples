@@ -87,7 +87,7 @@ The crank drains requests until the queue empties or the transaction's gas
 limit runs out, so **the caller's declared gas limit is the batch size**
 (`swap_driver::process_requests_gas(batch_size)` computes it). Execution costs
 no fees, but a root transaction's declared limit is the throughput capacity the
-scheduler charges against the caller's free HOG, spent whether or not the batch
+scheduler charges against the caller's free native tokens, spent whether or not the batch
 fills it — so a user cranking to hurry its own request along asks for a small
 batch, and one draining a backlog asks for a large one.
 
@@ -150,13 +150,13 @@ Holding out for ten builds up the queue for three blocks and then handles the
 ten requests: the same throughput, since it was arrival-limited all along, but
 at three or four blocks of latency instead. A depth threshold would only pay
 for itself if a crank carried a large fixed cost independent of its batch size,
-and it does not: the hog-allocation cost is the declared gas limit, which
+and it does not: the native-token allocation cost is the declared gas limit, which
 scales with the batch asked for.
 
 ### Nobody has to be on duty
 
 Cranking is permissionless and the administrator carries no standing
-obligation: a pool works if its users crank for themselves, and needs no HOG
+obligation: a pool works if its users crank for themselves, and needs no native tokens
 from its operator beyond the storage its contracts hold.
 
 An operator wanting better latency can run a keeper that cranks every block.
@@ -228,9 +228,9 @@ derives from its deployer, so no one else can deploy to the address the factory
 predicted for a pool.
 
 Funding is part of the same transaction. Each of the three contracts pays for
-its own storage, so each must hold HOG before it writes any; `create_pair` takes
+its own storage, so each must hold native tokens before it writes any; `create_pair` takes
 a `funding` and moves that much to each address *before* deploying to it, which
-deterministic deploy addresses make possible. The HOG comes from the caller, on
+deterministic deploy addresses make possible. The native tokens come from the caller, on
 an allowance granted to the factory — out of the factory's own balance, anyone
 could drain it by creating pools.
 
@@ -244,7 +244,7 @@ answers with that floor and the figure it recommends instead. Past the floor,
 a shortfall is felt at the transaction's reservation, which returns it to the
 mempool to retry and expire rather than including a failure in the block.
 
-Because creation spends the creator's HOG, the router does not do it.
+Because creation spends the creator's native tokens, the router does not do it.
 UniswapV2's router creates a pair on the first `addLiquidity`; ours resolves
 every operation's pair against the factory's registry and throws
 `SwapRouterError::NoSuchPair` if it is not there, leaving pool creation an

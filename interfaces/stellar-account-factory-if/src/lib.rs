@@ -16,9 +16,9 @@ pub use thruput_sdk::{ContractAddress, Ed25519PublicKey, SHA256Hash};
 pub struct FactoryConfig {
     /// Hash of the only account artifact this factory may deploy.
     pub account_code_hash: SHA256Hash,
-    /// Native HOG contract used to check a new account's starting balance.
+    /// Native token contract used to check a new account's starting balance.
     pub native_token: ContractAddress,
-    /// Native HOG an account address must hold before it can be created:
+    /// Native-token amount an account address must hold before it can be created:
     /// Stellar's starting balance, and where hogd's deployment storage charge
     /// lands.
     pub required_funding: Amount,

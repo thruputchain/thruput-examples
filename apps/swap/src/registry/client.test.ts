@@ -18,7 +18,7 @@ const config: GlobalConfig = {
   accountAddress: contractAddress(new Uint8Array(32).fill(1)),
   routerAddress: contractAddress(new Uint8Array(32).fill(2)),
   factoryAddress: contractAddress(new Uint8Array(32).fill(3)),
-  nativeHogAddress: contractAddress(new Uint8Array(32).fill(4)),
+  nativeTokenAddress: contractAddress(new Uint8Array(32).fill(4)),
 };
 
 describe("pool registry client", () => {

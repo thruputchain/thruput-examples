@@ -16,7 +16,7 @@ impl Cfg {
     /// rather than routing at an address with nothing behind it.
     ///
     /// The router never creates a pool. UniswapV2's router does, on first `addLiquidity`, but
-    /// creating one here costs its creator real HOG -- the pool's contracts are funded as they are
+    /// creating one here costs its creator real native tokens -- the pool's contracts are funded as they are
     /// deployed -- and that is not something to have happen as a side effect of an operation on a
     /// pair the caller believed already existed. Pools are created by calling
     /// [`SwapFactory::create_pair`] directly.

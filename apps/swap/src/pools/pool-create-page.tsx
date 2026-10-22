@@ -66,7 +66,7 @@ import {
   hasBlockingCreationTransaction,
   loadAccountCreationWorkflows,
   loadCreationWorkflow,
-  reservedCreationHog,
+  reservedCreationNativeToken,
   reservedCreationToken,
   saveCreationWorkflow,
   sameCreationIntent,
@@ -126,7 +126,7 @@ export function PoolCreatePage({
     toBase58(config.accountAddress),
     toBase58(config.factoryAddress),
     toBase58(config.routerAddress),
-    toBase58(config.nativeHogAddress),
+    toBase58(config.nativeTokenAddress),
   ]);
   return <CreationPage key={scope} config={config} {...props} />;
 }
@@ -248,19 +248,19 @@ function CreationPage({
     setError(null);
     try {
       const accountWorkflows = loadAccountCreationWorkflows(config);
-      const nativeHogBase58 = toBase58(config.nativeHogAddress);
+      const nativeTokenBase58 = toBase58(config.nativeTokenAddress);
       const next = await prepare(
         config,
         input,
-        reservedCreationHog(accountWorkflows) +
-          reservedCreationToken(accountWorkflows, nativeHogBase58) +
+        reservedCreationNativeToken(accountWorkflows) +
+          reservedCreationToken(accountWorkflows, nativeTokenBase58) +
           reservedInputForToken(
             loadAccountRequestRecords(config),
-            nativeHogBase58,
+            nativeTokenBase58,
           ) +
           reservedLiquidityTokenAmount(
             loadAccountLiquidityOperations(config),
-            nativeHogBase58,
+            nativeTokenBase58,
           ),
         { client },
       );
@@ -317,7 +317,7 @@ function CreationPage({
       ) {
         const cleanup = await runAllowanceCleanup(
           config,
-          config.nativeHogAddress,
+          config.nativeTokenAddress,
           config.factoryAddress,
           {
             client,
@@ -980,18 +980,18 @@ function CreationReviewCard({
           />
           <ReviewRow
             label="Funding minimum"
-            value={`${review.fundingMinimum} HOG base units per contract`}
+            value={`${review.fundingMinimum} native-token base units per contract`}
           />
           <ReviewRow
             label="Recommended funding"
-            value={`${review.fundingPerContract} HOG base units per contract`}
+            value={`${review.fundingPerContract} native-token base units per contract`}
           />
         </dl>
         <div className="flex flex-col gap-3">
           <div>
             <h3 className="font-medium">Atomic factory funding</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              The factory recommends {review.totalFunding} HOG base units across
+              The factory recommends {review.totalFunding} native-token base units across
               the LP token, handler, and driver. The app will approve{" "}
               {review.fundingApprovalDifference} additional base units, then
               create and fund all three contracts atomically.
@@ -1084,7 +1084,7 @@ function CreationProgressCard({
                 symbol={workflow.token1.symbol}
                 address={workflow.token1.address}
               />
-              . Factory funding: {workflow.totalFunding} HOG base units (
+              . Factory funding: {workflow.totalFunding} native-token base units (
               {workflow.fundingPerContract} per contract; minimum{" "}
               {workflow.fundingMinimum}).
             </CardDescription>
@@ -1318,7 +1318,7 @@ async function readFactoryAllowance(
 ): Promise<{ value: bigint; height: bigint }> {
   const token = createErc20ReadAdapter({
     client,
-    contract: config.nativeHogAddress,
+    contract: config.nativeTokenAddress,
     caller: config.accountAddress,
   });
   const view = await token.allowance(

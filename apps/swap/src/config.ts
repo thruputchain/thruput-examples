@@ -26,7 +26,7 @@ export interface GlobalConfig {
   accountAddress: ContractAddress;
   routerAddress: ContractAddress;
   factoryAddress: ContractAddress;
-  nativeHogAddress: ContractAddress;
+  nativeTokenAddress: ContractAddress;
 }
 
 export interface AppConfig extends GlobalConfig {
@@ -75,7 +75,7 @@ export function loadGlobalConfig(environment: Environment): GlobalConfig {
         }),
     routerAddress: address(environment, "VITE_SWAP_ROUTER_ADDRESS"),
     factoryAddress: address(environment, "VITE_SWAP_FACTORY_ADDRESS"),
-    nativeHogAddress: address(environment, "VITE_NATIVE_HOG_ADDRESS"),
+    nativeTokenAddress: address(environment, "VITE_NATIVE_TOKEN_ADDRESS"),
   };
 }
 

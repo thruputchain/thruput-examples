@@ -150,7 +150,7 @@ impl StellarAccount {
         self.config.get().weights
     }
 
-    /// Stellar's `payment`: an ERC20 transfer from this account. Native HOG
+    /// Stellar's `payment`: an ERC20 transfer from this account. The native token
     /// is the ERC20 at `thruput_sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN`.
     /// Medium threshold.
     pub fn payment(&self, asset: &ContractAddress, to: &ContractAddress, amount: Amount) {

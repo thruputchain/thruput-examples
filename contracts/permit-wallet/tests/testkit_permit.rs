@@ -62,7 +62,7 @@ const HORIZON: i64 = 1_000;
 /// been consumed under at the wallet. Later operations count up from it.
 const NONCE: u64 = 7;
 
-/// Native (HOG) storage tokens the admin grants each contract that writes
+/// Native storage tokens the admin grants each contract that writes
 /// storage: the wallet records consumed permits, the token records balances
 /// and allowances. The relayer keeps no state and needs none.
 const CONTRACT_FUNDING: i128 = 1_000_000_000;

@@ -41,7 +41,7 @@ const before = await waitForView(() =>
   }),
 );
 
-const amount = parseUnits("0.0001", 7); // HOG has seven decimal places.
+const amount = parseUnits("0.0001", 7); // The native token has seven decimal places.
 
 // Everything from here on is identical for both accounts.
 async function fundAndTransfer(sender: PubkeyAccount) {
