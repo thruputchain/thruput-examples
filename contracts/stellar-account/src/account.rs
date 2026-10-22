@@ -63,10 +63,18 @@ impl StellarAccount {
         config
     }
 
-    /// Register `key` at `slot` with `weight` on this address.
-    fn register(slot: u32, key: &Ed25519PublicKey, weight: u32) {
-        add_address_public_key(slot, PublicKey::Ed25519 { ed25519: *key }, weight)
+    /// Register `key` at `slot` with `weight` on this address. The key may be
+    /// Ed25519 or ML-DSA-65.
+    fn register(slot: u32, key: &PublicKey, weight: u32) {
+        add_address_public_key(slot, key.clone(), weight)
             .or_syscall_throw(SyscallNo::kChangePublicKeyRegistration);
+    }
+
+    /// The master key as a registrable key. Master keys are always Ed25519.
+    fn master_public_key(config: &AccountConfig) -> PublicKey {
+        PublicKey::Ed25519 {
+            ed25519: config.master_key,
+        }
     }
 
     /// Deregister `slot` on this address.
@@ -116,7 +124,13 @@ impl StellarAccountInitializer for StellarAccount {
         }
         let mut weights = [0u32; MAX_SIGNERS];
         weights[0] = 1;
-        Self::register(0, master_key, 1);
+        Self::register(
+            0,
+            &PublicKey::Ed25519 {
+                ed25519: *master_key,
+            },
+            1,
+        );
         Self::write_chain_threshold(1);
         self.config.set(&AccountConfig {
             master_key: *master_key,
@@ -161,11 +175,20 @@ impl StellarAccount {
     /// Stellar `set_options` adding or replacing a signer. Slot 0 is the
     /// master key and cannot be re-keyed, and the master key cannot take a
     /// second slot (that would count its weight twice). High threshold.
-    pub fn set_signer(&mut self, slot: u32, key: &Ed25519PublicKey, weight: u32) {
+    ///
+    /// Unlike Stellar, a signer may be an Ed25519 or an ML-DSA-65 key. The key
+    /// arrives only as calldata and goes straight into the chain's
+    /// registration: it is never stored here, emitted, or returned. An encoded
+    /// ML-DSA-65 key is 1953 bytes, over the chain's default 1024-byte limit
+    /// on a storage value, an event, and a return buffer.
+    pub fn set_signer(&mut self, slot: u32, key: &PublicKey, weight: u32) {
         let mut config = self.authorize(Category::High);
         Self::check_signer_slot(slot);
         ensure(weight >= 1, AccountError::ZeroWeight);
-        ensure(*key != config.master_key, AccountError::InvalidSlot);
+        ensure(
+            *key != Self::master_public_key(&config),
+            AccountError::InvalidSlot,
+        );
         Self::register(slot, key, weight);
         config.weights[slot as usize] = weight;
         self.commit(&config);
@@ -198,7 +221,7 @@ impl StellarAccount {
         if weight == 0 {
             Self::deregister(0);
         } else {
-            Self::register(0, &config.master_key, weight);
+            Self::register(0, &Self::master_public_key(&config), weight);
         }
         config.weights[0] = weight;
         self.commit(&config);

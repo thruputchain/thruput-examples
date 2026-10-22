@@ -34,7 +34,7 @@ use thruput_signing::{
 };
 use thruput_testkit::xdr::auth_claim::{AuthClaim, AuthClaim_source_address_claim};
 use thruput_testkit::xdr::transaction::{DecoratedSignature, SignedTransaction};
-use thruput_testkit::xdr::types::{ContractAddress, Ed25519PublicKey, NetworkHash};
+use thruput_testkit::xdr::types::{ContractAddress, Ed25519PublicKey, NetworkHash, PublicKey};
 use thruput_testkit::{
     Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Scenario,
     entrypoint_id, xdrs,
@@ -209,7 +209,13 @@ fn admin() -> Agent {
             &network,
             account,
             "set_signer",
-            &(1u32, public_key(&SECOND_SEED), 1u32),
+            &(
+                1u32,
+                PublicKey::Ed25519 {
+                    ed25519: public_key(&SECOND_SEED),
+                },
+                1u32,
+            ),
             1,
             &[(0, &master)],
             1,

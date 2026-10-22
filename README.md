@@ -141,7 +141,7 @@ These combine several concepts. Read a small example first.
 | [Standard token](contracts/standard-token/) and [factory](contracts/standard-token-factory/) | Factory-created tokens, used by Launchpad |
 | [Swap contracts](contracts/swap-router/README.md) | Pools, routing, queued requests, and liquidity |
 | [Speedex](contracts/speedex/README.md) | Multi-asset batch exchange and clearing |
-| [Stellar account](contracts/stellar-account/README.md) | Weighted signers and operation thresholds |
+| [Stellar account](contracts/stellar-account/README.md) | Weighted Ed25519 and ML-DSA-65 signers and operation thresholds |
 
 ## Applications
 
