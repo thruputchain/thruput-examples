@@ -5,7 +5,7 @@ import {
   createPubkeyAccount,
   createWalletClient,
   fixedBytes,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
 } from "@thruputchain/client";
 import { DefaultWallet } from "@thruputchain/client/contracts";
@@ -22,7 +22,7 @@ if (!addressText)
 const address = parseAddress(addressText);
 const client = await createLocalClient();
 const account = createPubkeyAccount({
-  signer: new PrivateKeySigner(randomBytes(32)),
+  signer: new Ed25519Signer(randomBytes(32)),
 });
 const wallet = createWalletClient({ client, account });
 await wallet.requestAirdrop();

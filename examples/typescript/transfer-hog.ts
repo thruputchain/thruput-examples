@@ -4,7 +4,7 @@ import {
   createPubkeyAccount,
   createWalletClient,
   parseUnits,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
@@ -15,10 +15,10 @@ import { waitForView } from "./wait-for-view.ts";
 const client = await createLocalClient();
 // Disposable local accounts: neither private key is printed or saved.
 const sender = createPubkeyAccount({
-  signer: new PrivateKeySigner(randomBytes(32)),
+  signer: new Ed25519Signer(randomBytes(32)),
 });
 const recipient = createPubkeyAccount({
-  signer: new PrivateKeySigner(randomBytes(32)),
+  signer: new Ed25519Signer(randomBytes(32)),
 });
 const wallet = createWalletClient({ client, account: sender });
 

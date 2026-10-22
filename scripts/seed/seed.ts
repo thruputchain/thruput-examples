@@ -15,7 +15,7 @@ import {
   hashFromBase58,
   localnet,
   parseAddress,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
   toHex0x,
 } from "@thruputchain/client";
@@ -172,7 +172,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     }
 
     const account = createPubkeyAccount({
-      signer: new PrivateKeySigner(randomBytes(32)),
+      signer: new Ed25519Signer(randomBytes(32)),
     });
     const wallet = createWalletClient({ client, account });
     console.log(

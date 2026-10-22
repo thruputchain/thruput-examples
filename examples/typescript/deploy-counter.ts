@@ -5,7 +5,7 @@ import {
   createPubkeyAccount,
   createWalletClient,
   prepareContractDeployment,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
 } from "@thruputchain/client";
 import { gasAmount } from "@thruputchain/protocol";
@@ -19,7 +19,7 @@ const contract = await readFile(
 );
 const client = await createLocalClient();
 const account = createPubkeyAccount({
-  signer: new PrivateKeySigner(randomBytes(32)),
+  signer: new Ed25519Signer(randomBytes(32)),
 });
 const wallet = createWalletClient({ client, account });
 const funding = await wallet.requestAirdrop();

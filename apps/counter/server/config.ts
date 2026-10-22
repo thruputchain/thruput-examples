@@ -1,7 +1,7 @@
 import {
   createPubkeyAccount,
   fromHex0x,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
 } from "@thruputchain/client";
 import {
@@ -24,7 +24,7 @@ export function loadServerConfig(
     : null;
   const account = signingPrivateKey
     ? createPubkeyAccount({
-        signer: new PrivateKeySigner(fromHex0x(signingPrivateKey)),
+        signer: new Ed25519Signer(fromHex0x(signingPrivateKey)),
       })
     : null;
   return {

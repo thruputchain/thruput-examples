@@ -11,7 +11,7 @@ import {
   fromHex0x,
   hashFromBase58,
   hashSignedTransaction,
-  PrivateKeySigner,
+  Ed25519Signer,
   MockTransport,
   serializeSignedTransaction,
   signTransaction,
@@ -47,7 +47,7 @@ const environment = {
 };
 const config = loadServerConfig(environment);
 const account = createPubkeyAccount({
-  signer: new PrivateKeySigner(fromHex0x(`0x${key}`)),
+  signer: new Ed25519Signer(fromHex0x(`0x${key}`)),
 });
 const expectedNetwork = networkHash(hashFromBase58(config.app.networkId));
 const contract = addressFromBase58(config.app.counterAddress);

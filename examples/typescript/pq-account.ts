@@ -5,7 +5,7 @@ import {
   createWalletClient,
   MlDsa65Signer,
   parseUnits,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
   type PubkeyAccount,
 } from "@thruputchain/client";
@@ -18,13 +18,13 @@ const client = await createLocalClient();
 
 // The only scheme-specific line: pick a signer. Disposable keys, never saved.
 const ed25519Sender = createPubkeyAccount({
-  signer: new PrivateKeySigner(randomBytes(32)),
+  signer: new Ed25519Signer(randomBytes(32)),
 });
 const mlDsa65Sender = createPubkeyAccount({
   signer: MlDsa65Signer.fromSeed(randomBytes(32)),
 });
 const recipient = createPubkeyAccount({
-  signer: new PrivateKeySigner(randomBytes(32)),
+  signer: new Ed25519Signer(randomBytes(32)),
 });
 
 // Fund the recipient once so the tiny transfers need not pay for a balance row.

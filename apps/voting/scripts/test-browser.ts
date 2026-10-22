@@ -9,7 +9,7 @@ import { createServer } from "vite";
 import {
   createPubkeyAccount,
   createWalletClient,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
   toHex0x,
   signTransaction,
@@ -27,8 +27,8 @@ import { localClient, deployVoting } from "./setup-local";
 const client = await localClient();
 const address = await deployVoting(client);
 const signers = [
-  new PrivateKeySigner(randomBytes(32)),
-  new PrivateKeySigner(randomBytes(32)),
+  new Ed25519Signer(randomBytes(32)),
+  new Ed25519Signer(randomBytes(32)),
 ];
 const accounts: WalletAccount[] = [];
 for (const signer of signers) {

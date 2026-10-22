@@ -13,7 +13,7 @@ import {
   createPubkeyAccount,
   createWalletClient,
   localnet,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
   toHex0x,
   signTransaction,
@@ -128,8 +128,8 @@ try {
     cluster: localnet({ rpcUrl: ready!.data.rpcUrl }),
   });
   const signers = [
-    new PrivateKeySigner(randomBytes(32)),
-    new PrivateKeySigner(randomBytes(32)),
+    new Ed25519Signer(randomBytes(32)),
+    new Ed25519Signer(randomBytes(32)),
   ];
   const accounts: WalletAccount[] = [];
   for (const signer of signers) {

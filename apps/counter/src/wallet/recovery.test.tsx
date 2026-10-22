@@ -14,7 +14,7 @@ import {
   createTransaction,
   defaultWalletAdapter,
   hashSignedTransaction,
-  PrivateKeySigner,
+  Ed25519Signer,
   serializeSignedTransaction,
   signTransaction,
   toBase58,
@@ -77,7 +77,7 @@ const key = pendingKey(zero58, address);
 let query: QueryClient;
 let fixture: Awaited<ReturnType<typeof signedUpdate>>;
 async function signedUpdate() {
-  const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
+  const signer = new Ed25519Signer(new Uint8Array(32).fill(1));
   const account = createPubkeyAccount({ signer });
   const tx = createTransaction({
     invocation: defaultWalletAdapter.createRootInvocation(account.address, {

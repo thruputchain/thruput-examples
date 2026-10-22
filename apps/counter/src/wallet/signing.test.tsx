@@ -12,7 +12,7 @@ import {
   createThruputClient,
   createPubkeyAccount,
   defineCluster,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
 } from "@thruputchain/client";
 import { MockTransport } from "@thruputchain/client/transport";
@@ -63,7 +63,7 @@ async function setup(withSigner = true) {
   }));
   const network = toBase58(new Uint8Array(32));
   const accounts = [1, 2].map((seed) => {
-    const signer = new PrivateKeySigner(new Uint8Array(32).fill(seed));
+    const signer = new Ed25519Signer(new Uint8Array(32).fill(seed));
     return {
       address: toBase58(createPubkeyAccount({ signer }).address),
       publicKey: toBase58(signer.publicKey.ed25519),

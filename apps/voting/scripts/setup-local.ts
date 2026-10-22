@@ -8,7 +8,7 @@ import {
   createWalletClient,
   defineCluster,
   hashFromBase58,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
@@ -46,7 +46,7 @@ export async function deployVoting(
   client: Awaited<ReturnType<typeof localClient>>,
 ) {
   const account = createPubkeyAccount({
-    signer: new PrivateKeySigner(randomBytes(32)),
+    signer: new Ed25519Signer(randomBytes(32)),
   });
   const wallet = createWalletClient({ client, account });
   const funding = await wallet.requestAirdrop();

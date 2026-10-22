@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { createServer } from "vite";
-import { PrivateKeySigner, toBase58, MockTransport } from "@thruputchain/client";
+import { Ed25519Signer, toBase58, MockTransport } from "@thruputchain/client";
 import { createPubkeyAccount } from "@thruputchain/client/wallet";
 
 async function checkBrand(page) {
@@ -79,7 +79,7 @@ try {
     hasTouch: true,
   });
   // Only a public identity crosses into this UI fixture. It cannot sign or submit.
-  const signer = new PrivateKeySigner(new Uint8Array(32).fill(9));
+  const signer = new Ed25519Signer(new Uint8Array(32).fill(9));
   const account = createPubkeyAccount({ signer });
   await context.addInitScript(
     (session) => {

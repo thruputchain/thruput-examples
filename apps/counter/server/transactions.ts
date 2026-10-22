@@ -10,7 +10,7 @@ import {
   fromHex0x,
   hashFromBase58,
   HttpTransport,
-  PrivateKeySigner,
+  Ed25519Signer,
   serializeSignedTransaction,
   toBase58,
   toHex0x,
@@ -62,7 +62,7 @@ export function createCounterTransactions(
   if (!config.signingPrivateKey)
     throw new CounterPolicyError("Development signer is not configured.");
   const account = createPubkeyAccount({
-    signer: new PrivateKeySigner(fromHex0x(config.signingPrivateKey)),
+    signer: new Ed25519Signer(fromHex0x(config.signingPrivateKey)),
   });
   const expected = networkHash(hashFromBase58(config.app.networkId));
   const contract = addressFromBase58(config.app.counterAddress);

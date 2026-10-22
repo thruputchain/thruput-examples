@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import {
   createPubkeyAccount,
   hashSignedTransaction,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
   type TransactionReceipt,
 } from "@thruputchain/client";
@@ -24,7 +24,7 @@ import { submitSeedTransaction } from "./seed-transaction.ts";
 afterEach(() => vi.restoreAllMocks());
 
 async function fixture() {
-  const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
+  const signer = new Ed25519Signer(new Uint8Array(32).fill(1));
   const account = createPubkeyAccount({ signer });
   const invocation = ERC20.v0_1.transfer.invocation(
     HOG_ADDRESS,

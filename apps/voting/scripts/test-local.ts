@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import {
   createPubkeyAccount,
   createWalletClient,
-  PrivateKeySigner,
+  Ed25519Signer,
   TransactionExecutionError,
   toBase58,
 } from "@thruputchain/client";
@@ -22,7 +22,7 @@ const address = await deployVoting(client);
 const config = { address, networkId: toBase58(client.network.networkHash) };
 async function participant() {
   const account = createPubkeyAccount({
-    signer: new PrivateKeySigner(randomBytes(32)),
+    signer: new Ed25519Signer(randomBytes(32)),
   });
   const wallet = createWalletClient({ client, account });
   assert.equal((await wallet.requestAirdrop()).attemptStatus, "succeeded");

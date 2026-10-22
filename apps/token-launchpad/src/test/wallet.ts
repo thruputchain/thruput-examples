@@ -3,7 +3,7 @@ import {
   defineCluster,
   hashFromBase58,
   MockTransport,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
 } from "@thruputchain/client";
 import { createPubkeyAccount } from "@thruputchain/client/wallet";
@@ -32,7 +32,7 @@ export function testClient(networkId: string) {
 }
 
 export function testAccount(nonce = 1n) {
-  const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
+  const signer = new Ed25519Signer(new Uint8Array(32).fill(1));
   const account = createPubkeyAccount({ signer, nonce });
   return {
     address: toBase58(account.address),

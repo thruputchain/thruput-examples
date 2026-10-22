@@ -7,7 +7,7 @@ import {
   createTransaction,
   defaultWalletAdapter,
   hashSignedTransaction,
-  PrivateKeySigner,
+  Ed25519Signer,
   serializeSignedTransaction,
   signTransaction,
   toBase58,
@@ -62,7 +62,7 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 );
 
 beforeEach(async () => {
-  const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
+  const signer = new Ed25519Signer(new Uint8Array(32).fill(1));
   const account = createPubkeyAccount({ signer });
   const transaction = createTransaction({
     invocation: defaultWalletAdapter.createRootInvocation(account.address, {

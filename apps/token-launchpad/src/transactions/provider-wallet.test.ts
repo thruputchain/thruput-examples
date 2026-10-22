@@ -1,7 +1,7 @@
 import {
   hashFromBase58,
   hashSignedTransaction,
-  PrivateKeySigner,
+  Ed25519Signer,
   signTransaction,
   toHex0x,
   TransactionReceiptTimeoutError,
@@ -59,7 +59,7 @@ const target = {
     calldata: calldata(new Uint8Array()),
   },
 };
-const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
+const signer = new Ed25519Signer(new Uint8Array(32).fill(1));
 const localAccount = createPubkeyAccount({ signer, nonce: 7n });
 const account = {
   address: toBase58(localAccount.address),

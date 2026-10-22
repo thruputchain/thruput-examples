@@ -94,7 +94,7 @@ An ML-DSA-65 key is a pubkey account just like an Ed25519 key. The only
 difference in the script is which signer creates the account:
 
 ```ts
-createPubkeyAccount({ signer: new PrivateKeySigner(randomBytes(32)) }); // Ed25519
+createPubkeyAccount({ signer: new Ed25519Signer(randomBytes(32)) }); // Ed25519
 createPubkeyAccount({ signer: MlDsa65Signer.fromSeed(randomBytes(32)) }); // ML-DSA-65
 ```
 

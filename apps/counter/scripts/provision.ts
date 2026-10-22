@@ -9,7 +9,7 @@ import {
   defineCluster,
   hashFromBase58,
   HttpTransport,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
   toHex0x,
 } from "@thruputchain/client";
@@ -56,7 +56,7 @@ export async function provisionCounter(options: {
     resolve(repositoryRoot, options.artifact || "target/thruput/counter.rv32a"),
   );
   const key = randomBytes(32);
-  const account = createPubkeyAccount({ signer: new PrivateKeySigner(key) });
+  const account = createPubkeyAccount({ signer: new Ed25519Signer(key) });
   const wallet = createWalletClient({ client, account });
   const deployment = prepareContractDeployment({
     deployer: account.address,

@@ -7,7 +7,7 @@ import {
   TransactionReceiptTimeoutError,
   NativeRpcError,
   JsonRpcError,
-  PrivateKeySigner,
+  Ed25519Signer,
   createPubkeyAccount,
   createTransaction,
   signTransaction,
@@ -54,7 +54,7 @@ const target = {
   gas_limit: gasAmount(1n),
   calldata: calldata(new Uint8Array()),
 };
-const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
+const signer = new Ed25519Signer(new Uint8Array(32).fill(1));
 const account = createPubkeyAccount({ signer });
 const signed = await signTransaction(
   createTransaction({
