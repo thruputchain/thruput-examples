@@ -31,14 +31,13 @@ const recipient = createPubkeyAccount({
 const recipientFunding = await client.requestAirdrop({
   recipient: recipient.address,
 });
-assert.equal(recipientFunding.status.result, "ok", "Recipient airdrop failed");
 const before = await waitForView(() =>
   ERC20.v0_1.getBalanceOf.view({
     client,
-    contract: HOG_ADDRESS,
+    address: HOG_ADDRESS,
     caller: recipient.address,
     args: { addr: recipient.address },
-    minHeight: recipientFunding.height,
+    minStateBlockHeight: recipientFunding.blockHeight,
   }),
 );
 
@@ -47,9 +46,8 @@ const amount = parseUnits("0.0001", 7); // HOG has seven decimal places.
 // Everything from here on is identical for both accounts.
 async function fundAndTransfer(sender: PubkeyAccount) {
   const wallet = createWalletClient({ client, account: sender });
-  const funding = await wallet.requestAirdrop();
-  assert.equal(funding.status.result, "ok", "Sender airdrop failed");
-  const { txHash, receipt } = await wallet.executeAndWait(
+  await wallet.requestAirdrop();
+  const { transactionHash, receipt } = await wallet.executeAndWait(
     {
       invocation: ERC20.v0_1.transfer.invocation(
         HOG_ADDRESS,
@@ -60,10 +58,10 @@ async function fundAndTransfer(sender: PubkeyAccount) {
     },
     { timeoutMs: 60_000 },
   );
-  console.error(`committed ${toBase58(txHash)}`);
+  console.error(`committed ${toBase58(transactionHash)}`);
   return {
     sender: toBase58(sender.address),
-    txHash: toBase58(txHash),
+    txHash: toBase58(transactionHash),
     receipt,
   };
 }
@@ -72,16 +70,16 @@ const ed25519 = await fundAndTransfer(ed25519Sender);
 const mlDsa65 = await fundAndTransfer(mlDsa65Sender);
 
 const lastHeight =
-  ed25519.receipt.height > mlDsa65.receipt.height
-    ? ed25519.receipt.height
-    : mlDsa65.receipt.height;
+  ed25519.receipt.blockHeight > mlDsa65.receipt.blockHeight
+    ? ed25519.receipt.blockHeight
+    : mlDsa65.receipt.blockHeight;
 const after = await waitForView(() =>
   ERC20.v0_1.getBalanceOf.view({
     client,
-    contract: HOG_ADDRESS,
+    address: HOG_ADDRESS,
     caller: recipient.address,
     args: { addr: recipient.address },
-    minHeight: lastHeight,
+    minStateBlockHeight: lastHeight,
   }),
 );
 assert.equal(
