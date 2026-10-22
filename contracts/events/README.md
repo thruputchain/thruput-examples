@@ -30,4 +30,4 @@ Change the tagged-action test's code from 7 to 8 and update the expected scalar
 topic. Keep the category unchanged and check that its hashed topic stays equal.
 
 Next: [Cross-call](../cross-call/README.md). For RPC event queries, see
-[the client event example](../../examples/typescript/README.md#5-read-events).
+[the client event example](../../examples/typescript/README.md#6-read-events).

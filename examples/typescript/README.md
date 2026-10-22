@@ -82,7 +82,54 @@ ERC20 view and needs no private key.
 Try the sender's public address too. Its balance also reflects execution costs,
 so do not assume the transfer amount is its only deduction.
 
-## 4. Deploy and call Counter
+## 4. Use a post-quantum (ML-DSA-65) account
+
+Source: [pq-account.ts](pq-account.ts).
+
+```sh
+npm run example:pq-account
+```
+
+An ML-DSA-65 key is a pubkey account just like an Ed25519 key. The only
+difference in the script is which signer creates the account:
+
+```ts
+createPubkeyAccount({ signer: new PrivateKeySigner(randomBytes(32)) }); // Ed25519
+createPubkeyAccount({ signer: MlDsa65Signer.fromSeed(randomBytes(32)) }); // ML-DSA-65
+```
+
+Both accounts then go through the same `fundAndTransfer` function: airdrop,
+DefaultWallet transfer of **0.0001 HOG**, and a committed receipt. The script
+checks that the shared recipient received both transfers.
+
+Expected: an `ed25519` and an `mlDsa65` entry, each with its sender address and
+transaction hash, plus `transferredRawEach: "1000"` and the recipient balance.
+Both addresses are ordinary 32-byte account addresses; the ML-DSA-65 one is
+derived from the scheme-tagged public key hash, so an Ed25519 and an ML-DSA-65
+key never share an address.
+
+The SDK handles the differences for you. The transaction's auth claim names the
+key by hash, and the signed envelope carries the full public key (1,952 bytes)
+and signature (3,309 bytes) instead of Ed25519's 32 and 64. Transaction hashes
+cover only the unsigned body, as for Ed25519.
+
+The CLI follows the same pattern. Only key generation takes a scheme:
+
+```sh
+thruput keys generate pq --scheme mldsa65   # prints the account address
+thruput keys use pq                         # sign with it, as with any key
+thruput airdrop pq --amount 25
+thruput transfer <recipient> 1.5
+thruput tx list pq
+```
+
+ML-DSA-65 keys have no G/S StrKey form; `thruput keys export` prints the 32-byte
+seed in base58. Browser wallets such as Freighter do not yet hold ML-DSA-65 keys.
+
+Try making the recipient an ML-DSA-65 account as well. Receiving needs no
+change either: only the signer that creates the account differs.
+
+## 5. Deploy and call Counter
 
 Source: [deploy-counter.ts](deploy-counter.ts).
 
@@ -116,7 +163,7 @@ The 1-HOG storage reserve and gas limits are local example budgets, not general
 deployment estimates. Try changing the initial value and increment, including
 the expected-value assertion.
 
-## 5. Read events
+## 6. Read events
 
 Source: [read-events.ts](read-events.ts).
 
@@ -133,7 +180,7 @@ does. Results are newest first.
 Try changing the tag emitted by `deploy-counter.ts` and run it again. Update
 `THRUPUT_COUNTER_ADDRESS` to the new deployment before querying its events.
 
-## 6. Submit a batch and prove rollback
+## 7. Submit a batch and prove rollback
 
 Source: [batch-counter.ts](batch-counter.ts).
 
