@@ -13,7 +13,7 @@ import {
   hashContract,
   hashFromBase58,
   HttpTransport,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
   toHex0x,
 } from "@thruputchain/client";
@@ -111,7 +111,7 @@ export async function provisionLaunchpad(options: {
 
   // Tool-only deployer: never export the key or account to browser configuration.
   const account = createPubkeyAccount({
-    signer: new PrivateKeySigner(randomBytes(32)),
+    signer: new Ed25519Signer(randomBytes(32)),
   });
   const wallet = createWalletClient({ client, account });
   const execute = async (invocation: Invocation): Promise<void> => {

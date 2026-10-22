@@ -3,7 +3,7 @@ import {
   createThruputClient,
   localnet,
   MockTransport,
-  PrivateKeySigner,
+  Ed25519Signer,
   toBase58,
 } from "@thruputchain/client";
 import { createPubkeyAccount } from "@thruputchain/client/wallet";
@@ -55,7 +55,7 @@ const config: GlobalConfig = {
   routerAddress: addressFromBase58(toBase58(new Uint8Array(32).fill(0x04))),
   nativeHogAddress: addressFromBase58(toBase58(new Uint8Array(32).fill(0x05))),
 };
-const signer = new PrivateKeySigner(new Uint8Array(32).fill(1));
+const signer = new Ed25519Signer(new Uint8Array(32).fill(1));
 const local = createPubkeyAccount({ signer });
 const session: WalletSession = {
   networkHash: toBase58(new Uint8Array(32)),
