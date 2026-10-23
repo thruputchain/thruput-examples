@@ -578,8 +578,8 @@ fn factory_caller_has_no_implicit_mint_authority() {
 
 #[test]
 fn erc20_identity_comes_from_the_pinned_interface_crates() {
-    assert_eq!(ERC20Client::INTERFACE_VERSION, "0.1.64");
-    assert_eq!(ERC20MetadataClient::INTERFACE_VERSION, "0.1.64");
+    assert_eq!(ERC20Client::INTERFACE_VERSION, "0.1.65");
+    assert_eq!(ERC20MetadataClient::INTERFACE_VERSION, "0.1.65");
     assert_eq!(
         TransferEvent::SIGNATURE,
         thruput_erc20_if::TransferEvent::SIGNATURE
