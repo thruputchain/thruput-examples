@@ -27,7 +27,3 @@ thruput-sdk = { workspace = true }
 
 [dev-dependencies]
 commit-lock-conflict = { path = ".", features = ["dev"] }
-thruput-json-rpc-types = { workspace = true }
-thruput-signing = { workspace = true }
-thruput-testkit = { workspace = true }
-tokio = { workspace = true }

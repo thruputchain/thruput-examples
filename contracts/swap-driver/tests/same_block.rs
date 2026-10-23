@@ -211,6 +211,36 @@ fn revoking_the_allowance_starves_a_queued_request() {
     })
 }
 
+/////////////////////// competing cranks /////////////////////////////////////
+
+// Two cranks in one block both see the same waiting requests, but only the first to claim the drain
+// takes them. The second finds the claim taken, drains nothing, and commits -- it is not left out
+// of the block for consuming what the first consumed.
+#[test]
+fn a_second_crank_in_the_block_finds_the_claim_taken() {
+    transact_assert_success(|| {
+        let etx = setup_etx_primed()?;
+        alice_requests_a_swap(&etx)?;
+        user_requests_a_swap(&etx, CAROL)?;
+        etx.advance_block();
+
+        let (first, counts) = crank_capturing(&etx);
+        first.assert_success();
+        assert_eq!(counts, (2, 0));
+
+        let (second, counts) = crank_capturing(&etx);
+        second.assert_success();
+        assert_eq!(counts, (0, 0));
+        assert_eq!(
+            storage_writes(&second),
+            0,
+            "a crank refused the claim writes nothing"
+        );
+
+        Ok(())
+    })
+}
+
 /////////////////////// helpers /////////////////////////////////////////////
 
 // `user` allows the handler `SWAP_IN_AMT` of token0 and, as the router, enqueues a swap of that

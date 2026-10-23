@@ -374,11 +374,7 @@ name = "commit-lock-conflict"
 version = "0.1.0"
 dependencies = [
  "commit-lock-conflict",
- "thruput-json-rpc-types",
  "thruput-sdk",
- "thruput-signing",
- "thruput-testkit",
- "tokio",
 ]
 
 [[package]]

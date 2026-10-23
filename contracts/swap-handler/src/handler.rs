@@ -19,8 +19,8 @@ pub struct Handler {
     // contract.
     driver: Value<Address>,
 
-    // The transaction that last claimed a drain (see `claim_crank`).
-    crank_claim: Value<SHA256Hash>,
+    // Written exclusively by `claim_crank`, to claim a block's drain.
+    crank_claim: Value<()>,
 
     // State for the swap-pool itself.
     pair: Node<Pair>,
@@ -84,8 +84,9 @@ impl SwapHandler for Handler {
             SwapRequestError::Unauthorized,
         );
 
-        // No two transactions write the same value here.
-        self.crank_claim.set(&get_source_transaction_hash());
+        // Made commit-locked, an exclusive write excludes every other transaction's, whatever
+        // either writes.
+        self.crank_claim.set_exclusive(&());
     }
 }
 

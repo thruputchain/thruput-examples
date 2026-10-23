@@ -14,11 +14,10 @@
 //! so that the caller sees a conflict as that call failing rather than the
 //! whole transaction failing at commit.
 //!
-//! `tests/live.rs` puts `run` transactions into blocks on a local node and
-//! prints what became of them; there, timing decides how two transactions'
-//! calls interleave, so one case can come out several ways. `tests/mock.rs`
-//! reproduces each of those ways in the mock harness, choosing the order
-//! itself, and pins down the rule behind them.
+//! On a node, timing decides how two transactions' calls interleave, so one
+//! case can come out several ways. `tests/mock.rs` reproduces each of those
+//! ways in the mock harness, choosing the order itself, and pins down the rule
+//! behind them.
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
@@ -35,9 +34,8 @@ pub struct Probe {
     // Written exclusively by `run` on the outer instance, when asked to claim.
     claims: Value<u64>,
 
-    // Written by `claim`: the hash of the last transaction to claim this
-    // instance.
-    holder: Value<SHA256Hash>,
+    // Written exclusively by `claim`.
+    claimed: Value<()>,
 }
 
 #[contract]
@@ -53,12 +51,13 @@ impl Probe {
         self.counter.set(&value);
     }
 
-    /// Claim this instance for the calling transaction, by writing its hash.
+    /// Claim this instance for the calling transaction, with an exclusive write.
     ///
-    /// No two transactions write the same value here, so of two commit-locked
-    /// `claim` calls in one block, the second faults.
+    /// An exclusive lock excludes every other transaction, whatever value it
+    /// writes, so of two commit-locked `claim` calls in one block, the second
+    /// faults.
     pub fn claim(&mut self) {
-        self.holder.set(&get_source_transaction_hash());
+        self.claimed.set_exclusive(&());
     }
 
     /// The counter's value.

@@ -1,11 +1,12 @@
-//! The live test's outcomes, reproduced in the mock harness without the race.
+//! How commit-locked calls from two transactions in one block interact,
+//! without the race a node would add.
 //!
 //! Two transactions, `A` and `B`, are open in the same block at once, each with
 //! its root frame at the same (outer) address. The test runs their calls to the
 //! inner probe in an order it chooses, leaving each root frame open between
 //! calls, then commits the two in an order it chooses. On a node the order is
-//! decided by timing, which is why `tests/live.rs` sees several outcomes for
-//! one case.
+//! decided by timing, so the same pair of transactions can come out any of the
+//! ways shown here.
 //!
 //! The tests pin down this rule: a commit-locked call that writes a key
 //! succeeds only if every *other* transaction holding a lock on that key holds
@@ -18,12 +19,11 @@
 //! the other's calls fault. Two batch cranks draining the same queue are such a
 //! pair.
 //!
-//! The same rule makes a commit-locked write a claim: if each transaction
-//! first writes a value of its own to a claim key, only the first can hold it,
-//! and the others can give up before writing anything else. On a node,
-//! `Probe::claim` writes the transaction's hash for this; the mock harness gives
-//! every transaction the same hash, so these tests write distinct values with
-//! `put` instead.
+//! An exclusive write is held more strictly: once a commit-locked call has
+//! made one, no other transaction's commit-locked write to that key succeeds,
+//! whatever its value. That makes it a claim (`Probe::claim`): of the
+//! transactions that each first claim, only the first holds it, and the others
+//! can give up before writing anything else.
 
 use std::sync::Mutex;
 
@@ -53,9 +53,9 @@ enum Call {
     BumpUnlocked,
     /// `put(value)`, commit-locked: write the counter without reading it.
     Put(u64),
-    /// `put(value)`, commit-locked, to a second probe instance, the claimant.
-    /// A transaction whose claim faults gives up: its later calls are skipped.
-    Claim(u64),
+    /// `claim`, commit-locked, on a second probe instance, the claimant. A
+    /// transaction whose claim faults gives up: its later calls are skipped.
+    Claim,
 }
 
 /// A block holding two transactions, `A` and `B`.
@@ -140,9 +140,9 @@ impl Block {
                         Call::Bump => probe.with_commit_locking().try_bump(),
                         Call::BumpUnlocked => probe.try_bump(),
                         Call::Put(value) => probe.with_commit_locking().try_put(value),
-                        Call::Claim(value) => ProbeClient::new(&claimant)
+                        Call::Claim => ProbeClient::new(&claimant)
                             .with_commit_locking()
-                            .try_put(value),
+                            .try_claim(),
                     };
                     let outcome = match result {
                         Ok(()) => "ok",
@@ -153,7 +153,7 @@ impl Block {
                     calls.lock().unwrap().push(format!("{tx:?} {outcome}"));
                     FrameAction::Continue
                 });
-                if matches!(call, Call::Claim(_)) && faulted.into_inner().unwrap() {
+                if matches!(call, Call::Claim) && faulted.into_inner().unwrap() {
                     gave_up[tx as usize] = true;
                 }
             }
@@ -338,14 +338,14 @@ fn each_call_is_checked_against_the_values_held_then() {
     assert_eq!(block.run(), expected);
 }
 
-/// Each transaction first claims with a value of its own, then bumps. The
-/// first to claim holds the claimant; the other's claim faults, and it gives
-/// up before touching the counter. The winner's bumps all succeed, and both
+/// Each transaction first claims, then bumps. Both write the same claim, but
+/// the claim is exclusive: the first to claim holds the claimant, the other's
+/// claim faults, and it gives up before touching the counter. The winner's bumps all succeed, and both
 /// commit -- the loser having written nothing.
 #[test]
 fn a_commit_locked_claim_lets_one_transaction_through() {
     for (first, second) in [(A, B), (B, A)] {
-        let mut calls = vec![(first, Call::Claim(1)), (second, Call::Claim(2))];
+        let mut calls = vec![(first, Call::Claim), (second, Call::Claim)];
         calls.extend(bumps(&[A, B, A, B, A, B], Call::Bump));
         let block = Block {
             calls,
@@ -366,25 +366,4 @@ fn a_commit_locked_claim_lets_one_transaction_through() {
         };
         assert_eq!(block.run(), expected);
     }
-}
-
-/// Claims with equal values do not exclude each other: both transactions hold
-/// the claimant, and their bumps interleave as in
-/// `interleaved_bumps_fault_after_the_first`.
-#[test]
-fn equal_claims_exclude_nobody() {
-    let mut calls = vec![(A, Call::Claim(7)), (B, Call::Claim(7))];
-    calls.extend(bumps(&[A, B, A, B, A, B], Call::Bump));
-    let block = Block {
-        calls,
-        claim: false,
-        first_to_commit: A,
-    };
-    let expected = outcome(
-        &[
-            "A ok", "B ok", "A ok", "B ok", "A fault", "B fault", "A fault", "B fault",
-        ],
-        [true, true],
-    );
-    assert_eq!(block.run(), expected);
 }

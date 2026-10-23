@@ -1,7 +1,7 @@
 //! The admission semantics a [`batch_driver::Queue`] rests on.
 //!
 //! A queue's ceiling is a [`CapacityConstraint`]: the room still left, taken as entries arrive and
-//! given back as they leave. 
+//! given back as they leave.
 //!
 //! The point of taking a slot *lazily* is that adding to a full queue fails at
 //! commit, left out of its block with nothing written, rather than reverting
