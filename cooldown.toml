@@ -16,6 +16,11 @@ min-publish-age = "0"
 crate = "ctutils"
 version = "0.4.5"
 
+# Security fix for RUSTSEC-2026-0386 (AsyncFd constructors deprecated).
+[[allow.exact]]
+crate = "tokio"
+version = "1.53.3"
+
 # Grandfathered versions ... (can remove after 2026 Nov 9)
 
 [[allow.exact]]
