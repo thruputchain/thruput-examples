@@ -68,6 +68,53 @@ fn a_refused_crank_does_not_take_the_blocks_drain() {
     })
 }
 
+// A crank must also be able to pay for claiming the drain. One that could fund what the queue owes
+// but not the claim besides would, its gas spent on claiming, hold the block's claim and drain
+// nothing -- leaving a well-funded crank in the same block unable to claim. So at any declared gas,
+// a crank facing a waiting request is either refused, leaving the claim to the next, or drains.
+//
+// Where the boundary lies depends on what the frame spends before `crank` checks its budget, which
+// is the cost model's business, so this sweeps the declared gas across the region above the bare
+// floor (one request plus the epilogue) rather than picking a figure.
+#[test]
+fn a_crank_never_claims_without_draining() {
+    use batch_driver::{CLAIM_GAS, EPILOGUE_GAS};
+
+    const STEP: u64 = CLAIM_GAS / 10;
+
+    transact_assert_success(|| {
+        let etx = setup_etx()?;
+
+        // Each step ends with its one request drained, so the queue is empty for the next.
+        for extra in (0..=3 * CLAIM_GAS).step_by(STEP as usize) {
+            let gas = EPILOGUE_GAS + REQUEST_GAS_MAX + extra;
+
+            enqueue(&etx)?;
+            etx.advance_block();
+
+            match try_crank_with(&etx, gas)? {
+                Ok((processed, _)) => assert!(
+                    processed > 0,
+                    "a crank declaring {gas} claimed the drain and took nothing"
+                ),
+                Err(e) => {
+                    assert_eq!(e.try_as(), Some(SwapDriverError::BatchTooSmall));
+
+                    // Same block: the claim is still there to take.
+                    let (processed, _) = crank_with(&etx, process_requests_gas(1))?;
+                    assert_eq!(
+                        processed, 1,
+                        "a refused crank declaring {gas} took the claim"
+                    );
+                }
+            }
+            etx.advance_block();
+        }
+
+        Ok(())
+    })
+}
+
 // The hole the depth-threshold form left: a queue parked just under the floor. A one-request crank
 // is refused there too, because what it owes is what is waiting -- so an attacker cannot hold the
 // queue at a shallow depth and drain it a request per block.

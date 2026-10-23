@@ -24,11 +24,12 @@ fn gas_report(receipt: &thruput_json_rpc_types::responses::TransactionReceipt) -
         .find(|e| e.topics.first().is_some_and(|t| &t.0 == signature))
         .expect("the crank should emit a GasReport under the calibration feature");
 
-    let (processed, dearest_request, tail, beyond_handlers): (u32, u64, u64, u64) =
+    let (processed, claim, dearest_request, tail, beyond_handlers): (u32, u64, u64, u64, u64) =
         xdrs::cxs::decode(event.data.0.as_slice()).expect("decoding the GasReport payload");
 
     GasReport {
         processed,
+        claim,
         dearest_request,
         tail,
         beyond_handlers,
@@ -103,13 +104,13 @@ fn calibrator(fee_enabled: bool) -> Agent {
         let fee = if fee_enabled { "on" } else { "off" };
         println!("\n=== measured on this node (protocol fee {fee}) ===");
         println!(
-            "{:<18} {:>14} {:>14} {:>16}",
-            "request kind", "handler call", "tail", "beyond handlers"
+            "{:<18} {:>10} {:>14} {:>14} {:>16}",
+            "request kind", "claim", "handler call", "tail", "beyond handlers"
         );
         for (kind, r) in &measured {
             println!(
-                "{:<18} {:>14} {:>14} {:>16}",
-                kind, r.dearest_request, r.tail, r.beyond_handlers
+                "{:<18} {:>10} {:>14} {:>14} {:>16}",
+                kind, r.claim, r.dearest_request, r.tail, r.beyond_handlers
             );
         }
 

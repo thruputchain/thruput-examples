@@ -1,7 +1,7 @@
 //! The queue itself.
 
 use crate::BatchRequest;
-use crate::drain::{budget_for_batch, process};
+use crate::drain::{CLAIM_GAS, budget_for_batch, process};
 use crate::events::{RequestAccepted, RequestFailed, RequestsProcessed};
 use thruput_sdk::stats::gas_remaining;
 use thruput_sdk::storage::*;
@@ -186,8 +186,9 @@ impl<R: BatchRequest> Queue<R> {
 
     /// Drain the queue, handing each entry to `handle`, and return `(n_processed, n_failed)`.
     ///
-    /// Refuses with [`Starved`] a crank whose frame cannot fund what the queue owes: whatever was
-    /// waiting at the block's snapshot, capped at the policy's `min_batch`.
+    /// Refuses with [`Starved`] a crank whose frame cannot fund its claim and what the queue owes:
+    /// whatever was waiting at the block's snapshot, capped at the policy's `min_batch` (see
+    /// [`CLAIM_GAS`](crate::CLAIM_GAS)).
     ///
     /// The refusal happens before the queue is touched, so a refused crank neither drains nor
     /// leaves anything half-done, and costs its sender and nobody else.
@@ -195,9 +196,8 @@ impl<R: BatchRequest> Queue<R> {
     /// If there is anything to drain, the crank first calls `claim`, which must make a
     /// commit-locked call that writes a claim key of the handler's exclusively (for instance with
     /// `Value::set_exclusive`). If it fails, another crank in this block holds the claim, and this
-    /// one returns `(0, 0)` without draining. A crank that
-    /// finds nothing to drain does not claim, so it stays as free as it was: it writes nothing,
-    /// and takes the claim from no one.
+    /// one returns `(0, 0)` without draining. A crank that finds nothing to drain does not claim,
+    /// so it stays as free as it was: it writes nothing, and takes the claim from no one.
     pub fn crank<C, F>(&mut self, claim: C, mut handle: F) -> Result<(u32, u32), Starved>
     where
         C: FnOnce() -> Result<(), CallError>,
@@ -212,14 +212,30 @@ impl<R: BatchRequest> Queue<R> {
         // negative mid-transaction.)
         let queued = (capacity - self.slots.get_remaining_capacity()).clamp(0, capacity) as u32;
         let owed = queued.min(policy.min_batch);
-        if gas_remaining() < budget_for_batch::<R>(owed) {
-            return Err(Starved);
-        }
 
-        // Claim the drain, unless there is nothing to drain.
-        if self.requests.try_peek().none_if_missing().is_none() || claim().is_err() {
+        // Nothing to drain, so nothing to claim.
+        if self.requests.try_peek().none_if_missing().is_none() {
             return Ok((0, 0));
         }
+
+        // Claim only if, the claim having been paid for, this crank can still fund what the queue
+        // owes, and at least one request: a crank that claimed and then drained nothing would hold
+        // the block's drain from everyone. (Nothing is owed when what is waiting arrived in this
+        // block; a crank that cannot fund one request then stays the free no-op it would be on an
+        // empty queue.)
+        if gas_remaining() < CLAIM_GAS.saturating_add(budget_for_batch::<R>(owed.max(1))) {
+            return if owed > 0 { Err(Starved) } else { Ok((0, 0)) };
+        }
+
+        #[cfg(feature = "calibration")]
+        let before_claim = gas_remaining();
+
+        if claim().is_err() {
+            return Ok((0, 0));
+        }
+
+        #[cfg(feature = "calibration")]
+        let claim_gas = before_claim.saturating_sub(gas_remaining());
 
         #[cfg(feature = "calibration")]
         let mut spent = HandlerGas::default();
@@ -264,9 +280,13 @@ impl<R: BatchRequest> Queue<R> {
             let here = gas_remaining();
             log_event(&GasReport {
                 processed: n_processed,
+                claim: claim_gas,
                 dearest_request: spent.dearest,
                 tail: after_process.saturating_sub(here),
-                beyond_handlers: entry_gas.saturating_sub(here).saturating_sub(spent.total),
+                beyond_handlers: entry_gas
+                    .saturating_sub(here)
+                    .saturating_sub(spent.total)
+                    .saturating_sub(claim_gas),
             });
         }
 
@@ -294,13 +314,14 @@ impl HandlerGas {
 
 /// What one crank spent, measured on the node that ran it.
 ///
-/// Emitted only under the `calibration` feature.  The two gas constants each
+/// Emitted only under the `calibration` feature.  The three gas constants each
 /// have a field here to be set from:
 ///
+/// * [`CLAIM_GAS`] must cover `claim`, what claiming the drain cost.
 /// * [`BatchRequest::GAS_LIMIT`] must bound `dearest_request`, since it is the
 ///   cap the drain puts on a single handler call.
 /// * [`EPILOGUE_GAS`] must cover `beyond_handlers`, which is everything the
-///   crank spent that was not a handler call: entering, checking the budget,
+///   crank spent that was neither a handler call nor the claim: entering, checking the budget,
 ///   consuming and decoding each entry, releasing capacity, and the summary
 ///   event.  That over-counts the reserve's real job by the entries before the
 ///   last one, which is the safe direction. `tail` is the part after the final
@@ -308,10 +329,12 @@ impl HandlerGas {
 ///
 /// [`BatchRequest::GAS_LIMIT`]: crate::BatchRequest::GAS_LIMIT
 /// [`EPILOGUE_GAS`]: crate::EPILOGUE_GAS
+/// [`CLAIM_GAS`]: crate::CLAIM_GAS
 #[cfg(feature = "calibration")]
 #[derive(Event, Clone, Debug, PartialEq, Eq)]
 pub struct GasReport {
     pub processed: u32,
+    pub claim: u64,
     pub dearest_request: u64,
     pub tail: u64,
     pub beyond_handlers: u64,
