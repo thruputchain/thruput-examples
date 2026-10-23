@@ -8,7 +8,9 @@
 //! whose auth claim is a source-address claim: add a second signer at
 //! weight 1, raise the high threshold to 2, and show that a threshold change
 //! signed by the master alone is refused at admission while one signed by
-//! both keys lands.
+//! both keys lands. Last, the master registers an ML-DSA-65 key at slot 2,
+//! sending its 1,953-byte encoding through `set_signer` calldata, and that key
+//! alone authorizes a payment.
 //!
 //! `#[ignore]`d because it needs a devnode binary and built artifacts:
 //!
@@ -29,7 +31,7 @@ use thruput_json_rpc_types::{
     requests::EmptyRequest, responses::ReceiptExecution as ExecutionResult,
 };
 use thruput_signing::{
-    BuildCallTransaction, LocalSigner, Signer, build_call_transaction,
+    BuildCallTransaction, LocalSigner, MlDsa65Signer, Signer, build_call_transaction,
     encode_signed_transaction_xdr,
 };
 use thruput_testkit::xdr::auth_claim::{AuthClaim, AuthClaim_source_address_claim};
@@ -48,6 +50,7 @@ const ERC20: (&str, &str) = ("ERC20", "0.1.65");
 
 const MASTER_SEED: [u8; 32] = [0x11; 32];
 const SECOND_SEED: [u8; 32] = [0x22; 32];
+const MLDSA_SEED: [u8; 32] = [0x33; 32];
 
 /// Every slot the chain has: hogd rejects any bit at or past slot 21 as `kAuthMalformed`.
 const ALL_SLOTS: u32 = (1u32 << 21) - 1;
@@ -104,7 +107,7 @@ async fn account_tx<A: xdrs::WriteXDR>(
     method: &str,
     args: &A,
     required_weight: u32,
-    signers: &[(u32, &LocalSigner)],
+    signers: &[(u32, &(dyn Signer + Sync))],
     nonce: u64,
 ) -> String {
     let tip = ctx.network().chain_tip().await.expect("chain tip");
@@ -155,6 +158,7 @@ fn admin() -> Agent {
         let native = native_token();
         let master = LocalSigner::from_secret_key(MASTER_SEED);
         let second = LocalSigner::from_secret_key(SECOND_SEED);
+        let mldsa = MlDsa65Signer::from_seed(&MLDSA_SEED);
 
         // Code and factory. `register_artifact` deploys a throwaway first
         // instance; only the registered hash matters here.
@@ -314,7 +318,37 @@ fn admin() -> Agent {
         .await;
         submit_ok(&ctx, tx).await;
 
-        println!("admin: account {account:?} created, two-signer threshold change landed");
+        // Register an ML-DSA-65 key at slot 2 at weight 1, with the master
+        // alone (a weight-1 operation), then let it pay on its own.
+        let tx = account_tx(
+            &ctx,
+            &network,
+            account,
+            "set_signer",
+            &(2u32, mldsa.public_key(), 1u32),
+            1,
+            &[(0, &master)],
+            7,
+        )
+        .await;
+        submit_ok(&ctx, tx).await;
+
+        let tx = account_tx(
+            &ctx,
+            &network,
+            account,
+            "payment",
+            &(native.address(), me, 1i128),
+            1,
+            &[(2, &mldsa)],
+            8,
+        )
+        .await;
+        submit_ok(&ctx, tx).await;
+
+        println!(
+            "admin: account {account:?} created, two-signer threshold change and ML-DSA-65 payment landed"
+        );
         Ok(())
     })
 }
