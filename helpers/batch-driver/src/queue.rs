@@ -1,5 +1,4 @@
-//! The queue itself: the entries, the room left in it, the ids it stamps, and the policy governing
-//! all three.
+//! The queue itself.
 
 use crate::BatchRequest;
 use crate::drain::{budget_for_batch, process};
@@ -85,12 +84,15 @@ pub struct Starved;
 ///         let cfg = self.cfg.get();
 ///
 ///         self.queue
-///             .crank(|request, gas_limit| {
-///                 cfg.handler()
-///                     .with_commit_locking()
-///                     .with_gas_limit(gas_limit)
-///                     .try_handle(request)
-///             })
+///             .crank(
+///                 || cfg.handler().with_commit_locking().try_claim_crank(),
+///                 |request, gas_limit| {
+///                     cfg.handler()
+///                         .with_commit_locking()
+///                         .with_gas_limit(gas_limit)
+///                         .try_handle(request)
+///                 },
+///             )
 ///             .unwrap_or_else(|_: Starved| throw(MyError::BatchTooSmall))
 ///     }
 /// }
@@ -106,15 +108,13 @@ pub struct Queue<R: BatchRequest> {
     // The remaining capacity of the `requests` queue, whose maximum length is configured when
     // calling `initialize`.
     //
-    // A queued entry costs storage (and thus locked native tokens), so this is what stops a queue from being
-    // an unbounded claim on whoever funded the driver.
+    // A queued entry costs storage (and thus locked native tokens), so this is what stops a queue
+    // from being an unbounded claim on whoever funded the driver.
     slots: CapacityConstraint,
 
     // The source of the id stamped on each accepted entry.
     ids: Node<UniqueIds>,
 
-    // Held as one value, so reading it for a crank costs one storage item rather than one per
-    // field.
     policy: Value<CrankPolicy>,
 }
 
@@ -156,26 +156,24 @@ impl<R: BatchRequest> Queue<R> {
     /// ```
     ///
     /// The id comes back to the caller *and* rides along on the entry, which is what lets an
-    /// off-chain caller match the request it submitted against the event it eventually produces --
+    /// off-chain caller match the request it submitted against the event it eventually produces:
     /// the [`RequestAccepted`] emitted here, and later either the driver's own success event or the
-    /// [`RequestFailed`] that [`crank`](Self::crank) emits. A request type that discards the id in
-    /// `stamp` still enqueues, but nothing downstream can name it.
+    /// [`RequestFailed`] that [`crank`](Self::crank) emits.
     ///
     /// A driver wanting to permission its queue does so *before* calling this: an entry names
     /// whatever account its handler will act for, and neither this nor the handler can check that
     /// claim.
     ///
-    /// If the queue is full the slot claim overruns the ceiling and the whole transaction is
-    /// excluded from its block and returned to the mempool -- the entry waits for room rather than
-    /// failing, so a caller that cannot wait indefinitely bounds it with the transaction's expiry
-    /// height.
+    /// If the queue is full the slot claim overruns the ceiling, and the whole transaction fails at
+    /// commit: it is left out of its block with nothing written. The caller may submit the same
+    /// signed transaction again once a drain has made room (bounded by the transaction's expiry
+    /// height).
     pub fn enqueue(&mut self, stamp: impl FnOnce(SHA256Hash) -> R) -> SHA256Hash {
         // Take this entry's room. Deliberately *not* checked here: the floor is enforced when the
         // transaction's deltas are reserved, and that difference is what becomes of an enqueue
-        // arriving at a full queue. This way it is excluded from its block and returned to the
-        // mempool, landing once a drain frees capacity; a call-time check would instead revert the
-        // frame, leaving the transaction in the block with no effect and no retry -- turning "you
-        // were early" into "you failed".
+        // arriving at a full queue. This way it fails at commit, left out of its block with nothing
+        // written, and the same signed transaction can be submitted again once a drain frees
+        // capacity.
         self.slots.consume_capacity(1);
 
         let id = self.ids.next_id();
@@ -193,8 +191,16 @@ impl<R: BatchRequest> Queue<R> {
     ///
     /// The refusal happens before the queue is touched, so a refused crank neither drains nor
     /// leaves anything half-done, and costs its sender and nobody else.
-    pub fn crank<F>(&mut self, mut handle: F) -> Result<(u32, u32), Starved>
+    ///
+    /// If there is anything to drain, the crank first calls `claim`, which must make a
+    /// commit-locked call writing a value unique to this transaction (such as
+    /// [`get_source_transaction_hash`]) to storage of the handler's. If it fails, another crank
+    /// in this block holds the claim, and this one returns `(0, 0)` without draining. A crank that
+    /// finds nothing to drain does not claim, so it stays as free as it was: it writes nothing,
+    /// and takes the claim from no one.
+    pub fn crank<C, F>(&mut self, claim: C, mut handle: F) -> Result<(u32, u32), Starved>
     where
+        C: FnOnce() -> Result<(), CallError>,
         F: FnMut(R, u64) -> Result<(), CallError>,
     {
         #[cfg(feature = "calibration")]
@@ -208,6 +214,11 @@ impl<R: BatchRequest> Queue<R> {
         let owed = queued.min(policy.min_batch);
         if gas_remaining() < budget_for_batch::<R>(owed) {
             return Err(Starved);
+        }
+
+        // Claim the drain, unless there is nothing to drain.
+        if self.requests.try_peek().none_if_missing().is_none() || claim().is_err() {
+            return Ok((0, 0));
         }
 
         #[cfg(feature = "calibration")]
@@ -289,7 +300,7 @@ impl HandlerGas {
 /// * [`BatchRequest::GAS_LIMIT`] must bound `dearest_request`, since it is the
 ///   cap the drain puts on a single handler call.
 /// * [`EPILOGUE_GAS`] must cover `beyond_handlers`, which is everything the
-///   crank spent that was not a handler call -- entering, checking the budget,
+///   crank spent that was not a handler call: entering, checking the budget,
 ///   consuming and decoding each entry, releasing capacity, and the summary
 ///   event.  That over-counts the reserve's real job by the entries before the
 ///   last one, which is the safe direction. `tail` is the part after the final

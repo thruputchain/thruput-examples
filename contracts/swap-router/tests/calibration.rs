@@ -14,7 +14,7 @@ use batch_driver::GasReport;
 
 /// Read the `GasReport` a `calibration` build's crank emits, from the receipt
 /// of the transaction that cranked.
-fn gas_report(receipt: &thruput_json_rpc_types::receipt::TransactionReceipt) -> GasReport {
+fn gas_report(receipt: &thruput_json_rpc_types::responses::TransactionReceipt) -> GasReport {
     use thruput_event::Event;
 
     let signature = <GasReport as Event>::signature().expect("GasReport has a signature");

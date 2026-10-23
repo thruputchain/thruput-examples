@@ -19,6 +19,9 @@ pub struct Handler {
     // contract.
     driver: Value<Address>,
 
+    // The transaction that last claimed a drain (see `claim_crank`).
+    crank_claim: Value<SHA256Hash>,
+
     // State for the swap-pool itself.
     pair: Node<Pair>,
 }
@@ -35,7 +38,7 @@ impl SwapHandler for Handler {
     ) {
         self.driver.set(driver);
 
-        // The pair holds the pool's configuration -- the tokens, the LP token, the factory -- and
+        // The pair holds the pool's configuration (the tokens, the LP token, the factory) and
         // refuses a second initialization itself, so there is nothing for this contract to record.
         self.pair.initialize(factory, token0, token1, lp_token);
     }
@@ -73,6 +76,16 @@ impl SwapHandler for Handler {
             SwapOp::SwapExactIn(req) => self.handle_swap_exact_in(req, request_id),
             SwapOp::SwapExactOut(req) => self.handle_swap_exact_out(req, request_id),
         }
+    }
+
+    fn claim_crank(&mut self) {
+        ensure(
+            get_caller() == self.driver.get(),
+            SwapRequestError::Unauthorized,
+        );
+
+        // No two transactions write the same value here.
+        self.crank_claim.set(&get_source_transaction_hash());
     }
 }
 
@@ -204,8 +217,8 @@ impl Handler {
 
     // Transfer helpers
     //
-    // The user grants their allowance to this contract, which is also where the pool's tokens sit
-    // -- so a deposit is a transfer to here, and the pair's balance-delta accounting reads this
+    // The user grants their allowance to this contract, which is also where the pool's tokens sit,
+    // so a deposit is a transfer to here, and the pair's balance-delta accounting reads this
     // contract's balances.
 
     fn transfer_amounts_from(&self, owner: &Address, amounts: Amounts) {

@@ -1,12 +1,8 @@
 //! The gas budgeting in [`batch_driver::Queue::crank`]'s drain.
 //!
 //! The drain is bounded by what the calling frame can still afford, so the caller's own gas limit
-//! is what sizes the batch. Two properties matter, and both are visible natively:
-//!
-//! * a frame with room keeps going -- there is no batch size fixed inside the helper for every
-//!   caller to declare gas for; and
-//! * a frame without room for a whole request stops *before* consuming one, so a request is never
-//!   taken out of the queue and then dropped for want of gas to handle it.
+//! is what sizes the batch. A frame without room for a whole request stops *before* consuming one,
+//! so a request is never taken out of the queue and then dropped for want of gas.
 
 use batch_driver::{BatchRequest, CrankPolicy, EPILOGUE_GAS, Queue, gas_for_batch};
 use thruput_sdk::storage::*;
@@ -111,10 +107,13 @@ fn requests_declined_for_want_of_gas_stay_queued() {
         tx.call(&ADDR).run(|| {
             let mut seen = Vec::new();
             queue::<Request>()
-                .crank(|request: Request, _gas| {
-                    seen.push(request.id);
-                    Ok(())
-                })
+                .crank(
+                    || Ok(()),
+                    |request: Request, _gas| {
+                        seen.push(request.id);
+                        Ok(())
+                    },
+                )
                 .expect("a zero floor owes nothing");
             seen
         })
@@ -215,7 +214,7 @@ fn crank<R: BatchRequest + 'static>(env: &TestEnvironmentHandle) -> TransactResu
     env.transact(|tx| {
         tx.call(&ADDR).run(|| {
             queue::<R>()
-                .crank(|_request: R, _gas| Ok(()))
+                .crank(|| Ok(()), |_request: R, _gas| Ok(()))
                 .expect("a zero floor owes nothing")
         })
     })

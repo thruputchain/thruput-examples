@@ -43,17 +43,17 @@ pub enum SwapDriverError {
 pub trait SwapDriver {
     /// Must be called exactly once before any other methods.
     ///
-    /// `max_queue_len` caps how many requests may wait at once. Requests arriving at a full queue
-    /// are deferred, not rejected: see [`request`](Self::request).
+    /// The driver will only accept requests from address `router`.
     ///
-    /// `router` is the only contract whose requests this one will accept.
+    /// `max_queue_len` caps how many requests may wait at once.
     ///
     /// `min_crank_batch` is the most a crank can be required to clear before it is allowed to drain
-    /// at all — it must be able to take whatever is waiting, up to this many. Both are set per pool
-    /// because they trade off against each other and against how a pool is used: see
-    /// [`process_requests`](Self::process_requests) and [`SwapDriverError::BatchTooSmall`].
-    /// `min_crank_batch` must not exceed `max_queue_len`, which would ask for a batch the queue can
-    /// never hold.
+    /// at all: it must be able to take whatever is waiting, up to this many. `min_crank_batch` must
+    /// not exceed `max_queue_len`.
+    ///
+    /// Both are set per pool because they trade off against each other and against how a pool is
+    /// used: see [`process_requests`](Self::process_requests) and
+    /// [`SwapDriverError::BatchTooSmall`].
     fn initialize(
         &mut self,
         handler: &Address,
@@ -63,19 +63,13 @@ pub trait SwapDriver {
     );
 
     /// Enqueue a request to be handled later, when `process_requests` runs.
+    /// Callable only by the router.
     ///
     /// Returns the [`RequestId`] stamped on the request, which the caller can match against the
     /// event the request eventually produces.
     ///
-    /// Callable only by the router. A [`SwapRequest`] names the account whose tokens it will spend,
-    /// and this contract cannot check that claim -- the router is what sees the account making the
-    /// call. Were anyone able to enqueue, they could name a victim as the sender and themselves as
-    /// the recipient, and the handler would spend the victim's standing allowance on it.
-    ///
-    /// A request that would take the queue past the `max_queue_len` given at initialization does
-    /// not fail: its transaction is excluded from the block and returned to the mempool, so it
-    /// lands once a `process_requests` has freed room. A caller that cannot wait indefinitely
-    /// bounds that with the transaction's own expiry height.
+    /// A request that would take the queue past the `max_queue_len` given at initialization fails
+    /// at commit; the transaction may be retried.
     fn request(&mut self, request: SwapRequest) -> RequestId;
 
     /// Drain the queue, returning `(processed, failed)` counts. Each failed request emits a
@@ -87,13 +81,10 @@ pub trait SwapDriver {
     /// calling frame runs out of gas, so the declared gas limit is the batch size (size one with
     /// `swap_driver::process_requests_gas`).
     ///
-    /// Almost up to the caller: once the queue is deep, a crank that cannot make real progress is
-    /// refused with [`SwapDriverError::BatchTooSmall`], rather than being allowed to spend the
-    /// block's one drain on a single request. A crank on a shallow queue may be as small as it
-    /// likes.
+    /// However, once the queue is deep, a crank that cannot make real progress is refused with
+    /// [`SwapDriverError::BatchTooSmall`], rather than being allowed to spend the block's one drain
+    /// on a single request. A crank on a shallow queue may be as small as it likes.
     ///
-    /// Call this in a transaction of its own, never combined with a [`request`](Self::request) --
-    /// see the `batch_driver` module docs for why combining the two delays the very request it
-    /// would try to hurry.
+    /// Call this in a transaction of its own, never combined with a [`request`](Self::request).
     fn process_requests(&mut self) -> (u32, u32);
 }

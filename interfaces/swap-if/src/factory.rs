@@ -16,14 +16,11 @@ pub enum SwapFactoryError {
     PairExists = 4,
 
     /// The `funding` offered for a new pool's contracts was below the floor the factory will
-    /// accept.
+    /// accept. No pool is created.
     ///
-    /// This catches an obviously wrong `funding` -- zero, or a figure from a much cheaper cost
-    /// model -- and nothing subtler: a storage deposit is settled when the transaction commits, so
-    /// a shortfall above the floor is not visible while the pool is being brought up. That one
-    /// costs the creator nothing but time: the transaction fails reservation and is returned to the
-    /// mempool, where it retries -- and keeps failing -- until it expires, with no pool created and
-    /// no error reported.
+    /// This catches an obviously wrong `funding` (zero, or a figure from a much cheaper cost
+    /// model) but nothing subtler: a storage deposit is settled when the transaction commits, so
+    /// a shortfall above the floor is not visible while the pool is being brought up.
     InsufficientFunding = 5,
 }
 
@@ -87,7 +84,7 @@ pub trait SwapFactory {
     /// Configure the factory with the code hashes of the contracts it deploys and the protocol-fee
     /// recipient (`None` disables the fee). `router` is the router that will front this factory's
     /// pools: each driver it creates will accept requests from that address alone. The router must
-    /// therefore be deployed -- though not yet initialized -- before this is called.
+    /// therefore be deployed, though not yet initialized, before this is called.
     fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>, router: &Address);
 
     /// The protocol-fee recipient, consulted by each pair's fee logic.
@@ -96,9 +93,8 @@ pub trait SwapFactory {
     /// What this factory asks for each of a new pool's three contracts.
     ///
     /// Both figures depend on the cost model the chain is running and on the queue depth this
-    /// factory configures its drivers with, so they are answered here rather than fixed in a
-    /// client: ask, multiply the answer by three, and grant that allowance before calling
-    /// [`create_pair`](Self::create_pair).
+    /// factory configures its drivers with, so they are reported here. Multiply the answer by
+    /// three, and grant that allowance before calling [`create_pair`](Self::create_pair).
     fn pool_funding(&self) -> PoolFunding;
 
     /// Deploy and initialize a pair's contracts (LP token, pair, request handler, driver) for the
@@ -113,13 +109,10 @@ pub trait SwapFactory {
     /// reports nothing (see that error).
     fn create_pair(&mut self, token_a: &Address, token_b: &Address, funding: Amount) -> Pool;
 
-    /// The addresses [`create_pair`] would deploy the pool to for this token pair, computed
-    /// deterministically without deploying anything (like a create2 prediction). Useful for
-    /// pre-funding the contracts on a cost-bearing network, where each must be solvent before it is
-    /// initialized -- and, since the prediction holds for pools that already exist, for resolving a
-    /// created pool's contracts from its tokens.
-    ///
-    /// [`create_pair`]: Self::create_pair
+    /// The addresses that [`create_pair`](Self::create_pair) would deploy the pool to for this
+    /// token pair, computed deterministically without deploying anything (like a create2
+    /// prediction). Useful for pre-funding the contracts on a cost-bearing network, where each must
+    /// be solvent before it is initialized. This may also be used for pools that already exist.
     fn pool_addresses(&self, token_a: &Address, token_b: &Address) -> Pool;
 
     /// The pair created for `token_a`/`token_b`, if any (order-independent).
@@ -132,9 +125,6 @@ pub trait SwapFactory {
     /// factory's canonical (ascending) order.
     ///
     /// Walking `0..all_pairs_length()` yields every pool's token pair, and feeding each to
-    /// [`pool_addresses`] yields that pool's contract addresses -- so a client can enumerate the
-    /// whole registry.
-    ///
-    /// [`pool_addresses`]: Self::pool_addresses
+    /// [`pool_addresses`](Self::pool_addresses) yields that pool's contract addresses.
     fn pair_at(&self, index: u32) -> Option<Addresses>;
 }

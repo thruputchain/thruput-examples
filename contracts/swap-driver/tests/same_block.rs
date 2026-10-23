@@ -1,12 +1,13 @@
 //! What can share a block with a crank.
 //!
 //! Every transaction in a block executes against the state the previous block committed, and the
-//! block's writes are then merged: blind deltas (an `NNInt` increment, an `RCQ` insert) add up,
-//! while two transactions that set one `Value` differently cannot both be included -- the loser is
-//! returned to the mempool. A pool's reserves are one such `Value`, and the crank is the
-//! transaction that has to be able to write them. These tests pin down what else may land beside
-//! it, and what happens to a user's own transactions when they race the crank that handles their
-//! request.
+//! block's writes are then merged: deltas (an `NNInt` increment, an `RCQ` insert) add up,
+//! while two transactions that set one `Value` differently cannot both be included (the loser
+//! fails at commit, and is left out of the block).
+//!
+//! A pool's reserves are one such `Value`, and the crank is the transaction that has to be able to
+//! write them. These tests pin down what else may land beside it, and what happens to a user's own
+//! transactions when they race the crank that handles their request.
 
 mod common;
 use common::*;
@@ -65,8 +66,8 @@ fn an_idle_skim_shares_a_block_with_the_crank() {
 
 // A `sync` that does have something to record -- here, a donation the reserves have not caught up
 // with -- writes the reserves, and so conflicts with a crank in the same block. One of the two is
-// excluded; here the crank landed first, so the sync is what returns to the mempool. The donation
-// is still accounted for: the crank's own reserve update saw it.
+// left out; here the crank landed first, so the sync is what fails at commit. The donation is still
+// accounted for: the crank's own reserve update saw it.
 #[test]
 fn a_sync_with_something_to_record_conflicts_with_the_crank() {
     transact_assert_success(|| {
@@ -141,8 +142,8 @@ fn a_same_block_withdrawal_fails_only_its_own_request() {
 
 // The same race, with the crank landing first: the request is handled against the balance the block
 // began with, and it is Alice's transfer that no longer fits -- her frame succeeds (it too read the
-// block's snapshot), but the merged debits overdraw the balance, so her transaction is excluded and
-// returned to the mempool. Retried next block, it is refused outright.
+// block's snapshot), but the merged debits overdraw the balance, so her transaction fails at commit
+// and is left out of the block. Submitted again next block, it is refused outright.
 #[test]
 fn a_crank_that_lands_first_excludes_the_conflicting_withdrawal() {
     transact_assert_success(|| {

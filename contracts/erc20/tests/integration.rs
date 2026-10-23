@@ -120,9 +120,10 @@ fn options() -> InvocationOptions {
 /// out of its own native-token balance.  The native token is no exception -- but on a fresh node
 /// it starts with nothing, so the first allowance anyone tries to create is
 /// rejected when its delta batch is reserved (`BoundsExceeded`, on the native
-/// contract itself) and returned to the mempool to be retried forever.  There is
-/// no error to see, only a receipt that never comes, so a caller experiences it
-/// as a hang rather than a failure.
+/// contract itself) and left out of the block, reported only as one to retry;
+/// submitted again, it fails the same way until the reserve exists.  There is
+/// no receipt, so a caller waiting for one experiences it as a hang rather than
+/// a failure.
 ///
 /// The remedy is to transfer native tokens *to the native token's own address* first.
 #[tokio::test]
@@ -177,9 +178,9 @@ async fn native_token_allowance_needs_a_storage_reserve() {
     );
 
     // Now the same operation works.  A different spender, so this is certainly a
-    // *new* allowance row: the attempt above is still in the mempool and may
-    // commit at any point, which would leave the first spender's row already
-    // made.
+    // *new* allowance row: the attempt above was left out of its block, but its
+    // signed transaction could still be submitted again and commit, which would
+    // leave the first spender's row already made.
     let fresh_spender = native.recipient(2);
     let after = native
         .submit(

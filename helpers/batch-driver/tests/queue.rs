@@ -1,5 +1,5 @@
 //! [`batch_driver::Queue`]: the queue, its ceiling, its ids and its crank
-//! floor, held together.
+//! floor.
 //!
 //! The individual pieces have their own tests -- `admission` for the ceiling, `drain_budget` for
 //! the loop's gas budgeting, `queue_semantics` for the runtime rules underneath both. What is
@@ -53,8 +53,8 @@ fn draining_frees_the_room_an_enqueue_took() {
     enqueue(&env).assert_success();
     enqueue(&env).assert_success();
 
-    // Full: the next one is early rather than wrong, so it returns to the mempool for a later
-    // block.
+    // Full: the next one is early rather than wrong, so it fails at commit, left out of the block
+    // to be submitted again once there is room.
     let overrun = enqueue(&env);
     overrun.frame().assert_success();
     overrun.assert_commit_failed_nondeterministically();
@@ -112,14 +112,17 @@ fn a_failed_request_does_not_stop_the_batch() {
             // taken rather than two.
             let mut seen = 0;
             queue::<Request>()
-                .crank(|_request: Request, _gas| {
-                    seen += 1;
-                    if seen == 1 {
-                        Err(CallError::Invalid)
-                    } else {
-                        Ok(())
-                    }
-                })
+                .crank(
+                    || Ok(()),
+                    |_request: Request, _gas| {
+                        seen += 1;
+                        if seen == 1 {
+                            Err(CallError::Invalid)
+                        } else {
+                            Ok(())
+                        }
+                    },
+                )
                 .expect("affordable")
         })
     });
@@ -129,6 +132,42 @@ fn a_failed_request_does_not_stop_the_batch() {
     // Both left the queue, the failed one included, so both slots came back.
     env.advance_block();
     assert_eq!(crank(&env), (0, 0));
+}
+
+/////////////////////// the claim ///////////////////////////////////////////
+
+// A crank claims the drain only when there is something to drain: one finding the queue empty
+// stays free, and takes the claim from no crank that has work.
+#[test]
+fn a_crank_claims_only_when_there_is_work() {
+    let env = TestEnvironment::no_cost();
+    initialize(&env, MIN_BATCH).assert_success();
+    env.advance_block();
+
+    assert_eq!(crank_counting_claims(&env, Ok(())), ((0, 0), 0));
+
+    enqueue(&env).assert_success();
+    env.advance_block();
+    assert_eq!(crank_counting_claims(&env, Ok(())), ((1, 0), 1));
+}
+
+// A crank whose claim fails -- another crank in the block holds it -- hands nothing to the handler
+// and takes nothing from the queue, which a later crank then drains whole.
+#[test]
+fn a_crank_that_cannot_claim_drains_nothing() {
+    let env = TestEnvironment::no_cost();
+    initialize(&env, MIN_BATCH).assert_success();
+    env.advance_block();
+
+    enqueue(&env).assert_success();
+    enqueue(&env).assert_success();
+    env.advance_block();
+
+    let refused = Err(CallError::Invalid);
+    assert_eq!(crank_counting_claims(&env, refused), ((0, 0), 1));
+
+    env.advance_block();
+    assert_eq!(crank(&env), (2, 0));
 }
 
 /////////////////////// the policy //////////////////////////////////////////
@@ -200,10 +239,43 @@ fn crank(env: &TestEnvironmentHandle) -> (u32, u32) {
     let drained = env.transact(|tx| {
         tx.call(&ADDR).run(|| {
             queue::<Request>()
-                .crank(|_request: Request, _gas| Ok::<(), CallError>(()))
+                .crank(|| Ok(()), |_request: Request, _gas| Ok::<(), CallError>(()))
                 .expect("affordable")
         })
     });
     drained.assert_success();
     drained.assert_return_as::<(u32, u32)>()
+}
+
+// Drain with a claim that returns `claim_result`, reporting the counts and how many times the crank
+// claimed. A request reaching the handler would panic, so a refused claim must stop the drain.
+fn crank_counting_claims(
+    env: &TestEnvironmentHandle,
+    claim_result: Result<(), CallError>,
+) -> ((u32, u32), u32) {
+    let refused = claim_result.is_err();
+    let drained = env.transact(|tx| {
+        tx.call(&ADDR).run(move || {
+            let mut claims = 0u32;
+            let counts = queue::<Request>()
+                .crank(
+                    || {
+                        claims += 1;
+                        if refused {
+                            Err(CallError::Invalid)
+                        } else {
+                            Ok(())
+                        }
+                    },
+                    |_request: Request, _gas| {
+                        assert!(!refused, "a crank that could not claim drained a request");
+                        Ok::<(), CallError>(())
+                    },
+                )
+                .expect("affordable");
+            (counts, claims)
+        })
+    });
+    drained.assert_success();
+    drained.assert_return_as::<((u32, u32), u32)>()
 }

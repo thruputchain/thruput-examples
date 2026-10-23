@@ -55,10 +55,10 @@ of payload; `payload_len` records the original length so truncation is explicit.
 These diagnostics do not change the request's terminal failed status.
 
 A driver's queue holds a bounded number of requests at once. A request arriving
-at a full queue is not rejected: its transaction is excluded from the block and
-returned to the mempool, and is admitted once processing has made room. It
-stops waiting at its own expiry height, leaving its sender free to resubmit
-against a fresh quote.
+at a full queue is not rejected by the contract: its transaction fails at commit
+and is left out of the block with nothing written. The network reports it as
+one to retry but does not retry it itself; its sender can submit the same
+signed transaction again once processing has made room, or decide against it.
 
 The cap on the queue length bounds the amount of storage required of the
 driver, but more importantly also bounds how long an admitted request might
@@ -112,27 +112,28 @@ the backlog leaves no shallow depth an attacker can park the queue at: a crank
 facing one waiting request owes one request's worth, and a user hurrying its own
 lone request still cranks for almost nothing.
 
-The recommended policy for a client is to send a crank after its request, with
-a short expiry height, and then stop. There is nothing to poll and no queue
-depth to estimate, because each outcome is already harmless:
+The recommended policy for a client is to send a crank once its request has
+committed, and to send another if the request is still waiting once that crank
+has landed. There is no queue depth to estimate, because each outcome is
+harmless:
 
-- **Another crank won the block.** Only one transaction per block may drain a
-  given queue; the others are excluded and returned to the mempool, and land in
-  later blocks on their own.
-- **The queue was empty at the block's snapshot.** The crank commits having
-  done nothing, writing no storage delta and conflicting with nobody. (A `(0,
-  0)` result from `process_requests` is ordinary, and does not mean any
-  particular request has been handled.)
+- **Another crank claimed the block first.** Only one crank per block drains a
+  given queue: each first claims the drain with a commit-locked call to the
+  handler, and only the first claim can hold. The others commit having done
+  nothing.
+- **There was nothing to drain.** The crank commits having done nothing,
+  writing no storage delta and conflicting with nobody. (A `(0, 0)` result from
+  `process_requests` is ordinary, and does not mean any particular request has
+  been handled.)
 - **Otherwise it drains**, emitting one `RequestsProcessed` event that
   summarizes the outcome of the batch.
 
-The short expiry keeps the first case from becoming a nuisance: a crank that
-loses several blocks running should expire rather than land much later as a
-pointless no-op.
+Without the claim, the first case would not be harmless. Two cranks draining in
+one block cannot both commit, but the loser's commit-locked calls to the
+handler would have made the winner's own calls fail.
 
-Combining a crank with a request submission would delay the request rather than
-hurry it: a crank cannot see requests its own block ordered after it, and a
-combined transaction that loses the race is excluded whole. See the
+Combining a crank with a request submission would not hurry the request: a
+crank cannot see requests its own block ordered after it. See the
 [`batch-driver`](../../helpers/batch-driver/src/lib.rs) module docs.
 
 ### Why the driver does not hold out for a bigger batch
@@ -160,9 +161,9 @@ obligation: a pool works if its users crank for themselves, and needs no native 
 from its operator beyond the storage its contracts hold.
 
 An operator wanting better latency can run a keeper that cranks every block.
-The two compose without a mode switch: while the keeper runs, it wins each
-block and users' cranks defer harmlessly behind it; if it stops, theirs start
-winning the very next block. Nothing has to detect which is happening.
+The two compose without a mode switch: while the keeper runs, it claims each
+block and users' cranks find nothing to do; if it stops, theirs start winning
+the very next block. Nothing has to detect which is happening.
 
 ## Trust and Permissions
 
@@ -207,12 +208,12 @@ called wrongly beats one that is checked correctly.
   nothing at all -- not even to stamp the block -- so it cannot displace a
   crank, and costs an attacker's spam nothing but its own gas. One that does
   have something to record writes the reserves and takes its chances against
-  the crank like any other writer; whichever loses is returned to the mempool
-  and retried, and by then the crank's own update has usually recorded the
-  same balances, leaving the retry nothing to do. A consequence for oracle
-  consumers: the cumulative prices advance only when the reserves change, so
-  read them as of the pool's `block_timestamp` and extrapolate, as UniswapV2's
-  oracle library does.
+  the crank like any other writer; whichever loses fails at commit and is left
+  out of the block, and if it is submitted again, the crank's own update has
+  usually recorded the same balances by then, leaving it nothing to do. A
+  consequence for oracle consumers: the cumulative prices advance only when the
+  reserves change, so read them as of the pool's `block_timestamp` and
+  extrapolate, as UniswapV2's oracle library does.
 
 ### Initialization
 
@@ -241,8 +242,9 @@ would settle each contract's deposit as its call returned, weighs that contract
 against the balance committed *before* this transaction — and so cannot see
 funding paid within it. The factory checks a floor and no more — `pool_funding`
 answers with that floor and the figure it recommends instead. Past the floor,
-a shortfall is felt at the transaction's reservation, which returns it to the
-mempool to retry and expire rather than including a failure in the block.
+a shortfall is felt at the transaction's reservation, which leaves it out of the
+block rather than including a failure there; submitted again, it fails the same
+way.
 
 Because creation spends the creator's native tokens, the router does not do it.
 UniswapV2's router creates a pair on the first `addLiquidity`; ours resolves

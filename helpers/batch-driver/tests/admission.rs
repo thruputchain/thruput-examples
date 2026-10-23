@@ -1,15 +1,12 @@
 //! The admission semantics a [`batch_driver::Queue`] rests on.
 //!
 //! A queue's ceiling is a [`CapacityConstraint`]: the room still left, taken as entries arrive and
-//! given back as they leave. These rules are the SDK type's and the runtime's rather than this
-//! crate's, but `Queue` is only correct because of them -- and the one that matters most is not a
-//! property of the count but of how a transaction that overruns it is treated.
+//! given back as they leave. 
 //!
-//! The point of holding capacity as a countdown rather than a length is that concurrent additions
-//! never read it, so they never conflict with each other -- only with the ceiling, and only in
-//! aggregate. The point of taking a slot *lazily* is what becomes of an addition that arrives at a
-//! full collection: it is excluded from its block and returned to the mempool, rather than reverted
-//! and lost.
+//! The point of taking a slot *lazily* is that adding to a full queue fails at
+//! commit, left out of its block with nothing written, rather than reverting
+//! inside it. The same signed transaction can be submitted again once there is
+//! room.
 
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
@@ -28,10 +25,10 @@ fn concurrent_adds_within_the_ceiling_all_land() {
     reserve(&env).assert_success();
 }
 
-// The one that overruns the ceiling is excluded -- a non-deterministic commit failure, so it
-// returns to the mempool for a later block rather than being spent here.
+// The one that overruns the ceiling fails at commit -- a non-deterministic commit failure, so it is
+// left out of the block rather than included as a failure.
 #[test]
-fn an_add_overrunning_the_ceiling_is_deferred() {
+fn an_add_overrunning_the_ceiling_fails_at_commit() {
     let env = TestEnvironment::no_cost();
     set_capacity(&env);
 
@@ -43,10 +40,10 @@ fn an_add_overrunning_the_ceiling_is_deferred() {
     overrun.assert_commit_failed_nondeterministically();
 }
 
-// A full collection defers the next add in the same way, from the very first transaction of the
+// A full collection refuses the next add in the same way, from the very first transaction of the
 // block: the ceiling is a property of the committed state, not of one block's traffic.
 #[test]
-fn a_full_collection_defers_the_next_add() {
+fn a_full_collection_fails_the_next_add_at_commit() {
     let env = TestEnvironment::no_cost();
     set_capacity(&env);
 
@@ -57,7 +54,7 @@ fn a_full_collection_defers_the_next_add() {
     reserve(&env).assert_commit_failed_nondeterministically();
 }
 
-// Releasing returns the slots, and the deferred add then fits.
+// Releasing returns the slots, and a refused add then fits.
 #[test]
 fn releasing_makes_room_again() {
     let env = TestEnvironment::no_cost();

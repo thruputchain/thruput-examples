@@ -122,9 +122,9 @@ fn same_block_debits_merge_when_the_balance_covers_them() {
 
 // When they do not, the second one's frame still succeeds -- it checked the
 // balance the block began with, which covered it alone -- but the merged
-// debits overdraw, so it is excluded from the block and returned to the
-// mempool.  Retried in the next block, against the balance the first debit
-// left, it is refused at call time with the token's own error.
+// debits overdraw, so it fails at commit and is excluded from the block.
+// Submitted again in the next block, against the balance the first debit left,
+// it is refused at call time with the token's own error.
 #[test]
 fn the_debit_that_overdraws_at_commit_is_excluded_not_reverted() {
     let env = setup(100);
