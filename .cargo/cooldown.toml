@@ -1,0 +1,4 @@
+# Config for `cargo cooldown-check`
+# Keep in sync with ../cooldown.toml
+# The thruput registry is exempt implicitly: only crates.io is checked.
+cooldown_minutes = 21600 # 15 days
