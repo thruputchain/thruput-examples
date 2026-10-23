@@ -6,9 +6,9 @@
 //! -- but the drain loop is only correct because of them, and a policy built on the wrong model of
 //! them fails in ways that are hard to see from a single transaction.
 //!
-//! The load-bearing rule: a crank either does work or is deferred to a later block. It never
-//! observes a queue that another transaction drained out from under it in the same block, and it
-//! only no-ops when the queue was genuinely empty at the block snapshot.
+//! The intention: a crank either does work or fails at commit. It never observes a queue that
+//! another transaction drained out from under it in the same block, and it only no-ops when the
+//! queue was genuinely empty at the block snapshot.
 
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
@@ -23,7 +23,7 @@ struct Request {
     id: u32,
 }
 
-/////////////////////// A crank does work, or is deferred ///////////////////
+/////////////////////// A crank does work, or fails at commit /////////////
 
 // Baseline: a crank drains what was queued in an earlier block.
 #[test]
@@ -45,9 +45,9 @@ fn crank_drains_the_queue() {
 
 // Only one transaction per block may consume from a queue. The loser's root frame returns
 // successfully, but its delta batch fails reservation with a *non-deterministic* error -- so it is
-// excluded from the block and returned to the mempool, to be re-evaluated in a later one. Cranks
-// racing for a block therefore queue up across blocks by themselves; no client-side arbitration is
-// needed.
+// left out of the block, and the node does not retry it. On a node, a losing crank that has called
+// its handler has by then also made the winner's handler calls fail, which is why `Queue::crank`
+// has each crank claim the drain before it takes anything (see its docs).
 #[test]
 fn only_one_crank_per_block_commits() {
     let env = TestEnvironment::no_cost();

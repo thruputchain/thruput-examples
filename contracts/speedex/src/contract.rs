@@ -379,7 +379,7 @@ impl Speedex {
         // submitted, so ids of distinct offers stay distinct even where transaction hashes do not.
         // The record is written under an exclusive lock so that even two *identical* submissions
         // with one id (possible only where transaction hashes coincide) cannot both land: the loser
-        // is returned to the mempool rather than escrowed under a record it shares.
+        // fails at commit, left out of the block, rather than escrowed under a record it shares.
         let offer = Offer {
             owner,
             batch,

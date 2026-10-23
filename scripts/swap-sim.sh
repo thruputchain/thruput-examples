@@ -18,10 +18,15 @@ if [ ! -v NO_BUILD ]; then
     build
 fi
 
-# export RUST_LOG="thruput_node_supervisor=info,hogd_dev=info"
+export THRUPUT_DEVNODE_BINARY=$(thruput toolchain which)
 export THRUPUT_TESTKIT_ARTIFACT_ROOT="$(realpath target/thruput)"
 
+# export RUST_LOG="thruput_node_supervisor=info,hogd_dev=info"
 cargo test -p swap-router \
     --test sim_liquidity \
+    --test sim_swap \
     -- \
-    --ignored --no-capture
+    --ignored \
+    --no-capture \
+    --test-threads 1 \
+    #

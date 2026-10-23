@@ -145,10 +145,10 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
 
 // The registry's creation-ordered list is a `Vector`, whose length is written under an exclusive
 // lock, so the factory creates at most one pool per block: of two `create_pair`s for *different*
-// pairs in one block, the second's frame runs to completion but its commit is refused -- it is
-// returned to the mempool, not failed -- and it lands in the next block.
+// pairs in one block, the second's frame runs to completion but its commit is refused (it is left
+// out of the block, not included as a failure) and submitted again in the next block, it lands.
 #[test]
-fn a_second_pool_in_one_block_is_deferred_not_failed() {
+fn a_second_pool_in_one_block_fails_at_commit() {
     let s = setup();
 
     // A third token, for a second pair.
@@ -170,11 +170,11 @@ fn a_second_pool_in_one_block_is_deferred_not_failed() {
     };
 
     create(token0, token1).expect("the first pool of the block");
-    let deferred = create(token0, token2).expect_err("the second is deferred");
-    deferred.assert_commit_failed_nondeterministically();
+    let refused = create(token0, token2).expect_err("the second fails at commit");
+    refused.assert_commit_failed_nondeterministically();
     s.env.advance_block();
 
-    // Nothing of the deferred one reached the registry ...
+    // Nothing of the refused one reached the registry ...
     exec_tx(&s.env, &DEPLOYER, || {
         let factory = SwapFactoryClient::new(&factory);
         assert_eq!(factory.all_pairs_length(), 1);
@@ -182,8 +182,8 @@ fn a_second_pool_in_one_block_is_deferred_not_failed() {
     })
     .unwrap();
 
-    // ... and, retried, it goes through.
-    let pool = create(token0, token2).expect("retried in the next block");
+    // ... and, submitted again, it goes through.
+    let pool = create(token0, token2).expect("submitted again in the next block");
     s.env.advance_block();
     exec_tx(&s.env, &DEPLOYER, || {
         let factory = SwapFactoryClient::new(&factory);
@@ -194,9 +194,9 @@ fn a_second_pool_in_one_block_is_deferred_not_failed() {
 }
 
 // A `funding` below the factory's floor is refused outright, before anything is deployed. This is
-// the only under-funding the factory can report: past the floor a shortfall is only felt when the
-// transaction's storage deposits are reserved, which returns the transaction to the mempool rather
-// than aborting it -- see `SwapFactoryError::InsufficientFunding`.
+// the only under-funding the factory can report: past the floor, a shortfall is only felt when the
+// transaction's storage deposits are reserved, which leaves the transaction out of the block rather
+// than aborting it. See `SwapFactoryError::InsufficientFunding`.
 #[test]
 fn create_pair_refuses_funding_below_the_floor() {
     let s = setup();
@@ -239,8 +239,7 @@ fn create_pair_brings_up_pool() {
     .unwrap();
     s.env.advance_block();
 
-    // The prediction matched what was actually deployed -- the invariant the testkit sim relies on
-    // to pre-fund the contracts.
+    // The prediction matched what was actually deployed
     assert_eq!(predicted, pool);
 
     exec_tx(&s.env, &DEPLOYER, || {

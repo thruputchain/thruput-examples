@@ -7,9 +7,6 @@ use crate::{
 use thruput_sdk::*;
 
 /// Everything a pool will tell you about itself, in one call.
-///
-/// (Each exported method costs the contract a few hundred bytes of dispatch and codec, so grouping
-/// these saves on codesize.)
 #[contract_type]
 pub struct PoolState {
     /// The last-recorded reserves, and when they were recorded.
@@ -27,9 +24,9 @@ pub struct PoolState {
     ///
     /// Recorded as of `block_timestamp`, and only when the reserves change: a `sync` that finds
     /// nothing new records nothing (see `Pair::sync`). The accumulator is a function of the
-    /// reserves' history, so a consumer wanting its value at a later block extrapolates -- each
-    /// price times the blocks since `block_timestamp`, added on -- exactly as UniswapV2's oracle
-    /// library does with `price0CumulativeLast` and `blockTimestampLast`.
+    /// reserves' history, so a consumer wanting its value at a later block extrapolates (each price
+    /// times the blocks since `block_timestamp`, added on) exactly as UniswapV2's oracle library
+    /// does with `price0CumulativeLast` and `blockTimestampLast`.
     pub cumulative_prices: [U256; 2],
 }
 
@@ -37,11 +34,6 @@ pub struct PoolState {
 #[contract_exception]
 pub enum SwapRequestError {
     /// The request was handed to this contract by something other than the pool's driver.
-    ///
-    /// A request names the account whose tokens it spends, and this contract spends them on that
-    /// account's standing allowance. Anyone able to hand it a request could therefore spend
-    /// anyone's allowance, so requests are taken only from the driver -- which takes them only from
-    /// the router, which records the account that actually asked.
     ///
     /// (This lives here, rather than on a handler-specific error type, because a distinct type
     /// costs several hundred bytes of encoding machinery.)
@@ -105,18 +97,24 @@ pub trait SwapHandler {
     /// which records the account that actually asked.
     fn handle_request(&mut self, request: SwapRequest);
 
+    /// Claim this block's drain opportunity for the calling crank operation.
+    /// Callable only by this pool's driver.
+    ///
+    /// The driver calls this, commit-locked, before handing the handler any request; of the cranks
+    /// in one block, only the first to claim can hold it, and the others abort before attempting to
+    /// drain (see `batch_driver::Queue::crank`).
+    fn claim_crank(&mut self);
+
     /// Everything this pool will report about itself.
     fn pool_state(&self) -> PoolState;
 
     /// Send any balance in excess of the recorded reserves to `to`.
     ///
-    /// Open to anyone, as in UniswapV2: it attributes nothing and can only move what the reserves
-    /// do not account for, so it stays available as a way to recover tokens sent to the pool by
-    /// mistake.
+    /// Open to anyone, as a way to recover tokens sent to the pool by mistake.
     fn skim(&mut self, to: &Address);
 
     /// Record the pool's actual balances as its reserves.
     ///
-    /// Open to anyone, for the same reason as [`skim`](Self::skim).
+    /// Open to anyone.
     fn sync(&mut self);
 }

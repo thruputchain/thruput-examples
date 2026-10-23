@@ -25,10 +25,10 @@ pub struct Factory {
     // of the pool's contracts).
     //
     // The list is a `Vector`, whose length is written under an exclusive lock, so this factory
-    // creates at most one pool per block: a second `create_pair` in the same block is returned to
-    // the mempool and lands in the next. Creation order is inherently serial -- a mergeable counter
-    // would hand two concurrent creations the same index -- and pools are created rarely, so the
-    // limit is accepted rather than designed around.
+    // creates at most one pool per block: a second `create_pair` in the same block fails at commit,
+    // and lands only if submitted again in a later one. Creation order is inherently serial (a
+    // mergeable counter would hand two concurrent creations the same index) and pools are created
+    // rarely, so this limit is acceptable.
     pairs: Map<Addresses, Value<Address>>,
     all_pairs: Vector<Value<Addresses>>,
 }
@@ -42,9 +42,8 @@ pub struct Factory {
 /// because admission is irrevocable: a queued request cannot be withdrawn, and it executes against
 /// whatever reserves obtain whenever it is finally handled, however stale the quote has become that
 /// its slippage limits were chosen against. A request turned away at the ceiling is in a better
-/// position: it waits in the mempool, landing as soon as processing makes room; if it instead
-/// outlives its own expiry height, that leaves its sender free to resubmit against a fresh quote.
-/// So the ceiling is set to a tolerable backlog.
+/// position: it fails at commit with nothing written, so its sender decides afresh -- submitting
+/// it again once processing has made room, or not. So the ceiling is set to a tolerable backlog.
 const MAX_QUEUE_LEN: u32 = 256;
 
 /// The most a crank of a pool's queue can be required to clear before it may drain at all.
@@ -154,8 +153,8 @@ impl SwapFactory for Factory {
         // exactly the two-step dance this signature exists to remove.
         //
         // So a shortfall past the floor checked above shows up where storage deposits are always
-        // settled: at this transaction's reservation, which returns it to the mempool rather than
-        // including a failure in the block. It will retry, and keep failing, until it expires.
+        // settled: at this transaction's reservation, which leaves it out of the block rather than
+        // including a failure there. Submitted again, it fails the same way.
         let me = get_current_address();
 
         SwapHandlerClient::new(&handler).initialize(&me, token0, token1, &liquidity_token, &driver);
@@ -167,8 +166,7 @@ impl SwapFactory for Factory {
         );
 
         // Record the new pair: by tokens (for `get_pair`) and in creation order (for `pair_at`). A
-        // pair is its handler -- that is the contract holding its reserves and performing its
-        // operations.
+        // pair is its handler: the contract holding its reserves and performing its operations.
         self.pairs.at_mut(tokens.key()).set(&handler);
         self.all_pairs.push_with(|slot| slot.set(tokens.key()));
 

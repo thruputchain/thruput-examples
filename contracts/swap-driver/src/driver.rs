@@ -78,12 +78,15 @@ impl SwapDriver for Driver {
         let cfg = self.cfg.get();
 
         self.queue
-            .crank(|request, gas_limit| {
-                cfg.handler()
-                    .with_commit_locking()
-                    .with_gas_limit(gas_limit)
-                    .try_handle_request(request)
-            })
+            .crank(
+                || cfg.handler().with_commit_locking().try_claim_crank(),
+                |request, gas_limit| {
+                    cfg.handler()
+                        .with_commit_locking()
+                        .with_gas_limit(gas_limit)
+                        .try_handle_request(request)
+                },
+            )
             .unwrap_or_else(|_: batch_driver::Starved| throw(SwapDriverError::BatchTooSmall))
     }
 }

@@ -24,6 +24,21 @@ use thruput_sdk::*;
 /// [`Queue::crank`]: crate::Queue::crank
 pub const EPILOGUE_GAS: u64 = 200_000;
 
+/// The gas [`Queue::crank`] sets aside for claiming the drain: the commit-locked call its `claim`
+/// makes, and the exclusive write that call makes.
+///
+/// A crank claims only if, with this much paid for the claim, it can still fund what the queue owes
+/// -- and at least one request -- so that no crank holds a block's claim without draining. A
+/// figure too low would let one through that then drains less than it owes, or nothing; one too
+/// high only raises the floor a crank must clear.
+///
+/// Calibrated on a devnode: under the `calibration` feature `crank` reports what its claim cost,
+/// which came to about 43k for `swap-handler`'s, and this keeps roughly twice that. See
+/// `scripts/swap-gas-calibrate.sh`.
+///
+/// [`Queue::crank`]: crate::Queue::crank
+pub const CLAIM_GAS: u64 = 100_000;
+
 /// The gas limit a caller should declare in order to have [`Queue::crank`] drain up to `batch_size`
 /// requests of type `R`, even if every one of them costs the full [`BatchRequest::GAS_LIMIT`].
 ///
@@ -38,9 +53,11 @@ pub const EPILOGUE_GAS: u64 = 200_000;
 ///
 /// [`Queue::crank`]: crate::Queue::crank
 pub const fn gas_for_batch<R: BatchRequest>(batch_size: u32) -> u64 {
-    // One request's worth beyond what the loop strictly needs, so that a caller declaring exactly
-    // this still clears `budget_for_batch` after the frame's own entry costs.
-    budget_for_batch::<R>(batch_size).saturating_add(R::GAS_LIMIT)
+    // The claim, and one request's worth beyond what the loop strictly needs, so that a caller
+    // declaring exactly this still clears what `crank` requires after the frame's own entry costs.
+    budget_for_batch::<R>(batch_size)
+        .saturating_add(CLAIM_GAS)
+        .saturating_add(R::GAS_LIMIT)
 }
 
 /// The gas a frame must still hold to be able to take `batch_size` more requests of type `R` from

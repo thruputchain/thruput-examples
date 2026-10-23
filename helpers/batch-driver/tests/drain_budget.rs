@@ -1,14 +1,10 @@
 //! The gas budgeting in [`batch_driver::Queue::crank`]'s drain.
 //!
 //! The drain is bounded by what the calling frame can still afford, so the caller's own gas limit
-//! is what sizes the batch. Two properties matter, and both are visible natively:
-//!
-//! * a frame with room keeps going -- there is no batch size fixed inside the helper for every
-//!   caller to declare gas for; and
-//! * a frame without room for a whole request stops *before* consuming one, so a request is never
-//!   taken out of the queue and then dropped for want of gas to handle it.
+//! is what sizes the batch. A frame without room for a whole request stops *before* consuming one,
+//! so a request is never taken out of the queue and then dropped for want of gas.
 
-use batch_driver::{BatchRequest, CrankPolicy, EPILOGUE_GAS, Queue, gas_for_batch};
+use batch_driver::{BatchRequest, CLAIM_GAS, CrankPolicy, EPILOGUE_GAS, Queue, gas_for_batch};
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
 
@@ -111,10 +107,13 @@ fn requests_declined_for_want_of_gas_stay_queued() {
         tx.call(&ADDR).run(|| {
             let mut seen = Vec::new();
             queue::<Request>()
-                .crank(|request: Request, _gas| {
-                    seen.push(request.id);
-                    Ok(())
-                })
+                .crank(
+                    || Ok(()),
+                    |request: Request, _gas| {
+                        seen.push(request.id);
+                        Ok(())
+                    },
+                )
                 .expect("a zero floor owes nothing");
             seen
         })
@@ -137,14 +136,15 @@ fn an_enormous_request_limit_does_not_wrap_the_threshold() {
 /////////////////////// sizing a batch //////////////////////////////////////
 
 // `gas_for_batch` is the inverse of the drain's budget check: a frame given exactly that much
-// drains the whole batch, even with every request costing its full declared worst case.
+// claims the drain and then drains the whole batch, even with the claim and every request costing
+// their full worst cases.
 #[test]
 fn gas_for_batch_funds_the_whole_batch() {
     const BATCH: u32 = 4;
 
-    // The drain stops when the frame can no longer fund one more request, so walk the budget down a
-    // batch's worth and check it is still going.
-    let mut remaining = gas_for_batch::<Request>(BATCH);
+    // The claim is paid first. The drain then stops when the frame can no longer fund one more
+    // request, so walk the budget down a batch's worth and check it is still going.
+    let mut remaining = gas_for_batch::<Request>(BATCH) - CLAIM_GAS;
     let threshold = Request::GAS_LIMIT + EPILOGUE_GAS;
 
     for taken in 0..BATCH {
@@ -174,7 +174,7 @@ fn a_batch_without_the_reserve_falls_one_short() {
 fn gas_for_batch_saturates() {
     assert_eq!(gas_for_batch::<Unaffordable>(1), u64::MAX);
     assert_eq!(gas_for_batch::<Request>(u32::MAX), {
-        EPILOGUE_GAS + (u64::from(u32::MAX) + 1) * Request::GAS_LIMIT
+        EPILOGUE_GAS + CLAIM_GAS + (u64::from(u32::MAX) + 1) * Request::GAS_LIMIT
     });
 }
 
@@ -215,7 +215,7 @@ fn crank<R: BatchRequest + 'static>(env: &TestEnvironmentHandle) -> TransactResu
     env.transact(|tx| {
         tx.call(&ADDR).run(|| {
             queue::<R>()
-                .crank(|_request: R, _gas| Ok(()))
+                .crank(|| Ok(()), |_request: R, _gas| Ok(()))
                 .expect("a zero floor owes nothing")
         })
     })
