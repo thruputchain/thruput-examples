@@ -126,10 +126,12 @@ describe("provider write boundary", () => {
   it("keeps the calibrated crank frame and enclosing wallet budget", async () => {
     const { boundary, wallet } = fixture();
     const invocation = buildProcessRequestsTarget(addressFromBase58(id(0x06)));
-    expect(invocation.gas_limit).toBeGreaterThan(200_000n + 8n * 1_500_000n);
+    expect(invocation.gas_limit).toBeGreaterThan(
+      200_000n + 100_000n + 8n * 1_500_000n,
+    );
     expect((await boundary.execute(invocation)).kind).toBe("committedSuccess");
     expect(wallet.executeAndWait).toHaveBeenCalledWith(
-      { invocation, gasLimit: 18_700_000n, expiryBlocks: 1_000n },
+      { invocation, gasLimit: 18_800_000n, expiryBlocks: 1_000n },
       expect.anything(),
     );
   });
