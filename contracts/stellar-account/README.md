@@ -20,7 +20,7 @@ level, so the contract adds the thresholds and nothing else.
 | Account ID (`G...`) | The master key, fixed at creation; `master_key()` returns it. The CLI formats it as the same `G` strkey. |
 | Account address | `factory.address_of(G)`: a hash of the factory, a domain-tagged hash of `G`, and the account code hash. |
 | Master key weight | `set_master_weight(w)`; 0 deregisters slot 0. |
-| Up to 20 signers | Slots 1 to 20, `set_signer(slot, key, weight)` / `remove_signer(slot)`. The client picks the slot by reading `AddressAuthData` over RPC. |
+| Up to 20 signers | Slots 1 to 20, `set_signer(slot, key, weight)` / `remove_signer(slot)`. `key` is an Ed25519 or ML-DSA-65 `PublicKey`. The client picks the slot by reading `AddressAuthData` over RPC. |
 | Low / medium / high thresholds | `set_thresholds(low, medium, high)`. `low` is also the chain-enforced required weight. |
 | Operation threshold check | The transaction's auth claim asks for a `required_weight`; hogd admits the transaction only if the signers' weights reach it; the account requires that claimed weight to reach the operation's threshold. |
 | `payment` | `payment(asset, to, amount)`: an ERC20 transfer. The native token is the ERC20 at the precompile address. |
@@ -39,6 +39,24 @@ about this account's signers.
 
 Registration writes land with the block: a signer change is in force from the next block, and a
 transaction sharing a block with the change is judged against the old set.
+
+## Post-quantum signers
+
+Stellar signers are Ed25519 keys (`G...`). Here any signer slot can instead hold an ML-DSA-65
+(FIPS 204) key, and one account can mix the two: a transaction's signatures are checked per slot
+against that slot's scheme, and their weights add up as usual. The master key is always Ed25519,
+so the account ID and address derivation are unchanged.
+
+An ML-DSA-65 key has no `G`/`S` strkey form; clients pass it as a scheme-tagged `PublicKey`. It
+travels only as `set_signer` calldata and goes straight into the chain's registration: the account
+never stores, emits, or returns it (`SignerChanged` carries the slot and weight). That keeps the
+account within the chain's default 1024-byte limits on a storage value, an event, and a return
+buffer, which a 1953-byte encoded ML-DSA-65 key would exceed. Read a signer's key back from the
+address's `AddressAuthData`.
+
+Needs a `thruput-sdk` whose `add_address_public_key` accepts ML-DSA-65 keys and a runtime with
+hogd #4539; [`tests/account.rs`](tests/account.rs) covers mixed Ed25519/ML-DSA-65 authorization
+against the native executor's verifier.
 
 ## What is not Stellar here
 

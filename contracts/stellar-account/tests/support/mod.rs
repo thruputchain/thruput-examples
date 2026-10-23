@@ -20,7 +20,9 @@ use stellar_account_factory_if::StellarAccountInitializerClient;
 use thruput_domain_separator::transaction_signature_preimage;
 use thruput_sdk::call::RawCallError;
 use thruput_sdk::*;
-use thruput_signing::{BuildCallTransaction, build_call_transaction, public_key_hash};
+use thruput_signing::{
+    BuildCallTransaction, MlDsa65Signer, Signer as _, build_call_transaction, public_key_hash,
+};
 use thruput_xdr::auth_claim::{AuthClaim_source_address_claim, AuthVerifyErrorCode};
 use thruput_xdr::transaction::{DecoratedSignature, SignedTransaction};
 
@@ -31,6 +33,9 @@ pub const RECEIVER: ContractAddress = ContractAddress::new([0x40; 32]);
 
 pub const MASTER_SEED: [u8; 32] = [0x11; 32];
 pub const SECOND_SEED: [u8; 32] = [0x22; 32];
+/// FIPS 204 key-generation seeds for the ML-DSA-65 signers.
+pub const MLDSA_SEED: [u8; 32] = [0x44; 32];
+pub const OTHER_MLDSA_SEED: [u8; 32] = [0x55; 32];
 
 pub const MINTED: i128 = 1_000;
 
@@ -46,6 +51,44 @@ pub fn master_key() -> Ed25519PublicKey {
 }
 pub fn second_key() -> Ed25519PublicKey {
     key_from(&SECOND_SEED)
+}
+
+/// A signer key for `set_signer`: Ed25519 from `seed`.
+pub fn ed25519_signer(seed: &[u8; 32]) -> PublicKey {
+    PublicKey::Ed25519 {
+        ed25519: key_from(seed),
+    }
+}
+/// The second Ed25519 key as a signer key.
+pub fn second_signer() -> PublicKey {
+    ed25519_signer(&SECOND_SEED)
+}
+/// A signer key for `set_signer`: ML-DSA-65 from the FIPS 204 seed `seed`.
+pub fn mldsa_signer(seed: &[u8; 32]) -> PublicKey {
+    MlDsa65Signer::from_seed(seed).public_key()
+}
+
+/// A key that signs a transaction to the account at a slot.
+#[derive(Clone, Copy)]
+pub enum Key<'a> {
+    Ed25519(&'a [u8; 32]),
+    MlDsa65(&'a [u8; 32]),
+}
+
+impl Key<'_> {
+    /// Pure ML-DSA with an empty context for ML-DSA-65, as hogd verifies.
+    pub fn sign(&self, preimage: &[u8]) -> Signature {
+        match self {
+            Key::Ed25519(seed) => Signature::Ed25519 {
+                ed25519: Ed25519Signature::from(
+                    SigningKey::from_bytes(seed).sign(preimage).to_bytes(),
+                ),
+            },
+            Key::MlDsa65(seed) => MlDsa65Signer::from_seed(seed)
+                .sign(preimage)
+                .expect("ML-DSA-65 signing"),
+        }
+    }
 }
 
 /// A source-address claim asking for `weight`. Any registered signer is
@@ -142,15 +185,43 @@ pub fn balance_of(env: &TestEnvironmentHandle, who: ContractAddress) -> i128 {
 }
 
 /// Whether the chain would admit a transaction to `ACCOUNT` claiming
-/// `required_weight` and signed by each `(slot, seed)` in `signers` (slots
-/// strictly increasing). The native executor's verifier checks the
-/// signatures and weights against the `AddressAuthData` it stores for the
+/// `required_weight` and signed by each `(slot, seed)` in `signers` (Ed25519
+/// keys, slots strictly increasing). The native executor's verifier checks
+/// the signatures and weights against the `AddressAuthData` it stores for the
 /// account, with hogd's rule: the signers must reach
 /// `max(stored required_weight, required_weight)`.
 pub fn chain_accepts(
     env: &TestEnvironmentHandle,
     signers: &[(u32, &[u8; 32])],
     required_weight: u32,
+) -> bool {
+    let keys: Vec<(u32, Key<'_>)> = signers
+        .iter()
+        .map(|(slot, seed)| (*slot, Key::Ed25519(seed)))
+        .collect();
+    chain_accepts_keys(env, &keys, required_weight)
+}
+
+/// [`chain_accepts`] for signers of either scheme.
+pub fn chain_accepts_keys(
+    env: &TestEnvironmentHandle,
+    signers: &[(u32, Key<'_>)],
+    required_weight: u32,
+) -> bool {
+    chain_accepts_signatures(env, required_weight, |preimage| {
+        signers
+            .iter()
+            .map(|(slot, key)| (*slot, key.sign(preimage)))
+            .collect()
+    })
+}
+
+/// [`chain_accepts`] with the signatures built by `sign` from the
+/// transaction's signature preimage, so a test can tamper with one.
+pub fn chain_accepts_signatures(
+    env: &TestEnvironmentHandle,
+    required_weight: u32,
+    sign: impl FnOnce(&[u8]) -> Vec<(u32, Signature)>,
 ) -> bool {
     let height = env.transact(|tx| tx.call(&ROOT).run(get_block_height));
     height.assert_success();
@@ -166,15 +237,11 @@ pub fn chain_accepts(
     });
     let preimage = transaction_signature_preimage(&thruput_sdk::test_network_hash(), &tx)
         .expect("encoding the signature preimage");
-    let signatures: Vec<DecoratedSignature> = signers
-        .iter()
-        .map(|(slot, seed)| DecoratedSignature {
-            public_key_id: *slot,
-            signature: Signature::Ed25519 {
-                ed25519: Ed25519Signature::from(
-                    SigningKey::from_bytes(seed).sign(&preimage).to_bytes(),
-                ),
-            },
+    let signatures: Vec<DecoratedSignature> = sign(&preimage)
+        .into_iter()
+        .map(|(public_key_id, signature)| DecoratedSignature {
+            public_key_id,
+            signature,
         })
         .collect();
     let stx = SignedTransaction {
@@ -185,4 +252,12 @@ pub fn chain_accepts(
     // The from-database path reports the mempool's pass/fail code: 0 is
     // admitted, anything else is refused.
     env.verify_signed_transaction_auth(&stx) == AuthVerifyErrorCode(0)
+}
+
+/// The key and weight the chain has registered at `slot` for `ACCOUNT`.
+pub fn registered(env: &TestEnvironmentHandle, slot: u32) -> Option<(PublicKey, u32)> {
+    let auth = env.get_snapshot_auth_data(&ACCOUNT)?;
+    auth.public_keys[slot as usize]
+        .as_ref()
+        .map(|config| (config.key.clone(), config.max_weight))
 }

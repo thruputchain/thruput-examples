@@ -2,7 +2,7 @@
 
 use swap_if::*;
 use thruput_erc20_if::{ERC20Client, ERC20Error};
-use thruput_sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
+use thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN;
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
 
@@ -125,7 +125,7 @@ impl SwapFactory for Factory {
         // deterministic in the token pair.
         let hashes = self.hashes.get();
         let payer = get_caller();
-        let native = ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN);
+        let native = ERC20Client::new(&ADDRESS_NATIVE_TOKEN);
         // This interface counts native-token amounts in `u128`; the token's amounts are `i128`,
         // and no balance can cover anything above `i128::MAX`.
         let funding = i128::try_from(funding).unwrap_or_else(|_| throw(ERC20Error::TooLarge));

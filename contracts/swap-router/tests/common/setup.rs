@@ -1,7 +1,7 @@
 use super::*;
 use std::env;
 use swap_factory::{POOL_FUNDING, SwapFactoryClient, SwapHashes};
-use thruput_sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
+use thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN;
 
 pub fn setup_etx() -> Result<Etx> {
     #[cfg(not(feature = "guest_test"))]
@@ -89,7 +89,7 @@ pub fn setup_contracts(
     // The native token is a precompile: it is live at its address from genesis and cannot be
     // redeployed. Like any other contract, it pays for the allowance ledger it keeps in its own
     // storage.
-    env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);
+    env.setup_grant_storage_tokens(&ADDRESS_NATIVE_TOKEN, CONTRACT_FUNDING);
 
     // Under the default cost model each contract pays for the storage it writes, so pre-fund
     // everything before it is deployed: the test-user addresses, and each directly-deployed
@@ -149,7 +149,7 @@ pub fn setup_contracts(
     // The factory funds this pair's contracts (LP token, handler, driver) as it deploys them, on
     // the allowance it is granted here.
     exec_tx(env, &TEST_ADDR, move || {
-        ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
+        ERC20Client::new(&ADDRESS_NATIVE_TOKEN)
             .adjust_allowance(&factory_addr, 3 * POOL_FUNDING.recommended as i128);
     })?;
 

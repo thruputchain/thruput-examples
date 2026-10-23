@@ -241,7 +241,7 @@ fn weights(env: &TestEnvironmentHandle) -> [u32; MAX_SIGNERS] {
 }
 
 fn add_second_signer(env: &TestEnvironmentHandle, weight: u32) -> TransactResult {
-    as_account(env, claim(1), |a| a.set_signer(1, &second_key(), weight))
+    as_account(env, claim(1), |a| a.set_signer(1, &second_signer(), weight))
 }
 
 /// Raise thresholds as the account at a claimed weight that clears the
@@ -264,7 +264,7 @@ fn set_signer_needs_the_high_threshold_and_updates_the_mirror_and_event() {
 
     // Claiming 2 passes the account check. (On chain this would need two
     // signers; the mock does not verify signatures.)
-    let result = as_account(&env, claim(2), |a| a.set_signer(1, &second_key(), 3));
+    let result = as_account(&env, claim(2), |a| a.set_signer(1, &second_signer(), 3));
     result.assert_success();
     result.assert_event_count(1);
     result.assert_event::<SignerChanged>(0, |e| {
@@ -285,7 +285,7 @@ fn set_signer_rejects_slot_zero_out_of_range_slots_and_zero_weight() {
         (1, 0, AccountError::ZeroWeight),
     ] {
         let result = as_account(&env, claim(1), |a| {
-            a.set_signer(slot, &second_key(), weight)
+            a.set_signer(slot, &second_signer(), weight)
         });
         assert_account_error(&result, expected);
     }
@@ -519,7 +519,7 @@ fn lowering_a_signer_weight_below_the_high_threshold_is_refused() {
     add_second_signer(&env, 2).assert_success();
     env.advance_block();
     raise_thresholds(&env, 1, 1, 3);
-    let result = as_account(&env, claim(3), |a| a.set_signer(1, &second_key(), 1));
+    let result = as_account(&env, claim(3), |a| a.set_signer(1, &second_signer(), 1));
     assert_account_error(&result, AccountError::WouldLockOut);
     env.advance_block();
     assert_eq!(weights(&env)[1], 2, "nothing was written");
@@ -607,7 +607,7 @@ fn a_refused_change_leaves_the_chain_registration_and_required_weight_unchanged(
     // Re-keying slot 1 to a third key at weight 1 drops the total to 2,
     // below high: refused after the registration syscall was issued.
     let refused = as_account(&env, claim(3), |a| {
-        a.set_signer(1, &key_from(&THIRD_SEED), 1)
+        a.set_signer(1, &ed25519_signer(&THIRD_SEED), 1)
     });
     assert_account_error(&refused, AccountError::WouldLockOut);
     // A low above the total: refused after the required-weight syscall.
@@ -654,7 +654,9 @@ fn the_chain_enforces_low_even_when_the_claim_is_lower() {
 #[test]
 fn set_signer_refuses_the_master_key_in_another_slot() {
     let env = setup();
-    let result = as_account(&env, claim(1), |a| a.set_signer(1, &master_key(), 1));
+    let result = as_account(&env, claim(1), |a| {
+        a.set_signer(1, &ed25519_signer(&MASTER_SEED), 1)
+    });
     assert_account_error(&result, AccountError::InvalidSlot);
     env.advance_block();
     assert_eq!(weights(&env)[1], 0, "nothing was written");
@@ -677,7 +679,7 @@ fn duplicate_non_master_key_in_two_slots_is_refused_at_commit() {
     env.advance_block();
     // A new transaction attempts to register the same key at slot 2.
     // hogd should refuse the commit with DuplicateSigner.
-    let result = as_account(&env, claim(1), |a| a.set_signer(2, &second_key(), 1));
+    let result = as_account(&env, claim(1), |a| a.set_signer(2, &second_signer(), 1));
     result.assert_commit_failed();
 }
 
@@ -692,4 +694,120 @@ fn master_weight_zero_on_an_empty_slot_zero_is_refused() {
     let result = set_master_weight_at(&env, 1, 0);
     assert_account_error(&result, AccountError::InvalidSlot);
     result.assert_no_events();
+}
+
+// ML-DSA-65 signers. The master key is always Ed25519; any other slot may
+// hold either scheme. The key travels only as `set_signer` calldata: the
+// account does not store or emit it (SignerChanged is slot and weight), so
+// these tests read the registration back from the chain's auth data.
+
+const MLDSA: Key<'static> = Key::MlDsa65(&MLDSA_SEED);
+const MASTER: Key<'static> = Key::Ed25519(&MASTER_SEED);
+
+fn add_mldsa_signer(env: &TestEnvironmentHandle, weight: u32) {
+    let result = as_account(env, claim(1), |a| {
+        a.set_signer(1, &mldsa_signer(&MLDSA_SEED), weight)
+    });
+    result.assert_success();
+    result.assert_event::<SignerChanged>(0, |e| assert_eq!(e.payload().weight, weight));
+    env.advance_block();
+}
+
+#[test]
+fn an_mldsa_signer_is_registered_on_the_chain_and_mirrored_by_weight() {
+    let env = setup();
+    add_mldsa_signer(&env, 2);
+    assert_eq!(
+        registered(&env, 1),
+        Some((mldsa_signer(&MLDSA_SEED), 2)),
+        "the chain holds the ML-DSA-65 key at slot 1"
+    );
+    assert_eq!(
+        registered(&env, 0),
+        Some((ed25519_signer(&MASTER_SEED), 1)),
+        "the Ed25519 master is untouched"
+    );
+    assert_eq!(weights(&env)[1], 2);
+}
+
+#[test]
+fn the_ed25519_master_and_an_mldsa_signer_together_meet_a_threshold_of_two() {
+    let env = setup();
+    add_mldsa_signer(&env, 1);
+    raise_thresholds(&env, 2, 2, 2);
+
+    assert!(
+        chain_accepts_keys(&env, &[(0, MASTER), (1, MLDSA)], 2),
+        "Ed25519 master plus ML-DSA-65 signer reach 2"
+    );
+    assert!(!chain_accepts_keys(&env, &[(0, MASTER)], 2));
+    assert!(!chain_accepts_keys(&env, &[(1, MLDSA)], 2));
+    assert!(
+        !chain_accepts_keys(&env, &[(0, MASTER), (1, MLDSA)], 3),
+        "a claim above their combined weight is refused"
+    );
+
+    // The account's own check at the claim that transaction carries.
+    let before = balance_of(&env, RECEIVER);
+    as_account(&env, claim(2), |a| a.payment(&TOKEN, &RECEIVER, 7)).assert_success();
+    env.advance_block();
+    assert_eq!(balance_of(&env, RECEIVER), before + 7);
+}
+
+#[test]
+fn an_mldsa_signer_alone_authorizes_up_to_its_weight() {
+    let env = setup();
+    add_mldsa_signer(&env, 2);
+    raise_thresholds(&env, 2, 2, 2);
+    assert!(chain_accepts_keys(&env, &[(1, MLDSA)], 2));
+    assert!(
+        !chain_accepts_keys(&env, &[(0, MASTER)], 1),
+        "the chain requires max(stored 2, claimed 1); the master has 1"
+    );
+}
+
+#[test]
+fn the_chain_refuses_a_bad_signature_in_the_mldsa_slot() {
+    let env = setup();
+    add_mldsa_signer(&env, 1);
+    assert!(
+        chain_accepts_keys(&env, &[(1, MLDSA)], 1),
+        "the honest case"
+    );
+
+    assert!(
+        !chain_accepts_signatures(&env, 1, |preimage| {
+            let mut signature = MLDSA.sign(preimage);
+            let Signature::MlDsa65 { mldsa65 } = &mut signature else {
+                unreachable!("an ML-DSA-65 key signs ML-DSA-65")
+            };
+            mldsa65[0] ^= 1;
+            vec![(1, signature)]
+        }),
+        "a tampered ML-DSA-65 signature"
+    );
+    assert!(
+        !chain_accepts_keys(&env, &[(1, Key::Ed25519(&MLDSA_SEED))], 1),
+        "an Ed25519 signature in the ML-DSA-65 slot"
+    );
+    assert!(
+        !chain_accepts_keys(&env, &[(1, Key::MlDsa65(&OTHER_MLDSA_SEED))], 1),
+        "a different ML-DSA-65 key's signature"
+    );
+}
+
+#[test]
+fn removing_an_mldsa_signer_deregisters_its_key() {
+    let env = setup();
+    add_mldsa_signer(&env, 1);
+    let result = as_account(&env, claim(1), |a| a.remove_signer(1));
+    result.assert_success();
+    result.assert_event::<SignerChanged>(0, |e| assert_eq!(e.payload().weight, 0));
+    env.advance_block();
+    assert_eq!(registered(&env, 1), None);
+    assert_eq!(weights(&env)[1], 0);
+    assert!(
+        !chain_accepts_keys(&env, &[(1, MLDSA)], 1),
+        "the removed key no longer authorizes"
+    );
 }
