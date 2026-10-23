@@ -1,0 +1,52 @@
+# Config for `cargo cooldown`
+# Keep in sync with .cargo/cooldown.toml and .cargo/cooldown-allowlist.toml
+
+[cooldown]
+incompatible-publish-age = "deny"
+lockfile-baseline = "ignore"
+
+[registry]
+global-min-publish-age = "15 days"
+
+[registries.thruput]
+min-publish-age = "0"
+
+# Security fix for ctutils 0.4.3 and earlier (fixed in 0.4.4).
+[[allow.exact]]
+crate = "ctutils"
+version = "0.4.5"
+
+# Security fix for RUSTSEC-2026-0386 (AsyncFd constructors deprecated).
+[[allow.exact]]
+crate = "tokio"
+version = "1.53.3"
+
+# Grandfathered versions ... (can remove after 2026 Nov 9)
+
+[[allow.exact]]
+crate = "indoc"
+version = "2.0.8"
+
+[[allow.exact]]
+crate = "rustls"
+version = "0.23.46"
+
+[[allow.exact]]
+crate = "rustls-webpki"
+version = "0.103.16"
+
+[[allow.exact]]
+crate = "toml"
+version = "1.1.8+spec-1.1.0"
+
+[[allow.exact]]
+crate = "toml_parser"
+version = "1.1.5+spec-1.1.0"
+
+[[allow.exact]]
+crate = "webpki-root-certs"
+version = "1.0.10"
+
+[[allow.exact]]
+crate = "zstd-sys"
+version = "2.1.1+zstd.1.5.7"
