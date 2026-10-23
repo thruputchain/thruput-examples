@@ -10,7 +10,7 @@ use thruput_testkit::{AgentContext, Contract, DeployOptions, Result, xdrs};
 type Address = ContractAddress;
 
 // Interface identities (name, version)
-pub const ERC20: (&str, &str) = ("ERC20", "0.1.62");
+pub const ERC20: (&str, &str) = ("ERC20", "0.1.64");
 pub const HANDLER: (&str, &str) = ("SwapHandler", "0.1.0");
 pub const DRIVER: (&str, &str) = ("SwapDriver", "0.1.0");
 pub const ROUTER: (&str, &str) = ("SwapRouter", "0.1.0");
@@ -55,7 +55,7 @@ pub fn erc20(address: Address) -> Contract {
 // `thruput-erc20-if` 0.1.3.
 pub fn native_token() -> Contract {
     Contract::new(
-        thruput_sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN,
+        thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN,
         "ERC20",
         "0.1.3",
     )

@@ -165,7 +165,7 @@ impl StellarAccount {
     }
 
     /// Stellar's `payment`: an ERC20 transfer from this account. The native token
-    /// is the ERC20 at `thruput_sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN`.
+    /// is the ERC20 at `thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN`.
     /// Medium threshold.
     pub fn payment(&self, asset: &ContractAddress, to: &ContractAddress, amount: Amount) {
         self.authorize(Category::Medium);

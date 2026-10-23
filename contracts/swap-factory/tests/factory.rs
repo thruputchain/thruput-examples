@@ -7,7 +7,7 @@ use swap_if::SwapHashes;
 use swap_pair::Pair;
 use swap_pair::u256::U256;
 use thruput_erc20_if::{Difference, ERC20Client};
-use thruput_sdk::precompiles::ADDRESS_PRECOMPILED_HOG_TOKEN;
+use thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN;
 use thruput_sdk::storage::Node;
 use thruput_sdk::*;
 
@@ -94,7 +94,7 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     // The native token is a precompile: it is live at its address from genesis and cannot be
     // redeployed. It still keeps its allowance ledger in its own storage, and pays for it like any
     // other contract.
-    env.setup_grant_storage_tokens(&ADDRESS_PRECOMPILED_HOG_TOKEN, CONTRACT_FUNDING);
+    env.setup_grant_storage_tokens(&ADDRESS_NATIVE_TOKEN, CONTRACT_FUNDING);
 
     // Under the default cost model each contract pays for the storage it writes, so pre-fund the
     // deployer and the contracts it deploys directly.
@@ -128,7 +128,7 @@ fn setup_with_fee(fee_to: Option<ContractAddress>) -> Setup {
     // The factory funds the pool's three contracts as it deploys them, on the allowance the creator
     // grants it.
     exec_tx(&env, &DEPLOYER, || {
-        ERC20Client::new(&ADDRESS_PRECOMPILED_HOG_TOKEN)
+        ERC20Client::new(&ADDRESS_NATIVE_TOKEN)
             .adjust_allowance(&factory, CONTRACT_FUNDING as Difference);
     })
     .unwrap();
