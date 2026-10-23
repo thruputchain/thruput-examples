@@ -370,14 +370,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "commit-lock-conflict"
-version = "0.1.0"
-dependencies = [
- "commit-lock-conflict",
- "thruput-sdk",
-]
-
-[[package]]
 name = "compact_str"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
