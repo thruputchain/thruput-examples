@@ -11,6 +11,9 @@ const __gh_s = __gh_contract_spec.contractSpecString;
 const __gh_entrypoints = {
   SwapHandler: {
     v0_1: {
+      claimCrank: __gh_protocol.contractEntrypointID(
+        __gh_protocol_utils.fromHex("82c09b7ba7bc0fad"),
+      ),
       handleRequest: __gh_protocol.contractEntrypointID(
         __gh_protocol_utils.fromHex("45c30c0e5c3ad2b1"),
       ),
@@ -205,6 +208,9 @@ export namespace thruput_erc20_if {
 
 export namespace SwapHandler {
   export namespace v0_1 {
+    export type ClaimCrankArgs = void;
+    export type ClaimCrankResult = void;
+
     export interface HandleRequestArgs {
       request: __gh_codegen.swap_if$v0_1$request$SwapRequest;
     }
@@ -252,7 +258,7 @@ export namespace SwapHandler {
       | {
           kind: "declared";
           name: "ERC20Error";
-          selector: 0xb19947acb2fa14ffn;
+          selector: 0xf63c8b1f5e7e2fe0n;
           value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
         };
     export type Exception =
@@ -303,7 +309,7 @@ export const spec: __gh_client_contract.ContractSpec = {
           },
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
             named: {
@@ -316,6 +322,12 @@ export const spec: __gh_client_contract.ContractSpec = {
         },
       ],
       methods: [
+        {
+          name: __gh_s("claim_crank"),
+          args: [],
+          return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
+          effect: null,
+        },
         {
           name: __gh_s("handle_request"),
           args: [
@@ -1058,24 +1070,18 @@ const __gh_codecs = __gh_client_contract.createContractCodecContext(
 
 export const SwapHandler = {
   v0_1: {
-    handleRequest: __gh_client_contract.defineContractMethod<
-      SwapHandler.v0_1.HandleRequestArgs,
-      SwapHandler.v0_1.HandleRequestResult,
+    claimCrank: __gh_client_contract.defineContractMethod<
+      SwapHandler.v0_1.ClaimCrankArgs,
+      SwapHandler.v0_1.ClaimCrankResult,
       SwapHandler.v0_1.DeclaredException
     >({
       interfaceName: "SwapHandler",
       interfaceVersion: "0.1.0",
-      abiName: "handle_request",
-      publicName: "handleRequest",
-      entrypoint: __gh_entrypoints.SwapHandler.v0_1.handleRequest,
+      abiName: "claim_crank",
+      publicName: "claimCrank",
+      entrypoint: __gh_entrypoints.SwapHandler.v0_1.claimCrank,
       effect: spec.interfaces[0]!.methods[0]!.effect,
-      args: [
-        {
-          abiName: "request",
-          publicName: "request",
-          type: spec.interfaces[0]!.methods[0]!.args[0]!.ty,
-        },
-      ],
+      args: [],
       returnType: spec.interfaces[0]!.methods[0]!.return_type,
       throws: [
         {
@@ -1094,49 +1100,29 @@ export const SwapHandler = {
           type: spec.interfaces[0]!.throws[2]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
       ],
       codecs: __gh_codecs,
     }),
-    initialize: __gh_client_contract.defineContractMethod<
-      SwapHandler.v0_1.InitializeArgs,
-      SwapHandler.v0_1.InitializeResult,
+    handleRequest: __gh_client_contract.defineContractMethod<
+      SwapHandler.v0_1.HandleRequestArgs,
+      SwapHandler.v0_1.HandleRequestResult,
       SwapHandler.v0_1.DeclaredException
     >({
       interfaceName: "SwapHandler",
       interfaceVersion: "0.1.0",
-      abiName: "initialize",
-      publicName: "initialize",
-      entrypoint: __gh_entrypoints.SwapHandler.v0_1.initialize,
+      abiName: "handle_request",
+      publicName: "handleRequest",
+      entrypoint: __gh_entrypoints.SwapHandler.v0_1.handleRequest,
       effect: spec.interfaces[0]!.methods[1]!.effect,
       args: [
         {
-          abiName: "factory",
-          publicName: "factory",
+          abiName: "request",
+          publicName: "request",
           type: spec.interfaces[0]!.methods[1]!.args[0]!.ty,
-        },
-        {
-          abiName: "token0",
-          publicName: "token0",
-          type: spec.interfaces[0]!.methods[1]!.args[1]!.ty,
-        },
-        {
-          abiName: "token1",
-          publicName: "token1",
-          type: spec.interfaces[0]!.methods[1]!.args[2]!.ty,
-        },
-        {
-          abiName: "lp_token",
-          publicName: "lpToken",
-          type: spec.interfaces[0]!.methods[1]!.args[3]!.ty,
-        },
-        {
-          abiName: "driver",
-          publicName: "driver",
-          type: spec.interfaces[0]!.methods[1]!.args[4]!.ty,
         },
       ],
       returnType: spec.interfaces[0]!.methods[1]!.return_type,
@@ -1157,25 +1143,51 @@ export const SwapHandler = {
           type: spec.interfaces[0]!.throws[2]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
       ],
       codecs: __gh_codecs,
     }),
-    poolState: __gh_client_contract.defineContractMethod<
-      SwapHandler.v0_1.PoolStateArgs,
-      SwapHandler.v0_1.PoolStateResult,
+    initialize: __gh_client_contract.defineContractMethod<
+      SwapHandler.v0_1.InitializeArgs,
+      SwapHandler.v0_1.InitializeResult,
       SwapHandler.v0_1.DeclaredException
     >({
       interfaceName: "SwapHandler",
       interfaceVersion: "0.1.0",
-      abiName: "pool_state",
-      publicName: "poolState",
-      entrypoint: __gh_entrypoints.SwapHandler.v0_1.poolState,
+      abiName: "initialize",
+      publicName: "initialize",
+      entrypoint: __gh_entrypoints.SwapHandler.v0_1.initialize,
       effect: spec.interfaces[0]!.methods[2]!.effect,
-      args: [],
+      args: [
+        {
+          abiName: "factory",
+          publicName: "factory",
+          type: spec.interfaces[0]!.methods[2]!.args[0]!.ty,
+        },
+        {
+          abiName: "token0",
+          publicName: "token0",
+          type: spec.interfaces[0]!.methods[2]!.args[1]!.ty,
+        },
+        {
+          abiName: "token1",
+          publicName: "token1",
+          type: spec.interfaces[0]!.methods[2]!.args[2]!.ty,
+        },
+        {
+          abiName: "lp_token",
+          publicName: "lpToken",
+          type: spec.interfaces[0]!.methods[2]!.args[3]!.ty,
+        },
+        {
+          abiName: "driver",
+          publicName: "driver",
+          type: spec.interfaces[0]!.methods[2]!.args[4]!.ty,
+        },
+      ],
       returnType: spec.interfaces[0]!.methods[2]!.return_type,
       throws: [
         {
@@ -1194,31 +1206,25 @@ export const SwapHandler = {
           type: spec.interfaces[0]!.throws[2]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
       ],
       codecs: __gh_codecs,
     }),
-    skim: __gh_client_contract.defineContractMethod<
-      SwapHandler.v0_1.SkimArgs,
-      SwapHandler.v0_1.SkimResult,
+    poolState: __gh_client_contract.defineContractMethod<
+      SwapHandler.v0_1.PoolStateArgs,
+      SwapHandler.v0_1.PoolStateResult,
       SwapHandler.v0_1.DeclaredException
     >({
       interfaceName: "SwapHandler",
       interfaceVersion: "0.1.0",
-      abiName: "skim",
-      publicName: "skim",
-      entrypoint: __gh_entrypoints.SwapHandler.v0_1.skim,
+      abiName: "pool_state",
+      publicName: "poolState",
+      entrypoint: __gh_entrypoints.SwapHandler.v0_1.poolState,
       effect: spec.interfaces[0]!.methods[3]!.effect,
-      args: [
-        {
-          abiName: "to",
-          publicName: "to",
-          type: spec.interfaces[0]!.methods[3]!.args[0]!.ty,
-        },
-      ],
+      args: [],
       returnType: spec.interfaces[0]!.methods[3]!.return_type,
       throws: [
         {
@@ -1237,25 +1243,31 @@ export const SwapHandler = {
           type: spec.interfaces[0]!.throws[2]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
       ],
       codecs: __gh_codecs,
     }),
-    sync: __gh_client_contract.defineContractMethod<
-      SwapHandler.v0_1.SyncArgs,
-      SwapHandler.v0_1.SyncResult,
+    skim: __gh_client_contract.defineContractMethod<
+      SwapHandler.v0_1.SkimArgs,
+      SwapHandler.v0_1.SkimResult,
       SwapHandler.v0_1.DeclaredException
     >({
       interfaceName: "SwapHandler",
       interfaceVersion: "0.1.0",
-      abiName: "sync",
-      publicName: "sync",
-      entrypoint: __gh_entrypoints.SwapHandler.v0_1.sync,
+      abiName: "skim",
+      publicName: "skim",
+      entrypoint: __gh_entrypoints.SwapHandler.v0_1.skim,
       effect: spec.interfaces[0]!.methods[4]!.effect,
-      args: [],
+      args: [
+        {
+          abiName: "to",
+          publicName: "to",
+          type: spec.interfaces[0]!.methods[4]!.args[0]!.ty,
+        },
+      ],
       returnType: spec.interfaces[0]!.methods[4]!.return_type,
       throws: [
         {
@@ -1274,7 +1286,44 @@ export const SwapHandler = {
           type: spec.interfaces[0]!.throws[2]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
+          name: "ERC20Error",
+          type: spec.interfaces[0]!.throws[3]!.ty,
+        },
+      ],
+      codecs: __gh_codecs,
+    }),
+    sync: __gh_client_contract.defineContractMethod<
+      SwapHandler.v0_1.SyncArgs,
+      SwapHandler.v0_1.SyncResult,
+      SwapHandler.v0_1.DeclaredException
+    >({
+      interfaceName: "SwapHandler",
+      interfaceVersion: "0.1.0",
+      abiName: "sync",
+      publicName: "sync",
+      entrypoint: __gh_entrypoints.SwapHandler.v0_1.sync,
+      effect: spec.interfaces[0]!.methods[5]!.effect,
+      args: [],
+      returnType: spec.interfaces[0]!.methods[5]!.return_type,
+      throws: [
+        {
+          selector: 0x17e7e152700d9279n,
+          name: "SwapLibraryError",
+          type: spec.interfaces[0]!.throws[0]!.ty,
+        },
+        {
+          selector: 0x25d002d47b07640dn,
+          name: "SwapPairError",
+          type: spec.interfaces[0]!.throws[1]!.ty,
+        },
+        {
+          selector: 0x947bdd51feea1ccen,
+          name: "SwapRequestError",
+          type: spec.interfaces[0]!.throws[2]!.ty,
+        },
+        {
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[3]!.ty,
         },

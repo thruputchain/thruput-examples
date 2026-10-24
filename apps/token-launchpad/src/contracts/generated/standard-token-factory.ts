@@ -118,15 +118,15 @@ export namespace StandardTokenFactory {
     export type DeclaredException =
       | {
           kind: "declared";
-          name: "ERC20Error";
-          selector: 0xb19947acb2fa14ffn;
-          value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
-        }
-      | {
-          kind: "declared";
           name: "TokenFactoryError";
           selector: 0xdfe28e95b625ef76n;
           value: __gh_codegen.standard_token_factory_if$v0_1$factory$TokenFactoryError;
+        }
+      | {
+          kind: "declared";
+          name: "ERC20Error";
+          selector: 0xf63c8b1f5e7e2fe0n;
+          value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
         };
     export type Exception =
       __gh_client_contract.ContractException<DeclaredException>;
@@ -140,18 +140,6 @@ export const spec: __gh_client_contract.ContractSpec = {
       vers: __gh_s("0.1.0"),
       throws: [
         {
-          selector: 0xb19947acb2fa14ffn,
-          ty: {
-            v: __gh_contract_spec.ContractTypeKind.Named,
-            named: {
-              crate_name: __gh_s("thruput-erc20-if"),
-              major: __gh_s("0.1"),
-              module_path: __gh_s("thruput_erc20_if::error"),
-              declared: __gh_s("ERC20Error"),
-            },
-          },
-        },
-        {
           selector: 0xdfe28e95b625ef76n,
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
@@ -160,6 +148,18 @@ export const spec: __gh_client_contract.ContractSpec = {
               major: __gh_s("0.1"),
               module_path: __gh_s("standard_token_factory_if::factory"),
               declared: __gh_s("TokenFactoryError"),
+            },
+          },
+        },
+        {
+          selector: 0xf63c8b1f5e7e2fe0n,
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("thruput-erc20-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("thruput_erc20_if::error"),
+              declared: __gh_s("ERC20Error"),
             },
           },
         },
@@ -457,13 +457,13 @@ export const StandardTokenFactory = {
       returnType: spec.interfaces[0]!.methods[0]!.return_type,
       throws: [
         {
-          selector: 0xb19947acb2fa14ffn,
-          name: "ERC20Error",
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
           type: spec.interfaces[0]!.throws[0]!.ty,
         },
         {
-          selector: 0xdfe28e95b625ef76n,
-          name: "TokenFactoryError",
+          selector: 0xf63c8b1f5e7e2fe0n,
+          name: "ERC20Error",
           type: spec.interfaces[0]!.throws[1]!.ty,
         },
       ],
@@ -520,13 +520,13 @@ export const StandardTokenFactory = {
       returnType: spec.interfaces[0]!.methods[1]!.return_type,
       throws: [
         {
-          selector: 0xb19947acb2fa14ffn,
-          name: "ERC20Error",
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
           type: spec.interfaces[0]!.throws[0]!.ty,
         },
         {
-          selector: 0xdfe28e95b625ef76n,
-          name: "TokenFactoryError",
+          selector: 0xf63c8b1f5e7e2fe0n,
+          name: "ERC20Error",
           type: spec.interfaces[0]!.throws[1]!.ty,
         },
       ],
@@ -547,13 +547,13 @@ export const StandardTokenFactory = {
       returnType: spec.interfaces[0]!.methods[2]!.return_type,
       throws: [
         {
-          selector: 0xb19947acb2fa14ffn,
-          name: "ERC20Error",
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
           type: spec.interfaces[0]!.throws[0]!.ty,
         },
         {
-          selector: 0xdfe28e95b625ef76n,
-          name: "TokenFactoryError",
+          selector: 0xf63c8b1f5e7e2fe0n,
+          name: "ERC20Error",
           type: spec.interfaces[0]!.throws[1]!.ty,
         },
       ],
@@ -580,13 +580,13 @@ export const StandardTokenFactory = {
       returnType: spec.interfaces[0]!.methods[3]!.return_type,
       throws: [
         {
-          selector: 0xb19947acb2fa14ffn,
-          name: "ERC20Error",
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
           type: spec.interfaces[0]!.throws[0]!.ty,
         },
         {
-          selector: 0xdfe28e95b625ef76n,
-          name: "TokenFactoryError",
+          selector: 0xf63c8b1f5e7e2fe0n,
+          name: "ERC20Error",
           type: spec.interfaces[0]!.throws[1]!.ty,
         },
       ],
@@ -618,13 +618,13 @@ export const StandardTokenFactory = {
       returnType: spec.interfaces[0]!.methods[4]!.return_type,
       throws: [
         {
-          selector: 0xb19947acb2fa14ffn,
-          name: "ERC20Error",
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
           type: spec.interfaces[0]!.throws[0]!.ty,
         },
         {
-          selector: 0xdfe28e95b625ef76n,
-          name: "TokenFactoryError",
+          selector: 0xf63c8b1f5e7e2fe0n,
+          name: "ERC20Error",
           type: spec.interfaces[0]!.throws[1]!.ty,
         },
       ],
@@ -646,13 +646,13 @@ export const StandardTokenFactory = {
       returnType: spec.interfaces[0]!.methods[5]!.return_type,
       throws: [
         {
-          selector: 0xb19947acb2fa14ffn,
-          name: "ERC20Error",
+          selector: 0xdfe28e95b625ef76n,
+          name: "TokenFactoryError",
           type: spec.interfaces[0]!.throws[0]!.ty,
         },
         {
-          selector: 0xdfe28e95b625ef76n,
-          name: "TokenFactoryError",
+          selector: 0xf63c8b1f5e7e2fe0n,
+          name: "ERC20Error",
           type: spec.interfaces[0]!.throws[1]!.ty,
         },
       ],

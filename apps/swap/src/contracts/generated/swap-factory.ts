@@ -194,7 +194,7 @@ export namespace SwapFactory {
       | {
           kind: "declared";
           name: "ERC20Error";
-          selector: 0xb19947acb2fa14ffn;
+          selector: 0xf63c8b1f5e7e2fe0n;
           value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
         };
     export type Exception =
@@ -257,7 +257,7 @@ export const spec: __gh_client_contract.ContractSpec = {
           },
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
             named: {
@@ -786,7 +786,7 @@ export const SwapFactory = {
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },
@@ -844,7 +844,7 @@ export const SwapFactory = {
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },
@@ -886,7 +886,7 @@ export const SwapFactory = {
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },
@@ -939,7 +939,7 @@ export const SwapFactory = {
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },
@@ -997,7 +997,7 @@ export const SwapFactory = {
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },
@@ -1045,7 +1045,7 @@ export const SwapFactory = {
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },
@@ -1098,7 +1098,7 @@ export const SwapFactory = {
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },
@@ -1140,7 +1140,7 @@ export const SwapFactory = {
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
+          selector: 0xf63c8b1f5e7e2fe0n,
           name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },

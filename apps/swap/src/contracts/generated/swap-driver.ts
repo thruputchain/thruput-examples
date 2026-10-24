@@ -215,15 +215,15 @@ export namespace SwapDriver {
         }
       | {
           kind: "declared";
-          name: "ERC20Error";
-          selector: 0xb19947acb2fa14ffn;
-          value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
-        }
-      | {
-          kind: "declared";
           name: "SwapDriverError";
           selector: 0xb7f3f28894243a52n;
           value: __gh_codegen.swap_if$v0_1$driver$SwapDriverError;
+        }
+      | {
+          kind: "declared";
+          name: "ERC20Error";
+          selector: 0xf63c8b1f5e7e2fe0n;
+          value: __gh_codegen.thruput_erc20_if$v0_1$error$ERC20Error;
         };
     export type Exception =
       __gh_client_contract.ContractException<DeclaredException>;
@@ -273,18 +273,6 @@ export const spec: __gh_client_contract.ContractSpec = {
           },
         },
         {
-          selector: 0xb19947acb2fa14ffn,
-          ty: {
-            v: __gh_contract_spec.ContractTypeKind.Named,
-            named: {
-              crate_name: __gh_s("thruput-erc20-if"),
-              major: __gh_s("0.1"),
-              module_path: __gh_s("thruput_erc20_if::error"),
-              declared: __gh_s("ERC20Error"),
-            },
-          },
-        },
-        {
           selector: 0xb7f3f28894243a52n,
           ty: {
             v: __gh_contract_spec.ContractTypeKind.Named,
@@ -293,6 +281,18 @@ export const spec: __gh_client_contract.ContractSpec = {
               major: __gh_s("0.1"),
               module_path: __gh_s("swap_if::driver"),
               declared: __gh_s("SwapDriverError"),
+            },
+          },
+        },
+        {
+          selector: 0xf63c8b1f5e7e2fe0n,
+          ty: {
+            v: __gh_contract_spec.ContractTypeKind.Named,
+            named: {
+              crate_name: __gh_s("thruput-erc20-if"),
+              major: __gh_s("0.1"),
+              module_path: __gh_s("thruput_erc20_if::error"),
+              declared: __gh_s("ERC20Error"),
             },
           },
         },
@@ -996,13 +996,13 @@ export const SwapDriver = {
           type: spec.interfaces[0]!.throws[2]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
-          name: "ERC20Error",
+          selector: 0xb7f3f28894243a52n,
+          name: "SwapDriverError",
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb7f3f28894243a52n,
-          name: "SwapDriverError",
+          selector: 0xf63c8b1f5e7e2fe0n,
+          name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },
       ],
@@ -1038,13 +1038,13 @@ export const SwapDriver = {
           type: spec.interfaces[0]!.throws[2]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
-          name: "ERC20Error",
+          selector: 0xb7f3f28894243a52n,
+          name: "SwapDriverError",
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb7f3f28894243a52n,
-          name: "SwapDriverError",
+          selector: 0xf63c8b1f5e7e2fe0n,
+          name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },
       ],
@@ -1086,13 +1086,13 @@ export const SwapDriver = {
           type: spec.interfaces[0]!.throws[2]!.ty,
         },
         {
-          selector: 0xb19947acb2fa14ffn,
-          name: "ERC20Error",
+          selector: 0xb7f3f28894243a52n,
+          name: "SwapDriverError",
           type: spec.interfaces[0]!.throws[3]!.ty,
         },
         {
-          selector: 0xb7f3f28894243a52n,
-          name: "SwapDriverError",
+          selector: 0xf63c8b1f5e7e2fe0n,
+          name: "ERC20Error",
           type: spec.interfaces[0]!.throws[4]!.ty,
         },
       ],
