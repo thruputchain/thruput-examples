@@ -1134,9 +1134,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hogexec-internal"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "fe9e926b73e0be349971a2d0014f090e0d81bb44f89a68de832fb3de886700ad"
+checksum = "1eaaed33080888c1ac26c22cc1896fdf3be0c8caf4090b52267def3f07f21796"
 dependencies = [
  "thruput-xdrs",
 ]
@@ -3290,24 +3290,24 @@ dependencies = [
 
 [[package]]
 name = "thruput-access-control-if"
-version = "0.1.67"
+version = "0.1.68"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "ae2b4c9d7615bc4ddd349d2eead17f7c1279aeb78e0fa506b5c95d50c62868ec"
+checksum = "2ef291053d76dd1125668c9115e8af418fbeebbb745d2e0ac956732091f3461a"
 dependencies = [
  "thruput-sdk",
 ]
 
 [[package]]
 name = "thruput-build-info"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "7256e68ac26f4f1de4a6e340a44f77efdc9358a343d3d2f61bd91da7108d8485"
+checksum = "01cd3b403ac5a7ab9998adb9a8529307c65a7aaaa031ae0bfaa0f944368e376e"
 
 [[package]]
 name = "thruput-bundle-identity"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "6813daeadab17a2e097faf0ccd2a67e1efc2c13c90f8bd627b9188bbcffeb308"
+checksum = "eddf12832305ee6e1cd17ac7911c7fbde78bb9636ac22d7194484afa8750c2c7"
 dependencies = [
  "hex",
  "serde",
@@ -3318,9 +3318,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-cli"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "370b4fd249ef256d2d2449a8f0db4fbb00e63bc788903ab3a318bc5103e4e740"
+checksum = "cfe2deb2028b5c991d59c001cd2b7239329fc62b527378ff64b72b5c90f1a6d9"
 dependencies = [
  "axum",
  "base64",
@@ -3380,9 +3380,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-cli-macros"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "2fca6b5faeb4be970b45c084039bcff453e66a475cb0f5054f8ac22ca80191a0"
+checksum = "9962307b084abda6f445514900f505c00328cc73c466415d20835b2470cacc34"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3391,9 +3391,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-client"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "d70060b2819987dac08775a7ec3c1d8a640f9d6768fd67d2a0dcd24616237c19"
+checksum = "51b54c5f3ba788357bff16ed57dfa93a944d2cce84eed08aec021581b9f091c4"
 dependencies = [
  "hex",
  "jsonrpsee",
@@ -3413,9 +3413,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-contract-spec"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "8e4d4b3c6a68bd525ba042a64985aabee51cedfcd31f90c719f95d5fe11d4674"
+checksum = "eb63064802faf23358b0fd414e8e05c4cc22a672916fe2f19327b21d2e970ab5"
 dependencies = [
  "heapless",
  "thruput-spec",
@@ -3426,9 +3426,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-contract-util"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "d1f73b68865ccbe59e6c10339aa2de00fe09bfa0cd74c84eeb64931701e0ffe7"
+checksum = "53f2d8e961328b4bd5ecb317db355e4e14be4a414f2710e41951d4fc15be0861"
 dependencies = [
  "sha2",
  "syn 3.0.5",
@@ -3437,9 +3437,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-coordinator"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "94a240577e0daf5c588d6d7f30eb8ab1d449c39896ff5ed98bf94b1c7524309d"
+checksum = "54e55abf6f462e6a1a3c47fe9c080acabeca46dac4a7c3b138f42f12edee75b4"
 dependencies = [
  "async-trait",
  "schemars",
@@ -3452,9 +3452,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-db-gateway"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "caa48705c870448d9f96ac85fa93053139944eaaa6f0c8624ee09e678abd8bc9"
+checksum = "a97ec4adb40d957ac1a22d240f10293f2dc101c7ea9ff6bdeb5c53a80169bbce"
 dependencies = [
  "async-trait",
  "schemars",
@@ -3468,9 +3468,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-domain-separator"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "a8cc65568ecda268e27ff3289c25f280e053143ad02e5bc764bf52a5f4757672"
+checksum = "87bee59152931f894e86480d812f2179d50a38990d365388b079404160651041"
 dependencies = [
  "sha2",
  "thruput-contract-spec",
@@ -3480,9 +3480,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-encoding"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "5d221b4a95c808360d1831bccae1f14253eda331ffcf9b33871c8af0216ab5b0"
+checksum = "57288df6774218e9f00db8e5e8706d1e7668ee458f2ae80642751d93741ff6c6"
 dependencies = [
  "stellar-strkey",
  "thiserror 2.0.20",
@@ -3492,9 +3492,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-erc20-controls-if"
-version = "0.1.67"
+version = "0.1.68"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "2f354845ccd45f74e17e60e54f5b54b8bf708ffee94c1f0f8b6f7da657f2da40"
+checksum = "f3774bddd7fb998c96fdf190e16c8fdba4ce89dea7b32d430a7e31f479591259"
 dependencies = [
  "heapless",
  "thiserror 2.0.20",
@@ -3505,9 +3505,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-erc20-if"
-version = "0.1.67"
+version = "0.1.68"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "d4b891ea75524860d250b05e30df8ece10cb4e5e7dc74840b48f44f12e98f840"
+checksum = "00bb8dcaeab822f759280f8b960a5107003cfa0220ace8a757bae34a423ebc95"
 dependencies = [
  "thiserror 2.0.20",
  "thruput-sdk",
@@ -3516,9 +3516,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-erc20-metadata-if"
-version = "0.1.67"
+version = "0.1.68"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "9079db6f1c0034ea389041bc907624c005bba100e20f1773694f1ea127571487"
+checksum = "a2319f3374ab3af7f9db31dadaa4641c2ee4b6a82c8bd3d167760a5c14827904"
 dependencies = [
  "heapless",
  "thiserror 2.0.20",
@@ -3528,18 +3528,18 @@ dependencies = [
 
 [[package]]
 name = "thruput-erc20-pausable-if"
-version = "0.1.67"
+version = "0.1.68"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "ce66efab6dbc857c722283e41ebb526df04455241c8b0efa166b40f4b2b7a4b5"
+checksum = "d1d46d9dee3af17401643727fa6de75be8fcc6d3aa14863040ff67cfff0bcd70"
 dependencies = [
  "thruput-sdk",
 ]
 
 [[package]]
 name = "thruput-erc20-permit-if"
-version = "0.1.67"
+version = "0.1.68"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "ed376b54877ac735cc193937219ceb14d278eb92186c50f77e6f8d709e98f512"
+checksum = "03656b4b326fa05531d8b8fd4e0b9ce5b382895c76a2f58fd2a6c73f1f6c3265"
 dependencies = [
  "thiserror 2.0.20",
  "thruput-erc20-if",
@@ -3548,9 +3548,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-event"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "66c993de449408096c5fc6945a4b2bc8e33076440284d58741ae16d545f0322d"
+checksum = "da9479dcb8f035e41548446005cb9c5232e6d34af96ce5289ed5716ee2d259fe"
 dependencies = [
  "thruput-xdr",
  "thruput-xdrs",
@@ -3558,18 +3558,18 @@ dependencies = [
 
 [[package]]
 name = "thruput-exn"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "0f89230f7bff5b44fe055e17cb1e410972300a25f6022f697f7c8666008e7fc6"
+checksum = "9ae660610435265f3e57242e8abcb63803d1ac0e65999e269e53191c4dc88031"
 dependencies = [
  "thruput-xdrs",
 ]
 
 [[package]]
 name = "thruput-hogd-backend"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "dfba9d7fdea08ee75da901e21c5927cc8221d2ff6f6c4358763d3cc22310c68a"
+checksum = "4023fb86b24812c1ed2410d635e1d4022c21ddf3eede688a9ca4935fe42a6abc"
 dependencies = [
  "thruput-db-gateway",
  "thruput-indexer",
@@ -3586,9 +3586,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-indexer"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "008f7e404c4ddc092540d12bd392048c4c049fad3e13dbfa37193366a0cf5035"
+checksum = "79be61665c65cf38af3c57073dfc9992edee6fb4d11d6c2231b0ac309a235ee6"
 dependencies = [
  "async-trait",
  "schemars",
@@ -3604,9 +3604,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-json-rpc-api"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "c22bf47cff9ac2d7a1a4e1a24f5209b7a9dc19411fd7c77c983bb16b0dd725a4"
+checksum = "0b973befee2ff52adcbe2dfbc11f411c696eb7caac57952bda5cafc2be7e64a7"
 dependencies = [
  "jsonrpsee",
  "serde",
@@ -3618,9 +3618,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-json-rpc-client"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "7a439d02aa01a2e1b7841ac29fffca36fd9074204bc776aedb2150818c5cc414"
+checksum = "2a49a17632a2707cb998058faf90f60ead8faa2d1384412d60315d1fa709d0a9"
 dependencies = [
  "jsonrpsee",
  "serde",
@@ -3634,9 +3634,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-json-rpc-server"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "45652d2c7df4f455a4c27e119b9705b1f67340183b843235be586806ebfa9897"
+checksum = "3cb8f99bd2a101e73c38be324222aa79a954d74acb0eec8a1030aadefca698d7"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -3659,9 +3659,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-json-rpc-types"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "c62d0fa0d846b8e658acf0a99ad95db8ecb3320f7f3c736610f8301a87a14448"
+checksum = "74bb375eb453556e11ee1acd8797ff982c534edd1b72fb76f40edd6293318d52"
 dependencies = [
  "bytes",
  "hex",
@@ -3681,9 +3681,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-macros"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "0d2a07a866512eccae358b49fd9eb3b121db2d66524f0f09a130e2afe30e8bb4"
+checksum = "00c85dd545ddb303576ee0b6adda7a93e379e5c9ebb0fede5f78f9b3b05f8247"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -3696,9 +3696,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-native-exec"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "e1f5f2665800b05f8b470eb201338c53a5acd5ff3ed44a038275c4d2922d6d7e"
+checksum = "f62dcbb9cb7f6ea1eb09d99dd8962a18414933aeeb2c8348c5ef3ca78ef9352c"
 dependencies = [
  "hogexec-internal",
  "sha2",
@@ -3714,9 +3714,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-node-supervisor"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "6ee404b115b0618ed606349c6ba78dd9bfefaeacb07b6a17231d53c065a9af85"
+checksum = "8fe01c1fe2ac4543c4df925d2fa8b6b95b2a0098eb2d52efba6e0af1d02d31f0"
 dependencies = [
  "async-trait",
  "getrandom 0.4.3",
@@ -3753,9 +3753,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-open-rpc"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "c720cfe5ccc57a0b08e6b73126c4efb34da41d43dcbaa7a2829d0fdb2a3722fc"
+checksum = "ce4f129c2325c47ee8c90f2623c59a9fa7f3b7bf887b6e9d4c777220aea44de8"
 dependencies = [
  "schemars",
  "serde",
@@ -3764,9 +3764,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-open-rpc-macros"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "c7ac7189e9cdfcb5a8fc0672c40db717b3f58f28e526ea75977df33fbe69dc9f"
+checksum = "4c4c337cfc7316632e5b8023805e8b6a270c43da7800784309aa55f99457398b"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -3776,9 +3776,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-rpc-api"
-version = "0.3.2"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8ffa84d09637a117b432876c4f366be4bd6e34c80fbfe4d3853adb5fa3f3ff6"
+checksum = "ec1c4ba7cae0e04719b109b3b6446d3340a9a9ddc6aa8ba19bc6db17cda2f51f"
 dependencies = [
  "async-trait",
  "thiserror 2.0.20",
@@ -3786,9 +3786,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-rpc-driver"
-version = "0.16.1"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f34c57534eef5771fcda72598d130e20cee44f3a23b666100148941597d350f8"
+checksum = "1b4618ae2d0dba49275a78701d49c2566a514ced29494e5e056b5e506b700ef5"
 dependencies = [
  "async-trait",
  "libc",
@@ -3802,9 +3802,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-rv32-artifact"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "5cdbc63c7b87db267bf1b00bb4488c9b0a1b596824a43fd54bc165c1d287d9db"
+checksum = "6fc7707be239716356f597e713fc83945cd53c3d03a3119e9cca4983adf3e85c"
 dependencies = [
  "sha2",
  "thiserror 2.0.20",
@@ -3812,9 +3812,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-rv32-lower"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "5f76353a84bfe897200fd980fb0a0189cecea395f4dd365ca99033069a740092"
+checksum = "0c9baa5f7404b8e55066b0cfb8ed5e4f9e616e38d85326393f3eb3fd8d2a822d"
 dependencies = [
  "clap",
  "same-file",
@@ -3826,15 +3826,15 @@ dependencies = [
 
 [[package]]
 name = "thruput-rv32-runtime"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "13c86210cbf33ce7fe63d839b3b215e1af7e52f48bcb4656a2e567e1276986dd"
+checksum = "68d14e90cbcf8138570e88d348c0a682a826399498a44179d0b422401b4e1103"
 
 [[package]]
 name = "thruput-scheduler"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "1cb2349473e465c43d8846dbb6bd61fd1d1d101d13a66f9ac344feaf784c4f99"
+checksum = "0f516a72baad034c0ae628e51d6a908d31c561c272094372be8f0d23850f9c88"
 dependencies = [
  "async-trait",
  "schemars",
@@ -3850,9 +3850,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-scp"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "cb495f24700abb4f5572837d0aa52fcc9629780b873e158e3e9b43619a84f2be"
+checksum = "2083ba02d26a8354c3196c19138f76010657c730e5b5da1e3908ec98f0118e1a"
 dependencies = [
  "async-trait",
  "schemars",
@@ -3865,9 +3865,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-sdk"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "76f531020483dab48d3764803b1b89e23df77756e74873143fbd192538f50032"
+checksum = "60f18967107bd489a1ec164ba3b4d8b578134717e173d6f5c9fafed4bbcfc3de"
 dependencies = [
  "heapless",
  "hogexec-internal",
@@ -3888,9 +3888,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-signed-op"
-version = "0.1.67"
+version = "0.1.68"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "e90eae14a6e3f59acf201aa7de622d1d4c5e1b4ae731fe011510ff6f1d36a8e9"
+checksum = "93dd1864eb858a6868b46c4e085c32e9779adead36f5ad344da79040b183f2fc"
 dependencies = [
  "thruput-contract-spec",
  "thruput-domain-separator",
@@ -3900,9 +3900,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-signed-op-if"
-version = "0.1.67"
+version = "0.1.68"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "9a6efb496d057bf1d3f8544427a527eec3592d826f312cba045c2b260b70f78b"
+checksum = "13810cfc6810f053b8a22f26ce7bc3115bebb2a00fd1bc5a12fc949549daf6f7"
 dependencies = [
  "thiserror 2.0.20",
  "thruput-sdk",
@@ -3910,9 +3910,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-signing"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "be8bca4c7ee777bec1f1ea1191537a1615005d238d47529fa73b76815388318c"
+checksum = "49d66904c0b4be76c4ced6e3da778edfb2c8f30e7d12c71ea14dd1903796e3ab"
 dependencies = [
  "ed25519-dalek",
  "hex",
@@ -3929,9 +3929,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-spec"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "b028dc16f31d8716f4dc519e305dab75371e9095072efae3997ced78811980cb"
+checksum = "e4dcadb83aec4df8af949a1aa0ed1cd3873323a75bacb6027b6551768b513f70"
 dependencies = [
  "serde",
  "thruput-xdr",
@@ -3940,9 +3940,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-spec-tool"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "fdbb06a21ddf12c27de398abf68009ba357f3eb0b6ffb155c5f72b87f175e8eb"
+checksum = "f7c5a27c6629e5f4c450a2cd81d2586e02cb36636f4f15038cb419bc6d6b39f8"
 dependencies = [
  "serde_json",
  "thiserror 2.0.20",
@@ -3959,9 +3959,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-storage-cost"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "9ce9ad9f0e04e83a9d7768eaa152929818e9ffa047a4ac6ef894f553ab06c7e8"
+checksum = "e597bee2e983494d2ed479ce8de9975d574020fe41cd8e7bf15867bdc541c5a3"
 dependencies = [
  "thruput-xdr",
  "thruput-xdrs",
@@ -3969,9 +3969,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-sys"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "b5bdeb7bbf4e4f06e794a19f1c52680f0a46546a2b170096cefa4f2827dfc112"
+checksum = "a336fafc83f60ac82427071a1dc0a7c2db220cd72ccabfd645ce7b233ab00de3"
 dependencies = [
  "fslock",
  "sha2",
@@ -3980,15 +3980,15 @@ dependencies = [
 
 [[package]]
 name = "thruput-syscall"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "dfc9b6ac97226143e02226b857fd3c98e699b2962961f3e84498db23d4609bb5"
+checksum = "3160e4f514043a03529b88eb2857152497ac1cb51986a6224f5f3ede677082f6"
 
 [[package]]
 name = "thruput-testkit"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "87f733e4f92cc01c0d0be684bb05446137c43e21b1ceb9ea214192f1b0cffe58"
+checksum = "53b063c5365038e28a7989d9606ec7d81beeee70881cf2d9a6ad0c1901fe4fe9"
 dependencies = [
  "getrandom 0.4.3",
  "serde_json",
@@ -4009,9 +4009,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-toolchain"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "9dffeffef0d3155225dcedfe00b3da41f39e35ccb7cd09f651434d47df287859"
+checksum = "22baf96964021cae0f5be019c8f9444277cc63c30cb7db4805ff650f84a9f63e"
 dependencies = [
  "async-trait",
  "flate2",
@@ -4030,9 +4030,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-trace"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "f9150c257fcb2a6112fd4f08c3823b7357253f297bd09e8f330f81877f4c4194"
+checksum = "3fb4b6ab52b33db407d55a1ec35449ee82f86f66e5114104e97dbc968882ad99"
 dependencies = [
  "hogexec-internal",
  "schemars",
@@ -4044,9 +4044,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-tx-validation"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "82af1c53e30beaa6f8a01c3285bbf50864916bb56cd546b05bceb1fc87bdf327"
+checksum = "ba1e22bd007df2191eb895e371951660704a689d6953bf98f94609d0aec5982c"
 dependencies = [
  "thiserror 2.0.20",
  "thruput-json-rpc-types",
@@ -4056,9 +4056,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-u256"
-version = "0.56.0"
+version = "0.57.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "8c0488bb332d1501abd9249dfe0d5ec0e9018d601ec2184532a72301f54fca0f"
+checksum = "82743fa3725fddf54c31d249daf183e2bcada7c50b81c53aec03f7c919f7fd4a"
 dependencies = [
  "thruput-contract-spec",
  "thruput-xdrs",
@@ -4066,9 +4066,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-view"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "a6d4ebc0668a064bf00c3021b250d92ea0a3f721e8d244c1ed4b7aaf6072e699"
+checksum = "1a3f2fa63821c9d94d65a0fc648ce229abd7d0abffa3b0204188abcc07d28998"
 dependencies = [
  "async-trait",
  "schemars",
@@ -4081,9 +4081,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-x23-transport"
-version = "0.37.0"
+version = "0.38.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "6023745424a9d3bd64eaae2647dbbb13cd3066d69e9b14fc53e5d70241a1bec1"
+checksum = "967cdd62d42fc5e58b86dfa71991daff10eae1e2a519a57365de196819dcc404"
 dependencies = [
  "thiserror 2.0.20",
  "thruput-rpc-driver",
@@ -4093,9 +4093,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-xdr"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "fe098464f8f8333e3a08169ecd313e09a9dcd25a876677ca6451be244bd74128"
+checksum = "5c978a1f6719c519af263158268ad451e5e63c7145c53fd2fdbe65e3c9547394"
 dependencies = [
  "bs58",
  "schemars",
@@ -4109,9 +4109,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-xdr-common"
-version = "0.16.1"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5997bdfa387aeaf8eb28a3b1f729f2140e62fc2c2aace46c66a7d5b1b1df2fb"
+checksum = "3361c3ea64f5631ec6a9662b270bffa09f001226df68ae7e4e101d6349000b73"
 dependencies = [
  "escape-bytes",
  "schemars",
@@ -4120,9 +4120,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-xdr-derive"
-version = "0.16.1"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48182f11c3e4f01b2294c9c52878804651a66759c6e5203355a4d2ccbea80218"
+checksum = "66ddedd1ca4ea082511dc1dc00b27d2baeba45764df206073ef851c72bc2b632"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -4132,9 +4132,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-xdr-macros"
-version = "0.58.0"
+version = "0.61.0"
 source = "sparse+https://crates.thruput.network/api/v1/crates/"
-checksum = "ef9271eb1cdc3199a6b636196a6d47df4804d725716256e79421d74bcd1a5283"
+checksum = "818824c5951c91005ebafd454a066199351f05227a1a0909fc19d7aaf5c0c73d"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -4147,9 +4147,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-xdr-repr"
-version = "0.16.1"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4d61d84904e169e86999989e73281003f31fd35b2283523448d9a443e5053ce"
+checksum = "31c6e03b8d054b7234e082ef377e4a5128e18e1536dc68b783f7c16efa4fbc7c"
 dependencies = [
  "heapless",
  "thruput-xdr-common",
@@ -4157,9 +4157,9 @@ dependencies = [
 
 [[package]]
 name = "thruput-xdrs"
-version = "0.16.1"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0767b800d8b8469e6e254ca50285821062c0f32ba17d73c7bbaf96f14cfb2349"
+checksum = "0b8277012e8878278b22e7f42d7e311ba8f283ceb0acdea2ccd6ee92fda97912"
 dependencies = [
  "heapless",
  "thruput-xdr-common",
