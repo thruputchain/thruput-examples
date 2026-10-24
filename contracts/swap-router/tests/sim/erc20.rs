@@ -11,7 +11,7 @@ pub struct ERC20Client(Bound);
 
 impl ERC20Client {
     /// The interface identity (name, version) methods are selected by.
-    pub const INTERFACE: (&str, &str) = ("ERC20", "0.1.67");
+    pub const INTERFACE: (&str, &str) = ("ERC20", "0.1.68");
 
     /// Bind the ERC20 at `address`, acting as `caller` (an agent's `&ctx` or a
     /// `Caller`).

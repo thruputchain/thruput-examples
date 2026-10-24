@@ -44,7 +44,7 @@ type Address = ContractAddress;
 
 // Interface identities (name, version) the contracts stamped at build time, as
 // recorded in each `*.spec.json`; the testkit derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.67");
+const ERC20: (&str, &str) = ("ERC20", "0.1.68");
 const WALLET: (&str, &str) = ("PermitWallet", "0.1.0");
 const RELAYER: (&str, &str) = ("PermitRelayer", "0.1.0");
 
