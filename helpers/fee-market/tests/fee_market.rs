@@ -1,9 +1,9 @@
-//! The entry fee: its arithmetic, and how a [`FeeMarket`] keeps it.
+//! The fee: its arithmetic, and how a [`FeeMarket`] keeps it.
 //!
-//! The arithmetic is EIP-1559's: an eighth per block at most, up while entries exceed the target,
-//! down while they fall short. What the market adds is that the entries keep it themselves -- every
-//! one in a block computes and writes the same state -- so the tests below check both that the fee
-//! moves as it should across blocks, and that entries in one block never conflict over it.
+//! The arithmetic is EIP-1559's: an eighth per block at most, up while the load is above the
+//! target, down while it is below. What the market adds is that its callers keep it themselves --
+//! every one in a block computes and records the same state -- so the tests below check both that
+//! the fee moves as it should across blocks, and that callers in one block never conflict over it.
 
 use fee_market::{FeeMarket, MAX_FEE, MAX_STEPS, adjust};
 use thruput_sdk::storage::*;
@@ -35,7 +35,7 @@ fn an_empty_block_lowers_the_fee_by_an_eighth() {
     assert_eq!(adjust(800, 4, 0, 1), 700);
 }
 
-// A free queue becomes priced one unit at a time, until an eighth of the fee is worth a unit.
+// A free market becomes priced one unit at a time, until an eighth of the fee is worth a unit.
 #[test]
 fn the_fee_rises_from_zero() {
     let mut fee = 0;
@@ -78,13 +78,15 @@ fn the_fee_is_capped() {
 
 /////////////////////// the market ///////////////////////////////////////////
 
-// A new market is free to enter.
+// A new market is free while its load stays at the target, and its first block above it prices it.
 #[test]
 fn a_new_market_is_free() {
     let env = TestEnvironment::no_cost();
     initialize(&env);
 
-    assert_eq!(enter(&env).assert_return_as::<u128>(), 0);
+    assert_eq!(update(&env, TARGET).assert_return_as::<u128>(), 0);
+    env.advance_block();
+    assert_eq!(update(&env, 2 * TARGET).assert_return_as::<u128>(), 1);
 }
 
 // A target of zero is refused, and so is a second start, which would reset the fee.
@@ -101,91 +103,72 @@ fn a_bad_start_is_refused() {
     assert!(!again.assert_return_as::<bool>());
 }
 
-// Every entry in a block pays the same fee, and none conflicts with another over it, however many
-// there are: each writes the same state.
+// Every caller in a block that passes the block's load gets the same fee, and none conflicts with
+// another over it, however many there are: each records the same state.
 #[test]
-fn entries_in_a_block_share_the_fee_without_conflict() {
+fn callers_in_a_block_share_the_fee_without_conflict() {
     let env = TestEnvironment::no_cost();
     initialize(&env);
 
-    // A busy block, then the fee it earned.
-    for _ in 0..2 * TARGET {
-        enter(&env).assert_success();
-    }
-    env.advance_block();
-
-    let fees: Vec<u128> = (0..2 * TARGET)
+    let fees: Vec<u128> = (0..4)
         .map(|_| {
-            let r = enter(&env);
+            let r = update(&env, 2 * TARGET);
             r.assert_success();
             r.assert_return_as::<u128>()
         })
         .collect();
-    assert_eq!(fees, vec![1; fees.len()]);
+    assert_eq!(fees, vec![1; 4]);
 }
 
-// Two entries in one transaction pay the same fee, and the second counts toward the next block
-// like the first.
+// Within a block the fee holds, whatever a later call in the same transaction passes.
 #[test]
-fn entries_in_one_transaction_share_the_fee() {
+fn the_fee_holds_within_a_block() {
     let env = TestEnvironment::no_cost();
     initialize(&env);
 
     let both = env.transact(|tx| {
         tx.call(&ADDR).run(|| {
             let mut m = market();
-            (0..2 * TARGET).map(|_| m.enter()).collect::<Vec<u128>>()
+            [m.update(u128::from(2 * TARGET)), m.update(0)]
         })
     });
     both.assert_success();
-    assert_eq!(
-        both.assert_return_as::<Vec<u128>>(),
-        vec![0; 2 * TARGET as usize]
-    );
-
-    env.advance_block();
-    assert_eq!(quote(&env), 1);
+    assert_eq!(both.assert_return_as::<[u128; 2]>(), [1, 1]);
 }
 
-// The fee follows the entries of the block before, block by block.
+// The fee follows the load, block by block.
 #[test]
-fn the_fee_follows_each_block_s_entries() {
+fn the_fee_follows_the_load() {
     let env = TestEnvironment::no_cost();
     initialize(&env);
 
-    // Each block is quoted the fee its predecessor's entries earned.
-    let mut quoted = Vec::new();
-    for entries in [4, 4, 4, 2, 0, 0] {
-        quoted.push(quote(&env));
-        for _ in 0..entries {
-            enter(&env).assert_success();
-        }
+    let mut fees = Vec::new();
+    for load in [4, 4, 4, 2, 0, 0] {
+        fees.push(update(&env, load).assert_return_as::<u128>());
         env.advance_block();
     }
-    quoted.push(quote(&env));
 
-    assert_eq!(quoted, vec![0, 1, 2, 3, 3, 2, 1]);
+    assert_eq!(fees, vec![1, 2, 3, 3, 2, 1]);
 }
 
-// Blocks with no entry at all are accounted for by the next one.
+// Blocks with no update are each taken to have had the load passed when one next comes: a backlog
+// that persists keeps raising the fee, and an empty queue keeps lowering it.
 #[test]
-fn quiet_blocks_are_caught_up() {
+fn blocks_without_an_update_are_caught_up() {
     let env = TestEnvironment::no_cost();
     initialize(&env);
 
+    assert_eq!(update(&env, 4).assert_return_as::<u128>(), 1);
     for _ in 0..3 {
-        for _ in 0..2 * TARGET {
-            enter(&env).assert_success();
-        }
         env.advance_block();
     }
-    assert_eq!(quote(&env), 3);
+    assert_eq!(quote(&env, 4), 4, "three more blocks above target");
 
-    // Two blocks pass with nothing entering: each takes an eighth off, as it would had it been
-    // recorded.
-    env.advance_block();
-    env.advance_block();
-    assert_eq!(quote(&env), 1);
+    update(&env, 4).assert_success();
+    for _ in 0..3 {
+        env.advance_block();
+    }
+    assert_eq!(quote(&env, 0), 1, "three blocks with nothing waiting");
 }
 
 /////////////////////// helpers /////////////////////////////////////////////
@@ -203,14 +186,17 @@ fn initialize(env: &TestEnvironmentHandle) {
     env.advance_block();
 }
 
-// Make one entry, returning the fee it was charged.
-fn enter(env: &TestEnvironmentHandle) -> TransactResult {
-    env.transact(|tx| tx.call(&ADDR).run(|| market().enter()))
+// Record the fee for the current block, given its load, returning the fee.
+fn update(env: &TestEnvironmentHandle, load: u32) -> TransactResult {
+    env.transact(|tx| {
+        tx.call(&ADDR)
+            .run(move || market().update(u128::from(load)))
+    })
 }
 
-// What an entry costs in the current block.
-fn quote(env: &TestEnvironmentHandle) -> u128 {
-    let r = env.transact(|tx| tx.call(&ADDR).run(|| market().quote()));
+// The fee for the current block, given its load.
+fn quote(env: &TestEnvironmentHandle, load: u32) -> u128 {
+    let r = env.transact(|tx| tx.call(&ADDR).run(move || market().quote(u128::from(load))));
     r.assert_success();
     r.assert_return_as::<u128>()
 }

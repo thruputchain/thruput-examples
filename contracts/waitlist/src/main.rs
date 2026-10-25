@@ -1,4 +1,4 @@
-//! RV32 binary wrapper for the `priced-counter` contract library.
+//! RV32 binary wrapper for the `waitlist` contract library.
 //!
 //! `thruput build` builds this bin with the `entrypoints`
 //! feature so the `#[contract]` macro emits rv32 method entry symbols.
@@ -9,4 +9,4 @@
 #![no_std]
 #![no_main]
 
-extern crate priced_counter;
+extern crate waitlist;

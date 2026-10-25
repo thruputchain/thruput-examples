@@ -1,7 +1,7 @@
 [package]
-name = "priced-counter"
+name = "waitlist"
 version = "0.1.0"
-description = "Example counter whose increments pay an EIP-1559-style entry fee, from the fee-market crate"
+description = "Example waitlist whose entry fee is steered by its backlog, with the fee-market crate"
 edition = "2024"
 license.workspace = true
 publish.workspace = true
@@ -12,7 +12,7 @@ doctest = false
 test = false
 
 [[bin]]
-name = "priced_counter"
+name = "waitlist"
 path = "src/main.rs"
 required-features = ["entrypoints"]
 test = false
@@ -29,4 +29,4 @@ thruput-erc20-if = { workspace = true }
 fee-market = { path = "../../helpers/fee-market" }
 
 [dev-dependencies]
-priced-counter = { path = ".", features = ["dev"] }
+waitlist = { path = ".", features = ["dev"] }

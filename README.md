@@ -163,7 +163,7 @@ Suggested order: **Counter → Fibonacci → Events → Cross-call → error han
 | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | [Counter](contracts/counter/README.md)                                                                                     | Store and update a non-negative counter                      |
 | [Voting](contracts/voting/README.md)                                                                                       | Admin permissions, poll lifecycle, and mergeable vote totals |
-| [Priced counter](contracts/priced-counter/README.md) | An EIP-1559-style entry fee that concurrent callers share without conflict |
+| [Waitlist](contracts/waitlist/README.md) | An EIP-1559-style fee steered by a backlog, which concurrent callers share without conflict |
 | [Fibonacci](contracts/fibonacci/README.md)                                                                                 | A stateless method, a declared error, and an event           |
 | [Events](contracts/events/README.md)                                                                                       | Event payloads and indexed topics                            |
 | [Cross-call](contracts/cross-call/README.md)                                                                               | Call another contract through its generated client           |
