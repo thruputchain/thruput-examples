@@ -203,18 +203,24 @@ pub struct SwapExactOutRequest {
 // these makes every crank declare more gas than it needs and raises the floor a crank must clear
 // before it may drain at all.
 //
+// Those figures are for a request handled alone, or first in its crank: it pays the database load
+// for every key it touches, and the keys of the pool's own (its configuration, its reserves, its
+// token balances) are the bulk of that. A later request in the same crank finds them warm and
+// loads only its own accounts' keys -- a swap from a new trader then measures ~116k, and one from
+// a trader already seen ~42k. The budgets still have to cover the first.
+//
 // Liquidity events carry more headroom than a bare swap: they cross-call the factory for the
 // protocol `fee_to`, and when one is configured, every such event also takes a square root and some
 // U256 arithmetic in the pair's `mint_fee`. That branch costs around 30k, and the calibration runs
 // with the fee both off and on so these figures cover it.
 
-/// What handling an [`AddLiquidityRequest`] may cost. Measured at ~648k with the protocol fee on.
+/// What handling an [`AddLiquidityRequest`] may cost. Measured at ~500k with the protocol fee on.
 pub const ADD_LIQUIDITY_GAS: u64 = 1_500_000;
 
-/// What handling a [`RemoveLiquidityRequest`] may cost. Measured at ~637k with the protocol fee on.
+/// What handling a [`RemoveLiquidityRequest`] may cost. Measured at ~485k with the protocol fee on.
 pub const REMOVE_LIQUIDITY_GAS: u64 = 1_500_000;
 
-/// What handling a [`SwapExactInRequest`] or [`SwapExactOutRequest`] may cost. Measured at ~309k;
+/// What handling a [`SwapExactInRequest`] or [`SwapExactOutRequest`] may cost. Measured at ~233k;
 /// swaps do not run the pair's `mint_fee`, so the protocol fee does not reach them.
 pub const SWAP_GAS: u64 = 750_000;
 

@@ -7,7 +7,9 @@
 # spending as a `GasReport` event, runs requests through a local node, and prints
 # what it charged:
 #
-# - one request of each kind through `swap-driver`, for the per-request budgets;
+# - one request of each kind through `swap-driver`, for the per-request budgets,
+#   then a batch of swaps at once, to show what a batch's later requests cost
+#   beside its first;
 # - batches of swaps through each of `swap-driver`, `swap-gsr-driver` and
 #   `swap-clvr-driver`, for the ordering drivers' allowances;
 # - CLVR's ordering alone, over batches up to a full queue, with `clvr-bench`.
@@ -32,10 +34,10 @@ fi
 artifact_root="$(realpath target/thruput)"
 export THRUPUT_TESTKIT_ARTIFACT_ROOT="$artifact_root"
 
-for test in calibrate_crank_gas calibrate_ordered_crank_gas measure_clvr_ordering; do
+for test in calibrate_ measure_clvr_ordering; do
     cargo test -p swap-router \
         --features calibration \
         --test calibration "$test" \
         -- \
-        --ignored --no-capture --exact
+        --ignored --no-capture
 done

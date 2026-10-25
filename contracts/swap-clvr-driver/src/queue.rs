@@ -209,6 +209,7 @@ impl Queue {
                 processed: n_processed,
                 claim: claim_gas,
                 dearest_request,
+                handlers_total: handlers,
                 tail: after_process.saturating_sub(here),
                 beyond_handlers: entry_gas
                     .saturating_sub(here)

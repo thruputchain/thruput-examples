@@ -24,7 +24,7 @@ pub use token::{StandardTokenInitializer, StandardTokenInitializerClient};
 
 use thruput_sdk::{Hash, get_deploy_address_for_other};
 
-const DEPLOYMENT_DOMAIN: &str = "groundhog-standard-token-factory-v1";
+const DEPLOYMENT_DOMAIN: &str = "thruput-standard-token-factory-v1";
 
 /// Derives the deployment nonce for one creator-selected application nonce.
 ///

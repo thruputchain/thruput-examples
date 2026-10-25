@@ -88,7 +88,7 @@ pub trait StellarAccountInitializer {
     fn initialize(&mut self, master_key: &Ed25519PublicKey);
 }
 
-const DEPLOYMENT_DOMAIN: &str = "groundhog-stellar-account-factory-v1";
+const DEPLOYMENT_DOMAIN: &str = "thruput-stellar-account-factory-v1";
 
 /// The deployment nonce for `master_key`: a domain-tagged hash, so the same
 /// key under a different factory version lands elsewhere.

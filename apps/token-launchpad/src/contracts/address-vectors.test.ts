@@ -27,7 +27,7 @@ it("derives factory child addresses matching the Rust vectors", async () => {
   expect(vectors).toHaveLength(4);
   for (const vector of vectors) {
     const writer = new CxsWriter();
-    writer.writeString("groundhog-standard-token-factory-v1", 0xffff_ffff);
+    writer.writeString("thruput-standard-token-factory-v1", 0xffff_ffff);
     writer.writeFixedOpaque(fromHex(vector.creator), 32);
     writer.writeFixedOpaque(fromHex(vector.application_nonce), 32);
     const nonce = sha256Hash(
