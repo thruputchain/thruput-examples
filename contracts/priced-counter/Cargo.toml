@@ -1,0 +1,32 @@
+[package]
+name = "priced-counter"
+version = "0.1.0"
+description = "Example counter whose increments pay an EIP-1559-style entry fee, from the fee-market crate"
+edition = "2024"
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "priced_counter"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[features]
+entrypoints = []
+default = ["dev"]
+dev = ["thruput-sdk/dev", "fee-market/dev"]
+
+[dependencies]
+thruput-sdk = { workspace = true }
+thruput-erc20-if = { workspace = true }
+fee-market = { path = "../../helpers/fee-market" }
+
+[dev-dependencies]
+priced-counter = { path = ".", features = ["dev"] }
