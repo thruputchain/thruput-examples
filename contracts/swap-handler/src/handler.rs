@@ -4,6 +4,7 @@ use crate::library::*;
 use swap_if::*;
 use swap_pair::Pair;
 use thruput_erc20_if::ERC20Client;
+use thruput_sdk::storage::deletable::Deletable;
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
 
@@ -15,7 +16,8 @@ const B: usize = 1;
 /// State for the request-handler contract
 #[storage]
 pub struct Handler {
-    // Written exclusively by `claim_crank`, to claim a block's drain.
+    // Deleted exclusively by `claim_crank`, to claim a block's drain. Never holds a value: the
+    // exclusive lock is the whole point.
     crank_claim: Value<()>,
 
     // State for the swap-pool itself. Its configuration also records the driver: the only contract
@@ -85,9 +87,17 @@ impl SwapHandler for Handler {
             SwapRequestError::Unauthorized,
         );
 
-        // Made commit-locked, an exclusive write excludes every other transaction's, whatever
-        // either writes.
-        self.crank_claim.set_exclusive(&());
+        // Made commit-locked, an exclusive delete excludes every other transaction's write to this
+        // key, whatever either writes, and settles before the driver hands over any request. A
+        // delete takes the lock as surely as a write, even of a key that holds nothing, but stores
+        // nothing and so leaves no deposit behind.
+        //
+        // We are considering redesigning this. The claim exists because the driver's consume of
+        // the queue, though exclusive, is settled only at the transaction's commit -- after the
+        // commit-locked handler calls it should have preceded; and the driver cannot
+        // claim in its own storage, since a commit-locked call must go to another contract. A queue
+        // consume that settled its exclusivity as it ran would make this claim unnecessary.
+        self.crank_claim.delete_exclusive();
     }
 }
 

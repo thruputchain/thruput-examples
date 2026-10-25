@@ -195,7 +195,7 @@ impl<R: BatchRequest> Queue<R> {
     ///
     /// If there is anything to drain, the crank first calls `claim`, which must make a
     /// commit-locked call that writes a claim key of the handler's exclusively (for instance with
-    /// `Value::set_exclusive`). If it fails, another crank in this block holds the claim, and this
+    /// `Deletable::delete_exclusive`, which takes the lock without storing anything). If it fails, another crank in this block holds the claim, and this
     /// one returns `(0, 0)` without draining. A crank that finds nothing to drain does not claim,
     /// so it stays as free as it was: it writes nothing, and takes the claim from no one.
     pub fn crank<C, F>(&mut self, claim: C, mut handle: F) -> Result<(u32, u32), Starved>
