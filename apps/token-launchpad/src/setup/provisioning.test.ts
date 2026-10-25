@@ -26,7 +26,7 @@ import {
   ContractType,
   contractAddress,
   gasAmount,
-  HOG_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
 } from "@thruputchain/protocol";
 import { StandardTokenFactory } from "../contracts/generated/standard-token-factory";
 import { main, validateLocalRpcUrl } from "../../scripts/setup-local";
@@ -77,7 +77,7 @@ const contract = (name: string) => ({
 const config = {
   token_code_hash: fixedBytes(hashContract(contract("standard_token")), 32),
   required_token_funding: 1_000_000n,
-  native_token: HOG_ADDRESS,
+  native_token: NATIVE_TOKEN_ADDRESS,
   creation_fee: 0n,
   fee_recipient: null,
 };
@@ -363,11 +363,11 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(
       mocks.executeAndWait.mock.calls.map(([request]) => request.invocation),
     ).toEqual([
-      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
-        receiver: HOG_ADDRESS,
+      ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
+        receiver: NATIVE_TOKEN_ADDRESS,
         amount: 10_000_000n,
       }),
-      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
         receiver: factory,
         amount: 10_000_000n,
       }),

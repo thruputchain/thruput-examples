@@ -25,7 +25,7 @@ import {
   ContractType,
   contractAddress,
   gasAmount,
-  HOG_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
 } from "@thruputchain/protocol";
 import { SwapFactory } from "../contracts/generated/swap-factory";
 import { SwapRouter } from "../contracts/generated/swap-router";
@@ -304,9 +304,9 @@ describe("infrastructure-only swap provisioning", () => {
     expect(
       mocks.executeAndWait.mock.calls.map(([request]) => request.invocation),
     ).toEqual([
-      ...[HOG_ADDRESS, address(1), address(2), factory, router].map(
+      ...[NATIVE_TOKEN_ADDRESS, address(1), address(2), factory, router].map(
         (receiver) =>
-          ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+          ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
             receiver,
             amount: 10_000_000n,
           }),

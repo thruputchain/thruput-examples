@@ -13,7 +13,7 @@ import {
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
 import { prepareContractDeployment } from "@thruputchain/client/wallet";
-import { HOG_ADDRESS, networkHash } from "@thruputchain/protocol";
+import { NATIVE_TOKEN_ADDRESS, networkHash } from "@thruputchain/protocol";
 import { GAS, methods } from "../src/contracts/polls";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -64,7 +64,7 @@ export async function deployVoting(
   const funded = await wallet.executeAndWait(
     {
       gasLimit: GAS,
-      invocation: ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS, {
+      invocation: ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, GAS, {
         receiver: deployment.address,
         amount: 10_000_000n,
       }),

@@ -31,10 +31,10 @@
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },
   "dependencies": {
-    "@thruputchain/client": "0.23.0",
-    "@thruputchain/contract-spec": "0.18.0",
-    "@thruputchain/protocol": "0.18.0",
-    "@thruputchain/xdr": "0.18.0"
+    "@thruputchain/client": "0.24.0",
+    "@thruputchain/contract-spec": "0.19.0",
+    "@thruputchain/protocol": "0.19.0",
+    "@thruputchain/xdr": "0.19.0"
   },
   "devDependencies": {
     "@types/node": "25.9.1",

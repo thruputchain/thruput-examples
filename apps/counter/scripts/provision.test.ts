@@ -13,7 +13,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { toBase58 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
 import type { ContractDeployment } from "@thruputchain/client/wallet";
-import { gasAmount, HOG_ADDRESS } from "@thruputchain/protocol";
+import { gasAmount, NATIVE_TOKEN_ADDRESS } from "@thruputchain/protocol";
 import { loadServerConfig } from "../server/config";
 import { Counter } from "../src/contracts/generated/counter";
 import { provisionCounter } from "./provision";
@@ -95,7 +95,7 @@ it("creates a fresh counter and signer on each run and writes only an environmen
     expect(wait).toEqual({ timeoutMs: 60_000 });
     expect(mocks.executeAndWait.mock.calls[index * 2]).toEqual([
       {
-        invocation: ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+        invocation: ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
           receiver: deployment.address,
           amount: 10_000_000n,
         }),

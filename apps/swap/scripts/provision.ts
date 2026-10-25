@@ -22,7 +22,7 @@ import { ERC20 } from "@thruputchain/client/contracts";
 import {
   ContractType,
   gasAmount,
-  HOG_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
   networkHash,
   type Contract,
   type ContractAddress,
@@ -114,7 +114,7 @@ export async function provisionSwap(options: {
       contract,
     });
     await execute(
-      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
+      ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, GAS_LIMIT, {
         receiver: deployment.address,
         amount: CONTRACT_FUNDING,
       }),
@@ -158,8 +158,8 @@ export async function provisionSwap(options: {
     console.log(`Airdrop confirmed: ${airdrop.rawAmount} raw native-token units (7 decimals)`);
     // Native-token storage also needs a reserve for future user allowance rows.
     await execute(
-      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
-        receiver: HOG_ADDRESS,
+      ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, GAS_LIMIT, {
+        receiver: NATIVE_TOKEN_ADDRESS,
         amount: CONTRACT_FUNDING,
       }),
     );
@@ -245,7 +245,7 @@ function renderEnvironment(
   return [
     `VITE_THRUPUT_RPC_URL=${rpcUrl}`,
     `VITE_THRUPUT_NETWORK_ID=${network}`,
-    `VITE_NATIVE_TOKEN_ADDRESS=${toBase58(HOG_ADDRESS)}`,
+    `VITE_NATIVE_TOKEN_ADDRESS=${toBase58(NATIVE_TOKEN_ADDRESS)}`,
     `VITE_SWAP_FACTORY_ADDRESS=${toBase58(deployment.factory)}`,
     `VITE_SWAP_ROUTER_ADDRESS=${toBase58(deployment.router)}`,
     `VITE_POOL_TOKEN_HASH=${toBase58(deployment.tokenHash)}`,
