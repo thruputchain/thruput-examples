@@ -1,0 +1,40 @@
+{
+  "rpcUrl": "https://rpc.thruput.network",
+  "networkId": "6RgqYi69r94rCG1qKZ5NfCMAxonNAMXbDsFZMgGwgP2J",
+  "cliVersion": "0.40.0",
+  "wireFormat": "14.1.1",
+  "counter": {
+    "address": "3W7mtVzcFa7dGE7vEXScvfnFupqKgdVwBKTicbmaPepo",
+    "deploymentTransaction": "EoLAQW93d53D6y5cUGtYt6JVWvaYvy5PmzPXEZWLDcPf"
+  },
+  "launchpad": {
+    "factory": "AEnJ8usVbwkak1khegYbcnqRjhHrd9wjFEi4N3FM1vmo",
+    "tokenCodeHash": "G4fdv9AoMhC1Uc1VQKs8HTAsUWMeZ8WJ4CtuZC3JHXRH",
+    "deploymentTransaction": "FZcDdLtmYoPAVpfYpHzFjvgKFps6mmcZFGdn8J94ik5D"
+  },
+  "swap": {
+    "factory": "HCBLczLgfXv6fwqCPCeHTGK8xpBLzSBcgVC5zAYdFHQv",
+    "router": "5aBkiRuFiDADVgxqf1JJnJ9v2LQNUvDFfD9pgqcHbBCs",
+    "handler": "8GsWU1pCdYRnMjEfLvCKGpjwnS4va65CrakGRo2Z4Q6y",
+    "driver": "B4z4qdTK7RqaSeYQqBabKqN2uCd1wHztXci7i6tyz4Bs",
+    "poolTokenCodeHash": "BHfqrDnWrT259PjciruPMzWQuHRS8c5ebK34PqpAtLig",
+    "factoryDeploymentTransaction": "DsVHdMPbbhnBWVw7uqZ3oWPDpM4TG2uwH55JrpTTDyw5",
+    "routerDeploymentTransaction": "BeJfbc5MSPJezyxbzcn85sb7HirAwDr3midzPWYs7b9y",
+    "handlerDeploymentTransaction": "6RHLGw2HkqYjmZcQFZSs5a4zY3DKmcAFjEZ5CAjM8N5p",
+    "driverDeploymentTransaction": "8rhVtdoModMC5jJs6f5Mh3NH5rCPPSSdnTHkM1kMhZE2"
+  },
+  "voting": {
+    "address": "3cuUgnKwhLLpTWpuS1RT8G5Z4wkuGtWHwCnLwhDBxAtb",
+    "deploymentTransaction": "6LcXgz7H5AFn1XJcL8KH4s63yM4JQYYDYxBTWKRGzwvN"
+  },
+  "verification": {
+    "tokenCreationTransactions": [
+      "411bMsCRvevux3cMBAENPf8gA6MC2HYd19QjzFTcqPFW",
+      "CRWW2Jk2iYFXuUYw3LwP8aF92YgDKVpQCxDyyRiTikDv"
+    ],
+    "createPoolAndAddLiquidity": "G6dEohPUPqv1wwRhZ96UUwP69Hp972DheqiASqBDVbcp",
+    "processLiquidity": "D91kfCTThDrkx2L7dEDPkKa2udg3M5CYcdu5yE26WA44",
+    "approveAndSwap": "9KmW5wastdevE96zA7bjQC9LUvDZ98ujHAWxEAAtqdSo",
+    "processSwap": "FongMepxkrqcTgDK4bUvvDk6ho2nwamFYE7oSieB7N9L"
+  }
+}

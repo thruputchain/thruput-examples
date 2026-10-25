@@ -3,15 +3,16 @@ import {
   useClient,
   useExecute,
   useWaitForTransactionReceipt,
+  useWallet,
 } from "@thruputchain/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type Invocation } from "@thruputchain/protocol";
+import { hashFromBase58, toBase58 } from "@thruputchain/client";
 import {
-  hashFromBase58,
-  serializeSignedTransaction,
-  toBase58,
-} from "@thruputchain/client";
-import { parseSignedTransactionHex } from "@thruputchain/client/provider";
+  parseSignedTransactionHex,
+  parseWalletSession,
+  parseSubmitTransactionResult,
+} from "@thruputchain/client/provider";
 import { GAS } from "../contracts/polls";
 import { errorMessage, type AppConfig } from "../config";
 import { loadPending, savePending, type Pending } from "./pending";
@@ -19,6 +20,9 @@ import { loadPending, savePending, type Pending } from "./pending";
 export function useTransaction(config: AppConfig) {
   const client = useClient();
   const execute = useExecute();
+  const wallet = useWallet();
+  const currentWallet = useRef(wallet);
+  currentWallet.current = wallet;
   const queries = useQueryClient();
   const key = `voting:v1:${config.networkId}:${toBase58(config.address)}`;
   const [pending, setPending] = useState<Pending | null>(null);
@@ -180,9 +184,56 @@ export function useTransaction(config: AppConfig) {
           "The signed transaction has expired. Export the record and check its outcome.",
         );
       // Submit only the saved bytes: no new signature, nonce, or expiry.
-      await client.sendTransaction({
-        signedTransaction: serializeSignedTransaction(signed),
+      const selected = currentWallet.current;
+      const provider = selected.provider;
+      const account = saved.record.account;
+      if (
+        !provider ||
+        selected.status !== "connected" ||
+        selected.address !== account.address
+      )
+        throw new Error("Connect the original transaction's wallet account.");
+      let changed = false;
+      const unsubscribe = provider.on("change", () => {
+        changed = true;
       });
+      try {
+        const session = parseWalletSession(
+          await provider.request({ method: "getSession" }),
+        );
+        if (
+          changed ||
+          currentWallet.current.provider !== provider ||
+          currentWallet.current.status !== "connected" ||
+          currentWallet.current.address !== account.address ||
+          session.networkHash !== saved.record.networkHash ||
+          !session.accounts.some(
+            (a) =>
+              a.address === account.address &&
+              a.publicKey === account.publicKey &&
+              a.nonce === account.nonce,
+          )
+        )
+          throw new Error(
+            "Select the original transaction's account and network.",
+          );
+        const result = parseSubmitTransactionResult(
+          await provider.request({
+            method: "submitTransaction",
+            params: {
+              account: account.address,
+              networkHash: saved.record.networkHash,
+              signedTransaction: saved.record.signedTransaction,
+            },
+          }),
+        );
+        if (result.hash !== saved.record.hash)
+          throw new Error(
+            "Wallet returned a different transaction hash. Check the saved transaction's status.",
+          );
+      } finally {
+        unsubscribe();
+      }
       await receipt.refetch();
     });
   }

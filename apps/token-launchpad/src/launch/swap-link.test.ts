@@ -25,6 +25,11 @@ const verified = {
 >;
 
 describe("verified launch Swap link", () => {
+  it("keeps the hosted Swap base path", () => {
+    expect(createAmmPoolLink("https://examples.test/swap/", verified)).toBe(
+      `https://examples.test/swap/pools/new?tokenA=${createdAddress}`,
+    );
+  });
   it.each([undefined, null, ""])("hides disabled configuration %s", (value) => {
     expect(createAmmPoolLink(value, verified)).toBeNull();
   });

@@ -52,7 +52,7 @@ export async function createCounterConnection(
       return { value: null, signerBalance: balance.rawBalance };
     },
     async prepare(direction) {
-      const response = await fetch(new URL("/api/prepare", rpcUrl), {
+      const response = await fetch(new URL("api/prepare", rpcUrl), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ direction }),

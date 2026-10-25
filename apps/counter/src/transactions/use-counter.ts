@@ -30,7 +30,8 @@ export function useCounter(config: AppConfig, accepting: boolean) {
     worker.postMessage({
       type: "start",
       config,
-      rpcUrl: new URL("/thruput-rpc", location.origin).href,
+      rpcUrl: new URL(`${import.meta.env.BASE_URL}thruput-rpc`, location.origin)
+        .href,
       accepting: acceptingRef.current,
     } satisfies WorkerCommand);
     return () => {

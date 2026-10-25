@@ -33,11 +33,11 @@ export function App({ config }: { config: AppConfig }) {
           <Link to="/" aria-label="Thruput Voting homepage" className="brand">
             <picture>
               <source
-                srcSet="/brand/stellar-dark.svg"
+                srcSet={`${import.meta.env.BASE_URL}brand/stellar-dark.svg`}
                 media="(prefers-color-scheme: dark)"
               />
               <img
-                src="/brand/stellar.svg"
+                src={`${import.meta.env.BASE_URL}brand/stellar.svg`}
                 width="100"
                 height="25"
                 alt="Stellar"

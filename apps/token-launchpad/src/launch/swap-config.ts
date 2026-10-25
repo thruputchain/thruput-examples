@@ -6,7 +6,9 @@ export function loadSwapAppUrl(
   try {
     if (typeof value !== "string") throw new Error();
     const url = new URL(value);
-    const authority = /^https?:\/\/([^/?#\\]+)\/?$/i.exec(value);
+    const authority = /^https?:\/\/([^/?#\\]+)(\/[a-z0-9_-]+\/|\/)?$/i.exec(
+      value,
+    );
     const host = authority?.[1]?.replace(/:\d+$/, "").toLowerCase();
     if (
       !authority ||
@@ -21,10 +23,10 @@ export function loadSwapAppUrl(
         ))
     )
       throw new Error();
-    return url.origin;
+    return url.pathname === "/" ? url.origin : `${url.origin}${url.pathname}`;
   } catch {
     throw new Error(
-      "VITE_SWAP_APP_URL must be an HTTPS root origin or exact loopback HTTP origin without credentials",
+      "VITE_SWAP_APP_URL must use HTTPS or exact loopback HTTP, with an optional app path ending in / and no credentials",
     );
   }
 }

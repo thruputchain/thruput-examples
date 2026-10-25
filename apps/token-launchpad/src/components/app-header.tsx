@@ -34,11 +34,11 @@ export function AppHeader({
       <div className="flex items-center gap-2 whitespace-nowrap text-[17px] font-medium min-[384px]:gap-3 min-[384px]:text-xl">
         <picture className="shrink-0">
           <source
-            srcSet="/brand/stellar-dark.svg"
+            srcSet={`${import.meta.env.BASE_URL}brand/stellar-dark.svg`}
             media="(prefers-color-scheme: dark)"
           />
           <img
-            src="/brand/stellar.svg"
+            src={`${import.meta.env.BASE_URL}brand/stellar.svg`}
             width="100"
             height="25"
             alt="Stellar"

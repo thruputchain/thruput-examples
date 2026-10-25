@@ -20,14 +20,16 @@ export function loadTokenDiscoveryServerConfig(
         (url.protocol !== "https:" &&
           !(
             url.protocol === "http:" &&
-            ["localhost", "127.0.0.1", "[::1]"].includes(host ?? "")
+            (["localhost", "127.0.0.1", "[::1]"].includes(host ?? "") ||
+              (environment.RAILWAY_ENVIRONMENT_ID !== undefined &&
+                host === "token-launchpad.railway.internal"))
           ))
       )
         throw new Error();
       origin = url.origin;
     } catch {
       throw new Error(
-        "TOKEN_DISCOVERY_UPSTREAM_ORIGIN must be an HTTPS root origin or exact loopback HTTP origin without credentials",
+        "TOKEN_DISCOVERY_UPSTREAM_ORIGIN must be an HTTPS root origin or exact loopback HTTP origin without credentials (Railway also permits token-launchpad.railway.internal)",
       );
     }
   }

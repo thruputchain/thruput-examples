@@ -20,7 +20,7 @@ export function createAmmPoolLink(
     return null;
   }
 
-  const url = new URL("/pools/new", validatedOrigin);
+  const url = new URL("pools/new", `${validatedOrigin.replace(/\/$/, "")}/`);
   url.search = new URLSearchParams({
     tokenA: workflow.createdAddress,
   }).toString();

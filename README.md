@@ -6,12 +6,12 @@ the whole repository.
 
 ## Start here
 
-| I want to… | Start with | What I need |
-| --- | --- | --- |
-| Write a contract | [Counter](contracts/counter/README.md) | Rust and Cargo registry access; no running node |
-| Use the TypeScript SDK | [Client examples](examples/typescript/README.md) | Node.js, npm package access, and a local node |
-| Consume hosted blocks | [Firehose consumer](examples/typescript/README.md#7-consume-the-hosted-firehose) | Node.js and the repo npm install; no local node |
-| Try an application | [Counter app](apps/counter/README.md) | Rust, Node.js, CLI, and a local node |
+| I want to…                | Start with                                                                          | What I need                                                                          |
+| ------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Write a contract          | [Counter](contracts/counter/README.md)                                              | Rust and Cargo registry access; no running node                                      |
+| Use the TypeScript SDK    | [Client examples](examples/typescript/README.md)                                    | Node.js, npm package access, and a local node                                        |
+| Consume hosted blocks     | [Firehose consumer](examples/typescript/README.md#7-consume-the-hosted-firehose)    | Node.js and the repo npm install; no local node                                      |
+| Try an application        | [Counter app](apps/counter/README.md)                                               | Rust, Node.js, CLI, and a local node                                                 |
 | Explore a full wallet app | [Token Launchpad](apps/token-launchpad/README.md), then [Swap](apps/swap/README.md) | The app toolchain and [Thruput Freighter](https://github.com/thruputchain/freighter) |
 
 Follow [Setup](#setup) for registry access, toolchain installation, and the local
@@ -112,45 +112,87 @@ Run `npm run example:chain-tip` for a first read. Continue with the
 If authentication fails, check registry/package access. If the CLI rejects a
 runtime manifest, use its matching managed runtime rather than a protocol override.
 
+### Run all four apps locally
+
+After the Rust/CLI and npm setup above, start `thruput node --port 9545 --json`
+in one terminal. In another terminal, from the repository root:
+
+```sh
+export THRUPUT_CLI="$(command -v thruput)"
+export THRUPUT_RPC_URL=http://127.0.0.1:9545
+export THRUPUT_RUNTIME_MANIFEST=/absolute/path/printed/by/node/runtime-manifest.json
+npm run setup:local
+npm run dev
+```
+
+`setup:local` builds and deploys fresh contracts for Counter, Launchpad, Swap,
+and Voting. It writes each app's ignored `.env.local`. `dev` reuses those
+deployments and starts all four apps. Setup connects Swap's token discovery to
+Launchpad and enables Launchpad's link to Swap. Ctrl+C stops the app processes; stop the
+node separately. These root commands use POSIX process groups (Linux/macOS).
+
+| App             | Local URL             |
+| --------------- | --------------------- |
+| Counter         | http://127.0.0.1:5175 |
+| Token Launchpad | http://127.0.0.1:5173 |
+| Swap            | http://127.0.0.1:5174 |
+| Voting          | http://127.0.0.1:5176 |
+
+Counter works without a wallet. For the other apps, install Thruput Freighter,
+select the same local RPC endpoint, and request test tokens in the wallet.
+Launchpad and Swap start empty; their READMEs explain optional demo seeding.
+An ephemeral node loses its contracts when stopped. After restarting it, use
+its new runtime manifest and run `setup:local` again.
+
+To run one app, use `npm run setup:local --workspace apps/<app>` followed by
+`npm run dev --workspace apps/<app>`. Local development needs no Railway account
+or devnet connection. Leave `APP_BASE_PATH` unset locally.
+
+### Hosted examples
+
+The [examples site](https://examples-gateway-production.up.railway.app/) serves
+all four apps under one domain. The [gateway guide](apps/gateway/README.md)
+describes devnet deployment, subpath builds, Railway settings, and verification.
+
 ## Small contract examples
 
 Each README includes a test command, expected result, and an exercise.
 Suggested order: **Counter → Fibonacci → Events → Cross-call → error handling**.
 
-| Example | What you learn |
-| --- | --- |
-| [Counter](contracts/counter/README.md) | Store and update a non-negative counter |
-| [Voting](contracts/voting/README.md) | Admin permissions, poll lifecycle, and mergeable vote totals |
-| [Fibonacci](contracts/fibonacci/README.md) | A stateless method, a declared error, and an event |
-| [Events](contracts/events/README.md) | Event payloads and indexed topics |
-| [Cross-call](contracts/cross-call/README.md) | Call another contract through its generated client |
-| [Error-handling callee](contracts/error-handling-callee/README.md) and [caller](contracts/error-handling-caller/README.md) | Distinguish declared errors, faults, and failed calls |
-| [Multi-throws](contracts/multi-throws/README.md) | Handle more than one declared error type |
-| [Multi-impl](contracts/multi-impl/README.md) | Implement separate interface traits at one address |
-| [Mixed-impl](contracts/mixed-impl/README.md) | Combine inherent methods and a trait implementation |
-| [Cross-trait throws](contracts/cross-trait-throws/README.md) | Catch errors across interface boundaries |
+| Example                                                                                                                    | What you learn                                               |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [Counter](contracts/counter/README.md)                                                                                     | Store and update a non-negative counter                      |
+| [Voting](contracts/voting/README.md)                                                                                       | Admin permissions, poll lifecycle, and mergeable vote totals |
+| [Fibonacci](contracts/fibonacci/README.md)                                                                                 | A stateless method, a declared error, and an event           |
+| [Events](contracts/events/README.md)                                                                                       | Event payloads and indexed topics                            |
+| [Cross-call](contracts/cross-call/README.md)                                                                               | Call another contract through its generated client           |
+| [Error-handling callee](contracts/error-handling-callee/README.md) and [caller](contracts/error-handling-caller/README.md) | Distinguish declared errors, faults, and failed calls        |
+| [Multi-throws](contracts/multi-throws/README.md)                                                                           | Handle more than one declared error type                     |
+| [Multi-impl](contracts/multi-impl/README.md)                                                                               | Implement separate interface traits at one address           |
+| [Mixed-impl](contracts/mixed-impl/README.md)                                                                               | Combine inherent methods and a trait implementation          |
+| [Cross-trait throws](contracts/cross-trait-throws/README.md)                                                               | Catch errors across interface boundaries                     |
 
 ## Larger reference examples
 
 These combine several concepts. Read a small example first.
 
-| Example | Purpose |
-| --- | --- |
-| [ERC20](contracts/erc20/README.md) | Token balances, allowances, metadata, and optional permits |
-| [Permit wallet](contracts/permit-wallet/) and [relayer](contracts/permit-relayer/) | Off-chain authorization and auth-token composition; run with `scripts/permit-live.sh` |
-| [Standard token](contracts/standard-token/) and [factory](contracts/standard-token-factory/) | Factory-created tokens, used by Launchpad |
-| [Swap contracts](contracts/swap-router/README.md) | Pools, routing, queued requests, and liquidity |
-| [Speedex](contracts/speedex/README.md) | Multi-asset batch exchange and clearing |
-| [Stellar account](contracts/stellar-account/README.md) | Weighted Ed25519 and ML-DSA-65 signers and operation thresholds |
+| Example                                                                                      | Purpose                                                                               |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [ERC20](contracts/erc20/README.md)                                                           | Token balances, allowances, metadata, and optional permits                            |
+| [Permit wallet](contracts/permit-wallet/) and [relayer](contracts/permit-relayer/)           | Off-chain authorization and auth-token composition; run with `scripts/permit-live.sh` |
+| [Standard token](contracts/standard-token/) and [factory](contracts/standard-token-factory/) | Factory-created tokens, used by Launchpad                                             |
+| [Swap contracts](contracts/swap-router/README.md)                                            | Pools, routing, queued requests, and liquidity                                        |
+| [Speedex](contracts/speedex/README.md)                                                       | Multi-asset batch exchange and clearing                                               |
+| [Stellar account](contracts/stellar-account/README.md)                                       | Weighted Ed25519 and ML-DSA-65 signers and operation thresholds                       |
 
 ## Applications
 
-| App | Purpose |
-| --- | --- |
-| [Counter](apps/counter/README.md) | Development-signed concurrent updates or wallet-approved button updates, with reload recovery |
-| [Voting](apps/voting/README.md) | Create multi-question polls, vote once per question, and view live results on localnode |
-| [Token Launchpad](apps/token-launchpad/README.md) | Create tokens with an external wallet and browse indexed launches |
-| [Swap](apps/swap/README.md) | Create pools, swap tokens, and manage liquidity |
+| App                                               | Purpose                                                                                       |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [Counter](apps/counter/README.md)                 | Development-signed concurrent updates or wallet-approved button updates, with reload recovery |
+| [Voting](apps/voting/README.md)                   | Create multi-question polls, vote once per question, and view live results                    |
+| [Token Launchpad](apps/token-launchpad/README.md) | Create tokens with an external wallet and browse indexed launches                             |
+| [Swap](apps/swap/README.md)                       | Create pools, swap tokens, and manage liquidity                                               |
 
 The Counter **contract** is introductory; the Counter **app** demonstrates
 concurrency and transaction observation. Launchpad and Swap include registry
@@ -163,16 +205,16 @@ keys or recovery state. Use the same node and RPC endpoint in both apps and Frei
 
 ## Examples versus tools
 
-| Location | Audience and purpose |
-| --- | --- |
-| `examples/typescript/` | Small scripts to read, run, and modify while learning the published SDK |
-| `contracts/` | Rust contracts and their focused tests |
-| `apps/*/scripts/` | Setup, binding generation, and seed entrypoints for that app |
-| `scripts/seed/` | Shared app-seeding implementation; not an introductory SDK example |
-| `scripts/` | Maintainer builds, checks, live scenarios, and benchmarks; see the [script index](scripts/README.md) |
-| `interfaces/`, `engines/`, `helpers/` | Supporting Rust interfaces and implementations |
-| `sim-fixtures/` | Workloads for simulator testing, not tutorials |
-| `tests/browser/`, `tests/e2e/` | Browser fixtures and live acceptance tests |
+| Location                              | Audience and purpose                                                                                 |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `examples/typescript/`                | Small scripts to read, run, and modify while learning the published SDK                              |
+| `contracts/`                          | Rust contracts and their focused tests                                                               |
+| `apps/*/scripts/`                     | Setup, binding generation, and seed entrypoints for that app                                         |
+| `scripts/seed/`                       | Shared app-seeding implementation; not an introductory SDK example                                   |
+| `scripts/`                            | Maintainer builds, checks, live scenarios, and benchmarks; see the [script index](scripts/README.md) |
+| `interfaces/`, `engines/`, `helpers/` | Supporting Rust interfaces and implementations                                                       |
+| `sim-fixtures/`                       | Workloads for simulator testing, not tutorials                                                       |
+| `tests/browser/`, `tests/e2e/`        | Browser fixtures and live acceptance tests                                                           |
 
 ## Development and verification
 
