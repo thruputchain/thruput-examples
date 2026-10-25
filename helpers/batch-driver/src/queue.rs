@@ -195,7 +195,7 @@ impl<R: BatchRequest> Queue<R> {
     ///
     /// If there is anything to drain, the crank first calls `claim`, which must make a
     /// commit-locked call that writes a claim key of the handler's exclusively (for instance with
-    /// `Value::set_exclusive`). If it fails, another crank in this block holds the claim, and this
+    /// `Deletable::delete_exclusive`, which takes the lock without storing anything). If it fails, another crank in this block holds the claim, and this
     /// one returns `(0, 0)` without draining. A crank that finds nothing to drain does not claim,
     /// so it stays as free as it was: it writes nothing, and takes the claim from no one.
     pub fn crank<C, F>(&mut self, claim: C, mut handle: F) -> Result<(u32, u32), Starved>
@@ -282,6 +282,7 @@ impl<R: BatchRequest> Queue<R> {
                 processed: n_processed,
                 claim: claim_gas,
                 dearest_request: spent.dearest,
+                handlers_total: spent.total,
                 tail: after_process.saturating_sub(here),
                 beyond_handlers: entry_gas
                     .saturating_sub(here)
@@ -319,7 +320,10 @@ impl HandlerGas {
 ///
 /// * [`CLAIM_GAS`] must cover `claim`, what claiming the drain cost.
 /// * [`BatchRequest::GAS_LIMIT`] must bound `dearest_request`, since it is the
-///   cap the drain puts on a single handler call.
+///   cap the drain puts on a single handler call. `handlers_total` is what
+///   every handler call in the batch cost together, so that a batch's later
+///   requests -- which find the keys its earlier ones loaded already warm --
+///   can be told apart from its first.
 /// * [`EPILOGUE_GAS`] must cover `beyond_handlers`, which is everything the
 ///   crank spent that was neither a handler call nor the claim: entering, checking the budget,
 ///   consuming and decoding each entry, releasing capacity, and the summary
@@ -336,6 +340,7 @@ pub struct GasReport {
     pub processed: u32,
     pub claim: u64,
     pub dearest_request: u64,
+    pub handlers_total: u64,
     pub tail: u64,
     pub beyond_handlers: u64,
 }

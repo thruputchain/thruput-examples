@@ -67,6 +67,8 @@ pub fn setup_etx() -> Result<Etx> {
 
     // Then bring the pair up, in a frame at its own address -- which is what
     // makes it the LP token's administrator and the pool's token holder.
+    // There is no driver here (the pair never reads the one it records), so
+    // the test caller stands in.
     exec_tx(&env, &PAIR_ADDR, move || {
         let mut pair: Node<Pair> = Keypath::default().into();
         pair.initialize(
@@ -74,6 +76,7 @@ pub fn setup_etx() -> Result<Etx> {
             &token_addrs[0],
             &token_addrs[1],
             &liquidity_token,
+            &TEST_ADDR,
         );
     })?;
 
