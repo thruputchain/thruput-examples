@@ -25,7 +25,7 @@
     "@thruputchain/client": "0.24.0",
     "@thruputchain/contract-spec": "0.19.0",
     "@thruputchain/protocol": "0.19.0",
-    "@thruputchain/react": "0.7.0",
+    "@thruputchain/react": "0.8.0",
     "@thruputchain/xdr": "0.19.0",
     "lucide-react": "0.468.0",
     "react": "19.1.1",
