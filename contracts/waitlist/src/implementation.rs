@@ -16,11 +16,15 @@ pub enum WaitlistError {
 
 /// A waitlist whose entry fee is steered by how many are waiting.
 ///
-/// The fee is a `FeeMarket`'s, and the load it steers by is the backlog: free while no more than
-/// the target are waiting, rising by up to an eighth in each block that starts with more, up to a
-/// maximum, and falling back in each that starts with fewer. Concurrent joins never conflict -- not over the
-/// backlog, which is a `Balance` they only add to, and not over the fee, which every join in a
-/// block computes and records alike from the backlog at the block's start.
+/// The fee is a `FeeMarket`'s, and the load it steers by is the backlog. A new list is free. In
+/// each block that starts with more than the target waiting, the fee rises by up to an eighth, up
+/// to a maximum; in each that starts with fewer, it falls by up to an eighth, back toward zero; at
+/// the target, it holds. So the target is not a threshold below which joining is free: a fee that
+/// has built up stays until the backlog has spent some blocks below the target.
+///
+/// Concurrent joins never conflict -- not over the backlog, which is a `Balance` they only add to,
+/// and not over the fee, which every join in a block computes and records alike from the backlog
+/// at the block's start.
 #[thruput_sdk::storage]
 pub struct Waitlist {
     waiting: Balance,

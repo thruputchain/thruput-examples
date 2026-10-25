@@ -69,6 +69,16 @@ fn the_fee_falls_to_zero() {
     assert_eq!(adjust(1_000_000, 4, 0, MAX_STEPS), 0);
 }
 
+// Against a large target, a load just off it still moves the fee by the minimum unit, though the
+// ratio itself rounds to one.
+#[test]
+fn a_large_target_still_moves_the_fee() {
+    let target = 1_000_000_000;
+    assert_eq!(adjust(0, target, u128::from(target) + 1, 1), 1);
+    assert_eq!(adjust(5, target, u128::from(target) - 1, 1), 4);
+    assert_eq!(adjust(5, target, u128::from(target), 1), 5);
+}
+
 // Several blocks are several steps.
 #[test]
 fn several_blocks_are_several_steps() {

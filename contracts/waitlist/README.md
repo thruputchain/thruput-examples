@@ -1,11 +1,14 @@
 # Waitlist: a fee steered by the backlog
 
 A waitlist whose entry fee is priced like an EIP-1559 base fee, steered by how
-many are waiting: free while no more than a target number are waiting, rising
-by up to an eighth in each block that starts with more, and falling back in
-each that starts with fewer. A backlog that nobody serves keeps raising the
-fee, block after block, up to a maximum set when the list starts; serving it
-brings the fee back down, and anyone may serve. The fee comes
+many are waiting. A new list is free. In each block that starts with more than
+a target number waiting, the fee rises by up to an eighth; in each that starts
+with fewer, it falls by up to an eighth, back toward zero; at the target, it
+holds. So the target is not a line below which joining is free: a fee that has
+built up stays until the backlog has spent some blocks below the target. A
+backlog that nobody serves keeps raising the fee, block after block, up to a
+maximum set when the list starts; serving it brings the fee back down, and
+anyone may serve. The fee comes
 from [`fee-market`](../../helpers/fee-market/src/lib.rs), a storage type any
 contract can embed, given a load of its own to steer by.
 

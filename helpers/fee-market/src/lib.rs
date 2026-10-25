@@ -126,20 +126,24 @@ pub fn adjust(fee: u128, target: u32, load: u128, blocks: u64, max_fee: u128) ->
     let target = i128::from(target);
     let counted = i128::try_from(load).unwrap_or(i128::MAX).min(2 * target);
 
-    // The per-block ratio, in 32-bit fixed point: within an eighth of one either way.
-    let delta = ((counted - target) << 32) / (8 * target);
-    if delta == 0 {
+    let excess = counted - target;
+    if excess == 0 {
         return fee.min(ceiling);
     }
+
+    // The per-block ratio, in 32-bit fixed point: within an eighth of one either way. Against a
+    // large target, a load just off it rounds to a ratio of exactly one, so the direction is taken
+    // from `excess`, not from the ratio, and the one-unit minimum still applies.
+    let delta = (excess << 32) / (8 * target);
     let ratio = ((1i128 << 32) + delta) as u128;
 
     let mut fee = fee.min(ceiling);
     for _ in 0..blocks.min(MAX_STEPS) {
         let scaled = (fee * ratio) >> 32;
-        fee = if delta > 0 {
+        fee = if excess > 0 {
             scaled.max(fee + 1).min(ceiling)
         } else {
-            scaled
+            scaled.min(fee.saturating_sub(1))
         };
 
         if fee == 0 || fee == ceiling {
