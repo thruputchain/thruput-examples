@@ -46,10 +46,5 @@
     "vite": "7.3.6",
     "vitest": "4.1.11",
     "ws": "8.21.3"
-  },
-  "overrides": {
-    "@thruputchain/react": {
-      "@thruputchain/client": "$@thruputchain/client"
-    }
   }
 }
