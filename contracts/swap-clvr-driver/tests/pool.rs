@@ -393,6 +393,32 @@ fn enqueue_trades(pool: &Pool, n: u32) {
     }
 }
 
+// A floor above what the ordering can hold could never be met, so the driver refuses it.
+#[test]
+fn a_floor_above_the_largest_batch_is_refused() {
+    let env = TestEnvironment::new(None);
+    let driver_hash = *swap_clvr_driver::register_mock_contract(&env).as_hash();
+    let driver = exec(&env, &FACTORY_ADDR, || {
+        get_deploy_address(&DRIVER_NONCE, &driver_hash)
+    });
+    env.setup_grant_storage_tokens(&driver, CONTRACT_FUNDING);
+
+    let floor = |min_crank_batch: u32| {
+        exec(&env, &FACTORY_ADDR, move || {
+            let driver = deploy_contract(&DRIVER_NONCE, &driver_hash);
+            SwapDriverClient::new(&driver)
+                .try_initialize(&ROUTER_ADDR, &ROUTER_ADDR, 256, min_crank_batch)
+                .err()
+                .and_then(|e| e.try_as::<SwapDriverError>())
+        })
+    };
+    assert_eq!(
+        floor(clvr::MAX_BATCH + 1),
+        Some(SwapDriverError::InvalidConfiguration)
+    );
+    assert_eq!(floor(clvr::MAX_BATCH), None);
+}
+
 /////////////////////// helpers /////////////////////////////////////////////
 
 fn users() -> [&'static ContractAddress; 3] {

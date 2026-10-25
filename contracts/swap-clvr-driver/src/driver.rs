@@ -8,7 +8,7 @@
 //! `swap-driver` simply by being given its code hash.
 
 use crate::cfg::*;
-use crate::clvr::Clvr;
+use crate::clvr::{self, Clvr};
 use batch_driver::{CrankPolicy, Queue};
 use swap_if::*;
 use thruput_sdk::storage::*;
@@ -46,6 +46,13 @@ impl SwapDriver for Driver {
         if self.cfg.try_get().none_if_missing().is_some() {
             throw(SwapDriverError::AlreadyInitialized);
         }
+
+        // A crank takes no more than the ordering can hold, so a floor above that could never be
+        // met.
+        ensure(
+            min_crank_batch <= clvr::MAX_BATCH,
+            SwapDriverError::InvalidConfiguration,
+        );
 
         // Initialize the request queue.
         self.queue
