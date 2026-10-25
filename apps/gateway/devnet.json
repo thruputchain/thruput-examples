@@ -15,9 +15,13 @@
   "swap": {
     "factory": "GS5favbTuejtZ6Uhg71gmNdNRLMwgnRtb725y2WaHXEu",
     "router": "8TZecgAcK5euyZwmVDhAhJvjSuj87NYoT4LouX2jSpZN",
+    "handler": "DtkqvhkczF6N1bY7Q6MNVWABQxbc1ohMy9waHbN5TFTj",
+    "driver": "FSjErNfiuz2pV8cDsKJWzfw9G3hNEtooTe9Ksvv62UEG",
     "poolTokenCodeHash": "BHfqrDnWrT259PjciruPMzWQuHRS8c5ebK34PqpAtLig",
     "factoryDeploymentTransaction": "Dxbh86WnzBphY75kaL9currX6kFrPMJV7NG6yn2vuFcf",
-    "routerDeploymentTransaction": "6EMeZH5uALqFAwNty76ZCqFsdDUzjp6Svk6S3b6QuDpw"
+    "routerDeploymentTransaction": "6EMeZH5uALqFAwNty76ZCqFsdDUzjp6Svk6S3b6QuDpw",
+    "handlerDeploymentTransaction": "3mVRpq57HiBKbvnFjfdRTmWf5mjSRGkq898EbErYNTBh",
+    "driverDeploymentTransaction": "6N9CZqFSX19oqX4VgbQ6tq21jFi8LF3Cv425yYZBMoLf"
   },
   "voting": {
     "address": "BvSKVbGtH7NspKA5DviuWt17JK2PY6EXdnvU25WijPCf",

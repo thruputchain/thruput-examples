@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
       {
         name: "voting-public-config",
         configureServer(server) {
+          if (mode === "test") return;
           const api = createApiHandler(loadConfig(env));
           server.middlewares.use((request, response, next) => {
             void api(request, response)

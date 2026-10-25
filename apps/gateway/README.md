@@ -31,6 +31,10 @@ The gateway uses `apps/gateway/Dockerfile`, `PORT=8080`, and `/healthz`.
 can override its upstream addresses. Watch each app's directory plus the root
 `package.json`, `package-lock.json`, `.npmrc`, and `railpack.json` for deployments.
 
+Until the hosting PR is merged, Voting and Examples Gateway follow
+`feat/devnet-examples-hosting`. After merging, change those two source branches
+to `main`. The three existing services already follow `main`.
+
 The existing `railway.json` files describe the service settings for older Railway
 workflows. Railway now rejects newly assigning a config-file path through its API;
 configure the build/start/health settings directly in the service settings.

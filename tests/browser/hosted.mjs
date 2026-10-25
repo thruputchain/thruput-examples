@@ -34,6 +34,12 @@ const apps = [
     heading: "Start with a question",
   },
 ];
+const caddy = process.env.CADDY_BINARY || "caddy";
+assert.equal(
+  spawnSync(caddy, ["version"], { stdio: "ignore" }).status,
+  0,
+  "Install Caddy or set CADDY_BINARY before running hosted checks.",
+);
 const groups = new OwnedProcessGroups();
 const site = await mkdtemp(join(tmpdir(), "examples-hosted-"));
 let browser;
@@ -78,7 +84,7 @@ try {
     await ready(`http://127.0.0.1:${app.port}/healthz`, child);
   }
   const gateway = groups.spawn(
-    process.env.CADDY_BINARY || "caddy",
+    caddy,
     ["run", "--config", "apps/gateway/Caddyfile", "--adapter", "caddyfile"],
     {
       stdio: "inherit",
