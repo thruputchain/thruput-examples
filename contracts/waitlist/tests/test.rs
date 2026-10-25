@@ -8,6 +8,9 @@ static NONCE: SHA256Hash = thruput_sdk::sha256_static!("WAITLIST_NONCE");
 // The backlog the fee steers toward. Small, so a test can exceed it.
 const TARGET: u32 = 2;
 
+// The most the fee can reach. Small, so a test can reach it.
+const MAX_FEE: u128 = 3;
+
 fn addr(name: &str) -> ContractAddress {
     <ContractAddress as Named>::named(name)
 }
@@ -24,7 +27,7 @@ fn setup() -> (TestEnvironmentHandle, ContractAddress) {
     let deployed = env.transact(|tx| {
         tx.call(&addr("deployer")).run(move || {
             let list = deploy_contract(&NONCE, &hash);
-            WaitlistClient::new(&list).initialize(TARGET);
+            WaitlistClient::new(&list).initialize(TARGET, MAX_FEE);
             list
         })
     });
@@ -119,19 +122,23 @@ fn a_backlog_raises_the_fee() {
     assert_eq!(native_balance(&env, "alice"), 1_000 - fee as i128);
 }
 
-// A backlog that nobody serves keeps raising the fee, block after block, with no one joining.
+// A backlog that nobody serves keeps raising the fee, block after block, with no one joining --
+// but only as far as the maximum.
 #[test]
-fn a_lingering_backlog_keeps_raising_it() {
+fn a_lingering_backlog_raises_it_to_the_maximum() {
     let (env, list) = setup();
 
     for _ in 0..2 * TARGET {
         join(&env, "bob", list).assert_success();
     }
-    for _ in 0..3 {
+    env.advance_block();
+    env.advance_block();
+    assert_eq!(fee(&env, list), 2);
+
+    for _ in 0..5 {
         env.advance_block();
     }
-
-    assert_eq!(fee(&env, list), 3);
+    assert_eq!(fee(&env, list), MAX_FEE);
 }
 
 // Serving the backlog brings the fee back down.
@@ -162,7 +169,7 @@ fn initializing_twice_is_refused() {
     let refused = env.transact(|tx| {
         tx.call(&addr("mallory")).run(move || {
             let err = WaitlistClient::new(&list)
-                .try_initialize(TARGET)
+                .try_initialize(TARGET, MAX_FEE)
                 .unwrap_err();
             err.try_as() == Some(WaitlistError::AlreadyInitialized)
         })

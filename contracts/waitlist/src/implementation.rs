@@ -10,13 +10,15 @@ pub enum WaitlistError {
     ZeroTarget = 1,
     /// `initialize` was called on a waitlist that is already running.
     AlreadyInitialized = 2,
+    /// `initialize` was given a maximum fee of zero.
+    ZeroMaxFee = 3,
 }
 
 /// A waitlist whose entry fee is steered by how many are waiting.
 ///
 /// The fee is a `FeeMarket`'s, and the load it steers by is the backlog: free while no more than
-/// the target are waiting, rising by up to an eighth in each block that starts with more, and
-/// falling back in each that starts with fewer. Concurrent joins never conflict -- not over the
+/// the target are waiting, rising by up to an eighth in each block that starts with more, up to a
+/// maximum, and falling back in each that starts with fewer. Concurrent joins never conflict -- not over the
 /// backlog, which is a `Balance` they only add to, and not over the fee, which every join in a
 /// block computes and records alike from the backlog at the block's start.
 #[thruput_sdk::storage]
@@ -27,11 +29,16 @@ pub struct Waitlist {
 
 #[contract(throws(WaitlistError, ERC20Error))]
 impl Waitlist {
-    /// Start the fee, steering toward a backlog of `target`. Callable once.
-    pub fn initialize(&mut self, target: u32) {
-        self.fee.initialize(target).unwrap_or_else(|e| {
+    /// Start the fee, steering toward a backlog of `target`, and never charging more than
+    /// `max_fee`. Callable once.
+    ///
+    /// A backlog nobody serves raises the fee in every block; the maximum is what bounds it. Anyone
+    /// may `serve`, so anyone can bring it back down.
+    pub fn initialize(&mut self, target: u32, max_fee: u128) {
+        self.fee.initialize(target, max_fee).unwrap_or_else(|e| {
             throw(match e {
                 InitError::ZeroTarget => WaitlistError::ZeroTarget,
+                InitError::ZeroMaxFee => WaitlistError::ZeroMaxFee,
                 InitError::AlreadyInitialized => WaitlistError::AlreadyInitialized,
             })
         });

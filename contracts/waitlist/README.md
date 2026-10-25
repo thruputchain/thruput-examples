@@ -4,7 +4,8 @@ A waitlist whose entry fee is priced like an EIP-1559 base fee, steered by how
 many are waiting: free while no more than a target number are waiting, rising
 by up to an eighth in each block that starts with more, and falling back in
 each that starts with fewer. A backlog that nobody serves keeps raising the
-fee, block after block; serving it brings the fee back down. The fee comes
+fee, block after block, up to a maximum set when the list starts; serving it
+brings the fee back down, and anyone may serve. The fee comes
 from [`fee-market`](../../helpers/fee-market/src/lib.rs), a storage type any
 contract can embed, given a load of its own to steer by.
 
@@ -22,8 +23,8 @@ cargo test -p waitlist --locked --test test
 Expected: **5 tests pass**. A short list is free to join. A backlog above the
 target makes the next block's fee 1: a caller with no allowance is refused, and
 one with an allowance pays exactly the fee. A backlog nobody serves keeps
-raising the fee with no one joining; serving it brings the fee back to zero. The
-fee cannot be started twice. The expected exceptions can appear in the test
+raising the fee with no one joining, until it reaches the maximum; serving it
+brings the fee back to zero. The fee cannot be started twice. The expected exceptions can appear in the test
 output; the final result is what determines success.
 
 ## Read
@@ -44,12 +45,13 @@ allowance at all.
 
 ## Try a change
 
-In `a_lingering_backlog_keeps_raising_it`, advance one more block before
-checking the fee. It rises to 4: the backlog is still there, so another block
-counts against it.
+In the tests, raise `MAX_FEE` from 3 to 10, and rerun. The lingering-backlog
+test now fails: the fee no longer stops at the maximum but reaches 7, one unit
+for each of the seven blocks the backlog sat there. Expect 7 instead.
 
 To steer a fee in your own contract, add a `Node<FeeMarket>` to its storage,
-`initialize` it once with a target, and call `update` with your load -- the
+`initialize` it once with a target and a maximum, and call `update` with your
+load -- the
 same value for every transaction in a block -- wherever you charge the fee and
 wherever the load changes. See the
 [`fee-market`](../../helpers/fee-market/src/lib.rs) crate docs.

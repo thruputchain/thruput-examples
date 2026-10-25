@@ -5,13 +5,21 @@
 //! every one in a block computes and records the same state -- so the tests below check both that
 //! the fee moves as it should across blocks, and that callers in one block never conflict over it.
 
-use fee_market::{FeeMarket, MAX_FEE, MAX_STEPS, adjust};
+use fee_market::{FeeMarket, MAX_FEE, MAX_STEPS};
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
 
 const ADDR: ContractAddress = ContractAddress::new([5u8; 32]);
 
 const TARGET: u32 = 2;
+
+// A maximum high enough that the tests not about it never reach it.
+const MAX: u128 = 1_000;
+
+// The arithmetic, with no maximum but the global one.
+fn adjust(fee: u128, target: u32, load: u128, blocks: u64) -> u128 {
+    fee_market::adjust(fee, target, load, blocks, MAX_FEE)
+}
 
 /////////////////////// the arithmetic //////////////////////////////////////
 
@@ -69,9 +77,11 @@ fn several_blocks_are_several_steps() {
     assert_eq!(adjust(800, 4, 0, 3), 535);
 }
 
-// The fee stops at its ceiling.
+// The fee stops at the market's maximum, and at the global one above any maximum.
 #[test]
 fn the_fee_is_capped() {
+    assert_eq!(fee_market::adjust(5, 4, 8, 10, 7), 7);
+    assert_eq!(fee_market::adjust(9, 4, 4, 1, 7), 7, "even on target");
     assert_eq!(adjust(MAX_FEE, 4, 8, 1), MAX_FEE);
     assert_eq!(adjust(MAX_FEE - 1, 4, 8, 10), MAX_FEE);
 }
@@ -89,18 +99,26 @@ fn a_new_market_is_free() {
     assert_eq!(update(&env, 2 * TARGET).assert_return_as::<u128>(), 1);
 }
 
-// A target of zero is refused, and so is a second start, which would reset the fee.
+// A target or maximum of zero is refused, and so is a second start, which would reset the fee.
 #[test]
 fn a_bad_start_is_refused() {
-    let env = TestEnvironment::no_cost();
-    let zero = env.transact(|tx| tx.call(&ADDR).run(|| market().initialize(0).is_ok()));
-    zero.assert_success();
-    assert!(!zero.assert_return_as::<bool>());
+    use fee_market::InitError::*;
 
-    initialize(&env);
-    let again = env.transact(|tx| tx.call(&ADDR).run(|| market().initialize(TARGET).is_ok()));
-    again.assert_success();
-    assert!(!again.assert_return_as::<bool>());
+    let env = TestEnvironment::no_cost();
+    let start = |target: u32, max: u128| {
+        let r = env.transact(|tx| {
+            tx.call(&ADDR)
+                .run(move || market().initialize(target, max).err().map(|e| e as u32))
+        });
+        r.assert_success();
+        r.assert_return_as::<Option<u32>>()
+    };
+
+    assert_eq!(start(0, MAX), Some(ZeroTarget as u32));
+    assert_eq!(start(TARGET, 0), Some(ZeroMaxFee as u32));
+    assert_eq!(start(TARGET, MAX), None);
+    env.advance_block();
+    assert_eq!(start(TARGET, MAX), Some(AlreadyInitialized as u32));
 }
 
 // Every caller in a block that passes the block's load gets the same fee, and none conflicts with
@@ -171,6 +189,24 @@ fn blocks_without_an_update_are_caught_up() {
     assert_eq!(quote(&env, 0), 1, "three blocks with nothing waiting");
 }
 
+// A load held above the target raises the fee only as far as the maximum.
+#[test]
+fn a_held_load_stops_at_the_maximum() {
+    let env = TestEnvironment::no_cost();
+    env.transact(|tx| {
+        tx.call(&ADDR)
+            .run(|| market().initialize(TARGET, 3).expect("a valid start"))
+    })
+    .assert_success();
+    env.advance_block();
+
+    update(&env, 2 * TARGET).assert_success();
+    for _ in 0..10 {
+        env.advance_block();
+    }
+    assert_eq!(quote(&env, 2 * TARGET), 3);
+}
+
 /////////////////////// helpers /////////////////////////////////////////////
 
 fn market() -> FeeMarket {
@@ -180,7 +216,7 @@ fn market() -> FeeMarket {
 fn initialize(env: &TestEnvironmentHandle) {
     env.transact(|tx| {
         tx.call(&ADDR)
-            .run(|| market().initialize(TARGET).expect("a nonzero target"))
+            .run(|| market().initialize(TARGET, MAX).expect("a valid start"))
     })
     .assert_success();
     env.advance_block();
