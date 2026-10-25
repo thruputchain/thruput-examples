@@ -18,7 +18,7 @@ import { prepareContractDeployment } from "@thruputchain/client/wallet";
 import {
   gasAmount,
   networkHash,
-  HOG_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
   type Invocation,
 } from "@thruputchain/protocol";
 import { parseConfig } from "../src/config";
@@ -85,7 +85,7 @@ export async function provisionCounter(options: {
     console.log(`Airdrop confirmed: ${funding.rawAmount} raw native-token units (7 decimals)`);
     await execute(
       "Fund counter",
-      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS, {
+      ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, GAS, {
         receiver: address,
         amount: 10_000_000n,
       }),

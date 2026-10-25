@@ -10,7 +10,7 @@ import {
   type PubkeyAccount,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
-import { gasAmount, HOG_ADDRESS } from "@thruputchain/protocol";
+import { gasAmount, NATIVE_TOKEN_ADDRESS } from "@thruputchain/protocol";
 import { createLocalClient } from "./local-client.ts";
 import { waitForView } from "./wait-for-view.ts";
 
@@ -34,7 +34,7 @@ const recipientFunding = await client.requestAirdrop({
 const before = await waitForView(() =>
   ERC20.v0_1.getBalanceOf.view({
     client,
-    address: HOG_ADDRESS,
+    address: NATIVE_TOKEN_ADDRESS,
     caller: recipient.address,
     args: { addr: recipient.address },
     minStateBlockHeight: recipientFunding.blockHeight,
@@ -50,7 +50,7 @@ async function fundAndTransfer(sender: PubkeyAccount) {
   const { transactionHash, receipt } = await wallet.executeAndWait(
     {
       invocation: ERC20.v0_1.transfer.invocation(
-        HOG_ADDRESS,
+        NATIVE_TOKEN_ADDRESS,
         gasAmount(500_000n),
         { receiver: recipient.address, amount },
       ),
@@ -76,7 +76,7 @@ const lastHeight =
 const after = await waitForView(() =>
   ERC20.v0_1.getBalanceOf.view({
     client,
-    address: HOG_ADDRESS,
+    address: NATIVE_TOKEN_ADDRESS,
     caller: recipient.address,
     args: { addr: recipient.address },
     minStateBlockHeight: lastHeight,

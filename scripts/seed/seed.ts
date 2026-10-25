@@ -22,7 +22,7 @@ import {
 import {
   ContractType,
   gasAmount,
-  HOG_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
   type Contract,
   type ContractAddress,
   type Invocation,
@@ -132,7 +132,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     ).value;
     if (
       toBase58(config.token_code_hash) !== tokenHash ||
-      !bytesEqual(config.native_token, HOG_ADDRESS) ||
+      !bytesEqual(config.native_token, NATIVE_TOKEN_ADDRESS) ||
       config.creation_fee !== 0n ||
       config.fee_recipient !== null ||
       config.required_token_funding <= 0n
@@ -227,7 +227,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
       ).value;
       await execute(
         `fund-${symbol}`,
-        ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS, {
+        ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, GAS, {
           receiver: address,
           amount: config.required_token_funding + RESERVE,
         }),
@@ -276,7 +276,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     if (poolConfig) {
       await execute(
         "approve-pool-funding",
-        ERC20.v0_1.adjustAllowance.invocation(HOG_ADDRESS, GAS, {
+        ERC20.v0_1.adjustAllowance.invocation(NATIVE_TOKEN_ADDRESS, GAS, {
           spender: poolConfig.factory,
           difference: poolConfig.funding.recommended * 3n,
         }),

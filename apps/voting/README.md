@@ -7,7 +7,7 @@ This is a localnode-only teaching app for the [Voting contract](../../contracts/
 
 Complete [repository setup](../../README.md#setup) and run `npm ci` from the root.
 Use CLI 0.38.0 with runtime 0.1.31-rc.16 (native wire 14). Voting uses client
-0.23.0, React SDK 0.7.0, and protocol packages 0.18.0, matching the other apps.
+0.24.0, React SDK 0.7.0, and protocol packages 0.19.0, matching the other apps.
 Start a local node in another terminal:
 
 ```sh

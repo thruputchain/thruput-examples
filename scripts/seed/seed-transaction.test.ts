@@ -15,7 +15,7 @@ import { ERC20 } from "@thruputchain/client/contracts";
 import {
   blockHeight,
   gasAmount,
-  HOG_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
   networkHash,
   sha256Hash,
 } from "@thruputchain/protocol";
@@ -27,7 +27,7 @@ async function fixture() {
   const signer = new Ed25519Signer(new Uint8Array(32).fill(1));
   const account = createPubkeyAccount({ signer });
   const invocation = ERC20.v0_1.transfer.invocation(
-    HOG_ADDRESS,
+    NATIVE_TOKEN_ADDRESS,
     gasAmount(1_000_000n),
     { receiver: account.address, amount: 1n },
   );

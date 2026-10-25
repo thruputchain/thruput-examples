@@ -28,7 +28,7 @@ import {
   blockHeight,
   ContractType,
   gasAmount,
-  HOG_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
   networkHash,
   type Invocation,
 } from "@thruputchain/protocol";
@@ -433,7 +433,7 @@ describe("counter signing boundary", () => {
   it("rejects transfers, other contracts, all other entrypoints, and arbitrary amounts even when signed by the funded key", async () => {
     const { send, upstream } = await fixture();
     const calls = [
-      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
         receiver: contract,
         amount: 10n,
       }),

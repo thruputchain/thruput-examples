@@ -27,7 +27,7 @@ import { DefaultWallet } from "@thruputchain/client/contracts";
 import {
   ContractType,
   gasAmount,
-  HOG_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
   type Contract,
   type Invocation,
 } from "@thruputchain/protocol";
@@ -232,7 +232,7 @@ try {
   const rejected = await batch(
     "Rollback funding when token creation fails",
     [
-      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
         receiver: rollbackAddress,
         amount: tokenFunding,
       }),
@@ -257,7 +257,7 @@ try {
   const retry = await batch(
     "Retry the same token nonce after rollback",
     [
-      ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+      ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
         receiver: rollbackAddress,
         amount: tokenFunding,
       }),
@@ -294,7 +294,7 @@ try {
         args: { creator: account.address, nonce },
       })
     ).value;
-    const funding = ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+    const funding = ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
       receiver: predicted,
       amount: tokenFunding,
     });
@@ -381,7 +381,7 @@ try {
   const calibration = await deployReserveToken(calibrationFunding);
   const spare = (
     await readBalance(
-      HOG_ADDRESS,
+      NATIVE_TOKEN_ADDRESS,
       calibration.address,
       calibration.receipt.blockHeight,
     )
@@ -391,8 +391,13 @@ try {
   const depleted = await deployReserveToken(initializationCost);
   const reserveToken = depleted.address;
   assert.equal(
-    (await readBalance(HOG_ADDRESS, reserveToken, depleted.receipt.blockHeight))
-      .value,
+    (
+      await readBalance(
+        NATIVE_TOKEN_ADDRESS,
+        reserveToken,
+        depleted.receipt.blockHeight,
+      )
+    ).value,
     0n,
   );
   assert.equal(
@@ -448,7 +453,7 @@ try {
     assert.equal(
       (
         await batch("Advance beyond the unfunded control's expiry", [
-          ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+          ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
             receiver: account.address,
             amount: 0n,
           }),
@@ -472,7 +477,7 @@ try {
   );
 
   const topupAmount = 100_000n;
-  const topup = ERC20.v0_1.transfer.invocation(HOG_ADDRESS, gas, {
+  const topup = ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
     receiver: reserveToken,
     amount: topupAmount,
   });
@@ -488,8 +493,13 @@ try {
   );
   assert.equal(failedTransfer.execution.result, "abort");
   assert.equal(
-    (await readBalance(HOG_ADDRESS, reserveToken, failedTransfer.blockHeight))
-      .value,
+    (
+      await readBalance(
+        NATIVE_TOKEN_ADDRESS,
+        reserveToken,
+        failedTransfer.blockHeight,
+      )
+    ).value,
     0n,
   );
   assert.equal(
@@ -518,7 +528,11 @@ try {
     9n,
   );
   const reserveAfter = (
-    await readBalance(HOG_ADDRESS, reserveToken, fundedTransfer.blockHeight)
+    await readBalance(
+      NATIVE_TOKEN_ADDRESS,
+      reserveToken,
+      fundedTransfer.blockHeight,
+    )
   ).value;
   assert.ok(
     reserveAfter >= 0n && reserveAfter < topupAmount,
@@ -536,7 +550,7 @@ try {
   ).value.recommended;
   const amount = 1_000_000_000n;
   const calls = [
-    ERC20.v0_1.adjustAllowance.invocation(HOG_ADDRESS, gas, {
+    ERC20.v0_1.adjustAllowance.invocation(NATIVE_TOKEN_ADDRESS, gas, {
       spender: swapFactory,
       difference: funding * 3n,
     }),

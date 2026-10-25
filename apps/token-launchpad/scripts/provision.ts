@@ -22,7 +22,7 @@ import { ERC20 } from "@thruputchain/client/contracts";
 import {
   ContractType,
   gasAmount,
-  HOG_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
   networkHash,
   type Contract,
   type ContractAddress,
@@ -148,9 +148,9 @@ export async function provisionLaunchpad(options: {
     });
     const predicted = deployment.address;
     // DefaultWallet.v0_1.deploy does not fund the deployment's storage automatically.
-    for (const receiver of [HOG_ADDRESS, predicted]) {
+    for (const receiver of [NATIVE_TOKEN_ADDRESS, predicted]) {
       await execute(
-        ERC20.v0_1.transfer.invocation(HOG_ADDRESS, GAS_LIMIT, {
+        ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, GAS_LIMIT, {
           receiver,
           amount: CONTRACT_FUNDING,
         }),
@@ -179,7 +179,7 @@ export async function provisionLaunchpad(options: {
     const expectedConfig: FactoryConfig = {
       token_code_hash: fixedBytes(tokenHash, 32),
       required_token_funding: requiredTokenFunding,
-      native_token: HOG_ADDRESS,
+      native_token: NATIVE_TOKEN_ADDRESS,
       creation_fee: 0n,
       fee_recipient: null,
     };
@@ -202,7 +202,7 @@ export async function provisionLaunchpad(options: {
     if (
       !bytesEqual(observed.token_code_hash, tokenHash) ||
       observed.required_token_funding !== requiredTokenFunding ||
-      !bytesEqual(observed.native_token, HOG_ADDRESS) ||
+      !bytesEqual(observed.native_token, NATIVE_TOKEN_ADDRESS) ||
       observed.creation_fee !== 0n ||
       observed.fee_recipient !== null
     ) {
@@ -251,7 +251,7 @@ function renderEnvironment(input: {
   return [
     `VITE_THRUPUT_RPC_URL=${input.rpcUrl}`,
     `VITE_THRUPUT_NETWORK_ID=${input.networkHash}`,
-    `VITE_NATIVE_TOKEN_ADDRESS=${toBase58(HOG_ADDRESS)}`,
+    `VITE_NATIVE_TOKEN_ADDRESS=${toBase58(NATIVE_TOKEN_ADDRESS)}`,
     `VITE_NATIVE_BALANCE_ITEM_COST=${PINNED_NATIVE_BALANCE_ITEM_COST}`,
     `VITE_STANDARD_TOKEN_FACTORY_ADDRESS=${toBase58(input.factoryAddress)}`,
     `VITE_STANDARD_TOKEN_HASH=${toBase58(input.tokenHash)}`,
