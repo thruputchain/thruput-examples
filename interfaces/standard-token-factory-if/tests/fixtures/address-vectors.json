@@ -4,31 +4,31 @@
     "creator": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "application_nonce": "0101010101010101010101010101010101010101010101010101010101010101",
     "token_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "deployment_nonce": "a89118d62d4ff404517950b324186b8f156ee6f9bbf4f1f252813be6856f3ced",
-    "child_address": "1add852926f83dde8536dd86f6978e1ff13030e9032494af6dce762bb4d481c8"
+    "deployment_nonce": "b3ae8c14a1949fe5306812eb270a40c9c668d7d63c8473235376babe8f811185",
+    "child_address": "7014e6318d28aaf08033d2e4b2c8794ab7ebd7a1d80c237e673cc95c6d85b4c8"
   },
   {
     "factory": "2222222222222222222222222222222222222222222222222222222222222222",
     "creator": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "application_nonce": "0101010101010101010101010101010101010101010101010101010101010101",
     "token_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "deployment_nonce": "a89118d62d4ff404517950b324186b8f156ee6f9bbf4f1f252813be6856f3ced",
-    "child_address": "20cffe8951cf0e6e5bd08214c48a484f35df89d1bf432700946d7c77d7ca9d53"
+    "deployment_nonce": "b3ae8c14a1949fe5306812eb270a40c9c668d7d63c8473235376babe8f811185",
+    "child_address": "038d64bd3257a03918754116b1bedd6d3ec76f39910c9493f80624dd503bfe61"
   },
   {
     "factory": "1111111111111111111111111111111111111111111111111111111111111111",
     "creator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     "application_nonce": "0101010101010101010101010101010101010101010101010101010101010101",
     "token_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "deployment_nonce": "f5ffd67da883938aadfeef53d13da42bc61288c0e80c61318c383ae8ef2a9164",
-    "child_address": "c8d65dd0b301c8037acf8fe98e11ea3cec2529c5745e45e0fdc2ab7bb92843ed"
+    "deployment_nonce": "b42a256a5155a470a062737ff12b09919df24d3d822ffa78658935296a0fba56",
+    "child_address": "f96239f968b08ae1d728069121a219d94c58ac96cb04dbf2bdc96f77fb16e59e"
   },
   {
     "factory": "1111111111111111111111111111111111111111111111111111111111111111",
     "creator": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "application_nonce": "0202020202020202020202020202020202020202020202020202020202020202",
     "token_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "deployment_nonce": "bfa45d08b45fa8a152840441818ce61fa1aeec957df45ff6c3b74e2aa0971679",
-    "child_address": "b95e6f505fb8793a1425f314800cba4d8145a123cd05e216e74310d1f8f6a67c"
+    "deployment_nonce": "9e1bb307eb733f49fa8fdaad6ee223839bbde1a331a0900a5ccd2b5d0ea5d6e4",
+    "child_address": "82b6c5a518cf956cdfebcfc636caeaf389f9c25311f2855a4c1dfa6e19bb7bee"
   }
 ]
