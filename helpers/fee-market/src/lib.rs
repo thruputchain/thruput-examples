@@ -127,9 +127,15 @@ impl FeeState {
 /// fee_k = fee * r^k  ±  (r^k - 1) / (r - 1)   units
 /// ```
 ///
-/// with `r^k` by exponentiation by squaring: a few dozen multiplications however long the gap, and
-/// the same result, up to rounding, as updating block by block. Everything fits in a `u128`; a
-/// product too large for one is past the maximum, and is taken as the maximum.
+/// with `r^k` by exponentiation by squaring: a few dozen multiplications however long the gap.
+/// `r^k` is kept as a 64-bit mantissa and an exponent, so it keeps its precision however large or
+/// small it grows -- over a long quiet stretch it can fall far below what 32 fractional bits hold
+/// while still leaving a large fee a substantial remainder. The result is rounded down once, at the
+/// end; updating block by block rounds down every block instead, and with a ratio above one those
+/// losses compound, so the two agree to within that compounded rounding (a few parts in 10^9 at
+/// most).
+///
+/// Every product fits a `u128`; one too large for it is past the maximum, and taken as it.
 pub fn adjust(fee: u128, target: u32, load: u128, blocks: u64, max_fee: u64) -> u128 {
     let ceiling = u128::from(max_fee) << 32;
     let fee = fee.min(ceiling);
@@ -152,54 +158,125 @@ pub fn adjust(fee: u128, target: u32, load: u128, blocks: u64, max_fee: u64) -> 
             return fee.saturating_add(units).min(ceiling);
         }
 
-        // The added term alone reaches the ceiling once `r^k` reaches `1 + max_fee * (r - 1)`, so
-        // `r^k` need not be known past that. (At most 2^93: `max_fee` < 2^64, `delta` <= 2^29.)
-        let bound = UNIT + u128::from(max_fee) * delta;
-        let Some(power) = pow(UNIT + delta, blocks, bound) else {
+        let Some(power) = pow(Power::from_fixed(UNIT + delta), blocks) else {
             return ceiling;
         };
-        let Some(grown) = fee.checked_mul(power) else {
+        // `whole` is `r^k * 2^64`, so `(whole - 2^64) / delta` is `(r^k - 1) / (r - 1)` units in
+        // fixed point.
+        let (Some(grown), Some(whole)) = (power.scale(fee), power.scale(1 << 64)) else {
             return ceiling;
         };
-        let added = ((power - UNIT) << 32) / delta;
-        ((grown >> 32) + added).min(ceiling)
+        let added = whole.saturating_sub(1 << 64) / delta;
+        grown
+            .checked_add(added)
+            .map_or(ceiling, |fee| fee.min(ceiling))
     } else {
         let delta = ((target - counted) << 32) / (8 * target);
         if delta == 0 {
             return fee.saturating_sub(units);
         }
 
-        // `r < 1`, so `r^k` only shrinks, and nothing here can overflow: `fee` < 2^96 and
-        // `power` <= 2^32. Once the fee would pass below zero it stays there, so clamping the
-        // closed form at zero agrees with clamping block by block.
-        let power = pow(UNIT - delta, blocks, u128::MAX).unwrap_or(0);
-        let shrunk = (fee * power) >> 32;
-        let taken = ((UNIT - power) << 32) / delta;
+        // `r < 1`, so `r^k` only shrinks, and both products fit. Once the fee would pass below
+        // zero it stays there, so clamping the closed form at zero agrees with clamping block by
+        // block.
+        let power = pow(Power::from_fixed(UNIT - delta), blocks).unwrap_or(Power::ZERO);
+        let shrunk = power.scale(fee).unwrap_or(0);
+        let whole = power.scale(1 << 64).unwrap_or(0).min(1 << 64);
+        let taken = ((1 << 64) - whole) / delta;
         shrunk.saturating_sub(taken)
     }
 }
 
-/// `base^exp`, both in 32-bit fixed point, or `None` once it would reach `bound`.
-///
-/// For a `base` of at least one, the powers only grow, so the first square or product to reach
-/// `bound` means the result would too; a product that overflows a `u128` is past any bound here.
-fn pow(mut base: u128, mut exp: u64, bound: u128) -> Option<u128> {
-    let mut result = UNIT;
+/// A non-negative number `m * 2^e`, with `m` holding 64 significant bits: what `r^k` is computed
+/// in, so that it keeps its precision however large or small it grows.
+#[derive(Clone, Copy)]
+struct Power {
+    m: u128,
+    e: i32,
+}
+
+impl Power {
+    const ONE: Power = Power { m: 1 << 63, e: -63 };
+    const ZERO: Power = Power {
+        m: 0,
+        e: Self::MIN_EXP,
+    };
+
+    // Beyond these, `r^k` is out of any fee's reach: above, a fee is at its maximum; below, it is
+    // gone.
+    const MAX_EXP: i32 = 256;
+    const MIN_EXP: i32 = -256;
+
+    // A positive value in 32-bit fixed point.
+    fn from_fixed(x: u128) -> Power {
+        let shift = 64 - (128 - x.leading_zeros() as i32);
+        let m = if shift >= 0 { x << shift } else { x >> -shift };
+        Power { m, e: -32 - shift }
+    }
+
+    // The product, rounded down to 64 significant bits. Each mantissa is below 2^64, so the
+    // product of two fits a `u128`, and for two normalized ones it is at least 2^126.
+    fn mul(self, other: Power) -> Power {
+        let p = self.m * other.m;
+        let s = if p >> 127 == 1 { 64 } else { 63 };
+        Power {
+            m: p >> s,
+            e: self.e + other.e + s,
+        }
+    }
+
+    // `None` once past any fee's reach above, and zero once past it below.
+    fn bounded(self) -> Option<Power> {
+        if self.e > Self::MAX_EXP {
+            None
+        } else if self.e < Self::MIN_EXP {
+            Some(Self::ZERO)
+        } else {
+            Some(self)
+        }
+    }
+
+    // `x * self`, rounded down, or `None` if it does not fit a `u128`.
+    fn scale(self, x: u128) -> Option<u128> {
+        const LOW: u128 = (1 << 64) - 1;
+        if self.m == 0 || x == 0 {
+            return Some(0);
+        }
+        if self.e >= 0 {
+            // At least 2^63 times `x`: past any fee.
+            return None;
+        }
+
+        // `x * m` is `hi * 2^64 + lo`, with `lo` below 2^64, and is then shifted right by `-e`.
+        let hi = (x >> 64) * self.m;
+        let lo = (x & LOW) * self.m;
+        let hi = hi.checked_add(lo >> 64)?;
+        let lo = lo & LOW;
+
+        let shift = self.e.unsigned_abs();
+        if shift <= 64 {
+            hi.checked_mul(1 << (64 - shift))?.checked_add(lo >> shift)
+        } else if shift - 64 < 128 {
+            Some(hi >> (shift - 64))
+        } else {
+            Some(0)
+        }
+    }
+}
+
+/// `base^exp`, or `None` once it is past any fee's reach.
+fn pow(mut base: Power, mut exp: u64) -> Option<Power> {
+    let mut result = Power::ONE;
     loop {
         if exp & 1 == 1 {
-            result = mul(result, base).filter(|&r| r < bound)?;
+            result = result.mul(base).bounded()?;
         }
         exp >>= 1;
         if exp == 0 {
             return Some(result);
         }
-        base = mul(base, base).filter(|&b| b < bound)?;
+        base = base.mul(base).bounded()?;
     }
-}
-
-// The product of two fixed-point values, or `None` if it does not fit.
-fn mul(a: u128, b: u128) -> Option<u128> {
-    a.checked_mul(b).map(|p| p >> 32)
 }
 
 /// A fee that steers a load toward a target. See the [crate docs](crate).

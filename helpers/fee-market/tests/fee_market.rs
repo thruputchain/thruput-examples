@@ -104,6 +104,36 @@ fn several_blocks_are_several_steps() {
     assert_eq!(at_once, block_by_block(1000, 1001, 900, 10_000));
 }
 
+// A long quiet stretch keeps what remains of a large fee. `r^k` is kept to 64 significant bits
+// however small it gets; with 32 fractional bits it would round to zero here, and so would the fee.
+#[test]
+fn a_long_decay_keeps_a_large_fee_s_remainder() {
+    let initial = 1_000_000_000_000_000_000_u128 << 32;
+    let at_once = fee_market::adjust(initial, 4, 0, 200, u64::MAX) >> 32;
+    let mut stepped = initial;
+    for _ in 0..200 {
+        stepped = fee_market::adjust(stepped, 4, 0, 1, u64::MAX);
+    }
+    assert_eq!(at_once, 2_521_211);
+    assert_eq!(at_once, stepped >> 32);
+}
+
+// A long rise tracks updating block by block, to within the rounding that block by block
+// compounds -- each block rounds down, and each later block multiplies what was lost -- and the
+// unit that rounding the result can leave either side of.
+#[test]
+fn a_long_rise_tracks_block_by_block() {
+    for (target, load, blocks) in [(1000, 2077, 358), (4, 8, 300), (100, 147, 279)] {
+        let at_once = adjust(0, target, load, blocks);
+        let stepped = block_by_block(target, load, blocks, u64::MAX);
+        assert!(at_once >= stepped, "{at_once} < {stepped}");
+        assert!(
+            at_once - stepped <= 1 + at_once / 1_000_000_000,
+            "{at_once} and {stepped} differ by more than a part in 10^9"
+        );
+    }
+}
+
 // A gap of any length is computed at once: up to the maximum, or down to zero.
 #[test]
 fn any_gap_is_computed_at_once() {
