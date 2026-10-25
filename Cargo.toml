@@ -36,11 +36,11 @@ thruput-signed-op-if = { registry = "thruput", version = "=0.1.68" }
 thruput-signed-op = { registry = "thruput", version = "=0.1.68" }
 
 # from thruput-tools:
-thruput-json-rpc-client = { registry = "thruput", version = "=0.38.0" }
-thruput-json-rpc-types = { registry = "thruput", version = "=0.38.0" }
-thruput-cli = { registry = "thruput", version = "=0.38.0" }
-thruput-signing = { registry = "thruput", version = "=0.38.0" }
-thruput-testkit = { registry = "thruput", version = "=0.38.0" }
+thruput-json-rpc-client = { registry = "thruput", version = "=0.39.0" }
+thruput-json-rpc-types = { registry = "thruput", version = "=0.39.0" }
+thruput-cli = { registry = "thruput", version = "=0.39.0" }
+thruput-signing = { registry = "thruput", version = "=0.39.0" }
+thruput-testkit = { registry = "thruput", version = "=0.39.0" }
 
 # from thruput-protocol-rs:
 thruput-xdr = { registry = "thruput", version = "=0.61.0", features = ["serde", "xdrs"] }

@@ -40,5 +40,6 @@ export default defineConfig(({ mode }) => {
     ],
     server: { proxy },
     preview: { proxy },
+    test: { setupFiles: ["./src/test/setup.ts"] },
   };
 });

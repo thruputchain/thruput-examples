@@ -6,25 +6,24 @@ This is a localnode-only teaching app for the [Voting contract](../../contracts/
 ## Local setup
 
 Complete [repository setup](../../README.md#setup) and run `npm ci` from the root.
-Use CLI 0.38.0 with runtime 0.1.31-rc.16 (native wire 14). Voting uses client
+Use CLI 0.39.0 with runtime 0.1.31-rc.16 (native wire 14). Voting uses client
 0.24.0, React SDK 0.7.0, and protocol packages 0.19.0, matching the other apps.
 Start a local node in another terminal:
 
 ```sh
-~/Work/thruput-tools/target/debug/thruput node --port 9545 --json
+thruput node --port 9545 --json
 ```
 
 Use its printed runtime manifest:
 
 ```sh
-export THRUPUT_CLI="$HOME/Work/thruput-tools/target/debug/thruput"
+export THRUPUT_CLI="$(command -v thruput)"
 export THRUPUT_RPC_URL=http://127.0.0.1:9545
 export THRUPUT_RUNTIME_MANIFEST=/path/printed/by/node/runtime-manifest.json
 npm run setup:local --workspace apps/voting
 npm run dev --workspace apps/voting
 ```
 
-If you installed the CLI elsewhere, set `THRUPUT_CLI` to that executable.
 Open **http://127.0.0.1:5176**. Connect
 [Thruput Freighter](https://github.com/thruputchain/freighter) to the same localnode
 and request test native tokens in the wallet. Public browsing needs no wallet.

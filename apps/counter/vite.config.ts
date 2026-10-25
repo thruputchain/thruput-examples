@@ -39,6 +39,6 @@ export default defineConfig(({ mode }) => {
       cors: false,
       headers: { "Content-Security-Policy": "frame-ancestors 'none'" },
     },
-    test: { environment: "node" },
+    test: { environment: "node", setupFiles: ["./src/test/setup.ts"] },
   };
 });
