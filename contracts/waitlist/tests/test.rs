@@ -9,7 +9,7 @@ static NONCE: SHA256Hash = thruput_sdk::sha256_static!("WAITLIST_NONCE");
 const TARGET: u32 = 2;
 
 // The most the fee can reach. Small, so a test can reach it.
-const MAX_FEE: u128 = 3;
+const MAX_FEE: u64 = 3;
 
 fn addr(name: &str) -> ContractAddress {
     <ContractAddress as Named>::named(name)
@@ -54,13 +54,13 @@ fn serve(env: &TestEnvironmentHandle, list: ContractAddress, count: u32) -> u32 
     r.assert_return_as::<u32>()
 }
 
-fn fee(env: &TestEnvironmentHandle, list: ContractAddress) -> u128 {
+fn fee(env: &TestEnvironmentHandle, list: ContractAddress) -> u64 {
     let r = env.transact(|tx| {
         tx.call(&addr("viewer"))
             .run(move || WaitlistClient::new(&list).fee())
     });
     r.assert_success();
-    r.assert_return_as::<u128>()
+    r.assert_return_as::<u64>()
 }
 
 fn native_balance(env: &TestEnvironmentHandle, user: &str) -> i128 {
@@ -81,7 +81,7 @@ fn a_short_list_is_free_to_join() {
     for _ in 0..TARGET {
         let r = join(&env, "alice", list);
         r.assert_success();
-        assert_eq!(r.assert_return_as::<u128>(), 0);
+        assert_eq!(r.assert_return_as::<u64>(), 0);
     }
 
     env.advance_block();
@@ -116,10 +116,10 @@ fn a_backlog_raises_the_fee() {
     // Alice pays exactly the fee.
     let paid = join(&env, "alice", list);
     paid.assert_success();
-    assert_eq!(paid.assert_return_as::<u128>(), fee);
+    assert_eq!(paid.assert_return_as::<u64>(), fee);
 
     env.advance_block();
-    assert_eq!(native_balance(&env, "alice"), 1_000 - fee as i128);
+    assert_eq!(native_balance(&env, "alice"), 1_000 - i128::from(fee));
 }
 
 // A backlog that nobody serves keeps raising the fee, block after block, with no one joining --

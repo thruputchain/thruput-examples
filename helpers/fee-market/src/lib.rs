@@ -3,10 +3,11 @@
 //! [`FeeMarket`] is a storage type. Embed it in a contract's own storage, as a field or a `Node`,
 //! [`initialize`](FeeMarket::initialize) it with a target load and a maximum fee, and call
 //! [`update`](FeeMarket::update) with the current load wherever the contract charges the fee: it
-//! returns the fee in force. In each block whose load is above the target, the fee rises by up to
-//! an eighth; in each whose load is below it, the fee falls by up to an eighth -- as EIP-1559's
-//! base fee does against its gas target. A new market's fee is zero, and the fee never exceeds the
-//! market's maximum. What the load is, and collecting the fee, are the contract's business.
+//! returns the fee in force, in whole units. In each block whose load is above the target, the fee
+//! rises by up to an eighth, plus a unit; in each whose load is below it, the fee falls by up to an
+//! eighth, less a unit -- as EIP-1559's base fee does against its gas target. A new market's fee is
+//! zero, and the fee never exceeds the market's maximum. What the load is, and collecting the fee,
+//! are the contract's business.
 //!
 //! ```ignore
 //! #[storage]
@@ -37,7 +38,8 @@
 //! the contract updates in every block that changes the load -- every block that adds to a queue
 //! *and* every block that drains it -- since the load then cannot have changed in the blocks
 //! between. Updating only where the fee is charged is an approximation, which takes the latest load
-//! as the load across the whole gap.
+//! as the load across the whole gap. Either way, the gap is computed in closed form (see
+//! [`adjust`]), so it costs the same however long it is.
 //!
 //! # The maximum
 //!
@@ -51,15 +53,11 @@
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
 
-/// The most any market's fee can reach, whatever its own maximum. It leaves room for the
-/// fixed-point multiply in [`adjust`].
-pub const MAX_FEE: u128 = 1 << 95;
-
-/// The most blocks of adjustment a single computation applies.
+/// One unit of fee, in the fixed point the fee is kept in.
 ///
-/// A longer gap is adjusted as this many blocks. That is enough for a fee to fall from
-/// [`MAX_FEE`] to zero, or to climb from zero to any maximum.
-pub const MAX_STEPS: u64 = 512;
+/// The fee is charged in whole units, but kept with 32 fractional bits, so that the fractions a
+/// block's adjustment produces are not lost before the next block's.
+const UNIT: u128 = 1 << 32;
 
 /// The fee as of the last block it was updated in, and the target and maximum it is kept to.
 ///
@@ -70,10 +68,10 @@ pub struct FeeState {
     /// The load the fee steers toward.
     pub target: u32,
 
-    /// The most the fee can reach.
-    pub max_fee: u128,
+    /// The most the fee can reach, in whole units.
+    pub max_fee: u64,
 
-    /// The fee in force in block `height`.
+    /// The fee in force in block `height`, in 32-bit fixed point: `fee >> 32` whole units.
     pub fee: u128,
 
     /// The block this state is for.
@@ -82,7 +80,7 @@ pub struct FeeState {
 
 impl FeeState {
     /// The state of a new market: free.
-    pub fn new(target: u32, max_fee: u128, height: i64) -> Self {
+    pub fn new(target: u32, max_fee: u64, height: i64) -> Self {
         Self {
             target,
             max_fee,
@@ -108,50 +106,100 @@ impl FeeState {
             ..*self
         }
     }
+
+    /// The fee in force, in whole units.
+    pub fn charge(&self) -> u64 {
+        (self.fee >> 32) as u64
+    }
 }
 
-/// Bring `fee` forward over `blocks` blocks, each with load `load`, against a target of `target`,
-/// never letting it exceed `max_fee` (nor [`MAX_FEE`]).
+/// Bring `fee` (in 32-bit fixed point) forward over `blocks` blocks, each with load `load`, against
+/// a target of `target`, never letting it exceed `max_fee` whole units.
 ///
-/// Each block moves the fee by `(load - target) / (8 * target)`, with the load capped at twice the
-/// target -- so by an eighth at most, as in EIP-1559. A block above target raises the fee by at
-/// least one unit, which is how it rises from zero; a block below target lowers it by at least one
-/// unit, which is how it gets back there.
-pub fn adjust(fee: u128, target: u32, load: u128, blocks: u64, max_fee: u128) -> u128 {
-    let ceiling = max_fee.min(MAX_FEE);
+/// Each block multiplies the fee by `r = 1 + (load - target) / (8 * target)`, with the load capped
+/// at twice the target -- so by an eighth at most, as in EIP-1559 -- and then adds a unit if the
+/// load is above the target, or takes one away if it is below. The unit is how a free market
+/// starts to charge, and how a fee gets all the way back to zero.
+///
+/// That step is affine, so any number of blocks is computed at once, in closed form:
+///
+/// ```text
+/// fee_k = fee * r^k  ±  (r^k - 1) / (r - 1)   units
+/// ```
+///
+/// with `r^k` by exponentiation by squaring: a few dozen multiplications however long the gap, and
+/// the same result, up to rounding, as updating block by block. Everything fits in a `u128`; a
+/// product too large for one is past the maximum, and is taken as the maximum.
+pub fn adjust(fee: u128, target: u32, load: u128, blocks: u64, max_fee: u64) -> u128 {
+    let ceiling = u128::from(max_fee) << 32;
+    let fee = fee.min(ceiling);
     if blocks == 0 || target == 0 {
-        return fee.min(ceiling);
+        return fee;
     }
 
-    let target = i128::from(target);
-    let counted = i128::try_from(load).unwrap_or(i128::MAX).min(2 * target);
-
-    let excess = counted - target;
-    if excess == 0 {
-        return fee.min(ceiling);
+    let target = u128::from(target);
+    let counted = load.min(2 * target);
+    if counted == target {
+        return fee;
     }
+    let units = u128::from(blocks).saturating_mul(UNIT);
 
-    // The per-block ratio, in 32-bit fixed point: within an eighth of one either way. Against a
-    // large target, a load just off it rounds to a ratio of exactly one, so the direction is taken
-    // from `excess`, not from the ratio, and the one-unit minimum still applies.
-    let delta = (excess << 32) / (8 * target);
-    let ratio = ((1i128 << 32) + delta) as u128;
-
-    let mut fee = fee.min(ceiling);
-    for _ in 0..blocks.min(MAX_STEPS) {
-        let scaled = (fee * ratio) >> 32;
-        fee = if excess > 0 {
-            scaled.max(fee + 1).min(ceiling)
-        } else {
-            scaled.min(fee.saturating_sub(1))
-        };
-
-        if fee == 0 || fee == ceiling {
-            break;
+    if counted > target {
+        // `r - 1`, in fixed point: up to an eighth. Against a large target, a load just above it
+        // rounds this to zero, leaving only the unit a block.
+        let delta = ((counted - target) << 32) / (8 * target);
+        if delta == 0 {
+            return fee.saturating_add(units).min(ceiling);
         }
-    }
 
-    fee
+        // The added term alone reaches the ceiling once `r^k` reaches `1 + max_fee * (r - 1)`, so
+        // `r^k` need not be known past that. (At most 2^93: `max_fee` < 2^64, `delta` <= 2^29.)
+        let bound = UNIT + u128::from(max_fee) * delta;
+        let Some(power) = pow(UNIT + delta, blocks, bound) else {
+            return ceiling;
+        };
+        let Some(grown) = fee.checked_mul(power) else {
+            return ceiling;
+        };
+        let added = ((power - UNIT) << 32) / delta;
+        ((grown >> 32) + added).min(ceiling)
+    } else {
+        let delta = ((target - counted) << 32) / (8 * target);
+        if delta == 0 {
+            return fee.saturating_sub(units);
+        }
+
+        // `r < 1`, so `r^k` only shrinks, and nothing here can overflow: `fee` < 2^96 and
+        // `power` <= 2^32. Once the fee would pass below zero it stays there, so clamping the
+        // closed form at zero agrees with clamping block by block.
+        let power = pow(UNIT - delta, blocks, u128::MAX).unwrap_or(0);
+        let shrunk = (fee * power) >> 32;
+        let taken = ((UNIT - power) << 32) / delta;
+        shrunk.saturating_sub(taken)
+    }
+}
+
+/// `base^exp`, both in 32-bit fixed point, or `None` once it would reach `bound`.
+///
+/// For a `base` of at least one, the powers only grow, so the first square or product to reach
+/// `bound` means the result would too; a product that overflows a `u128` is past any bound here.
+fn pow(mut base: u128, mut exp: u64, bound: u128) -> Option<u128> {
+    let mut result = UNIT;
+    loop {
+        if exp & 1 == 1 {
+            result = mul(result, base).filter(|&r| r < bound)?;
+        }
+        exp >>= 1;
+        if exp == 0 {
+            return Some(result);
+        }
+        base = mul(base, base).filter(|&b| b < bound)?;
+    }
+}
+
+// The product of two fixed-point values, or `None` if it does not fit.
+fn mul(a: u128, b: u128) -> Option<u128> {
+    a.checked_mul(b).map(|p| p >> 32)
 }
 
 /// A fee that steers a load toward a target. See the [crate docs](crate).
@@ -177,9 +225,9 @@ pub enum InitError {
 }
 
 impl FeeMarket {
-    /// Start the market, free, steering toward a load of `target`, with a fee of at most `max_fee`.
-    /// Refuses a second call.
-    pub fn initialize(&mut self, target: u32, max_fee: u128) -> Result<(), InitError> {
+    /// Start the market, free, steering toward a load of `target`, with a fee of at most `max_fee`
+    /// units. Refuses a second call.
+    pub fn initialize(&mut self, target: u32, max_fee: u64) -> Result<(), InitError> {
         if target == 0 {
             return Err(InitError::ZeroTarget);
         }
@@ -200,8 +248,8 @@ impl FeeMarket {
     }
 
     /// The fee in force in this block, given the load at its start, without recording it.
-    pub fn quote(&self, load: u128) -> u128 {
-        self.current(load).fee
+    pub fn quote(&self, load: u128) -> u64 {
+        self.current(load).charge()
     }
 
     /// The fee in force in this block, given the load at its start, recording it for later blocks
@@ -210,10 +258,10 @@ impl FeeMarket {
     /// Call it wherever the contract charges the fee, and, for an exact fee, in every block that
     /// changes the load. Once this transaction has recorded the state, a later call here finds it
     /// current and records it unchanged.
-    pub fn update(&mut self, load: u128) -> u128 {
+    pub fn update(&mut self, load: u128) -> u64 {
         let state = self.current(load);
         self.state.set(&state);
-        state.fee
+        state.charge()
     }
 
     // The state for the current block.

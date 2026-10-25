@@ -2,14 +2,14 @@
 
 A waitlist whose entry fee is priced like an EIP-1559 base fee, steered by how
 many are waiting. A new list is free. In each block that starts with more than
-a target number waiting, the fee rises by up to an eighth; in each that starts
-with fewer, it falls by up to an eighth, back toward zero; at the target, it
-holds. So the target is not a line below which joining is free: a fee that has
-built up stays until the backlog has spent some blocks below the target. A
-backlog that nobody serves keeps raising the fee, block after block, up to a
-maximum set when the list starts; serving it brings the fee back down, and
-anyone may serve. The fee comes
-from [`fee-market`](../../helpers/fee-market/src/lib.rs), a storage type any
+a target number waiting, the fee rises by up to an eighth and a unit; in each
+that starts with fewer, it falls by up to an eighth and a unit, back toward
+zero; at the target, it holds. So the target is not a line below which joining
+is free: a fee that has built up stays until the backlog has spent some blocks
+below the target. A backlog that nobody serves keeps raising the fee, block
+after block, up to a maximum set when the list starts; serving it brings the
+fee back down, and anyone may serve. The fee comes from
+[`fee-market`](../../helpers/fee-market/src/lib.rs), a storage type any
 contract can embed, given a load of its own to steer by.
 
 Read [Counter](../counter/README.md) first.
@@ -48,9 +48,10 @@ allowance at all.
 
 ## Try a change
 
-In the tests, raise `MAX_FEE` from 3 to 10, and rerun. The lingering-backlog
-test now fails: the fee no longer stops at the maximum but reaches 7, one unit
-for each of the seven blocks the backlog sat there. Expect 7 instead.
+In the tests, raise `MAX_FEE` from 3 to 100, and rerun. The lingering-backlog
+test now fails: the fee no longer stops at the maximum but reaches 10 after the
+seven blocks the backlog sat there -- an eighth and a unit a block, compounding.
+Expect 10 instead.
 
 To steer a fee in your own contract, add a `Node<FeeMarket>` to its storage,
 `initialize` it once with a target and a maximum, and call `update` with your

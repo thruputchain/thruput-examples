@@ -5,7 +5,7 @@
 //! every one in a block computes and records the same state -- so the tests below check both that
 //! the fee moves as it should across blocks, and that callers in one block never conflict over it.
 
-use fee_market::{FeeMarket, MAX_FEE, MAX_STEPS};
+use fee_market::FeeMarket;
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
 
@@ -14,11 +14,24 @@ const ADDR: ContractAddress = ContractAddress::new([5u8; 32]);
 const TARGET: u32 = 2;
 
 // A maximum high enough that the tests not about it never reach it.
-const MAX: u128 = 1_000;
+const MAX: u64 = 1_000;
 
-// The arithmetic, with no maximum but the global one.
-fn adjust(fee: u128, target: u32, load: u128, blocks: u64) -> u128 {
-    fee_market::adjust(fee, target, load, blocks, MAX_FEE)
+// The arithmetic, in whole units, with no maximum but what a `u64` holds.
+fn adjust(fee: u64, target: u32, load: u128, blocks: u64) -> u64 {
+    adjust_to(fee, target, load, blocks, u64::MAX)
+}
+
+fn adjust_to(fee: u64, target: u32, load: u128, blocks: u64, max: u64) -> u64 {
+    (fee_market::adjust(u128::from(fee) << 32, target, load, blocks, max) >> 32) as u64
+}
+
+// The arithmetic in the fixed point the fee is kept in, block by block, `blocks` times.
+fn block_by_block(target: u32, load: u128, blocks: u64, max: u64) -> u64 {
+    let mut fee = 0;
+    for _ in 0..blocks {
+        fee = fee_market::adjust(fee, target, load, 1, max);
+    }
+    (fee >> 32) as u64
 }
 
 /////////////////////// the arithmetic //////////////////////////////////////
@@ -30,31 +43,31 @@ fn on_target_the_fee_holds() {
     assert_eq!(adjust(0, 4, 4, 1), 0);
 }
 
-// Twice the target or more raises the fee by an eighth; that is the most one block moves it.
+// Twice the target or more raises the fee by an eighth, plus a unit; that is the most one block
+// moves it.
 #[test]
 fn a_full_block_raises_the_fee_by_an_eighth() {
-    assert_eq!(adjust(800, 4, 8, 1), 900);
-    assert_eq!(adjust(800, 4, 1_000, 1), 900);
+    assert_eq!(adjust(800, 4, 8, 1), 901);
+    assert_eq!(adjust(800, 4, 1_000, 1), 901);
 }
 
-// An empty block lowers it by an eighth.
+// An empty block lowers it by an eighth, less a unit.
 #[test]
 fn an_empty_block_lowers_the_fee_by_an_eighth() {
-    assert_eq!(adjust(800, 4, 0, 1), 700);
+    assert_eq!(adjust(800, 4, 0, 1), 699);
 }
 
-// A free market becomes priced one unit at a time, until an eighth of the fee is worth a unit.
+// A free market becomes priced by the unit a block adds, and the eighth takes over as it grows.
 #[test]
 fn the_fee_rises_from_zero() {
-    let mut fee = 0;
-    for expected in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] {
-        fee = adjust(fee, 4, 8, 1);
-        assert_eq!(fee, expected);
-    }
+    let fees: Vec<u64> = (1..=10)
+        .map(|k| block_by_block(4, 8, k, u64::MAX))
+        .collect();
+    assert_eq!(fees, vec![1, 2, 3, 4, 6, 8, 10, 12, 15, 17]);
     assert_eq!(
         adjust(800, 4, 5, 1),
-        825,
-        "a quarter over target raises it by a 32nd"
+        826,
+        "a quarter over target raises it by a 32nd, plus a unit"
     );
 }
 
@@ -66,7 +79,7 @@ fn the_fee_falls_to_zero() {
         0,
         "any shortfall takes off at least a unit"
     );
-    assert_eq!(adjust(1_000_000, 4, 0, MAX_STEPS), 0);
+    assert_eq!(adjust(1_000_000, 4, 0, 1_000), 0);
 }
 
 // Against a large target, a load just off it still moves the fee by the minimum unit, though the
@@ -79,21 +92,33 @@ fn a_large_target_still_moves_the_fee() {
     assert_eq!(adjust(5, target, u128::from(target), 1), 5);
 }
 
-// Several blocks are several steps.
+// Several blocks at once come to what as many single blocks do.
 #[test]
 fn several_blocks_are_several_steps() {
-    assert_eq!(adjust(800, 4, 8, 2), adjust(adjust(800, 4, 8, 1), 4, 8, 1));
-    assert_eq!(adjust(800, 4, 8, 2), 1012);
-    assert_eq!(adjust(800, 4, 0, 3), 535);
+    assert_eq!(adjust(800, 4, 8, 2), 1014);
+    assert_eq!(adjust(800, 4, 0, 3), 533);
+
+    // A load just above a target of 1000 adds about a unit a block, compounding slowly.
+    let at_once = adjust_to(0, 1000, 1001, 900, 10_000);
+    assert_eq!(at_once, 952);
+    assert_eq!(at_once, block_by_block(1000, 1001, 900, 10_000));
 }
 
-// The fee stops at the market's maximum, and at the global one above any maximum.
+// A gap of any length is computed at once: up to the maximum, or down to zero.
+#[test]
+fn any_gap_is_computed_at_once() {
+    assert_eq!(adjust(0, 4, 8, 1_000_000_000_000), u64::MAX);
+    assert_eq!(adjust_to(0, 4, 8, 1_000_000_000_000, 1_000), 1_000);
+    assert_eq!(adjust(0, 1000, 1001, 1_000_000_000_000_000), u64::MAX);
+    assert_eq!(adjust(u64::MAX, 4, 0, 1_000_000_000_000), 0);
+}
+
+// The fee stops at the market's maximum.
 #[test]
 fn the_fee_is_capped() {
-    assert_eq!(fee_market::adjust(5, 4, 8, 10, 7), 7);
-    assert_eq!(fee_market::adjust(9, 4, 4, 1, 7), 7, "even on target");
-    assert_eq!(adjust(MAX_FEE, 4, 8, 1), MAX_FEE);
-    assert_eq!(adjust(MAX_FEE - 1, 4, 8, 10), MAX_FEE);
+    assert_eq!(adjust_to(5, 4, 8, 10, 7), 7);
+    assert_eq!(adjust_to(9, 4, 4, 1, 7), 7, "even on target");
+    assert_eq!(adjust(u64::MAX, 4, 8, 1), u64::MAX);
 }
 
 /////////////////////// the market ///////////////////////////////////////////
@@ -104,9 +129,9 @@ fn a_new_market_is_free() {
     let env = TestEnvironment::no_cost();
     initialize(&env);
 
-    assert_eq!(update(&env, TARGET).assert_return_as::<u128>(), 0);
+    assert_eq!(update(&env, TARGET).assert_return_as::<u64>(), 0);
     env.advance_block();
-    assert_eq!(update(&env, 2 * TARGET).assert_return_as::<u128>(), 1);
+    assert_eq!(update(&env, 2 * TARGET).assert_return_as::<u64>(), 1);
 }
 
 // A target or maximum of zero is refused, and so is a second start, which would reset the fee.
@@ -115,7 +140,7 @@ fn a_bad_start_is_refused() {
     use fee_market::InitError::*;
 
     let env = TestEnvironment::no_cost();
-    let start = |target: u32, max: u128| {
+    let start = |target: u32, max: u64| {
         let r = env.transact(|tx| {
             tx.call(&ADDR)
                 .run(move || market().initialize(target, max).err().map(|e| e as u32))
@@ -138,11 +163,11 @@ fn callers_in_a_block_share_the_fee_without_conflict() {
     let env = TestEnvironment::no_cost();
     initialize(&env);
 
-    let fees: Vec<u128> = (0..4)
+    let fees: Vec<u64> = (0..4)
         .map(|_| {
             let r = update(&env, 2 * TARGET);
             r.assert_success();
-            r.assert_return_as::<u128>()
+            r.assert_return_as::<u64>()
         })
         .collect();
     assert_eq!(fees, vec![1; 4]);
@@ -161,7 +186,7 @@ fn the_fee_holds_within_a_block() {
         })
     });
     both.assert_success();
-    assert_eq!(both.assert_return_as::<[u128; 2]>(), [1, 1]);
+    assert_eq!(both.assert_return_as::<[u64; 2]>(), [1, 1]);
 }
 
 // The fee follows the load, block by block.
@@ -172,11 +197,11 @@ fn the_fee_follows_the_load() {
 
     let mut fees = Vec::new();
     for load in [4, 4, 4, 2, 0, 0] {
-        fees.push(update(&env, load).assert_return_as::<u128>());
+        fees.push(update(&env, load).assert_return_as::<u64>());
         env.advance_block();
     }
 
-    assert_eq!(fees, vec![1, 2, 3, 3, 2, 1]);
+    assert_eq!(fees, vec![1, 2, 3, 3, 1, 0]);
 }
 
 // Blocks with no update are each taken to have had the load passed when one next comes: a backlog
@@ -186,7 +211,7 @@ fn blocks_without_an_update_are_caught_up() {
     let env = TestEnvironment::no_cost();
     initialize(&env);
 
-    assert_eq!(update(&env, 4).assert_return_as::<u128>(), 1);
+    assert_eq!(update(&env, 4).assert_return_as::<u64>(), 1);
     for _ in 0..3 {
         env.advance_block();
     }
@@ -196,7 +221,7 @@ fn blocks_without_an_update_are_caught_up() {
     for _ in 0..3 {
         env.advance_block();
     }
-    assert_eq!(quote(&env, 0), 1, "three blocks with nothing waiting");
+    assert_eq!(quote(&env, 0), 0, "three blocks with nothing waiting");
 }
 
 // A load held above the target raises the fee only as far as the maximum.
@@ -241,8 +266,8 @@ fn update(env: &TestEnvironmentHandle, load: u32) -> TransactResult {
 }
 
 // The fee for the current block, given its load.
-fn quote(env: &TestEnvironmentHandle, load: u32) -> u128 {
+fn quote(env: &TestEnvironmentHandle, load: u32) -> u64 {
     let r = env.transact(|tx| tx.call(&ADDR).run(move || market().quote(u128::from(load))));
     r.assert_success();
-    r.assert_return_as::<u128>()
+    r.assert_return_as::<u64>()
 }

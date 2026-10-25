@@ -17,10 +17,10 @@ pub enum WaitlistError {
 /// A waitlist whose entry fee is steered by how many are waiting.
 ///
 /// The fee is a `FeeMarket`'s, and the load it steers by is the backlog. A new list is free. In
-/// each block that starts with more than the target waiting, the fee rises by up to an eighth, up
-/// to a maximum; in each that starts with fewer, it falls by up to an eighth, back toward zero; at
-/// the target, it holds. So the target is not a threshold below which joining is free: a fee that
-/// has built up stays until the backlog has spent some blocks below the target.
+/// each block that starts with more than the target waiting, the fee rises by up to an eighth and a
+/// unit, up to a maximum; in each that starts with fewer, it falls by up to an eighth and a unit,
+/// back toward zero; at the target, it holds. So the target is not a threshold below which joining
+/// is free: a fee that has built up stays until the backlog has spent some blocks below the target.
 ///
 /// Concurrent joins never conflict -- not over the backlog, which is a `Balance` they only add to,
 /// and not over the fee, which every join in a block computes and records alike from the backlog
@@ -38,7 +38,7 @@ impl Waitlist {
     ///
     /// A backlog nobody serves raises the fee in every block; the maximum is what bounds it. Anyone
     /// may `serve`, so anyone can bring it back down.
-    pub fn initialize(&mut self, target: u32, max_fee: u128) {
+    pub fn initialize(&mut self, target: u32, max_fee: u64) {
         self.fee.initialize(target, max_fee).unwrap_or_else(|e| {
             throw(match e {
                 InitError::ZeroTarget => WaitlistError::ZeroTarget,
@@ -52,18 +52,17 @@ impl Waitlist {
     ///
     /// The fee is paid in native tokens, on an allowance the caller grants this contract, and
     /// stays here. A fee of zero is not collected, so no allowance is needed for it.
-    pub fn join(&mut self) -> u128 {
+    pub fn join(&mut self) -> u64 {
         // The backlog as of this block's start: read before this join adds to it, so that every
         // join in the block passes the same load.
         let backlog = self.backlog();
         let fee = self.fee.update(backlog);
 
         if fee > 0 {
-            // A fee never exceeds `fee_market::MAX_FEE`, so it fits the token's `i128`.
             ERC20Client::new(&ADDRESS_NATIVE_TOKEN).transfer_from(
                 &get_caller(),
                 &get_current_address(),
-                fee as i128,
+                i128::from(fee),
             );
         }
 
@@ -90,7 +89,7 @@ impl Waitlist {
     }
 
     /// What joining costs in this block.
-    pub fn fee(&self) -> u128 {
+    pub fn fee(&self) -> u64 {
         self.fee.quote(self.backlog())
     }
 
