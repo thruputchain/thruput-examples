@@ -253,19 +253,7 @@ impl<R: BatchRequest> Queue<R> {
         self.settle(n_processed, n_failed);
 
         #[cfg(feature = "calibration")]
-        {
-            let here = gas_remaining();
-            log_event(&GasReport {
-                processed: n_processed,
-                claim: claim_gas,
-                dearest_request: spent.dearest,
-                tail: after_process.saturating_sub(here),
-                beyond_handlers: entry_gas
-                    .saturating_sub(here)
-                    .saturating_sub(spent.total)
-                    .saturating_sub(claim_gas),
-            });
-        }
+        spent.report(n_processed, claim_gas, entry_gas, after_process);
 
         Ok((n_processed, n_failed))
     }
@@ -304,26 +292,52 @@ impl<R: BatchRequest> Queue<R> {
         S: Sequencer,
         F: FnMut(R, u64) -> Result<(), CallError>,
     {
+        #[cfg(feature = "calibration")]
+        let entry_gas = gas_remaining();
+
         let per_request = sequenced_request_gas::<R, S>();
         if !self.may_claim(|n| budget_for(per_request, n))? {
             return Ok((0, 0));
         }
 
+        #[cfg(feature = "calibration")]
+        let before_claim = gas_remaining();
+
         if claim().is_err() {
             return Ok((0, 0));
         }
 
+        #[cfg(feature = "calibration")]
+        let claim_gas = before_claim.saturating_sub(gas_remaining());
+
+        #[cfg(feature = "calibration")]
+        let mut spent = HandlerGas::default();
+
         let (n_processed, n_failed) =
             process_sequenced(&mut self.requests, start, |request, gas_limit| {
                 let id = request.id();
+
+                #[cfg(feature = "calibration")]
+                let before = gas_remaining();
+
                 let result = handle(request, gas_limit);
+
+                #[cfg(feature = "calibration")]
+                spent.record(before.saturating_sub(gas_remaining()));
+
                 if let Err(e) = &result {
                     log_event(&RequestFailed::of(&id, e));
                 }
                 result
             });
 
+        #[cfg(feature = "calibration")]
+        let after_process = gas_remaining();
+
         self.settle(n_processed, n_failed);
+
+        #[cfg(feature = "calibration")]
+        spent.report(n_processed, claim_gas, entry_gas, after_process);
 
         Ok((n_processed, n_failed))
     }
@@ -387,18 +401,33 @@ pub(crate) fn settle(slots: &mut CapacityConstraint, n_processed: u32, n_failed:
 /// Running totals of what the handler calls cost.
 #[cfg(feature = "calibration")]
 #[derive(Default)]
-struct HandlerGas {
+pub(crate) struct HandlerGas {
     dearest: u64,
     total: u64,
 }
 
 #[cfg(feature = "calibration")]
 impl HandlerGas {
-    fn record(&mut self, spent: u64) {
+    pub(crate) fn record(&mut self, spent: u64) {
         self.total = self.total.saturating_add(spent);
         if spent > self.dearest {
             self.dearest = spent;
         }
+    }
+
+    // Emit the crank's `GasReport`, given what it measured along the way.
+    pub(crate) fn report(&self, processed: u32, claim: u64, entry_gas: u64, after_process: u64) {
+        let here = gas_remaining();
+        log_event(&GasReport {
+            processed,
+            claim,
+            dearest_request: self.dearest,
+            tail: after_process.saturating_sub(here),
+            beyond_handlers: entry_gas
+                .saturating_sub(here)
+                .saturating_sub(self.total)
+                .saturating_sub(claim),
+        });
     }
 }
 

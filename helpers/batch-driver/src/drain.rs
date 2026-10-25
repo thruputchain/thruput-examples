@@ -222,6 +222,9 @@ where
 {
     let per_request = sequenced_request_gas::<R, S>();
 
+    #[cfg(feature = "calibration")]
+    let mut picks = PickGas::start();
+
     // As in `process`, a request leaves the queue only once this frame can afford to handle it. A
     // batch taken up front cannot pay as it goes, so each entry taken reserves its whole cost.
     let mut batch = Vec::new();
@@ -237,11 +240,20 @@ where
     let mut sequencer = start(&batch);
     let mut batch: Vec<Option<R>> = batch.into_iter().map(Some).collect();
 
+    #[cfg(feature = "calibration")]
+    picks.setup_done();
+
     let mut n_failed = 0;
     for _ in 0..batch.len() {
+        #[cfg(feature = "calibration")]
+        picks.step();
+
         let request = batch[sequencer.next()]
             .take()
             .expect("a sequencer chooses each request once");
+
+        #[cfg(feature = "calibration")]
+        picks.pause();
 
         let gas_limit = request.gas_limit();
         let result = handle(request, gas_limit);
@@ -250,10 +262,104 @@ where
             n_failed += 1;
         }
 
+        #[cfg(feature = "calibration")]
+        picks.resume();
+
         sequencer.handled(result.is_ok());
     }
 
+    #[cfg(feature = "calibration")]
+    picks.report(batch.len() as u32);
+
     (batch.len() as u32, n_failed)
+}
+
+/// What a sequencer or lane picker spent in one crank, measured on the node that ran it, to set
+/// [`Sequencer::GAS_PER_REQUEST`] and [`LanePicker::GAS_PER_REQUEST`] from.
+///
+/// Emitted only under the `calibration` feature, alongside the crank's [`GasReport`]. `setup` is
+/// what the crank spent before its first step on the picker's account: taking a sequenced batch out
+/// of the queue and building its sequencer, or finding which lanes hold requests. A step is
+/// everything spent on one request outside its handler call: choosing it, taking it, and telling
+/// the picker how it fared; `dearest_step` is the most one cost, and `steps` all of them together.
+///
+/// A sequenced crank fixes its batch up front, so what must fit is the whole of `setup + steps`
+/// within `processed` requests' allowance. A laned crank checks its budget before each step, so
+/// what must fit is `dearest_step`.
+///
+/// [`GasReport`]: crate::GasReport
+/// [`LanePicker::GAS_PER_REQUEST`]: crate::LanePicker::GAS_PER_REQUEST
+#[cfg(feature = "calibration")]
+#[derive(Event, Clone, Debug, PartialEq, Eq)]
+pub struct PickReport {
+    pub processed: u32,
+    pub setup: u64,
+    pub dearest_step: u64,
+    pub steps: u64,
+}
+
+/// Running totals for a [`PickReport`].
+#[cfg(feature = "calibration")]
+pub(crate) struct PickGas {
+    // Where the current stretch of counting began.
+    mark: u64,
+    setup: u64,
+    // The step under way, if any, and what it has spent so far.
+    step: Option<u64>,
+    dearest_step: u64,
+    steps: u64,
+}
+
+#[cfg(feature = "calibration")]
+impl PickGas {
+    pub(crate) fn start() -> Self {
+        PickGas {
+            mark: gas_remaining(),
+            setup: 0,
+            step: None,
+            dearest_step: 0,
+            steps: 0,
+        }
+    }
+
+    pub(crate) fn setup_done(&mut self) {
+        self.setup = self.mark.saturating_sub(gas_remaining());
+    }
+
+    // Close the step under way, if any, and open the next.
+    pub(crate) fn step(&mut self) {
+        self.close_step();
+        self.step = Some(0);
+        self.mark = gas_remaining();
+    }
+
+    // Stop counting, for a handler call.
+    pub(crate) fn pause(&mut self) {
+        let since = self.mark.saturating_sub(gas_remaining());
+        self.step = self.step.map(|s| s.saturating_add(since));
+    }
+
+    pub(crate) fn resume(&mut self) {
+        self.mark = gas_remaining();
+    }
+
+    pub(crate) fn report(mut self, processed: u32) {
+        self.close_step();
+        log_event(&PickReport {
+            processed,
+            setup: self.setup,
+            dearest_step: self.dearest_step,
+            steps: self.steps,
+        });
+    }
+
+    fn close_step(&mut self) {
+        if let Some(step) = self.step.take() {
+            let step = step.saturating_add(self.mark.saturating_sub(gas_remaining()));
+            self.dearest_step = self.dearest_step.max(step);
+            self.steps = self.steps.saturating_add(step);
+        }
+    }
 }
 
 fn request_failed<E: core::fmt::Debug>(_e: &E) {

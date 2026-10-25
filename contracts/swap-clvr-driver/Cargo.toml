@@ -45,6 +45,7 @@ dev = [
     "swap-if/dev",
     "batch-driver/dev",
 ]
+calibration = ["batch-driver/calibration"]
 
 [dev-dependencies]
 swap-clvr-driver = { path = ".", features = ["dev"] }

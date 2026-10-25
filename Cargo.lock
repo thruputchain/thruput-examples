@@ -348,6 +348,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
+name = "clvr-bench"
+version = "0.1.0"
+dependencies = [
+ "batch-driver",
+ "clvr-bench",
+ "swap-clvr-driver",
+ "swap-if",
+ "thruput-sdk",
+]
+
+[[package]]
 name = "cmov"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

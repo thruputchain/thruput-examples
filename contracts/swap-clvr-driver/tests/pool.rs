@@ -295,6 +295,41 @@ fn a_crank_takes_the_batch_it_paid_for() {
     assert_eq!(second.assert_return_as::<(u32, u32)>(), (2, 0));
 }
 
+// The contract sets the least a crank must take: whatever is waiting, up to the pool's
+// `min_crank_batch` (4 here). A crank funded for less is refused before it touches the queue, and
+// the batch is left for one that pays for it.
+#[test]
+fn a_crank_owes_what_is_waiting_up_to_the_floor() {
+    let pool = pool();
+    pool.provide(POOL_DEPTH);
+    pool.crank().assert_success();
+
+    for i in 0..4 {
+        let size = POOL_DEPTH / 1000 * (1 + i);
+        pool.request(SwapRequest::swap_exact_in(
+            &ALICE,
+            size,
+            0,
+            i as u32 % 2,
+            &ALICE,
+        ));
+    }
+
+    let driver = pool.driver;
+    let refused = exec(&pool.env, &TEST_ADDR, move || {
+        SwapDriverClient::new(&driver)
+            .with_gas_limit(process_requests_gas(1))
+            .try_process_requests()
+            .err()
+            .and_then(|e| e.try_as::<SwapDriverError>())
+    });
+    assert_eq!(refused, Some(SwapDriverError::BatchTooSmall));
+    pool.env.advance_block();
+
+    let paid = pool.crank_for(4);
+    assert_eq!(paid.assert_return_as::<(u32, u32)>(), (4, 0));
+}
+
 /////////////////////// helpers /////////////////////////////////////////////
 
 fn users() -> [&'static ContractAddress; 3] {

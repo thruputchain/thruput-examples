@@ -82,6 +82,8 @@ mod events;
 mod lanes;
 mod queue;
 
+#[cfg(feature = "calibration")]
+pub use drain::PickReport;
 pub use drain::{
     BatchRequest, CLAIM_GAS, EPILOGUE_GAS, Sequencer, gas_for_batch, gas_for_sequenced_batch,
 };

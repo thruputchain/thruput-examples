@@ -117,10 +117,19 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         P: LanePicker<N>,
         F: FnMut(R, u64) -> Result<(), CallError>,
     {
+        #[cfg(feature = "calibration")]
+        let entry_gas = gas_remaining();
+
+        #[cfg(feature = "calibration")]
+        let mut picks = crate::drain::PickGas::start();
+
         // Whether each lane holds a request. A lane found empty stays so for the rest of this
         // transaction -- a crank does not see requests its own block ordered after it -- so only
         // the lane just taken from needs looking at again.
         let mut waiting: [bool; N] = core::array::from_fn(|lane| self.waiting(lane));
+
+        #[cfg(feature = "calibration")]
+        picks.setup_done();
 
         let per_request = R::GAS_LIMIT.saturating_add(P::GAS_PER_REQUEST);
         let any = waiting.contains(&true);
@@ -130,9 +139,18 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
             return Ok((0, 0));
         }
 
+        #[cfg(feature = "calibration")]
+        let before_claim = gas_remaining();
+
         if claim().is_err() {
             return Ok((0, 0));
         }
+
+        #[cfg(feature = "calibration")]
+        let claim_gas = before_claim.saturating_sub(gas_remaining());
+
+        #[cfg(feature = "calibration")]
+        let mut spent = crate::queue::HandlerGas::default();
 
         let mut n_processed = 0;
         let mut n_failed = 0;
@@ -140,6 +158,9 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         // As in a plain crank, the budget is checked before an entry leaves its lane.
         while waiting.contains(&true) && gas_remaining() > per_request.saturating_add(EPILOGUE_GAS)
         {
+            #[cfg(feature = "calibration")]
+            picks.step();
+
             let lane = picker.next(&waiting);
             assert!(waiting[lane], "a picker chooses a lane holding a request");
 
@@ -153,7 +174,21 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
 
             let id = request.id();
             let gas_limit = request.gas_limit();
+
+            #[cfg(feature = "calibration")]
+            let before = {
+                picks.pause();
+                gas_remaining()
+            };
+
             let result = handle(request, gas_limit);
+
+            #[cfg(feature = "calibration")]
+            {
+                spent.record(before.saturating_sub(gas_remaining()));
+                picks.resume();
+            }
+
             if let Err(e) = &result {
                 log_event(&RequestFailed::of(&id, e));
                 n_failed += 1;
@@ -163,7 +198,16 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
             picker.handled(result.is_ok());
         }
 
+        #[cfg(feature = "calibration")]
+        let after_process = gas_remaining();
+
+        #[cfg(feature = "calibration")]
+        picks.report(n_processed);
+
         settle(&mut self.slots, n_processed, n_failed);
+
+        #[cfg(feature = "calibration")]
+        spent.report(n_processed, claim_gas, entry_gas, after_process);
 
         Ok((n_processed, n_failed))
     }

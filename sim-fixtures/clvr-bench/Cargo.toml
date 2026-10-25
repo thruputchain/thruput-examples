@@ -1,0 +1,32 @@
+[package]
+name = "clvr-bench"
+description = "What CLVR ordering costs on a node, by batch size, for calibrating its gas allowance"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+entrypoints = ["thruput-sdk/alloc"]
+dev = ["thruput-sdk/dev", "swap-clvr-driver/dev"]
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "clvr_bench"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+thruput-sdk = { workspace = true }
+batch-driver = { path = "../../helpers/batch-driver" }
+swap-if = { path = "../../interfaces/swap-if" }
+swap-clvr-driver = { path = "../../contracts/swap-clvr-driver" }
+
+[dev-dependencies]
+clvr-bench = { path = ".", features = ["dev"] }
