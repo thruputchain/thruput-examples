@@ -99,3 +99,37 @@ Attach `examples.thruput.network` to the gateway on port 8080 and add the DNS re
 Railway supplies. After DNS and TLS are ready, update Launchpad's `VITE_SWAP_APP_URL`
 to `https://examples.thruput.network/swap/` and restart Launchpad. The app base paths
 do not change. Keep the Railway domain available until the custom domain works.
+
+## Release and wallet checks
+
+The current contracts use devnet network ID
+`6RgqYi69r94rCG1qKZ5NfCMAxonNAMXbDsFZMgGwgP2J` and wire format `14.1.1`.
+The earlier network was reset. Use the addresses in `devnet.json`, not addresses
+from before the reset. Starting or redeploying a web service reuses these contracts.
+
+1. Merge PR #160 after its checks pass. In Railway, change Voting and Examples
+   Gateway from `feat/devnet-examples-hosting` to `main`. Confirm all five services
+   have a successful deployment. Do not run contract setup again for this step.
+2. Open the public site. Each app's `/api/config` must show the network ID above;
+   Counter uses the `networkId` field, and the other apps use `VITE_THRUPUT_NETWORK_ID`.
+3. In Thruput Freighter, select `https://rpc.thruput.network`. Refresh or recreate
+   a saved network entry if it still has the old network ID. Request devnet test
+   tokens for your account.
+4. **Counter:** press Increment once. Check that the transaction is confirmed and
+   the chain value increases. Reload and check that the new value remains.
+5. **Launchpad:** connect Freighter and create a token. Check the confirmed address,
+   balance, and token directory entry. Use its Create pool link to open Swap.
+6. **Swap:** select two tokens you own, create a pool, and add liquidity. Finish any
+   processing step shown by the app. Make a small swap and check the output balance.
+   The `SMOKEA`/`SMOKEB` assets are automated test fixtures; use your own tokens for
+   wallet testing.
+7. **Voting:** create a draft, open it, submit an answer, and check the tally.
+   Close the poll and reload its direct URL to check the final results.
+8. If a wallet action times out, inspect its saved transaction hash with the app's
+   recovery controls before submitting anything else.
+
+The reset-network checks confirmed Counter through the hosted browser, Voting's
+full poll lifecycle through an injected test wallet (seven signatures), and token
+creation, pool creation, liquidity processing, and a swap through the SDK. Test
+assets and a closed test poll remain visible. The steps above check the real
+Freighter extension and its approval screens separately.
