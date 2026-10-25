@@ -1,7 +1,6 @@
 //! The drain loop and its gas budgeting: what it takes to hand a batch of requests to a handler,
 //! and how a caller sizes one.
 
-use alloc::vec::Vec;
 use thruput_sdk::stats::gas_remaining;
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
@@ -150,125 +149,6 @@ where
     }
 
     (n_processed, n_failed)
-}
-
-/// [`gas_for_batch`], for a crank that orders its batch with a [`Sequencer`] of type `S`; see
-/// [`Queue::crank_sequenced`].
-///
-/// [`Queue::crank_sequenced`]: crate::Queue::crank_sequenced
-pub const fn gas_for_sequenced_batch<R: BatchRequest, S: Sequencer>(batch_size: u32) -> u64 {
-    let per_request = sequenced_request_gas::<R, S>();
-    sequenced_budget(per_request, batch_size)
-        .saturating_add(CLAIM_GAS)
-        .saturating_add(per_request)
-}
-
-/// What a sequenced crank budgets for each request: its handling, plus the sequencer's share.
-pub(crate) const fn sequenced_request_gas<R: BatchRequest, S: Sequencer>() -> u64 {
-    R::GAS_LIMIT.saturating_add(S::GAS_PER_REQUEST)
-}
-
-/// [`budget_for_batch`], for a sequenced batch whose requests each cost `per_request`.
-pub(crate) const fn sequenced_budget(per_request: u64, batch_size: u32) -> u64 {
-    EPILOGUE_GAS.saturating_add((batch_size as u64).saturating_mul(per_request))
-}
-
-/// Chooses the order in which a crank hands its batch to the handler.
-///
-/// A plain [`Queue::crank`] handles requests in the order the queue yields them. That order is
-/// arrival order *between* blocks, but within a block it is just the order of the entries' bytes:
-/// fair enough when nothing depends on it, and arbitrary when something does. A sequencer is for a
-/// driver whose requests *do* depend on their order -- trades against one pool, each of which
-/// moves the price the next one sees -- and wants to choose it by a rule of its own.
-///
-/// [`Queue::crank_sequenced`] takes the whole batch out of the queue before handling any of it, and
-/// shows it to the sequencer, which then picks the requests one at a time by their index in that
-/// batch. The queue keeps the requests themselves. However the sequencer picks, every request in
-/// the batch is handled exactly once, and a sequencer that picked one twice would abort the crank,
-/// putting the whole batch back.
-///
-/// [`Queue::crank`]: crate::Queue::crank
-/// [`Queue::crank_sequenced`]: crate::Queue::crank_sequenced
-pub trait Sequencer {
-    /// The most gas the sequencer adds to a request's handling: taking it out of the queue and
-    /// decoding it, choosing it, and learning how it fared, including any calls it makes to do so.
-    /// The crank budgets this much on top of [`BatchRequest::GAS_LIMIT`] for each request.
-    const GAS_PER_REQUEST: u64;
-
-    /// The most requests a batch may hold, however much gas a crank brings.
-    ///
-    /// A guest's memory is small and its allocator never frees, and a sequenced batch is held in
-    /// memory whole, so the batch a crank can afford may be more than it can hold. A crank asked
-    /// for more takes this many, and leaves the rest queued. (Set a pool's crank floor no higher.)
-    const MAX_BATCH: u32;
-
-    /// The batch index of the next request to handle: one not yet chosen.
-    fn next(&mut self) -> usize;
-
-    /// Report how the request just chosen fared: `true` if it was handled, `false` if handling it
-    /// failed (and so changed nothing).
-    fn handled(&mut self, ok: bool);
-}
-
-/// Take a batch out of the queue, have a sequencer order it, and hand each request to `handle` in
-/// that order. Return `(n_processed, n_failed)`.
-///
-/// The batch is as long as the frame can afford, as in [`process`], but the whole of it is
-/// affordable *before* the first request is handled: a sequencer has to see the batch to order it.
-/// It holds no more than `capacity` (the queue's) or the sequencer's `MAX_BATCH`.
-pub(crate) fn process_sequenced<R, S, F, E>(
-    queue: &mut RCQ<R>,
-    capacity: u32,
-    start: impl FnOnce(&[R]) -> S,
-    mut handle: F,
-) -> (u32, u32)
-where
-    R: BatchRequest,
-    S: Sequencer,
-    F: FnMut(R, u64) -> Result<(), E>,
-    E: core::fmt::Debug,
-{
-    let per_request = sequenced_request_gas::<R, S>();
-
-    // The batch is allocated once, at the most it can come to: what the frame can afford, the
-    // sequencer can hold, and the queue can contain. An allocation is never given back, so growing
-    // it as it fills would hold every smaller allocation too.
-    let affordable = gas_remaining().saturating_sub(EPILOGUE_GAS) / per_request.max(1);
-    let most = affordable.min(u64::from(S::MAX_BATCH.min(capacity))) as usize;
-
-    // As in `process`, a request leaves the queue only once this frame can afford to handle it. A
-    // batch taken up front cannot pay as it goes, so each entry taken reserves its whole cost.
-    let mut batch = Vec::with_capacity(most);
-    let mut reserved = EPILOGUE_GAS;
-    while batch.len() < most && gas_remaining() > reserved.saturating_add(per_request) {
-        let Some(request) = queue.try_consume().none_if_missing() else {
-            break;
-        };
-        batch.push(request);
-        reserved = reserved.saturating_add(per_request);
-    }
-
-    let mut sequencer = start(&batch);
-    // In place: an `Option` of a request is no larger than the request.
-    let mut batch: Vec<Option<R>> = batch.into_iter().map(Some).collect();
-
-    let mut n_failed = 0;
-    for _ in 0..batch.len() {
-        let request = batch[sequencer.next()]
-            .take()
-            .expect("a sequencer chooses each request once");
-
-        let gas_limit = request.gas_limit();
-        let result = handle(request, gas_limit);
-        if let Err(e) = &result {
-            request_failed(e);
-            n_failed += 1;
-        }
-
-        sequencer.handled(result.is_ok());
-    }
-
-    (batch.len() as u32, n_failed)
 }
 
 fn request_failed<E: core::fmt::Debug>(_e: &E) {

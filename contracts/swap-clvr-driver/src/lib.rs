@@ -7,6 +7,7 @@ extern crate alloc;
 mod cfg;
 pub mod clvr;
 mod driver;
+pub mod queue;
 
 // Interface (defined in `swap-if`), re-exported for convenience. This driver implements the same
 // `SwapDriver` as `swap-driver`, so a factory deploys either one by its code hash.

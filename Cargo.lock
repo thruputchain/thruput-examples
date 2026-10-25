@@ -351,7 +351,6 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 name = "clvr-bench"
 version = "0.1.0"
 dependencies = [
- "batch-driver",
  "clvr-bench",
  "swap-clvr-driver",
  "swap-if",
@@ -3083,6 +3082,7 @@ dependencies = [
  "thruput-erc20-if",
  "thruput-erc20-metadata-if",
  "thruput-sdk",
+ "unique-ids",
 ]
 
 [[package]]
@@ -3132,6 +3132,7 @@ dependencies = [
  "thruput-erc20-if",
  "thruput-erc20-metadata-if",
  "thruput-sdk",
+ "unique-ids",
 ]
 
 [[package]]

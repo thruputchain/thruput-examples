@@ -2,11 +2,10 @@
 
 thruput_sdk::declare_mock_contract!();
 
-extern crate alloc;
-
 mod cfg;
 mod driver;
 pub mod gsr;
+pub mod lanes;
 
 // Interface (defined in `swap-if`), re-exported for convenience. This driver implements the same
 // `SwapDriver` as `swap-driver`, so a factory deploys either one by its code hash.

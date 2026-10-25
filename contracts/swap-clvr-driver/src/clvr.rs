@@ -82,8 +82,8 @@ pub const SEQUENCE_GAS: u64 = 270_000;
 /// swaps, at five events each, well inside the 1000 a transaction may emit.
 pub const MAX_BATCH: u32 = 112;
 
-/// A CLVR ordering of one batch, handing the batch's requests out one at a time as a
-/// [`batch_driver::Sequencer`].
+/// A CLVR ordering of one batch, handing the batch's requests out one at a time, for the crank in
+/// [`queue`](crate::queue).
 ///
 /// It keeps its own model of the pool's reserves, advancing it by each trade that succeeds as the
 /// handler would. It reads the real reserves from `read_reserves` when it has no model: before the
@@ -258,11 +258,9 @@ impl<F: FnMut() -> Amounts> Clvr<F> {
     }
 }
 
-impl<F: FnMut() -> Amounts> batch_driver::Sequencer for Clvr<F> {
-    const GAS_PER_REQUEST: u64 = SEQUENCE_GAS;
-    const MAX_BATCH: u32 = MAX_BATCH;
-
-    fn next(&mut self) -> usize {
+impl<F: FnMut() -> Amounts> Clvr<F> {
+    /// The batch index of the next request to handle: one not yet chosen.
+    pub fn choose(&mut self) -> usize {
         let k = match self.unpriced.pop() {
             Some(k) => k,
             None => self.next_trade(),
@@ -271,7 +269,9 @@ impl<F: FnMut() -> Amounts> batch_driver::Sequencer for Clvr<F> {
         k
     }
 
-    fn handled(&mut self, ok: bool) {
+    /// Report how the request just chosen fared: `true` if it was handled, `false` if handling it
+    /// failed (and so changed nothing).
+    pub fn handled(&mut self, ok: bool) {
         let k = self.chosen.take().expect("a request was chosen");
 
         // A request that failed changed nothing.
@@ -428,7 +428,6 @@ impl Eq for Distance {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use batch_driver::Sequencer;
     use thruput_sdk::ContractAddress;
 
     const TRADER: ContractAddress = ContractAddress::new([7u8; 32]);
@@ -453,7 +452,7 @@ mod tests {
 
         let mut order = Vec::new();
         for _ in 0..batch.len() {
-            let k = clvr.next();
+            let k = clvr.choose();
             order.push(k);
 
             let after = Trade::of(&batch[k].op).and_then(|t| t.after(pool.get()));

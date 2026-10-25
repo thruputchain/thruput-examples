@@ -1,8 +1,8 @@
 //! The GSR driver in front of a real pool: a handler, its LP token, and two ERC20s.
 //!
-//! The rule itself is tested in `src/gsr.rs`. These check what only a pool can show: that the driver
-//! hands the handler its batch in the order the rule chooses, and that the price it follows is the
-//! pool's.
+//! The rule itself is tested in `src/gsr.rs`. These check what only a pool can show: that requests
+//! are laned and handed to the handler in the order the rule chooses, and that the price it
+//! follows is the pool's.
 
 use swap_gsr_driver::*;
 use swap_if::*;
@@ -158,6 +158,19 @@ impl Pool {
         id
     }
 
+    // Try to enqueue `request`, as the router, returning the whole result.
+    fn try_request(&self, request: SwapRequest) -> TransactResult {
+        let driver = self.driver;
+        let request = std::sync::Mutex::new(Some(request));
+        let r = self.env.transact(|tx| {
+            tx.call(&ROUTER_ADDR).run(|| {
+                SwapDriverClient::new(&driver).request(request.lock().unwrap().take().unwrap())
+            })
+        });
+        self.env.advance_block();
+        r
+    }
+
     fn provide(&self, amount: Amount) -> RequestId {
         self.request(SwapRequest::add_liquidity(
             &PROVIDER,
@@ -229,7 +242,7 @@ fn a_sandwich_comes_apart() {
     assert!(pool.balance(&MALLORY, 0) + pool.balance(&MALLORY, 1) < 2 * WALLET);
 }
 
-// Liquidity goes first, and the trades then follow the price it left --
+// Liquidity goes first, from a lane of its own, and the trades then follow the price it left --
 // which the driver reads from the pool. With the reserves the batch began with, an empty pool, the
 // price would be at p₀ throughout, and the trades would all lower it first.
 #[test]
@@ -261,7 +274,7 @@ fn a_refused_trade_leaves_the_price_where_it_was() {
 
     // The back-run goes first, but asks for more than it can get, and fails. The price is still at
     // p₀, so the rule lowers it again if it can -- and, with nothing left to lower it, takes the
-    // raising trades in queue order.
+    // raising lane in queue order.
     let front = pool.request(SwapRequest::swap_exact_in(
         &MALLORY, FRONT_RUN, 0, 1, &MALLORY,
     ));
@@ -275,6 +288,27 @@ fn a_refused_trade_leaves_the_price_where_it_was() {
     assert_eq!(crank.assert_return_as::<(u32, u32)>(), (3, 1));
     assert_eq!(request_failed_ids(&crank), [back]);
     assert_eq!(swap_request_ids(&crank), [front, victim]);
+}
+
+// The lanes share the queue's one ceiling: a request is turned away when the queue is full, whatever
+// lane it would have gone in.
+#[test]
+fn the_lanes_share_one_ceiling() {
+    let pool = pool();
+
+    for i in 0..CAPACITY {
+        let size = POOL_DEPTH / 1000 * (1 + Amount::from(i));
+        pool.request(SwapRequest::swap_exact_in(&ALICE, size, 0, i % 2, &ALICE));
+    }
+
+    let overrun = pool.try_request(SwapRequest::add_liquidity(
+        &PROVIDER,
+        [1, 1],
+        [0, 0],
+        &PROVIDER,
+    ));
+    overrun.frame().assert_success();
+    overrun.assert_commit_failed_nondeterministically();
 }
 
 // The contract sets the least a crank must take: whatever is waiting, up to the pool's
@@ -312,15 +346,16 @@ fn a_crank_owes_what_is_waiting_up_to_the_floor() {
     assert_eq!(paid.assert_return_as::<(u32, u32)>(), (4, 0));
 }
 
-// The largest batch a crank takes fits in the driver's memory, which holds it whole: `MAX_BATCH`
-// trades, ordered and handled in one crank. Natively memory is unbounded, so this shows something
-// only under `guest_test`. (`GSR_BATCH` sets another size, to look for the limit.)
+// A crank streams, holding no batch, so however long it runs its memory does not grow: half the
+// factory's queue of trades in one crank. Natively memory is unbounded, so this shows something
+// only under `guest_test`. (`GSR_BATCH` sets another size. Past about 199 swaps a crank fails
+// whatever its driver: each swap emits five events, and a transaction may emit 1000.)
 #[test]
-fn the_largest_batch_fits() {
+fn a_long_crank_drains() {
     let n: u32 = std::env::var("GSR_BATCH")
         .map(|v| v.parse().unwrap())
-        .unwrap_or(gsr::MAX_BATCH);
-    let pool = pool_with(n.max(CAPACITY));
+        .unwrap_or(128);
+    let pool = pool_with(n.max(16));
     pool.provide(POOL_DEPTH);
     pool.crank().assert_success();
 
@@ -342,32 +377,6 @@ fn enqueue_trades(pool: &Pool, n: u32) {
             SwapRequest::swap_exact_out(&ALICE, size, Amount::MAX, in_index, &ALICE)
         });
     }
-}
-
-// A floor above what the ordering can hold could never be met, so the driver refuses it.
-#[test]
-fn a_floor_above_the_largest_batch_is_refused() {
-    let env = TestEnvironment::new(None);
-    let driver_hash = *swap_gsr_driver::register_mock_contract(&env).as_hash();
-    let driver = exec(&env, &FACTORY_ADDR, || {
-        get_deploy_address(&DRIVER_NONCE, &driver_hash)
-    });
-    env.setup_grant_storage_tokens(&driver, CONTRACT_FUNDING);
-
-    let floor = |min_crank_batch: u32| {
-        exec(&env, &FACTORY_ADDR, move || {
-            let driver = deploy_contract(&DRIVER_NONCE, &driver_hash);
-            SwapDriverClient::new(&driver)
-                .try_initialize(&ROUTER_ADDR, &ROUTER_ADDR, 256, min_crank_batch)
-                .err()
-                .and_then(|e| e.try_as::<SwapDriverError>())
-        })
-    };
-    assert_eq!(
-        floor(gsr::MAX_BATCH + 1),
-        Some(SwapDriverError::InvalidConfiguration)
-    );
-    assert_eq!(floor(gsr::MAX_BATCH), None);
 }
 
 /////////////////////// helpers /////////////////////////////////////////////

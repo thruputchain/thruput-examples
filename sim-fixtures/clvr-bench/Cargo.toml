@@ -24,7 +24,6 @@ bench = false
 
 [dependencies]
 thruput-sdk = { workspace = true }
-batch-driver = { path = "../../helpers/batch-driver" }
 swap-if = { path = "../../interfaces/swap-if" }
 swap-clvr-driver = { path = "../../contracts/swap-clvr-driver" }
 

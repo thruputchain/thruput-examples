@@ -2,14 +2,15 @@
 //!
 //! This is `swap-driver` with one change: where that driver hands requests to the handler in the
 //! order its queue yields them, this one takes a crank's whole batch out of the queue first and
-//! hands it over in the order [`Clvr`] chooses. Everything else -- who may enqueue, the crank's
+//! hands it over in the order [`Clvr`](crate::clvr::Clvr) chooses. Everything else -- who may enqueue, the crank's
 //! floor and claim, the isolation of each request, the events -- is the batch-driver pattern's, as
 //! there. It implements the same `SwapDriver` interface, so a factory deploys it in place of
 //! `swap-driver` simply by being given its code hash.
 
 use crate::cfg::*;
-use crate::clvr::{self, Clvr};
-use batch_driver::{CrankPolicy, Queue};
+use crate::clvr;
+use crate::queue::Queue;
+use batch_driver::CrankPolicy;
 use swap_if::*;
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
@@ -21,8 +22,8 @@ pub struct Driver {
     cfg: Value<Cfg>,
 
     // The requests themselves, together with policy for capacity and batch-size; see
-    // `batch_driver::Queue`.
-    queue: Node<Queue<SwapRequest>>,
+    // `crate::queue::Queue`.
+    queue: Node<Queue>,
 }
 
 /// The gas limit to declare on a `process_requests()` call intended to drain up to `batch_size`
@@ -31,7 +32,7 @@ pub struct Driver {
 /// As with `swap-driver`, the caller's declared limit *is* the batch size. Each request costs a
 /// little more here, for the ordering; see [`SEQUENCE_GAS`](crate::clvr::SEQUENCE_GAS).
 pub const fn process_requests_gas(batch_size: u32) -> u64 {
-    batch_driver::gas_for_sequenced_batch::<SwapRequest, Clvr>(batch_size)
+    crate::queue::gas_for_batch(batch_size)
 }
 
 #[contract(exports = "swap_clvr_driver_exports")]
@@ -85,10 +86,10 @@ impl SwapDriver for Driver {
         let cfg = self.cfg.get();
 
         self.queue
-            .crank_sequenced(
+            .crank(
                 || cfg.handler().with_commit_locking().try_claim_crank(),
                 // The order is chosen against the pool's reserves, which the handler holds.
-                |batch| Clvr::new(batch, || cfg.handler().pool_state().reserves),
+                || cfg.handler().pool_state().reserves,
                 |request, gas_limit| {
                     cfg.handler()
                         .with_commit_locking()

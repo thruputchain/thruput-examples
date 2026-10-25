@@ -75,15 +75,11 @@
 
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-extern crate alloc;
-
 mod drain;
 mod events;
 mod queue;
 
-pub use drain::{
-    BatchRequest, CLAIM_GAS, EPILOGUE_GAS, Sequencer, gas_for_batch, gas_for_sequenced_batch,
-};
+pub use drain::{BatchRequest, CLAIM_GAS, EPILOGUE_GAS, gas_for_batch};
 pub use events::{Cause, EXCEPTION_PAYLOAD_MAX, RequestAccepted, RequestFailed, RequestsProcessed};
 #[cfg(feature = "calibration")]
 pub use queue::GasReport;

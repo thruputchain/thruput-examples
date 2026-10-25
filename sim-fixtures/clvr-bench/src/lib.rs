@@ -10,7 +10,6 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use batch_driver::Sequencer;
 use swap_clvr_driver::clvr::Clvr;
 use swap_if::{Amount, SwapRequest};
 use thruput_sdk::stats::gas_remaining;
@@ -44,7 +43,7 @@ impl ClvrBench {
         let mut steps = 0;
         for _ in 0..n {
             let before = gas_remaining();
-            core::hint::black_box(clvr.next());
+            core::hint::black_box(clvr.choose());
             clvr.handled(true);
             let step = before.saturating_sub(gas_remaining());
 
