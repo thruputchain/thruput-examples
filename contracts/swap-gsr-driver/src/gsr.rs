@@ -39,12 +39,13 @@ pub const LOWERS: usize = 1;
 /// Trades paying token1 in, which raise the price.
 pub const RAISES: usize = 2;
 
-/// What a GSR crank may spend per request beyond handling it: finding whether its lane has more,
-/// and reading the pool's reserves afresh after it.
+/// What a GSR crank may spend per request beyond handling it: choosing its lane, taking it and
+/// finding whether its lane has more, and reading the pool's reserves before the next.
 ///
-/// A placeholder, not yet calibrated on a devnode. Measure it as the other gas figures are, with
-/// `scripts/swap-gas-calibrate.sh`, before relying on it.
-pub const PICK_GAS: u64 = 150_000;
+/// Calibrated on a devnode by `scripts/swap-gas-calibrate.sh`, and held at about twice the most a
+/// step came to: the first, at some 131k, almost all of it the first read of the pool's state,
+/// which touches the LP token cold. Later steps came to about 19k.
+pub const PICK_GAS: u64 = 260_000;
 
 /// The lane a request waits in.
 pub fn lane_of(op: &SwapOp) -> usize {

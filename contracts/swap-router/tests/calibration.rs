@@ -338,8 +338,9 @@ struct OrderingCost {
     steps: u64,
 }
 
-/// Order synthetic batches of up to a full queue with the same CLVR code a crank runs, and report
-/// what the node charged: how `SEQUENCE_GAS` must grow with the batch.
+/// Order synthetic batches, up to past the most a crank takes (`clvr::MAX_BATCH`), with the same
+/// CLVR code a crank runs, and report what the node charged: how the ordering's share of
+/// `SEQUENCE_GAS` grows with the batch. (Much past 128 the fixture outgrows its memory.)
 fn clvr_bench() -> Agent {
     Agent::new("clvr-bench", move |mut ctx| async move {
         let funded = thruput_testkit::DeployOptions::funded(CONTRACT_FUNDING as u128);
@@ -352,12 +353,20 @@ fn clvr_bench() -> Agent {
             "{:>5} {:>12} {:>12} {:>14} {:>12} {:>14}",
             "batch", "batch kind", "setup", "dearest step", "steps", "per request"
         );
-        for n in [1u32, 8, 32, 64, 128, 256] {
+        for n in [1u32, 8, 32, 64, 112, 128] {
             for adversarial in [false, true] {
                 let depth: swap_if::Amount = 1 << 80;
-                let cost: OrderingCost = bench
+                let cost: Result<OrderingCost> = bench
                     .view(ctx.caller(), "order", &(n, depth, adversarial), me)
-                    .await?;
+                    .await;
+                // A batch can outgrow the guest's memory.
+                let Ok(cost) = cost else {
+                    println!(
+                        "{n:>5} {:>12} {cost:?}",
+                        if adversarial { "one-sided" } else { "mixed" }
+                    );
+                    continue;
+                };
                 println!(
                     "{:>5} {:>12} {:>12} {:>14} {:>12} {:>14}",
                     n,

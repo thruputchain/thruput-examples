@@ -3081,6 +3081,7 @@ dependencies = [
  "swap-if",
  "swap-pair",
  "thruput-erc20-if",
+ "thruput-erc20-metadata-if",
  "thruput-sdk",
 ]
 
@@ -3129,6 +3130,7 @@ dependencies = [
  "swap-if",
  "swap-pair",
  "thruput-erc20-if",
+ "thruput-erc20-metadata-if",
  "thruput-sdk",
 ]
 

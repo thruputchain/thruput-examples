@@ -56,6 +56,7 @@ impl Reverse {
 
 impl Sequencer for Reverse {
     const GAS_PER_REQUEST: u64 = 50_000;
+    const MAX_BATCH: u32 = u32::MAX;
 
     fn next(&mut self) -> usize {
         self.left -= 1;
@@ -72,6 +73,7 @@ struct Dear;
 
 impl Sequencer for Dear {
     const GAS_PER_REQUEST: u64 = u64::MAX;
+    const MAX_BATCH: u32 = u32::MAX;
 
     fn next(&mut self) -> usize {
         unreachable!("never given a batch to order")
@@ -85,6 +87,7 @@ struct Stuck;
 
 impl Sequencer for Stuck {
     const GAS_PER_REQUEST: u64 = 0;
+    const MAX_BATCH: u32 = u32::MAX;
 
     fn next(&mut self) -> usize {
         0
@@ -191,6 +194,46 @@ fn a_crank_that_cannot_afford_a_request_takes_none() {
     assert_eq!(drain_in_order(&env), [0, 1, 2]);
 }
 
+/// Holds at most two requests.
+struct Small(Reverse);
+
+impl Sequencer for Small {
+    const GAS_PER_REQUEST: u64 = 0;
+    const MAX_BATCH: u32 = 2;
+
+    fn next(&mut self) -> usize {
+        self.0.next()
+    }
+
+    fn handled(&mut self, ok: bool) {
+        self.0.handled(ok)
+    }
+}
+
+// A crank takes no more than its sequencer can hold, however much gas it has, and leaves the rest
+// queued in order.
+#[test]
+fn a_batch_is_no_larger_than_the_sequencer_holds() {
+    let env = TestEnvironment::no_cost();
+    initialize(&env);
+    for n in 0..5 {
+        enqueue(&env, n);
+    }
+
+    let r = env.transact(|tx| {
+        tx.call(&ADDR).run(|| {
+            queue()
+                .crank_sequenced(|| Ok(()), |batch| Small(Reverse::new(batch)), |_, _| Ok(()))
+                .unwrap()
+        })
+    });
+    r.assert_success();
+    assert_eq!(r.assert_return_as::<(u32, u32)>(), (2, 0));
+    env.advance_block();
+
+    assert_eq!(drain_in_order(&env), [2, 3, 4]);
+}
+
 // The sizing inverts the budget check, as `gas_for_batch` does for a plain crank, with each request
 // costing its handling plus the sequencer's share.
 #[test]
@@ -211,6 +254,7 @@ struct Recording<'a, S>(&'a mut S);
 
 impl<S: Sequencer> Sequencer for Recording<'_, S> {
     const GAS_PER_REQUEST: u64 = S::GAS_PER_REQUEST;
+    const MAX_BATCH: u32 = S::MAX_BATCH;
 
     fn next(&mut self) -> usize {
         self.0.next()

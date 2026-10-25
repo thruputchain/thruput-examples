@@ -80,8 +80,8 @@ fn batch(n: u32, depth: Amount, adversarial: bool) -> Vec<SwapRequest> {
 
             let r = next();
             let in_index = (r & 1) as u32;
-            let size = (depth / 100 >> (r >> 1) % 16).max(1) * (1 + Amount::from((r >> 8) % 9));
-            if r >> 16 & 1 == 0 {
+            let size = ((depth / 100) >> ((r >> 1) % 16)).max(1) * (1 + Amount::from((r >> 8) % 9));
+            if (r >> 16) & 1 == 0 {
                 SwapRequest::swap_exact_in(&me, size, 0, in_index, &me)
             } else {
                 SwapRequest::swap_exact_out(&me, size, Amount::MAX, in_index, &me)

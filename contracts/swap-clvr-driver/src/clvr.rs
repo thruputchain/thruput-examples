@@ -62,12 +62,25 @@ use swap_if::{Amount, Amounts, SwapOp, SwapRequest, U256};
 /// a reserve past it fails.
 const BALANCE_MAX: Amount = i128::MAX as Amount;
 
-/// What a CLVR crank may spend per request beyond handling it: decoding it, the binary searches
-/// that place it, and, at worst, a call to read the pool's reserves afresh.
+/// What a CLVR crank may spend per request beyond handling it: taking it out of the queue and
+/// decoding it, placing it, and reading the pool's reserves when the model has none.
 ///
-/// A placeholder, not yet calibrated on a devnode. Measure it as the other gas figures are, with
-/// `scripts/swap-gas-calibrate.sh`, before relying on it.
-pub const SEQUENCE_GAS: u64 = 250_000;
+/// Calibrated on a devnode by `scripts/swap-gas-calibrate.sh`, and held at about twice the most it
+/// came to. The dearest batch per request is the smallest: a batch of one cost some 136k (most of
+/// it the first read of the pool's state, which touches the LP token cold), two 77k a request,
+/// five 50k. Past that, placing a request costs more as the batch grows -- `clvr-bench` measured
+/// the ordering alone at 9k a request for one trade, 41k for 32 and 59k for 128 -- but the read is
+/// shared, so no batch up to [`MAX_BATCH`] comes near the first.
+pub const SEQUENCE_GAS: u64 = 270_000;
+
+/// The most requests a CLVR crank orders at once: what fits in the driver's memory, which holds the
+/// whole batch.
+///
+/// A guest has 64 KiB of memory unless its artifact declares more, and its allocator never frees.
+/// On the RV32 executor (`tests/pool.rs`'s `the_largest_batch_fits`, under `guest_test`) a crank of
+/// 132 trades fitted and one of 136 faulted; this keeps some 15% in hand. It also keeps a crank of
+/// swaps, at five events each, well inside the 1000 a transaction may emit.
+pub const MAX_BATCH: u32 = 112;
 
 /// A CLVR ordering of one batch, handing the batch's requests out one at a time as a
 /// [`batch_driver::Sequencer`].
@@ -106,8 +119,14 @@ impl<F: FnMut() -> Amounts> Clvr<F> {
     pub fn new(batch: &[SwapRequest], read_reserves: F) -> Self {
         let trades: Vec<Option<Trade>> = batch.iter().map(|r| Trade::of(&r.op)).collect();
 
-        let mut unpriced = Vec::new();
-        let mut queues: [[Vec<usize>; 2]; 2] = Default::default();
+        // Each list is allocated once at the length it will have, since memory is never given back.
+        let mut lengths = [[0; 2]; 2];
+        for t in trades.iter().flatten() {
+            lengths[t.in_index][t.kind as usize] += 1;
+        }
+        let unpriced_len = trades.iter().filter(|t| t.is_none()).count();
+        let mut unpriced = Vec::with_capacity(unpriced_len);
+        let mut queues: [[Vec<usize>; 2]; 2] = lengths.map(|q| q.map(Vec::with_capacity));
         for (k, trade) in trades.iter().enumerate() {
             match trade {
                 Some(t) => {
@@ -241,6 +260,7 @@ impl<F: FnMut() -> Amounts> Clvr<F> {
 
 impl<F: FnMut() -> Amounts> batch_driver::Sequencer for Clvr<F> {
     const GAS_PER_REQUEST: u64 = SEQUENCE_GAS;
+    const MAX_BATCH: u32 = MAX_BATCH;
 
     fn next(&mut self) -> usize {
         let k = match self.unpriced.pop() {

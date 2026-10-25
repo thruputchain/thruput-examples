@@ -196,6 +196,13 @@ pub trait Sequencer {
     /// The crank budgets this much on top of [`BatchRequest::GAS_LIMIT`] for each request.
     const GAS_PER_REQUEST: u64;
 
+    /// The most requests a batch may hold, however much gas a crank brings.
+    ///
+    /// A guest's memory is small and its allocator never frees, and a sequenced batch is held in
+    /// memory whole, so the batch a crank can afford may be more than it can hold. A crank asked
+    /// for more takes this many, and leaves the rest queued. (Set a pool's crank floor no higher.)
+    const MAX_BATCH: u32;
+
     /// The batch index of the next request to handle: one not yet chosen.
     fn next(&mut self) -> usize;
 
@@ -211,6 +218,7 @@ pub trait Sequencer {
 /// affordable *before* the first request is handled: a sequencer has to see the batch to order it.
 pub(crate) fn process_sequenced<R, S, F, E>(
     queue: &mut RCQ<R>,
+    capacity: u32,
     start: impl FnOnce(&[R]) -> S,
     mut handle: F,
 ) -> (u32, u32)
@@ -225,11 +233,17 @@ where
     #[cfg(feature = "calibration")]
     let mut picks = PickGas::start();
 
+    // The batch is allocated once, at the most it can come to: what the frame can afford, the
+    // sequencer can hold, and the queue can contain. An allocation is never given back, so growing
+    // it as it fills would hold every smaller allocation too.
+    let affordable = gas_remaining().saturating_sub(EPILOGUE_GAS) / per_request.max(1);
+    let most = affordable.min(u64::from(S::MAX_BATCH.min(capacity))) as usize;
+
     // As in `process`, a request leaves the queue only once this frame can afford to handle it. A
     // batch taken up front cannot pay as it goes, so each entry taken reserves its whole cost.
-    let mut batch = Vec::new();
+    let mut batch = Vec::with_capacity(most);
     let mut reserved = EPILOGUE_GAS;
-    while gas_remaining() > reserved.saturating_add(per_request) {
+    while batch.len() < most && gas_remaining() > reserved.saturating_add(per_request) {
         let Some(request) = queue.try_consume().none_if_missing() else {
             break;
         };
@@ -238,6 +252,7 @@ where
     }
 
     let mut sequencer = start(&batch);
+    // In place: an `Option` of a request is no larger than the request.
     let mut batch: Vec<Option<R>> = batch.into_iter().map(Some).collect();
 
     #[cfg(feature = "calibration")]

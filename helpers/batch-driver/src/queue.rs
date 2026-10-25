@@ -267,8 +267,9 @@ impl<R: BatchRequest> Queue<R> {
     /// same isolation of each request's failure, and the same events. What differs is that the
     /// batch is taken out of the queue whole, before any of it is handled, and passed to `start`,
     /// which builds the sequencer that orders it. The batch is as long as the frame can afford with
-    /// each request costing [`BatchRequest::GAS_LIMIT`] plus [`Sequencer::GAS_PER_REQUEST`]; size a
-    /// call with [`gas_for_sequenced_batch`](crate::gas_for_sequenced_batch).
+    /// each request costing [`BatchRequest::GAS_LIMIT`] plus [`Sequencer::GAS_PER_REQUEST`], up to
+    /// [`Sequencer::MAX_BATCH`]; size a call with
+    /// [`gas_for_sequenced_batch`](crate::gas_for_sequenced_batch).
     ///
     /// The order is the sequencer's alone to choose *within* a batch. Which requests make up the
     /// batch is still the queue's: the first it yields, so however a sequencer orders them, no
@@ -295,8 +296,9 @@ impl<R: BatchRequest> Queue<R> {
         #[cfg(feature = "calibration")]
         let entry_gas = gas_remaining();
 
+        // A crank owes no more than it may take.
         let per_request = sequenced_request_gas::<R, S>();
-        if !self.may_claim(|n| budget_for(per_request, n))? {
+        if !self.may_claim(|n| budget_for(per_request, n.min(S::MAX_BATCH)))? {
             return Ok((0, 0));
         }
 
@@ -313,8 +315,9 @@ impl<R: BatchRequest> Queue<R> {
         #[cfg(feature = "calibration")]
         let mut spent = HandlerGas::default();
 
+        let capacity = self.policy.get().capacity;
         let (n_processed, n_failed) =
-            process_sequenced(&mut self.requests, start, |request, gas_limit| {
+            process_sequenced(&mut self.requests, capacity, start, |request, gas_limit| {
                 let id = request.id();
 
                 #[cfg(feature = "calibration")]

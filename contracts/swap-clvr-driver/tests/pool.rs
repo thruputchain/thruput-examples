@@ -44,10 +44,36 @@ struct Pool {
 // Without anything to add liquidity with, the trades would all fail; a pool with liquidity, and
 // three traders who have let the handler take their tokens.
 fn pool() -> Pool {
+    pool_with(16)
+}
+
+// A pool whose driver holds up to `capacity` requests.
+//
+// Under `guest_test` the contracts are the RV32 artifacts `thruput build` made (with `erc20` built
+// `-F metadata`, as `scripts/build-guest.sh` builds it), run by the mock executor under the
+// protocol's limits -- its 64 KiB of guest memory among them.
+fn pool_with(capacity: u32) -> Pool {
     let env = TestEnvironment::new(None);
-    let token_hash = *erc20::register_mock_contract(&env).as_hash();
-    let handler_hash = *swap_handler::register_mock_contract(&env).as_hash();
-    let driver_hash = *swap_clvr_driver::register_mock_contract(&env).as_hash();
+
+    #[cfg(not(feature = "guest_test"))]
+    let (token_hash, handler_hash, driver_hash) = (
+        *erc20::register_mock_contract(&env).as_hash(),
+        *swap_handler::register_mock_contract(&env).as_hash(),
+        *swap_clvr_driver::register_mock_contract(&env).as_hash(),
+    );
+
+    #[cfg(feature = "guest_test")]
+    let (token_hash, handler_hash, driver_hash) = {
+        let load = |name: &str| {
+            let path = format!("../../target/thruput/{name}.rv32a");
+            env.setup_create_contract(&load_rv32_contract(path))
+        };
+        (
+            load("erc20"),
+            load("swap_handler"),
+            load("swap_clvr_driver"),
+        )
+    };
 
     let accounts: [&ContractAddress; 5] = [&TEST_ADDR, &FACTORY_ADDR, &PROVIDER, &ALICE, &MALLORY];
     for addr in accounts {
@@ -70,8 +96,13 @@ fn pool() -> Pool {
             deploy_contract(&TOKEN_1_NONCE, &token_hash),
         ];
         for token in &tokens {
+            #[cfg(not(feature = "guest_test"))]
+            ERC20Client::new(token).initialize(&TEST_ADDR);
+            #[cfg(feature = "guest_test")]
+            thruput_erc20_metadata_if::ERC20MetadataClient::new(token)
+                .initialize(&TEST_ADDR, None, None, None);
+
             let token = ERC20Client::new(token);
-            token.initialize(&TEST_ADDR);
             for user in users() {
                 token.mint(user, to_token(WALLET));
             }
@@ -97,7 +128,7 @@ fn pool() -> Pool {
 
     exec(&env, &FACTORY_ADDR, || {
         deploy_contract(&DRIVER_NONCE, &driver_hash);
-        SwapDriverClient::new(&driver).initialize(&handler, &ROUTER_ADDR, 16, 4);
+        SwapDriverClient::new(&driver).initialize(&handler, &ROUTER_ADDR, capacity, 4);
     });
     env.advance_block();
 
@@ -328,6 +359,38 @@ fn a_crank_owes_what_is_waiting_up_to_the_floor() {
 
     let paid = pool.crank_for(4);
     assert_eq!(paid.assert_return_as::<(u32, u32)>(), (4, 0));
+}
+
+// The largest batch a crank takes fits in the driver's memory, which holds it whole: `MAX_BATCH`
+// trades, ordered and handled in one crank. Natively memory is unbounded, so this shows something
+// only under `guest_test`. (`CLVR_BATCH` sets another size, to look for the limit.)
+#[test]
+fn the_largest_batch_fits() {
+    let n: u32 = std::env::var("CLVR_BATCH")
+        .map(|v| v.parse().unwrap())
+        .unwrap_or(clvr::MAX_BATCH);
+    let pool = pool_with(n.max(16));
+    pool.provide(POOL_DEPTH);
+    pool.crank().assert_success();
+
+    enqueue_trades(&pool, n);
+
+    let crank = pool.crank_for(n);
+    crank.assert_success();
+    assert_eq!(crank.assert_return_as::<(u32, u32)>(), (n, 0));
+}
+
+// Queue `n` small trades, in both directions and of both kinds, each in a block of its own.
+fn enqueue_trades(pool: &Pool, n: u32) {
+    for i in 0..n {
+        let size = POOL_DEPTH / 100_000 * Amount::from(1 + i % 7);
+        let in_index = i % 2;
+        pool.request(if i / 2 % 2 == 0 {
+            SwapRequest::swap_exact_in(&ALICE, size, 0, in_index, &ALICE)
+        } else {
+            SwapRequest::swap_exact_out(&ALICE, size, Amount::MAX, in_index, &ALICE)
+        });
+    }
 }
 
 /////////////////////// helpers /////////////////////////////////////////////

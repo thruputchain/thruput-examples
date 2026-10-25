@@ -46,8 +46,10 @@ dev = [
     "batch-driver/dev",
 ]
 calibration = ["batch-driver/calibration"]
+guest_test = [] # Test the contracts compiled to guest binaries (instead of compiling natively)
 
 [dev-dependencies]
+thruput-erc20-metadata-if = { workspace = true, features = ["dev"] }
 swap-gsr-driver = { path = ".", features = ["dev"] }
 
 [lints]

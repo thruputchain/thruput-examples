@@ -232,8 +232,14 @@ it -- so no request waits behind one admitted in a later block.
 Both implement the same `SwapDriver` interface as `swap-driver`, so a factory
 deploys one in its place by being given its code hash in `SwapHashes::driver`.
 Each request is still handled under commit-locking, in isolation, exactly once.
-Their per-request gas allowances for choosing (`PICK_GAS`, `SEQUENCE_GAS`) are
-placeholders until calibrated on a devnode.
+Choosing costs gas, so each budgets a little more per request than
+`swap-driver` (`PICK_GAS`, `SEQUENCE_GAS`, calibrated on a devnode by
+`scripts/swap-gas-calibrate.sh`). The CLVR driver holds its batch in memory, so
+it also caps a batch at what fits there (`clvr::MAX_BATCH`), whatever gas a
+crank brings.
+
+Whatever the driver, a crank can be no larger than one transaction's events
+allow: each swap emits five, and a transaction may emit 1000.
 
 [GSR]: https://arxiv.org/abs/2209.15569
 [CLVR]: https://arxiv.org/abs/2408.02634
