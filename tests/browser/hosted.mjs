@@ -117,7 +117,7 @@ try {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(origin);
       await page
-        .getByRole("heading", { name: "Try it. Build on it." })
+        .getByRole("navigation", { name: "Example apps" })
         .waitFor();
       assert.equal(await page.locator("nav a").count(), 4);
       assert.equal(

@@ -44,49 +44,42 @@ header {
   padding-block: 2rem;
 }
 .identity {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.75rem;
-  font-weight: 600;
+  flex-shrink: 0;
+  min-height: 2.25rem;
+  font: 500 1.25rem/1.2 InterVariable, system-ui, sans-serif;
   text-decoration: none;
+  white-space: nowrap;
+}
+.identity img {
+  width: 6.25rem;
+  height: 1.5625rem;
+}
+.brand-divider {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--border);
 }
 img {
   display: block;
 }
-.network,
 .number {
   font-family: Inconsolata, ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
-.network {
-  border-left: 3px solid #fdda24;
-  padding-left: 0.75rem;
-}
 main {
   isolation: isolate;
 }
-.intro {
-  padding-block: 4rem 3rem;
-}
-h1,
 h2 {
   font-weight: 500;
   text-wrap: balance;
   letter-spacing: -0.035em;
 }
-h1 {
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
-  max-width: 24ch;
-  margin: 0 0 1.5rem;
-}
 p {
   line-height: 1.65;
   text-wrap: pretty;
-}
-.intro p {
-  max-width: 48ch;
-  color: var(--muted);
-  font-size: 1.25rem;
 }
 a {
   color: inherit;
@@ -150,6 +143,22 @@ footer a {
 @media (min-width: 40rem) {
   .apps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 30rem) {
+  .brand-name {
+    max-width: 7ch;
+    white-space: normal;
+  }
+}
+@media (max-width: 24rem) {
+  .identity {
+    gap: 0.5rem;
+    font-size: 1.0625rem;
+  }
+  .identity img {
+    width: 5rem;
+    height: 1.25rem;
   }
 }
 @media (prefers-color-scheme: dark) {
