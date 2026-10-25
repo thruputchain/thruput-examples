@@ -67,11 +67,12 @@ const BALANCE_MAX: Amount = i128::MAX as Amount;
 ///
 /// Calibrated on a devnode by `scripts/swap-gas-calibrate.sh` (what a crank spent beyond its
 /// handler calls, less what `swap-driver`'s did), and held at about twice the most it came to. The
-/// dearest batch per request is the smallest: a batch of one cost some 133k (most of it the first
-/// read of the pool's state, which touches the LP token cold), two 74k a request, five 47k. Past that, placing a request costs more as the batch grows -- `clvr-bench` measured
-/// the ordering alone at 9k a request for one trade, 41k for 32 and 59k for 128 -- but the read is
-/// shared, so no batch up to [`MAX_BATCH`] comes near the first.
-pub const SEQUENCE_GAS: u64 = 270_000;
+/// dearest batch per request is the smallest: a batch of one cost some 97k (most of it the first
+/// read of the pool's state, which touches the LP token cold), two 57k a request, five 39k. Past
+/// that, placing a request costs more as the batch grows -- `clvr-bench` measured the ordering
+/// alone at 9k a request for one trade, 41k for 32 and 57k for 112 -- but the read is shared, so
+/// no batch up to [`MAX_BATCH`] comes near the first.
+pub const SEQUENCE_GAS: u64 = 200_000;
 
 /// The most requests a CLVR crank orders at once: what fits in the driver's memory, which holds the
 /// whole batch.

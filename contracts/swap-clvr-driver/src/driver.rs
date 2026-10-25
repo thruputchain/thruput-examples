@@ -2,9 +2,9 @@
 //!
 //! This is `swap-driver` with one change: where that driver hands requests to the handler in the
 //! order its queue yields them, this one takes a crank's whole batch out of the queue first and
-//! hands it over in the order [`Clvr`](crate::clvr::Clvr) chooses. Everything else -- who may enqueue, the crank's
-//! floor and claim, the isolation of each request, the events -- is the batch-driver pattern's, as
-//! there. It implements the same `SwapDriver` interface, so a factory deploys it in place of
+//! hands it over in the order [`Clvr`](crate::clvr::Clvr) chooses. Everything else -- who may
+//! enqueue, the crank's floor and claim, the isolation of each request, the events -- is the
+//! batch-driver pattern's, as there. It implements the same `SwapDriver` interface, so a factory deploys it in place of
 //! `swap-driver` simply by being given its code hash.
 
 use crate::cfg::*;

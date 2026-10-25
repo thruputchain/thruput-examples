@@ -44,9 +44,9 @@ pub const RAISES: usize = 2;
 ///
 /// Calibrated on a devnode by `scripts/swap-gas-calibrate.sh` (what a crank spent beyond its
 /// handler calls, less what `swap-driver`'s did), and held at about twice the most it came to: some
-/// 129k a request for a batch of one, almost all of it the first read of the pool's state, which
-/// touches the LP token cold; 72k for two, 39k for five.
-pub const PICK_GAS: u64 = 260_000;
+/// 93k a request for a batch of one, most of it the first read of the pool's state, which touches
+/// the LP token cold; 55k for two, 33k for five.
+pub const PICK_GAS: u64 = 190_000;
 
 /// The lane a request waits in.
 pub fn lane_of(op: &SwapOp) -> usize {
