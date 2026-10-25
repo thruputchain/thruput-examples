@@ -3108,6 +3108,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "swap-gsr-driver"
+version = "0.1.0"
+dependencies = [
+ "batch-driver",
+ "erc20",
+ "swap-gsr-driver",
+ "swap-handler",
+ "swap-if",
+ "swap-pair",
+ "thruput-erc20-if",
+ "thruput-sdk",
+]
+
+[[package]]
 name = "swap-handler"
 version = "0.1.0"
 dependencies = [

@@ -79,12 +79,14 @@ extern crate alloc;
 
 mod drain;
 mod events;
+mod lanes;
 mod queue;
 
 pub use drain::{
     BatchRequest, CLAIM_GAS, EPILOGUE_GAS, Sequencer, gas_for_batch, gas_for_sequenced_batch,
 };
 pub use events::{Cause, EXCEPTION_PAYLOAD_MAX, RequestAccepted, RequestFailed, RequestsProcessed};
+pub use lanes::{LanePicker, LanedQueue, gas_for_laned_batch};
 #[cfg(feature = "calibration")]
 pub use queue::GasReport;
 pub use queue::{CrankPolicy, InvalidPolicy, Queue, Starved};

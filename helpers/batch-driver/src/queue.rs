@@ -328,45 +328,59 @@ impl<R: BatchRequest> Queue<R> {
         Ok((n_processed, n_failed))
     }
 
-    // Whether a crank may claim this block's drain, given what a batch of `n` costs it once
-    // claimed; `Err(Starved)` if it may not, for want of gas it owes.
+    // Whether a crank may claim this block's drain; see `may_claim`.
     fn may_claim(&self, budget: impl Fn(u32) -> u64) -> Result<bool, Starved> {
-        let policy = self.policy.get();
-        let capacity = i128::from(policy.capacity);
-        // How deep the queue was at this block's snapshot. (The remaining capacity can read
-        // negative mid-transaction.)
-        let queued = (capacity - self.slots.get_remaining_capacity()).clamp(0, capacity) as u32;
-        let owed = queued.min(policy.min_batch);
-
-        // Nothing to drain, so nothing to claim.
-        if self.requests.try_peek().none_if_missing().is_none() {
-            return Ok(false);
-        }
-
-        // Claim only if, the claim having been paid for, this crank can still fund what the queue
-        // owes, and at least one request: a crank that claimed and then drained nothing would hold
-        // the block's drain from everyone. (Nothing is owed when what is waiting arrived in this
-        // block; a crank that cannot fund one request then stays the free no-op it would be on an
-        // empty queue.)
-        if gas_remaining() < CLAIM_GAS.saturating_add(budget(owed.max(1))) {
-            return if owed > 0 { Err(Starved) } else { Ok(false) };
-        }
-
-        Ok(true)
+        let waiting = self.requests.try_peek().none_if_missing().is_some();
+        may_claim(&self.policy, &self.slots, waiting, budget)
     }
 
-    // Account for a drained batch: give back the room it took, and summarize it.
     fn settle(&mut self, n_processed: u32, n_failed: u32) {
-        if n_processed > 0 {
-            // Every entry the batch took is out of the queue, including the ones whose handling
-            // failed. (Negative consumption is a release.)
-            self.slots.consume_capacity(-i128::from(n_processed));
+        settle(&mut self.slots, n_processed, n_failed);
+    }
+}
 
-            log_event(&RequestsProcessed {
-                processed: n_processed,
-                failed: n_failed,
-            });
-        }
+// Whether a crank may claim this block's drain, given whether anything is `waiting` and what a
+// batch of `n` costs it once claimed; `Err(Starved)` if it may not, for want of gas it owes.
+pub(crate) fn may_claim(
+    policy: &Value<CrankPolicy>,
+    slots: &CapacityConstraint,
+    waiting: bool,
+    budget: impl Fn(u32) -> u64,
+) -> Result<bool, Starved> {
+    let policy = policy.get();
+    let capacity = i128::from(policy.capacity);
+    // How deep the queue was at this block's snapshot. (The remaining capacity can read negative
+    // mid-transaction.)
+    let queued = (capacity - slots.get_remaining_capacity()).clamp(0, capacity) as u32;
+    let owed = queued.min(policy.min_batch);
+
+    // Nothing to drain, so nothing to claim.
+    if !waiting {
+        return Ok(false);
+    }
+
+    // Claim only if, the claim having been paid for, this crank can still fund what the queue owes,
+    // and at least one request: a crank that claimed and then drained nothing would hold the
+    // block's drain from everyone. (Nothing is owed when what is waiting arrived in this block; a
+    // crank that cannot fund one request then stays the free no-op it would be on an empty queue.)
+    if gas_remaining() < CLAIM_GAS.saturating_add(budget(owed.max(1))) {
+        return if owed > 0 { Err(Starved) } else { Ok(false) };
+    }
+
+    Ok(true)
+}
+
+// Account for a drained batch: give back the room it took, and summarize it.
+pub(crate) fn settle(slots: &mut CapacityConstraint, n_processed: u32, n_failed: u32) {
+    if n_processed > 0 {
+        // Every entry the batch took is out of the queue, including the ones whose handling failed.
+        // (Negative consumption is a release.)
+        slots.consume_capacity(-i128::from(n_processed));
+
+        log_event(&RequestsProcessed {
+            processed: n_processed,
+            failed: n_failed,
+        });
     }
 }
 

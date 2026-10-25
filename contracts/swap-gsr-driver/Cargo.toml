@@ -1,0 +1,53 @@
+[package]
+name = "swap-gsr-driver"
+version = "0.1.0"
+edition = "2024"
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+
+[[bin]]
+name = "swap_gsr_driver"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+thruput-sdk = { workspace = true }
+batch-driver = { path = "../../helpers/batch-driver" }
+swap-if = { path = "../../interfaces/swap-if" }
+
+# Optional, for native tests
+erc20 = { path = "../erc20", features = ["dev"], optional = true }
+thruput-erc20-if = { workspace = true, optional = true }
+swap-handler = { path = "../swap-handler", optional = true }
+swap-pair = { path = "../../engines/swap-pair", optional = true }
+
+[features]
+entrypoints = ["thruput-sdk/alloc"]
+dev = [
+    "thruput-sdk/dev",
+    "dep:erc20",
+    "dep:thruput-erc20-if",
+    "dep:swap-handler",
+    "swap-handler/dev",
+    "dep:swap-pair",
+    "swap-pair/dev",
+    "swap-if/dev",
+    "batch-driver/dev",
+]
+
+[dev-dependencies]
+swap-gsr-driver = { path = ".", features = ["dev"] }
+
+[lints]
+clippy.result_large_err = "allow"
