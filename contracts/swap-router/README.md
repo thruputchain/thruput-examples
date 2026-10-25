@@ -16,6 +16,9 @@ Thruput of UniswapV2, adding a request-batching layer:
   each to its handler, all in the same block. Generic parts of this pattern are
    provided by [`helpers/batch-driver`](../../helpers/batch-driver/src/lib.rs),
   whose module docs cover the pattern in general.
+- `swap-clvr-driver`: A drop-in alternative to `swap-driver` that hands each
+  batch to the handler in the order the CLVR rule chooses; see
+  [Ordering a Batch](#ordering-a-batch-clvr).
 - `swap-factory`: Creates new pairs and keeps a registry of them.
 - `swap-router`: High-level facilities similar to those in [UniswapV2Router02];
   it builds `SwapRequest` values and enqueues them with the driver for the
@@ -164,6 +167,50 @@ An operator wanting better latency can run a keeper that cranks every block.
 The two compose without a mode switch: while the keeper runs, it claims each
 block and users' cranks find nothing to do; if it stops, theirs start winning
 the very next block. Nothing has to detect which is happening.
+
+## Ordering a Batch: CLVR
+
+`swap-driver` hands a batch to the handler in the order its queue yields it:
+arrival order between blocks, but within a block just the order of the
+entries' bytes. Every trade moves the price the next one sees, so that order
+decides who trades at what price, and it is arbitrary.
+
+[`swap-clvr-driver`](../swap-clvr-driver/src/clvr.rs) chooses it instead, by
+the CLVR rule ([McLaughlin, Chemaya, Liu and Malkhi][CLVR]): of the trades not
+yet placed, take the one that leaves the price nearest where the batch found
+it. That keeps the price's path through the batch close to its starting point,
+and it undoes a sandwich: the attacker's two legs all but cancel, so whichever
+moves the price first, the other is placed next, and the victim's trade is
+never between them. The order is a function of the batch and the reserves, so
+whoever cranks has no say in it.
+
+The rule is greedy, and the paper's appendix makes each step cheap with **two
+queues**: one of the trades that pay token0 in (and lower the price), one of
+those that pay token1 in (and raise it), each sorted by size. From above the
+starting price, the smallest price-raising trade is the best of its queue, and
+the best price-lowering one sits either side of the size that would land on the
+starting price, which a binary search finds; from below, the roles swap. (Each
+queue keeps exact-in and exact-out trades in separate sorted runs, since which
+of those two moves the price further depends on the reserves at the time.)
+
+The batch is still the first requests the queue yields -- CLVR only orders
+*within* it -- so no request waits behind one admitted in a later block. Adding and
+removing liquidity do not move the price, so they run first, at the price the
+batch found. Slippage limits play no part in the order: a trade its limit
+refuses changes nothing, and the next step starts from the same price.
+
+The ordering needs the whole batch before handling any of it, so this driver
+uses `batch_driver::Queue::crank_sequenced` rather than `crank`: the batch is
+taken out of the queue up front, sized by the caller's gas limit with each
+request's worst case plus the sequencer's share, and handed to a
+`batch_driver::Sequencer`. Each request is still handled under commit-locking,
+in isolation, exactly once.
+
+The driver implements the same `SwapDriver` interface as `swap-driver`, so a
+factory deploys it in place of that one by being given its code hash in
+`SwapHashes::driver`.
+
+[CLVR]: https://arxiv.org/abs/2408.02634
 
 ## Trust and Permissions
 
