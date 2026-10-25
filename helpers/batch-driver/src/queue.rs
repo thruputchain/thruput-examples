@@ -282,6 +282,7 @@ impl<R: BatchRequest> Queue<R> {
                 processed: n_processed,
                 claim: claim_gas,
                 dearest_request: spent.dearest,
+                handlers_total: spent.total,
                 tail: after_process.saturating_sub(here),
                 beyond_handlers: entry_gas
                     .saturating_sub(here)
@@ -319,7 +320,10 @@ impl HandlerGas {
 ///
 /// * [`CLAIM_GAS`] must cover `claim`, what claiming the drain cost.
 /// * [`BatchRequest::GAS_LIMIT`] must bound `dearest_request`, since it is the
-///   cap the drain puts on a single handler call.
+///   cap the drain puts on a single handler call. `handlers_total` is what
+///   every handler call in the batch cost together, so that a batch's later
+///   requests -- which find the keys its earlier ones loaded already warm --
+///   can be told apart from its first.
 /// * [`EPILOGUE_GAS`] must cover `beyond_handlers`, which is everything the
 ///   crank spent that was neither a handler call nor the claim: entering, checking the budget,
 ///   consuming and decoding each entry, releasing capacity, and the summary
@@ -336,6 +340,7 @@ pub struct GasReport {
     pub processed: u32,
     pub claim: u64,
     pub dearest_request: u64,
+    pub handlers_total: u64,
     pub tail: u64,
     pub beyond_handlers: u64,
 }

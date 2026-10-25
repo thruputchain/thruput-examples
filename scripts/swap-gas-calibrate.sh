@@ -5,7 +5,8 @@
 #
 # This builds the driver with `calibration`, which makes `crank` report its own
 # spending as a `GasReport` event, runs one request of each kind through a local
-# node, and prints what it charged.
+# node, and prints what it charged. It then cranks a batch of swaps at once, to
+# show what a batch's later requests cost beside its first.
 #
 # The artifacts it builds are instrumented: rebuild without `calibration`
 # before using them for anything else.
@@ -26,6 +27,6 @@ export THRUPUT_TESTKIT_ARTIFACT_ROOT="$artifact_root"
 
 cargo test -p swap-router \
     --features calibration \
-    --test calibration calibrate_crank_gas \
+    --test calibration calibrate_ \
     -- \
     --ignored --no-capture

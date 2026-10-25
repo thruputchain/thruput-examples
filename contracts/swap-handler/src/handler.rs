@@ -3,6 +3,7 @@
 use crate::library::*;
 use swap_if::*;
 use swap_pair::Pair;
+use thruput_erc20_if::ERC20Client;
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
 
@@ -14,15 +15,12 @@ const B: usize = 1;
 /// State for the request-handler contract
 #[storage]
 pub struct Handler {
-    // The only contract whose requests this one will handle. A request names the account whose
-    // tokens it spends, so admitting anyone here would let anyone spend anyone's allowance to this
-    // contract.
-    driver: Value<Address>,
-
     // Written exclusively by `claim_crank`, to claim a block's drain.
     crank_claim: Value<()>,
 
-    // State for the swap-pool itself.
+    // State for the swap-pool itself. Its configuration also records the driver: the only contract
+    // whose requests this one will handle. A request names the account whose tokens it spends, so
+    // admitting anyone here would let anyone spend anyone's allowance to this contract.
     pair: Node<Pair>,
 }
 
@@ -36,11 +34,11 @@ impl SwapHandler for Handler {
         lp_token: &Address,
         driver: &Address,
     ) {
-        self.driver.set(driver);
-
-        // The pair holds the pool's configuration (the tokens, the LP token, the factory) and
-        // refuses a second initialization itself, so there is nothing for this contract to record.
-        self.pair.initialize(factory, token0, token1, lp_token);
+        // The pair holds the pool's configuration (the tokens, the LP token, the factory, the
+        // driver) and refuses a second initialization itself, so there is nothing for this contract
+        // to record.
+        self.pair
+            .initialize(factory, token0, token1, lp_token, driver);
     }
 
     fn pool_state(&self) -> PoolState {
@@ -64,23 +62,26 @@ impl SwapHandler for Handler {
     }
 
     fn handle_request(&mut self, request: SwapRequest) {
+        // Read once, here, and handed down: every read of it decodes the whole configuration.
+        let config = self.pair.config();
         ensure(
-            get_caller() == self.driver.get(),
+            get_caller() == config.driver,
             SwapRequestError::Unauthorized,
         );
 
+        let tokens = config.tokens;
         let request_id = request.request_id;
         match request.op {
-            SwapOp::AddLiquidity(req) => self.handle_add_liquidity(req, request_id),
+            SwapOp::AddLiquidity(req) => self.handle_add_liquidity(req, request_id, tokens),
             SwapOp::RemoveLiquidity(req) => self.handle_remove_liquidity(req, request_id),
-            SwapOp::SwapExactIn(req) => self.handle_swap_exact_in(req, request_id),
-            SwapOp::SwapExactOut(req) => self.handle_swap_exact_out(req, request_id),
+            SwapOp::SwapExactIn(req) => self.handle_swap_exact_in(req, request_id, tokens),
+            SwapOp::SwapExactOut(req) => self.handle_swap_exact_out(req, request_id, tokens),
         }
     }
 
     fn claim_crank(&mut self) {
         ensure(
-            get_caller() == self.driver.get(),
+            get_caller() == self.pair.config().driver,
             SwapRequestError::Unauthorized,
         );
 
@@ -92,7 +93,12 @@ impl SwapHandler for Handler {
 
 impl Handler {
     // Provide liquidity, computing the optimal A/B ratio from live reserves.
-    fn handle_add_liquidity(&mut self, req: AddLiquidityRequest, request_id: RequestId) {
+    fn handle_add_liquidity(
+        &mut self,
+        req: AddLiquidityRequest,
+        request_id: RequestId,
+        tokens: Addresses,
+    ) {
         let (reserve_a, reserve_b, _) = self.pair.get_reserves();
 
         let amounts: Amounts = if reserve_a == 0 && reserve_b == 0 {
@@ -112,7 +118,7 @@ impl Handler {
         };
 
         // Take the purchaser's tokens into the pool, then mint LP to the recipient.
-        self.transfer_amounts_from(&req.purchaser, amounts);
+        Self::transfer_amounts_from(&tokens, &req.purchaser, amounts);
         let minted = self.pair.mint_lp(&req.recipient);
 
         log_event(&LiquidityMintEvent::new(
@@ -155,7 +161,12 @@ impl Handler {
     }
 
     // Swap an exact input amount for as much output as possible.
-    fn handle_swap_exact_in(&mut self, req: SwapExactInRequest, request_id: RequestId) {
+    fn handle_swap_exact_in(
+        &mut self,
+        req: SwapExactInRequest,
+        request_id: RequestId,
+        tokens: Addresses,
+    ) {
         let in_index = req.in_index as usize;
         let out_index = 1 - in_index;
 
@@ -171,7 +182,7 @@ impl Handler {
         let mut amounts_out: Amounts = [0, 0];
         amounts_out[out_index] = amount_out;
 
-        self.transfer_amounts_from(&req.trader, amounts_in);
+        Self::transfer_amounts_from(&tokens, &req.trader, amounts_in);
         let amounts_in = self
             .pair
             .swap(amounts_out[0], amounts_out[1], &req.recipient);
@@ -186,7 +197,12 @@ impl Handler {
     }
 
     // Swap as little input as possible for an exact output amount.
-    fn handle_swap_exact_out(&mut self, req: SwapExactOutRequest, request_id: RequestId) {
+    fn handle_swap_exact_out(
+        &mut self,
+        req: SwapExactOutRequest,
+        request_id: RequestId,
+        tokens: Addresses,
+    ) {
         let in_index = req.in_index as usize;
         let out_index = 1 - in_index;
 
@@ -202,7 +218,7 @@ impl Handler {
         let mut amounts_out: Amounts = [0, 0];
         amounts_out[out_index] = req.amount_out;
 
-        self.transfer_amounts_from(&req.trader, amounts_in);
+        Self::transfer_amounts_from(&tokens, &req.trader, amounts_in);
         let amounts_in = self
             .pair
             .swap(amounts_out[0], amounts_out[1], &req.recipient);
@@ -222,13 +238,16 @@ impl Handler {
     // so a deposit is a transfer to here, and the pair's balance-delta accounting reads this
     // contract's balances.
 
-    fn transfer_amounts_from(&self, owner: &Address, amounts: Amounts) {
+    fn transfer_amounts_from(tokens: &Addresses, owner: &Address, amounts: Amounts) {
         let to = get_current_address();
-        let tokens = self.pair.tokens();
 
         for i in 0..=1 {
             if amounts[i] > 0 {
-                tokens[i].transfer_from(owner, &to, swap_pair::to_token(amounts[i]));
+                ERC20Client::new(&tokens[i]).transfer_from(
+                    owner,
+                    &to,
+                    swap_pair::to_token(amounts[i]),
+                );
             }
         }
     }

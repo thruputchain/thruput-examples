@@ -32,7 +32,7 @@ Set `THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"` for live scenarios.
 | --- | --- | --- |
 | `bash scripts/permit-live.sh` | Sign an off-chain permit and relay it on a devnode | Builds token/wallet/relayer artifacts; runs an ignored live test |
 | `bash scripts/swap-sim.sh` | Multi-agent Swap liquidity scenario | Builds Swap artifacts; runs an ignored live test |
-| `bash scripts/swap-gas-calibrate.sh` | Measure per-request crank gas | Overwrites the driver artifact with an instrumented build; rebuild normally afterward |
+| `bash scripts/swap-gas-calibrate.sh` | Measure per-request crank gas, alone and in a batch | Overwrites the driver artifact with an instrumented build; rebuild normally afterward |
 | `bash scripts/speedex-bench.sh` | Measure exchange quality and on-node gas | Temporarily edits the Speedex manifest; leaves an artifact with a different memory budget; writes CSVs under `target/` |
 | `python3 scripts/speedex-plot.py` | Plot benchmark CSVs | Python and matplotlib; writes figures under `target/speedex-bench/` |
 

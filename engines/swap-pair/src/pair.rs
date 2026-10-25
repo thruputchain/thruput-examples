@@ -30,18 +30,38 @@ pub fn to_token(amount: u128) -> i128 {
     i128::try_from(amount).unwrap_or_else(|_| throw(ERC20Error::TooLarge))
 }
 
+/// The pool's configuration: everything set once, at creation, and never
+/// changed.
+///
+/// One value rather than a field apiece, because every field of a storage
+/// struct is a key of its own, and a transaction's first read of a key is a
+/// database load priced at tens of thousands of gas -- more than the rest of a
+/// swap's arithmetic put together. Kept together, a request's configuration is
+/// one cold read however many of these it consults.
+#[contract_type]
+#[derive(Copy, Clone, Debug)]
+pub struct PoolConfig {
+    // Token (A, B) addresses
+    pub tokens: [Address; 2],
+
+    // A subsidiary ERC20 contract, implementing the LP token.
+    pub lp_token: Address,
+
+    // The factory that created this pair.  The pair consults it for the
+    // protocol `fee_to` (cf. UniswapV2Pair reading `factory.feeTo()`).
+    pub factory: Address,
+
+    // The only contract whose requests swap-handler will handle.  The pair
+    // never reads it; it is the handler's, and lives here only to share the
+    // key.
+    pub driver: Address,
+}
+
 /// The pair's state.
 #[derive(Storage)]
 pub struct Pair {
-    // Configuration: token (A, B) addresses
-    tokens: Value<[Address; 2]>,
-
-    // Configuration: A subsidiary ERC20 contract, implementing the LP token.
-    lp_addr: Value<Address>,
-
-    // Configuration: the factory that created this pair.  The pair consults it
-    // for the protocol `fee_to` (cf. UniswapV2Pair reading `factory.feeTo()`).
-    factory: Value<Address>,
+    // Configuration
+    config: Value<PoolConfig>,
 
     // State: the reserve product (k) as of the most recent liquidity event,
     // used to compute the protocol fee.  Zero while the fee is disabled.
@@ -61,14 +81,18 @@ impl Pair {
         token1: &Address,
         // Deployed but not initialized:
         lp_token: &Address,
+        driver: &Address,
     ) {
-        if self.lp_addr.try_get().none_if_missing().is_some() {
+        if self.config.try_get().none_if_missing().is_some() {
             throw(SwapPairError::AlreadyInitialized);
         }
 
-        self.lp_addr.set(lp_token);
-        self.tokens.set(&[*token0, *token1]);
-        self.factory.set(factory);
+        self.config.set(&PoolConfig {
+            tokens: [*token0, *token1],
+            lp_token: *lp_token,
+            factory: *factory,
+            driver: *driver,
+        });
         self.k_last.set(&U256::ZERO);
         self.reserves.set(&Reserves::new());
 
@@ -76,9 +100,14 @@ impl Pair {
         self.lp().initialize(&get_current_address());
     }
 
+    /// The pool's configuration.
+    pub fn config(&self) -> PoolConfig {
+        self.config.get()
+    }
+
     /// The LP token this pair mints and burns.
     pub fn liquidity_token(&self) -> ContractAddress {
-        self.lp_addr.get()
+        self.config.get().lp_token
     }
 
     /// The last-recorded reserves, and when they were recorded.
@@ -110,7 +139,7 @@ impl Pair {
         let prev_balances = reserves.balances();
 
         // Get the current reserve balances, now that the LP has made transfers to us
-        let balances = self.get_token_balances();
+        let balances = Self::token_balances(&self.tokens());
 
         // Record the new balances
         reserves.update(balances);
@@ -173,7 +202,8 @@ impl Pair {
     ///
     /// Returns the amounts redeemed.
     pub fn burn_lp(&mut self, recipient: &Address) -> Amounts {
-        let balances = self.get_token_balances();
+        let tokens = self.tokens();
+        let balances = Self::token_balances(&tokens);
 
         let lp = self.lp();
 
@@ -201,18 +231,19 @@ impl Pair {
         );
 
         // Vaporize our LP tokens: we hold them, so this is a holder's burn.
-        ERC20BurnClient::new(&self.lp_addr.get()).burn(to_token(lp_returned));
+        ERC20BurnClient::new(&self.liquidity_token()).burn(to_token(lp_returned));
 
         // Return pair tokens to the user
-        self.transfer_to(recipient, amounts);
+        Self::transfer_to(&tokens, recipient, amounts);
 
         // Update the record of our holdings
-        self.sync();
+        let balances = Self::token_balances(&tokens);
+        self.record_balances(balances);
 
         // Record k for the next fee computation (reserves now reflect the
         // post-burn balances).
         if fee_on {
-            self.set_k_last(self.get_token_balances());
+            self.set_k_last(balances);
         }
 
         // Return amounts redeemed
@@ -251,13 +282,14 @@ impl Pair {
             recipient != &addrs[0] && recipient != &addrs[1],
             SwapPairError::InvalidDestination,
         );
+        let tokens = addrs.map(|ref addr| ERC20Client::new(addr));
 
-        self.transfer_to(recipient, amounts_out);
+        Self::transfer_to(&tokens, recipient, amounts_out);
 
         // Optional TODO: Callback for flash-swap goes here.
 
         // Update the snapshot of reserve balances
-        let balances = self.get_token_balances();
+        let balances = Self::token_balances(&tokens);
         reserves.update(balances);
         self.reserves.set(&reserves);
 
@@ -293,14 +325,15 @@ impl Pair {
         let reserves = self.reserves.get();
         let prev_balances = reserves.balances();
 
-        let cur_balances = self.get_token_balances();
+        let tokens = self.tokens();
+        let cur_balances = Self::token_balances(&tokens);
 
         let surpluses = [
             cur_balances[0].strict_sub(prev_balances[0]),
             cur_balances[1].strict_sub(prev_balances[1]),
         ];
 
-        self.transfer_to(to, surpluses);
+        Self::transfer_to(&tokens, to, surpluses);
     }
 
     /// Record the pair's actual balances as its reserves. Emits `SyncEvent`.
@@ -316,7 +349,11 @@ impl Pair {
     /// next real update accounts for the whole interval exactly as a chain of
     /// idle syncs would have.
     pub fn sync(&mut self) {
-        let balances = self.get_token_balances();
+        self.record_balances(Self::token_balances(&self.tokens()));
+    }
+
+    // Record `balances` as the reserves, as `sync` does.
+    fn record_balances(&mut self, balances: Amounts) {
         let mut reserves = self.reserves.load_mut();
         if reserves.balances() == balances {
             // Read only: the guard drops without writing.
@@ -333,12 +370,12 @@ impl Pair {
 
     /// The LP token, as a client.
     pub fn lp(&self) -> ERC20Client {
-        ERC20Client::new(&self.lp_addr.get())
+        ERC20Client::new(&self.liquidity_token())
     }
 
     // The protocol-fee recipient, as reported by our factory.
     fn fee_to(&self) -> Option<Address> {
-        SwapFactoryClient::new(&self.factory.get())
+        SwapFactoryClient::new(&self.config.get().factory)
             .try_fee_to()
             .ok()
             .flatten()
@@ -346,7 +383,7 @@ impl Pair {
 
     /// The pool's two token addresses.
     pub fn token_addrs(&self) -> [Address; 2] {
-        self.tokens.get()
+        self.config.get().tokens
     }
 
     /// The pool's two tokens, as clients.
@@ -402,22 +439,25 @@ impl Pair {
             .set(&U256::widening_mul(balances[0], balances[1]));
     }
 
-    // Get our holdings of the A/B tokens
-    fn get_token_balances(&self) -> Amounts {
-        self.tokens().map(|t| from_token(t.get_balance()))
+    // Get our holdings of the A/B tokens.
+    //
+    // These helpers take the tokens rather than reading them from `config`,
+    // which an operation has already done: a warm read still costs a syscall
+    // and decoding the whole configuration.
+    fn token_balances(tokens: &[ERC20Client; 2]) -> Amounts {
+        tokens.each_ref().map(|t| from_token(t.get_balance()))
     }
 
-    fn transfer_to(&mut self, to: &Address, amounts: Amounts) {
-        self.try_transfer_to(to, amounts)
-            .unwrap_or_else(|e| throw(e));
+    fn transfer_to(tokens: &[ERC20Client; 2], to: &Address, amounts: Amounts) {
+        Self::try_transfer_to(tokens, to, amounts).unwrap_or_else(|e| throw(e));
     }
 
     fn try_transfer_to(
-        &mut self,
+        tokens: &[ERC20Client; 2],
         recipient: &Address,
         amounts: Amounts,
     ) -> Result<(), SwapPairError> {
-        for (token, amount) in zip(self.tokens(), amounts) {
+        for (token, amount) in zip(tokens, amounts) {
             token
                 .try_transfer(recipient, to_token(amount))
                 .map_err(|_| SwapPairError::TransferFailed)?;
