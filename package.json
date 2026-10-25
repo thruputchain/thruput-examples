@@ -13,6 +13,8 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "setup:local": "node scripts/apps.mjs setup:local",
+    "dev": "node scripts/apps.mjs dev",
     "test": "npm run test --workspaces && vitest run scripts/seed tests/examples --environment node && node --test tests/e2e/helpers/process-groups.test.mjs",
     "typecheck": "npm run typecheck --workspaces && tsc -p scripts/seed/tsconfig.json && tsc -p examples/typescript/tsconfig.json",
     "examples:generate": "bash examples/typescript/generate.sh",
@@ -26,6 +28,7 @@
     "example:consume-firehose": "tsx examples/typescript/consume-firehose.ts",
     "test:examples": "node tests/e2e/typescript-examples.mjs",
     "test:browser": "node tests/browser/apps.mjs",
+    "test:hosted": "node tests/browser/hosted.mjs",
     "test:counter": "tsx tests/e2e/counter.ts",
     "test:seed": "tsx tests/e2e/seed.ts",
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"

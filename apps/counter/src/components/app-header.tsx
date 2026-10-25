@@ -11,18 +11,18 @@ export function AppHeader({
     <header className="border-b bg-background">
       <div className="mx-auto flex min-h-20 max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:min-h-22">
         <a
-          href="/"
+          href={import.meta.env.BASE_URL}
           aria-label="Thruput Counter homepage"
           className="flex min-h-12 items-center gap-2.5 justify-self-start"
         >
           <div className="flex items-center gap-2 whitespace-nowrap text-[17px] font-medium min-[384px]:gap-3 min-[384px]:text-xl">
             <picture className="shrink-0">
               <source
-                srcSet="/brand/stellar-dark.svg"
+                srcSet={`${import.meta.env.BASE_URL}brand/stellar-dark.svg`}
                 media="(prefers-color-scheme: dark)"
               />
               <img
-                src="/brand/stellar.svg"
+                src={`${import.meta.env.BASE_URL}brand/stellar.svg`}
                 width="100"
                 height="25"
                 alt="Stellar"

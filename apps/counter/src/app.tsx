@@ -26,7 +26,7 @@ export function App() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     async function start() {
       try {
-        const response = await fetch("/api/config", {
+        const response = await fetch(`${import.meta.env.BASE_URL}api/config`, {
           signal: controller.signal,
         });
         const body: unknown = await response.json();
@@ -37,7 +37,8 @@ export function App() {
         const config = parseConfig(body);
         const client = await createPublicClient(
           config,
-          new URL("/thruput-rpc", location.origin).href,
+          new URL(`${import.meta.env.BASE_URL}thruput-rpc`, location.origin)
+            .href,
         );
         if (!controller.signal.aborted)
           setRuntime({ config, client, queries: new QueryClient() });

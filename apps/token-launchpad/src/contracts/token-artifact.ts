@@ -15,7 +15,7 @@ export async function loadStandardTokenArtifact(
 ): Promise<Contract> {
   const response = await fetch(
     new URL(
-      `/contract-artifacts/${toBase58(expectedHash)}.json`,
+      `${import.meta.env.BASE_URL}contract-artifacts/${toBase58(expectedHash)}.json`,
       window.location.origin,
     ),
     {

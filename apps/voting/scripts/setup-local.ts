@@ -10,6 +10,8 @@ import {
   hashFromBase58,
   Ed25519Signer,
   toBase58,
+  type ConnectedThruputClient,
+  type AirdropActions,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
 import { prepareContractDeployment } from "@thruputchain/client/wallet";
@@ -43,7 +45,7 @@ export async function localClient() {
 }
 
 export async function deployVoting(
-  client: Awaited<ReturnType<typeof localClient>>,
+  client: ConnectedThruputClient & AirdropActions,
 ) {
   const account = createPubkeyAccount({
     signer: new Ed25519Signer(randomBytes(32)),

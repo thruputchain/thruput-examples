@@ -62,7 +62,7 @@ export async function getRegistryTokens(
     parameters.set("asOfBlock", query.asOfBlock);
   }
   const value = await requestJson(
-    `/api/tokens?${parameters.toString()}`,
+    `${import.meta.env.BASE_URL}api/tokens?${parameters.toString()}`,
     requestInit("GET", signal),
     fetcher,
   );
@@ -76,7 +76,7 @@ export async function getRegistryStatus(
 ): Promise<RegistryStatus> {
   return validateStatus(
     await requestJson(
-      "/api/registry/status",
+      `${import.meta.env.BASE_URL}api/registry/status`,
       requestInit("GET", signal),
       fetcher,
     ),
@@ -91,7 +91,7 @@ export async function requestRegistrySync(
 ): Promise<RegistryStatus> {
   return validateStatus(
     await requestJson(
-      "/api/registry/sync",
+      `${import.meta.env.BASE_URL}api/registry/sync`,
       requestInit("POST", signal),
       fetcher,
     ),

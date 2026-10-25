@@ -1,0 +1,26 @@
+{
+  "rpcUrl": "https://rpc.thruput.network",
+  "networkId": "DWELtFbbKjeYDPqJQoxcHPEq5UGPnbnFM74yYdHy48uj",
+  "cliVersion": "0.40.0",
+  "wireFormat": "14.1.0",
+  "counter": {
+    "address": "4eodc5XBTDAnsB9EjXzXXfDmsfRHBfFGRGaCSAmaQ7oT",
+    "deploymentTransaction": "A5KnvrgLcsRaB2YoRGynE62Kuws9fBUewRJgH9oZyXMJ"
+  },
+  "launchpad": {
+    "factory": "2dgyLshBPQ1ip2NmegLxVWtz6DHZeudPWA3NTGpEQCRu",
+    "tokenCodeHash": "G4fdv9AoMhC1Uc1VQKs8HTAsUWMeZ8WJ4CtuZC3JHXRH",
+    "deploymentTransaction": "3mhk8xFz8vZoDFU3WN1VNd8ZVAMqaS2gmnRscVfSHCur"
+  },
+  "swap": {
+    "factory": "GS5favbTuejtZ6Uhg71gmNdNRLMwgnRtb725y2WaHXEu",
+    "router": "8TZecgAcK5euyZwmVDhAhJvjSuj87NYoT4LouX2jSpZN",
+    "poolTokenCodeHash": "BHfqrDnWrT259PjciruPMzWQuHRS8c5ebK34PqpAtLig",
+    "factoryDeploymentTransaction": "Dxbh86WnzBphY75kaL9currX6kFrPMJV7NG6yn2vuFcf",
+    "routerDeploymentTransaction": "6EMeZH5uALqFAwNty76ZCqFsdDUzjp6Svk6S3b6QuDpw"
+  },
+  "voting": {
+    "address": "BvSKVbGtH7NspKA5DviuWt17JK2PY6EXdnvU25WijPCf",
+    "deploymentTransaction": "GcBb5NnB7ok7CWkfAKjmmrSBjaorhSXgxZLSH4HodmmT"
+  }
+}

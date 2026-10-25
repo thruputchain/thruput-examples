@@ -52,7 +52,7 @@ export function WalletControls() {
         )}
       </div>
       {wallet.status === "wrongNetwork" ? (
-        <p role="alert">Select this localnode in your wallet.</p>
+        <p role="alert">Select this app's network in your wallet.</p>
       ) : null}
       {error ? <p role="alert">{error.message}</p> : null}
       {wallet.session && wallet.session.accounts.length > 1 ? (

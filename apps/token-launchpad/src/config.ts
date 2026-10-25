@@ -25,7 +25,7 @@ export interface AppConfig {
 export type Environment = Record<string, string | boolean | undefined>;
 
 export async function loadRuntimeConfig(): Promise<AppConfig> {
-  const response = await fetch("/api/config", {
+  const response = await fetch(`${import.meta.env.BASE_URL}api/config`, {
     cache: "no-store",
     signal: AbortSignal.timeout(10_000),
   });
@@ -36,7 +36,10 @@ export async function loadRuntimeConfig(): Promise<AppConfig> {
     throw new Error("Invalid application configuration");
   return loadConfig({
     ...value,
-    VITE_THRUPUT_RPC_URL: new URL("/thruput-rpc", window.location.origin).href,
+    VITE_THRUPUT_RPC_URL: new URL(
+      `${import.meta.env.BASE_URL}thruput-rpc`,
+      window.location.origin,
+    ).href,
   });
 }
 

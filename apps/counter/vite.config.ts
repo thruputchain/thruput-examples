@@ -32,6 +32,7 @@ export default defineConfig(({ mode }) => {
     },
   };
   return {
+    base: process.env.APP_BASE_PATH || "/",
     plugins: [react(), tailwindcss(), api],
     // All app configuration comes from the same runtime endpoint in dev and production.
     envPrefix: [],

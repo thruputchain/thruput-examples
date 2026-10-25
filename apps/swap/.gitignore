@@ -3,7 +3,8 @@
 .groundhog-config/
 .vite/
 dist/
-public/contract-artifacts/
+public/contract-artifacts/*.json
+!public/contract-artifacts/BHfqrDnWrT259PjciruPMzWQuHRS8c5ebK34PqpAtLig.json
 node_modules/
 *.sqlite
 *.sqlite-shm
