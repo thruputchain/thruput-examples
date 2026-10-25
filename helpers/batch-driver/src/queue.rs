@@ -3,7 +3,8 @@
 use crate::BatchRequest;
 use crate::Sequencer;
 use crate::drain::{
-    CLAIM_GAS, budget_for, budget_for_batch, process, process_sequenced, sequenced_request_gas,
+    CLAIM_GAS, budget_for_batch, process, process_sequenced, sequenced_budget,
+    sequenced_request_gas,
 };
 use crate::events::{RequestAccepted, RequestFailed, RequestsProcessed};
 use thruput_sdk::stats::gas_remaining;
@@ -209,8 +210,25 @@ impl<R: BatchRequest> Queue<R> {
         #[cfg(feature = "calibration")]
         let entry_gas = gas_remaining();
 
-        if !self.may_claim(|n| budget_for_batch::<R>(n))? {
+        let policy = self.policy.get();
+        let capacity = i128::from(policy.capacity);
+        // How deep the queue was at this block's snapshot. (The remaining capacity can read
+        // negative mid-transaction.)
+        let queued = (capacity - self.slots.get_remaining_capacity()).clamp(0, capacity) as u32;
+        let owed = queued.min(policy.min_batch);
+
+        // Nothing to drain, so nothing to claim.
+        if self.requests.try_peek().none_if_missing().is_none() {
             return Ok((0, 0));
+        }
+
+        // Claim only if, the claim having been paid for, this crank can still fund what the queue
+        // owes, and at least one request: a crank that claimed and then drained nothing would hold
+        // the block's drain from everyone. (Nothing is owed when what is waiting arrived in this
+        // block; a crank that cannot fund one request then stays the free no-op it would be on an
+        // empty queue.)
+        if gas_remaining() < CLAIM_GAS.saturating_add(budget_for_batch::<R>(owed.max(1))) {
+            return if owed > 0 { Err(Starved) } else { Ok((0, 0)) };
         }
 
         #[cfg(feature = "calibration")]
@@ -250,10 +268,31 @@ impl<R: BatchRequest> Queue<R> {
         #[cfg(feature = "calibration")]
         let after_process = gas_remaining();
 
-        self.settle(n_processed, n_failed);
+        if n_processed > 0 {
+            // Every entry the batch took is out of the queue, including the ones whose handling
+            // failed. (Negative consumption is a release.)
+            self.slots.consume_capacity(-i128::from(n_processed));
+
+            log_event(&RequestsProcessed {
+                processed: n_processed,
+                failed: n_failed,
+            });
+        }
 
         #[cfg(feature = "calibration")]
-        spent.report(n_processed, claim_gas, entry_gas, after_process);
+        {
+            let here = gas_remaining();
+            log_event(&GasReport {
+                processed: n_processed,
+                claim: claim_gas,
+                dearest_request: spent.dearest,
+                tail: after_process.saturating_sub(here),
+                beyond_handlers: entry_gas
+                    .saturating_sub(here)
+                    .saturating_sub(spent.total)
+                    .saturating_sub(claim_gas),
+            });
+        }
 
         Ok((n_processed, n_failed))
     }
@@ -296,10 +335,20 @@ impl<R: BatchRequest> Queue<R> {
         #[cfg(feature = "calibration")]
         let entry_gas = gas_remaining();
 
-        // A crank owes no more than it may take.
-        let per_request = sequenced_request_gas::<R, S>();
-        if !self.may_claim(|n| budget_for(per_request, n.min(S::MAX_BATCH)))? {
+        // The floor and the refusal, as in `crank`, with each request costing the sequencer's share
+        // too -- and a crank owing no more than it may take.
+        let policy = self.policy.get();
+        let capacity = i128::from(policy.capacity);
+        let queued = (capacity - self.slots.get_remaining_capacity()).clamp(0, capacity) as u32;
+        let owed = queued.min(policy.min_batch).min(S::MAX_BATCH);
+
+        if self.requests.try_peek().none_if_missing().is_none() {
             return Ok((0, 0));
+        }
+
+        let per_request = sequenced_request_gas::<R, S>();
+        if gas_remaining() < CLAIM_GAS.saturating_add(sequenced_budget(per_request, owed.max(1))) {
+            return if owed > 0 { Err(Starved) } else { Ok((0, 0)) };
         }
 
         #[cfg(feature = "calibration")]
@@ -315,9 +364,11 @@ impl<R: BatchRequest> Queue<R> {
         #[cfg(feature = "calibration")]
         let mut spent = HandlerGas::default();
 
-        let capacity = self.policy.get().capacity;
-        let (n_processed, n_failed) =
-            process_sequenced(&mut self.requests, capacity, start, |request, gas_limit| {
+        let (n_processed, n_failed) = process_sequenced(
+            &mut self.requests,
+            policy.capacity,
+            start,
+            |request, gas_limit| {
                 let id = request.id();
 
                 #[cfg(feature = "calibration")]
@@ -332,105 +383,55 @@ impl<R: BatchRequest> Queue<R> {
                     log_event(&RequestFailed::of(&id, e));
                 }
                 result
-            });
+            },
+        );
 
         #[cfg(feature = "calibration")]
         let after_process = gas_remaining();
 
-        self.settle(n_processed, n_failed);
+        if n_processed > 0 {
+            self.slots.consume_capacity(-i128::from(n_processed));
+
+            log_event(&RequestsProcessed {
+                processed: n_processed,
+                failed: n_failed,
+            });
+        }
 
         #[cfg(feature = "calibration")]
-        spent.report(n_processed, claim_gas, entry_gas, after_process);
+        {
+            let here = gas_remaining();
+            log_event(&GasReport {
+                processed: n_processed,
+                claim: claim_gas,
+                dearest_request: spent.dearest,
+                tail: after_process.saturating_sub(here),
+                beyond_handlers: entry_gas
+                    .saturating_sub(here)
+                    .saturating_sub(spent.total)
+                    .saturating_sub(claim_gas),
+            });
+        }
 
         Ok((n_processed, n_failed))
-    }
-
-    // Whether a crank may claim this block's drain; see `may_claim`.
-    fn may_claim(&self, budget: impl Fn(u32) -> u64) -> Result<bool, Starved> {
-        let waiting = self.requests.try_peek().none_if_missing().is_some();
-        may_claim(&self.policy, &self.slots, waiting, budget)
-    }
-
-    fn settle(&mut self, n_processed: u32, n_failed: u32) {
-        settle(&mut self.slots, n_processed, n_failed);
-    }
-}
-
-// Whether a crank may claim this block's drain, given whether anything is `waiting` and what a
-// batch of `n` costs it once claimed; `Err(Starved)` if it may not, for want of gas it owes.
-pub(crate) fn may_claim(
-    policy: &Value<CrankPolicy>,
-    slots: &CapacityConstraint,
-    waiting: bool,
-    budget: impl Fn(u32) -> u64,
-) -> Result<bool, Starved> {
-    let policy = policy.get();
-    let capacity = i128::from(policy.capacity);
-    // How deep the queue was at this block's snapshot. (The remaining capacity can read negative
-    // mid-transaction.)
-    let queued = (capacity - slots.get_remaining_capacity()).clamp(0, capacity) as u32;
-    let owed = queued.min(policy.min_batch);
-
-    // Nothing to drain, so nothing to claim.
-    if !waiting {
-        return Ok(false);
-    }
-
-    // Claim only if, the claim having been paid for, this crank can still fund what the queue owes,
-    // and at least one request: a crank that claimed and then drained nothing would hold the
-    // block's drain from everyone. (Nothing is owed when what is waiting arrived in this block; a
-    // crank that cannot fund one request then stays the free no-op it would be on an empty queue.)
-    if gas_remaining() < CLAIM_GAS.saturating_add(budget(owed.max(1))) {
-        return if owed > 0 { Err(Starved) } else { Ok(false) };
-    }
-
-    Ok(true)
-}
-
-// Account for a drained batch: give back the room it took, and summarize it.
-pub(crate) fn settle(slots: &mut CapacityConstraint, n_processed: u32, n_failed: u32) {
-    if n_processed > 0 {
-        // Every entry the batch took is out of the queue, including the ones whose handling failed.
-        // (Negative consumption is a release.)
-        slots.consume_capacity(-i128::from(n_processed));
-
-        log_event(&RequestsProcessed {
-            processed: n_processed,
-            failed: n_failed,
-        });
     }
 }
 
 /// Running totals of what the handler calls cost.
 #[cfg(feature = "calibration")]
 #[derive(Default)]
-pub(crate) struct HandlerGas {
+struct HandlerGas {
     dearest: u64,
     total: u64,
 }
 
 #[cfg(feature = "calibration")]
 impl HandlerGas {
-    pub(crate) fn record(&mut self, spent: u64) {
+    fn record(&mut self, spent: u64) {
         self.total = self.total.saturating_add(spent);
         if spent > self.dearest {
             self.dearest = spent;
         }
-    }
-
-    // Emit the crank's `GasReport`, given what it measured along the way.
-    pub(crate) fn report(&self, processed: u32, claim: u64, entry_gas: u64, after_process: u64) {
-        let here = gas_remaining();
-        log_event(&GasReport {
-            processed,
-            claim,
-            dearest_request: self.dearest,
-            tail: after_process.saturating_sub(here),
-            beyond_handlers: entry_gas
-                .saturating_sub(here)
-                .saturating_sub(self.total)
-                .saturating_sub(claim),
-        });
     }
 }
 

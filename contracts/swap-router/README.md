@@ -183,6 +183,14 @@ reserves alone, so whoever cranks has no say in it.
 With the price p = reserve1 / reserve0, a trade paying token0 in lowers it, and
 a trade paying token1 in raises it.
 
+Both rules need the batch before they order it, so both drivers use
+`batch_driver::Queue::crank_sequenced` rather than `crank`: the batch is taken
+out of the queue up front, as many requests as the caller's gas limit pays for
+at each one's worst case plus the rule's share, and handed to a
+`batch_driver::Sequencer`, which picks them one at a time. The batch is still
+the first requests the queue yields -- the rule only orders *within* it -- so no
+request waits behind one admitted in a later block.
+
 ### GSR: which side of p₀
 
 [`swap-gsr-driver`](../swap-gsr-driver/src/gsr.rs) follows the Greedy
@@ -192,13 +200,10 @@ one kind runs out, take the rest. Every trade then gets a price at least as
 good as it would have alone at p₀, or a worse one from which whoever ordered it
 gains nothing, so a sandwich does not pay.
 
-The rule never compares two trades of the same kind, so it needs no sorting.
-The driver's queue is a `batch_driver::LanedQueue`: each request is put in a
-lane for the way it moves the price when it is enqueued, each lane keeps queue
-order, and the crank takes the head of whichever lane the rule picks, reading
-the pool's price after each request that succeeds. It streams, as a plain
-crank does, so the caller's gas limit sizes the batch exactly as for
-`swap-driver`. The lanes share the queue's one ceiling.
+The rule never compares two trades of the same kind, so it needs no sorting:
+the batch is split by direction, each kind keeps queue order, and each step
+takes the next of whichever kind the rule picks, reading the pool's price after
+each request that succeeds.
 
 ### CLVR: nearest p₀
 
@@ -220,13 +225,6 @@ further depends on the reserves at the time.) Slippage limits play no part in
 the order: a trade its limit refuses changes nothing, and the next step starts
 from the same price.
 
-Choosing the nearest trade means seeing them all, so this driver uses
-`batch_driver::Queue::crank_sequenced`: the batch is taken out of the queue up
-front, as many requests as the caller's gas limit pays for at each one's worst
-case plus the sequencer's share, and handed to a `batch_driver::Sequencer`. The
-batch is still the first requests the queue yields -- CLVR only orders *within*
-it -- so no request waits behind one admitted in a later block.
-
 ### Deploying either
 
 Both implement the same `SwapDriver` interface as `swap-driver`, so a factory
@@ -234,9 +232,8 @@ deploys one in its place by being given its code hash in `SwapHashes::driver`.
 Each request is still handled under commit-locking, in isolation, exactly once.
 Choosing costs gas, so each budgets a little more per request than
 `swap-driver` (`PICK_GAS`, `SEQUENCE_GAS`, calibrated on a devnode by
-`scripts/swap-gas-calibrate.sh`). The CLVR driver holds its batch in memory, so
-it also caps a batch at what fits there (`clvr::MAX_BATCH`), whatever gas a
-crank brings.
+`scripts/swap-gas-calibrate.sh`). Each holds its batch in memory, so each also
+caps a batch at what fits there (`MAX_BATCH`), whatever gas a crank brings.
 
 Whatever the driver, a crank can be no larger than one transaction's events
 allow: each swap emits five, and a transaction may emit 1000.

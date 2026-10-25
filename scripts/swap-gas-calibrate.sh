@@ -4,8 +4,8 @@
 # from.
 #
 # This builds the drivers with `calibration`, which makes a crank report its own
-# spending as a `GasReport` event (and an ordering driver's choosing as a
-# `PickReport`), runs requests through a local node, and prints what it charged:
+# spending as a `GasReport` event, runs requests through a local node, and prints
+# what it charged:
 #
 # - one request of each kind through `swap-driver`, for the per-request budgets;
 # - batches of swaps through each of `swap-driver`, `swap-gsr-driver` and

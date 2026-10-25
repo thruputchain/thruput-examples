@@ -10,7 +10,7 @@ pub type Address = ContractAddress;
 mod sim;
 use sim::*;
 
-use batch_driver::{GasReport, PickReport};
+use batch_driver::GasReport;
 
 type Receipt = thruput_json_rpc_types::responses::TransactionReceipt;
 
@@ -223,22 +223,10 @@ async fn run_scenario(driver: &str, agent: Agent) {
 
 /////////////////////// ordering drivers ////////////////////////////////////
 
-/// Read the `PickReport` an ordering driver's `calibration` build emits, if this one did.
-fn pick_report(receipt: &Receipt) -> Option<PickReport> {
-    let data = event_data::<PickReport>(receipt)?;
-    let (processed, setup, dearest_step, steps): (u32, u64, u64, u64) =
-        xdrs::cxs::decode(data).expect("decoding the PickReport payload");
-    Some(PickReport {
-        processed,
-        setup,
-        dearest_step,
-        steps,
-    })
-}
-
 /// Queue batches of swaps -- both directions, both kinds -- crank each, and report what the node
-/// charged, including the ordering's share. This informs `swap-gsr-driver`'s `PICK_GAS` and
-/// `swap-clvr-driver`'s `SEQUENCE_GAS`, against `swap-driver`'s figures for the same batches.
+/// charged. An ordering driver's `beyond handlers`, less `swap-driver`'s for the same batch, is
+/// what the ordering cost: this informs `swap-gsr-driver`'s `PICK_GAS` and `swap-clvr-driver`'s
+/// `SEQUENCE_GAS`.
 ///
 /// The testkit declares 10M gas on every call, which caps a batch at five requests; how the
 /// ordering's cost grows past that is what `measure_clvr_ordering` is for.
@@ -257,14 +245,8 @@ fn ordered_calibrator(driver: &'static str) -> Agent {
         let tokens = [s.token0.address(), s.token1.address()];
         println!("\n=== {driver}: measured on this node ===");
         println!(
-            "{:>5} {:>10} {:>14} {:>16} {:>12} {:>14} {:>12}",
-            "batch",
-            "claim",
-            "handler call",
-            "beyond handlers",
-            "pick setup",
-            "dearest step",
-            "steps"
+            "{:>5} {:>10} {:>14} {:>16}",
+            "batch", "claim", "handler call", "beyond handlers"
         );
 
         for batch in [1u32, 2, 5] {
@@ -303,17 +285,9 @@ fn ordered_calibrator(driver: &'static str) -> Agent {
             );
 
             let g = gas_report(&receipt);
-            let p = pick_report(&receipt);
             println!(
-                "{:>5} {:>10} {:>14} {:>16} {:>12} {:>14} {:>12}",
-                batch,
-                g.claim,
-                g.dearest_request,
-                g.beyond_handlers,
-                p.as_ref().map_or("-".into(), |p| p.setup.to_string()),
-                p.as_ref()
-                    .map_or("-".into(), |p| p.dearest_step.to_string()),
-                p.as_ref().map_or("-".into(), |p| p.steps.to_string()),
+                "{:>5} {:>10} {:>14} {:>16}",
+                batch, g.claim, g.dearest_request, g.beyond_handlers
             );
         }
 

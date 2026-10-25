@@ -54,23 +54,11 @@ pub const CLAIM_GAS: u64 = 100_000;
 ///
 /// [`Queue::crank`]: crate::Queue::crank
 pub const fn gas_for_batch<R: BatchRequest>(batch_size: u32) -> u64 {
-    gas_for(R::GAS_LIMIT, batch_size)
-}
-
-/// [`gas_for_batch`], for a crank that orders its batch with a [`Sequencer`] of type `S`; see
-/// [`Queue::crank_sequenced`].
-///
-/// [`Queue::crank_sequenced`]: crate::Queue::crank_sequenced
-pub const fn gas_for_sequenced_batch<R: BatchRequest, S: Sequencer>(batch_size: u32) -> u64 {
-    gas_for(sequenced_request_gas::<R, S>(), batch_size)
-}
-
-const fn gas_for(per_request: u64, batch_size: u32) -> u64 {
     // The claim, and one request's worth beyond what the loop strictly needs, so that a caller
     // declaring exactly this still clears what `crank` requires after the frame's own entry costs.
-    budget_for(per_request, batch_size)
+    budget_for_batch::<R>(batch_size)
         .saturating_add(CLAIM_GAS)
-        .saturating_add(per_request)
+        .saturating_add(R::GAS_LIMIT)
 }
 
 /// The gas a frame must still hold to be able to take `batch_size` more requests of type `R` from
@@ -85,17 +73,7 @@ const fn gas_for(per_request: u64, batch_size: u32) -> u64 {
 ///
 /// [`Queue::crank`]: crate::Queue::crank
 pub(crate) const fn budget_for_batch<R: BatchRequest>(batch_size: u32) -> u64 {
-    budget_for(R::GAS_LIMIT, batch_size)
-}
-
-/// [`budget_for_batch`], for requests that each cost up to `per_request`.
-pub(crate) const fn budget_for(per_request: u64, batch_size: u32) -> u64 {
-    EPILOGUE_GAS.saturating_add((batch_size as u64).saturating_mul(per_request))
-}
-
-/// What a sequenced crank budgets for each request: its handling, plus the sequencer's share.
-pub(crate) const fn sequenced_request_gas<R: BatchRequest, S: Sequencer>() -> u64 {
-    R::GAS_LIMIT.saturating_add(S::GAS_PER_REQUEST)
+    EPILOGUE_GAS.saturating_add((batch_size as u64).saturating_mul(R::GAS_LIMIT))
 }
 
 /// A request that can be batched by a driver.
@@ -174,6 +152,27 @@ where
     (n_processed, n_failed)
 }
 
+/// [`gas_for_batch`], for a crank that orders its batch with a [`Sequencer`] of type `S`; see
+/// [`Queue::crank_sequenced`].
+///
+/// [`Queue::crank_sequenced`]: crate::Queue::crank_sequenced
+pub const fn gas_for_sequenced_batch<R: BatchRequest, S: Sequencer>(batch_size: u32) -> u64 {
+    let per_request = sequenced_request_gas::<R, S>();
+    sequenced_budget(per_request, batch_size)
+        .saturating_add(CLAIM_GAS)
+        .saturating_add(per_request)
+}
+
+/// What a sequenced crank budgets for each request: its handling, plus the sequencer's share.
+pub(crate) const fn sequenced_request_gas<R: BatchRequest, S: Sequencer>() -> u64 {
+    R::GAS_LIMIT.saturating_add(S::GAS_PER_REQUEST)
+}
+
+/// [`budget_for_batch`], for a sequenced batch whose requests each cost `per_request`.
+pub(crate) const fn sequenced_budget(per_request: u64, batch_size: u32) -> u64 {
+    EPILOGUE_GAS.saturating_add((batch_size as u64).saturating_mul(per_request))
+}
+
 /// Chooses the order in which a crank hands its batch to the handler.
 ///
 /// A plain [`Queue::crank`] handles requests in the order the queue yields them. That order is
@@ -216,6 +215,7 @@ pub trait Sequencer {
 ///
 /// The batch is as long as the frame can afford, as in [`process`], but the whole of it is
 /// affordable *before* the first request is handled: a sequencer has to see the batch to order it.
+/// It holds no more than `capacity` (the queue's) or the sequencer's `MAX_BATCH`.
 pub(crate) fn process_sequenced<R, S, F, E>(
     queue: &mut RCQ<R>,
     capacity: u32,
@@ -229,9 +229,6 @@ where
     E: core::fmt::Debug,
 {
     let per_request = sequenced_request_gas::<R, S>();
-
-    #[cfg(feature = "calibration")]
-    let mut picks = PickGas::start();
 
     // The batch is allocated once, at the most it can come to: what the frame can afford, the
     // sequencer can hold, and the queue can contain. An allocation is never given back, so growing
@@ -255,20 +252,11 @@ where
     // In place: an `Option` of a request is no larger than the request.
     let mut batch: Vec<Option<R>> = batch.into_iter().map(Some).collect();
 
-    #[cfg(feature = "calibration")]
-    picks.setup_done();
-
     let mut n_failed = 0;
     for _ in 0..batch.len() {
-        #[cfg(feature = "calibration")]
-        picks.step();
-
         let request = batch[sequencer.next()]
             .take()
             .expect("a sequencer chooses each request once");
-
-        #[cfg(feature = "calibration")]
-        picks.pause();
 
         let gas_limit = request.gas_limit();
         let result = handle(request, gas_limit);
@@ -277,104 +265,10 @@ where
             n_failed += 1;
         }
 
-        #[cfg(feature = "calibration")]
-        picks.resume();
-
         sequencer.handled(result.is_ok());
     }
 
-    #[cfg(feature = "calibration")]
-    picks.report(batch.len() as u32);
-
     (batch.len() as u32, n_failed)
-}
-
-/// What a sequencer or lane picker spent in one crank, measured on the node that ran it, to set
-/// [`Sequencer::GAS_PER_REQUEST`] and [`LanePicker::GAS_PER_REQUEST`] from.
-///
-/// Emitted only under the `calibration` feature, alongside the crank's [`GasReport`]. `setup` is
-/// what the crank spent before its first step on the picker's account: taking a sequenced batch out
-/// of the queue and building its sequencer, or finding which lanes hold requests. A step is
-/// everything spent on one request outside its handler call: choosing it, taking it, and telling
-/// the picker how it fared; `dearest_step` is the most one cost, and `steps` all of them together.
-///
-/// A sequenced crank fixes its batch up front, so what must fit is the whole of `setup + steps`
-/// within `processed` requests' allowance. A laned crank checks its budget before each step, so
-/// what must fit is `dearest_step`.
-///
-/// [`GasReport`]: crate::GasReport
-/// [`LanePicker::GAS_PER_REQUEST`]: crate::LanePicker::GAS_PER_REQUEST
-#[cfg(feature = "calibration")]
-#[derive(Event, Clone, Debug, PartialEq, Eq)]
-pub struct PickReport {
-    pub processed: u32,
-    pub setup: u64,
-    pub dearest_step: u64,
-    pub steps: u64,
-}
-
-/// Running totals for a [`PickReport`].
-#[cfg(feature = "calibration")]
-pub(crate) struct PickGas {
-    // Where the current stretch of counting began.
-    mark: u64,
-    setup: u64,
-    // The step under way, if any, and what it has spent so far.
-    step: Option<u64>,
-    dearest_step: u64,
-    steps: u64,
-}
-
-#[cfg(feature = "calibration")]
-impl PickGas {
-    pub(crate) fn start() -> Self {
-        PickGas {
-            mark: gas_remaining(),
-            setup: 0,
-            step: None,
-            dearest_step: 0,
-            steps: 0,
-        }
-    }
-
-    pub(crate) fn setup_done(&mut self) {
-        self.setup = self.mark.saturating_sub(gas_remaining());
-    }
-
-    // Close the step under way, if any, and open the next.
-    pub(crate) fn step(&mut self) {
-        self.close_step();
-        self.step = Some(0);
-        self.mark = gas_remaining();
-    }
-
-    // Stop counting, for a handler call.
-    pub(crate) fn pause(&mut self) {
-        let since = self.mark.saturating_sub(gas_remaining());
-        self.step = self.step.map(|s| s.saturating_add(since));
-    }
-
-    pub(crate) fn resume(&mut self) {
-        self.mark = gas_remaining();
-    }
-
-    pub(crate) fn report(mut self, processed: u32) {
-        self.close_step();
-        log_event(&PickReport {
-            processed,
-            setup: self.setup,
-            dearest_step: self.dearest_step,
-            steps: self.steps,
-        });
-    }
-
-    fn close_step(&mut self) {
-        if let Some(step) = self.step.take() {
-            let step = step.saturating_add(self.mark.saturating_sub(gas_remaining()));
-            self.dearest_step = self.dearest_step.max(step);
-            self.steps = self.steps.saturating_add(step);
-        }
-    }
 }
 
 fn request_failed<E: core::fmt::Debug>(_e: &E) {

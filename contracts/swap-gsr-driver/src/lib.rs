@@ -2,6 +2,8 @@
 
 thruput_sdk::declare_mock_contract!();
 
+extern crate alloc;
+
 mod cfg;
 mod driver;
 pub mod gsr;
