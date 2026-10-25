@@ -1,4 +1,4 @@
-use super::contract_test::{erc20_test, erc20_test_setup};
+use super::contract_test::{erc20_admin_test, erc20_test, erc20_test_setup};
 use super::model;
 use thruput_sdk::{ContractAddress, Named, SHA256Hash, TestEnvironmentHandle};
 
@@ -9,6 +9,7 @@ pub fn test_erc20_contract(env: TestEnvironmentHandle, test_contract_hash: &SHA2
         tx.call(&ContractAddress::named("erc20_test")).run(move || {
             let deployed_addr = erc20_test_setup(&test_contract_hash);
             let model = erc20_test(&deployed_addr);
+            erc20_admin_test(&test_contract_hash, &deployed_addr);
             // The model itself isn't XDR-able; its expected event log is,
             // and it's all the post-commit check needs.
             model.events

@@ -15,6 +15,7 @@ mod metadata {
 use metadata::*;
 
 hash_ident! { static TEST_NONCE: SHA256Hash;  }
+hash_ident! { static OTHER_ADMIN_NONCE: SHA256Hash; }
 hash_ident! { static OTHER: ContractAddress; }
 
 pub fn erc20_test_setup(target_contract_hash: &SHA256Hash) -> ContractAddress {
@@ -149,4 +150,35 @@ pub fn erc20_test(deployed_addr: &ContractAddress) -> Model {
     m.check(&client);
 
     m
+}
+
+/// Test the administrator checks: initialization happens once, and only the
+/// configured administrator can mint or claw back.
+pub fn erc20_admin_test(target_contract_hash: &SHA256Hash, deployed_addr: &ContractAddress) {
+    let caller = get_current_address();
+
+    // `deployed_addr` is already initialized by `erc20_test`
+    assert_eq!(
+        ERC20Client::new(deployed_addr)
+            .try_initialize(&caller)
+            .unwrap_err()
+            .try_as(),
+        Some(ERC20Error::AlreadyInitialized)
+    );
+
+    // A second token administered by another address refuses this caller
+    let token = deploy_contract(&OTHER_ADMIN_NONCE, target_contract_hash);
+    let client = ERC20Client::new(&token);
+    client.initialize(&OTHER);
+    assert_eq!(
+        client.try_mint(&caller, 1).unwrap_err().try_as(),
+        Some(ERC20Error::MustBeContractOwner)
+    );
+    assert_eq!(
+        ERC20ClawbackClient::new(&token)
+            .try_clawback(&OTHER, 1)
+            .unwrap_err()
+            .try_as(),
+        Some(ERC20Error::MustBeContractOwner)
+    );
 }
