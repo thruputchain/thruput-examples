@@ -7,6 +7,9 @@ import { parseEnv } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright-core";
 import { OwnedProcessGroups } from "../e2e/helpers/process-groups.mjs";
+import { hashFromBase58 } from "@thruputchain/client";
+import { parseStandardTokenArtifact } from "../../apps/token-launchpad/src/contracts/token-artifact.ts";
+import { parsePoolTokenArtifact } from "../../apps/swap/src/transactions/pool-token-artifact.ts";
 
 // Run after setup:local. This checks real production servers and the same Caddy
 // routes used on Railway. It does not deploy contracts or submit transactions.
@@ -44,12 +47,20 @@ const groups = new OwnedProcessGroups();
 const site = await mkdtemp(join(tmpdir(), "examples-hosted-"));
 let browser;
 async function ready(url, child) {
-  for (let i = 0; i < 100; i++) {
-    if (child.exitCode !== null) throw new Error(`Server exited before ${url}`);
+  const deadline = performance.now() + 10_000;
+  while (performance.now() < deadline) {
+    if (child.exitCode !== null || child.signalCode !== null)
+      throw new Error(`Server exited before ${url}`);
     try {
-      if ((await fetch(url)).ok) return;
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(
+          Math.max(1, Math.ceil(Math.min(1_000, deadline - performance.now()))),
+        ),
+      });
+      await response.body?.cancel();
+      if (response.ok) return;
     } catch {}
-    await delay(100);
+    await delay(Math.max(0, Math.min(100, deadline - performance.now())));
   }
   throw new Error(`Server did not become ready: ${url}`);
 }
@@ -103,6 +114,29 @@ try {
   );
   const origin = "http://127.0.0.1:25180";
   await ready(`${origin}/healthz`, gateway);
+  for (const [path, key, parse] of [
+    [
+      "launchpad",
+      "VITE_STANDARD_TOKEN_HASH",
+      (artifact, hash) =>
+        parseStandardTokenArtifact(artifact, hashFromBase58(hash)),
+    ],
+    ["swap", "VITE_POOL_TOKEN_HASH", parsePoolTokenArtifact],
+  ]) {
+    const configResponse = await fetch(`${origin}/${path}/api/config`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    assert.equal(configResponse.status, 200);
+    const config = await configResponse.json();
+    const hash = config[key];
+    assert.equal(typeof hash, "string");
+    const response = await fetch(
+      `${origin}/${path}/contract-artifacts/${hash}.json`,
+      { signal: AbortSignal.timeout(10_000) },
+    );
+    assert.equal(response.status, 200);
+    parse(await response.json(), hash);
+  }
   browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
     headless: true,
@@ -116,9 +150,7 @@ try {
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(origin);
-      await page
-        .getByRole("navigation", { name: "Example apps" })
-        .waitFor();
+      await page.getByRole("navigation", { name: "Example apps" }).waitFor();
       assert.equal(await page.locator("nav a").count(), 4);
       assert.equal(
         await page.evaluate(

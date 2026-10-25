@@ -34,10 +34,13 @@ const mocks = vi.hoisted(() => ({
   sendTransaction: vi.fn(),
   refetch: vi.fn(),
   receipt: null as TransactionReceipt | null,
+  request: vi.fn(),
+  wallet: {} as Record<string, unknown>,
 }));
 vi.mock("@thruputchain/react", () => ({
   useClient: () => ({ ...mocks, network: { networkHash: new Uint8Array(32) } }),
   useExecute: () => ({ mutateAsync: mocks.execute }),
+  useWallet: () => mocks.wallet,
   useWaitForTransactionReceipt: () => ({
     data: mocks.receipt,
     error: new Error("Timed out"),
@@ -101,6 +104,20 @@ beforeEach(async () => {
     .mockReset()
     .mockResolvedValue({ transactionHash: hashSignedTransaction(signed) });
   mocks.refetch.mockReset().mockResolvedValue({});
+  mocks.request.mockReset().mockImplementation(async ({ method }) => {
+    if (method === "getSession")
+      return {
+        networkHash: config.networkId,
+        accounts: [pending.record.account],
+      };
+    if (method === "submitTransaction") return { hash: pending.record.hash };
+    throw new Error("Unexpected wallet request");
+  });
+  mocks.wallet = {
+    status: "connected",
+    address: pending.record.account.address,
+    provider: { request: mocks.request, on: () => () => {} },
+  };
   Object.defineProperty(navigator, "locks", {
     configurable: true,
     value: {
@@ -179,10 +196,17 @@ it("recovers storage and submits the original bytes without signing again", asyn
   unmount();
   const reloaded = renderHook(() => useTransaction(config), { wrapper });
   act(() => reloaded.result.current.retrySubmission());
-  await waitFor(() => expect(mocks.sendTransaction).toHaveBeenCalledTimes(1));
-  expect(
-    toHex0x(mocks.sendTransaction.mock.calls[0]![0].signedTransaction),
-  ).toBe(pending.record.signedTransaction);
+  await waitFor(() =>
+    expect(mocks.request).toHaveBeenCalledWith({
+      method: "submitTransaction",
+      params: {
+        account: pending.record.account.address,
+        networkHash: pending.record.networkHash,
+        signedTransaction: pending.record.signedTransaction,
+      },
+    }),
+  );
+  expect(mocks.sendTransaction).not.toHaveBeenCalled();
   expect(mocks.execute).toHaveBeenCalledTimes(1);
   expect(loadPending(localStorage, key, config.networkId)).toEqual(pending);
 });
@@ -202,9 +226,57 @@ it.each(["committed", "expired", "changed"])(
     act(() => result.current.retrySubmission());
     await waitFor(() => expect(result.current.busy).toBe(false));
     expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.request).not.toHaveBeenCalled();
     expect(mocks.execute).not.toHaveBeenCalled();
   },
 );
+
+it.each([
+  "disconnected",
+  "account",
+  "network",
+  "session-change",
+  "hash",
+  "timeout",
+])("retains recovery evidence after wallet %s failure", async (state) => {
+  savePending(localStorage, key, pending);
+  if (state === "disconnected") mocks.wallet.status = "disconnected";
+  if (state === "account") mocks.wallet.address = config.networkId;
+  if (state === "network")
+    mocks.request.mockResolvedValue({
+      networkHash: toBase58(new Uint8Array(32).fill(9)),
+      accounts: [pending.record.account],
+    });
+  if (state === "session-change") {
+    mocks.wallet.provider = {
+      request: mocks.request,
+      on: (_: string, listener: () => void) => {
+        listener();
+        return () => {};
+      },
+    };
+  }
+  if (state === "hash" || state === "timeout")
+    mocks.request.mockImplementation(async ({ method }) => {
+      if (method === "getSession")
+        return {
+          networkHash: config.networkId,
+          accounts: [pending.record.account],
+        };
+      if (state === "timeout") throw new Error("Connection lost");
+      return { hash: toBase58(new Uint8Array(32).fill(9)) };
+    });
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  act(() => result.current.retrySubmission());
+  await waitFor(() => expect(result.current.message).not.toBeNull());
+  expect(loadPending(localStorage, key, config.networkId)).toEqual(pending);
+  expect(mocks.sendTransaction).not.toHaveBeenCalled();
+  expect(mocks.execute).not.toHaveBeenCalled();
+  if (!["hash", "timeout"].includes(state))
+    expect(
+      mocks.request.mock.calls.some(([r]) => r.method === "submitTransaction"),
+    ).toBe(false);
+});
 
 it("retains the signed record after an uncertain submission", async () => {
   mocks.execute.mockImplementation(async ({ options }) => {
