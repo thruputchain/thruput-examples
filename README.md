@@ -126,7 +126,7 @@ npm run dev
 ```
 
 `setup:local` builds and deploys fresh contracts for Counter, Launchpad, Swap,
-and Voting, then deploys Airdrop with six demo tokens and five seeded pools. It writes each
+and Voting, then deploys Airdrop with seven demo tokens and six seeded pools. It writes each
 app's ignored `.env.local`. `dev` reuses those deployments and starts all five apps.
 Setup connects Swap's token discovery to
 Launchpad and enables Launchpad's link to Swap. Ctrl+C stops the app processes; stop the

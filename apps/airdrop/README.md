@@ -27,7 +27,7 @@ and request native test tokens in the wallet before claiming. Native tokens
 provide transaction scheduling capacity; they are separate from these assets.
 Root `npm run setup:local` and `npm run dev` also include Airdrop.
 
-Default setup creates six test tokens, seeds five pools against tUSDC, and funds
+Default setup creates seven test tokens, seeds six pools against tUSDC, and funds
 an open airdrop with 1,000 claims. Each pool contains 1,000 claims' worth of each
 side. These are demo ratios, not market prices.
 
@@ -37,8 +37,9 @@ side. These are demo ratios, not market prices.
 | tEURC |        6 |     1,000 |
 | tBTC  |        8 |      0.01 |
 | tETH  |        8 |       0.1 |
-| tSOL  |        9 |         5 |
-| tDOGE |        8 |     1,000 |
+| tXLM  |        7 |     1,000 |
+| tUSDT |        6 |     1,000 |
+| tXAUM |        8 |       0.1 |
 
 ## Configure a distribution
 
