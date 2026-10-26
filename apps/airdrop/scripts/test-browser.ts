@@ -64,6 +64,7 @@ const browser = await chromium
     throw error;
   });
 let signatures = 0;
+let failedSubmission: string | null = null;
 try {
   const page = await browser.newPage();
   const errors: string[] = [];
@@ -84,7 +85,12 @@ try {
         hash: toBase58(hashSignedTransaction(signed)),
       };
     }
-    if (request.method === "submitTransaction")
+    if (request.method === "submitTransaction") {
+      if (failedSubmission === null) {
+        failedSubmission = request.params.signedTransaction;
+        throw new Error("Test connection failure before broadcast");
+      }
+      assert.equal(request.params.signedTransaction, failedSubmission);
       return {
         hash: toBase58(
           (
@@ -96,6 +102,7 @@ try {
           ).transactionHash,
         ),
       };
+    }
     throw new Error("Unexpected wallet request");
   });
   await page.addInitScript({
@@ -124,6 +131,25 @@ try {
     .click();
   await page
     .getByRole("button", { name: "Claim airdrop", exact: true })
+    .click();
+  await page
+    .getByRole("alert")
+    .first()
+    .waitFor({ timeout: 60000 })
+    .catch(async (error) => {
+      console.error(await page.locator("main").innerText(), {
+        signatures,
+        failedSubmission: !!failedSubmission,
+      });
+      throw error;
+    });
+  assert(failedSubmission, "The first submission must fail before broadcast");
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Connect wallet", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Retry saved transaction", exact: true })
     .click();
   await page
     .getByRole("heading", { name: "Airdrop claimed", exact: true })

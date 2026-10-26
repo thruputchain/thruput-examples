@@ -69,7 +69,10 @@ selected tokens and native funding. On a local node, setup can request native
 funding; on devnet, fund the deployer in advance.
 
 `AIRDROP_PACKS` sets the number of claims funded by setup, from 1 to 10,000,
-default 1,000. An open airdrop can be depleted by someone using many addresses.
+default 1,000. Native storage funding scales with this budget, the allowlist,
+contract size, and the network's reported storage costs. Each reward token also
+receives storage funding for new recipient balance rows.
+An open airdrop can be depleted by someone using many addresses.
 The funded token budget bounds distribution; there is no IP limit or daily cap.
 
 Setup writes `.env.local` or `.env.devnet` and a private `.local/<network>`
@@ -85,8 +88,11 @@ For separate demo fixtures, use `LAUNCHPAD_APP_ENV`, `LAUNCHPAD_APP_PUBLIC_DIR`,
 ## Recovery and tests
 
 The browser saves signed evidence before submission. An uncertain outcome blocks
-a new claim and is checked using its original hash after reload. Only a confirmed
-receipt can be acknowledged. The contract independently prevents repeat claims.
+a new claim and is checked using its original hash after reload. Use **Retry saved
+transaction** to submit the exact signed bytes through the original wallet.
+Use **Check expiry** to clear an expired record after a fresh on-chain claim-state
+check. A failed state check preserves the record. Confirmed receipts can be
+acknowledged. The contract independently prevents repeat claims.
 
 ```sh
 npm run test --workspace apps/airdrop

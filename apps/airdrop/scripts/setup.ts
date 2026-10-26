@@ -48,6 +48,7 @@ import {
 } from "../../../scripts/seed/seed-preflight";
 import { assertLiquidityMint } from "../../../scripts/seed/seed-liquidity";
 import { ASSETS } from "./assets";
+import { storageFunding } from "./funding";
 import { address, parseTokens, type Token } from "../shared/config";
 import { Airdrop } from "../src/contracts/generated/airdrop";
 
@@ -171,16 +172,21 @@ console.log(`Airdrop deployer: ${toBase58(account.address)}`);
 const GAS = gasAmount(20_000_000n);
 let height = 0n,
   sequence = 0;
-async function fundLocal() {
-  if (
-    mode === "local" &&
-    (await wallet.getBalance()).rawBalance < 100_000_000n
-  ) {
+async function fundLocal(minimum = 100_000_000n) {
+  if (mode !== "local") return;
+  let balance = (await wallet.getBalance()).rawBalance;
+  while (balance < minimum) {
     const funded = await wallet.requestAirdrop();
     if (funded.attemptStatus !== "succeeded")
       throw new Error(
         "Native funding is unresolved. Inspect the original request.",
       );
+    const next = (await wallet.getBalance()).rawBalance;
+    if (next <= balance)
+      throw new Error(
+        "Native funding is not visible yet. Inspect the original request before continuing.",
+      );
+    balance = next;
   }
 }
 async function submit(name: string, prepare: () => Promise<Transaction>) {
@@ -467,14 +473,27 @@ for (const token of tokens) {
       `Token metadata or deployer balance mismatch for ${token.symbol}.`,
     );
 }
+const code = await readFile(resolve(root, "target/thruput/airdrop.rv32a"));
+const execution = (await client.getChainConfig()).execution;
+if (!execution)
+  throw new Error("RPC must expose execution storage costs for provisioning.");
+const funding = storageFunding(
+  execution.storageCosts,
+  packs,
+  addresses.length,
+  code.length,
+);
+await fundLocal(
+  funding.airdrop + funding.token * BigInt(tokens.length) + 100_000_000n,
+);
 const deployment = prepareContractDeployment({
   deployer: account.address,
-  contract: await readFile(resolve(root, "target/thruput/airdrop.rv32a")),
+  contract: code,
 });
 await submit("deploy-airdrop", () =>
   wallet.prepareDeployment(deployment, {
     gasLimit: GAS,
-    amount: 10000000n,
+    amount: funding.airdrop,
     initializer: Airdrop.v0_1.initialize.invocation(deployment.address, GAS, {
       rewards: tokens.map((t) => ({
         token: addressFromBase58(t.address),
@@ -490,7 +509,7 @@ for (const token of tokens) {
     `storage-${token.symbol}`,
     ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, GAS, {
       receiver: tokenAddress,
-      amount: 10000000n,
+      amount: funding.token,
     }),
   );
   await execute(

@@ -196,6 +196,9 @@ export function App({ config }: { config: PublicConfig }) {
                 {claim.error}
               </p>
             )}
+            {claim.recoveryMessage && (
+              <p role="status">{claim.recoveryMessage}</p>
+            )}
             {claim.pending && (
               <div className="result">
                 <h2>
@@ -227,6 +230,24 @@ export function App({ config }: { config: PublicConfig }) {
                 >
                   {claim.settled ? "Done" : "Check transaction"}
                 </button>
+                {!claim.settled && (
+                  <>
+                    <button
+                      className="secondary"
+                      disabled={claim.busy}
+                      onClick={() => void claim.recover(true)}
+                    >
+                      Retry saved transaction
+                    </button>
+                    <button
+                      className="secondary"
+                      disabled={claim.busy}
+                      onClick={() => void claim.recover(false)}
+                    >
+                      Check expiry
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </section>
