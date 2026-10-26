@@ -7,6 +7,7 @@ import { developmentRegistry } from "./server/development.ts";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 export default defineConfig(({ command, mode }) => ({
+  base: process.env.APP_BASE_PATH || "/",
   // Public configuration is served at runtime; no environment values enter the bundle.
   envPrefix: [],
   plugins: [

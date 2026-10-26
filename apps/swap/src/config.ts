@@ -13,9 +13,7 @@ import {
 } from "./token-discovery/config.ts";
 
 // Public views require a caller, not a connected wallet or signing identity.
-export const READ_ONLY_CALLER = addressFromBase58(
-  toBase58(new Uint8Array(32)),
-);
+export const READ_ONLY_CALLER = addressFromBase58(toBase58(new Uint8Array(32)));
 
 export interface GlobalConfig {
   explorerUrl?: string | undefined;
@@ -44,7 +42,7 @@ export interface AppConfig extends GlobalConfig {
 export type Environment = Record<string, string | boolean | undefined>;
 
 export async function loadRuntimeConfig(): Promise<GlobalConfig> {
-  const response = await fetch("/api/config", {
+  const response = await fetch(`${import.meta.env.BASE_URL}api/config`, {
     cache: "no-store",
     signal: AbortSignal.timeout(10_000),
   });
@@ -55,8 +53,10 @@ export async function loadRuntimeConfig(): Promise<GlobalConfig> {
     throw new Error("Invalid application configuration");
   return loadGlobalConfig({
     ...value,
-    VITE_THRUPUT_RPC_URL: new URL("/thruput-rpc", window.location.origin)
-      .href,
+    VITE_THRUPUT_RPC_URL: new URL(
+      `${import.meta.env.BASE_URL}thruput-rpc`,
+      window.location.origin,
+    ).href,
   });
 }
 
@@ -127,9 +127,7 @@ function parseRpcUrl(value: string): URL {
     throw new ConfigurationError("VITE_THRUPUT_RPC_URL must be a valid URL");
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new ConfigurationError(
-      "VITE_THRUPUT_RPC_URL must use HTTP or HTTPS",
-    );
+    throw new ConfigurationError("VITE_THRUPUT_RPC_URL must use HTTP or HTTPS");
   }
   if (url.username !== "" || url.password !== "") {
     throw new ConfigurationError(

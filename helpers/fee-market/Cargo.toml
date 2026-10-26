@@ -1,0 +1,29 @@
+[package]
+name = "fee-market"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+doctest = false
+test = false # suppress output from our zero unit-tests
+
+[dependencies]
+thruput-sdk = { workspace = true }
+
+[features]
+# Enables std in native tests.
+dev = ["thruput-sdk/dev"]
+
+# Turns the `dev` feature on for the tests in `tests/`.
+[dev-dependencies]
+fee-market = { path = ".", features = ["dev"] }
+
+[lints]
+clippy.result_large_err = "allow"

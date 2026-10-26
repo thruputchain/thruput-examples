@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Explore Thruput with four open-source apps: Counter, Token Launchpad, Swap, and Voting."
+    />
+    <title>Thruput examples</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="container">
+      <a href="/" aria-label="Homepage" class="identity">
+        <picture
+          ><source
+            media="(prefers-color-scheme: dark)"
+            srcset="/brand/stellar-dark.svg" />
+          <img src="/brand/stellar.svg" width="100" height="25" alt="Stellar"
+        /></picture>
+        <span class="brand-divider" aria-hidden="true"></span>
+        <span class="brand-name">Thruput examples</span>
+      </a>
+    </header>
+    <main class="container">
+      <nav aria-label="Example apps">
+        <ul role="list" class="apps">
+          <li>
+            <a href="/counter/"
+              ><p class="number">01 / Concurrency</p>
+              <h2>Counter <span aria-hidden="true">↗</span></h2>
+              <p>
+                Hold a key and watch concurrent updates. Try it without a
+                wallet.
+              </p></a
+            >
+          </li>
+          <li>
+            <a href="/launchpad/"
+              ><p class="number">02 / Tokens</p>
+              <h2>Token Launchpad <span aria-hidden="true">↗</span></h2>
+              <p>
+                Create a token with your wallet and explore launches on the
+                network.
+              </p></a
+            >
+          </li>
+          <li>
+            <a href="/swap/"
+              ><p class="number">03 / Liquidity</p>
+              <h2>Swap <span aria-hidden="true">↗</span></h2>
+              <p>Create a pool, add liquidity, and exchange tokens.</p></a
+            >
+          </li>
+          <li>
+            <a href="/voting/"
+              ><p class="number">04 / Governance</p>
+              <h2>Voting <span aria-hidden="true">↗</span></h2>
+              <p>
+                Create a poll, vote with your wallet, and follow live results.
+              </p></a
+            >
+          </li>
+        </ul>
+      </nav>
+      <p class="note">
+        These apps use devnet test tokens. Launchpad, Swap, and Voting use
+        <a href="https://github.com/thruputchain/freighter"
+          >Thruput Freighter</a
+        >
+        for wallet transactions.
+      </p>
+    </main>
+    <footer class="container">
+      <a href="https://github.com/thruputchain/thruput-examples"
+        >Source code &amp; local setup</a
+      ><a href="https://docs.thruput.network/">Developer docs</a
+      ><a href="https://explorer.thruput.network/">Explorer</a>
+    </footer>
+  </body>
+</html>

@@ -55,7 +55,7 @@ export async function getRegistryPools(
   if (query.asOfBlock !== undefined)
     parameters.set("asOfBlock", query.asOfBlock);
   const value = await requestJson(
-    `/api/pools?${parameters.toString()}`,
+    `${import.meta.env.BASE_URL}api/pools?${parameters.toString()}`,
     requestInit("GET", signal),
     fetcher,
   );
@@ -69,7 +69,7 @@ export async function getPoolRegistryStatus(
 ): Promise<RegistryStatus> {
   return validateStatus(
     await requestJson(
-      "/api/registry/status",
+      `${import.meta.env.BASE_URL}api/registry/status`,
       requestInit("GET", signal),
       fetcher,
     ),
@@ -84,7 +84,7 @@ export async function requestPoolRegistrySync(
 ): Promise<RegistryStatus> {
   return validateStatus(
     await requestJson(
-      "/api/registry/sync",
+      `${import.meta.env.BASE_URL}api/registry/sync`,
       requestInit("POST", signal),
       fetcher,
     ),

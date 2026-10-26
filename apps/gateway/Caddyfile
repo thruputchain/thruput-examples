@@ -1,0 +1,35 @@
+{
+	admin off
+	auto_https off
+}
+
+:{$PORT:8080} {
+	encode zstd gzip
+	header X-Content-Type-Options nosniff
+	header Content-Security-Policy "frame-ancestors 'none'"
+
+	handle /healthz {
+		respond "ok" 200
+	}
+	redir /counter /counter/ 308
+	redir /swap /swap/ 308
+	redir /launchpad /launchpad/ 308
+	redir /voting /voting/ 308
+
+	handle_path /counter/* {
+		reverse_proxy {$COUNTER_UPSTREAM:counter.railway.internal:3000}
+	}
+	handle_path /swap/* {
+		reverse_proxy {$SWAP_UPSTREAM:swap.railway.internal:3000}
+	}
+	handle_path /launchpad/* {
+		reverse_proxy {$LAUNCHPAD_UPSTREAM:token-launchpad.railway.internal:3000}
+	}
+	handle_path /voting/* {
+		reverse_proxy {$VOTING_UPSTREAM:voting.railway.internal:3000}
+	}
+	handle {
+		root * {$SITE_ROOT:/srv}
+		file_server
+	}
+}

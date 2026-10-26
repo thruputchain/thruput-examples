@@ -1,0 +1,32 @@
+[package]
+name = "waitlist"
+version = "0.1.0"
+description = "Example waitlist whose entry fee is steered by its backlog, with the fee-market crate"
+edition = "2024"
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "waitlist"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[features]
+entrypoints = []
+default = ["dev"]
+dev = ["thruput-sdk/dev", "fee-market/dev"]
+
+[dependencies]
+thruput-sdk = { workspace = true }
+thruput-erc20-if = { workspace = true }
+fee-market = { path = "../../helpers/fee-market" }
+
+[dev-dependencies]
+waitlist = { path = ".", features = ["dev"] }

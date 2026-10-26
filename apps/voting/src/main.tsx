@@ -15,13 +15,14 @@ import "./styles.css";
 
 const root = createRoot(document.getElementById("root")!);
 async function main() {
-  const response = await fetch("/api/config");
+  const response = await fetch(`${import.meta.env.BASE_URL}api/config`);
   if (!response.ok) throw new Error("Could not load the Voting configuration.");
   const config = parseConfig(await response.json());
   const client = await createThruputClient({
     cluster: defineCluster({
       name: "local",
-      rpcUrl: new URL("/thruput-rpc", location.origin).href,
+      rpcUrl: new URL(`${import.meta.env.BASE_URL}thruput-rpc`, location.origin)
+        .href,
       networkHash: networkHash(hashFromBase58(config.networkId)),
       capabilities: [] as const,
     }),
@@ -33,7 +34,7 @@ async function main() {
     <StrictMode>
       <QueryClientProvider client={queries}>
         <WalletProvider client={client}>
-          <BrowserRouter>
+          <BrowserRouter basename={import.meta.env.BASE_URL}>
             <App config={config} />
           </BrowserRouter>
         </WalletProvider>

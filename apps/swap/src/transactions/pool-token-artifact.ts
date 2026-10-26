@@ -12,7 +12,9 @@ export function poolTokenArtifactPath(
   expectedHash: string | undefined,
 ): string {
   if (!expectedHash || !isCanonicalHash(expectedHash)) {
-    throw new Error("VITE_POOL_TOKEN_HASH must be a canonical base58 32-byte hash");
+    throw new Error(
+      "VITE_POOL_TOKEN_HASH must be a canonical base58 32-byte hash",
+    );
   }
   return `contract-artifacts/${expectedHash}.json`;
 }
@@ -61,7 +63,10 @@ export async function fetchPoolTokenArtifact(
 ): Promise<Contract> {
   const artifactPath = poolTokenArtifactPath(expectedHash);
   const response = await fetch(
-    new URL(`/${artifactPath}`, window.location.origin),
+    new URL(
+      `${import.meta.env.BASE_URL}${artifactPath}`,
+      window.location.origin,
+    ),
     {
       redirect: "error",
       credentials: "same-origin",

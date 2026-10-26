@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { loadSwapAppUrl } from "./swap-config.ts";
 
 describe("optional Swap origin", () => {
+  it("preserves a hosted app base path", () => {
+    expect(loadSwapAppUrl("https://examples.test/swap/")).toBe(
+      "https://examples.test/swap/",
+    );
+  });
   it.each([undefined, "", "  "])("disables absent/blank %s", (value) => {
     expect(loadSwapAppUrl(value)).toBeNull();
   });

@@ -22,7 +22,7 @@ export async function getDiscoveryTokens(
     : controller.signal;
   try {
     const response = await fetcher(
-      `/api/token-discovery${q ? `?${new URLSearchParams({ q })}` : ""}`,
+      `${import.meta.env.BASE_URL}api/token-discovery${q ? `?${new URLSearchParams({ q })}` : ""}`,
       {
         method: "GET",
         headers: { accept: "application/json" },

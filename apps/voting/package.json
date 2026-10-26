@@ -10,11 +10,12 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5176 --strictPort",
     "build": "npm run typecheck && vite build",
-    "start": "vite preview --host 127.0.0.1 --port 5176 --strictPort",
+    "start": "node --env-file-if-exists=.env.local --import tsx server/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "setup:local": "npm run generate:contracts && tsx scripts/setup-local.ts",
+    "setup:devnet": "npm run generate:contracts && tsx scripts/setup-devnet.ts",
     "test:local": "tsx scripts/test-local.ts",
     "test:browser": "tsx scripts/test-browser.ts"
   },

@@ -35,7 +35,7 @@ export function TopupSigner({
     setPending(true);
     const toastId = toast.loading("Requesting signer airdrop…");
     try {
-      const response = await fetch("/api/topup", {
+      const response = await fetch(`${import.meta.env.BASE_URL}api/topup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
@@ -61,9 +61,12 @@ export function TopupSigner({
       }
       const amount = BigInt(body.rawAmount);
       if (!controller.signal.aborted)
-        toast.success(`Signer received ${formatNativeToken(amount)} native tokens.`, {
-          id: toastId,
-        });
+        toast.success(
+          `Signer received ${formatNativeToken(amount)} native tokens.`,
+          {
+            id: toastId,
+          },
+        );
     } catch (error) {
       if (!controller.signal.aborted)
         toast.error(errorMessage(error), { id: toastId });
@@ -87,7 +90,9 @@ export function TopupSigner({
       }
       className="flex min-h-12 max-w-full items-center justify-center rounded-md border bg-secondary px-3 py-2 font-mono text-sm tabular-nums hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9"
     >
-      <span className="truncate">Top up Signer (curr {balanceLabel} native tokens)</span>
+      <span className="truncate">
+        Top up Signer (curr {balanceLabel} native tokens)
+      </span>
     </button>
   );
 }

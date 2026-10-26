@@ -14,7 +14,7 @@ export function App({
 }) {
   return (
     <AppProviders client={client} explorerUrl={config.explorerUrl}>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <AppLayout>
           <AppRoutes config={config} />
         </AppLayout>

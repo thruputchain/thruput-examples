@@ -15,6 +15,27 @@ const env = {
 };
 
 describe("token discovery configuration", () => {
+  it("allows only the Launchpad private host when running on Railway", () => {
+    const privateEnv = {
+      ...env,
+      TOKEN_DISCOVERY_UPSTREAM_ORIGIN:
+        "http://token-launchpad.railway.internal:3000",
+    };
+    expect(() => loadTokenDiscoveryServerConfig(privateEnv)).toThrow();
+    expect(
+      loadTokenDiscoveryServerConfig({
+        ...privateEnv,
+        RAILWAY_ENVIRONMENT_ID: "production",
+      })?.origin,
+    ).toBe(privateEnv.TOKEN_DISCOVERY_UPSTREAM_ORIGIN);
+    expect(() =>
+      loadTokenDiscoveryServerConfig({
+        ...privateEnv,
+        RAILWAY_ENVIRONMENT_ID: "production",
+        TOKEN_DISCOVERY_UPSTREAM_ORIGIN: "http://other.railway.internal:3000",
+      }),
+    ).toThrow();
+  });
   it("defaults off and does not implicitly enable valid unused settings", () => {
     expect(loadDiscoveryConfig({})).toEqual({
       enabled: false,

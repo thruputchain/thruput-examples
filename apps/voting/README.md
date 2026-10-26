@@ -1,7 +1,8 @@
 # Voting app
 
 Create multi-question polls, vote with a wallet, and read public live results.
-This is a localnode-only teaching app for the [Voting contract](../../contracts/voting/README.md).
+This teaching app uses the [Voting contract](../../contracts/voting/README.md)
+on a local node or devnet.
 
 ## Local setup
 
@@ -31,7 +32,7 @@ and request test native tokens in the wallet. Public browsing needs no wallet.
 Setup builds the contract, generates bindings, deploys a fresh empty Voting
 contract, and writes `.env.local` only after success. It does not save the
 disposable deployer key. Each invocation creates a new deployment. Restart the
-app after setup. This app does not support devnet.
+app after setup.
 
 ## Use it
 
@@ -58,8 +59,9 @@ to the current page. Use **Older** to check earlier polls.
 - `src/components/poll-editor.tsx`: explicit question and option editing.
 - `src/transactions/`: one saved signed transaction and its receipt observation.
 - `scripts/`: contract generation, fresh deployment, and local acceptance tests.
-- `vite.config.ts`: local RPC proxy and public runtime configuration for both
-  development and preview. No database or signing server is required.
+- `server/`: public runtime configuration, read-only RPC proxy, and production
+  static-file server with deep-link support. No database or signing key is required.
+- `vite.config.ts`: the same API handler during local development.
 
 Setup reads the deployer balance through the balance API and credits the contract
 with 1 native token for storage. This is a finite shared reserve for a local demo; anyone
@@ -99,6 +101,22 @@ controlled provider with disposable keys held in the test process, not in the
 browser. They cover creation, voting with two wallets, closure, reload recovery,
 and mobile/desktop layouts in both themes.
 
-`npm start --workspace apps/voting` serves a local production preview on port
-5176. `/api/config` supplies public settings at runtime; restart preview after
-changing `.env.local`.
+## Devnet and hosting
+
+Set `THRUPUT_RPC_URL` to the HTTPS devnet endpoint and `THRUPUT_NETWORK_ID` to
+its verified live base58 network hash, then run:
+
+```sh
+npm run setup:devnet --workspace apps/voting
+npm run dev --workspace apps/voting -- --mode devnet
+```
+
+Setup creates a fresh empty contract and writes the ignored `.env.devnet`.
+For production, supply those values as server environment variables, run
+`npm run build --workspace apps/voting`, then `npm start --workspace apps/voting`.
+The server binds to `0.0.0.0`; `PORT` defaults to 5176.
+`/api/config` supplies public settings and `/healthz` checks configuration readiness.
+The RPC proxy allows reads and simulations; wallet writes go through Freighter.
+
+Set `APP_BASE_PATH=/voting/` at build time when serving behind the
+[shared gateway](../gateway/README.md). Leave it unset for standalone local use.
