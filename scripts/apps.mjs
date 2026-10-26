@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { parseEnv } from "node:util";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const apps = ["counter", "token-launchpad", "swap", "voting", "token-faucet"];
+const apps = ["counter", "token-launchpad", "swap", "voting", "airdrop"];
 const command = process.argv[2];
 if (command !== "setup:local" && command !== "dev") {
   throw new Error("Use setup:local or dev.");
@@ -49,13 +49,13 @@ function run(app) {
 try {
   if (command === "setup:local") {
     for (const path of [
-      process.env.FAUCET_ENV_PATH || "apps/token-faucet/.env.local",
-      process.env.FAUCET_SETUP_DIR || "apps/token-faucet/.local/local",
+      process.env.AIRDROP_ENV_PATH || "apps/airdrop/.env.local",
+      process.env.AIRDROP_SETUP_DIR || "apps/airdrop/.local/local",
     ]) {
       try {
         await lstat(resolve(root, path));
         throw new Error(
-          `Preserve the existing faucet deployment at ${path} and select fresh setup paths before running setup:local.`,
+          `Preserve the existing airdrop deployment at ${path} and select fresh setup paths before running setup:local.`,
         );
       } catch (error) {
         if (error.code !== "ENOENT") throw error;
@@ -68,7 +68,7 @@ try {
     if (!process.env.THRUPUT_CLI)
       throw new Error("Set THRUPUT_CLI to the CLI executable.");
     console.log(
-      "Setting up five apps and fresh faucet assets on the local node.",
+      "Setting up five apps and fresh airdrop assets on the local node.",
     );
     for (const app of apps) {
       if (stopping) break;
@@ -105,7 +105,7 @@ try {
     }
   } else {
     console.log(
-      "Counter :5175 · Launchpad :5173 · Swap :5174 · Voting :5176 · Faucet :5177",
+      "Counter :5175 · Launchpad :5173 · Swap :5174 · Voting :5176 · Airdrop :5177",
     );
     await Promise.all(apps.map(run));
   }

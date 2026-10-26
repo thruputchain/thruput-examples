@@ -43,9 +43,9 @@ provided through an environment variable.
 Source: [transfer-token.ts](transfer-token.ts). This lesson uses the published
 ERC20 binding to transfer a token created by Launchpad. Start with a disposable
 local signer that holds test tokens and enough native tokens for scheduling.
-The [Token Faucet](../../apps/token-faucet/README.md) can supply the test assets.
+The [Airdrop app](../../apps/airdrop/README.md) can supply the test assets.
 The token contract also needs native funding for a new recipient's balance row;
-faucet setup supplies that reserve.
+airdrop setup supplies that reserve.
 
 Set `TOKEN_SENDER_PRIVATE_KEY` privately in your environment. Then run:
 
@@ -59,7 +59,7 @@ npm run example:transfer-token > transfer-evidence.log
 The script reads token decimals, signs one transfer, prints signed evidence before
 broadcast, and verifies the recipient balance. Keep the evidence file. If the
 request times out, inspect its original hash instead of running the script again.
-Never use the hosted faucet signer or a production key for this lesson.
+Never use a production key for this lesson.
 
 ## 1. Read the chain tip
 

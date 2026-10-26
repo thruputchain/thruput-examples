@@ -46,7 +46,7 @@ read events, and submit a batch.
 
 ## App visual identity
 
-Counter, Voting, Swap, and Token Launchpad use the Stellar Thruput identity and follow
+Counter, Voting, Swap, Token Launchpad, and Airdrop use the Stellar Thruput identity and follow
 the system's light or dark theme. Each app keeps its tokens in `src/styles.css`.
 Inter Variable is used for headings, body text, and UI actions. Inconsolata
 Variable is used for code, numbers, balances, and system labels. Both are
@@ -126,7 +126,7 @@ npm run dev
 ```
 
 `setup:local` builds and deploys fresh contracts for Counter, Launchpad, Swap,
-and Voting, then creates six faucet tokens and five seeded pools. It writes each
+and Voting, then deploys Airdrop with six demo tokens and five seeded pools. It writes each
 app's ignored `.env.local`. `dev` reuses those deployments and starts all five apps.
 Setup connects Swap's token discovery to
 Launchpad and enables Launchpad's link to Swap. Ctrl+C stops the app processes; stop the
@@ -138,16 +138,16 @@ node separately. These root commands use POSIX process groups (Linux/macOS).
 | Token Launchpad | http://127.0.0.1:5173 |
 | Swap            | http://127.0.0.1:5174 |
 | Voting          | http://127.0.0.1:5176 |
-| Token Faucet    | http://127.0.0.1:5177 |
+| Airdrop         | http://127.0.0.1:5177 |
 
-Counter and Token Faucet work without a wallet connection. For the other apps, install Thruput Freighter,
+Counter works without a wallet connection. For the other apps, install Thruput Freighter,
 select the same local RPC endpoint, and request test tokens in the wallet.
-The root setup includes faucet tokens and pools. Individual Launchpad and Swap
+The root setup includes airdrop tokens and pools. Individual Launchpad and Swap
 setup commands start empty; their READMEs explain optional demo seeding.
 An ephemeral node loses its contracts when stopped. After restarting it, use
-its new runtime manifest and run `setup:local` again. First preserve the old faucet
-environment and provisioning directory; faucet setup refuses existing paths.
-See the [faucet guide](apps/token-faucet/README.md) for separate setup paths.
+its new runtime manifest and run `setup:local` again. First preserve the old airdrop
+environment and provisioning directory; airdrop setup refuses existing paths.
+See the [airdrop guide](apps/airdrop/README.md) for separate setup paths.
 
 To run one app, use `npm run setup:local --workspace apps/<app>` followed by
 `npm run dev --workspace apps/<app>`. Local development needs no Railway account
@@ -168,6 +168,7 @@ Suggested order: **Counter → Fibonacci → Events → Cross-call → error han
 | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | [Counter](contracts/counter/README.md)                                                                                     | Store and update a non-negative counter                      |
 | [Voting](contracts/voting/README.md)                                                                                       | Admin permissions, poll lifecycle, and mergeable vote totals |
+| [Airdrop](contracts/airdrop/README.md)                                                                                     | Atomic token claims with optional address eligibility       |
 | [Waitlist](contracts/waitlist/README.md) | An EIP-1559-style fee steered by a backlog, which concurrent callers share without conflict |
 | [Fibonacci](contracts/fibonacci/README.md)                                                                                 | A stateless method, a declared error, and an event           |
 | [Events](contracts/events/README.md)                                                                                       | Event payloads and indexed topics                            |
@@ -197,7 +198,7 @@ These combine several concepts. Read a small example first.
 | ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | [Counter](apps/counter/README.md)                 | Development-signed concurrent updates or wallet-approved button updates, with reload recovery |
 | [Voting](apps/voting/README.md)                   | Create multi-question polls, vote once per question, and view live results                    |
-| [Token Faucet](apps/token-faucet/README.md)         | Claim six test tokens with persistent address and IP limits                                  |
+| [Airdrop](apps/airdrop/README.md)                   | Claim configurable tokens once per wallet, with optional address eligibility                  |
 | [Token Launchpad](apps/token-launchpad/README.md) | Create tokens with an external wallet and browse indexed launches                             |
 | [Swap](apps/swap/README.md)                       | Create pools, swap tokens, and manage liquidity                                               |
 

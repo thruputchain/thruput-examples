@@ -17,7 +17,7 @@ import { createLocalClient } from "./local-client.ts";
 import { waitForView } from "./wait-for-view.ts";
 
 // Use a disposable local account that already holds this test token.
-// The faucet can supply it. Never use a production or hosted faucet key here.
+// The Airdrop contract can supply it. Never use a production key here.
 const client = await createLocalClient();
 const key = process.env.TOKEN_SENDER_PRIVATE_KEY;
 assert(key && /^0x[0-9a-fA-F]{64}$/.test(key), "Set TOKEN_SENDER_PRIVATE_KEY");

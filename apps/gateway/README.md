@@ -10,7 +10,7 @@ The public URL is https://examples-gateway-production.up.railway.app/.
 | `/launchpad/` | Token Launchpad  | `token-launchpad.railway.internal:3000` | `/launchpad/`              |
 | `/swap/`      | Swap             | `swap.railway.internal:3000`            | `/swap/`                   |
 | `/voting/`    | Voting           | `voting.railway.internal:3000`          | `/voting/`                 |
-| `/faucet/`    | Token Faucet     | `token-faucet.railway.internal:3000`    | `/faucet/`                 |
+| `/airdrop/`   | Airdrop          | `airdrop.railway.internal:3000`         | `/airdrop/`                |
 
 The gateway removes the path prefix before forwarding. Browser routes, API
 requests, workers, fonts, and contract artifacts retain the prefix in public URLs.
@@ -28,7 +28,7 @@ Private npm packages require a build credential with `read:packages` access.
 Keep the token in Railway variables, never in the repository.
 
 The gateway uses `apps/gateway/Dockerfile`, `PORT=8080`, and `/healthz`.
-`COUNTER_UPSTREAM`, `LAUNCHPAD_UPSTREAM`, `SWAP_UPSTREAM`, `VOTING_UPSTREAM`, and `FAUCET_UPSTREAM`
+`COUNTER_UPSTREAM`, `LAUNCHPAD_UPSTREAM`, `SWAP_UPSTREAM`, `VOTING_UPSTREAM`, and `AIRDROP_UPSTREAM`
 can override its upstream addresses. Watch each app's directory plus the root
 `package.json`, `package-lock.json`, `.npmrc`, and `railpack.json` for deployments.
 
@@ -45,13 +45,10 @@ Launchpad and Swap retain their `/data` volumes. Use a new factory-specific data
 filename for each new deployment, so the previous registry remains intact.
 Voting and the gateway need no volume.
 
-Token Faucet also needs one replica and a `/data` volume. Set the same random
-`FAUCET_PROXY_SECRET` on it and the gateway. The gateway replaces internal IP
-headers with Railway's edge-provided `X-Real-IP`; the faucet verifies the shared
-secret before accepting that address. Keep the gateway behind Railway's edge.
-See [Token Faucet](../token-faucet/README.md#devnet-and-railway) for provisioning,
-funding, quota settings, and retained claim data. Publish its gateway link only
-after the service and private upstream are ready.
+Airdrop uses an on-chain contract for eligibility and claims. Its web server
+serves public configuration and a read-only RPC proxy; it needs no signing key,
+database, volume, or shared gateway secret. See [Airdrop](../airdrop/README.md)
+for configurable token rewards, eligible addresses, and deployment settings.
 
 Set Swap's token discovery variables to Launchpad's network, factory address,
 and token code hash. In Railway, set

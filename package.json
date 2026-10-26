@@ -8,7 +8,7 @@
     "apps/voting",
     "apps/swap",
     "apps/token-launchpad",
-    "apps/token-faucet"
+    "apps/airdrop"
   ],
   "engines": {
     "node": ">=22.13.0"

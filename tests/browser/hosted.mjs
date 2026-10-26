@@ -37,11 +37,11 @@ const apps = [
     heading: "Start with a question",
   },
   {
-    name: "token-faucet",
-    path: "faucet",
+    name: "airdrop",
+    path: "airdrop",
     port: 25177,
     route: "",
-    heading: "Claim test tokens",
+    heading: "Claim your airdrop",
   },
 ];
 const caddy = process.env.CADDY_BINARY || "caddy";
@@ -86,8 +86,6 @@ try {
     };
     env.TOKEN_REGISTRY_DB_PATH = join(site, "tokens.sqlite");
     env.POOL_REGISTRY_DB_PATH = join(site, "pools.sqlite");
-    env.FAUCET_DB_PATH = join(site, "claims.sqlite");
-    env.FAUCET_PROXY_SECRET = "";
     if (app.name === "swap")
       env.TOKEN_DISCOVERY_UPSTREAM_ORIGIN = "http://127.0.0.1:25173";
     const build = spawnSync(
@@ -118,7 +116,7 @@ try {
         LAUNCHPAD_UPSTREAM: "127.0.0.1:25173",
         SWAP_UPSTREAM: "127.0.0.1:25174",
         VOTING_UPSTREAM: "127.0.0.1:25176",
-        FAUCET_UPSTREAM: "127.0.0.1:25177",
+        AIRDROP_UPSTREAM: "127.0.0.1:25177",
       },
     },
   );
