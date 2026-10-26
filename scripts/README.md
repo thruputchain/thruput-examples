@@ -99,7 +99,7 @@ export THRUPUT_CLI="$(command -v thruput)"
 export THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"
 npm run examples:generate
 npm run test:examples
-npm run generate:contracts --workspaces
+npm run generate:contracts --workspaces --if-present
 npm run build --workspaces
 npm run test:counter
 npm run test:seed

@@ -36,6 +36,13 @@ const apps = [
     route: "new",
     heading: "Start with a question",
   },
+  {
+    name: "airdrop",
+    path: "airdrop",
+    port: 25177,
+    route: "",
+    heading: "Claim your airdrop",
+  },
 ];
 const caddy = process.env.CADDY_BINARY || "caddy";
 assert.equal(
@@ -109,6 +116,7 @@ try {
         LAUNCHPAD_UPSTREAM: "127.0.0.1:25173",
         SWAP_UPSTREAM: "127.0.0.1:25174",
         VOTING_UPSTREAM: "127.0.0.1:25176",
+        AIRDROP_UPSTREAM: "127.0.0.1:25177",
       },
     },
   );
@@ -151,7 +159,7 @@ try {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(origin);
       await page.getByRole("navigation", { name: "Example apps" }).waitFor();
-      assert.equal(await page.locator("nav a").count(), 4);
+      assert.equal(await page.locator("nav a").count(), 5);
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth > innerWidth,

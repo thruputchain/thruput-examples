@@ -10,6 +10,7 @@ The public URL is https://examples-gateway-production.up.railway.app/.
 | `/launchpad/` | Token Launchpad  | `token-launchpad.railway.internal:3000` | `/launchpad/`              |
 | `/swap/`      | Swap             | `swap.railway.internal:3000`            | `/swap/`                   |
 | `/voting/`    | Voting           | `voting.railway.internal:3000`          | `/voting/`                 |
+| `/airdrop/`   | Airdrop          | `airdrop.railway.internal:3000`         | `/airdrop/`                |
 
 The gateway removes the path prefix before forwarding. Browser routes, API
 requests, workers, fonts, and contract artifacts retain the prefix in public URLs.
@@ -27,7 +28,7 @@ Private npm packages require a build credential with `read:packages` access.
 Keep the token in Railway variables, never in the repository.
 
 The gateway uses `apps/gateway/Dockerfile`, `PORT=8080`, and `/healthz`.
-`COUNTER_UPSTREAM`, `LAUNCHPAD_UPSTREAM`, `SWAP_UPSTREAM`, and `VOTING_UPSTREAM`
+`COUNTER_UPSTREAM`, `LAUNCHPAD_UPSTREAM`, `SWAP_UPSTREAM`, `VOTING_UPSTREAM`, and `AIRDROP_UPSTREAM`
 can override its upstream addresses. Watch each app's directory plus the root
 `package.json`, `package-lock.json`, `.npmrc`, and `railpack.json` for deployments.
 
@@ -44,6 +45,11 @@ Launchpad and Swap retain their `/data` volumes. Use a new factory-specific data
 filename for each new deployment, so the previous registry remains intact.
 Voting and the gateway need no volume.
 
+Airdrop uses an on-chain contract for eligibility and claims. Its web server
+serves public configuration and a read-only RPC proxy; it needs no signing key,
+database, volume, or shared gateway secret. See [Airdrop](../airdrop/README.md)
+for configurable token rewards, eligible addresses, and deployment settings.
+
 Set Swap's token discovery variables to Launchpad's network, factory address,
 and token code hash. In Railway, set
 `TOKEN_DISCOVERY_UPSTREAM_ORIGIN=http://token-launchpad.railway.internal:3000`.
@@ -56,7 +62,7 @@ Build contracts and generated bindings together with the selected CLI:
 
 ```sh
 export THRUPUT_CLI="$(command -v thruput)"
-npm run generate:contracts --workspaces
+npm run generate:contracts --workspaces --if-present
 export THRUPUT_RPC_URL=https://rpc.thruput.network
 export THRUPUT_NETWORK_ID=<verified-live-base58-network-hash>
 npm run setup:devnet --workspace apps/counter
@@ -87,7 +93,7 @@ npm test
 CADDY_BINARY=/path/to/caddy npm run test:hosted
 ```
 
-`test:hosted` builds all four apps with subpaths, starts their production servers
+`test:hosted` builds all five apps with subpaths, starts their production servers
 and Caddy, and checks direct links, reloads, assets, public config, and mobile/desktop
 layouts in both themes. It uses the existing `.env.local` deployments and submits
 no transactions. It requires Linux for process cleanup. It leaves subpath bundles
