@@ -167,6 +167,7 @@ Suggested order: **Counter → Fibonacci → Events → Cross-call → error han
 | [Fibonacci](contracts/fibonacci/README.md)                                                                                 | A stateless method, a declared error, and an event           |
 | [Events](contracts/events/README.md)                                                                                       | Event payloads and indexed topics                            |
 | [Cross-call](contracts/cross-call/README.md)                                                                               | Call another contract through its generated client           |
+| [Oracle consumer](contracts/oracle-consumer/README.md)                                                                     | Read a published price, check freshness, and value tokens     |
 | [Error-handling callee](contracts/error-handling-callee/README.md) and [caller](contracts/error-handling-caller/README.md) | Distinguish declared errors, faults, and failed calls        |
 | [Multi-throws](contracts/multi-throws/README.md)                                                                           | Handle more than one declared error type                     |
 | [Multi-impl](contracts/multi-impl/README.md)                                                                               | Implement separate interface traits at one address           |
