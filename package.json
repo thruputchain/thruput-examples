@@ -7,7 +7,8 @@
     "apps/counter",
     "apps/voting",
     "apps/swap",
-    "apps/token-launchpad"
+    "apps/token-launchpad",
+    "apps/token-faucet"
   ],
   "engines": {
     "node": ">=22.13.0"
@@ -21,6 +22,7 @@
     "example:chain-tip": "tsx examples/typescript/chain-tip.ts",
     "example:view-native-token-balance": "tsx examples/typescript/view-native-token-balance.ts",
     "example:transfer-native-token": "tsx examples/typescript/transfer-native-token.ts",
+    "example:transfer-token": "tsx examples/typescript/transfer-token.ts",
     "example:pq-account": "tsx examples/typescript/pq-account.ts",
     "example:deploy-counter": "tsx examples/typescript/deploy-counter.ts",
     "example:read-events": "tsx examples/typescript/read-events.ts",

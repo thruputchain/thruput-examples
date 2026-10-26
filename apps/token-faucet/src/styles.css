@@ -1,0 +1,267 @@
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/inconsolata";
+@import "tailwindcss";
+
+:root {
+  font-family: "Inter Variable", sans-serif;
+  color: #182326;
+  background: #fafbfa;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button,
+input {
+  font: inherit;
+}
+.app {
+  isolation: isolate;
+  max-width: 1180px;
+  margin: auto;
+  padding: 0 40px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 96px;
+  gap: 20px;
+  border-bottom: 1px solid #e2e7e4;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.divider {
+  color: #b8c1bc;
+}
+.source {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  color: #52635b;
+}
+main {
+  padding: 64px 0 80px;
+}
+h1 {
+  font-size: clamp(34px, 4.6vw, 52px);
+  line-height: 1.12;
+  letter-spacing: -0.045em;
+  font-weight: 500;
+  margin: 20px 0;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 64px;
+  align-items: start;
+}
+.panel {
+  background: #fff;
+  border: 1px solid #dce4df;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px #18232604;
+}
+.section-title {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+h2,
+.section-title h1 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+.muted,
+.hint,
+.result > p {
+  color: #627169;
+  font-size: 13px;
+  line-height: 1.7;
+}
+form {
+  margin-top: 28px;
+}
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+input {
+  width: 100%;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #cdd8d1;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+}
+input:disabled {
+  background: #f5f7f5;
+}
+input:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #227a50;
+  outline-offset: 3px;
+}
+.hint {
+  font-size: 12px;
+  margin: 12px 0 24px;
+}
+button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border: 0;
+  border-radius: 6px;
+  width: 100%;
+  padding: 14px;
+  background: #193c2c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+button:hover {
+  background: #23553c;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.secondary {
+  background: #edf2ef;
+  color: #193c2c;
+}
+.secondary:hover {
+  background: #dfe8e2;
+}
+.pack {
+  padding-top: 6px;
+}
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+}
+li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px solid #e2e7e4;
+}
+.token-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e9eeea;
+  color: #4c6558;
+  font-size: 15px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.token-name {
+  flex: 1;
+}
+.token-name p {
+  font-size: 12px;
+  color: #718077;
+  margin: 4px 0 0;
+}
+.amount {
+  font:
+    16px "Inconsolata Variable",
+    monospace;
+}
+.swap-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 500;
+  padding-top: 24px;
+}
+.error {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #a13535;
+}
+.result {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #e2e7e4;
+}
+.hash {
+  overflow-wrap: anywhere;
+  font-family: "Inconsolata Variable", monospace;
+}
+footer {
+  border-top: 1px solid #e2e7e4;
+  padding: 24px 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: #718077;
+}
+@media (max-width: 760px) {
+  .app {
+    padding: 0 20px;
+  }
+  header {
+    min-height: 76px;
+  }
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  main {
+    padding: 40px 0;
+  }
+  .panel {
+    padding: 24px;
+  }
+  .source {
+    font-size: 11px;
+  }
+  .brand {
+    gap: 8px;
+    font-size: 14px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  a {
+    transition:
+      background-color 0.15s,
+      color 0.15s;
+  }
+}

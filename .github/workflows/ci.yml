@@ -91,7 +91,7 @@ jobs:
           echo "THRUPUT_DEVNODE_BINARY=$(thruput toolchain which)" >> "$GITHUB_ENV"
       - name: Generate fresh contract bindings
         run: |
-          npm run generate:contracts --workspaces
+          npm run generate:contracts --workspaces --if-present
           npm run examples:generate
           git diff --exit-code -- examples/typescript/generated
       - run: npm run build --workspaces

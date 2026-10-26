@@ -15,6 +15,7 @@
 	redir /swap /swap/ 308
 	redir /launchpad /launchpad/ 308
 	redir /voting /voting/ 308
+	redir /faucet /faucet/ 308
 
 	handle_path /counter/* {
 		reverse_proxy {$COUNTER_UPSTREAM:counter.railway.internal:3000}
@@ -27,6 +28,12 @@
 	}
 	handle_path /voting/* {
 		reverse_proxy {$VOTING_UPSTREAM:voting.railway.internal:3000}
+	}
+	handle_path /faucet/* {
+		reverse_proxy {$FAUCET_UPSTREAM:token-faucet.railway.internal:3000} {
+			header_up X-Faucet-Proxy-Key {$FAUCET_PROXY_SECRET:unconfigured}
+			header_up X-Faucet-Client-IP {http.request.header.X-Real-IP}
+		}
 	}
 	handle {
 		root * {$SITE_ROOT:/srv}
