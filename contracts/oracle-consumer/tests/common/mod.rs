@@ -54,10 +54,12 @@ pub fn setup(
                 let oracle = deploy_contract(&sha256_static!("oracle"), &oracle_hash);
                 let consumer = deploy_contract(&sha256_static!("consumer"), &consumer_hash);
                 OracleFixtureClient::new(&oracle).set_price(price());
-                (oracle, consumer)
+                (oracle, consumer, get_block_timepoint())
             })
     });
     result.assert_success();
-    env.advance_block();
-    result.assert_return_as()
+    let (oracle, consumer, timepoint) = result.assert_return_as();
+    // Commit setup without letting wall-clock time age the boundary observation.
+    env.advance_block_at(timepoint);
+    (oracle, consumer)
 }
