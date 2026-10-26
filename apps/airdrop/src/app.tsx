@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useClient, useWallet } from "@thruputchain/react";
 import { addressFromBase58, formatUnits, toBase58 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
-import { ArrowRight, Droplets, ExternalLink } from "lucide-react";
+import { ArrowRight, Droplets } from "lucide-react";
 import { Airdrop } from "./contracts/generated/airdrop";
 import { useClaim } from "./claim";
 import type { PublicConfig } from "../shared/config";
@@ -70,15 +70,24 @@ export function App({ config }: { config: PublicConfig }) {
   return (
     <div className="app">
       <header>
-        <a className="brand" href="/">
-          thruput<span className="divider">/</span>
-          <span>Airdrop</span>
-        </a>
         <a
-          className="source"
-          href="https://github.com/thruputchain/thruput-examples/tree/main/apps/airdrop"
+          className="brand"
+          href={import.meta.env.BASE_URL}
+          aria-label="Thruput Airdrop homepage"
         >
-          View source <ExternalLink size={14} aria-hidden="true" />
+          <picture>
+            <source
+              srcSet={`${import.meta.env.BASE_URL}brand/stellar-dark.svg`}
+              media="(prefers-color-scheme: dark)"
+            />
+            <img
+              src={`${import.meta.env.BASE_URL}brand/stellar.svg`}
+              width="100"
+              height="25"
+              alt="Stellar"
+            />
+          </picture>
+          <span>Thruput Airdrop</span>
         </a>
       </header>
       <main>

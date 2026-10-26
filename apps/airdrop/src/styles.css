@@ -70,19 +70,29 @@ header {
 .brand {
   display: flex;
   align-items: center;
-  gap: 16px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  gap: 12px;
+  font-size: 17px;
+  font-weight: 500;
 }
-.divider {
-  color: var(--muted-foreground);
+.brand picture {
+  flex-shrink: 0;
 }
-.source {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 13px;
-  color: var(--muted-foreground);
+.brand img {
+  display: block;
+  width: 80px;
+  height: auto;
+}
+.brand span {
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+}
+@media (min-width: 384px) {
+  .brand {
+    font-size: 20px;
+  }
+  .brand img {
+    width: 100px;
+  }
 }
 main {
   padding: 64px 0 80px;
