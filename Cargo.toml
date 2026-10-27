@@ -23,24 +23,24 @@ categories = ["blockchain"]
 
 [workspace.dependencies]
 # from thruput-sdk-rs:
-thruput-sdk = { registry = "thruput", version = "=0.57.0" }
-thruput-contract-util = { registry = "thruput", version = "=0.57.0" }
-thruput-u256 = { registry = "thruput", version = "=0.57.0", default-features = false }
-thruput-domain-separator = { registry = "thruput", version = "=0.57.0", default-features = false }
-thruput-event = { registry = "thruput", version = "=0.57.0" }
-thruput-erc20-if = { registry = "thruput", version = "=0.1.68" }
-thruput-erc20-metadata-if = { registry = "thruput", version = "=0.1.68" }
-thruput-erc20-controls-if = { registry = "thruput", version = "=0.1.68" }
-thruput-erc20-permit-if = { registry = "thruput", version = "=0.1.68" }
-thruput-signed-op-if = { registry = "thruput", version = "=0.1.68" }
-thruput-signed-op = { registry = "thruput", version = "=0.1.68" }
+thruput-sdk = { registry = "thruput", version = "=0.57.1" }
+thruput-contract-util = { registry = "thruput", version = "=0.57.1" }
+thruput-u256 = { registry = "thruput", version = "=0.57.1", default-features = false }
+thruput-domain-separator = { registry = "thruput", version = "=0.57.1", default-features = false }
+thruput-event = { registry = "thruput", version = "=0.57.1" }
+thruput-erc20-if = { registry = "thruput", version = "=0.1.69" }
+thruput-erc20-metadata-if = { registry = "thruput", version = "=0.1.69" }
+thruput-erc20-controls-if = { registry = "thruput", version = "=0.1.69" }
+thruput-erc20-permit-if = { registry = "thruput", version = "=0.1.69" }
+thruput-signed-op-if = { registry = "thruput", version = "=0.1.69" }
+thruput-signed-op = { registry = "thruput", version = "=0.1.69" }
 
 # from thruput-tools:
-thruput-json-rpc-client = { registry = "thruput", version = "=0.39.0" }
-thruput-json-rpc-types = { registry = "thruput", version = "=0.39.0" }
-thruput-cli = { registry = "thruput", version = "=0.39.0" }
-thruput-signing = { registry = "thruput", version = "=0.39.0" }
-thruput-testkit = { registry = "thruput", version = "=0.39.0" }
+thruput-json-rpc-client = { registry = "thruput", version = "=0.40.2" }
+thruput-json-rpc-types = { registry = "thruput", version = "=0.40.2" }
+thruput-cli = { registry = "thruput", version = "=0.40.2" }
+thruput-signing = { registry = "thruput", version = "=0.40.2" }
+thruput-testkit = { registry = "thruput", version = "=0.40.2" }
 
 # from thruput-protocol-rs:
 thruput-xdr = { registry = "thruput", version = "=0.61.0", features = ["serde", "xdrs"] }
