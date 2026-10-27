@@ -1,40 +1,37 @@
 {
   "rpcUrl": "https://rpc.thruput.network",
-  "networkId": "6RgqYi69r94rCG1qKZ5NfCMAxonNAMXbDsFZMgGwgP2J",
+  "networkId": "DFizVugYrvktaiKivvCx2P1ApArLuyYmH6vN3HN7FcNT",
   "cliVersion": "0.40.0",
   "wireFormat": "14.1.1",
   "counter": {
-    "address": "3W7mtVzcFa7dGE7vEXScvfnFupqKgdVwBKTicbmaPepo",
-    "deploymentTransaction": "EoLAQW93d53D6y5cUGtYt6JVWvaYvy5PmzPXEZWLDcPf"
+    "address": "GddP8yyqwjKK19UrQSod8iHdspsiUnCBQzdFFC9AUf8b",
+    "deploymentTransaction": "8X37gL5rbqgZF5RCaXFLVyovqugDoUmjPW3rEa5Cg3k4"
   },
   "launchpad": {
-    "factory": "AEnJ8usVbwkak1khegYbcnqRjhHrd9wjFEi4N3FM1vmo",
+    "factory": "HoM4Vdt7qdcf3oyhRBHwvJRivuR2oQ2ETo1XwCXrnews",
     "tokenCodeHash": "G4fdv9AoMhC1Uc1VQKs8HTAsUWMeZ8WJ4CtuZC3JHXRH",
-    "deploymentTransaction": "FZcDdLtmYoPAVpfYpHzFjvgKFps6mmcZFGdn8J94ik5D"
+    "deploymentTransaction": "GMUa9EPopQazuJ4dNq6cQQyrLVcw9tKawUiBL3nZ261b"
   },
   "swap": {
-    "factory": "HCBLczLgfXv6fwqCPCeHTGK8xpBLzSBcgVC5zAYdFHQv",
-    "router": "5aBkiRuFiDADVgxqf1JJnJ9v2LQNUvDFfD9pgqcHbBCs",
-    "handler": "8GsWU1pCdYRnMjEfLvCKGpjwnS4va65CrakGRo2Z4Q6y",
-    "driver": "B4z4qdTK7RqaSeYQqBabKqN2uCd1wHztXci7i6tyz4Bs",
+    "factory": "8Wn5kj3iTAnYcGc7PnA5gTwQAjWPD5z1HSUd4NDvA3qJ",
+    "router": "CNwDBPjFWCaLpHc5STq6girDkLXXwcqto4asg8CrSCPP",
+    "handler": "AL49dcrhYeJ4ZmYfT68AHLGjwDX1iBNawkUWXwVEHuMv",
+    "driver": "ANS5oz5jxPLHAJh5PVjsJMiR72peXdayBcra3jmkPhae",
     "poolTokenCodeHash": "BHfqrDnWrT259PjciruPMzWQuHRS8c5ebK34PqpAtLig",
-    "factoryDeploymentTransaction": "DsVHdMPbbhnBWVw7uqZ3oWPDpM4TG2uwH55JrpTTDyw5",
-    "routerDeploymentTransaction": "BeJfbc5MSPJezyxbzcn85sb7HirAwDr3midzPWYs7b9y",
-    "handlerDeploymentTransaction": "6RHLGw2HkqYjmZcQFZSs5a4zY3DKmcAFjEZ5CAjM8N5p",
-    "driverDeploymentTransaction": "8rhVtdoModMC5jJs6f5Mh3NH5rCPPSSdnTHkM1kMhZE2"
+    "factoryDeploymentTransaction": "CUk6TzVaEpQuisWnEWxa6opiLsFyhRujBmo9EdLwKzdN",
+    "routerDeploymentTransaction": "G9yEDmSYrS9QLPGZfkbLFPHpeD23gDJP1hFYnU1urmsf",
+    "handlerDeploymentTransaction": "FBfRFrfpNnM4j7NduXP57TbEtBSTjkXZNhu6FSRqGkHB",
+    "driverDeploymentTransaction": "4TcYUfU5tcZBLKwGj7ydpYn5hf6yFCtVQWEp3cMcQExs"
   },
   "voting": {
-    "address": "3cuUgnKwhLLpTWpuS1RT8G5Z4wkuGtWHwCnLwhDBxAtb",
-    "deploymentTransaction": "6LcXgz7H5AFn1XJcL8KH4s63yM4JQYYDYxBTWKRGzwvN"
+    "address": "G15U9gYsNK7ZAXJgUSnywHdvu8iESbqozJDwDjATGJSg",
+    "deploymentTransaction": "9T5GsfY9aji4g3NYLqSfUi3swCNnvVu3uK58H6p6QNBM"
   },
-  "verification": {
-    "tokenCreationTransactions": [
-      "411bMsCRvevux3cMBAENPf8gA6MC2HYd19QjzFTcqPFW",
-      "CRWW2Jk2iYFXuUYw3LwP8aF92YgDKVpQCxDyyRiTikDv"
-    ],
-    "createPoolAndAddLiquidity": "G6dEohPUPqv1wwRhZ96UUwP69Hp972DheqiASqBDVbcp",
-    "processLiquidity": "D91kfCTThDrkx2L7dEDPkKa2udg3M5CYcdu5yE26WA44",
-    "approveAndSwap": "9KmW5wastdevE96zA7bjQC9LUvDZ98ujHAWxEAAtqdSo",
-    "processSwap": "FongMepxkrqcTgDK4bUvvDk6ho2nwamFYE7oSieB7N9L"
+  "airdrop": {
+    "address": "6fLQy15Ace7zC3itCcQbwpk3BiYpidjQPi1JCThqiegZ",
+    "deploymentTransaction": "9tpXCerKFqzMqhaigXVS5VzM2psK8xD5Wa5AQ65Engk5",
+    "fundedClaims": 1000,
+    "tokenCount": 7,
+    "seededPoolCount": 6
   }
 }
