@@ -73,13 +73,13 @@ credential provider. Save your token at Cargo's prompt:
 export CARGO_REGISTRIES_THRUPUT_CREDENTIAL_PROVIDER=cargo:token
 cargo login --registry thruput
 rustup show
-cargo install --locked --registry thruput --version 0.40.2 thruput-cli
+cargo install --locked --registry thruput --version '>=0.37.0' thruput-cli
 thruput toolchain install
 ```
 
-CLI **0.40.2** manages runtime **0.1.31-rc.16** (native RPC wire 14). Native tests need Rust and registry
-access but no CLI or node. For contract builds, add this local profile to
-`thruput.toml` if it is not already configured:
+Use CLI **0.37.0 or newer**. Let the CLI select its compatible managed runtime.
+Native tests need Rust and registry access but no CLI or node. For contract
+builds, add this local profile to `thruput.toml` if it is not already configured:
 
 ```toml
 default_profile = "local"
