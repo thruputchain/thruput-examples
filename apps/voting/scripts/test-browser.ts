@@ -122,8 +122,8 @@ try {
         return window.votingWalletRequest(request);
       }
     };
-    const announce = () => window.dispatchEvent(new CustomEvent("groundhog:announceProvider", { detail: provider }));
-    window.addEventListener("groundhog:requestProvider", announce); announce();
+    const announce = () => window.dispatchEvent(new CustomEvent("thruput:announceProvider", { detail: provider }));
+    window.addEventListener("thruput:requestProvider", announce); announce();
   })();`,
   });
   const origin = `http://127.0.0.1:${socket.port}`;

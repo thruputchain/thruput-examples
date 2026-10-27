@@ -103,9 +103,9 @@ try {
       };
       const announce = () =>
         window.dispatchEvent(
-          new CustomEvent("groundhog:announceProvider", { detail: provider }),
+          new CustomEvent("thruput:announceProvider", { detail: provider }),
         );
-      window.addEventListener("groundhog:requestProvider", announce);
+      window.addEventListener("thruput:requestProvider", announce);
       announce();
     },
     {
