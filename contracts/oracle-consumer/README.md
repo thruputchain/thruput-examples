@@ -84,9 +84,10 @@ For a live setup:
    and your application's maximum age in seconds.
 
 The relay revision uses SDK 0.51.1 and CLI 0.30.0; this example uses the workspace's
-SDK 0.57.0 and requires CLI 0.37.0 or newer. The local tests check the read ABI,
-not live runtime compatibility. A live deployment needs relay artifacts and tooling compatible
-with the chosen network; do not assume the older build can run on a newer node.
+SDK 0.57.1 and requires CLI 0.37.0 or newer. The local tests check the read ABI,
+not live runtime compatibility. A live deployment needs relay artifacts and
+tooling compatible with the chosen network; do not assume the older build can
+run on a newer node.
 
 Choose a trusted oracle and verify which asset and quote currency its feed
 represents. The relay trusts its publisher; it does not verify Stellar consensus
