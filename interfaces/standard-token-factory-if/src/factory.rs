@@ -71,14 +71,18 @@ pub trait StandardTokenFactory {
     ) -> ContractAddress;
 
     /// Predicts the token address for `creator` and its application nonce.
+    #[contract(effect = "readOnly")]
     fn predict_token(&self, creator: &ContractAddress, nonce: &SHA256Hash) -> ContractAddress;
 
     /// Returns the native-token amount required at a predicted token address.
+    #[contract(effect = "readOnly")]
     fn required_token_funding(&self) -> Amount;
 
     /// Returns the immutable native token creation fee.
+    #[contract(effect = "readOnly")]
     fn creation_fee(&self) -> Amount;
 
     /// Returns the complete immutable factory configuration.
+    #[contract(effect = "readOnly")]
     fn config(&self) -> FactoryConfig;
 }

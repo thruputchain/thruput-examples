@@ -151,15 +151,18 @@ impl StellarAccountInitializer for StellarAccount {
 )]
 impl StellarAccount {
     /// The creation key, whether or not slot 0 is currently registered.
+    #[contract(effect = "readOnly")]
     pub fn master_key(&self) -> Ed25519PublicKey {
         self.config.get().master_key
     }
 
+    #[contract(effect = "readOnly")]
     pub fn thresholds(&self) -> Thresholds {
         self.config.get().thresholds
     }
 
     /// The weight registered at each slot; 0 is empty.
+    #[contract(effect = "readOnly")]
     pub fn signer_weights(&self) -> [u32; MAX_SIGNERS] {
         self.config.get().weights
     }

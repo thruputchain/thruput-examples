@@ -486,7 +486,8 @@ impl Speedex {
     /// in gas, with tâtonnement capped at `rounds` in place of the configured cap. The batch stays
     /// clearable: this is how a clearer learns what [`clear_batch`](Self::clear_batch) will cost
     /// before paying it, and how `tests/testkit_gas.rs` measures the engine.
-    pub fn measure_clearing(&mut self, batch: BatchId, cells: &[u8], rounds: u32) -> GasReport {
+    #[contract(effect = "readOnly")]
+    pub fn measure_clearing(&self, batch: BatchId, cells: &[u8], rounds: u32) -> GasReport {
         use thruput_sdk::stats::gas_remaining;
         let start = gas_remaining();
         let cfg = self.cfg();
@@ -636,32 +637,38 @@ impl Speedex {
         });
     }
 
+    #[contract(effect = "readOnly")]
     pub fn config(&self) -> Config {
         self.cfg()
     }
 
     /// The batch an offer submitted now would join.
+    #[contract(effect = "readOnly")]
     pub fn current_batch(&self) -> BatchId {
         Self::batch_of_height(&self.cfg())
     }
 
     /// A batch's clearing, if it has one.
+    #[contract(effect = "readOnly")]
     pub fn clearing(&self, batch: BatchId) -> Option<Clearing> {
         self.clearings.at(&batch).try_get().none_if_missing()
     }
 
     /// What the orderbook selling `sell` for `buy` traded in a cleared batch; `None` if nothing.
+    #[contract(effect = "readOnly")]
     pub fn book_fill(&self, batch: BatchId, sell: u32, buy: u32) -> Option<BookFill> {
         let book = engine::book(sell as usize, buy as usize) as u32;
         self.fills.at(&batch).at(&book).try_get().none_if_missing()
     }
 
     /// An offer awaiting settlement, if there is one under this id.
+    #[contract(effect = "readOnly")]
     pub fn offer(&self, id: &OfferId) -> Option<Offer> {
         self.offers.at(id).try_get().none_if_missing()
     }
 
     /// The grid level a limit of `min_price` would be rounded up to.
+    #[contract(effect = "readOnly")]
     pub fn level_for(&self, min_price: Price) -> u32 {
         Self::grid(&self.cfg())
             .level_for(min_price)
@@ -669,12 +676,14 @@ impl Speedex {
     }
 
     /// The limit ratio (Q32) of a grid level.
+    #[contract(effect = "readOnly")]
     pub fn level_ratio(&self, level: u32) -> Price {
         Self::grid(&self.cfg()).ratio(level)
     }
 
     /// The histogram cell an offer on the orderbook selling `sell` for `buy` at `level` lands in,
     /// as `clear_batch` expects it listed.
+    #[contract(effect = "pure")]
     pub fn cell_of(&self, sell: u32, buy: u32, level: u32) -> u32 {
         cell(engine::book(sell as usize, buy as usize) as u32, level)
     }

@@ -13,6 +13,8 @@ edition.workspace = true
 
 [features]
 entrypoints = []
+# Generate and export the `StellarAccountRemote` proxy, for off-chain clients
+remote = ["thruput-sdk/remote"]
 dev = [
     "thruput-sdk/dev",
     "dep:thiserror",
@@ -40,7 +42,7 @@ stellar-account-factory-if = { path = "../../interfaces/stellar-account-factory-
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
-stellar-account = { path = ".", features = ["dev"] }
+stellar-account = { path = ".", features = ["dev", "remote"] }
 erc20 = { path = "../erc20", features = ["dev"] }
 stellar-account-factory = { path = "../stellar-account-factory", features = ["dev"] }
 thruput-xdr = { workspace = true }

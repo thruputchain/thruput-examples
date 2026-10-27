@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use standard_token::ClawbackEvent;
 use standard_token::Config;
-use standard_token_factory::{FactoryConfig, Name, Symbol, TokenCreated, TokenFactoryError};
+use standard_token_factory::{FactoryConfig, TokenCreated, TokenFactoryError};
 use thruput_erc20_if::{AllowanceChangeEvent, BurnEvent, MintEvent, TransferEvent};
 use thruput_json_rpc_types::base58::Base58;
 use thruput_json_rpc_types::hex::Topic;
@@ -19,12 +19,17 @@ use thruput_sdk::Event as _;
 use thruput_sdk::exn::{LibraryExn, RawException};
 use thruput_testkit::xdr::types::{ContractAddress, SHA256Hash};
 use thruput_testkit::{
-    Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Result,
+    Agent, AgentContext, Caller, DeployOptions, LocalNetworkConfig, NetworkConfig, Result,
     Scenario, xdrs,
 };
 
-const ERC20: (&str, &str) = ("ERC20", "0.1.69");
-const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.69");
+type ERC20Remote = thruput_erc20_if::ERC20Remote<Caller>;
+type ERC20MetadataRemote = thruput_erc20_metadata_if::ERC20MetadataRemote<Caller>;
+type ERC20ClawbackRemote = thruput_erc20_controls_if::ERC20ClawbackRemote<Caller>;
+type StandardTokenFactoryRemote = standard_token_factory_if::StandardTokenFactoryRemote<Caller>;
+
+const ERC20: (&str, &str) = ("ERC20", "0.1.70");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.70");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
 const REQUIRED_FACTORY_FUNDING: i128 = 1_000_000;
 // Exactly what creating a token through the factory costs its new address
@@ -47,18 +52,18 @@ struct SpendRequest {
     amount: i128,
 }
 
-fn native_token() -> Contract {
+fn native_token(ctx: &AgentContext) -> ERC20Remote {
     let mut bytes = [0u8; 32];
     bytes[31] = 1;
-    Contract::new(ContractAddress::from(bytes), ERC20.0, ERC20.1)
+    ERC20Remote::new(ctx.caller().clone(), &ContractAddress::from(bytes))
 }
 
-fn token(address: ContractAddress) -> Contract {
-    Contract::new(address, ERC20.0, ERC20.1)
+fn token(ctx: &AgentContext, address: ContractAddress) -> ERC20Remote {
+    ERC20Remote::new(ctx.caller().clone(), &address)
 }
 
-fn metadata(address: ContractAddress) -> Contract {
-    Contract::new(address, METADATA.0, METADATA.1)
+fn metadata(ctx: &AgentContext, address: ContractAddress) -> ERC20MetadataRemote {
+    ERC20MetadataRemote::new(ctx.caller().clone(), &address)
 }
 
 fn maximum_config(administrator: ContractAddress) -> Config {
@@ -70,66 +75,62 @@ fn maximum_config(administrator: ContractAddress) -> Config {
     }
 }
 
-async fn deploy_factory(ctx: &mut AgentContext, config: FactoryConfig) -> Result<Contract> {
+async fn deploy_factory(
+    ctx: &mut AgentContext,
+    config: FactoryConfig,
+) -> Result<StandardTokenFactoryRemote> {
     // The factory pays for its own storage, so the deployment carries its
     // funding.
-    let factory = Contract::new(
-        ctx.deploy_artifact(
+    let factory = StandardTokenFactoryRemote::new(
+        ctx.caller().clone(),
+        &ctx.deploy_artifact(
             "standard_token_factory",
             DeployOptions::funded(REQUIRED_FACTORY_FUNDING as u128),
         )
         .await?
         .address,
-        FACTORY.0,
-        FACTORY.1,
     );
-    factory.call(ctx, "initialize", &config).await?;
-    let stored: FactoryConfig = factory.view(ctx, "config", &(), None).await?;
+    factory.initialize(config).await?;
+    let stored = factory.config().await?;
     assert_eq!(stored, config);
     Ok(factory)
 }
 
 async fn predict(
     ctx: &AgentContext,
-    factory: &Contract,
+    factory: &StandardTokenFactoryRemote,
     nonce: SHA256Hash,
 ) -> Result<ContractAddress> {
-    factory
-        .view(ctx, "predict_token", &(ctx.address(), nonce), None)
-        .await
+    factory.predict_token(&ctx.address(), &nonce).await
 }
 
 async fn create(
-    ctx: &mut AgentContext,
-    factory: &Contract,
+    factory: &StandardTokenFactoryRemote,
     nonce: SHA256Hash,
     config: &Config,
     initial_holder: ContractAddress,
     initial_supply: i128,
 ) -> Result<thruput_testkit::SubmittedContractCall> {
     factory
-        .submit_call(
-            ctx,
-            "create_token",
-            &(
-                nonce,
-                config.administrator,
-                config.name.clone(),
-                config.symbol.clone(),
-                config.decimals,
-                initial_holder,
-                initial_supply,
-            ),
+        .create_token(
+            &nonce,
+            &config.administrator,
+            config.name.clone(),
+            config.symbol.clone(),
+            config.decimals,
+            &initial_holder,
+            initial_supply,
         )
+        .submit()
         .await
 }
 
-async fn balance(ctx: &AgentContext, contract: &Contract, owner: ContractAddress) -> Result<i128> {
-    contract.view(ctx, "get_balance_of", &owner, None).await
+async fn balance(contract: &ERC20Remote, owner: ContractAddress) -> Result<i128> {
+    contract.get_balance_of(&owner).await
 }
 
-async fn reserve(ctx: &AgentContext, native: &Contract, address: ContractAddress) -> Result<i128> {
-    balance(ctx, native, address).await
+async fn reserve(native: &ERC20Remote, address: ContractAddress) -> Result<i128> {
+    balance(native, address).await
 }
 
 /// A call that aborted inside the account's default wallet. The wallet made
@@ -473,9 +474,10 @@ fn spender_agent() -> Agent {
             .await
             .expect("creator closed before transfer_from")?
             .body;
-        let token = token(request.token);
+        let token = token(&ctx, request.token);
         let receipt = token
-            .call(&ctx, "transfer_from", &(request.owner, me, request.amount))
+            .transfer_from(&request.owner, &me, request.amount)
+            .receipt()
             .await?;
         // Spending an allowance emits only the transfer it pays for.
         assert_eq!(receipt.events.len(), 1);
@@ -500,7 +502,7 @@ fn creator_agent() -> Agent {
             .await
             .expect("spender closed before greeting")?
             .body;
-        let native = native_token();
+        let native = native_token(&ctx);
 
         let registration = ctx
             .register_artifact(
@@ -526,16 +528,11 @@ fn creator_agent() -> Agent {
         let unavailable_nonce = SHA256Hash::from([0x60; 32]);
         let unavailable_address = predict(&ctx, &unavailable_factory, unavailable_nonce).await?;
         native
-            .call(
-                &ctx,
-                "transfer",
-                &(unavailable_address, TOKEN_SOURCE_FUNDING),
-            )
+            .transfer(&unavailable_address, TOKEN_SOURCE_FUNDING)
             .await?;
-        let unavailable_reserve = reserve(&ctx, &native, unavailable_address).await?;
+        let unavailable_reserve = reserve(&native, unavailable_address).await?;
         let unavailable_config = maximum_config(creator);
         let unavailable = create(
-            &mut ctx,
             &unavailable_factory,
             unavailable_nonce,
             &unavailable_config,
@@ -551,7 +548,7 @@ fn creator_agent() -> Agent {
         assert!(unavailable_receipt.events.is_empty());
         assert_wallet_call_aborted(&unavailable_receipt);
         assert_eq!(
-            reserve(&ctx, &native, unavailable_address).await?,
+            reserve(&native, unavailable_address).await?,
             unavailable_reserve
         );
         assert!(
@@ -572,23 +569,16 @@ fn creator_agent() -> Agent {
             fee_recipient: None,
         };
         let factory = deploy_factory(&mut ctx, factory_config).await?;
-        let published: i128 = factory
-            .view(&ctx, "required_token_funding", &(), None)
-            .await?;
+        let published = factory.required_token_funding().await?;
         assert_eq!(published, REQUIRED_TOKEN_FUNDING);
 
         let underfunded_nonce = SHA256Hash::from([0x5f; 32]);
         let underfunded_address = predict(&ctx, &factory, underfunded_nonce).await?;
         native
-            .call(
-                &ctx,
-                "transfer",
-                &(underfunded_address, TOKEN_SOURCE_FUNDING - 1),
-            )
+            .transfer(&underfunded_address, TOKEN_SOURCE_FUNDING - 1)
             .await?;
         let config = maximum_config(creator);
-        let underfunded =
-            create(&mut ctx, &factory, underfunded_nonce, &config, creator, 1).await?;
+        let underfunded = create(&factory, underfunded_nonce, &config, creator, 1).await?;
         let underfunded_receipt = ctx.network().await_receipt(underfunded.tx_hash()).await?;
         assert!(matches!(
             underfunded_receipt.execution,
@@ -604,10 +594,8 @@ fn creator_agent() -> Agent {
 
         let nonce = SHA256Hash::from([0x61; 32]);
         let predicted = predict(&ctx, &factory, nonce).await?;
-        native
-            .call(&ctx, "transfer", &(predicted, TOKEN_SOURCE_FUNDING))
-            .await?;
-        let submitted = create(&mut ctx, &factory, nonce, &config, creator, 1_000).await?;
+        native.transfer(&predicted, TOKEN_SOURCE_FUNDING).await?;
+        let submitted = create(&factory, nonce, &config, creator, 1_000).await?;
         let creation_receipt = submitted.await_receipt().await?;
         assert_eq!(creation_receipt.events.len(), 2);
         // The account's default wallet ran the call and returns one buffer per
@@ -650,74 +638,38 @@ fn creator_agent() -> Agent {
         assert_eq!(indexed[0].event.topics, creation_receipt.events[1].topics);
         assert_eq!(indexed[0].event.data.0, creation_receipt.events[1].data.0);
 
-        let token = token(created);
-        let metadata = metadata(created);
-        assert_eq!(
-            metadata
-                .view::<_, Option<Name>>(&ctx, "name", &(), None)
-                .await?,
-            config.name
-        );
-        assert_eq!(
-            metadata
-                .view::<_, Option<Symbol>>(&ctx, "symbol", &(), None)
-                .await?,
-            config.symbol
-        );
-        assert_eq!(
-            metadata
-                .view::<_, Option<u32>>(&ctx, "decimals", &(), None)
-                .await?,
-            config.decimals
-        );
-        assert_eq!(balance(&ctx, &token, creator).await?, 1_000);
-        assert_eq!(
-            token
-                .view::<_, i128>(&ctx, "total_supply", &(), None)
-                .await?,
-            1_000
-        );
-        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+        let token = token(&ctx, created);
+        let metadata = metadata(&ctx, created);
+        assert_eq!(metadata.name().simulate().await?, config.name);
+        assert_eq!(metadata.symbol().simulate().await?, config.symbol);
+        assert_eq!(metadata.decimals().simulate().await?, config.decimals);
+        assert_eq!(balance(&token, creator).await?, 1_000);
+        assert_eq!(token.total_supply().await?, 1_000);
+        assert_eq!(reserve(&native, created).await?, 0);
 
-        let mint = token.call(&ctx, "mint", &(creator, 100_i128)).await?;
+        let mint = token.mint(&creator, 100_i128).receipt().await?;
         assert_eq!(mint.events.len(), 1);
         assert_mint(&mint, 0, created, creator, 100);
-        assert_eq!(balance(&ctx, &token, creator).await?, 1_100);
-        assert_eq!(
-            token
-                .view::<_, i128>(&ctx, "total_supply", &(), None)
-                .await?,
-            1_100
-        );
-        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+        assert_eq!(balance(&token, creator).await?, 1_100);
+        assert_eq!(token.total_supply().await?, 1_100);
+        assert_eq!(reserve(&native, created).await?, 0);
 
-        native
-            .call(&ctx, "transfer", &(created, ROW_FUNDING))
-            .await?;
-        let transfer = token.call(&ctx, "transfer", &(spender, 200_i128)).await?;
+        native.transfer(&created, ROW_FUNDING).await?;
+        let transfer = token.transfer(&spender, 200_i128).receipt().await?;
         assert_eq!(transfer.events.len(), 1);
         assert_transfer(&transfer, 0, created, creator, spender, 200);
-        assert_eq!(balance(&ctx, &token, creator).await?, 900);
-        assert_eq!(balance(&ctx, &token, spender).await?, 200);
-        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+        assert_eq!(balance(&token, creator).await?, 900);
+        assert_eq!(balance(&token, spender).await?, 200);
+        assert_eq!(reserve(&native, created).await?, 0);
 
-        native
-            .call(&ctx, "transfer", &(created, ROW_FUNDING))
-            .await?;
-        let approval = token
-            .call(&ctx, "adjust_allowance", &(spender, 150_i128))
-            .await?;
+        native.transfer(&created, ROW_FUNDING).await?;
+        let approval = token.adjust_allowance(&spender, 150_i128).receipt().await?;
         assert_eq!(approval.events.len(), 1);
         assert_allowance_change(&approval, 0, created, creator, spender, 150);
-        assert_eq!(balance(&ctx, &token, creator).await?, 900);
-        assert_eq!(balance(&ctx, &token, spender).await?, 200);
-        assert_eq!(reserve(&ctx, &native, created).await?, 0);
-        assert_eq!(
-            token
-                .view::<_, i128>(&ctx, "allowance", &(creator, spender), None)
-                .await?,
-            150
-        );
+        assert_eq!(balance(&token, creator).await?, 900);
+        assert_eq!(balance(&token, spender).await?, 200);
+        assert_eq!(reserve(&native, created).await?, 0);
+        assert_eq!(token.allowance(&creator, &spender).await?, 150);
 
         ctx.send(
             "spender",
@@ -730,39 +682,27 @@ fn creator_agent() -> Agent {
         ctx.recv_from::<()>("spender")
             .await
             .expect("spender closed before transfer_from completed")?;
-        assert_eq!(balance(&ctx, &token, creator).await?, 825);
-        assert_eq!(balance(&ctx, &token, spender).await?, 275);
-        assert_eq!(
-            token
-                .view::<_, i128>(&ctx, "allowance", &(creator, spender), None)
-                .await?,
-            75
-        );
-        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+        assert_eq!(balance(&token, creator).await?, 825);
+        assert_eq!(balance(&token, spender).await?, 275);
+        assert_eq!(token.allowance(&creator, &spender).await?, 75);
+        assert_eq!(reserve(&native, created).await?, 0);
 
-        let clawback = Contract::new(created, "ERC20Clawback", ERC20.1);
-        let burn = clawback.call(&ctx, "clawback", &(spender, 25_i128)).await?;
+        let clawback = ERC20ClawbackRemote::new(ctx.caller().clone(), &created);
+        let burn = clawback.clawback(&spender, 25_i128).receipt().await?;
         assert_eq!(burn.events.len(), 2);
         assert_clawback(&burn, 0, created, spender, 25);
-        assert_eq!(balance(&ctx, &token, spender).await?, 250);
-        assert_eq!(
-            token
-                .view::<_, i128>(&ctx, "total_supply", &(), None)
-                .await?,
-            1_075
-        );
-        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+        assert_eq!(balance(&token, spender).await?, 250);
+        assert_eq!(token.total_supply().await?, 1_075);
+        assert_eq!(reserve(&native, created).await?, 0);
 
         let unseen = ContractAddress::from([0x44; 32]);
-        native
-            .call(&ctx, "transfer", &(created, ROW_FUNDING))
-            .await?;
-        let unseen_transfer = token.call(&ctx, "transfer", &(unseen, 1_i128)).await?;
+        native.transfer(&created, ROW_FUNDING).await?;
+        let unseen_transfer = token.transfer(&unseen, 1_i128).receipt().await?;
         assert_eq!(unseen_transfer.events.len(), 1);
         assert_transfer(&unseen_transfer, 0, created, creator, unseen, 1);
-        assert_eq!(balance(&ctx, &token, creator).await?, 824);
-        assert_eq!(balance(&ctx, &token, unseen).await?, 1);
-        assert_eq!(reserve(&ctx, &native, created).await?, 0);
+        assert_eq!(balance(&token, creator).await?, 824);
+        assert_eq!(balance(&token, unseen).await?, 1);
+        assert_eq!(reserve(&native, created).await?, 0);
 
         let fee_factory = deploy_factory(
             &mut ctx,
@@ -777,22 +717,16 @@ fn creator_agent() -> Agent {
         .await?;
         let fee_nonce = SHA256Hash::from([0x62; 32]);
         let fee_token = predict(&ctx, &fee_factory, fee_nonce).await?;
+        native.transfer(&fee_token, TOKEN_SOURCE_FUNDING).await?;
         native
-            .call(&ctx, "transfer", &(fee_token, TOKEN_SOURCE_FUNDING))
+            .transfer(&native.address(), NATIVE_TOKEN_FUNDING)
             .await?;
         native
-            .call(&ctx, "transfer", &(native.address(), NATIVE_TOKEN_FUNDING))
+            .adjust_allowance(&fee_factory.address(), CREATION_FEE)
             .await?;
-        native
-            .call(
-                &ctx,
-                "adjust_allowance",
-                &(fee_factory.address(), CREATION_FEE),
-            )
-            .await?;
-        let recipient_before = reserve(&ctx, &native, spender).await?;
-        let factory_before = reserve(&ctx, &native, fee_factory.address()).await?;
-        let fee_creation = create(&mut ctx, &fee_factory, fee_nonce, &config, creator, 1)
+        let recipient_before = reserve(&native, spender).await?;
+        let factory_before = reserve(&native, fee_factory.address()).await?;
+        let fee_creation = create(&fee_factory, fee_nonce, &config, creator, 1)
             .await?
             .await_receipt()
             .await?;
@@ -816,19 +750,14 @@ fn creator_agent() -> Agent {
             token_hash,
         );
         assert_eq!(
-            reserve(&ctx, &native, spender).await?,
+            reserve(&native, spender).await?,
             recipient_before + CREATION_FEE
         );
         assert_eq!(
-            reserve(&ctx, &native, fee_factory.address()).await?,
+            reserve(&native, fee_factory.address()).await?,
             factory_before
         );
-        assert_eq!(
-            native
-                .view::<_, i128>(&ctx, "allowance", &(creator, fee_factory.address()), None,)
-                .await?,
-            0
-        );
+        assert_eq!(native.allowance(&creator, &fee_factory.address()).await?, 0);
 
         println!(
             "phase6: token_hash={token_hash:?} unavailable_tx={:?} underfunded_tx={:?} creation_tx={:?} event_query_height={} indexed_events={} creation_sequence=[Transfer,TokenCreated] fee_tx={:?} fee_sequence=[Transfer,Transfer,TokenCreated]",

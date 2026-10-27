@@ -38,15 +38,19 @@ use thruput_testkit::xdr::auth_claim::{AuthClaim, AuthClaim_source_address_claim
 use thruput_testkit::xdr::transaction::{DecoratedSignature, SignedTransaction};
 use thruput_testkit::xdr::types::{ContractAddress, Ed25519PublicKey, NetworkHash, PublicKey};
 use thruput_testkit::{
-    Agent, AgentContext, Contract, DeployOptions, LocalNetworkConfig, NetworkConfig, Scenario,
+    Agent, AgentContext, Caller, DeployOptions, LocalNetworkConfig, NetworkConfig, Scenario,
     entrypoint_id, xdrs,
 };
 
 type Address = ContractAddress;
 
+type ERC20Remote = thruput_erc20_if::ERC20Remote<Caller>;
+type StellarAccountFactoryRemote = stellar_account_factory_if::StellarAccountFactoryRemote<Caller>;
+type StellarAccountRemote = stellar_account::StellarAccountRemote<Caller>;
+
+// The account's interface identity, from which `account_tx` derives the
+// selectors of the transactions it signs by hand.
 const ACCOUNT_IF: (&str, &str) = ("StellarAccount", "0.1.0");
-const FACTORY_IF: (&str, &str) = ("StellarAccountFactory", "0.1.0");
-const ERC20: (&str, &str) = ("ERC20", "0.1.69");
 
 const MASTER_SEED: [u8; 32] = [0x11; 32];
 const SECOND_SEED: [u8; 32] = [0x22; 32];
@@ -62,10 +66,10 @@ const REQUIRED_FUNDING: i128 = 1_000_000_000;
 const GAS_LIMIT: u64 = 10_000_000;
 const HORIZON: i64 = 1_000;
 
-fn native_token() -> Contract {
+fn native_token(ctx: &AgentContext) -> ERC20Remote {
     let mut bytes = [0u8; 32];
     bytes[31] = 1;
-    Contract::new(ContractAddress::from(bytes), ERC20.0, ERC20.1)
+    ERC20Remote::new(ctx.caller().clone(), &ContractAddress::from(bytes))
 }
 
 fn public_key(seed: &[u8; 32]) -> Ed25519PublicKey {
@@ -155,7 +159,7 @@ async fn submit_ok(ctx: &AgentContext, tx_hex: String) {
 
 fn admin() -> Agent {
     Agent::new("admin", |mut ctx| async move {
-        let native = native_token();
+        let native = native_token(&ctx);
         let master = LocalSigner::from_secret_key(MASTER_SEED);
         let second = LocalSigner::from_secret_key(SECOND_SEED);
         let mldsa = MlDsa65Signer::from_seed(&MLDSA_SEED);
@@ -168,40 +172,31 @@ fn admin() -> Agent {
         )
         .await?;
         let account_hash = ctx.contract_hash("stellar_account")?;
-        let factory = Contract::new(
-            ctx.deploy_artifact(
+        let factory = StellarAccountFactoryRemote::new(
+            ctx.caller().clone(),
+            &ctx.deploy_artifact(
                 "stellar_account_factory",
                 DeployOptions::funded(REQUIRED_FUNDING as u128),
             )
             .await?
             .address,
-            FACTORY_IF.0,
-            FACTORY_IF.1,
         );
         factory
-            .call(
-                &ctx,
-                "initialize",
-                &FactoryConfig {
-                    account_code_hash: account_hash,
-                    native_token: native.address(),
-                    required_funding: REQUIRED_FUNDING,
-                },
-            )
+            .initialize(FactoryConfig {
+                account_code_hash: account_hash,
+                native_token: native.address(),
+                required_funding: REQUIRED_FUNDING,
+            })
             .await?;
 
         // Create the account for the master key: fund the prediction, then create.
         let master_pk = public_key(&MASTER_SEED);
-        let predicted: Address = factory.view(&ctx, "address_of", &master_pk, None).await?;
-        native
-            .call(&ctx, "transfer", &(predicted, STARTING_BALANCE))
-            .await?;
-        let account: Address = factory
-            .call_returning(&ctx, "create_account", &master_pk)
-            .await?;
+        let predicted = factory.address_of(&master_pk).await?;
+        native.transfer(&predicted, STARTING_BALANCE).await?;
+        let account = factory.create_account(&master_pk).await?;
         assert_eq!(account, predicted, "created where predicted");
-        let account_c = Contract::new(account, ACCOUNT_IF.0, ACCOUNT_IF.1);
-        let reported: Ed25519PublicKey = account_c.view(&ctx, "master_key", &(), None).await?;
+        let account_c = StellarAccountRemote::new(ctx.caller().clone(), &account);
+        let reported = account_c.master_key().await?;
         assert_eq!(reported, master_pk);
 
         // Fetch the network hash once; pass it into every account_tx call below.

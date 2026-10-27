@@ -14,8 +14,8 @@
 //! thruput build -p erc20 -- -F metadata
 //! thruput build -p speedex
 //! THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)" \
-//! THRUPUT_TESTKIT_ARTIFACT_ROOT=target/thruput \
-//!     cargo test -p speedex --test testkit_gas -- --ignored --nocapture
+//! THRUPUT_TESTKIT_ARTIFACT_ROOT="$(realpath target/thruput)" \
+//!     cargo test -p speedex --test testkit_gas -- --ignored --no-capture
 //! ```
 //!
 //! `SPEEDEX_GUEST_MEMORY` states the guest memory the artifact under test declares (the
@@ -34,7 +34,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use speedex::engine::{Grid, MAX_ASSETS};
-use speedex::max_clear_cells_in;
+use speedex::{OfferId, max_clear_cells_in};
 use synthetic::{Rng, Shape};
 use thruput_json_rpc_client::DecodedResponse;
 use thruput_signing::{
@@ -48,12 +48,15 @@ use thruput_testkit::rpc_types::{
 use thruput_testkit::xdr::types::{ContractAddress, NetworkHash};
 use thruput_testkit::xdrs::{self, ReadXDR, WriteXDR};
 use thruput_testkit::{
-    Agent, AgentContext, BlockDriverConfig, Contract, DeployOptions, LocalNetworkConfig,
-    NetworkConfig, Result, Scenario, TestkitError, entrypoint_id,
+    Agent, AgentContext, BlockDriverConfig, Caller, ContractCall, DeployOptions,
+    LocalNetworkConfig, NetworkConfig, Result, Scenario, TestkitError, entrypoint_id,
 };
 
-/// Interface identities the artifacts stamp; `entrypoint_id` derives selectors from these.
-const ERC20: (&str, &str) = ("ERC20", "0.1.69");
+type ERC20Remote = thruput_erc20_if::ERC20Remote<Caller>;
+type SpeedexRemote = speedex::SpeedexRemote<Caller>;
+
+/// The exchange's interface identity, from which `Account::transact` derives the selectors of
+/// the clearings it signs by hand.
 const SPEEDEX: (&str, &str) = ("Speedex", "0.1.0");
 /// The node's default wallet, which serves every key-pair account: `execute` runs a list of
 /// calls from the account, and takes calldata of any length.
@@ -126,18 +129,6 @@ struct GasReport {
     clearing: Clearing,
 }
 
-/// `Offer`, as the `offer` view returns it.
-#[derive(Debug, Clone, Copy, xdrs::WriteXDR, xdrs::ReadXDR)]
-#[xdr(crate = "thruput_testkit::xdrs")]
-struct Offer {
-    owner: ContractAddress,
-    batch: u64,
-    sell: u32,
-    buy: u32,
-    level: u32,
-    amount: u128,
-}
-
 /// One measurement.
 struct Row {
     /// `measure`, `clear`, `submit` or `settle`.
@@ -184,11 +175,13 @@ impl Row {
 }
 
 /// The devnode's native token contract, at the genesis precompile address `0x00…01`, which speaks
-/// the ERC20 interface (vendored at `thruput-erc20-if` 0.1.3).
-fn native_token() -> Contract {
+/// the ERC20 interface (vendored at `thruput-erc20-if` 0.1.3). Entrypoints derive from the
+/// interface's major version, which 0.1.3 shares with the `thruput-erc20-if` the proxy is
+/// generated from.
+fn native_token(ctx: &AgentContext) -> ERC20Remote {
     let mut bytes = [0u8; 32];
     bytes[31] = 1;
-    Contract::new(ContractAddress::from(bytes), "ERC20", "0.1.3")
+    ERC20Remote::new(ctx.caller().clone(), &ContractAddress::from(bytes))
 }
 
 fn status_of(receipt: &TransactionReceipt) -> String {
@@ -250,7 +243,7 @@ impl Account {
     async fn transact<A: WriteXDR + ?Sized>(
         &mut self,
         ctx: &mut AgentContext,
-        exchange: &Contract,
+        exchange: &SpeedexRemote,
         method: &str,
         args: &A,
     ) -> Result<TransactionReceipt> {
@@ -293,14 +286,9 @@ fn signing_error(e: impl std::fmt::Display) -> TestkitError {
     }
 }
 
-/// Call a method that must succeed, in a block of its own.
-async fn call<A: WriteXDR + ?Sized>(
-    ctx: &mut AgentContext,
-    contract: &Contract,
-    method: &str,
-    args: &A,
-) -> Result<TransactionReceipt> {
-    let submitted = contract.submit_call(ctx, method, args).await?;
+/// Make a call that must succeed, in a block of its own.
+async fn call<R>(ctx: &AgentContext, call: ContractCall<R>) -> Result<TransactionReceipt> {
+    let submitted = call.submit().await?;
     submitted.await_pending().await?;
     ctx.network().produce_block().await?;
     submitted.await_receipt().await
@@ -330,10 +318,15 @@ async fn deploy(ctx: &mut AgentContext, name: &str, amount: u128) -> Result<Cont
     Ok(submitted.await_receipt().await?.address)
 }
 
+/// `amount` as an ERC20 amount, which is signed.
+fn erc20_amount(amount: u128) -> i128 {
+    i128::try_from(amount).expect("bug: amount overflows an ERC20 amount")
+}
+
 /// Grant `target` native tokens to pay for the storage it will create.
-async fn fund(ctx: &mut AgentContext, target: ContractAddress, amount: u128) -> Result<()> {
-    let native = native_token();
-    call(ctx, &native, "transfer", &(target, amount)).await?;
+async fn fund(ctx: &AgentContext, target: ContractAddress, amount: u128) -> Result<()> {
+    let transfer = native_token(ctx).transfer(&target, erc20_amount(amount));
+    call(ctx, transfer).await?;
     Ok(())
 }
 
@@ -343,7 +336,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
         let me = ctx.address();
         let zero = ContractAddress::from([0u8; 32]);
         let mut wallet = Account::of(&ctx).await?;
-        fund(&mut ctx, wallet.address(), CLEARING_FUNDING).await?;
+        fund(&ctx, wallet.address(), CLEARING_FUNDING).await?;
         // The guest memory the artifact under test declares, which bounds a batch.
         let memory: usize = std::env::var("SPEEDEX_GUEST_MEMORY")
             .map(|v| v.parse().expect("SPEEDEX_GUEST_MEMORY in bytes"))
@@ -351,14 +344,14 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
 
         // The native token pays for its own storage, so it needs funds to store balances and
         // allowances.
-        fund(&mut ctx, native_token().address(), TOKEN_FUNDING).await?;
+        fund(&ctx, native_token(&ctx).address(), TOKEN_FUNDING).await?;
 
-        let mut tokens: Vec<Contract> = Vec::new();
+        let mut tokens: Vec<ERC20Remote> = Vec::new();
         for _ in 0..n {
             let address = deploy(&mut ctx, "erc20", TOKEN_FUNDING).await?;
-            let token = Contract::new(address, ERC20.0, ERC20.1);
-            call(&mut ctx, &token, "initialize", &me).await?;
-            call(&mut ctx, &token, "mint", &(me, SUPPLY)).await?;
+            let token = ERC20Remote::new(ctx.caller().clone(), &address);
+            call(&ctx, token.initialize(&me)).await?;
+            call(&ctx, token.mint(&me, erc20_amount(SUPPLY))).await?;
             tokens.push(token);
         }
 
@@ -375,33 +368,23 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
             for offers in sizes {
                 println!("-- {n} assets, {offers} offers");
                 let address = deploy(&mut ctx, "speedex", EXCHANGE_FUNDING).await?;
-                let exchange = Contract::new(address, SPEEDEX.0, SPEEDEX.1);
+                let exchange = SpeedexRemote::new(ctx.caller().clone(), &address);
                 let mut assets = [zero; MAX_ASSETS];
                 for (a, token) in assets.iter_mut().zip(&tokens).take(n) {
                     *a = token.address();
                 }
-                call(
-                    &mut ctx,
-                    &exchange,
-                    "initialize",
-                    &(
-                        n as u32,
-                        assets,
-                        EPOCH_LEN,
-                        GRID.octaves,
-                        GRID.level_bits,
-                        ROUNDS,
-                    ),
-                )
-                .await?;
+                let initialize = exchange.initialize(
+                    n as u32,
+                    assets,
+                    EPOCH_LEN,
+                    GRID.octaves,
+                    GRID.level_bits,
+                    ROUNDS,
+                );
+                call(&ctx, initialize).await?;
                 for token in tokens.iter().take(n) {
-                    call(
-                        &mut ctx,
-                        token,
-                        "adjust_allowance",
-                        &(address, i128::try_from(SUPPLY).unwrap()),
-                    )
-                    .await?;
+                    let approve = token.adjust_allowance(&address, erc20_amount(SUPPLY));
+                    call(&ctx, approve).await?;
                 }
 
                 // The batch: every offer submitted, a block per thousand of them, all within
@@ -413,8 +396,13 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
                 for chunk in batch.offers.chunks(OFFERS_PER_BLOCK) {
                     let mut submitted = Vec::with_capacity(chunk.len());
                     for o in chunk {
-                        let args = (o.sell as u32, o.buy as u32, o.amount, o.min_price);
-                        submitted.push(exchange.submit_call(&ctx, "submit_offer", &args).await?);
+                        let offer = exchange.submit_offer(
+                            o.sell as u32,
+                            o.buy as u32,
+                            o.amount,
+                            o.min_price,
+                        );
+                        submitted.push(offer.submit().await?);
                     }
                     for s in &submitted {
                         s.await_pending().await?;
@@ -425,8 +413,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
                         if first.is_none() {
                             let id: [u8; 32] = decode_wallet(&receipt);
                             first = Some(id);
-                            let offer: Option<Offer> =
-                                exchange.view(&ctx, "offer", &id, None).await?;
+                            let offer = exchange.offer(&OfferId::from(id)).await?;
                             batch_id = Some(offer.expect("the offer was accepted").batch);
                             rows.push(Row {
                                 kind: "submit",
@@ -452,7 +439,7 @@ fn bench(n: usize, shared: Arc<Mutex<Vec<Row>>>) -> Agent {
                 // Close the batch: blocks until the exchange is on the next one.
                 loop {
                     ctx.network().produce_block().await?;
-                    let current: u64 = exchange.view(&ctx, "current_batch", &(), None).await?;
+                    let current = exchange.current_batch().await?;
                     if current > batch_id {
                         break;
                     }

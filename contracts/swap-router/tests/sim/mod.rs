@@ -4,14 +4,12 @@ use swap_factory::POOL_FUNDING;
 use swap_if::{Pool, SwapHashes};
 use thruput_erc20_if::{Amount, Difference};
 use thruput_testkit::xdr::types::ContractAddress;
-use thruput_testkit::{AgentContext, Contract, DeployOptions, Result, xdrs};
+use thruput_testkit::{AgentContext, Caller, DeployOptions, Result, xdrs};
 
-// Typed contract clients
-mod client;
-mod erc20;
-mod swap;
-pub use erc20::ERC20Client;
-pub use swap::{SwapDriverClient, SwapFactoryClient, SwapRouterClient};
+pub type ERC20Remote = thruput_erc20_if::ERC20Remote<Caller>;
+pub type SwapFactoryRemote = swap_if::SwapFactoryRemote<Caller>;
+pub type SwapRouterRemote = swap_if::SwapRouterRemote<Caller>;
+pub type SwapDriverRemote = swap_if::SwapDriverRemote<Caller>;
 
 // An alias to match the contracts' `Address` type.
 type Address = ContractAddress;
@@ -37,26 +35,23 @@ pub const CONTRACT_FUNDING: Amount = 1_000_000_000;
 // The contract suite, bound to the agent that deployed it. (The handler is
 // only ever named, never called.)
 pub struct Swap {
-    pub token0: ERC20Client,
-    pub token1: ERC20Client,
-    pub lp: ERC20Client,
+    pub token0: ERC20Remote,
+    pub token1: ERC20Remote,
+    pub lp: ERC20Remote,
     pub handler: Address,
-    pub driver: SwapDriverClient,
-    pub router: SwapRouterClient,
+    pub driver: SwapDriverRemote,
+    pub router: SwapRouterRemote,
 }
 
 // The native-token contract.
 //
 // It lives at the genesis precompile address and speaks the ERC20 interface, vendored at
-// `thruput-erc20-if` 0.1.3.
-pub fn native_token(ctx: &AgentContext) -> ERC20Client {
-    ERC20Client::with_contract(
-        ctx,
-        Contract::new(
-            thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN,
-            "ERC20",
-            "0.1.3",
-        ),
+// `thruput-erc20-if` 0.1.3. Entrypoints derive from the interface's major version, which
+// 0.1.3 shares with the `thruput-erc20-if` this proxy is generated from.
+pub fn native_token(ctx: &AgentContext) -> ERC20Remote {
+    ERC20Remote::new(
+        ctx.caller().clone(),
+        &thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN,
     )
 }
 
@@ -66,7 +61,7 @@ pub fn swap_amount(amount: Amount) -> swap_if::Amount {
 }
 
 // Grant `target` enough native tokens to pay for the storage it will create.
-async fn fund(native: &ERC20Client, target: Address) -> Result<()> {
+async fn fund(native: &ERC20Remote, target: Address) -> Result<()> {
     native.transfer(&target, CONTRACT_FUNDING).await
 }
 
@@ -102,7 +97,7 @@ impl LPConfig {
 // - have the factory create the pool with our own funds
 pub async fn deploy_and_init(
     ctx: &mut AgentContext,
-    native: &ERC20Client,
+    native: &ERC20Remote,
     fee_to: Option<Address>,
 ) -> Result<Swap> {
     let me = ctx.address();
@@ -124,7 +119,10 @@ pub async fn deploy_and_init(
     // can pay for the storage its state writes create.
     let token0 = ctx.deploy_artifact("erc20", funded).await?.address;
     let token1 = ctx.deploy_artifact("erc20", funded).await?.address;
-    let (token0, token1) = (ERC20Client::new(ctx, token0), ERC20Client::new(ctx, token1));
+    let (token0, token1) = (
+        ERC20Remote::new(ctx.caller().clone(), &token0),
+        ERC20Remote::new(ctx.caller().clone(), &token1),
+    );
     token0.initialize(&me).await?;
     token1.initialize(&me).await?;
 
@@ -135,8 +133,8 @@ pub async fn deploy_and_init(
     // Deploy and fund the factory and the router.
     let factory = ctx.deploy_artifact("swap_factory", funded).await?.address;
     let router = ctx.deploy_artifact("swap_router", funded).await?.address;
-    let factory = SwapFactoryClient::new(ctx, factory);
-    let router = SwapRouterClient::new(ctx, router);
+    let factory = SwapFactoryRemote::new(ctx.caller().clone(), &factory);
+    let router = SwapRouterRemote::new(ctx.caller().clone(), &router);
     let hashes = SwapHashes {
         token: ctx.contract_hash("erc20")?,
         handler: ctx.contract_hash("swap_handler")?,
@@ -164,8 +162,8 @@ pub async fn deploy_and_init(
 
     // Complete the suite of contracts from the addresses we got back from the
     // factory
-    let lp = ERC20Client::new(ctx, pool.liquidity_token);
-    let driver = SwapDriverClient::new(ctx, pool.driver);
+    let lp = ERC20Remote::new(ctx.caller().clone(), &pool.liquidity_token);
+    let driver = SwapDriverRemote::new(ctx.caller().clone(), &pool.driver);
 
     Ok(Swap {
         token0,

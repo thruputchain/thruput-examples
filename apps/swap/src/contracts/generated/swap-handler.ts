@@ -386,7 +386,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               declared: __gh_s("PoolState"),
             },
           },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectReadOnly,
         },
         {
           name: __gh_s("skim"),
@@ -1213,6 +1213,7 @@ export const SwapHandler = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: readOnly. Author declaration; not compiler/runtime enforced. */
     poolState: __gh_client_contract.defineContractMethod<
       SwapHandler.v0_1.PoolStateArgs,
       SwapHandler.v0_1.PoolStateResult,
