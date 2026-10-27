@@ -319,7 +319,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
         },
         {
           name: __gh_s("process_requests"),
@@ -331,7 +331,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               { v: __gh_contract_spec.ContractTypeKind.U32 },
             ],
           },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
         },
         {
           name: __gh_s("request"),
@@ -356,7 +356,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               len: 32n,
             },
           },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
         },
       ],
     },
@@ -945,6 +945,7 @@ const __gh_codecs = __gh_client_contract.createContractCodecContext(
 
 export const SwapDriver = {
   v0_1: {
+    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     initialize: __gh_client_contract.defineContractMethod<
       SwapDriver.v0_1.InitializeArgs,
       SwapDriver.v0_1.InitializeResult,
@@ -1008,6 +1009,7 @@ export const SwapDriver = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     processRequests: __gh_client_contract.defineContractMethod<
       SwapDriver.v0_1.ProcessRequestsArgs,
       SwapDriver.v0_1.ProcessRequestsResult,
@@ -1050,6 +1052,7 @@ export const SwapDriver = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     request: __gh_client_contract.defineContractMethod<
       SwapDriver.v0_1.RequestArgs,
       SwapDriver.v0_1.RequestResult,
