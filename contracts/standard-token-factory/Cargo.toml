@@ -41,6 +41,10 @@ standard-token-factory = { path = ".", features = ["dev"] }
 standard-token = { path = "../standard-token", features = ["dev"] }
 token-factory-failing-child = { path = "../../helpers/token-factory-failing-child", features = ["dev"] }
 thruput-testkit = { workspace = true }
+# Generate `<Iface>Remote` proxies, used as `tests/testkit_sim.rs`'s typed clients
+standard-token-factory-if = { path = "../../interfaces/standard-token-factory-if", features = ["remote"] }
+thruput-erc20-metadata-if = { workspace = true }
+thruput-erc20-controls-if = { workspace = true }
 thruput-signing = { workspace = true }
 thruput-json-rpc-types = { workspace = true }
 tokio = { workspace = true }

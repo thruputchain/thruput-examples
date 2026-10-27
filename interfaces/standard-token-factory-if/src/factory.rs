@@ -52,6 +52,7 @@ impl fmt::Display for TokenFactoryError {
 )]
 pub trait StandardTokenFactory {
     /// Writes immutable factory configuration exactly once.
+    #[contract(effect = "stateChanging")]
     fn initialize(&mut self, config: FactoryConfig);
 
     /// Deploys and initializes a token for the immediate caller.
@@ -59,6 +60,7 @@ pub trait StandardTokenFactory {
         clippy::too_many_arguments,
         reason = "the specification fixes the public create_token ABI"
     )]
+    #[contract(effect = "stateChanging")]
     fn create_token(
         &mut self,
         nonce: &SHA256Hash,
@@ -71,14 +73,18 @@ pub trait StandardTokenFactory {
     ) -> ContractAddress;
 
     /// Predicts the token address for `creator` and its application nonce.
+    #[contract(effect = "readOnly")]
     fn predict_token(&self, creator: &ContractAddress, nonce: &SHA256Hash) -> ContractAddress;
 
     /// Returns the native-token amount required at a predicted token address.
+    #[contract(effect = "readOnly")]
     fn required_token_funding(&self) -> Amount;
 
     /// Returns the immutable native token creation fee.
+    #[contract(effect = "readOnly")]
     fn creation_fee(&self) -> Amount;
 
     /// Returns the complete immutable factory configuration.
+    #[contract(effect = "readOnly")]
     fn config(&self) -> FactoryConfig;
 }

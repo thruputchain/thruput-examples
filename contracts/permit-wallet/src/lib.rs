@@ -85,6 +85,7 @@ impl PermitWallet {
     /// frame ends, the way `standard-token-factory` initializes the tokens it
     /// deploys. A wallet left uninitialized across a block boundary takes the
     /// first owner anyone offers it.
+    #[contract(effect = "stateChanging")]
     pub fn initialize(&mut self, administrator: &ContractAddress, owner: &Ed25519PublicKey) {
         if self.owner.try_get().none_if_missing().is_some() {
             throw(WalletError::AlreadyInitialized);
@@ -108,6 +109,7 @@ impl PermitWallet {
     /// and the new key is what the wallet checks from the next block on.
     ///
     /// [`execute_signed_op`]: SignedOp::execute_signed_op
+    #[contract(effect = "stateChanging")]
     pub fn rotate_owner(&mut self, new_owner: &Ed25519PublicKey) {
         if get_caller() != self.administrator.get() {
             throw(WalletError::NotAdministrator);
@@ -116,12 +118,14 @@ impl PermitWallet {
     }
 
     /// The key this wallet currently accepts.
+    #[contract(effect = "readOnly")]
     pub fn owner(&self) -> Ed25519PublicKey {
         self.owner.get()
     }
 
     /// Drop a consumed uniquifier once its expiry has passed. Open to anyone:
     /// it can only remove entries for operations that could no longer execute.
+    #[contract(effect = "stateChanging")]
     pub fn prune(&mut self, block_expiry_height: BlockHeight, nonce: u64) {
         self.replay.prune(&Uniquifier {
             block_expiry_height,

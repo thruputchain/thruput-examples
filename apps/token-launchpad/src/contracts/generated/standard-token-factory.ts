@@ -177,7 +177,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               declared: __gh_s("FactoryConfig"),
             },
           },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectReadOnly,
         },
         {
           name: __gh_s("create_token"),
@@ -227,13 +227,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Address },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
         },
         {
           name: __gh_s("creation_fee"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectReadOnly,
         },
         {
           name: __gh_s("initialize"),
@@ -252,7 +252,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
         },
         {
           name: __gh_s("predict_token"),
@@ -273,13 +273,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Address },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectReadOnly,
         },
         {
           name: __gh_s("required_token_funding"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.I128 },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectReadOnly,
         },
       ],
     },
@@ -442,6 +442,7 @@ const __gh_codecs = __gh_client_contract.createContractCodecContext(
 
 export const StandardTokenFactory = {
   v0_1: {
+    /** Declared effect: readOnly. Author declaration; not compiler/runtime enforced. */
     config: __gh_client_contract.defineContractMethod<
       StandardTokenFactory.v0_1.ConfigArgs,
       StandardTokenFactory.v0_1.ConfigResult,
@@ -469,6 +470,7 @@ export const StandardTokenFactory = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     createToken: __gh_client_contract.defineContractMethod<
       StandardTokenFactory.v0_1.CreateTokenArgs,
       StandardTokenFactory.v0_1.CreateTokenResult,
@@ -532,6 +534,7 @@ export const StandardTokenFactory = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: readOnly. Author declaration; not compiler/runtime enforced. */
     creationFee: __gh_client_contract.defineContractMethod<
       StandardTokenFactory.v0_1.CreationFeeArgs,
       StandardTokenFactory.v0_1.CreationFeeResult,
@@ -559,6 +562,7 @@ export const StandardTokenFactory = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     initialize: __gh_client_contract.defineContractMethod<
       StandardTokenFactory.v0_1.InitializeArgs,
       StandardTokenFactory.v0_1.InitializeResult,
@@ -592,6 +596,7 @@ export const StandardTokenFactory = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: readOnly. Author declaration; not compiler/runtime enforced. */
     predictToken: __gh_client_contract.defineContractMethod<
       StandardTokenFactory.v0_1.PredictTokenArgs,
       StandardTokenFactory.v0_1.PredictTokenResult,
@@ -630,6 +635,7 @@ export const StandardTokenFactory = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: readOnly. Author declaration; not compiler/runtime enforced. */
     requiredTokenFunding: __gh_client_contract.defineContractMethod<
       StandardTokenFactory.v0_1.RequiredTokenFundingArgs,
       StandardTokenFactory.v0_1.RequiredTokenFundingResult,

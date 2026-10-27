@@ -67,17 +67,21 @@ pub struct AccountCreated {
 )]
 pub trait StellarAccountFactory {
     /// Writes the immutable configuration exactly once.
+    #[contract(effect = "stateChanging")]
     fn initialize(&mut self, config: FactoryConfig);
 
     /// Deploys and initializes the account for `master_key` at
     /// [`address_of`](Self::address_of). The predicted address must already
     /// hold `required_funding` of the native token.
+    #[contract(effect = "stateChanging")]
     fn create_account(&mut self, master_key: &Ed25519PublicKey) -> ContractAddress;
 
     /// The address `create_account(master_key)` deploys to.
+    #[contract(effect = "readOnly")]
     fn address_of(&self, master_key: &Ed25519PublicKey) -> ContractAddress;
 
     /// The immutable configuration.
+    #[contract(effect = "readOnly")]
     fn config(&self) -> FactoryConfig;
 }
 

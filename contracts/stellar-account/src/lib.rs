@@ -31,6 +31,8 @@ use thruput_sdk::*;
 
 mod account;
 
+#[cfg(feature = "remote")]
+pub use account::StellarAccountRemote;
 pub use account::{StellarAccount, StellarAccountClient};
 pub use stellar_account_factory_if::{
     AccountCreated, AccountFactoryError, AccountInitError, FactoryConfig,

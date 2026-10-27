@@ -151,15 +151,18 @@ impl StellarAccountInitializer for StellarAccount {
 )]
 impl StellarAccount {
     /// The creation key, whether or not slot 0 is currently registered.
+    #[contract(effect = "readOnly")]
     pub fn master_key(&self) -> Ed25519PublicKey {
         self.config.get().master_key
     }
 
+    #[contract(effect = "readOnly")]
     pub fn thresholds(&self) -> Thresholds {
         self.config.get().thresholds
     }
 
     /// The weight registered at each slot; 0 is empty.
+    #[contract(effect = "readOnly")]
     pub fn signer_weights(&self) -> [u32; MAX_SIGNERS] {
         self.config.get().weights
     }
@@ -167,6 +170,7 @@ impl StellarAccount {
     /// Stellar's `payment`: an ERC20 transfer from this account. The native token
     /// is the ERC20 at `thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN`.
     /// Medium threshold.
+    #[contract(effect = "stateChanging")]
     pub fn payment(&self, asset: &ContractAddress, to: &ContractAddress, amount: Amount) {
         self.authorize(Category::Medium);
         ERC20Client::new(asset).transfer(to, amount);
@@ -181,6 +185,7 @@ impl StellarAccount {
     /// registration: it is never stored here, emitted, or returned. An encoded
     /// ML-DSA-65 key is 1953 bytes, over the chain's default 1024-byte limit
     /// on a storage value, an event, and a return buffer.
+    #[contract(effect = "stateChanging")]
     pub fn set_signer(&mut self, slot: u32, key: &PublicKey, weight: u32) {
         let mut config = self.authorize(Category::High);
         Self::check_signer_slot(slot);
@@ -196,6 +201,7 @@ impl StellarAccount {
     }
 
     /// Stellar `set_options` removing a signer (weight 0). High threshold.
+    #[contract(effect = "stateChanging")]
     pub fn remove_signer(&mut self, slot: u32) {
         let mut config = self.authorize(Category::High);
         Self::check_signer_slot(slot);
@@ -212,6 +218,7 @@ impl StellarAccount {
     /// Stellar's master weight. 0 deregisters slot 0 (refused if it is
     /// already empty); any other value registers the stored master key with
     /// that weight. High threshold.
+    #[contract(effect = "stateChanging")]
     pub fn set_master_weight(&mut self, weight: u32) {
         let mut config = self.authorize(Category::High);
         ensure(
@@ -230,6 +237,7 @@ impl StellarAccount {
 
     /// Stellar `set_options` thresholds. `low` becomes the chain-enforced
     /// required weight. High threshold.
+    #[contract(effect = "stateChanging")]
     pub fn set_thresholds(&mut self, low: u32, medium: u32, high: u32) {
         let mut config = self.authorize(Category::High);
         config.thresholds = Thresholds { low, medium, high };
@@ -245,6 +253,7 @@ impl StellarAccount {
     /// the factory's answer must match it ([`AccountError::CallFaulted`]
     /// otherwise). One frame, so a refusal anywhere leaves no trace. Medium
     /// threshold.
+    #[contract(effect = "stateChanging")]
     pub fn create_account(
         &self,
         factory: &ContractAddress,
@@ -266,6 +275,7 @@ impl StellarAccount {
     /// its own payload; a fault or a call rejected before running throws
     /// [`AccountError::CallFaulted`]. No auth tokens are forwarded. Medium
     /// threshold.
+    #[contract(effect = "stateChanging")]
     pub fn invoke(
         &self,
         target: &ContractAddress,
