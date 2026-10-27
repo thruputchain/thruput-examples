@@ -23,12 +23,6 @@ use thruput_testkit::{
     Scenario, xdrs,
 };
 
-// Typed contract clients: the remote proxies `#[contract]` generates (with the
-// `thruput-sdk/remote` feature) for each interface, bound to an agent's
-// `Caller`. State-changing methods return a `ContractCall` to await (or
-// `submit`, or await with its `receipt`); `readOnly` methods a `ContractView`.
-// `ERC20Metadata` declares no method effects, so its reads return a
-// `ContractCall` too, and are `simulate`d rather than submitted.
 type ERC20Remote = thruput_erc20_if::ERC20Remote<Caller>;
 type ERC20MetadataRemote = thruput_erc20_metadata_if::ERC20MetadataRemote<Caller>;
 type ERC20ClawbackRemote = thruput_erc20_controls_if::ERC20ClawbackRemote<Caller>;

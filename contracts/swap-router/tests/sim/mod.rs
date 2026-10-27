@@ -6,13 +6,6 @@ use thruput_erc20_if::{Amount, Difference};
 use thruput_testkit::xdr::types::ContractAddress;
 use thruput_testkit::{AgentContext, Caller, DeployOptions, Result, xdrs};
 
-// Typed contract clients.
-//
-// With the `thruput-sdk/remote` feature, `#[contract]` generates a remote
-// proxy for each interface trait, with one method per interface method. Bound
-// to an agent's `Caller`, its state-changing methods return a `ContractCall` to
-// await (or `submit`), and its `readOnly`/`pure` methods a `ContractView`,
-// simulated with the agent as `msg.sender`.
 pub type ERC20Remote = thruput_erc20_if::ERC20Remote<Caller>;
 pub type SwapFactoryRemote = swap_if::SwapFactoryRemote<Caller>;
 pub type SwapRouterRemote = swap_if::SwapRouterRemote<Caller>;

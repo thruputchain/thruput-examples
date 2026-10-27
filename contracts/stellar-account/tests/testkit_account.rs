@@ -44,10 +44,6 @@ use thruput_testkit::{
 
 type Address = ContractAddress;
 
-// Typed contract clients: the remote proxies `#[contract]` generates (with the
-// `thruput-sdk/remote` feature), bound to an agent's `Caller`. State-changing
-// methods return a `ContractCall` to await; `readOnly` methods a
-// `ContractView`, simulated with the agent as `msg.sender`.
 type ERC20Remote = thruput_erc20_if::ERC20Remote<Caller>;
 type StellarAccountFactoryRemote = stellar_account_factory_if::StellarAccountFactoryRemote<Caller>;
 type StellarAccountRemote = stellar_account::StellarAccountRemote<Caller>;

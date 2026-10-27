@@ -52,10 +52,6 @@ use thruput_testkit::{
     LocalNetworkConfig, NetworkConfig, Result, Scenario, TestkitError, entrypoint_id,
 };
 
-/// Typed contract clients: the remote proxies `#[contract]` generates (with the
-/// `thruput-sdk/remote` feature), bound to an agent's `Caller`. State-changing methods return a
-/// `ContractCall` to submit; `readOnly` methods a `ContractView`, simulated with the agent as
-/// `msg.sender`.
 type ERC20Remote = thruput_erc20_if::ERC20Remote<Caller>;
 type SpeedexRemote = speedex::SpeedexRemote<Caller>;
 
