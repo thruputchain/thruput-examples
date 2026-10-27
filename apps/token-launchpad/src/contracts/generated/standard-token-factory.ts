@@ -227,7 +227,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Address },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("creation_fee"),
@@ -252,7 +252,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("predict_token"),
@@ -470,7 +470,6 @@ export const StandardTokenFactory = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     createToken: __gh_client_contract.defineContractMethod<
       StandardTokenFactory.v0_1.CreateTokenArgs,
       StandardTokenFactory.v0_1.CreateTokenResult,
@@ -562,7 +561,6 @@ export const StandardTokenFactory = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     initialize: __gh_client_contract.defineContractMethod<
       StandardTokenFactory.v0_1.InitializeArgs,
       StandardTokenFactory.v0_1.InitializeResult,

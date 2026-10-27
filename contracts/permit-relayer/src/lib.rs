@@ -55,7 +55,6 @@ impl PermitRelayer {
     /// request, an invalid, expired or replayed signature at the wallet, or a
     /// grant the token will not consume — throws out of this frame, so a
     /// relayed operation either lands whole or leaves no trace.
-    #[contract(effect = "stateChanging")]
     pub fn relay(
         wallet: &ContractAddress,
         token: &ContractAddress,

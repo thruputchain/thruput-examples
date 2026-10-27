@@ -85,7 +85,6 @@ pub trait SwapFactory {
     /// recipient (`None` disables the fee). `router` is the router that will front this factory's
     /// pools: each driver it creates will accept requests from that address alone. The router must
     /// therefore be deployed, though not yet initialized, before this is called.
-    #[contract(effect = "stateChanging")]
     fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>, router: &Address);
 
     /// The protocol-fee recipient, consulted by each pair's fee logic.
@@ -110,7 +109,6 @@ pub trait SwapFactory {
     /// call aborts with [`InsufficientFunding`](SwapFactoryError::InsufficientFunding), leaving
     /// nothing behind; above it but still short, the transaction fails reservation instead and
     /// reports nothing (see that error).
-    #[contract(effect = "stateChanging")]
     fn create_pair(&mut self, token_a: &Address, token_b: &Address, funding: Amount) -> Pool;
 
     /// The addresses that [`create_pair`](Self::create_pair) would deploy the pool to for this

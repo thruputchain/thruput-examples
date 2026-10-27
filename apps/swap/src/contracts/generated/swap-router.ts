@@ -310,7 +310,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               len: 32n,
             },
           },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("initialize"),
@@ -321,7 +321,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("remove_liquidity"),
@@ -360,7 +360,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               len: 32n,
             },
           },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("swap_exact_tokens_for_tokens"),
@@ -393,7 +393,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               len: 32n,
             },
           },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("swap_tokens_for_exact_tokens"),
@@ -426,7 +426,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               len: 32n,
             },
           },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
       ],
     },
@@ -661,7 +661,6 @@ const __gh_codecs = __gh_client_contract.createContractCodecContext(
 
 export const SwapRouter = {
   v0_1: {
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     addLiquidity: __gh_client_contract.defineContractMethod<
       SwapRouter.v0_1.AddLiquidityArgs,
       SwapRouter.v0_1.AddLiquidityResult,
@@ -740,7 +739,6 @@ export const SwapRouter = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     initialize: __gh_client_contract.defineContractMethod<
       SwapRouter.v0_1.InitializeArgs,
       SwapRouter.v0_1.InitializeResult,
@@ -799,7 +797,6 @@ export const SwapRouter = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     removeLiquidity: __gh_client_contract.defineContractMethod<
       SwapRouter.v0_1.RemoveLiquidityArgs,
       SwapRouter.v0_1.RemoveLiquidityResult,
@@ -878,7 +875,6 @@ export const SwapRouter = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     swapExactTokensForTokens: __gh_client_contract.defineContractMethod<
       SwapRouter.v0_1.SwapExactTokensForTokensArgs,
       SwapRouter.v0_1.SwapExactTokensForTokensResult,
@@ -957,7 +953,6 @@ export const SwapRouter = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     swapTokensForExactTokens: __gh_client_contract.defineContractMethod<
       SwapRouter.v0_1.SwapTokensForExactTokensArgs,
       SwapRouter.v0_1.SwapTokensForExactTokensResult,

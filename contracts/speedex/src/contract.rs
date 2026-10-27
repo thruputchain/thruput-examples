@@ -296,7 +296,6 @@ impl Speedex {
     /// Set up the exchange over `assets[..n_assets]`, batching every `epoch_len` blocks, with limit
     /// prices on a grid of `octaves` doublings either side of one, `2^level_bits` levels to the
     /// doubling. Call once.
-    #[contract(effect = "stateChanging")]
     pub fn initialize(
         &mut self,
         n_assets: u32,
@@ -349,7 +348,6 @@ impl Speedex {
     ///
     /// Commutes with every other submission, cancellation and settlement: it writes a fresh offer
     /// record, increments a histogram cell and an id counter, and moves tokens.
-    #[contract(effect = "stateChanging")]
     pub fn submit_offer(&mut self, sell: u32, buy: u32, amount: u128, min_price: Price) -> OfferId {
         let cfg = self.cfg();
         ensure(
@@ -407,7 +405,6 @@ impl Speedex {
     }
 
     /// Withdraw an offer whose batch is still open, refunding its escrow. Owner only.
-    #[contract(effect = "stateChanging")]
     pub fn cancel_offer(&mut self, id: &OfferId) {
         let cfg = self.cfg();
         let offer = self.offer_at(id);
@@ -443,7 +440,6 @@ impl Speedex {
     /// [`OfferAccepted`] events. The contract reads exactly those, at most [`max_clear_cells`], and
     /// refuses the list unless every orderbook's listed cells sum to what it was offered in total:
     /// an incomplete list is [`SpeedexError::BatchMismatch`], never a clearing.
-    #[contract(effect = "stateChanging")]
     pub fn clear_batch(&mut self, batch: BatchId, cells: &[u8]) -> Clearing {
         let cfg = self.cfg();
         let (buckets, listed) = self.read_batch(&cfg, batch, cells);
@@ -597,7 +593,6 @@ impl Speedex {
     /// Anyone may call this; the proceeds go to the offer's owner.
     ///
     /// Commutes with every other settlement and submission.
-    #[contract(effect = "stateChanging")]
     pub fn settle_offer(&mut self, id: &OfferId) {
         let cfg = self.cfg();
         let offer = self.offer_at(id);

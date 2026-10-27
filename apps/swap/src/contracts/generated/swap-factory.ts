@@ -301,7 +301,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               declared: __gh_s("Pool"),
             },
           },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("fee_to"),
@@ -360,7 +360,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("pair_at"),
@@ -794,7 +794,6 @@ export const SwapFactory = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     createPair: __gh_client_contract.defineContractMethod<
       SwapFactory.v0_1.CreatePairArgs,
       SwapFactory.v0_1.CreatePairResult,
@@ -950,7 +949,6 @@ export const SwapFactory = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     initialize: __gh_client_contract.defineContractMethod<
       SwapFactory.v0_1.InitializeArgs,
       SwapFactory.v0_1.InitializeResult,

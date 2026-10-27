@@ -326,7 +326,7 @@ export const spec: __gh_client_contract.ContractSpec = {
           name: __gh_s("claim_crank"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("handle_request"),
@@ -345,7 +345,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("initialize"),
@@ -372,7 +372,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("pool_state"),
@@ -397,13 +397,13 @@ export const spec: __gh_client_contract.ContractSpec = {
             },
           ],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
         {
           name: __gh_s("sync"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.Void },
-          effect: __gh_client_contract.ContractMethodEffect.EffectStateChanging,
+          effect: null,
         },
       ],
     },
@@ -1070,7 +1070,6 @@ const __gh_codecs = __gh_client_contract.createContractCodecContext(
 
 export const SwapHandler = {
   v0_1: {
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     claimCrank: __gh_client_contract.defineContractMethod<
       SwapHandler.v0_1.ClaimCrankArgs,
       SwapHandler.v0_1.ClaimCrankResult,
@@ -1108,7 +1107,6 @@ export const SwapHandler = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     handleRequest: __gh_client_contract.defineContractMethod<
       SwapHandler.v0_1.HandleRequestArgs,
       SwapHandler.v0_1.HandleRequestResult,
@@ -1152,7 +1150,6 @@ export const SwapHandler = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     initialize: __gh_client_contract.defineContractMethod<
       SwapHandler.v0_1.InitializeArgs,
       SwapHandler.v0_1.InitializeResult,
@@ -1254,7 +1251,6 @@ export const SwapHandler = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     skim: __gh_client_contract.defineContractMethod<
       SwapHandler.v0_1.SkimArgs,
       SwapHandler.v0_1.SkimResult,
@@ -1298,7 +1294,6 @@ export const SwapHandler = {
       ],
       codecs: __gh_codecs,
     }),
-    /** Declared effect: stateChanging. Author declaration; not compiler/runtime enforced. */
     sync: __gh_client_contract.defineContractMethod<
       SwapHandler.v0_1.SyncArgs,
       SwapHandler.v0_1.SyncResult,

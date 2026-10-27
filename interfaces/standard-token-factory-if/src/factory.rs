@@ -52,7 +52,6 @@ impl fmt::Display for TokenFactoryError {
 )]
 pub trait StandardTokenFactory {
     /// Writes immutable factory configuration exactly once.
-    #[contract(effect = "stateChanging")]
     fn initialize(&mut self, config: FactoryConfig);
 
     /// Deploys and initializes a token for the immediate caller.
@@ -60,7 +59,6 @@ pub trait StandardTokenFactory {
         clippy::too_many_arguments,
         reason = "the specification fixes the public create_token ABI"
     )]
-    #[contract(effect = "stateChanging")]
     fn create_token(
         &mut self,
         nonce: &SHA256Hash,

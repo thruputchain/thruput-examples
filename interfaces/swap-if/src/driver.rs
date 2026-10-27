@@ -54,7 +54,6 @@ pub trait SwapDriver {
     /// Both are set per pool because they trade off against each other and against how a pool is
     /// used: see [`process_requests`](Self::process_requests) and
     /// [`SwapDriverError::BatchTooSmall`].
-    #[contract(effect = "stateChanging")]
     fn initialize(
         &mut self,
         handler: &Address,
@@ -71,7 +70,6 @@ pub trait SwapDriver {
     ///
     /// A request that would take the queue past the `max_queue_len` given at initialization fails
     /// at commit; the transaction may be retried.
-    #[contract(effect = "stateChanging")]
     fn request(&mut self, request: SwapRequest) -> RequestId;
 
     /// Drain the queue, returning `(processed, failed)` counts. Each failed request emits a
@@ -88,6 +86,5 @@ pub trait SwapDriver {
     /// on a single request. A crank on a shallow queue may be as small as it likes.
     ///
     /// Call this in a transaction of its own, never combined with a [`request`](Self::request).
-    #[contract(effect = "stateChanging")]
     fn process_requests(&mut self) -> (u32, u32);
 }
