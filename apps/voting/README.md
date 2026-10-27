@@ -7,7 +7,7 @@ on a local node or devnet.
 ## Local setup
 
 Complete [repository setup](../../README.md#setup) and run `npm ci` from the root.
-Use CLI 0.39.0 with runtime 0.1.31-rc.16 (native wire 14). Voting uses client
+Use CLI 0.40.2 with runtime 0.1.31-rc.16 (native wire 14). Voting uses client
 0.24.0, React SDK 0.8.0, and protocol packages 0.19.0, matching the other apps.
 Start a local node in another terminal:
 
