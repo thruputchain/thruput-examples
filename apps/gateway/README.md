@@ -32,9 +32,7 @@ The gateway uses `apps/gateway/Dockerfile`, `PORT=8080`, and `/healthz`.
 can override its upstream addresses. Watch each app's directory plus the root
 `package.json`, `package-lock.json`, `.npmrc`, and `railpack.json` for deployments.
 
-Until the hosting PR is merged, Voting and Examples Gateway follow
-`feat/devnet-examples-hosting`. After merging, change those two source branches
-to `main`. The three existing services already follow `main`.
+All six services follow `main`.
 
 The existing `railway.json` files describe the service settings for older Railway
 workflows. Railway now rejects newly assigning a config-file path through its API;
@@ -109,15 +107,14 @@ do not change. Keep the Railway domain available until the custom domain works.
 ## Release and wallet checks
 
 The current contracts use devnet network ID
-`6RgqYi69r94rCG1qKZ5NfCMAxonNAMXbDsFZMgGwgP2J` and wire format `14.1.1`.
+`DFizVugYrvktaiKivvCx2P1ApArLuyYmH6vN3HN7FcNT` and wire format `14.1.1`.
 The earlier network was reset. Use the addresses in `devnet.json`, not addresses
 from before the reset. Starting or redeploying a web service reuses these contracts.
 
-1. Merge PR #160 after its checks pass. In Railway, change Voting and Examples
-   Gateway from `feat/devnet-examples-hosting` to `main`. Confirm all five services
-   have a successful deployment. Do not run contract setup again for this step.
+1. Confirm all five app services have a successful deployment. A web-service
+   redeploy reuses its configured contracts; it does not deploy new contracts.
 2. Open the public site. Each app's `/api/config` must show the network ID above;
-   Counter uses the `networkId` field, and the other apps use `VITE_THRUPUT_NETWORK_ID`.
+   Counter and Airdrop use `networkId`; the other apps use `VITE_THRUPUT_NETWORK_ID`.
 3. In Thruput Freighter, select `https://rpc.thruput.network`. Refresh or recreate
    a saved network entry if it still has the old network ID. Request devnet test
    tokens for your account.
@@ -127,15 +124,14 @@ from before the reset. Starting or redeploying a web service reuses these contra
    balance, and token directory entry. Use its Create pool link to open Swap.
 6. **Swap:** select two tokens you own, create a pool, and add liquidity. Finish any
    processing step shown by the app. Make a small swap and check the output balance.
-   The `SMOKEA`/`SMOKEB` assets are automated test fixtures; use your own tokens for
+   The seven demo tokens and six pools seeded by Airdrop setup are available for
    wallet testing.
 7. **Voting:** create a draft, open it, submit an answer, and check the tally.
    Close the poll and reload its direct URL to check the final results.
 8. If a wallet action times out, inspect its saved transaction hash with the app's
    recovery controls before submitting anything else.
 
-The reset-network checks confirmed Counter through the hosted browser, Voting's
-full poll lifecycle through an injected test wallet (seven signatures), and token
-creation, pool creation, liquidity processing, and a swap through the SDK. Test
-assets and a closed test poll remain visible. The steps above check the real
-Freighter extension and its approval screens separately.
+After the October 27 reset, all five app deployments passed their health checks
+and loaded in a browser. Launchpad showed seven demo tokens, and Swap showed six
+funded pools. Airdrop setup verified funding for 1,000 claims. The steps above
+check wallet transactions separately.
