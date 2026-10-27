@@ -46,6 +46,8 @@ guest_test = [] # Test contracts compiled to guest binaries (instead of compilin
 swap-router = { path = ".", features = ["dev"] }
 swap-factory = { path = "../swap-factory", features = ["dev"] }
 thruput-testkit = { workspace = true }
+# Generate `<Iface>Remote` proxies, used as the `sim` tests' typed clients
+thruput-sdk = { workspace = true, features = ["remote"] }
 thruput-signing = { workspace = true }
 thruput-xdr = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

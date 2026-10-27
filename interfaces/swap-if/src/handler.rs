@@ -80,6 +80,7 @@ pub trait SwapHandler {
     /// principal to check against. What protects it is that a pool is deployed and initialized in a
     /// single transaction, so nothing can act on these contracts in between -- and a second call is
     /// refused.
+    #[contract(effect = "stateChanging")]
     fn initialize(
         &mut self,
         factory: &Address,
@@ -95,6 +96,7 @@ pub trait SwapHandler {
     /// this contract spends them on that account's standing allowance to it -- so whoever may call
     /// this may spend anyone's allowance. The driver, in turn, takes requests only from the router,
     /// which records the account that actually asked.
+    #[contract(effect = "stateChanging")]
     fn handle_request(&mut self, request: SwapRequest);
 
     /// Claim this block's drain opportunity for the calling crank operation.
@@ -103,18 +105,22 @@ pub trait SwapHandler {
     /// The driver calls this, commit-locked, before handing the handler any request; of the cranks
     /// in one block, only the first to claim can hold it, and the others abort before attempting to
     /// drain (see `batch_driver::Queue::crank`).
+    #[contract(effect = "stateChanging")]
     fn claim_crank(&mut self);
 
     /// Everything this pool will report about itself.
+    #[contract(effect = "readOnly")]
     fn pool_state(&self) -> PoolState;
 
     /// Send any balance in excess of the recorded reserves to `to`.
     ///
     /// Open to anyone, as a way to recover tokens sent to the pool by mistake.
+    #[contract(effect = "stateChanging")]
     fn skim(&mut self, to: &Address);
 
     /// Record the pool's actual balances as its reserves.
     ///
     /// Open to anyone.
+    #[contract(effect = "stateChanging")]
     fn sync(&mut self);
 }

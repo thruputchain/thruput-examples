@@ -42,12 +42,14 @@ pub enum SwapRouterError {
 )]
 pub trait SwapRouter {
     /// Initialize the router with the factory it resolves pairs through.
+    #[contract(effect = "stateChanging")]
     fn initialize(&mut self, factory: &Address);
 
     /// Request to provide liquidity, receiving LP tokens in return.
     ///
     /// Returns the [`RequestId`] to track the request by (see
     /// [`SwapDriver::request`](crate::SwapDriver::request)).
+    #[contract(effect = "stateChanging")]
     fn add_liquidity(
         &self,
         token_a: &Address,
@@ -60,6 +62,7 @@ pub trait SwapRouter {
     /// Request to burn `liquidity` LP tokens, recovering the underlying tokens.
     ///
     /// Returns the [`RequestId`] to track the request by.
+    #[contract(effect = "stateChanging")]
     fn remove_liquidity(
         &self,
         token_a: &Address,
@@ -72,6 +75,7 @@ pub trait SwapRouter {
     /// Request to swap an exact input amount for as much output as possible.
     ///
     /// Returns the [`RequestId`] to track the request by.
+    #[contract(effect = "stateChanging")]
     fn swap_exact_tokens_for_tokens(
         &self,
         amount_in: Amount,
@@ -84,6 +88,7 @@ pub trait SwapRouter {
     /// Request to swap as little input as possible for an exact output amount.
     ///
     /// Returns the [`RequestId`] to track the request by.
+    #[contract(effect = "stateChanging")]
     fn swap_tokens_for_exact_tokens(
         &self,
         amount_out: Amount,
