@@ -23,8 +23,8 @@ use thruput_testkit::{
     Scenario, xdrs,
 };
 
-const ERC20: (&str, &str) = ("ERC20", "0.1.69");
-const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.69");
+const ERC20: (&str, &str) = ("ERC20", "0.1.70");
+const METADATA: (&str, &str) = ("ERC20Metadata", "0.1.70");
 const FACTORY: (&str, &str) = ("StandardTokenFactory", "0.1.0");
 const REQUIRED_FACTORY_FUNDING: i128 = 1_000_000;
 // Exactly what creating a token through the factory costs its new address

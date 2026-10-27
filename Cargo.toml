@@ -42,9 +42,9 @@ thruput-cli = { registry = "thruput", version = "=0.41.0" }
 thruput-signing = { registry = "thruput", version = "=0.41.0" }
 thruput-testkit = { registry = "thruput", version = "=0.41.0" }
 
-# from thruput-protocol-rs:
-thruput-xdr = { registry = "thruput", version = "=0.61.0", features = ["serde", "xdrs"] }
-thruput-trace = { registry = "thruput", version = "=0.61.0" }
+# from thruput-protocol-rs (now on crates.io)
+thruput-xdr = { version = "=0.63.0", features = ["serde", "xdrs"] }
+thruput-trace = { version = "=0.63.0" }
 
 # from crates.io:
 xdrs = { package = "thruput-xdrs", version = "0.17.1", features = ["alloc"] }
