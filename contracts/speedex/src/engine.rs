@@ -289,7 +289,7 @@ fn mul_div(a: u128, b: u128, d: u128) -> u128 {
 // `a * b / d`, rounded up; saturates if the quotient does not fit.
 #[inline(never)]
 fn mul_div_ceil(a: u128, b: u128, d: u128) -> u128 {
-    let Some((q, r)) = U256::widening_mul(a, b).checked_div_rem(U256::from(d)) else {
+    let Some((q, r)) = U256::widening_mul_u128(a, b).checked_div_rem(U256::from(d)) else {
         return u128::MAX;
     };
     let q = u128::try_from(q).unwrap_or(u128::MAX);
@@ -401,7 +401,7 @@ fn better(err_q: u128, volume_q: u128, err_p: u128, volume_p: u128) -> bool {
     if volume_p == 0 {
         return true;
     }
-    U256::widening_mul(err_q, volume_p) < U256::widening_mul(err_p, volume_q)
+    U256::widening_mul_u128(err_q, volume_p) < U256::widening_mul_u128(err_p, volume_q)
 }
 
 /// Find approximate market-clearing prices for the batch.

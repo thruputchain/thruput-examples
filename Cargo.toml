@@ -23,24 +23,24 @@ categories = ["blockchain"]
 
 [workspace.dependencies]
 # from thruput-sdk-rs:
-thruput-sdk = { registry = "thruput", version = "=0.57.2" }
-thruput-contract-util = { registry = "thruput", version = "=0.57.2" }
-thruput-u256 = { registry = "thruput", version = "=0.57.2", default-features = false }
-thruput-domain-separator = { registry = "thruput", version = "=0.57.2", default-features = false }
-thruput-event = { registry = "thruput", version = "=0.57.2" }
-thruput-erc20-if = { registry = "thruput", version = "=0.1.70" }
-thruput-erc20-metadata-if = { registry = "thruput", version = "=0.1.70" }
-thruput-erc20-controls-if = { registry = "thruput", version = "=0.1.70" }
-thruput-erc20-permit-if = { registry = "thruput", version = "=0.1.70" }
-thruput-signed-op-if = { registry = "thruput", version = "=0.1.70" }
-thruput-signed-op = { registry = "thruput", version = "=0.1.70" }
+thruput-sdk = { version = "=0.58.0" }
+thruput-contract-util = { version = "=0.58.0" }
+thruput-u256 = { version = "=0.58.0", default-features = false }
+thruput-domain-separator = { version = "=0.58.0", default-features = false }
+thruput-event = { version = "=0.58.0" }
+thruput-erc20-if = { version = "=0.1.71" }
+thruput-erc20-metadata-if = { version = "=0.1.71" }
+thruput-erc20-controls-if = { version = "=0.1.71" }
+thruput-erc20-permit-if = { version = "=0.1.71" }
+thruput-signed-op-if = { version = "=0.1.71" }
+thruput-signed-op = { version = "=0.1.71" }
 
 # from thruput-tools:
-thruput-json-rpc-client = { registry = "thruput", version = "=0.41.0" }
-thruput-json-rpc-types = { registry = "thruput", version = "=0.41.0" }
-thruput-cli = { registry = "thruput", version = "=0.41.0" }
-thruput-signing = { registry = "thruput", version = "=0.41.0" }
-thruput-testkit = { registry = "thruput", version = "=0.41.0" }
+thruput-json-rpc-client = { version = "=0.42.0" }
+thruput-json-rpc-types = { version = "=0.42.0" }
+thruput-cli = { package = "thruput", version = "=0.42.0" }
+thruput-signing = { version = "=0.42.0" }
+thruput-testkit = { version = "=0.42.0" }
 
 # from thruput-protocol-rs (now on crates.io)
 thruput-xdr = { version = "=0.63.0", features = ["serde", "xdrs"] }

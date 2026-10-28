@@ -170,7 +170,7 @@ impl Pair {
             // Permanently lock the first MINIMUM_LIQUIDITY tokens
             lp.mint(&Self::BLACK_HOLE, to_token(Self::MINIMUM_LIQUIDITY));
 
-            let lp: u128 = U256::widening_mul(amounts[0], amounts[1])
+            let lp: u128 = U256::widening_mul_u128(amounts[0], amounts[1])
                 .integer_sqrt()
                 .try_into()
                 .unwrap();
@@ -410,7 +410,7 @@ impl Pair {
         };
 
         if !k_last.is_zero() {
-            let root_k = U256::widening_mul(reserves[0], reserves[1]).integer_sqrt();
+            let root_k = U256::widening_mul_u128(reserves[0], reserves[1]).integer_sqrt();
             let root_k_last = k_last.integer_sqrt();
 
             if root_k > root_k_last {
@@ -436,7 +436,7 @@ impl Pair {
     // protocol-fee computation.
     fn set_k_last(&mut self, balances: Amounts) {
         self.k_last
-            .set(&U256::widening_mul(balances[0], balances[1]));
+            .set(&U256::widening_mul_u128(balances[0], balances[1]));
     }
 
     // Get our holdings of the A/B tokens.
