@@ -16,6 +16,10 @@ Thruput of UniswapV2, adding a request-batching layer:
   each to its handler, all in the same block. Generic parts of this pattern are
    provided by [`helpers/batch-driver`](../../helpers/batch-driver/src/lib.rs),
   whose module docs cover the pattern in general.
+- `swap-gsr-driver` and `swap-clvr-driver`: Drop-in alternatives to
+  `swap-driver` that hand requests to the handler in an order chosen to protect
+  traders, by the GSR and CLVR rules; see
+  [Ordering a Batch](#ordering-a-batch-gsr-and-clvr).
 - `swap-factory`: Creates new pairs and keeps a registry of them.
 - `swap-router`: High-level facilities similar to those in [UniswapV2Router02];
   it builds `SwapRequest` values and enqueues them with the driver for the
@@ -164,6 +168,86 @@ An operator wanting better latency can run a keeper that cranks every block.
 The two compose without a mode switch: while the keeper runs, it claims each
 block and users' cranks find nothing to do; if it stops, theirs start winning
 the very next block. Nothing has to detect which is happening.
+
+## Ordering a Batch: GSR and CLVR
+
+`swap-driver` hands a batch to the handler in the order its queue yields it:
+arrival order between blocks, but within a block just the order of the
+entries' bytes. Every trade moves the price the next one sees, so that order
+decides who trades at what price, and it is arbitrary. Two alternative drivers
+choose it by a rule instead. Both take the price p₀ the pool has when a crank
+begins as their reference, both run liquidity operations first (they do not
+move the price), and both make the order a function of the requests and the
+reserves alone, so whoever cranks has no say in it.
+
+With the price p = reserve1 / reserve0, a trade paying token0 in lowers it, and
+a trade paying token1 in raises it.
+
+A plain `batch_driver::Queue::crank` hands requests over in the order it takes
+them, so each driver keeps a queue and crank of its own, built from the same
+parts as `batch_driver::Queue` (its policy, events and gas figures) and
+otherwise behaving as it does: the same ceiling, floor and claim, and each
+request handled under commit-locking, in isolation, exactly once.
+
+### GSR: which side of p₀
+
+[`swap-gsr-driver`](../swap-gsr-driver/src/gsr.rs) follows the Greedy
+Sequencing Rule ([Ferreira and Parkes][GSR]): while the price is at or above
+p₀, take a trade that lowers it; while it is below, one that raises it; when
+one kind runs out, take the rest. Every trade then gets a price at least as
+good as it would have alone at p₀, or a worse one from which whoever ordered it
+gains nothing, so a sandwich does not pay.
+
+The rule never compares two trades of the same kind, so it needs no sorting.
+The driver's queue is in lanes ([`lanes.rs`](../swap-gsr-driver/src/lanes.rs)):
+each request is put in a lane for the way it moves the price when it is
+enqueued, each lane keeps queue order, and the crank takes the head of whichever
+lane the rule picks, reading the pool's price after each request that succeeds.
+It streams, as a plain crank does, so the caller's gas limit sizes the batch
+exactly as for `swap-driver`. The lanes share the queue's one ceiling.
+
+### CLVR: nearest p₀
+
+[`swap-clvr-driver`](../swap-clvr-driver/src/clvr.rs) refines GSR with the CLVR
+rule ([McLaughlin, Chemaya, Liu and Malkhi][CLVR]): of the trades not yet
+placed, take the one that leaves the price *nearest* p₀ -- which may even be a
+small trade away from p₀, when the only trade back toward it would overshoot.
+That keeps the price's path through the batch closer to p₀, and undoes a
+sandwich too: the attacker's two legs all but cancel, so whichever moves the
+price first, the other is placed next.
+
+The rule is greedy, and the paper's appendix makes each step cheap with **two
+queues**, one per direction, each sorted by size. From above p₀, the smallest
+price-raising trade is the best of its queue, and the best price-lowering one
+sits either side of the size that would land on p₀, which a binary search
+finds; from below, the roles swap. (Each queue keeps exact-in and exact-out
+trades in separate sorted runs, since which of those two moves the price
+further depends on the reserves at the time.) Slippage limits play no part in
+the order: a trade its limit refuses changes nothing, and the next step starts
+from the same price.
+
+Choosing the nearest trade means seeing them all, so this driver's crank
+([`queue.rs`](../swap-clvr-driver/src/queue.rs)) takes the batch out of the
+queue up front -- as many requests as the caller's gas limit pays for, at each
+one's worst case plus the ordering's share -- and then hands it over in CLVR's
+order. The batch is still the first requests the queue yields, so no request
+waits behind one admitted in a later block.
+
+### Deploying either
+
+Both implement the same `SwapDriver` interface as `swap-driver`, so a factory
+deploys one in its place by being given its code hash in `SwapHashes::driver`.
+Choosing costs gas, so each budgets a little more per request than
+`swap-driver` (`PICK_GAS`, `SEQUENCE_GAS`, calibrated on a devnode by
+`scripts/swap-gas-calibrate.sh`). The CLVR driver holds its batch in memory, so
+it also caps a batch at what fits there (`clvr::MAX_BATCH`), whatever gas a
+crank brings.
+
+Whatever the driver, a crank can be no larger than one transaction's events
+allow: each swap emits five, and a transaction may emit 1000.
+
+[GSR]: https://arxiv.org/abs/2209.15569
+[CLVR]: https://arxiv.org/abs/2408.02634
 
 ## Trust and Permissions
 
