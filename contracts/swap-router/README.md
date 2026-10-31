@@ -1,7 +1,10 @@
 # Swap Contracts
 
 The `swap-*` contracts are an example port (not for production) from Ethereum to
-Thruput of UniswapV2, adding a request-batching layer:
+Thruput of UniswapV2, adding a request-batching layer. Because UniswapV2 is
+GPL-3.0 licensed, this suite (`swap-if`, `swap-pair`, and the `swap-*`
+contracts) is distributed under [GPL-3.0-or-later](../../LICENSE-GPL-3.0)
+rather than the repository's Apache-2.0 license:
 
 - [`swap-if`](../../interfaces/swap-if/): Interface-only crate.  It defines every swap contract's trait,
   client, and error type, plus the shared value types (including the

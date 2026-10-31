@@ -21,9 +21,8 @@ Follow the root README's Setup section. Use npm and the root `package-lock.json`
 Node must be at least 22.13. Rust is pinned in `rust-toolchain.toml`.
 Use CLI 0.37.0 or newer and let it select its compatible managed runtime.
 
-Cargo needs `thruput` registry access and a credential provider such as
-`cargo:token`. npm needs GitHub Packages authentication for `@thruputchain/*`.
-Keep credentials in the user's config/environment. Never commit tokens or keys.
+Rust crates come from crates.io and `@thruputchain/*` packages from the public
+npm registry; neither needs credentials. Never commit tokens or keys.
 
 Run commands from the repo root. Native tests need no node or browser:
 
