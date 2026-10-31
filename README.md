@@ -71,7 +71,7 @@ All Rust dependencies, including the Thruput SDK and CLI, come from
 
 ```sh
 rustup show
-cargo install --locked --version '>=0.37.0' thruput-cli
+cargo install --locked --version '>=0.37.0' thruput
 thruput toolchain install
 ```
 
