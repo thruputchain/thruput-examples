@@ -12,7 +12,7 @@ the whole repository.
 | Use the TypeScript SDK    | [Client examples](examples/typescript/README.md)                                    | Node.js and a local node                                                             |
 | Consume hosted blocks     | [Firehose consumer](examples/typescript/README.md#7-consume-the-hosted-firehose)    | Node.js and the repo npm install; no local node                                      |
 | Try an application        | [Counter app](apps/counter/README.md)                                               | Rust, Node.js, CLI, and a local node                                                 |
-| Explore a full wallet app | [Token Launchpad](apps/token-launchpad/README.md), then [Swap](apps/swap/README.md) | The app toolchain and [Thruput Freighter](https://github.com/thruputchain/freighter) |
+| Explore a full wallet app | [Token Launchpad](apps/token-launchpad/README.md), then [Swap](apps/swap/README.md) | The app toolchain and [Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/) |
 
 Follow [Setup](#setup) for toolchain installation and the local node. The
 [developer tutorials](https://docs.thruput.network/start/getting-started/)

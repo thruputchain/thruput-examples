@@ -1,6 +1,6 @@
 # Token Launchpad
 
-Create tokens through [Thruput Freighter](https://github.com/thruputchain/freighter)
+Create tokens through [Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/)
 and browse factory launches. A registry indexes discovery events; balances and
 transaction verification use live chain reads. The app never receives wallet keys.
 For individual SDK operations, start with [client examples](../../examples/typescript/README.md).
