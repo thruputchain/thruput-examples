@@ -113,7 +113,6 @@ Seeding checks fresh assets on rerun, balances, reserves, and indexing. Batching
 checks atomic rollback, storage top-ups, and pool operations. Freighter browser
 approval flows require separate acceptance testing.
 
-CI runs these checks with registry credentials. Grant repository Actions access
-to the npm packages; npm jobs use `github.token`. The Cargo registry secret is named
-`GROUNDHOG_REGISTRY_TOKEN`. Rebuild artifacts and bindings together; installing
+CI installs everything from crates.io and the public npm registry; no registry
+credentials are needed. Rebuild artifacts and bindings together; installing
 packages does not upgrade contracts already deployed to a node.

@@ -24,8 +24,6 @@ Use the repository root as the build context for every service. App build comman
 are `npm run build --workspace apps/<app>`; start commands are
 `npm run start --workspace apps/<app>`. Use Node 22.13 or newer, `PORT=3000`, and
 `/healthz` as the health check. The root `railpack.json` excludes private local files.
-Private npm packages require a build credential with `read:packages` access.
-Keep the token in Railway variables, never in the repository.
 
 The gateway uses `apps/gateway/Dockerfile`, `PORT=8080`, and `/healthz`.
 `COUNTER_UPSTREAM`, `LAUNCHPAD_UPSTREAM`, `SWAP_UPSTREAM`, `VOTING_UPSTREAM`, and `AIRDROP_UPSTREAM`

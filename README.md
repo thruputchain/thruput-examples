@@ -8,19 +8,19 @@ the whole repository.
 
 | I want to…                | Start with                                                                          | What I need                                                                          |
 | ------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Write a contract          | [Counter](contracts/counter/README.md)                                              | Rust and Cargo registry access; no running node                                      |
-| Use the TypeScript SDK    | [Client examples](examples/typescript/README.md)                                    | Node.js, npm package access, and a local node                                        |
+| Write a contract          | [Counter](contracts/counter/README.md)                                              | Rust; no running node                                                                |
+| Use the TypeScript SDK    | [Client examples](examples/typescript/README.md)                                    | Node.js and a local node                                                             |
 | Consume hosted blocks     | [Firehose consumer](examples/typescript/README.md#7-consume-the-hosted-firehose)    | Node.js and the repo npm install; no local node                                      |
 | Try an application        | [Counter app](apps/counter/README.md)                                               | Rust, Node.js, CLI, and a local node                                                 |
 | Explore a full wallet app | [Token Launchpad](apps/token-launchpad/README.md), then [Swap](apps/swap/README.md) | The app toolchain and [Thruput Freighter](https://github.com/thruputchain/freighter) |
 
-Follow [Setup](#setup) for registry access, toolchain installation, and the local
-node. The [developer tutorials](https://docs.thruput.network/start/getting-started/)
+Follow [Setup](#setup) for toolchain installation and the local node. The
+[developer tutorials](https://docs.thruput.network/start/getting-started/)
 explain the platform and creating your own project with `thruput new`.
 
 ### Your first contract test
 
-After configuring Rust registry access, run from the repository root:
+After installing Rust with rustup, run from the repository root:
 
 ```sh
 cargo test -p counter --locked --test test
@@ -66,20 +66,18 @@ Run commands from the repository root. Use Node.js **22.13+**, npm, and
 
 ### Rust and CLI
 
-The repo configures the private `thruput` Cargo registry. You need access and a
-credential provider. Save your token at Cargo's prompt:
+All Rust dependencies, including the Thruput SDK and CLI, come from
+[crates.io](https://crates.io); no registry credentials are needed.
 
 ```sh
-export CARGO_REGISTRIES_THRUPUT_CREDENTIAL_PROVIDER=cargo:token
-cargo login --registry thruput
 rustup show
-cargo install --locked --registry thruput --version '>=0.37.0' thruput-cli
+cargo install --locked --version '>=0.37.0' thruput-cli
 thruput toolchain install
 ```
 
 Use CLI **0.37.0 or newer**. Let the CLI select its compatible managed runtime.
-Native tests need Rust and registry access but no CLI or node. For contract
-builds, add this local profile to `thruput.toml` if it is not already configured:
+Native tests need Rust but no CLI or node. For contract builds, add this local
+profile to `thruput.toml` if it is not already configured:
 
 ```toml
 default_profile = "local"
@@ -89,16 +87,10 @@ network = "local"
 
 ### npm
 
-The published `@thruputchain/*` packages use GitHub Packages. Add this to your
-user `~/.npmrc`, then set `GITHUB_PACKAGES_TOKEN` to a PAT with `read:packages`
-and access to the packages:
-
-```ini
-//npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
-```
-
+The published `@thruputchain/*` packages are on the public
+[npm registry](https://www.npmjs.com/org/thruputchain); no token is needed.
 Run `npm ci` at the root. This installs dependencies for all apps and client
-examples. Keep credentials outside the repository.
+examples.
 
 ### Local node
 
@@ -109,8 +101,8 @@ printed by that node). Use the new manifest after restarting the node.
 
 Run `npm run example:chain-tip` for a first read. Continue with the
 [client examples](examples/typescript/README.md) or an app README.
-If authentication fails, check registry/package access. If the CLI rejects a
-runtime manifest, use its matching managed runtime rather than a protocol override.
+If the CLI rejects a runtime manifest, use its matching managed runtime rather
+than a protocol override.
 
 ### Run all five apps locally
 
@@ -227,10 +219,15 @@ keys or recovery state. Use the same node and RPC endpoint in both apps and Frei
 
 ## Development and verification
 
-- [Setup](#setup): credentials, install, and node.
+- [Setup](#setup): install and node.
 - [Script index and checks](scripts/README.md): tests, requirements, and side effects.
 - [AGENTS.md](AGENTS.md): repository instructions for coding agents.
 
 ## License
 
-[Apache-2.0](LICENSE)
+[Apache-2.0](LICENSE), except for the swap contract suite. The `swap-*`
+contracts, [`engines/swap-pair`](engines/swap-pair/), and
+[`interfaces/swap-if`](interfaces/swap-if/) are a port of
+[UniswapV2](https://github.com/Uniswap/v2-core), which is GPL-3.0 licensed, so
+they are distributed under [GPL-3.0-or-later](LICENSE-GPL-3.0). Each crate's
+`Cargo.toml` names its license.

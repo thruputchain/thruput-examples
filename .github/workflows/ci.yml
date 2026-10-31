@@ -14,13 +14,10 @@ jobs:
       contents: read
     uses: thruputchain/actions/.github/workflows/rust-dependency-policy.yml@v1
     with:
-      registry-name: thruput
       # The workspace manifest opts into the nightly-only `trim-paths` cargo
       # feature, so the stable cargo the reusable workflow defaults to cannot
       # parse it. Must match rust-toolchain.toml; quality-checks verifies that.
       toolchain: nightly-2026-07-01
-    secrets:
-      registry-token: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
 
   workflow-lint:
     permissions:
@@ -34,7 +31,6 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      packages: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -42,12 +38,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          registry-url: https://npm.pkg.github.com
-          scope: '@thruputchain'
           cache: npm
       - run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
       - run: npm run typecheck
       - run: npm test
       # Public settings arrive at runtime; production bundles need no deployment env.
@@ -63,13 +55,8 @@ jobs:
     needs: [dependency-policy, frontend]
     permissions:
       contents: read
-      packages: read
     runs-on: namespace-profile-hogd-linux-2604
     timeout-minutes: 30
-    env:
-      CARGO_REGISTRIES_THRUPUT_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
-      CARGO_REGISTRIES_THRUPUT_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
-      CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -77,15 +64,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          registry-url: https://npm.pkg.github.com
-          scope: '@thruputchain'
           cache: npm
       - run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
       - name: Install the published Thruput CLI and runtime
         run: |
-          cargo install --registry thruput --version 0.40.2 --locked thruput-cli
+          cargo install --version 0.42.0 --locked thruput-cli
           thruput toolchain install
           echo "THRUPUT_CLI=$(command -v thruput)" >> "$GITHUB_ENV"
           echo "THRUPUT_DEVNODE_BINARY=$(thruput toolchain which)" >> "$GITHUB_ENV"
@@ -130,10 +113,6 @@ jobs:
       matrix:
         runner: [namespace-profile-hogd-linux-2604, namespace-profile-hogd-arm64-macos]
     runs-on: ${{ matrix.runner }}
-    env:
-      CARGO_REGISTRIES_THRUPUT_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
-      CARGO_REGISTRIES_THRUPUT_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
-      CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -161,10 +140,10 @@ jobs:
             ~/.cargo/bin/thruput
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
-          key: thruput-cli-${{ runner.os }}-${{ runner.arch }}-0.40.2
+          key: thruput-cli-${{ runner.os }}-${{ runner.arch }}-0.42.0
 
       - name: Install thruput-cli
-        run: cargo install --registry thruput --version 0.40.2 --locked thruput-cli
+        run: cargo install --version 0.42.0 --locked thruput-cli
 
       - name: Configure local build profile
         run: |
@@ -195,10 +174,6 @@ jobs:
     permissions:
       contents: read
     runs-on: namespace-profile-hogd-linux-2604
-    env:
-      CARGO_REGISTRIES_THRUPUT_INDEX: sparse+https://crates.thruput.network/api/v1/crates/
-      CARGO_REGISTRIES_THRUPUT_TOKEN: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
-      CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS: cargo:token
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
