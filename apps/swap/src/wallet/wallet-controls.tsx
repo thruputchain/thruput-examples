@@ -12,7 +12,7 @@ export function WalletInstallBanner() {
       className="w-full bg-signal px-4 py-2 text-center text-sm text-primary-foreground"
     >
       <a
-        href="https://github.com/thruputchain/freighter"
+        href="https://www.thruput.network/docs/tools/wallet-extension/"
         className="underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4"
       >
         Install or enable Thruput Freighter to use this app

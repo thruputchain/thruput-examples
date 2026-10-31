@@ -1,7 +1,7 @@
 # Swap
 
 Create pools, swap tokens, and manage liquidity through
-[Thruput Freighter](https://github.com/thruputchain/freighter). The registry
+[Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/). The registry
 indexes pool creation; balances, reserves, and transaction verification use live
 chain reads. Wallet keys stay in the wallet. This is a full app reference;
 start with [client examples](../../examples/typescript/README.md) for smaller SDK tasks.

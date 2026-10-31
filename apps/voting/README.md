@@ -26,7 +26,7 @@ npm run dev --workspace apps/voting
 ```
 
 Open **http://127.0.0.1:5176**. Connect
-[Thruput Freighter](https://github.com/thruputchain/freighter) to the same localnode
+[Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/) to the same localnode
 and request test native tokens in the wallet. Public browsing needs no wallet.
 
 Setup builds the contract, generates bindings, deploys a fresh empty Voting
