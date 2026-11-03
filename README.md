@@ -223,6 +223,22 @@ keys or recovery state. Use the same node and RPC endpoint in both apps and Frei
 - [Script index and checks](scripts/README.md): tests, requirements, and side effects.
 - [AGENTS.md](AGENTS.md): repository instructions for coding agents.
 
+### Update dependencies
+
+New crate and npm releases must be older than a cooldown period before a
+lockfile takes them.
+First-party packages (`thruput`, `thruput-*` and `@thruputchain/*`) are exempt.
+Dependabot opens weekly update pull requests under this cooldown.
+
+- **Rust.** Update `Cargo.lock` with
+  [cargo-cooldown](https://crates.io/crates/cargo-cooldown)
+  (`cargo cooldown update`) instead of `cargo update`. CI checks the lockfile
+  with [cargo-cooldown-check](https://github.com/NomicFoundation/cargo-cooldown-check).
+  The policy is in `cooldown.toml`, `.cargo/cooldown.toml` and
+  `.cargo/cooldown-allowlist.toml`.
+- **npm.** `.npmrc` sets `min-release-age`, which recent npm releases (such as
+  npm 12) apply when they resolve new versions.
+
 ## License
 
 [Apache-2.0](LICENSE), except for the swap contract suite. The `swap-*`
