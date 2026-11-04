@@ -198,3 +198,20 @@ jobs:
 
       - name: Run rustfmt
         run: cargo fmt --check
+
+      # cargo-cooldown-check has no crates.io release, so pin the commit.
+      - name: Cache cargo-cooldown-check
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cargo/cooldown-check
+          key: cargo-cooldown-check-${{ runner.os }}-${{ runner.arch }}-d519cf72eed8dde4301f83298ee08366cf3b1cea
+
+      # Fails if Cargo.lock takes a release newer than the cooldown policy
+      # allows (.cargo/cooldown.toml, .cargo/cooldown-allowlist.toml).
+      - name: Check dependency cooldown
+        run: |
+          root="$HOME/.cargo/cooldown-check"
+          cargo install --locked --root "$root" \
+            --git https://github.com/NomicFoundation/cargo-cooldown-check \
+            --rev d519cf72eed8dde4301f83298ee08366cf3b1cea
+          PATH="$root/bin:$PATH" cargo cooldown-check

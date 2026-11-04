@@ -24,6 +24,11 @@ Use CLI 0.37.0 or newer and let it select its compatible managed runtime.
 Rust crates come from crates.io and `@thruputchain/*` packages from the public
 npm registry; neither needs credentials. Never commit tokens or keys.
 
+Dependency updates follow a cooldown policy; see the README's
+[Update dependencies](README.md#update-dependencies). Use
+`cargo cooldown update`, not `cargo update`, and keep the cooldown files in
+sync with each other.
+
 Run commands from the repo root. Native tests need no node or browser:
 
 ```sh

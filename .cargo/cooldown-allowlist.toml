@@ -1,4 +1,6 @@
-# Keep in sync with the [[allow.exact]] entries in ../cooldown.toml.
+# Allowlist for `cargo cooldown-check`.
+# Keep in sync with the [[allow.package]] and [[allow.exact]] entries in
+# ../cooldown.toml. Each [[allow.package]] entry here names one crate.
 
 # Security fix for ctutils 0.4.3 and earlier (fixed in 0.4.4).
 [[allow.exact]]
@@ -39,3 +41,241 @@ version = "1.0.10"
 [[allow.exact]]
 crate = "zstd-sys"
 version = "2.1.1+zstd.1.5.7"
+
+# Exemptions for first-party crates (`thruput` and `thruput-*`).
+
+[[allow.package]]
+crate = "thruput"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-access-control-if"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-build-info"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-bundle-identity"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-cli-macros"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-client"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-contract-spec"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-contract-util"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-db-gateway"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-domain-separator"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-encoding"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-erc20-controls-if"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-erc20-if"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-erc20-metadata-if"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-erc20-pausable-if"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-erc20-permit-if"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-event"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-exn"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-hogd-backend"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-indexer"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-json-rpc-api"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-json-rpc-client"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-json-rpc-server"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-json-rpc-types"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-macros"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-native-exec"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-node-rpc"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-node-supervisor"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-node-types"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-open-rpc"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-open-rpc-macros"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-rpc-api"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-rpc-driver"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-rv32-artifact"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-rv32-lower"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-rv32-runtime"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-scp"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-sdk"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-signed-op"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-signed-op-if"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-signing"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-spec"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-spec-tool"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-storage-cost"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-sys"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-syscall"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-testkit"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-toolchain"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-trace"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-tx-validation"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-u256"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-view"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-x23-transport"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-xdr"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-xdr-common"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-xdr-derive"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-xdr-macros"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-xdr-repr"
+minutes = 0
+
+[[allow.package]]
+crate = "thruput-xdrs"
+minutes = 0

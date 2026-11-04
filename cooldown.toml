@@ -1,12 +1,13 @@
-# Config for `cargo cooldown`
-# Keep in sync with .cargo/cooldown.toml and .cargo/cooldown-allowlist.toml
+# Config for `cargo cooldown`.
+# Keep in sync with .cargo/cooldown.toml, .cargo/cooldown-allowlist.toml, and
+# the cooldown settings in .github/dependabot.yml and .npmrc.
 
 [cooldown]
 incompatible-publish-age = "deny"
 lockfile-baseline = "ignore"
 
 [registry]
-global-min-publish-age = "15 days"
+global-min-publish-age = "8 days"
 
 # Security fix for ctutils 0.4.3 and earlier (fixed in 0.4.4).
 [[allow.exact]]
@@ -47,3 +48,69 @@ version = "1.0.10"
 [[allow.exact]]
 crate = "zstd-sys"
 version = "2.1.1+zstd.1.5.7"
+
+# Exemptions for first-party crates: `thruput` and `thruput-*`, published to
+# crates.io by thruputchain.
+[[allow.package]]
+crates = [
+    "thruput",
+    "thruput-access-control-if",
+    "thruput-build-info",
+    "thruput-bundle-identity",
+    "thruput-cli-macros",
+    "thruput-client",
+    "thruput-contract-spec",
+    "thruput-contract-util",
+    "thruput-db-gateway",
+    "thruput-domain-separator",
+    "thruput-encoding",
+    "thruput-erc20-controls-if",
+    "thruput-erc20-if",
+    "thruput-erc20-metadata-if",
+    "thruput-erc20-pausable-if",
+    "thruput-erc20-permit-if",
+    "thruput-event",
+    "thruput-exn",
+    "thruput-hogd-backend",
+    "thruput-indexer",
+    "thruput-json-rpc-api",
+    "thruput-json-rpc-client",
+    "thruput-json-rpc-server",
+    "thruput-json-rpc-types",
+    "thruput-macros",
+    "thruput-native-exec",
+    "thruput-node-rpc",
+    "thruput-node-supervisor",
+    "thruput-node-types",
+    "thruput-open-rpc",
+    "thruput-open-rpc-macros",
+    "thruput-rpc-api",
+    "thruput-rpc-driver",
+    "thruput-rv32-artifact",
+    "thruput-rv32-lower",
+    "thruput-rv32-runtime",
+    "thruput-scp",
+    "thruput-sdk",
+    "thruput-signed-op",
+    "thruput-signed-op-if",
+    "thruput-signing",
+    "thruput-spec",
+    "thruput-spec-tool",
+    "thruput-storage-cost",
+    "thruput-sys",
+    "thruput-syscall",
+    "thruput-testkit",
+    "thruput-toolchain",
+    "thruput-trace",
+    "thruput-tx-validation",
+    "thruput-u256",
+    "thruput-view",
+    "thruput-x23-transport",
+    "thruput-xdr",
+    "thruput-xdr-common",
+    "thruput-xdr-derive",
+    "thruput-xdr-macros",
+    "thruput-xdr-repr",
+    "thruput-xdrs",
+]
+min-publish-age = "0"
