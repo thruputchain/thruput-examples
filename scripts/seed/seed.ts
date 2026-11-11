@@ -42,7 +42,7 @@ import {
   batch_driver,
 } from "../../apps/swap/src/contracts/generated/swap-driver.ts";
 import { SwapHandler } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
-import { validateLocalRpcUrl } from "../../apps/token-launchpad/scripts/setup-local.ts";
+import { validateLocalRpcUrl } from "./local-rpc.ts";
 import {
   seedTransport,
   verifySwapRelationship,
