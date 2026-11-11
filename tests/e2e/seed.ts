@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, readdir } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
@@ -138,20 +138,19 @@ process.once("SIGINT", interrupt);
 process.once("SIGTERM", interrupt);
 
 try {
-  const node = start(
-    process.env.THRUPUT_CLI ?? join(homedir(), ".cargo/bin/thruput"),
-    [
-      "node",
-      "--json",
-      "--port",
-      "0",
-      "--hog-devnode-binary",
-      process.env.THRUPUT_DEVNODE_BINARY,
-      ...(process.env.THRUPUT_E2E_HOGD_PROTOCOL
-        ? ["--hogd-protocol", process.env.THRUPUT_E2E_HOGD_PROTOCOL]
-        : []),
-    ],
-  );
+  const node = start(process.env.THRUPUT_CLI ?? "thruput", [
+    "node",
+    "--json",
+    "--port",
+    "0",
+    "--init-network-hash",
+    toBase58(new Uint8Array(32).fill(1)),
+    "--hog-devnode-binary",
+    process.env.THRUPUT_DEVNODE_BINARY,
+    ...(process.env.THRUPUT_E2E_HOGD_PROTOCOL
+      ? ["--hogd-protocol", process.env.THRUPUT_E2E_HOGD_PROTOCOL]
+      : []),
+  ]);
   let startup:
     | {
         ok: boolean;

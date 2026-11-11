@@ -13,7 +13,7 @@ import {
   fromHex0x,
   hashContract,
   hashFromBase58,
-  localnet,
+  defineCluster,
   parseAddress,
   Ed25519Signer,
   toBase58,
@@ -49,7 +49,6 @@ import {
   SeedError,
   waitForView,
 } from "./seed-preflight.ts";
-import { submitSeedTransaction } from "./seed-transaction.ts";
 import { assertLiquidityMint } from "./seed-liquidity.ts";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -57,15 +56,6 @@ const GAS = gasAmount(10_000_000n);
 const SUPPLY = 1_000_000n * 1_000_000n;
 const LIQUIDITY = 1_000n * 1_000_000n;
 const RESERVE = 10_000_000n;
-
-async function environment(
-  path: string,
-): Promise<Record<string, string | undefined>> {
-  const file = parseEnv(await readFile(resolve(ROOT, path), "utf8"));
-  for (const key of Object.keys(file))
-    file[key] = process.env[key] ?? file[key]!;
-  return file;
-}
 
 async function artifact(directory: string, hash: string): Promise<Contract> {
   const value = JSON.parse(
@@ -88,33 +78,47 @@ async function artifact(directory: string, hash: string): Promise<Contract> {
 }
 
 /** Fresh local demo assets. No saved keys, journal, resume, or write retries. */
-export async function seed(phase: "tokens" | "pools"): Promise<void> {
+export async function seed(
+  phase: "tokens" | "pools",
+  env: Record<string, string | undefined> = process.env,
+): Promise<void> {
+  async function environment(path: string) {
+    const file = parseEnv(await readFile(resolve(ROOT, path), "utf8"));
+    for (const key of Object.keys(file)) file[key] = env[key] ?? file[key]!;
+    return file;
+  }
   let step = "validate recipient and local setup";
   try {
-    if (!process.env.SEED_RECIPIENT)
-      throw new SeedError("Set SEED_RECIPIENT to your wallet's public address");
-    const recipient = parseAddress(process.env.SEED_RECIPIENT);
+    if (!env.SEED_RECIPIENT)
+      throw new SeedError(
+        "Set SEED_RECIPIENT to the recipient account's public address",
+      );
+    const recipient = parseAddress(env.SEED_RECIPIENT);
     if (recipient.every((byte) => byte === 0))
       throw new SeedError("SEED_RECIPIENT must not be the zero address");
     const launch = await environment(
-      process.env.LAUNCHPAD_APP_ENV ?? "apps/token-launchpad/.env.local",
+      env.LAUNCHPAD_APP_ENV ?? "apps/token-launchpad/.env.local",
     );
     const swap =
       phase === "pools"
-        ? await environment(process.env.SWAP_APP_ENV ?? "apps/swap/.env.local")
+        ? await environment(env.SWAP_APP_ENV ?? "apps/swap/.env.local")
         : undefined;
     const rpcUrl = validateLocalRpcUrl(
-      process.env.THRUPUT_RPC_URL ?? launch.VITE_THRUPUT_RPC_URL!,
+      env.THRUPUT_RPC_URL ?? launch.VITE_THRUPUT_RPC_URL!,
     );
     const client = await createThruputClient({
-      cluster: localnet({ rpcUrl }),
+      cluster: defineCluster({
+        name: "local",
+        rpcUrl,
+        capabilities: ["airdrop"],
+      }),
       transport: seedTransport(rpcUrl),
     });
     const network = toBase58(client.network.networkHash);
     for (const config of [launch, ...(swap ? [swap] : [])]) {
       if (
         toBase58(hashFromBase58(config.VITE_THRUPUT_NETWORK_ID!)) !== network ||
-        (!process.env.THRUPUT_RPC_URL &&
+        (!env.THRUPUT_RPC_URL &&
           validateLocalRpcUrl(config.VITE_THRUPUT_RPC_URL!) !== rpcUrl)
       )
         throw new SeedError(
@@ -139,7 +143,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     )
       throw new SeedError("Unsupported launchpad factory configuration");
     const tokenCode = await artifact(
-      process.env.LAUNCHPAD_APP_PUBLIC_DIR ?? "apps/token-launchpad/public",
+      env.LAUNCHPAD_APP_PUBLIC_DIR ?? "apps/token-launchpad/public",
       tokenHash,
     );
     const poolConfig = swap
@@ -147,7 +151,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
           factory: addressFromBase58(swap.VITE_SWAP_FACTORY_ADDRESS!),
           router: addressFromBase58(swap.VITE_SWAP_ROUTER_ADDRESS!),
           code: await artifact(
-            process.env.SWAP_APP_PUBLIC_DIR ?? "apps/swap/public",
+            env.SWAP_APP_PUBLIC_DIR ?? "apps/swap/public",
             toBase58(hashFromBase58(swap.VITE_POOL_TOKEN_HASH!)),
           ),
           funding: (
@@ -172,31 +176,51 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     }
 
     const account = createPubkeyAccount({
-      signer: new Ed25519Signer(randomBytes(32)),
+      signer: Ed25519Signer.fromSeed(randomBytes(32)),
     });
-    const wallet = createWalletClient({ client, account });
+    const wallet = createWalletClient({
+      client,
+      account,
+      onSigned: (evidence) => {
+        console.log(
+          `Submitting ${step}: ${toBase58(evidence.transactionHash)}`,
+        );
+      },
+    });
     console.log(
       `Fresh ${phase} seed. Recipient: ${toBase58(recipient)}. Tool account: ${toBase58(account.address)}`,
     );
     let height = 0n;
+    async function fundAccount() {
+      step = "fund seed account";
+      // Two token deployments, optional pool storage, and a scheduling reserve.
+      const minimum =
+        2n * (config.required_token_funding + RESERVE) +
+        (poolConfig?.funding.recommended ?? 0n) * 3n +
+        RESERVE * 10n;
+      let balance = (await wallet.getBalance()).rawBalance;
+      while (balance < minimum) {
+        const funding = await wallet.requestAirdrop({ timeoutMs: 60_000 });
+        console.log(`Airdrop: ${toBase58(funding.transactionHash)}`);
+        const next = (await wallet.getBalance()).rawBalance;
+        if (next <= balance)
+          throw new SeedError(
+            "Confirmed native funding is not visible. Inspect the original request before continuing.",
+          );
+        balance = next;
+      }
+    }
     async function execute(
       name: string,
       invocation: Invocation,
       contractsToDeploy: Contract[] = [],
     ) {
       step = name;
-      if (
-        (await wallet.getBalance()).rawBalance <
-        RESERVE * 10n + (poolConfig?.funding.recommended ?? 0n) * 3n
-      ) {
-        const funding = await wallet.requestAirdrop();
-        console.log(`Airdrop: ${toBase58(funding.transactionHash)}`);
-      }
-      const receipt = await submitSeedTransaction(wallet, name, {
-        invocation,
-        gasLimit: GAS,
-        contractsToDeploy,
-      });
+      const { receipt, transactionHash } = await wallet.executeAndWait(
+        { invocation, gasLimit: GAS, contractsToDeploy },
+        { timeoutMs: 60_000 },
+      );
+      console.log(`Completed ${name}: ${toBase58(transactionHash)}`);
       height = receipt.blockHeight;
       return receipt;
     }
@@ -212,68 +236,71 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         )
       ).value;
 
-    const tokens = [];
-    for (const [name, symbol] of [
-      ["Thruput Demo Dollar", "gUSD"],
-      ["Thruput Demo Euro", "gEUR"],
-    ]) {
-      const nonce = fixedBytes(randomBytes(32), 32);
-      const address = (
-        await StandardTokenFactory.v0_1.predictToken.view({
-          client,
-          address: factory,
-          args: { creator: account.address, nonce },
-        })
-      ).value;
-      await execute(
-        `fund-${symbol}`,
-        ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, GAS, {
-          receiver: address,
-          amount: config.required_token_funding + RESERVE,
-        }),
-      );
-      const holder = poolConfig ? account.address : recipient;
-      const receipt = await execute(
-        `create-${symbol}`,
-        StandardTokenFactory.v0_1.createToken.invocation(factory, GAS, {
-          nonce,
-          administrator: recipient,
-          initialHolder: holder,
-          initialSupply: SUPPLY,
-          name: name!,
-          symbol: symbol!,
-          decimals: 6n,
-        }),
-        [tokenCode],
-      );
-      const created =
-        standard_token_factory_if.v0_1.events.TokenCreated.singleFromReceipt(
-          receipt,
-          { address: factory },
+    async function createTokens() {
+      const tokens: ContractAddress[] = [];
+      for (const [name, symbol] of [
+        ["Thruput Demo Dollar", "gUSD"],
+        ["Thruput Demo Euro", "gEUR"],
+      ] as const) {
+        const nonce = fixedBytes(randomBytes(32), 32);
+        const address = (
+          await StandardTokenFactory.v0_1.predictToken.view({
+            client,
+            address: factory,
+            args: { creator: account.address, nonce },
+          })
+        ).value;
+        await execute(
+          `fund-${symbol}`,
+          ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, GAS, {
+            receiver: address,
+            amount: config.required_token_funding + RESERVE,
+          }),
         );
-      if (
-        !bytesEqual(created.topics.token, address) ||
-        !bytesEqual(created.topics.creator, account.address) ||
-        !bytesEqual(created.fields.administrator, recipient) ||
-        !bytesEqual(created.fields.initial_holder, holder) ||
-        created.fields.initial_supply !== SUPPLY
-      )
-        throw new SeedError("Token creation evidence mismatch");
-      const options = { client, address, minStateBlockHeight: height };
-      if (
-        (await waitForView(() => ERC20Metadata.v0_1.symbol.view(options)))
-          .value !== symbol ||
-        (await waitForView(() => ERC20.v0_1.totalSupply.view(options)))
-          .value !== SUPPLY ||
-        (await balance(address, holder)) !== SUPPLY
-      )
-        throw new SeedError("Token state mismatch");
-      tokens.push(address);
-      console.log(`${symbol}: ${toBase58(address)}`);
+        const holder = poolConfig ? account.address : recipient;
+        const receipt = await execute(
+          `create-${symbol}`,
+          StandardTokenFactory.v0_1.createToken.invocation(factory, GAS, {
+            nonce,
+            administrator: recipient,
+            initialHolder: holder,
+            initialSupply: SUPPLY,
+            name,
+            symbol,
+            decimals: 6n,
+          }),
+          [tokenCode],
+        );
+        const created =
+          standard_token_factory_if.v0_1.events.TokenCreated.singleFromReceipt(
+            receipt,
+            { address: factory },
+          );
+        if (
+          !bytesEqual(created.topics.token, address) ||
+          !bytesEqual(created.topics.creator, account.address) ||
+          !bytesEqual(created.fields.administrator, recipient) ||
+          !bytesEqual(created.fields.initial_holder, holder) ||
+          created.fields.initial_supply !== SUPPLY
+        )
+          throw new SeedError("Token creation evidence mismatch");
+        const options = { client, address, minStateBlockHeight: height };
+        if (
+          (await waitForView(() => ERC20Metadata.v0_1.symbol.view(options)))
+            .value !== symbol ||
+          (await waitForView(() => ERC20.v0_1.totalSupply.view(options)))
+            .value !== SUPPLY ||
+          (await balance(address, holder)) !== SUPPLY
+        )
+          throw new SeedError("Token state mismatch");
+        tokens.push(address);
+        console.log(`${symbol}: ${toBase58(address)}`);
+      }
+      return tokens;
     }
-    const [tokenA, tokenB] = tokens as [ContractAddress, ContractAddress];
-    let pool;
-    if (poolConfig) {
+    async function createPool(tokens: ContractAddress[]) {
+      if (!poolConfig) return;
+      const [tokenA, tokenB] = tokens as [ContractAddress, ContractAddress];
       await execute(
         "approve-pool-funding",
         ERC20.v0_1.adjustAllowance.invocation(NATIVE_TOKEN_ADDRESS, GAS, {
@@ -296,7 +323,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         args: { tokenA, tokenB },
         minStateBlockHeight: height,
       };
-      pool = (
+      const pool = (
         await waitForView(() => SwapFactory.v0_1.poolAddresses.view(options))
       ).value;
       const pair = (
@@ -342,7 +369,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         await waitForView(() =>
           SwapHandler.v0_1.poolState.view({
             client,
-            address: pool!.handler,
+            address: pool.handler,
             minStateBlockHeight: height,
           }),
         )
@@ -352,6 +379,9 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         (await balance(pool.liquidity_token, recipient)) <= 0n
       )
         throw new SeedError("Pool reserves or LP balance mismatch");
+      return pool;
+    }
+    async function distributeTokens(tokens: ContractAddress[]) {
       for (const token of tokens)
         await execute(
           "distribute-tokens",
@@ -364,6 +394,10 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
         if ((await balance(token, recipient)) !== SUPPLY - LIQUIDITY)
           throw new SeedError("Recipient token balance mismatch");
     }
+    await fundAccount();
+    const tokens = await createTokens();
+    const pool = await createPool(tokens);
+    if (pool) await distributeTokens(tokens);
     console.log(
       `Seed result: ${JSON.stringify({
         recipient: toBase58(recipient),
@@ -382,6 +416,7 @@ export async function seed(phase: "tokens" | "pools"): Promise<void> {
     console.error(
       `Fresh seed stopped at ${step}. Completed steps and transaction hashes are printed above.`,
     );
+    // RPC errors can contain signed payloads; only print our own validation errors.
     if (error instanceof SeedError) console.error(error.message);
     console.error(
       "No writes will be retried. A new run creates new assets; use a fresh node to start over.",

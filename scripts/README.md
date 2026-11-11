@@ -46,6 +46,11 @@ These tools are not required for a first contract or client example.
 
 ## App tooling
 
+Root `npm run setup:local` runs all five app setups in order, then connects
+Launchpad and Swap through their environment files. It uses each app's defaults;
+CLI overrides and network checks are optional. Root `npm run dev` starts all five
+servers. Ctrl+C stops their process groups. Neither command starts the node.
+
 App entrypoints live with their app:
 
 ```sh

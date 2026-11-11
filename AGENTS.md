@@ -46,8 +46,9 @@ npm run examples:generate
 npm run example:deploy-counter
 ```
 
-For an app, also set `THRUPUT_CLI` to the CLI executable and
-`THRUPUT_RUNTIME_MANIFEST` to the path printed by that node:
+App setup uses `thruput` on `PATH` and discovers the network through the SDK.
+`THRUPUT_CLI` selects another executable; `THRUPUT_NETWORK_ID` and
+`THRUPUT_RUNTIME_MANIFEST` are optional network checks:
 
 ```sh
 npm run setup:local --workspace apps/counter
