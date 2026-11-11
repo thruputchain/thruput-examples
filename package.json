@@ -34,6 +34,7 @@
     "test:counter": "tsx tests/e2e/counter.ts",
     "test:voting": "tsx tests/e2e/voting.ts",
     "test:token-launchpad": "tsx tests/e2e/token-launchpad.ts",
+    "test:swap": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/swap.ts",
     "test:seed": "tsx tests/e2e/seed.ts",
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },

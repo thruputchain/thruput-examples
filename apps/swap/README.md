@@ -12,8 +12,6 @@ Complete [root setup](../../README.md#setup), including `npm ci`. Start
 `thruput node --port 9545 --json`, or reuse the node running Launchpad. Then:
 
 ```sh
-export THRUPUT_CLI="$(command -v thruput)"
-export THRUPUT_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
 npm run setup:local --workspace apps/swap
 npm run dev --workspace apps/swap
 ```
@@ -22,10 +20,20 @@ Open **http://127.0.0.1:5174**. The dev server includes the registry and indexer
 Use the same endpoint in Freighter and request test native tokens before submitting writes.
 
 Setup builds artifacts/bindings and deploys fresh empty infrastructure. It
-writes `.env.local` and hash-named immutable public code assets. The deployer key
-is not saved. Failed setup keeps the old environment. Restart the app afterward.
+writes `.env.local` and hash-named immutable public code assets. Setup saves its
+private deployer key and transaction outcomes under `.local/swap-setup/run-*`,
+beside the environment output. App configuration contains only public values.
+Failed setup keeps the old environment. Restart the app afterward.
 Use matching rebuilt contracts and bindings; old deployments do not update when
 packages are installed.
+
+Setup funds the deployer and native-token reserve, then registers handler and
+driver code. It predicts factory and router addresses before deploying them.
+Each deployment funds and initializes its contract atomically. Setup checks
+code hashes, both factory/router links, the funding policy, and an empty pool
+registry before publishing the environment. Verification requires state at or
+after the last confirmed write. Unknown transaction outcomes are recorded and
+never retried.
 
 ## Demo pool
 
@@ -47,14 +55,22 @@ discard partial demo state. See [fresh seeding](../../scripts/seed/README.md).
 
 ## Configuration and deployment
 
-See [`.env.example`](.env.example) for settings. `THRUPUT_RPC_URL` overrides the
-local loopback HTTP endpoint. `SWAP_APP_ENV`, `SWAP_ARTIFACT_ROOT`, and
-`SWAP_APP_PUBLIC_DIR` override setup paths, resolved from the repo root.
+See [`.env.example`](.env.example) for settings. Setup overrides:
+
+- `THRUPUT_RPC_URL`: endpoint; defaults to `http://127.0.0.1:9545` locally and
+  `https://rpc.thruput.network` for Devnet.
+- `THRUPUT_NETWORK_ID`: optional expected network hash (base58).
+- `THRUPUT_RUNTIME_MANIFEST`: optional manifest used to check network identity.
+- `THRUPUT_CLI`: optional executable; defaults to `thruput` on `PATH`.
+- `SWAP_APP_ENV`, `SWAP_ARTIFACT_ROOT`, and `SWAP_APP_PUBLIC_DIR`: output and
+  artifact paths, resolved from the repository root.
+
+Both modes use SDK network discovery when no expected hash is supplied.
 The registry defaults to factory-scoped SQLite under `.local/`;
 `POOL_REGISTRY_DB_PATH` overrides it. Use one writer per database.
 
-For `setup:devnet`, set an HTTPS RPC endpoint and verified live
-`THRUPUT_NETWORK_ID` (base58, as `thruput` and the explorer print it). Each run writes a fresh `.env.devnet` deployment. Use
+Run `npm run setup:devnet --workspace apps/swap` for Devnet defaults. It uses
+the same setup steps and writes a fresh `.env.devnet` deployment. Use
 `dev -- --mode devnet` to select it locally; supply environment values directly
 when hosting with `start`. `PORT` defaults to 3000. Railway uses
 `apps/swap/railway.json` and the root npm install.
@@ -71,6 +87,10 @@ the settings in `.env.example`. Manual token-address entry is also available.
 - `src/transactions/`: execution, observation, account locks, and recovery.
 - `src/domain/`: amount, allowance, and reservation rules.
 - `server/`: registry and HTTP server; `shared/`: browser/server models.
+- `scripts/index.ts`: setup inputs and named deployment steps for both networks.
+- `scripts/run.ts`: private persona keys and transaction outcome records.
+- `scripts/setup.test.ts`: setup and publication tests.
+- `tests/e2e/swap.ts` (repository root): isolated live acceptance checks.
 
 A confirmed queued request is not a completed swap or liquidity change.
 The app correlates terminal events and verifies the outcome. It preserves
@@ -81,5 +101,11 @@ path for wallets without it. Event decoding uses the current generated ABI;
 historical event-signature aliases are not supported.
 
 Run `typecheck`, `test`, or `build` with `--workspace apps/swap`.
+After generating contracts, run `npm run test:swap` from the root. It starts an
+isolated nonzero-network node and tests both setup modes, first-pool creation
+from the public LP artifact, liquidity processing, and a swap with independently
+calculated balances. It also checks network mismatch rejection and preservation
+of existing output. Fixture state stays in the printed temporary directory.
+Set `THRUPUT_CLI` and `THRUPUT_DEVNODE_BINARY` to select compatible binaries.
 Root browser, seeding, and batching checks are in the
 [script guide](../../scripts/README.md#checks).

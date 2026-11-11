@@ -190,7 +190,7 @@ try {
       [`${prefix}_APP_ENV`]: join(work, `${prefix}.env`),
       [`${prefix}_APP_PUBLIC_DIR`]: join(work, `${prefix}/public`),
     });
-    await run(app!, app === "token-launchpad" ? "index" : "setup-local");
+    await run(app!, "index");
   }
   const launch = parseEnv(await readFile(env.LAUNCHPAD_APP_ENV!, "utf8"));
   const swap = parseEnv(await readFile(env.SWAP_APP_ENV!, "utf8"));
@@ -231,7 +231,7 @@ try {
   stage =
     "reject a router initialized for another factory before any seed writes";
   const otherSetup = join(work, "OTHER-SWAP.env");
-  await run("swap", "setup-local", { SWAP_APP_ENV: otherSetup });
+  await run("swap", "index", { SWAP_APP_ENV: otherSetup });
   const other = parseEnv(await readFile(otherSetup, "utf8"));
   const tipBeforeMismatch = (await client.getChainTip()).blockHeight;
   const mismatchedRouter = {

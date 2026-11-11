@@ -16,6 +16,7 @@
     "vite.config.ts",
     "scripts/**/*.ts",
     "server/**/*.ts",
-    "../../tests/e2e/batching.ts"
+    "../../tests/e2e/batching.ts",
+    "../../tests/e2e/swap.ts"
   ]
 }
