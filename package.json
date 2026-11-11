@@ -32,6 +32,7 @@
     "test:browser": "node tests/browser/apps.mjs",
     "test:hosted": "node --import tsx tests/browser/hosted.mjs",
     "test:counter": "tsx tests/e2e/counter.ts",
+    "test:voting": "tsx tests/e2e/voting.ts",
     "test:seed": "tsx tests/e2e/seed.ts",
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },

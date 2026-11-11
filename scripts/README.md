@@ -102,13 +102,18 @@ npm run test:examples
 npm run generate:contracts --workspaces --if-present
 npm run build --workspaces
 npm run test:counter
+npm run test:voting
 npm run test:seed
 npm run test:batching
 ```
 
-These use isolated nodes and temporary state. Counter checks require Chromium.
+These use isolated nodes and temporary state. Counter and Voting checks require Chromium.
 `test:counter` checks development-signed updates, keyboard bursts, signer top-up,
 and recovery after an RPC outage.
+`test:voting` runs contract and browser checks against one fresh deployment,
+including permissions, maximum input sizes, multi-wallet voting, closure, reload
+recovery, and responsive layouts. Its screenshots and configuration stay in the
+temporary directory printed by the runner.
 Seeding checks fresh assets on rerun, balances, reserves, and indexing. Batching
 checks atomic rollback, storage top-ups, and pool operations. Freighter browser
 approval flows require separate acceptance testing.
