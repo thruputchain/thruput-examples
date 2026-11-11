@@ -2,7 +2,7 @@
 set -euo pipefail
 app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_root="$(cd "$app_dir/../.." && pwd)"
-cli="${THRUPUT_CLI:?Set THRUPUT_CLI to your local CLI executable}"
+cli="${THRUPUT_CLI:-thruput}"
 bash "$repo_root/scripts/check-thruput-version.sh" "$("$cli" --version)"
 cd "$repo_root"
 "$cli" build -p airdrop -- --locked

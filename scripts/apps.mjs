@@ -50,7 +50,6 @@ try {
   if (command === "setup:local") {
     for (const path of [
       process.env.AIRDROP_ENV_PATH || "apps/airdrop/.env.local",
-      process.env.AIRDROP_SETUP_DIR || "apps/airdrop/.local/local",
     ]) {
       try {
         await lstat(resolve(root, path));

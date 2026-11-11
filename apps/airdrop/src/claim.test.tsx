@@ -20,6 +20,15 @@ import type { ReactNode } from "react";
 import { GAS, useClaim } from "./claim";
 import { Airdrop } from "./contracts/generated/airdrop";
 
+// Node 25+ exposes its own storage globals. Use the jsdom storage for this test.
+const dom = (globalThis as { jsdom?: { window: Window } }).jsdom;
+if (dom) {
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: dom.window.localStorage,
+  });
+}
+
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   getTransactionReceipt: vi.fn(),

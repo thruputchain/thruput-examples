@@ -105,6 +105,7 @@ npm run test:counter
 npm run test:voting
 npm run test:token-launchpad
 npm run test:swap
+npm run test:airdrop
 npm run test:seed
 npm run test:batching
 ```

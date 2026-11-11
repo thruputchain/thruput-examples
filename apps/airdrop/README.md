@@ -12,8 +12,9 @@ or proxy secret is needed at runtime. Caddy is only used for hosted routing.
 
 ## Local setup
 
-Follow the root setup instructions, start `thruput node`, and set `THRUPUT_CLI`,
-`THRUPUT_RUNTIME_MANIFEST`, and `THRUPUT_RPC_URL`. From the repository root:
+Follow the root setup instructions and start `thruput node`. Setup defaults to
+`http://127.0.0.1:9545`; set `THRUPUT_RPC_URL` for another endpoint.
+From the repository root:
 
 ```sh
 npm run setup:local --workspace apps/token-launchpad
@@ -26,6 +27,11 @@ Open <http://127.0.0.1:5177>, connect Thruput Freighter to the same local node,
 and request native test tokens in the wallet before claiming. Native tokens
 provide transaction scheduling capacity; they are separate from these assets.
 Root `npm run setup:local` and `npm run dev` also include Airdrop.
+
+Generation uses `thruput` on `PATH`; `THRUPUT_CLI` can select another executable.
+Setup discovers the network through the SDK. `THRUPUT_NETWORK_ID` and
+`THRUPUT_RUNTIME_MANIFEST` are optional network checks. Both modes use
+`scripts/index.ts`, with `--network local` or `--network devnet`.
 
 Default setup creates seven test tokens, seeds six pools against tUSDC, and funds
 an open airdrop with 1,000 claims. Each pool contains 1,000 claims' worth of each
@@ -65,8 +71,8 @@ Use 1–16 unique token addresses. `claimAmount` is a positive integer in raw un
 `1000000` means one token with six decimals. Setup verifies symbols, decimals,
 and the deployer's available token balance. Custom-token setup creates no tokens
 or pools. Set `AIRDROP_DEPLOYER_PRIVATE_KEY` privately to a signer that holds the
-selected tokens and native funding. On a local node, setup can request native
-funding; on devnet, fund the deployer in advance.
+selected tokens. In either mode, setup requests faucet funding if the signer's
+native balance is too low. A sufficiently funded signer skips the faucet.
 
 `AIRDROP_PACKS` sets the number of claims funded by setup, from 1 to 10,000,
 default 1,000. Native storage funding scales with this budget, the allowlist,
@@ -75,12 +81,17 @@ receives storage funding for new recipient balance rows.
 An open airdrop can be depleted by someone using many addresses.
 The funded token budget bounds distribution; there is no IP limit or daily cap.
 
-Setup writes `.env.local` or `.env.devnet` and a private `.local/<network>`
-directory with deployment evidence. The environment contains no signer key.
-The private provisioning directory retains the deployer key and signed evidence
-for inspection. Setup refuses existing output paths. Set `AIRDROP_ENV_PATH` and
-`AIRDROP_SETUP_DIR` to new paths for a separate deployment. Keep evidence from
-interrupted runs and inspect original transaction hashes before proceeding.
+Setup writes `.env.local` or `.env.devnet` after it verifies rewards, balances,
+and eligibility. It preserves an existing environment because that file identifies
+a funded distribution. Set `AIRDROP_ENV_PATH` to a new path for a new distribution.
+The environment contains no signer key.
+
+Each run creates a private `run-*` directory under `.local/airdrop-setup/` beside
+the output environment. `AIRDROP_SETUP_DIR` selects another parent directory.
+It contains `key.json`, `manifest.json`, signed transactions, and receipts.
+The SDK's awaited `onSigned` hook saves evidence before broadcast. Keep evidence
+from interrupted runs and inspect original transaction hashes before proceeding.
+The saved block-one checkpoint lets setup and claim recovery detect a chain reset.
 
 For separate demo fixtures, use `LAUNCHPAD_APP_ENV`, `LAUNCHPAD_APP_PUBLIC_DIR`,
 `SWAP_APP_ENV`, and `SWAP_APP_PUBLIC_DIR`. All paths are relative to the repo root.
@@ -97,22 +108,24 @@ acknowledged. The contract independently prevents repeat claims.
 ```sh
 npm run test --workspace apps/airdrop
 npm run build --workspace apps/airdrop
-npm run test:local --workspace apps/airdrop
-npm run test:browser --workspace apps/airdrop
+npm run test:airdrop
 ```
 
-The local and browser commands require an isolated local open airdrop and each
-consumes one claim. The local check verifies all balances and rejects a repeat
-claim. The browser check uses an injected test wallet to check signatures,
-reload recovery, light/dark brand colors, and mobile layouts. It requires Chromium;
-set `CHROMIUM_PATH` if needed. Set `AIRDROP_ENV_PATH` to select a test environment.
+`test:airdrop` starts an isolated node and creates temporary Launchpad, Swap, and
+Airdrop deployments. Generate their bindings and artifacts first. Set
+`THRUPUT_DEVNODE_BINARY` to a compatible runtime and `THRUPUT_CLI` if needed.
+The check covers reward balances, repeat claims, existing-token allowlists,
+configuration mismatches, and output preservation. Its injected browser wallet
+checks signatures, reload recovery, light/dark colors, and mobile layouts.
+It requires Chromium; set `CHROMIUM_PATH` if needed.
 Contract tests cover allowlisted eligibility, rollback, and concurrent claims.
 
 ## Devnet and Railway
 
-Run `npm run setup:devnet --workspace apps/airdrop` with a funded deployer and
-the desired configuration files. Default demo provisioning also needs existing
-devnet Launchpad and Swap environments and matching contract artifacts.
+Run `npm run setup:devnet --workspace apps/airdrop` with the desired configuration
+files. Demo setup creates a fresh signer and requests faucet funding by default.
+It needs Devnet Launchpad and Swap environments and matching contract artifacts.
+Existing-token setup requires the token owner's signer, as described above.
 
 Use the repository root as the Railway build context, `apps/airdrop/railway.json`
 as the configuration reference, `PORT=3000`, and `/healthz` for health checks.
