@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
 
@@ -10,6 +10,8 @@ const apps = ["counter", "token-launchpad", "swap", "voting", "airdrop"];
 
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), "app-runner-test-"));
+  await symlink(process.execPath, join(directory, "node"));
+  await symlink("/bin/sh", join(directory, "sh"));
   const env = {
     PATH: directory,
     LOG: join(directory, "calls.jsonl"),
@@ -24,7 +26,7 @@ async function fixture(t) {
 const { appendFileSync, writeFileSync } = require("node:fs");
 const command = process.argv[3];
 const app = process.argv[5].split("/").at(-1);
-const log = event => appendFileSync(process.env.LOG, JSON.stringify({ app, event }) + "\\n");
+const log = event => appendFileSync(process.env.LOG, JSON.stringify({ app, event, pid: process.pid }) + "\\n");
 if (command === "setup:local") {
   log("start");
   if (app === process.env.FAIL_APP) process.exit(1);
@@ -42,6 +44,15 @@ if (command === "setup:local") {
   let child;
   let done;
   t.after(async () => {
+    // Also clean detached fixture apps if the parent fails during shutdown.
+    for (const { pid, event } of await calls()) {
+      if (event !== "start") continue;
+      try {
+        process.kill(-pid, "SIGTERM");
+      } catch (error) {
+        if (error.code !== "ESRCH") throw error;
+      }
+    }
     if (child && child.exitCode === null && child.signalCode === null) {
       child.kill("SIGTERM");
       await done;
@@ -59,11 +70,16 @@ if (command === "setup:local") {
       throw error;
     }
   }
-  function start(command, extra = {}) {
-    child = spawn(process.execPath, ["scripts/apps.mjs", command], {
-      env: { ...env, ...extra },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+  function start(command, extra = {}, npmCli) {
+    child = spawn(
+      process.execPath,
+      npmCli ? [npmCli, "run", command] : ["scripts/apps.mjs", command],
+      {
+        env: { ...env, ...extra },
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: !!npmCli,
+      },
+    );
     let output = "";
     child.stdout.on("data", (chunk) => {
       output += chunk;
@@ -133,6 +149,34 @@ test(
       await delay(25);
     }
     child.kill("SIGTERM");
+    const result = await done;
+    assert.equal(result.code, 0, result.output);
+    assert.deepEqual(
+      (await f.calls())
+        .filter((call) => call.event === "stop")
+        .map((call) => call.app)
+        .sort(),
+      [...apps].sort(),
+    );
+  },
+);
+
+test(
+  "Ctrl+C through real npm shuts down every app despite forwarded signals",
+  { timeout: 10_000 },
+  async (t) => {
+    const f = await fixture(t);
+    const npmCli =
+      process.env.npm_execpath ||
+      join(dirname(process.execPath), "../lib/node_modules/npm/bin/npm-cli.js");
+    const { child, done } = f.start("dev", {}, npmCli);
+    const deadline = Date.now() + 5000;
+    while ((await f.calls()).length < apps.length) {
+      if (child.exitCode !== null) assert.fail((await done).output);
+      assert.ok(Date.now() < deadline, "All apps must start");
+      await delay(25);
+    }
+    process.kill(-child.pid, "SIGINT");
     const result = await done;
     assert.equal(result.code, 0, result.output);
     assert.deepEqual(

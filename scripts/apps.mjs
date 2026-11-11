@@ -14,6 +14,7 @@ if (command !== "setup:local" && command !== "dev") {
 const children = new Set();
 let stopping = false;
 function stop(signal = "SIGTERM") {
+  if (stopping) return;
   stopping = true;
   for (const child of children) {
     try {
@@ -23,8 +24,9 @@ function stop(signal = "SIGTERM") {
     }
   }
 }
-process.once("SIGINT", () => stop("SIGINT"));
-process.once("SIGTERM", () => stop());
+// npm can forward a terminal signal that this process also receives directly.
+process.on("SIGINT", () => stop("SIGINT"));
+process.on("SIGTERM", () => stop());
 
 function run(app) {
   return new Promise((resolve, reject) => {

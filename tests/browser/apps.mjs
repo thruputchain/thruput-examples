@@ -4,6 +4,10 @@ import { chromium } from "playwright-core";
 import { createServer } from "vite";
 import { Ed25519Signer, toBase58, MockTransport } from "@thruputchain/client";
 import { createPubkeyAccount } from "@thruputchain/client/wallet";
+import {
+  ANNOUNCE_PROVIDER_EVENT,
+  REQUEST_PROVIDER_EVENT,
+} from "@thruputchain/client/provider";
 
 async function checkBrand(page) {
   for (const colorScheme of ["light", "dark"]) {
@@ -82,7 +86,7 @@ try {
   const signer = new Ed25519Signer(new Uint8Array(32).fill(9));
   const account = createPubkeyAccount({ signer });
   await context.addInitScript(
-    (session) => {
+    ({ session, announceEvent, requestEvent }) => {
       const provider = {
         info: {
           id: "ui.fixture",
@@ -103,20 +107,24 @@ try {
       };
       const announce = () =>
         window.dispatchEvent(
-          new CustomEvent("thruput:announceProvider", { detail: provider }),
+          new CustomEvent(announceEvent, { detail: provider }),
         );
-      window.addEventListener("thruput:requestProvider", announce);
+      window.addEventListener(requestEvent, announce);
       announce();
     },
     {
-      networkHash: scope.networkId,
-      accounts: [
-        {
-          address: toBase58(account.address),
-          publicKey: toBase58(signer.publicKey.ed25519),
-          nonce: "0",
-        },
-      ],
+      announceEvent: ANNOUNCE_PROVIDER_EVENT,
+      requestEvent: REQUEST_PROVIDER_EVENT,
+      session: {
+        networkHash: scope.networkId,
+        accounts: [
+          {
+            address: toBase58(account.address),
+            publicKey: toBase58(signer.publicKey.ed25519),
+            nonce: "0",
+          },
+        ],
+      },
     },
   );
   const page = await context.newPage();
