@@ -15,6 +15,7 @@ import {
 } from "@thruputchain/client";
 import { gasAmount, networkHash } from "@thruputchain/protocol";
 import { errorMessage } from "../src/config";
+import { parseRpcUrl } from "../server/config";
 import { Voting } from "../src/contracts/generated/voting";
 import {
   createPersona,
@@ -80,6 +81,7 @@ interface Options {
 
 /** Deploy fresh Voting state and publish configuration after verification. */
 export async function provisionVoting(options: Options) {
+  const rpcUrl = parseRpcUrl(options.rpcUrl);
   const contract = await readFile(
     resolve(repositoryRoot, options.artifact || "target/thruput/voting.rv32a"),
   );
@@ -87,7 +89,7 @@ export async function provisionVoting(options: Options) {
   const client = await createThruputClient({
     cluster: defineCluster({
       name: options.network,
-      rpcUrl: options.rpcUrl,
+      rpcUrl,
       capabilities: ["airdrop"] as const,
       ...(options.networkId === undefined
         ? {}
@@ -95,7 +97,7 @@ export async function provisionVoting(options: Options) {
             networkHash: networkHash(hashFromBase58(options.networkId)),
           }),
     }),
-    transport: new HttpTransport(options.rpcUrl, { timeoutMs: 15_000 }),
+    transport: new HttpTransport(rpcUrl, { timeoutMs: 15_000 }),
   });
   const output = resolve(repositoryRoot, options.output);
   const run = await createRun(

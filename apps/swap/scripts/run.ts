@@ -48,6 +48,7 @@ async function writeJson(path: string, value: unknown) {
   const temporary = `${path}.tmp`;
   await writeFile(temporary, JSON.stringify(value, null, 2) + "\n", {
     mode: 0o600,
+    flush: true,
   });
   await rename(temporary, path);
 }
@@ -84,7 +85,30 @@ export async function createPersona(client: Client, run: Run, name: string) {
   });
   run.manifest.persona = { name, address };
   await saveRun(run);
-  const wallet = createWalletClient({ client, account });
+  const wallet = createWalletClient({
+    client,
+    account,
+    // The SDK awaits this hook before broadcast. Failure prevents submission.
+    onSigned: async (evidence) => {
+      const transaction = run.manifest.transactions.at(-1);
+      if (!transaction || transaction.status !== "unknown")
+        throw new Error("Record transaction intent before signing.");
+      await writeFile(
+        join(
+          run.directory,
+          `${String(run.manifest.transactions.length).padStart(3, "0")}.signed.json`,
+        ),
+        JSON.stringify({
+          network: toBase58(evidence.networkHash),
+          hash: toBase58(evidence.transactionHash),
+          signed: toHex0x(evidence.signedTransaction),
+        }) + "\n",
+        { flag: "wx", mode: 0o600, flush: true },
+      );
+      transaction.hash = toBase58(evidence.transactionHash);
+      await saveRun(run);
+    },
+  });
   return { name, address, account, wallet };
 }
 

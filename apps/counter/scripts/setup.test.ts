@@ -12,6 +12,7 @@ import { parseEnv } from "node:util";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   createThruputClient,
+  createWalletClient,
   FundingObservationError,
   TransactionExecutionError,
   TransactionObservationError,
@@ -23,7 +24,7 @@ import { gasAmount } from "@thruputchain/protocol";
 import { loadServerConfig } from "../server/config";
 import { Counter } from "../src/contracts/generated/counter";
 import { provisionCounter, setup } from "./index";
-import { createRun, record, type Run } from "./run";
+import { createPersona, createRun, record, type Client, type Run } from "./run";
 
 const mocks = vi.hoisted(() => ({
   requestAirdrop: vi.fn(),
@@ -176,6 +177,31 @@ it.each(["funding", "deployment", "verification"])(
       expect(manifest.transactions.at(-1).status).toBe("unknown");
   },
 );
+
+it("saves signed evidence before observation and rejects evidence overwrite", async () => {
+  const run = await createRun(directory, toBase58(evidence.networkHash));
+  await createPersona({} as Client, run, "Operator");
+  const onSigned = vi.mocked(createWalletClient).mock.calls.at(-1)![0]
+    .onSigned!;
+  await record(run, "Deploy", async () => {
+    await onSigned(evidence);
+    expect((await readManifest(run)).transactions[0]).toMatchObject({
+      status: "unknown",
+      hash: toBase58(evidence.transactionHash),
+    });
+    const path = join(run.directory, "001.signed.json");
+    const saved = await readFile(path, "utf8");
+    expect(JSON.parse(saved)).toEqual({
+      network: toBase58(evidence.networkHash),
+      hash: toBase58(evidence.transactionHash),
+      signed: "0x010203",
+    });
+    expect((await stat(path)).mode & 0o777).toBe(0o600);
+    await expect(onSigned(evidence)).rejects.toThrow();
+    expect(await readFile(path, "utf8")).toBe(saved);
+    return { hash: evidence.transactionHash, blockHeight: 7n };
+  });
+});
 
 it("persists intent before submission and marks a committed abort as failed", async () => {
   const run = await createRun(directory, toBase58(evidence.networkHash));

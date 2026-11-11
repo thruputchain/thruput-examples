@@ -34,7 +34,7 @@ import {
 import { SwapFactory } from "../src/contracts/generated/swap-factory";
 import { SwapRouter } from "../src/contracts/generated/swap-router";
 import { setup as main, publishArtifact } from "./index";
-import { createRun, record } from "./run";
+import { createPersona, createRun, record, type Client } from "./run";
 const setupDevnet = (env = process.env) => main(env, "devnet");
 
 const mocks = vi.hoisted(() => ({
@@ -595,6 +595,34 @@ describe("infrastructure-only swap provisioning", () => {
     });
     await expect(main()).rejects.toThrow(/stale storage/);
     expect(await readFile(output, "utf8")).toBe("previous environment\n");
+  });
+});
+
+it("saves signed evidence before observation and rejects evidence overwrite", async () => {
+  const run = await createRun(root, toBase58(evidence.networkHash));
+  await createPersona({} as Client, run, "Operator");
+  const onSigned = vi.mocked(createWalletClient).mock.calls.at(-1)![0]
+    .onSigned!;
+  await record(run, "Deploy", async () => {
+    await onSigned(evidence);
+    const manifest = JSON.parse(
+      await readFile(join(run.directory, "manifest.json"), "utf8"),
+    );
+    expect(manifest.transactions[0]).toMatchObject({
+      status: "unknown",
+      hash: toBase58(evidence.transactionHash),
+    });
+    const path = join(run.directory, "001.signed.json");
+    const saved = await readFile(path, "utf8");
+    expect(JSON.parse(saved)).toEqual({
+      network: toBase58(evidence.networkHash),
+      hash: toBase58(evidence.transactionHash),
+      signed: toHex0x(evidence.signedTransaction),
+    });
+    expect((await stat(path)).mode & 0o777).toBe(0o600);
+    await expect(onSigned(evidence)).rejects.toThrow();
+    expect(await readFile(path, "utf8")).toBe(saved);
+    return { hash: evidence.transactionHash, blockHeight: 7n };
   });
 });
 
