@@ -14,9 +14,10 @@ From the repo root, without a node or npm:
 cargo test -p counter --locked --test test
 ```
 
-Expected: **2 tests pass**. The first reads zero before initialization, initializes
+Expected: **3 tests pass**. The first reads zero before initialization, initializes
 to 10, increments by 5, decrements by 3, and reads 12. The second catches a
 decrement below zero, checks that the value is unchanged, and decreases to zero.
+The third checks that `ping` emits one `PingEvent` with the supplied tag.
 The expected exception can appear in the test output; the final result is what
 determines success.
 

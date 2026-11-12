@@ -26,8 +26,9 @@ After installing Rust with rustup, run from the repository root:
 cargo test -p counter --locked --test test
 ```
 
-Expected: **2 tests pass**. The first initializes the counter to 10, adds 5,
+Expected: **3 tests pass**. The first initializes the counter to 10, adds 5,
 subtracts 3, and reads 12. The second checks that decrementing below zero fails.
+The third checks that `ping` emits an event with the supplied tag.
 No npm install, wallet, or node is needed for these native tests.
 
 Read [the contract](contracts/counter/src/implementation.rs), then
