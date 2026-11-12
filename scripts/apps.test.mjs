@@ -89,7 +89,7 @@ if (command === "setup:local") {
     });
     done = new Promise((resolve, reject) => {
       child.once("error", reject);
-      child.once("close", (code) => resolve({ code, output }));
+      child.once("close", (code, signal) => resolve({ code, signal, output }));
     });
     return { child, done };
   }
@@ -178,7 +178,13 @@ test(
     }
     process.kill(-child.pid, "SIGINT");
     const result = await done;
-    assert.equal(result.code, 0, result.output);
+    // npm can re-emit SIGINT when its script shell exits on that signal.
+    // Both outcomes are valid; every app must still report a clean stop below.
+    assert.ok(
+      (result.code === 0 && result.signal === null) ||
+        (result.code === null && result.signal === "SIGINT"),
+      `Unexpected npm exit: ${JSON.stringify(result)}`,
+    );
     assert.deepEqual(
       (await f.calls())
         .filter((call) => call.event === "stop")
