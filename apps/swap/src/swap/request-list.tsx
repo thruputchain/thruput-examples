@@ -206,6 +206,8 @@ export function RequestList({
                           aria-hidden="true"
                           className="size-4 shrink-0 text-muted-foreground"
                         />
+                        {" "}
+                        <span className="sr-only">to</span>{" "}
                         <span className="truncate">{output.symbol}</span>
                       </h3>
                       <p className="mt-1 text-base text-muted-foreground tabular-nums sm:text-sm">
