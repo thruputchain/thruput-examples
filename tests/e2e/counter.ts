@@ -8,7 +8,7 @@ import { parseEnv } from "node:util";
 import { chromium } from "playwright-core";
 import { createServer as createViteServer, type ViteDevServer } from "vite";
 import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
-import { setup } from "../../apps/counter/scripts/setup-local.ts";
+import { setup } from "../../apps/counter/scripts/index.ts";
 import { loadServerConfig } from "../../apps/counter/server/config.ts";
 import { createCounterServer } from "../../apps/counter/server/main.ts";
 import { createCounterConnection } from "../../apps/counter/src/thruput/client.ts";

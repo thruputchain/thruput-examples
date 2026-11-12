@@ -2,7 +2,7 @@
 set -euo pipefail
 app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_root="$(cd "$app_dir/../.." && pwd)"
-thruput_cli="${THRUPUT_CLI:?Set THRUPUT_CLI to the validated CLI executable}"
+thruput_cli="${THRUPUT_CLI:-thruput}"
 bash "$repo_root/scripts/check-thruput-version.sh" "$("$thruput_cli" --version)"
 cd "$repo_root"
 "$thruput_cli" build -p counter

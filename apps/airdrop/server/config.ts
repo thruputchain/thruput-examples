@@ -4,8 +4,8 @@ import {
   parseTokens,
   type PublicConfig,
 } from "../shared/config";
-export function loadConfig(env: Record<string, string | undefined>) {
-  const rpc = new URL(env.THRUPUT_RPC_URL || "http://127.0.0.1:9545");
+export function parseRpcUrl(value: string) {
+  const rpc = new URL(value);
   if (
     (rpc.protocol !== "https:" &&
       !(
@@ -18,6 +18,10 @@ export function loadConfig(env: Record<string, string | undefined>) {
     rpc.hash
   )
     throw new Error("Use HTTPS RPC or loopback HTTP.");
+  return rpc.href;
+}
+export function loadConfig(env: Record<string, string | undefined>) {
+  const rpcUrl = parseRpcUrl(env.THRUPUT_RPC_URL || "http://127.0.0.1:9545");
   const swap = new URL(env.SWAP_APP_URL || "http://127.0.0.1:5174/");
   if (
     !["http:", "https:"].includes(swap.protocol) ||
@@ -36,6 +40,6 @@ export function loadConfig(env: Record<string, string | undefined>) {
     tokens: parseTokens(JSON.parse(env.AIRDROP_TOKENS || "null")),
     swapUrl: swap.href,
   };
-  return { rpcUrl: rpc.href, publicConfig };
+  return { rpcUrl, publicConfig };
 }
 export type ServerConfig = ReturnType<typeof loadConfig>;

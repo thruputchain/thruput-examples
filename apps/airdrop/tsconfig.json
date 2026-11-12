@@ -13,7 +13,15 @@
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "allowJs": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "server", "shared", "scripts", "vite.config.ts"]
+  "include": [
+    "src",
+    "server",
+    "shared",
+    "scripts",
+    "vite.config.ts",
+    "../../tests/e2e/airdrop.ts"
+  ]
 }

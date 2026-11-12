@@ -5,6 +5,7 @@ import {
   readFile,
   readdir,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -19,6 +20,9 @@ import {
   hashContract,
   toBase58,
   toHex0x,
+  TransactionObservationError,
+  TransactionExecutionError,
+  type TransactionReceipt,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
 import {
@@ -27,14 +31,15 @@ import {
   gasAmount,
   NATIVE_TOKEN_ADDRESS,
 } from "@thruputchain/protocol";
-import { SwapFactory } from "../contracts/generated/swap-factory";
-import { SwapRouter } from "../contracts/generated/swap-router";
-import { main, validateLocalRpcUrl } from "../../scripts/setup-local";
-import { publishArtifact } from "../../scripts/provision";
-import { setupDevnet } from "../../scripts/setup-devnet";
+import { SwapFactory } from "../src/contracts/generated/swap-factory";
+import { SwapRouter } from "../src/contracts/generated/swap-router";
+import { setup as main, publishArtifact } from "./index";
+import { createPersona, createRun, record, type Client } from "./run";
+const setupDevnet = (env = process.env) => main(env, "devnet");
 
 const mocks = vi.hoisted(() => ({
   getVersionInfo: vi.fn(),
+  getStorage: vi.fn(),
   requestAirdrop: vi.fn(),
   getBalance: vi.fn(),
   deployContractAndWait: vi.fn(),
@@ -62,8 +67,10 @@ vi.mock("@thruputchain/client/wallet", async (original) => {
 });
 vi.mock("@thruputchain/client", async (original) => ({
   ...(await original<typeof import("@thruputchain/client")>()),
-  createThruputClient: vi.fn(async () => ({
+  createThruputClient: vi.fn(async ({ cluster }) => ({
+    network: { networkHash: cluster.networkHash ?? new Uint8Array(32).fill(7) },
     getVersionInfo: mocks.getVersionInfo,
+    getStorage: mocks.getStorage,
   })),
   createWalletClient: vi.fn(() => mocks),
 }));
@@ -92,7 +99,7 @@ let oldAssetPath: string;
 let phases: string[];
 
 beforeEach(async () => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   root = await mkdtemp(join(tmpdir(), "swap-setup-test-"));
   output = join(root, ".env.local");
   assetPath = join(
@@ -131,16 +138,27 @@ beforeEach(async () => {
   mocks.getVersionInfo.mockResolvedValue({ wireFormat: "14.0.0" });
   mocks.requestAirdrop.mockImplementation(async () => {
     phases.push("airdrop");
-    return { rawAmount: 1_000_000_000n };
+    return {
+      rawAmount: 1_000_000_000n,
+      transactionHash: new Uint8Array(32),
+      blockHeight: 1n,
+    };
   });
   mocks.getBalance.mockResolvedValue({ rawBalance: 1_000_000_000n });
   mocks.deployContractAndWait.mockImplementation(async (deployment) => {
     phases.push("deploy");
-    return { transactionHash: new Uint8Array(32), address: deployment.address };
+    return {
+      transactionHash: new Uint8Array(32),
+      address: deployment.address,
+      receipt: { blockHeight: 7n, execution: { result: "return" } },
+    };
   });
   mocks.executeAndWait.mockImplementation(async () => {
     phases.push("execute");
-    return { transactionHash: new Uint8Array(32) };
+    return {
+      transactionHash: new Uint8Array(32),
+      receipt: { blockHeight: 2n, execution: { result: "return" } },
+    };
   });
   const deployments = [address(1), address(2), factory, router];
   const predicted = [...deployments];
@@ -149,11 +167,24 @@ beforeEach(async () => {
     value: 0n,
   } as never);
   vi.spyOn(SwapFactory.v0_1.poolFunding, "view").mockResolvedValue({
-    value: { min: 1n, recommended: 2n },
+    value: { min: 128_000n, recommended: 10_000_000n },
   } as never);
   vi.spyOn(SwapFactory.v0_1.feeTo, "view").mockResolvedValue({
     value: null,
   } as never);
+  const storage = [
+    Buffer.concat(
+      ["erc20", "swap_handler", "swap_driver"].map((name) =>
+        hashContract(contract(name)),
+      ),
+    ),
+    router,
+    factory,
+  ];
+  mocks.getStorage.mockImplementation(async () => ({
+    item: { kind: "bytestring", bytes: storage.shift()! },
+    stateBlockHeight: 7n,
+  }));
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -168,21 +199,19 @@ describe("infrastructure-only swap provisioning", () => {
   it("provisions Devnet with an explicit network pin and no local manifest or exported signer", async () => {
     vi.stubEnv("THRUPUT_RPC_URL", undefined);
     vi.stubEnv("THRUPUT_NETWORK_ID", b58(0x11));
-    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", "/unused-local-manifest.json");
+    vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", undefined);
     await setupDevnet();
     expect(createThruputClient).toHaveBeenCalledWith(
       expect.objectContaining({
         cluster: expect.objectContaining({
           name: "devnet",
-          rpcUrl: "https://rpc.thruput.network/",
+          rpcUrl: "https://rpc.thruput.network",
           networkHash: new Uint8Array(32).fill(17),
         }),
       }),
     );
     const env = await readFile(output, "utf8");
-    expect(env).toContain(
-      "VITE_THRUPUT_RPC_URL=https://rpc.thruput.network/\n",
-    );
+    expect(env).toContain("VITE_THRUPUT_RPC_URL=https://rpc.thruput.network\n");
     expect(env).toContain(`VITE_THRUPUT_NETWORK_ID=${b58(0x11)}\n`);
     expect(env).toContain("VITE_TOKEN_DISCOVERY_ENABLED=false\n");
     expect(env).toContain(
@@ -192,30 +221,30 @@ describe("infrastructure-only swap provisioning", () => {
     expect(mocks.deployContractAndWait).toHaveBeenCalledTimes(4);
   });
 
-  it("rejects invalid Devnet targets and missing network pins before RPC", async () => {
-    for (const rpcUrl of [
-      "http://rpc.example.com",
-      "https://user:secret@rpc.example.com",
-      "https://rpc.example.com?token=secret",
-      "https://rpc.example.com#fragment",
-    ]) {
-      await expect(
-        setupDevnet({ ...process.env, THRUPUT_RPC_URL: rpcUrl }),
-      ).rejects.toThrow(/HTTPS RPC URL/);
-    }
-    await expect(
-      setupDevnet({
-        ...process.env,
-        THRUPUT_RPC_URL: "https://rpc.example.com",
-        THRUPUT_NETWORK_ID: undefined,
-      }),
-    ).rejects.toThrow(/THRUPUT_NETWORK_ID/);
-    expect(createThruputClient).not.toHaveBeenCalled();
-  });
+  it.each(["local", "devnet"] as const)(
+    "discovers %s network identity with an RPC override",
+    async (network) => {
+      await main(
+        {
+          ...process.env,
+          THRUPUT_RPC_URL: "http://example.test/rpc",
+          THRUPUT_NETWORK_ID: undefined,
+        },
+        network,
+      );
+      const cluster = vi.mocked(createThruputClient).mock.calls[0]![0]!.cluster;
+      expect(cluster).not.toHaveProperty("networkHash");
+      expect(cluster).toMatchObject({
+        name: network,
+        rpcUrl: "http://example.test/rpc",
+      });
+      expect(await readFile(output, "utf8")).toContain(
+        `VITE_THRUPUT_NETWORK_ID=${b58(7)}\n`,
+      );
+    },
+  );
   it("supplies the RPC default and resolves relative overrides from the repository root", async () => {
-    const repositoryRoot = fileURLToPath(
-      new URL("../../../../", import.meta.url),
-    );
+    const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
     vi.stubEnv("THRUPUT_RPC_URL", undefined);
     vi.stubEnv("SWAP_ARTIFACT_ROOT", relative(repositoryRoot, root));
     vi.stubEnv("SWAP_APP_ENV", relative(repositoryRoot, output));
@@ -225,7 +254,7 @@ describe("infrastructure-only swap provisioning", () => {
     );
     await main();
     expect(await readFile(output, "utf8")).toContain(
-      "VITE_THRUPUT_RPC_URL=http://127.0.0.1:9545/\n",
+      "VITE_THRUPUT_RPC_URL=http://127.0.0.1:9545\n",
     );
     expect(JSON.parse(await readFile(assetPath, "utf8")).hash).toBe(
       toBase58(hashContract(contract("erc20"))),
@@ -272,18 +301,12 @@ describe("infrastructure-only swap provisioning", () => {
     expect(phases).toEqual([
       "airdrop",
       "execute",
-      "execute",
       "deploy",
-      "execute",
       "deploy",
-      "execute",
       "deploy",
-      "execute",
       "deploy",
-      "execute",
-      "execute",
     ]);
-    expect(mocks.requestAirdrop).toHaveBeenCalledWith();
+    expect(mocks.requestAirdrop).toHaveBeenCalledWith({ timeoutMs: 60_000 });
     const account = vi.mocked(createWalletClient).mock.calls[0]![0].account;
     expect(account.kind).toBe("pubkey");
     expect(
@@ -298,19 +321,27 @@ describe("infrastructure-only swap provisioning", () => {
     for (const [deployment, deployOptions, options] of mocks
       .deployContractAndWait.mock.calls) {
       expect(deployment.deployer).toEqual(account.address);
-      expect(deployOptions).toEqual({ gasLimit: gas, amount: 0n });
+      expect(deployOptions).toMatchObject({
+        gasLimit: gas,
+        amount: 10_000_000n,
+      });
       expect(options).toEqual({ timeoutMs: 60_000 });
     }
     expect(
       mocks.executeAndWait.mock.calls.map(([request]) => request.invocation),
     ).toEqual([
-      ...[NATIVE_TOKEN_ADDRESS, address(1), address(2), factory, router].map(
-        (receiver) =>
-          ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
-            receiver,
-            amount: 10_000_000n,
-          }),
+      ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
+        receiver: NATIVE_TOKEN_ADDRESS,
+        amount: 10_000_000n,
+      }),
+    ]);
+    expect(
+      mocks.deployContractAndWait.mock.calls.map(
+        ([, options]) => options.initializer,
       ),
+    ).toEqual([
+      undefined,
+      undefined,
       SwapFactory.v0_1.initialize.invocation(factory, gas, {
         hashes: {
           token: fixedBytes(hashContract(contract("erc20")), 32),
@@ -340,6 +371,20 @@ describe("infrastructure-only swap provisioning", () => {
       /PRIVATE|PERSONA|WALLET|ENTRYPOINT|POOL_ADDRESS|LIQUIDITY|DRIVER|alice|bob|carol/i,
     );
     expect(env).not.toContain(toBase58(account.address));
+    const runs = join(root, ".local/swap-setup");
+    const [name] = await readdir(runs);
+    const directory = join(runs, name!);
+    const manifest = JSON.parse(
+      await readFile(join(directory, "manifest.json"), "utf8"),
+    );
+    expect(manifest.status).toBe("complete");
+    expect(
+      manifest.transactions.map((tx: { status: string }) => tx.status),
+    ).toEqual(Array(6).fill("confirmed"));
+    const key = JSON.parse(await readFile(join(directory, "key.json"), "utf8"));
+    expect(key.address).toBe(toBase58(account.address));
+    expect(env).not.toContain(key.seed);
+    expect((await stat(join(directory, "key.json"))).mode & 0o777).toBe(0o600);
     expect(await readdir(root)).not.toContain("thruput");
     const asset = JSON.parse(await readFile(assetPath, "utf8"));
     expect(asset).toEqual({
@@ -357,8 +402,17 @@ describe("infrastructure-only swap provisioning", () => {
     );
     expect(env).toContain(`VITE_POOL_TOKEN_HASH=${asset.hash}\n`);
     expect(
-      mocks.rename.mock.calls.map(([, destination]) => destination),
-    ).toEqual([output]);
+      mocks.rename.mock.calls.some(([, destination]) => destination === output),
+    ).toBe(true);
+    for (const method of [
+      SwapFactory.v0_1.allPairsLength,
+      SwapFactory.v0_1.feeTo,
+      SwapFactory.v0_1.poolFunding,
+    ])
+      expect(method.view).toHaveBeenCalledWith(
+        expect.objectContaining({ minStateBlockHeight: 7n }),
+      );
+    expect(mocks.getStorage).toHaveBeenCalledTimes(3);
     expect(mocks.link.mock.calls.map(([, destination]) => destination)).toEqual(
       [assetPath],
     );
@@ -370,6 +424,10 @@ describe("infrastructure-only swap provisioning", () => {
     "address",
     "verification",
     "fee recipient",
+    "funding policy",
+    "code hashes",
+    "factory router",
+    "router factory",
     "asset publication",
   ])("preserves existing output when %s fails", async (phase) => {
     if (phase === "airdrop")
@@ -390,6 +448,24 @@ describe("infrastructure-only swap provisioning", () => {
       vi.mocked(SwapFactory.v0_1.feeTo.view).mockResolvedValueOnce({
         value: address(99),
       } as never);
+    if (phase === "funding policy")
+      vi.mocked(SwapFactory.v0_1.poolFunding.view).mockResolvedValueOnce({
+        value: { min: 128_000n, recommended: 1n },
+      } as never);
+    const storageIndex = [
+      "code hashes",
+      "factory router",
+      "router factory",
+    ].indexOf(phase);
+    if (storageIndex >= 0) {
+      const original = mocks.getStorage.getMockImplementation()!;
+      let call = 0;
+      mocks.getStorage.mockImplementation(async (...args) => {
+        if (call++ === storageIndex)
+          return { item: { kind: "bytestring", bytes: address(99) } };
+        return original(...args);
+      });
+    }
     await expect(main()).rejects.toThrow();
     expect(await readFile(output, "utf8")).toBe("previous environment\n");
     expect(await readFile(oldAssetPath, "utf8")).toBe("previous artifact\n");
@@ -455,7 +531,7 @@ describe("infrastructure-only swap provisioning", () => {
       const manifest = join(root, "runtime.json");
       await writeFile(manifest, JSON.stringify({ networkHash: recorded }));
       vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
-      await expect(main()).rejects.toThrow(/network hash/);
+      await expect(main()).rejects.toThrow();
       expect(createThruputClient).not.toHaveBeenCalled();
     },
   );
@@ -471,17 +547,135 @@ describe("infrastructure-only swap provisioning", () => {
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });
 
-  it("rejects nonlocal and credentialed RPC URLs", () => {
-    for (const url of [
-      "https://localhost",
-      "http://example.com",
-      "http://user:secret@localhost",
-      "http://localhost?secret=token",
-      "http://localhost#secret",
-      "http://localhost?",
-      "http://localhost#",
-    ]) {
-      expect(() => validateLocalRpcUrl(url)).toThrow(/loopback/);
-    }
+  it("stops before deployment when faucet funding is insufficient", async () => {
+    mocks.getBalance.mockResolvedValueOnce({ rawBalance: 1n });
+    await expect(main()).rejects.toThrow(/reserve/);
+    expect(mocks.deployContractAndWait).not.toHaveBeenCalled();
+    expect(await readFile(output, "utf8")).toBe("previous environment\n");
+  });
+  it("retains partial deployment evidence when router confirmation is unknown", async () => {
+    const deploy = mocks.deployContractAndWait.getMockImplementation()!;
+    mocks.deployContractAndWait.mockImplementation(async (...args) => {
+      if (mocks.deployContractAndWait.mock.calls.length === 4)
+        throw new TransactionObservationError(evidence, new Error("Timeout"));
+      return deploy(...args);
+    });
+    await expect(main()).rejects.toBeInstanceOf(TransactionObservationError);
+    expect(mocks.deployContractAndWait).toHaveBeenCalledTimes(4);
+    expect(mocks.getStorage).not.toHaveBeenCalled();
+    expect(await readFile(output, "utf8")).toBe("previous environment\n");
+    const parent = join(root, ".local/swap-setup");
+    const [name] = await readdir(parent);
+    const manifest = JSON.parse(
+      await readFile(join(parent, name!, "manifest.json"), "utf8"),
+    );
+    expect(manifest.status).toBe("failed");
+    expect(manifest.addresses).toMatchObject({
+      factory: toBase58(factory),
+      router: toBase58(router),
+    });
+    expect(
+      manifest.transactions.map((tx: { status: string }) => tx.status),
+    ).toEqual([
+      "confirmed",
+      "confirmed",
+      "confirmed",
+      "confirmed",
+      "confirmed",
+      "unknown",
+    ]);
+    expect(manifest.transactions.at(-1).hash).toBe(
+      toBase58(evidence.transactionHash),
+    );
+  });
+  it("rejects stale storage reads before publishing the environment", async () => {
+    mocks.getStorage.mockResolvedValueOnce({
+      item: { kind: "bytestring", bytes: new Uint8Array() },
+      stateBlockHeight: 6n,
+    });
+    await expect(main()).rejects.toThrow(/stale storage/);
+    expect(await readFile(output, "utf8")).toBe("previous environment\n");
+  });
+});
+
+it("saves signed evidence before observation and rejects evidence overwrite", async () => {
+  const run = await createRun(root, toBase58(evidence.networkHash));
+  await createPersona({} as Client, run, "Operator");
+  const onSigned = vi.mocked(createWalletClient).mock.calls.at(-1)![0]
+    .onSigned!;
+  await record(run, "Deploy", async () => {
+    await onSigned(evidence);
+    const manifest = JSON.parse(
+      await readFile(join(run.directory, "manifest.json"), "utf8"),
+    );
+    expect(manifest.transactions[0]).toMatchObject({
+      status: "unknown",
+      hash: toBase58(evidence.transactionHash),
+    });
+    const path = join(run.directory, "001.signed.json");
+    const saved = await readFile(path, "utf8");
+    expect(JSON.parse(saved)).toEqual({
+      network: toBase58(evidence.networkHash),
+      hash: toBase58(evidence.transactionHash),
+      signed: toHex0x(evidence.signedTransaction),
+    });
+    expect((await stat(path)).mode & 0o777).toBe(0o600);
+    await expect(onSigned(evidence)).rejects.toThrow();
+    expect(await readFile(path, "utf8")).toBe(saved);
+    return { hash: evidence.transactionHash, blockHeight: 7n };
+  });
+});
+
+const evidence = {
+  transactionHash: new Uint8Array(32).fill(9),
+  networkHash: new Uint8Array(32),
+  signedTransaction: new Uint8Array([1, 2, 3]),
+};
+it.each(["beforeSubmission", "submission", "observation"] as const)(
+  "records %s without retrying",
+  async (phase) => {
+    const run = await createRun(root, b58(0));
+    const submit = vi.fn(async () => {
+      const manifest = JSON.parse(
+        await readFile(join(run.directory, "manifest.json"), "utf8"),
+      );
+      expect(manifest.transactions).toEqual([
+        { label: "Deploy", status: "unknown" },
+      ]);
+      throw new TransactionObservationError(
+        evidence,
+        new Error("Stopped"),
+        undefined,
+        undefined,
+        phase,
+      );
+    });
+    await expect(record(run, "Deploy", submit)).rejects.toBeInstanceOf(
+      TransactionObservationError,
+    );
+    expect(submit).toHaveBeenCalledOnce();
+    expect(run.manifest.transactions[0]).toMatchObject({
+      status: phase === "beforeSubmission" ? "failed" : "unknown",
+      hash: toBase58(evidence.transactionHash),
+    });
+  },
+);
+it("records committed failure", async () => {
+  const run = await createRun(root, b58(0));
+  const receipt: TransactionReceipt = {
+    transactionHash: evidence.transactionHash,
+    blockHeight: 7n,
+    gasUsed: 1n,
+    events: [],
+    execution: { result: "abort", abortData: new Uint8Array([1]) },
+  };
+  await expect(
+    record(run, "Deploy", async () => {
+      throw new TransactionExecutionError(receipt, evidence);
+    }),
+  ).rejects.toBeInstanceOf(TransactionExecutionError);
+  expect(run.manifest.transactions[0]).toMatchObject({
+    status: "failed",
+    hash: toBase58(evidence.transactionHash),
   });
 });

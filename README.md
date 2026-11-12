@@ -95,9 +95,10 @@ examples.
 ### Local node
 
 In a separate terminal, run `thruput node --port 9545 --json` and leave it running.
-For client scripts, set `THRUPUT_RPC_URL=http://127.0.0.1:9545`. App setup also
-needs `THRUPUT_CLI` (the CLI executable) and `THRUPUT_RUNTIME_MANIFEST` (the path
-printed by that node). Use the new manifest after restarting the node.
+For client scripts, set `THRUPUT_RPC_URL=http://127.0.0.1:9545`. App setup defaults
+to this endpoint and uses `thruput` on `PATH`. Set `THRUPUT_CLI` to select another
+executable. `THRUPUT_NETWORK_ID` and `THRUPUT_RUNTIME_MANIFEST` are optional network
+checks. If you use a manifest, use the one printed by the current node.
 
 Run `npm run example:chain-tip` for a first read. Continue with the
 [client examples](examples/typescript/README.md) or an app README.
@@ -110,9 +111,6 @@ After the Rust/CLI and npm setup above, start `thruput node --port 9545 --json`
 in one terminal. In another terminal, from the repository root:
 
 ```sh
-export THRUPUT_CLI="$(command -v thruput)"
-export THRUPUT_RPC_URL=http://127.0.0.1:9545
-export THRUPUT_RUNTIME_MANIFEST=/absolute/path/printed/by/node/runtime-manifest.json
 npm run setup:local
 npm run dev
 ```
@@ -136,9 +134,10 @@ Counter works without a wallet connection. For the other apps, install Thruput F
 select the same local RPC endpoint, and request test tokens in the wallet.
 The root setup includes airdrop tokens and pools. Individual Launchpad and Swap
 setup commands start empty; their READMEs explain optional demo seeding.
-An ephemeral node loses its contracts when stopped. After restarting it, use
-its new runtime manifest and run `setup:local` again. First preserve the old airdrop
-environment and provisioning directory; airdrop setup refuses existing paths.
+An ephemeral node loses its contracts when stopped. After restarting it, run
+`setup:local` again. Preserve the old Airdrop environment and select a new
+`AIRDROP_ENV_PATH`; setup refuses to replace an existing distribution.
+Run evidence is saved in a new directory each time.
 See the [airdrop guide](apps/airdrop/README.md) for separate setup paths.
 
 To run one app, use `npm run setup:local --workspace apps/<app>` followed by

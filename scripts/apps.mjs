@@ -14,6 +14,7 @@ if (command !== "setup:local" && command !== "dev") {
 const children = new Set();
 let stopping = false;
 function stop(signal = "SIGTERM") {
+  if (stopping) return;
   stopping = true;
   for (const child of children) {
     try {
@@ -23,8 +24,9 @@ function stop(signal = "SIGTERM") {
     }
   }
 }
-process.once("SIGINT", () => stop("SIGINT"));
-process.once("SIGTERM", () => stop());
+// npm can forward a terminal signal that this process also receives directly.
+process.on("SIGINT", () => stop("SIGINT"));
+process.on("SIGTERM", () => stop());
 
 function run(app) {
   return new Promise((resolve, reject) => {
@@ -48,25 +50,15 @@ function run(app) {
 
 try {
   if (command === "setup:local") {
-    for (const path of [
-      process.env.AIRDROP_ENV_PATH || "apps/airdrop/.env.local",
-      process.env.AIRDROP_SETUP_DIR || "apps/airdrop/.local/local",
-    ]) {
-      try {
-        await lstat(resolve(root, path));
-        throw new Error(
-          `Preserve the existing airdrop deployment at ${path} and select fresh setup paths before running setup:local.`,
-        );
-      } catch (error) {
-        if (error.code !== "ENOENT") throw error;
-      }
-    }
-    if (!process.env.THRUPUT_RUNTIME_MANIFEST)
+    const path = process.env.AIRDROP_ENV_PATH || "apps/airdrop/.env.local";
+    try {
+      await lstat(resolve(root, path));
       throw new Error(
-        "Start thruput node, then set THRUPUT_RUNTIME_MANIFEST to its printed manifest path.",
+        `Airdrop environment already exists at ${path}. Select a new AIRDROP_ENV_PATH.`,
       );
-    if (!process.env.THRUPUT_CLI)
-      throw new Error("Set THRUPUT_CLI to the CLI executable.");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
     console.log(
       "Setting up five apps and fresh airdrop assets on the local node.",
     );

@@ -8,6 +8,7 @@
     "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
+    "allowJs": true,
     "types": ["node", "vite/client"]
   },
   "include": [
@@ -15,6 +16,7 @@
     "vite.config.test.ts",
     "explorer-build.test.ts",
     "scripts/**/*.ts",
-    "server/**/*.ts"
+    "server/**/*.ts",
+    "../../tests/e2e/token-launchpad.ts"
   ]
 }

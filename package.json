@@ -16,7 +16,7 @@
   "scripts": {
     "setup:local": "node scripts/apps.mjs setup:local",
     "dev": "node scripts/apps.mjs dev",
-    "test": "npm run test --workspaces && vitest run scripts/seed tests/examples --environment node && node --test tests/e2e/helpers/process-groups.test.mjs",
+    "test": "npm run test --workspaces && vitest run scripts/seed tests/examples --environment node && node --test scripts/apps.test.mjs tests/e2e/helpers/process-groups.test.mjs",
     "typecheck": "npm run typecheck --workspaces && tsc -p scripts/seed/tsconfig.json && tsc -p examples/typescript/tsconfig.json",
     "examples:generate": "bash examples/typescript/generate.sh",
     "example:chain-tip": "tsx examples/typescript/chain-tip.ts",
@@ -32,6 +32,10 @@
     "test:browser": "node tests/browser/apps.mjs",
     "test:hosted": "node --import tsx tests/browser/hosted.mjs",
     "test:counter": "tsx tests/e2e/counter.ts",
+    "test:voting": "tsx tests/e2e/voting.ts",
+    "test:token-launchpad": "tsx tests/e2e/token-launchpad.ts",
+    "test:swap": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/swap.ts",
+    "test:airdrop": "tsx tests/e2e/airdrop.ts",
     "test:seed": "tsx tests/e2e/seed.ts",
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },

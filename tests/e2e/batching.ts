@@ -137,7 +137,7 @@ try {
     const output = join(work, `${app}.env`);
     const setup = spawn(
       join(root, "node_modules/.bin/tsx"),
-      [`apps/${app}/scripts/setup-local.ts`],
+      [`apps/${app}/scripts/index.ts`],
       {
         THRUPUT_RPC_URL: rpcUrl,
         THRUPUT_RUNTIME_MANIFEST: startup!.data.runtimeManifest.path,

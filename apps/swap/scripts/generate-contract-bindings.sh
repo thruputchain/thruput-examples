@@ -4,19 +4,17 @@ set -euo pipefail
 
 app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_root="$(cd "$app_dir/../.." && pwd)"
-thruput_cli="${THRUPUT_CLI:?Set THRUPUT_CLI to the validated CLI executable}"
+thruput_cli="${THRUPUT_CLI:-thruput}"
 
 cli_version="$("$thruput_cli" --version)"
 bash "$repo_root/scripts/check-thruput-version.sh" "$cli_version"
-
-
 (
   cd "$repo_root"
-  "$thruput_cli" build -p erc20 -- -F metadata
-  "$thruput_cli" build -p swap-factory
-  "$thruput_cli" build -p swap-router
-  "$thruput_cli" build -p swap-handler
-  "$thruput_cli" build -p swap-driver
+  "$thruput_cli" build -p erc20 -- --locked -F metadata
+  "$thruput_cli" build -p swap-factory -- --locked
+  "$thruput_cli" build -p swap-router -- --locked
+  "$thruput_cli" build -p swap-handler -- --locked
+  "$thruput_cli" build -p swap-driver -- --locked
 
   "$thruput_cli" codegen ts target/thruput/erc20.spec.xdr \
     -o apps/swap/src/contracts/generated/erc20.ts

@@ -14,10 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
-    "setup:local": "npm run generate:contracts && tsx scripts/setup-local.ts",
-    "setup:devnet": "npm run generate:contracts && tsx scripts/setup-devnet.ts",
-    "test:local": "tsx scripts/test-local.ts",
-    "test:browser": "tsx scripts/test-browser.ts"
+    "setup:local": "npm run generate:contracts && tsx scripts/index.ts --network local",
+    "setup:devnet": "npm run generate:contracts && tsx scripts/index.ts --network devnet"
   },
   "dependencies": {
     "@fontsource-variable/inconsolata": "5.3.0",

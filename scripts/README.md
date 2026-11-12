@@ -46,6 +46,11 @@ These tools are not required for a first contract or client example.
 
 ## App tooling
 
+Root `npm run setup:local` runs all five app setups in order, then connects
+Launchpad and Swap through their environment files. It uses each app's defaults;
+CLI overrides and network checks are optional. Root `npm run dev` starts all five
+servers. Ctrl+C stops their process groups. Neither command starts the node.
+
 App entrypoints live with their app:
 
 ```sh
@@ -102,13 +107,27 @@ npm run test:examples
 npm run generate:contracts --workspaces --if-present
 npm run build --workspaces
 npm run test:counter
+npm run test:voting
+npm run test:token-launchpad
+npm run test:swap
+npm run test:airdrop
 npm run test:seed
 npm run test:batching
 ```
 
-These use isolated nodes and temporary state. Counter checks require Chromium.
+These use isolated nodes and temporary state. Counter and Voting checks require Chromium.
 `test:counter` checks development-signed updates, keyboard bursts, signer top-up,
 and recovery after an RPC outage.
+`test:voting` runs contract and browser checks against one fresh deployment,
+including permissions, maximum input sizes, multi-wallet voting, closure, reload
+recovery, and responsive layouts. Its screenshots and configuration stay in the
+temporary directory printed by the runner.
+`test:token-launchpad` checks both setup modes and token creation from the
+published artifact on an isolated nonzero-network node. It also checks that a
+wrong network pin preserves the previous environment.
+`test:swap` checks both setup modes, first-pool creation from the public LP
+artifact, liquidity processing, and swap balances on an isolated nonzero-network
+node. It also checks network-pin rejection without replacing existing output.
 Seeding checks fresh assets on rerun, balances, reserves, and indexing. Batching
 checks atomic rollback, storage top-ups, and pool operations. Freighter browser
 approval flows require separate acceptance testing.

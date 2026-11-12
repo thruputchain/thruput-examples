@@ -8,7 +8,7 @@ import {
 } from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
 import { serializeCxs, Uint32Codec, VarOpaqueCodec } from "@thruputchain/xdr";
-import { validateLocalRpcUrl } from "../../apps/token-launchpad/scripts/setup-local.ts";
+import { validateLocalRpcUrl } from "./local-rpc.ts";
 
 export class SeedError extends Error {}
 

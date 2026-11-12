@@ -8,19 +8,16 @@ on a local node or devnet.
 
 Complete [repository setup](../../README.md#setup) and run `npm ci` from the root.
 Use CLI 0.37.0 or newer with its compatible managed runtime. Voting uses client
-0.24.0, React SDK 0.8.0, and protocol packages 0.19.0, matching the other apps.
+0.25.0, React SDK 0.9.0, and protocol packages 0.19.1, matching the other apps.
 Start a local node in another terminal:
 
 ```sh
 thruput node --port 9545 --json
 ```
 
-Use its printed runtime manifest:
+In the setup terminal:
 
 ```sh
-export THRUPUT_CLI="$(command -v thruput)"
-export THRUPUT_RPC_URL=http://127.0.0.1:9545
-export THRUPUT_RUNTIME_MANIFEST=/path/printed/by/node/runtime-manifest.json
 npm run setup:local --workspace apps/voting
 npm run dev --workspace apps/voting
 ```
@@ -29,10 +26,32 @@ Open **http://127.0.0.1:5176**. Connect
 [Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/) to the same localnode
 and request test native tokens in the wallet. Public browsing needs no wallet.
 
-Setup builds the contract, generates bindings, deploys a fresh empty Voting
-contract, and writes `.env.local` only after success. It does not save the
-disposable deployer key. Each invocation creates a new deployment. Restart the
-app after setup.
+Setup builds the contract and bindings, creates a named Voting Deployer and bound
+wallet, then funds the account. Contract funding and deployment happen in one
+transaction. Voting has no initializer. Setup checks that the poll count is zero
+using a snapshot that includes the confirmed deployment, then writes `.env.local`
+atomically. A failed setup keeps the previous environment. Each run creates a
+fresh deployment. Restart the app after setup.
+
+No environment variables are required. Override `THRUPUT_RPC_URL` to change the
+endpoint (default `http://127.0.0.1:9545`). `VOTING_APP_ENV` selects the environment
+output; `VOTING_ARTIFACT` selects the compiled artifact. Paths resolve from the repo
+root. Generation uses `thruput` from `PATH`; `THRUPUT_CLI` optionally overrides it.
+
+The SDK discovers network identity. Set `THRUPUT_NETWORK_ID` or
+`THRUPUT_RUNTIME_MANIFEST` to check an expected network. If both are supplied,
+their network hashes must agree.
+
+### Setup records
+
+Each run prints its directory under `.local/voting-setup/`, beside the environment
+output. `manifest.json` contains public addresses and transaction records;
+`key.json` stores the private deployer key separately. Both files are readable
+only by the owner. The app does not need the deployer key.
+
+`record()` saves intent before each operation and distinguishes confirmed, failed,
+and unknown outcomes. It does not retry an uncertain submission. Inspect the
+original transaction hash before starting another run.
 
 ## Use it
 
@@ -58,13 +77,16 @@ to the current page. Use **Older** to check earlier polls.
 - `src/pages/`: public discovery, voting, results, and draft management.
 - `src/components/poll-editor.tsx`: explicit question and option editing.
 - `src/transactions/`: one saved signed transaction and its receipt observation.
-- `scripts/`: contract generation, fresh deployment, and local acceptance tests.
+- `scripts/index.ts`: configuration and named setup steps with visible SDK calls.
+- `scripts/run.ts`: named personas, private key storage, and transaction records.
+- `scripts/setup.test.ts`: focused setup tests.
+- `tests/e2e/voting.ts` (repository root): isolated contract and browser acceptance
+  checks. The generation wrapper stays in `scripts/`.
 - `server/`: public runtime configuration, read-only RPC proxy, and production
   static-file server with deep-link support. No database or signing key is required.
 - `vite.config.ts`: the same API handler during local development.
 
-Setup reads the deployer balance through the balance API and credits the contract
-with 1 native token for storage. This is a finite shared reserve for a local demo; anyone
+Setup credits the contract with 1 native token for storage. This is a finite shared reserve for a local demo; anyone
 can fund the contract address if it runs low. Wallets need free native tokens for gas
 capacity. Gas has no token fee; storage deposits are separate.
 
@@ -90,21 +112,28 @@ blocks signing rather than silently discarding evidence.
 npm run typecheck --workspace apps/voting
 npm test --workspace apps/voting
 npm run build --workspace apps/voting
-npm run test:local --workspace apps/voting
-npm run test:browser --workspace apps/voting
+npm run generate:contracts --workspace apps/voting
+npm run test:voting
 ```
 
-The last two commands require the running node and the environment above. Both
-deploy fresh isolated contracts without changing `.env.local`. Browser checks
-also require Chromium (`CHROMIUM_PATH`, default `/usr/bin/chromium`). They use a
-controlled provider with disposable keys held in the test process, not in the
-browser. They cover creation, voting with two wallets, closure, reload recovery,
-and mobile/desktop layouts in both themes.
+Run these commands from the repository root. `test:voting` starts an isolated
+local node and deploys one fresh contract for the contract and browser checks.
+It writes configuration and screenshots to a temporary directory and closes its
+node, server, and browser on exit. Your app's `.env.local` is not changed.
+
+The live check requires Linux, a compatible CLI/runtime, and Chromium
+(`CHROMIUM_PATH`, default `/usr/bin/chromium`). It uses `thruput` from `PATH` by
+default; `THRUPUT_CLI` and `THRUPUT_DEVNODE_BINARY` can select compatible binaries.
+The controlled wallet provider holds disposable signing keys in the test process,
+not in the browser. Checks cover contract permissions and input limits, poll
+creation, voting with two wallets, closure, reload recovery, and mobile/desktop
+layouts in both themes. See [repository checks](../../scripts/README.md#checks).
 
 ## Devnet and hosting
 
-Set `THRUPUT_RPC_URL` to the HTTPS devnet endpoint and `THRUPUT_NETWORK_ID` to
-its verified live base58 network hash, then run:
+Both setup commands use `scripts/index.ts`. Only the default RPC URL and output
+file differ. Devnet defaults to `https://rpc.thruput.network`; the same RPC
+override and optional network checks apply. Run:
 
 ```sh
 npm run setup:devnet --workspace apps/voting
@@ -114,7 +143,8 @@ npm run dev --workspace apps/voting -- --mode devnet
 Setup creates a fresh empty contract and writes the ignored `.env.devnet`.
 For production, supply those values as server environment variables, run
 `npm run build --workspace apps/voting`, then `npm start --workspace apps/voting`.
-The server binds to `0.0.0.0`; `PORT` defaults to 5176.
+The server binds to `0.0.0.0`; generated environments set `PORT=3000`.
+Without an explicit `PORT`, the server defaults to 5176.
 `/api/config` supplies public settings and `/healthz` checks configuration readiness.
 The RPC proxy allows reads and simulations; wallet writes go through Freighter.
 
