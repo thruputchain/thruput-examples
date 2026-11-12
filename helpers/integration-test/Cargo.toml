@@ -15,7 +15,7 @@ xdrs = { workspace = true }
 tokio = { workspace = true }
 serde_json = { workspace = true }
 hex = { workspace = true }
-jsonrpsee-core = "0.25.1"
+jsonrpsee-core = "0.26.1"
 thruput-cli = { workspace = true }
 
 [dev-dependencies]
