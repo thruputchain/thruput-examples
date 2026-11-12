@@ -34,6 +34,13 @@ run these commands from the repo root:
 
 ```sh
 thruput toolchain install
+bash scripts/counter-live.sh
+```
+
+The script builds Counter, selects the local node binary, and runs the test.
+To run those steps yourself:
+
+```sh
 thruput build -p counter
 export THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"
 export THRUPUT_TESTKIT_ARTIFACT_ROOT="$(pwd)/target/thruput"

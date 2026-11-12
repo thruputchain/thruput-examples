@@ -14,6 +14,7 @@ Run all commands below from the repository root. Install the toolchain with
 | `bash scripts/build-guest.sh` | Build all guest artifacts | Rust, CLI, `jq`; writes `target/thruput/` |
 | `bash scripts/check-contracts.sh` | Native tests, guest builds/tests, RPC tests, Clippy, rustfmt | Full Rust/CLI/runtime toolchain; starts temporary nodes; expensive compared with one contract test |
 | `bash scripts/integration-tests.sh` | Counter and ERC20 RPC tests | CLI and matching runtime; builds artifacts and uses ephemeral nodes |
+| `bash scripts/counter-live.sh` | Beginner Counter Testkit example: deploy, increment, and check | CLI 0.42.0 and its installed runtime; builds Counter and starts a temporary node |
 | `bash scripts/check-thruput-version.test.sh` | Check CLI minimum-version parsing | Bash only; no node |
 | `bash scripts/swap-test-guest.sh` | Build Swap artifacts and run guest tests | Rust and CLI; no external RPC required |
 
