@@ -24,10 +24,10 @@ categories = ["blockchain"]
 [workspace.dependencies]
 # from thruput-sdk-rs:
 thruput-sdk = { version = "=0.58.0" }
-thruput-contract-util = { version = "=0.58.0" }
-thruput-u256 = { version = "=0.58.0", default-features = false }
-thruput-domain-separator = { version = "=0.58.0", default-features = false }
-thruput-event = { version = "=0.58.0" }
+thruput-contract-util = { version = "=0.60.1" }
+thruput-u256 = { version = "=0.60.1", default-features = false }
+thruput-domain-separator = { version = "=0.60.1", default-features = false }
+thruput-event = { version = "=0.60.1" }
 thruput-erc20-if = { version = "=0.1.71" }
 thruput-erc20-metadata-if = { version = "=0.1.71" }
 thruput-erc20-controls-if = { version = "=0.1.71" }
@@ -36,15 +36,15 @@ thruput-signed-op-if = { version = "=0.1.71" }
 thruput-signed-op = { version = "=0.1.71" }
 
 # from thruput-tools:
-thruput-json-rpc-client = { version = "=0.42.0" }
-thruput-json-rpc-types = { version = "=0.42.0" }
+thruput-json-rpc-client = { version = "=0.44.0" }
+thruput-json-rpc-types = { version = "=0.44.0" }
 thruput-cli = { package = "thruput", version = "=0.42.0" }
-thruput-signing = { version = "=0.42.0" }
-thruput-testkit = { version = "=0.42.0" }
+thruput-signing = { version = "=0.44.0" }
+thruput-testkit = { version = "=0.44.0" }
 
 # from thruput-protocol-rs (now on crates.io)
-thruput-xdr = { version = "=0.63.0", features = ["serde", "xdrs"] }
-thruput-trace = { version = "=0.63.0" }
+thruput-xdr = { version = "=0.65.0", features = ["serde", "xdrs"] }
+thruput-trace = { version = "=0.65.0" }
 
 # from crates.io:
 xdrs = { package = "thruput-xdrs", version = "0.17.1", features = ["alloc"] }
