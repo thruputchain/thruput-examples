@@ -447,6 +447,7 @@ dependencies = [
  "counter",
  "integration-test",
  "thruput-sdk",
+ "thruput-testkit",
  "tokio",
 ]
 

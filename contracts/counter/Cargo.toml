@@ -22,12 +22,14 @@ bench = false
 entrypoints = []
 default = ["dev"]
 dev = ["thruput-sdk/dev"]
+remote = ["thruput-sdk/remote"]
 
 [dependencies]
 thruput-sdk = { workspace = true }
 
 [dev-dependencies]
-counter = { path = ".", features = ["dev"] }
+counter = { path = ".", features = ["dev", "remote"] }
+thruput-testkit = { workspace = true }
 
 # RPC integration test
 integration-test = { path = "../../helpers/integration-test" }

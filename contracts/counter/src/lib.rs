@@ -6,4 +6,6 @@ mod implementation;
 
 pub use implementation::Counter;
 pub use implementation::CounterClient;
+#[cfg(feature = "remote")]
+pub use implementation::CounterRemote;
 pub use implementation::PingEvent;

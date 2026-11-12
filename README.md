@@ -156,6 +156,10 @@ describes devnet deployment, subpath builds, Railway settings, and verification.
 Each README includes a test command, expected result, and an exercise.
 Suggested order: **Counter → Fibonacci → Events → Cross-call → error handling**.
 
+For a first live-node Rust test, start with the
+[Counter Testkit example](contracts/counter/README.md#run-with-testkit):
+deploy, increment, and check the result with one agent.
+
 | Example                                                                                                                    | What you learn                                               |
 | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | [Counter](contracts/counter/README.md)                                                                                     | Store and update a non-negative counter                      |
