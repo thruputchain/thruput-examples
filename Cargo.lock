@@ -224,6 +224,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-clock"
+version = "0.1.0"
+dependencies = [
+ "block-clock",
+ "thruput-sdk",
+]
+
+[[package]]
 name = "bs58"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
