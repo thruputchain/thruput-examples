@@ -40,20 +40,20 @@
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },
   "dependencies": {
-    "@thruputchain/client": "0.25.0",
-    "@thruputchain/contract-spec": "0.19.1",
-    "@thruputchain/protocol": "0.19.1",
-    "@thruputchain/xdr": "0.19.1"
+    "@thruputchain/client": "0.26.0",
+    "@thruputchain/contract-spec": "0.20.0",
+    "@thruputchain/protocol": "0.20.0",
+    "@thruputchain/xdr": "0.20.0"
   },
   "devDependencies": {
-    "@types/node": "26.6.5",
+    "@types/node": "26.6.6",
     "@types/ws": "8.18.2",
-    "jsdom": "30.1.3",
-    "playwright-core": "1.64.1",
+    "jsdom": "31.0.0",
+    "playwright-core": "1.65.0",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
-    "vite": "8.3.5",
-    "vitest": "5.0.5",
-    "ws": "8.22.0"
+    "vite": "8.3.7",
+    "vitest": "5.1.0",
+    "ws": "8.22.2"
   }
 }
