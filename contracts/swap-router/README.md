@@ -216,6 +216,11 @@ block, but liquidity that keeps arriving cannot keep an earlier trade waiting.
 The price of that is that the rule undoes reordering within a block and no
 more. A sandwich spread over three blocks reaches the pool as it arrived.
 
+A block's requests are ordered whole, so a crank leaves alone the requests of
+its own block, some of which may not have arrived yet, and takes only those of
+earlier blocks. `swap-driver` can serve a request in the block that enqueued
+it; this driver serves it in a later one.
+
 A crank that runs out of gas partway through a block's requests stores that
 batch's p₀, and the crank that carries on reads it back, so the batch comes
 out in the same order however many cranks it takes. Whoever cranks chooses

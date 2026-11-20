@@ -15,6 +15,11 @@
 //! stamps: the oldest batch is the least height among the lanes' heads. A crank that stops with a
 //! batch unfinished tells the picker, which may have something of its own to keep for the next.
 //!
+//! A batch has to be whole before it is ordered. A crank sees the requests its own block ordered
+//! before it and not those ordered after, so its own block's batch may be only part of one, and it
+//! leaves that block's requests for a later block's crank. A request therefore waits at least until
+//! the block after its own, where a plain queue may serve it in the same block.
+//!
 //! Everything else is as for a `batch_driver::Queue`, and built from the same parts: the ceiling,
 //! the floor a crank owes, the claim, the isolation of each request's failure, and the events.
 
@@ -168,10 +173,13 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         #[cfg(feature = "calibration")]
         let entry_gas = gas_remaining();
 
-        // The batch at the head of each lane, if it holds a request. A lane found empty stays so
-        // for the rest of this transaction -- a crank does not see requests its own block ordered
-        // after it -- so only the lane just taken from needs looking at again.
-        let mut heads: [Option<i64>; N] = core::array::from_fn(|lane| self.head(lane));
+        // Only earlier blocks' requests are taken: this block's batch may not all be here yet.
+        let now = get_block_height().into_inner();
+
+        // The batch at the head of each lane, if it holds a request to take. A lane found without
+        // one stays so for the rest of this transaction -- a crank does not see requests its own
+        // block ordered after it -- so only the lane just taken from needs looking at again.
+        let mut heads: [Option<i64>; N] = core::array::from_fn(|lane| self.head(lane, now));
 
         let policy = self.policy.get();
         let capacity = i128::from(policy.capacity);
@@ -238,7 +246,7 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
                 .none_if_missing()
                 .expect("a lane found waiting holds a request")
                 .request;
-            heads[lane] = self.head(lane);
+            heads[lane] = self.head(lane, now);
 
             // Read the id before the request is handed over: handling consumes it.
             let id = request.id();
@@ -306,12 +314,14 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         Ok((n_processed, n_failed))
     }
 
-    // The batch of the request at the head of `lane`, if it holds one.
-    fn head(&self, lane: usize) -> Option<i64> {
+    // The batch of the request at the head of `lane`, if it holds one from a block before `now`.
+    // (Within a lane heights only rise, so if the head is of this block, so is all the lane.)
+    fn head(&self, lane: usize, now: i64) -> Option<i64> {
         self.lanes
             .at(&(lane as u32))
             .try_peek()
             .none_if_missing()
             .map(|head| head.height)
+            .filter(|height| *height < now)
     }
 }

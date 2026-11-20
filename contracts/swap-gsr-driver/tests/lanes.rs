@@ -159,6 +159,62 @@ fn a_later_block_does_not_overtake_an_earlier_one() {
     assert_eq!(r.assert_return_as::<Vec<u32>>(), [1, 20, 2, 30]);
 }
 
+// A crank leaves its own block's requests alone: more may yet arrive in that block, and a batch is
+// ordered whole. Here a crank comes between two requests of one block, and takes neither; the next
+// block's crank finds them one batch.
+#[test]
+fn a_crank_leaves_its_own_blocks_requests() {
+    let env = TestEnvironment::no_cost();
+    initialize(&env);
+
+    let enqueue_now = |lane: usize, n: u32| {
+        env.transact(|tx| {
+            tx.call(&ADDR).run(move || {
+                queue().enqueue(lane, |_| Request { n });
+            })
+        })
+        .assert_success();
+    };
+
+    enqueue_now(0, 10);
+    let early = env.transact(|tx| {
+        tx.call(&ADDR).run(|| {
+            queue()
+                .crank(
+                    || panic!("nothing to claim for"),
+                    Alternate::default(),
+                    |_: Request, _| Ok(()),
+                )
+                .unwrap()
+        })
+    });
+    early.assert_success();
+    assert_eq!(early.assert_return_as::<(u32, u32)>(), (0, 0));
+    enqueue_now(1, 20);
+    env.advance_block();
+
+    let r = env.transact(|tx| {
+        tx.call(&ADDR).run(|| {
+            let mut picker = Alternate::default();
+            let mut handled = Vec::new();
+            queue()
+                .crank(
+                    || Ok(()),
+                    Recording(&mut picker),
+                    |request: Request, _| {
+                        handled.push(request.n);
+                        Ok(())
+                    },
+                )
+                .unwrap();
+            (handled, picker.batches)
+        })
+    });
+    r.assert_success();
+    // One batch, which the picker orders: `Alternate` starts by switching away from lane 0.
+    assert_eq!(r.assert_return_as::<(Vec<u32>, u32)>(), (vec![20, 10], 1));
+}
+
 // The picker is told when the crank comes to each batch.
 #[test]
 fn the_picker_hears_each_batch_begin() {
