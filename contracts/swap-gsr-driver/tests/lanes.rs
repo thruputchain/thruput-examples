@@ -45,7 +45,7 @@ struct Alternate {
 impl LanePicker<LANES> for Alternate {
     const GAS_PER_REQUEST: u64 = 50_000;
 
-    fn begin_batch(&mut self) {
+    fn begin_batch(&mut self, _batch: i64) {
         self.batches += 1;
     }
 
@@ -286,8 +286,12 @@ struct Recording<'a, P>(&'a mut P);
 impl<P: LanePicker<LANES>> LanePicker<LANES> for Recording<'_, P> {
     const GAS_PER_REQUEST: u64 = P::GAS_PER_REQUEST;
 
-    fn begin_batch(&mut self) {
-        self.0.begin_batch()
+    fn begin_batch(&mut self, batch: i64) {
+        self.0.begin_batch(batch)
+    }
+
+    fn suspend(&mut self) {
+        self.0.suspend()
     }
 
     fn next(&mut self, waiting: &[bool; LANES]) -> usize {

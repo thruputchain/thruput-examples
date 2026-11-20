@@ -8,7 +8,7 @@
 //! its code hash.
 
 use crate::cfg::*;
-use crate::gsr::{Gsr, LANES, lane_of};
+use crate::gsr::{Gsr, LANES, Pool, Start, lane_of};
 use crate::lanes::{LanedQueue, gas_for_laned_batch};
 use batch_driver::CrankPolicy;
 use swap_if::*;
@@ -24,6 +24,29 @@ pub struct Driver {
     // The requests themselves, in their lanes, together with policy for capacity and batch-size;
     // see `crate::lanes::LanedQueue`.
     queue: Node<LanedQueue<SwapRequest, LANES>>,
+
+    // The p₀ of a batch a crank left unfinished; see `crate::gsr`.
+    start: Value<Start>,
+}
+
+// The pool, as GSR sees it: the handler's reserves, and the driver's stored p₀.
+struct HandlerPool<'a> {
+    cfg: &'a Cfg,
+    start: &'a mut Value<Start>,
+}
+
+impl Pool for HandlerPool<'_> {
+    fn reserves(&mut self) -> Amounts {
+        self.cfg.handler().pool_state().reserves
+    }
+
+    fn suspended(&mut self) -> Option<Start> {
+        self.start.try_get().none_if_missing()
+    }
+
+    fn suspend(&mut self, start: &Start) {
+        self.start.set(start);
+    }
 }
 
 /// The gas limit to declare on a `process_requests()` call intended to drain up to `batch_size`
@@ -33,7 +56,7 @@ pub struct Driver {
 /// requests that cost less than their worst case leave room for more. Each request costs a little
 /// more here, for choosing its lane; see [`PICK_GAS`](crate::gsr::PICK_GAS).
 pub const fn process_requests_gas(batch_size: u32) -> u64 {
-    gas_for_laned_batch::<SwapRequest, Gsr, LANES>(batch_size)
+    gas_for_laned_batch::<SwapRequest, Gsr<HandlerPool>, LANES>(batch_size)
 }
 
 #[contract(exports = "swap_gsr_driver_exports")]
@@ -84,7 +107,10 @@ impl SwapDriver for Driver {
             .crank(
                 || cfg.handler().with_commit_locking().try_claim_crank(),
                 // The rule asks which side of p₀ the pool's price is on, and the pool answers.
-                Gsr::new(|| cfg.handler().pool_state().reserves),
+                Gsr::new(HandlerPool {
+                    cfg: &cfg,
+                    start: &mut self.start,
+                }),
                 |request, gas_limit| {
                     cfg.handler()
                         .with_commit_locking()

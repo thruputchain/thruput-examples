@@ -216,6 +216,11 @@ block, but liquidity that keeps arriving cannot keep an earlier trade waiting.
 The price of that is that the rule undoes reordering within a block and no
 more. A sandwich spread over three blocks reaches the pool as it arrived.
 
+A crank that runs out of gas partway through a block's requests stores that
+batch's p₀, and the crank that carries on reads it back, so the batch comes
+out in the same order however many cranks it takes. Whoever cranks chooses
+where a crank stops, and without this that would be a say in the order.
+
 ### CLVR: nearest p₀
 
 [`swap-clvr-driver`](../swap-clvr-driver/src/clvr.rs) refines GSR with the CLVR

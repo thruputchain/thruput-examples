@@ -12,7 +12,8 @@
 //! block are a *batch*: the picker chooses only among the lanes whose head belongs to the oldest
 //! batch still waiting, and a later block's requests wait until that batch is gone. Batches leave
 //! in the order of their blocks, and the picker orders each one. Nothing is stored for this but the
-//! stamps: the oldest batch is the least height among the lanes' heads.
+//! stamps: the oldest batch is the least height among the lanes' heads. A crank that stops with a
+//! batch unfinished tells the picker, which may have something of its own to keep for the next.
 //!
 //! Everything else is as for a `batch_driver::Queue`, and built from the same parts: the ceiling,
 //! the floor a crank owes, the claim, the isolation of each request's failure, and the events.
@@ -37,11 +38,22 @@ pub trait LanePicker<const N: usize> {
     /// crank budgets this much on top of [`BatchRequest::GAS_LIMIT`] for each request.
     const GAS_PER_REQUEST: u64;
 
-    /// The crank has come to a batch -- the requests one block enqueued -- other than the one the
-    /// last request came from, or to its first. What follows, until the next call, is that batch.
+    /// The most gas [`suspend`](Self::suspend) spends. The crank holds this back, on top of
+    /// [`EPILOGUE_GAS`], so that a crank that runs out of room for requests still has room to
+    /// suspend.
+    const SUSPEND_GAS: u64 = 0;
+
+    /// The crank has come to `batch` -- the requests one block enqueued, named by its height --
+    /// either its first, or one other than the last request came from. What follows, until the next
+    /// call, is that batch.
     ///
-    /// A batch too large for one crank is finished by the next, which begins it again.
-    fn begin_batch(&mut self) {}
+    /// A batch too large for one crank is finished by a later one, which begins it again: only a
+    /// crank's first batch can be one an earlier crank [suspended](Self::suspend).
+    fn begin_batch(&mut self, _batch: i64) {}
+
+    /// The crank is stopping with requests of the current batch still waiting. Whatever the picker
+    /// must remember to carry on with that batch as if the crank had not stopped, it stores now.
+    fn suspend(&mut self) {}
 
     /// The lane to take the next request from, of those `waiting` marks as holding one of the
     /// current batch. At least one does.
@@ -57,15 +69,17 @@ pub const fn gas_for_laned_batch<R: BatchRequest, P: LanePicker<N>, const N: usi
     batch_size: u32,
 ) -> u64 {
     let per_request = R::GAS_LIMIT.saturating_add(P::GAS_PER_REQUEST);
-    budget(per_request, batch_size)
+    budget::<P, N>(per_request, batch_size)
         .saturating_add(CLAIM_GAS)
         .saturating_add(per_request)
 }
 
 // The gas a frame must still hold to take `batch_size` more requests costing `per_request` each, as
-// in `batch_driver`'s drain.
-const fn budget(per_request: u64, batch_size: u32) -> u64 {
-    EPILOGUE_GAS.saturating_add((batch_size as u64).saturating_mul(per_request))
+// in `batch_driver`'s drain, and then suspend.
+const fn budget<P: LanePicker<N>, const N: usize>(per_request: u64, batch_size: u32) -> u64 {
+    EPILOGUE_GAS
+        .saturating_add(P::SUSPEND_GAS)
+        .saturating_add((batch_size as u64).saturating_mul(per_request))
 }
 
 /// A driver's request queue in `N` lanes, which share one capacity, one source of ids and one
@@ -174,7 +188,7 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         // As in `Queue::crank`: claim only if, the claim having been paid for, this crank can still
         // fund what the queue owes, and at least one request.
         let per_request = R::GAS_LIMIT.saturating_add(P::GAS_PER_REQUEST);
-        if gas_remaining() < CLAIM_GAS.saturating_add(budget(per_request, owed.max(1))) {
+        if gas_remaining() < CLAIM_GAS.saturating_add(budget::<P, N>(per_request, owed.max(1))) {
             return if owed > 0 { Err(Starved) } else { Ok((0, 0)) };
         }
 
@@ -200,13 +214,13 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         // heights only rise.
         while let Some(oldest) = heads.iter().flatten().min().copied() {
             // As in a plain crank, the budget is checked before an entry leaves its lane.
-            if gas_remaining() <= per_request.saturating_add(EPILOGUE_GAS) {
+            if gas_remaining() <= budget::<P, N>(per_request, 1) {
                 break;
             }
 
             if batch != Some(oldest) {
                 batch = Some(oldest);
-                picker.begin_batch();
+                picker.begin_batch(oldest);
             }
 
             // Only that batch's requests are on offer; a later block's wait for it to go.
@@ -251,6 +265,11 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
             n_processed += 1;
 
             picker.handled(result.is_ok());
+        }
+
+        // Out of room with the batch unfinished: the next crank carries on with it.
+        if batch.is_some_and(|batch| heads.contains(&Some(batch))) {
+            picker.suspend();
         }
 
         #[cfg(feature = "calibration")]
