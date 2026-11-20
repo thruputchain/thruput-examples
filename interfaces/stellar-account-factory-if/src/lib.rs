@@ -75,9 +75,11 @@ pub trait StellarAccountFactory {
     fn create_account(&mut self, master_key: &Ed25519PublicKey) -> ContractAddress;
 
     /// The address `create_account(master_key)` deploys to.
+    #[contract(effect = "readOnly")]
     fn address_of(&self, master_key: &Ed25519PublicKey) -> ContractAddress;
 
     /// The immutable configuration.
+    #[contract(effect = "readOnly")]
     fn config(&self) -> FactoryConfig;
 }
 

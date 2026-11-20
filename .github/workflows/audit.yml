@@ -15,12 +15,9 @@ jobs:
     uses: thruputchain/actions/.github/workflows/rust-dependency-policy.yml@v1
     with:
       checks: advisories
-      registry-name: thruput
       # Same reason as ci.yml: the manifest needs nightly cargo to parse. Must
       # match rust-toolchain.toml; CI's quality-checks verifies that.
       toolchain: nightly-2026-07-01
-    secrets:
-      registry-token: ${{ secrets.GROUNDHOG_REGISTRY_TOKEN }}
 
   notify:
     needs: scan

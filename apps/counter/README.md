@@ -14,24 +14,46 @@ Complete [root setup](../../README.md#setup) and `npm ci`. In a separate termina
 thruput node --port 9545 --json
 ```
 
-Use the printed runtime manifest in the setup terminal:
+In the setup terminal:
 
 ```sh
-export THRUPUT_CLI="$(command -v thruput)"
-export THRUPUT_RUNTIME_MANIFEST=/absolute/path/to/runtime-manifest.json
 npm run setup:local --workspace apps/counter
 npm run dev --workspace apps/counter
 ```
 
 Open **http://127.0.0.1:5175**. Every setup run builds the contract/bindings,
-creates a fresh signer, funds/deploys Counter, initializes it to 1,000,000,
-and writes `.env.local`. Failed setup keeps the previous file. Restart the app
+creates a named Counter Operator and bound wallet, funds the operator, then
+deploys, funds, and initializes Counter to 1,000,000 in one transaction.
+It verifies that value against a snapshot containing the confirmed deployment,
+then writes `.env.local`. Failed setup keeps the previous file. Restart the app
 after setup. The server keeps the private development signer; browsers receive
 only public configuration and signatures for the two allowed counter calls.
 
-Overrides: `THRUPUT_RPC_URL` (loopback HTTP, default port 9545), `COUNTER_APP_ENV`
+Overrides: `THRUPUT_RPC_URL` (default `http://127.0.0.1:9545`), `COUNTER_APP_ENV`
 (environment output), and `COUNTER_ARTIFACT` (compiled artifact). Paths resolve
 from the repo root.
+
+Contract generation uses `thruput` from `PATH`. Set `THRUPUT_CLI` only to use a
+different CLI executable.
+
+The SDK discovers the network identity. Optionally set `THRUPUT_NETWORK_ID` or
+`THRUPUT_RUNTIME_MANIFEST` to check an expected network. If both are supplied,
+their network hashes must agree.
+
+### Setup records
+
+Each run prints its directory under `.local/counter-setup/`, beside the environment
+output. `manifest.json` stores the operator address, predicted Counter address,
+network hash, and transaction records. `key.json` stores the private operator key
+separately, including when setup fails. Both files are owner-readable only.
+
+`record()` saves intent before each operation and distinguishes `confirmed`,
+`failed`, and `unknown` outcomes. A timeout remains unknown; setup does not retry
+the transaction. Inspect its original hash before starting another run.
+`createPersona()` creates the named account and its wallet once. These helpers
+live in `scripts/run.ts`; `scripts/index.ts` keeps configuration, SDK calls, and scenario
+steps visible. Expected state comes from the configured initial value, independently
+of transaction results.
 
 ## Behavior
 
@@ -58,9 +80,12 @@ Run `npm run <command> --workspace apps/counter`:
 | `typecheck`, `test`, `build` | Check types, tests, and production bundle |
 | `start` | Serve the production bundle; `PORT` defaults to 3000 |
 
-For Devnet, set `THRUPUT_RPC_URL` to the HTTPS endpoint and
-`THRUPUT_NETWORK_ID` to its verified live base58 network hash, then run
-`setup:devnet`.
+Both setup commands use `scripts/index.ts`. The selected network only changes
+the default RPC URL and output file; the deployment flow is the same.
+For Devnet, run `setup:devnet`. It defaults to `https://rpc.thruput.network`.
+Use `THRUPUT_RPC_URL` to override the endpoint, or `THRUPUT_NETWORK_ID` to pin
+its expected base58 network hash. Network discovery and optional manifest checks
+work the same way for both commands.
 It writes `.env.devnet`; select it with `dev -- --mode devnet` or supply its
 values to the production server. Environment files contain private signer
 material and are ignored by Git. See [`.env.example`](.env.example).

@@ -15,6 +15,7 @@
 	redir /swap /swap/ 308
 	redir /launchpad /launchpad/ 308
 	redir /voting /voting/ 308
+	redir /airdrop /airdrop/ 308
 
 	handle_path /counter/* {
 		reverse_proxy {$COUNTER_UPSTREAM:counter.railway.internal:3000}
@@ -27,6 +28,9 @@
 	}
 	handle_path /voting/* {
 		reverse_proxy {$VOTING_UPSTREAM:voting.railway.internal:3000}
+	}
+	handle_path /airdrop/* {
+		reverse_proxy {$AIRDROP_UPSTREAM:airdrop.railway.internal:3000}
 	}
 	handle {
 		root * {$SITE_ROOT:/srv}

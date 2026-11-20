@@ -1,4 +1,5 @@
 // @vitest-environment node
+/// <reference types="node" />
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { deriveContractAddress, toHex0x } from "@thruputchain/client";

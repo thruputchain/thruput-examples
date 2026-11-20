@@ -1782,7 +1782,7 @@ describe("local swap submission", () => {
     expect(
       screen.getByText(/4 gEUR was exchanged for 2 gUSD/),
     ).toBeInTheDocument();
-    const executedItem = screen.getByRole("article", { name: "gEUR gUSD" });
+    const executedItem = screen.getByRole("article", { name: "gEUR to gUSD" });
     expect(
       within(executedItem).getByLabelText(
         `Execution transaction hash: ${b58(0xef)}`,

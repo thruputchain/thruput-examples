@@ -15,6 +15,8 @@ mod events;
 pub use events::TokenCreated;
 
 mod factory;
+#[cfg(feature = "remote")]
+pub use factory::StandardTokenFactoryRemote;
 pub use factory::{
     FactoryConfig, StandardTokenFactory, StandardTokenFactoryClient, TokenFactoryError,
 };

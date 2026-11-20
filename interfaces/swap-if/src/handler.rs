@@ -106,6 +106,7 @@ pub trait SwapHandler {
     fn claim_crank(&mut self);
 
     /// Everything this pool will report about itself.
+    #[contract(effect = "readOnly")]
     fn pool_state(&self) -> PoolState;
 
     /// Send any balance in excess of the recorded reserves to `to`.

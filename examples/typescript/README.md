@@ -31,9 +31,35 @@ The SDK scripts accept only loopback HTTP endpoints and check the localnet netwo
 identity. Use one local node for the sequence. Local nodes share a network hash,
 so that hash alone does not identify a particular local node.
 
-Signing examples create fresh accounts with keys held only in memory. They use
+Most signing examples create fresh accounts with keys held only in memory. They use
 local test funds; funds left in these accounts cannot be recovered after exit.
 They do not save keys, change app environments, or use your Freighter wallet.
+
+The application-token transfer below instead uses a funded disposable signer
+provided through an environment variable.
+
+## Transfer an application token
+
+Source: [transfer-token.ts](transfer-token.ts). This lesson uses the published
+ERC20 binding to transfer a token created by Launchpad. Start with a disposable
+local signer that holds test tokens and enough native tokens for scheduling.
+The [Airdrop app](../../apps/airdrop/README.md) can supply the test assets.
+The token contract also needs native funding for a new recipient's balance row;
+airdrop setup supplies that reserve.
+
+Set `TOKEN_SENDER_PRIVATE_KEY` privately in your environment. Then run:
+
+```sh
+export TOKEN_ADDRESS=<test-token-address>
+export TOKEN_RECIPIENT=<recipient-address>
+export TOKEN_AMOUNT=1
+npm run example:transfer-token > transfer-evidence.log
+```
+
+The script reads token decimals, signs one transfer, prints signed evidence before
+broadcast, and verifies the recipient balance. Keep the evidence file. If the
+request times out, inspect its original hash instead of running the script again.
+Never use a production key for this lesson.
 
 ## 1. Read the chain tip
 

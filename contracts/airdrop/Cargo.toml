@@ -1,0 +1,32 @@
+[package]
+name = "airdrop"
+version = "0.1.0"
+description = "One-time token claims with an optional address allowlist"
+edition = "2024"
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "airdrop"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[features]
+entrypoints = []
+default = ["dev"]
+dev = ["thruput-sdk/dev"]
+
+[dependencies]
+thruput-sdk = { workspace = true, features = ["alloc"] }
+thruput-erc20-if.workspace = true
+
+[dev-dependencies]
+airdrop = { path = ".", features = ["dev"] }
+erc20 = { path = "../erc20", features = ["dev"] }

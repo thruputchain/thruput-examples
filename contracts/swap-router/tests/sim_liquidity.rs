@@ -48,10 +48,10 @@ fn liquidity_provider(name: &str) -> Agent {
             .await
             .expect("bug: admin closed before sending addresses")?
             .body;
-        let token0 = ERC20Client::new(&ctx, cfg.token0);
-        let token1 = ERC20Client::new(&ctx, cfg.token1);
-        let router = SwapRouterClient::new(&ctx, cfg.router);
-        let lp = ERC20Client::new(&ctx, cfg.lp);
+        let token0 = ERC20Remote::new(ctx.caller().clone(), &cfg.token0);
+        let token1 = ERC20Remote::new(ctx.caller().clone(), &cfg.token1);
+        let router = SwapRouterRemote::new(ctx.caller().clone(), &cfg.router);
+        let lp = ERC20Remote::new(ctx.caller().clone(), &cfg.lp);
 
         // Allow the request handler to pull our A/B tokens when the request runs.
         token0

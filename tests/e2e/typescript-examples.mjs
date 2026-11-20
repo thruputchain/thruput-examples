@@ -7,7 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
 
-assert.ok(process.env.THRUPUT_CLI, "Set THRUPUT_CLI to CLI 0.39.0");
+assert.ok(process.env.THRUPUT_CLI, "Set THRUPUT_CLI to CLI 0.37.0 or newer");
 assert.ok(
   process.env.THRUPUT_DEVNODE_BINARY,
   "Set THRUPUT_DEVNODE_BINARY to the matching runtime",

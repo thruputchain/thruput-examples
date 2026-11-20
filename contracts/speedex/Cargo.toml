@@ -38,6 +38,8 @@ speedex = { path = ".", features = ["dev"] }
 erc20 = { path = "../erc20", features = ["dev"] }
 # `tests/testkit_gas.rs` measures the contract on a devnode.
 thruput-testkit = { workspace = true }
+# Generate remote contract-call proxies
+thruput-sdk = { workspace = true, features = ["remote"] }
 thruput-json-rpc-client = { workspace = true }
 thruput-signing = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

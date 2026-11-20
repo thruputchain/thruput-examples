@@ -116,6 +116,7 @@ impl PermitWallet {
     }
 
     /// The key this wallet currently accepts.
+    #[contract(effect = "readOnly")]
     pub fn owner(&self) -> Ed25519PublicKey {
         self.owner.get()
     }

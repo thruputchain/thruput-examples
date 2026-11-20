@@ -7,7 +7,8 @@
     "apps/counter",
     "apps/voting",
     "apps/swap",
-    "apps/token-launchpad"
+    "apps/token-launchpad",
+    "apps/airdrop"
   ],
   "engines": {
     "node": ">=22.13.0"
@@ -15,12 +16,13 @@
   "scripts": {
     "setup:local": "node scripts/apps.mjs setup:local",
     "dev": "node scripts/apps.mjs dev",
-    "test": "npm run test --workspaces && vitest run scripts/seed tests/examples --environment node && node --test tests/e2e/helpers/process-groups.test.mjs",
+    "test": "npm run test --workspaces && vitest run scripts/seed tests/examples --environment node && node --test scripts/apps.test.mjs tests/e2e/helpers/process-groups.test.mjs",
     "typecheck": "npm run typecheck --workspaces && tsc -p scripts/seed/tsconfig.json && tsc -p examples/typescript/tsconfig.json",
     "examples:generate": "bash examples/typescript/generate.sh",
     "example:chain-tip": "tsx examples/typescript/chain-tip.ts",
     "example:view-native-token-balance": "tsx examples/typescript/view-native-token-balance.ts",
     "example:transfer-native-token": "tsx examples/typescript/transfer-native-token.ts",
+    "example:transfer-token": "tsx examples/typescript/transfer-token.ts",
     "example:pq-account": "tsx examples/typescript/pq-account.ts",
     "example:deploy-counter": "tsx examples/typescript/deploy-counter.ts",
     "example:read-events": "tsx examples/typescript/read-events.ts",
@@ -30,24 +32,28 @@
     "test:browser": "node tests/browser/apps.mjs",
     "test:hosted": "node --import tsx tests/browser/hosted.mjs",
     "test:counter": "tsx tests/e2e/counter.ts",
+    "test:voting": "tsx tests/e2e/voting.ts",
+    "test:token-launchpad": "tsx tests/e2e/token-launchpad.ts",
+    "test:swap": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/swap.ts",
+    "test:airdrop": "tsx tests/e2e/airdrop.ts",
     "test:seed": "tsx tests/e2e/seed.ts",
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },
   "dependencies": {
-    "@thruputchain/client": "0.24.0",
-    "@thruputchain/contract-spec": "0.19.0",
-    "@thruputchain/protocol": "0.19.0",
-    "@thruputchain/xdr": "0.19.0"
+    "@thruputchain/client": "0.25.0",
+    "@thruputchain/contract-spec": "0.19.1",
+    "@thruputchain/protocol": "0.19.1",
+    "@thruputchain/xdr": "0.19.1"
   },
   "devDependencies": {
-    "@types/node": "25.9.1",
+    "@types/node": "26.6.5",
     "@types/ws": "8.18.2",
-    "jsdom": "26.1.0",
-    "playwright-core": "1.63.0",
-    "tsx": "4.22.4",
-    "typescript": "6.0.3",
-    "vite": "7.3.6",
-    "vitest": "4.1.11",
-    "ws": "8.21.3"
+    "jsdom": "30.1.3",
+    "playwright-core": "1.64.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5",
+    "ws": "8.22.0"
   }
 }

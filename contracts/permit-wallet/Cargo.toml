@@ -51,6 +51,9 @@ thruput-domain-separator = { workspace = true, features = ["std"] }
 ed25519-dalek = { workspace = true }
 # The live flow on a devnode (`tests/testkit_permit.rs`, `#[ignore]`d).
 thruput-testkit = { workspace = true }
+# Generate remote contract-call proxies
+thruput-sdk = { workspace = true, features = ["remote"] }
+thruput-erc20-if = { workspace = true }
 thruput-json-rpc-client = { workspace = true }
 serde_json = { workspace = true }
 hex = { workspace = true }

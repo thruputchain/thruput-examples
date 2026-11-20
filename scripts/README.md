@@ -14,6 +14,7 @@ Run all commands below from the repository root. Install the toolchain with
 | `bash scripts/build-guest.sh` | Build all guest artifacts | Rust, CLI, `jq`; writes `target/thruput/` |
 | `bash scripts/check-contracts.sh` | Native tests, guest builds/tests, RPC tests, Clippy, rustfmt | Full Rust/CLI/runtime toolchain; starts temporary nodes; expensive compared with one contract test |
 | `bash scripts/integration-tests.sh` | Counter and ERC20 RPC tests | CLI and matching runtime; builds artifacts and uses ephemeral nodes |
+| `bash scripts/counter-live.sh` | Beginner Counter Testkit example: deploy, increment, and check | CLI 0.42.0 and its installed runtime; builds Counter and starts a temporary node |
 | `bash scripts/check-thruput-version.test.sh` | Check CLI minimum-version parsing | Bash only; no node |
 | `bash scripts/swap-test-guest.sh` | Build Swap artifacts and run guest tests | Rust and CLI; no external RPC required |
 
@@ -45,6 +46,11 @@ only native quality measurements and plots.
 These tools are not required for a first contract or client example.
 
 ## App tooling
+
+Root `npm run setup:local` runs all five app setups in order, then connects
+Launchpad and Swap through their environment files. It uses each app's defaults;
+CLI overrides and network checks are optional. Root `npm run dev` starts all five
+servers. Ctrl+C stops their process groups. Neither command starts the node.
 
 App entrypoints live with their app:
 
@@ -99,21 +105,34 @@ export THRUPUT_CLI="$(command -v thruput)"
 export THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"
 npm run examples:generate
 npm run test:examples
-npm run generate:contracts --workspaces
+npm run generate:contracts --workspaces --if-present
 npm run build --workspaces
 npm run test:counter
+npm run test:voting
+npm run test:token-launchpad
+npm run test:swap
+npm run test:airdrop
 npm run test:seed
 npm run test:batching
 ```
 
-These use isolated nodes and temporary state. Counter checks require Chromium.
+These use isolated nodes and temporary state. Counter and Voting checks require Chromium.
 `test:counter` checks development-signed updates, keyboard bursts, signer top-up,
 and recovery after an RPC outage.
+`test:voting` runs contract and browser checks against one fresh deployment,
+including permissions, maximum input sizes, multi-wallet voting, closure, reload
+recovery, and responsive layouts. Its screenshots and configuration stay in the
+temporary directory printed by the runner.
+`test:token-launchpad` checks both setup modes and token creation from the
+published artifact on an isolated nonzero-network node. It also checks that a
+wrong network pin preserves the previous environment.
+`test:swap` checks both setup modes, first-pool creation from the public LP
+artifact, liquidity processing, and swap balances on an isolated nonzero-network
+node. It also checks network-pin rejection without replacing existing output.
 Seeding checks fresh assets on rerun, balances, reserves, and indexing. Batching
 checks atomic rollback, storage top-ups, and pool operations. Freighter browser
 approval flows require separate acceptance testing.
 
-CI runs these checks with registry credentials. Grant repository Actions access
-to the npm packages; npm jobs use `github.token`. The Cargo registry secret is named
-`GROUNDHOG_REGISTRY_TOKEN`. Rebuild artifacts and bindings together; installing
+CI installs everything from crates.io and the public npm registry; no registry
+credentials are needed. Rebuild artifacts and bindings together; installing
 packages does not upgrade contracts already deployed to a node.

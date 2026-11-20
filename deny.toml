@@ -7,12 +7,7 @@
 all-features = true
 
 [advisories]
-# 0.26.11 only re-exports webpki-root-certs 1.x; Cargo.lock selects fixed 1.0.10.
-# Remove this exception when jsonrpsee updates rustls-platform-verifier or the
-# advisory recognizes the wrapper. The bans below still reject affected bundles.
-ignore = [
-    { id = "RUSTSEC-2026-0383", reason = "webpki-root-certs 0.26.11 only re-exports 1.x; bans require the patched bundle" },
-]
+ignore = []
 # Informational advisories (unsound, unmaintained) default to workspace-direct
 # dependencies only.
 unsound = "all"
@@ -68,5 +63,4 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = [
     "https://github.com/rust-lang/crates.io-index",
-    "sparse+https://crates.thruput.network/api/v1/crates/",
 ]

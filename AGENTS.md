@@ -19,11 +19,15 @@ to remove a few repeated lines. Larger apps are reference implementations.
 
 Follow the root README's Setup section. Use npm and the root `package-lock.json`.
 Node must be at least 22.13. Rust is pinned in `rust-toolchain.toml`.
-Use CLI 0.39.0 and its managed runtime 0.1.31-rc.16 with this release set.
+Use CLI 0.37.0 or newer and let it select its compatible managed runtime.
 
-Cargo needs `thruput` registry access and a credential provider such as
-`cargo:token`. npm needs GitHub Packages authentication for `@thruputchain/*`.
-Keep credentials in the user's config/environment. Never commit tokens or keys.
+Rust crates come from crates.io and `@thruputchain/*` packages from the public
+npm registry; neither needs credentials. Never commit tokens or keys.
+
+Dependency updates follow a cooldown policy; see the README's
+[Update dependencies](README.md#update-dependencies). Use
+`cargo cooldown update`, not `cargo update`, and keep the cooldown files in
+sync with each other.
 
 Run commands from the repo root. Native tests need no node or browser:
 
@@ -42,8 +46,9 @@ npm run examples:generate
 npm run example:deploy-counter
 ```
 
-For an app, also set `THRUPUT_CLI` to the CLI executable and
-`THRUPUT_RUNTIME_MANIFEST` to the path printed by that node:
+App setup uses `thruput` on `PATH` and discovers the network through the SDK.
+`THRUPUT_CLI` selects another executable; `THRUPUT_NETWORK_ID` and
+`THRUPUT_RUNTIME_MANIFEST` are optional network checks:
 
 ```sh
 npm run setup:local --workspace apps/counter

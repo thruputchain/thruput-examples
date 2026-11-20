@@ -88,6 +88,7 @@ pub trait SwapFactory {
     fn initialize(&mut self, hashes: SwapHashes, fee_to: Option<Address>, router: &Address);
 
     /// The protocol-fee recipient, consulted by each pair's fee logic.
+    #[contract(effect = "readOnly")]
     fn fee_to(&self) -> Option<Address>;
 
     /// What this factory asks for each of a new pool's three contracts.
@@ -95,6 +96,7 @@ pub trait SwapFactory {
     /// Both figures depend on the cost model the chain is running and on the queue depth this
     /// factory configures its drivers with, so they are reported here. Multiply the answer by
     /// three, and grant that allowance before calling [`create_pair`](Self::create_pair).
+    #[contract(effect = "pure")]
     fn pool_funding(&self) -> PoolFunding;
 
     /// Deploy and initialize a pair's contracts (LP token, pair, request handler, driver) for the
@@ -113,12 +115,15 @@ pub trait SwapFactory {
     /// token pair, computed deterministically without deploying anything (like a create2
     /// prediction). Useful for pre-funding the contracts on a cost-bearing network, where each must
     /// be solvent before it is initialized. This may also be used for pools that already exist.
+    #[contract(effect = "readOnly")]
     fn pool_addresses(&self, token_a: &Address, token_b: &Address) -> Pool;
 
     /// The pair created for `token_a`/`token_b`, if any (order-independent).
+    #[contract(effect = "readOnly")]
     fn get_pair(&self, token_a: &Address, token_b: &Address) -> Option<Address>;
 
     /// The number of pairs created so far.
+    #[contract(effect = "readOnly")]
     fn all_pairs_length(&self) -> u32;
 
     /// The two tokens swapped by the pool at `index` in creation order, if in bounds, in the
@@ -126,5 +131,6 @@ pub trait SwapFactory {
     ///
     /// Walking `0..all_pairs_length()` yields every pool's token pair, and feeding each to
     /// [`pool_addresses`](Self::pool_addresses) yields that pool's contract addresses.
+    #[contract(effect = "readOnly")]
     fn pair_at(&self, index: u32) -> Option<Addresses>;
 }

@@ -274,7 +274,7 @@ export const spec: __gh_client_contract.ContractSpec = {
           name: __gh_s("all_pairs_length"),
           args: [],
           return_type: { v: __gh_contract_spec.ContractTypeKind.U32 },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectReadOnly,
         },
         {
           name: __gh_s("create_pair"),
@@ -310,7 +310,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             v: __gh_contract_spec.ContractTypeKind.Option,
             option_inner: { v: __gh_contract_spec.ContractTypeKind.Address },
           },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectReadOnly,
         },
         {
           name: __gh_s("get_pair"),
@@ -328,7 +328,7 @@ export const spec: __gh_client_contract.ContractSpec = {
             v: __gh_contract_spec.ContractTypeKind.Option,
             option_inner: { v: __gh_contract_spec.ContractTypeKind.Address },
           },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectReadOnly,
         },
         {
           name: __gh_s("initialize"),
@@ -380,7 +380,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               },
             },
           },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectReadOnly,
         },
         {
           name: __gh_s("pool_addresses"),
@@ -403,7 +403,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               declared: __gh_s("Pool"),
             },
           },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectReadOnly,
         },
         {
           name: __gh_s("pool_funding"),
@@ -417,7 +417,7 @@ export const spec: __gh_client_contract.ContractSpec = {
               declared: __gh_s("PoolFunding"),
             },
           },
-          effect: null,
+          effect: __gh_client_contract.ContractMethodEffect.EffectPure,
         },
       ],
     },
@@ -751,6 +751,7 @@ const __gh_codecs = __gh_client_contract.createContractCodecContext(
 
 export const SwapFactory = {
   v0_1: {
+    /** Declared effect: readOnly. Author declaration; not compiler/runtime enforced. */
     allPairsLength: __gh_client_contract.defineContractMethod<
       SwapFactory.v0_1.AllPairsLengthArgs,
       SwapFactory.v0_1.AllPairsLengthResult,
@@ -851,6 +852,7 @@ export const SwapFactory = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: readOnly. Author declaration; not compiler/runtime enforced. */
     feeTo: __gh_client_contract.defineContractMethod<
       SwapFactory.v0_1.FeeToArgs,
       SwapFactory.v0_1.FeeToResult,
@@ -893,6 +895,7 @@ export const SwapFactory = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: readOnly. Author declaration; not compiler/runtime enforced. */
     getPair: __gh_client_contract.defineContractMethod<
       SwapFactory.v0_1.GetPairArgs,
       SwapFactory.v0_1.GetPairResult,
@@ -1004,6 +1007,7 @@ export const SwapFactory = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: readOnly. Author declaration; not compiler/runtime enforced. */
     pairAt: __gh_client_contract.defineContractMethod<
       SwapFactory.v0_1.PairAtArgs,
       SwapFactory.v0_1.PairAtResult,
@@ -1052,6 +1056,7 @@ export const SwapFactory = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: readOnly. Author declaration; not compiler/runtime enforced. */
     poolAddresses: __gh_client_contract.defineContractMethod<
       SwapFactory.v0_1.PoolAddressesArgs,
       SwapFactory.v0_1.PoolAddressesResult,
@@ -1105,6 +1110,7 @@ export const SwapFactory = {
       ],
       codecs: __gh_codecs,
     }),
+    /** Declared effect: pure. Author declaration; not compiler/runtime enforced. */
     poolFunding: __gh_client_contract.defineContractMethod<
       SwapFactory.v0_1.PoolFundingArgs,
       SwapFactory.v0_1.PoolFundingResult,

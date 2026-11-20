@@ -26,6 +26,8 @@ hex = { workspace = true }
 
 [features]
 dev = ["thruput-sdk/dev", "thruput-erc20-if/dev"]
+# Generate and export the `StandardTokenFactoryRemote` proxy, for off-chain clients
+remote = ["thruput-sdk/remote"]
 
 [lints]
 # The contract macro generates methods from the specification-fixed create_token ABI.

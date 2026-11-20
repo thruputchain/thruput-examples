@@ -419,11 +419,11 @@ fn trader(name: &'static str, cranking: Cranking, ledger: SharedLedger) -> Agent
         let me = ctx.address();
         let cfg = join(&mut ctx).await?;
         let tokens = [
-            ERC20Client::new(&ctx, cfg.token0),
-            ERC20Client::new(&ctx, cfg.token1),
+            ERC20Remote::new(ctx.caller().clone(), &cfg.token0),
+            ERC20Remote::new(ctx.caller().clone(), &cfg.token1),
         ];
-        let router = SwapRouterClient::new(&ctx, cfg.router);
-        let driver = SwapDriverClient::new(&ctx, cfg.driver);
+        let router = SwapRouterRemote::new(ctx.caller().clone(), &cfg.router);
+        let driver = SwapDriverRemote::new(ctx.caller().clone(), &cfg.driver);
 
         // Let the handler take whatever we trade, for the whole run.
         for token in &tokens {
@@ -498,7 +498,7 @@ fn trader(name: &'static str, cranking: Cranking, ledger: SharedLedger) -> Agent
 fn keeper(ledger: SharedLedger) -> Agent {
     Agent::new(KEEPER, move |mut ctx| async move {
         let cfg = join(&mut ctx).await?;
-        let driver = SwapDriverClient::new(&ctx, cfg.driver);
+        let driver = SwapDriverRemote::new(ctx.caller().clone(), &cfg.driver);
         ctx.send("admin", &())?;
 
         let mut crank: Option<usize> = None;
