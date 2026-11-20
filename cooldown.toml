@@ -19,6 +19,12 @@ version = "0.4.5"
 crate = "tokio"
 version = "1.53.3"
 
+# Security fix for RUSTSEC-2026-0574 to RUSTSEC-2026-0582 (heapless unsound
+# APIs, fixed in 0.9.4). Remove once 0.9.4 is past the cooldown (2026-11-26).
+[[allow.exact]]
+crate = "heapless"
+version = "0.9.4"
+
 # Grandfathered versions ... (can remove after 2026 Nov 9)
 
 [[allow.exact]]
