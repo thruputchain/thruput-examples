@@ -3,10 +3,16 @@
 # Measure what a crank actually costs on a devnode, to set the gas constants
 # from.
 #
-# This builds the driver with `calibration`, which makes `crank` report its own
-# spending as a `GasReport` event, runs one request of each kind through a local
-# node, and prints what it charged. It then cranks a batch of swaps at once, to
-# show what a batch's later requests cost beside its first.
+# This builds the drivers with `calibration`, which makes a crank report its own
+# spending as a `GasReport` event, runs requests through a local node, and prints
+# what it charged:
+#
+# - one request of each kind through `swap-driver`, for the per-request budgets,
+#   then a batch of swaps at once, to show what a batch's later requests cost
+#   beside its first;
+# - batches of swaps through each of `swap-driver`, `swap-gsr-driver` and
+#   `swap-clvr-driver`, for the ordering drivers' allowances;
+# - CLVR's ordering alone, over batches up to a full queue, with `clvr-bench`.
 #
 # The artifacts it builds are instrumented: rebuild without `calibration`
 # before using them for anything else.
@@ -18,15 +24,20 @@ if [ ! -v NO_BUILD ]; then
     thruput build -p swap-handler
     thruput build -p swap-router
     thruput build -p swap-factory
-    # The instrumented one.
+    # The instrumented ones.
     thruput build -p swap-driver -- -F calibration
+    thruput build -p swap-gsr-driver -- -F calibration
+    thruput build -p swap-clvr-driver -- -F calibration
+    thruput build -p clvr-bench
 fi
 
 artifact_root="$(realpath target/thruput)"
 export THRUPUT_TESTKIT_ARTIFACT_ROOT="$artifact_root"
 
-cargo test -p swap-router \
-    --features calibration \
-    --test calibration calibrate_ \
-    -- \
-    --ignored --no-capture
+for test in calibrate_ measure_clvr_ordering; do
+    cargo test -p swap-router \
+        --features calibration \
+        --test calibration "$test" \
+        -- \
+        --ignored --no-capture
+done
