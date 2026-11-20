@@ -318,12 +318,12 @@ describe("infrastructure-only launchpad provisioning", () => {
 
   it("calculates storage with current costs instead of pinning unrelated fields", () => {
     expect(() =>
-      validateTokenFunding({ ...costs, authPerKeyCost: 999n }, 31_908),
+      validateTokenFunding({ ...costs, authPerKeyCost: 999n }, 36_908),
     ).not.toThrow();
     expect(() =>
       validateTokenFunding(
         { ...costs, contractDeploymentCostPerByte: 11n },
-        31_908,
+        36_908,
       ),
     ).toThrow(/funding budget/);
   });
@@ -341,11 +341,11 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(await readFile(output, "utf8")).toBe("previous environment\n");
   });
 
-  it("enforces the maximum token artifact size within 370000 funding", async () => {
-    // 50914 fixed worst-case storage cost leaves room for 31908 code bytes.
-    expect(() => validateTokenFunding(costs, 31_908)).not.toThrow();
-    expect(() => validateTokenFunding(costs, 31_909)).toThrow(/funding budget/);
-    await writeFile(join(root, "standard_token.rv32a"), Buffer.alloc(31_909));
+  it("enforces the maximum token artifact size within 420000 funding", async () => {
+    // 50914 fixed worst-case storage cost leaves room for 36908 code bytes.
+    expect(() => validateTokenFunding(costs, 36_908)).not.toThrow();
+    expect(() => validateTokenFunding(costs, 36_909)).toThrow(/funding budget/);
+    await writeFile(join(root, "standard_token.rv32a"), Buffer.alloc(36_909));
     await expect(main()).rejects.toThrow(/funding budget/);
     expect(mocks.requestAirdrop).not.toHaveBeenCalled();
   });
