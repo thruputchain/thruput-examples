@@ -206,7 +206,7 @@ impl<P: Pool> crate::lanes::LanePicker<LANES> for Gsr<P> {
 // price, and counts as at p₀.
 fn side(r: Amounts, p0: Amounts) -> Ordering {
     // p / p₀ = (r1 / r0) / (p0_1 / p0_0) = (r1 * p0_0) / (r0 * p0_1)
-    U256::widening_mul(r[1], p0[0]).cmp(&U256::widening_mul(r[0], p0[1]))
+    U256::widening_mul_u128(r[1], p0[0]).cmp(&U256::widening_mul_u128(r[0], p0[1]))
 }
 
 #[cfg(test)]

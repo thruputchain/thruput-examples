@@ -373,7 +373,8 @@ fn amount_in(amount_out: Amount, reserve_in: Amount, reserve_out: Amount) -> Opt
         return None;
     }
 
-    let numerator = U256::widening_mul(reserve_in, amount_out).checked_mul(U256::from(1000))?;
+    let numerator =
+        U256::widening_mul_u128(reserve_in, amount_out).checked_mul(U256::from(1000))?;
     let denominator = U256::from(reserve_out - amount_out) * 997;
     let quotient: Amount = (numerator / denominator).try_into().ok()?;
 
@@ -383,7 +384,7 @@ fn amount_in(amount_out: Amount, reserve_in: Amount, reserve_out: Amount) -> Opt
 // Where the reserves `r` put the price, relative to p₀ (the price of `p0`).
 fn side(r: Amounts, p0: Amounts) -> Ordering {
     // p / p₀ = (r1 / r0) / (p0_1 / p0_0) = (r1 * p0_0) / (r0 * p0_1)
-    U256::widening_mul(r[1], p0[0]).cmp(&U256::widening_mul(r[0], p0[1]))
+    U256::widening_mul_u128(r[1], p0[0]).cmp(&U256::widening_mul_u128(r[0], p0[1]))
 }
 
 /// How far some reserves put the price from p₀: |ln(p / p₀)|, kept exact as the ratio of the
@@ -396,8 +397,8 @@ struct Distance {
 
 impl Distance {
     fn new(r: Amounts, p0: Amounts) -> Self {
-        let p = U256::widening_mul(r[1], p0[0]);
-        let p0 = U256::widening_mul(r[0], p0[1]);
+        let p = U256::widening_mul_u128(r[1], p0[0]);
+        let p0 = U256::widening_mul_u128(r[0], p0[1]);
         let (far, near) = if p >= p0 { (p, p0) } else { (p0, p) };
         Distance { far, near }
     }
@@ -406,8 +407,8 @@ impl Distance {
 impl Ord for Distance {
     fn cmp(&self, other: &Self) -> Ordering {
         // far / near against other.far / other.near, without dividing: both sides are 512 bits.
-        let (lo, hi) = self.far.widening_mul_u256(other.near);
-        let (other_lo, other_hi) = other.far.widening_mul_u256(self.near);
+        let (lo, hi) = self.far.widening_mul(other.near);
+        let (other_lo, other_hi) = other.far.widening_mul(self.near);
         (hi, lo).cmp(&(other_hi, other_lo))
     }
 }
