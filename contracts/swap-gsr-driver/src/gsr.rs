@@ -1,4 +1,4 @@
-//! The Greedy Sequencing Rule, applied to one crank.
+//! The Greedy Sequencing Rule, applied to one block's requests.
 //!
 //! GSR (Ferreira and Parkes, [*Credible Decentralized Exchange Design via Verifiable Sequencing
 //! Rules*][paper]) orders a batch of trades against one pool by looking only at which side of the
@@ -11,6 +11,11 @@
 //! The rule never needs to compare two trades of the same kind, so it needs no sorting: each kind
 //! waits in a lane of its own, in queue order, and each step takes the head of one lane. The crank
 //! streams through the lanes as a plain crank streams through its queue.
+//!
+//! A batch is the requests one block enqueued, as the paper's is a block's trades, and the queue
+//! hands the rule one batch at a time, oldest first (see [`crate::lanes`]). Were the batch whatever
+//! is waiting, requests that keep arriving in a lane the rule prefers could keep an earlier request
+//! in another lane waiting for good.
 //!
 //! With the price p = reserve1 / reserve0, a trade paying token0 in lowers it, and one paying token1
 //! in raises it. Adding and removing liquidity leave it where it is, so they have a lane of their
@@ -64,7 +69,7 @@ pub fn lane_of(op: &SwapOp) -> usize {
     }
 }
 
-/// GSR over one crank, as a [`LanePicker`](crate::lanes::LanePicker).
+/// GSR over each batch of a crank, as a [`LanePicker`](crate::lanes::LanePicker).
 ///
 /// It reads the pool's reserves from `read_reserves` when it needs them: before the first trade,
 /// and after any request that succeeded. A rule that only asks which side of p₀ the price is on can
@@ -72,7 +77,7 @@ pub fn lane_of(op: &SwapOp) -> usize {
 pub struct Gsr<F = fn() -> Amounts> {
     read_reserves: F,
 
-    // The reserves at which p₀ was taken: the pool's, when the first trade was taken.
+    // The reserves at which p₀ was taken: the pool's, when the batch's first trade was taken.
     start: Option<Amounts>,
 
     // The pool's reserves now, if known.
@@ -91,6 +96,11 @@ impl<F: FnMut() -> Amounts> Gsr<F> {
 
 impl<F: FnMut() -> Amounts> crate::lanes::LanePicker<LANES> for Gsr<F> {
     const GAS_PER_REQUEST: u64 = PICK_GAS;
+
+    fn begin_batch(&mut self) {
+        // Each batch is ordered against the price it begins at.
+        self.start = None;
+    }
 
     fn next(&mut self, waiting: &[bool; LANES]) -> usize {
         if waiting[UNPRICED] {
@@ -205,6 +215,26 @@ mod tests {
             order(reserves, [&[], &[20_000], &[20_000, 5_000]]),
             [LOWERS, RAISES, RAISES]
         );
+    }
+
+    // Each batch is ordered against the price it begins at, not the price the crank began at.
+    #[test]
+    fn a_new_batch_takes_the_price_afresh() {
+        let pool = Cell::new([1_000_000, 1_000_000]);
+        let mut gsr = Gsr::new(|| pool.get());
+        let both = [false, true, true];
+
+        // A batch whose one trade lowers the price. Against the price it began at, a second batch
+        // would begin by raising it.
+        gsr.begin_batch();
+        assert_eq!(gsr.next(&[false, true, false]), LOWERS);
+        pool.set([1_100_000, 909_091]);
+        gsr.handled(true);
+        assert_eq!(gsr.next(&both), RAISES);
+
+        // But the price it finds is its own p₀, and at p₀ the rule lowers the price.
+        gsr.begin_batch();
+        assert_eq!(gsr.next(&both), LOWERS);
     }
 
     #[test]

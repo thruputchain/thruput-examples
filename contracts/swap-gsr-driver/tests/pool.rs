@@ -1,8 +1,8 @@
 //! The GSR driver in front of a real pool: a handler, its LP token, and two ERC20s.
 //!
-//! The rule itself is tested in `src/gsr.rs`. These check what only a pool can show: that requests
-//! are laned and handed to the handler in the order the rule chooses, and that the price it
-//! follows is the pool's.
+//! The rule itself is tested in `src/gsr.rs`. These check what only a pool can show: that the
+//! requests of a block are laned and handed to the handler in the order the rule chooses, that the
+//! price it follows is the pool's, and that a later block's requests wait for an earlier one's.
 
 use swap_gsr_driver::*;
 use swap_if::*;
@@ -158,6 +158,22 @@ impl Pool {
         id
     }
 
+    // Enqueue `requests` in turn, as the router, all in one block: one batch.
+    fn request_block<const K: usize>(&self, requests: [SwapRequest; K]) -> [RequestId; K] {
+        let driver = self.driver;
+        let requests = std::sync::Mutex::new(Some(requests));
+        let ids = exec(&self.env, &ROUTER_ADDR, move || {
+            requests
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap()
+                .map(|request| SwapDriverClient::new(&driver).request(request))
+        });
+        self.env.advance_block();
+        ids
+    }
+
     // Try to enqueue `request`, as the router, returning the whole result.
     fn try_request(&self, request: SwapRequest) -> TransactResult {
         let driver = self.driver;
@@ -213,10 +229,19 @@ impl Pool {
     }
 }
 
-// The order that matters is not the order of arrival. Queued as a sandwich -- the front-run first,
-// then the victim's trade, then the back-run, each in a block of its own -- the batch reaches the
-// pool as GSR orders it: from p₀, the back-run lowers the price; below p₀, the front-run raises it
-// again; and only then the victim's trade.
+// A front-run, the victim's trade, and a back-run, in that order.
+fn sandwich() -> [SwapRequest; 3] {
+    [
+        SwapRequest::swap_exact_in(&MALLORY, FRONT_RUN, 0, 1, &MALLORY),
+        SwapRequest::swap_exact_in(&ALICE, VICTIM, 0, 1, &ALICE),
+        SwapRequest::swap_exact_in(&MALLORY, BACK_RUN, 0, 0, &MALLORY),
+    ]
+}
+
+// Within a block, the order that matters is not the order of arrival. Queued as a sandwich -- the
+// front-run first, then the victim's trade, then the back-run, all in one block -- the batch
+// reaches the pool as GSR orders it: from p₀, the back-run lowers the price, and only then do the
+// two trades that raise it go, in the queue's order. The victim's trade is not between Mallory's.
 #[test]
 fn a_sandwich_comes_apart() {
     let pool = pool();
@@ -224,22 +249,66 @@ fn a_sandwich_comes_apart() {
     pool.crank().assert_success();
     assert_eq!(pool.reserves(), [POOL_DEPTH, POOL_DEPTH]);
 
-    let front = pool.request(SwapRequest::swap_exact_in(
-        &MALLORY, FRONT_RUN, 0, 1, &MALLORY,
-    ));
-    let victim = pool.request(SwapRequest::swap_exact_in(&ALICE, VICTIM, 0, 1, &ALICE));
-    let back = pool.request(SwapRequest::swap_exact_in(
-        &MALLORY, BACK_RUN, 0, 0, &MALLORY,
-    ));
+    let [front, victim, back] = pool.request_block(sandwich());
 
     let crank = pool.crank();
     crank.assert_success();
     assert_eq!(crank.assert_return_as::<(u32, u32)>(), (3, 0));
-    assert_eq!(swap_request_ids(&crank), [back, front, victim]);
+    let order = swap_request_ids(&crank);
+    assert_eq!(order[0], back);
+    assert_same(&order[1..], &[front, victim]);
 
     // Valued at p₀ (one for one, here), Mallory's round trip cost her the fees and bought her
     // nothing.
     assert!(pool.balance(&MALLORY, 0) + pool.balance(&MALLORY, 1) < 2 * WALLET);
+}
+
+// The rule orders the requests of one block, and no more. The same sandwich queued over three
+// blocks is three batches of one, and reaches the pool as it arrived: a request never waits for one
+// enqueued in a later block.
+#[test]
+fn blocks_keep_their_order() {
+    let pool = pool();
+    pool.provide(POOL_DEPTH);
+    pool.crank().assert_success();
+
+    let [front, victim, back] = sandwich().map(|request| pool.request(request));
+
+    let crank = pool.crank();
+    crank.assert_success();
+    assert_eq!(crank.assert_return_as::<(u32, u32)>(), (3, 0));
+    assert_eq!(swap_request_ids(&crank), [front, victim, back]);
+}
+
+// Liquidity goes first only within its block, so liquidity that keeps arriving cannot keep a trade
+// waiting: a trade queued a block before it reaches the pool ahead of all of it.
+#[test]
+fn liquidity_arriving_later_does_not_overtake_a_trade() {
+    use swap_pair::events::{LiquidityMintEvent, SwapEvent};
+
+    let pool = pool();
+    pool.provide(POOL_DEPTH);
+    pool.crank().assert_success();
+
+    let trade = pool.request(SwapRequest::swap_exact_in(&ALICE, VICTIM, 0, 1, &ALICE));
+    let provided = pool.request_block([(); 4].map(|_| {
+        SwapRequest::add_liquidity(&PROVIDER, [POOL_DEPTH, POOL_DEPTH], [0, 0], &PROVIDER)
+    }));
+
+    let crank = pool.crank();
+    crank.assert_success();
+    assert_eq!(crank.assert_return_as::<(u32, u32)>(), (5, 0));
+    assert_eq!(swap_request_ids(&crank), [trade]);
+    assert_same(&mint_request_ids(&crank), &provided);
+
+    // The trade's event comes before any of the liquidity's.
+    let position = |sig| {
+        let events = crank.events();
+        events
+            .iter()
+            .position(|e| EmittedEvent::from(e).topic(0) == sig)
+    };
+    assert!(position(SwapEvent::signature()) < position(LiquidityMintEvent::signature()));
 }
 
 // Liquidity goes first, from a lane of its own, and the trades then follow the price it left --
@@ -249,20 +318,18 @@ fn a_sandwich_comes_apart() {
 fn trades_follow_the_price_liquidity_left() {
     let pool = pool();
 
-    let front = pool.request(SwapRequest::swap_exact_in(
-        &MALLORY, FRONT_RUN, 0, 1, &MALLORY,
-    ));
-    let victim = pool.request(SwapRequest::swap_exact_in(&ALICE, VICTIM, 0, 1, &ALICE));
-    let back = pool.request(SwapRequest::swap_exact_in(
-        &MALLORY, BACK_RUN, 0, 0, &MALLORY,
-    ));
-    let provided = pool.provide(POOL_DEPTH);
+    let [front, victim, back] = sandwich();
+    let liquidity =
+        SwapRequest::add_liquidity(&PROVIDER, [POOL_DEPTH, POOL_DEPTH], [0, 0], &PROVIDER);
+    let [front, victim, back, provided] = pool.request_block([front, victim, back, liquidity]);
 
     let crank = pool.crank();
     crank.assert_success();
     assert_eq!(crank.assert_return_as::<(u32, u32)>(), (4, 0));
     assert_eq!(mint_request_ids(&crank), [provided]);
-    assert_eq!(swap_request_ids(&crank), [back, front, victim]);
+    let order = swap_request_ids(&crank);
+    assert_eq!(order[0], back);
+    assert_same(&order[1..], &[front, victim]);
 }
 
 // A trade that its limit refuses changes nothing, and the next step reads the same price.
@@ -274,20 +341,16 @@ fn a_refused_trade_leaves_the_price_where_it_was() {
 
     // The back-run goes first, but asks for more than it can get, and fails. The price is still at
     // p₀, so the rule lowers it again if it can -- and, with nothing left to lower it, takes the
-    // raising lane in queue order.
-    let front = pool.request(SwapRequest::swap_exact_in(
-        &MALLORY, FRONT_RUN, 0, 1, &MALLORY,
-    ));
-    let victim = pool.request(SwapRequest::swap_exact_in(&ALICE, VICTIM, 0, 1, &ALICE));
-    let back = pool.request(SwapRequest::swap_exact_in(
-        &MALLORY, BACK_RUN, BACK_RUN, 0, &MALLORY,
-    ));
+    // raising lane.
+    let [front, victim, _] = sandwich();
+    let back = SwapRequest::swap_exact_in(&MALLORY, BACK_RUN, BACK_RUN, 0, &MALLORY);
+    let [front, victim, back] = pool.request_block([front, victim, back]);
 
     let crank = pool.crank();
     crank.assert_success();
     assert_eq!(crank.assert_return_as::<(u32, u32)>(), (3, 1));
     assert_eq!(request_failed_ids(&crank), [back]);
-    assert_eq!(swap_request_ids(&crank), [front, victim]);
+    assert_same(&swap_request_ids(&crank), &[front, victim]);
 }
 
 // The lanes share the queue's one ceiling: a request is turned away when the queue is full, whatever
@@ -401,6 +464,16 @@ fn exec<T>(
     .assert_success();
 
     Arc::into_inner(out).unwrap().into_inner().unwrap().unwrap()
+}
+
+// The same ids, in whatever order: the queue's order within a block is its own.
+fn assert_same(a: &[RequestId], b: &[RequestId]) {
+    let sorted = |ids: &[RequestId]| {
+        let mut ids = ids.to_vec();
+        ids.sort();
+        ids
+    };
+    assert_eq!(sorted(a), sorted(b));
 }
 
 // The request ids carried by the `SwapEvent`s a transaction emitted, in order.

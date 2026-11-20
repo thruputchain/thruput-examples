@@ -175,7 +175,7 @@ the very next block. Nothing has to detect which is happening.
 arrival order between blocks, but within a block just the order of the
 entries' bytes. Every trade moves the price the next one sees, so that order
 decides who trades at what price, and it is arbitrary. Two alternative drivers
-choose it by a rule instead. Both take the price p₀ the pool has when a crank
+choose it by a rule instead. Both take the price p₀ the pool has when a batch
 begins as their reference, both run liquidity operations first (they do not
 move the price), and both make the order a function of the requests and the
 reserves alone, so whoever cranks has no say in it.
@@ -203,8 +203,18 @@ The driver's queue is in lanes ([`lanes.rs`](../swap-gsr-driver/src/lanes.rs)):
 each request is put in a lane for the way it moves the price when it is
 enqueued, each lane keeps queue order, and the crank takes the head of whichever
 lane the rule picks, reading the pool's price after each request that succeeds.
-It streams, as a plain crank does, so the caller's gas limit sizes the batch
+It streams, as a plain crank does, so the caller's gas limit sizes a crank
 exactly as for `swap-driver`. The lanes share the queue's one ceiling.
+
+What the rule orders is one block's requests, as in the paper, where the batch
+is a block. Each request is stamped with the height of the block that enqueued
+it, and the crank offers the rule only the lanes whose head belongs to the
+oldest block still waiting, taking p₀ afresh when it moves on to the next. So
+blocks leave in arrival order, as they do from `swap-driver`, and no request
+waits behind one admitted in a later block: liquidity goes first within its
+block, but liquidity that keeps arriving cannot keep an earlier trade waiting.
+The price of that is that the rule undoes reordering within a block and no
+more. A sandwich spread over three blocks reaches the pool as it arrived.
 
 ### CLVR: nearest p₀
 

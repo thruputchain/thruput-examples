@@ -1,9 +1,10 @@
 //! [`LanedQueue`]: the driver's queue in lanes, drained by a crank that picks between their heads.
 //!
 //! The floor, the claim and the events are `batch_driver::Queue`'s own, and are tested with it.
-//! What is tested here is what lanes add: requests leave each lane in queue order, from whichever lane the picker
-//! chooses, which hears how each fared; the lanes share one ceiling and one source of ids; and a
-//! crank with nothing in any lane claims nothing.
+//! What is tested here is what lanes add: the requests of one block are a batch, and batches leave
+//! in the order of their blocks; within a batch, requests leave each lane in queue order, from
+//! whichever lane the picker chooses, which hears how each fared; the lanes share one ceiling and
+//! one source of ids; and a crank with nothing in any lane claims nothing.
 
 use batch_driver::{BatchRequest, CLAIM_GAS, CrankPolicy, EPILOGUE_GAS};
 use swap_gsr_driver::lanes::{LanePicker, LanedQueue, gas_for_laned_batch};
@@ -38,10 +39,15 @@ impl BatchRequest for Request {
 struct Alternate {
     last: usize,
     outcomes: Vec<bool>,
+    batches: u32,
 }
 
 impl LanePicker<LANES> for Alternate {
     const GAS_PER_REQUEST: u64 = 50_000;
+
+    fn begin_batch(&mut self) {
+        self.batches += 1;
+    }
 
     fn next(&mut self, waiting: &[bool; LANES]) -> usize {
         let other = 1 - self.last;
@@ -67,16 +73,28 @@ impl LanePicker<LANES> for Blind {
     fn handled(&mut self, _ok: bool) {}
 }
 
-// Requests leave each lane in queue order, from the lane the picker chooses; it hears how each
-// fared.
+/// Takes lane 1 whenever it may.
+struct Prefer1;
+
+impl LanePicker<LANES> for Prefer1 {
+    const GAS_PER_REQUEST: u64 = 0;
+
+    fn next(&mut self, waiting: &[bool; LANES]) -> usize {
+        usize::from(waiting[1])
+    }
+
+    fn handled(&mut self, _ok: bool) {}
+}
+
+// Requests leave each lane in queue order, from the lane the picker chooses among those of the
+// oldest block waiting; it hears how each fared.
 #[test]
 fn the_picker_chooses_the_lane_and_each_lane_keeps_its_order() {
     let env = TestEnvironment::no_cost();
     initialize(&env);
-    // Lane 0 holds 10, 11; lane 1 holds 20, 21. Arrival order mixes them.
-    for (lane, n) in [(0, 10), (0, 11), (1, 20), (1, 21)] {
-        enqueue(&env, lane, n);
-    }
+    // Lane 0 holds 10, 11; lane 1 holds 20, 21. Each block puts a request in each lane.
+    enqueue_block(&env, &[(0, 10), (1, 20)]);
+    enqueue_block(&env, &[(0, 11), (1, 21)]);
 
     let r = env.transact(|tx| {
         tx.call(&ADDR).run(|| {
@@ -106,6 +124,60 @@ fn the_picker_chooses_the_lane_and_each_lane_keeps_its_order() {
     // `Alternate` starts by switching away from lane 0.
     assert_eq!(handled, [20, 10, 21, 11]);
     assert_eq!(outcomes, [true, true, false, true]);
+}
+
+// The picker orders a batch, not the queue: however much it prefers a lane, a request there waits
+// for every request of an earlier block. So requests that keep arriving cannot keep overtaking one
+// that came before them.
+#[test]
+fn a_later_block_does_not_overtake_an_earlier_one() {
+    let env = TestEnvironment::no_cost();
+    initialize(&env);
+    enqueue(&env, 0, 1);
+    enqueue_block(&env, &[(1, 20), (0, 2)]);
+    enqueue(&env, 1, 30);
+
+    let r = env.transact(|tx| {
+        tx.call(&ADDR).run(|| {
+            let mut handled = Vec::new();
+            queue()
+                .crank(
+                    || Ok(()),
+                    Prefer1,
+                    |request: Request, _gas| {
+                        handled.push(request.n);
+                        Ok(())
+                    },
+                )
+                .unwrap();
+            handled
+        })
+    });
+    r.assert_success();
+
+    // `Prefer1` gets its way within the second block, and nowhere else.
+    assert_eq!(r.assert_return_as::<Vec<u32>>(), [1, 20, 2, 30]);
+}
+
+// The picker is told when the crank comes to each batch.
+#[test]
+fn the_picker_hears_each_batch_begin() {
+    let env = TestEnvironment::no_cost();
+    initialize(&env);
+    enqueue_block(&env, &[(0, 10), (1, 20)]);
+    enqueue_block(&env, &[(1, 21), (0, 11)]);
+
+    let r = env.transact(|tx| {
+        tx.call(&ADDR).run(|| {
+            let mut picker = Alternate::default();
+            queue()
+                .crank(|| Ok(()), Recording(&mut picker), |_: Request, _| Ok(()))
+                .unwrap();
+            picker.batches
+        })
+    });
+    r.assert_success();
+    assert_eq!(r.assert_return_as::<u32>(), 2);
 }
 
 // The lanes share one ceiling: a full queue turns a request away whatever its lane.
@@ -214,6 +286,10 @@ struct Recording<'a, P>(&'a mut P);
 impl<P: LanePicker<LANES>> LanePicker<LANES> for Recording<'_, P> {
     const GAS_PER_REQUEST: u64 = P::GAS_PER_REQUEST;
 
+    fn begin_batch(&mut self) {
+        self.0.begin_batch()
+    }
+
     fn next(&mut self, waiting: &[bool; LANES]) -> usize {
         self.0.next(waiting)
     }
@@ -252,7 +328,20 @@ fn try_enqueue(env: &TestEnvironmentHandle, lane: usize, n: u32) -> TransactResu
     r
 }
 
-// Enqueue `n` into `lane`, in a block of its own, so that queue order is the order of these calls.
+// Enqueue `n` into `lane`, in a block of its own: a batch of one.
 fn enqueue(env: &TestEnvironmentHandle, lane: usize, n: u32) {
     try_enqueue(env, lane, n).assert_success();
+}
+
+// Enqueue each `(lane, n)` in turn, all in one block: one batch.
+fn enqueue_block(env: &TestEnvironmentHandle, requests: &[(usize, u32)]) {
+    env.transact(|tx| {
+        tx.call(&ADDR).run(|| {
+            for &(lane, n) in requests {
+                queue().enqueue(lane, |_| Request { n });
+            }
+        })
+    })
+    .assert_success();
+    env.advance_block();
 }

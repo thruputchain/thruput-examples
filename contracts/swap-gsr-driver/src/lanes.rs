@@ -6,6 +6,14 @@
 //! head. The crank then streams, as a plain `Queue::crank` does, holding no batch in memory and
 //! deciding how many to take as it goes.
 //!
+//! A crank that always took whatever was waiting would let requests that keep arriving overtake
+//! one that came before them, crank after crank, for as long as the picker preferred their lane. So
+//! each request is stamped with the height of the block that enqueued it, and the requests of one
+//! block are a *batch*: the picker chooses only among the lanes whose head belongs to the oldest
+//! batch still waiting, and a later block's requests wait until that batch is gone. Batches leave
+//! in the order of their blocks, and the picker orders each one. Nothing is stored for this but the
+//! stamps: the oldest batch is the least height among the lanes' heads.
+//!
 //! Everything else is as for a `batch_driver::Queue`, and built from the same parts: the ceiling,
 //! the floor a crank owes, the claim, the isolation of each request's failure, and the events.
 
@@ -13,12 +21,14 @@ use batch_driver::{
     BatchRequest, CLAIM_GAS, CrankPolicy, EPILOGUE_GAS, InvalidPolicy, RequestAccepted,
     RequestFailed, RequestsProcessed, Starved,
 };
+use thruput_sdk::block::get_block_height;
 use thruput_sdk::stats::gas_remaining;
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
 use unique_ids::UniqueIds;
 
-/// Chooses, request by request, which lane of a [`LanedQueue`] a crank takes from next.
+/// Chooses, request by request, which lane of a [`LanedQueue`] a crank takes from next, within one
+/// batch at a time.
 ///
 /// Within a lane, requests leave in queue order.
 pub trait LanePicker<const N: usize> {
@@ -27,8 +37,14 @@ pub trait LanePicker<const N: usize> {
     /// crank budgets this much on top of [`BatchRequest::GAS_LIMIT`] for each request.
     const GAS_PER_REQUEST: u64;
 
-    /// The lane to take the next request from, of those `waiting` marks as holding one. At least
-    /// one does.
+    /// The crank has come to a batch -- the requests one block enqueued -- other than the one the
+    /// last request came from, or to its first. What follows, until the next call, is that batch.
+    ///
+    /// A batch too large for one crank is finished by the next, which begins it again.
+    fn begin_batch(&mut self) {}
+
+    /// The lane to take the next request from, of those `waiting` marks as holding one of the
+    /// current batch. At least one does.
     fn next(&mut self, waiting: &[bool; N]) -> usize;
 
     /// Report how the request just taken fared: `true` if it was handled, `false` if handling it
@@ -58,12 +74,13 @@ const fn budget(per_request: u64, batch_size: u32) -> u64 {
 /// The driver chooses each request's lane when it enqueues it, and a [`LanePicker`] chooses the lane
 /// to take from at each step of a crank.
 ///
-/// That the lanes share one capacity matters: the ceiling bounds how long an admitted request can
-/// wait, and a request in one lane can wait behind requests in another.
+/// A request waits behind those enqueued in earlier blocks, whatever their lanes, and behind as
+/// many of its own block's as the picker puts first -- and behind nothing enqueued after its block.
+/// The lanes share one capacity, so that is at most the ceiling.
 #[derive(Storage)]
 pub struct LanedQueue<R: BatchRequest, const N: usize> {
     // The entries, one queue per lane, which concurrent transactions insert into.
-    lanes: Map<u32, RCQ<R>>,
+    lanes: Map<u32, RCQ<Stamped<R>>>,
 
     // The remaining capacity across all lanes; see `batch_driver::Queue`.
     slots: CapacityConstraint,
@@ -72,6 +89,14 @@ pub struct LanedQueue<R: BatchRequest, const N: usize> {
     ids: Node<UniqueIds>,
 
     policy: Value<CrankPolicy>,
+}
+
+// A request, and the height of the block that enqueued it: its batch.
+#[derive(ReadXDR, WriteXDR)]
+#[xdrs(crate = "::thruput_sdk::__xdrs")]
+struct Stamped<T: BatchRequest> {
+    height: i64,
+    request: T,
 }
 
 impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
@@ -98,15 +123,19 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         self.slots.consume_capacity(1);
 
         let id = self.ids.next_id();
-        self.lanes.at_mut(&(lane as u32)).insert(&stamp(id));
+        self.lanes.at_mut(&(lane as u32)).insert(&Stamped {
+            height: get_block_height().into_inner(),
+            request: stamp(id),
+        });
 
         log_event(&RequestAccepted { request_id: &id });
 
         id
     }
 
-    /// Drain the queue, taking each request from the lane `picker` chooses and handing it to
-    /// `handle`; return `(n_processed, n_failed)`.
+    /// Drain the queue, batch by batch in the order of the blocks that enqueued them, taking each
+    /// request from the lane `picker` chooses and handing it to `handle`; return `(n_processed,
+    /// n_failed)`.
     ///
     /// The floor, the refusal and the claim are as in `batch_driver::Queue::crank`, with each
     /// request costing [`BatchRequest::GAS_LIMIT`] plus [`LanePicker::GAS_PER_REQUEST`]; size a call
@@ -125,10 +154,10 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         #[cfg(feature = "calibration")]
         let entry_gas = gas_remaining();
 
-        // Whether each lane holds a request. A lane found empty stays so for the rest of this
-        // transaction -- a crank does not see requests its own block ordered after it -- so only
-        // the lane just taken from needs looking at again.
-        let mut waiting: [bool; N] = core::array::from_fn(|lane| self.waiting(lane));
+        // The batch at the head of each lane, if it holds a request. A lane found empty stays so
+        // for the rest of this transaction -- a crank does not see requests its own block ordered
+        // after it -- so only the lane just taken from needs looking at again.
+        let mut heads: [Option<i64>; N] = core::array::from_fn(|lane| self.head(lane));
 
         let policy = self.policy.get();
         let capacity = i128::from(policy.capacity);
@@ -138,7 +167,7 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         let owed = queued.min(policy.min_batch);
 
         // Nothing to drain, so nothing to claim.
-        if !waiting.contains(&true) {
+        if heads.iter().all(Option::is_none) {
             return Ok((0, 0));
         }
 
@@ -164,19 +193,38 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         let mut n_processed = 0;
         let mut n_failed = 0;
 
-        // As in a plain crank, the budget is checked before an entry leaves its lane.
-        while waiting.contains(&true) && gas_remaining() > per_request.saturating_add(EPILOGUE_GAS)
-        {
+        // The batch the last request came from.
+        let mut batch = None;
+
+        // The oldest batch waiting is the least height at the head of a lane: within a lane,
+        // heights only rise.
+        while let Some(oldest) = heads.iter().flatten().min().copied() {
+            // As in a plain crank, the budget is checked before an entry leaves its lane.
+            if gas_remaining() <= per_request.saturating_add(EPILOGUE_GAS) {
+                break;
+            }
+
+            if batch != Some(oldest) {
+                batch = Some(oldest);
+                picker.begin_batch();
+            }
+
+            // Only that batch's requests are on offer; a later block's wait for it to go.
+            let waiting: [bool; N] = core::array::from_fn(|lane| heads[lane] == Some(oldest));
             let lane = picker.next(&waiting);
-            assert!(waiting[lane], "a picker chooses a lane holding a request");
+            assert!(
+                waiting[lane],
+                "a picker chooses a lane holding a request of the batch"
+            );
 
             let request = self
                 .lanes
                 .at_mut(&(lane as u32))
                 .try_consume()
                 .none_if_missing()
-                .expect("a lane found waiting holds a request");
-            waiting[lane] = self.waiting(lane);
+                .expect("a lane found waiting holds a request")
+                .request;
+            heads[lane] = self.head(lane);
 
             // Read the id before the request is handed over: handling consumes it.
             let id = request.id();
@@ -239,12 +287,12 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
         Ok((n_processed, n_failed))
     }
 
-    // Whether `lane` holds a request.
-    fn waiting(&self, lane: usize) -> bool {
+    // The batch of the request at the head of `lane`, if it holds one.
+    fn head(&self, lane: usize) -> Option<i64> {
         self.lanes
             .at(&(lane as u32))
             .try_peek()
             .none_if_missing()
-            .is_some()
+            .map(|head| head.height)
     }
 }

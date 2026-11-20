@@ -2,7 +2,7 @@
 //!
 //! This is `swap-driver` with its one queue split into lanes: a request is put in the lane for
 //! the way it moves the price when it is enqueued, and the crank takes from whichever lane
-//! [`Gsr`] chooses. Everything else -- who may enqueue, the crank's floor and claim, the isolation
+//! [`Gsr`] chooses, one block's requests at a time. Everything else -- who may enqueue, the crank's floor and claim, the isolation
 //! of each request, the events -- is the batch-driver pattern's, as there. It implements the same
 //! `SwapDriver` interface, so a factory deploys it in place of `swap-driver` simply by being given
 //! its code hash.
