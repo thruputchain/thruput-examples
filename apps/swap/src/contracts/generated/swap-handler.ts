@@ -43,7 +43,7 @@ export namespace swap_if {
           recipient: __gh_protocol.ContractAddress;
         },
         {
-          amounts_redeemed: readonly [bigint, bigint];
+          amounts_redeemed: __gh_client_contract.FixedArray<bigint, 2>;
           request_id: __gh_client_contract.FixedBytes<32> | null;
         }
       > {}
@@ -77,8 +77,8 @@ export namespace swap_if {
           recipient: __gh_protocol.ContractAddress;
         },
         {
-          amounts_in: readonly [bigint, bigint];
-          amounts_out: readonly [bigint, bigint];
+          amounts_in: __gh_client_contract.FixedArray<bigint, 2>;
+          amounts_out: __gh_client_contract.FixedArray<bigint, 2>;
           request_id: __gh_client_contract.FixedBytes<32> | null;
         }
       > {}
@@ -91,7 +91,7 @@ export namespace swap_if {
       export interface SyncEvent extends __gh_client_contract.DecodedContractEvent<
         "SyncEvent",
         {},
-        { reserves: readonly [bigint, bigint] }
+        { reserves: __gh_client_contract.FixedArray<bigint, 2> }
       > {}
 
       export type SyncEventFilter = globalThis.Record<string, never>;
@@ -99,11 +99,11 @@ export namespace swap_if {
 
     export namespace handler {
       export interface PoolState {
-        reserves: readonly [bigint, bigint];
+        reserves: __gh_client_contract.FixedArray<bigint, 2>;
         block_timestamp: bigint;
         liquidity: bigint;
         liquidity_token: __gh_protocol.ContractAddress;
-        cumulative_prices: readonly [bigint, bigint];
+        cumulative_prices: __gh_client_contract.FixedArray<bigint, 2>;
       }
 
       export type SwapLibraryError = 1n | 2n | 3n | 4n;
@@ -136,15 +136,15 @@ export namespace swap_if {
     export namespace request {
       export interface AddLiquidityRequest {
         purchaser: __gh_protocol.ContractAddress;
-        amounts_desired: readonly [bigint, bigint];
-        amounts_min: readonly [bigint, bigint];
+        amounts_desired: __gh_client_contract.FixedArray<bigint, 2>;
+        amounts_min: __gh_client_contract.FixedArray<bigint, 2>;
         recipient: __gh_protocol.ContractAddress;
       }
 
       export interface RemoveLiquidityRequest {
         redeemer: __gh_protocol.ContractAddress;
         liquidity: bigint;
-        amounts_min: readonly [bigint, bigint];
+        amounts_min: __gh_client_contract.FixedArray<bigint, 2>;
         recipient: __gh_protocol.ContractAddress;
       }
 

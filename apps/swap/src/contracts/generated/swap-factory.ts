@@ -152,9 +152,10 @@ export namespace SwapFactory {
     export interface PairAtArgs {
       index: bigint;
     }
-    export type PairAtResult =
-      | readonly [__gh_protocol.ContractAddress, __gh_protocol.ContractAddress]
-      | null;
+    export type PairAtResult = __gh_client_contract.FixedArray<
+      __gh_protocol.ContractAddress,
+      2
+    > | null;
 
     export interface PoolAddressesArgs {
       tokenA: __gh_protocol.ContractAddress;

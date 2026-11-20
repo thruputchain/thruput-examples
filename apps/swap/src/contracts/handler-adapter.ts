@@ -1,4 +1,8 @@
-import type { ContractView, ThruputClient } from "@thruputchain/client";
+import type {
+  ContractView,
+  FixedArray,
+  ThruputClient,
+} from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
 
 import { SwapHandler } from "./generated/swap-handler";
@@ -9,7 +13,7 @@ interface PoolState {
   blockTimestamp: bigint;
   liquidity: bigint;
   liquidityToken: ContractAddress;
-  cumulativePrices: readonly [bigint, bigint];
+  cumulativePrices: FixedArray<bigint, 2>;
 }
 
 export interface SwapHandlerReadAdapter {

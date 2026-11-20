@@ -106,15 +106,15 @@ export namespace swap_if {
     export namespace request {
       export interface AddLiquidityRequest {
         purchaser: __gh_protocol.ContractAddress;
-        amounts_desired: readonly [bigint, bigint];
-        amounts_min: readonly [bigint, bigint];
+        amounts_desired: __gh_client_contract.FixedArray<bigint, 2>;
+        amounts_min: __gh_client_contract.FixedArray<bigint, 2>;
         recipient: __gh_protocol.ContractAddress;
       }
 
       export interface RemoveLiquidityRequest {
         redeemer: __gh_protocol.ContractAddress;
         liquidity: bigint;
-        amounts_min: readonly [bigint, bigint];
+        amounts_min: __gh_client_contract.FixedArray<bigint, 2>;
         recipient: __gh_protocol.ContractAddress;
       }
 

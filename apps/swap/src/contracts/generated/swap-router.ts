@@ -87,8 +87,8 @@ export namespace SwapRouter {
     export interface AddLiquidityArgs {
       tokenA: __gh_protocol.ContractAddress;
       tokenB: __gh_protocol.ContractAddress;
-      amountsDesired: readonly [bigint, bigint];
-      amountsMin: readonly [bigint, bigint];
+      amountsDesired: __gh_client_contract.FixedArray<bigint, 2>;
+      amountsMin: __gh_client_contract.FixedArray<bigint, 2>;
       recipient: __gh_protocol.ContractAddress;
     }
     export type AddLiquidityResult = __gh_client_contract.FixedBytes<32>;
@@ -102,7 +102,7 @@ export namespace SwapRouter {
       tokenA: __gh_protocol.ContractAddress;
       tokenB: __gh_protocol.ContractAddress;
       liquidity: bigint;
-      amountsMin: readonly [bigint, bigint];
+      amountsMin: __gh_client_contract.FixedArray<bigint, 2>;
       recipient: __gh_protocol.ContractAddress;
     }
     export type RemoveLiquidityResult = __gh_client_contract.FixedBytes<32>;
