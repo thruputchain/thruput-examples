@@ -46,8 +46,8 @@ allow = [
 # NOTE: r-efi is "MIT OR Apache-2.0 OR LGPL-2.1-or-later"
 
 [bans]
-# Permit only the verified 0.26.11 wrapper and patched bundles (>=1.0.10).
-# Keep these restrictions while RUSTSEC-2026-0383 is ignored above.
+# RUSTSEC-2026-0383: only the certificate-free 0.26.11 compatibility package
+# may remain below 1.0.10. It resolves its parent dependency to patched 1.x.
 deny = [
     { name = "webpki-root-certs", version = "<0.26.11" },
     { name = "webpki-root-certs", version = ">0.26.11, <1.0.10" },
