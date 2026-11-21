@@ -1,0 +1,32 @@
+[package]
+name = "ladder-auction"
+version = "0.1.0"
+description = "Example uniform-price auction whose bids are additions on a fixed price ladder, so the order of bids cannot matter"
+edition = "2024"
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "ladder_auction"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[features]
+entrypoints = []
+default = ["dev"]
+dev = ["thruput-sdk/dev"]
+
+[dependencies]
+thruput-sdk = { workspace = true, features = ["alloc"] }
+thruput-erc20-if = { workspace = true }
+
+[dev-dependencies]
+ladder-auction = { path = ".", features = ["dev"] }
+erc20 = { path = "../erc20", features = ["dev"] }
