@@ -1475,7 +1475,7 @@ name = "integration-test"
 version = "0.1.0"
 dependencies = [
  "hex",
- "jsonrpsee-core 0.25.1",
+ "jsonrpsee-core",
  "serde_json",
  "tempfile",
  "thruput",
@@ -1543,7 +1543,7 @@ dependencies = [
  "jni-sys 0.4.1",
  "log",
  "simd_cesu8",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "walkdir",
  "windows-link",
 ]
@@ -1612,38 +1612,24 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee"
-version = "0.26.2"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3769133682899672859b79e20d975ce26a5dd04cf945162de29c094eef217ea2"
+checksum = "4826d5921c90b936eae1b0c09fef26697c4d7269ba5d6bb976f762a870a5ed82"
 dependencies = [
- "jsonrpsee-core 0.26.2",
+ "jsonrpsee-core",
  "jsonrpsee-http-client",
  "jsonrpsee-proc-macros",
  "jsonrpsee-server",
- "jsonrpsee-types 0.26.2",
+ "jsonrpsee-types",
  "tokio",
  "tracing",
 ]
 
 [[package]]
 name = "jsonrpsee-core"
-version = "0.25.1"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "693c93cbb7db25f4108ed121304b671a36002c2db67dff2ee4391a688c738547"
-dependencies = [
- "async-trait",
- "jsonrpsee-types 0.25.1",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tracing",
-]
-
-[[package]]
-name = "jsonrpsee-core"
-version = "0.26.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c49b1d295df10c352966ec9840127498707171fe59904d0bfaf0f3809737099"
+checksum = "ba6e425d1828eb60a9e054f77b60e375fbf46aabff72c46b5ea24406566f7e91"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1651,14 +1637,14 @@ dependencies = [
  "http",
  "http-body",
  "http-body-util",
- "jsonrpsee-types 0.26.2",
+ "jsonrpsee-types",
  "parking_lot",
  "pin-project",
  "rand 0.9.5",
  "rustc-hash",
  "serde",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
  "tower",
  "tracing",
@@ -1666,22 +1652,22 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-http-client"
-version = "0.26.2"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5e390ac995a26382ecaa47150224d2b533c1356fff851dae58990cb3eccfbd5"
+checksum = "6218c2612920ed6d1d230d60669c9c0ad9ee502f20b83cc43cac1807e681ddc4"
 dependencies = [
  "base64 0.22.1",
  "http-body",
  "hyper",
  "hyper-rustls",
  "hyper-util",
- "jsonrpsee-core 0.26.2",
- "jsonrpsee-types 0.26.2",
+ "jsonrpsee-core",
+ "jsonrpsee-types",
  "rustls",
  "rustls-platform-verifier 0.5.3",
  "serde",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
  "tower",
  "url",
@@ -1702,9 +1688,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-server"
-version = "0.26.2"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d48af0e99382cba624723fb432ea4baea43330287013c22ebb06c2b881a076a"
+checksum = "c01a2a627365144221ad5883ce2ea3953e152e29d102f2eeca8cbfc1be4bb286"
 dependencies = [
  "futures-util",
  "http",
@@ -1712,31 +1698,19 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "jsonrpsee-core 0.26.2",
- "jsonrpsee-types 0.26.2",
+ "jsonrpsee-core",
+ "jsonrpsee-types",
  "pin-project",
  "route-recognizer",
  "serde",
  "serde_json",
  "soketto",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
  "tokio-stream",
  "tokio-util",
  "tower",
  "tracing",
-]
-
-[[package]]
-name = "jsonrpsee-types"
-version = "0.25.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66df7256371c45621b3b7d2fb23aea923d577616b9c0e9c0b950a6ea5c2be0ca"
-dependencies = [
- "http",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -1748,7 +1722,7 @@ dependencies = [
  "http",
  "serde",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1759,7 +1733,7 @@ checksum = "72f14c90e40a6133f4805b83542a7ed7364f56070b447f56e7f4e90297122209"
 dependencies = [
  "hashbrown",
  "portable-atomic",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2138,7 +2112,7 @@ version = "0.1.0"
 dependencies = [
  "permit-relayer",
  "permit-wallet",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-erc20-permit-if",
  "thruput-sdk",
  "thruput-signed-op-if",
@@ -2154,7 +2128,7 @@ dependencies = [
  "permit-relayer",
  "permit-wallet",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-domain-separator",
  "thruput-erc20-if",
  "thruput-erc20-permit-if",
@@ -2260,7 +2234,7 @@ dependencies = [
  "rustc-hash",
  "rustls",
  "socket2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
  "tracing",
  "web-time",
@@ -2283,7 +2257,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tinyvec",
  "tracing",
  "web-time",
@@ -2438,7 +2412,7 @@ dependencies = [
  "palette",
  "serde",
  "strum",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "unicode-segmentation",
  "unicode-truncate",
  "unicode-width",
@@ -2884,10 +2858,11 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.151"
+version = "1.0.154"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+checksum = "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
 dependencies = [
+ "foldhash",
  "indexmap",
  "itoa",
  "memchr",
@@ -2941,9 +2916,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
+checksum = "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.3.1",
@@ -3174,7 +3149,7 @@ dependencies = [
  "stellar-account",
  "stellar-account-factory",
  "stellar-account-factory-if",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-domain-separator",
  "thruput-erc20-if",
  "thruput-json-rpc-client",
@@ -3206,7 +3181,7 @@ version = "0.1.0"
 dependencies = [
  "sha2",
  "stellar-account-factory-if",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-erc20-if",
  "thruput-sdk",
  "thruput-signing",
@@ -3284,7 +3259,7 @@ dependencies = [
  "swap-handler",
  "swap-if",
  "swap-pair",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-erc20-if",
  "thruput-erc20-metadata-if",
  "thruput-sdk",
@@ -3369,7 +3344,7 @@ dependencies = [
  "swap-if",
  "swap-pair",
  "swap-router",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-erc20-if",
  "thruput-erc20-metadata-if",
  "thruput-event",
@@ -3463,7 +3438,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -3480,11 +3455,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.20"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f"
+checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
 dependencies = [
- "thiserror-impl 2.0.20",
+ "thiserror-impl 2.0.21",
 ]
 
 [[package]]
@@ -3500,9 +3475,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.20"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
+checksum = "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3546,7 +3521,7 @@ dependencies = [
  "signal-hook 0.4.6",
  "tar",
  "tempfile",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-build-info",
  "thruput-bundle-identity",
  "thruput-cli-macros",
@@ -3629,7 +3604,7 @@ dependencies = [
  "jsonrpsee",
  "serde_json",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-contract-spec",
  "thruput-contract-util",
  "thruput-encoding",
@@ -3699,7 +3674,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81592e05eb0c691b82518906662ed6b60ae821a74bbd8adca729b37c3f7b6861"
 dependencies = [
  "stellar-strkey",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-xdr",
  "zeroize",
 ]
@@ -3711,7 +3686,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e39f1c5e5a17c055939386f4619a6396c07f3d4be8a8b038511271ed8089d02"
 dependencies = [
  "heapless",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-erc20-if",
  "thruput-erc20-metadata-if",
  "thruput-sdk",
@@ -3723,7 +3698,7 @@ version = "0.1.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a20c72c21f67c8738da9563599068683379bdc8e8fb6575bd4b9d8af4b9299cb"
 dependencies = [
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-sdk",
  "thruput-xdr",
 ]
@@ -3735,7 +3710,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "857b163c52a234de1bf044730303e2e96ca5c94ac639284e50acdcd245c86136"
 dependencies = [
  "heapless",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-sdk",
  "thruput-xdr",
 ]
@@ -3755,7 +3730,7 @@ version = "0.1.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19ff722b4e6f22a67a49d652fcb98b19870376c660300fa1dc4b97b418be0df7"
 dependencies = [
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-erc20-if",
  "thruput-sdk",
 ]
@@ -3838,7 +3813,7 @@ dependencies = [
  "jsonrpsee",
  "serde",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-json-rpc-api",
  "thruput-json-rpc-types",
  "tokio",
@@ -3856,7 +3831,7 @@ dependencies = [
  "jsonrpsee",
  "serde",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-build-info",
  "thruput-bundle-identity",
  "thruput-json-rpc-api",
@@ -3879,7 +3854,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-encoding",
  "thruput-indexer",
  "thruput-node-rpc",
@@ -3954,7 +3929,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-bundle-identity",
  "thruput-db-gateway",
  "thruput-hogd-backend",
@@ -4023,7 +3998,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec1c4ba7cae0e04719b109b3b6446d3340a9a9ddc6aa8ba19bc6db17cda2f51f"
 dependencies = [
  "async-trait",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -4035,7 +4010,7 @@ dependencies = [
  "async-trait",
  "libc",
  "socket2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-rpc-api",
  "thruput-xdrs",
  "tokio",
@@ -4049,7 +4024,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21d0297bf7fb92ca6f6fc0d6718d4aa04b972f4c5bb0add6265267e378c0e991"
 dependencies = [
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -4061,7 +4036,7 @@ dependencies = [
  "clap",
  "same-file",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-build-info",
  "thruput-rv32-artifact",
 ]
@@ -4094,7 +4069,7 @@ dependencies = [
  "heapless",
  "linkme",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-contract-spec",
  "thruput-contract-util",
  "thruput-event",
@@ -4127,7 +4102,7 @@ version = "0.1.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ac4d7b889374144677544aefd365ee107999992bdce2cb2b5703b0670367bd0"
 dependencies = [
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-sdk",
 ]
 
@@ -4141,7 +4116,7 @@ dependencies = [
  "hex",
  "ml-dsa",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-domain-separator",
  "thruput-encoding",
  "thruput-xdr",
@@ -4168,7 +4143,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f44ddcfca282fae3d37c2ab0c5676ec480c65ce973cdafda3a8f775ccd3d7351"
 dependencies = [
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-access-control-if",
  "thruput-contract-spec",
  "thruput-contract-util",
@@ -4198,7 +4173,7 @@ checksum = "9e4d6741bc7bd9ddee1eadcb7a044817e4167a3cbcfb16c152f18033a4f6a435"
 dependencies = [
  "fslock",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -4216,7 +4191,7 @@ dependencies = [
  "getrandom 0.4.3",
  "serde_json",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-client",
  "thruput-contract-util",
  "thruput-json-rpc-client",
@@ -4246,7 +4221,7 @@ dependencies = [
  "sha2",
  "tar",
  "tempfile",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
  "url",
 ]
@@ -4269,7 +4244,7 @@ version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65e310de81a04fb447e095f3275de75976fb7ba847d15f68d19c6ea89993c980"
 dependencies = [
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-json-rpc-types",
  "thruput-rv32-artifact",
  "thruput-xdr",
@@ -4305,7 +4280,7 @@ version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad66f4805a66d15ff27961d9e8e42480262d56e7d8594ea194149f1387fe8fa4"
 dependencies = [
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-rpc-driver",
  "tokio",
  "tracing",
@@ -4320,7 +4295,7 @@ dependencies = [
  "bs58",
  "schemars",
  "serde",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "thruput-syscall",
  "thruput-xdr-common",
  "thruput-xdr-macros",
@@ -4435,9 +4410,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.53.3"
+version = "1.54.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce3335fa71841cda333a58d7615b03901380ecf09d59b3296d21f8bbac0dde4e"
+checksum = "b52fd3255258d26fac7264ab5a76b53c13367136dc011d3d6ad4f8ed070396a3"
 dependencies = [
  "bytes",
  "libc",
@@ -4698,9 +4673,9 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "uint"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f9227a75a5a540a464c832ad4a4195dbdbecd8787610a56262721fde6f04f90"
+checksum = "2833f28e3adbd1b867292ee4053252ea89ab85e44e5e4701ffead8cada0539fa"
 dependencies = [
  "byteorder",
  "crunchy",
