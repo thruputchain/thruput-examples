@@ -37,8 +37,9 @@ cost the auction nothing, and unbonded bids drain it. Expected exceptions can
 appear in the output; the final result is what determines success.
 
 With the CLI installed, `thruput test -p ladder-auction` builds the contract and
-runs the largest claim (a full 32-level ladder with one bidder at every level)
-in the RV32 guest, whose memory is fixed.
+runs the largest claim in the RV32 guest, whose memory is fixed: a full 32-level
+ladder with one bidder at every level, a bond on each entry, and a rationed
+clearing level.
 
 ## How a sale clears
 
