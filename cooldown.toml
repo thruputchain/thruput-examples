@@ -25,6 +25,32 @@ version = "1.53.3"
 crate = "heapless"
 version = "0.9.4"
 
+# Required by the thruput-tools 0.47.0 crates (jsonrpsee ^0.26.2), which pin
+# hog-devnode 0.1.36. Remove once 0.26.2 is past the cooldown (2026-11-26).
+[[allow.exact]]
+crate = "jsonrpsee"
+version = "0.26.2"
+
+[[allow.exact]]
+crate = "jsonrpsee-core"
+version = "0.26.2"
+
+[[allow.exact]]
+crate = "jsonrpsee-http-client"
+version = "0.26.2"
+
+[[allow.exact]]
+crate = "jsonrpsee-proc-macros"
+version = "0.26.2"
+
+[[allow.exact]]
+crate = "jsonrpsee-server"
+version = "0.26.2"
+
+[[allow.exact]]
+crate = "jsonrpsee-types"
+version = "0.26.2"
+
 # Grandfathered versions ... (can remove after 2026 Nov 9)
 
 [[allow.exact]]

@@ -1,4 +1,8 @@
-import type { ContractView, ThruputClient } from "@thruputchain/client";
+import type {
+  ContractView,
+  FixedArray,
+  ThruputClient,
+} from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
 
 import { SwapFactory } from "@/contracts/generated/swap-factory";
@@ -18,7 +22,7 @@ export interface SwapFactoryReadAdapter {
   allPairsLength(): Promise<ContractView<bigint>>;
   pairAt(
     index: bigint,
-  ): Promise<ContractView<readonly [ContractAddress, ContractAddress] | null>>;
+  ): Promise<ContractView<FixedArray<ContractAddress, 2> | null>>;
   getPair(
     tokenA: ContractAddress,
     tokenB: ContractAddress,

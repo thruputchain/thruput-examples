@@ -331,6 +331,7 @@ export class ThruputRegistrySource implements RegistrySource {
       ) {
         continue;
       }
+      const [indexedToken0, indexedToken1] = indexedPair.value ?? [];
       if (
         pair.value === null ||
         toBase58(pair.value) !== evidence.handlerAddress ||
@@ -338,9 +339,10 @@ export class ThruputRegistrySource implements RegistrySource {
           evidence.liquidityTokenAddress ||
         toBase58(addresses.value.handler) !== evidence.handlerAddress ||
         toBase58(addresses.value.driver) !== evidence.driverAddress ||
-        indexedPair.value === null ||
-        toBase58(indexedPair.value[0]) !== evidence.token0Address ||
-        toBase58(indexedPair.value[1]) !== evidence.token1Address
+        indexedToken0 === undefined ||
+        indexedToken1 === undefined ||
+        toBase58(indexedToken0) !== evidence.token0Address ||
+        toBase58(indexedToken1) !== evidence.token1Address
       ) {
         throw new RegistryIntegrityError(
           "PoolCreated event contradicts live factory state",
