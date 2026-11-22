@@ -36,6 +36,7 @@
     "test:token-launchpad": "tsx tests/e2e/token-launchpad.ts",
     "test:swap": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/swap.ts",
     "test:launchpad-swap": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/launchpad-swap.ts",
+    "test:swap-users": "tsx --tsconfig apps/swap/tsconfig.json --test tests/e2e/swap-users.ts",
     "test:airdrop": "tsx tests/e2e/airdrop.ts",
     "test:seed": "tsx tests/e2e/seed.ts",
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
