@@ -15,8 +15,9 @@ creates its demo tokens with the [token factory](../../contracts/token-factory/R
 
 ## Local setup
 
-Follow the root setup instructions and start `thruput node`. Setup defaults to
-`http://127.0.0.1:9545`; set `THRUPUT_RPC_URL` for another endpoint.
+Complete [root setup](../../README.md#setup) and run `npm ci` from the root. Use
+CLI 0.48.0 or newer, and start `thruput node`. Setup defaults to `http://127.0.0.1:9545`; set `THRUPUT_RPC_URL`
+for another endpoint.
 From the repository root:
 
 ```sh
@@ -91,10 +92,26 @@ The environment contains no signer key.
 
 Each run creates a private `run-*` directory under `.local/airdrop-setup/` beside
 the output environment. `AIRDROP_SETUP_DIR` selects another parent directory.
-It contains `key.json`, `manifest.json`, signed transactions, and receipts.
-The SDK's awaited `onSigned` hook saves evidence before broadcast. Keep evidence
-from interrupted runs and inspect original transaction hashes before proceeding.
-The saved block-one checkpoint lets setup and claim recovery detect a chain reset.
+Setup uses [`@thruputchain/testkit`](https://www.npmjs.com/package/@thruputchain/testkit),
+with one named step for each transaction. The run directory contains:
+
+- `key.json`: a generated deployer key, saved before funding. A supplied
+  `AIRDROP_DEPLOYER_PRIVATE_KEY` is not copied to disk.
+- `transactions/report.json`: the public record of each step and transaction,
+  with its outcome (`succeeded`, `failed`, `notSubmitted`, or `unknown`) and its
+  hash when one is known.
+  The `check-network` step records the block-one checkpoint.
+- `transactions/evidence/`: private signed transactions, saved before broadcast.
+- `tokens.json` and `pools.json`: demo assets created so far.
+
+Before each broadcast, setup checks the network hash and the block-one checkpoint,
+so it detects a chain reset. Keep the files from interrupted runs. If a send
+response is lost, setup observes the signed transaction instead of sending it
+again; a transaction still unconfirmed when the wait ends stays `unknown`.
+`reconcileRun("<run>/transactions", client)` observes the original transactions
+again without sending them. If a funding attempt has no hash, call the faucet's
+`requestAirdropAttempt` with the `clientNonce` saved in its intent, never a new
+nonce: a new nonce can fund twice.
 
 For separate demo fixtures, use `LAUNCHPAD_APP_ENV`, `LAUNCHPAD_APP_PUBLIC_DIR`,
 `SWAP_APP_ENV`, and `SWAP_APP_PUBLIC_DIR`. All paths are relative to the repo root.
