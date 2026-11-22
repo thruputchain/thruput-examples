@@ -1,6 +1,7 @@
 import { formatUnits, toBase58 } from "@thruputchain/client";
 import { AlertCircleIcon, ArrowRightIcon, CheckCircle2Icon } from "lucide-react";
 import type { AppConfig } from "@/config";
+import { BlockchainIdentifier } from "@/components/blockchain-identifier";
 import { Detail, IdentifierDetail } from "@/components/detail";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,11 @@ export function CreatePage({
                         placeholder={placeholder}
                         type={key === "decimals" ? "number" : "text"}
                         autoComplete="off"
+                        inputMode={
+                          key === "decimals" || key === "supply"
+                            ? "decimal"
+                            : "text"
+                        }
                         aria-invalid={Boolean(error)}
                         disabled={locked}
                         onChange={(event) =>
@@ -235,13 +241,26 @@ export function CreatePage({
               </CardContent>
             </>
           ) : (
-            <CardHeader>
-              <CardTitle>Review</CardTitle>
-              <CardDescription>
-                Fill in the token details, then review the launch. The app
-                predicts the token's address before you sign.
-              </CardDescription>
-            </CardHeader>
+            <>
+              <CardHeader>
+                <CardTitle>Review</CardTitle>
+                <CardDescription>
+                  Fill in the token details, then review the launch. The app
+                  predicts the token's address before you sign.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Detail
+                  label="Administrator and holder"
+                  value={
+                    <BlockchainIdentifier
+                      kind="address"
+                      value={toBase58(config.accountAddress)}
+                    />
+                  }
+                />
+              </CardContent>
+            </>
           )}
         </Card>
       </div>

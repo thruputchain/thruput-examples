@@ -89,15 +89,17 @@ beforeEach(async () => {
 });
 afterEach(() => localStorage.clear());
 
-it("saves the record before broadcast, and reports the receipt", async () => {
+it("saves the record before broadcast, and reports the receipt once", async () => {
   let savedBeforeBroadcast: string | null = null;
+  const receipt = { execution: { result: "return" } } as TransactionReceipt;
   mocks.executeCallsAndWait.mockImplementation(async (_request, options) => {
     await options.onSigned(signed);
     savedBeforeBroadcast = localStorage.getItem(key);
-    return {};
+    return { receipt };
   });
+  const onDone = vi.fn();
   const { result, rerender } = renderHook(() =>
-    useWalletTransaction<{ symbol: string }>(key),
+    useWalletTransaction<{ symbol: string }>(key, onDone),
   );
   await act(() =>
     result.current.send("Launch token", { calls: [call] }, { symbol: "ACRN" }),
@@ -108,12 +110,31 @@ it("saves the record before broadcast, and reports the receipt", async () => {
     expiresAt: "100",
     context: { symbol: "ACRN" },
   });
-  expect(result.current.blocked).toBe(true);
+  expect(result.current.completed).toMatchObject({
+    succeeded: true,
+    context: { symbol: "ACRN" },
+  });
+  expect(localStorage.getItem(key)).toBeNull();
+
+  // The receipt query can report the same receipt later.
+  mocks.receipt = receipt;
+  rerender();
+  await waitFor(() => expect(result.current.pending).toBeNull());
+  expect(onDone).toHaveBeenCalledTimes(1);
+});
+
+it("reports a receipt that arrives after a reload", async () => {
+  mocks.executeCallsAndWait.mockImplementation(async (_request, options) => {
+    await options.onSigned(signed);
+    throw new Error("Timed out");
+  });
+  const first = renderHook(() => useWalletTransaction(key));
+  await act(() => first.result.current.send("Launch token", { calls: [call] }, {}));
+  first.unmount();
 
   mocks.receipt = { execution: { result: "return" } } as TransactionReceipt;
-  rerender();
+  const { result } = renderHook(() => useWalletTransaction(key));
   await waitFor(() => expect(result.current.completed?.succeeded).toBe(true));
-  expect(result.current.completed?.context).toEqual({ symbol: "ACRN" });
   expect(localStorage.getItem(key)).toBeNull();
 });
 

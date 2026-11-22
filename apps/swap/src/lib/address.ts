@@ -1,10 +1,4 @@
-import {
-  addressFromBase58,
-  fixedFromBase58,
-  parseAddress,
-  toBase58,
-} from "@thruputchain/client";
-import type { ContractAddress } from "@thruputchain/protocol";
+import { fixedFromBase58, parseAddress, toBase58 } from "@thruputchain/client";
 
 export function abbreviateIdentifier(value: string): string {
   return value.length <= 14
@@ -20,12 +14,6 @@ export function isBase58Identifier(value: unknown): value is string {
   } catch {
     return false;
   }
-}
-
-/** Decode a stored address that this app wrote in canonical base58. */
-export function storedAddress(value: string): ContractAddress {
-  if (!isBase58Identifier(value)) throw new Error("Invalid stored address");
-  return addressFromBase58(value);
 }
 
 /**

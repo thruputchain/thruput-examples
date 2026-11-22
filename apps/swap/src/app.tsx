@@ -3,13 +3,13 @@ import { AppRoutes } from "./routes";
 import { AppLayout } from "./app-layout";
 import { AppProviders } from "./app-providers";
 import type { ConnectedThruputClient } from "@thruputchain/client";
-import type { GlobalConfig } from "./config";
+import type { AppConfig } from "./config";
 
 export function App({
   config,
   client,
 }: {
-  config: GlobalConfig;
+  config: AppConfig;
   client: ConnectedThruputClient;
 }) {
   return (

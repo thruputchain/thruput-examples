@@ -4,11 +4,16 @@
 
 This is a teaching repository. Prefer small, explicit examples that use the
 published SDK. Keep the operation being taught visible; do not add a framework
-to remove a few repeated lines. Larger apps are reference implementations.
+to remove a few repeated lines. The apps are teaching references, not
+production services: do not add hardening that hides the Thruput calls.
 
-- `contracts/`: Rust examples. Start with Counter, Fibonacci, and Events.
+- `contracts/`: Rust examples. Start with Counter, Fibonacci, and Events. Each
+  example is a separate crate that teaches one thing; remove overlap rather
+  than merge crates.
 - `examples/typescript/`: small runnable client scripts using published packages.
-- `apps/`: Counter (concurrent transaction demo), Launchpad, and Swap.
+- `apps/`: Counter, Voting, Airdrop, Token Launchpad, and Swap. Voting is the
+  reference for the wallet transaction pattern; Launchpad and Swap copy it in
+  `src/transactions/use-wallet-transaction.ts`. Keep those copies identical.
 - `apps/*/scripts/`: app setup and generation entrypoints.
 - `scripts/seed/`: shared app-seeding implementation, not a beginner example.
 - `scripts/`: repository checks and advanced tools; read `scripts/README.md`.
@@ -55,8 +60,9 @@ npm run setup:local --workspace apps/counter
 npm run dev --workspace apps/counter
 ```
 
-Counter runs on 5175, Launchpad on 5173, and Swap on 5174. Read the selected app
-README before setup. Freighter is maintained separately.
+Counter runs on 5175, Launchpad on 5173, Swap on 5174, Voting on 5176, and
+Airdrop on 5177. Read the selected app README before setup. Freighter is
+maintained separately.
 
 ## State and generated files
 
