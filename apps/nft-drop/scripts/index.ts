@@ -154,6 +154,7 @@ export async function setup(
     console.log(
       `NFT Drop ready.\nFactory: ${toBase58(factory)}\nDemo drop: ${toBase58(demoDrop)}\nCrowd: ${crowdSize} funded accounts\nEnvironment: ${output}`,
     );
+    return { client, factory, demoDrop, output, directory: run.directory };
   } catch (error) {
     run.manifest.status = "failed";
     run.manifest.error = errorMessage(error);
@@ -185,17 +186,20 @@ async function useIntervalBlocks(client: Client) {
 }
 
 /**
- * Storage a drop pays for, with headroom, from the node's reported costs:
- * a base for its configuration, traits, and counters, and an amount for each
- * token's owner, traits, and new owner balance.
+ * Native-token funding a drop needs, from the node's reported costs.
+ *
+ * A mint stores about 37,000 raw units of data. But while the node admits a
+ * block's mints together, it reserves storage for each one at an upper bound:
+ * Phase 0 measured about 97,000 raw units per mint. A drop funded only for
+ * the actual cost admits fewer mints per block than it could. So each token
+ * is funded for five 1 KiB items, and a whole drop can mint in one block. The
+ * unspent part stays in the drop.
  */
 export function fundingRates(costs: StorageCosts) {
   const item =
     BigInt(costs.baseDataItemCost) +
     1_024n * BigInt(costs.bytestringCostPerByte);
-  const token =
-    BigInt(costs.baseDataItemCost) + 64n * BigInt(costs.bytestringCostPerByte);
-  return { base: 60n * item, perToken: 3n * token + BigInt(costs.balanceCost) };
+  return { base: 60n * item, perToken: 5n * item };
 }
 
 async function fundPersona(run: Run, persona: Persona, minimum: bigint) {

@@ -93,8 +93,12 @@ names of 1–24 bytes, unique in their list; and weights of 1–10,000.
   sign many candidate transactions and submit one with rare traits. A drop
   that needs fair rarity must use a source of randomness that the minter
   cannot predict, for example commit and reveal.
-- **Storage funding.** The drop pays the storage deposit for each token. The
-  factory requires its creator to fund it first.
+- **Storage funding.** The drop pays the storage deposit for each token, about
+  37,000 raw native-token units on a local node. While the node admits a
+  block's mints, it reserves more for each one: about 97,000. A drop funded
+  only for the actual cost admits fewer mints per block than it could. The
+  factory therefore requires funding for the reservation, and the unspent part
+  stays in the drop.
 
 ## Exercise
 
