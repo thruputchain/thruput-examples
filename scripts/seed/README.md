@@ -24,8 +24,11 @@ saved key, journal, lock, or resume mode. Only loopback HTTP localnet is accepte
 Configuration and artifact checks happen before funding or deployment.
 
 The scenario funds its temporary account first, then creates tokens, creates a
-pool when requested, and distributes the remaining tokens. SDK `executeAndWait`
-handles each transaction; its `onSigned` hook prints the hash before submission.
+pool when requested, and distributes the remaining tokens. It uses a
+[`@thruputchain/testkit`](https://www.npmjs.com/package/@thruputchain/testkit)
+scenario without a run directory, so the report stays in memory. The seed's
+`onSigned` callback prints each hash before submission. Reads wait for state that
+includes every confirmed seed transaction.
 An error stops the run without retrying writes. Partial assets may remain, and
 balances held by the discarded signer cannot be recovered. Inspect the
 printed hashes; start a fresh node if you want to discard a partial demo.

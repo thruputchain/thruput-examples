@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
-  createWalletClient,
   hashContract,
   toBase58,
   ThruputError,
@@ -12,20 +11,34 @@ import {
   type SubmissionEvidence,
 } from "@thruputchain/client";
 import { ContractType, NATIVE_TOKEN_ADDRESS } from "@thruputchain/protocol";
+import { withScenario } from "@thruputchain/testkit";
 import { StandardTokenFactory } from "../../apps/token-launchpad/src/contracts/generated/standard-token-factory";
 import { seed } from "./seed";
 
 const mocks = vi.hoisted(() => ({
   getBalance: vi.fn(),
-  requestAirdrop: vi.fn(),
-  executeAndWait: vi.fn(),
+  fund: vi.fn(),
+  call: vi.fn(),
+  view: vi.fn(),
 }));
 vi.mock("@thruputchain/client", async (original) => ({
   ...(await original<typeof import("@thruputchain/client")>()),
   createThruputClient: vi.fn(async () => ({
     network: { networkHash: new Uint8Array(32).fill(1) },
   })),
-  createWalletClient: vi.fn(() => mocks),
+}));
+// Unit tests check the seed's stop conditions. Testkit's own tests cover
+// transaction recording, and tests/e2e/seed.ts runs the real flow on a node.
+vi.mock("@thruputchain/testkit", async (original) => ({
+  ...(await original<typeof import("@thruputchain/testkit")>()),
+  withScenario: vi.fn(async (options, run) => {
+    const actor = {
+      wallet: { getBalance: mocks.getBalance },
+      fund: mocks.fund,
+      call: mocks.call,
+    };
+    return run({ actor: () => actor, view: mocks.view });
+  }),
 }));
 
 let directory: string;
@@ -76,9 +89,7 @@ beforeEach(async () => {
       required_token_funding: 1_000_000n,
     },
   } as never);
-  vi.spyOn(StandardTokenFactory.v0_1.predictToken, "view").mockResolvedValue({
-    value: new Uint8Array(32).fill(5),
-  } as never);
+  mocks.view.mockResolvedValue({ value: new Uint8Array(32).fill(5) });
   mocks.getBalance.mockResolvedValue({ rawBalance: 1_000_000_000n });
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -97,17 +108,27 @@ it("logs the signed hash before an uncertain submission and stops without repeat
     },
     cause: new Error("response lost"),
   });
-  mocks.executeAndWait.mockImplementation(async () => {
-    const options = vi.mocked(createWalletClient).mock.calls[0]![0];
-    await options.onSigned!(evidence);
+  mocks.call.mockImplementation(async () => {
+    const options = vi.mocked(withScenario).mock.calls[0]![0];
+    await options.onSigned!("seed", evidence);
     expect(console.log).toHaveBeenCalledWith(
       `Submitting fund-gUSD: ${toBase58(evidence.transactionHash)}`,
     );
     throw error;
   });
   await expect(seed("tokens", env)).rejects.toBe(error);
-  expect(mocks.executeAndWait).toHaveBeenCalledOnce();
-  expect(mocks.requestAirdrop).not.toHaveBeenCalled();
+  expect(mocks.call).toHaveBeenCalledOnce();
+  expect(mocks.fund).not.toHaveBeenCalled();
+  // No run directory: the seed saves no key or journal.
+  const options = vi.mocked(withScenario).mock.calls[0]![0];
+  expect(options.runDirectory).toBeUndefined();
+  // The scenario is pinned to the app's network, with the one seed actor.
+  expect(options.network.cluster.networkHash).toEqual(evidence.networkHash);
+  expect(Object.keys(options.accounts)).toEqual(["seed"]);
+  // The stopped transaction's hash is printed for inspection.
+  expect(console.error).toHaveBeenCalledWith(
+    `Inspect transaction ${toBase58(evidence.transactionHash)} before continuing.`,
+  );
   expect(console.log).not.toHaveBeenCalledWith(
     expect.stringContaining("Completed"),
   );
@@ -115,10 +136,10 @@ it("logs the signed hash before an uncertain submission and stops without repeat
 
 it("stops before token writes when faucet funding is uncertain", async () => {
   mocks.getBalance.mockResolvedValue({ rawBalance: 0n });
-  mocks.requestAirdrop.mockRejectedValue(new Error("funding unresolved"));
+  mocks.fund.mockRejectedValue(new Error("funding unresolved"));
   await expect(seed("tokens", env)).rejects.toThrow("funding unresolved");
-  expect(mocks.requestAirdrop).toHaveBeenCalledOnce();
-  expect(mocks.executeAndWait).not.toHaveBeenCalled();
+  expect(mocks.fund).toHaveBeenCalledOnce();
+  expect(mocks.call).not.toHaveBeenCalled();
 });
 
 it("rejects a different deployment network before creating a signer", async () => {
@@ -128,15 +149,15 @@ it("rejects a different deployment network before creating a signer", async () =
       VITE_THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32)),
     }),
   ).rejects.toThrow(/network or RPC/);
-  expect(createWalletClient).not.toHaveBeenCalled();
+  expect(withScenario).not.toHaveBeenCalled();
 });
 
 it("does not request more funding when a confirmed request has no visible balance increase", async () => {
   mocks.getBalance.mockResolvedValue({ rawBalance: 0n });
-  mocks.requestAirdrop.mockResolvedValue({
+  mocks.fund.mockResolvedValue({
     transactionHash: evidence.transactionHash,
   });
   await expect(seed("tokens", env)).rejects.toThrow(/funding is not visible/);
-  expect(mocks.requestAirdrop).toHaveBeenCalledOnce();
-  expect(mocks.executeAndWait).not.toHaveBeenCalled();
+  expect(mocks.fund).toHaveBeenCalledOnce();
+  expect(mocks.call).not.toHaveBeenCalled();
 });
