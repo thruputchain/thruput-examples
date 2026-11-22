@@ -1,0 +1,36 @@
+[package]
+name = "nft-drop-factory"
+description = "Creates NFT drops at predictable addresses, funded by their creators, and lists them"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+entrypoints = []
+dev = ["thruput-sdk/dev", "thruput-erc20-if/dev", "nft-drop/dev"]
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "nft_drop_factory"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+thruput-sdk = { workspace = true, features = ["alloc"] }
+thruput-erc20-if = { workspace = true }
+nft-drop = { path = "../nft-drop" }
+
+[dev-dependencies]
+nft-drop-factory = { path = ".", features = ["dev"] }

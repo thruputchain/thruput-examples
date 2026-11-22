@@ -186,6 +186,7 @@ These combine several concepts. Read a small example first.
 | [Permit wallet](contracts/permit-wallet/) and [relayer](contracts/permit-relayer/)           | Off-chain authorization and auth-token composition; run with `scripts/permit-live.sh` |
 | [Standard token](contracts/standard-token/) and [factory](contracts/standard-token-factory/) | Factory-created tokens, used by Launchpad                                             |
 | [Swap contracts](contracts/swap-router/README.md)                                            | Pools, routing, queued requests, liquidity, and GSR- or CLVR-ordered batches          |
+| [NFT Drop](contracts/nft-drop/README.md) and [factory](contracts/nft-drop-factory/README.md) | ERC721 drops whose mints land concurrently: a `Balance` supply cap and hashed token IDs |
 | [Speedex](contracts/speedex/README.md)                                                       | Multi-asset batch exchange and clearing                                               |
 | [Stellar account](contracts/stellar-account/README.md)                                       | Weighted Ed25519 and ML-DSA-65 signers and operation thresholds                       |
 
