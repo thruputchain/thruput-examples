@@ -26,7 +26,8 @@ const SLOW: Limit = Limit {
 };
 
 /// The budget run as RV32 in the executor, as it runs on chain: concurrent spends that the shared
-/// bucket trims, a refill after a quiet spell, a revoke in the same block as a spend, and a forget.
+/// bucket trims, an exact refill at an irregular moment, a revoke in the same block as a spend,
+/// and a forget.
 #[test]
 #[ignore = "requires RV32 build — run via `thruput test`"]
 fn spends_refills_and_revokes_in_the_guest() {
@@ -85,21 +86,46 @@ fn spends_refills_and_revokes_in_the_guest() {
         .count();
     drop(txs);
     assert_eq!(admitted, 2);
-    env.advance_block_at((START + 3_600 * SECOND).into());
+    env.advance_block();
 
-    // An hour on, the first agent's bucket has refilled by seven, and the shared bucket holds the
-    // five the block left. A spend of five takes both down, and the owner revokes the agent in
-    // the same block, without conflicting with it.
+    // Lift the shared limit, so that it no longer hides the agents' own buckets: from its next
+    // refill, the shared bucket is full.
+    env.transact(|tx| {
+        tx.call(&owner).run(move || {
+            BudgetClient::new(&budget).set_limit(Limit {
+                burst: 1_000,
+                refill: 1_000,
+                period: 1,
+            })
+        })
+    })
+    .assert_success();
+
+    // At an irregular moment, 2,000.12 seconds after the buckets were filled, the two agents that
+    // spent have refilled by exactly the units that arrived in between. That is four, though
+    // 2,000 seconds at seven an hour is 3.89: units arrive at fixed moments 514.29 seconds apart,
+    // and the buckets were filled 0.78 of the way to the next one. The agents the runtime turned
+    // away kept nothing of their spends, so their buckets are still full.
+    env.advance_block_at((START + 2_000 * SECOND + 123_456_789).into());
+    let available = |who: ContractAddress| {
+        let r = env.transact(|tx| {
+            tx.call(&owner)
+                .run(move || BudgetClient::new(&budget).available(&who))
+        });
+        r.assert_success();
+        r.assert_return_as::<i128>()
+    };
     let (first, second) = (agents[0], agents[1]);
-    let r = env.transact(|tx| {
-        tx.call(&owner)
-            .run(move || BudgetClient::new(&budget).available(&first))
-    });
-    assert_eq!(r.assert_return_as::<i128>(), 5);
+    assert_eq!(available(first), 4);
+    assert_eq!(available(second), 4);
+    assert_eq!(available(agents[2]), 10);
+
+    // The first agent spends all four, and the owner revokes it in the same block, without
+    // conflicting with the spend.
     let mut spend = env.transaction().build();
     spend
         .call(&first)
-        .run(move || BudgetClient::new(&budget).spend(&vendor, 5))
+        .run(move || BudgetClient::new(&budget).spend(&vendor, 4))
         .assert_success();
     let mut revoke = env.transaction().build();
     revoke
@@ -115,11 +141,11 @@ fn spends_refills_and_revokes_in_the_guest() {
         tx.call(&owner).run(move || {
             let c = BudgetClient::new(&budget);
             c.forget(&first);
-            assert_eq!(c.shared_available(), 0);
-            assert_eq!(c.available(&second), 0);
+            assert_eq!(c.available(&first), 0);
+            assert_eq!(c.available(&second), 4);
             ERC20Client::new(&token).get_balance_of(&vendor)
         })
     });
     paid.assert_success();
-    assert_eq!(paid.assert_return_as::<i128>(), 25);
+    assert_eq!(paid.assert_return_as::<i128>(), 24);
 }

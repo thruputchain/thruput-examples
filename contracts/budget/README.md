@@ -38,8 +38,8 @@ Under the network's default storage prices, spends store nothing new. Expected
 exceptions can appear in the output; the final result is what determines success.
 
 With the CLI installed, `thruput test -p budget` builds the contract and runs it
-in the RV32 guest: spends the shared limit trims, a refill an hour later, and a
-revoke in the same block as a spend.
+in the RV32 guest: spends the shared limit trims, an exact refill at an
+irregular moment, and a revoke in the same block as a spend.
 
 ## How a bucket works
 
@@ -76,8 +76,8 @@ credited twice, however often or rarely the bucket refills.
 - **The limits cannot be overrun.** However many spends land in one block, the
   runtime admits them only while they fit both buckets. A token bucket also
   bounds any stretch of time: in `T` seconds a spender can pay at most its
-  burst plus `T` seconds of refill, unlike a daily limit, which can be spent
-  twice in the minutes around midnight.
+  burst plus `T` seconds of refill, rounded up to a whole unit. A daily limit,
+  by contrast, can be spent twice in the minutes around midnight.
 - **A busy spender cannot hold off its own revocation.** A revoke deletes the
   grant, which spends only read, so it never conflicts with them. If it deleted
   the bucket too, it would conflict with every spend in its block, and a
