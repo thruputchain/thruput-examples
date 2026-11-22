@@ -2,11 +2,13 @@
 
 Learn how a caller handles an error declared by another interface on the same
 contract. The ledger and pause interfaces have different error types; a ledger
-operation can encounter a pause error.
+operation can throw a pause error. The caller catches it like any other error,
+because the error's selector names its type, whatever the interface declares.
+The same rule lets a caller catch any error that an interface did not declare.
 
 ## Run
 
-Complete the [Rust setup](../../README.md#rust-and-cli),
+Complete the [setup](../../README.md#setup),
 then read [Multi-throws](../multi-throws/README.md) and
 [Multi-impl](../multi-impl/README.md). From the repo root:
 

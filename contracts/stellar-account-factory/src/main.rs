@@ -1,5 +1,4 @@
-//! RV32 binary wrapper for the `stellar-account-factory` contract library.
-//! See `stellar-account/src/main.rs` for why this file is just a reference.
+//! RV32 binary for the `stellar-account-factory` contract. See `contracts/counter/src/main.rs`.
 
 #![no_std]
 #![no_main]

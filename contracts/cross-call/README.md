@@ -1,19 +1,22 @@
 # Cross-call: call another contract
 
 Learn to use a generated client inside a contract. This contract calls the
-Fibonacci contract and demonstrates successful calls, caught errors, and
-wrapped errors.
+[Fibonacci](../fibonacci/README.md) contract, so it needs that contract too.
+It shows a successful call, an error the callee forwards, and an error the
+caller wraps in its own type. The
+[error-handling examples](../error-handling-caller/README.md) cover catching
+errors in detail.
 
 ## Run
 
-Complete the [Rust setup](../../README.md#rust-and-cli)
+Complete the [setup](../../README.md#setup)
 and read [Fibonacci](../fibonacci/README.md). From the repo root:
 
 ```sh
 cargo test -p cross-call --locked
 ```
 
-Expected: **8 tests pass**. The fixture registers both contracts, so no separate
+Expected: **7 tests pass**. The fixture registers both contracts, so no separate
 deployment or running node is needed. Tests check return values and events from
 both contracts.
 

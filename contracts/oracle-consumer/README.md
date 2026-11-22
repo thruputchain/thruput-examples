@@ -6,7 +6,7 @@ Thruput. This contract makes no HTTP requests to Stellar or Chainlink.
 
 ## Run
 
-Complete the [Rust setup](../../README.md#rust-and-cli). From the repo root:
+Complete the [setup](../../README.md#setup). From the repo root:
 
 ```sh
 cargo test -p oracle-consumer --locked --test test

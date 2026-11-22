@@ -1,4 +1,5 @@
-//! RV32 binary wrapper for the oracle consumer.
+//! RV32 binary for the `oracle-consumer` contract. See `contracts/counter/src/main.rs`.
+
 #![no_std]
 #![no_main]
 
