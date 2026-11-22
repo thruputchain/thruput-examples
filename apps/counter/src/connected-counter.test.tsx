@@ -37,7 +37,7 @@ it("uses development signing without wallet controls or a success banner", () =>
   const { config } = setup();
   fireEvent.click(screen.getByRole("button", { name: "Increment" }));
   expect(send).toHaveBeenCalledWith("increment");
-  expect(worker).toHaveBeenLastCalledWith(config, true);
+  expect(worker).toHaveBeenLastCalledWith(config);
   expect(screen.queryByRole("button", { name: /connect/i })).toBeNull();
   expect(screen.queryByText("Ready")).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
