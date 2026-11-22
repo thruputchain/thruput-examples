@@ -62,7 +62,7 @@ To start a rush, open the demo drop, choose the users and the window, and click
 **Start rush**. **All at once** sends every mint immediately. To create drops or
 mint with a wallet, install [Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/),
 select the same local node, and request test tokens. A 10,000-token drop needs
-about 111 native tokens for storage; a 100-token drop needs about 1.
+about 40 native tokens for storage; a 100-token drop needs about 0.5.
 
 Overrides: `THRUPUT_RPC_URL` (default `http://127.0.0.1:9545`), `NFT_CROWD_SIZE`
 (1–10,000, default 10,000), `NFT_DROP_APP_ENV` (output file), and the optional
@@ -72,7 +72,7 @@ network checks `THRUPUT_NETWORK_ID` and `THRUPUT_RUNTIME_MANIFEST`.
 
 - [`server/rush.ts`](server/rush.ts): the rush. It signs one mint for each crowd
   account, submits them through batched JSON-RPC, observes each original hash,
-  and sorts the outcomes.
+  resubmits the same signed mint after an exclusion, and sorts the outcomes.
 - [`src/contracts/drops.ts`](src/contracts/drops.ts): every read. Views run in
   batches of 16, and mints come from `TraitsRolled` events.
 - [`src/transactions/use-transaction.ts`](src/transactions/use-transaction.ts):
@@ -83,16 +83,27 @@ network checks `THRUPUT_NETWORK_ID` and `THRUPUT_RUNTIME_MANIFEST`.
 
 ## Outcomes in the live view
 
-| Outcome      | Meaning                                                                                 |
-| ------------ | --------------------------------------------------------------------------------------- |
-| Minted       | The mint committed and returned a token.                                                |
-| Sold out     | The mint committed with `SoldOut`: no supply was left at the start of its block.        |
-| Not included | The block excluded the mint, usually because it would have oversold. It did not commit. |
-| Failed       | The mint committed with another failure.                                                |
-| Pending      | No outcome yet.                                                                         |
+| Outcome      | Meaning                                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| Minted       | The mint committed and returned a token.                                                                   |
+| Sold out     | The mint committed with `SoldOut`: no supply was left at the start of its block.                           |
+| Not included | The node dropped the mint, or a block still excluded it when the rush stopped watching. It did not commit. |
+| Failed       | The mint committed with another failure.                                                                   |
+| Pending      | No outcome yet.                                                                                            |
 
-"Conflicts between mints" counts exclusions that were not caused by the supply
-bound or by storage funding. The design keeps it at zero.
+When a block excludes a mint, its status is `retry`, and the simulated user
+does what a wallet does: it resubmits the same signed transaction. No new
+transaction is signed, so a user's mint commits at most once. A block excludes
+a mint for one of these reasons:
+
+- **Sell-out.** The supply bound admits only as many mints as the start-of-block
+  supply covers. A resubmitted mint then fails with `SoldOut`.
+- **Storage funding.** While the node assembles a block, it holds more of the
+  drop's storage funding for each mint than the mint finally spends. A large
+  burst can therefore spread over a few blocks. The resubmitted mints land in
+  the next blocks.
+- **A conflict between mints.** The live view counts these. This design keeps
+  the count at zero.
 
 ## What it leaves out on purpose
 

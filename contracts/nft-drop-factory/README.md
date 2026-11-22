@@ -21,9 +21,7 @@ each block.
 ## How creation works
 
 1. The app asks `predict_drop(creator, nonce)` for the new drop's address, and
-   `required_funding(supply)` for the native tokens its storage needs. The NFT
-   Drop app's setup sets the rates so that a drop can mint its whole supply in
-   one block (see the drop's [known limits](../nft-drop/README.md#known-limits)).
+   `required_funding(supply)` for the native tokens its storage needs.
 2. The creator's wallet sends one transaction with two calls: a native-token
    transfer to the predicted address, then `create_drop(nonce, definition)`.
 3. `create_drop` checks the funding, deploys the drop with `deploy_contract`,

@@ -200,7 +200,7 @@ These combine several concepts. Read a small example first.
 | [Counter](apps/counter/README.md)                 | Development-signed concurrent updates or wallet-approved button updates, with reload recovery |
 | [Voting](apps/voting/README.md)                   | Create multi-question polls, vote once per question, and view live results                    |
 | [Airdrop](apps/airdrop/README.md)                   | Claim configurable tokens once per wallet, with optional address eligibility                  |
-| [NFT Drop](apps/nft-drop/README.md)                 | Create ERC721 drops, mint with a wallet, and watch thousands of simulated mints land in one block |
+| [NFT Drop](apps/nft-drop/README.md)                 | Create ERC721 drops, mint with a wallet, and watch thousands of simulated mints land together |
 | [Token Launchpad](apps/token-launchpad/README.md) | Create tokens with an external wallet and browse indexed launches                             |
 | [Swap](apps/swap/README.md)                       | Create pools, swap tokens, and manage liquidity                                               |
 

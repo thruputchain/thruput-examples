@@ -146,7 +146,7 @@ function phaseText(rush: RushSnapshot) {
 }
 
 export function LiveView({ rush }: { rush: RushSnapshot }) {
-  const { outcomes, blocks, conflicts } = rush;
+  const { outcomes, blocks, exclusions } = rush;
   const peak = blocks.reduce(
     (best, block) => (block.minted > (best?.minted ?? 0) ? block : best),
     blocks[0],
@@ -163,7 +163,7 @@ export function LiveView({ rush }: { rush: RushSnapshot }) {
         <p className="headline">
           <span className="mono">{number(peak.minted)}</span> mints in block{" "}
           <span className="mono">{number(Number(peak.height))}</span>.{" "}
-          <span className="mono">{number(conflicts.other)}</span> conflicts
+          <span className="mono">{number(exclusions.other)}</span> conflicts
           between mints.
         </p>
       ) : null}
@@ -204,11 +204,14 @@ export function LiveView({ rush }: { rush: RushSnapshot }) {
         {number(blocks.length)} {blocks.length === 1 ? "block" : "blocks"} ·
         submitted over {seconds(rush.submitMs)} · settled after{" "}
         {seconds(rush.settledMs)}
-        {conflicts.supply
-          ? ` · ${number(conflicts.supply)} excluded at sell-out`
+        {rush.resubmitted
+          ? ` · ${number(rush.resubmitted)} resubmitted after a block excluded them`
           : ""}
-        {conflicts.funding
-          ? ` · ${number(conflicts.funding)} excluded: the drop needs more storage funding`
+        {exclusions.supply
+          ? ` · ${number(exclusions.supply)} exclusions at sell-out`
+          : ""}
+        {exclusions.funding
+          ? ` · ${number(exclusions.funding)} while storage funding was held`
           : ""}
       </p>
       {oneBlockEach ? (

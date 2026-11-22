@@ -94,11 +94,11 @@ names of 1–24 bytes, unique in their list; and weights of 1–10,000.
   that needs fair rarity must use a source of randomness that the minter
   cannot predict, for example commit and reveal.
 - **Storage funding.** The drop pays the storage deposit for each token, about
-  37,000 raw native-token units on a local node. While the node admits a
-  block's mints, it reserves more for each one: about 97,000. A drop funded
-  only for the actual cost admits fewer mints per block than it could. The
-  factory therefore requires funding for the reservation, and the unspent part
-  stays in the drop.
+  37,000 raw native-token units on a local node, and the factory requires a
+  little more than that from the creator. While the node assembles a block, it
+  holds more funding for each mint than the mint finally spends. So a large
+  burst against one drop can spread over a few blocks: an excluded mint
+  succeeds when its sender resubmits it. The supply cap is not affected.
 
 ## Exercise
 

@@ -186,20 +186,19 @@ async function useIntervalBlocks(client: Client) {
 }
 
 /**
- * Native-token funding a drop needs, from the node's reported costs.
- *
- * A mint stores about 37,000 raw units of data. But while the node admits a
- * block's mints together, it reserves storage for each one at an upper bound:
- * Phase 0 measured about 97,000 raw units per mint. A drop funded only for
- * the actual cost admits fewer mints per block than it could. So each token
- * is funded for five 1 KiB items, and a whole drop can mint in one block. The
- * unspent part stays in the drop.
+ * Native-token funding a drop needs, from the node's reported costs: its
+ * actual storage. A base covers the configuration, traits, and counters. Each
+ * token adds three items: its owner, its traits, and its owner's balance row,
+ * each with room for 128 bytes. A mint stores about 37,000 raw units on a
+ * local node; this funds about 40,000.
  */
 export function fundingRates(costs: StorageCosts) {
-  const item =
-    BigInt(costs.baseDataItemCost) +
-    1_024n * BigInt(costs.bytestringCostPerByte);
-  return { base: 60n * item, perToken: 5n * item };
+  const base = BigInt(costs.baseDataItemCost);
+  const perByte = BigInt(costs.bytestringCostPerByte);
+  return {
+    base: 60n * (base + 1_024n * perByte),
+    perToken: 3n * (base + 128n * perByte),
+  };
 }
 
 async function fundPersona(run: Run, persona: Persona, minimum: bigint) {

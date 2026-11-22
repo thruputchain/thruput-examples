@@ -26,8 +26,11 @@ import { crowdAccount, MINT_GAS } from "./crowd";
  * 1. Preparing: sign every mint first, so signing time is not chain time.
  * 2. Running: submit each mint at its arrival time.
  * 3. Settling: observe each original hash until it has an outcome, or until
- *    60 seconds after the last submission. Nothing is resubmitted: the demo
- *    measures one attempt for each user.
+ *    two minutes after the last submission.
+ *
+ * When a block excludes a mint, its status is `retry`. Each simulated user
+ * then does what a wallet does: it resubmits the same signed transaction. No
+ * new transaction is signed, so each user's mint can commit at most once.
  */
 export type Phase = "preparing" | "running" | "settling" | "done" | "failed";
 
@@ -36,7 +39,7 @@ export interface Outcomes {
   minted: number;
   /** Committed with `SoldOut`: the supply was gone at the block's start. */
   soldOut: number;
-  /** Not committed: excluded from its block, usually at sell-out. */
+  /** Not committed: dropped by the node, or still excluded at the deadline. */
   notIncluded: number;
   /** Committed with another failure. This indicates a problem. */
   failed: number;
@@ -56,14 +59,16 @@ export interface RushSnapshot {
   outcomes: Outcomes;
   /** Mints that landed in each block, in block order. */
   blocks: { height: string; minted: number }[];
+  /** How many times a user resubmitted its excluded mint. */
+  resubmitted: number;
   /**
-   * Why excluded mints were excluded, from advisory `recentFailure` reports.
-   * `supply` (`boundsExceeded`) is the supply bound at sell-out, which is
-   * expected. `funding` (`insufficientFunds`) means the drop ran out of
-   * storage funding. `other` would be a conflict between mints, which this
+   * Why a block excluded a mint, from advisory `recentFailure` reports.
+   * `supply` (`boundsExceeded`) is the supply bound at sell-out. `funding`
+   * (`insufficientFunds`) means the drop's storage funding was held for other
+   * mints in that block. `other` would be a conflict between mints, which this
    * design should never produce.
    */
-  conflicts: { supply: number; funding: number; other: number };
+  exclusions: { supply: number; funding: number; other: number };
   /** Milliseconds from the first submission to the last submission. */
   submitMs: number | null;
   /** Milliseconds from the first submission until every outcome was known. */
@@ -82,7 +87,9 @@ export interface RushOptions {
 }
 
 const SOLD_OUT = nft_drop.v0_1.implementation.DropError.SoldOut;
-const SETTLE_TIMEOUT_MS = 60_000;
+const SETTLE_TIMEOUT_MS = 120_000;
+// About one block: a resubmission waits for the next block before another.
+const RESUBMIT_MS = 2_000;
 const POLL_MS = 500;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -91,7 +98,7 @@ interface Entry {
   bytes: Uint8Array;
   at: number;
   outcome: keyof Outcomes;
-  blockHeight?: bigint;
+  resubmittedAt: number;
 }
 
 export function emptySnapshot(
@@ -114,7 +121,8 @@ export function emptySnapshot(
       pending: options.users,
     },
     blocks: [],
-    conflicts: { supply: 0, funding: 0, other: 0 },
+    resubmitted: 0,
+    exclusions: { supply: 0, funding: 0, other: 0 },
     submitMs: null,
     settledMs: null,
   };
@@ -149,6 +157,7 @@ export async function runRush(
         bytes: serializeSignedTransaction(signed),
         at: Math.random() * windowSeconds * 1_000,
         outcome: "pending",
+        resubmittedAt: 0,
       });
       snapshot.signed = index + 1;
       if (index % 250 === 0) update();
@@ -242,17 +251,26 @@ export async function runRush(
         transactionHash: entry.hash,
       });
       if (receipt) settle(entry, classify(receipt), receipt);
-    } else if (status.status === "retry" || status.status === "dropped") {
+    } else if (status.status === "dropped") {
+      settle(entry, "notIncluded");
+    } else if (
+      status.status === "retry" &&
+      Date.now() - entry.resubmittedAt >= RESUBMIT_MS
+    ) {
       // Excluded from its block. `recentFailure` is advisory and not always
-      // present, so the status decides the outcome; the cause only feeds
-      // the conflict counts.
+      // present; it only feeds the exclusion counts.
       if (failure && "kind" in failure && failure.kind === "dbConflict") {
         const code = failure.conflict.code;
-        if (code === "boundsExceeded") snapshot.conflicts.supply++;
-        else if (code === "insufficientFunds") snapshot.conflicts.funding++;
-        else snapshot.conflicts.other++;
+        if (code === "boundsExceeded") snapshot.exclusions.supply++;
+        else if (code === "insufficientFunds") snapshot.exclusions.funding++;
+        else snapshot.exclusions.other++;
       }
-      settle(entry, "notIncluded");
+      // Resubmit the same signed bytes, as a wallet does after `retry`.
+      entry.resubmittedAt = Date.now();
+      snapshot.resubmitted++;
+      await client
+        .sendTransaction({ signedTransaction: entry.bytes })
+        .catch(() => undefined);
     }
   }
 }

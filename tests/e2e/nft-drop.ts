@@ -203,28 +203,23 @@ async function checkBrowser({ client, demoDrop, output }: Deployment) {
     .waitFor({ timeout: 20_000 })
     .catch((e) => fail("mint-count", e));
 
-  // Rush 200 users against the 149 tokens left: exactly 149 mint.
+  // Rush 200 users against the 149 tokens left. Excluded users resubmit
+  // their signed mint, so every user ends minted or sold out: exactly 149
+  // mint, and the other 51 see SoldOut.
   const sellOut = await rush(page, origin, { users: "200", window: "2" });
   assert.equal(sellOut.outcomes.minted, 149, JSON.stringify(sellOut));
+  assert.equal(sellOut.outcomes.soldOut, 51, JSON.stringify(sellOut));
   assert.equal(
-    sellOut.outcomes.soldOut + sellOut.outcomes.notIncluded,
-    51,
-    JSON.stringify(sellOut),
-  );
-  assert.equal(
-    sellOut.outcomes.failed + sellOut.outcomes.pending,
+    sellOut.outcomes.notIncluded +
+      sellOut.outcomes.failed +
+      sellOut.outcomes.pending,
     0,
     JSON.stringify(sellOut),
   );
   assert.equal(
-    sellOut.conflicts.other,
+    sellOut.exclusions.other,
     0,
     "mints must not conflict with each other",
-  );
-  assert.equal(
-    sellOut.conflicts.funding,
-    0,
-    "the drop must be funded for a full block of mints",
   );
   assert.ok(
     sellOut.blocks.some((b) => b.minted > 1),
@@ -244,7 +239,7 @@ async function checkBrowser({ client, demoDrop, output }: Deployment) {
   const burst = await rush(page, origin, { users: String(CROWD), window: "0" });
   assert.equal(burst.outcomes.minted, CROWD, JSON.stringify(burst));
   assert.equal(
-    burst.conflicts.other + burst.conflicts.funding + burst.outcomes.failed,
+    burst.exclusions.other + burst.outcomes.failed + burst.outcomes.notIncluded,
     0,
     JSON.stringify(burst),
   );
@@ -279,6 +274,11 @@ async function rush(
   const body = (await (await fetch(`${origin}/api/rush`)).json()) as {
     rush: RushSnapshot;
   };
+  const { outcomes, blocks, resubmitted, exclusions } = body.rush;
+  console.log(
+    `Rush of ${input.users} over ${input.window} s:`,
+    JSON.stringify({ outcomes, blocks, resubmitted, exclusions }),
+  );
   assert.equal(body.rush.phase, "done", body.rush.message ?? "");
   return body.rush;
 }

@@ -38,11 +38,11 @@ describe("crowd", () => {
 });
 
 describe("drop funding", () => {
-  it("covers the node's per-mint reservation, about 97,000 raw units", () => {
+  it("covers the actual storage of a mint, about 37,400 raw units", () => {
     const { base, perToken } = fundingRates(costs);
-    expect(perToken).toBe(5n * (12_000n + 10_240n));
-    expect(perToken).toBeGreaterThan(97_200n);
-    // A 10,000-token drop needs about 111 native tokens (7 decimals).
-    expect((base + perToken * 10_000n) / 10_000_000n).toBe(111n);
+    expect(perToken).toBe(3n * (12_000n + 1_280n));
+    expect(perToken).toBeGreaterThan(37_400n);
+    // A 10,000-token drop needs about 40 native tokens (7 decimals).
+    expect((base + perToken * 10_000n) / 10_000_000n).toBe(39n);
   });
 });
