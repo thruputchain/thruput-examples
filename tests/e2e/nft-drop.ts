@@ -174,20 +174,25 @@ async function checkBrowser({ client, demoDrop, output }: Deployment) {
 
   // The demo drop is listed.
   await page.goto(origin);
-  await page.getByRole("heading", { name: "Thruput Critters" }).waitFor();
+  await page.getByRole("heading", { name: "Thruput Grid" }).waitFor();
   await page
     .getByRole("button", { name: "Connect wallet", exact: true })
     .click();
 
   // Create a drop in one wallet transaction: fund its address, then create it.
   await page.getByRole("link", { name: "New drop" }).first().click();
-  await page.getByLabel("Name", { exact: true }).fill("E2E Critters");
+  await page.getByLabel("Name", { exact: true }).fill("E2E Grid");
   await page.getByLabel("Symbol", { exact: true }).fill("E2E");
   await page.getByLabel("Supply", { exact: true }).fill("150");
+  // Traits can be reweighted and removed, but not added.
+  await page.getByRole("button", { name: "Remove trait Accent" }).click();
+  await page.getByRole("button", { name: "Remove Gold" }).click();
+  await page.getByLabel("Bauhaus weight").fill("50");
+  assert.equal(await page.getByRole("button", { name: /^Add/ }).count(), 0);
   await page.getByText(/native tokens$/).waitFor();
   await page.getByRole("button", { name: "Create drop" }).click();
   await page
-    .getByRole("heading", { name: "E2E Critters" })
+    .getByRole("heading", { name: "E2E Grid" })
     .waitFor({ timeout: 60_000 })
     .catch((e) => fail("create", e));
   const drop = new URL(page.url()).pathname.split("/").at(-1)!;

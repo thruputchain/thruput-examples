@@ -11,9 +11,10 @@ import {
 import { ERC20 } from "@thruputchain/client/contracts";
 import { gasAmount, NATIVE_TOKEN_ADDRESS } from "@thruputchain/protocol";
 import { useNavigate } from "react-router-dom";
-import { PlusIcon, Trash2Icon } from "lucide-react";
-import { Critter } from "../art/critter";
+import { Trash2Icon } from "lucide-react";
+import { Artwork } from "../art/artwork";
 import { percent, roll, share } from "../art/rarity";
+import { STYLE_TRAITS } from "../art/style";
 import { errorMessage, type AppConfig } from "../config";
 import {
   CREATE_GAS,
@@ -73,6 +74,11 @@ export function NewDrop({
   const [error, setError] = useState<string | null>(null);
   const definition = toDefinition(draft);
   const problem = validateDefinition(definition);
+  // Samples need only valid traits: check them with the demo drop's other fields.
+  const traitProblem = validateDefinition({
+    ...DEMO_DROP,
+    traits: definition.traits,
+  });
 
   const funding = useQuery({
     queryKey: ["nft-drop", "funding", definition.supply.toString()],
@@ -88,8 +94,13 @@ export function NewDrop({
 
   const preview = useMemo(
     () =>
-      problem ? [] : Array.from({ length: 12 }, () => roll(definition.traits)),
-    [samples, JSON.stringify(draft.traits), problem],
+      traitProblem
+        ? []
+        : Array.from({ length: 12 }, () => ({
+            rolled: roll(definition.traits),
+            seed: crypto.randomUUID(),
+          })),
+    [samples, JSON.stringify(draft.traits), traitProblem],
   );
 
   // Open the new drop once its creation commits.
@@ -149,8 +160,9 @@ export function NewDrop({
           <p className="eyebrow">New drop</p>
           <h1>Design a collection</h1>
           <p className="muted">
-            Choose a supply and the traits each token can roll. A value's weight
-            sets its chance. Your wallet funds the drop's storage when it
+            Choose a supply and how often each trait value appears. Every trait
+            changes the art, so you can reweight or remove traits and values,
+            but not add them. Your wallet funds the drop's storage when it
             creates it.
           </p>
         </div>
@@ -169,7 +181,7 @@ export function NewDrop({
               <input
                 name="name"
                 value={draft.name}
-                placeholder="Thruput Critters"
+                placeholder="Thruput Grid"
                 onChange={(e) => update((d) => void (d.name = e.target.value))}
               />
             </label>
@@ -178,7 +190,7 @@ export function NewDrop({
               <input
                 name="symbol"
                 value={draft.symbol}
-                placeholder="CRIT"
+                placeholder="GRID"
                 onChange={(e) =>
                   update((d) => void (d.symbol = e.target.value))
                 }
@@ -201,18 +213,19 @@ export function NewDrop({
           {draft.traits.map((current, t) => {
             const shape = definition.traits[t]!;
             return (
-              <fieldset key={t} className="trait-editor">
+              <fieldset key={current.name} className="trait-editor">
+                <legend className="sr-only">{current.name}</legend>
                 <div className="trait-heading">
-                  <label>
-                    Trait {t + 1}
-                    <input
-                      value={current.name}
-                      aria-label={`Trait ${t + 1} name`}
-                      onChange={(e) =>
-                        update((d) => void (d.traits[t]!.name = e.target.value))
+                  <p>
+                    <strong>{current.name}</strong>{" "}
+                    <span className="muted">
+                      {
+                        STYLE_TRAITS.find(
+                          (style) => style.name === current.name,
+                        )?.description
                       }
-                    />
-                  </label>
+                    </span>
+                  </p>
                   <button
                     type="button"
                     className="small"
@@ -225,18 +238,8 @@ export function NewDrop({
                 </div>
                 <ul className="value-list">
                   {current.values.map((option, v) => (
-                    <li key={v}>
-                      <input
-                        value={option.name}
-                        aria-label={`${current.name} value ${v + 1}`}
-                        onChange={(e) =>
-                          update(
-                            (d) =>
-                              void (d.traits[t]!.values[v]!.name =
-                                e.target.value),
-                          )
-                        }
-                      />
+                    <li key={option.name}>
+                      <span className="value-name">{option.name}</span>
                       <input
                         className="weight"
                         type="number"
@@ -269,45 +272,9 @@ export function NewDrop({
                     </li>
                   ))}
                 </ul>
-                <button
-                  type="button"
-                  className="small"
-                  disabled={current.values.length >= LIMITS.values}
-                  onClick={() =>
-                    update(
-                      (d) =>
-                        void d.traits[t]!.values.push({
-                          name: "",
-                          weight: "10",
-                        }),
-                    )
-                  }
-                >
-                  <PlusIcon size={14} aria-hidden="true" /> Add value
-                </button>
               </fieldset>
             );
           })}
-          <div className="actions">
-            <button
-              type="button"
-              disabled={draft.traits.length >= LIMITS.traits}
-              onClick={() =>
-                update(
-                  (d) =>
-                    void d.traits.push({
-                      name: "",
-                      values: [
-                        { name: "", weight: "50" },
-                        { name: "", weight: "50" },
-                      ],
-                    }),
-                )
-              }
-            >
-              <PlusIcon size={16} aria-hidden="true" /> Add trait
-            </button>
-          </div>
           <div className="panel">
             <p>
               Storage funding:{" "}
@@ -349,7 +316,7 @@ export function NewDrop({
               type="button"
               className="small"
               onClick={() => setSamples((n) => n + 1)}
-              disabled={Boolean(problem)}
+              disabled={Boolean(traitProblem)}
             >
               Reroll
             </button>
@@ -358,11 +325,12 @@ export function NewDrop({
             Random rolls with your weights. Real mints roll on-chain.
           </p>
           <ul className="sample-grid">
-            {preview.map((rolled, i) => (
-              <li key={i}>
-                <Critter
+            {preview.map(({ rolled, seed }) => (
+              <li key={seed}>
+                <Artwork
                   traits={definition.traits}
                   rolled={rolled}
+                  seed={seed}
                   size={140}
                 />
               </li>

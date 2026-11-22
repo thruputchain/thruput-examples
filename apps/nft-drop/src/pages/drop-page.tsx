@@ -4,7 +4,7 @@ import { useClient, useWallet } from "@thruputchain/react";
 import { addressFromBase58, toBase58 } from "@thruputchain/client";
 import type { FixedBytes } from "@thruputchain/client/contract";
 import { Link, useParams } from "react-router-dom";
-import { Critter } from "../art/critter";
+import { Artwork } from "../art/artwork";
 import {
   oneIn,
   percent,
@@ -240,7 +240,12 @@ function JustMinted({
   return (
     <div className="just-minted" role="status">
       {rolled.data ? (
-        <Critter traits={traits} rolled={rolled.data} size={96} />
+        <Artwork
+          traits={traits}
+          rolled={rolled.data}
+          seed={toBase58(tokenId)}
+          size={96}
+        />
       ) : null}
       <div>
         <p>You minted a token.</p>
@@ -313,7 +318,12 @@ function Gallery({
                 dialog.current?.showModal();
               }}
             >
-              <Critter traits={traits} rolled={mint.traits} size={120} />
+              <Artwork
+                traits={traits}
+                rolled={mint.traits}
+                seed={mint.tokenId}
+                size={120}
+              />
               <span className="mono muted">{short(mint.tokenId)}</span>
             </button>
           </li>
@@ -326,7 +336,12 @@ function Gallery({
       >
         {open ? (
           <>
-            <Critter traits={traits} rolled={open.traits} size={240} />
+            <Artwork
+              traits={traits}
+              rolled={open.traits}
+              seed={open.tokenId}
+              size={240}
+            />
             <div className="token-details">
               <h2>Token {short(open.tokenId)}</h2>
               <p className="muted">

@@ -44,7 +44,7 @@ Open **http://127.0.0.1:5178**. Setup takes about three minutes. It:
    local node makes one block for each transaction, which would put every mint
    in its own block;
 3. funds an operator from the faucet, then deploys the factory;
-4. creates the **Thruput Critters** demo drop with 10,000 tokens. The node keeps
+4. creates the **Thruput Grid** demo drop with 10,000 tokens. The node keeps
    a contract's code only after a transaction deploys it, so this first
    creation attaches the drop's code. Later drops deploy by code hash;
 5. funds 10,000 simulated users (the crowd) in batches of 16 transfers. Each
@@ -67,6 +67,19 @@ about 40 native tokens for storage; a 100-token drop needs about 0.5.
 Overrides: `THRUPUT_RPC_URL` (default `http://127.0.0.1:9545`), `NFT_CROWD_SIZE`
 (1–10,000, default 10,000), `NFT_DROP_APP_ENV` (output file), and the optional
 network checks `THRUPUT_NETWORK_ID` and `THRUPUT_RUNTIME_MANIFEST`.
+
+## The art
+
+Every drop uses one generative style: a grid of geometric tiles, drawn as SVG in
+the browser. Nothing about the art is stored on-chain except each token's rolled
+trait values. Four traits change the image: **Palette**, **Composition**,
+**Density**, and **Accent**. The token ID seeds each tile's shape, turn, and
+color, so two tokens with the same traits still differ.
+
+A creator can change the weights and remove traits or values, but cannot add or
+rename them: the art finds each value by its name. A removed trait draws as its
+most common value. See [`src/art/style.ts`](src/art/style.ts) and
+[`src/art/artwork.tsx`](src/art/artwork.tsx).
 
 ## Where the Thruput code is
 

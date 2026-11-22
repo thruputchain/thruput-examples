@@ -9,6 +9,7 @@ import {
 import { gasAmount } from "@thruputchain/protocol";
 import { ERC721, NftDrop, nft_drop } from "./generated/nft-drop";
 import { NftDropFactory } from "./generated/nft-drop-factory";
+import { STYLE_TRAITS } from "../art/style";
 
 export type DropDefinition = nft_drop.v0_1.implementation.DropDefinition;
 export type DropConfig = nft_drop.v0_1.implementation.DropConfig;
@@ -37,51 +38,12 @@ export const MINT_ROOT_GAS = gasAmount(1_000_000n);
 /** Gas for creating a drop: the deployment and its initialization. */
 export const CREATE_GAS = gasAmount(20_000_000n);
 
-const value = (name: string, weight: bigint) => ({ name, weight });
-
 /** The drop that setup creates, and the template for new drops. */
 export const DEMO_DROP: DropDefinition = {
-  name: "Thruput Critters",
-  symbol: "CRIT",
+  name: "Thruput Grid",
+  symbol: "GRID",
   supply: 10_000n,
-  traits: [
-    {
-      name: "Background",
-      values: [
-        value("Sky", 45n),
-        value("Mint", 30n),
-        value("Dusk", 20n),
-        value("Gold", 5n),
-      ],
-    },
-    {
-      name: "Body",
-      values: [
-        value("Round", 40n),
-        value("Square", 35n),
-        value("Tall", 20n),
-        value("Crystal", 5n),
-      ],
-    },
-    {
-      name: "Eyes",
-      values: [
-        value("Dot", 50n),
-        value("Wide", 30n),
-        value("Sleepy", 18n),
-        value("Laser", 2n),
-      ],
-    },
-    {
-      name: "Accessory",
-      values: [
-        value("None", 55n),
-        value("Cap", 25n),
-        value("Scarf", 18n),
-        value("Crown", 2n),
-      ],
-    },
-  ],
+  traits: STYLE_TRAITS.map(({ name, values }) => ({ name, values })),
 };
 
 /** The node accepts at most 16 views in one simulation batch. */

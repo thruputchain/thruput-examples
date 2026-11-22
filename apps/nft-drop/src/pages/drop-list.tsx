@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useClient } from "@thruputchain/react";
 import { toBase58 } from "@thruputchain/client";
 import { Link } from "react-router-dom";
-import { Critter } from "../art/critter";
+import { Artwork } from "../art/artwork";
 import { roll, seeded } from "../art/rarity";
 import { errorMessage, type AppConfig } from "../config";
 import { listDrops, readDrop, type DropSummary } from "../contracts/drops";
@@ -57,9 +57,10 @@ function DropCard({ drop }: { drop: DropSummary }) {
     <Link className="drop-card" to={`/drops/${address}`}>
       <div className="art-frame">
         {details.data ? (
-          <Critter
+          <Artwork
             traits={details.data.traits}
             rolled={roll(details.data.traits, seeded(drop.address))}
+            seed={address}
             size={240}
             label={`Sample from ${drop.config.name}`}
           />
