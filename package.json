@@ -8,7 +8,8 @@
     "apps/voting",
     "apps/swap",
     "apps/token-launchpad",
-    "apps/airdrop"
+    "apps/airdrop",
+    "apps/nft-drop"
   ],
   "engines": {
     "node": ">=22.13.0"
