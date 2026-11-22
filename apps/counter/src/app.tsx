@@ -76,7 +76,7 @@ export function App() {
 }
 
 export function ConnectedCounter({ config }: { config: AppConfig }) {
-  const development = useCounter(config, true);
+  const development = useCounter(config);
   const counter = useCounterValue(config.counterAddress);
   const canSend = Boolean(config.signerAddress) && development.snapshot.ready;
   const message =

@@ -15,9 +15,8 @@ import {
   addressFromBase58,
 } from "@thruputchain/client";
 import { blockHeight, networkHash, sha256Hash } from "@thruputchain/protocol";
-import type { PendingWalletTransaction } from "@thruputchain/client/wallet";
 import type { ReactNode } from "react";
-import { GAS, useClaim } from "./claim";
+import { GAS, useClaim, type PendingClaim } from "./claim";
 import { Airdrop } from "./contracts/generated/airdrop";
 
 // Node 25+ exposes its own storage globals. Use the jsdom storage for this test.
@@ -52,8 +51,8 @@ const config = {
   tokens: [],
   swapUrl: "/swap/",
 };
-const key = `airdrop:v1:${config.networkId}:${config.anchorHash}:${config.address}`;
-let record: PendingWalletTransaction;
+const key = `airdrop:pending:${config.networkId}:${config.anchorHash}:${config.address}`;
+let record: PendingClaim;
 let queries: QueryClient;
 const wrapper = ({ children }: { children: ReactNode }) => (
   <QueryClientProvider client={queries}>{children}</QueryClientProvider>
@@ -81,13 +80,10 @@ beforeEach(async () => {
     networkHash(sha256Hash(new Uint8Array(32))),
   );
   record = {
-    signedTransaction: toHex0x(serializeSignedTransaction(signed)),
     hash: toBase58(hashSignedTransaction(signed)),
-    account: {
-      address: toBase58(account.address),
-      publicKey: toBase58(signer.publicKey.ed25519),
-      nonce: "0",
-    },
+    expiresAt: "100",
+    signedTransaction: toHex0x(serializeSignedTransaction(signed)),
+    account: toBase58(account.address),
     networkHash: config.networkId,
   };
   localStorage.setItem(key, JSON.stringify(record));
@@ -96,35 +92,29 @@ beforeEach(async () => {
   });
   mocks.getChainTip.mockResolvedValue({ blockHeight: 50n });
   mocks.getTransactionReceipt.mockResolvedValue(null);
+  mocks.refetch.mockResolvedValue({});
+  mocks.request.mockResolvedValue({ hash: record.hash });
   mocks.wallet = {
     status: "connected",
-    address: record.account.address,
-    provider: { request: mocks.request, on: () => () => {} },
+    address: record.account,
+    provider: { request: mocks.request },
   };
-  mocks.request.mockImplementation(async (request) =>
-    request.method === "getSession"
-      ? { networkHash: config.networkId, accounts: [record.account] }
-      : { hash: record.hash },
-  );
-  Object.defineProperty(navigator, "locks", {
-    configurable: true,
-    value: {
-      request: async (_key: string, callback: () => unknown) => callback(),
-    },
-  });
 });
 afterEach(() => {
   cleanup();
   queries.clear();
   vi.restoreAllMocks();
 });
-it("retries only saved bytes after reload without requesting another signature", async () => {
+
+it("sends only the saved bytes after a reload, without another signature", async () => {
   const { result } = renderHook(() => useClaim(config), { wrapper });
-  await act(() => result.current.recover(true));
+  expect(result.current.pending).toEqual(record);
+  expect(result.current.blocked).toBe(true);
+  await act(() => result.current.retry());
   expect(mocks.request).toHaveBeenCalledWith({
     method: "submitTransaction",
     params: {
-      account: record.account.address,
+      account: record.account,
       networkHash: record.networkHash,
       signedTransaction: record.signedTransaction,
     },
@@ -132,52 +122,29 @@ it("retries only saved bytes after reload without requesting another signature",
   expect(mocks.execute).not.toHaveBeenCalled();
   expect(localStorage.getItem(key)).not.toBeNull();
 });
-it("preserves evidence when submission fails or expiry has not passed", async () => {
+
+it("keeps the saved claim when a retry fails or the claim has not expired", async () => {
   mocks.request.mockRejectedValue(new Error("Offline"));
   const { result } = renderHook(() => useClaim(config), { wrapper });
-  await act(() => result.current.recover(true));
-  await act(() => result.current.recover(false));
+  await act(() => result.current.retry());
+  expect(result.current.error).toBe("Offline");
+  await act(() => result.current.checkAgain());
   expect(localStorage.getItem(key)).not.toBeNull();
   expect(mocks.execute).not.toHaveBeenCalled();
 });
-it.each([false, true])(
-  "clears expired evidence only after a fresh on-chain claim check (%s)",
-  async (claimed) => {
-    mocks.getChainTip.mockResolvedValue({ blockHeight: 101n });
-    const view = vi
-      .spyOn(Airdrop.v0_1.hasClaimed, "view")
-      .mockResolvedValue({ value: claimed } as never);
-    const { result } = renderHook(() => useClaim(config), { wrapper });
-    await act(() => result.current.recover(false));
-    expect(view).toHaveBeenCalledWith(
-      expect.objectContaining({
-        minStateBlockHeight: 101n,
-        args: { address: addressFromBase58(record.account.address) },
-      }),
-    );
-    expect(localStorage.getItem(key)).toBeNull();
-    expect(mocks.request).not.toHaveBeenCalled();
-  },
-);
-it("retains expired evidence if the state read lags or fails", async () => {
+
+it("clears the saved claim once the chain passes its expiry without a receipt", async () => {
   mocks.getChainTip.mockResolvedValue({ blockHeight: 101n });
-  vi.spyOn(Airdrop.v0_1.hasClaimed, "view").mockRejectedValue(
-    new Error("State unavailable"),
-  );
   const { result } = renderHook(() => useClaim(config), { wrapper });
-  await act(() => result.current.recover(false));
-  expect(localStorage.getItem(key)).not.toBeNull();
+  await act(() => result.current.checkAgain());
+  expect(localStorage.getItem(key)).toBeNull();
+  expect(result.current.message).toMatch(/expired without committing/);
 });
 
-it("does not retry through another account or clear evidence on another chain", async () => {
+it("does not retry through another wallet account", async () => {
   mocks.wallet.address = config.address;
   const { result } = renderHook(() => useClaim(config), { wrapper });
-  await act(() => result.current.recover(true));
+  await act(() => result.current.retry());
   expect(mocks.request).not.toHaveBeenCalled();
-  mocks.getChainTip.mockResolvedValue({ blockHeight: 101n });
-  mocks.getBlockByHeight.mockResolvedValue({
-    blockHash: new Uint8Array(32).fill(4),
-  });
-  await act(() => result.current.recover(false));
-  expect(localStorage.getItem(key)).not.toBeNull();
+  expect(result.current.error).toMatch(/wallet account that signed/);
 });

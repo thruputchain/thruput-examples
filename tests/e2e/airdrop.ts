@@ -336,6 +336,10 @@ async function checkBrowser({ client, output }: Deployment) {
       });
     assert.equal(signatures, 1);
     await page.reload();
+    // The claimed state comes from the contract, for the connected wallet.
+    await page
+      .getByRole("button", { name: "Connect wallet", exact: true })
+      .click();
     await page
       .getByRole("heading", { name: "Airdrop claimed", exact: true })
       .waitFor({ timeout: 60000 });

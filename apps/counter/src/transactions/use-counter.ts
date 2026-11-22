@@ -3,11 +3,9 @@ import type { AppConfig } from "../config";
 import { initialSnapshot, type Direction, type Snapshot } from "./engine";
 import type { WorkerCommand, WorkerEvent } from "./worker";
 
-export function useCounter(config: AppConfig, accepting: boolean) {
+export function useCounter(config: AppConfig) {
   const [snapshot, setSnapshot] = useState<Snapshot>(initialSnapshot);
   const workerRef = useRef<Worker | null>(null);
-  const acceptingRef = useRef(accepting);
-  acceptingRef.current = accepting;
 
   useEffect(() => {
     if (!config.signerAddress) return;
@@ -32,7 +30,6 @@ export function useCounter(config: AppConfig, accepting: boolean) {
       config,
       rpcUrl: new URL(`${import.meta.env.BASE_URL}thruput-rpc`, location.origin)
         .href,
-      accepting: acceptingRef.current,
     } satisfies WorkerCommand);
     return () => {
       worker.terminate();
@@ -40,19 +37,11 @@ export function useCounter(config: AppConfig, accepting: boolean) {
     };
   }, [config]);
 
-  useEffect(() => {
-    workerRef.current?.postMessage({
-      type: "accepting",
-      value: accepting,
-    } satisfies WorkerCommand);
-  }, [accepting]);
-
   function send(direction: Direction) {
-    if (acceptingRef.current)
-      workerRef.current?.postMessage({
-        type: "input",
-        direction,
-      } satisfies WorkerCommand);
+    workerRef.current?.postMessage({
+      type: "input",
+      direction,
+    } satisfies WorkerCommand);
   }
   return { snapshot, send };
 }
