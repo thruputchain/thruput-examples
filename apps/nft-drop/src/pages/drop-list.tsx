@@ -19,7 +19,7 @@ export function DropList({ config }: { config: AppConfig }) {
       <div className="page-heading">
         <div>
           <p className="eyebrow">NFT drops on Thruput</p>
-          <h1>Thousands of mints, one block, no conflicts</h1>
+          <h1>Thousands of mints at once, no conflicts</h1>
           <p className="muted">
             Each drop is an ERC721 collection. Mint one with your wallet, or
             start a rush of simulated users and watch their mints land together.

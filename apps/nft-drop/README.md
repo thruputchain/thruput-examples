@@ -2,8 +2,8 @@
 
 Create NFT drops, mint with a wallet, and start a **rush**: thousands of
 simulated users mint at the same time. The live view shows the result. On a
-local node, 10,000 mints sent at once land in **one block**, the supply sells
-out exactly, and no mint conflicts with another.
+local node, 10,000 mints sent at once all land within **two blocks** (about 4
+seconds), the supply sells out exactly, and no mint conflicts with another.
 
 Each drop is an ERC721 collection from the [NFT Drop](../../contracts/nft-drop/README.md)
 contract, created by the [NFT Drop factory](../../contracts/nft-drop-factory/README.md).
