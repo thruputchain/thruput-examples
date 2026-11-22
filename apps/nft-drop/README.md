@@ -37,7 +37,7 @@ npm run setup:local --workspace apps/nft-drop
 npm run dev --workspace apps/nft-drop
 ```
 
-Open **http://127.0.0.1:5178**. Setup takes about two minutes. It:
+Open **http://127.0.0.1:5178**. Setup takes about three minutes. It:
 
 1. builds both contracts and regenerates their bindings;
 2. switches the node to 2-second interval blocks with `dev_setBlockDriver`. A new
@@ -47,7 +47,9 @@ Open **http://127.0.0.1:5178**. Setup takes about two minutes. It:
 4. creates the **Thruput Critters** demo drop with 10,000 tokens. The node keeps
    a contract's code only after a transaction deploys it, so this first
    creation attaches the drop's code. Later drops deploy by code hash;
-5. funds 10,000 simulated users (the crowd) in batches of 16 transfers;
+5. funds 10,000 simulated users (the crowd) in batches of 16 transfers. Each
+   account gets 0.06 native tokens to schedule mints, about 613 in all; the
+   local faucet supplies them;
 6. writes `.env.local`, including the private `NFT_CROWD_SEED` that derives every
    crowd key.
 
