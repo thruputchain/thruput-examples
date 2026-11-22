@@ -24,8 +24,9 @@ Swap uses its transaction pattern.
 
 ## Local setup
 
-Complete [root setup](../../README.md#setup), including `npm ci`. Start
-`thruput node --port 9545 --json`, or reuse the node running Launchpad. Then:
+Complete [root setup](../../README.md#setup), including `npm ci`, and use CLI
+0.48.0 or newer. Start `thruput node --port 9545 --json`, or reuse the node
+running Launchpad. Then:
 
 ```sh
 npm run setup:local --workspace apps/swap
@@ -36,20 +37,36 @@ Open **http://127.0.0.1:5174**.
 Use the same endpoint in Freighter and request test native tokens before submitting writes.
 
 Setup builds artifacts/bindings and deploys fresh empty infrastructure. It
-writes `.env.local` and hash-named immutable public code assets. Setup saves its
-private deployer key and transaction outcomes under `.local/swap-setup/run-*`,
-beside the environment output. App configuration contains only public values.
-Failed setup keeps the old environment. Restart the app afterward.
+writes `.env.local` and hash-named immutable public code assets. App
+configuration contains only public values. Failed setup keeps the old
+environment. Restart the app afterward.
 Use matching rebuilt contracts and bindings; old deployments do not update when
 packages are installed.
 
-Setup funds the deployer and native-token reserve, then registers handler and
-driver code. It predicts factory and router addresses before deploying them.
-Each deployment funds and initializes its contract atomically. Setup checks
-code hashes, both factory/router links, the funding policy, and an empty pool
-registry before publishing the environment. Verification requires state at or
-after the last confirmed write. Unknown transaction outcomes are recorded and
-never retried.
+Setup uses [`@thruputchain/testkit`](https://www.npmjs.com/package/@thruputchain/testkit)
+for named steps. It funds the deployer and native-token reserve, then registers
+handler and driver code. It predicts factory and router addresses before
+deploying them. Each deployment funds and initializes its contract atomically.
+Setup checks code hashes, both factory/router links, the funding policy, and an
+empty pool registry before publishing the environment. Verification reads state
+that includes every confirmed setup transaction. The environment and code
+assets are published only after verification and the report are saved.
+
+Each run writes `.local/swap-setup/run-*/`, beside the environment output:
+
+- `key.json`: the private deployer key, saved before funding.
+- `transactions/report.json`: the public record of each step and transaction,
+  with its outcome (`succeeded`, `failed`, `notSubmitted`, or `unknown`) and its
+  hash when one is known.
+- `transactions/evidence/`: private signed transactions, saved before dispatch.
+
+If a send response is lost, setup observes the signed transaction instead of
+sending it again. A transaction still unconfirmed when the wait ends stays
+`unknown`; setup never resubmits automatically.
+`reconcileRun("<run>/transactions", client)` observes the original transactions
+again without sending them. If a funding attempt has no hash, call the faucet's
+`requestAirdropAttempt` with the `clientNonce` saved in its intent, never a new
+nonce: a new nonce can fund twice.
 
 ## Demo pool
 
@@ -147,7 +164,13 @@ npm run typecheck --workspace apps/swap
 npm test --workspace apps/swap
 npm run test:swap
 npm run test:launchpad-swap
+npm run test:setup:integration --workspace apps/swap
 ```
+
+`test:setup:integration` runs after `generate:contracts`. It needs Linux and
+uses `thruput` (CLI 0.48.0 or newer) from `PATH`. It checks the setup report on
+a real node, then loses every send response: setup observes each transaction
+without another submission, and reconciliation finds the same transactions.
 
 `test:swap` starts an isolated node and checks both setup modes, pool creation,
 liquidity processing, and a swap at the contract level.
