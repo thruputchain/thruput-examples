@@ -6,7 +6,6 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "requiredMountPath": "/data",
     "startCommand": "npm run start --workspace apps/swap",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 30,

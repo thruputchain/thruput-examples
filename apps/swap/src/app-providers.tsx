@@ -3,7 +3,6 @@ import type { ConnectedThruputClient } from "@thruputchain/client";
 import { WalletProvider } from "@thruputchain/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ExplorerProvider } from "@/components/explorer-context";
-import { ProcessingModeProvider } from "@/components/processing-mode";
 import {
   QueryClient,
   QueryClientProvider,
@@ -37,7 +36,7 @@ export function AppProviders({
       <WalletProvider client={client}>
         <TooltipProvider>
           <ExplorerProvider value={explorerUrl}>
-            <ProcessingModeProvider>{children}</ProcessingModeProvider>
+            {children}
           </ExplorerProvider>
         </TooltipProvider>
       </WalletProvider>

@@ -79,20 +79,11 @@ try {
       const swap = parseEnv(await readFile(swapPath, "utf8"));
       if (launchpad.VITE_THRUPUT_NETWORK_ID !== swap.VITE_THRUPUT_NETWORK_ID)
         throw new Error("Launchpad and Swap must use the same local network.");
+      // Launchpad links new tokens to Swap. Swap searches Launchpad tokens
+      // through its dev server's /launchpad/api proxy; it needs no setting.
       await appendFile(
         launchpadPath,
         "\nVITE_SWAP_APP_URL=http://127.0.0.1:5174\n",
-      );
-      await appendFile(
-        swapPath,
-        [
-          "",
-          "VITE_TOKEN_DISCOVERY_ENABLED=true",
-          `VITE_STANDARD_TOKEN_FACTORY_ADDRESS=${launchpad.VITE_STANDARD_TOKEN_FACTORY_ADDRESS}`,
-          `VITE_STANDARD_TOKEN_HASH=${launchpad.VITE_STANDARD_TOKEN_HASH}`,
-          "TOKEN_DISCOVERY_UPSTREAM_ORIGIN=http://127.0.0.1:5173",
-          "",
-        ].join("\n"),
       );
     }
   } else {

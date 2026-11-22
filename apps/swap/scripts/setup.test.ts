@@ -213,7 +213,7 @@ describe("infrastructure-only swap provisioning", () => {
     const env = await readFile(output, "utf8");
     expect(env).toContain("VITE_THRUPUT_RPC_URL=https://rpc.thruput.network\n");
     expect(env).toContain(`VITE_THRUPUT_NETWORK_ID=${b58(0x11)}\n`);
-    expect(env).toContain("VITE_TOKEN_DISCOVERY_ENABLED=false\n");
+    expect(env).not.toContain("TOKEN_DISCOVERY");
     expect(env).toContain(
       "VITE_EXPLORER_URL=https://explorer.thruput.network\n",
     );

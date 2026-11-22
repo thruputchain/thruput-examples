@@ -1,10 +1,23 @@
 # Swap
 
 Create pools, swap tokens, and manage liquidity through
-[Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/). The registry
-indexes pool creation; balances, reserves, and transaction verification use live
-chain reads. Wallet keys stay in the wallet. This is a full app reference;
-start with [client examples](../../examples/typescript/README.md) for smaller SDK tasks.
+[Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/).
+Wallet keys stay in the wallet. Read the [Voting app](../voting/README.md) first:
+Swap uses its transaction pattern.
+
+**What it shows:**
+
+- **Queued requests and cranking.** A pool cannot run two swaps in parallel,
+  because each one reads and writes the reserves. So the router queues
+  requests, which can land concurrently, and a later "crank" transaction
+  processes the queue in one batch. The
+  [swap contracts README](../../contracts/swap/README.md#cranking-the-queue)
+  explains why.
+- **Lists in the contract.** The swap factory keeps a list of its pools
+  (`all_pairs_length` and `pair_at`), because pools are created rarely. The app
+  reads it directly and needs no indexer. Compare
+  [Launchpad](../token-launchpad/README.md), whose factory does not keep a list.
+- **Atomic batches.** Exact approvals and the request go in one transaction.
 
 ## Local setup
 
@@ -16,7 +29,7 @@ npm run setup:local --workspace apps/swap
 npm run dev --workspace apps/swap
 ```
 
-Open **http://127.0.0.1:5174**. The dev server includes the registry and indexer.
+Open **http://127.0.0.1:5174**.
 Use the same endpoint in Freighter and request test native tokens before submitting writes.
 
 Setup builds artifacts/bindings and deploys fresh empty infrastructure. It
@@ -66,8 +79,6 @@ See [`.env.example`](.env.example) for settings. Setup overrides:
   artifact paths, resolved from the repository root.
 
 Both modes use SDK network discovery when no expected hash is supplied.
-The registry defaults to factory-scoped SQLite under `.local/`;
-`POOL_REGISTRY_DB_PATH` overrides it. Use one writer per database.
 
 Run `npm run setup:devnet --workspace apps/swap` for Devnet defaults. It uses
 the same setup steps and writes a fresh `.env.devnet` deployment. Use
@@ -76,36 +87,59 @@ when hosting with `start`. `PORT` defaults to 3000. Railway uses
 `apps/swap/railway.json` and the root npm install.
 
 Public settings load through `/api/config`; the RPC proxy permits reads only.
-Token discovery can use Launchpad's public registry; configure its URL through
-the settings in `.env.example`. Manual token-address entry is also available.
 
-## Code and transaction behavior
+## Where the Thruput code is
 
-- `src/main.tsx`, `app.tsx`, `app-providers.tsx`: startup, SDK providers, and routing.
-- `src/pools/`, `src/swap/`: feature pages and forms.
-- `src/contracts/`: typed contract calls and generated bindings.
-- `src/transactions/`: execution, observation, account locks, and recovery.
-- `src/domain/`: amount, allowance, and reservation rules.
-- `server/`: registry and HTTP server; `shared/`: browser/server models.
-- `scripts/index.ts`: setup inputs and named deployment steps for both networks.
-- `scripts/run.ts`: private persona keys and transaction outcome records.
-- `scripts/setup.test.ts`: setup and publication tests.
-- `tests/e2e/swap.ts` (repository root): isolated live acceptance checks.
+- [`src/contracts/swap.ts`](src/contracts/swap.ts): every read (pools, reserves,
+  balances, allowances) and every call (approve, swap, add and remove
+  liquidity, create a pair, crank), and how a request's outcome is found.
+- [`src/transactions/use-queued-request.ts`](src/transactions/use-queued-request.ts):
+  one request through the queue.
+  1. One batch approves the exact missing allowance and calls the router. The
+     receipt's `RequestAccepted` event gives the request ID.
+  2. The app sends one crank (`process_requests`). This is a second wallet
+     transaction, because the queue is processed in a later transaction.
+  3. The app looks for the handler's event (`SwapEvent`, `LiquidityMintEvent`,
+     or `LiquidityBurnEvent`) or the driver's `RequestFailed` event that carries
+     the request ID. Anyone's crank can process the request. If it is still
+     queued after the app's crank, the user can crank again.
+- [`src/transactions/use-wallet-transaction.ts`](src/transactions/use-wallet-transaction.ts):
+  send a batch through the wallet, save it before broadcast, and observe it
+  after a reload (the Voting pattern).
+- [`src/pools/create-pool-page.tsx`](src/pools/create-pool-page.tsx): create a
+  pair and add its first liquidity in one transaction. The LP token's code is
+  deployed in the same transaction.
 
-A confirmed queued request is not a completed swap or liquidity change.
-The app correlates terminal events and verifies the outcome. It preserves
-transaction hashes across ambiguous submissions and reloads. Allowance cleanup
-accounts for outstanding work; do not erase saved operations to bypass a lock.
-Atomic batching is negotiated through wallet capabilities, with a sequential
-path for wallets without it. Event decoding uses the current generated ABI;
-historical event-signature aliases are not supported.
+Token search in "Create pool" calls the Launchpad app's `GET /api/tokens`. On
+the hosted site both apps share one origin. Locally, the Swap dev server
+forwards `/launchpad/api` to the Launchpad dev server on port 5173. If
+Launchpad is not running, paste a token address instead.
 
-Run `typecheck`, `test`, or `build` with `--workspace apps/swap`.
-After generating contracts, run `npm run test:swap` from the root. It starts an
-isolated nonzero-network node and tests both setup modes, first-pool creation
-from the public LP artifact, liquidity processing, and a swap with independently
-calculated balances. It also checks network mismatch rejection and preservation
-of existing output. Fixture state stays in the printed temporary directory.
-Set `THRUPUT_CLI` and `THRUPUT_DEVNODE_BINARY` to select compatible binaries.
-Root browser, seeding, and batching checks are in the
+The server only serves public configuration (`/api/config`), a read-only RPC
+proxy (`/thruput-rpc`), and the built app.
+
+## What this example leaves out on purpose
+
+- One request at a time, per account, in one browser tab.
+- One price tolerance (1%). The minimum output protects a swap if the price
+  moves before the queue is processed.
+- No allowance cleanup. Each request approves only the missing amount. If a
+  request fails, its allowance stays; the next request uses it.
+- No routing across several pools, and no price charts.
+
+## Checks
+
+```sh
+npm run typecheck --workspace apps/swap
+npm test --workspace apps/swap
+npm run test:swap
+npm run test:launchpad-swap
+```
+
+`test:swap` starts an isolated node and checks both setup modes, pool creation,
+liquidity processing, and a swap at the contract level.
+`test:launchpad-swap` drives both apps in Chromium with a test wallet: it
+launches two tokens, creates a pool from Launchpad's link, swaps, adds
+liquidity across a reload, and removes liquidity. Set `THRUPUT_CLI`,
+`THRUPUT_DEVNODE_BINARY`, and `CHROMIUM_PATH` as described in the
 [script guide](../../scripts/README.md#checks).

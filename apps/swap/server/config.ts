@@ -1,121 +1,52 @@
-import path from "node:path";
-import { loadTokenDiscoveryServerConfig } from "./token-discovery-config.ts";
+import { loadConfig } from "../src/config.ts";
 
-import type { RegistryScope } from "../shared/registry.ts";
-import {
-  boundedInteger,
-  canonicalAddress,
-  canonicalNetworkId,
-  ValidationError,
-} from "./validation.ts";
+/** Only these public values cross the server/browser boundary. */
+const PUBLIC_KEYS = [
+  "VITE_EXPLORER_URL",
+  "VITE_THRUPUT_NETWORK_ID",
+  "VITE_NATIVE_TOKEN_ADDRESS",
+  "VITE_POOL_TOKEN_HASH",
+  "VITE_SWAP_FACTORY_ADDRESS",
+  "VITE_SWAP_ROUTER_ADDRESS",
+] as const;
 
 export interface ServerConfig {
-  port: number;
-  databasePath: string;
-  rpcUrl: URL;
-  scope: RegistryScope;
-  syncIntervalMs: number;
-  pageSize: number;
-  tokenDiscovery: ReturnType<typeof loadTokenDiscoveryServerConfig>;
+  rpcUrl: string;
+  publicConfig: Record<string, string>;
 }
 
-export type ServerEnvironment = Record<string, string | undefined>;
-
-export class ServerConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ServerConfigurationError";
-  }
-}
-
-export function loadServerConfig(environment: ServerEnvironment): ServerConfig {
-  try {
-    const databasePath = required(environment, "POOL_REGISTRY_DB_PATH");
-    if (
-      databasePath.includes("\0") ||
-      databasePath === ":memory:" ||
-      path.basename(databasePath) === "" ||
-      databasePath.endsWith(path.sep)
-    ) {
-      throw new ValidationError("POOL_REGISTRY_DB_PATH must be a file path");
-    }
-
-    return {
-      tokenDiscovery: loadTokenDiscoveryServerConfig(environment),
-      port: boundedInteger(required(environment, "PORT"), "PORT", 1, 65_535),
-      databasePath,
-      rpcUrl: parseRpcUrl(required(environment, "VITE_THRUPUT_RPC_URL")),
-      scope: {
-        networkId: canonicalNetworkId(
-          required(environment, "VITE_THRUPUT_NETWORK_ID"),
-          "VITE_THRUPUT_NETWORK_ID",
-        ),
-        factoryAddress: canonicalAddress(
-          required(environment, "VITE_SWAP_FACTORY_ADDRESS"),
-          "VITE_SWAP_FACTORY_ADDRESS",
-        ),
-      },
-      syncIntervalMs: optionalInteger(
-        environment,
-        "POOL_REGISTRY_SYNC_INTERVAL_MS",
-        5_000,
-        1_000,
-        86_400_000,
-      ),
-      pageSize: optionalInteger(
-        environment,
-        "POOL_REGISTRY_PAGE_SIZE",
-        200,
-        1,
-        500,
-      ),
-    };
-  } catch (error) {
-    if (error instanceof ServerConfigurationError) throw error;
-    throw new ServerConfigurationError(
-      error instanceof Error ? error.message : "Invalid server configuration",
-    );
-  }
-}
-
-function required(environment: ServerEnvironment, key: string): string {
-  const value = environment[key];
-  if (value === undefined || value === "") {
-    throw new ServerConfigurationError(`${key} is required`);
-  }
-  return value;
-}
-
-function optionalInteger(
-  environment: ServerEnvironment,
-  key: string,
-  fallback: number,
-  minimum: number,
-  maximum: number,
-): number {
-  const value = environment[key];
-  return value === undefined
-    ? fallback
-    : boundedInteger(value, key, minimum, maximum);
-}
-
-function parseRpcUrl(value: string): URL {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new ValidationError("VITE_THRUPUT_RPC_URL must be a valid URL");
-  }
+export function parseRpcUrl(value: string): string {
+  const rpcUrl = new URL(value);
+  const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(
+    rpcUrl.hostname,
+  );
   if (
-    (url.protocol !== "http:" && url.protocol !== "https:") ||
-    url.username !== "" ||
-    url.password !== "" ||
-    url.search !== "" ||
-    url.hash !== ""
-  ) {
-    throw new ValidationError(
-      "VITE_THRUPUT_RPC_URL must be an HTTP URL without credentials, a query string, or a fragment",
-    );
-  }
-  return url;
+    (rpcUrl.protocol !== "https:" &&
+      !(rpcUrl.protocol === "http:" && loopback)) ||
+    rpcUrl.username ||
+    rpcUrl.password ||
+    rpcUrl.search ||
+    rpcUrl.hash
+  )
+    throw new Error("Use HTTPS for devnet or loopback HTTP for a local node.");
+  return rpcUrl.href;
+}
+
+export function loadServerConfig(
+  env: Record<string, string | undefined>,
+): ServerConfig {
+  const rpcUrl = parseRpcUrl(
+    env.VITE_THRUPUT_RPC_URL || env.THRUPUT_RPC_URL || "http://127.0.0.1:9545",
+  );
+  // Check the values the browser will parse, so a bad environment fails at
+  // startup rather than in the browser.
+  loadConfig({ ...env, VITE_THRUPUT_RPC_URL: rpcUrl });
+  return {
+    rpcUrl,
+    publicConfig: Object.fromEntries(
+      PUBLIC_KEYS.flatMap((key) =>
+        env[key] === undefined ? [] : [[key, env[key]!]],
+      ),
+    ),
+  };
 }

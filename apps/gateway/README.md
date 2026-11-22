@@ -36,21 +36,19 @@ The existing `railway.json` files describe the service settings for older Railwa
 workflows. Railway now rejects newly assigning a config-file path through its API;
 configure the build/start/health settings directly in the service settings.
 
-Keep one replica for Counter's in-memory faucet cooldown and each SQLite indexer.
-Launchpad and Swap retain their `/data` volumes. Use a new factory-specific database
-filename for each new deployment, so the previous registry remains intact.
-Voting and the gateway need no volume.
+Keep one replica for Counter's in-memory faucet cooldown and Launchpad's SQLite
+indexer. Launchpad keeps its `/data` volume. Use a new factory-specific database
+filename for each new deployment, so the previous index remains intact. Swap,
+Voting, and the gateway need no volume.
 
 Airdrop uses an on-chain contract for eligibility and claims. Its web server
 serves public configuration and a read-only RPC proxy; it needs no signing key,
 database, volume, or shared gateway secret. See [Airdrop](../airdrop/README.md)
 for configurable token rewards, eligible addresses, and deployment settings.
 
-Set Swap's token discovery variables to Launchpad's network, factory address,
-and token code hash. In Railway, set
-`TOKEN_DISCOVERY_UPSTREAM_ORIGIN=http://token-launchpad.railway.internal:3000`.
-Set Launchpad's `VITE_SWAP_APP_URL` to the public URL ending in `/swap/`.
-The internal discovery URL stays the same when the public domain changes.
+Swap's token search calls `/launchpad/api/tokens` on the same origin, so it
+needs no setting. Set Launchpad's `VITE_SWAP_APP_URL` to the public URL ending
+in `/swap/`.
 
 ## Contract releases
 
@@ -80,7 +78,7 @@ Railway app builds do not deploy contracts or require the Rust toolchain.
 
 ## Verification
 
-After [local setup](../../README.md#run-all-four-apps-locally), install Caddy 2.11
+After [local setup](../README.md#run-all-five-apps-locally), install Caddy 2.11
 and Chromium, then run from the repository root:
 
 ```sh
