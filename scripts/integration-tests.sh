@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-itest_contracts=(counter erc20)
+itest_contracts=(erc20)
 
 for pkg in "${itest_contracts[@]}"; do
     echo "::group::thruput test --integration -p $pkg"

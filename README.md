@@ -1,247 +1,131 @@
 # Thruput examples
 
-Learn Thruput with small Rust contracts and TypeScript scripts, then explore
-complete applications. Start with one example; you do not need to build or run
+Learn Thruput with small Rust contracts and TypeScript scripts, then read
+complete applications. Start with one example. You do not need to build or run
 the whole repository.
+
+To start your own project, use `thruput new --template counter` for a contract,
+or `thruput new --template counter-app` for a contract with a small web app.
+The [developer docs](https://www.thruput.network/docs/start/getting-started/)
+explain the platform.
 
 ## Start here
 
-| I want to…                | Start with                                                                          | What I need                                                                          |
-| ------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Write a contract          | [Counter](contracts/counter/README.md)                                              | Rust; no running node                                                                |
-| Use the TypeScript SDK    | [Client examples](examples/typescript/README.md)                                    | Node.js and a local node                                                             |
-| Consume hosted blocks     | [Firehose consumer](examples/typescript/README.md#8-consume-the-hosted-firehose)    | Node.js and the repo npm install; no local node                                      |
-| Try an application        | [Counter app](apps/counter/README.md)                                               | Rust, Node.js, CLI, and a local node                                                 |
-| Explore a full wallet app | [Token Launchpad](apps/token-launchpad/README.md), then [Swap](apps/swap/README.md) | The app toolchain and [Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/) |
+| I want to…                 | Start with                                                                       | What I need                                     |
+| -------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Write a contract           | [Counter](contracts/counter/README.md)                                           | Rust; no running node                           |
+| Use the TypeScript SDK     | [TypeScript examples](examples/typescript/README.md)                             | Node.js and a local node                        |
+| Consume hosted blocks      | [Firehose consumer](examples/typescript/README.md#8-consume-the-hosted-firehose) | Node.js; no local node                          |
+| Build a wallet app         | [Voting app](apps/voting/README.md)                                              | The app toolchain and [Thruput Freighter][wallet] |
+| See all apps running       | [Apps](apps/README.md)                                                           | The app toolchain                               |
 
-Follow [Setup](#setup) for toolchain installation and the local node. The
-[developer tutorials](https://docs.thruput.network/start/getting-started/)
-explain the platform and creating your own project with `thruput new`.
+[wallet]: https://www.thruput.network/docs/tools/wallet-extension/
 
-### Your first contract test
+## Your first contract test
 
-After installing Rust with rustup, run from the repository root:
+After you install Rust with rustup, run from the repository root:
 
 ```sh
 cargo test -p counter --locked --test test
 ```
 
-Expected: **3 tests pass**. The first initializes the counter to 10, adds 5,
-subtracts 3, and reads 12. The second checks that decrementing below zero fails.
-The third checks that `ping` emits an event with the supplied tag.
-No npm install, wallet, or node is needed for these native tests.
+Expected: **3 tests pass**. You need no npm install, wallet, or node. Read
+[the contract](contracts/counter/src/implementation.rs) and
+[the test](contracts/counter/tests/test.rs), then follow the exercise in the
+[Counter README](contracts/counter/README.md).
 
-Read [the contract](contracts/counter/src/implementation.rs), then
-[the test](contracts/counter/tests/test.rs). Change the increment from 5 to 7
-and update the expected values. Run the same command again.
+## Learning path
 
-With the CLI installed, build the deployable contract:
+1. **[Counter contract](contracts/counter/README.md):** storage, an event, and a
+   declared error, with native tests.
+2. **[TypeScript examples](examples/typescript/README.md):** read the chain,
+   transfer tokens, deploy Counter, read events, and submit a batch.
+3. **Contract concepts:** [Fibonacci](contracts/fibonacci/README.md),
+   [Events](contracts/events/README.md), [Cross-call](contracts/cross-call/README.md),
+   [error handling](contracts/error-handling-caller/README.md), and
+   [interfaces](contracts/multi-impl/README.md). The table below lists them all.
+4. **[Voting app](apps/voting/README.md):** the first wallet app. A browser
+   wallet signs each transaction, and the app recovers it after a reload.
+5. **[Airdrop app](apps/airdrop/README.md):** claim tokens once per wallet.
+6. **[Launchpad app](apps/token-launchpad/README.md):** create tokens through a
+   factory, and index its events into a database.
+7. **[Swap app](apps/swap/README.md):** queued swap requests, cranking, and
+   liquidity.
 
-```sh
-thruput build -p counter
-```
+## Contract examples
 
-The artifact is `target/thruput/counter.rv32a`. Next, use the
-[TypeScript examples](examples/typescript/README.md) to deploy it, call it,
-read events, and submit a batch.
+Each README has a test command, the expected result, and an exercise.
 
-## App visual identity
+| Example                                                                                                                    | What you learn                                      |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| [Counter](contracts/counter/README.md)                                                                                     | Store and update a non-negative counter             |
+| [Fibonacci](contracts/fibonacci/README.md)                                                                                 | A stateless method, a declared error, and an event  |
+| [Events](contracts/events/README.md)                                                                                       | Event payloads and indexed topics                   |
+| [Cross-call](contracts/cross-call/README.md)                                                                               | Call another contract through its generated client  |
+| [Error-handling callee](contracts/error-handling-callee/README.md) and [caller](contracts/error-handling-caller/README.md) | Tell declared errors, faults, and failed calls apart |
+| [Multi-throws](contracts/multi-throws/README.md)                                                                           | Handle more than one declared error type            |
+| [Multi-impl](contracts/multi-impl/README.md)                                                                               | Implement two interface traits at one address       |
+| [Mixed-impl](contracts/mixed-impl/README.md)                                                                               | Combine inherent methods and a trait                |
+| [Oracle consumer](contracts/oracle-consumer/README.md)                                                                     | Read a published price and check its freshness      |
+| [Counter live test](contracts/counter-live/README.md)                                                                      | Deploy and call Counter on a local node from Rust   |
 
-Counter, Voting, Swap, Token Launchpad, and Airdrop use the Stellar Thruput identity and follow
-the system's light or dark theme. Each app keeps its tokens in `src/styles.css`.
-Inter Variable is used for headings, body text, and UI actions. Inconsolata
-Variable is used for code, numbers, balances, and system labels. Both are
-self-hosted through Fontsource.
+### Advanced contracts
 
-The `signal` token stays yellow (`#FDDA24`) for filled actions. `primary` is a
-theme-aware accent for readable links and focus indicators. Keep these roles
-separate when adding controls.
+These combine several concepts. Read a small example first.
 
-The SVGs in each app's `public/brand/` and its favicon use the official Stellar
-Logo Press Kit 2026 vector paths.
+| Example                                                                                      | What you learn                                                  |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| [Cross-trait throws](contracts/cross-trait-throws/README.md)                                 | Catch errors across interface boundaries                        |
+| [Voting](contracts/voting/README.md)                                                         | Admin permissions, a poll lifecycle, and mergeable vote totals  |
+| [Airdrop](contracts/airdrop/README.md)                                                       | Atomic token claims with optional address eligibility           |
+| [Waitlist](contracts/waitlist/README.md)                                                     | A fee steered by a backlog, shared by concurrent callers        |
+| [ERC20](contracts/erc20/README.md)                                                           | Token balances, allowances, metadata, and permits               |
+| [Standard token](contracts/standard-token/README.md) and [factory](contracts/standard-token-factory/README.md) | Tokens created by a factory, used by Launchpad |
+| [Swap contracts](contracts/swap-router/README.md)                                            | Pools, routing, queued requests, and liquidity                  |
+| [Permit wallet](contracts/permit-wallet/README.md) and [relayer](contracts/permit-relayer/README.md) | Off-chain authorization                                  |
+| [Stellar account](contracts/stellar-account/README.md)                                       | Weighted Ed25519 and ML-DSA-65 signers and thresholds           |
+| [Speedex](contracts/speedex/README.md)                                                       | Multi-asset batch exchange and clearing (research)              |
+
+## Applications
+
+Five teaching apps show complete flows: Counter, Voting, Airdrop, Token
+Launchpad, and Swap. They are not production services. Start with
+[apps/README.md](apps/README.md).
 
 ## Setup
 
 Run commands from the repository root. Use Node.js **22.13+**, npm, and
-[rustup](https://rustup.rs/). The checked-in `rust-toolchain.toml` selects Rust.
-
-### Rust and CLI
-
-All Rust dependencies, including the Thruput SDK and CLI, come from
-[crates.io](https://crates.io); no registry credentials are needed.
+[rustup](https://rustup.rs/). The committed `rust-toolchain.toml` selects Rust.
+All Rust crates and `@thruputchain/*` packages are public; you need no tokens.
 
 ```sh
 rustup show
 cargo install --locked --version '>=0.47.0' thruput
 thruput toolchain install
+npm ci
 ```
 
-Use CLI **0.47.0 or newer**. Let the CLI select its compatible managed runtime.
-Native tests need Rust but no CLI or node. The committed `thruput.toml` selects
-the local profile for contract builds.
+Use CLI **0.47.0 or newer**, and let it select its managed runtime. Native
+contract tests need only Rust.
 
-### npm
-
-The published `@thruputchain/*` packages are on the public
-[npm registry](https://www.npmjs.com/org/thruputchain); no token is needed.
-Run `npm ci` at the root. This installs dependencies for all apps and client
-examples.
-
-### Local node
-
-In a separate terminal, run `thruput node --port 9545 --json` and leave it running.
-For client scripts, set `THRUPUT_RPC_URL=http://127.0.0.1:9545`. App setup defaults
-to this endpoint and uses `thruput` on `PATH`. Set `THRUPUT_CLI` to select another
-executable. `THRUPUT_NETWORK_ID` and `THRUPUT_RUNTIME_MANIFEST` are optional network
-checks. If you use a manifest, use the one printed by the current node.
-
-Run `npm run example:chain-tip` for a first read. Continue with the
-[client examples](examples/typescript/README.md) or an app README.
-If the CLI rejects a runtime manifest, use its matching managed runtime rather
-than a protocol override.
-
-### Run all five apps locally
-
-After the Rust/CLI and npm setup above, start `thruput node --port 9545 --json`
-in one terminal. In another terminal, from the repository root:
+For the TypeScript examples and the apps, run a local node in a separate
+terminal, and leave it running:
 
 ```sh
-npm run setup:local
-npm run dev
+thruput node --port 9545 --json
 ```
 
-`setup:local` builds and deploys fresh contracts for Counter, Launchpad, Swap,
-and Voting, then deploys Airdrop with seven demo tokens and six seeded pools. It writes each
-app's ignored `.env.local`. `dev` reuses those deployments and starts all five apps.
-Setup connects Swap's token discovery to
-Launchpad and enables Launchpad's link to Swap. Ctrl+C stops the app processes; stop the
-node separately. These root commands use POSIX process groups (Linux/macOS).
+Then run `npm run example:chain-tip` for a first read.
 
-| App             | Local URL             |
-| --------------- | --------------------- |
-| Counter         | http://127.0.0.1:5175 |
-| Token Launchpad | http://127.0.0.1:5173 |
-| Swap            | http://127.0.0.1:5174 |
-| Voting          | http://127.0.0.1:5176 |
-| Airdrop         | http://127.0.0.1:5177 |
+## More
 
-Counter works without a wallet connection. For the other apps, install Thruput Freighter,
-select the same local RPC endpoint, and request test tokens in the wallet.
-The root setup includes airdrop tokens and pools. Individual Launchpad and Swap
-setup commands start empty; their READMEs explain optional demo seeding.
-An ephemeral node loses its contracts when stopped. After restarting it, run
-`setup:local` again. Preserve the old Airdrop environment and select a new
-`AIRDROP_ENV_PATH`; setup refuses to replace an existing distribution.
-Run evidence is saved in a new directory each time.
-See the [airdrop guide](apps/airdrop/README.md) for separate setup paths.
-
-To run one app, use `npm run setup:local --workspace apps/<app>` followed by
-`npm run dev --workspace apps/<app>`. Local development needs no Railway account
-or devnet connection. Leave `APP_BASE_PATH` unset locally.
-
-### Hosted examples
-
-The [examples site](https://examples-gateway-production.up.railway.app/) serves
-all five apps under one domain. The [gateway guide](apps/gateway/README.md)
-describes devnet deployment, subpath builds, Railway settings, and verification.
-
-## Small contract examples
-
-Each README includes a test command, expected result, and an exercise.
-Suggested order: **Counter → Fibonacci → Events → Cross-call → error handling**.
-
-For a first live-node Rust test, start with the
-[Counter Testkit example](contracts/counter/README.md#run-with-testkit):
-deploy, increment, and check the result with one agent.
-
-| Example                                                                                                                    | What you learn                                               |
-| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| [Counter](contracts/counter/README.md)                                                                                     | Store and update a non-negative counter                      |
-| [Fibonacci](contracts/fibonacci/README.md)                                                                                 | A stateless method, a declared error, and an event           |
-| [Events](contracts/events/README.md)                                                                                       | Event payloads and indexed topics                            |
-| [Cross-call](contracts/cross-call/README.md)                                                                               | Call another contract through its generated client           |
-| [Error-handling callee](contracts/error-handling-callee/README.md) and [caller](contracts/error-handling-caller/README.md) | Distinguish declared errors, faults, and failed calls        |
-| [Multi-throws](contracts/multi-throws/README.md)                                                                           | Handle more than one declared error type                     |
-| [Multi-impl](contracts/multi-impl/README.md)                                                                               | Implement separate interface traits at one address           |
-| [Mixed-impl](contracts/mixed-impl/README.md)                                                                               | Combine inherent methods and a trait implementation          |
-| [Cross-trait throws](contracts/cross-trait-throws/README.md)                                                               | Catch errors across interface boundaries                     |
-| [Oracle consumer](contracts/oracle-consumer/README.md)                                                                     | Read a published price, check freshness, and value tokens     |
-
-## Larger reference examples
-
-These combine several concepts. Read a small example first.
-
-| Example                                                                                      | Purpose                                                                               |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [ERC20](contracts/erc20/README.md)                                                           | Token balances, allowances, metadata, and optional permits                            |
-| [Voting](contracts/voting/README.md) | Admin permissions, poll lifecycle, and mergeable vote totals |
-| [Airdrop](contracts/airdrop/README.md) | Atomic token claims with optional address eligibility |
-| [Waitlist](contracts/waitlist/README.md) | An EIP-1559-style fee steered by a backlog, which concurrent callers share without conflict |
-| [Permit wallet](contracts/permit-wallet/) and [relayer](contracts/permit-relayer/)           | Off-chain authorization and auth-token composition; run with `scripts/permit-live.sh` |
-| [Standard token](contracts/standard-token/) and [factory](contracts/standard-token-factory/) | Factory-created tokens, used by Launchpad                                             |
-| [Swap contracts](contracts/swap-router/README.md)                                            | Pools, routing, queued requests, liquidity, and GSR- or CLVR-ordered batches          |
-| [Speedex](contracts/speedex/README.md)                                                       | Multi-asset batch exchange and clearing                                               |
-| [Stellar account](contracts/stellar-account/README.md)                                       | Weighted Ed25519 and ML-DSA-65 signers and operation thresholds                       |
-
-## Applications
-
-| App                                               | Purpose                                                                                       |
-| ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| [Counter](apps/counter/README.md)                 | Concurrent counter updates signed by a development key, with no wallet |
-| [Voting](apps/voting/README.md)                   | Create multi-question polls, vote once per question, and view live results                    |
-| [Airdrop](apps/airdrop/README.md)                   | Claim configurable tokens once per wallet, with optional address eligibility                  |
-| [Token Launchpad](apps/token-launchpad/README.md) | Create tokens with an external wallet and browse indexed launches                             |
-| [Swap](apps/swap/README.md)                       | Create pools, swap tokens, and manage liquidity                                               |
-
-The Counter **contract** is introductory; the Counter **app** demonstrates
-concurrency and transaction observation. Launchpad and Swap include registry
-servers and transaction recovery, so they are full application references.
-
-All apps share the root npm install. Each app has its own setup instructions.
-Local setup creates fresh infrastructure. Seeding requires `SEED_RECIPIENT` and
-creates new demo tokens and optional liquidity on every run, without saving
-keys or recovery state. Use the same node and RPC endpoint in both apps and Freighter.
-
-## Examples versus tools
-
-| Location                              | Audience and purpose                                                                                 |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `examples/typescript/`                | Small scripts to read, run, and modify while learning the published SDK                              |
-| `contracts/`                          | Rust contracts and their focused tests                                                               |
-| `apps/*/scripts/`                     | Setup, binding generation, and seed entrypoints for that app                                         |
-| `scripts/seed/`                       | Shared app-seeding implementation; not an introductory SDK example                                   |
-| `scripts/`                            | Maintainer builds, checks, live scenarios, and benchmarks; see the [script index](scripts/README.md) |
-| `interfaces/`, `engines/`, `helpers/` | Supporting Rust interfaces and implementations                                                       |
-| `sim-fixtures/`                       | Workloads for simulator testing, not tutorials                                                       |
-| `tests/browser/`, `tests/e2e/`        | Browser fixtures and live acceptance tests                                                           |
-
-## Development and verification
-
-- [Setup](#setup): install and node.
-- [Script index and checks](scripts/README.md): tests, requirements, and side effects.
-- [AGENTS.md](AGENTS.md): repository instructions for coding agents.
-
-### Update dependencies
-
-New crate and npm releases must be older than a cooldown period before a
-lockfile takes them.
-First-party packages (`thruput`, `thruput-*` and `@thruputchain/*`) are exempt.
-Dependabot opens weekly update pull requests under this cooldown.
-
-- **Rust.** Update `Cargo.lock` with
-  [cargo-cooldown](https://crates.io/crates/cargo-cooldown)
-  (`cargo cooldown update`) instead of `cargo update`. CI checks the lockfile
-  with [cargo-cooldown-check](https://github.com/NomicFoundation/cargo-cooldown-check).
-  The policy is in `cooldown.toml`, `.cargo/cooldown.toml` and
-  `.cargo/cooldown-allowlist.toml`.
-- **npm.** `.npmrc` sets `min-release-age`, which recent npm releases (such as
-  npm 12) apply when they resolve new versions.
+- [scripts/README.md](scripts/README.md): repository layout, tools, and checks.
+- [CONTRIBUTING.md](CONTRIBUTING.md): checks and dependency updates.
+- [AGENTS.md](AGENTS.md): instructions for coding agents.
 
 ## License
 
-[Apache-2.0](LICENSE), except for the swap contract suite. The `swap-*`
-contracts, [`engines/swap-pair`](engines/swap-pair/), and
-[`interfaces/swap-if`](interfaces/swap-if/) are a port of
-[UniswapV2](https://github.com/Uniswap/v2-core), which is GPL-3.0 licensed, so
-they are distributed under [GPL-3.0-or-later](LICENSE-GPL-3.0). Each crate's
-`Cargo.toml` names its license.
+[Apache-2.0](LICENSE), except the swap contract suite (`swap-*` contracts,
+`engines/swap-pair`, and `interfaces/swap-if`). It is a port of
+[UniswapV2](https://github.com/Uniswap/v2-core), so it is
+[GPL-3.0-or-later](LICENSE-GPL-3.0). Each crate's `Cargo.toml` names its license.

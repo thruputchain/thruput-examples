@@ -9,8 +9,7 @@ the packages installed by this repository.
 
 ## Setup
 
-Follow [Setup](../../README.md#setup) for package access and
-CLI installation. Run everything here from the repository root.
+Follow [Setup](../../README.md#setup) for the CLI. Run everything here from the repository root.
 For the [hosted firehose consumer](#8-consume-the-hosted-firehose), only the
 repo npm install is needed; skip the CLI and local-node setup below.
 
@@ -23,9 +22,12 @@ thruput node --port 9545 --json
 In terminal B:
 
 ```sh
-npm ci
+npm ci --workspaces=false --include-workspace-root
 export THRUPUT_RPC_URL=http://127.0.0.1:9545
 ```
+
+This installs only the packages these scripts need, not the five apps. A plain
+`npm ci` also works.
 
 The SDK scripts accept only loopback HTTP endpoints and check the localnet network
 identity. Use one local node for the sequence. Local nodes share a network hash,
@@ -235,7 +237,7 @@ exit status. For `below_window`, recover state or explicitly choose a new output
 directory to start at tip. A saved checkpoint cannot be reused with a different
 endpoint.
 
-See the [firehose consumption guide](https://docs.thruput.network/guides/consume-the-firehose/).
+See the [firehose consumption guide](https://www.thruput.network/docs/guides/consume-the-firehose/).
 
 ## 9. Transfer an application token
 
@@ -269,8 +271,22 @@ Never use a production key for this lesson.
 - `generate.sh` builds the artifact and matching binding.
 - `generated/counter.ts` is generated, not a hand-written teaching example.
 
-Scripts exit nonzero on errors. A submission timeout does not prove failure.
-Investigate the original hash instead of repeating a write on that assumption.
+Scripts exit nonzero on errors.
+
+## When a write times out
+
+A timeout after you send a transaction does not mean the transaction failed. It
+can still commit. Every app in this repository follows the same rule:
+
+1. Save the transaction hash before you broadcast it. The scripts print each
+   hash as soon as they have it; the browser apps save it to `localStorage`.
+2. After a timeout or a reload, look up that hash with
+   `client.getTransactionReceipt` or `client.getTransactionStatus`.
+3. Send the transaction again only when you know it did not commit.
+
+Do not resubmit a write only because it timed out. The
+[transaction lifecycle](https://www.thruput.network/docs/architecture/transaction-lifecycle/)
+explains the states a transaction goes through.
 
 ## Verification and next steps
 
@@ -279,5 +295,5 @@ runs the SDK scripts against a fresh isolated node and checks the results; it
 does not run the hosted firehose consumer. See
 [Development checks](../../scripts/README.md#checks).
 
-Next: [Counter app](../../apps/counter/README.md) for concurrent requests, or
-[Launchpad](../../apps/token-launchpad/README.md) for browser-wallet integration.
+Next: the [Voting app](../../apps/voting/README.md) for a browser wallet, or
+the [Counter app](../../apps/counter/README.md) for many concurrent transactions.

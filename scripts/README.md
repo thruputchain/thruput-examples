@@ -3,6 +3,19 @@
 These scripts support development and verification. For small runnable SDK
 examples, start at [examples/typescript](../examples/typescript/README.md).
 
+## Repository layout
+
+| Location                              | Audience and purpose                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------ |
+| `contracts/`                          | Rust contracts and their focused tests                                   |
+| `examples/typescript/`                | Small scripts to read, run, and change while you learn the SDK           |
+| `apps/`                               | Teaching apps; `apps/*/scripts/` holds each app's setup and generation   |
+| `scripts/seed/`                       | Shared app seeding; not an introductory SDK example                      |
+| `scripts/`                            | Maintainer builds, checks, live scenarios, and benchmarks                |
+| `interfaces/`, `engines/`, `helpers/` | Supporting Rust interfaces and implementations                           |
+| `sim-fixtures/`                       | Workloads for simulator testing, not tutorials                           |
+| `tests/browser/`, `tests/e2e/`        | Browser fixtures and live acceptance tests                               |
+
 Run all commands below from the repository root. Install the toolchain with
 [Setup](../README.md#setup). Shell tools use `thruput` on
 `PATH`; app setup accepts `THRUPUT_CLI`. Set both to the same CLI release.
@@ -89,7 +102,7 @@ npm run build --workspaces
 ```
 
 Native Rust tests run without a node. `thruput test -p counter` runs the guest
-artifact; `thruput test --integration -p counter` runs RPC tests on an ephemeral
+artifact; `thruput test --integration -p erc20` runs RPC tests on an ephemeral
 node. Use `cargo test --workspace --locked`, `cargo fmt --check`, and
 `cargo clippy --workspace --all-targets --no-deps --locked -- -D warnings` for
 workspace-wide Rust checks. Ignored live/guest tests need their own commands.
