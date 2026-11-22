@@ -5,7 +5,14 @@ import { resolve } from "node:path";
 import { parseEnv } from "node:util";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const apps = ["counter", "token-launchpad", "swap", "voting", "airdrop"];
+const apps = [
+  "counter",
+  "token-launchpad",
+  "swap",
+  "voting",
+  "airdrop",
+  "nft-drop",
+];
 const command = process.argv[2];
 if (command !== "setup:local" && command !== "dev") {
   throw new Error("Use setup:local or dev.");
@@ -60,7 +67,7 @@ try {
       if (error.code !== "ENOENT") throw error;
     }
     console.log(
-      "Setting up five apps and fresh airdrop assets on the local node.",
+      "Setting up six apps and fresh airdrop assets on the local node.",
     );
     for (const app of apps) {
       if (stopping) break;
@@ -97,7 +104,7 @@ try {
     }
   } else {
     console.log(
-      "Counter :5175 · Launchpad :5173 · Swap :5174 · Voting :5176 · Airdrop :5177",
+      "Counter :5175 · Launchpad :5173 · Swap :5174 · Voting :5176 · Airdrop :5177 · NFT Drop :5178",
     );
     await Promise.all(apps.map(run));
   }

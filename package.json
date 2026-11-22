@@ -37,6 +37,7 @@
     "test:token-launchpad": "tsx tests/e2e/token-launchpad.ts",
     "test:swap": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/swap.ts",
     "test:airdrop": "tsx tests/e2e/airdrop.ts",
+    "test:nft-drop": "tsx tests/e2e/nft-drop.ts",
     "test:seed": "tsx tests/e2e/seed.ts",
     "test:batching": "tsx --tsconfig apps/swap/tsconfig.json tests/e2e/batching.ts"
   },

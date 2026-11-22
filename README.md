@@ -47,7 +47,7 @@ read events, and submit a batch.
 
 ## App visual identity
 
-Counter, Voting, Swap, Token Launchpad, and Airdrop use the Stellar Thruput identity and follow
+Counter, Voting, Swap, Token Launchpad, Airdrop, and NFT Drop use the Stellar Thruput identity and follow
 the system's light or dark theme. Each app keeps its tokens in `src/styles.css`.
 Inter Variable is used for headings, body text, and UI actions. Inconsolata
 Variable is used for code, numbers, balances, and system labels. Both are
@@ -106,7 +106,7 @@ Run `npm run example:chain-tip` for a first read. Continue with the
 If the CLI rejects a runtime manifest, use its matching managed runtime rather
 than a protocol override.
 
-### Run all five apps locally
+### Run all six apps locally
 
 After the Rust/CLI and npm setup above, start `thruput node --port 9545 --json`
 in one terminal. In another terminal, from the repository root:
@@ -117,8 +117,10 @@ npm run dev
 ```
 
 `setup:local` builds and deploys fresh contracts for Counter, Launchpad, Swap,
-and Voting, then deploys Airdrop with seven demo tokens and six seeded pools. It writes each
-app's ignored `.env.local`. `dev` reuses those deployments and starts all five apps.
+and Voting, then deploys Airdrop with seven demo tokens and six seeded pools, and
+NFT Drop with a demo drop and 10,000 funded simulated users. NFT Drop setup also
+switches the node to 2-second blocks. It writes each
+app's ignored `.env.local`. `dev` reuses those deployments and starts all six apps.
 Setup connects Swap's token discovery to
 Launchpad and enables Launchpad's link to Swap. Ctrl+C stops the app processes; stop the
 node separately. These root commands use POSIX process groups (Linux/macOS).
@@ -130,6 +132,7 @@ node separately. These root commands use POSIX process groups (Linux/macOS).
 | Swap            | http://127.0.0.1:5174 |
 | Voting          | http://127.0.0.1:5176 |
 | Airdrop         | http://127.0.0.1:5177 |
+| NFT Drop        | http://127.0.0.1:5178 |
 
 Counter works without a wallet connection. For the other apps, install Thruput Freighter,
 select the same local RPC endpoint, and request test tokens in the wallet.
@@ -197,6 +200,7 @@ These combine several concepts. Read a small example first.
 | [Counter](apps/counter/README.md)                 | Development-signed concurrent updates or wallet-approved button updates, with reload recovery |
 | [Voting](apps/voting/README.md)                   | Create multi-question polls, vote once per question, and view live results                    |
 | [Airdrop](apps/airdrop/README.md)                   | Claim configurable tokens once per wallet, with optional address eligibility                  |
+| [NFT Drop](apps/nft-drop/README.md)                 | Create ERC721 drops, mint with a wallet, and watch thousands of simulated mints land in one block |
 | [Token Launchpad](apps/token-launchpad/README.md) | Create tokens with an external wallet and browse indexed launches                             |
 | [Swap](apps/swap/README.md)                       | Create pools, swap tokens, and manage liquidity                                               |
 
