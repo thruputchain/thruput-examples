@@ -9,23 +9,18 @@ import {
   hashFromBase58,
   HttpTransport,
   parseUnits,
-  prepareContractDeployment,
   toBase58,
-  type ContractDeployment,
 } from "@thruputchain/client";
+import {
+  createKeyFile,
+  createOutputDirectory,
+  loadArtifacts,
+  withScenario,
+} from "@thruputchain/testkit";
 import { gasAmount, networkHash } from "@thruputchain/protocol";
 import { errorMessage } from "../src/config";
 import { parseRpcUrl } from "../server/config";
 import { Voting } from "../src/contracts/generated/voting";
-import {
-  createPersona,
-  createRun,
-  record,
-  saveRun,
-  type Client,
-  type Persona,
-  type Run,
-} from "./run";
 
 const deploymentGas = gasAmount(10_000_000n); // Covers the wallet, funding, and deployment.
 // One native token funds code and poll storage. This is separate from gas capacity.
@@ -82,104 +77,101 @@ interface Options {
 /** Deploy fresh Voting state and publish configuration after verification. */
 export async function provisionVoting(options: Options) {
   const rpcUrl = parseRpcUrl(options.rpcUrl);
-  const contract = await readFile(
-    resolve(repositoryRoot, options.artifact || "target/thruput/voting.rv32a"),
-  );
-  // Discover network identity; pin it only when an expected hash was supplied.
-  const client = await createThruputClient({
-    cluster: defineCluster({
-      name: options.network,
-      rpcUrl,
-      capabilities: ["airdrop"] as const,
-      ...(options.networkId === undefined
-        ? {}
-        : {
-            networkHash: networkHash(hashFromBase58(options.networkId)),
-          }),
-    }),
-    transport: new HttpTransport(rpcUrl, { timeoutMs: 15_000 }),
-  });
-  const output = resolve(repositoryRoot, options.output);
-  const run = await createRun(
-    join(dirname(output), ".local", "voting-setup"),
-    toBase58(client.network.networkHash),
-  );
-  console.log(`Run: ${run.directory}`);
-  try {
-    const persona = await createPersona(client, run, "Voting Deployer");
-    const deployment = prepareContractDeployment({
-      deployer: persona.account.address,
-      contract,
-    });
-    // Keep the predicted address even when deployment confirmation fails.
-    run.manifest.votingAddress = toBase58(deployment.address);
-    await saveRun(run);
-
-    // Await each step: verification must include the confirmed deployment.
-    await fundPersona(run, persona);
-    await deployVoting(run, persona, deployment);
-    await verifyVoting(client, run, deployment);
-    await writeEnvironment(output, options.rpcUrl, run);
-    run.manifest.status = "complete";
-    await saveRun(run);
-    console.log(
-      `Voting ready: ${run.manifest.votingAddress}\nEnvironment: ${output}`,
-    );
-    return { client, address: deployment.address };
-  } catch (error) {
-    run.manifest.status = "failed";
-    run.manifest.error = errorMessage(error);
-    await saveRun(run);
-    throw error;
-  }
-}
-
-async function fundPersona(run: Run, persona: Persona) {
-  await record(run, `Fund ${persona.name}`, async () => {
-    // The faucet chooses the amount and waits for successful execution.
-    const funding = await persona.wallet.requestAirdrop(wait);
-    return { hash: funding.transactionHash, blockHeight: funding.blockHeight };
-  });
-}
-
-async function deployVoting(
-  run: Run,
-  persona: Persona,
-  deployment: ContractDeployment,
-) {
-  await record(run, "Deploy Voting", () =>
-    // Funding and deployment are atomic. Voting has no initializer.
-    persona.wallet.deployContractAndWait(
-      deployment,
-      {
-        gasLimit: deploymentGas,
-        amount: storageFunding,
-      },
-      wait,
+  const artifacts = await loadArtifacts({
+    voting: resolve(
+      repositoryRoot,
+      options.artifact || "target/thruput/voting.rv32a",
     ),
-  );
-}
-
-async function verifyVoting(
-  client: Client,
-  run: Run,
-  deployment: ContractDeployment,
-) {
-  const count = await Voting.v0_1.count.view({
-    client,
-    address: deployment.address,
-    // Reject stale snapshots that do not yet contain the deployment.
-    minStateBlockHeight: run.latestBlockHeight,
   });
-  // A fresh deployment has no polls; this expectation is independent of the receipt.
-  if (count.value !== 0n) {
-    throw new Error(
-      `Voting verification failed: expected 0 polls, received ${count.value}.`,
-    );
-  }
+  const cluster = defineCluster({
+    name: options.network,
+    rpcUrl,
+    capabilities: ["airdrop"] as const,
+    ...(options.networkId === undefined
+      ? {}
+      : {
+          networkHash: networkHash(hashFromBase58(options.networkId)),
+        }),
+  });
+  const transport = new HttpTransport(rpcUrl, { timeoutMs: 15_000 });
+  // Preserve discovery and optional pins. This external client remains usable after setup.
+  const client = await createThruputClient({ cluster, transport });
+  const expectedNetwork = networkHash(
+    hashFromBase58(toBase58(client.network.networkHash)),
+  );
+  const output = resolve(repositoryRoot, options.output);
+  const directory = await createOutputDirectory(
+    join(dirname(output), ".local", "voting-setup"),
+  );
+  const runDirectory = join(directory, "transactions");
+  console.log(`Report: ${join(runDirectory, "report.json")}`);
+  // Save the private key before funding or deployment, so a failed run can be recovered.
+  const deployer = await createKeyFile(join(directory, "key.json"));
+  const deployment = artifacts.voting.prepare(deployer.account.address);
+  const address = toBase58(deployment.address);
+  await withScenario(
+    {
+      network: {
+        cluster: { ...cluster, networkHash: expectedNetwork },
+        transport,
+      },
+      accounts: { "Voting Deployer": deployer.account },
+      runDirectory,
+    },
+    async (scenario) => {
+      const actor = scenario.actor("Voting Deployer");
+      console.log(
+        `Deployer: ${deployer.address}\nPredicted Voting: ${address}`,
+      );
+      try {
+        // The faucet chooses the amount. The report records the request and its hash.
+        await scenario.run.step("fund-deployer", () =>
+          actor.fund({ timeoutMs: wait.timeoutMs }),
+        );
+        await scenario.run.step(
+          "deploy-voting",
+          () =>
+            actor.deploy(deployment, {
+              // Funding and deployment are atomic. Voting has no initializer.
+              gasLimit: deploymentGas,
+              amount: storageFunding,
+              wait,
+            }),
+          { metadata: { address } },
+        );
+        await scenario.run.step("verify-voting", async () => {
+          // Testkit reads state containing the confirmed deployment.
+          const count = await scenario.view(
+            Voting.v0_1.count.viewRequest({ address: deployment.address }),
+          );
+          // Expected state comes from a fresh deployment, independently of its receipt.
+          if (count.value !== 0n) {
+            throw new Error(
+              `Voting verification failed: expected 0 polls, received ${count.value}.`,
+            );
+          }
+        });
+      } finally {
+        for (const attempt of scenario.run.report().attempts) {
+          console.log(
+            `${attempt.step} (${attempt.outcome}): ${attempt.transactionHash ?? "no hash recorded"}`,
+          );
+        }
+      }
+    },
+  );
+  // Finish report persistence and scenario cleanup before replacing app configuration.
+  await writeEnvironment(output, rpcUrl, toBase58(expectedNetwork), address);
+  console.log(`Voting ready: ${address}\nEnvironment: ${output}`);
+  return { client, address: deployment.address };
 }
 
-async function writeEnvironment(output: string, rpcUrl: string, run: Run) {
+async function writeEnvironment(
+  output: string,
+  rpcUrl: string,
+  networkId: string,
+  address: string,
+) {
   await mkdir(dirname(output), { recursive: true });
   const temporary = `${output}.${randomBytes(6).toString("hex")}.tmp`;
   try {
@@ -187,17 +179,18 @@ async function writeEnvironment(output: string, rpcUrl: string, run: Run) {
       temporary,
       [
         `THRUPUT_RPC_URL=${rpcUrl}`,
-        `VITE_THRUPUT_NETWORK_ID=${run.manifest.networkHash}`,
-        `VITE_VOTING_ADDRESS=${run.manifest.votingAddress}`,
+        `VITE_THRUPUT_NETWORK_ID=${networkId}`,
+        `VITE_VOTING_ADDRESS=${address}`,
         "PORT=3000",
         "",
       ].join("\n"),
-      { flag: "wx", mode: 0o600 },
+      { flag: "wx", mode: 0o600, flush: true },
     );
     // Publish only after verification. Setup failure keeps the previous environment.
     await rename(temporary, output);
-  } finally {
+  } catch (error) {
     await rm(temporary, { force: true });
+    throw error;
   }
 }
 

@@ -36,8 +36,9 @@ and request test native tokens in the wallet. Public browsing needs no wallet.
 Setup builds the contract and bindings, creates a named Voting Deployer and bound
 wallet, then funds the account. Contract funding and deployment happen in one
 transaction. Voting has no initializer. Setup checks that the poll count is zero
-using a snapshot that includes the confirmed deployment, then writes `.env.local`
-atomically. A failed setup keeps the previous environment. Each run creates a
+using a snapshot that includes the confirmed deployment, finishes the testkit report,
+then replaces `.env.local` atomically. A funding, deployment, verification, or
+report-write failure keeps the previous environment. Each run creates a
 fresh deployment. Restart the app after setup.
 
 No environment variables are required. Override `THRUPUT_RPC_URL` to change the
@@ -45,20 +46,37 @@ endpoint (default `http://127.0.0.1:9545`). `VOTING_APP_ENV` selects the environ
 output; `VOTING_ARTIFACT` selects the compiled artifact. Paths resolve from the repo
 root. Generation uses `thruput` from `PATH`; `THRUPUT_CLI` optionally overrides it.
 
-The SDK discovers network identity. Set `THRUPUT_NETWORK_ID` or
+The SDK discovers network identity, then testkit binds the run to that identity.
+Discovery is not an independent trusted network check. Set `THRUPUT_NETWORK_ID` or
 `THRUPUT_RUNTIME_MANIFEST` to check an expected network. If both are supplied,
 their network hashes must agree.
 
 ### Setup records
 
-Each run prints its directory under `.local/voting-setup/`, beside the environment
-output. `manifest.json` contains public addresses and transaction records;
-`key.json` stores the private deployer key separately. Both files are readable
-only by the owner. The app does not need the deployer key.
+Each run prints its report path under `.local/voting-setup/<run>/transactions/`,
+beside the environment output. Setup uses [`@thruputchain/testkit`](https://www.npmjs.com/package/@thruputchain/testkit),
+and `transactions/report.json` is its public record:
 
-`record()` saves intent before each operation and distinguishes confirmed, failed,
-and unknown outcomes. It does not retry an uncertain submission. Inspect the
-original transaction hash before starting another run.
+- `actors` maps `Voting Deployer` to its wallet address.
+- `steps` records funding, deployment, and verification. Deployment metadata includes
+  the predicted Voting address.
+- `attempts` contains the faucet funding and deployment. Each has its execution
+  outcome, and its hash when one is known: `succeeded`, `failed`, `notSubmitted`, or `unknown`.
+  The deployment also has its receipt.
+
+`transactions/evidence/` holds restricted signed evidence saved before dispatch.
+`key.json` stores the private deployer seed and account nonce separately. Testkit's
+`createKeyFile` saves it before funding, and `loadKeyFile` restores the account.
+Private files are owner-readable only. The app does not need the key, and it is never
+written to the environment file.
+
+If a send response is lost, setup observes the signed transaction instead of
+sending it again. A transaction still unconfirmed when the wait ends stays
+unknown; setup never resubmits automatically.
+`reconcileRun("<run>/transactions", client)` observes the original funding and
+deployment without sending them again or changing the saved report. If the
+funding attempt has no hash, call the faucet's `requestAirdropAttempt` with the
+`clientNonce` saved in its intent, never a new nonce: a new nonce can fund twice.
 
 ## Use it
 
@@ -143,6 +161,7 @@ npm test --workspace apps/voting
 npm run build --workspace apps/voting
 npm run generate:contracts --workspace apps/voting
 npm run test:voting
+npm run test:setup:integration --workspace apps/voting
 ```
 
 Run these commands from the repository root. `test:voting` starts an isolated
@@ -157,6 +176,13 @@ The controlled wallet provider holds disposable signing keys in the test process
 not in the browser. Checks cover contract permissions and input limits, poll
 creation, voting with two wallets, closure, reload recovery, and mobile/desktop
 layouts in both themes. See [repository checks](../../scripts/README.md#checks).
+
+`test:setup:integration` needs Linux and CLI 0.48.0 or newer, and uses
+`thruput` from `PATH`. Run `generate:contracts` first. It tests local and devnet
+setup modes on an isolated local node, checks the returned client, and preserves
+the previous environment on failure. When a deployment's send response is lost, setup observes it without
+another submission, and reconciliation finds the same transaction.
+It does not qualify the hosted devnet endpoint.
 
 ## Devnet and hosting
 

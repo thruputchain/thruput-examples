@@ -33,7 +33,6 @@ import {
   type WalletAccount,
 } from "@thruputchain/client/provider";
 import { setup } from "../../apps/voting/scripts/index";
-import type { Client } from "../../apps/voting/scripts/run";
 import {
   GAS,
   methods,
@@ -42,6 +41,8 @@ import {
   type Definition,
 } from "../../apps/voting/src/contracts/polls";
 import { OwnedProcessGroups } from "./helpers/process-groups.mjs";
+
+type Client = Awaited<ReturnType<typeof setup>>["client"];
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await mkdtemp(join(tmpdir(), "thruput-voting-"));
