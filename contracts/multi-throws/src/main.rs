@@ -1,10 +1,4 @@
-//! RV32 binary wrapper for the `multi-throws` contract library.
-//!
-//! `thruput build` builds this bin with the `entrypoints`
-//! feature so the `#[contract]` macro emits rv32 method entry symbols.
-//! Referencing the contract library is what links the macro-emitted symbols
-//! in; the runtime (`_start`, panic handler, allocator, linker script)
-//! arrives transitively through `thruput-sdk`'s rv32 runtime dependency.
+//! RV32 binary for the `multi-throws` contract. See `contracts/counter/src/main.rs`.
 
 #![no_std]
 #![no_main]

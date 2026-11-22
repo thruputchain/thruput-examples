@@ -6,7 +6,7 @@ caller distinguish error categories.
 
 ## Run
 
-Complete the [Rust setup](../../README.md#rust-and-cli).
+Complete the [setup](../../README.md#setup).
 From the repo root, with no node:
 
 ```sh

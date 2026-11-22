@@ -1,9 +1,4 @@
-//! RV32 binary wrapper for the `stellar-account` contract library.
-//!
-//! `thruput build` builds this bin with the `entrypoints` feature so the
-//! `#[contract]` macro emits rv32 method entry symbols. Referencing the
-//! library links the macro-emitted symbols in; the runtime arrives
-//! transitively through `thruput-sdk`'s rv32 runtime dependency.
+//! RV32 binary for the `stellar-account` contract. See `contracts/counter/src/main.rs`.
 
 #![no_std]
 #![no_main]

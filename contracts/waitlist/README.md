@@ -16,7 +16,7 @@ Read [Counter](../counter/README.md) first.
 
 ## Run
 
-Complete the [Rust setup](../../README.md#rust-and-cli).
+Complete the [setup](../../README.md#setup).
 From the repo root, without a node or npm:
 
 ```sh

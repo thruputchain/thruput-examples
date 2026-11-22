@@ -1,19 +1,23 @@
 # Multi-throws: more than one error type
 
-Learn to declare multiple exception types and classify outcomes with
-`match_exn!`. This example also distinguishes declared, undeclared, forwarded,
-and library exceptions from faults.
+Learn to declare more than one exception type on one interface, and to
+classify every outcome with one `match_exn!`. It also shows how a forwarded
+error keeps its type, and how to catch an SDK exception.
+
+Faults are covered in the [error-handling examples](../error-handling-caller/README.md).
+Errors that a *different* interface declared are covered in
+[Cross-trait throws](../cross-trait-throws/README.md).
 
 ## Run
 
-Complete the [Rust setup](../../README.md#rust-and-cli)
+Complete the [setup](../../README.md#setup)
 and the [error-handling examples](../error-handling-caller/README.md). From the root:
 
 ```sh
 cargo test -p multi-throws --locked
 ```
 
-Expected: **10 tests pass**. Deliberate exception and panic diagnostics are normal.
+Expected: **6 tests pass**. Deliberate exception diagnostics are normal.
 No node is needed.
 
 ## Read

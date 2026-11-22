@@ -2,11 +2,9 @@
 
 A multi-question poll contract that demonstrates caller authorization, typed
 storage, exclusive writes, and mergeable `Balance` totals. Start with
-[Counter](../counter/README.md), then read
-[`src/implementation.rs`](src/implementation.rs) and
-[`tests/test.rs`](tests/test.rs).
+[Counter](../counter/README.md).
 
-## Try it
+## Run
 
 From the repository root, after [setup](../../README.md#setup):
 
@@ -15,10 +13,14 @@ cargo test -p voting --locked
 thruput build -p voting
 ```
 
-Expected: eight native tests pass. The build creates
-`target/thruput/voting.rv32a` and its contract specification. The
-[Voting app](../../apps/voting/README.md) includes localnode tests against that
-RV32 artifact, including the largest allowed poll.
+Expected: **8 tests pass**. The build creates `target/thruput/voting.rv32a`
+and its contract specification. The [Voting app](../../apps/voting/README.md)
+tests that artifact on a local node.
+
+## Read
+
+1. [Contract](src/implementation.rs).
+2. [Tests](tests/test.rs): the poll lifecycle, permissions, and concurrent votes.
 
 ## Rules
 
@@ -59,5 +61,9 @@ be accepted against the open snapshot. Once closure is committed, subsequent
 votes fail. The native concurrency test checks both mergeable votes and
 duplicate exclusion.
 
-Exercise: add a question to the lifecycle test, answer it with both wallets,
-and verify that the participant count stays at two.
+## Try a change
+
+Add a question to the lifecycle test, answer it with both wallets, and check
+that the participant count stays at two.
+
+Next: the [Voting app](../../apps/voting/README.md).

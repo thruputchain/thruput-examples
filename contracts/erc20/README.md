@@ -6,7 +6,7 @@ metadata and signed permits. Start with [Counter](../counter/README.md) and
 
 ## Run native tests
 
-Complete the [Rust setup](../../README.md#rust-and-cli).
+Complete the [setup](../../README.md#setup).
 From the repository root:
 
 ```sh

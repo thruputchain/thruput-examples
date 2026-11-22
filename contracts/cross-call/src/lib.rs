@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "dev"), no_std)]
 
-use fibonacci::{FibError, FibonacciClient};
+use fibonacci::FibonacciClient;
 use thruput_sdk::*;
 
 thruput_sdk::declare_mock_contract!();
@@ -40,12 +40,5 @@ impl CrossCall {
         let result = fib.try_compute(n).or_throw(CrossCallError::FibCallFailed);
         log_event(&CrossCallCompleted { input: n, result });
         result
-    }
-
-    /// Call fibonacci with a value that will cause it to throw InputTooLarge,
-    /// then catch the error and return true if it was the expected error.
-    pub fn call_fib_and_catch_error(fib_address: &ContractAddress) -> bool {
-        let fib = FibonacciClient::new(fib_address);
-        fib.try_compute(999).err().and_then(|e| e.try_as()) == Some(FibError::InputTooLarge)
     }
 }

@@ -6,7 +6,7 @@ and rejects inputs above 30 to bound the work.
 
 ## Run
 
-Complete the [Rust setup](../../README.md#rust-and-cli).
+Complete the [setup](../../README.md#setup).
 From the repo root, with no node:
 
 ```sh
