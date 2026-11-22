@@ -18,4 +18,4 @@ binary="$(thruput toolchain which)"
 export THRUPUT_DEVNODE_BINARY="$binary"
 export THRUPUT_TESTKIT_ARTIFACT_ROOT="$PWD/target/thruput"
 
-cargo test -p counter --locked --test testkit_counter -- --ignored --nocapture
+cargo test -p counter-live --locked --test testkit_counter -- --ignored --nocapture

@@ -1,0 +1,19 @@
+[package]
+name = "counter-live"
+description = "Deploy and call the Counter example on a fresh local node with Testkit"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# This crate has only a test. It keeps Testkit and its node tooling out of the
+# `counter` crate, so the first Counter test compiles quickly.
+[lib]
+path = "src/lib.rs"
+doctest = false
+test = false
+
+[dev-dependencies]
+counter = { path = "../counter", features = ["dev", "remote"] }
+thruput-testkit = { workspace = true }
+tokio = { workspace = true }

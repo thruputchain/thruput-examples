@@ -1,5 +1,5 @@
 //! Deploy and call Counter on a fresh local node with Testkit.
-//! See the Counter README for the build and run commands.
+//! See contracts/counter-live/README.md for the build and run commands.
 
 use std::path::PathBuf;
 
@@ -7,12 +7,12 @@ use counter::CounterRemote;
 use thruput_testkit::{Agent, DeployOptions, LocalNetworkConfig, NetworkConfig, Scenario};
 
 #[tokio::test]
-#[ignore = "requires a devnode binary and built Counter artifact; see contracts/counter/README.md"]
+#[ignore = "requires a devnode binary and built Counter artifact; see contracts/counter-live/README.md"]
 async fn counter_increments_on_a_local_node() {
     let root = std::env::var("THRUPUT_TESTKIT_ARTIFACT_ROOT")
-        .expect("set THRUPUT_TESTKIT_ARTIFACT_ROOT; see contracts/counter/README.md");
+        .expect("set THRUPUT_TESTKIT_ARTIFACT_ROOT; see contracts/counter-live/README.md");
     let binary = std::env::var("THRUPUT_DEVNODE_BINARY")
-        .expect("set THRUPUT_DEVNODE_BINARY; see contracts/counter/README.md");
+        .expect("set THRUPUT_DEVNODE_BINARY; see contracts/counter-live/README.md");
 
     let mut config = LocalNetworkConfig::default();
     config.hog_devnode_binary = Some(binary.into());

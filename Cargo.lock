@@ -512,8 +512,14 @@ name = "counter"
 version = "0.1.0"
 dependencies = [
  "counter",
- "integration-test",
  "thruput-sdk",
+]
+
+[[package]]
+name = "counter-live"
+version = "0.1.0"
+dependencies = [
+ "counter",
  "thruput-testkit",
  "tokio",
 ]
