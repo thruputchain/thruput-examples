@@ -10,7 +10,7 @@ the whole repository.
 | ------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | Write a contract          | [Counter](contracts/counter/README.md)                                              | Rust; no running node                                                                |
 | Use the TypeScript SDK    | [Client examples](examples/typescript/README.md)                                    | Node.js and a local node                                                             |
-| Consume hosted blocks     | [Firehose consumer](examples/typescript/README.md#7-consume-the-hosted-firehose)    | Node.js and the repo npm install; no local node                                      |
+| Consume hosted blocks     | [Firehose consumer](examples/typescript/README.md#8-consume-the-hosted-firehose)    | Node.js and the repo npm install; no local node                                      |
 | Try an application        | [Counter app](apps/counter/README.md)                                               | Rust, Node.js, CLI, and a local node                                                 |
 | Explore a full wallet app | [Token Launchpad](apps/token-launchpad/README.md), then [Swap](apps/swap/README.md) | The app toolchain and [Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/) |
 
@@ -72,19 +72,13 @@ All Rust dependencies, including the Thruput SDK and CLI, come from
 
 ```sh
 rustup show
-cargo install --locked --version '>=0.37.0' thruput
+cargo install --locked --version '>=0.47.0' thruput
 thruput toolchain install
 ```
 
-Use CLI **0.37.0 or newer**. Let the CLI select its compatible managed runtime.
-Native tests need Rust but no CLI or node. For contract builds, add this local
-profile to `thruput.toml` if it is not already configured:
-
-```toml
-default_profile = "local"
-[profile.local]
-network = "local"
-```
+Use CLI **0.47.0 or newer**. Let the CLI select its compatible managed runtime.
+Native tests need Rust but no CLI or node. The committed `thruput.toml` selects
+the local profile for contract builds.
 
 ### npm
 
@@ -148,7 +142,7 @@ or devnet connection. Leave `APP_BASE_PATH` unset locally.
 ### Hosted examples
 
 The [examples site](https://examples-gateway-production.up.railway.app/) serves
-all four apps under one domain. The [gateway guide](apps/gateway/README.md)
+all five apps under one domain. The [gateway guide](apps/gateway/README.md)
 describes devnet deployment, subpath builds, Railway settings, and verification.
 
 ## Small contract examples
@@ -163,18 +157,15 @@ deploy, increment, and check the result with one agent.
 | Example                                                                                                                    | What you learn                                               |
 | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | [Counter](contracts/counter/README.md)                                                                                     | Store and update a non-negative counter                      |
-| [Voting](contracts/voting/README.md)                                                                                       | Admin permissions, poll lifecycle, and mergeable vote totals |
-| [Airdrop](contracts/airdrop/README.md)                                                                                     | Atomic token claims with optional address eligibility       |
-| [Waitlist](contracts/waitlist/README.md) | An EIP-1559-style fee steered by a backlog, which concurrent callers share without conflict |
 | [Fibonacci](contracts/fibonacci/README.md)                                                                                 | A stateless method, a declared error, and an event           |
 | [Events](contracts/events/README.md)                                                                                       | Event payloads and indexed topics                            |
 | [Cross-call](contracts/cross-call/README.md)                                                                               | Call another contract through its generated client           |
-| [Oracle consumer](contracts/oracle-consumer/README.md)                                                                     | Read a published price, check freshness, and value tokens     |
 | [Error-handling callee](contracts/error-handling-callee/README.md) and [caller](contracts/error-handling-caller/README.md) | Distinguish declared errors, faults, and failed calls        |
 | [Multi-throws](contracts/multi-throws/README.md)                                                                           | Handle more than one declared error type                     |
 | [Multi-impl](contracts/multi-impl/README.md)                                                                               | Implement separate interface traits at one address           |
 | [Mixed-impl](contracts/mixed-impl/README.md)                                                                               | Combine inherent methods and a trait implementation          |
 | [Cross-trait throws](contracts/cross-trait-throws/README.md)                                                               | Catch errors across interface boundaries                     |
+| [Oracle consumer](contracts/oracle-consumer/README.md)                                                                     | Read a published price, check freshness, and value tokens     |
 
 ## Larger reference examples
 
@@ -183,6 +174,9 @@ These combine several concepts. Read a small example first.
 | Example                                                                                      | Purpose                                                                               |
 | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | [ERC20](contracts/erc20/README.md)                                                           | Token balances, allowances, metadata, and optional permits                            |
+| [Voting](contracts/voting/README.md) | Admin permissions, poll lifecycle, and mergeable vote totals |
+| [Airdrop](contracts/airdrop/README.md) | Atomic token claims with optional address eligibility |
+| [Waitlist](contracts/waitlist/README.md) | An EIP-1559-style fee steered by a backlog, which concurrent callers share without conflict |
 | [Permit wallet](contracts/permit-wallet/) and [relayer](contracts/permit-relayer/)           | Off-chain authorization and auth-token composition; run with `scripts/permit-live.sh` |
 | [Standard token](contracts/standard-token/) and [factory](contracts/standard-token-factory/) | Factory-created tokens, used by Launchpad                                             |
 | [Swap contracts](contracts/swap-router/README.md)                                            | Pools, routing, queued requests, liquidity, and GSR- or CLVR-ordered batches          |
@@ -193,7 +187,7 @@ These combine several concepts. Read a small example first.
 
 | App                                               | Purpose                                                                                       |
 | ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| [Counter](apps/counter/README.md)                 | Development-signed concurrent updates or wallet-approved button updates, with reload recovery |
+| [Counter](apps/counter/README.md)                 | Concurrent counter updates signed by a development key, with no wallet |
 | [Voting](apps/voting/README.md)                   | Create multi-question polls, vote once per question, and view live results                    |
 | [Airdrop](apps/airdrop/README.md)                   | Claim configurable tokens once per wallet, with optional address eligibility                  |
 | [Token Launchpad](apps/token-launchpad/README.md) | Create tokens with an external wallet and browse indexed launches                             |
