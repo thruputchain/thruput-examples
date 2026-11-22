@@ -1,4 +1,5 @@
 import {
+  mkdir,
   mkdtemp,
   readFile,
   readdir,
@@ -11,68 +12,44 @@ import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
+  addressFromBase58,
   createThruputClient,
-  createWalletClient,
-  ThruputError,
+  HttpTransport,
+  localnet,
+  MockTransport,
   toBase58,
-  type TransactionReceipt,
+  toHex0x,
+  type RpcParams,
+  type TransportRequestOptions,
 } from "@thruputchain/client";
-import type { ContractDeployment } from "@thruputchain/client/wallet";
-import { gasAmount } from "@thruputchain/protocol";
+import { CxsWriter } from "@thruputchain/xdr";
+import { inspectRun, loadKeyFile, reconcileRun } from "@thruputchain/testkit";
 import { loadServerConfig } from "../server/config";
-import { Counter } from "../src/contracts/generated/counter";
 import { provisionCounter, setup } from "./index";
-import { createPersona, createRun, record, type Client, type Run } from "./run";
-
-const mocks = vi.hoisted(() => ({
-  requestAirdrop: vi.fn(),
-  deployContractAndWait: vi.fn(),
-}));
-vi.mock("@thruputchain/client", async (original) => {
-  const sdk = await original<typeof import("@thruputchain/client")>();
-  return {
-    ...sdk,
-    createThruputClient: vi.fn(async () => ({
-      network: { networkHash: new Uint8Array(32).fill(3) },
-    })),
-    createWalletClient: vi.fn(() => mocks),
-  };
-});
 
 let directory: string;
 let options: Parameters<typeof provisionCounter>[0];
-const receipt: TransactionReceipt = {
-  transactionHash: new Uint8Array(32).fill(2),
-  blockHeight: 7n,
-  execution: { result: "return", returnData: new Uint8Array() },
-  events: [],
-  gasUsed: 100n,
-};
-
-const evidence = {
-  transactionHash: receipt.transactionHash,
-  networkHash: new Uint8Array(32),
-  signedTransaction: new Uint8Array([1, 2, 3]),
-};
-
-async function readManifest(run: Run) {
-  return JSON.parse(
-    await readFile(join(run.directory, "manifest.json"), "utf8"),
-  );
-}
+let mock: MockTransport;
+let fail:
+  | "funding"
+  | "deployment"
+  | "lostResponse"
+  | "verification"
+  | "report"
+  | undefined;
+let sends: number;
 
 async function readRun() {
   const parent = join(directory, ".local", "counter-setup");
   const names = (await readdir(parent)).sort();
   const runDirectory = join(parent, names.at(-1)!);
-  const manifest = JSON.parse(
-    await readFile(join(runDirectory, "manifest.json"), "utf8"),
-  );
-  return { runDirectory, manifest };
+  return {
+    runDirectory,
+    report: await inspectRun(join(runDirectory, "transactions")),
+  };
 }
 
 beforeEach(async () => {
-  vi.clearAllMocks();
   directory = await mkdtemp(join(tmpdir(), "counter-setup-"));
   options = {
     network: "local",
@@ -81,21 +58,69 @@ beforeEach(async () => {
     artifact: join(directory, "counter.rv32a"),
   };
   await writeFile(options.artifact!, "counter artifact");
-  mocks.requestAirdrop.mockResolvedValue({
-    transactionHash: new Uint8Array(32).fill(1),
-    blockHeight: 4n,
-  });
-  mocks.deployContractAndWait.mockImplementation(
-    async (deployment: ContractDeployment) => ({
-      transactionHash: receipt.transactionHash,
-      receipt,
-      address: deployment.address,
-    }),
+  mock = new MockTransport();
+  fail = undefined;
+  sends = 0;
+  vi.spyOn(HttpTransport.prototype, "request").mockImplementation(
+    async <T>(
+      method: string,
+      params?: RpcParams,
+      control?: TransportRequestOptions,
+    ): Promise<T> => {
+      if (method === "faucet_requestAirdrop" && fail === "funding")
+        throw new Error("Funding stopped");
+      const result = await mock.request<T>(method, params, control);
+      if (method === "sendTransaction") {
+        sends++;
+        if (fail === "lostResponse")
+          throw new Error("Response lost after submission");
+      }
+      if (method === "getTransactionReceipt" && result) {
+        const { report } = await readRun();
+        const address = report.steps.find(
+          (step) => step.name === "deploy-counter",
+        )?.metadata?.address;
+        if (typeof address !== "string")
+          throw new Error("Missing deployment intent");
+        return {
+          ...(result as object),
+          execution:
+            fail === "deployment"
+              ? { result: "abort", abortData: "0x00" }
+              : {
+                  result: "return",
+                  returnData: toHex0x(addressFromBase58(address)),
+                },
+        } as T;
+      }
+      if (method === "simulateInvocations") {
+        if (fail === "report") {
+          const { runDirectory } = await readRun();
+          const path = join(runDirectory, "transactions", "report.json");
+          await rm(path);
+          await mkdir(path); // A completed-step report cannot replace a directory.
+        }
+        const writer = new CxsWriter();
+        writer.writeUint64(fail === "verification" ? 0n : 1_000_000n);
+        return {
+          ...(result as object),
+          results: [
+            {
+              output: {
+                result: "return",
+                returnData: toHex0x(writer.finish()),
+              },
+              events: [],
+              gasUsed: "0",
+            },
+          ],
+        } as T;
+      }
+      return result;
+    },
   );
-  vi.spyOn(Counter.v0_1.get, "view").mockResolvedValue({
-    value: 1_000_000n,
-  } as never);
   vi.spyOn(console, "log").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(async () => {
@@ -103,7 +128,7 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-it("publishes a fresh signer and atomic deployment, then verifies confirmed state", async () => {
+it("publishes fresh accounts after verified deployment and preserves public report/private key separation", async () => {
   await provisionCounter(options);
   const first = loadServerConfig(
     parseEnv(await readFile(options.output, "utf8")),
@@ -113,54 +138,67 @@ it("publishes a fresh signer and atomic deployment, then verifies confirmed stat
   const second = loadServerConfig(parseEnv(environment)).app;
   expect(second.counterAddress).not.toBe(first.counterAddress);
   expect(second.signerAddress).not.toBe(first.signerAddress);
-  expect(second.networkId).toBe(toBase58(new Uint8Array(32).fill(3)));
   expect((await stat(options.output)).mode & 0o777).toBe(0o600);
-  const [deployment, deployOptions] =
-    mocks.deployContractAndWait.mock.calls[1]!;
-  expect(toBase58(deployment.address)).toBe(second.counterAddress);
-  expect(toBase58(deployment.deployer)).toBe(second.signerAddress);
-  expect(deployOptions).toEqual({
-    gasLimit: gasAmount(10_000_000n),
-    amount: 10_000_000n,
-    initializer: Counter.v0_1.initialize.invocation(
-      deployment.address,
-      gasAmount(500_000n),
-      {
-        initialValue: 1_000_000n,
-      },
-    ),
+  const { runDirectory, report } = await readRun();
+  expect(report.actors).toEqual({ "Counter Operator": second.signerAddress });
+  expect(report.steps.map(({ name, state }) => ({ name, state }))).toEqual([
+    { name: "fund-operator", state: "completed" },
+    { name: "deploy-counter", state: "completed" },
+    { name: "verify-counter", state: "completed" },
+  ]);
+  expect(report.steps[1]?.metadata).toEqual({
+    address: second.counterAddress,
+    initialValue: "1000000",
   });
-  expect(Counter.v0_1.get.view).toHaveBeenLastCalledWith(
-    expect.objectContaining({ minStateBlockHeight: 7n }),
-  );
-  const { runDirectory, manifest } = await readRun();
-  expect(manifest.status).toBe("complete");
+  // Faucet funding and deployment are both recorded with their hashes.
   expect(
-    manifest.transactions.map((tx: { status: string }) => tx.status),
-  ).toEqual(["confirmed", "confirmed"]);
+    report.attempts.map(({ actor, operation, step, outcome, state }) => ({
+      actor,
+      operation,
+      step,
+      outcome,
+      state,
+    })),
+  ).toEqual(
+    ["fund", "deploy"].map((operation, index) => ({
+      actor: "Counter Operator",
+      operation,
+      step: index === 0 ? "fund-operator" : "deploy-counter",
+      outcome: "succeeded",
+      state: "committed",
+    })),
+  );
+  expect(report.attempts.every((attempt) => attempt.transactionHash)).toBe(
+    true,
+  );
+  const calls = vi.mocked(HttpTransport.prototype.request).mock.calls;
+  expect(
+    calls.filter(([method]) => method === "simulateInvocations").at(-1)?.[1],
+  ).toMatchObject({ minStateBlockHeight: "2" });
   const key = JSON.parse(
     await readFile(join(runDirectory, "key.json"), "utf8"),
   );
-  expect(key.address).toBe(second.signerAddress);
+  // The saved key restores the signer published to the app.
+  expect((await loadKeyFile(join(runDirectory, "key.json"))).address).toBe(
+    second.signerAddress,
+  );
   expect(parseEnv(environment).COUNTER_SIGNING_PRIVATE_KEY).toBe(key.seed);
-  expect(JSON.stringify(manifest)).not.toContain(key.seed);
+  expect(JSON.stringify(report)).not.toContain(key.seed);
+  expect(JSON.stringify(vi.mocked(console.log).mock.calls)).not.toContain(
+    key.seed,
+  );
   expect((await stat(join(runDirectory, "key.json"))).mode & 0o777).toBe(0o600);
+  expect((await readdir(runDirectory)).sort()).toEqual([
+    "key.json",
+    "transactions",
+  ]);
 });
 
-it.each(["funding", "deployment", "verification"])(
+it.each(["funding", "deployment", "verification", "report"] as const)(
   "preserves the previous environment when %s fails",
   async (phase) => {
+    fail = phase;
     await writeFile(options.output, "previous environment");
-    if (phase === "funding")
-      mocks.requestAirdrop.mockRejectedValueOnce(new Error("Funding stopped"));
-    if (phase === "deployment")
-      mocks.deployContractAndWait.mockRejectedValueOnce(
-        new Error("Connection lost"),
-      );
-    if (phase === "verification")
-      vi.mocked(Counter.v0_1.get.view).mockResolvedValue({
-        value: 0n,
-      } as never);
     await expect(provisionCounter(options)).rejects.toThrow();
     expect(await readFile(options.output, "utf8")).toBe("previous environment");
     expect((await readdir(directory)).sort()).toEqual([
@@ -168,182 +206,132 @@ it.each(["funding", "deployment", "verification"])(
       ".local",
       "counter.rv32a",
     ]);
-    const { manifest } = await readRun();
-    expect(manifest.status).toBe("failed");
-    expect(manifest.counterAddress).toBeTruthy();
-    if (phase !== "verification")
-      expect(manifest.transactions.at(-1).status).toBe("unknown");
+    if (phase !== "report") {
+      const { report } = await readRun();
+      expect(report.steps.at(-1)?.state).toBe("failed");
+      expect(report.attempts).toHaveLength(phase === "funding" ? 1 : 2);
+      if (phase === "funding")
+        expect(report.attempts[0]).toMatchObject({
+          operation: "fund",
+          stopped: true,
+          outcome: "unknown",
+        });
+      if (phase === "deployment")
+        expect(report.attempts[1]?.outcome).toBe("failed");
+      if (phase === "verification")
+        expect(report.attempts[1]?.outcome).toBe("succeeded");
+    }
   },
 );
 
-it("saves signed evidence before observation and rejects evidence overwrite", async () => {
-  const run = await createRun(directory, toBase58(evidence.networkHash));
-  await createPersona({} as Client, run, "Operator");
-  const onSigned = vi.mocked(createWalletClient).mock.calls.at(-1)![0]
-    .onSigned!;
-  await record(run, "Deploy", async () => {
-    await onSigned(evidence);
-    expect((await readManifest(run)).transactions[0]).toMatchObject({
-      status: "unknown",
-      hash: toBase58(evidence.transactionHash),
-    });
-    const path = join(run.directory, "001.signed.json");
-    const saved = await readFile(path, "utf8");
-    expect(JSON.parse(saved)).toEqual({
-      network: toBase58(evidence.networkHash),
-      hash: toBase58(evidence.transactionHash),
-      signed: "0x010203",
-    });
-    expect((await stat(path)).mode & 0o777).toBe(0o600);
-    await expect(onSigned(evidence)).rejects.toThrow();
-    expect(await readFile(path, "utf8")).toBe(saved);
-    return { hash: evidence.transactionHash, blockHeight: 7n };
+it("observes the original deployment after a lost response without resending", async () => {
+  fail = "lostResponse";
+  await provisionCounter(options);
+  const { runDirectory, report } = await readRun();
+  const deployment = report.attempts[1];
+  expect(deployment?.outcome).toBe("succeeded");
+  expect(deployment?.transactionHash).toBeTruthy();
+  const client = await createThruputClient({
+    cluster: localnet(),
+    transport: mock,
   });
+  const result = await reconcileRun(join(runDirectory, "transactions"), client);
+  expect(result.observations[1]).toMatchObject({
+    transactionHash: deployment?.transactionHash,
+    outcome: "succeeded",
+  });
+  expect(sends).toBe(1);
+  expect(await inspectRun(join(runDirectory, "transactions"))).toEqual(report);
 });
 
-it("persists intent before submission and marks a committed abort as failed", async () => {
-  const run = await createRun(directory, toBase58(evidence.networkHash));
-  const aborted: TransactionReceipt = {
-    ...receipt,
-    execution: { result: "abort", abortData: new Uint8Array([1]) },
-  };
-  await expect(
-    record(run, "Deploy Counter", async () => {
-      expect((await readManifest(run)).transactions).toEqual([
-        { label: "Deploy Counter", status: "unknown" },
-      ]);
-      throw new ThruputError("transactionFailed", "Execution failed", {
-        transaction: {
-          hash: evidence.transactionHash,
-          outcome: "failed",
-          reason: "aborted",
-          receipt: aborted,
-          submission: evidence,
-        },
-      });
-    }),
-  ).rejects.toBeInstanceOf(ThruputError);
-  expect((await readManifest(run)).transactions[0]).toMatchObject({
-    status: "failed",
-    hash: toBase58(evidence.transactionHash),
+it("keeps verified evidence when environment publication fails and removes the temporary file", async () => {
+  await mkdir(options.output);
+  await expect(provisionCounter(options)).rejects.toThrow();
+  const { report } = await readRun();
+  expect(report.steps.at(-1)).toMatchObject({
+    name: "verify-counter",
+    state: "completed",
   });
+  expect(report.attempts.map(({ outcome }) => outcome)).toEqual([
+    "succeeded",
+    "succeeded",
+  ]);
+  expect((await stat(options.output)).isDirectory()).toBe(true);
+  expect((await readdir(directory)).some((name) => name.endsWith(".tmp"))).toBe(
+    false,
+  );
+  expect(JSON.stringify(vi.mocked(console.log).mock.calls)).not.toContain(
+    "Counter ready",
+  );
 });
 
-it.each([
-  ["notSubmitted", "notDispatched", "failed"],
-  ["unknown", "submissionFailed", "unknown"],
-  ["unknown", "timeout", "unknown"],
-] as const)(
-  "records outcome %s (%s) as %s without retrying",
-  async (outcome, reason, status) => {
-    const run = await createRun(directory, toBase58(evidence.networkHash));
-    const submit = vi.fn(async () => {
-      throw new ThruputError(
-        outcome === "notSubmitted"
-          ? "transactionNotSubmitted"
-          : "transactionOutcomeUnknown",
-        "Stopped",
-        { transaction: { hash: evidence.transactionHash, outcome, reason } },
-      );
-    });
-    await expect(record(run, "Deploy Counter", submit)).rejects.toBeInstanceOf(
-      ThruputError,
-    );
-    expect(submit).toHaveBeenCalledTimes(1);
-    expect((await readManifest(run)).transactions[0]).toMatchObject({
-      status,
-      hash: toBase58(evidence.transactionHash),
-    });
-  },
-);
-
-it("retains an uncertain faucet transaction hash", async () => {
-  const run = await createRun(directory, toBase58(evidence.networkHash));
-  const submit = vi.fn(async () => {
-    throw new ThruputError("fundingStopped", "Funding observation stopped", {
-      context: {
-        request: {
-          recipient: new Uint8Array(32),
-          clientNonce: new Uint8Array(16),
-          networkHash: evidence.networkHash,
-        },
-        lastResponse: {
-          attemptStatus: "pending",
-          recipient: new Uint8Array(32),
-          rawAmount: 100000000n,
-          retryAfterSeconds: 1n,
-          transactionHash: evidence.transactionHash,
-        },
-      },
-      transaction: {
-        hash: evidence.transactionHash,
-        outcome: "unknown",
-        reason: "timeout",
-      },
-      cause: new Error("Timeout"),
-    });
-  });
-  await expect(
-    record(run, "Fund Counter Operator", submit),
-  ).rejects.toBeInstanceOf(ThruputError);
-  expect(submit).toHaveBeenCalledTimes(1);
-  expect((await readManifest(run)).transactions[0]).toMatchObject({
-    status: "unknown",
-    hash: toBase58(evidence.transactionHash),
-  });
+it("rejects a network change between discovery and scenario connection before funding", async () => {
+  const request = vi
+    .mocked(HttpTransport.prototype.request)
+    .getMockImplementation()!;
+  let networkReads = 0;
+  vi.mocked(HttpTransport.prototype.request).mockImplementation(
+    async <T>(
+      method: string,
+      params?: RpcParams,
+      control?: TransportRequestOptions,
+    ): Promise<T> => {
+      if (method === "getNetworkInfo" && ++networkReads > 1) {
+        return { networkHash: toBase58(new Uint8Array(32).fill(1)) } as T;
+      }
+      return (await request(method, params, control)) as T;
+    },
+  );
+  await writeFile(options.output, "previous environment");
+  await expect(provisionCounter(options)).rejects.toThrow();
+  expect(await readFile(options.output, "utf8")).toBe("previous environment");
+  expect(
+    vi
+      .mocked(HttpTransport.prototype.request)
+      .mock.calls.some(([method]) => method === "faucet_requestAirdrop"),
+  ).toBe(false);
+  expect(sends).toBe(0);
 });
 
-it.each([
-  ["local", "http://127.0.0.1:9545"],
-  ["devnet", "https://rpc.thruput.network"],
-] as const)(
-  "uses %s defaults without a manifest and accepts an RPC override",
-  async (network, rpcUrl) => {
+it.each(["local", "devnet"] as const)(
+  "preserves discovery for %s and validates explicit pins before funding",
+  async (network) => {
     const env = {
       COUNTER_APP_ENV: options.output,
       COUNTER_ARTIFACT: options.artifact,
     };
     await setup(env, network);
-    expect(createThruputClient).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        cluster: expect.objectContaining({ name: network, rpcUrl }),
-      }),
+    expect((await readRun()).report.networkHash).toBe(
+      toBase58(new Uint8Array(32)),
     );
+    vi.mocked(HttpTransport.prototype.request).mockClear();
+    await expect(
+      setup(
+        { ...env, THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(1)) },
+        network,
+      ),
+    ).rejects.toThrow();
     expect(
-      vi.mocked(createThruputClient).mock.calls.at(-1)?.[0]?.cluster,
-    ).not.toHaveProperty("networkHash");
-    await setup(
-      { ...env, THRUPUT_RPC_URL: "https://example.test/rpc" },
-      network,
-    );
-    expect(createThruputClient).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        cluster: expect.objectContaining({
-          rpcUrl: "https://example.test/rpc",
-        }),
-      }),
-    );
+      vi
+        .mocked(HttpTransport.prototype.request)
+        .mock.calls.some(([method]) => method === "faucet_requestAirdrop"),
+    ).toBe(false);
   },
 );
 
-it("retains optional manifest pins and rejects conflicting network inputs", async () => {
+it("accepts an optional manifest pin and rejects conflicting network inputs", async () => {
   const path = join(directory, "manifest.json");
-  const networkHash = new Uint8Array(32).fill(1);
-  await writeFile(path, JSON.stringify({ networkHash: toBase58(networkHash) }));
+  const networkHash = toBase58(new Uint8Array(32));
+  await writeFile(path, JSON.stringify({ networkHash }));
   const env = {
     COUNTER_APP_ENV: options.output,
     COUNTER_ARTIFACT: options.artifact,
     THRUPUT_RUNTIME_MANIFEST: path,
   };
   await setup(env);
-  expect(createThruputClient).toHaveBeenLastCalledWith(
-    expect.objectContaining({
-      cluster: expect.objectContaining({ networkHash }),
-    }),
-  );
-  vi.clearAllMocks();
+  vi.mocked(HttpTransport.prototype.request).mockClear();
   await expect(
-    setup({ ...env, THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32)) }),
+    setup({ ...env, THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(1)) }),
   ).rejects.toThrow("disagree");
-  expect(createThruputClient).not.toHaveBeenCalled();
+  expect(HttpTransport.prototype.request).not.toHaveBeenCalled();
 });
