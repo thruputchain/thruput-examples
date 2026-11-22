@@ -47,7 +47,8 @@ allow = [
 
 [bans]
 # Permit only the verified 0.26.11 wrapper and patched bundles (>=1.0.10).
-# Keep these restrictions while RUSTSEC-2026-0383 is ignored above.
+# RUSTSEC-2026-0383 lists 0.26.11 as unaffected. These bans keep the affected
+# versions out of the lockfile.
 deny = [
     { name = "webpki-root-certs", version = "<0.26.11" },
     { name = "webpki-root-certs", version = ">0.26.11, <1.0.10" },

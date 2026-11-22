@@ -11,7 +11,7 @@ the packages installed by this repository.
 
 Follow [Setup](../../README.md#setup) for package access and
 CLI installation. Run everything here from the repository root.
-For the [hosted firehose consumer](#7-consume-the-hosted-firehose), only the
+For the [hosted firehose consumer](#8-consume-the-hosted-firehose), only the
 repo npm install is needed; skip the CLI and local-node setup below.
 
 In terminal A:
@@ -35,31 +35,8 @@ Most signing examples create fresh accounts with keys held only in memory. They 
 local test funds; funds left in these accounts cannot be recovered after exit.
 They do not save keys, change app environments, or use your Freighter wallet.
 
-The application-token transfer below instead uses a funded disposable signer
+The application-token transfer (step 9) instead uses a funded disposable signer
 provided through an environment variable.
-
-## Transfer an application token
-
-Source: [transfer-token.ts](transfer-token.ts). This lesson uses the published
-ERC20 binding to transfer a token created by Launchpad. Start with a disposable
-local signer that holds test tokens and enough native tokens for scheduling.
-The [Airdrop app](../../apps/airdrop/README.md) can supply the test assets.
-The token contract also needs native funding for a new recipient's balance row;
-airdrop setup supplies that reserve.
-
-Set `TOKEN_SENDER_PRIVATE_KEY` privately in your environment. Then run:
-
-```sh
-export TOKEN_ADDRESS=<test-token-address>
-export TOKEN_RECIPIENT=<recipient-address>
-export TOKEN_AMOUNT=1
-npm run example:transfer-token > transfer-evidence.log
-```
-
-The script reads token decimals, signs one transfer, prints signed evidence before
-broadcast, and verifies the recipient balance. Keep the evidence file. If the
-request times out, inspect its original hash instead of running the script again.
-Never use a production key for this lesson.
 
 ## 1. Read the chain tip
 
@@ -230,7 +207,7 @@ it is not a read-only command. Use a dedicated Counter with no concurrent
 writers while checking exact values. This is a native local-account batch,
 not browser-wallet capability negotiation.
 
-## 7. Consume the hosted firehose
+## 8. Consume the hosted firehose
 
 Source: [consume-firehose.ts](consume-firehose.ts).
 
@@ -259,6 +236,29 @@ directory to start at tip. A saved checkpoint cannot be reused with a different
 endpoint.
 
 See the [firehose consumption guide](https://docs.thruput.network/guides/consume-the-firehose/).
+
+## 9. Transfer an application token
+
+Source: [transfer-token.ts](transfer-token.ts). This lesson uses the published
+ERC20 binding to transfer a token created by Launchpad. Start with a disposable
+local signer that holds test tokens and enough native tokens for scheduling.
+The [Airdrop app](../../apps/airdrop/README.md) can supply the test assets.
+The token contract also needs native funding for a new recipient's balance row;
+airdrop setup supplies that reserve.
+
+Set `TOKEN_SENDER_PRIVATE_KEY` privately in your environment. Then run:
+
+```sh
+export TOKEN_ADDRESS=<test-token-address>
+export TOKEN_RECIPIENT=<recipient-address>
+export TOKEN_AMOUNT=1
+npm run example:transfer-token > transfer-evidence.log
+```
+
+The script reads token decimals, signs one transfer, prints signed evidence before
+broadcast, and verifies the recipient balance. Keep the evidence file. If the
+request times out, inspect its original hash instead of running the script again.
+Never use a production key for this lesson.
 
 ## Supporting code
 
