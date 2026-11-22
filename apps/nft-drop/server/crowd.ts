@@ -7,8 +7,11 @@ import {
 } from "@thruputchain/client";
 import { gasAmount } from "@thruputchain/protocol";
 
-/** Gas each rush mint declares. A mint with six traits uses about 350,000. */
-export const MINT_GAS = gasAmount(500_000n);
+/**
+ * Gas each rush mint declares. A mint uses about 296,000 with four traits,
+ * and about 380,000 with the contract's maximum of six.
+ */
+export const MINT_GAS = gasAmount(400_000n);
 
 /** The largest crowd: one account for each token of the largest drop. */
 export const MAX_CROWD_SIZE = 10_000;

@@ -48,7 +48,7 @@ Open **http://127.0.0.1:5178**. Setup takes about three minutes. It:
    a contract's code only after a transaction deploys it, so this first
    creation attaches the drop's code. Later drops deploy by code hash;
 5. funds 10,000 simulated users (the crowd) in batches of 16 transfers. Each
-   account gets 0.06 native tokens to schedule mints, about 613 in all; the
+   account gets 0.05 native tokens to schedule mints, about 513 in all; the
    local faucet supplies them;
 6. writes `.env.local`, including the private `NFT_CROWD_SEED` that derives every
    crowd key.

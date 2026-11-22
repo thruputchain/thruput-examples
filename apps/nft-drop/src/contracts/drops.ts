@@ -27,8 +27,11 @@ export const LIMITS = {
   weight: 10_000,
 };
 
-/** Gas for the mint call. A mint with six traits uses about 350,000. */
-export const MINT_GAS = gasAmount(500_000n);
+/**
+ * Gas for the mint call. A mint uses about 296,000 with four traits, and
+ * about 380,000 with the contract's maximum of six.
+ */
+export const MINT_GAS = gasAmount(400_000n);
 /** Root gas for a wallet transaction that mints once. */
 export const MINT_ROOT_GAS = gasAmount(1_000_000n);
 /** Gas for creating a drop: the deployment and its initialization. */
