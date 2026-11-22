@@ -21,8 +21,9 @@ project: the factory and the standard token it deploys.
 
 ## Local setup
 
-Complete [root setup](../../README.md#setup), including `npm ci`, and start
-`thruput node --port 9545 --json` in another terminal. Then:
+Complete [root setup](../../README.md#setup), including `npm ci`, and use CLI
+0.48.0 or newer. Start `thruput node --port 9545 --json` in another terminal.
+Then:
 
 ```sh
 npm run setup:local --workspace apps/token-launchpad
@@ -35,15 +36,32 @@ transactions. Setup creates an empty factory, not demo tokens.
 
 Every setup run builds contracts/bindings, deploys fresh infrastructure, and
 writes `.env.local` plus immutable hash-named public artifacts. Failed setup
-keeps the old environment. Setup saves its deployer key and transaction outcomes
-under `.local/launchpad-setup/run-*`, beside the environment output. The key file
-is private; app configuration contains only public values. Restart the app after
-setup. Existing deployments need their matching artifacts and bindings.
+keeps the old environment. Restart the app after setup. Existing deployments
+need their matching artifacts and bindings.
 
-Setup funds the deployer and native-token storage reserve, then funds, deploys,
-and initializes the factory in one atomic transaction. It verifies the factory
-configuration at the confirmed block height before publishing the environment.
-An uncertain transaction remains recorded as unknown and is never retried.
+Setup uses [`@thruputchain/testkit`](https://www.npmjs.com/package/@thruputchain/testkit)
+for four named steps: `fund-deployer` (faucet), `fund-native-reserve` (a native-token transfer that pays storage for future
+token balances),
+`deploy-factory` (funding, deployment, and initialization in one atomic
+transaction), and `verify-factory`. Verification reads state that includes the
+confirmed deployment. The environment and artifact are published only after
+verification and the report are saved.
+
+Each run writes `.local/launchpad-setup/run-*/`, beside the environment output:
+
+- `key.json`: the private deployer key, saved before funding.
+- `transactions/report.json`: the public record of each step and transaction,
+  with its outcome (`succeeded`, `failed`, `notSubmitted`, or `unknown`) and its
+  hash when one is known.
+- `transactions/evidence/`: private signed transactions, saved before dispatch.
+
+App configuration contains only public values. If a send response is lost,
+setup observes the signed transaction instead of sending it again. A
+transaction still unconfirmed when the wait ends stays `unknown`; setup never
+resubmits automatically. `reconcileRun("<run>/transactions", client)` observes
+the original transactions again without sending them. If a funding attempt has
+no hash, call the faucet's `requestAirdropAttempt` with the `clientNonce` saved
+in its intent, never a new nonce: a new nonce can fund twice.
 
 ## Demo tokens
 
@@ -132,6 +150,11 @@ needs, `/healthz` reports it.
 ## Checks
 
 Run `typecheck`, `test`, or `build` with `--workspace apps/token-launchpad`.
+Run `npm run test:setup:integration --workspace apps/token-launchpad` after
+`generate:contracts`. It needs Linux and uses `thruput` (CLI 0.48.0 or newer)
+from `PATH`. It checks the setup report on a real node, then loses every send
+response: setup observes each transaction without another submission, and
+reconciliation finds the same transactions.
 After generating contracts, run `npm run test:token-launchpad` from the root.
 It starts an isolated nonzero-network node, tests both setup modes, and creates a
 token from each factory using the published artifact and exact prefunding amount.
