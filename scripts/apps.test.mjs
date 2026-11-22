@@ -108,9 +108,10 @@ test("setup uses app defaults, runs in order, and connects Launchpad to Swap", a
     await readFile(f.env.LAUNCHPAD_APP_ENV, "utf8"),
     /VITE_SWAP_APP_URL=http:\/\/127.0.0.1:5174/,
   );
-  assert.match(
+  // Swap searches Launchpad tokens through a same-origin path, not a setting.
+  assert.doesNotMatch(
     await readFile(f.env.SWAP_APP_ENV, "utf8"),
-    /VITE_STANDARD_TOKEN_FACTORY_ADDRESS=factory/,
+    /TOKEN_DISCOVERY|STANDARD_TOKEN/,
   );
 });
 
