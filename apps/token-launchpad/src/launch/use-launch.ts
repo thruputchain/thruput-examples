@@ -1,25 +1,24 @@
-import { useEffect, useRef, useState } from "react";
+import { useState, type FormEvent } from "react";
+import { useClient } from "@thruputchain/react";
+import { fixedBytes, toBase58 } from "@thruputchain/client";
+import { gasAmount } from "@thruputchain/protocol";
 import type { AppConfig } from "@/config";
 import {
   reviewFactory,
   type FactoryReview,
 } from "@/contracts/launchpad-client";
-import { userErrorMessage } from "@/lib/errors";
-import { formatUnits, type CoreThruputClient } from "@thruputchain/client";
-import { requestRegistrySync } from "@/registry/client";
-import type { WriteBoundary } from "@/transactions/write-boundary";
-import { runWorkflow } from "./executor";
-import { parseTokenDraft, type TokenDraft } from "./form";
-import { actionLabel, canDiscardWorkflow } from "./presentation";
 import {
-  createWorkflow,
-  loadWorkflow,
-  saveWorkflow,
-  withWorkflowLock,
-  workflowIntent,
-  workflowStorageKey,
-  type LaunchWorkflow,
-} from "./workflow";
+  StandardTokenFactory,
+  standard_token_factory_if,
+} from "@/contracts/generated/standard-token-factory";
+import { ERC20 } from "@/contracts/generated/standard-token";
+import { loadStandardTokenArtifact } from "@/contracts/token-artifact";
+import { userErrorMessage } from "@/lib/errors";
+import { useWalletTransaction } from "@/transactions/use-wallet-transaction";
+import { parseTokenDraft, type ParsedToken, type TokenDraft } from "./form";
+
+const GAS_LIMIT = gasAmount(10_000_000n);
+const TokenCreated = standard_token_factory_if.v0_1.events.TokenCreated;
 
 const initialDraft: TokenDraft = {
   name: "",
@@ -28,220 +27,131 @@ const initialDraft: TokenDraft = {
   supply: "1000000",
 };
 
-export interface LaunchOptions {
-  config: AppConfig;
-  client: CoreThruputClient;
-  onCommitted?: () => void;
-  writer: WriteBoundary;
-  requestSync?: typeof requestRegistrySync;
-  connected?: boolean;
+/** What the page keeps about a launch, also after a reload. */
+export interface LaunchContext {
+  address: string;
+  name: string;
+  symbol: string;
 }
 
-export function useLaunch({
-  config,
-  client,
-  writer,
-  requestSync = requestRegistrySync,
-  connected = true,
-  onCommitted,
-}: LaunchOptions) {
-  const storageKey = workflowStorageKey(config);
-  const [initial] = useState(() => {
-    try {
-      return {
-        workflow: loadWorkflow(localStorage, storageKey),
-        error: null as string | null,
-      };
-    } catch (error) {
-      return {
-        workflow: null,
-        error: userErrorMessage(
-          error,
-          "The saved launch workflow could not be read",
-        ),
-      };
-    }
-  });
-  const [storageError, setStorageError] = useState(initial.error);
-  const [workflow, setWorkflow] = useState<LaunchWorkflow | null>(
-    initial.workflow,
+export interface Review extends FactoryReview {
+  nonce: Uint8Array;
+  token: ParsedToken;
+}
+
+/**
+ * Create a token in one transaction:
+ * 1. Read the factory config, and predict the token's address from the
+ *    creator and a random nonce.
+ * 2. Send one atomic batch: fund the predicted address with the native tokens
+ *    the factory requires, then call `create_token`. The standard token's code
+ *    is deployed in the same transaction.
+ * 3. Read the new address from the receipt's `TokenCreated` event.
+ */
+export function useLaunch(config: AppConfig) {
+  const client = useClient();
+  const tx = useWalletTransaction<LaunchContext>(
+    `launchpad:pending:${config.networkId}:${toBase58(config.accountAddress)}`,
   );
-  const [draft, setDraft] = useState<TokenDraft>(() =>
-    workflow
-      ? {
-          name: workflow.token.name,
-          symbol: workflow.token.symbol,
-          decimals: workflow.token.decimals.toString(),
-          supply: formatUnits(
-            BigInt(workflow.token.initialSupply),
-            workflow.token.decimals,
-          ),
-        }
-      : initialDraft,
-  );
+  const [draft, setDraft] = useState(initialDraft);
   const [submitted, setSubmitted] = useState(false);
-  const [review, setReview] = useState<FactoryReview | null>(null);
+  const [review, setReview] = useState<Review | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [manualProcessing, setManualProcessing] = useState(false);
-  const generation = useRef(0);
-  const working = useRef(false);
-  useEffect(
-    () => () => {
-      generation.current++;
-    },
-    [client, config],
-  );
   const parsed = parseTokenDraft(draft);
 
-  async function submit(event: React.FormEvent) {
+  async function reviewLaunch(event: FormEvent) {
     event.preventDefault();
-    if (working.current || workflow || storageError || !connected) return;
     setSubmitted(true);
+    if (!parsed.value || tx.blocked) return;
+    setReviewing(true);
     setError(null);
-    if (!parsed.value) return;
-    const token = parsed.value;
-    const attempt = ++generation.current;
-    working.current = true;
-    setLoading(true);
     try {
-      const result = await withWorkflowLock(config, async () => {
-        if (loadWorkflow(localStorage, storageKey))
-          throw new Error(
-            "Another tab created a launch workflow. Reload before continuing.",
-          );
-        const nonce = crypto.getRandomValues(new Uint8Array(32));
-        const nextReview = await reviewFactory(client, config, nonce);
-        if (attempt !== generation.current) return null;
-        const nextWorkflow = createWorkflow(config, token, nonce, nextReview);
-        saveWorkflow(localStorage, storageKey, nextWorkflow);
-        return { nextReview, nextWorkflow };
-      });
-      if (result && attempt === generation.current) {
-        setReview(result.nextReview);
-        setWorkflow(result.nextWorkflow);
-      }
+      const nonce = crypto.getRandomValues(new Uint8Array(32));
+      const factory = await reviewFactory(client, config, nonce);
+      setReview({ ...factory, nonce, token: parsed.value });
     } catch (reason) {
-      if (attempt === generation.current)
-        setError(
-          userErrorMessage(
-            reason,
-            "The configured token factory could not be verified.",
-          ),
-        );
+      setError(userErrorMessage(reason, "The factory could not be read."));
     } finally {
-      if (attempt === generation.current) {
-        working.current = false;
-        setLoading(false);
-      }
+      setReviewing(false);
     }
   }
 
-  async function advance() {
-    if (!workflow || working.current || !connected) return;
-    working.current = true;
-    setLoading(true);
+  async function launch() {
+    if (!review) return;
     setError(null);
-    const attempt = generation.current;
     try {
-      const next = await runWorkflow({
-        config,
-        client,
-        writer,
-        automatic: actionLabel(workflow, manualProcessing) === "Launch token",
-        onUpdate: (next) => {
-          if (attempt === generation.current) setWorkflow(next);
+      const create = StandardTokenFactory.v0_1.createToken.call({
+        address: config.factoryAddress,
+        gasLimit: GAS_LIMIT,
+        args: {
+          nonce: fixedBytes(review.nonce, 32),
+          administrator: config.accountAddress,
+          name: review.token.name,
+          symbol: review.token.symbol,
+          decimals: BigInt(review.token.decimals),
+          initialHolder: config.accountAddress,
+          initialSupply: review.token.initialSupply,
         },
-        workflowId: workflow.id,
-        workflowRevision: workflow.revision,
-        expectedIntent: workflowIntent(workflow),
-        ...(workflow.funding.status === "signing"
-          ? { confirmUnsignedStep: "funding" as const }
-          : workflow.creation.status === "signing"
-            ? { confirmUnsignedStep: "creation" as const }
-            : {}),
       });
-      if (attempt !== generation.current) return;
-      setReview(null);
-      setWorkflow(next);
-      if (
-        workflow.creation.status !== "committed" &&
-        next.creation.status === "committed"
-      ) {
-        onCommitted?.();
-        void requestSync(config).catch(() => undefined);
-      }
+      const fund = ERC20.v0_1.transfer.call({
+        address: config.nativeTokenAddress,
+        gasLimit: GAS_LIMIT,
+        args: { receiver: review.predictedAddress, amount: review.fundingAmount },
+      });
+      await tx.send(
+        "Launch token",
+        {
+          calls: review.fundingAmount > 0n ? [fund, create] : [create],
+          contractsToDeploy: [
+            await loadStandardTokenArtifact(config.expectedTokenHash),
+          ],
+        },
+        {
+          address: toBase58(review.predictedAddress),
+          name: review.token.name,
+          symbol: review.token.symbol,
+        },
+      );
     } catch (reason) {
-      if (attempt === generation.current)
-        setError(userErrorMessage(reason, "The launch could not continue."));
-    } finally {
-      if (attempt === generation.current) {
-        working.current = false;
-        setLoading(false);
-      }
+      setError(userErrorMessage(reason, "The launch could not start."));
     }
   }
 
-  async function reset(clearDraft = false) {
-    if (working.current || workflow === null) return;
-    if (!canDiscardWorkflow(workflow)) {
-      setError("A workflow with transaction evidence cannot be discarded.");
-      return;
-    }
-    working.current = true;
-    setLoading(true);
-    try {
-      await withWorkflowLock(config, async () => {
-        const stored = loadWorkflow(localStorage, storageKey);
-        if (
-          !stored ||
-          stored.id !== workflow.id ||
-          stored.revision !== workflow.revision
-        )
-          throw new Error(
-            "This launch changed in another tab. Reload before clearing it.",
-          );
-        localStorage.removeItem(storageKey);
-      });
-      setWorkflow(null);
-      setReview(null);
-      if (clearDraft || workflow.creation.status === "committed")
-        setDraft(initialDraft);
-      setSubmitted(false);
-      setError(null);
-      setStorageError(null);
-    } catch (reason) {
-      setStorageError(
-        userErrorMessage(
-          reason,
-          "The saved launch workflow could not be cleared.",
-        ),
-      );
-    } finally {
-      working.current = false;
-      setLoading(false);
-    }
-  }
+  const created =
+    tx.completed?.succeeded === true
+      ? {
+          ...tx.completed.context,
+          address: toBase58(
+            TokenCreated.singleFromReceipt(tx.completed.receipt, {
+              address: config.factoryAddress,
+            }).topics.token,
+          ),
+        }
+      : null;
 
   return {
     draft,
     parsed,
     submitted,
     review,
-    workflow,
-    loading,
-    error,
-    storageError,
-    manualProcessing,
-    setManualProcessing,
-    submit,
-    advance,
-    reset: () => reset(),
-    startOver: () => reset(true),
+    reviewing,
+    created,
+    failed: tx.completed?.succeeded === false,
+    error: error ?? tx.message,
+    tx,
     edit(key: keyof TokenDraft, value: string) {
-      if (working.current || workflow) return;
-      setReview(null);
       setDraft((current) => ({ ...current, [key]: value }));
+      setReview(null);
+    },
+    reviewLaunch,
+    launch,
+    startOver() {
+      setDraft(initialDraft);
+      setSubmitted(false);
+      setReview(null);
+      setError(null);
+      tx.reset();
     },
   };
 }

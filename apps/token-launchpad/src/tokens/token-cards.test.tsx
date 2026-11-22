@@ -50,10 +50,9 @@ it("loads all visible balances concurrently and isolates account changes and fai
     name: `Token ${i}`,
     symbol: `T${i}`,
     decimals: 0,
-    initialSupply: 1000n,
-    administrator: testAccount().address,
-    holder: testAccount().address,
-    block: 1n,
+    creator: testAccount().address,
+    initialSupply: "1000",
+    blockHeight: "1",
     transactionHash: toBase58(new Uint8Array(32).fill(0x01)),
   }));
   function Cards() {

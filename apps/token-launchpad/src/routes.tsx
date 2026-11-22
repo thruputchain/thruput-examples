@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { addressFromBase58, toBase58 } from "@thruputchain/client";
-import { useClient, getClientQueryKey, useWallet } from "@thruputchain/react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useWallet } from "@thruputchain/react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { useTransactions } from "@/transactions/use-transactions";
-import { workflowStorageKey } from "@/launch/workflow";
 import {
   Empty,
   EmptyDescription,
@@ -16,11 +13,10 @@ import { CreatePage } from "@/launch/create-page";
 import { TokensPage } from "@/tokens/tokens-page";
 
 export function AppRoutes({ config }: { config: AppConfig }) {
-  const client = useClient();
-  const queries = useQueryClient();
   const wallet = useWallet();
   const readOnly = wallet.status !== "connected";
-  // Saved workflow identity survives disconnect; it never grants authorization.
+  // The launch's account survives a disconnect, so a reload can still observe
+  // its saved transaction. It never grants authorization.
   const [workflowConfig, setWorkflowConfig] = useState(config);
   if (
     !readOnly &&
@@ -32,7 +28,6 @@ export function AppRoutes({ config }: { config: AppConfig }) {
       accountAddress: addressFromBase58(wallet.address),
     });
   }
-  const writer = useTransactions(workflowConfig);
   const hasWalletAccount = workflowConfig !== config;
   return (
     <Routes>
@@ -44,16 +39,9 @@ export function AppRoutes({ config }: { config: AppConfig }) {
             <ConnectPrompt />
           ) : (
             <CreatePage
-              key={workflowStorageKey(workflowConfig)}
+              key={toBase58(workflowConfig.accountAddress)}
               config={workflowConfig}
-              client={client}
-              writer={writer}
               connected={!readOnly}
-              onCommitted={() => {
-                void queries.invalidateQueries({
-                  queryKey: getClientQueryKey(client),
-                });
-              }}
             />
           )
         }

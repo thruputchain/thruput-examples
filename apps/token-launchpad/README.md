@@ -1,9 +1,20 @@
 # Token Launchpad
 
 Create tokens through [Thruput Freighter](https://www.thruput.network/docs/tools/wallet-extension/)
-and browse factory launches. A registry indexes discovery events; balances and
-transaction verification use live chain reads. The app never receives wallet keys.
-For individual SDK operations, start with [client examples](../../examples/typescript/README.md).
+and browse factory launches. The app never receives wallet keys. Read the
+[Voting app](../voting/README.md) first: Launchpad uses its transaction pattern.
+
+**What it shows:**
+
+- **Create a contract from a contract.** The
+  [standard token factory](../../contracts/standard-token-factory/README.md)
+  deploys each token at an address the app predicts before signing.
+- **One atomic batch.** One transaction funds the predicted address and creates
+  the token. If either step fails, neither happens.
+- **A small event indexer.** The factory writes no shared state when it creates
+  a token, so many launches can land in the same block. To list tokens, the
+  server indexes the factory's `TokenCreated` events into SQLite. Compare
+  [Swap](../swap/README.md), whose factory keeps a list because pools are rare.
 
 ## Local setup
 
@@ -15,7 +26,7 @@ npm run setup:local --workspace apps/token-launchpad
 npm run dev --workspace apps/token-launchpad
 ```
 
-Open **http://127.0.0.1:5173**. The dev server includes the registry and indexer.
+Open **http://127.0.0.1:5173**. The dev server includes the token API and indexer.
 Configure Freighter for the same local endpoint and request test native tokens to sign
 transactions. Setup creates an empty factory, not demo tokens.
 
@@ -65,8 +76,8 @@ See [`.env.example`](.env.example) for settings. Setup overrides:
 Paths resolve from the repo root. Both modes discover network identity through
 the SDK and read storage costs with `getChainConfig()`. Setup checks the app's
 native balance charge and token initialization budget before funding.
-The registry defaults to factory-scoped SQLite under `.local/`;
-`TOKEN_REGISTRY_DB_PATH` overrides it. Use one writer per database.
+The indexer writes a factory-specific SQLite file under `.local/`;
+`TOKEN_REGISTRY_DB_PATH` overrides it. Use one server per database file.
 
 Run `npm run setup:devnet --workspace apps/token-launchpad` for Devnet defaults.
 It creates a fresh deployment and writes `.env.devnet`. Both setup commands use
@@ -80,21 +91,33 @@ than a rebuilt bundle. The RPC proxy is read-only; wallet writes go through the
 provider. `VITE_SWAP_APP_URL` enables the Swap handoff. Configure explorer and
 network settings as described in `.env.example`.
 
-## Code and checks
+## Where the Thruput code is
 
-- `src/main.tsx`, `app.tsx`, `app-providers.tsx`: startup, SDK/React providers, routing.
-- `src/launch/`: review, execution, and saved workflow recovery.
-- `src/transactions/`: SDK wallet calls and receipt observation.
-- `src/contracts/`: typed calls and generated bindings; regenerate, do not edit generated files.
-- `server/`: registry, SQLite, indexer, HTTP server; `shared/`: browser/server models.
-- `scripts/index.ts`: setup inputs and named deployment steps for both networks.
-- `scripts/run.ts`: persona keys and confirmed, failed, or unknown outcomes.
-- `scripts/setup.test.ts`: setup and publication tests.
-- `tests/e2e/token-launchpad.ts` (repository root): isolated live acceptance checks.
+- [`src/launch/use-launch.ts`](src/launch/use-launch.ts): review the factory,
+  predict the address, and build the batch (fund, then `create_token`). The new
+  address comes from the receipt's `TokenCreated` event.
+- [`src/transactions/use-wallet-transaction.ts`](src/transactions/use-wallet-transaction.ts):
+  send a batch through the wallet, save it before broadcast, and observe it
+  after a reload.
+- [`server/indexer.ts`](server/indexer.ts): walk `TokenCreated` events with
+  `client.iterateEventPages()`, save each one by its identity, then save the
+  block height reached. This follows the docs'
+  [Resume without missing events](https://www.thruput.network/docs/typescript/events/).
+- [`server/store.ts`](server/store.ts) and [`server/http.ts`](server/http.ts):
+  one SQLite table, and `GET /api/tokens` (`q`, `creator`, `limit`, `offset`;
+  newest first). Swap uses this API to search tokens.
 
-Wallet execution uses published SDK methods; the app retains hashes and
-workflow state across uncertain outcomes. Disconnecting does not erase evidence
-or grant permission to resubmit. Public reads remain available without a wallet.
+The RPC node serves events only for a retention window. The indexer keeps them
+for as long as the app needs. If the node no longer serves events the index
+needs, `/healthz` reports it.
+
+## What this example leaves out on purpose
+
+- One launch at a time, in one browser tab.
+- No sorting or full-text search. The API filters by name, symbol, address, or
+  creator.
+
+## Checks
 
 Run `typecheck`, `test`, or `build` with `--workspace apps/token-launchpad`.
 After generating contracts, run `npm run test:token-launchpad` from the root.
