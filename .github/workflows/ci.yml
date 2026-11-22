@@ -159,7 +159,7 @@ jobs:
 
       - name: Run `test_r32` tests
         run: |
-          for p in erc20 counter speedex; do
+          for p in erc20 counter speedex budget; do
               thruput test -p "$p"
           done
 
