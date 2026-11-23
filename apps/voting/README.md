@@ -9,6 +9,8 @@ contract views in batches; and a saved transaction survives a reload. It is the
 smallest wallet app here, and the other wallet apps copy its transaction
 pattern.
 
+**Contracts:** [Voting](../../contracts/voting/README.md).
+
 ## Local setup
 
 Complete [repository setup](../../README.md#setup) and run `npm ci` from the root.

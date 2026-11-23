@@ -16,6 +16,9 @@ and browse factory launches. The app never receives wallet keys. Read the
   server indexes the factory's `TokenCreated` events into SQLite. Compare
   [Swap](../swap/README.md), whose factory keeps a list because pools are rare.
 
+**Contracts:** the [token factory](../../contracts/token-factory/README.md)
+project: the factory and the standard token it deploys.
+
 ## Local setup
 
 Complete [root setup](../../README.md#setup), including `npm ci`, and start

@@ -10,6 +10,9 @@ contract views that decide what the page shows. The wallet signs and submits the
 claim. The server only serves public configuration and a read-only RPC proxy.
 The app needs no payout key or database.
 
+**Contracts:** [Airdrop](../../contracts/airdrop/README.md). Local setup
+creates its demo tokens with the [token factory](../../contracts/token-factory/README.md).
+
 ## Local setup
 
 Follow the root setup instructions and start `thruput node`. Setup defaults to

@@ -10,6 +10,8 @@ block. For the contract, start with [Counter](../../contracts/counter/README.md)
 For a simple counter app with a browser wallet, run
 `thruput new --template counter-app`.
 
+**Contracts:** [Counter](../../contracts/counter/README.md).
+
 ## Local setup
 
 Complete [root setup](../../README.md#setup) and `npm ci`. In a separate terminal:
