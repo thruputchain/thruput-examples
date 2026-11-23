@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toBase58 } from "@thruputchain/client";
-import {
-  crowdAccount,
-  crowdFunding,
-  MIN_CROWD_BALANCE,
-  MINT_GAS,
-} from "./crowd";
+import { crowdAccount, crowdFunding, MINT_GAS } from "./crowd";
 import { fundingRates } from "../scripts/index";
 
 const costs = {
@@ -33,7 +28,6 @@ describe("crowd", () => {
   it("funds an account for scheduling and its first deposits", () => {
     const amount = crowdFunding(costs);
     expect(amount).toBe(MINT_GAS + 1_234n + 12_000n + 100_000n);
-    expect(amount).toBeGreaterThan(MIN_CROWD_BALANCE);
   });
 });
 

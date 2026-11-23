@@ -30,13 +30,9 @@ import { errorMessage } from "../src/config";
 import { NftDrop } from "../src/contracts/generated/nft-drop";
 import { NftDropFactory } from "../src/contracts/generated/nft-drop-factory";
 import { DEMO_DROP } from "../src/contracts/drops";
+import { crowdAccount, crowdFunding, MAX_CROWD_SIZE } from "../server/crowd";
 import {
-  crowdAccount,
-  crowdFunding,
-  MAX_CROWD_SIZE,
-  MIN_CROWD_BALANCE,
-} from "../server/crowd";
-import {
+  createCrowdSeed,
   createPersona,
   createRun,
   record,
@@ -137,7 +133,7 @@ export async function setup(
       demoFunding,
     );
 
-    const crowdSeed = randomBytes(32);
+    const crowdSeed = await createCrowdSeed(run);
     await fundCrowd(client, run, persona, crowdSeed, crowdSize, crowdEach);
     await verify(client, persona, factory, demoDrop);
 
@@ -306,12 +302,11 @@ async function createDemoDrop(
 }
 
 /**
- * Give each crowd account enough native tokens to schedule mints. Accounts
- * that already hold enough are skipped, so a rerun funds only what is missing.
+ * Give each crowd account enough native tokens to schedule mints.
  *
- * Every batch is signed and saved before any is sent. The batches are
- * independent: a timeout leaves that batch unknown, and the next setup run
- * reads balances instead of resending it.
+ * Every batch is signed and saved before any is sent, and each is sent once.
+ * A batch that does not confirm stays unknown, and setup fails. Each setup run
+ * makes a new crowd, so a rerun never resends an earlier run's batches.
  */
 async function fundCrowd(
   client: Client,
@@ -324,16 +319,10 @@ async function fundCrowd(
   const accounts = Array.from({ length: size }, (_, index) =>
     crowdAccount(seed, index),
   );
-  const balances = await Promise.all(
-    accounts.map((account) => client.getBalance({ address: account.address })),
-  );
-  const unfunded = accounts.filter(
-    (_, index) => balances[index]!.rawBalance < MIN_CROWD_BALANCE,
-  );
   const tip = await client.getChainTip();
   const signed = [];
-  for (let start = 0; start < unfunded.length; start += TRANSFERS_PER_BATCH) {
-    const recipients = unfunded.slice(start, start + TRANSFERS_PER_BATCH);
+  for (let start = 0; start < accounts.length; start += TRANSFERS_PER_BATCH) {
+    const recipients = accounts.slice(start, start + TRANSFERS_PER_BATCH);
     const gasLimit = gasAmount(BigInt(recipients.length) * 50_000n + 200_000n);
     const invocation = createDefaultWalletBatchInvocation(
       persona.account.address,
@@ -358,7 +347,7 @@ async function fundCrowd(
     });
     signed.push(await persona.wallet.signTransaction(transaction));
   }
-  const label = `Fund ${unfunded.length} crowd accounts in ${signed.length} transactions`;
+  const label = `Fund ${accounts.length} crowd accounts in ${signed.length} transactions`;
   const evidence = join(run.directory, "crowd-funding.signed.json");
   await writeFile(
     evidence,
@@ -403,7 +392,7 @@ async function fundCrowd(
   await saveRun(run);
   if (failures.length)
     throw new Error(
-      `${failures.length} crowd funding transactions did not confirm. Evidence: ${evidence}. Rerun setup after inspecting them.`,
+      `${failures.length} crowd funding transactions did not confirm. Evidence: ${evidence}; crowd keys: ${join(run.directory, "crowd.json")}. Inspect them, then run setup again for a new deployment.`,
     );
 }
 

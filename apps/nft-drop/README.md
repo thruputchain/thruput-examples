@@ -55,7 +55,7 @@ Open **http://127.0.0.1:5178**. Setup takes about three minutes. It:
    crowd key.
 
 Each run saves its records under `.local/nft-drop-setup/`: the operator key,
-signed transactions, and outcomes. Setup does not resend a transaction after a
+the crowd seed, signed transactions, and outcomes. Setup does not resend a transaction after a
 timeout. A failed run keeps the previous `.env.local`. After you restart the
 node, run setup again.
 

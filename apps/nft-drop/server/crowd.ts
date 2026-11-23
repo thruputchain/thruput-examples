@@ -44,6 +44,3 @@ export function crowdFunding(costs: StorageCosts): bigint {
     100_000n
   );
 }
-
-/** Accounts below this balance cannot schedule a mint. */
-export const MIN_CROWD_BALANCE = MINT_GAS + 20_000n;

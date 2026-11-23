@@ -111,6 +111,16 @@ export async function createPersona(client: Client, run: Run, name: string) {
 
 export type Persona = Awaited<ReturnType<typeof createPersona>>;
 
+/**
+ * A new seed for the crowd's keys, saved before any crowd account is funded,
+ * so a failed setup does not lose the keys of accounts it already funded.
+ */
+export async function createCrowdSeed(run: Run) {
+  const seed = randomBytes(32);
+  await writeJson(join(run.directory, "crowd.json"), { seed: toHex0x(seed) });
+  return seed;
+}
+
 function receiptFor(error: unknown) {
   if (
     error instanceof TransactionExecutionError ||
