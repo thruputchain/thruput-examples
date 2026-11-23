@@ -253,14 +253,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "block-clock"
-version = "0.1.0"
-dependencies = [
- "block-clock",
- "thruput-sdk",
-]
-
-[[package]]
 name = "bs58"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -289,22 +281,6 @@ name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
-
-[[package]]
-name = "calldata"
-version = "0.1.0"
-dependencies = [
- "calldata",
- "thruput-sdk",
-]
-
-[[package]]
-name = "caller-counter"
-version = "0.1.0"
-dependencies = [
- "caller-counter",
- "thruput-sdk",
-]
 
 [[package]]
 name = "castaway"
@@ -2007,14 +1983,6 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
-]
-
-[[package]]
-name = "nnint-stress"
-version = "0.1.0"
-dependencies = [
- "nnint-stress",
- "thruput-sdk",
 ]
 
 [[package]]
