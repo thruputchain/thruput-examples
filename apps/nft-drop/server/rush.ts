@@ -28,9 +28,11 @@ import { crowdAccount, MINT_GAS } from "./crowd";
  * 3. Settling: observe each original hash until it has an outcome, or until
  *    two minutes after the last submission.
  *
- * When a block excludes a mint, its status is `retry`. Each simulated user
- * then does what a wallet does: it resubmits the same signed transaction. No
- * new transaction is signed, so each user's mint can commit at most once.
+ * When a block excludes a mint, its status is `retry`, and the node does not
+ * try it again by itself. So the simulated user sends the same signed bytes
+ * again. A transaction commits at most once, so this cannot mint twice. (The
+ * SDK's wallet path never resends; the app's wallet transactions expire
+ * instead.)
  */
 export type Phase = "preparing" | "running" | "settling" | "done" | "failed";
 
@@ -90,6 +92,8 @@ const SOLD_OUT = nft_drop.v0_1.implementation.DropError.SoldOut;
 const SETTLE_TIMEOUT_MS = 120_000;
 // About one block: a resubmission waits for the next block before another.
 const RESUBMIT_MS = 2_000;
+// After a failed send, how long the node may take to report the hash.
+const UNSENT_MS = 5_000;
 const POLL_MS = 500;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -99,6 +103,8 @@ interface Entry {
   at: number;
   outcome: keyof Outcomes;
   resubmittedAt: number;
+  /** When sending failed. The node may still have received it. */
+  sendFailedAt?: number;
 }
 
 export function emptySnapshot(
@@ -177,8 +183,11 @@ export async function runRush(
           .sendTransaction({ signedTransaction: entry.bytes })
           .then(
             () => undefined,
-            // A rejected submission never reaches a block.
-            () => settle(entry, "notIncluded"),
+            // The outcome is uncertain: a timed-out send may have arrived.
+            // Settling observes the hash.
+            () => {
+              entry.sendFailedAt = Date.now();
+            },
           )
           .finally(() => {
             snapshot.submitted++;
@@ -235,7 +244,16 @@ export async function runRush(
     }
   }
 
+  /** Read one mint's status. A failed read leaves it pending for the next poll. */
   async function observe(entry: Entry) {
+    try {
+      await observeOnce(entry);
+    } catch {
+      // Retried on the next poll, until the deadline.
+    }
+  }
+
+  async function observeOnce(entry: Entry) {
     const status = await client.getTransactionStatus({
       transactionHash: entry.hash,
     });
@@ -252,6 +270,13 @@ export async function runRush(
       });
       if (receipt) settle(entry, classify(receipt), receipt);
     } else if (status.status === "dropped") {
+      settle(entry, "notIncluded");
+    } else if (
+      status.status === "unknown" &&
+      entry.sendFailedAt !== undefined &&
+      Date.now() - entry.sendFailedAt >= UNSENT_MS
+    ) {
+      // The send failed and the node has no record of the hash.
       settle(entry, "notIncluded");
     } else if (
       status.status === "retry" &&

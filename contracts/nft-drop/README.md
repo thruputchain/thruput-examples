@@ -97,8 +97,9 @@ names of 1–24 bytes, unique in their list; and weights of 1–10,000.
   37,000 raw native-token units on a local node, and the factory requires a
   little more than that from the creator. While the node assembles a block, it
   holds more funding for each mint than the mint finally spends. So a large
-  burst against one drop can spread over a few blocks: an excluded mint
-  succeeds when its sender resubmits it. The supply cap is not affected.
+  burst against one drop can take more than one block. The node does not try
+  an excluded mint again: it lands when its sender sends the same signed
+  transaction again. The supply cap is not affected.
 
 ## Exercise
 

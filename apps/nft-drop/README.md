@@ -2,8 +2,9 @@
 
 Create NFT drops, mint with a wallet, and start a **rush**: thousands of
 simulated users mint at the same time. The live view shows the result. On a
-local node, 10,000 mints sent at once all land within **two blocks** (about 4
-seconds), the supply sells out exactly, and no mint conflicts with another.
+local node, 10,000 mints sent at once landed in **two blocks** (about 4
+seconds) in our measurement, the supply sells out exactly, and no mint
+conflicts with another.
 
 Each drop is an ERC721 collection from the [NFT Drop](../../contracts/nft-drop/README.md)
 contract, created by the [NFT Drop factory](../../contracts/nft-drop-factory/README.md).
@@ -104,19 +105,24 @@ most common value. See [`src/art/style.ts`](src/art/style.ts) and
 | Failed       | The mint committed with another failure.                                                                   |
 | Pending      | No outcome yet.                                                                                            |
 
-When a block excludes a mint, its status is `retry`, and the simulated user
-does what a wallet does: it resubmits the same signed transaction. No new
-transaction is signed, so a user's mint commits at most once. A block excludes
-a mint for one of these reasons:
+When a block excludes a mint, its status is `retry`. The node does not try it
+again by itself, so the simulated user sends the same signed bytes again. A
+transaction commits at most once, so this cannot mint twice. A block excludes a
+mint for one of these reasons:
 
 - **Sell-out.** The supply bound admits only as many mints as the start-of-block
   supply covers. A resubmitted mint then fails with `SoldOut`.
 - **Storage funding.** While the node assembles a block, it holds more of the
   drop's storage funding for each mint than the mint finally spends. A large
-  burst can therefore spread over a few blocks. The resubmitted mints land in
-  the next blocks.
+  burst against one drop can take more than one block: 10,000 mints took two.
+  The resent mints land in the next block.
 - **A conflict between mints.** The live view counts these. This design keeps
   the count at zero.
+
+A wallet mint is different: the app never sends a wallet transaction again. If
+a block excludes it, for example during a large rush on the same drop, it stays
+pending until its expiry height (1,000 blocks, about 33 minutes). The app then
+reports that it did not commit, and you can mint again.
 
 ## What it leaves out on purpose
 
