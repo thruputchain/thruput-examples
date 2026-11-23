@@ -19,6 +19,9 @@ Swap uses its transaction pattern.
   [Launchpad](../token-launchpad/README.md), whose factory does not keep a list.
 - **Atomic batches.** Exact approvals and the request go in one transaction.
 
+**Contracts:** the [swap](../../contracts/swap/README.md) project, and
+[ERC20](../../contracts/erc20/README.md) for each pool's LP token.
+
 ## Local setup
 
 Complete [root setup](../../README.md#setup), including `npm ci`. Start
