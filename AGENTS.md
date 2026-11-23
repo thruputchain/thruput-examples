@@ -7,18 +7,19 @@ published SDK. Keep the operation being taught visible; do not add a framework
 to remove a few repeated lines. The apps are teaching references, not
 production services: do not add hardening that hides the Thruput calls.
 
-- `contracts/`: Rust examples. Start with Counter, Fibonacci, and Events. Each
-  example is a separate crate that teaches one thing; remove overlap rather
-  than merge crates.
+- `contracts/`: Rust examples. Start with Counter, Fibonacci, and Events.
+  `contracts/README.md` is the index. A folder is one example crate, or a
+  project folder of related crates (`swap/`, `token-factory/`, `permit/`,
+  `stellar-account/`, `waitlist/`) with its own README. Benchmarks and live
+  scripts live in their project, not in `scripts/`. Each example is a separate
+  crate that teaches one thing; remove overlap rather than merge crates.
 - `examples/typescript/`: small runnable client scripts using published packages.
 - `apps/`: Counter, Voting, Airdrop, Token Launchpad, and Swap. Voting is the
   reference for the wallet transaction pattern; Launchpad and Swap copy it in
   `src/transactions/use-wallet-transaction.ts`. Keep those copies identical.
 - `apps/*/scripts/`: app setup and generation entrypoints.
 - `scripts/seed/`: shared app-seeding implementation, not a beginner example.
-- `scripts/`: repository checks and advanced tools; read `scripts/README.md`.
-- `interfaces/`, `helpers/`, `engines/`: supporting Rust code.
-- `sim-fixtures/`: simulator workloads, not teaching examples.
+- `scripts/`: repository-wide builds and checks; read `scripts/README.md`.
 
 ## Setup
 

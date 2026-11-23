@@ -11,7 +11,7 @@ Swap uses its transaction pattern.
   because each one reads and writes the reserves. So the router queues
   requests, which can land concurrently, and a later "crank" transaction
   processes the queue in one batch. The
-  [swap contracts README](../../contracts/swap-router/README.md#cranking-the-queue)
+  [swap contracts README](../../contracts/swap/README.md#cranking-the-queue)
   explains why.
 - **Lists in the contract.** The swap factory keeps a list of its pools
   (`all_pairs_length` and `pair_at`), because pools are created rarely. The app

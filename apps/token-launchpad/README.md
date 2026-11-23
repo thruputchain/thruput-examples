@@ -7,7 +7,7 @@ and browse factory launches. The app never receives wallet keys. Read the
 **What it shows:**
 
 - **Create a contract from a contract.** The
-  [standard token factory](../../contracts/standard-token-factory/README.md)
+  [standard token factory](../../contracts/token-factory/factory/README.md)
   deploys each token at an address the app predicts before signing.
 - **One atomic batch.** One transaction funds the predicted address and creates
   the token. If either step fails, neither happens.

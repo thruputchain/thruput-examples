@@ -25,7 +25,7 @@ bench = false
 [dependencies]
 thruput-sdk = { workspace = true }
 
-multi-impl-if = { path = "../../interfaces/multi-impl-if" }
+multi-impl-if = { path = "../multi-impl-if" }
 
 [dev-dependencies]
 multi-impl = { path = ".", features = ["dev"] }

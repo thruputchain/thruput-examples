@@ -3264,6 +3264,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
+name = "swap-bench"
+version = "0.1.0"
+dependencies = [
+ "batch-driver",
+ "swap-factory",
+ "swap-if",
+ "thruput-erc20-if",
+ "thruput-event",
+ "thruput-json-rpc-types",
+ "thruput-sdk",
+ "thruput-testkit",
+ "tokio",
+]
+
+[[package]]
 name = "swap-clvr-driver"
 version = "0.1.0"
 dependencies = [
@@ -3367,7 +3382,6 @@ dependencies = [
 name = "swap-router"
 version = "0.1.0"
 dependencies = [
- "batch-driver",
  "erc20",
  "swap-driver",
  "swap-factory",
@@ -3378,15 +3392,7 @@ dependencies = [
  "thiserror 2.0.20",
  "thruput-erc20-if",
  "thruput-erc20-metadata-if",
- "thruput-event",
- "thruput-json-rpc-types",
  "thruput-sdk",
- "thruput-signing",
- "thruput-testkit",
- "thruput-xdr",
- "thruput-xdrs",
- "tokio",
- "uint",
 ]
 
 [[package]]

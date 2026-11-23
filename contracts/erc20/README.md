@@ -34,4 +34,4 @@ After CLI/runtime setup, `thruput test -p erc20` exercises the guest binary and
 See [Development checks](../../scripts/README.md#checks) for the distinction.
 
 Next: [Token Launchpad](../../apps/token-launchpad/README.md) for a full app,
-or [permit-wallet](../permit-wallet/src/lib.rs) for signed authorization.
+or [permit-wallet](../permit/wallet/src/lib.rs) for signed authorization.

@@ -8,7 +8,7 @@
 //! `submit_offer` and one `settle_offer` are measured from their receipts for the whole cost.
 //!
 //! It is `#[ignore]`d because it needs a devnode binary and built artifacts;
-//! `scripts/speedex-bench.sh` wires both up. Roughly:
+//! `contracts/speedex/bench/run.sh` wires both up. Roughly:
 //!
 //! ```text
 //! thruput build -p erc20 -- -F metadata
@@ -19,11 +19,12 @@
 //! ```
 //!
 //! `SPEEDEX_GUEST_MEMORY` states the guest memory the artifact under test declares (the
-//! protocol's 64 KiB unless set), which bounds the sweep's batch sizes; `scripts/speedex-bench.sh`
-//! builds the artifact with more and starts the devnode admitting it.
+//! protocol's 64 KiB unless set), which bounds the sweep's batch sizes;
+//! `contracts/speedex/bench/run.sh` builds the artifact with more and starts the devnode admitting
+//! it.
 //!
 //! Every measurement is a CSV row in `SPEEDEX_GAS_OUT` (default: `speedex-gas.csv` in the
-//! workspace's `target/`), which `scripts/speedex-plot.py` graphs together with the native
+//! workspace's `target/`), which `contracts/speedex/bench/plot.py` graphs together with the native
 //! execution-quality runs. Blocks are produced by hand so that a batch's offers share one block
 //! and every transaction is measured in a block of its own.
 

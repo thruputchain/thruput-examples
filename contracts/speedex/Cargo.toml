@@ -31,7 +31,7 @@ dev = ["thruput-sdk/dev", "unique-ids/dev"]
 [dependencies]
 thruput-sdk = { workspace = true }
 thruput-erc20-if = { workspace = true }
-unique-ids = { path = "../../helpers/unique-ids" }
+unique-ids = { path = "../swap/unique-ids" }
 
 [dev-dependencies]
 speedex = { path = ".", features = ["dev"] }
