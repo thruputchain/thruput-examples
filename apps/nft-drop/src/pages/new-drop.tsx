@@ -126,6 +126,7 @@ export function NewDrop({
       // One transaction: fund the new drop's address, then create the drop there.
       await tx.send(
         "Create drop",
+        toBase58(predicted),
         [
           ERC20.v0_1.transfer.call({
             address: NATIVE_TOKEN_ADDRESS,

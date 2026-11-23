@@ -99,7 +99,9 @@ function Drop({
   const { config: dropConfig, traits, counts, remaining } = drop.data;
   const minted = dropConfig.supply - remaining;
   const justMinted =
-    tx.completed?.label === "Mint" && tx.completed.ok
+    tx.completed?.label === "Mint" &&
+    tx.completed.ok &&
+    tx.completed.target === base58
       ? (tx.completed.values[0] as FixedBytes<32> | undefined)
       : undefined;
 
@@ -141,6 +143,7 @@ function Drop({
             onClick={() =>
               void tx.send(
                 "Mint",
+                base58,
                 [NftDrop.v0_1.mint.call({ address, gasLimit: MINT_GAS })],
                 MINT_ROOT_GAS,
               )
