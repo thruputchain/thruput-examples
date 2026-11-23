@@ -166,6 +166,7 @@ deploy, increment, and check the result with one agent.
 | [Voting](contracts/voting/README.md)                                                                                       | Admin permissions, poll lifecycle, and mergeable vote totals |
 | [Airdrop](contracts/airdrop/README.md)                                                                                     | Atomic token claims with optional address eligibility       |
 | [Waitlist](contracts/waitlist/README.md) | An EIP-1559-style fee steered by a backlog, which concurrent callers share without conflict |
+| [Pigment](contracts/pigment/README.md) | A shared canvas whose strokes are additions, so many painters on one pixel in one block mix instead of conflicting |
 | [Fibonacci](contracts/fibonacci/README.md)                                                                                 | A stateless method, a declared error, and an event           |
 | [Events](contracts/events/README.md)                                                                                       | Event payloads and indexed topics                            |
 | [Cross-call](contracts/cross-call/README.md)                                                                               | Call another contract through its generated client           |
