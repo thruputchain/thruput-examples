@@ -9,7 +9,7 @@
 //! ```
 //!
 //! It prints a summary and writes every run as a CSV row to `SPEEDEX_QUALITY_OUT`
-//! (default: `speedex-quality.csv` in the workspace's `target/`); `scripts/speedex-plot.py` graphs that file. Gas is not
+//! (default: `speedex-quality.csv` in the workspace's `target/`); `contracts/speedex/bench/plot.py` graphs that file. Gas is not
 //! measured here -- the mock environment does not meter it -- but by `tests/testkit_gas.rs` on a
 //! devnode; the native timings below are only a proxy for the shape of the cost.
 //!

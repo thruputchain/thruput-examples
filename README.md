@@ -43,7 +43,8 @@ Expected: **3 tests pass**. You need no npm install, wallet, or node. Read
 3. **Contract concepts:** [Fibonacci](contracts/fibonacci/README.md),
    [Events](contracts/events/README.md), [Cross-call](contracts/cross-call/README.md),
    [error handling](contracts/error-handling-caller/README.md), and
-   [interfaces](contracts/multi-impl/README.md). The table below lists them all.
+   [interfaces](contracts/multi-impl/README.md). [contracts/README.md](contracts/README.md)
+   lists them all.
 4. **[Voting app](apps/voting/README.md):** the first wallet app. A browser
    wallet signs each transaction, and the app recovers it after a reload.
 5. **[Airdrop app](apps/airdrop/README.md):** claim tokens once per wallet.
@@ -54,37 +55,15 @@ Expected: **3 tests pass**. You need no npm install, wallet, or node. Read
 
 ## Contract examples
 
-Each README has a test command, the expected result, and an exercise.
+[contracts/README.md](contracts/README.md) lists every contract in learning
+order, in three tiers:
 
-| Example                                                                                                                    | What you learn                                      |
-| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| [Counter](contracts/counter/README.md)                                                                                     | Store and update a non-negative counter             |
-| [Fibonacci](contracts/fibonacci/README.md)                                                                                 | A stateless method, a declared error, and an event  |
-| [Events](contracts/events/README.md)                                                                                       | Event payloads and indexed topics                   |
-| [Cross-call](contracts/cross-call/README.md)                                                                               | Call another contract through its generated client  |
-| [Error-handling callee](contracts/error-handling-callee/README.md) and [caller](contracts/error-handling-caller/README.md) | Tell declared errors, faults, and failed calls apart |
-| [Multi-throws](contracts/multi-throws/README.md)                                                                           | Handle more than one declared error type            |
-| [Multi-impl](contracts/multi-impl/README.md)                                                                               | Implement two interface traits at one address       |
-| [Mixed-impl](contracts/mixed-impl/README.md)                                                                               | Combine inherent methods and a trait                |
-| [Oracle consumer](contracts/oracle-consumer/README.md)                                                                     | Read a published price and check its freshness      |
-| [Counter live test](contracts/counter-live/README.md)                                                                      | Deploy and call Counter on a local node from Rust   |
-
-### Advanced contracts
-
-These combine several concepts. Read a small example first.
-
-| Example                                                                                      | What you learn                                                  |
-| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| [Cross-trait throws](contracts/cross-trait-throws/README.md)                                 | Catch errors across interface boundaries                        |
-| [Voting](contracts/voting/README.md)                                                         | Admin permissions, a poll lifecycle, and mergeable vote totals  |
-| [Airdrop](contracts/airdrop/README.md)                                                       | Atomic token claims with optional address eligibility           |
-| [Waitlist](contracts/waitlist/README.md)                                                     | A fee steered by a backlog, shared by concurrent callers        |
-| [ERC20](contracts/erc20/README.md)                                                           | Token balances, allowances, metadata, and permits               |
-| [Standard token](contracts/standard-token/README.md) and [factory](contracts/standard-token-factory/README.md) | Tokens created by a factory, used by Launchpad |
-| [Swap contracts](contracts/swap-router/README.md)                                            | Pools, routing, queued requests, and liquidity                  |
-| [Permit wallet](contracts/permit-wallet/README.md) and [relayer](contracts/permit-relayer/README.md) | Off-chain authorization                                  |
-| [Stellar account](contracts/stellar-account/README.md)                                       | Weighted Ed25519 and ML-DSA-65 signers and thresholds           |
-| [Speedex](contracts/speedex/README.md)                                                       | Multi-asset batch exchange and clearing (research)              |
+- **Basics:** Counter, Fibonacci, Events, Cross-call, error handling, and
+  interfaces.
+- **Intermediate:** ERC20, Voting, Airdrop, and an oracle consumer.
+- **Advanced projects:** groups of crates that work together: Token factory,
+  Swap, Permit, Stellar account, Waitlist, and Speedex. Swap and Speedex include
+  benchmarks.
 
 ## Applications
 
@@ -125,7 +104,8 @@ Then run `npm run example:chain-tip` for a first read.
 
 ## License
 
-[Apache-2.0](LICENSE), except the swap contract suite (`swap-*` contracts,
-`engines/swap-pair`, and `interfaces/swap-if`). It is a port of
+[Apache-2.0](LICENSE), except the UniswapV2 port in
+[`contracts/swap/`](contracts/swap/README.md): `interface`, `pair`, `handler`,
+`driver`, `router`, `factory`, and `bench`. It is a port of
 [UniswapV2](https://github.com/Uniswap/v2-core), so it is
 [GPL-3.0-or-later](LICENSE-GPL-3.0). Each crate's `Cargo.toml` names its license.

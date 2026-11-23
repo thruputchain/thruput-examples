@@ -5,13 +5,32 @@ up to 20 additional weighted signers, low/medium/high operation thresholds, and 
 operations. The point is that Thruput's protocol already carries this model at the address
 level, so the contract adds the thresholds and nothing else.
 
-- [`stellar-account`](src/account.rs): the account. Tested on the native executor in
-  [`tests/account.rs`](tests/account.rs) and on a devnode in
-  [`tests/testkit_account.rs`](tests/testkit_account.rs) (`#[ignore]`d).
-- [`stellar-account-factory`](../stellar-account-factory/): deploys an account at an address that
+- [`stellar-account`](account/src/account.rs): the account. Tested on the native executor in
+  [`tests/account.rs`](account/tests/account.rs) and on a devnode in
+  [`tests/testkit_account.rs`](account/tests/testkit_account.rs) (`#[ignore]`d).
+- [`stellar-account-factory`](factory/): deploys an account at an address that
   is a function of its master key and initializes it in the same frame.
-- [`stellar-account-factory-if`](../../interfaces/stellar-account-factory-if/): the factory and
+- [`stellar-account-factory-if`](interface/): the factory and
   initializer traits, and the address derivation.
+
+## Run
+
+Complete the [setup](../../README.md#setup). From the repository root:
+
+```sh
+cargo test -p stellar-account -p stellar-account-factory --locked
+```
+
+The devnode test is `#[ignore]`d. It needs the devnode toolchain
+(`thruput toolchain install`) and built artifacts:
+
+```sh
+thruput build -p stellar-account
+thruput build -p stellar-account-factory
+THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)" \
+THRUPUT_TESTKIT_ARTIFACT_ROOT="$PWD/target/thruput" \
+    cargo test -p stellar-account --test testkit_account -- --ignored --nocapture
+```
 
 ## Stellar to Thruput
 
@@ -55,7 +74,7 @@ buffer, which a 1953-byte encoded ML-DSA-65 key would exceed. Read a signer's ke
 address's `AddressAuthData`.
 
 Needs a `thruput-sdk` whose `add_address_public_key` accepts ML-DSA-65 keys and a runtime with
-hogd #4539; [`tests/account.rs`](tests/account.rs) covers mixed Ed25519/ML-DSA-65 authorization
+hogd #4539; [`tests/account.rs`](account/tests/account.rs) covers mixed Ed25519/ML-DSA-65 authorization
 against the native executor's verifier.
 
 ## What is not Stellar here

@@ -19,7 +19,7 @@ run these commands from the repo root:
 
 ```sh
 thruput toolchain install
-bash scripts/counter-live.sh
+bash contracts/counter-live/run.sh
 ```
 
 The script builds Counter, selects the local node binary, and runs the test.
@@ -41,5 +41,5 @@ native tokens for deployment and storage; the counter's value is separate.
 
 Try changing the increment to 7 and the final assertion to 7, then rerun the
 test command. For multiple agents and messages between them, read the
-[Swap liquidity example](../swap-router/tests/sim_liquidity.rs).
+[Swap liquidity example](../swap/bench/tests/sim_liquidity.rs).
 

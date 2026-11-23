@@ -1,0 +1,34 @@
+[package]
+name = "swap-pair"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "GPL-3.0-or-later" # port of UniswapV2; see /LICENSE-GPL-3.0
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+doctest = false
+test = false # suppress output from our zero unit-tests
+
+[dependencies]
+thruput-sdk = { workspace = true }
+thruput-erc20-if = { workspace = true }
+thruput-erc20-controls-if = { workspace = true }
+swap-if = { path = "../interface" }
+heapless = { workspace = true }
+
+# Optional
+erc20 = { path = "../../erc20", features = ["dev"], optional = true }
+
+[features]
+dev = ["thruput-sdk/dev", "dep:erc20", "swap-if/dev"]
+
+[dev-dependencies]
+swap-pair = { path = ".", features = ["dev"] }
+
+[lints]
+clippy.result_large_err = "allow"

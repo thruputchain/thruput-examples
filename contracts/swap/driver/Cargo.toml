@@ -1,0 +1,51 @@
+[package]
+name = "swap-driver"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "GPL-3.0-or-later" # port of UniswapV2; see /LICENSE-GPL-3.0
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false # suppress output from our zero unit-tests
+
+[[bin]]
+name = "swap_driver"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+thruput-sdk = { workspace = true }
+thruput-erc20-if = { workspace = true }
+uint = { version = "0.10.0", default-features = false }
+heapless = { workspace = true }
+thiserror = { workspace = true }
+batch-driver = { path = "../batch-driver" }
+swap-if = { path = "../interface" }
+swap-pair = { path = "../pair" }
+swap-handler = { path = "../handler" }
+
+# Optional, for native tests
+erc20 = { path = "../../erc20", features = ["dev"], optional = true }
+thruput-erc20-metadata-if = { workspace = true, features = ["dev"], optional = true }
+
+[features]
+entrypoints = ["thruput-sdk/alloc"]
+erc20_metadata = ["erc20?/metadata", "dep:thruput-erc20-metadata-if"]
+dev = ["thruput-sdk/dev", "dep:erc20", "erc20_metadata", "swap-if/dev", "swap-pair/dev", "swap-handler/dev", "batch-driver/dev"]
+guest_test = []
+calibration = ["batch-driver/calibration"]
+
+[dev-dependencies]
+swap-driver = { path = ".", features = ["dev"] }
+
+[lints]
+clippy.result_large_err = "allow"

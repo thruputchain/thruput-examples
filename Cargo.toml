@@ -3,13 +3,36 @@ cargo-features = ["trim-paths"] #unstable
 [workspace]
 resolver = "3"
 
+# A folder in `contracts/` is one example crate or a project folder of related
+# crates. A `contracts/*` glob fails on project folders, which have no
+# `Cargo.toml`, so list the examples by name and glob each project folder.
 members = [
-    "contracts/*",
-    "engines/*",
-    "interfaces/*",
+    "contracts/airdrop",
+    "contracts/counter",
+    "contracts/counter-live",
+    "contracts/cross-call",
+    "contracts/cross-trait-throws",
+    "contracts/erc20",
+    "contracts/error-handling-callee",
+    "contracts/error-handling-caller",
+    "contracts/events",
+    "contracts/fibonacci",
+    "contracts/mixed-impl",
+    "contracts/multi-impl",
+    "contracts/multi-impl-if",
+    "contracts/multi-throws",
+    "contracts/oracle-consumer",
+    "contracts/speedex",
+    "contracts/voting",
+    "contracts/erc20/integration-test",
+    "contracts/permit/*",
+    "contracts/stellar-account/*",
+    "contracts/swap/*",
+    "contracts/token-factory/*",
+    "contracts/waitlist/*",
+    "contracts/swap/bench/clvr-bench",
     "sim-fixtures/*",
-    "helpers/*",
-    ]
+]
 
 [workspace.package]
 edition = "2024"
