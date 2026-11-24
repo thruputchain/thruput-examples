@@ -35,14 +35,9 @@ export function RequestStatus({
               label="Transaction"
               value={tx.pending.hash}
             />
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => void tx.checkAgain()}>
-                Check again
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => void tx.retry()}>
-                Retry saved transaction
-              </Button>
-            </div>
+            <Button size="sm" variant="outline" onClick={() => void tx.checkAgain()}>
+              Check again
+            </Button>
           </AlertDescription>
         </Alert>
       ) : tx.busy ? (
@@ -60,14 +55,27 @@ export function RequestStatus({
               The pool accepted the request. A crank processes the queue; the
               app watches for the request's result.
             </span>
-            {queued.cranked ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void request.processQueue()}
-              >
-                Process the queue again
-              </Button>
+            <div className="flex flex-wrap gap-2">
+              {request.canCrankAgain ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void request.processQueue()}
+                >
+                  Process the queue again
+                </Button>
+              ) : null}
+              {request.unreadable ? (
+                <Button size="sm" variant="outline" onClick={request.forget}>
+                  Forget this request
+                </Button>
+              ) : null}
+            </div>
+            {request.unreadable ? (
+              <span>
+                If you forget it, a crank can still process the request. Its
+                result then shows in your balances.
+              </span>
             ) : null}
           </AlertDescription>
         </Alert>

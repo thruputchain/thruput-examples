@@ -107,10 +107,9 @@ For separate demo fixtures, use `LAUNCHPAD_APP_ENV`, `LAUNCHPAD_APP_PUBLIC_DIR`,
 - [`src/app.tsx`](src/app.tsx): contract views (`config`, `eligible`,
   `hasClaimed`) and ERC20 balance reads.
 
-**Retry saved transaction** sends the same signed bytes again; they can commit
-at most once. **Check again** looks the hash up, and clears the record when the
-chain passes the claim's expiry height without a receipt. The contract itself
-prevents a second claim from the same wallet.
+**Check again** looks the hash up, and clears the record when the chain passes
+the claim's expiry height without committing it; then the wallet can claim
+again. The contract itself prevents a second claim from the same wallet.
 
 ## What this example leaves out on purpose
 

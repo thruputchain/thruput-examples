@@ -94,16 +94,18 @@ The rest is ordinary app code: `src/pages/` and `src/components/` hold the UI,
 1. Build the invocation with the generated binding, for example
    `methods.vote.invocation(address, GAS, { id, question, option })`.
 2. Send it with the React SDK's `useExecute`. The wallet signs it.
-3. In `onSigned`, save the hash and the signed bytes to `localStorage`. The
+3. In `onSigned`, save the hash and its expiry height to `localStorage`. The
    SDK waits for this before the wallet broadcasts the transaction.
 4. `useWaitForTransactionReceipt` watches that hash, also after a reload.
 5. When the receipt arrives, clear the saved record and refresh the reads.
 
 A timeout does not mean the transaction failed, so the app never signs a new
-one on its own. **Check again** looks the hash up. **Retry saved transaction**
-sends the same signed bytes: they have the same hash, so the transaction can
-commit at most once. The app clears the record only when a receipt exists, or
-when the chain passes the transaction's expiry height without one. See
+one on its own. **Check again** looks the hash up. The app clears the record
+when a receipt arrives, or when the chain passes the transaction's expiry
+height without committing it; then the user can send again. It reads the
+chain tip before it asks whether the transaction committed, so a commit
+between the two reads is not mistaken for expiry. The record is per account,
+so another account is not blocked. See
 [When a write times out](../../examples/typescript/README.md#when-a-write-times-out).
 
 Setup credits the contract with 1 native token for storage. Wallets need free

@@ -80,42 +80,38 @@ export function useLaunch(config: AppConfig) {
   async function launch() {
     if (!review) return;
     setError(null);
-    try {
-      const create = StandardTokenFactory.v0_1.createToken.call({
-        address: config.factoryAddress,
-        gasLimit: GAS_LIMIT,
-        args: {
-          nonce: fixedBytes(review.nonce, 32),
-          administrator: config.accountAddress,
-          name: review.token.name,
-          symbol: review.token.symbol,
-          decimals: BigInt(review.token.decimals),
-          initialHolder: config.accountAddress,
-          initialSupply: review.token.initialSupply,
-        },
-      });
-      const fund = ERC20.v0_1.transfer.call({
-        address: config.nativeTokenAddress,
-        gasLimit: GAS_LIMIT,
-        args: { receiver: review.predictedAddress, amount: review.fundingAmount },
-      });
-      await tx.send(
-        "Launch token",
-        {
+    await tx.send(
+      "Launch token",
+      async () => {
+        const create = StandardTokenFactory.v0_1.createToken.call({
+          address: config.factoryAddress,
+          gasLimit: GAS_LIMIT,
+          args: {
+            nonce: fixedBytes(review.nonce, 32),
+            administrator: config.accountAddress,
+            name: review.token.name,
+            symbol: review.token.symbol,
+            decimals: BigInt(review.token.decimals),
+            initialHolder: config.accountAddress,
+            initialSupply: review.token.initialSupply,
+          },
+        });
+        const fund = ERC20.v0_1.transfer.call({
+          address: config.nativeTokenAddress,
+          gasLimit: GAS_LIMIT,
+          args: { receiver: review.predictedAddress, amount: review.fundingAmount },
+        });
+        return {
           calls: review.fundingAmount > 0n ? [fund, create] : [create],
-          contractsToDeploy: [
-            await loadStandardTokenArtifact(config.expectedTokenHash),
-          ],
-        },
-        {
-          address: toBase58(review.predictedAddress),
-          name: review.token.name,
-          symbol: review.token.symbol,
-        },
-      );
-    } catch (reason) {
-      setError(userErrorMessage(reason, "The launch could not start."));
-    }
+          contractsToDeploy: [await loadStandardTokenArtifact(config.expectedTokenHash)],
+        };
+      },
+      {
+        address: toBase58(review.predictedAddress),
+        name: review.token.name,
+        symbol: review.token.symbol,
+      },
+    );
   }
 
   const created =

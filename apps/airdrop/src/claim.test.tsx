@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
@@ -32,9 +32,9 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   getTransactionReceipt: vi.fn(),
   getChainTip: vi.fn(),
+  getTransactionStatus: vi.fn(),
   getBlockByHeight: vi.fn(),
   refetch: vi.fn(),
-  request: vi.fn(),
   wallet: {} as Record<string, unknown>,
 }));
 vi.mock("@thruputchain/react", () => ({
@@ -51,8 +51,18 @@ const config = {
   tokens: [],
   swapUrl: "/swap/",
 };
-const key = `airdrop:pending:${config.networkId}:${config.anchorHash}:${config.address}`;
+const keyFor = (account: string) =>
+  `airdrop:pending:${config.networkId}:${config.anchorHash}:${config.address}:${account}`;
+const success = { execution: { result: "return" } };
+let key: string;
 let record: PendingClaim;
+/** What the wallet reports in `onSigned`. */
+let evidence: {
+  hash: string;
+  signedTransaction: string;
+  account: { address: string };
+  networkHash: string;
+};
 let queries: QueryClient;
 const wrapper = ({ children }: { children: ReactNode }) => (
   <QueryClientProvider client={queries}>{children}</QueryClientProvider>
@@ -79,26 +89,23 @@ beforeEach(async () => {
     account.signers,
     networkHash(sha256Hash(new Uint8Array(32))),
   );
-  record = {
+  evidence = {
     hash: toBase58(hashSignedTransaction(signed)),
-    expiresAt: "100",
     signedTransaction: toHex0x(serializeSignedTransaction(signed)),
-    account: toBase58(account.address),
+    account: { address: toBase58(account.address) },
     networkHash: config.networkId,
   };
+  record = { hash: evidence.hash, expiresAt: "100" };
+  key = keyFor(evidence.account.address);
   localStorage.setItem(key, JSON.stringify(record));
   mocks.getBlockByHeight.mockResolvedValue({
     blockHash: new Uint8Array(32).fill(3),
   });
   mocks.getChainTip.mockResolvedValue({ blockHeight: 50n });
+  mocks.getTransactionStatus.mockResolvedValue({ status: "unknown" });
   mocks.getTransactionReceipt.mockResolvedValue(null);
   mocks.refetch.mockResolvedValue({});
-  mocks.request.mockResolvedValue({ hash: record.hash });
-  mocks.wallet = {
-    status: "connected",
-    address: record.account,
-    provider: { request: mocks.request },
-  };
+  mocks.wallet = { status: "connected", address: evidence.account.address };
 });
 afterEach(() => {
   cleanup();
@@ -106,34 +113,54 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("sends only the saved bytes after a reload, without another signature", async () => {
+/** Claim with nothing saved yet: the wallet signs, then the node commits. */
+function claimFromScratch() {
+  localStorage.clear();
+  mocks.execute.mockImplementation(async ({ options }) => {
+    await options.onSigned(evidence);
+    return { receipt: success };
+  });
+  return renderHook(() => useClaim(config), { wrapper });
+}
+
+it("checks the chain checkpoint, claims, and reports the receipt", async () => {
+  const { result } = claimFromScratch();
+  await act(() => result.current.send());
+  expect(mocks.getBlockByHeight).toHaveBeenCalledWith({ blockHeight: 1n });
+  expect(mocks.execute.mock.lastCall![0].request.invocation).toEqual(
+    Airdrop.v0_1.claim.invocation(addressFromBase58(config.address), GAS),
+  );
+  expect(result.current.message).toBe("Claim confirmed.");
+  expect(result.current.pending).toBeNull();
+  expect(localStorage.getItem(key)).toBeNull();
+});
+
+it("refuses to claim on a chain whose checkpoint changed", async () => {
+  const { result } = claimFromScratch();
+  mocks.getBlockByHeight.mockResolvedValue({ blockHash: new Uint8Array(32).fill(4) });
+  await act(() => result.current.send());
+  expect(result.current.error).toMatch(/checkpoint changed/);
+  expect(mocks.execute).not.toHaveBeenCalled();
+});
+
+it("claims once when a second click comes while the checkpoint is read", async () => {
+  const { result } = claimFromScratch();
+  const send = result.current.send;
+  await act(() => Promise.all([send(), send()]));
+  expect(mocks.execute).toHaveBeenCalledTimes(1);
+});
+
+it("observes the saved claim after a reload, and never signs again", async () => {
   const { result } = renderHook(() => useClaim(config), { wrapper });
   expect(result.current.pending).toEqual(record);
   expect(result.current.blocked).toBe(true);
-  await act(() => result.current.retry());
-  expect(mocks.request).toHaveBeenCalledWith({
-    method: "submitTransaction",
-    params: {
-      account: record.account,
-      networkHash: record.networkHash,
-      signedTransaction: record.signedTransaction,
-    },
-  });
-  expect(mocks.execute).not.toHaveBeenCalled();
-  expect(localStorage.getItem(key)).not.toBeNull();
-});
-
-it("keeps the saved claim when a retry fails or the claim has not expired", async () => {
-  mocks.request.mockRejectedValue(new Error("Offline"));
-  const { result } = renderHook(() => useClaim(config), { wrapper });
-  await act(() => result.current.retry());
-  expect(result.current.error).toBe("Offline");
+  await act(() => result.current.send());
   await act(() => result.current.checkAgain());
-  expect(localStorage.getItem(key)).not.toBeNull();
   expect(mocks.execute).not.toHaveBeenCalled();
+  expect(localStorage.getItem(key)).not.toBeNull();
 });
 
-it("clears the saved claim once the chain passes its expiry without a receipt", async () => {
+it("clears the saved claim once the chain passes its expiry without committing it", async () => {
   mocks.getChainTip.mockResolvedValue({ blockHeight: 101n });
   const { result } = renderHook(() => useClaim(config), { wrapper });
   await act(() => result.current.checkAgain());
@@ -141,10 +168,20 @@ it("clears the saved claim once the chain passes its expiry without a receipt", 
   expect(result.current.message).toMatch(/expired without committing/);
 });
 
-it("does not retry through another wallet account", async () => {
+it("keeps a claim that committed before expiry, without its receipt indexed", async () => {
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 101n });
+  mocks.getTransactionStatus.mockResolvedValue({ status: "committed", blockHeight: 99n });
+  const { result } = renderHook(() => useClaim(config), { wrapper });
+  await act(() => result.current.checkAgain());
+  expect(localStorage.getItem(key)).not.toBeNull();
+  expect(mocks.getChainTip.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.getTransactionStatus.mock.invocationCallOrder[0]!,
+  );
+});
+
+it("does not block another wallet account with this account's saved claim", async () => {
   mocks.wallet.address = config.address;
   const { result } = renderHook(() => useClaim(config), { wrapper });
-  await act(() => result.current.retry());
-  expect(mocks.request).not.toHaveBeenCalled();
-  expect(result.current.error).toMatch(/wallet account that signed/);
+  await waitFor(() => expect(result.current.pending).toBeNull());
+  expect(result.current.blocked).toBe(false);
 });

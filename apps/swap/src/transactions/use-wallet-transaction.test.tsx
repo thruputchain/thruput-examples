@@ -27,18 +27,14 @@ const mocks = vi.hoisted(() => ({
   executeCallsAndWait: vi.fn(),
   getTransactionReceipt: vi.fn(),
   getChainTip: vi.fn(),
+  getTransactionStatus: vi.fn(),
   refetch: vi.fn(),
-  request: vi.fn(),
   receipt: null as TransactionReceipt | null,
   receiptError: null as Error | null,
   address: "",
 }));
 vi.mock("@thruputchain/react", () => ({
   useClient: () => mocks,
-  useWallet: () => ({
-    provider: { request: mocks.request },
-    address: mocks.address,
-  }),
   useWalletClient: () => ({ executeCallsAndWait: mocks.executeCallsAndWait }),
   useWaitForTransactionReceipt: () => ({
     data: mocks.receipt,
@@ -82,8 +78,8 @@ beforeEach(async () => {
   mocks.executeCallsAndWait.mockReset();
   mocks.getTransactionReceipt.mockReset().mockResolvedValue(null);
   mocks.getChainTip.mockReset().mockResolvedValue({ blockHeight: 50n });
+  mocks.getTransactionStatus.mockReset().mockResolvedValue({ status: "unknown" });
   mocks.refetch.mockReset().mockResolvedValue({});
-  mocks.request.mockReset().mockResolvedValue({});
   mocks.receipt = null;
   mocks.receiptError = null;
 });
@@ -102,7 +98,7 @@ it("saves the record before broadcast, and reports the receipt once", async () =
     useWalletTransaction<{ symbol: string }>(key, onDone),
   );
   await act(() =>
-    result.current.send("Swap", { calls: [call] }, { symbol: "ACRN" }),
+    result.current.send("Swap", () => ({ calls: [call] }), { symbol: "ACRN" }),
   );
   expect(JSON.parse(savedBeforeBroadcast!)).toMatchObject({
     label: "Swap",
@@ -129,7 +125,7 @@ it("reports a receipt that arrives after a reload", async () => {
     throw new Error("Timed out");
   });
   const first = renderHook(() => useWalletTransaction(key));
-  await act(() => first.result.current.send("Swap", { calls: [call] }, {}));
+  await act(() => first.result.current.send("Swap", () => ({ calls: [call] }), {}));
   first.unmount();
 
   mocks.receipt = { execution: { result: "return" } } as TransactionReceipt;
@@ -138,27 +134,19 @@ it("reports a receipt that arrives after a reload", async () => {
   expect(localStorage.getItem(key)).toBeNull();
 });
 
-it("after a reload, retries the same bytes and clears only after expiry", async () => {
+it("after a reload, never signs again, and clears the record only after expiry", async () => {
   mocks.executeCallsAndWait.mockImplementation(async (_request, options) => {
     await options.onSigned(signed);
     throw new Error("Connection lost");
   });
   const first = renderHook(() => useWalletTransaction(key));
-  await act(() => first.result.current.send("Swap", { calls: [call] }, {}));
+  await act(() => first.result.current.send("Swap", () => ({ calls: [call] }), {}));
   expect(first.result.current.message).toBe("Connection lost");
   first.unmount();
 
   const { result } = renderHook(() => useWalletTransaction(key));
   expect(result.current.pending?.hash).toBe(signed.hash);
-  await act(() => result.current.retry());
-  expect(mocks.request).toHaveBeenCalledWith({
-    method: "submitTransaction",
-    params: {
-      account: mocks.address,
-      networkHash: networkId,
-      signedTransaction: signed.signedTransaction,
-    },
-  });
+  await act(() => result.current.send("Swap", () => ({ calls: [call] }), {}));
   expect(mocks.executeCallsAndWait).toHaveBeenCalledTimes(1);
 
   await act(() => result.current.checkAgain());
@@ -167,4 +155,45 @@ it("after a reload, retries the same bytes and clears only after expiry", async 
   await act(() => result.current.checkAgain());
   expect(result.current.pending).toBeNull();
   expect(result.current.message).toMatch(/expired without committing/);
+  expect(result.current.message).toContain(String(signed.hash));
+});
+
+it("keeps a transaction that committed before expiry, without its receipt indexed", async () => {
+  localStorage.setItem(
+    key,
+    JSON.stringify({ label: "Swap", hash: signed.hash, expiresAt: "100", context: {} }),
+  );
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 101n });
+  mocks.getTransactionStatus.mockResolvedValue({ status: "committed", blockHeight: 99n });
+  const { result } = renderHook(() => useWalletTransaction(key));
+  await act(() => result.current.checkAgain());
+  expect(result.current.pending).not.toBeNull();
+  expect(mocks.refetch).toHaveBeenCalled();
+  // The tip is read first, so a commit between the two reads is not missed.
+  expect(mocks.getChainTip.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.getTransactionStatus.mock.invocationCallOrder[0]!,
+  );
+});
+
+it("sends once when a second click comes while the first is still reading", async () => {
+  let release!: () => void;
+  const read = new Promise<void>((done) => (release = done));
+  const build = vi.fn(async () => {
+    await read;
+    return { calls: [call] };
+  });
+  mocks.executeCallsAndWait.mockResolvedValue({ receipt: null });
+  const { result } = renderHook(() => useWalletTransaction(key));
+  // Both clicks use the same render, as two quick clicks do.
+  const send = result.current.send;
+  let first!: Promise<void>;
+  let second!: Promise<void>;
+  act(() => {
+    first = send("Swap", build, {});
+    second = send("Swap", build, {});
+  });
+  release();
+  await act(() => Promise.all([first, second]));
+  expect(build).toHaveBeenCalledTimes(1);
+  expect(mocks.executeCallsAndWait).toHaveBeenCalledTimes(1);
 });

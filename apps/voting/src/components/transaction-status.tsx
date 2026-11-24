@@ -23,12 +23,9 @@ export function TransactionStatus({
           </p>
           <p className="mono break-all">{tx.pending.hash}</p>
           <div className="actions">
-              <button type="button" onClick={() => void tx.checkAgain()}>
-                Check again
-              </button>
-              <button type="button" onClick={() => void tx.retry()}>
-                Retry saved transaction
-              </button>
+            <button type="button" onClick={() => void tx.checkAgain()}>
+              Check again
+            </button>
           </div>
         </>
       ) : tx.busy ? (

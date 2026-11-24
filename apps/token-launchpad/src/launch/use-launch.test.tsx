@@ -42,7 +42,9 @@ async function reviewAndLaunch() {
     result.current.reviewLaunch({ preventDefault() {} } as FormEvent),
   );
   await act(() => result.current.launch());
-  return mocks.send.mock.lastCall!;
+  const [label, build, context] = mocks.send.mock.lastCall!;
+  // `send` builds the request after it takes its lock.
+  return [label, await build(), context];
 }
 
 it("funds the predicted address and creates the token in one batch", async () => {

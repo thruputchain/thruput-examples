@@ -4,6 +4,7 @@ import type { AppConfig } from "@/config";
 import {
   addLiquidityRequest,
   approve,
+  MINIMUM_LIQUIDITY,
   readAllowance,
   removeLiquidityRequest,
   type Pool,
@@ -11,6 +12,7 @@ import {
   type Reader,
 } from "@/contracts/swap";
 import { formatAmount, parseAmount } from "@/domain/amount";
+import { integerSquareRoot } from "@/domain/quote";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -44,20 +46,29 @@ async function approvalIfNeeded(
 
 /**
  * Add both tokens in the pool's current ratio. You choose the first amount;
- * the second follows from the reserves.
+ * the second follows from the reserves. An empty pool has no ratio yet: the
+ * first deposit sets the price, so you choose both amounts.
  */
 export function AddLiquidityForm(props: FormProps) {
   const { config, reader, account, pool, state, request } = props;
   const [amount, setAmount] = useState("");
+  const [secondAmount, setSecondAmount] = useState("");
   const [reserve0, reserve1] = state.reserves;
+  const empty = reserve0 === 0n;
   const parsed = parseAmount(amount, pool.token0.decimals);
+  const parsedSecond = parseAmount(secondAmount, pool.token1.decimals);
   const amount0 = parsed.ok ? parsed.value : 0n;
-  const amount1 = reserve0 > 0n ? (amount0 * reserve1) / reserve0 : 0n;
+  const amount1 = empty
+    ? parsedSecond.ok
+      ? parsedSecond.value
+      : 0n
+    : (amount0 * reserve1) / reserve0;
   const problem =
-    amount && !parsed.ok
+    (amount && !parsed.ok) || (empty && secondAmount && !parsedSecond.ok)
       ? "Enter a valid amount."
-      : reserve0 === 0n
-        ? "This pool has no liquidity yet."
+      : empty && amount0 > 0n && amount1 > 0n &&
+          integerSquareRoot(amount0 * amount1) <= MINIMUM_LIQUIDITY
+        ? `Add more of each token: the pool locks ${MINIMUM_LIQUIDITY} LP base units forever.`
         : amount0 > state.balances[0]
           ? `Not enough ${pool.token0.symbol}.`
           : amount1 > state.balances[1]
@@ -67,18 +78,24 @@ export function AddLiquidityForm(props: FormProps) {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (amount0 === 0n || amount1 === 0n || problem) return;
-    await request.submit("Add liquidity", pool, [
-      ...(await approvalIfNeeded(reader, pool.token0.address, pool.handler, amount0)),
-      ...(await approvalIfNeeded(reader, pool.token1.address, pool.handler, amount1)),
-      addLiquidityRequest(config.routerAddress, {
-        tokenA: pool.token0.address,
-        tokenB: pool.token1.address,
-        amountsDesired: [amount0, amount1],
-        amountsMin: [withSlippage(amount0), withSlippage(amount1)],
-        recipient: account,
-      }),
-    ]);
+    await request.submit("Add liquidity", pool, async () => ({
+      calls: [
+        ...(await approvalIfNeeded(reader, pool.token0.address, pool.handler, amount0)),
+        ...(await approvalIfNeeded(reader, pool.token1.address, pool.handler, amount1)),
+        addLiquidityRequest(config.routerAddress, {
+          tokenA: pool.token0.address,
+          tokenB: pool.token1.address,
+          amountsDesired: [amount0, amount1],
+          // The first deposit sets the price, so it takes exactly these amounts.
+          amountsMin: empty
+            ? [amount0, amount1]
+            : [withSlippage(amount0), withSlippage(amount1)],
+          recipient: account,
+        }),
+      ],
+    }));
     setAmount("");
+    setSecondAmount("");
   }
 
   return (
@@ -93,11 +110,29 @@ export function AddLiquidityForm(props: FormProps) {
           value={amount}
           onChange={(event) => setAmount(event.target.value.trim())}
         />
-        <FieldDescription>
-          Also adds {formatAmount(amount1, pool.token1.decimals)}{" "}
-          {pool.token1.symbol}, in the pool's current ratio.
-        </FieldDescription>
+        {empty ? null : (
+          <FieldDescription>
+            Also adds {formatAmount(amount1, pool.token1.decimals)}{" "}
+            {pool.token1.symbol}, in the pool's current ratio.
+          </FieldDescription>
+        )}
       </Field>
+      {empty ? (
+        <Field>
+          <FieldLabel htmlFor="add-amount-second">{pool.token1.symbol} to add</FieldLabel>
+          <Input
+            id="add-amount-second"
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="0.0"
+            value={secondAmount}
+            onChange={(event) => setSecondAmount(event.target.value.trim())}
+          />
+          <FieldDescription>
+            The pool is empty, so this first deposit sets its price.
+          </FieldDescription>
+        </Field>
+      ) : null}
       {problem ? <p role="alert" className="text-sm text-destructive">{problem}</p> : null}
       <Button
         type="submit"
@@ -131,17 +166,19 @@ export function RemoveLiquidityForm(props: FormProps) {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (liquidity === 0n || problem) return;
-    await request.submit("Remove liquidity", pool, [
-      // The handler burns LP tokens from the caller's allowance.
-      ...(await approvalIfNeeded(reader, pool.liquidityToken, pool.handler, liquidity)),
-      removeLiquidityRequest(config.routerAddress, {
-        tokenA: pool.token0.address,
-        tokenB: pool.token1.address,
-        liquidity,
-        amountsMin: [withSlippage(out0), withSlippage(out1)],
-        recipient: account,
-      }),
-    ]);
+    await request.submit("Remove liquidity", pool, async () => ({
+      calls: [
+        // The handler burns LP tokens from the caller's allowance.
+        ...(await approvalIfNeeded(reader, pool.liquidityToken, pool.handler, liquidity)),
+        removeLiquidityRequest(config.routerAddress, {
+          tokenA: pool.token0.address,
+          tokenB: pool.token1.address,
+          liquidity,
+          amountsMin: [withSlippage(out0), withSlippage(out1)],
+          recipient: account,
+        }),
+      ],
+    }));
     setAmount("");
   }
 
