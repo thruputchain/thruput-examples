@@ -88,13 +88,19 @@ export async function readToken(
     ERC20Metadata.v0_1.symbol.view(views),
     ERC20Metadata.v0_1.decimals.view(views),
   ]);
-  const base58 = toBase58(address);
+  const unnamed = tokenByAddress(address);
   return {
     address,
-    name: name.value ?? base58,
-    symbol: symbol.value ?? `${base58.slice(0, 4)}…`,
+    name: name.value ?? unnamed.name,
+    symbol: symbol.value ?? unnamed.symbol,
     decimals: Number(decimals.value ?? 0n),
   };
+}
+
+/** A token shown by its address, for one without readable metadata. */
+export function tokenByAddress(address: ContractAddress): Token {
+  const base58 = toBase58(address);
+  return { address, name: base58, symbol: `${base58.slice(0, 4)}…`, decimals: 0 };
 }
 
 /** The handler, driver, and LP token addresses for a pair, created or not. */

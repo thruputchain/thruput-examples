@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { toBase58 } from "@thruputchain/client";
+import type { ContractAddress } from "@thruputchain/protocol";
 import { AlertCircleIcon, DropletsIcon } from "lucide-react";
 import type { AppConfig } from "@/config";
 import {
   POOL_PAGE_SIZE,
   readPoolPage,
   readToken,
+  tokenByAddress,
 } from "@/contracts/swap";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -37,10 +39,11 @@ export function PoolListPage({ config }: { config: AppConfig }) {
       const { total, pairs } = await readPoolPage(reader, page);
       const rows = await Promise.all(
         pairs.map(async ([token0, token1]) => {
-          const [first, second] = await Promise.all([
-            readToken(reader, token0),
-            readToken(reader, token1),
-          ]);
+          // Any contract can be a pool token. One without the metadata views
+          // is listed by its address, so it does not hide the other pools.
+          const read = (token: ContractAddress) =>
+            readToken(reader, token).catch(() => tokenByAddress(token));
+          const [first, second] = await Promise.all([read(token0), read(token1)]);
           return { token0: first, token1: second };
         }),
       );
