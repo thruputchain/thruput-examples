@@ -46,6 +46,8 @@ interface Context {
 
 export interface Finished {
   label: string;
+  /** The pool's driver: pages share the tracker, so a page checks it is its pool. */
+  driver: string;
   outcome: RequestOutcome;
 }
 
@@ -141,7 +143,7 @@ export function useQueuedRequest(networkId: string, account: ContractAddress) {
       setUnreadable(false);
       if (!outcome || load(queuedKey)?.requestId !== request.requestId) return;
       save(null);
-      setFinished({ label: request.label, outcome });
+      setFinished({ label: request.label, driver: request.driver, outcome });
       void queries.invalidateQueries();
     } catch (reason) {
       // For example, the node no longer keeps history back to `fromBlock`.
