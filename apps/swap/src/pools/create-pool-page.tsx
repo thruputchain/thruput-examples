@@ -171,11 +171,15 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
     });
   }
 
-  // The tracker is shared with the pool pages: only this pool's request counts.
-  const done =
-    review &&
-    request.finished?.driver === toBase58(review.pool.driver) &&
-    request.finished.outcome.status === "done";
+  // The tracker is shared with the pool pages: only this pool's request
+  // counts. Creation commits in the first transaction, so once the deposit has
+  // an outcome the pool exists, even if the deposit failed; the request
+  // status above says which.
+  // The draft is locked while a review reads it, so the review always matches
+  // what the user sees.
+  const locked = reviewing || request.busy;
+  const created =
+    review && request.finished?.driver === toBase58(review.pool.driver);
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-6 px-4 py-10 sm:px-6 md:grid-cols-[3fr_2fr]">
       <Card>
@@ -189,15 +193,15 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
         <CardContent>
           <form onSubmit={(event) => void reviewPool(event)}>
             <FieldGroup>
-              <TokenField id="token-a" label="Token A" value={tokenA} onChange={edit(setTokenA)} disabled={request.busy} />
+              <TokenField id="token-a" label="Token A" value={tokenA} onChange={edit(setTokenA)} disabled={locked} />
               <Field>
                 <FieldLabel htmlFor="amount-a">Token A amount</FieldLabel>
-                <Input id="amount-a" inputMode="decimal" placeholder="0.0" value={amountA} disabled={request.busy} onChange={(event) => edit(setAmountA)(event.target.value.trim())} />
+                <Input id="amount-a" inputMode="decimal" placeholder="0.0" value={amountA} disabled={locked} onChange={(event) => edit(setAmountA)(event.target.value.trim())} />
               </Field>
-              <TokenField id="token-b" label="Token B" value={tokenB} onChange={edit(setTokenB)} disabled={request.busy} />
+              <TokenField id="token-b" label="Token B" value={tokenB} onChange={edit(setTokenB)} disabled={locked} />
               <Field>
                 <FieldLabel htmlFor="amount-b">Token B amount</FieldLabel>
-                <Input id="amount-b" inputMode="decimal" placeholder="0.0" value={amountB} disabled={request.busy} onChange={(event) => edit(setAmountB)(event.target.value.trim())} />
+                <Input id="amount-b" inputMode="decimal" placeholder="0.0" value={amountB} disabled={locked} onChange={(event) => edit(setAmountB)(event.target.value.trim())} />
               </Field>
               <Button type="submit" disabled={reviewing || request.busy}>
                 {reviewing ? "Reviewing…" : "Review pool"}
@@ -215,12 +219,19 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
           </Alert>
         ) : null}
         <RequestStatus request={request} />
-        {done ? (
-          <Button asChild>
-            <Link to={`/pools/${toBase58(review.token0.address)}/${toBase58(review.token1.address)}`}>
-              Open the pool
-            </Link>
-          </Button>
+        {created ? (
+          <div className="flex flex-col items-start gap-2">
+            {request.finished?.outcome.status !== "done" ? (
+              <p className="text-sm text-muted-foreground">
+                The pool exists. Add its first liquidity from the pool page.
+              </p>
+            ) : null}
+            <Button asChild>
+              <Link to={`/pools/${toBase58(review.token0.address)}/${toBase58(review.token1.address)}`}>
+                Open the pool
+              </Link>
+            </Button>
+          </div>
         ) : review ? (
           <Card>
             <CardHeader>
