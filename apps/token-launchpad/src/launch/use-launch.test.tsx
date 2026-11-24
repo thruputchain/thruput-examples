@@ -10,7 +10,11 @@ import { configuration } from "@/test/fixtures";
 import { useLaunch } from "./use-launch";
 
 const predicted = contractAddress(new Uint8Array(32).fill(9));
-const mocks = vi.hoisted(() => ({ send: vi.fn(), fundingAmount: 500n }));
+const mocks = vi.hoisted(() => ({
+  send: vi.fn(),
+  fundingAmount: 500n,
+  key: "",
+}));
 vi.mock("@thruputchain/react", () => ({ useClient: () => ({}) }));
 vi.mock("@/contracts/launchpad-client", () => ({
   reviewFactory: async () => ({
@@ -23,13 +27,16 @@ vi.mock("@/contracts/token-artifact", () => ({
   loadStandardTokenArtifact: async () => ({ code: "token" }),
 }));
 vi.mock("@/transactions/use-wallet-transaction", () => ({
-  useWalletTransaction: () => ({
-    send: mocks.send,
-    blocked: false,
-    completed: null,
-    message: null,
-    reset: () => {},
-  }),
+  useWalletTransaction: (key: string) => {
+    mocks.key = key;
+    return {
+      send: mocks.send,
+      blocked: false,
+      completed: null,
+      message: null,
+      reset: () => {},
+    };
+  },
 }));
 
 async function reviewAndLaunch() {
@@ -66,4 +73,11 @@ it("skips the funding call when the address is already funded", async () => {
   mocks.fundingAmount = 0n;
   const [, request] = await reviewAndLaunch();
   expect(request.calls).toHaveLength(1);
+});
+
+it("keys the saved launch by factory, so another deployment does not load it", async () => {
+  await reviewAndLaunch();
+  const config = configuration();
+  expect(mocks.key).toContain(toBase58(config.factoryAddress));
+  expect(mocks.key).toContain(toBase58(config.accountAddress));
 });

@@ -8,7 +8,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   addressFromBase58,
-  hashFromBase58,
   toBase58,
   type TransactionReceipt,
 } from "@thruputchain/client";
@@ -16,6 +15,7 @@ import { gasAmount } from "@thruputchain/protocol";
 import { parseSignedTransactionHex } from "@thruputchain/client/provider";
 import { Airdrop } from "./contracts/generated/airdrop";
 import type { PublicConfig } from "../shared/config";
+import { EXPIRY_BLOCKS, readSavedOutcome } from "./saved-outcome";
 
 export const GAS = gasAmount(20_000_000n);
 
@@ -67,30 +67,40 @@ export function useClaim(config: PublicConfig) {
   // The hash already reported: the receipt arrives from `send` and from the
   // receipt query.
   const reported = useRef<string | null>(null);
+  // The account whose claim the page shows now. A claim can finish after the
+  // user switched accounts.
+  const shownKey = useRef(key);
+  shownKey.current = key;
   const receipt = useWaitForTransactionReceipt({ hash: pending?.hash ?? null });
 
   useEffect(() => setPending(readPending(key)), [key]);
 
-  function forget() {
-    localStorage.removeItem(key);
-    setPending(null);
+  /** Clear one record, and the page only if it still shows that record. */
+  function forget(savedKey: string, saved: PendingClaim) {
+    localStorage.removeItem(savedKey);
+    setPending((shown) => (shown?.hash === saved.hash ? null : shown));
   }
 
-  function finish(saved: PendingClaim, transactionReceipt: TransactionReceipt) {
+  function finish(
+    savedKey: string,
+    saved: PendingClaim,
+    transactionReceipt: TransactionReceipt,
+  ) {
     if (reported.current === saved.hash) return;
     reported.current = saved.hash;
-    forget();
+    forget(savedKey, saved);
+    void queries.invalidateQueries({ queryKey: ["airdrop"] });
+    if (savedKey !== shownKey.current) return;
     const execution = transactionReceipt.execution;
     setMessage(
       "result" in execution && execution.result === "return"
         ? "Claim confirmed."
         : "The claim committed, but execution failed. No tokens moved.",
     );
-    void queries.invalidateQueries({ queryKey: ["airdrop"] });
   }
 
   useEffect(() => {
-    if (pending && receipt.data) finish(pending, receipt.data);
+    if (pending && receipt.data) finish(key, pending, receipt.data);
   }, [receipt.data]);
 
   async function send() {
@@ -100,6 +110,8 @@ export function useClaim(config: PublicConfig) {
     setError("");
     setMessage("");
     let saved: PendingClaim | null = null;
+    // The account that signs. The user can switch before the receipt arrives.
+    const savedKey = key;
     try {
       // The deployment is tied to one chain history. A reset devnet has a
       // different block at this height.
@@ -117,6 +129,7 @@ export function useClaim(config: PublicConfig) {
             GAS,
           ),
           gasLimit: GAS,
+          expiryBlocks: EXPIRY_BLOCKS,
         },
         options: {
           wait: { timeoutMs: 30_000 },
@@ -124,12 +137,12 @@ export function useClaim(config: PublicConfig) {
             const { block_expiry_height } =
               parseSignedTransactionHex(signedTransaction).tx.uniquifier;
             saved = { hash, expiresAt: String(block_expiry_height) };
-            localStorage.setItem(key, JSON.stringify(saved));
+            localStorage.setItem(savedKey, JSON.stringify(saved));
             setPending(saved);
           },
         },
       });
-      if (saved) finish(saved, result.receipt);
+      if (saved) finish(savedKey, saved, result.receipt);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Claim failed.");
     } finally {
@@ -139,28 +152,32 @@ export function useClaim(config: PublicConfig) {
   }
 
   /**
-   * Look the saved hash up. Never sends anything. The tip is read first; the
-   * Voting app's `checkAgain` explains why.
+   * Look the saved hash up. Never sends anything. The Voting app's
+   * `checkAgain` and `readSavedOutcome` explain the order of the reads.
    */
   async function checkAgain() {
     if (!pending) return;
     setError("");
     try {
-      const transactionHash = hashFromBase58(pending.hash);
-      const tip = await client.getChainTip();
-      const status = await client.getTransactionStatus({ transactionHash });
-      const committed =
-        ("status" in status && status.status === "committed") ||
-        (await client.getTransactionReceipt({ transactionHash })) !== null;
-      if (!committed && tip.blockHeight > BigInt(pending.expiresAt)) {
-        forget();
-        setMessage(
-          `The claim expired without committing (${pending.hash}). You can claim again.`,
-        );
-        void queries.invalidateQueries({ queryKey: ["airdrop"] });
+      const expiresAt = BigInt(pending.expiresAt);
+      const outcome = await readSavedOutcome(client, pending.hash, expiresAt);
+      if (outcome === "observe") {
+        await receipt.refetch();
         return;
       }
-      await receipt.refetch();
+      if (outcome === "notIndexed") {
+        setMessage(
+          `The node has not indexed block ${expiresAt} yet, so it cannot tell whether the claim committed. Check again shortly.`,
+        );
+        return;
+      }
+      forget(key, pending);
+      setMessage(
+        outcome === "expired"
+          ? `The claim expired without committing (${pending.hash}). You can claim again.`
+          : `The node no longer keeps the blocks that could hold the claim (${pending.hash}). Look it up in an explorer before you claim again.`,
+      );
+      void queries.invalidateQueries({ queryKey: ["airdrop"] });
     } catch (error) {
       setError(error instanceof Error ? error.message : "Check failed.");
     }

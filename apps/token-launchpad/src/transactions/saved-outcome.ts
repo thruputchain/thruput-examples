@@ -1,0 +1,94 @@
+/**
+ * Whether a saved wallet transaction committed, read without missing a
+ * commit. The Voting app explains the pattern. Voting, Airdrop, Launchpad,
+ * and Swap keep identical copies of this file.
+ */
+import {
+  hashFromBase58,
+  NativeRpcError,
+  type CoreThruputClient,
+} from "@thruputchain/client";
+
+/**
+ * How many blocks a transaction stays valid after it is prepared. It can
+ * commit only in the `EXPIRY_BLOCKS` blocks that end at `expiresAt`.
+ */
+export const EXPIRY_BLOCKS = 1_000n;
+
+/**
+ * What the node can tell about a saved transaction:
+ *
+ * - `observe`: it committed, or it can still commit. Keep watching its hash.
+ * - `notIndexed`: it can no longer commit, but the node has not indexed
+ *   receipts through `expiresAt` yet, so a missing receipt proves nothing.
+ * - `expired`: it never committed. The user can send again.
+ * - `unknown`: the node no longer keeps the blocks that could hold it.
+ */
+export type SavedOutcome = "observe" | "notIndexed" | "expired" | "unknown";
+
+type OutcomeReader = Pick<
+  CoreThruputClient,
+  | "getChainTip"
+  | "getTransactionsByBlock"
+  | "getTransactionStatus"
+  | "getTransactionReceipt"
+>;
+
+/**
+ * Decide what a saved transaction's outcome can be, without missing a
+ * commit. The order of the reads matters:
+ *
+ * 1. The tip. At or below `expiresAt`, the transaction can still commit.
+ * 2. How far the node has indexed receipts. Read before the receipt, so a
+ *    block indexed between the two reads cannot hide a commit.
+ * 3. The status, which reports a recent commit before its receipt is
+ *    indexed, then the receipt.
+ */
+export async function readSavedOutcome(
+  client: OutcomeReader,
+  hash: string,
+  expiresAt: bigint,
+): Promise<SavedOutcome> {
+  const tip = await client.getChainTip();
+  if (tip.blockHeight <= expiresAt) return "observe";
+  const indexed = await indexedRange(client, expiresAt, tip.blockHeight);
+  const transactionHash = hashFromBase58(hash);
+  const status = await client.getTransactionStatus({ transactionHash });
+  if ("status" in status && status.status === "committed") return "observe";
+  if (await client.getTransactionReceipt({ transactionHash })) return "observe";
+  if (indexed.latest < expiresAt) return "notIndexed";
+  // The first block that could include the transaction (block 1 at the least).
+  const first = expiresAt > EXPIRY_BLOCKS ? expiresAt - EXPIRY_BLOCKS + 1n : 1n;
+  if (indexed.oldest > first) return "unknown";
+  return "expired";
+}
+
+/** The blocks whose receipts the node has indexed. */
+async function indexedRange(
+  client: OutcomeReader,
+  blockHeight: bigint,
+  tip: bigint,
+): Promise<{ oldest: bigint; latest: bigint }> {
+  try {
+    const page = await client.getTransactionsByBlock({
+      blockHeight,
+      limit: 1,
+      start: { order: "ascending" },
+    });
+    return {
+      oldest: page.oldestIndexedBlockHeight,
+      latest: page.latestIndexedBlockHeight,
+    };
+  } catch (error) {
+    // A block outside the index is reported with the range the node has.
+    const data =
+      error instanceof NativeRpcError && error.decoded.classification === "known"
+        ? error.decoded.data
+        : null;
+    if (data?.kind !== "historyUnavailable") throw error;
+    return {
+      oldest: data.oldestIndexedBlockHeight ?? blockHeight + 1n,
+      latest: data.latestIndexedBlockHeight ?? tip,
+    };
+  }
+}

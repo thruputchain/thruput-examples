@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   getTransactionReceipt: vi.fn(),
   getChainTip: vi.fn(),
   getTransactionStatus: vi.fn(),
+  getTransactionsByBlock: vi.fn(),
   refetch: vi.fn(),
   receipt: null as TransactionReceipt | null,
   receiptError: null as Error | null,
@@ -79,6 +80,12 @@ beforeEach(async () => {
   mocks.getTransactionReceipt.mockReset().mockResolvedValue(null);
   mocks.getChainTip.mockReset().mockResolvedValue({ blockHeight: 50n });
   mocks.getTransactionStatus.mockReset().mockResolvedValue({ status: "unknown" });
+  mocks.getTransactionsByBlock.mockReset().mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 0n,
+    latestIndexedBlockHeight: 200n,
+  });
   mocks.refetch.mockReset().mockResolvedValue({});
   mocks.receipt = null;
   mocks.receiptError = null;
@@ -213,4 +220,22 @@ it("keeps the saved transaction when its completion cannot be recorded", async (
   expect(localStorage.getItem(key)).not.toBeNull();
   expect(result.current.completed).toBeNull();
   expect(result.current.message).toBe("Storage is full");
+});
+
+it("keeps a transaction past expiry until the node has indexed its blocks", async () => {
+  localStorage.setItem(
+    key,
+    JSON.stringify({ label: "Swap", hash: signed.hash, expiresAt: "100", context: {} }),
+  );
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 101n });
+  mocks.getTransactionsByBlock.mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 0n,
+    latestIndexedBlockHeight: 99n,
+  });
+  const { result } = renderHook(() => useWalletTransaction(key));
+  await act(() => result.current.checkAgain());
+  expect(result.current.pending).not.toBeNull();
+  expect(result.current.message).toMatch(/has not indexed block 100/);
 });

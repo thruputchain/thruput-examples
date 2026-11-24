@@ -50,8 +50,10 @@ export interface Review extends FactoryReview {
  */
 export function useLaunch(config: AppConfig) {
   const client = useClient();
+  // The receipt is read against this factory, so a record from another
+  // deployment of it must not load here.
   const tx = useWalletTransaction<LaunchContext>(
-    `launchpad:pending:${config.networkId}:${toBase58(config.accountAddress)}`,
+    `launchpad:pending:${config.networkId}:${toBase58(config.factoryAddress)}:${toBase58(config.accountAddress)}`,
   );
   const [draft, setDraft] = useState(initialDraft);
   const [submitted, setSubmitted] = useState(false);
