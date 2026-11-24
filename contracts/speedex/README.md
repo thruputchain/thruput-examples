@@ -143,9 +143,9 @@ exists once rather than once per entry point, and the workspace `Cargo.toml` bui
 
 ## Measuring it
 
-Two benchmarks, both `#[ignore]`d, put numbers on the trade-offs; `scripts/speedex-bench.sh` runs
-both and `scripts/speedex-plot.py` graphs their CSVs. The figures in [`bench/`](bench/) are one
-such run.
+Two benchmarks, both `#[ignore]`d, put numbers on the trade-offs; [`bench/run.sh`](bench/run.sh)
+runs both and [`bench/plot.py`](bench/plot.py) graphs their CSVs. The figures in [`bench/`](bench/)
+are one such run.
 
 [`tests/quality.rs`](tests/quality.rs) runs the engine natively over synthetic batches -- offers
 whose limits scatter around a hidden set of true valuations (`tests/synthetic`), 3 to 8 assets, 10
@@ -181,7 +181,7 @@ within one epoch), closes it, and has the contract run the clearing at each roun
 result, and reports the gas of reading the cells, of tâtonnement and of the circulation
 separately (it is also how a clearer can learn what a clearing will cost before paying for it).
 A real `clear_batch`, a `submit_offer` and a `settle_offer` are measured from their receipts.
-Three things about the node's tooling shape the benchmark, and `scripts/speedex-bench.sh` handles
+Three things about the node's tooling shape the benchmark, and `bench/run.sh` handles
 them: the artifact is built declaring 256 KiB of guest memory and the devnode is started admitting
 it; the clearings are signed by the benchmark itself as calls from the agent's key-pair account
 through the node's default wallet, since the testkit's transactions carry 10M gas and pass through
@@ -209,11 +209,11 @@ since an account may have 8,000 transactions at one expiry height. What the run 
 ## Running
 
 ```sh
-cargo test -p speedex                        # engine and contract tests, natively
-thruput build -p erc20 -- -F metadata      # the RV32 artifacts the next line loads
+cargo test -p speedex                    # engine and contract tests, natively
+thruput build -p erc20 -- -F metadata    # the RV32 artifacts the next line loads
 thruput build -p speedex
-thruput test -p speedex                    # the ring trade, and the largest clearing, on RV32
-scripts/speedex-bench.sh                     # the benchmarks above (devnode: thruput toolchain install)
+thruput test -p speedex                  # the ring trade, and the largest clearing, on RV32
+bash contracts/speedex/bench/run.sh      # the benchmarks above (devnode: thruput toolchain install)
 ```
 
 [SPEEDEX]: https://www.usenix.org/conference/nsdi23/presentation/ramseyer

@@ -5,7 +5,7 @@ single contract. `MathContract` implements addition and multiplication interface
 
 ## Run
 
-Complete the [Rust setup](../../README.md#rust-and-cli).
+Complete the [setup](../../README.md#setup).
 From the repo root, with no node:
 
 ```sh
@@ -17,7 +17,7 @@ at the same address.
 
 ## Read
 
-1. [Interface crate](../../interfaces/multi-impl-if/src/lib.rs): trait definitions.
+1. [Interface crate](../multi-impl-if/src/lib.rs): trait definitions.
 2. [Implementation](src/lib.rs): one contract implements the traits.
 3. [Tests](tests/test.rs): use each generated client at the same address.
 

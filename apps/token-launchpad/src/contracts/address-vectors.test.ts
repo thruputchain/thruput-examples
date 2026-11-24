@@ -19,7 +19,7 @@ it("derives factory child addresses matching the Rust vectors", async () => {
   }[] = JSON.parse(
     await readFile(
       new URL(
-        "../../../../interfaces/standard-token-factory-if/tests/fixtures/address-vectors.json",
+        "../../../../contracts/token-factory/interface/tests/fixtures/address-vectors.json",
         import.meta.url,
       ),
       "utf8",

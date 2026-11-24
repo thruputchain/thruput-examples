@@ -2,6 +2,22 @@
 
 A small contract example for one-time token claims. Each successful call transfers
 all configured rewards to the calling wallet and marks that wallet as claimed.
+Start with [Counter](../counter/README.md) and [ERC20](../erc20/README.md).
+
+## Run
+
+Complete the [setup](../../README.md#setup). From the repository root:
+
+```sh
+cargo test -p airdrop --locked --test test
+```
+
+Expected: **7 tests pass**.
+
+## Read
+
+1. [Contract](src/implementation.rs).
+2. [Tests](tests/test.rs): claims, eligibility, and duplicate claims.
 
 ## Configuration
 
@@ -28,12 +44,10 @@ by that developer. Its funded token budget limits total distributions. This is
 a teaching example, not proof of unique human identity. The optional allowlist
 demonstrates eligibility without adding signatures or Merkle proofs.
 
-## Verification
+## Try a change
 
-```sh
-cargo test -p airdrop --locked --test test
-cargo clippy -p airdrop --all-targets --no-deps --locked -- -D warnings
-```
+In `empty_allowlist_allows_each_wallet_once`, add a third wallet. Check that it
+can claim once, and that its second claim fails.
 
-The [Airdrop app](../../apps/airdrop/README.md) exercises the compiled RV32
-contract on a local node and provides a wallet-connected UI.
+Next: the [Airdrop app](../../apps/airdrop/README.md), which runs this contract
+on a local node with a wallet.

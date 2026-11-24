@@ -5,7 +5,7 @@ call to the wrong target. The companion callee deliberately produces failures.
 
 ## Run
 
-Complete the [Rust setup](../../README.md#rust-and-cli)
+Complete the [setup](../../README.md#setup)
 and read [the callee](../error-handling-callee/README.md). From the repo root:
 
 ```sh

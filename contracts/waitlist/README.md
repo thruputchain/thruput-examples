@@ -9,14 +9,14 @@ is free: a fee that has built up stays until the backlog has spent some blocks
 below the target. A backlog that nobody serves keeps raising the fee, block
 after block, up to a maximum set when the list starts; serving it brings the
 fee back down, and anyone may serve. The fee comes from
-[`fee-market`](../../helpers/fee-market/src/lib.rs), a storage type any
+[`fee-market`](fee-market/src/lib.rs), a storage type any
 contract can embed, given a load of its own to steer by.
 
 Read [Counter](../counter/README.md) first.
 
 ## Run
 
-Complete the [Rust setup](../../README.md#rust-and-cli).
+Complete the [setup](../../README.md#setup).
 From the repo root, without a node or npm:
 
 ```sh
@@ -32,14 +32,14 @@ output; the final result is what determines success.
 
 ## Read
 
-1. [Implementation](src/implementation.rs): a `Balance` for the backlog and a
+1. [Implementation](waitlist/src/implementation.rs): a `Balance` for the backlog and a
    `Node<FeeMarket>` for the fee, side by side in the contract's storage. `join`
    reads the backlog *before* adding itself, so every join in a block passes
    the same load; `serve` updates the fee too, because it changes the load.
-2. [`fee-market`](../../helpers/fee-market/src/lib.rs): why every caller in a
+2. [`fee-market`](fee-market/src/lib.rs): why every caller in a
    block computes the same fee, and records it without conflicting with the
    others.
-3. [Native tests](tests/test.rs): blocks advance with `advance_block`, and a
+3. [Native tests](waitlist/tests/test.rs): blocks advance with `advance_block`, and a
    write such as an allowance is visible from the next block.
 
 `join` collects the fee in native tokens, on an allowance the caller grants this
@@ -58,4 +58,4 @@ To steer a fee in your own contract, add a `Node<FeeMarket>` to its storage,
 load -- the
 same value for every transaction in a block -- wherever you charge the fee and
 wherever the load changes. See the
-[`fee-market`](../../helpers/fee-market/src/lib.rs) crate docs.
+[`fee-market`](fee-market/src/lib.rs) crate docs.

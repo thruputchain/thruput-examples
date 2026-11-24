@@ -9,9 +9,8 @@ the packages installed by this repository.
 
 ## Setup
 
-Follow [Setup](../../README.md#setup) for package access and
-CLI installation. Run everything here from the repository root.
-For the [hosted firehose consumer](#7-consume-the-hosted-firehose), only the
+Follow [Setup](../../README.md#setup) for the CLI. Run everything here from the repository root.
+For the [hosted firehose consumer](#8-consume-the-hosted-firehose), only the
 repo npm install is needed; skip the CLI and local-node setup below.
 
 In terminal A:
@@ -23,9 +22,12 @@ thruput node --port 9545 --json
 In terminal B:
 
 ```sh
-npm ci
+npm ci --workspaces=false --include-workspace-root
 export THRUPUT_RPC_URL=http://127.0.0.1:9545
 ```
+
+This installs only the packages these scripts need, not the five apps. A plain
+`npm ci` also works.
 
 The SDK scripts accept only loopback HTTP endpoints and check the localnet network
 identity. Use one local node for the sequence. Local nodes share a network hash,
@@ -35,31 +37,8 @@ Most signing examples create fresh accounts with keys held only in memory. They 
 local test funds; funds left in these accounts cannot be recovered after exit.
 They do not save keys, change app environments, or use your Freighter wallet.
 
-The application-token transfer below instead uses a funded disposable signer
+The application-token transfer (step 9) instead uses a funded disposable signer
 provided through an environment variable.
-
-## Transfer an application token
-
-Source: [transfer-token.ts](transfer-token.ts). This lesson uses the published
-ERC20 binding to transfer a token created by Launchpad. Start with a disposable
-local signer that holds test tokens and enough native tokens for scheduling.
-The [Airdrop app](../../apps/airdrop/README.md) can supply the test assets.
-The token contract also needs native funding for a new recipient's balance row;
-airdrop setup supplies that reserve.
-
-Set `TOKEN_SENDER_PRIVATE_KEY` privately in your environment. Then run:
-
-```sh
-export TOKEN_ADDRESS=<test-token-address>
-export TOKEN_RECIPIENT=<recipient-address>
-export TOKEN_AMOUNT=1
-npm run example:transfer-token > transfer-evidence.log
-```
-
-The script reads token decimals, signs one transfer, prints signed evidence before
-broadcast, and verifies the recipient balance. Keep the evidence file. If the
-request times out, inspect its original hash instead of running the script again.
-Never use a production key for this lesson.
 
 ## 1. Read the chain tip
 
@@ -230,7 +209,7 @@ it is not a read-only command. Use a dedicated Counter with no concurrent
 writers while checking exact values. This is a native local-account batch,
 not browser-wallet capability negotiation.
 
-## 7. Consume the hosted firehose
+## 8. Consume the hosted firehose
 
 Source: [consume-firehose.ts](consume-firehose.ts).
 
@@ -258,7 +237,30 @@ exit status. For `below_window`, recover state or explicitly choose a new output
 directory to start at tip. A saved checkpoint cannot be reused with a different
 endpoint.
 
-See the [firehose consumption guide](https://docs.thruput.network/guides/consume-the-firehose/).
+See the [firehose consumption guide](https://www.thruput.network/docs/guides/consume-the-firehose/).
+
+## 9. Transfer an application token
+
+Source: [transfer-token.ts](transfer-token.ts). This lesson uses the published
+ERC20 binding to transfer a token created by Launchpad. Start with a disposable
+local signer that holds test tokens and enough native tokens for scheduling.
+The [Airdrop app](../../apps/airdrop/README.md) can supply the test assets.
+The token contract also needs native funding for a new recipient's balance row;
+airdrop setup supplies that reserve.
+
+Set `TOKEN_SENDER_PRIVATE_KEY` privately in your environment. Then run:
+
+```sh
+export TOKEN_ADDRESS=<test-token-address>
+export TOKEN_RECIPIENT=<recipient-address>
+export TOKEN_AMOUNT=1
+npm run example:transfer-token > transfer-evidence.log
+```
+
+The script reads token decimals, signs one transfer, prints signed evidence before
+broadcast, and verifies the recipient balance. Keep the evidence file. If the
+request times out, inspect its original hash instead of running the script again.
+Never use a production key for this lesson.
 
 ## Supporting code
 
@@ -269,8 +271,37 @@ See the [firehose consumption guide](https://docs.thruput.network/guides/consume
 - `generate.sh` builds the artifact and matching binding.
 - `generated/counter.ts` is generated, not a hand-written teaching example.
 
-Scripts exit nonzero on errors. A submission timeout does not prove failure.
-Investigate the original hash instead of repeating a write on that assumption.
+Scripts exit nonzero on errors.
+
+## When a write times out
+
+A timeout after you send a transaction does not mean the transaction failed. It
+can still commit. The rule:
+
+1. Save the transaction hash before you broadcast it.
+2. After a timeout or a reload, look up that hash with
+   `client.getTransactionReceipt` or `client.getTransactionStatus`.
+3. Send the transaction again only when you know it did not commit.
+
+Where each example gets the hash:
+
+- `transfer-token.ts` signs first and prints the hash before it broadcasts.
+  This is the pattern to copy.
+- `batch-counter.ts` prints the hash it submitted, before it waits for the
+  receipt.
+- `deploy-counter.ts`, `transfer-native-token.ts`, and `pq-account.ts` use
+  `executeAndWait` or `deployContractAndWait`, which print a hash only after
+  the receipt arrives. On a timeout these calls throw an error whose
+  `transactionHash` field is the hash to look up.
+- The wallet apps (Voting, Airdrop, Launchpad, and Swap) save the hash in the
+  browser before the wallet broadcasts. The [Voting app](../../apps/voting/README.md)
+  explains how.
+- The Counter app keeps its activity in memory. A reload clears it, but does
+  not cancel transactions already sent.
+
+Do not resubmit a write only because it timed out. The
+[transaction lifecycle](https://www.thruput.network/docs/architecture/transaction-lifecycle/)
+explains the states a transaction goes through.
 
 ## Verification and next steps
 
@@ -279,5 +310,5 @@ runs the SDK scripts against a fresh isolated node and checks the results; it
 does not run the hosted firehose consumer. See
 [Development checks](../../scripts/README.md#checks).
 
-Next: [Counter app](../../apps/counter/README.md) for concurrent requests, or
-[Launchpad](../../apps/token-launchpad/README.md) for browser-wallet integration.
+Next: the [Voting app](../../apps/voting/README.md) for a browser wallet, or
+the [Counter app](../../apps/counter/README.md) for many concurrent transactions.

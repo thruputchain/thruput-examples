@@ -6,7 +6,7 @@ metadata and signed permits. Start with [Counter](../counter/README.md) and
 
 ## Run native tests
 
-Complete the [Rust setup](../../README.md#rust-and-cli).
+Complete the [setup](../../README.md#setup).
 From the repository root:
 
 ```sh
@@ -34,4 +34,4 @@ After CLI/runtime setup, `thruput test -p erc20` exercises the guest binary and
 See [Development checks](../../scripts/README.md#checks) for the distinction.
 
 Next: [Token Launchpad](../../apps/token-launchpad/README.md) for a full app,
-or [permit-wallet](../permit-wallet/src/lib.rs) for signed authorization.
+or [permit-wallet](../permit/wallet/src/lib.rs) for signed authorization.

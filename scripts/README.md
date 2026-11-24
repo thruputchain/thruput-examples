@@ -3,6 +3,17 @@
 These scripts support development and verification. For small runnable SDK
 examples, start at [examples/typescript](../examples/typescript/README.md).
 
+## Repository layout
+
+| Location                              | Audience and purpose                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------ |
+| `contracts/`                          | Rust contracts in learning order; see [contracts/README.md](../contracts/README.md) |
+| `examples/typescript/`                | Small scripts to read, run, and change while you learn the SDK           |
+| `apps/`                               | Teaching apps; `apps/*/scripts/` holds each app's setup and generation   |
+| `scripts/seed/`                       | Shared app seeding; not an introductory SDK example                      |
+| `scripts/`                            | Repository-wide builds and checks                                        |
+| `tests/browser/`, `tests/e2e/`        | Browser fixtures and live acceptance tests                               |
+
 Run all commands below from the repository root. Install the toolchain with
 [Setup](../README.md#setup). Shell tools use `thruput` on
 `PATH`; app setup accepts `THRUPUT_CLI`. Set both to the same CLI release.
@@ -14,9 +25,9 @@ Run all commands below from the repository root. Install the toolchain with
 | `bash scripts/build-guest.sh` | Build all guest artifacts | Rust, CLI, `jq`; writes `target/thruput/` |
 | `bash scripts/check-contracts.sh` | Native tests, guest builds/tests, RPC tests, Clippy, rustfmt | Full Rust/CLI/runtime toolchain; starts temporary nodes; expensive compared with one contract test |
 | `bash scripts/integration-tests.sh` | Counter and ERC20 RPC tests | CLI and matching runtime; builds artifacts and uses ephemeral nodes |
-| `bash scripts/counter-live.sh` | Beginner Counter Testkit example: deploy, increment, and check | CLI 0.47.0 and its installed runtime; builds Counter and starts a temporary node |
+| `bash contracts/counter-live/run.sh` | Beginner Counter Testkit example: deploy, increment, and check | CLI 0.47.0 and its installed runtime; builds Counter and starts a temporary node |
 | `bash scripts/check-thruput-version.test.sh` | Check CLI minimum-version parsing | Bash only; no node |
-| `bash scripts/swap-test-guest.sh` | Build Swap artifacts and run guest tests | Rust and CLI; no external RPC required |
+| `bash contracts/swap/test-guest.sh` | Build Swap artifacts and run guest tests | Rust and CLI; no external RPC required |
 
 `check-thruput-version.sh` is a helper used by binding generators. It is not a
 platform example. `build-guest.sh` and `check-contracts.sh` support `CARGO_UNLOCK`
@@ -27,15 +38,17 @@ See [Checks](#checks) below for the test categories.
 
 ## Advanced live scenarios and benchmarks
 
-Set `THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"` for live scenarios.
+These scripts live with the project they test. Each project README explains
+them. Set `THRUPUT_DEVNODE_BINARY="$(thruput toolchain which)"` for live
+scenarios.
 
 | Command | Purpose | Important effects |
 | --- | --- | --- |
-| `bash scripts/permit-live.sh` | Sign an off-chain permit and relay it on a devnode | Builds token/wallet/relayer artifacts; runs an ignored live test |
-| `bash scripts/swap-sim.sh` | Multi-agent Swap liquidity scenario | Builds Swap artifacts; runs an ignored live test |
-| `bash scripts/swap-gas-calibrate.sh` | Measure per-request crank gas, alone and in a batch | Overwrites the driver artifact with an instrumented build; rebuild normally afterward |
-| `bash scripts/speedex-bench.sh` | Measure exchange quality and on-node gas | Temporarily edits the Speedex manifest; leaves an artifact with a different memory budget; writes CSVs under `target/` |
-| `python3 scripts/speedex-plot.py` | Plot benchmark CSVs | Python and matplotlib; writes figures under `target/speedex-bench/` |
+| `bash contracts/permit/live.sh` | Sign an off-chain permit and relay it on a devnode | Builds token/wallet/relayer artifacts; runs an ignored live test |
+| `bash contracts/swap/bench/sim.sh` | Multi-agent Swap liquidity scenario | Builds Swap artifacts; runs an ignored live test |
+| `bash contracts/swap/bench/gas-calibrate.sh` | Measure per-request crank gas, alone and in a batch | Overwrites the driver artifact with an instrumented build; rebuild normally afterward |
+| `bash contracts/speedex/bench/run.sh` | Measure exchange quality and on-node gas | Temporarily edits the Speedex manifest; leaves an artifact with a different memory budget; writes CSVs under `target/` |
+| `python3 contracts/speedex/bench/plot.py` | Plot benchmark CSVs | Python and matplotlib; writes figures under `target/speedex-bench/` |
 
 The live/benchmark shell scripts use Bash features beyond the default Bash 3.2
 on older macOS installs. Use a current Bash. Run them one at a time when they
@@ -89,7 +102,7 @@ npm run build --workspaces
 ```
 
 Native Rust tests run without a node. `thruput test -p counter` runs the guest
-artifact; `thruput test --integration -p counter` runs RPC tests on an ephemeral
+artifact; `thruput test --integration -p erc20` runs RPC tests on an ephemeral
 node. Use `cargo test --workspace --locked`, `cargo fmt --check`, and
 `cargo clippy --workspace --all-targets --no-deps --locked -- -D warnings` for
 workspace-wide Rust checks. Ignored live/guest tests need their own commands.

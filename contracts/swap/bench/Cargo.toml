@@ -1,0 +1,37 @@
+[package]
+name = "swap-bench"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "GPL-3.0-or-later" # tests the UniswapV2 port; see /LICENSE-GPL-3.0
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[features]
+calibration = ["batch-driver/calibration"]
+
+[dev-dependencies]
+batch-driver = { path = "../batch-driver" }
+swap-factory = { path = "../factory" }
+swap-if = { path = "../interface" }
+thruput-erc20-if = { workspace = true }
+thruput-event = { workspace = true }
+thruput-json-rpc-types = { workspace = true }
+# Generate `<Iface>Remote` proxies, used as the tests' typed clients
+thruput-sdk = { workspace = true, features = ["remote"] }
+thruput-testkit = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+clippy.result_large_err = "allow"
+
+[[test]]
+name = "calibration"
+required-features = ["calibration"]

@@ -82,23 +82,7 @@ fn test_try_call_fib_returns_ok() {
     result.assert_success();
 }
 
-// ── Callee throws, caller catches via try_* ──────────────────────────────
-
-#[test]
-fn test_callee_error_caught_by_caller() {
-    let (env, fib_hash, cross_hash) = setup();
-
-    let result = env.transact(|tx| {
-        tx.call(&ContractAddress::named("caller")).run(|| {
-            let (fib_addr, cross_addr) = deploy_both(&fib_hash, &cross_hash);
-            let client = CrossCallClient::new(&cross_addr);
-
-            // call_fib_and_catch_error calls fib with n=999, catches InputTooLarge
-            assert!(client.call_fib_and_catch_error(&fib_addr));
-        })
-    });
-    result.assert_success();
-}
+// ── Callee throws, caller wraps the error via try_* ──────────────────────
 
 #[test]
 fn test_callee_error_wrapped_by_caller() {

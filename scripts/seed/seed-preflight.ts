@@ -54,7 +54,7 @@ export async function verifySwapRelationship(
   router: ContractAddress,
 ): Promise<void> {
   // No ABI getter or initialization event exists. These slots follow the pinned
-  // #[storage] layout in contracts/swap-{factory,router}/src/{factory,router}.rs.
+  // #[storage] layout in contracts/swap/{factory,router}/src/{factory,router}.rs.
   // Factory.router is field 2; Router.cfg is field 0 and Cfg has only factory.
   // Both Value payloads are CXS fixed-opaque Address (exactly 32 bytes).
   for (const [contract, domain, slot, expected] of [

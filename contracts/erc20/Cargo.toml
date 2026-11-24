@@ -51,7 +51,7 @@ erc20 = { path = ".", features = ["dev"] }
 sha2.workspace = true
 
 # RPC integration test (tests/integration.rs), run via `thruput test --integration`.
-integration-test = { path = "../../helpers/integration-test" }
+integration-test = { path = "integration-test" }
 thruput-xdr = { workspace = true }
 tokio = { workspace = true }
 
