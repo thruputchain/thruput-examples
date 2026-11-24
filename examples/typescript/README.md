@@ -276,13 +276,28 @@ Scripts exit nonzero on errors.
 ## When a write times out
 
 A timeout after you send a transaction does not mean the transaction failed. It
-can still commit. Every app in this repository follows the same rule:
+can still commit. The rule:
 
-1. Save the transaction hash before you broadcast it. The scripts print each
-   hash as soon as they have it; the browser apps save it to `localStorage`.
+1. Save the transaction hash before you broadcast it.
 2. After a timeout or a reload, look up that hash with
    `client.getTransactionReceipt` or `client.getTransactionStatus`.
 3. Send the transaction again only when you know it did not commit.
+
+Where each example gets the hash:
+
+- `transfer-token.ts` signs first and prints the hash before it broadcasts.
+  This is the pattern to copy.
+- `batch-counter.ts` prints the hash it submitted, before it waits for the
+  receipt.
+- `deploy-counter.ts`, `transfer-native-token.ts`, and `pq-account.ts` use
+  `executeAndWait` or `deployContractAndWait`, which print a hash only after
+  the receipt arrives. On a timeout these calls throw an error whose
+  `transactionHash` field is the hash to look up.
+- The wallet apps (Voting, Airdrop, Launchpad, and Swap) save the hash in the
+  browser before the wallet broadcasts. The [Voting app](../../apps/voting/README.md)
+  explains how.
+- The Counter app keeps its activity in memory. A reload clears it, but does
+  not cancel transactions already sent.
 
 Do not resubmit a write only because it timed out. The
 [transaction lifecycle](https://www.thruput.network/docs/architecture/transaction-lifecycle/)
