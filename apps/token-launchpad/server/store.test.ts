@@ -8,6 +8,7 @@ import { TokenStore, type IndexedToken } from "./store";
 
 let directory: string;
 let store: TokenStore;
+const scope = { networkId: "network", factoryAddress: "factory" };
 const token = (n: number, creator = "alice"): IndexedToken => ({
   address: `token-${n}`,
   creator,
@@ -21,7 +22,7 @@ const token = (n: number, creator = "alice"): IndexedToken => ({
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "launchpad-store-"));
-  store = new TokenStore(join(directory, "tokens.sqlite"));
+  store = new TokenStore(join(directory, "tokens.sqlite"), scope);
 });
 afterEach(async () => {
   store.close();
@@ -68,5 +69,14 @@ it("refuses a database written by the previous Launchpad", () => {
   const previous = new DatabaseSync(path);
   previous.exec("CREATE TABLE registry_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
   previous.close();
-  expect(() => new TokenStore(path)).toThrow(/earlier version of Launchpad/);
+  expect(() => new TokenStore(path, scope)).toThrow(/earlier version of Launchpad/);
+});
+
+it("refuses a database that indexes another factory", () => {
+  const path = join(directory, "tokens.sqlite");
+  expect(
+    () => new TokenStore(path, { ...scope, factoryAddress: "other factory" }),
+  ).toThrow(/indexes factory factory on network network/);
+  // The same deployment opens it again.
+  new TokenStore(path, scope).close();
 });

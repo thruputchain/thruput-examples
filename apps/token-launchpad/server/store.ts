@@ -12,6 +12,12 @@ export interface IndexedToken {
   transactionHash: string;
 }
 
+/** The deployment a database indexes. */
+export interface StoreScope {
+  networkId: string;
+  factoryAddress: string;
+}
+
 export interface TokenQuery {
   q?: string | undefined;
   creator?: string | undefined;
@@ -21,12 +27,13 @@ export interface TokenQuery {
 
 /**
  * A small SQLite store for the indexer: one row per `TokenCreated` event, and
- * the block height the indexer has read through.
+ * the block height the indexer has read through. A database belongs to one
+ * network and factory.
  */
 export class TokenStore {
   readonly #db: DatabaseSync;
 
-  constructor(path: string) {
+  constructor(path: string, scope: StoreScope) {
     this.#db = new DatabaseSync(path);
     // The previous Launchpad kept a different schema in this file. Stop here
     // rather than fail on the first query.
@@ -56,7 +63,29 @@ export class TokenStore {
         id INTEGER PRIMARY KEY CHECK (id = 1),
         block_height INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS scope (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        network_id TEXT NOT NULL,
+        factory_address TEXT NOT NULL
+      );
     `);
+    // A new file takes this scope. Another deployment's tokens and checkpoint
+    // must not be served, or indexed from, for this one.
+    this.#db
+      .prepare("INSERT OR IGNORE INTO scope VALUES (1, ?, ?)")
+      .run(scope.networkId, scope.factoryAddress);
+    const saved = this.#db
+      .prepare("SELECT network_id, factory_address FROM scope WHERE id = 1")
+      .get() as { network_id: string; factory_address: string };
+    if (
+      saved.network_id !== scope.networkId ||
+      saved.factory_address !== scope.factoryAddress
+    ) {
+      this.#db.close();
+      throw new Error(
+        `${path} indexes factory ${saved.factory_address} on network ${saved.network_id}, not this deployment. Set TOKEN_REGISTRY_DB_PATH to a new file.`,
+      );
+    }
   }
 
   /** Insert or replace by event identity, so replaying a block is safe. */

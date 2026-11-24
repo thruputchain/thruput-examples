@@ -201,7 +201,10 @@ try {
   });
   // Index the Launchpad factory's TokenCreated events, as its server does.
   async function index() {
-    store ??= new TokenStore(join(work, "tokens.sqlite"));
+    store ??= new TokenStore(join(work, "tokens.sqlite"), {
+      networkId: launch.VITE_THRUPUT_NETWORK_ID!,
+      factoryAddress: launchFactory,
+    });
     await indexOnce(indexClient, store, launchFactory);
   }
   const tokenCount = () =>

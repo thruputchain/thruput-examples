@@ -90,8 +90,6 @@ export function useWalletTransaction<T>(
   // The same receipt can arrive from `send` and from the receipt query.
   function finish(saved: Pending<T>, transactionReceipt: TransactionReceipt) {
     if (done.current.hash === saved.hash) return;
-    done.current.hash = saved.hash;
-    forget();
     const execution = transactionReceipt.execution;
     const result: Completed<T> = {
       label: saved.label,
@@ -99,8 +97,17 @@ export function useWalletTransaction<T>(
       receipt: transactionReceipt,
       succeeded: "result" in execution && execution.result === "return",
     };
+    // Report first: `onDone` can save a record of its own, such as Swap's
+    // queued request. If that fails, keep this one, so a reload can recover.
+    try {
+      done.current.onDone?.(result);
+    } catch (error) {
+      setMessage(userErrorMessage(error, `${saved.label} committed, but saving its result failed.`));
+      return;
+    }
+    done.current.hash = saved.hash;
+    forget();
     setCompleted(result);
-    done.current.onDone?.(result);
   }
 
   useEffect(() => {

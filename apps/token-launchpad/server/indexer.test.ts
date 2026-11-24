@@ -15,7 +15,10 @@ let directory: string;
 let store: TokenStore;
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "launchpad-indexer-"));
-  store = new TokenStore(join(directory, "tokens.sqlite"));
+  store = new TokenStore(join(directory, "tokens.sqlite"), {
+    networkId: "network",
+    factoryAddress: toBase58(new Uint8Array(32)),
+  });
 });
 afterEach(async () => {
   store.close();
