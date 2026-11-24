@@ -197,3 +197,20 @@ it("sends once when a second click comes while the first is still reading", asyn
   expect(build).toHaveBeenCalledTimes(1);
   expect(mocks.executeCallsAndWait).toHaveBeenCalledTimes(1);
 });
+
+it("keeps the saved transaction when its completion cannot be recorded", async () => {
+  const receipt = { execution: { result: "return" } } as TransactionReceipt;
+  mocks.executeCallsAndWait.mockImplementation(async (_request, options) => {
+    await options.onSigned(signed);
+    return { receipt };
+  });
+  const onDone = vi.fn(() => {
+    throw new Error("Storage is full");
+  });
+  const { result } = renderHook(() => useWalletTransaction(key, onDone));
+  await act(() => result.current.send("Launch token", () => ({ calls: [call] }), {}));
+  // Kept, so a reload observes the receipt and records the result again.
+  expect(localStorage.getItem(key)).not.toBeNull();
+  expect(result.current.completed).toBeNull();
+  expect(result.current.message).toBe("Storage is full");
+});

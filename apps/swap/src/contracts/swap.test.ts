@@ -1,9 +1,10 @@
 import { fixedBytes } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import { afterEach, expect, it, vi } from "vitest";
+import { ERC20Metadata } from "@/contracts/generated/erc20";
 import { batch_driver } from "@/contracts/generated/swap-driver";
 import { swap_if } from "@/contracts/generated/swap-handler";
-import { findRequestOutcome, sortTokens } from "./swap";
+import { findRequestOutcome, readToken, sortTokens } from "./swap";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const pool = { driver: address(1), handler: address(2) };
@@ -75,4 +76,20 @@ it("reports a failed request, and a request that is still queued", async () => {
 it("orders a pair's tokens by address bytes", () => {
   expect(sortTokens(address(9), address(1))).toEqual([address(1), address(9)]);
   expect(() => sortTokens(address(1), address(1))).toThrow();
+});
+
+it("rejects a token whose decimals this app cannot format", async () => {
+  const metadata = ERC20Metadata.v0_1;
+  vi.spyOn(metadata.name, "view").mockResolvedValue({ value: "Wide" } as never);
+  vi.spyOn(metadata.symbol, "view").mockResolvedValue({ value: "WIDE" } as never);
+  const decimals = vi.spyOn(metadata.decimals, "view");
+  const reader = { client: {}, factory: address(4), caller: address(5) } as never;
+
+  decimals.mockResolvedValue({ value: 255n } as never);
+  expect((await readToken(reader, address(6))).decimals).toBe(255);
+  // The factory accepts any u32; amounts here format at most 255 decimals.
+  decimals.mockResolvedValue({ value: 300n } as never);
+  await expect(readToken(reader, address(6))).rejects.toThrow(
+    /WIDE declares 300 decimals; this app supports at most 255/,
+  );
 });

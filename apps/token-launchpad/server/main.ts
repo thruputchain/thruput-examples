@@ -70,7 +70,7 @@ if (
   const root = fileURLToPath(new URL("..", import.meta.url));
   const config = loadServerConfig(process.env, root);
   await mkdir(dirname(config.databasePath), { recursive: true });
-  const store = new TokenStore(config.databasePath);
+  const store = new TokenStore(config.databasePath, config);
   const indexer = startIndexer(
     await createIndexerClient(config),
     store,

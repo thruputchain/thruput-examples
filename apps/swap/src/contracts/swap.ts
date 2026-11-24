@@ -89,13 +89,23 @@ export async function readToken(
     ERC20Metadata.v0_1.decimals.view(views),
   ]);
   const unnamed = tokenByAddress(address);
+  const symbolText = symbol.value ?? unnamed.symbol;
+  // A token can declare any u32, but amounts here format at most 255 decimals.
+  const places = decimals.value ?? 0n;
+  if (places > MAX_DECIMALS)
+    throw new Error(
+      `${symbolText} declares ${places} decimals; this app supports at most ${MAX_DECIMALS}.`,
+    );
   return {
     address,
     name: name.value ?? unnamed.name,
-    symbol: symbol.value ?? unnamed.symbol,
-    decimals: Number(decimals.value ?? 0n),
+    symbol: symbolText,
+    decimals: Number(places),
   };
 }
+
+/** The most decimals `formatAmount` and `parseAmount` take. */
+const MAX_DECIMALS = 255n;
 
 /** A token shown by its address, for one without readable metadata. */
 export function tokenByAddress(address: ContractAddress): Token {
