@@ -28,6 +28,17 @@ export class TokenStore {
 
   constructor(path: string) {
     this.#db = new DatabaseSync(path);
+    // The previous Launchpad kept a different schema in this file. Stop here
+    // rather than fail on the first query.
+    const previous = this.#db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'registry_state'")
+      .get();
+    if (previous) {
+      this.#db.close();
+      throw new Error(
+        `${path} was written by an earlier version of Launchpad. Set TOKEN_REGISTRY_DB_PATH to a new file; the indexer rebuilds the token list from the factory's events.`,
+      );
+    }
     this.#db.exec(`
       CREATE TABLE IF NOT EXISTS tokens (
         transaction_hash TEXT NOT NULL,
@@ -85,8 +96,12 @@ export class TokenStore {
     const conditions: string[] = [];
     const values: (string | number)[] = [];
     if (query.q) {
-      conditions.push("(name LIKE ? OR symbol LIKE ? OR address = ?)");
-      values.push(`%${query.q}%`, `%${query.q}%`, query.q);
+      // Match `%` and `_` in the query literally, not as wildcards.
+      const pattern = `%${query.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      conditions.push(
+        "(name LIKE ? ESCAPE '\\' OR symbol LIKE ? ESCAPE '\\' OR address = ?)",
+      );
+      values.push(pattern, pattern, query.q);
     }
     if (query.creator) {
       conditions.push("creator = ?");

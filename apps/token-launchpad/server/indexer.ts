@@ -117,9 +117,11 @@ export function startIndexer(
     try {
       const done = await indexOnce(client, store, factory);
       if (done !== undefined) status.indexedThrough = done.toString();
+      // A pass walks from the checkpoint, so success means there is no gap.
+      status.historyError = false;
       status.lastError = null;
     } catch (error) {
-      status.historyError ||= error instanceof HistoryWalkError;
+      status.historyError = error instanceof HistoryWalkError;
       status.lastError = error instanceof Error ? error.message : String(error);
       console.error(`Token indexer: ${status.lastError}`);
     }

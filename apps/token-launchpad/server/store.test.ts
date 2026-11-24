@@ -2,6 +2,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { TokenStore, type IndexedToken } from "./store";
 
@@ -51,4 +52,21 @@ it("keeps the checkpoint", () => {
   expect(store.loadCheckpoint()).toBeUndefined();
   store.saveCheckpoint(42n);
   expect(store.loadCheckpoint()).toBe(42n);
+});
+
+it("matches % and _ in a search literally", () => {
+  store.saveToken(token(1), 0);
+  store.saveToken({ ...token(2), name: "100% Token", symbol: "P_C" }, 0);
+  const ids = (q: string) =>
+    store.listTokens({ q, limit: 10, offset: 0 }).tokens.map((t) => t.address);
+  expect(ids("_")).toEqual(["token-2"]);
+  expect(ids("%")).toEqual(["token-2"]);
+});
+
+it("refuses a database written by the previous Launchpad", () => {
+  const path = join(directory, "previous.sqlite");
+  const previous = new DatabaseSync(path);
+  previous.exec("CREATE TABLE registry_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+  previous.close();
+  expect(() => new TokenStore(path)).toThrow(/earlier version of Launchpad/);
 });
