@@ -10,9 +10,20 @@ import { useMemo, useSyncExternalStore } from "react";
  */
 const watchers = new Map<string, Set<() => void>>();
 
+/** The stored text, or null when there is none or storage is blocked. */
+function readText(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    // The browser can deny site storage. Reads then show no record; writes
+    // still throw, so a transaction whose record cannot be saved is not sent.
+    return null;
+  }
+}
+
 export function readRecord(key: string): unknown {
   try {
-    return JSON.parse(localStorage.getItem(key) ?? "null");
+    return JSON.parse(readText(key) ?? "null");
   } catch {
     // Unreadable storage is treated as no record.
     return null;
@@ -34,7 +45,7 @@ export function useRecord<T>(key: string, parse: (value: unknown) => T | null): 
       watchers.set(key, set.add(notify));
       return () => set.delete(notify);
     },
-    () => localStorage.getItem(key),
+    () => readText(key),
   );
   return useMemo(() => parse(readRecord(key)), [key, raw]);
 }
