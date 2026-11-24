@@ -323,3 +323,27 @@ it("does not offer to forget another account's transaction after an unknown resu
   act(() => result.current.forgetUnknown());
   expect(loadPending(otherKey)).toEqual(otherSaved);
 });
+
+it("does not call a transaction expired when its blocks are pruned during the check", async () => {
+  const record = { ...saved, expiresAt: "5000" };
+  savePending(key, record);
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 9000n });
+  const page = (oldest: bigint) => ({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: oldest,
+    latestIndexedBlockHeight: 9000n,
+  });
+  // Every block that could hold it is kept at first, then pruned before the
+  // receipt read can find it.
+  mocks.getTransactionsByBlock
+    .mockResolvedValueOnce(page(0n))
+    .mockResolvedValueOnce(page(4500n));
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  await act(() => result.current.checkAgain());
+  expect(result.current.pending).toEqual(record);
+  expect(result.current.unknownOutcome).toBe(true);
+  expect(mocks.getTransactionReceipt.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.getTransactionsByBlock.mock.invocationCallOrder[1]!,
+  );
+});

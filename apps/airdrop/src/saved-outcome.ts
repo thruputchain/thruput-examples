@@ -44,6 +44,9 @@ type OutcomeReader = Pick<
  *    block indexed between the two reads cannot hide a commit.
  * 3. The status, which reports a recent commit before its receipt is
  *    indexed, then the receipt.
+ * 4. The oldest block the node keeps, again. A block pruned after step 2 can
+ *    take a committed receipt with it, so the range must still cover every
+ *    block that could hold the transaction after the receipt read.
  */
 export async function readSavedOutcome(
   client: OutcomeReader,
@@ -60,7 +63,8 @@ export async function readSavedOutcome(
   if (indexed.latest < expiresAt) return "notIndexed";
   // The first block that could include the transaction (block 1 at the least).
   const first = expiresAt > EXPIRY_BLOCKS ? expiresAt - EXPIRY_BLOCKS + 1n : 1n;
-  if (indexed.oldest > first) return "unknown";
+  const kept = await indexedRange(client, expiresAt);
+  if (kept.oldest > first) return "unknown";
   return "expired";
 }
 
