@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Link, NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { useWallet } from "@thruputchain/react";
 import type { AppConfig } from "./config";
@@ -101,10 +101,14 @@ function CreatePoll({
 }) {
   const wallet = useWallet();
   const navigate = useNavigate();
+  // Only a poll confirmed while this page is open moves on to Manage polls.
+  // A confirmation from an earlier visit is just cleared.
+  const confirmedBefore = useRef(tx.completed === "Create poll");
   useEffect(() => {
     if (tx.completed !== "Create poll") return;
     tx.dismissConfirmation();
-    navigate("/admin");
+    if (confirmedBefore.current) confirmedBefore.current = false;
+    else navigate("/admin");
   }, [tx.completed, navigate]);
   return (
     <>
