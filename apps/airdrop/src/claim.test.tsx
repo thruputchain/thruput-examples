@@ -271,3 +271,27 @@ it("runs one check at a time, and a slow check does not clear a newer claim", as
   await act(() => first);
   expect(localStorage.getItem(key)).toBe(newer);
 });
+
+it("does not offer to forget another account's claim after an unknown result", async () => {
+  localStorage.setItem(key, JSON.stringify({ ...record, expiresAt: "5000" }));
+  const other = config.address;
+  const otherRecord = JSON.stringify({ hash: toBase58(new Uint8Array(32).fill(9)), expiresAt: "100" });
+  localStorage.setItem(keyFor(other), otherRecord);
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 9000n });
+  mocks.getTransactionsByBlock.mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 4500n,
+    latestIndexedBlockHeight: 9000n,
+  });
+  const { result, rerender } = renderHook(() => useClaim(config), { wrapper });
+  await act(() => result.current.checkAgain());
+  expect(result.current.unknownOutcome).toBe(true);
+
+  mocks.wallet.address = other;
+  rerender();
+  await waitFor(() => expect(result.current.pending?.hash).toBe(JSON.parse(otherRecord).hash));
+  expect(result.current.unknownOutcome).toBe(false);
+  act(() => result.current.forgetUnknown());
+  expect(localStorage.getItem(keyFor(other))).toBe(otherRecord);
+});

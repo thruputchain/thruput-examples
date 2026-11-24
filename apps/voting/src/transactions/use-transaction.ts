@@ -41,8 +41,9 @@ export function useTransaction(config: AppConfig) {
   // Refs, not state: a second click before the next render must see them.
   const sending = useRef(false);
   const checking = useRef(false);
-  // The node cannot tell whether the saved transaction committed.
-  const [unknownOutcome, setUnknownOutcome] = useState(false);
+  // The hash of a saved transaction whose outcome the node cannot tell. A
+  // hash, not a flag, so it never applies to another record.
+  const [unknownHash, setUnknownHash] = useState<string | null>(null);
   // The hash already reported: the receipt arrives from `send` and from the
   // receipt query.
   const reported = useRef<string | null>(null);
@@ -63,7 +64,6 @@ export function useTransaction(config: AppConfig) {
   function forget(savedKey: string, saved: Pending) {
     if (loadPending(savedKey)?.hash === saved.hash) clearPending(savedKey);
     setPending((shown) => (shown?.hash === saved.hash ? null : shown));
-    setUnknownOutcome(false);
   }
 
   function finish(
@@ -133,6 +133,10 @@ export function useTransaction(config: AppConfig) {
     try {
       const expiresAt = BigInt(checked.expiresAt);
       const outcome = await readSavedOutcome(client, checked.hash, expiresAt);
+      // The user may have switched accounts, or the record changed: report
+      // only on the record that was checked, while the page still shows it.
+      if (shownKey.current !== checkedKey || loadPending(checkedKey)?.hash !== checked.hash)
+        return;
       if (outcome === "observe") {
         await receipt.refetch();
       } else if (outcome === "notIndexed") {
@@ -141,7 +145,7 @@ export function useTransaction(config: AppConfig) {
         );
       } else if (outcome === "unknown") {
         // It may have committed: keep the record until the user decides.
-        setUnknownOutcome(true);
+        setUnknownHash(checked.hash);
         setMessage(
           `The node no longer keeps the blocks that could hold ${checked.label}, so it cannot tell whether it committed. Look up ${checked.hash} in an explorer. If it did not commit, forget it and send again.`,
         );
@@ -160,7 +164,7 @@ export function useTransaction(config: AppConfig) {
 
   /** Clear a record whose outcome the node cannot tell, after the user looked it up. */
   function forgetUnknown() {
-    if (!pending || !unknownOutcome) return;
+    if (!pending || pending.hash !== unknownHash) return;
     forget(key, pending);
     setMessage(null);
   }
@@ -172,7 +176,7 @@ export function useTransaction(config: AppConfig) {
     completed,
     waitTimedOut: Boolean(receipt.error),
     blocked: busy || Boolean(pending),
-    unknownOutcome,
+    unknownOutcome: pending !== null && pending.hash === unknownHash,
     send,
     checkAgain,
     forgetUnknown,
