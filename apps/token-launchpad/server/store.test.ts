@@ -119,3 +119,13 @@ it("lists nothing until the indexer's first pass completes", () => {
   store.saveCheckpoint(2n);
   expect(store.listTokens({ limit: 10, offset: 0 }).tokens).toHaveLength(2);
 });
+
+it("never lists past the checkpoint, whatever asOfBlock a client sends", () => {
+  for (const n of [1, 2, 3]) store.saveToken(token(n), 0);
+  // An index being rebuilt has no checkpoint yet.
+  expect(store.listTokens({ limit: 10, offset: 0, asOfBlock: 3 }).tokens).toEqual([]);
+  store.saveCheckpoint(2n);
+  const page = store.listTokens({ limit: 10, offset: 0, asOfBlock: 3 });
+  expect(page.asOfBlock).toBe("2");
+  expect(page.tokens.map((t) => t.address)).toEqual(["token-2", "token-1"]);
+});

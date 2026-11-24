@@ -132,13 +132,13 @@ export class TokenStore {
     hasMore: boolean;
     asOfBlock: string | null;
   } {
-    // Stop at the checkpoint: every block up to it is fully indexed, while a
-    // later block can still be gaining tokens from the next RPC page. Before
-    // the first pass completes there is no checkpoint, so nothing is listed.
+    // Never list past the checkpoint: every block up to it is fully indexed,
+    // while a later block can still be gaining tokens from the next RPC page.
+    // Before the first pass completes there is no checkpoint, so nothing is
+    // listed. A client's `asOfBlock` can only lower the limit.
     const checkpoint = this.loadCheckpoint();
-    if (checkpoint === undefined && query.asOfBlock === undefined)
-      return { tokens: [], hasMore: false, asOfBlock: null };
-    const asOfBlock = query.asOfBlock ?? Number(checkpoint);
+    if (checkpoint === undefined) return { tokens: [], hasMore: false, asOfBlock: null };
+    const asOfBlock = Math.min(query.asOfBlock ?? Infinity, Number(checkpoint));
     const conditions: string[] = [];
     const values: (string | number)[] = [];
     conditions.push("block_height <= ?");
